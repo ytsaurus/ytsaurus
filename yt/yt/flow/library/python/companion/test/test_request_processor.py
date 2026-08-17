@@ -293,8 +293,8 @@ class TestPutJob:
         result = processor.put_job(request)
         assert result["status"] == "RS_OK"
 
-        # Verify job is cached.
-        job_id = "12345678-abcdef00"
+        # Verify job is cached (ids are keyed by their canonical YT text form).
+        job_id = "0-abcdef00-0-12345678"
         cached_job = job_ctx.get_job(job_id)
         assert cached_job is not None
 

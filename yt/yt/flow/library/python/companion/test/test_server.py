@@ -240,3 +240,45 @@ class TestGrpcRoundTrip:
                 channel.close()
         finally:
             server.stop()
+
+
+class TestResourceExecuteErrorResponse:
+    def test_internal_failure_returns_a_serializable_response(self):
+        cs_pb2, _, _, guid_pb2, grpc = _get_modules()
+        from yt.yt.flow.library.python.companion.server import CompanionServiceServicer
+        from yt.yt.flow.library.python.companion.job import JobContext
+
+        servicer = CompanionServiceServicer(PipelineContext(), JobContext())
+
+        def _explode(request):
+            raise RuntimeError("companion bug")
+
+        servicer._processor.resource_execute = _explode
+
+        class _Context:
+            def __init__(self):
+                self.code = None
+                self.details = None
+
+            def set_code(self, code):
+                self.code = code
+
+            def set_details(self, details):
+                self.details = details
+
+        request = cs_pb2.TReqResourceExecute()
+        request.request_id.CopyFrom(_make_guid(guid_pb2))
+        request.resource_id = "r"
+        request.command = cs_pb2.RC_INIT
+
+        context = _Context()
+        response = servicer.ResourceExecute(request, context)
+
+        assert context.code == grpc.StatusCode.INTERNAL
+        # request_id and status are required fields: an unserializable response
+        # would reach the worker as an opaque serialization error instead of
+        # the cause reported here.
+        response.SerializeToString()
+        assert response.request_id == request.request_id
+        assert response.status == cs_pb2.RES_ERROR
+        assert "companion bug" in response.error.message

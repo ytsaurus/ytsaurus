@@ -7,11 +7,15 @@ import time
 import pytest
 
 from yt.yt.flow.library.python.companion.parent import (
+    DEFAULT_STOP_TIMEOUT_SECONDS,
     DEFAULT_SUPERVISE_INTERVAL_SECONDS,
     CrashLoopError,
     CompanionProcessSupervisor,
     _ForkedChild,
+    _drain_child,
+    _make_stop_handler,
 )
+from yt.yt.flow.library.python.companion.server import DEFAULT_DRAIN_TIMEOUT_SECONDS
 
 
 class FakeChild:
@@ -274,3 +278,71 @@ def test_stop_reaps_a_real_child_that_ignores_sigterm():
     # raises instead of blocking.
     with pytest.raises(ChildProcessError):
         os.waitpid(pid, 0)
+
+
+class _DrainRecorder:
+    """Records the drain sequencing of a stopping child."""
+
+    def __init__(self, fail_shutdown=None):
+        self.calls = []
+        self._fail_shutdown = fail_shutdown
+
+    def stop(self, grace):
+        self.calls.append(("stop", grace))
+
+        class _Event:
+            def wait(inner):
+                self.calls.append(("wait",))
+
+        return _Event()
+
+    def shutdown(self):
+        self.calls.append(("shutdown",))
+        if self._fail_shutdown is not None:
+            raise self._fail_shutdown
+
+
+def test_drain_child_releases_resources_after_the_server_drains():
+    recorder = _DrainRecorder()
+
+    _drain_child(recorder, recorder)
+
+    # The resources go only after in-flight RPCs finished: batches still
+    # holding leases must complete against usable instances. The grace is the
+    # drain slice, not the whole stop budget: the rest funds the unload hooks,
+    # which would otherwise be killed instead of run.
+    assert recorder.calls == [("stop", DEFAULT_DRAIN_TIMEOUT_SECONDS), ("wait",), ("shutdown",)]
+    assert DEFAULT_DRAIN_TIMEOUT_SECONDS < DEFAULT_STOP_TIMEOUT_SECONDS
+
+
+def test_drain_child_survives_a_failing_shutdown():
+    recorder = _DrainRecorder(fail_shutdown=RuntimeError("hook failed"))
+
+    # A failing unload hook must not turn a graceful child exit into a crash.
+    _drain_child(recorder, recorder)
+
+    assert recorder.calls == [("stop", DEFAULT_DRAIN_TIMEOUT_SECONDS), ("wait",), ("shutdown",)]
+
+
+def test_drain_child_survives_a_shutdown_escaping_as_base_exception():
+    recorder = _DrainRecorder(fail_shutdown=BaseException("hook escaped"))  # noqa: TRY002
+
+    # ResourceStore.shutdown re-raises BaseException by design; escaping here
+    # would skip the child's exit and report a graceful stop as a crash.
+    _drain_child(recorder, recorder)
+
+    assert recorder.calls == [("stop", DEFAULT_DRAIN_TIMEOUT_SECONDS), ("wait",), ("shutdown",)]
+
+
+def test_second_stop_signal_does_not_re_enter_the_drain():
+    recorder = _DrainRecorder()
+    exits = []
+    handler = _make_stop_handler(recorder, recorder, exit_process=exits.append)
+
+    handler(signal.SIGTERM, None)
+    handler(signal.SIGTERM, None)
+
+    # The second signal must not restart the drain: re-entering would exit the process
+    # while the first invocation still had unload hooks to run.
+    assert recorder.calls == [("stop", DEFAULT_DRAIN_TIMEOUT_SECONDS), ("wait",), ("shutdown",)]
+    assert exits == [0]

@@ -232,6 +232,7 @@ class DefaultRuntimeContext:
         key_schema: Optional[TableSchema] = None,
         joined_external_states: Optional[Dict[str, StatesHolder]] = None,
         joiner_state_names: Optional[Set[str]] = None,
+        resources: Optional[Dict[str, Any]] = None,
     ):
         self._internal_state_names = internal_state_names
         self._stream_specs = stream_specs
@@ -244,6 +245,7 @@ class DefaultRuntimeContext:
         self._key_schema = key_schema or EMPTY_SCHEMA
         self._joined_external_states = joined_external_states or {}
         self._joiner_state_names = joiner_state_names or set()
+        self._resources = resources or {}
 
     # --- Pythonic shorthand API ---
 
@@ -312,6 +314,23 @@ class DefaultRuntimeContext:
         """Access stream specs."""
         return self._stream_specs
 
+    def get_resource(self, alias: str):
+        """Companion-hosted resource by the alias from the computation's
+        ``required_resource_ids`` entry (the resource id when no alias is set).
+
+        Read it here on every call: the instance is served per batch, and one
+        cached across batches keeps being used after the worker retired it and
+        its unload hook ran.
+        """
+        resource = self._resources.get(alias)
+        if resource is None:
+            raise ValueError(
+                f"Companion resource is not available in this process; companion-hosted "
+                f"resources must be listed in the computation's required_resource_ids "
+                f"(Alias: {alias})"
+            )
+        return resource
+
     def _get_or_create_state_holder(self, state_name: str) -> StatesHolder:
         self._validate_internal_state_name(state_name)
         states_holder = self._internal_states.get(state_name)
@@ -356,6 +375,7 @@ class RequestContext:
     min_watermark: int = 0
     job: Any = None
     stream_specs_override: Optional[StreamSpecs] = None
+    resources: Dict[str, Any] = field(default_factory=dict)
 
 
 # ---------- ResponseContext ----------
@@ -383,6 +403,7 @@ class PipelineContext:
     def __init__(self):
         self._computations: Dict[str, Any] = {}
         self._streams_context = FlowStreamsContext()
+        self._resource_factories: Dict[str, Any] = {}
         self._frozen = False
 
     def register_computation(self, computation):
@@ -391,6 +412,17 @@ class PipelineContext:
         if computation.computation_id in self._computations:
             raise ValueError(f"Computation {computation.computation_id} already exists")
         self._computations[computation.computation_id] = computation
+
+    def register_resource_class(self, resource_class_name: str, factory):
+        """Register a companion resource class by the name the pipeline spec
+        uses under the ``companion_resource_class`` parameter; ``factory`` is
+        called without arguments to build a fresh instance per init.
+        """
+        if self._frozen:
+            raise RuntimeError(self._FROZEN_MSG)
+        if resource_class_name in self._resource_factories:
+            raise ValueError(f"Resource class {resource_class_name} already exists")
+        self._resource_factories[resource_class_name] = factory
 
     def register_stream(self, stream: FlowStream):
         if self._frozen:
@@ -413,6 +445,9 @@ class PipelineContext:
 
     def get_stream_context(self) -> FlowStreamsContext:
         return self._streams_context
+
+    def get_resource_factories(self) -> Dict[str, Any]:
+        return self._resource_factories
 
     def to_dict(self) -> dict:
         computations = {}

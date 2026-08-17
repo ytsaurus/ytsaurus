@@ -13,6 +13,10 @@ from yt.yt.flow.library.python.companion.computation import (
 )
 from yt.yt.flow.library.python.companion.context import PipelineContext
 from yt.yt.flow.library.python.companion.job import JobContext
+from yt.yt.flow.library.python.companion.proto_mapper import (
+    _guid_parts_from_str,
+    _guid_to_str,
+)
 from yt.yt.flow.library.python.companion.service import (
     CompanionRequestProcessor,
 )
@@ -184,8 +188,13 @@ class TestProcessorLifecycle:
         seed = self._make_batch_request(cs_pb2, 2, job_id_guid, with_job_info=True)
         assert processor.process_batch(seed, proto_module)["status"] == "RS_OK"
 
-        assert processor.list_jobs(request)["job_ids"] == [f"{0xAB:x}-{0xCD:x}"]
-        assert job_ctx.list_job_ids() == [f"{0xAB:x}-{0xCD:x}"]
+        # Jobs are keyed by the canonical text form of their id, the same one
+        # the worker and controller logs print.
+        job_id = _guid_to_str(job_id_guid)
+        assert processor.list_jobs(request)["job_ids"] == [job_id]
+        assert job_ctx.list_job_ids() == [job_id]
+        # The ListJobs response converts the key back into proto halves.
+        assert _guid_parts_from_str(job_id) == (job_id_guid.first, job_id_guid.second)
 
         remove = cs_pb2.TReqRemoveJob()
         remove.request_id.CopyFrom(_make_guid_proto(3, 3))

@@ -4,6 +4,8 @@ RECURSE(
     resource/common
     resource/cpp
     resource/cpp/companion
+    resource/python
+    resource/python/pipeline
     types/common
     types/python
     types/python/pipeline

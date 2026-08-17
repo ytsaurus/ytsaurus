@@ -12,6 +12,7 @@ from .computation import (
     _classify_callable,
 )
 from .context import PipelineContext
+from .resource import FlowResource, resource_class_name
 from .row import ExtendedMessage
 from .server import GrpcServerExecution
 
@@ -84,6 +85,28 @@ class Pipeline:
             return fn
 
         return decorator
+
+    def add_resource(self, resource, factory: Optional[Callable] = None):
+        """Register a companion resource class hosted by this companion.
+
+        Args:
+            resource: A ``FlowResource`` subclass, registered under its derived
+                name (the class's own ``flow_resource_class`` attribute if set,
+                else its fully-qualified ``module.qualname``); or an explicit
+                name string the pipeline spec uses under the resource's
+                ``companion_resource_class`` parameter.
+            factory: A zero-argument callable returning a fresh ``FlowResource``
+                instance per init. Required when ``resource`` is a name string;
+                defaults to the class itself otherwise.
+        """
+        if isinstance(resource, str):
+            if factory is None:
+                raise TypeError("factory is required when registering a resource by name")
+            self._context.register_resource_class(resource, factory)
+            return
+        if not (isinstance(resource, type) and issubclass(resource, FlowResource)):
+            raise TypeError(f"Expected a FlowResource subclass or a name string, got {resource!r}")
+        self._context.register_resource_class(resource_class_name(resource), factory or resource)
 
     def add(self, computation_id: str, fn: Any, *, source: bool = False):
         """Imperative registration of a computation.

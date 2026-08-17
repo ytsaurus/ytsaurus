@@ -19,6 +19,10 @@ from .service import CompanionRequestProcessor
 log = logging.getLogger(__name__)
 
 DEFAULT_SHUTDOWN_TIMEOUT_SECONDS = 30
+# The shutdown budget is split: batches drain first, then the unload hooks run. Draining for
+# the whole budget would leave the hooks to be killed rather than run.
+DEFAULT_DRAIN_TIMEOUT_SECONDS = 20
+DEFAULT_UNLOAD_TIMEOUT_SECONDS = DEFAULT_SHUTDOWN_TIMEOUT_SECONDS - DEFAULT_DRAIN_TIMEOUT_SECONDS
 DEFAULT_COMPANION_PROCESS_COUNT = 0  # 0 = auto-size from cgroup CPU quota.
 
 
@@ -44,6 +48,75 @@ def _get_grpc_module():
     )
 
     return companion_service_pb2_grpc
+
+
+class StoppingGeneration:
+    """Handle on a stopped serving generation whose resources are not released yet."""
+
+    def __init__(self, name):
+        self._name = name
+        self._done = threading.Event()
+
+    def finish(self):
+        self._done.set()
+
+    def is_alive(self):
+        return not self._done.is_set()
+
+    def __str__(self):
+        return self._name
+
+
+# Process-wide, not per-execution: `Pipeline.stop()` drops its execution and `Pipeline.start()`
+# builds a fresh one, so a per-instance guard would not see the generation still holding the
+# previous store and its resources. The lock covers the whole transition — a start checks
+# and starts under it, a stop captures and registers under it — so neither can slip into the
+# other's window.
+_stopping_generations = []
+lifecycle_lock = threading.RLock()
+
+
+def register_stopping_generation(token):
+    """Records a generation that has not released its resources. Call under lifecycle_lock."""
+    _stopping_generations.append(token)
+
+
+def stopping_generations():
+    """Generations still holding their resources, oldest first. Call under lifecycle_lock."""
+    _stopping_generations[:] = [token for token in _stopping_generations if token.is_alive()]
+    return list(_stopping_generations)
+
+
+def shutdown_resources_within(servicer, timeout_seconds):
+    """Release the servicer's resources, giving up the wait after ``timeout_seconds``.
+
+    An unload hook is user code and may block; the process still has to stop within its
+    budget, so the hook is left to a daemon thread that dies with the process rather than
+    holding the stop path open until something kills it.
+
+    Returns that thread when it is still running, so a caller that keeps the process alive
+    can refuse to start a new generation beside the one still being released.
+    """
+    failure = []
+
+    def run():
+        try:
+            servicer.shutdown()
+        except BaseException as e:  # noqa: B036 - reported below; the process is stopping.
+            failure.append(e)
+
+    worker = threading.Thread(target=run, name="companion-resource-shutdown", daemon=True)
+    worker.start()
+    worker.join(timeout_seconds)
+    if worker.is_alive():
+        log.warning(
+            "Companion resource shutdown did not finish in %ss; leaving it to the exiting process",
+            timeout_seconds,
+        )
+        return worker
+    if failure:
+        log.warning("Companion resource shutdown failed", exc_info=failure[0])
+    return None
 
 
 def _try_add_health_servicer(server):
@@ -175,13 +248,35 @@ class CompanionServiceServicer:
             return self._proto.TRspListJobs()
 
     def ResourceExecute(self, request, context):
-        del context
-        response = self._proto.TRspResourceExecute()
-        response.request_id.CopyFrom(request.request_id)
-        response.status = self._proto.RES_UNSUPPORTED
-        response.error.code = 1
-        response.error.message = "Companion resources are not supported by the Python companion"
-        return response
+        try:
+            # The store maps user-code failures to in-band statuses; exceptions
+            # escape only on companion bugs, surfacing as an RPC error the
+            # worker retries.
+            outcome = self._processor.resource_execute(request)
+            response = self._proto.TRspResourceExecute()
+            response.request_id.CopyFrom(request.request_id)
+            response.status = self._resource_status_to_enum(outcome.status)
+            if outcome.error_message:
+                response.error.code = 1
+                response.error.message = outcome.error_message
+            return response
+        except Exception as e:
+            log.error("Error processing ResourceExecute: %s", e, exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Error processing ResourceExecute: {e}")
+            # request_id and status are required fields: a default message
+            # fails to serialize, and the worker would see an opaque
+            # serialization error instead of the cause set just above.
+            response = self._proto.TRspResourceExecute()
+            response.request_id.CopyFrom(request.request_id)
+            response.status = self._proto.RES_ERROR
+            response.error.code = 1
+            response.error.message = f"Error processing ResourceExecute: {e}"
+            return response
+
+    def shutdown(self):
+        """Releases the resources this serving generation hosts."""
+        self._processor.shutdown()
 
     def GetJfr(self, request, context):
         """JFR is only supported by the Java companion. Return UNIMPLEMENTED for Python."""
@@ -194,8 +289,20 @@ class CompanionServiceServicer:
             "RS_OK": self._proto.RS_OK,
             "RS_ERROR": self._proto.RS_ERROR,
             "RS_JOB_NOT_FOUND": self._proto.RS_JOB_NOT_FOUND,
+            "RS_RESOURCE_NOT_INITIALIZED": self._proto.RS_RESOURCE_NOT_INITIALIZED,
         }
         return mapping.get(status_str, self._proto.RS_ERROR)
+
+    def _resource_status_to_enum(self, status_str: str) -> int:
+        mapping = {
+            "RES_OK": self._proto.RES_OK,
+            "RES_ERROR": self._proto.RES_ERROR,
+            "RES_RESOURCE_NOT_FOUND": self._proto.RES_RESOURCE_NOT_FOUND,
+            "RES_RESOURCE_NOT_INITIALIZED": self._proto.RES_RESOURCE_NOT_INITIALIZED,
+            "RES_UNSUPPORTED": self._proto.RES_UNSUPPORTED,
+            "RES_STALE_RESOURCE_INCARNATION": self._proto.RES_STALE_RESOURCE_INCARNATION,
+        }
+        return mapping.get(status_str, self._proto.RES_ERROR)
 
     def _build_proto_module(self):
         """Build a module-like object with proto classes needed for response mapping."""
@@ -265,6 +372,7 @@ class GrpcServerExecution:
         self._pipeline_context = pipeline_context
         self._port = port
         self._server: Optional[grpc.Server] = None
+        self._servicer: Optional[CompanionServiceServicer] = None
         self._running = False
         self._lock = threading.Lock()
 
@@ -325,9 +433,20 @@ class GrpcServerExecution:
 
     def start_async(self):
         """Start gRPC server asynchronously (non-blocking)."""
-        with self._lock:
+        # Held across the check and the start: a stop registering in between would
+        # otherwise let this generation come up beside one that is still draining.
+        with lifecycle_lock, self._lock:
             if self._running:
                 return
+            stopping = stopping_generations()
+            if stopping:
+                # A stopped generation still holds its store and resources, either draining
+                # or with unload hooks past their budget. Starting beside it would stack
+                # generations, one per restart, with no way to reclaim the abandoned ones.
+                raise RuntimeError(
+                    "Cannot start the companion server: resources of a stopped generation "
+                    f"are still being released ({', '.join(str(token) for token in stopping)})"
+                )
             self._running = True
             self._start_server_internal()
 
@@ -350,6 +469,7 @@ class GrpcServerExecution:
         )
 
         servicer = CompanionServiceServicer(self._pipeline_context, self._job_context)
+        self._servicer = servicer
         grpc_module.add_CompanionServiceServicer_to_server(servicer, self._server)
         _try_add_health_servicer(self._server)
 
@@ -361,15 +481,40 @@ class GrpcServerExecution:
 
     def stop(self):
         """Stop the gRPC server gracefully."""
-        with self._lock:
+        stopping = StoppingGeneration(f"port {self._port}")
+        with lifecycle_lock, self._lock:
             if not self._running:
                 return
             self._running = False
+            # Taken together with the flag: a restart racing this stop installs its own
+            # pair, and draining that one would leave the new server running against a
+            # closed store while this generation is never released.
+            server, self._server = self._server, None
+            servicer, self._servicer = self._servicer, None
+            # Published here, not after the drain: until this generation has let go of its
+            # resources, no start may run beside it, and the drain below takes time.
+            register_stopping_generation(stopping)
 
         log.info("Stopping gRPC server...")
-        if self._server is not None:
-            self._server.stop(DEFAULT_SHUTDOWN_TIMEOUT_SECONDS)
-        log.info("gRPC server stopped")
+        try:
+            if server is not None:
+                # stop() is non-blocking and returns an Event signalled once the
+                # grace period drains in-flight RPCs; wait on it so the batches
+                # still holding leases finish before the resources are released.
+                server.stop(DEFAULT_DRAIN_TIMEOUT_SECONDS).wait()
+            if servicer is not None:
+                # Release the resources of the generation that just stopped, so
+                # a restart does not leave their pools and threads running
+                # beside their replacements.
+                abandoned = shutdown_resources_within(servicer, DEFAULT_UNLOAD_TIMEOUT_SECONDS)
+                if abandoned is not None:
+                    # Hooks outran the budget: the generation keeps holding its store, so
+                    # it stays registered until that thread finally lets go.
+                    with lifecycle_lock:
+                        register_stopping_generation(abandoned)
+        finally:
+            stopping.finish()
+            log.info("gRPC server stopped")
 
     @property
     def port(self) -> int:

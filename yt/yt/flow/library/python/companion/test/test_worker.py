@@ -38,13 +38,14 @@ def test_worker_server_sets_so_reuseport():
     pipeline_context = PipelineContext()
     job_context = JobContext()
 
-    server = build_worker_server(
+    server, servicer = build_worker_server(
         address="[::]:5005",
         pipeline_context=pipeline_context,
         job_context=job_context,
         io_threads=2,
         server_factory=factory,
     )
+    assert servicer is not None
 
     fake = captured["server"]
     options_dict = dict(fake.options)

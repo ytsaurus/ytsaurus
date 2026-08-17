@@ -12,6 +12,7 @@ PY_SRCS(
     job.py
     stream.py
     proto_mapper.py
+    resource.py
     service.py
     server.py
     sizing.py
