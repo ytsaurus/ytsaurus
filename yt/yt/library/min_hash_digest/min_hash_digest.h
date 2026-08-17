@@ -106,6 +106,8 @@ public:
 
     TSharedRef BuildSerialized() const;
 
+    i64 GetWeight() const;
+
     ui32 CalculateWriteDeleteSimilarityTimestamp(const TMinHashSimilarityConfigPtr& similarityConfig) const;
 
     ui32 CalculateWritesSimilarityTimestamp(
@@ -127,8 +129,6 @@ private:
         const TMinHashSimilarityConfigPtr& similarityConfig,
         std::vector<ui32>&& intersectionTimestamps,
         int comparisonSize) const;
-
-    i64 GetWeight() const;
 
     void TrackMemory();
 };
