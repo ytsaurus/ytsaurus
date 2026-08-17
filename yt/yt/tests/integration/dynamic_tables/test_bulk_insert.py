@@ -2269,7 +2269,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             {"key": 3, "value": 123, "str": "bar"},
         ]
         assert_items_equal(select_rows("* from [//tmp/t_output]"), expected)
-        assert expected == read_table("//tmp/t_output")
+        assert expected == read_table_under_transaction("//tmp/t_output")
 
     @pytest.mark.parametrize("atomicity", ["full", "none"])
     def test_input_query_delete_where(self, atomicity):
