@@ -78,6 +78,9 @@ message TReqFinishChunk
     optional int32 block_count = 3;
     optional bool ignore_missing_session = 5 [default = false];
 
+    optional int64 io_consumed = 7;
+    optional double io_fair_share_weight = 8;
+
     reserved 6;
 }
 
@@ -257,9 +260,7 @@ message TReqProbeBlockSet
     optional bool enable_p2p = 5 [default = true];
     optional bool fetch_node_descriptors = 6 [default = false];
 
-    optional int64 io_consumed = 7;
-
-    optional double io_fair_share_weight = 8;
+    reserved 7, 8;
 }
 
 message TRspProbeBlockSet
@@ -435,13 +436,9 @@ message TReqLookupRows
 
     optional bool populate_cache = 11 [default = true];
 
-    optional int64 io_consumed = 15;
-
-    optional double io_fair_share_weight = 16;
-
     // Lookup keys are passed via attachments.
 
-    reserved 12;
+    reserved 12, 15, 16;
 }
 
 message TRspLookupRows

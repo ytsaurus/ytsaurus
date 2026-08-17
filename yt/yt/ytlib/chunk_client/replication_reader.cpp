@@ -4375,8 +4375,6 @@ private:
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-        SetRequestIoConsumed(req, SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
-        SetRequestIoFairShareWeight(req, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_read_session_id(), SessionOptions_.ReadSessionId);
         req->set_timestamp(ToProto(Options_->Timestamp));
@@ -4893,8 +4891,6 @@ private:
         auto req = proxy.ProbeBlockSet();
         auto blockIndexes = std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
-        SetRequestIoConsumed(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
-        SetRequestIoFairShareWeight(req, ReaderConfig_->IoFairShareWeight);
         req->SetResponseHeavy(true);
         if (queuedBatch.Session->SessionOptions_.Cookie) {
             req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, Cookie: %x",

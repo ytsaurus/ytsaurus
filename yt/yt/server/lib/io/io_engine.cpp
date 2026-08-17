@@ -28,6 +28,7 @@
 #include <util/generic/xrange.h>
 
 #include <array>
+#include <cmath>
 
 #ifdef _linux_
     #include <sys/uio.h>
@@ -690,7 +691,8 @@ TFuture<TReadResponse> IIOEngine::ReadAll(
     const std::string& path,
     EWorkloadCategory category,
     TIOSessionId sessionId,
-    TFairShareSlotId fairShareSlot)
+    TFairShareSlotId fairShareSlot,
+    std::optional<TIOFairShareState> fairShareState)
 {
     return Open({path, OpenExisting | RdOnly | Seq | CloseOnExec}, category)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& handle) {
@@ -702,6 +704,7 @@ TFuture<TReadResponse> IIOEngine::ReadAll(
                     0,
                     handle->GetLength(),
                     fairShareSlot,
+                    fairShareState,
                 }},
                 category,
                 GetRefCountedTypeCookie<TReadAllBufferTag>(),
@@ -1171,6 +1174,24 @@ DEFINE_ENUM(EFairShareIOEngineRequestType,
     (FlushFileRange)
 );
 
+std::optional<TIOFairShareState> MakeIOFairShareState(
+    std::optional<i64> ioConsumed,
+    std::optional<double> ioFairShareWeight)
+{
+    if (ioConsumed && ioFairShareWeight &&
+        *ioConsumed >= 0 &&
+        std::isfinite(*ioFairShareWeight) &&
+        *ioFairShareWeight >= 0)
+    {
+        return TIOFairShareState{
+            .IOConsumed = *ioConsumed,
+            .IOFairShareWeight = *ioFairShareWeight,
+        };
+    }
+
+    return std::nullopt;
+}
+
 class TFairShareHierarchicalThreadPoolIOEngine
     : public TIOEngineBase
 {
@@ -1320,8 +1341,8 @@ public:
 
         auto guard = Guard(Lock_);
         std::vector<TFuture<TWriteResponse>> futures;
-        auto slotId = request.FairShareSlotId;
         for (auto& slice : GetRequestSlicer().Slice(std::move(request), config->DirectIOBlockSize)) {
+            auto slotId = slice.FairShareSlotId;
             auto requestId = TGuid::Create();
             auto promise = CreateRequestPromise<TWriteResponse>(
                 slotId,
@@ -1423,12 +1444,12 @@ public:
         TIOSessionId /*sessionId*/) override
     {
         std::vector<TFuture<TFlushFileRangeResponse>> futures;
-        auto slotId = request.FairShareSlotId;
 
         auto config = Config_.Acquire();
         auto guard = Guard(Lock_);
 
         for (auto& slice : GetRequestSlicer().Slice(std::move(request), config->DirectIOBlockSize)) {
+            auto slotId = slice.FairShareSlotId;
             auto requestId = TGuid::Create();
             auto promise = CreateRequestPromise<TFlushFileRangeResponse>(
                 slotId,

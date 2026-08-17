@@ -35,13 +35,13 @@ private:
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         bool enableCaching) override;
     TFuture<TSendBlocksResult> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
-        std::optional<i64> ioConsumed,
-        std::optional<double> ioFairShareWeight,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
@@ -49,7 +49,8 @@ private:
     void DoCancel(const TError& error) override;
     TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) override;
+        std::optional<int> blockCount,
+        std::optional<NIO::TIOFairShareState> fairShareState) override;
 
     void OnFinished(bool executedSeal);
 };

@@ -86,27 +86,31 @@ public:
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
         std::vector<TBlock> blocks,
-        TLocationFairShareSlotPtr fairShareQueueSlot)
+        TLocationFairShareSlotPtr fairShareQueueSlot,
+        std::optional<TIOFairShareState> fairShareState)
     {
         return EnqueueCommand(BIND(&TBlobWritePipeline::DoWriteBlocks,
             MakeStrong(this),
             options,
             firstBlockIndex,
             std::move(blocks),
-            std::move(fairShareQueueSlot)));
+            std::move(fairShareQueueSlot),
+            fairShareState));
     }
 
     TFuture<void> Close(
         const IChunkWriter::TWriteBlocksOptions& options,
         TRefCountedChunkMetaPtr chunkMeta,
-        TFairShareSlotId fairShareSlotId)
+        TFairShareSlotId fairShareSlotId,
+        std::optional<TIOFairShareState> fairShareState)
     {
         return EnqueueCommand(
             BIND(&TBlobWritePipeline::DoClose,
-                 MakeStrong(this),
-                 options,
-                 std::move(chunkMeta),
-                 fairShareSlotId));
+                MakeStrong(this),
+                options,
+                std::move(chunkMeta),
+                fairShareSlotId,
+                fairShareState));
     }
 
     TFuture<void> Abort()
@@ -224,7 +228,8 @@ private:
         const IChunkWriter::TWriteBlocksOptions& options,
         int firstBlockIndex,
         const std::vector<TBlock>& blocks,
-        TLocationFairShareSlotPtr fairShareQueueSlot)
+        TLocationFairShareSlotPtr fairShareQueueSlot,
+        std::optional<TIOFairShareState> fairShareState)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -238,7 +243,12 @@ private:
         TWallTimer timer;
 
         // This is how TFileWriter works.
-        YT_VERIFY(!Writer_->WriteBlocks(options, Options_.WorkloadDescriptor, blocks, fairShareQueueSlot->GetSlot()->GetSlotId()));
+        YT_VERIFY(!Writer_->WriteBlocks(
+            options,
+            Options_.WorkloadDescriptor,
+            blocks,
+            fairShareQueueSlot->GetSlot()->GetSlotId(),
+            fairShareState));
 
         return Writer_->GetReadyEvent().Apply(
             BIND([=, fairShareQueueSlot = std::move(fairShareQueueSlot), this, this_ = MakeStrong(this)] {
@@ -260,7 +270,8 @@ private:
     TFuture<void> DoClose(
         const IChunkWriter::TWriteBlocksOptions& options,
         const TRefCountedChunkMetaPtr& chunkMeta,
-        TFairShareSlotId fairShareSlotId)
+        TFairShareSlotId fairShareSlotId,
+        std::optional<TIOFairShareState> fairShareState)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -272,8 +283,13 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta, fairShareSlotId).Apply(
-            BIND([=, this, this_ = MakeStrong(this)] {
+        return Writer_->Close(
+            options,
+            Options_.WorkloadDescriptor,
+            deferredChunkMeta,
+            fairShareSlotId,
+            fairShareState)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
                 YT_LOG_DEBUG("Finished closing chunk writer (Time: %v)",
@@ -382,7 +398,8 @@ void TBlobSession::OnStarted(const TError& error)
 
 TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    std::optional<int> blockCount)
+    std::optional<int> blockCount,
+    std::optional<TIOFairShareState> fairShareState)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(chunkMeta);
@@ -433,7 +450,7 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     auto fairShareQueueSlot = fairShareQueueSlotOrError.Value();
 
     auto slotId = fairShareQueueSlot->GetSlot()->GetSlotId();
-    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta, slotId)
+    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta, slotId, fairShareState)
         .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this), Passed(std::move(fairShareQueueSlot)))
             .AsyncVia(SessionInvoker_));
 }
@@ -526,6 +543,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
     i64 cumulativeBlockSize,
+    std::optional<TIOFairShareState> fairShareState,
     bool enableCaching)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
@@ -605,7 +623,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             std::move(blocks),
             useCumulativeBlockSize,
             enableCaching);
-        DoPerformPutBlocks(std::move(fairShareQueueSlot));
+        DoPerformPutBlocks(std::move(fairShareQueueSlot), fairShareState);
         return AllSucceeded(std::vector{
             netThrottler->Throttle(totalSize),
             diskThrottler->Throttle(totalSize),
@@ -640,8 +658,12 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             .AsyncVia(SessionInvoker_));
 
         return allPrecedingBlocksReceivedFutureWithTimeout.Apply(BIND([this, this_ = MakeStrong(this),
-            netThrottler, diskThrottler, totalSize, fairShareQueueSlot = std::move(fairShareQueueSlot)] () mutable {
-                DoPerformPutBlocks(std::move(fairShareQueueSlot));
+            netThrottler,
+            diskThrottler,
+            totalSize,
+            fairShareState,
+            fairShareQueueSlot = std::move(fairShareQueueSlot)] () mutable {
+                DoPerformPutBlocks(std::move(fairShareQueueSlot), fairShareState);
                 return AllSucceeded(std::vector{
                     netThrottler->Throttle(totalSize),
                     diskThrottler->Throttle(totalSize),
@@ -651,13 +673,14 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             }).AsyncVia(SessionInvoker_));
     } else {
         allPrecedingBlocksReceivedFuture.Subscribe(BIND([this, this_ = MakeStrong(this),
+            fairShareState,
             fairShareQueueSlot = std::move(fairShareQueueSlot)] (const TError& error) mutable {
                 if (Canceled_.load()) {
                     return;
                 }
 
                 if (error.IsOK()) {
-                    DoPerformPutBlocks(std::move(fairShareQueueSlot));
+                    DoPerformPutBlocks(std::move(fairShareQueueSlot), fairShareState);
                 } else {
                     YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing, session will be canceled");
                     Cancel(error);
@@ -796,7 +819,9 @@ void TBlobSession::PreparePutBlocks(
     }
 }
 
-void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSlot)
+void TBlobSession::DoPerformPutBlocks(
+    TLocationFairShareSlotPtr fairShareQueueSlot,
+    std::optional<TIOFairShareState> fairShareState)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -821,7 +846,14 @@ void TBlobSession::DoPerformPutBlocks(TLocationFairShareSlotPtr fairShareQueueSl
         }
 
         preallocateDiskSpace
-            .Apply(BIND(&TBlobWritePipeline::WriteBlocks, Pipeline_, WriteBlocksOptions_, firstBlockIndex, blocksToWrite, fairShareQueueSlot))
+            .Apply(BIND(
+                &TBlobWritePipeline::WriteBlocks,
+                Pipeline_,
+                WriteBlocksOptions_,
+                firstBlockIndex,
+                blocksToWrite,
+                fairShareQueueSlot,
+                fairShareState))
             .Subscribe(
                 BIND(&TBlobSession::OnBlocksWritten, MakeStrong(this), firstBlockIndex, WindowIndex_)
                     .Via(SessionInvoker_));
@@ -904,8 +936,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     int firstBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
-    std::optional<i64> ioConsumed,
-    std::optional<double> ioFairShareWeight,
+    std::optional<TIOFairShareState> fairShareState,
     TDuration requestTimeout,
     bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
@@ -926,8 +957,10 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
     ToProto(req->mutable_session_id(), SessionId_);
     req->set_first_block_index(firstBlockIndex);
     req->set_cumulative_block_size(cumulativeBlockSize);
-    YT_OPTIONAL_SET_PROTO(req, io_fair_share_weight, ioFairShareWeight);
-    YT_OPTIONAL_SET_PROTO(req, io_consumed, ioConsumed);
+    if (fairShareState) {
+        req->set_io_consumed(fairShareState->IOConsumed);
+        req->set_io_fair_share_weight(fairShareState->IOFairShareWeight);
+    }
 
     i64 requestSize = 0;
 

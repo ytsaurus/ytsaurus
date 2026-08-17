@@ -231,8 +231,9 @@ i64 TNbdSession::GetIntermediateEmptyBlockCount() const
 }
 
 TFuture<ISession::TFinishResult> TNbdSession::Finish(
-    const NChunkClient::TRefCountedChunkMetaPtr& /* chunkMeta */,
-    std::optional<int> /* blockCount */)
+    const NChunkClient::TRefCountedChunkMetaPtr& /*chunkMeta*/,
+    std::optional<int> /*blockCount*/,
+    std::optional<NIO::TIOFairShareState> /*fairShareState*/)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }
@@ -242,7 +243,7 @@ bool TNbdSession::ShouldUseProbePutBlocks() const
     YT_UNIMPLEMENTED();
 }
 
-void TNbdSession::ProbePutBlocks(i64)
+void TNbdSession::ProbePutBlocks(i64 /*requestedCumulativeMemorySize*/)
 {
     YT_UNIMPLEMENTED();
 }
@@ -258,28 +259,28 @@ i64 TNbdSession::GetMaxRequestedCumulativeBlockSize() const
 }
 
 TFuture<NIO::TIOCounters> TNbdSession::PutBlocks(
-    int /* startBlockIndex */,
-    std::vector<NChunkClient::TBlock> /* blocks */,
-    i64 /* cumulativeBlockSize */,
-    bool /* enableCaching */)
+    int /*startBlockIndex*/,
+    std::vector<NChunkClient::TBlock> /*blocks*/,
+    i64 /*cumulativeBlockSize*/,
+    std::optional<NIO::TIOFairShareState> /*fairShareState*/,
+    bool /*enableCaching*/)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }
 
 TFuture<TNbdSession::TSendBlocksResult> TNbdSession::SendBlocks(
-    int /* startBlockIndex */,
-    int /* blockCount */,
-    i64 /* cumulativeBlockSize */,
-    std::optional<i64> /* ioConsumed */,
-    std::optional<double> /* ioFairShareWeight */,
-    TDuration /* requestTimeout */,
-    bool /* instantReplyOnThrottling */,
-    const NNodeTrackerClient::TNodeDescriptor& /* target */)
+    int /*startBlockIndex*/,
+    int /*blockCount*/,
+    i64 /*cumulativeBlockSize*/,
+    std::optional<NIO::TIOFairShareState> /*fairShareState*/,
+    TDuration /*requestTimeout*/,
+    bool /*instantReplyOnThrottling*/,
+    const NNodeTrackerClient::TNodeDescriptor& /*target*/)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }
 
-TFuture<ISession::TFlushBlocksResult> TNbdSession::FlushBlocks(int /* blockIndex */)
+TFuture<ISession::TFlushBlocksResult> TNbdSession::FlushBlocks(int /*blockIndex*/)
 {
     THROW_ERROR_EXCEPTION("Not implemented");
 }

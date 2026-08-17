@@ -60,7 +60,11 @@ public:
         if (FailMetaRequests_ && TryFail()) {
             return MakeFuture<TRefCountedChunkMetaPtr>(TError("Failed to read meta"));
         }
-        return Underlying_->GetMeta(options.ClientOptions, {}, partitionTags);
+        return Underlying_->GetMeta(
+            options.ClientOptions,
+            /*fairShareSlotId*/ {},
+            /*fairShareState*/ {},
+            partitionTags);
     }
 
     TChunkId GetChunkId() const override

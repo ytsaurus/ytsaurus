@@ -85,6 +85,8 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
         slice.Request.Offset = offset;
         slice.Request.Handle = request.Handle;
         slice.Request.Size = sliceSize;
+        slice.Request.FairShareSlotId = request.FairShareSlotId;
+        slice.Request.FairShareState = request.FairShareState;
         slice.OutputBuffer = buffer.Slice(bufferOffset, bufferOffset + sliceSize);
     });
 }
@@ -101,6 +103,8 @@ std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request, int di
         slice.Handle = request.Handle;
         slice.Flush = request.Flush;
         slice.Buffers = iterator.Take(sliceSize);
+        slice.FairShareSlotId = request.FairShareSlotId;
+        slice.FairShareState = request.FairShareState;
     }, /*alignOffset*/ false);
 }
 
@@ -114,6 +118,8 @@ std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeReque
         slice.Handle = request.Handle;
         slice.Offset = offset;
         slice.Size = sliceSize;
+        slice.FairShareSlotId = request.FairShareSlotId;
+        slice.FairShareState = request.FairShareState;
     });
 }
 

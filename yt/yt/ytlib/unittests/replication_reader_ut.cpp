@@ -166,10 +166,6 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeBlockSet)
     {
-        if (request->has_io_fair_share_weight()) {
-            LastIoFairShareWeight_.store(request->io_fair_share_weight());
-        }
-
         if (PostponeProbingReply_.load()) {
             TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
         }
