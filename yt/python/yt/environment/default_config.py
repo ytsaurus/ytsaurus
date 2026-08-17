@@ -55,6 +55,7 @@ def get_master_config():
             "snapshot_background_thread_count": 4,
             "leader_sync_delay": 0,
             "minimize_commit_latency": True,
+            "enable_state_hash_checker_during_recovery": True,
         },
 
         "world_initializer": {

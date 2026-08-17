@@ -153,6 +153,7 @@ void TPeer::Initialize()
         RpcServer_,
         ElectionManagerThunk_,
         CellManager_->GetCellId(),
+        CellManager_->GetTotalPeerCount(),
         changelogStoreFactory,
         snapshotStore,
         /*authenticator*/ nullptr,

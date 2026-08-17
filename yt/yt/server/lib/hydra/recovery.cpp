@@ -6,6 +6,7 @@
 #include "hydra_service_proxy.h"
 #include "snapshot_discovery.h"
 #include "snapshot_download.h"
+#include "state_hash_checker.h"
 #include "helpers.h"
 #include "changelog.h"
 #include "snapshot.h"
@@ -39,6 +40,7 @@ TRecovery::TRecovery(
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
+    TStateHashCheckerPtr stateHashChecker,
     IResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
     TReachableState targetState,
@@ -50,6 +52,7 @@ TRecovery::TRecovery(
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , ChangelogStore_(std::move(changelogStore))
     , SnapshotStore_(std::move(snapshotStore))
+    , StateHashChecker_(stateHashChecker)
     , ResponseKeeper_(std::move(responseKeeper))
     , EpochContext_(epochContext)
     , TargetState_(targetState)
@@ -420,6 +423,7 @@ void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
 
     int currentRecordId = 0;
     auto automatonVersion = DecoratedAutomaton_->GetAutomatonVersion();
+    auto initialSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
     if (automatonVersion.GetSegmentId() == changelog->GetId()) {
         currentRecordId = automatonVersion.GetPhysicalVersion().Advance().RecordId;
     }
@@ -461,6 +465,13 @@ void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
         WaitFor(future)
             .ThrowOnError();
 
+        if (!IsLeader_ &&
+            Config_->EnableStateHashChecker &&
+            Config_->EnableStateHashCheckerDuringRecovery)
+        {
+            ReportMutationStateHashesToLeader(initialSequenceNumber, targetSequenceNumber);
+        }
+
         currentRecordId += recordsRead;
     }
 
@@ -468,6 +479,21 @@ void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
     YT_LOG_INFO("Changelog replayed (AutomatonSequenceNumber: %v, TargetSequenceNumber: %v)",
         automatonSequenceNumber,
         targetSequenceNumber);
+}
+
+void TRecovery::ReportMutationStateHashesToLeader(i64 firstSequenceNumber, i64 lastSequenceNumber)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    auto rate = Config_->StateHashCheckerMutationVerificationSamplingRate;
+    auto sequenceNumbers = SampleMutationsSequenceNumbers(firstSequenceNumber, lastSequenceNumber, rate);
+
+    YT_UNUSED_FUTURE(NHydra::ReportMutationStateHashesToLeader(
+        EpochContext_->CellManager,
+        EpochContext_->LeaderId,
+        StateHashChecker_->GetStateHashes(std::move(sequenceNumbers)),
+        Config_->ControlRpcTimeout,
+        Logger));
 }
 
 TFuture<void> TRecovery::Run()

@@ -256,6 +256,7 @@ struct TDynamicDistributedHydraManagerConfig
     std::optional<TDuration> AbandonLeaderLeaseRequestTimeout;
 
     std::optional<bool> EnableStateHashChecker;
+    std::optional<bool> EnableStateHashCheckerDuringRecovery;
     std::optional<int> MaxStateHashCheckerEntryCount;
     std::optional<int> StateHashCheckerMutationVerificationSamplingRate;
 
@@ -437,6 +438,10 @@ struct TDistributedHydraManagerConfig
     //! Enables state hash checker.
     //! It checks that after applying each N-th mutation, automaton state hash is the same on all peers.
     bool EnableStateHashChecker;
+
+    //! If set, stores all (sequenceNumber, stateHash) pairs in state hash checker
+    // and enables state hash reporting during recovery.
+    bool EnableStateHashCheckerDuringRecovery;
 
     //! Maximum number of entries stored in state hash checker.
     int MaxStateHashCheckerEntryCount;

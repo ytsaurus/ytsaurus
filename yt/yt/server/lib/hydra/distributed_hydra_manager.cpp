@@ -156,6 +156,7 @@ public:
         IServerPtr rpcServer,
         IElectionManagerPtr electionManager,
         TCellId cellId,
+        int totalPeerCount,
         IChangelogStoreFactoryPtr changelogStoreFactory,
         ISnapshotStorePtr snapshotStore,
         IAuthenticatorPtr authenticator,
@@ -171,7 +172,7 @@ public:
         , ChangelogStoreFactory_(std::move(changelogStoreFactory))
         , SnapshotStore_(std::move(snapshotStore))
         , Options_(options)
-        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, HydraLogger()))
+        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, totalPeerCount, HydraLogger()))
         , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
         , Profiler_(HydraProfiler().WithTag("cell_id", ToString(cellId)).WithSparse())
@@ -2295,6 +2296,7 @@ private:
                 DecoratedAutomaton_,
                 ChangelogStore_,
                 SnapshotStore_,
+                StateHashChecker_,
                 Options_.ResponseKeeper,
                 epochContext.Get(),
                 epochContext->ReachableState,
@@ -2781,6 +2783,7 @@ private:
             DecoratedAutomaton_,
             ChangelogStore_,
             SnapshotStore_,
+            StateHashChecker_,
             Options_.ResponseKeeper,
             epochContext.Get(),
             committedState,
@@ -3074,48 +3077,16 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto rate = Config_->Get()->StateHashCheckerMutationVerificationSamplingRate;
-        auto startSequenceNumber = (result.FirstSequenceNumber + rate - 1) / rate * rate;
-        auto endSequenceNumber = result.LastSequenceNumber / rate * rate;
-        if (startSequenceNumber > endSequenceNumber) {
-            return;
-        }
+        auto sequenceNumbers = SampleMutationsSequenceNumbers(result.FirstSequenceNumber, result.LastSequenceNumber, rate);
 
         auto epochContext = ControlEpochContext_;
 
-        auto channel = epochContext->CellManager->GetPeerChannel(epochContext->LeaderId);
-        YT_VERIFY(channel);
-
-        TInternalHydraServiceProxy proxy(std::move(channel));
-        auto request = proxy.ReportMutationsStateHashes();
-        request->set_peer_id(epochContext->CellManager->GetSelfPeerId());
-
-        std::vector<i64> sequenceNumbers;
-        for (auto sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {
-            sequenceNumbers.push_back(sequenceNumber);
-        }
-
-        for (auto [sequenceNumber, stateHash] : StateHashChecker_->GetStateHashes(std::move(sequenceNumbers))) {
-            auto mutationInfo = request->add_mutations_info();
-            mutationInfo->set_sequence_number(sequenceNumber);
-            mutationInfo->set_state_hash(stateHash);
-        }
-
-        if (request->mutations_info().empty()) {
-            return;
-        }
-
-        request->SetTimeout(Config_->Get()->ControlRpcTimeout);
-        request->Invoke().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TInternalHydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
-            if (rspOrError.IsOK()) {
-                YT_TLOG_DEBUG("Mutations state hashes reported")
-                    .With("StartSequenceNumber", startSequenceNumber)
-                    .With("EndSequenceNumber", endSequenceNumber);
-            } else {
-                YT_LOG_DEBUG(rspOrError, "Error reporting mutations state hashes (StartSequenceNumber: %v, EndSequenceNumber: %v)",
-                    startSequenceNumber,
-                    endSequenceNumber);
-            }
-        }));
+        YT_UNUSED_FUTURE(NHydra::ReportMutationStateHashesToLeader(
+            epochContext->CellManager,
+            epochContext->LeaderId,
+            StateHashChecker_->GetStateHashes(std::move(sequenceNumbers)),
+            Config_->Get()->ControlRpcTimeout,
+            Logger));
     }
 
     void OnHeartbeatMutationCommit()
@@ -3369,6 +3340,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
     IServerPtr rpcServer,
     IElectionManagerPtr electionManager,
     TCellId cellId,
+    int totalPeerCount,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
     IAuthenticatorPtr authenticator,
@@ -3392,6 +3364,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
         rpcServer,
         electionManager,
         cellId,
+        totalPeerCount,
         changelogStoreFactory,
         snapshotStore,
         std::move(authenticator),

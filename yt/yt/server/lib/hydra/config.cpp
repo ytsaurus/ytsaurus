@@ -252,6 +252,8 @@ void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_state_hash_checker", &TThis::EnableStateHashChecker)
         .Optional();
+    registrar.Parameter("enable_state_hash_checker_during_recovery", &TThis::EnableStateHashCheckerDuringRecovery)
+        .Optional();
     registrar.Parameter("max_state_hash_checker_entry_count", &TThis::MaxStateHashCheckerEntryCount)
         .Optional();
     registrar.Parameter("state_hash_checker_mutation_verification_sampling_rate", &TThis::StateHashCheckerMutationVerificationSamplingRate)
@@ -344,6 +346,7 @@ void TDistributedHydraManagerConfig::ApplyDynamicInplace(const TDynamicDistribut
     UpdateYsonStructField(AbandonLeaderLeaseRequestTimeout, dynamicConfig.AbandonLeaderLeaseRequestTimeout);
 
     UpdateYsonStructField(EnableStateHashChecker, dynamicConfig.EnableStateHashChecker);
+    UpdateYsonStructField(EnableStateHashCheckerDuringRecovery, dynamicConfig.EnableStateHashCheckerDuringRecovery);
     UpdateYsonStructField(MaxStateHashCheckerEntryCount, dynamicConfig.MaxStateHashCheckerEntryCount);
     UpdateYsonStructField(StateHashCheckerMutationVerificationSamplingRate, dynamicConfig.StateHashCheckerMutationVerificationSamplingRate);
 
@@ -473,6 +476,9 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_state_hash_checker", &TThis::EnableStateHashChecker)
         .Default(true);
+
+    registrar.Parameter("enable_state_hash_checker_during_recovery", &TThis::EnableStateHashCheckerDuringRecovery)
+        .Default(false);
 
     registrar.Parameter("max_state_hash_checker_entry_count", &TThis::MaxStateHashCheckerEntryCount)
         .GreaterThan(0)

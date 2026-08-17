@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/ytlib/election/cell_manager.h>
+
 namespace NYT::NHydra {
 
 using namespace NConcurrency;
@@ -79,7 +81,7 @@ public:
         , AutomatonInvoker_(std::move(automatonInvoker))
         , SnapshotStore_(std::move(snapshotStore))
         , Options_(options)
-        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, HydraLogger()))
+        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, cellManager->GetTotalPeerCount(), HydraLogger()))
         , Profiler_(TProfiler())
         , Logger(TLogger("DryRun"))
         , CellManager_(std::move(cellManager))

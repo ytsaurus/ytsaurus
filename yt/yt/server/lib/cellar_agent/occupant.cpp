@@ -631,6 +631,7 @@ public:
                     rpcServer,
                     ElectionManagerThunk_,
                     GetCellId(),
+                    CellManager_->GetTotalPeerCount(),
                     ChangelogStoreFactoryThunk_,
                     SnapshotStoreThunk_,
                     Bootstrap_->GetNativeAuthenticator(),
