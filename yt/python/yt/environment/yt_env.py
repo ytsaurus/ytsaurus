@@ -1585,12 +1585,16 @@ class YTInstance(object):
 
             def quorum_ready_and_cell_registered():
                 result = quorum_ready()
-                if isinstance(result, tuple) and not result[0]:
+                if result is not True:
                     return result
 
-                return cell_tag in primary_cell_client.get(
+                registered_cell_tags = primary_cell_client.get(
                     "//sys/@registered_master_cell_tags",
                     suppress_transaction_coordinator_sync=True)
+                if cell_tag not in registered_cell_tags:
+                    return False, (f"Secondary master cell {cell_tag} is not registered at the primary cell; "
+                                   f"registered cells: {registered_cell_tags}")
+                return True
 
             cell_ready = quorum_ready_and_cell_registered
 
@@ -1640,7 +1644,9 @@ class YTInstance(object):
                     resp = requests.get(f"http://{address}/orchid/clock_cell/hydra/active")
                     resp.raise_for_status()
                     clock_statuses_logger.debug(resp.text)
-                    return resp.text == "true"
+                    if resp.text != "true":
+                        return False, f"Clock at {address} reports that hydra is not active"
+                return True
             except (requests.exceptions.RequestException, socket.error):
                 return False, traceback.format_exc()
 
@@ -1696,16 +1702,16 @@ class YTInstance(object):
 
             try:
                 if not client.exists("//sys/queue_agents/instances"):
-                    return False
+                    return False, "//sys/queue_agents/instances does not exist yet"
                 instances = client.list("//sys/queue_agents/instances")
                 if len(instances) != self.yt_config.queue_agent_count:
-                    return False
+                    return False, (f"{len(instances)} queue agents registered in cypress, "
+                                   f"expected {self.yt_config.queue_agent_count}")
                 for instance in instances:
                     if not client.exists("//sys/queue_agents/instances/" + instance + "/orchid/queue_agent"):
-                        return False
-            except YtError:
-                logger.exception("Error while waiting for queue agents")
-                return False
+                        return False, f"Queue agent {instance} does not expose its orchid yet"
+            except YtError as err:
+                return False, err
 
             return True
 
@@ -1784,7 +1790,8 @@ class YTInstance(object):
 
             instances = client.list("//sys/cell_balancers/instances")
             if len(instances) != self.yt_config.cell_balancer_count:
-                return False
+                return False, (f"{len(instances)} cell balancers registered in cypress, "
+                               f"expected {self.yt_config.cell_balancer_count}")
             try:
                 active_cell_balancer_orchid_path = None
                 for instance in instances:
@@ -1860,14 +1867,27 @@ class YTInstance(object):
 
             nodes = self._list_nodes(pick_chaos=False)
             # "mixed" is for the first start, "online" is for potential later restarts.
-            target_states = ("mixed", "online") if self.yt_config.defer_secondary_cell_start else ("online")
+            target_states = ("mixed", "online") if self.yt_config.defer_secondary_cell_start else ("online",)
 
             def check_node(node):
                 if node.attributes["banned"]:
                     return node.attributes["state"] == "offline"
                 return node.attributes["state"] in target_states
 
-            return len(nodes) == self.yt_config.node_count and all(map(check_node, nodes))
+            if len(nodes) != self.yt_config.node_count:
+                return False, (f"{len(nodes)} nodes registered in cypress, "
+                               f"expected {self.yt_config.node_count}")
+
+            not_ready_nodes = {}
+            for node in nodes:
+                if not check_node(node):
+                    description = f"state={node.attributes['state']}"
+                    if node.attributes["banned"]:
+                        description = "banned, " + description
+                    not_ready_nodes[str(node)] = description
+            if not_ready_nodes:
+                return False, f"Nodes are not ready: {not_ready_nodes}"
+            return True
 
         self._wait_for_component(
             "node",
@@ -1901,10 +1921,19 @@ class YTInstance(object):
         self._run_builtin_yt_component("node", name="chaos_node")
 
         def chaos_nodes_ready():
-            self._validate_processes_are_running("node")
+            self._validate_processes_are_running("chaos_node")
 
             nodes = self._list_nodes(pick_chaos=True)
-            return len(nodes) == self.yt_config.chaos_node_count and all(node.attributes["state"] == "online" for node in nodes)
+            if len(nodes) != self.yt_config.chaos_node_count:
+                return False, (f"{len(nodes)} chaos nodes registered in cypress, "
+                               f"expected {self.yt_config.chaos_node_count}")
+
+            offline_nodes = {
+                str(node): node.attributes["state"]
+                for node in nodes if node.attributes["state"] != "online"}
+            if offline_nodes:
+                return False, f"Chaos nodes are not online: {offline_nodes}"
+            return True
 
         self._wait_for_component(
             "chaos_node",
@@ -2022,16 +2051,18 @@ class YTInstance(object):
         self._run_builtin_yt_component("scheduler", custom_paths=custom_paths)
 
         def schedulers_ready():
-            def check_node_state(node):
+            def get_node_state(node):
                 if "state" in node:
-                    return node["state"] == "online"
-                return node["scheduler_state"] == "online" and node["master_state"] == "online"
+                    return node["state"] == "online", node["state"]
+                description = f"scheduler_state={node['scheduler_state']}, master_state={node['master_state']}"
+                return node["scheduler_state"] == "online" and node["master_state"] == "online", description
 
             self._validate_processes_are_running("scheduler")
 
             instances = client.list("//sys/scheduler/instances")
             if len(instances) != self.yt_config.scheduler_count:
-                return False
+                return False, (f"{len(instances)} schedulers registered in cypress, "
+                               f"expected {self.yt_config.scheduler_count}")
 
             try:
                 active_scheduler_orchid_path = None
@@ -2076,8 +2107,18 @@ class YTInstance(object):
                 exec_nodes = list(filter(check_node, nodes))
 
                 if not self.yt_config.defer_node_start:
-                    nodes = list(client.get(active_scheduler_orchid_path + "/scheduler/nodes").values())
-                    return len(nodes) == len(exec_nodes) and all(check_node_state(node) for node in nodes)
+                    scheduler_nodes = client.get(active_scheduler_orchid_path + "/scheduler/nodes")
+                    if len(scheduler_nodes) != len(exec_nodes):
+                        return False, (f"Scheduler sees {len(scheduler_nodes)} nodes, "
+                                       f"expected {len(exec_nodes)} exec nodes")
+
+                    offline_nodes = {}
+                    for address, node in scheduler_nodes.items():
+                        is_online, state = get_node_state(node)
+                        if not is_online:
+                            offline_nodes[address] = state
+                    if offline_nodes:
+                        return False, f"Nodes are not online at scheduler: {offline_nodes}"
 
                 return True
 
@@ -2429,9 +2470,10 @@ class YTInstance(object):
                 missing = expected_endpoints - alive
                 return False, "RPC proxies not yet fully registered; waiting for {0}".format(missing)
 
-            proxies_ports_ready = all(is_port_opened(port) for port in proxies_ports)
-
-            return proxies_ports_ready
+            closed_port = next((port for port in proxies_ports if not is_port_opened(port)), None)
+            if closed_port is not None:
+                return False, f"RPC proxy port {closed_port} is not open yet"
+            return True
 
         self._wait_for_component(
             "rpc_proxy",
@@ -2583,10 +2625,14 @@ class YTInstance(object):
         logger.info("Waiting for %s...", name)
         while datetime.datetime.now() - start_time < datetime.timedelta(seconds=max_wait_time):
             result = condition()
-            if isinstance(result, tuple):
+            if result is True:
+                ok = True
+            elif isinstance(result, tuple) and len(result) == 2 and result[0] is False:
                 ok, condition_error = result
             else:
-                ok = result
+                raise YtError(
+                    f"Readiness check for {name} returned {result!r}; "
+                    "it must return True or a (False, reason) tuple")
 
             if ok:
                 logger.info("%s ready", name.capitalize())
