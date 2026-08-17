@@ -99,6 +99,13 @@ def configure_loggers(
     except ImportError:
         pass
 
+    # Pando logger
+    try:
+        from yt.yt.pando.python.client.logger import logger as pando_logger
+        setup_logger(pando_logger)
+    except ImportError:
+        pass
+
     # Solomon logger
     try:
         from solomon.solomon import LOGGER as solomon_logger
