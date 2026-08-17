@@ -21,10 +21,13 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NTabletBalancer {
 
+using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NLogging;
 using namespace NObjectClient;
@@ -113,6 +116,8 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
         .CellDeviationThreshold = groupConfig->CellDeviationThreshold.value_or(CellDeviationThreshold),
         .MinRelativeMetricImprovement = groupConfig->MinRelativeMetricImprovement.value_or(
             MinRelativeMetricImprovement),
+        .MinTabletsPerMoveRecomputationWorker = groupConfig->MinTabletsPerMoveRecomputationWorker.value_or(
+            MinTabletsPerMoveRecomputationWorker),
         .Metric = groupConfig->Metric.empty()
             ? Metric
             : groupConfig->Metric,
@@ -402,6 +407,7 @@ public:
         TParameterizedReassignSolverConfig config,
         TGroupName groupName,
         TTableParameterizedMetricTrackerPtr metricTracker,
+        IThreadPoolPtr recomputeThreadPool,
         EMetricsCalculatorType type,
         const TLogger& logger)
         : Bundle_(std::move(bundle))
@@ -410,8 +416,10 @@ public:
             .WithTag("Group", groupName))
         , Config_(std::move(config))
         , GroupName_(std::move(groupName))
+        , RecomputeThreadPool_(std::move(recomputeThreadPool))
         , MetricTracker_(std::move(metricTracker))
         , MoveActions_(Config_.BoundedPriorityQueueSize)
+        , RecomputeWorkerMoveActions_(BuildRecomputeWorkerMoveActions(Config_.BoundedPriorityQueueSize))
     {
         switch (type) {
             case EMetricsCalculatorType::Parameterized:
@@ -563,6 +571,7 @@ private:
     const TLogger Logger;
     const TParameterizedReassignSolverConfig Config_;
     const TGroupName GroupName_;
+    const IThreadPoolPtr RecomputeThreadPool_;
     TTableParameterizedMetricTrackerPtr MetricTracker_;
     TParameterizedMetricsCalculatorPtr Calculator_;
 
@@ -572,7 +581,12 @@ private:
     std::vector<int> SortedCellIndexes_;
     THashMap<TNodeAddress, TNodeInfo> Nodes_;
 
-    TBoundedPriorityQueue<TMoveActionInfo> MoveActions_;
+    using TMoveActions = TBoundedPriorityQueue<TMoveActionInfo>;
+    static constexpr int MaxRecomputeThreadCount = 4;
+
+    TMoveActions MoveActions_;
+    std::array<TMoveActions, MaxRecomputeThreadCount> RecomputeWorkerMoveActions_;
+
     TMoveActionInfo BestActionInfo_;
 
     double TableNormalizingCoefficient_ = 1.0;
@@ -585,13 +599,23 @@ private:
     double CurrentMetric_;
     double CellFactor_ = 1.0;
     double NodeFactor_ = 1.0;
-    int LogMessageCount_ = 0;
+
+    std::atomic<int> LogMessageCount_ = 0;
 
     int FullRecomputeAttempts_ = 0;
     int PartialRecomputeAttempts_ = 0;
     int MaxCellPerNodeCount_ = 0;
 
 private:
+    static std::array<TMoveActions, MaxRecomputeThreadCount> BuildRecomputeWorkerMoveActions(int queueSize)
+    {
+        return [queueSize] <size_t... Is> (std::index_sequence<Is...>) {
+            return std::array<TMoveActions, MaxRecomputeThreadCount>{
+                ((void)Is, TMoveActions(queueSize))...
+            };
+        }(std::make_index_sequence<MaxRecomputeThreadCount>{});
+    };
+
     void Initialize()
     {
         auto cells = Bundle_->GetAliveCells();
@@ -1004,11 +1028,15 @@ private:
              destinationCell->Node->SafeFreeMemoryAmount <= destinationCell->Node->FreeNodeMemory - size);
     }
 
-    //! Generates an action moving |tablet| to |cell|. Returns |false| if it can be proven that all further actions will be pruned and the iteration can be stopped.
-    bool TryMoveTablet(
+    //! Generates an action moving |tablet| to |cell|. Returns |false| if it can be proven
+    //! that all further actions will be pruned and the iteration can be stopped.
+    Y_FORCE_INLINE bool TryMoveTablet(
         TTabletInfo* tablet,
-        TTabletCellInfo* cell)
+        TTabletCellInfo* cell,
+        TBoundedPriorityQueue<TMoveActionInfo>* moveActions)
     {
+        double bestDiscardedCost = moveActions->GetBestDiscardedCost();
+
         auto* sourceCell = &Cells_[tablet->CellIndex];
 
         if (cell == sourceCell) {
@@ -1065,7 +1093,7 @@ private:
                 tablet->Metric * TableCellFactors_[tableIndex]) *
             TableCellFactors_[tableIndex] * TableNormalizingCoefficient_;
 
-        if (newMetricDiff * (2.0 * tablet->Metric) < MoveActions_.GetBestDiscardedCost()) {
+        if (newMetricDiff * (2.0 * tablet->Metric) < bestDiscardedCost) {
             // Current value of newMetricDiff takes into account the "positive" part
             // (a certain tablet was moved from a certain node&cell) and partly
             // the "negative" part (a certain tablet is moved to a certain node).
@@ -1100,7 +1128,7 @@ private:
             destinationNode->Metric);
 
         if (newMetricDiff > 0.0) {
-            MoveActions_.Insert(
+            moveActions->Insert(
                 newMetricDiff,
                 {
                     .SourceCell = sourceCell,
@@ -1116,10 +1144,10 @@ private:
     void ApplyBestAction(int* availableActionCount)
     {
         MoveActions_.Invalidate(
-            [=, this] (const std::pair<double, TMoveActionInfo>& moveActionInfo) {
+            [=, this] (const auto& moveActionInfo) {
                 std::array bannedNodes = {
-                    moveActionInfo.second.SourceCell->Node,
-                    moveActionInfo.second.DestinationCell->Node,
+                    moveActionInfo.Payload.SourceCell->Node,
+                    moveActionInfo.Payload.DestinationCell->Node,
                 };
 
                 for (auto nodeIndex : bannedNodes) {
@@ -1180,6 +1208,55 @@ private:
         }
     }
 
+    template <class TRecomputator>
+    void ExecuteActionRecomputation(TRecomputator&& recomputator)
+    {
+        // NB(dave11ar): Force |EnsureStarted| for correct work of |GetThreadCount|.
+        auto recomputeInvoker = RecomputeThreadPool_->GetInvoker();
+        int threadCount = RecomputeThreadPool_->GetThreadCount();
+        int tabletCount = ssize(Tablets_);
+
+        int workerCount = std::clamp(
+            tabletCount / Config_.MinTabletsPerMoveRecomputationWorker,
+            1,
+            threadCount);
+
+        // Optimization for small bundles.
+        if (workerCount == 1) {
+            recomputator(TMutableRange(Tablets_), &MoveActions_);
+            return;
+        }
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(workerCount);
+
+        int chunkSize = DivCeil(tabletCount, workerCount);
+
+        for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex) {
+            auto* moveActions = &RecomputeWorkerMoveActions_[workerIndex];
+            moveActions->Reset();
+
+            int tabletBeginIndex = workerIndex * chunkSize;
+            int tabletEndIndex = std::min(tabletBeginIndex + chunkSize, tabletCount);
+
+            futures.push_back(BIND(
+                recomputator,
+                TMutableRange(Tablets_.begin() + tabletBeginIndex, Tablets_.begin() + tabletEndIndex),
+                moveActions)
+                .AsyncVia(recomputeInvoker)
+                .Run());
+        }
+
+        WaitFor(AllSucceeded(std::move(futures)))
+            .ThrowOnError();
+
+        for (int workerIndex = 0; workerIndex < workerCount; ++workerIndex) {
+            for (auto&& element : RecomputeWorkerMoveActions_[workerIndex].Elements()) {
+                MoveActions_.Insert(element.Cost, std::move(element.Payload));
+            }
+        }
+    }
+
     void RecomputeInvalidatedActions()
     {
         std::array bannedNodes = {
@@ -1188,40 +1265,45 @@ private:
         };
 
         std::vector<TTabletCellInfo*> invalidatedCells;
-        invalidatedCells.reserve(MaxCellPerNodeCount_);
+        invalidatedCells.reserve(MaxCellPerNodeCount_ * 2);
         for (auto& cell : Cells_) {
             if (cell.Node == BestActionInfo_.SourceCell->Node || cell.Node == BestActionInfo_.DestinationCell->Node) {
                 invalidatedCells.push_back(&cell);
             }
         }
 
-        for (auto& tablet : Tablets_) {
-            auto* sourceCell = &Cells_[tablet.CellIndex];
+        ExecuteActionRecomputation([&, this_ = MakeStrong(this)] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
+            for (auto& tablet : tablets) {
+                auto* sourceCell = &Cells_[tablet.CellIndex];
 
-            if (std::find(bannedNodes.begin(), bannedNodes.end(), sourceCell->Node) != bannedNodes.end()) {
-                for (auto cellIndex : SortedCellIndexes_) {
-                    if (!TryMoveTablet(&tablet, &Cells_[cellIndex])) {
-                        break;
+                if (std::find(bannedNodes.begin(), bannedNodes.end(), sourceCell->Node) != bannedNodes.end()) {
+                    for (auto cellIndex : SortedCellIndexes_) {
+                        if (!TryMoveTablet(&tablet, &Cells_[cellIndex], moveActions)) {
+                            break;
+                        }
+                    }
+                } else {
+                    for (auto* cell : invalidatedCells) {
+                        TryMoveTablet(&tablet, cell, moveActions);
                     }
                 }
-            } else {
-                for (auto* cell : invalidatedCells) {
-                    TryMoveTablet(&tablet, cell);
-                }
             }
-        }
+        });
     }
 
     void RecomputeAllActions()
     {
         MoveActions_.Reset();
-        for (auto& tablet : Tablets_) {
-            for (auto cellIndex : SortedCellIndexes_) {
-                if (!TryMoveTablet(&tablet, &Cells_[cellIndex])) {
-                    break;
+
+        ExecuteActionRecomputation([&, this_ = MakeStrong(this)] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
+            for (auto& tablet : tablets) {
+                for (auto cellIndex : SortedCellIndexes_) {
+                    if (!TryMoveTablet(&tablet, &Cells_[cellIndex], moveActions)) {
+                        break;
+                    }
                 }
             }
-        }
+        });
     }
 
     bool TryFindBestAction()
@@ -1242,7 +1324,7 @@ private:
             return false;
         }
 
-        BestActionInfo_ = MoveActions_.ExtractMax()->second;
+        BestActionInfo_ = MoveActions_.ExtractMax().Payload;
 
         return true;
     }
@@ -1728,6 +1810,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
+    IThreadPoolPtr recomputeThreadPool,
     const NLogging::TLogger& logger)
 {
     return New<TParameterizedReassignSolver>(
@@ -1736,6 +1819,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
         std::move(config),
         std::move(groupName),
         std::move(metricTracker),
+        std::move(recomputeThreadPool),
         EMetricsCalculatorType::Parameterized,
         logger);
 }
@@ -1746,6 +1830,7 @@ IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
+    IThreadPoolPtr workerPool,
     const NLogging::TLogger& logger)
 {
     return New<TParameterizedReassignSolver>(
@@ -1754,6 +1839,7 @@ IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
         std::move(config),
         std::move(groupName),
         std::move(metricTracker),
+        std::move(workerPool),
         EMetricsCalculatorType::Replica,
         logger);
 }
