@@ -94,8 +94,8 @@ class Test(FlowTestBase):
         ] = self.output_queue
 
         for computation in pipeline_config["spec"]["computations"].values():
-            # Set relaxed_ordering parameter. It can be changed to True if you want to check that test really can find ordering problems.
-            computation["relaxed_ordering"] = False
+            # Pin strict distribution ordering. It can be changed to "relaxed" if you want to check that test really can find ordering problems.
+            computation["distribution_ordering"] = "strict"
 
             # Explicitly set input_ordering parameter to event time.
             if len(computation["input_stream_ids"]) > 0:
