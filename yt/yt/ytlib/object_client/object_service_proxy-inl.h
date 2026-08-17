@@ -89,9 +89,9 @@ TObjectServiceProxy::Execute(TIntrusivePtr<TTypedRequest> innerRequest)
 
 template <class TTypedRequest>
 TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
-TObjectServiceProxy::ExecuteAs(std::string user, TIntrusivePtr<TTypedRequest> innerRequest)
+TObjectServiceProxy::ExecuteAs(const std::string& user, TIntrusivePtr<TTypedRequest> innerRequest)
 {
-    return ExecuteManyAs(std::move(user), std::move(innerRequest))
+    return ExecuteManyAs(user, std::move(innerRequest))
         .Apply(BIND([] (const std::tuple<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>& rsp) {
             return std::get<0>(rsp);
         }));
@@ -108,7 +108,7 @@ TObjectServiceProxy::ExecuteMany(TIntrusivePtr<TTypedRequests>... innerRequests)
 template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
     requires (sizeof...(TTypedRequests) > 0)
 TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
-TObjectServiceProxy::ExecuteManyAs(std::string user, TIntrusivePtr<TTypedRequests>... innerRequests)
+TObjectServiceProxy::ExecuteManyAs(const std::string& user, TIntrusivePtr<TTypedRequests>... innerRequests)
 {
     auto outerRequest = ExecuteBatch();
     outerRequest->SetUser(user);
