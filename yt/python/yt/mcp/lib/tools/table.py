@@ -40,7 +40,7 @@ class ReadStaticTable(YTToolBase):
     ):
         "A tool for getting static table content. " \
             "Returns 'total_rows' (total rows in table), 'limit' (current limit), 'offset' (current offset), 'table_content' (rows from table). " \
-            "Data size can by large - use limit 1 for first query."
+            "Data size can be large - use limit 1 for first query."
         yt_client = self.runner.helper_get_yt_client(cluster, request_context)
 
         table = yt.YPath(table)
