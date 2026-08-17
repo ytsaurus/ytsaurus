@@ -339,6 +339,45 @@ class TestMountConfig(DynamicTablesBase):
         wait(min_compaction_store_count_checker(dave11ar1_tablet_id, 3))
         wait(min_compaction_store_count_checker(ifsmirnov_tablet_id, 3))
 
+    @authors("dave11ar")
+    def test_experiments_excludes(self):
+        included_bundle = "included_bundle"
+        excluded_bundle = "excluded_bundle"
+
+        for bundle in [included_bundle, excluded_bundle]:
+            create_tablet_cell_bundle(bundle)
+            sync_create_cells(1, tablet_cell_bundle=bundle)
+
+        def create_table(table_path, bundle):
+            self._create_sorted_table(table_path, tablet_cell_bundle=bundle)
+            sync_mount_table(table_path)
+            return get(f"{table_path}/@tablets/0/tablet_id")
+
+        included_tablet_id = create_table("//tmp/included", included_bundle)
+        excluded_by_path_tablet_id = create_table("//tmp/excluded_by_path", included_bundle)
+        excluded_by_bundle_tablet_id = create_table("//tmp/excluded_by_bundle", excluded_bundle)
+
+        set("//sys/@config/tablet_manager/table_config_experiments/foo", {
+            "fraction": 1.0,
+            "path_re": "//tmp/.*",
+            "exclude_path_re": "//tmp/excluded_by_pa.*",
+            "tablet_cell_bundle": ".*_bundle",
+            "exclude_tablet_cell_bundle": "excluded_bund.*",
+            "patch": {
+                "mount_config_patch": {
+                    "min_compaction_store_count": 4,
+                },
+            },
+            "auto_apply": True,
+        })
+
+        def min_compaction_store_count_checker(tablet_id, value):
+            return lambda: get(f"//sys/tablets/{tablet_id}/orchid/config/min_compaction_store_count") == value
+
+        wait(min_compaction_store_count_checker(included_tablet_id, 4))
+        wait(min_compaction_store_count_checker(excluded_by_path_tablet_id, 3))
+        wait(min_compaction_store_count_checker(excluded_by_bundle_tablet_id, 3))
+
     @authors("ifsmirnov")
     def test_common_key_in_attributes_and_mount_config(self):
         sync_create_cells(1)

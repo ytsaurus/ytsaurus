@@ -130,7 +130,11 @@ void TTableConfigExperiment::Register(TRegistrar registrar)
 
     registrar.Parameter("path_re", &TThis::PathRe)
         .Default();
+    registrar.Parameter("exclude_path_re", &TThis::ExcludePathRe)
+        .Default();
     registrar.Parameter("tablet_cell_bundle", &TThis::TabletCellBundle)
+        .Default();
+    registrar.Parameter("exclude_tablet_cell_bundle", &TThis::ExcludeTabletCellBundle)
         .Default();
     registrar.Parameter("in_memory_mode", &TThis::InMemoryMode)
         .Default();
@@ -167,7 +171,17 @@ bool TTableConfigExperiment::Matches(const TTableDescriptor& descriptor) const
         return false;
     }
 
+    if (ExcludePathRe && NRe2::TRe2::FullMatch(re2::StringPiece(descriptor.TablePath), *ExcludePathRe)) {
+        return false;
+    }
+
     if (TabletCellBundle && !NRe2::TRe2::FullMatch(re2::StringPiece(descriptor.TabletCellBundle), *TabletCellBundle)) {
+        return false;
+    }
+
+    if (ExcludeTabletCellBundle &&
+        NRe2::TRe2::FullMatch(re2::StringPiece(descriptor.TabletCellBundle), *ExcludeTabletCellBundle))
+    {
         return false;
     }
 
