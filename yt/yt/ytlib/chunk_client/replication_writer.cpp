@@ -1183,6 +1183,8 @@ private:
         auto req = proxy.FinishChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
+        SetRequestIoConsumed(req, options.ClientOptions, Config_->IoConsumedReportWindow);
+        SetRequestIoFairShareWeight(req, Config_->IoFairShareWeight);
 
         // NB: If we are under erasure writer, he already have called #Finalize() on chunkMeta.
         // In particular, there might be parallel part writers, so in this case we should

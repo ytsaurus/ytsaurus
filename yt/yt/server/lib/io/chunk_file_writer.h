@@ -82,7 +82,8 @@ public:
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TBlock& block,
-        TFairShareSlotId fairShareSlotId);
+        TFairShareSlotId fairShareSlotId,
+        std::optional<TIOFairShareState> fairShareState = {});
 
     bool WriteBlocks(
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
@@ -93,7 +94,8 @@ public:
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<NChunkClient::TBlock>& blocks,
-        TFairShareSlotId fairShareSlotId);
+        TFairShareSlotId fairShareSlotId,
+        std::optional<TIOFairShareState> fairShareState = {});
 
     TFuture<void> GetReadyEvent() override;
 
@@ -106,7 +108,8 @@ public:
         const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TDeferredChunkMetaPtr& chunkMeta,
-        TFairShareSlotId fairShareSlotId);
+        TFairShareSlotId fairShareSlotId,
+        std::optional<TIOFairShareState> fairShareState = {});
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;

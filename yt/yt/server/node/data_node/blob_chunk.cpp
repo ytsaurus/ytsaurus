@@ -356,7 +356,10 @@ void TBlobChunkBase::DoReadMeta(
 
         YT_VERIFY(fairShareQueueSlot.IsOK());
 
-        meta = WaitFor(reader->GetMeta(session->Options, fairShareQueueSlot.Value()->GetSlot()->GetSlotId())
+        meta = WaitFor(reader->GetMeta(
+            session->Options,
+            fairShareQueueSlot.Value()->GetSlot()->GetSlotId(),
+            session->Options.FairShareState)
             .WithDeadline(session->Options.ReadMetaDeadLine))
             .ValueOrThrow();
     } catch (const std::exception& ex) {
@@ -726,6 +729,7 @@ TFuture<void> TBlobChunkBase::ReadBlocks(
         readBlocksRequest.FirstBlockIndex,
         readBlocksRequest.BlocksToRead,
         session->FairShareSlot->GetSlot()->GetSlotId(),
+        session->Options.FairShareState,
         session->BlocksExt);
 
     return asyncBlocks.Apply(

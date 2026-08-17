@@ -331,7 +331,8 @@ TFuture<void> TSessionBase::GetUnregisteredEvent()
 
 TFuture<ISession::TFinishResult> TSessionBase::Finish(
     const TRefCountedChunkMetaPtr& chunkMeta,
-    std::optional<int> blockCount)
+    std::optional<int> blockCount,
+    std::optional<NIO::TIOFairShareState> fairShareState)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -347,7 +348,7 @@ TFuture<ISession::TFinishResult> TSessionBase::Finish(
             Active_ = false;
             Location_->RemoveProbePutBlocksRequestSupplier(ProbePutBlocksRequestSupplier_);
 
-            return DoFinish(chunkMeta, blockCount);
+            return DoFinish(chunkMeta, blockCount, fairShareState);
         })
         .AsyncVia(SessionInvoker_)
         .Run();
@@ -403,6 +404,7 @@ TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
     i64 cumulativeBlockSize,
+    std::optional<NIO::TIOFairShareState> fairShareState,
     bool enableCaching)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -419,7 +421,12 @@ TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
             ValidateActive();
             Ping();
 
-            return DoPutBlocks(startBlockIndex, std::move(blocks), cumulativeBlockSize, enableCaching);
+            return DoPutBlocks(
+                startBlockIndex,
+                std::move(blocks),
+                cumulativeBlockSize,
+                fairShareState,
+                enableCaching);
         })
         .AsyncVia(SessionInvoker_)
         .Run();
@@ -429,8 +436,7 @@ TFuture<TSessionBase::TSendBlocksResult> TSessionBase::SendBlocks(
     int startBlockIndex,
     int blockCount,
     i64 cumulativeBlockSize,
-    std::optional<i64> ioConsumed,
-    std::optional<double> ioFairShareWeight,
+    std::optional<NIO::TIOFairShareState> fairShareState,
     TDuration requestTimeout,
     bool instantReplyOnThrottling,
     const TNodeDescriptor& targetDescriptor)
@@ -444,7 +450,14 @@ TFuture<TSessionBase::TSendBlocksResult> TSessionBase::SendBlocks(
             ValidateActive();
             Ping();
 
-            return DoSendBlocks(startBlockIndex, blockCount, cumulativeBlockSize, ioConsumed, ioFairShareWeight, requestTimeout, instantReplyOnThrottling, targetDescriptor);
+            return DoSendBlocks(
+                startBlockIndex,
+                blockCount,
+                cumulativeBlockSize,
+                fairShareState,
+                requestTimeout,
+                instantReplyOnThrottling,
+                targetDescriptor);
         })
         .AsyncVia(SessionInvoker_)
         .Run();

@@ -47,7 +47,8 @@ public:
 
     TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) override;
+        std::optional<int> blockCount,
+        std::optional<NIO::TIOFairShareState> fairShareState) override;
 
     bool ShouldUseProbePutBlocks() const override;
     void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;
@@ -58,14 +59,14 @@ public:
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         bool enableCaching) override;
 
     TFuture<TSendBlocksResult> SendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
-        std::optional<i64> ioConsumed,
-        std::optional<double> ioFairShareWeight,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
@@ -116,18 +117,19 @@ protected:
     virtual void DoCancel(const TError& error) = 0;
     virtual TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) = 0;
+        std::optional<int> blockCount,
+        std::optional<NIO::TIOFairShareState> fairShareState) = 0;
     virtual TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         bool enableCaching) = 0;
     virtual TFuture<TSendBlocksResult> DoSendBlocks(
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
-        std::optional<i64> ioConsumed,
-        std::optional<double> ioFairShareWeight,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         TDuration requestTimeout,
         bool enableThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;

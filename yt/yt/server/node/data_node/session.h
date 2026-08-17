@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/io/public.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
 
 #include <yt/yt/server/lib/nbd/config.h>
@@ -170,7 +171,8 @@ struct ISession
     //! Finishes the session.
     virtual TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
-        std::optional<int> blockCount) = 0;
+        std::optional<int> blockCount,
+        std::optional<NIO::TIOFairShareState> fairShareState) = 0;
 
     //! Checks is probe put blocks should be used.
     virtual bool ShouldUseProbePutBlocks() const = 0;
@@ -184,6 +186,7 @@ struct ISession
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
         i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.
@@ -191,8 +194,7 @@ struct ISession
         int startBlockIndex,
         int blockCount,
         i64 cumulativeBlockSize,
-        std::optional<i64> ioConsumed,
-        std::optional<double> ioFairShareWeight,
+        std::optional<NIO::TIOFairShareState> fairShareState,
         TDuration requestTimeout,
         bool instantReplyOnThrottling,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;

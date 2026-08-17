@@ -13,6 +13,7 @@
 #include <util/system/tempfile.h>
 
 #include <optional>
+#include <limits>
 
 namespace NYT::NIO {
 namespace {
@@ -34,6 +35,22 @@ void WriteFile(const std::string& fileName, TRef data)
 {
     TFile file(fileName, WrOnly | CreateAlways);
     file.Pwrite(data.Begin(), data.Size(), 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TIOFairShareStateTest, MakesOnlyValidState)
+{
+    EXPECT_TRUE(MakeIOFairShareState(0, 1.0));
+    EXPECT_TRUE(MakeIOFairShareState(1, 0.5));
+
+    EXPECT_FALSE(MakeIOFairShareState({}, 1.0));
+    EXPECT_FALSE(MakeIOFairShareState(0, {}));
+    EXPECT_FALSE(MakeIOFairShareState(-1, 1.0));
+    EXPECT_TRUE(MakeIOFairShareState(0, 0.0));
+    EXPECT_FALSE(MakeIOFairShareState(0, -1.0));
+    EXPECT_FALSE(MakeIOFairShareState(0, std::numeric_limits<double>::quiet_NaN()));
+    EXPECT_FALSE(MakeIOFairShareState(0, std::numeric_limits<double>::infinity()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

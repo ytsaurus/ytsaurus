@@ -56,6 +56,7 @@ struct TReadRequest
     i64 Offset = -1;
     i64 Size = -1;
     TFairShareSlotId FairShareSlotId = {};
+    std::optional<TIOFairShareState> FairShareState = {};
 };
 
 struct TReadResponse
@@ -73,6 +74,7 @@ struct TWriteRequest
     std::vector<TSharedRef> Buffers;
     bool Flush = false;
     TFairShareSlotId FairShareSlotId = {};
+    std::optional<TIOFairShareState> FairShareState = {};
 };
 
 struct TWriteResponse
@@ -113,6 +115,7 @@ struct TFlushFileRequest
     TIOEngineHandlePtr Handle;
     EFlushFileMode Mode;
     TFairShareSlotId FairShareSlotId = {};
+    std::optional<TIOFairShareState> FairShareState = {};
 };
 
 struct TFlushFileResponse
@@ -127,6 +130,7 @@ struct TFlushFileRangeRequest
     i64 Size = -1;
     bool Async = false;
     TFairShareSlotId FairShareSlotId = {};
+    std::optional<TIOFairShareState> FairShareState = {};
 };
 
 struct TFlushFileRangeResponse
@@ -159,6 +163,10 @@ struct TResizeRequest
 
 struct TDefaultReadTag
 { };
+
+std::optional<TIOFairShareState> MakeIOFairShareState(
+    std::optional<i64> ioConsumed,
+    std::optional<double> ioFairShareWeight);
 
 struct IIOEngine
     : public TRefCounted
@@ -239,7 +247,8 @@ struct IIOEngine
         const std::string& path,
         EWorkloadCategory category = EWorkloadCategory::Idle,
         TIOSessionId sessionId = {},
-        TFairShareSlotId fairShareSlot = {});
+        TFairShareSlotId fairShareSlot = {},
+        std::optional<TIOFairShareState> fairShareState = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)

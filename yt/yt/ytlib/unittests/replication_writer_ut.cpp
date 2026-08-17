@@ -179,6 +179,12 @@ public:
     {
         YT_VERIFY(SessionId_.has_value());
         YT_VERIFY(*SessionId_ == FromProto<TSessionId>(request->session_id()));
+        FinishHasIoConsumed_.store(request->has_io_consumed());
+        if (request->has_io_fair_share_weight()) {
+            LastFinishIoFairShareWeight_.store(request->io_fair_share_weight());
+        } else {
+            LastFinishIoFairShareWeight_.store(-1);
+        }
         SessionId_ = std::nullopt;
 
         *response->mutable_chunk_info() = {};
@@ -407,6 +413,16 @@ public:
         return LastIoFairShareWeight_.load();
     }
 
+    bool GetFinishHasIoConsumed() const
+    {
+        return FinishHasIoConsumed_.load();
+    }
+
+    double GetLastFinishIoFairShareWeight() const
+    {
+        return LastFinishIoFairShareWeight_.load();
+    }
+
 private:
     const int ThrottledBlockCount_;
     const bool AlwaysFail_;
@@ -428,6 +444,8 @@ private:
     i64 MetaBytesPerFinish_ = 0;
     std::atomic<i64> ReportedWriterBytes_ = 0;
     std::atomic<double> LastIoFairShareWeight_ = -1;
+    std::atomic<bool> FinishHasIoConsumed_ = false;
+    std::atomic<double> LastFinishIoFairShareWeight_ = -1;
 
     // Weak Pointer because of circular dependency
     TWeakPtr<IChannelFactory> ChannelFactory_ = nullptr;
@@ -854,6 +872,10 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
 
     EXPECT_GT(expectedBytes, 0);
     EXPECT_EQ(jobIoMeter->GetIoConsumedInWindow(TDuration::Hours(1)), expectedBytes);
+
+    for (const auto& service : Services) {
+        EXPECT_TRUE(service->GetFinishHasIoConsumed());
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -868,6 +890,12 @@ INSTANTIATE_TEST_SUITE_P(
         TWriterTestCase{
             .ReplicationFactor = 3,
             .NodeCount = 3,
+            .BlockCount = 16,
+        },
+        TWriterTestCase{
+            .UseProbePutBlocks = true,
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
             .BlockCount = 16,
         }));
 
@@ -897,7 +925,8 @@ TEST_P(TIoFairShareWeightWriterTest, ReportsIoFairShareWeight)
         .BlockingWait(TDuration::Seconds(120));
 
     for (const auto& service : Services) {
-        EXPECT_EQ(service->GetLastIoFairShareWeight(), 2.5);
+        EXPECT_EQ(service->GetLastIoFairShareWeight(), GetParam().IoFairShareWeight.value());
+        EXPECT_EQ(service->GetLastFinishIoFairShareWeight(), GetParam().IoFairShareWeight.value());
     }
 }
 
@@ -914,6 +943,13 @@ INSTANTIATE_TEST_SUITE_P(
         TWriterTestCase{
             .ReplicationFactor = 3,
             .NodeCount = 3,
+            .BlockCount = 16,
+            .IoFairShareWeight = 2.5,
+        },
+        TWriterTestCase{
+            .UseProbePutBlocks = true,
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
             .BlockCount = 16,
             .IoFairShareWeight = 2.5,
         }));
