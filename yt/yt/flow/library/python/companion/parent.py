@@ -16,7 +16,12 @@ import time
 
 from .context import PipelineContext
 from .job import JobContext
-from .server import DEFAULT_SHUTDOWN_TIMEOUT_SECONDS
+from .server import (
+    DEFAULT_DRAIN_TIMEOUT_SECONDS,
+    DEFAULT_SHUTDOWN_TIMEOUT_SECONDS,
+    DEFAULT_UNLOAD_TIMEOUT_SECONDS,
+    shutdown_resources_within,
+)
 from .worker import DEFAULT_IO_THREADS, build_worker_server
 
 log = logging.getLogger(__name__)
@@ -38,8 +43,9 @@ CRASH_LOOP_WINDOW_SECONDS = 300.0
 # Honour SIGTERM cleanly when the supervisor is asked to stop.
 _STOP_SIGNALS = (signal.SIGTERM, signal.SIGINT)
 
-# How long a child may drain in-flight RPCs after SIGTERM before it is killed.
-# Exceeds the child's own shutdown grace, so a healthy child exits on its own.
+# How long a child may drain in-flight RPCs and run its unload hooks after SIGTERM before it
+# is killed. Exceeds the child's own budget (drain plus hooks), so a healthy child exits on
+# its own.
 DEFAULT_STOP_TIMEOUT_SECONDS = DEFAULT_SHUTDOWN_TIMEOUT_SECONDS + 5.0
 
 # Poll cadence while waiting for children to exit after SIGTERM.
@@ -207,26 +213,60 @@ def _bind_data_port(requested_port):
         s.close()
 
 
+def _drain_child(server, servicer):
+    """Stop serving and release the child's resources, in that order.
+
+    ``server.stop`` is non-blocking and returns an Event signalled once the grace
+    period drains in-flight RPCs — wait on it before releasing, so the batches
+    still holding leases finish first. Draining takes only part of the stop
+    budget, leaving the rest for the unload hooks; same split as the
+    single-process path so shutdown semantics do not depend on the fan-out mode.
+    """
+    drained = server.stop(grace=DEFAULT_DRAIN_TIMEOUT_SECONDS)
+    drained.wait()
+    # Bounded by the rest of the stop budget: a hook that never returns must not keep the
+    # child alive until the supervisor kills it mid-teardown.
+    shutdown_resources_within(servicer, DEFAULT_UNLOAD_TIMEOUT_SECONDS)
+
+
+def _make_stop_handler(server, servicer, exit_process=os._exit):
+    """Signal handler that drains the child once and then exits.
+
+    Signals are delivered re-entrantly inside a running handler, so the second one must
+    return instead of restarting the drain and exiting out of the hook loop the first one
+    is still running. ``exit_process`` is injectable for tests.
+    """
+    stopping = threading.Event()
+
+    def _terminate(signum, frame):
+        if stopping.is_set():
+            log.info("Companion process already stopping, ignoring signal %s", signum)
+            return
+        stopping.set()
+        log.info("Companion process received signal %s, stopping", signum)
+        # Exits even if the drain itself raises, so a stopping child never unwinds into the
+        # supervisor's crash path.
+        try:
+            _drain_child(server, servicer)
+        finally:
+            exit_process(0)
+
+    return _terminate
+
+
 def _run_companion_child(address, pipeline_context, job_context):
     """Body of a forked companion process: build the gRPC server and block on it.
 
     Runs in the child after ``os.fork()``; never returns to the caller.
     """
-    server = build_worker_server(
+    server, servicer = build_worker_server(
         address=address,
         pipeline_context=pipeline_context,
         job_context=job_context,
         io_threads=DEFAULT_IO_THREADS,
     )
 
-    def _terminate(signum, frame):
-        log.info("Companion process received signal %s, stopping", signum)
-        # ``server.stop`` is non-blocking and returns an Event signalled once the grace
-        # period drains in-flight RPCs — wait on it before exiting. Same grace as the
-        # single-process path so shutdown semantics do not depend on the fan-out mode.
-        drained = server.stop(grace=DEFAULT_SHUTDOWN_TIMEOUT_SECONDS)
-        drained.wait()
-        os._exit(0)
+    _terminate = _make_stop_handler(server, servicer)
 
     for sig in _STOP_SIGNALS:
         signal.signal(sig, _terminate)
@@ -235,6 +275,7 @@ def _run_companion_child(address, pipeline_context, job_context):
 
     server.start()
     server.wait_for_termination()
+    _drain_child(server, servicer)
     os._exit(0)
 
 

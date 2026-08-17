@@ -32,8 +32,11 @@ def build_worker_server(
     io_threads: int = DEFAULT_IO_THREADS,
     extra_options=None,
     server_factory=None,
-) -> grpc.Server:
+):
     """Build one worker's gRPC server, ready to ``start()``.
+
+    Returns ``(server, servicer)``: the caller owns the servicer's shutdown, so
+    the resources of a stopping worker are released on its own stop path.
 
     Multiple servers built with this function on the same address can coexist because
     ``grpc.so_reuseport=1`` lets each child bind the port and the kernel spreads load.
@@ -61,4 +64,4 @@ def build_worker_server(
     # would look alive to the supervisor while serving nothing.
     if server.add_insecure_port(address) == 0:
         raise RuntimeError(f"Failed to bind companion worker to {address}")
-    return server
+    return server, servicer

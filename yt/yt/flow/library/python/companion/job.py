@@ -2,8 +2,9 @@
 
 import logging
 import threading
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
+from .resource import CompanionResourceInstanceReference, _extract_parameters
 from .row import TableSchema, EMPTY_SCHEMA
 from .stream import StreamSpecs
 
@@ -21,6 +22,7 @@ class Job:
         static_spec: Any = None,
         dynamic_spec: Any = None,
         group_by_schema: Optional[TableSchema] = None,
+        companion_resources: Optional[List[CompanionResourceInstanceReference]] = None,
     ):
         self.job_id = job_id
         self.computation_id = computation_id
@@ -28,18 +30,14 @@ class Job:
         self.static_spec = static_spec or {}
         self.dynamic_spec = dynamic_spec or {}
         self.group_by_schema = group_by_schema or EMPTY_SCHEMA
+        # Exact direct and transitive companion resources required by the job.
+        self.companion_resources = companion_resources or []
 
-        self.static_parameters = self._extract_parameters(self.static_spec)
-        self.dynamic_parameters = self._extract_parameters(self.dynamic_spec)
+        self.static_parameters = _extract_parameters(self.static_spec)
+        self.dynamic_parameters = _extract_parameters(self.dynamic_spec)
         self.internal_state_names = self._extract_internal_states(self.static_parameters)
         self.external_state_names = self._extract_external_states(self.static_spec)
         self.joiner_state_names = self._extract_joiner_states(self.static_spec)
-
-    @staticmethod
-    def _extract_parameters(spec: Any) -> Dict[str, Any]:
-        if isinstance(spec, dict):
-            return spec.get("parameters", {})
-        return {}
 
     @staticmethod
     def _extract_internal_states(parameters: Dict[str, Any]) -> Set[str]:

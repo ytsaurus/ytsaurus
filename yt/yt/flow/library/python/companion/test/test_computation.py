@@ -416,3 +416,48 @@ class TestEvictTester:
         with pytest.raises(ReadOnlyExternalStateError):
             with h.processing(visits=[visit], joined_external_states={_WORD_JOINER: {}}):
                 pass
+
+
+class ResourceReadingFunction(RowFunction):
+    """Emits the value its companion-hosted resource supplies."""
+
+    def on_message(self, message, output, ctx):
+        greeting = ctx.get_resource("greeting")
+        output.add_message(
+            Message(
+                message_id=message.message_id,
+                stream_id="out",
+                payload=PayloadBuilder(schema(text="string")).set("text", greeting.text()).finish(),
+            )
+        )
+
+
+class TestHarnessResources:
+    def test_registered_resource_is_served_to_the_computation(self):
+        class GreetingStub:
+            def text(self):
+                return "hello"
+
+        h = ComputationHarness(
+            ResourceReadingFunction(),
+            streams={"words": schema(word="string"), "out": schema(text="string")},
+            resources={"greeting": GreetingStub()},
+        )
+        msg = h.build_message("words", word="ignored")
+
+        with h.processing([msg]) as r:
+            assert len(r.messages) == 1
+            assert r.messages[0].payload["text"] == "hello"
+
+    def test_unregistered_alias_is_reported_to_the_computation(self):
+        h = ComputationHarness(
+            ResourceReadingFunction(),
+            streams={"words": schema(word="string"), "out": schema(text="string")},
+        )
+        msg = h.build_message("words", word="ignored")
+
+        # Without the kwarg the alias is simply absent, so a computation under
+        # test fails loudly instead of reading a silently empty resource.
+        with pytest.raises(Exception):
+            with h.processing([msg]):
+                pass

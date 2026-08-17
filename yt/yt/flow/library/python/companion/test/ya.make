@@ -9,6 +9,7 @@ TEST_SRCS(
     test_context.py
     test_state.py
     test_request_processor.py
+    test_resource_store.py
     test_server.py
     test_api.py
     test_sizing.py

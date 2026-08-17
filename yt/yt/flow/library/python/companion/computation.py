@@ -235,6 +235,7 @@ class Computation:
             key_schema=job.group_by_schema,
             joined_external_states=getattr(request_ctx, "joined_external_states", {}),
             joiner_state_names=job.joiner_state_names,
+            resources=getattr(request_ctx, "resources", {}),
         )
 
         # Process messages.

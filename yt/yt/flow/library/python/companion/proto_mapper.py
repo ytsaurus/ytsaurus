@@ -3,6 +3,8 @@
 import logging
 from typing import Any, Dict
 
+from yt.common import parts_to_uuid, uuid_to_parts
+
 from .context import RequestContext, ResponseContext
 from .job import Job
 from .row import (
@@ -33,14 +35,39 @@ UNSET_TIMESTAMP = 0
 
 
 def _guid_parts_from_str(guid_str: str):
-    """Inverse of :func:`_guid_to_str`."""
-    first, second = guid_str.split("-")
-    return int(first, 16), int(second, 16)
+    """Inverse of :func:`_guid_to_str`: the canonical four-part text form back
+    into the proto's two 64-bit halves.
+    """
+    return uuid_to_parts(guid_str)
 
 
 def _guid_to_str(guid_proto) -> str:
-    """Convert a TGuid protobuf to string."""
-    return f"{guid_proto.first:x}-{guid_proto.second:x}"
+    """Convert a TGuid protobuf to the canonical YT text form.
+
+    The proto's two halves are exactly the ``(id_hi, id_lo)`` pair the shared YT
+    helpers pack, so the packing lives there: ids logged by the companion are
+    grepped against worker and controller logs, and companion resource
+    incarnation ids arrive in this text form inside YSON command arguments, so
+    they must agree with the rest of YT to the bit.
+    """
+    return parts_to_uuid(guid_proto.first, guid_proto.second)
+
+
+def companion_resources_from_proto(proto_references) -> list:
+    """Map repeated TCompanionResourceInstanceReference to domain references."""
+    from .resource import CompanionResourceInstanceReference
+
+    references = []
+    for proto_reference in proto_references:
+        references.append(
+            CompanionResourceInstanceReference(
+                resource_id=proto_reference.resource_id,
+                incarnation_id=_guid_to_str(proto_reference.incarnation_id),
+                configuration_generation=proto_reference.configuration_generation,
+                alias=proto_reference.alias if proto_reference.HasField("alias") else None,
+            )
+        )
+    return references
 
 
 def _table_schema_from_yson(yson_data) -> TableSchema:
@@ -443,4 +470,5 @@ def job_from_proto_job_info(
         static_spec=static_spec,
         dynamic_spec=dynamic_spec,
         group_by_schema=group_by_schema,
+        companion_resources=companion_resources_from_proto(job_info.companion_resources),
     )

@@ -74,6 +74,7 @@ class ComputationHarness:
         external_states: Optional[Dict[str, TableSchema]] = None,
         joined_external_states: Optional[Dict[str, TableSchema]] = None,
         parameters: Optional[Dict[str, Any]] = None,
+        resources: Optional[Dict[str, Any]] = None,
         source: bool = False,
         computation_id: str = "test",
     ):
@@ -83,6 +84,9 @@ class ComputationHarness:
         self._external_state_schemas = external_states or {}
         self._joined_external_state_schemas = joined_external_states or {}
         self._parameters = parameters or {}
+        # Companion-hosted resources by the alias the computation looks them up
+        # under; stubs are fine, nothing here drives the resource lifecycle.
+        self._resources = resources or {}
         self._source = source
 
         # Build stream infrastructure.
@@ -272,6 +276,7 @@ class ComputationHarness:
             watermarks=watermarks,
             min_watermark=min_wm,
             job=job,
+            resources=dict(self._resources),
         )
 
         return self._computation.do_process(request_ctx), joined_holders
