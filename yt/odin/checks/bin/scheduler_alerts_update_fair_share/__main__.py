@@ -13,6 +13,7 @@ def run_check(yt_client, logger, options, states):
         include_alert_types=("update_fair_share",),
         skip_pool_trees=(
             "physical",
+            "cloud_default",
             re.compile("^gpu_.*"),
         ),
     )
