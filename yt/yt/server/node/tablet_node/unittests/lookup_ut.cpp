@@ -1,6 +1,7 @@
 #include "tablet_context_mock.h"
 #include "sorted_store_manager_ut_helpers.h"
 
+#include <yt/yt/server/node/tablet_node/cached_row.h>
 #include <yt/yt/server/node/tablet_node/store_manager_detail.h>
 #include <yt/yt/server/node/tablet_node/structured_logger.h>
 
@@ -8,12 +9,17 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/versioned_block_writer.h>
 
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/core/misc/slab_allocator.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -546,6 +552,47 @@ TEST_F(TLookupTest, VersionedLookup)
     EXPECT_EQ(
         ToString(DoVersionedLookupRow(BuildRow("k=0"))),
         ToString(row));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TCachedRowTest, BlobDataSizeDoesNotOverflowInt32)
+{
+    constexpr ui32 PerValueLength = 1'500'000'000u;
+    constexpr i64 ExpectedTotalBlob = static_cast<i64>(PerValueLength) * 2;
+    static_assert(ExpectedTotalBlob > std::numeric_limits<i32>::max());
+
+    auto buffer = New<TRowBuffer>();
+    auto row = TMutableVersionedRow::Allocate(
+        buffer->GetPool(),
+        /*keyCount*/ 1,
+        /*valueCount*/ 2,
+        /*writeTimestampCount*/ 1,
+        /*deleteTimestampCount*/ 0);
+
+    char fakeBlob = '\0';
+
+    const auto rowTimestamp = TTimestamp(10);
+
+    row.BeginKeys()[0] = MakeUnversionedInt64Value(42, /*id*/ 0);
+
+    for (int index = 0; index < 2; ++index) {
+        auto& value = row.BeginValues()[index];
+        value = MakeVersionedStringValue(TStringBuf(&fakeBlob, 1), rowTimestamp, /*id*/ 1);
+        value.Length = PerValueLength;
+    }
+
+    row.BeginWriteTimestamps()[0] = rowTimestamp;
+
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(/*totalLimit*/ 1_MB, New<TNodeMemoryTrackerConfig>());
+    auto tracker = nodeMemoryTracker->WithCategory(EMemoryCategory::LookupRowsCache);
+    TSlabAllocator allocator(/*profiler*/ {}, tracker);
+
+    auto cached = CachedRowFromVersionedRow(&allocator, row, /*retainedTimestamp*/ NullTimestamp);
+
+    EXPECT_FALSE(cached) << "Allocation should fail cleanly, not crash";
+
+    nodeMemoryTracker->ClearTrackers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
