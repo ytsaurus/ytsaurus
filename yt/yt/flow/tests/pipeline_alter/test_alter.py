@@ -23,10 +23,10 @@ else:
     EPOCH_SYNC_TIMEOUT = 180
 
 
-def generate_data(event_count, tablet_count):
+def generate_data(event_count, tablet_count, prefix="payload"):
     result = []
     for i in range(event_count):
-        result.append({"data": f"payload_{i}", "$tablet_index": i % tablet_count})
+        result.append({"data": f"{prefix}_{i}", "$tablet_index": i % tablet_count})
     return result
 
 
@@ -34,6 +34,11 @@ TABLET_COUNT = 5
 INPUT_DATA = generate_data(EVENT_COUNT, TABLET_COUNT)
 EXPECTED_DATA = [row["data"] for row in INPUT_DATA]
 EXPECTED_DATA.sort()
+
+# The alternative queue holds distinguishable rows so tests can tell which physical queue produced
+# the output.
+INPUT_DATA_ALT = generate_data(EVENT_COUNT, TABLET_COUNT, prefix="alt_payload")
+EXPECTED_DATA_ALT = sorted(row["data"] for row in INPUT_DATA_ALT)
 
 ##################################################################
 
@@ -55,7 +60,7 @@ class TestComputation(FlowTestBase):
         run_yt_sync("primary", self.work_yt_path, TABLET_COUNT)
 
         batching_write_rows(INPUT_DATA, lambda batch: self.client.insert_rows(self.input_queue, batch), 100)
-        batching_write_rows(INPUT_DATA, lambda batch: self.client.insert_rows(self.input_queue_alt, batch), 100)
+        batching_write_rows(INPUT_DATA_ALT, lambda batch: self.client.insert_rows(self.input_queue_alt, batch), 100)
 
     def prepare_pipeline_config(self, cpu_aware, finite=True):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
@@ -234,6 +239,12 @@ class TestComputation(FlowTestBase):
             assert new_identities, "expected at least one source partition after restart"
             assert not (new_identities & original_identities)
 
+            # The new physical queue is read from offset 0, so its pre-existing backlog reaches the
+            # output.
+            output = {row["data"] for row in self.client.select_rows(f"data from [{self.output_queue}]")}
+            missing = set(EXPECTED_DATA_ALT) - output
+            assert not missing, f"{len(missing)} rows of the new queue's backlog were skipped"
+
     # A source key is [stream id, source identity (an opaque hash of the identifying params),
     # partition coordinates...], so the identity is the second column.
 
@@ -308,3 +319,11 @@ class TestComputation(FlowTestBase):
             lambda: self._reader_state_identities() and not (self._reader_state_identities() & original_identities),
             timeout=180,
         )
+
+        # The new physical queue is read from offset 0, so its pre-existing backlog reaches the
+        # output.
+        def alt_backlog_delivered():
+            output = {row["data"] for row in self.client.select_rows(f"data from [{self.output_queue}]")}
+            return not (set(EXPECTED_DATA_ALT) - output)
+
+        wait(alt_backlog_delivered, timeout=180)
