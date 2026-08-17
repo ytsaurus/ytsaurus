@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import re
 import tarfile
 import os
 import os.path
@@ -58,25 +59,46 @@ def extract_geodata():
     logger.info("Geodata extracted")
 
 
+ODBC_INI_NAMES = ("odbcinst.ini", "odbc.ini")
+ODBC_CONFIG_DIR = "odbc"
+
+UNEXPANDED_SECRET_RE = re.compile(r"\$\{?(YT_SECURE_VAULT_\w*)\}?")
+
+
 def prepare_odbc():
     cwd = os.getcwd()
-    odbcinst_ini_path = os.path.join(cwd, "odbcinst.ini")
-    odbc_ini_path = os.path.join(cwd, "odbc.ini")
 
-    if not os.path.exists(odbcinst_ini_path) or not os.path.exists(odbc_ini_path):
+    if not all(os.path.exists(os.path.join(cwd, name)) for name in ODBC_INI_NAMES):
         logger.warning("odbcinst.ini or odbc.ini are not present in the job sandbox, skipping ODBC preparation")
         return
 
     logger.info("Preparing ODBC configuration")
-    os.environ["ODBCSYSINI"] = cwd
-    os.environ["ODBCINI"] = cwd
-    logger.info("Set ODBCSYSINI=%s, ODBCINI=%s", os.environ["ODBCSYSINI"], os.environ["ODBCINI"])
-    os.environ["LD_LIBRARY_PATH"] = cwd
 
-    for ini_path in [odbcinst_ini_path, odbc_ini_path]:
-        with open(ini_path, "rw") as f:
+    # The generated odbcinst.ini locates driver libraries via $PWD, which is not guaranteed
+    # to be present in the job environment.
+    os.environ["PWD"] = cwd
+
+    odbc_dir = os.path.join(cwd, ODBC_CONFIG_DIR)
+    os.makedirs(odbc_dir, exist_ok=True)
+
+    for name in ODBC_INI_NAMES:
+        with open(os.path.join(cwd, name), "r") as f:
             content = f.read()
-            f.write(os.path.expandvars(content))
+        content = os.path.expandvars(content)
+        unexpanded = sorted(set(UNEXPANDED_SECRET_RE.findall(content)))
+        if unexpanded:
+            logger.warning("Secrets referenced from %s are missing in the job environment: %s", name, unexpanded)
+        # NB: the sandbox artifacts may be read-only links into the chunk cache, so the expanded
+        # copies are written next to them rather than in place.
+        with open(os.path.join(odbc_dir, name), "w") as f:
+            f.write(content)
+
+    os.environ["ODBCSYSINI"] = odbc_dir
+    os.environ["ODBCINI"] = os.path.join(odbc_dir, "odbc.ini")
+    os.environ["LD_LIBRARY_PATH"] = os.pathsep.join(
+        filter(None, [cwd, os.environ.get("LD_LIBRARY_PATH")]))
+    logger.info("Set ODBCSYSINI=%s, ODBCINI=%s, LD_LIBRARY_PATH=%s",
+                os.environ["ODBCSYSINI"], os.environ["ODBCINI"], os.environ["LD_LIBRARY_PATH"])
 
     logger.info("ODBC configuration prepared")
 
