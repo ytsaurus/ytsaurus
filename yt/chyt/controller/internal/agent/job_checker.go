@@ -315,9 +315,19 @@ func userJobExitCodeFromError(jobErr yterrors.Error) (int, bool) {
 	}
 
 	for _, innerErr := range jobErr.InnerErrors {
-		if innerErr != nil && innerErr.Code == yterrors.CodeProcessNonZeroExitCode {
+		if innerErr == nil {
+			continue
+		}
+
+		if innerErr.Code == yterrors.CodeProcessNonZeroExitCode {
 			if exitCodeAttr, ok := innerErr.Attributes["exit_code"]; ok {
 				return int(exitCodeAttr.(int64)), true
+			}
+		}
+
+		if innerErr.Code == yterrors.CodeProcessSignal {
+			if signalAttr, ok := innerErr.Attributes["signal"]; ok {
+				return 128 + int(signalAttr.(int64)), true
 			}
 		}
 	}
