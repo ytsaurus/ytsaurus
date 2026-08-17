@@ -8,8 +8,6 @@ from yt.yson import dumps, to_yson_type
 
 from collections import defaultdict
 
-import yt.wrapper
-
 import pytest
 
 
@@ -783,49 +781,36 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         assert actual_rows == expected_rows
 
 
-class OrderedPartitionLargeTableBase(TestPartitionTablesBase):
+class OrderedPartitionSmallChunksBase(TestPartitionTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 3
-    ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
     @authors("achains")
     def test_ordered_partition_small_chunks(self):
         table = "//tmp/static-table"
-        data = [{"a": i, "b": str(i) * 1024 * 100} for i in range(1_000)]
+        create("table", table, attributes={"replication_factor": 1})
 
-        # Client default chunk options allow to reproduce YT-27013.
-        client = yt.wrapper.YtClient(proxy=self.Env.get_proxy_address())
-        client.write_table(table, data, force_create=True)
-        partitions = client.partition_tables([table], data_weight_per_partition=50 * 1024**2, partition_mode="ordered")
+        # Setup for wrong partiiton order, fixed in YT-27013.
+        write_table(f"<append=%true>{table}", [{"a": i, "b": "x" * 1024} for i in range(150)])
+        write_table(f"<append=%true>{table}", [{"a": 150 + i, "b": "x" * (30 * 1024)} for i in range(4)])
+        assert get(f"{table}/@chunk_count") == 2
+
+        partitions = partition_tables([table], data_weight_per_partition=100 * 1024, partition_mode="ordered")
+
+        assert len(partitions) > 1
+        weights = [partition["aggregate_statistics"]["data_weight"] for partition in partitions]
+        assert weights != sorted(weights, reverse=True)
 
         self.check_partitions([table], partitions, check_row_order=True)
 
 
-class TestOrderedPartitionLargeTableNative(OrderedPartitionLargeTableBase):
+class TestOrderedPartitionSmallChunksNative(OrderedPartitionSmallChunksBase):
     DRIVER_BACKEND = "native"
 
 
-class TestOrderedPartitionLargeTableRpc(OrderedPartitionLargeTableBase):
+class TestOrderedPartitionSmallChunksRpc(OrderedPartitionSmallChunksBase):
     DRIVER_BACKEND = "rpc"
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "signature_components": {
-            "validation": {
-                "cypress_key_reader": dict(),
-            },
-            "generation": {
-                "cypress_key_writer": dict(),
-                "key_rotator": dict(),
-                "generator": dict(),
-            },
-        },
-    }
-
-    # NB(pavook): to avoid key owner collision.
-    NUM_RPC_PROXIES = 1
-
-    OWNERS_PATH = "//sys/public_keys/by_owner"
 
 
 class PartitionTablesRlsBase(TestPartitionTablesBase):
