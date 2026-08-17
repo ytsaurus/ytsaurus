@@ -60,6 +60,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
     NRpc::IServerPtr rpcServer,
     NElection::IElectionManagerPtr electionManager,
     NElection::TCellId cellId,
+    int totalPeerCount,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
     NRpc::IAuthenticatorPtr authenticator,

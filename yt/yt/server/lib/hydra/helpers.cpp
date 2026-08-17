@@ -1,12 +1,21 @@
 #include "private.h"
 #include "distributed_hydra_manager.h"
+#include "hydra_service_proxy.h"
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
+#include <yt/yt/core/concurrency/scheduler.h>
+
+#include <yt/yt/core/actions/future.h>
+
+#include <algorithm>
+
 namespace NYT::NHydra {
 
 using namespace NElection;
+using namespace NConcurrency;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +79,78 @@ std::optional<TSharedRef> SanitizeLocalHostName(
         host.substr(0, commonPrefixSize),
         host.substr(std::ssize(host) - commonSuffixSize));
     return TSharedRef::FromString(unifiedHost);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<i64> SampleMutationsSequenceNumbers(
+    i64 firstSequenceNumber,
+    i64 lastSequenceNumber,
+    i64 rate)
+{
+    std::vector<i64> result;
+
+    auto startSequenceNumber = (firstSequenceNumber + rate - 1) / rate * rate;
+    auto endSequenceNumber = lastSequenceNumber / rate * rate;
+    if (startSequenceNumber > endSequenceNumber) {
+        return result;
+    }
+
+    result.reserve((endSequenceNumber - startSequenceNumber) / rate);
+    for (auto sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {
+        result.push_back(sequenceNumber);
+    }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> ReportMutationStateHashesToLeader(
+    const TCellManagerPtr& cellManager,
+    int leaderId,
+    const std::vector<std::pair<i64, ui64>>& sequenceNumbersToStateHashes,
+    TDuration timeout,
+    const NLogging::TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    if (sequenceNumbersToStateHashes.empty()) {
+        return MakeFuture(TError());
+    }
+
+    auto sortedSequenceNumbersToStateHashes = sequenceNumbersToStateHashes;
+    std::sort(sortedSequenceNumbersToStateHashes.begin(), sortedSequenceNumbersToStateHashes.end());
+
+    auto channel = cellManager->GetPeerChannel(leaderId);
+    YT_VERIFY(channel);
+
+    TInternalHydraServiceProxy proxy(std::move(channel));
+    auto request = proxy.ReportMutationsStateHashes();
+    request->set_peer_id(cellManager->GetSelfPeerId());
+
+    for (auto [sequenceNumber, stateHash] : sortedSequenceNumbersToStateHashes) {
+        auto* mutationInfo = request->add_mutations_info();
+        mutationInfo->set_sequence_number(sequenceNumber);
+        mutationInfo->set_state_hash(stateHash);
+    }
+
+    auto startSequenceNumber = sortedSequenceNumbersToStateHashes.front().first;
+    auto endSequenceNumber = sortedSequenceNumbersToStateHashes.back().first;
+
+    request->SetTimeout(timeout);
+    return request->Invoke()
+        .Apply(BIND([=] (const TInternalHydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
+        if (rspOrError.IsOK()) {
+            YT_TLOG_DEBUG("Mutations state hashes reported")
+                .With("StartSequenceNumber", startSequenceNumber)
+                .With("EndSequenceNumber", endSequenceNumber);
+        } else {
+            YT_LOG_DEBUG(rspOrError, "Error reporting mutations state hashes (StartSequenceNumber: %v, EndSequenceNumber: %v)",
+                startSequenceNumber,
+                endSequenceNumber);
+        }
+    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

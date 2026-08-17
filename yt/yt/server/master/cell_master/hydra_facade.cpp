@@ -131,6 +131,7 @@ public:
                 Bootstrap_->GetRpcServer(),
                 electionManagerThunk,
                 Bootstrap_->GetCellManager()->GetCellId(),
+                Bootstrap_->GetCellManager()->GetTotalPeerCount(),
                 Bootstrap_->GetChangelogStoreFactory(),
                 Bootstrap_->GetSnapshotStore(),
                 Bootstrap_->GetNativeAuthenticator(),
