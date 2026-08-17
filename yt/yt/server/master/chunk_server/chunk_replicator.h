@@ -208,10 +208,8 @@ private:
     //! In each queue, a single chunk may only appear once.
     // NB: Queues are not modified when a replicator shard is disabled, so one should
     // take care of such a chunks.
-    std::array<TChunkRepairQueue, MaxMediumCount> MissingPartChunkRepairQueues_ = {};
-    std::array<TChunkRepairQueue, MaxMediumCount> DecommissionedPartChunkRepairQueues_ = {};
-    NServer::TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
-    NServer::TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
+    std::vector<std::array<TChunkRepairQueue, MaxMediumCount>> ChunkRepairQueues_;
+    std::vector<NServer::TDecayingMaxMinBalancer<int, double>> ChunkRepairQueueBalancers_;
 
     NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
@@ -251,7 +249,7 @@ private:
         TChunkLocation* location);
     EMisscheduleReason TryScheduleRepairJob(
         IJobSchedulingContext* context,
-        EChunkRepairQueue repairQueue,
+        int priority,
         TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
         const TStoredChunkReplicaList& replicas);
 
@@ -295,7 +293,7 @@ private:
     //! Stops when some owning nodes are discovered or parents become ambiguous.
     TChunkList* FollowParentLinks(TChunkList* chunkList);
 
-    void AddToChunkRepairQueue(TChunkPtrWithMediumIndex chunkWithIndexes, EChunkRepairQueue queue);
+    void AddToChunkRepairQueue(TChunkPtrWithMediumIndex chunkWithIndexes, int priority);
     void TouchChunkInRepairQueues(TChunk* chunk);
     void RemoveFromChunkRepairQueues(TChunk* chunkWithIndexes);
 
@@ -312,9 +310,9 @@ private:
     const std::unique_ptr<TChunkRefreshScanner>& GetChunkRefreshScanner(TChunk* chunk) const;
     const std::unique_ptr<TChunkScanner>& GetChunkRequisitionUpdateScanner(TChunk* chunk) const;
 
-    TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
-    std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
-    NServer::TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
+    TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, int priority);
+    std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(int priority);
+    NServer::TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(int priority);
 
     void RemoveFromChunkReplicationQueues(
         TNode* node,

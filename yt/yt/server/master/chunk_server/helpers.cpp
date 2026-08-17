@@ -1853,6 +1853,18 @@ NLogging::ELogLevel GetChunkLogLevel(
         : NLogging::ELogLevel::Trace;
 }
 
+int EncodeRepairQueueKey(int mediumIndex, int priority)
+{
+    return mediumIndex * RepairPriorityCount + priority;
+}
+
+std::pair<int, int> DecodeRepairQueueKey(int key)
+{
+    return std::make_pair(
+        key / RepairPriorityCount,      // mediumIndex
+        key % RepairPriorityCount);     // priority
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TDynamicSequoiaChunkReplicasStoreConfigPtr& GetChunkSequoiaStoreConfig(

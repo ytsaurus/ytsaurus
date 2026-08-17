@@ -197,6 +197,14 @@ constexpr int TypicalChunkParentCount = 2;
  */
 constexpr int ReplicationPriorityCount = 3;
 
+//! Number of supported repair priorities. The smaller the more urgent.
+/*! Parts we can still lose == 0 -> priority = 0
+ *  Parts we can still lose == 1 -> priority = 1
+ *  Parts we can still lose >= 2 -> priority = 2
+ *  Decommissioned chunks -> priority = 3
+ */
+constexpr int RepairPriorityCount = 4;
+
 constexpr int DefaultConsistentReplicaPlacementReplicasPerChunk = 100;
 
 DEFINE_BIT_ENUM(EChunkStatus,
