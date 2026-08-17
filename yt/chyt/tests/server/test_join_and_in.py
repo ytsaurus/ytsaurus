@@ -317,7 +317,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"A_key": 42, "B_key": 43}
             ]
 
-    @authors("max42")
+    @authors("max42", "buyval01")
     def test_cross_join(self):
         # CHYT-445.
         create(
@@ -353,6 +353,23 @@ class TestJoinAndIn(ClickHouseTestBase):
                     "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 "
                     "where key1 == 1 order by (key1, key2)".format(tp)
                 ) == expected_result([{"key1": 1}])
+
+            query = f"""
+                with candidate_a as (
+                    select max(key1) as key2 from "//tmp/t1_{tp}"
+                ), candidate_b as (
+                    select min(key1) as key3 from "//tmp/t1_{tp}"
+                )
+                select logs.key1, key2, key3
+                from "//tmp/t1_{tp}" as logs
+                cross join candidate_a
+                cross join candidate_b
+                order by logs.key1
+            """
+            assert clique.make_query(query) == [
+                {"key1": 1, "key2": 2, "key3": 1},
+                {"key1": 2, "key2": 2, "key3": 1},
+            ]
 
     @authors("max42")
     def test_join_dynamic_tables_with_dynamic_stores(self):
