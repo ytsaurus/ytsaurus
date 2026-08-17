@@ -326,7 +326,7 @@ TEST_F(TPartitionReaderTest, AppendsIdentityValues)
         MakeConfig(),
         createSessionReader,
         Invoker(),
-        {},
+        /*recordHeaderFilter*/ {},
         TIdentityColumnIds{
             .WriterId = 10,
             .RowId = 11,
@@ -462,7 +462,7 @@ TEST_PI(
         std::move(config),
         createSessionReader,
         Invoker(),
-        {},
+        /*recordHeaderFilter*/ {},
         testCase.IdentityColumnIds);
 
     reader->AddChunk(TChunkId(1, 2, 3, 4), {}, 0, std::nullopt);

@@ -1575,7 +1575,7 @@ TEST_F(TDistributedChunkSessionTest, PrefetchDepthOneReadsAllRecords)
     EXPECT_EQ(ReadAllSorted(reader), SortedPayloads(chunkInfo.Payloads));
 
     auto stats = reader->GetStatistics();
-    EXPECT_GT(stats->PrefetchWindowCount.load(), 0);
+    EXPECT_GT(stats->PrefetchReadCount.load(), 0);
 }
 
 TEST_F(TDistributedChunkSessionTest, PrefetchSingleRecordWindows)

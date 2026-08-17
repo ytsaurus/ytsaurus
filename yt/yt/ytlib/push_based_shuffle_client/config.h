@@ -103,7 +103,7 @@ DEFINE_REFCOUNTED_TYPE(TSortReaderConfig)
 struct TPushShuffleConfig
     : public NYTree::TYsonStruct
 {
-    //! Writer-side L2 writer config (client).
+    //! Map-side L2 writer config (client).
     TShuffleWriterConfigPtr WriterConfig;
     //! Reducer-side L2 reader config (client).
     TPartitionReaderConfigPtr ReaderConfig;

@@ -36,7 +36,7 @@ struct TDistributedChunkSessionReaderStatistics
     std::atomic<i64> ReadBlocksCount = 0;
     std::atomic<i64> ErrorAttemptCount = 0;
     std::atomic<i64> PollIterationCount = 0;
-    std::atomic<i64> PrefetchWindowCount = 0;
+    std::atomic<i64> PrefetchReadCount = 0;
     std::atomic<i64> PrefetchRetryCount = 0;
 };
 

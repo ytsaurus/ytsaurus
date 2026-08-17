@@ -83,7 +83,7 @@ interfaces in both modes.
 
 `TPushShuffleConfig` contains four independent component configs:
 
-- `WriterConfig` for the writer-side Layer 2 writer;
+- `WriterConfig` for the map-side Layer 2 writer;
 - `ReaderConfig` for the Layer 2 partition reader;
 - `JournalWriterConfig` for sequencer batching and flushing;
 - `SessionPoolConfig` for the server-side distributed-session pool.

@@ -784,7 +784,7 @@ private:
         // Advance by the number of records actually returned; a server-truncated read is
         // continued by the next read, leaving no sliver.
         window.NextReadIndex += std::ssize(records);
-        Statistics_->PrefetchWindowCount.fetch_add(1, std::memory_order::relaxed);
+        Statistics_->PrefetchReadCount.fetch_add(1, std::memory_order::relaxed);
         window.ReadyBatches.push_back(std::move(records));
 
         // Progress clears the window's consecutive-failure budget: the budget bounds reads

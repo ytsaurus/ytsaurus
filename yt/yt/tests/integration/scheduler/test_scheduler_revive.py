@@ -1741,7 +1741,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
 
         self._kill_and_start("controller_agents")
 
-        wait(lambda: op.get_state() == "failed", timeout=10)
+        wait(lambda: op.get_state() == "failed")
         with raises_yt_error("Reviving operation without job revival"):
             op.track()
 
