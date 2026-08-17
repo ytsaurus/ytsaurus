@@ -52,6 +52,7 @@ public:
                 YT_TLOG_DEBUG("Process list contains query without proper YT query id, skipping it in query registry")
                     .With("QueryId", queryIdString)
                     .With("User", user);
+                continue;
             }
             QueryStatusInfos_.emplace_back(std::move(queryStatusInfo));
             QueryIdToQueryStatusInfo_[queryId] = &QueryStatusInfos_.back();
