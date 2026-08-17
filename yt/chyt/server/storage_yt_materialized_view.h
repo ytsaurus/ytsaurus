@@ -32,6 +32,8 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
     const DB::StoragePtr& table,
     const DB::ASTPtr& query);
 
+void RegisterStorageYtMaterializedView(DB::StorageFactory& factory);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! CHYT-side counterpart of DB::StorageMaterializedView (TO-form only, no refresh).
