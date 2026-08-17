@@ -1,6 +1,8 @@
 # Spring Boot интеграция в {{product-name}} Flow (Java)
 
-Java SDK Flow (поддерживает Kotlin) предоставляет [Spring Boot Starter](https://docs.spring.io/spring-boot/reference/using/build-systems.html#using.build-systems.starters) для упрощения конфигурации и запуска процесса-компаньона. Starter автоматически создаёт необходимые бины и управляет жизненным циклом gRPC-сервера. Тот же стартер работает из Kotlin-кода без изменений благодаря `WITH_KOTLINC_ALLOPEN(preset=spring)`.
+Java SDK Flow (поддерживает Kotlin) предоставляет [Spring Boot Starter](https://docs.spring.io/spring-boot/reference/using/build-systems.html#using.build-systems.starters) для упрощения конфигурации и запуска пайплайна. Starter автоматически создаёт необходимые бины и управляет жизненным циклом gRPC-сервера. Тот же стартер работает из Kotlin-кода без изменений благодаря `WITH_KOTLINC_ALLOPEN(preset=spring)`.
+
+Один класс с `@SpringBootApplication` служит обеими точками входа: роль процесса выбирается по переменной среды `YT_FLOW_MODE`, как описано в разделе [Точка входа](../../../flow/java/getting-started.md). Отдельный класс для runner-а не нужен.
 
 [Исходный код flow-spring-boot-starter]({{source-root}}/yt/java/flow/flow-spring-boot-starter)
 
@@ -12,7 +14,7 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
 
 ### 1. Создание Spring Boot приложения
 
-Класс с `main` методом для запуска компаньона:
+Класс с `main` методом — единственная точка входа пайплайна:
 
 {% list tabs group=lang %}
 
@@ -20,9 +22,9 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
 
   ```java
   @SpringBootApplication
-  public class NodeCompanionMain {
+  public class PipelineMain {
       public static void main(String[] args) throws Exception {
-          new SpringApplicationBuilder(NodeCompanionMain.class)
+          new SpringApplicationBuilder(PipelineMain.class)
                   .run(args);
       }
   }
@@ -32,17 +34,25 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
 
   ```kotlin
   @SpringBootApplication
-  open class NodeCompanionMain {
+  open class PipelineMain {
       companion object {
           @JvmStatic
           fun main(args: Array<String>) {
-              SpringApplicationBuilder(NodeCompanionMain::class.java).run(*args)
+              SpringApplicationBuilder(PipelineMain::class.java).run(*args)
           }
       }
   }
   ```
 
 {% endlist %}
+
+Запуск пайплайна тем же классом:
+
+```bash
+./run.sh com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server
+```
+
+Класс указывается полным именем: `run.sh` передаёт первый аргумент напрямую в `java`.
 
 ### 2. Регистрация компьютейшенов {#registration}
 
@@ -278,11 +288,26 @@ Spring Boot Starter автоматически создаёт следующие
 | Бин | Условие создания | Описание |
 |-----|-------------------|----------|
 | `PipelineContext` | Есть аннотированный бин (`@FlowComputation`/`@FlowSourceComputation`) или `ComputationProvider` | Контекст пайплайна с зарегистрированными объектами `Computation` и стримами |
-| `CompanionExecutionConfig` | Есть аннотированный бин или `ComputationProvider` | Конфигурация gRPC-сервера (порт) |
-| `GrpcServerExecution` | Есть `PipelineContext` | Управление gRPC-сервером |
-| `FlowCompanionLifecycle` | Есть `GrpcServerExecution` | Управление жизненным циклом сервера |
+| `FlowRunnerBootstrap` | Режим runner-а | Запускает пайплайн и завершает процесс кодом возврата `flow_server` |
+| `CompanionExecutionConfig` | Режим компаньона и есть аннотированный бин или `ComputationProvider` | Конфигурация gRPC-сервера (порт) |
+| `GrpcServerExecution` | Режим компаньона и есть `PipelineContext` | Управление gRPC-сервером |
+| `FlowCompanionLifecycle` | Режим компаньона и есть `GrpcServerExecution` | Управление жизненным циклом сервера |
 
-Условие активации автоконфигурации описано в `OnFlowComponentsCondition`: starter включается, если в контексте есть хотя бы один бин `ComputationProvider` либо бин, помеченный `@FlowComputation` или `@FlowSourceComputation`.
+`PipelineContext` создаётся одинаково в обоих режимах, поэтому unit-тесты, которые инжектят его через `@SpringBootTest`, работают без указания режима.
+
+При этом сам `FlowRunnerBootstrap` от бина `PipelineContext` не зависит: для запуска он собирает **только стримы** и только в момент реального запуска. Бины компьютейшенов при этом не создаются — а вместе с ними и всё, от чего они зависят. Это важно для пайплайнов, у которых process-функции держат кэши, клиенты или пулы соединений: иначе такой пайплайн прогревал бы их при каждом запуске, а запуск падал бы всякий раз, когда эти зависимости недоступны. Отправка спеки пользовательский код не выполняет.
+
+Ни gRPC-сервер, ни сервер мониторинга в режиме runner-а не поднимаются: соответствующие бины не создаются вовсе, поскольку их конфигурация приходит от воркера через `YT_FLOW_COMPANION_CONFIG` и вне компаньона не существует.
+
+Чтобы в режиме runner-а не создавались остальные бины приложения, starter выставляет значения по умолчанию `spring.main.web-application-type=none`, `spring.main.keep-alive=false` и `spring.main.lazy-initialization=true`. Все три можно переопределить в конфигурации приложения. В контекст, созданный тестовым фреймворком, эти значения не попадают вовсе — тесты сохраняют обычную семантику Spring.
+
+Условие активации автоконфигурации описано в `OnFlowComponentsCondition`: starter включается, если в контексте есть хотя бы один бин `ComputationProvider` либо бин, помеченный `@FlowComputation` или `@FlowSourceComputation`. Режим выбирается по `YT_FLOW_MODE`. Свойство `flow.run-mode` (`Worker` или `runner`, без учёта регистра) предназначено для тестов, которые не могут выставить переменную среды в своей JVM: оно действует, только когда `YT_FLOW_MODE` не задана. Если переменная задана и противоречит свойству, старт контекста падает с ошибкой — забытое в `application.yml` свойство не может переназначить роль процесса. На значения `spring.main.*` свойство не влияет: они выставляются раньше, когда окружение ещё собирается, и определяются только переменной `YT_FLOW_MODE`.
+
+Стримы и компьютейшены собираются только из текущего контекста: бины, объявленные в родительском контексте (`SpringApplicationBuilder.parent(...)`), в спеку и в компаньон не попадают.
+
+`FlowRunnerBootstrap` объявляет наименьший приоритет среди `ApplicationRunner`-ов и завершает JVM после запуска пайплайна. Раннер приложения, который должен успеть отработать до запуска, обязан объявить явный порядок (`@Order` со значением меньше `Ordered.LOWEST_PRECEDENCE`): раннер без аннотации получает тот же наименьший приоритет, и порядок между ними Spring не гарантирует.
+
+Контекст, созданный тестовым фреймворком, ничего не запускает: `@SpringBootTest` тоже вызывает `ApplicationRunner`-ы, поэтому `FlowRunnerBootstrap` распознаёт тестовое окружение по стеку вызовов (JUnit, TestNG, Spring TestContext, Cucumber) и не делает ничего — тот же приём использует Spring Boot DevTools. Для фреймворка, которого распознавание не знает, есть явное свойство `flow.runner.enabled=false`. Вне теста командная строка разбирается всегда, поэтому запуск без `--config` падает с ошибкой, а не завершается успешно, ничего не отправив.
 
 Все бины создаются с аннотацией `@ConditionalOnMissingBean`, что позволяет переопределить любой из них при необходимости.
 
@@ -370,10 +395,9 @@ Spring Boot Starter автоматически создаёт следующие
 
   ```
   src/main/java/
-  ├── NodeCompanionMain.java          # @SpringBootApplication
+  ├── PipelineMain.java               # @SpringBootApplication — единственная точка входа
   ├── JoinProcessFunction.java        # @FlowComputation(id = "join") implements RowFunction
   ├── StreamConfiguration.java        # @Configuration с бинами FlowStream<?>
-  ├── RunnerMain.java                 # SimpleRunnerProgram.runPipeline(args)
   └── model/
       ├── Hit.java                    # @Entity POJO
       ├── Action.java                 # @Entity POJO
@@ -386,10 +410,9 @@ Spring Boot Starter автоматически создаёт следующие
 
   ```
   src/main/kotlin/
-  ├── NodeCompanionMain.kt            # @SpringBootApplication
+  ├── PipelineMain.kt                 # @SpringBootApplication — единственная точка входа
   ├── JoinProcessFunction.kt          # @FlowComputation(id = "join") : RowFunction
   ├── StreamConfiguration.kt          # @Configuration с бинами FlowStream<?>
-  ├── RunnerMain.kt                   # SimpleRunnerProgram.runPipeline(args)
   └── model/
       ├── Hit.kt                      # @Entity POJO
       ├── Action.kt                   # @Entity POJO

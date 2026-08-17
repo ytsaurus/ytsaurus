@@ -23,14 +23,14 @@ _JAVA_PROPERTY_QUERY_TIMEOUT = 60
 
 @dataclasses.dataclass
 class FlowJavaPipeline:
-    runner_main_class: str
+    main_class: str
     runner_binary_dir: str
 
 
 class FlowTestJavaBase(FlowTestBase):
     FLOW_BINARY_PATH = yatest.common.binary_path("yt/yt/flow/bin/flow_server/flow_server")
     JAVA_RUNNER_BINARY_DIR: str
-    JAVA_RUNNER_MAIN_CLASS: str
+    JAVA_MAIN_CLASS: str
     # Extra port for the companion the worker spawns.
     VANILLA_WORKER_PORT_COUNT = 3
     # Cached JVM properties; populated lazily on first query.
@@ -40,7 +40,7 @@ class FlowTestJavaBase(FlowTestBase):
     def setup_class(cls):
         super(FlowTestJavaBase, cls).setup_class()
         cls.FLOW_JAVA_PIPELINE = FlowJavaPipeline(
-            runner_main_class=cls.JAVA_RUNNER_MAIN_CLASS, runner_binary_dir=cls.JAVA_RUNNER_BINARY_DIR
+            main_class=cls.JAVA_MAIN_CLASS, runner_binary_dir=cls.JAVA_RUNNER_BINARY_DIR
         )
 
     def patch_config(self, pipeline_config: dict):
@@ -116,7 +116,7 @@ class FlowTestJavaBase(FlowTestBase):
             runner_binary_path = self.runner_binary_path()
 
         enriched_pipeline_binary_args = dict()
-        enriched_pipeline_binary_args[self.FLOW_JAVA_PIPELINE.runner_main_class] = None
+        enriched_pipeline_binary_args[self.FLOW_JAVA_PIPELINE.main_class] = None
         enriched_pipeline_binary_args.update(pipeline_binary_args)
 
         # The runner always enriches the spec and hands the launch to flow_server, which sets the spec.

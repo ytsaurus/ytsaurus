@@ -119,7 +119,7 @@
 - Java
 
   ```bash
-  ./pipeline RunnerMain --config pipeline.yson --flow-bin flow_server
+  ./pipeline com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server
   ```
 
 - Go

@@ -9,7 +9,7 @@
 
 ### WordCountApplication
 
-Точка входа компаньона на основе Spring Boot:
+Единственная точка входа: класс с `@SpringBootApplication` запускает пайплайн, когда `YT_FLOW_MODE` не задана, и обслуживает его как компаньон, когда воркер выставляет `YT_FLOW_MODE=Worker`:
 
 {% list tabs group=lang %}
 
@@ -63,22 +63,6 @@ gRPC-сервер поднимается автоматически через S
 
 Аннотация `@FlowComputation(id = "mapper")` регистрирует класс как компьютейшен и делает его Spring-бином (она мета-аннотирована `@Component`).
 
-### RunnerMain
-
-Точка входа для запуска C++ раннера:
-
-{% list tabs group=lang %}
-
-- Java
-
-  {% code '/yt/yt/flow/examples/java/word_count/wordcount/src/main/java/tech/ytsaurus/flow/examples/wordcount/RunnerMain.java' lang='java' lines='[BEGIN main]-[END main]' keep-indents %}
-
-- Kotlin
-
-  {% code '/yt/yt/flow/examples/kotlin/word_count/wordcount/src/main/kotlin/tech/ytsaurus/flow/examples/wordcount/RunnerMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' keep-indents %}
-
-{% endlist %}
-
 ## Ключевые паттерны
 
 - **Spring Boot auto-config** — не нужно вручную создавать `PipelineContext` и `GrpcServerExecution`.
@@ -88,10 +72,12 @@ gRPC-сервер поднимается автоматически через S
 
 ## Запуск
 
-Пайплайн запускается двумя процессами:
-1. **Runner** (`RunnerMain`) — запускает C++ пайплайн.
-2. **Companion** (`WordCountApplication`) — запускает Java-процесс с логикой обработки.
+Пайплайн запускается одним классом `WordCountApplication`:
 
-Оба класса находятся в одном jar-файле.
+```bash
+./run.sh tech.ytsaurus.flow.examples.wordcount.WordCountApplication --config pipeline.yson --flow-bin flow_server
+```
+
+Он же служит компаньоном: воркер запускает его с `YT_FLOW_MODE=Worker`, и в этом режиме стартер поднимает gRPC-сервер вместо запуска пайплайна.
 
 

@@ -38,9 +38,9 @@ Computation на стороне Worker-a собирает батч сообще�
 "CompanionManager" = {
     "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
     "parameters" = {
+        "main_class" = "tech.ytsaurus.flow.examples.wordcount.WordCountApplication";
         "timeout" = "10s";
         "jdk_bin_path" = "/app/ytflow/jdk/bin/java";
-        "main_class" = "tech.ytsaurus.flow.examples.wordcount.NodeCompanionMain";
         "classpath" = "/app/ytflow/lib/*";
     };
     "dependencies" = {};
