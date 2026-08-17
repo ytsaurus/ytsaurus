@@ -112,6 +112,10 @@ flowchart TD
 
 Для типизированной работы с сообщениями определены POJO-классы с JPA-аннотациями.
 
+Схемы стримов этого примера выводятся из моделей: в `pipeline.yson` секции `streams` нет вовсе — runner подставляет схемы зарегистрированных типизированных стримов сам, как это делают C++ и Go SDK. Порядок полей модели задаёт порядок колонок, а `columnDefinition` фиксирует тип колонки там, где он отличается от типа по умолчанию для Java-типа: поле `String` по умолчанию выводится в `utf8`, поэтому колонки, которые в очередях объявлены как `string`, помечены `columnDefinition = "string"`.
+
+Если схема стрима всё же задана в спеке, она имеет приоритет — runner ничего не перезаписывает.
+
 {% include notitle [_](../_field_order_warning.md) %}
 
 ### Hit
@@ -193,34 +197,23 @@ flowchart TD
 - Компьютейшен `join` (`JoinProcessFunction`) регистрируется аннотацией `@FlowComputation(id = "join")`.
 - Регистрируются три типизированных стрима: `hit`, `action` и `joined_action`.
 - Типизированные стримы позволяют использовать `message.getPayload()` для получения POJO-объектов.
+- Этой регистрации достаточно, чтобы не описывать стримы в статической спеке: их схемы попадают в спеку при запуске.
 
-## Точки входа {#entry-points}
+## Точка входа {#entry-points}
 
-### NodeCompanionMain
+### PipelineMain
 
-{% list tabs group=lang %}
-
-- Java
-
-  {% code '/yt/yt/flow/examples/java/wait_click_join/wait_click_join/src/main/java/tech/ytsaurus/flow/examples/waitclickjoin/NodeCompanionMain.java' lang='java' lines='[BEGIN main]-[END main]' %}
-
-- Kotlin
-
-  {% code '/yt/yt/flow/examples/kotlin/wait_click_join/wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/waitclickjoin/NodeCompanionMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' %}
-
-{% endlist %}
-
-### RunnerMain
+Запускает пайплайн или обслуживает его как компаньон — роль выбирается по `YT_FLOW_MODE`.
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/wait_click_join/wait_click_join/src/main/java/tech/ytsaurus/flow/examples/waitclickjoin/RunnerMain.java' lang='java' lines='[BEGIN main]-[END main]' %}
+  {% code '/yt/yt/flow/examples/java/wait_click_join/wait_click_join/src/main/java/tech/ytsaurus/flow/examples/waitclickjoin/PipelineMain.java' lang='java' lines='[BEGIN main]-[END main]' %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/wait_click_join/wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/waitclickjoin/RunnerMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' %}
+  {% code '/yt/yt/flow/examples/kotlin/wait_click_join/wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/waitclickjoin/PipelineMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' %}
 
 {% endlist %}
 
@@ -256,7 +249,7 @@ flowchart TD
 ```
 
 - `group_by_schema` — ключ партиционирования: `(hash, hit_id, hit_time)`.
-- `input_stream_ids` — два входных стрима: `action` и `hit`.
+- `input_stream_ids` — два входных стрима: `action` и `hit`. Секции `streams` в спеке нет: схемы этих стримов и стрима `joined_action` выводятся из моделей данных (см. [Модели данных](#models)).
 - `output_stream_ids` — один выходной стрим: `joined_action`.
 - `external_state_managers` — top-level секция с описанием [External State](../../../../flow/java/external-state.md) (на одном уровне с `parameters`). Ключ (`"/join-state"`) — имя стейта, начинающееся с `/`; то же имя передаётся в дескриптор `StateDescriptors.external("/join-state")`. `external_state_manager_class_name` — зарегистрированный класс менеджера (`NYT::NFlow::TSimpleExternalStateManager` для стандартного варианта). `parameters/path` — путь к динамической таблице {{product-name}}; схема ключевых колонок таблицы должна совпадать с `group_by_schema`.
 - `parameters.wait_for_actions` — время ожидания событий action после хита. Доступен в Java через `RuntimeContext.getComputationParameters()`.

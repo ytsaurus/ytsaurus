@@ -89,19 +89,19 @@ YSON-сериализуемая модель стейта запроса. Хра
 
 {% endlist %}
 
-### NodeCompanionMain
+### PipelineMain
 
-Точка входа компаньона на основе Spring Boot:
+Единственная точка входа (запускает пайплайн или обслуживает его как компаньон — по `YT_FLOW_MODE`):
 
 {% list tabs group=lang %}
 
 - Java
 
-  {% code '/yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/src/main/java/tech/ytsaurus/flow/examples/retryableasyncrequest/NodeCompanionMain.java' lang='java' lines='[BEGIN main]-[END main]' keep-indents %}
+  {% code '/yt/yt/flow/examples/java/retryable_async_request/retryable_async_request/src/main/java/tech/ytsaurus/flow/examples/retryableasyncrequest/PipelineMain.java' lang='java' lines='[BEGIN main]-[END main]' keep-indents %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/examples/kotlin/retryable_async_request/retryable_async_request/src/main/kotlin/tech/ytsaurus/flow/examples/retryableasyncrequest/NodeCompanionMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' keep-indents %}
+  {% code '/yt/yt/flow/examples/kotlin/retryable_async_request/retryable_async_request/src/main/kotlin/tech/ytsaurus/flow/examples/retryableasyncrequest/PipelineMain.kt' lang='kotlin' lines='[BEGIN main]-[END main]' keep-indents %}
 
 {% endlist %}
 

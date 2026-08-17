@@ -1262,13 +1262,13 @@ class TestWordCount(FlowTestJavaBase):
     JAVA_RUNNER_BINARY_DIR = yatest.common.binary_path(
         "yt/yt/flow/examples/java/word_count/wordcount/"
     )
-    JAVA_RUNNER_MAIN_CLASS = "tech.ytsaurus.flow.examples.wordcount.RunnerMain"
+    JAVA_MAIN_CLASS = "tech.ytsaurus.flow.examples.wordcount.WordCountApplication"
 ```
 
 | Атрибут | Описание |
 |---------|----------|
 | `JAVA_RUNNER_BINARY_DIR` | Путь к директории с бинарём Java-раннера (содержит `run.sh`) |
-| `JAVA_RUNNER_MAIN_CLASS` | Полное имя main-класса Java-раннера |
+| `JAVA_MAIN_CLASS` | Полное имя класса точки входа пайплайна: он и запускает пайплайн, и обслуживает компаньон |
 
 [Примеры интеграционных тестов (Java)]({{source-root}}/yt/yt/flow/examples/java)
 

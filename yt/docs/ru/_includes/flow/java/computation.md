@@ -405,9 +405,9 @@
 "CompanionManager" = {
     "resource_class_name" = "NYT::NFlow::NCompanion::TJavaCompanionManager";
     "parameters" = {
+        "main_class" = "tech.ytsaurus.flow.examples.waitclickjoin.PipelineMain";
         "timeout" = "10s";
         "jdk_bin_path" = "/app/ytflow/jdk/bin/java";
-        "main_class" = "tech.ytsaurus.flow.examples.waitclickjoin.NodeCompanionMain";
         "classpath" = "/app/ytflow/lib/*";
     };
     "dependencies" = {};

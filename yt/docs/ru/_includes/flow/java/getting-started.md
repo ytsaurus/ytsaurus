@@ -21,7 +21,7 @@ Java и Kotlin используются в `Runner` и `Worker`.
 
 Java SDK Flow (с поддержкой Kotlin) предоставляет два подхода для настройки компаньона:
 
-1. **Ручной** (SimpleRunnerProgram + PipelineContext + GrpcServerExecution) — подходит для простых случаев, когда не нужна инъекция зависимостей.
+1. **Ручной** (`PipelineContext` + `FlowApplication.run`) — подходит для простых случаев, когда не нужна инъекция зависимостей.
 2. **Spring Boot** (auto-config с аннотациями `@FlowComputation`) — рекомендуемый подход для production-сервисов с развитой конфигурацией и зависимостями.
 
 ## Computation и SourceComputation
@@ -79,44 +79,14 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
 Подробнее — в разделе [Computation (Java)](../../../flow/java/computation.md).
 
-## Runner
+## Точка входа
 
-Класс с `main`-методом для запуска [пайплайна](../../../flow/concepts/glossary.md#pipeline). `SimpleRunnerProgram` является Java-аналогом [NYT::NFlow::TSimpleRunnerProgram](../../../flow/devops/vanilla/releases.md#launch-flow) и принимает те же файлы конфигурации и переменные среды.
+У пайплайна одна точка входа — класс с `main`-методом, который вызывает `FlowApplication.run(args, context)`. Роль процесса выбирается по переменной среды `YT_FLOW_MODE`:
 
-{% list tabs group=lang %}
+- переменная не задана — процесс работает как **runner**: дополняет спеку пайплайна и передаёт запуск `flow_server`;
+- `YT_FLOW_MODE=Worker` — процесс работает как **компаньон**: поднимает gRPC-сервер и обслуживает запросы воркера. Эту переменную воркер выставляет сам, запуская компаньон.
 
-- Java
-
-  ```java
-  import tech.ytsaurus.flow.pipeline.SimpleRunnerProgram;
-
-  public class RunnerMain {
-      public static void main(String[] args) throws Exception {
-          SimpleRunnerProgram.runPipeline(args);
-      }
-  }
-  ```
-
-- Kotlin
-
-  ```kotlin
-  import tech.ytsaurus.flow.pipeline.SimpleRunnerProgram
-
-  object RunnerMain {
-      @JvmStatic
-      fun main(args: Array<String>) {
-          SimpleRunnerProgram.runPipeline(args)
-      }
-  }
-  ```
-
-{% endlist %}
-
-## Node companion
-
-### Ручной подход
-
-В `main`-методе компаньона необходимо сконфигурировать компьютейшены, добавить их в `PipelineContext` и запустить gRPC-сервер через `GrpcServerExecution`:
+В `main`-методе нужно сконфигурировать компьютейшены и стримы и добавить их в `PipelineContext`:
 
 {% list tabs group=lang %}
 
@@ -125,9 +95,9 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
   ```java
   import tech.ytsaurus.flow.computation.Computation;
   import tech.ytsaurus.flow.context.PipelineContext;
-  import tech.ytsaurus.flow.execution.GrpcServerExecution;
+  import tech.ytsaurus.flow.pipeline.FlowApplication;
 
-  public class NodeCompanionMain {
+  public class PipelineMain {
       public static void main(String[] args) throws Exception {
           var mapper = Computation.builder()
               .setComputationId("mapper")
@@ -136,9 +106,9 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
           var context = new PipelineContext();
           context.registerComputation(mapper);
+          context.registerTypedStreams(Word.class);
 
-          GrpcServerExecution execution = new GrpcServerExecution(context);
-          execution.start();
+          FlowApplication.run(args, context);
       }
   }
   ```
@@ -148,9 +118,9 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
   ```kotlin
   import tech.ytsaurus.flow.computation.Computation
   import tech.ytsaurus.flow.context.PipelineContext
-  import tech.ytsaurus.flow.execution.GrpcServerExecution
+  import tech.ytsaurus.flow.pipeline.FlowApplication
 
-  object NodeCompanionMain {
+  object PipelineMain {
       @JvmStatic
       fun main(args: Array<String>) {
           val mapper = Computation.builder()
@@ -160,16 +130,28 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
           val context = PipelineContext()
           context.registerComputation(mapper)
+          context.registerTypedStreams(Word::class.java)
 
-          val execution = GrpcServerExecution(context)
-          execution.start()
+          FlowApplication.run(args, context)
       }
   }
   ```
 
 {% endlist %}
 
-Если пользовательским функциям нужны дополнительные ресурсы (словарь, кэш и т.п.), `main`-метод компаньона — подходящее место для их создания. Такие ресурсы должны быть потокобезопасными.
+Runner требует два аргумента: `--config` — путь к конфигу пайплайна, `--flow-bin` — путь к бинарю `flow_server`.
+
+```bash
+./run.sh com.example.pipeline.PipelineMain --config pipeline.yson --flow-bin flow_server
+```
+
+Класс указывается полным именем: `run.sh` передаёт первый аргумент напрямую в `java`.
+
+Из зарегистрированного пайплайна runner дополняет схемы стримов в `spec.streams` — по типам
+зарегистрированных сообщений, если в спеке они не заданы явно. `main_class` у ресурса
+`TJavaCompanionManager` задаётся в спеке пайплайна.
+
+Если пользовательским функциям нужны дополнительные ресурсы (словарь, кэш и т.п.), `main`-метод — подходящее место для их создания. Такие ресурсы должны быть потокобезопасными.
 
 ### Spring Boot подход
 
@@ -262,11 +244,7 @@ Java SDK Flow (с поддержкой Kotlin) предоставляет два
 
 Метод `getStreams()` позволяет зарегистрировать типизированные [стримы](../../../flow/concepts/glossary.md#stream-and-computation) через `FlowStreams.typed(...)`, чтобы SDK автоматически сериализовал и десериализовал сообщения в Java-объекты.
 
-Для запуска нужны две точки входа:
-1. **Runner** — запускает C++ пайплайн.
-2. **Node companion** — запускает компаньон (Java или Kotlin) с логикой обработки.
-
-Flow не накладывает ограничений на то, собирать ли два отдельных jar-файла или один с двумя классами с `main`-методами. Во всех [примерах]({{source-root}}/yt/yt/flow/examples/java) используется подход с одним jar-файлом.
+Для Spring Boot приложения отдельная точка входа не нужна: класс с `@SpringBootApplication` тоже работает в обоих режимах. В runner-режиме стартер не поднимает ни gRPC-сервер, ни сервер мониторинга — он собирает объявленные стримы, запускает пайплайн и завершает процесс.
 
 ## См. также
 
