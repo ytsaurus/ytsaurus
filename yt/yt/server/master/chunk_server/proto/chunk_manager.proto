@@ -80,6 +80,8 @@ message TReqConfirmMultipleChunks
         required NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
         required NYT.NChunkClient.NProto.TChunkInfo chunk_info = 4;
         optional NYT.NProto.TGuid schema_id = 5;
+        
+        optional NYT.NProto.TGuid request_id = 6;
     }
 
     repeated TChunkConfirmation chunk_confirmations = 1;

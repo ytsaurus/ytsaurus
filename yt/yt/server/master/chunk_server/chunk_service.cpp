@@ -1009,7 +1009,7 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        ValidateChunkMetaOnConfirmation(request->chunk_meta());
+        ValidateChunkMetaOnConfirmation(request->chunk_meta()).ThrowOnError();
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
 
         auto doConfirmChunks = [
@@ -1058,9 +1058,15 @@ private:
             if (chunkSequoiaConfig.StoreInSequoia) {
                 auto requestStatistics = context->Request().request_statistics();
                 if (sequoiaChunkReplicasConfig->BatchChunkConfirmation) {
-                    auto result = WaitFor(chunkManager->ConfirmSequoiaChunkBatched(std::move(context->Request())));
+                    auto requestId = context->GetRequestId();
+                    auto result = WaitFor(chunkManager->ConfirmSequoiaChunkBatched(std::move(context->Request()), requestId));
                     if (!result.IsOK()) {
-                        return result;
+                        if (auto error = chunkManager->ExtractConfirmSequoiaChunkError(requestId); !error.IsOK()) {
+                            return error;
+                        } else {
+                            return TError(NRpc::EErrorCode::TransientFailure, "Chunk batched confirmation failed due to another chunk")
+                                << result;
+                        }
                     }
                 } else {
                     auto result = WaitFor(chunkManager->ConfirmSequoiaChunk(&context->Request()));

@@ -1778,14 +1778,14 @@ TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
     };
 }
 
-void ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TError ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
     // YT-3251
     if (!HasProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions())) {
-        THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
+        return TError("Missing TMiscExt in chunk meta");
     }
 
-    ValidateFromProto(chunkMeta);
+    return ValidateFromProto(chunkMeta);
 }
 
 EChunkReplicaState GetAddedChunkReplicaState(
