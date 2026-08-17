@@ -305,17 +305,6 @@ public:
                 continue;
             }
 
-            // Block is completely to the right of the request by keys.
-            if (SliceComparator_.IsRangeEmpty(blockLowerBound, SliceUpperBound_)) {
-                break;
-            }
-            // Block is completely to the right of the request by keys.
-            if (SliceEndRowIndex_ <= blockStartRowIndex) {
-                break;
-            }
-
-            // Intersect block's ranges with request's ranges.
-
             if (!firstSliceEmitted && blockIndex > 0 && !blockLowerBound.IsInclusive) {
                 // NB(coteeq): When slicing by keys, we generally assume that we
                 // either took the previous block or previous block does not
@@ -335,6 +324,17 @@ public:
                 // `!SliceByKeys_ && blockIndex > 0` case handled above.
                 blockLowerBound = blockLowerBound.ToggleInclusiveness();
             }
+
+            // Block is completely to the right of the request by keys.
+            if (SliceComparator_.IsRangeEmpty(blockLowerBound, SliceUpperBound_)) {
+                break;
+            }
+            // Block is completely to the right of the request by row indices.
+            if (SliceEndRowIndex_ <= blockStartRowIndex) {
+                break;
+            }
+
+            // Intersect block's ranges with request's ranges.
             const auto& lowerBound = SliceComparator_.CompareKeyBounds(blockLowerBound, SliceLowerBound_) >= 0
                 ? blockLowerBound
                 : SliceLowerBound_;

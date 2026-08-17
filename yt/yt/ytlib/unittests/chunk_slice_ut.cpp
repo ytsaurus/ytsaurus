@@ -1101,6 +1101,40 @@ TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimitInsideKeyGroup)
     EXPECT_EQ(slices[0].DataWeight, 100);
 }
 
+TEST(TChunkSlicerTest, SliceByKeysWithRowIndexAndKeyLimitInsideKeyGroup)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
+    chunkBuilder.AddBlock(
+        MakeRow({2}),
+        MakeRow({3}),
+        /*rowCount*/ 100,
+        /*dataWeight*/ 100);
+
+    auto chunkMeta = chunkBuilder.Finish(/*compressedDataSize*/ 100);
+
+    NProto::TSliceRequest req;
+    ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 100));
+    ToProto(req.mutable_upper_limit()->mutable_key_bound_prefix(), MakeRow({2}));
+    req.mutable_upper_limit()->set_key_bound_is_inclusive(true);
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /*sliceByRows*/ false);
+    ASSERT_EQ(slices.size(), 1u);
+
+    EXPECT_EQ(slices[0].LowerLimit.KeyBound(), TKeyBound::FromRow() >= MakeRow({2}));
+    EXPECT_EQ(slices[0].UpperLimit.KeyBound(), TKeyBound::FromRow() <= MakeRow({2}));
+    EXPECT_EQ(slices[0].RowCount, 100);
+    EXPECT_EQ(slices[0].DataWeight, 100);
+}
+
 TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
 {
     TChunkBuilder chunkBuilder(1);
