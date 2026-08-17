@@ -68,8 +68,12 @@ struct TTableConfigExperiment
 
     //! If not null, take only tables whose paths match the RE.
     NRe2::TRe2Ptr PathRe;
-    //! If not null, take only tables of the specified tablet cell bundle.
+    //! If not null, exclude tables whose paths match the RE, has a higher priority than |PathRe|.
+    NRe2::TRe2Ptr ExcludePathRe;
+    //! If not null, take only tables whose tablet cell bundles match the RE.
     NRe2::TRe2Ptr TabletCellBundle;
+    //! If not null, exclude tables whose tablet cell bundles match the RE, has a higher priority than |TabletCellBundle|.
+    NRe2::TRe2Ptr ExcludeTabletCellBundle;
     //! If not null, take only tables wih specified memory mode.
     NRe2::TRe2Ptr InMemoryMode;
     //! If not null, take only sorted/non-sorted tables respectively.
