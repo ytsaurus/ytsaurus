@@ -30,8 +30,7 @@ TEST_F(TBoundedPriorityQueueTest, IsEmpty)
     ASSERT_TRUE(priorityQueue.IsEmpty());
     priorityQueue.Insert(1, 1);
     ASSERT_FALSE(priorityQueue.IsEmpty());
-    auto result = priorityQueue.ExtractMax();
-    ASSERT_TRUE(result.has_value());
+    priorityQueue.ExtractMax();
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
@@ -41,9 +40,8 @@ TEST_F(TBoundedPriorityQueueTest, InvalidatingIterator)
     priorityQueue.Insert(1, 1);
     priorityQueue.Insert(2, 2);
     auto result = priorityQueue.ExtractMax();
-    ASSERT_TRUE(result.has_value());
-    EXPECT_EQ(result.value().second, 2);
-    ASSERT_TRUE(priorityQueue.ExtractMax().has_value());
+    EXPECT_EQ(result.Payload, 2);
+    priorityQueue.ExtractMax();
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
@@ -57,9 +55,9 @@ TEST_F(TBoundedPriorityQueueTest, CorrectSize)
     priorityQueue.Insert(5, 500);
     priorityQueue.Insert(6, 600);
 
-    EXPECT_EQ(priorityQueue.ExtractMax().value().second, 600);
-    EXPECT_EQ(priorityQueue.ExtractMax().value().second, 500);
-    EXPECT_EQ(priorityQueue.ExtractMax().value().second, 400);
+    EXPECT_EQ(priorityQueue.ExtractMax().Payload, 600);
+    EXPECT_EQ(priorityQueue.ExtractMax().Payload, 500);
+    EXPECT_EQ(priorityQueue.ExtractMax().Payload, 400);
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
@@ -71,8 +69,8 @@ TEST_F(TBoundedPriorityQueueTest, CorrectDisplacement)
     priorityQueue.Insert(2, 200);
     priorityQueue.Insert(4, 100);
 
-    EXPECT_EQ(priorityQueue.ExtractMax().value().second, 100);
-    EXPECT_EQ(priorityQueue.ExtractMax().value().second, 300);
+    EXPECT_EQ(priorityQueue.ExtractMax().Payload, 100);
+    EXPECT_EQ(priorityQueue.ExtractMax().Payload, 300);
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
@@ -83,9 +81,9 @@ TEST_F(TBoundedPriorityQueueTest, Invalidate)
     priorityQueue.Insert(2, 102);
     priorityQueue.Insert(3, 103);
     priorityQueue.Invalidate([] (const auto& item) {
-        return item.first < 3;
+        return item.Cost < 3;
     });
-    EXPECT_EQ(priorityQueue.ExtractMax().value().second, 103);
+    EXPECT_EQ(priorityQueue.ExtractMax().Payload, 103);
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 
@@ -95,7 +93,7 @@ TEST_F(TBoundedPriorityQueueTest, BestDiscarded)
     priorityQueue.Insert(10, 100);
     priorityQueue.Insert(20, 200);
     auto result = priorityQueue.ExtractMax();
-    EXPECT_EQ(result.value().second, 200);
+    EXPECT_EQ(result.Payload, 200);
     ASSERT_TRUE(priorityQueue.IsEmpty());
     priorityQueue.Insert(5, 50);
     ASSERT_TRUE(priorityQueue.IsEmpty());
@@ -108,12 +106,12 @@ TEST_F(TBoundedPriorityQueueTest, RandomSequences)
 
     TBoundedPriorityQueue<int> priorityQueue(10);
     for (int num : randomData) {
-        priorityQueue.Insert(num, num);
+        priorityQueue.Insert(num, static_cast<int>(num));
     }
 
     double lastValue = std::numeric_limits<double>::max();
     for (int i = 0; i < 10; ++i) {
-        auto extractedValue = priorityQueue.ExtractMax().value().second;
+        auto extractedValue = priorityQueue.ExtractMax().Payload;
         ASSERT_LE(extractedValue, lastValue);
         lastValue = extractedValue;
     }
@@ -138,8 +136,8 @@ TEST_F(TBoundedPriorityQueueTest, ResetAndPush)
     ASSERT_TRUE(priorityQueue.IsEmpty());
     priorityQueue.Insert(1, 100);
     priorityQueue.Insert(2, 200);
-    ASSERT_EQ(priorityQueue.ExtractMax().value().second, 200);
-    ASSERT_EQ(priorityQueue.ExtractMax().value().second, 100);
+    ASSERT_EQ(priorityQueue.ExtractMax().Payload, 200);
+    ASSERT_EQ(priorityQueue.ExtractMax().Payload, 100);
     ASSERT_TRUE(priorityQueue.IsEmpty());
 }
 

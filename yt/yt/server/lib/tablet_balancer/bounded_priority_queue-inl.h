@@ -10,14 +10,23 @@ namespace NYT::NTabletBalancer {
 
 template <class TPayload>
 TBoundedPriorityQueue<TPayload>::TBoundedPriorityQueue(int maxSize)
-    : BestDiscardedCost_(0.0)
-    , Capacity_(maxSize)
+    : Capacity_(maxSize)
 {
     Elements_.reserve(2 * Capacity_);
 }
 
 template <class TPayload>
-void TBoundedPriorityQueue<TPayload>::Insert(double cost, TPayload payload)
+bool TBoundedPriorityQueue<TPayload>::IsEmpty() const
+{
+    if (Elements_.empty()) {
+        return true;
+    }
+
+    return std::max_element(Elements_.begin(), Elements_.end(), LessComparator)->Cost < BestDiscardedCost_;
+}
+
+template <class TPayload>
+void TBoundedPriorityQueue<TPayload>::Insert(double cost, TPayload&& payload)
 {
     if (cost < BestDiscardedCost_) {
         return;
@@ -25,20 +34,23 @@ void TBoundedPriorityQueue<TPayload>::Insert(double cost, TPayload payload)
 
     Elements_.emplace_back(cost, std::move(payload));
 
-    if (std::ssize(Elements_) >= 2 * Capacity_) {
-        std::nth_element(Elements_.begin(), Elements_.begin() + Capacity_, Elements_.end(), GreaterComparator);
-        BestDiscardedCost_ = std::max(
-            BestDiscardedCost_,
-            std::max_element(
-                Elements_.begin() + Capacity_,
-                Elements_.end(),
-                LessComparator)->first);
-        Elements_.resize(Capacity_);
+    if (ssize(Elements_) < 2 * Capacity_) {
+        return;
     }
+
+    std::nth_element(
+        Elements_.begin(),
+        Elements_.begin() + Capacity_,
+        Elements_.end(),
+        GreaterComparator);
+
+    BestDiscardedCost_ = std::max(BestDiscardedCost_, Elements_[Capacity_].Cost);
+
+    Elements_.resize(Capacity_);
 }
 
 template <class TPayload>
-auto TBoundedPriorityQueue<TPayload>::ExtractMax() -> std::optional<TElement>
+auto TBoundedPriorityQueue<TPayload>::ExtractMax() -> TElement
 {
     YT_VERIFY(!IsEmpty());
 
@@ -62,16 +74,6 @@ void TBoundedPriorityQueue<TPayload>::Invalidate(TFilter&& filter)
 }
 
 template <class TPayload>
-bool TBoundedPriorityQueue<TPayload>::IsEmpty() const
-{
-    if (Elements_.empty()) {
-        return true;
-    }
-
-    return std::max_element(Elements_.begin(), Elements_.end(), LessComparator)->first < BestDiscardedCost_;
-}
-
-template <class TPayload>
 void TBoundedPriorityQueue<TPayload>::Reset()
 {
     Elements_.clear();
@@ -79,15 +81,15 @@ void TBoundedPriorityQueue<TPayload>::Reset()
 }
 
 template <class TPayload>
-bool TBoundedPriorityQueue<TPayload>::LessComparator(const TElement& a, const TElement& b)
+bool TBoundedPriorityQueue<TPayload>::LessComparator(const TElement& lhs, const TElement& rhs)
 {
-    return a.first < b.first;
+    return lhs.Cost < rhs.Cost;
 }
 
 template <class TPayload>
-bool TBoundedPriorityQueue<TPayload>::GreaterComparator(const TElement& a, const TElement& b)
+bool TBoundedPriorityQueue<TPayload>::GreaterComparator(const TElement& lhs, const TElement& rhs)
 {
-    return a.first > b.first;
+    return lhs.Cost > rhs.Cost;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

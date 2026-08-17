@@ -282,13 +282,15 @@ public:
         TBundleSnapshotPtr bundleSnapshot,
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
-        TTabletBalancerDynamicConfigPtr dynamicConfig)
+        TTabletBalancerDynamicConfigPtr dynamicConfig,
+        IThreadPoolPtr workerPool)
         : TMoveIterationBase(
             std::move(groupName),
             std::move(bundleSnapshot),
             std::move(groupConfig),
             std::move(dynamicConfig))
         , MetricTracker_(std::move(metricTracker))
+        , WorkerPool_(std::move(workerPool))
     { }
 
     bool IsGroupBalancingEnabled() const override
@@ -297,7 +299,8 @@ public:
     }
 
 protected:
-    TTableParameterizedMetricTrackerPtr MetricTracker_;
+    const TTableParameterizedMetricTrackerPtr MetricTracker_;
+    const IThreadPoolPtr WorkerPool_;
 
     TParameterizedReassignSolverConfig GetReassignSolverConfig()
     {
@@ -320,19 +323,7 @@ class TParameterizedMoveIteration
     : public TParameterizedMoveIterationBase
 {
 public:
-    TParameterizedMoveIteration(
-        std::string groupName,
-        TBundleSnapshotPtr bundleSnapshot,
-        TTableParameterizedMetricTrackerPtr metricTracker,
-        TTabletBalancingGroupConfigPtr groupConfig,
-        TTabletBalancerDynamicConfigPtr dynamicConfig)
-        : TParameterizedMoveIterationBase(
-            std::move(groupName),
-            std::move(bundleSnapshot),
-            std::move(metricTracker),
-            std::move(groupConfig),
-            std::move(dynamicConfig))
-    { }
+    using TParameterizedMoveIterationBase::TParameterizedMoveIterationBase;
 
     EBalancingMode GetBalancingMode() const override
     {
@@ -348,6 +339,7 @@ public:
             GetReassignSolverConfig(),
             GroupName_,
             MetricTracker_,
+            WorkerPool_,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -385,13 +377,15 @@ public:
         TTableParameterizedMetricTrackerPtr metricTracker,
         TTabletBalancingGroupConfigPtr groupConfig,
         TTabletBalancerDynamicConfigPtr dynamicConfig,
+        IThreadPoolPtr workerPool,
         std::string selfClusterName)
         : TParameterizedMoveIterationBase(
             std::move(groupName),
             std::move(bundleSnapshot),
             std::move(metricTracker),
             std::move(groupConfig),
-            std::move(dynamicConfig))
+            std::move(dynamicConfig),
+            std::move(workerPool))
         , SelfClusterName_(std::move(selfClusterName))
     { }
 
@@ -475,6 +469,7 @@ public:
             GetReassignSolverConfig(),
             GroupName_,
             MetricTracker_,
+            WorkerPool_,
             Logger())
             .AsyncVia(invoker)
             .Run()
@@ -532,14 +527,16 @@ IMoveIterationPtr CreateParameterizedMoveIteration(
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
-    TTabletBalancerDynamicConfigPtr dynamicConfig)
+    TTabletBalancerDynamicConfigPtr dynamicConfig,
+    IThreadPoolPtr workerPool)
 {
     return New<TParameterizedMoveIteration>(
         std::move(groupName),
         std::move(bundleSnapshot),
         std::move(metricTracker),
         std::move(groupConfig),
-        std::move(dynamicConfig));
+        std::move(dynamicConfig),
+        std::move(workerPool));
 }
 
 IMoveIterationPtr CreateReplicaMoveIteration(
@@ -548,6 +545,7 @@ IMoveIterationPtr CreateReplicaMoveIteration(
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
+    IThreadPoolPtr workerPool,
     std::string selfClusterName)
 {
     return New<TReplicaMoveIteration>(
@@ -556,6 +554,7 @@ IMoveIterationPtr CreateReplicaMoveIteration(
         std::move(metricTracker),
         std::move(groupConfig),
         std::move(dynamicConfig),
+        std::move(workerPool),
         std::move(selfClusterName));
 }
 

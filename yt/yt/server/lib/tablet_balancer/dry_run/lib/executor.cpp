@@ -16,6 +16,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -24,6 +26,7 @@
 
 namespace NYT::NTabletBalancer::NDryRun {
 
+using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
@@ -212,6 +215,9 @@ TTabletActionBatch Balance(
                     config,
                     group,
                     /*metricTracker*/ nullptr,
+                    CreateThreadPool(
+                        4,
+                        "Worker"),
                     Logger())
             };
         }

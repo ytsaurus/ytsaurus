@@ -15,6 +15,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -28,6 +30,7 @@
 namespace NYT::NTabletBalancer {
 namespace {
 
+using namespace NConcurrency;
 using namespace NDryRun;
 using namespace NObjectClient;
 using namespace NYson;
@@ -38,6 +41,12 @@ using namespace NYTree;
 YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "BalancingHelpersUnittest");
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const IThreadPoolPtr& GetWorkerPool()
+{
+    static auto WorkerPool = CreateThreadPool(4, "Worker");
+    return WorkerPool;
+}
 
 TObjectId MakeObjectId(EObjectType type, int index)
 {
@@ -574,6 +583,7 @@ TEST_P(TTestReassignTabletsParameterized, ViaMemorySize)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         /*metricTracker*/ nullptr,
+        GetWorkerPool(),
         Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
@@ -880,6 +890,7 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
             }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
             group,
             /*metricTracker*/ nullptr,
+            GetWorkerPool(),
             Logger()),
         ToString(std::get<1>(params)));
 }
@@ -932,6 +943,7 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         /*metricTracker*/ nullptr,
+        GetWorkerPool(),
         Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));

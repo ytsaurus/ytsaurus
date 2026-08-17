@@ -54,7 +54,8 @@ IMoveIterationPtr CreateParameterizedMoveIteration(
     TBundleSnapshotPtr bundleSnapshot,
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
-    TTabletBalancerDynamicConfigPtr dynamicConfig);
+    TTabletBalancerDynamicConfigPtr dynamicConfig,
+    NConcurrency::IThreadPoolPtr workerPool);
 
 IMoveIterationPtr CreateReplicaMoveIteration(
     std::string groupName,
@@ -62,6 +63,7 @@ IMoveIterationPtr CreateReplicaMoveIteration(
     TTableParameterizedMetricTrackerPtr metricTracker,
     TTabletBalancingGroupConfigPtr groupConfig,
     TTabletBalancerDynamicConfigPtr dynamicConfig,
+    NConcurrency::IThreadPoolPtr workerPool,
     std::string selfClusterName);
 
 ////////////////////////////////////////////////////////////////////////////////
