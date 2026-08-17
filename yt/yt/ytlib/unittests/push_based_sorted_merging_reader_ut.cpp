@@ -577,7 +577,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, ReportsRowWithoutIdentityColumns)
         WaitFor(reader->GetReadyEvent()).ThrowOnError();
         ADD_FAILURE() << "Expected a row without identity columns to fail readiness";
     } catch (const TErrorException& error) {
-        EXPECT_NE(TString(error.what()).find("too short"), TString::npos);
+        EXPECT_THAT(error.Error().GetMessage(), ::testing::HasSubstr("too short"));
     }
 }
 
@@ -809,7 +809,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, RejectsEmptyReaderList)
         CreateReader({}, MakePhysicalSortComparator(ESortOrder::Ascending));
         ADD_FAILURE();
     } catch (const TErrorException& error) {
-        EXPECT_NE(TString(error.what()).find("input readers"), TString::npos);
+        EXPECT_THAT(error.Error().GetMessage(), ::testing::HasSubstr("input readers"));
     }
 }
 
@@ -833,7 +833,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, RejectsComparatorWithoutUserKey)
             }));
         ADD_FAILURE();
     } catch (const TErrorException& error) {
-        EXPECT_NE(TString(error.what()).find("at least three sort columns"), TString::npos);
+        EXPECT_THAT(error.Error().GetMessage(), ::testing::HasSubstr("at least three sort columns"));
     }
 }
 
@@ -853,7 +853,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, RejectsInvalidIdentityColumnIds)
             {.WriterId = -1, .RowId = RowIdColumnId});
         ADD_FAILURE();
     } catch (const TErrorException& error) {
-        EXPECT_NE(TString(error.what()).find("Invalid identity column ids"), TString::npos);
+        EXPECT_THAT(error.Error().GetMessage(), ::testing::HasSubstr("Invalid identity column ids"));
     }
 }
 
@@ -873,7 +873,7 @@ TEST_F(TPushBasedSortedMergingReaderTest, RejectsEqualIdentityColumnIds)
             {.WriterId = WriterIdColumnId, .RowId = WriterIdColumnId});
         ADD_FAILURE();
     } catch (const TErrorException& error) {
-        EXPECT_NE(TString(error.what()).find("Invalid identity column ids"), TString::npos);
+        EXPECT_THAT(error.Error().GetMessage(), ::testing::HasSubstr("Invalid identity column ids"));
     }
 }
 

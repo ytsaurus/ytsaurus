@@ -501,7 +501,7 @@ protected:
         PipeReaderToWriter(
             New<TSortReaderRowBatchAdapter>(reader, nameTable),
             writer,
-            {});
+            /*options*/ {});
 
         auto chunkSpecs = writer->GetWrittenChunkSpecs();
         YT_VERIFY(std::ssize(chunkSpecs) == 1);

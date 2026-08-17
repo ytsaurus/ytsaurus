@@ -27,8 +27,8 @@ namespace {
 
 struct TRowIdentity
 {
-    i32 WriterId;
-    i64 RowId;
+    i32 WriterId = 0;
+    i64 RowId = 0;
 
     bool operator==(const TRowIdentity& other) const = default;
 };
