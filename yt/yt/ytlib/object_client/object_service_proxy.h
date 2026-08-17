@@ -62,7 +62,7 @@ public:
 
     template <class TTypedRequest>
     TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
-    ExecuteAs(std::string user, TIntrusivePtr<TTypedRequest> innerRequest);
+    ExecuteAs(const std::string& user, TIntrusivePtr<TTypedRequest> innerRequest);
 
     template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
         requires (sizeof...(TTypedRequests) > 0)
@@ -72,7 +72,7 @@ public:
     template <std::derived_from<NYTree::TYPathRequest>... TTypedRequests>
         requires (sizeof...(TTypedRequests) > 0)
     TFuture<std::tuple<TIntrusivePtr<typename TTypedRequests::TTypedResponse>...>>
-    ExecuteManyAs(std::string user, TIntrusivePtr<TTypedRequests>... innerRequests);
+    ExecuteManyAs(const std::string& user, TIntrusivePtr<TTypedRequests>... innerRequests);
 
     class TReqExecuteBatchBase;
     class TReqExecuteBatchNoSequoiaRetries;
