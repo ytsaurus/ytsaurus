@@ -710,6 +710,7 @@ class YTEnvSetup(object):
                     "cypress_modification": 5000,
                     "cypress_transaction_mirroring": 5000,
                     "response_keeper": 5000,
+                    "ground_update_queue_flush": 5000,
                 },
                 # NB: default backoff is 3 seconds. It's too long. Typical
                 # Sequoia tx lives no longer than 300ms.
