@@ -230,12 +230,6 @@ def get_scheduler_config():
     return {
         "cluster_connection": {},
 
-        "response_keeper": {
-            "enable_warmup": False,
-            "expiration_time": 25000,
-            "warmup_time": 30000,
-        },
-
         "rpc_server": {
             "tracing_mode": "force",
         },
