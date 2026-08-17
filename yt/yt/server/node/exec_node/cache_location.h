@@ -61,7 +61,7 @@ public:
     TCacheLocation(
         std::string id,
         NDataNode::TCacheLocationConfigPtr config,
-        const NClusterNode::IBootstrap* bootstrap,
+        NClusterNode::IBootstrapBase* bootstrap,
         TArtifactCachePtr artifactCache);
 
     const NDataNode::TCacheLocationConfigPtr& GetStaticConfig() const;
@@ -82,7 +82,7 @@ private:
 
     const std::string MediumName_;
 
-    const NClusterNode::IBootstrap* const Bootstrap_;
+    NClusterNode::IBootstrapBase* const Bootstrap_;
 
     const NProfiling::TCounter EnospcRate_;
 

@@ -193,6 +193,43 @@ for line in sys.stdin:
 
         wait(lambda: cache_artifact_count() == 0)
 
+    @authors("dann239")
+    def test_disabled_location_alert(self):
+        node = ls("//sys/cluster_nodes")[0]
+        chunk_cache = self.Env.configs["node"][0]["data_node"]["cache_locations"][0]["path"]
+        assert not os.path.exists(f"{chunk_cache}/disabled")
+
+        # We set compression_codec here so that it trips the test_cache_location_disabling check.
+        create("file", "//tmp/file", attributes={"compression_codec": "lz4"})
+        write_file(
+            "//tmp/file",
+            b"x" * (1024 * 1024),
+            file_writer={"upload_replication_factor": 1},
+        )
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "chunk_cache": {
+                    "test_cache_location_disabling": True,
+                },
+            },
+        })
+
+        op = run_test_vanilla(
+            command="true",
+            task_patch={"file_paths": ["//tmp/file"]},
+            track=False,
+        )
+
+        wait(lambda: os.path.exists(f"{chunk_cache}/disabled"))
+        op.abort()
+
+        def check_alerts():
+            alerts = get(f"//sys/cluster_nodes/{node}/@alerts")
+            return len(alerts) == 1 and "is disabled" in alerts[0]["message"]
+
+        wait(check_alerts)
+
 
 class TestPerLocationFullHeartbeats(YTEnvSetup):
     ENABLE_MULTIDAEMON = False
