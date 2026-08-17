@@ -106,7 +106,7 @@ class TestMaterializedViews(ClickHouseTestBase):
         with Clique(1) as clique:
             with raises_yt_error(code=QueryFailedError):
                 clique.make_query('CREATE MATERIALIZED VIEW mv ENGINE = YtTable() AS SELECT key, value FROM "//tmp/source"')
-            with raises_yt_error(message_pattern="target table must exist"):
+            with raises_yt_error(message_pattern="does not exist"):
                 clique.make_query('CREATE MATERIALIZED VIEW mv TO "//tmp/no_such_target" AS SELECT key, value FROM "//tmp/source"')
 
             # An explicit definer matching the query user is allowed.
@@ -114,6 +114,10 @@ class TestMaterializedViews(ClickHouseTestBase):
                 'CREATE MATERIALIZED VIEW mv TO "//tmp/target" '
                 'DEFINER = root SQL SECURITY DEFINER '
                 'AS SELECT key, value FROM "//tmp/source"')
+            with raises_yt_error(message_pattern="source table must be a YT table"):
+                clique.make_query(
+                    'CREATE MATERIALIZED VIEW mv2 TO "//tmp/target" '
+                    'AS SELECT key, value FROM mv')
             clique.make_query("DROP TABLE mv")
 
             # Non-definer security types are rejected.

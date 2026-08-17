@@ -1,7 +1,6 @@
 #include "storage_yt_materialized_view.h"
 
 #include "config.h"
-#include "query_context.h"
 #include "storage_distributor.h"
 #include "table.h"
 #include "yt_database_base.h"
@@ -23,6 +22,7 @@
 
 #include <Storages/SelectQueryDescription.h>
 #include <Storages/SelectQueryInfo.h>
+#include <Storages/StorageFactory.h>
 #include <Storages/StorageMaterializedView.h>
 #include <Storages/StorageSnapshot.h>
 
@@ -60,17 +60,28 @@ public:
         DB::ContextPtr localContext,
         const DB::ASTCreateQuery& createQuery,
         const DB::ColumnsDescription& columns,
-        DB::StorageID targetTableId)
+        DB::StorageID targetTableId,
+        const std::string& comment = {})
         : DB::IStorage(storageId)
         , TargetTableId_(std::move(targetTableId))
     {
         DB::StorageInMemoryMetadata storageMetadata;
         storageMetadata.setColumns(columns);
+        if (!createQuery.select) {
+            THROW_ERROR_EXCEPTION("Materialized view SELECT query is not specified");
+        }
+
         // getSelectQueryFromASTForMatView may modify the passed context.
         storageMetadata.setSelectQuery(DB::SelectQueryDescription::getSelectQueryFromASTForMatView(
             createQuery.select->clone(),
             /*refreshable*/ false,
             DB::Context::createCopy(localContext)));
+        if (createQuery.sql_security) {
+            storageMetadata.setSQLSecurity(createQuery.sql_security->as<DB::ASTSQLSecurity&>());
+        }
+        if (!comment.empty()) {
+            storageMetadata.setComment(comment);
+        }
         setInMemoryMetadata(storageMetadata);
     }
 
@@ -169,12 +180,40 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void RegisterStorageYtMaterializedView(DB::StorageFactory& factory)
+{
+    factory.registerStorage("MaterializedView", [] (const DB::StorageFactory::Arguments& args) -> DB::StoragePtr {
+        auto database = DB::DatabaseCatalog::instance().getDatabase(args.table_id.database_name);
+        if (dynamic_cast<TYtDatabaseBase*>(database.get())) {
+            return std::make_shared<TStorageYtMaterializedView>(
+                args.table_id,
+                args.getLocalContext(),
+                args.query,
+                args.columns,
+                args.query.getTargetTableID(DB::ViewTarget::To),
+                args.comment);
+        }
+
+        return std::make_shared<DB::StorageMaterializedView>(
+            args.table_id,
+            args.getLocalContext(),
+            args.query,
+            args.columns,
+            args.mode,
+            args.comment,
+            args.is_restore_from_backup);
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
     const DB::ContextPtr& context,
     const DB::StoragePtr& table,
     const DB::ASTPtr& query)
 {
-    auto* queryContext = GetQueryContext(context);
+    auto materializedView = dynamic_pointer_cast<IStorageYtMaterializedView>(table);
+    YT_VERIFY(materializedView);
 
     const auto& create = query->as<const DB::ASTCreateQuery&>();
     if (create.is_populate) {
@@ -211,42 +250,33 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
             user);
     }
 
-    auto materializedView = dynamic_pointer_cast<DB::StorageMaterializedView>(table);
-    YT_VERIFY(materializedView);
-
-    auto resolveYtPath = [] (const DB::StorageID& storageId, TStringBuf role) {
-        auto database = DB::DatabaseCatalog::instance().getDatabase(storageId.database_name);
-        if (!dynamic_cast<TYtDatabaseBase*>(database.get())) {
-            THROW_ERROR_EXCEPTION("Materialized view %v table %Qv must reside in a YT database",
-                role,
-                storageId.getFullTableName());
-        }
-        return TYPath(database->getTableDataPath(storageId.table_name));
-    };
-
-    auto selectTableId = materializedView->getInMemoryMetadataPtr()->getSelectQuery().select_table_id;
+    auto selectTableId = table->getInMemoryMetadataPtr()->getSelectQuery().select_table_id;
     if (selectTableId.empty()) {
         THROW_ERROR_EXCEPTION("Materialized view SELECT must read from a single YT table");
     }
-    auto sourcePath = resolveYtPath(selectTableId, "source");
-    auto targetPath = resolveYtPath(materializedView->getTargetTableId(), "target");
 
-    std::vector<TTablePtr> sourceAndTarget;
-    try {
-        sourceAndTarget = FetchTablesSoft(
-            queryContext,
-            {TRichYPath::Parse(sourcePath), TRichYPath::Parse(targetPath)},
-            /*skipUnsuitableNodes*/ false,
-            /*enableDynamicStoreRead*/ true,
-            queryContext->Logger);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Materialized view target table must exist and source table must be readable")
-            .With(ex);
-    }
+    auto getSingleTable = [] (const IStorageDistributorPtr& distributor, TStringBuf role) {
+        THROW_ERROR_EXCEPTION_IF(!distributor,
+            "Materialized view %v table must be a YT table",
+            role);
 
-    YT_VERIFY(sourceAndTarget.size() == 2);
-    const auto& sourceTable = sourceAndTarget[0];
-    const auto& targetTable = sourceAndTarget[1];
+        auto tables = distributor->GetTables();
+        THROW_ERROR_EXCEPTION_IF(tables.size() != 1,
+            "Materialized view %v table must resolve to a single YT table",
+            role);
+        return tables[0];
+    };
+
+    auto sourceStorage = DB::DatabaseCatalog::instance().getTable(selectTableId, context);
+    auto sourceTable = getSingleTable(
+        std::dynamic_pointer_cast<IStorageDistributor>(sourceStorage),
+        "source");
+    auto targetTable = getSingleTable(
+        materializedView->ResolveTargetDistributor(context),
+        "target");
+
+    auto sourcePath = sourceTable->GetPath();
+    auto targetPath = targetTable->GetPath();
     if (targetTable->Dynamic) {
         THROW_ERROR_EXCEPTION("Materialized view target table must be static")
             .With("target_path", targetPath);
