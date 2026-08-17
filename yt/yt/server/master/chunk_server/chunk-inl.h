@@ -4,6 +4,8 @@
 #include "chunk.h"
 #endif
 
+#include "helpers.h"
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -120,36 +122,31 @@ inline void TChunk::ResetPartLossTime()
     data->EpochPartLossTime = NProfiling::TCpuInstant{};
 }
 
-inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const
+inline TChunkRepairQueueIterator TChunk::GetRepairQueueIterator(int mediumIndex, int priority) const
 {
-    auto* iteratorMap = SelectRepairQueueIteratorMap(queue);
-    auto it = iteratorMap->find(mediumIndex);
+    auto* iteratorMap = &GetDynamicData()->RepairQueueIterators;
+    auto key = EncodeRepairQueueKey(mediumIndex, priority);
+    auto it = iteratorMap->find(key);
     return it == iteratorMap->end()
         ? TChunkRepairQueueIterator()
         : it->second;
 }
 
-inline void TChunk::SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value)
+inline void TChunk::SetRepairQueueIterator(int mediumIndex, int priority, TChunkRepairQueueIterator value)
 {
-    auto* iteratorMap = SelectRepairQueueIteratorMap(queue);
+    auto* iteratorMap = &GetDynamicData()->RepairQueueIterators;
+    auto key = EncodeRepairQueueKey(mediumIndex, priority);
     if (value == TChunkRepairQueueIterator()) {
-        iteratorMap->erase(mediumIndex);
+        iteratorMap->erase(key);
     } else {
-        (*iteratorMap)[mediumIndex] = value;
+        (*iteratorMap)[key] = value;
     }
 }
 
-inline TChunkDynamicData::TMediumToRepairQueueIterator* TChunk::SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const
+inline const TChunkDynamicData::TRepairQueueIteratorMap&
+TChunk::SelectRepairQueueIteratorMap() const
 {
-    switch (queue) {
-        case EChunkRepairQueue::Missing:
-            return &GetDynamicData()->MissingPartRepairQueueIterators;
-
-        case EChunkRepairQueue::Decommissioned:
-            return &GetDynamicData()->DecommissionedPartRepairQueueIterators;
-        default:
-            YT_ABORT();
-    }
+    return GetDynamicData()->RepairQueueIterators;
 }
 
 inline const TChunkDynamicData::TJobSet& TChunk::GetJobs() const
