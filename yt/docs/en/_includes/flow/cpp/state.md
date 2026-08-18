@@ -214,7 +214,7 @@ Dynamic spec:
 
 In the `Computation` spec, the class name is set via `external_state_manager_class_name` and must be the fully qualified name of the type that was passed to `YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER` (for example, `NYT::NFlow::NBigRTExtensions::TProfileManager<NMyNamespace::TMyProfile>`).
 
-For more details on this extension, see the [Serializable Profile](../../../yandex-specific/flow/extensions/serializable-profile.md) section. For unit testing of functions with a Serializable Profile state, see the [Testing](../../../flow/cpp/process-functions.md#profile-testing) section.
+For more details on this extension, see the [Serializable Profile](../../../flow/extensions/serializable-profile.md) section. For unit testing of functions with a Serializable Profile state, see the [Testing](../../../flow/cpp/process-functions.md#profile-testing) section.
 
 {% endif %}
 
@@ -390,7 +390,7 @@ Dynamic spec:
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_NBigRTExtensions_TDynamicProfileJoinerSpec.md) %}
 
-For more details about this extension, see the [Serializable Profile](../../../yandex-specific/flow/extensions/serializable-profile.md) section. For unit testing functions with a Serializable Profile state, see the [Testing](../../../flow/cpp/process-functions.md#profile-testing) section.
+For more details about this extension, see the [Serializable Profile](../../../flow/extensions/serializable-profile.md) section. For unit testing functions with a Serializable Profile state, see the [Testing](../../../flow/cpp/process-functions.md#profile-testing) section.
 
 {% endif %}
 

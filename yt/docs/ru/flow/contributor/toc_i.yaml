@@ -7,3 +7,4 @@ items:
     href: testing-framework.md
   - name: Генератор документации по YSON-структурам
     href: generate-yson-struct-doc.md
+    when: audience == "internal"

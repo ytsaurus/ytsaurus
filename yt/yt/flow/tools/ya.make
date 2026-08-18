@@ -12,6 +12,5 @@ RECURSE(
 IF (NOT OPENSOURCE)
     RECURSE(
         draw_pipeline_graph
-        generate_yson_struct_doc
     )
 ENDIF()
