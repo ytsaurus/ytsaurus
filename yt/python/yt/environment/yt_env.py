@@ -18,7 +18,9 @@ from .local_cluster_configuration import (
 
 from .tls_helpers import create_ca, create_certificate
 
-from yt.common import YtError, remove_file, makedirp, update, get_fqdn, get_value, which, to_native_str
+from yt.common import (
+    YtError, remove_file, makedirp, update, get_fqdn, get_value, which, to_native_str,
+    date_string_to_datetime, utcnow)
 from yt.wrapper.common import flatten
 from yt.wrapper.constants import FEEDBACK_URL
 from yt.wrapper.errors import YtResponseError
@@ -320,6 +322,8 @@ class YTInstance(object):
             self._open_port_iterator = open_port_iterator
         else:
             self._open_port_iterator = _get_ports_generator(yt_config)
+
+        self._multi_start_time = None
 
         self._prepare_builtin_environment(
             self._open_port_iterator,
@@ -835,6 +839,8 @@ class YTInstance(object):
             if hasattr(self._open_port_iterator, "release"):
                 self._open_port_iterator.release()
             self._open_port_iterator = None
+
+        self._multi_start_time = None
 
         wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
 
@@ -2241,12 +2247,34 @@ class YTInstance(object):
         client = self._create_cluster_client()
         try:
             tx_id = client.get("//sys/scheduler/lock/@locks/0/transaction_id")
-            if tx_id:
-                client.abort_transaction(tx_id)
-                logger.info("Previous scheduler transaction was aborted")
+            if not tx_id:
+                return
+            # Under multidaemon the current scheduler has been running since start_multi and may
+            # already hold the lock itself; only a transaction older than the multi process is stale.
+            if self.yt_config.enable_multidaemon:
+                if self._multi_start_time is None:
+                    logger.warning("Multidaemon is enabled but its start time is unknown; "
+                                   "aborting the scheduler lock transaction without checking whether it is stale")
+                elif not self._scheduler_lock_transaction_is_stale(client, tx_id):
+                    logger.info("Scheduler lock is held by a transaction from the current run; "
+                                "not aborting it (transaction_id: %s)", tx_id)
+                    return
+            client.abort_transaction(tx_id)
+            logger.info("Previous scheduler transaction was aborted")
         except YtResponseError as error:
-            if not error.is_resolve_error():
+            # The transaction may expire between reading the lock and aborting it.
+            if not error.is_resolve_error() and not error.is_no_such_transaction():
                 raise
+
+    def _scheduler_lock_transaction_is_stale(self, client, tx_id):
+        tx_start_time = client.get(f"#{tx_id}/@start_time")
+        try:
+            return date_string_to_datetime(tx_start_time) < self._multi_start_time
+        except (ValueError, TypeError):
+            # Neither is a YtError, so letting it out would escape start()'s cleanup handler.
+            logger.warning("Failed to parse the start time %r of the scheduler lock transaction %s",
+                           tx_start_time, tx_id)
+            return True
 
     def _prepare_drivers(self,
                          driver_configs,
@@ -2384,6 +2412,7 @@ class YTInstance(object):
 
     def start_multi(self):
         name = "multi"
+        self._multi_start_time = utcnow()
         self.run_yt_component(name, self.config_paths[name], name=name)
 
     def start_http_proxy(self, sync=True):
