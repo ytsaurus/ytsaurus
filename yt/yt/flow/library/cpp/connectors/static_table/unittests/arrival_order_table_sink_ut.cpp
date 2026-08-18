@@ -735,6 +735,8 @@ TEST_F(TArrivalOrderTableSinkTest, CommitRetryStopsOnFiberCancellationAndRelease
     EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
     commitFuture.Reset();
 
+    // |commitFuture| may complete before the callback frame releases its captures.
+    // Drain the same single-thread invoker before checking |weakSink|.
     WaitFor(BIND([] {
     })
             .AsyncVia(ThreadPool->GetInvoker())
