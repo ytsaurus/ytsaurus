@@ -3730,6 +3730,8 @@ private:
         ReplicationProgress_ = FromProto<TReplicationProgress>(result->end_replication_progress());
         if (result->has_end_replication_row_index()) {
             ReplicationRowIndex_ = result->end_replication_row_index();
+        } else {
+            ReplicationRowIndex_.reset();
         }
 
         DataWeight_ += result->data_weight();
