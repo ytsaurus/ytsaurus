@@ -327,12 +327,6 @@ private:
             CypressDictionaryGuard_ = dictionariesLoader.addConfigRepository(
                 CreateExternalLoaderFromCypressObjectRepository(Host_->GetCypressObjectRepository()));
         }
-        if (Host_->GetConfig()->DictionaryAccessControl) {
-            // By default, CH lazily creates dictionaries in memory on the first access.
-            // For the DictionaryAccessControl to work correctly, the dictionaries with YtSource must have already been created before query start.
-            dictionariesLoader.enableAlwaysLoadEverything(/*enable*/ true);
-        }
-
         YT_TLOG_DEBUG("Setting chyt custom setting prefix");
 
         accessControl.setCustomSettingsPrefixes(std::vector<std::string>{"chyt_", "chyt."});

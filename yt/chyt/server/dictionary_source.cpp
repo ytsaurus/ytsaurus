@@ -266,11 +266,11 @@ void RegisterTableDictionarySource(THost* host)
         const std::string& /*default_database*/,
         bool /*checkConfig*/) -> DB::DictionarySourcePtr
     {
-        const auto& path = TRichYPath::Parse(TString(config.getString(dictSectionPath + ".yt.path")));
+        const auto path = config.getString(Format("%v.yt.path", dictSectionPath));
         return std::make_unique<TTableDictionarySource>(
             host,
             dictionaryStructure,
-            path,
+            TRichYPath::Parse(TStringBuf(path)),
             sampleBlock.getNamesAndTypesList(),
             context);
     };
@@ -280,13 +280,17 @@ void RegisterTableDictionarySource(THost* host)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(DB::DictionarySourcePtr source)
+std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(
+    const DBPoco::Util::AbstractConfiguration& config,
+    const std::string& configPrefix)
 {
-    auto ytSource = std::dynamic_pointer_cast<TTableDictionarySource>(source);
-    if (!ytSource) {
+    const auto pathKey = Format("%v.source.yt.path", configPrefix);
+    if (!config.has(pathKey)) {
         return std::nullopt;
     }
-    return ytSource->Path();
+
+    const auto path = config.getString(pathKey);
+    return TRichYPath::Parse(TStringBuf(path)).GetPath();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
