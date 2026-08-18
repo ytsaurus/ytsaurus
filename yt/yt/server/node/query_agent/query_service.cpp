@@ -796,6 +796,15 @@ private:
                     trimmedRowCount,
                     totalRowCount);
 
+                if (startReplicationRowIndex && *startReplicationRowIndex < trimmedRowCount) {
+                    YT_LOG_DEBUG("Start row index is outdated, ignoring "
+                        "(TrimmedRowCount: %v, StartReplicationRowIndex: %v)",
+                        trimmedRowCount,
+                        *startReplicationRowIndex);
+
+                    startReplicationRowIndex = std::nullopt;
+                }
+
                 auto startRowIndex = logParser->ComputeStartRowIndex(
                     tabletSnapshot,
                     GetReplicationProgressMinTimestamp(progress),

@@ -3132,26 +3132,40 @@ class TestChaos(ChaosTestBase):
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
         wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[:2])
 
-        def _insistent_trim_rows(table, driver=None):
+        def _insistent_trim_rows(table, row_count, driver=None):
             try:
-                trim_rows(table, 0, 1, driver=driver)
+                trim_rows(table, 0, row_count, driver=driver)
                 return True
             except YtError as err:
                 print_debug("Table {0} trim failed: ".format(table), err)
                 return False
 
-        wait(lambda: _insistent_trim_rows("//tmp/t"))
+        wait(lambda: _insistent_trim_rows("//tmp/t", 1))
         assert select_rows("key, value from [//tmp/t]") == data_values[1:2]
 
         sync_flush_table("//tmp/r", driver=remote_driver0)
         values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(2, 3)]
         insert_rows("//tmp/t", values)
-        wait(lambda: _insistent_trim_rows("//tmp/r", driver=remote_driver0))
+        wait(lambda: _insistent_trim_rows("//tmp/r", 1, driver=remote_driver0))
 
-        # Ensure all replication is complete
+        # Ensure all replication is complete.
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
 
         assert select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[1:]
+
+        # All replicas are sync now.
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(3, 4)]
+        insert_rows("//tmp/t", values)
+        wait(lambda: _insistent_trim_rows("//tmp/r", 4, driver=remote_driver0))
+        wait(lambda: _insistent_trim_rows("//tmp/t", 4))
+        assert select_rows("key, value from [//tmp/r]", driver=remote_driver0) == []
+        assert select_rows("key, value from [//tmp/t]") == []
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="async")
+
+        values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(3, 4)]
+        insert_rows("//tmp/t", values)
+        data_values = [{"key": i, "value": str(i)} for i in range(3, 4)]
+        wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values)
 
     @authors("osidorkin")
     def test_ordered_chaos_table_trim_without_flush(self):
