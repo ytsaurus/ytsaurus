@@ -15,9 +15,9 @@ ESequoiaReign GetCurrentSequoiaReign() noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCurrentGroundReign()
+EGroundReign GetCurrentGroundReign()
 {
-    return ToUnderlying(TEnumTraits<EGroundReign>::GetMaxValue());
+    return TEnumTraits<EGroundReign>::GetMaxValue();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,12 +31,12 @@ TFuture<void> ValidateClusterGroundReign(
         .Apply(BIND([] (NYson::TYsonString value) {
             auto attributes = NYTree::ConvertToAttributes(value);
             auto actualReign = attributes->Get<int>("ground_reign", ToUnderlying(EGroundReign::Unknown));
-            auto expectedReign = GetCurrentGroundReign();
+            auto expectedReign = ToUnderlying(GetCurrentGroundReign());
             THROW_ERROR_EXCEPTION_IF(actualReign != expectedReign,
                 // TODO(kvk1920): use EErrorCode::SequoiaRetriableError after
                 // making this code retriable for data node heartbeats.
                 NRpc::EErrorCode::TransientFailure,
-                "Ground reigns differ (Expected: %v, Actual: %v)",
+                "Ground reigns differ: expected %v, actual %v",
                 expectedReign,
                 actualReign);
         }));

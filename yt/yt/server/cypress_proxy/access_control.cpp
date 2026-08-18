@@ -476,7 +476,7 @@ TIntermediateReadPermissionCheckResult TIntermediateReadPermissionCheckResult::P
     checker.Put(&trivialAcd);
     auto descendantsAction = checker.CheckPermission().Action;
 
-    auto objectAction = [=] {
+    auto objectAction = [&] {
         if (currentAction == ESecurityAction::Deny ||
             inheritedImmediateDescendatsAction == ESecurityAction::Deny ||
             inheritedDescendatsAction == ESecurityAction::Deny)

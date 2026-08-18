@@ -1262,7 +1262,7 @@ void TBootstrap::DoStart()
     SetNodeByYPath(
         orchidRoot,
         "/ground_reign",
-        ConvertToNode(GetCurrentGroundReign()));
+        ConvertToNode(ToUnderlying(GetCurrentGroundReign())));
     SetBuildAttributes(
         orchidRoot,
         "master");

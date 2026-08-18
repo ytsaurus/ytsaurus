@@ -324,7 +324,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/ground_reign",
-            ConvertToNode(GetCurrentGroundReign()));
+            ConvertToNode(ToUnderlying(GetCurrentGroundReign())));
 
         SetNodeByYPath(
             OrchidRoot_,

@@ -749,7 +749,7 @@ private:
         auto involvesSequoiaError = error
             .FindMatching(NObjectClient::EErrorCode::RequestInvolvesSequoia);
 
-        if (involvesSequoiaError.has_value()) {
+        if (involvesSequoiaError) {
             auto& subrequest = Subrequests_[subrequestIndex];
             subrequest.Target = ERequestTarget::Sequoia;
             subrequest.IsSequoiaFallback = true;
