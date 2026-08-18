@@ -105,6 +105,52 @@ TEST(TQueryOptimizerTest, DoesNotOptimizeJoin)
     EXPECT_EQ(expectedSql, FormatQuery(query));
 }
 
+TEST(TQueryOptimizerTest, OptimizeJoinWithGroupByAlias)
+{
+    TObjectsHolder objectsHolder;
+    TQuery query;
+    auto& select = query.SelectExprs.emplace();
+    select.push_back(objectsHolder.New<TFunctionExpression>(
+        NQueryClient::TSourceLocation(),
+        "first",
+        TExpressionList{
+            objectsHolder.New<TReferenceExpression>(
+                NQueryClient::TSourceLocation(),
+                "group_by_expression"),
+        }));
+
+    query.FromClause = TTableDescriptor("//index", "i");
+    query.Joins.push_back(TJoin(
+        false,
+        TTableDescriptor("//books", "p"),
+        MakeExpression<TReferenceExpression>(
+            &objectsHolder,
+            NQueryClient::TSourceLocation(),
+            "book_id",
+            "i"),
+        MakeExpression<TReferenceExpression>(
+            &objectsHolder,
+            NQueryClient::TSourceLocation(),
+            "meta.id",
+            "p"),
+        std::nullopt));
+    query.GroupExprs = TExpressionList{
+        objectsHolder.New<TAliasExpression>(
+            NQueryClient::TSourceLocation(),
+            objectsHolder.New<TReferenceExpression>(
+                NQueryClient::TSourceLocation(),
+                "book_id",
+                "i"),
+            "group_by_expression"),
+    };
+
+    EXPECT_TRUE(TryOptimizeJoin(&query));
+
+    TStringBuf optimizedSql = "first(group_by_expression) FROM `//index` AS i"
+                              " GROUP BY (i.book_id as group_by_expression)";
+    EXPECT_EQ(optimizedSql, FormatQuery(query));
+}
+
 TEST(TQueryOptimizerTest, OptimizeWhenUsingSelectExpressionInOrderBy)
 {
     TObjectsHolder objectsHolder;
