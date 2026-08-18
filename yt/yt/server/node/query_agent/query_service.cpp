@@ -428,28 +428,23 @@ private:
 
         auto attachments = std::move(request->Attachments()); // TODO: capture in MemoryTracker_;
 
-        YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
-            "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSessionId: %v, MemoryLimitPerNode: %v, "
-            "RowsetProcessingBatchSize: %v, WriteRowsetSize: %v, MaxJoinBatchSize: %v, "
-            "DataRangeCount: %v, RandomTabletId: %v, StatisticsAggregation: %Qv, "
-            "AttachmentCount: %v)",
-            query->Id,
-            queryOptions.InputRowLimit,
-            queryOptions.OutputRowLimit,
-            queryOptions.RangeExpansionLimit,
-            queryOptions.MaxSubqueries,
-            queryOptions.EnableCodeCache,
-            queryOptions.WorkloadDescriptor,
-            queryOptions.ReadSessionId,
-            queryOptions.MemoryLimitPerNode,
-            queryOptions.RowsetProcessingBatchSize,
-            queryOptions.WriteRowsetSize,
-            queryOptions.MaxJoinBatchSize,
-            dataSources.size(),
-            dataSources.begin()->ObjectId,
-            queryOptions.StatisticsAggregation,
-            attachments.size());
+        YT_TLOG_DEBUG("Query deserialized")
+            .With("FragmentId", query->Id)
+            .With("InputRowLimit", queryOptions.InputRowLimit)
+            .With("OutputRowLimit", queryOptions.OutputRowLimit)
+            .With("RangeExpansionLimit", queryOptions.RangeExpansionLimit)
+            .With("MaxSubqueries", queryOptions.MaxSubqueries)
+            .With("EnableCodeCache", queryOptions.EnableCodeCache)
+            .With("WorkloadDescriptor", queryOptions.WorkloadDescriptor)
+            .With("ReadSessionId", queryOptions.ReadSessionId)
+            .With("MemoryLimitPerNode", queryOptions.MemoryLimitPerNode)
+            .With("RowsetProcessingBatchSize", queryOptions.RowsetProcessingBatchSize)
+            .With("WriteRowsetSize", queryOptions.WriteRowsetSize)
+            .With("MaxJoinBatchSize", queryOptions.MaxJoinBatchSize)
+            .With("DataRangeCount", dataSources.size())
+            .With("RandomTabletId", dataSources.begin()->ObjectId)
+            .With("StatisticsAggregation", queryOptions.StatisticsAggregation)
+            .With("AttachmentCount", attachments.size());
 
         if (RejectUponThrottlerOverdraft_.load(std::memory_order::relaxed)) {
             TClientChunkReadOptions chunkReadOptions{
@@ -503,8 +498,8 @@ private:
                     memoryChunkProvider->GetMaxAllocated(),
                     queryOptions.StatisticsAggregation);
 
-                YT_LOG_DEBUG("Query evaluation finished (TotalMemoryUsage: %v)",
-                    statistics.MemoryUsage.GetTotal());
+                YT_TLOG_DEBUG("Query evaluation finished")
+                    .With("TotalMemoryUsage", statistics.MemoryUsage.GetTotal());
 
                 auto responseFeatureFlags = MostFreshFeatureFlags();
                 ToProto(response->mutable_feature_flags(), responseFeatureFlags);

@@ -132,6 +132,7 @@ private:
             *queryStatistics = TQueryStatistics::FromExecutionStatistics(
                 statistics,
                 options.StatisticsAggregation);
+
             YT_TLOG_DEBUG("Finalizing evaluation")
                 .With("QueryStatistics", *queryStatistics);
 
