@@ -69,8 +69,8 @@ std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
         | std::views::join
         | std::views::transform(
             [] (const TCypressNodeDescriptor& descriptor) -> TNodeId {
-            return descriptor.Id;
-        });
+                return descriptor.Id;
+            });
     return DoFetch(SequoiaTransaction_, nodeIds, NodeIdToAcd_);
 }
 
@@ -81,8 +81,8 @@ std::vector<const TAccessControlDescriptor*> TAcdFetcher::Fetch(
         | std::views::join
         | std::views::transform(
             [] (const TCypressChildDescriptor& descriptor) -> TNodeId {
-            return descriptor.ChildId;
-        });
+                return descriptor.ChildId;
+            });
     return DoFetch(SequoiaTransaction_, nodeIds, NodeIdToAcd_);
 }
 

@@ -196,7 +196,7 @@ public:
 
 protected:
     const NYTree::EPermission Permission_;
-    const TPermissionCheckBasicOptions* Options_;
+    const TPermissionCheckBasicOptions* const Options_;
     const bool CheckAllAceColumnsFullRead_;
 
     TCallback MatchAceSubjectCallback_;

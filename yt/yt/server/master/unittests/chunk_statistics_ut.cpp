@@ -19,6 +19,7 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -37,8 +38,8 @@ using NYT::ToProto;
 
 TObjectId GenerateId(EObjectType type)
 {
-    static i64 counter = 0;
-    return MakeId(type, TCellTag(0), counter++, 0);
+    static i64 Counter = 0;
+    return MakeId(type, TCellTag(0), Counter++, 0);
 }
 
 class TTestingMediumMap
@@ -386,10 +387,8 @@ protected:
     {
         TStoredChunkReplicaList replicas;
         for (int replicaIndex = 0; replicaIndex < TestErasureTotalPartCount; ++replicaIndex) {
-            if (std::find(missingIndexes.begin(), missingIndexes.end(), replicaIndex) ==
-                missingIndexes.end())
-            {
-                replicas.push_back(CreateReplica(nullptr, mediumIndex, replicaIndex));
+            if (!Contains(missingIndexes, replicaIndex)) {
+                replicas.push_back(CreateReplica(/*node*/ nullptr, mediumIndex, replicaIndex));
             }
         }
         return replicas;
@@ -652,7 +651,7 @@ TEST_F(TChunkStatisticsCalculatorTest, AggregatedReplicationIncludesUnexpectedMe
     auto chunk = CreateChunk();
     Medium_->Config()->MaxReplicationFactor = 2;
     TStoredChunkReplicaList replicas{
-        CreateReplica(nullptr, UnexpectedMediumIndex),
+        CreateReplica(/*node*/ nullptr, UnexpectedMediumIndex),
     };
 
     auto replication = StatisticsCalculator_->GetChunkAggregatedReplication(chunk.get(), replicas);
@@ -693,9 +692,9 @@ TEST_F(TChunkStatisticsCalculatorTest, PrecariousWhenOnlyTransientReplicasRemain
         },
     });
     TStoredChunkReplicaList replicas{
-        CreateReplica(nullptr, TransientMediumIndex),
-        CreateReplica(nullptr, TransientMediumIndex),
-        CreateReplica(nullptr, TransientMediumIndex),
+        CreateReplica(/*node*/ nullptr, TransientMediumIndex),
+        CreateReplica(/*node*/ nullptr, TransientMediumIndex),
+        CreateReplica(/*node*/ nullptr, TransientMediumIndex),
     };
 
     auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
@@ -729,9 +728,9 @@ TEST_F(TChunkStatisticsCalculatorTest, NoPrecariousWhenAllMediaTransient)
         },
     });
     TStoredChunkReplicaList replicas{
-        CreateReplica(nullptr, TransientMediumIndex),
-        CreateReplica(nullptr, TransientMediumIndex),
-        CreateReplica(nullptr, TransientMediumIndex),
+        CreateReplica(/*node*/ nullptr, TransientMediumIndex),
+        CreateReplica(/*node*/ nullptr, TransientMediumIndex),
+        CreateReplica(/*node*/ nullptr, TransientMediumIndex),
     };
 
     auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
