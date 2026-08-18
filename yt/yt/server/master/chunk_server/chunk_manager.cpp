@@ -3874,7 +3874,7 @@ private:
             if (!node->ReportedDataNodeHeartbeat()) {
                 THROW_ERROR_EXCEPTION(
                     NNodeTrackerClient::EErrorCode::InvalidState,
-                    "Cannot process an incremental data node heartbeat or validation heartbeat until full data node heartbeat is sent"
+                    "Cannot process an incremental data node heartbeat or validation heartbeat until full data node heartbeat is sent "
                     "(IsIncremental: %v, IsValidation: %v)",
                     request.is_incremental_heartbeat(),
                     request.caused_by_validation());
