@@ -10,6 +10,15 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns true if the current process is a fork of a process that had created a driver.
+//! See https://ytsaurus.tech/docs/api/python/userdoc#threadsafety.
+bool ForkOccurredAfterDriverCreation();
+
+//! Throws a Python exception if ForkOccurredAfterDriverCreation() is true.
+void ValidateNoForkOccurred();
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define PYCXX_DECLARE_DRIVER_METHODS(className) \
     PYCXX_KEYWORDS_METHOD_DECL(className, Execute) \
     PYCXX_KEYWORDS_METHOD_DECL(className, RegisterAlienTransaction) \

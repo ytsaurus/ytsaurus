@@ -143,6 +143,7 @@ class DefaultConfigType(TypedDict, total=False):
     driver_config: Optional[Dict[str, Any]]
     enable_rpc_proxy_in_job_proxy: bool
     cluster_name_for_rpc_proxy_in_job_proxy: Optional[str]
+    driver_enable_fork_detection: bool
     driver_logging_config: Optional[Any]
     enable_driver_logging_to_stderr: Optional[Any]
     driver_address_resolver_config: Optional[Any]
@@ -636,6 +637,8 @@ default_config = {
     "enable_rpc_proxy_in_job_proxy": False,
     # Target cluster name (in case it differs from proxy): None | str
     "cluster_name_for_rpc_proxy_in_job_proxy": None,
+    # Detect and prevent driver usage in forked process by throwing runtime error.
+    "driver_enable_fork_detection": False,
 
     # Logging configuration.
     "driver_logging_config": None,
@@ -1202,6 +1205,7 @@ SHORTCUTS = {
 
     "YT_DRIVER_CONFIG": "driver_config",
     "YT_DRIVER_CONFIG_PATH": "driver_config_path",
+    "YT_DRIVER_ENABLE_FORK_DETECTION": "driver_enable_fork_detection",
 
     "YT_USE_HOSTS": "proxy/enable_proxy_discovery",
     "YT_HOSTS": "proxy/proxy_discovery_url",

@@ -59,6 +59,8 @@ public:
     TDriver(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
         : Py::PythonClass<TDriver>::PythonClass(self, args, kwargs)
     {
+        ValidateNoForkOccurred();
+
         auto configDict = ExtractArgument(args, kwargs, "config");
 
         EConnectionType connectionType = EConnectionType::Native;
