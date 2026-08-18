@@ -1,4 +1,5 @@
 #include <yt/yt/tests/cpp/test_api/common/modify_rows_test.h>
+#include <yt/yt/tests/cpp/test_api/common/queue_test_base.h>
 
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
@@ -1507,6 +1508,196 @@ TEST_F(TFormatReaderTest, FormattedPartitionTableTest)
         auto row = dataList->GetChildOrThrow(i)->AsMap();
         EXPECT_EQ(row->GetChildValueOrThrow<i64>("value"), i);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TPushQueueProducerTest = TQueueTestBase;
+
+TEST_F(TPushQueueProducerTest, FormatSimple)
+{
+    TRichYPath producerPath("//tmp/producer_format_simple");
+    TRichYPath queuePath("//tmp/queue_format_simple");
+
+    CreateQueueProducer(producerPath);
+
+    auto queueAttributes = CreateEphemeralAttributes();
+    auto queue = New<TDynamicTable>(
+        queuePath,
+        New<TTableSchema>(std::vector<TColumnSchema>{
+            TColumnSchema("a", EValueType::Uint64),
+            TColumnSchema("b", EValueType::String),
+        }),
+        queueAttributes);
+
+    NQueueClient::TQueueProducerSessionId sessionId{"session_1"};
+    NQueueClient::TQueueProducerEpoch epoch{0};
+
+    NApi::TCreateQueueProducerSessionOptions sessionOptions;
+    sessionOptions.MutationId = NRpc::GenerateMutationId();
+    auto sessionResult = WaitFor(Client_->CreateQueueProducerSession(
+        producerPath,
+        queuePath,
+        sessionId,
+        sessionOptions))
+        .ValueOrThrow();
+    ASSERT_EQ(sessionResult.Epoch.Underlying(), 0);
+
+    // Retry with the same mutation id, epoch should not be incremented.
+    sessionResult = WaitFor(Client_->CreateQueueProducerSession(
+        producerPath,
+        queuePath,
+        sessionId,
+        sessionOptions))
+        .ValueOrThrow();
+    ASSERT_EQ(sessionResult.Epoch.Underlying(), 0);
+
+    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    int rowCount = 10;
+    auto rowsYson = BuildYsonStringFluently<EYsonType::ListFragment>()
+        .DoFor(0, rowCount, [] (TFluentList fluent, int rowIndex) {
+            fluent.Item()
+                .BeginMap()
+                    .Item("a").Value<ui64>(rowIndex)
+                    .Item("b").Value(ToString(rowIndex * rowIndex))
+                .EndMap();
+        })
+        .Finish()
+        .ToSharedRef();
+
+    auto* client = VerifyDynamicCast<NYT::NApi::NRpcProxy::TClientBase*>(Client_.Get());
+    auto connection = DynamicPointerCast<NRpcProxy::TConnection>(client->GetConnection());
+    auto stickyChannel = connection->CreateChannelByAddress(GetStickyProxyAddress(transaction));
+    auto apiServiceProxy = client->CreateApiServiceProxy(std::move(stickyChannel));
+    auto req = apiServiceProxy.PushQueueProducer();
+
+    req->set_sequence_number(0);
+    req->set_require_sync_replica(true);
+    ToProto(req->mutable_transaction_id(), transaction->GetId());
+    ToProto(req->mutable_producer_path(), producerPath);
+    ToProto(req->mutable_queue_path(), queuePath);
+    ToProto(req->mutable_session_id(), sessionId);
+    req->set_epoch(epoch.Underlying());
+
+    auto* rowsetDescriptor = req->mutable_rowset_descriptor();
+    rowsetDescriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
+    rowsetDescriptor->set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+    rowsetDescriptor->set_rowset_format(NApi::NRpcProxy::NProto::RF_FORMAT);
+
+    req->set_format("<format=text>yson");
+    req->Attachments() = {rowsYson};
+
+    auto result = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    ASSERT_EQ(result->last_sequence_number(), rowCount - 1);
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    auto allRowsResult = WaitFor(Client_->SelectRows(Format("* from [%v]", queuePath)))
+        .ValueOrThrow();
+
+    ASSERT_EQ(std::ssize(allRowsResult.Rowset->GetRows()), rowCount);
+
+    auto sessionRowsResult = WaitFor(Client_->SelectRows(Format("queue_cluster, queue_path, session_id, sequence_number, epoch from [%v]", producerPath)))
+        .ValueOrThrow();
+    auto sessionRows = sessionRowsResult.Rowset->GetRows();
+
+    auto actualSessionRow = ToString(sessionRows[0]);
+    auto expectedSessionRow = ToString(YsonToSchemalessRow(Format(
+        "<id=0> \"primary\"; <id=1> \"%v\"; <id=2> session_1; <id=3> %v; <id=4> 0;",
+        queuePath,
+        rowCount - 1)));
+
+    ASSERT_EQ(actualSessionRow, expectedSessionRow);
+}
+
+TEST_F(TPushQueueProducerTest, FormatSystemColumns)
+{
+    TRichYPath producerPath("//tmp/producer_format_system_columns");
+    TRichYPath queuePath("//tmp/queue_format_system_columns");
+
+    CreateQueueProducer(producerPath);
+
+    auto queueAttributes = CreateEphemeralAttributes();
+    queueAttributes->Set("tablet_count", 2);
+    auto queue = New<TDynamicTable>(
+        queuePath,
+        New<TTableSchema>(std::vector<TColumnSchema>{
+            TColumnSchema("a", EValueType::String),
+        }),
+        queueAttributes);
+
+    NQueueClient::TQueueProducerSessionId sessionId{"session_1"};
+    NQueueClient::TQueueProducerEpoch epoch{0};
+
+    NApi::TCreateQueueProducerSessionOptions sessionOptions;
+    sessionOptions.MutationId = NRpc::GenerateMutationId();
+    auto sessionResult = WaitFor(Client_->CreateQueueProducerSession(
+        producerPath,
+        queuePath,
+        sessionId,
+        sessionOptions))
+        .ValueOrThrow();
+    ASSERT_EQ(sessionResult.Epoch.Underlying(), 0);
+
+    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    auto rowsYson = BuildYsonStringFluently<EYsonType::ListFragment>()
+        .Item().BeginMap()
+            .Item("a").Value("row1")
+            .Item("$tablet_index").Value(0)
+            .Item("$sequence_number").Value(0)
+        .EndMap()
+        .Item().BeginMap()
+            .Item("a").Value("row2")
+            .Item("$tablet_index").Value(1)
+            .Item("$sequence_number").Value(2)
+        .EndMap()
+        .Finish()
+        .ToSharedRef();
+
+    auto* client = VerifyDynamicCast<NYT::NApi::NRpcProxy::TClientBase*>(Client_.Get());
+    auto connection = DynamicPointerCast<NRpcProxy::TConnection>(client->GetConnection());
+    auto stickyChannel = connection->CreateChannelByAddress(GetStickyProxyAddress(transaction));
+    auto apiServiceProxy = client->CreateApiServiceProxy(std::move(stickyChannel));
+    auto req = apiServiceProxy.PushQueueProducer();
+
+    req->set_require_sync_replica(true);
+    ToProto(req->mutable_transaction_id(), transaction->GetId());
+    ToProto(req->mutable_producer_path(), producerPath);
+    ToProto(req->mutable_queue_path(), queuePath);
+    ToProto(req->mutable_session_id(), sessionId);
+    req->set_epoch(epoch.Underlying());
+
+    auto* rowsetDescriptor = req->mutable_rowset_descriptor();
+    rowsetDescriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
+    rowsetDescriptor->set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+    rowsetDescriptor->set_rowset_format(NApi::NRpcProxy::NProto::RF_FORMAT);
+
+    req->set_format("<format=text>yson");
+    req->Attachments() = {rowsYson};
+
+    auto result = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    ASSERT_EQ(result->last_sequence_number(), 2);
+    ASSERT_EQ(result->skipped_row_count(), 0);
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    auto rows = WaitFor(Client_->SelectRows(Format("* from [%v] where [$tablet_index] = 0", queuePath)))
+        .ValueOrThrow();
+    ASSERT_EQ(std::ssize(rows.Rowset->GetRows()), 1);
+    ASSERT_EQ(rows.Rowset->GetRows()[0][2].AsStringBuf(), "row1");
+
+    rows = WaitFor(Client_->SelectRows(Format("* from [%v] where [$tablet_index] = 1", queuePath)))
+        .ValueOrThrow();
+    ASSERT_EQ(std::ssize(rows.Rowset->GetRows()), 1);
+    ASSERT_EQ(rows.Rowset->GetRows()[0][2].AsStringBuf(), "row2");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
