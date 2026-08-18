@@ -60,31 +60,27 @@ cmd_unittests() {
         return 0
     fi
 
-    local skip_unittesters=(
+    local skip_unittests=(
+        '^[.]/contrib/ydb/'
         unittester-containers
         unittester-library-s3
         unittester-library-ytprof
+        library-cpp-logger-global
+        yt-cpp-mapreduce
     )
-    local skip_unittesters_re
-    skip_unittesters_re=$(IFS='|'; echo "${skip_unittesters[*]}")
+    local skip_unittests_re
+    skip_unittests_re=$(IFS='|'; echo "${skip_unittests[*]}")
 
     for unittester_binary in $(find . -name "unittester-*" -type f); do
-        [[ ${unittester_binary} =~ (${skip_unittesters_re}) ]] && continue
+        [[ ${unittester_binary} =~ (${skip_unittests_re}) ]] && continue
         echo "Running ${unittester_binary}"
         local unittester_name
         unittester_name="$(basename "${unittester_binary}")"
         retry "${unittester_binary}" --gtest_output="xml:junit-${unittester_name}.xml"
     done
 
-    local skip_uts=(
-        library-cpp-logger-global
-        yt-cpp-mapreduce
-    )
-    local skip_uts_re
-    skip_uts_re=$(IFS='|'; echo "${skip_uts[*]}")
-
     for unittester_binary in $(find . -name "*-ut" -type f); do
-        [[ ${unittester_binary} =~ (${skip_uts_re}) ]] && continue
+        [[ ${unittester_binary} =~ (${skip_unittests_re}) ]] && continue
         echo "Running ${unittester_binary}"
         retry "${unittester_binary}"
     done

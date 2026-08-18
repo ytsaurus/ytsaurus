@@ -350,7 +350,9 @@ jobs:
           BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
 
           FOLDERS_WITH_UNITTESTS=""
-          for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+          for makefile in $(find ../ytsaurus/ytsaurus/ \
+              -path "../ytsaurus/ytsaurus/contrib/ydb" -prune -o \
+              -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
             folder=$(dirname ${makefile})
             echo ${folder}
             FOLDERS_WITH_UNITTESTS="${FOLDERS_WITH_UNITTESTS} ${folder}"
