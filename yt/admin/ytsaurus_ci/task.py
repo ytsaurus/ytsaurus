@@ -6,7 +6,6 @@ from typing import Dict, List, Optional
 from jinja2 import Environment, FileSystemLoader
 
 from yt.admin.ytsaurus_ci import component_registry
-from yt.admin.ytsaurus_ci import ghcr
 from yt.admin.ytsaurus_ci import models
 from yt.admin.ytsaurus_ci.components import ClusterComponent, OperatorComponent
 
@@ -20,7 +19,7 @@ class TaskCI(ABC):
         cluster_components: Dict[str, str],
         scenario_config: models.Scenario,
         version_registry: component_registry.VersionComponentRegistry,
-        ghcr_client: ghcr.GitHubPackagesClient,
+        clients: Dict[str, object],
         scenario_name: str,
         tests: List[models.Check],
         templates_path: Optional[str] = None,
@@ -33,7 +32,7 @@ class TaskCI(ABC):
         self._operator = OperatorComponent(
             source=version_registry.get_origin("operator", operator_version),
             version=operator_version,
-            ghcr_client=ghcr_client,
+            clients=clients,
         )
 
         component_names = (
@@ -46,7 +45,8 @@ class TaskCI(ABC):
                 name,
                 version_registry.get_origin(name, cluster_components[name]),
                 cluster_components[name],
-                ghcr_client,
+                clients,
+                render_name=version_registry.get_component_name(name),
             )
             for name in component_names
         ]
@@ -61,7 +61,7 @@ class TaskCI(ABC):
 
     def _render_manifest(self, components: List[ClusterComponent]) -> str:
         template_values = {
-            "images": {component.name: component.image for component in components},
+            "images": {component.render_name: component.image for component in components},
             "cluster_name": "ytsaurus-ci",
         }
         env = Environment(loader=FileSystemLoader(self._templates_path))
@@ -97,7 +97,7 @@ class UpgradeTaskCI(TaskCI):
         cluster_components: Dict[str, str],
         scenario_config: models.Scenario,
         version_registry: component_registry.VersionComponentRegistry,
-        ghcr_client: ghcr.GitHubPackagesClient,
+        clients: Dict[str, object],
         scenario_name: str,
         tests: List[models.Check],
         upgrade_to: Optional[Dict[str, str]] = None,
@@ -108,7 +108,7 @@ class UpgradeTaskCI(TaskCI):
             cluster_components,
             scenario_config,
             version_registry,
-            ghcr_client,
+            clients,
             scenario_name,
             tests,
             templates_path,
@@ -124,7 +124,7 @@ class UpgradeTaskCI(TaskCI):
                 self._upgrade_operator = OperatorComponent(
                     source=version_registry.get_origin("operator", upgrade_operator_version),
                     version=upgrade_operator_version,
-                    ghcr_client=ghcr_client,
+                    clients=clients,
                 )
 
             self._upgrade_components = []
@@ -139,7 +139,8 @@ class UpgradeTaskCI(TaskCI):
                         component.name,
                         version_registry.get_origin(component.name, upgrade_version),
                         upgrade_version,
-                        ghcr_client,
+                        clients,
+                        render_name=version_registry.get_component_name(component.name),
                     )
                 )
 

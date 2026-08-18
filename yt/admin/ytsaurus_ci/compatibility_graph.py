@@ -1,6 +1,6 @@
 from functools import cmp_to_key
 from itertools import product
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Set
 
 from yt.admin.ytsaurus_ci import component_registry
 
@@ -98,7 +98,7 @@ def _extract_versions_from_constraint(constraint):
 
 
 class CompatibilityGraph:
-    def __init__(self, registry: component_registry.VersionComponentRegistry):
+    def __init__(self, registry: component_registry.VersionComponentRegistry, components: Optional[Set[str]] = None):
         self._registry = registry
         self._component_names = set()
 
@@ -106,7 +106,9 @@ class CompatibilityGraph:
         all_vertices = set()
         detected_components = set()
         for component_name in registry.get_components():
-            self._component_names.add(component_name)
+            if components is None or component_name in components:
+                self._component_names.add(component_name)
+
             for version in registry.get_component_versions(component_name):
                 visited_vertices.add(f"{component_name}:{version}")
                 constraints = registry.get_constraints(component_name, version)
@@ -119,7 +121,7 @@ class CompatibilityGraph:
                     for version in versions:
                         all_vertices.add(f"{name}:{version}")
 
-        diff = detected_components - self._component_names
+        diff = detected_components - set(registry.get_components())
         if len(diff) != 0:
             raise ValueError("Unregister components: ", diff)
 
@@ -137,6 +139,9 @@ class CompatibilityGraph:
                 continue
 
             for sub_component, sub_constraint in requirements.items():
+                if sub_component not in path:
+                    continue
+
                 sub_version = path[sub_component]
                 if not _satisfies_constraint(sub_version, sub_constraint):
                     return False
@@ -149,14 +154,19 @@ class CompatibilityGraph:
 
         return True
 
-    def find_all_test_suites(self, constraints: Dict[str, Any] = None) -> List[Dict[str, str]]:
+    def find_all_test_suites(
+        self, constraints: Dict[str, Any] = None, components: Optional[Set[str]] = None
+    ) -> List[Dict[str, str]]:
         if not self._component_names:
             return []
 
         if constraints is None:
             constraints = {}
+
+        relevant_components = self._component_names if components is None else self._component_names & components
+
         component_versions = {}
-        for comp in self._component_names:
+        for comp in relevant_components:
             versions = self._registry.get_component_versions(comp)
             if comp in constraints:
                 versions = [v for v in versions if _satisfies_constraint(v, constraints[comp])]
@@ -243,7 +253,7 @@ PIVOT_COMPONENT = "ytsaurus"
 
 
 def format_compat_table(registry) -> str:
-    cols = sorted(registry.get_components())
+    cols = registry.get_components_in_graph()
     if PIVOT_COMPONENT in cols:
         cols.remove(PIVOT_COMPONENT)
 

@@ -44,6 +44,21 @@ scenarios:
         version_filter: null
       spyt:
         version_filter: null
+
+  nightly-custom-internal-build:
+    type: simple
+    k8s_template: spec-for-custom-internal-build.yaml
+    checks:
+      - odin_latest
+    ttl: 600
+    operator:
+      version_filter: main
+    components:
+      ytsaurus_custom_internal_build:
+        version_filter: main
+      query_tracker_custom_internal_build:
+        version_filter: main
+
 checks:
   common:
     type: ODIN

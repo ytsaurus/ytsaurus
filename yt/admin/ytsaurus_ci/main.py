@@ -1,11 +1,10 @@
 import json
+import logging
 import os
 
 import click
-import yaml
 import hashlib
 
-from library.python import resource
 from yt.admin.ytsaurus_ci import cloudfunction_client
 from yt.admin.ytsaurus_ci import compatibility_graph
 from yt.admin.ytsaurus_ci import component_registry
@@ -14,12 +13,18 @@ from yt.admin.ytsaurus_ci import enums
 from yt.admin.ytsaurus_ci import ghcr
 from yt.admin.ytsaurus_ci import pretty
 from yt.admin.ytsaurus_ci import scenario_processor
+from yt.admin.ytsaurus_ci import yandex_cr
 
 
 @click.group(context_settings=dict(help_option_names=["-h", "--help"]))
+@click.option("--debug", is_flag=True, help="Log every HTTP request/response made to container registries")
 @click.pass_context
-def cli(ctx):
+def cli(ctx, debug):
     ctx.ensure_object(dict)
+    logging.basicConfig(
+        level=logging.INFO if debug else logging.WARNING,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
 
 def _resolve_cloud_function_token(ctx, param, value):
@@ -91,10 +96,11 @@ def matrix():
 @version_filter_option
 @click.option("--json", "with_json", is_flag=True)
 def run(version_filter, with_json):
-    registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
-    graph = compatibility_graph.CompatibilityGraph(registry)
+    registry = component_registry.VersionComponentRegistry(component_registry.load_components_config())
+    default_components = set(registry.get_components_in_graph())
+    graph = compatibility_graph.CompatibilityGraph(registry, components=default_components)
 
-    suites = graph.find_all_test_suites(json.loads(version_filter))
+    suites = graph.find_all_test_suites(json.loads(version_filter), components=default_components)
     if with_json:
         print(suites)
     else:
@@ -115,7 +121,7 @@ def run(version_filter, with_json):
     required=True,
 )
 def docs(output_dir):
-    registry = component_registry.VersionComponentRegistry(yaml.safe_load(resource.resfs_read(consts.COMPONENTS_PATH)))
+    registry = component_registry.VersionComponentRegistry(component_registry.load_components_config())
     os.makedirs(output_dir, exist_ok=True)
 
     component = compatibility_graph.PIVOT_COMPONENT
@@ -145,6 +151,7 @@ def docs(output_dir):
 @click.option("--scenario", required=True, help="Scenario name")
 @click.option("--git-token", type=str, required=True)
 @click.option("--git-api-url", type=str, default="https://api.github.com")
+@click.option("--yc-registry-token", type=str, default="", help="IAM token for Yandex Cloud Container Registry API")
 @cloud_function_token_option
 @click.option("--version-filter", type=str, required=False, default="{}")
 @click.option(
@@ -163,6 +170,7 @@ def run_scenario(
     scenario,
     git_token,
     git_api_url,
+    yc_registry_token,
     cloud_function_token,
     version_filter,
     upgrade_config,
@@ -171,8 +179,13 @@ def run_scenario(
     force,
     verbose,
 ):
-    auth = ghcr.GitHubAuth(token=git_token, base_url=git_api_url)
-    processed_scenarios = scenario_processor.ProcessScenario(scenario, auth, json.loads(version_filter), upgrade_config)
+    auths = {"ghcr": ghcr.GitHubAuth(token=git_token, base_url=git_api_url)}
+    if yc_registry_token:
+        auths["yandex_cr"] = yandex_cr.YandexCRAuth(token=yc_registry_token)
+
+    processed_scenarios = scenario_processor.ProcessScenario(
+        scenario, auths, json.loads(version_filter), upgrade_config
+    )
     client = cloudfunction_client.CloudFunctionClient(
         cloudfunction_client.YCFunctionAuth(
             cloud_function_token=cloud_function_token,
