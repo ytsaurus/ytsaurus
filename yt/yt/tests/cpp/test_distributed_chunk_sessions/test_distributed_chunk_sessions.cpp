@@ -4,6 +4,7 @@
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_controller.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_pool.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_reader.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_seal_summary_fetcher.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_writer.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -15,6 +16,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -535,6 +537,84 @@ TEST_F(TDistributedChunkSessionTest, StartSessionReturnsStartedSessionInfo)
     EXPECT_FALSE(startedSession.SequencerNode.GetDefaultAddress().empty());
 
     EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, MasterSealSummaryFetchWaitsForThrottler)
+{
+    constexpr int RecordCount = 3;
+
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+    auto throttlerManager = New<TThrottlerManager>(
+        TThroughputThrottlerConfig::Create(0));
+
+    auto fetchFuture = FetchDistributedChunkSessionSealSummaries(
+        NativeClient_,
+        ActionQueue_->GetInvoker(),
+        throttlerManager,
+        {chunkInfo.ChunkId});
+    auto throttler = throttlerManager->GetThrottler(CellTagFromId(chunkInfo.ChunkId));
+
+    WaitUntil(
+        [&] { return throttler->GetQueueTotalAmount() == 1; },
+        "Seal-summary fetch was not throttled");
+    EXPECT_FALSE(fetchFuture.IsSet());
+
+    throttlerManager->Reconfigure(New<TThroughputThrottlerConfig>());
+
+    auto sealSummaries = WaitFor(fetchFuture)
+        .ValueOrThrow();
+    ASSERT_EQ(sealSummaries.size(), 1u);
+
+    EXPECT_EQ(sealSummaries[0].ChunkId, chunkInfo.ChunkId);
+    EXPECT_EQ(sealSummaries[0].RecordCount, RecordCount);
+    EXPECT_GT(sealSummaries[0].CompressedDataSize, 0);
+}
+
+TEST_F(TDistributedChunkSessionTest, MasterSealSummaryFetchOmitsUnsealedChunk)
+{
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto startedSession = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+
+    auto sealSummaries = WaitFor(FetchDistributedChunkSessionSealSummaries(
+        NativeClient_,
+        ActionQueue_->GetInvoker(),
+        New<TThrottlerManager>(New<TThroughputThrottlerConfig>()),
+        {startedSession.SessionId.ChunkId}))
+        .ValueOrThrow();
+    EXPECT_TRUE(sealSummaries.empty());
+
+    WaitFor(controller->Close())
+        .ThrowOnError();
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, MasterSealSummaryFetchOmitsMissingChunk)
+{
+    constexpr int RecordCount = 3;
+
+    auto chunkInfo = WriteRecordsAndSealChunk(RecordCount);
+    auto missingChunkId = MakeRandomId(
+        EObjectType::JournalChunk,
+        CellTagFromId(chunkInfo.ChunkId));
+
+    auto sealSummaries = WaitFor(FetchDistributedChunkSessionSealSummaries(
+        NativeClient_,
+        ActionQueue_->GetInvoker(),
+        New<TThrottlerManager>(New<TThroughputThrottlerConfig>()),
+        {chunkInfo.ChunkId, missingChunkId}))
+        .ValueOrThrow();
+
+    ASSERT_EQ(sealSummaries.size(), 1u);
+    EXPECT_EQ(sealSummaries[0].ChunkId, chunkInfo.ChunkId);
+    EXPECT_EQ(sealSummaries[0].RecordCount, RecordCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

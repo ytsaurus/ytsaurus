@@ -34,6 +34,28 @@ void TDistributedChunkSessionControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDistributedChunkSessionSealMonitorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("poll_period", &TThis::PollPeriod)
+        .Default(TDuration::Seconds(1))
+        .GreaterThan(TDuration::Zero());
+
+    registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
+        .Default(1'000)
+        .GreaterThan(0);
+
+    registrar.Parameter("error_backoff", &TThis::ErrorBackoff)
+        .Default(TExponentialBackoffOptions{
+            .InvocationCount = std::numeric_limits<int>::max(),
+            .MinBackoff = TDuration::MilliSeconds(100),
+            .MaxBackoff = TDuration::Seconds(5),
+            .BackoffMultiplier = 1.5,
+            .BackoffJitter = 0.1,
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDistributedChunkSessionPoolConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_active_sessions_per_slot", &TThis::MaxActiveSessionsPerSlot)
