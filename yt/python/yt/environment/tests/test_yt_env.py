@@ -1,6 +1,6 @@
 import pytest
 
-from yt.common import YtError, YtResponseError
+from yt.common import YtError, YtResponseError, date_string_to_datetime
 from yt.environment.yt_env import YTInstance
 
 # Large on purpose: a stall before the first loop check leaves the condition unpolled.
@@ -90,3 +90,66 @@ class TestWaitFor:
         with pytest.raises(YtError):
             run_wait_for([(False, "not ready")], TIMEOUT_WAIT_TIME, stderr_collector=collector)
         assert collector.processed == ["scheduler"]
+
+
+TX_ID = "1-2-3-4"
+# Ordered on purpose: STALE < MULTI_START_TIME < CURRENT.
+STALE = "2026-08-12T07:05:00.000000Z"
+MULTI_START_TIME = date_string_to_datetime("2026-08-12T07:10:13.725000Z")
+CURRENT = "2026-08-12T07:10:14.833744Z"
+
+
+class _FakeClient:
+    def __init__(self, tx_start_time):
+        self._values = {
+            "//sys/scheduler/lock/@locks/0/transaction_id": TX_ID,
+            f"#{TX_ID}/@start_time": tx_start_time,
+        }
+        self.aborted = []
+
+    def get(self, path):
+        return self._values[path]
+
+    def abort_transaction(self, tx_id):
+        self.aborted.append(tx_id)
+
+
+class _FakeYtConfig:
+    def __init__(self, enable_multidaemon):
+        self.enable_multidaemon = enable_multidaemon
+
+
+class _LockRemover:
+    """Drives YTInstance._remove_scheduler_lock with everything it touches faked out."""
+
+    _scheduler_lock_transaction_is_stale = YTInstance._scheduler_lock_transaction_is_stale
+
+    def __init__(self, enable_multidaemon, tx_start_time, multi_start_time=MULTI_START_TIME):
+        self.yt_config = _FakeYtConfig(enable_multidaemon)
+        self._multi_start_time = multi_start_time
+        self.client = _FakeClient(tx_start_time)
+
+    def _create_cluster_client(self):
+        return self.client
+
+    def run(self):
+        YTInstance._remove_scheduler_lock(self)
+        return self.client.aborted
+
+
+class TestRemoveSchedulerLock:
+    def test_multidaemon_aborts_a_transaction_from_a_previous_run(self):
+        assert _LockRemover(True, STALE).run() == [TX_ID]
+
+    def test_multidaemon_keeps_the_transaction_of_the_running_scheduler(self):
+        assert _LockRemover(True, CURRENT).run() == []
+
+    def test_without_multidaemon_the_lock_is_always_stale(self):
+        assert _LockRemover(False, CURRENT).run() == [TX_ID]
+        assert _LockRemover(False, STALE).run() == [TX_ID]
+
+    def test_multidaemon_without_a_known_start_time_falls_back_to_aborting(self):
+        assert _LockRemover(True, CURRENT, multi_start_time=None).run() == [TX_ID]
+
+    def test_unparseable_start_time_falls_back_to_aborting(self):
+        assert _LockRemover(True, "not a timestamp").run() == [TX_ID]
