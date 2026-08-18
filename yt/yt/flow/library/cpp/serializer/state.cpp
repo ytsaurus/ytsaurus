@@ -45,6 +45,21 @@ void TFormat::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+//! A null format column loads as a default #TFormat, so the default needs no cell.
+//! #TState::Format_ is always a canonical #TFormat, never a derived spec, which is what
+//! makes this yson-struct comparison meaningful.
+bool IsDefaultFormat(const TFormatPtr& format)
+{
+    static const auto defaultFormat = New<TFormat>();
+    return *format == *defaultFormat;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NPrivate {
 
 TStateSchemaPtr BuildYsonStateSchema(std::function<TYsonStructPtr()> ctor)
@@ -350,10 +365,17 @@ void TState::SetValue(TYsonStructPtr ysonStruct)
 
 void TState::SetFormat(TFormatPtr format)
 {
-    if (*Format_ != *format) {
+    // Callers pass a derived spec (#TDynamicStateFormatSpec) carrying knobs that are not
+    // part of the persisted format, and yson-struct equality compares metas first, so a
+    // derived instance never equals the plain #TFormat parsed from the format column.
+    // Round-tripping through yson yields exactly what the column stores, which is what
+    // the guard below must compare; unrecognized keys are dropped on load.
+    auto canonicalFormat = ConvertTo<TFormatPtr>(ConvertToYsonString(format));
+
+    if (*Format_ != *canonicalFormat) {
         ForceRewrite();
     }
-    Format_ = std::move(format);
+    Format_ = std::move(canonicalFormat);
 }
 
 void TState::ForceRewrite()
@@ -376,7 +398,8 @@ TStateMutation TState::FlushMutation()
     }
 
     if (IsEmptyYsonRow()) {
-        if (TableRow_ || Rewrite_) {
+        // Without a table row there is nothing to erase, even under #ForceRewrite().
+        if (TableRow_) {
             TableRow_ = std::nullopt;
             UncompressedPackableTableColumns_.clear();
             return {TEraseMutation()};
@@ -385,6 +408,7 @@ TStateMutation TState::FlushMutation()
         }
     }
 
+    bool newTableRow = !TableRow_;
     if (!TableRow_) {
         std::vector<TUnversionedOwningValue> tableValues;
         for (int i = 0; i < Schema_->TableSchema->GetColumnCount(); ++i) {
@@ -400,7 +424,10 @@ TStateMutation TState::FlushMutation()
     NCompression::ICodec* codec = NCompression::GetCodec(Format_->Compression);
     NCompression::ICodec* patchCodec = NCompression::GetCodec(Format_->PatchCompression);
 
-    if (Rewrite_ && Schema_->FormatColumn) {
+    // A newly created row must carry the format its columns are encoded with: #Rewrite_
+    // may have been consumed by an earlier flush that produced no row at all. The default
+    // format is left implicit, so an ordinary row still spends no cell on it.
+    if ((Rewrite_ || (newTableRow && !IsDefaultFormat(Format_))) && Schema_->FormatColumn) {
         auto serializedFormat = ConvertToYsonString(Format_, EYsonFormat::Binary);
         auto value = MakeUnversionedAnyValue(serializedFormat.AsStringBuf(), *Schema_->FormatColumn);
         (*TableRow_)[*Schema_->FormatColumn] = TUnversionedOwningValue(value);

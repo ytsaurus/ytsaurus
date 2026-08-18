@@ -167,6 +167,7 @@ TEST(TYsonStateTest, FullMutation)
     state->SetValue(ysonState);
     auto mutation = state->FlushMutation();
     ASSERT_TRUE(std::get_if<TUpdateMutation>(&mutation));
+    // Three value columns and the packable patch; the default format is left implicit.
     EXPECT_EQ(std::get<TUpdateMutation>(mutation).GetCount(), 4);
 
     auto serialized = state->GetTableRow();
@@ -227,6 +228,7 @@ TEST(TYsonStateTest, Update)
     {
         UPDATE_STATE();
         ASSERT_TRUE(std::get_if<TUpdateMutation>(&mutation));
+        // Three value columns and the packable patch; the default format is implicit.
         EXPECT_EQ(std::get<TUpdateMutation>(mutation).GetCount(), 4);
     }
 
@@ -281,14 +283,210 @@ TEST(TYsonStateTest, Update)
         ASSERT_TRUE(std::get_if<TEmptyMutation>(&mutation));
     }
 
+    // The row is already gone, so a forced rewrite has nothing to erase.
     state->ForceRewrite();
     {
         UPDATE_STATE();
-        ASSERT_TRUE(std::get_if<TEraseMutation>(&mutation));
+        ASSERT_TRUE(std::get_if<TEmptyMutation>(&mutation));
     }
     {
         UPDATE_STATE();
         ASSERT_TRUE(std::get_if<TEmptyMutation>(&mutation));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Mirrors NFlow::TDynamicStateFormatSpec: production always calls #TState::SetFormat()
+// with a struct derived from #TFormat, never with a plain #TFormat.
+struct TTestDerivedFormat
+    : public TFormat
+{
+    bool Compress{};
+    double RecodeProbability{};
+
+    REGISTER_YSON_STRUCT(TTestDerivedFormat);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("compress", &TThis::Compress)
+            .Default(false);
+        registrar.Parameter("recode_probability", &TThis::RecodeProbability)
+            .Default(0.1);
+    }
+};
+
+using TTestDerivedFormatPtr = TIntrusivePtr<TTestDerivedFormat>;
+
+TEST(TYsonStateTest, SetSameFormatDoesNotRewrite)
+{
+    auto stateSchema = GetYsonStateSchema<TTestYsonState>();
+
+    auto state = New<TState>(stateSchema);
+    auto ysonState = state->GetValueAs<TTestYsonState>();
+    ysonState->Simple->Value = 123;
+    ysonState->Compressed->Value = 234;
+    ysonState->Packable->Value = 345;
+
+    {
+        UPDATE_STATE();
+        ASSERT_TRUE(std::get_if<TUpdateMutation>(&mutation));
+    }
+
+    // A derived format whose codecs match the current ones must not force a rewrite,
+    // even though yson-struct equality reports the two structs as different.
+    state->SetFormat(New<TTestDerivedFormat>());
+    {
+        UPDATE_STATE();
+        ASSERT_TRUE(std::get_if<TEmptyMutation>(&mutation));
+    }
+
+    // A derived format with a different codec still forces a full rewrite.
+    auto newFormat = New<TTestDerivedFormat>();
+    EXPECT_NE(newFormat->Compression, NCompression::ECodec::Lz4);
+    newFormat->Compression = NCompression::ECodec::Lz4;
+    state->SetFormat(newFormat);
+    {
+        UPDATE_STATE();
+        ASSERT_TRUE(std::get_if<TUpdateMutation>(&mutation));
+        EXPECT_EQ(std::get<TUpdateMutation>(mutation).GetCount(), 5);
+    }
+
+    // The format column keeps only the persisted codec fields, without the extra
+    // fields carried by the derived spec.
+    auto format = state->GetFormat();
+    EXPECT_EQ(format->Compression, NCompression::ECodec::Lz4);
+    EXPECT_FALSE(DynamicPointerCast<TTestDerivedFormat>(format));
+}
+
+TEST(TYsonStateTest, SetFormatOnEmptyAbsentState)
+{
+    auto stateSchema = GetYsonStateSchema<TTestYsonState>();
+
+    auto state = New<TState>(stateSchema);
+    auto ysonState = state->GetValueAs<TTestYsonState>();
+
+    // A changed format forces a rewrite, but an empty state whose row does not exist
+    // in the table has nothing to erase.
+    auto newFormat = New<TTestDerivedFormat>();
+    newFormat->Compression = NCompression::ECodec::Lz4;
+    state->SetFormat(newFormat);
+    {
+        UPDATE_STATE();
+        ASSERT_TRUE(std::get_if<TEmptyMutation>(&mutation));
+    }
+
+    // The rewrite produced no row, so the format was never persisted. The row created
+    // by a later flush must still carry the format its columns are encoded with,
+    // otherwise it is decoded with the default codec and becomes unreadable.
+    ysonState->Simple->Value = 123;
+    ysonState->Compressed->Value = 234;
+    ysonState->Packable->Value = 345;
+    {
+        UPDATE_STATE();
+        ASSERT_TRUE(std::get_if<TUpdateMutation>(&mutation));
+    }
+
+    auto reloaded = New<TState>(stateSchema);
+    reloaded->Init(state->GetTableRow());
+    EXPECT_EQ(reloaded->GetFormat()->Compression, NCompression::ECodec::Lz4);
+    auto reloadedYsonState = reloaded->GetValueAs<TTestYsonState>();
+    EXPECT_EQ(reloadedYsonState->Simple->Value, 123);
+    EXPECT_EQ(reloadedYsonState->Compressed->Value, 234);
+    EXPECT_EQ(reloadedYsonState->Packable->Value, 345);
+}
+
+TEST(TYsonStateTest, DefaultFormatIsNotPersisted)
+{
+    auto stateSchema = GetYsonStateSchema<TTestYsonState>();
+    ASSERT_TRUE(stateSchema->FormatColumn);
+
+    // A row encoded with the default format spends no cell on it: a null format column
+    // already loads as the default.
+    auto state = New<TState>(stateSchema);
+    auto ysonState = state->GetValueAs<TTestYsonState>();
+    ysonState->Simple->Value = 123;
+    state->SetFormat(New<TTestDerivedFormat>());
+    {
+        UPDATE_STATE();
+        ASSERT_TRUE(std::get_if<TUpdateMutation>(&mutation));
+        for (const auto& value : std::get<TUpdateMutation>(mutation)) {
+            EXPECT_NE(value.Id, *stateSchema->FormatColumn);
+        }
+    }
+
+    auto row = state->GetTableRow();
+    ASSERT_TRUE(row);
+    EXPECT_EQ((*row)[*stateSchema->FormatColumn].Type, EValueType::Null);
+
+    auto reloaded = New<TState>(stateSchema);
+    reloaded->Init(row);
+    EXPECT_EQ(reloaded->GetValueAs<TTestYsonState>()->Simple->Value, 123);
+}
+
+TEST(TYsonStateTest, AllCodecFieldsAreCanonicalized)
+{
+    auto stateSchema = GetYsonStateSchema<TTestYsonState>();
+
+    auto format = New<TTestDerivedFormat>();
+    format->Compression = NCompression::ECodec::Lz4;
+    format->PatchCompression = NCompression::ECodec::Zstd_1;
+    format->Delta = NDeltaCodecs::ECodec::None;
+
+    auto state = New<TState>(stateSchema);
+    auto ysonState = state->GetValueAs<TTestYsonState>();
+    ysonState->Simple->Value = 123;
+    ysonState->Compressed->Value = 234;
+    ysonState->Packable->Value = 345;
+    state->SetFormat(format);
+    {
+        UPDATE_STATE();
+        ASSERT_TRUE(std::get_if<TUpdateMutation>(&mutation));
+    }
+
+    // Every codec field survives canonicalization and the round-trip through the
+    // format column, so the row is decoded exactly the way it was encoded.
+    auto reloaded = New<TState>(stateSchema);
+    reloaded->Init(state->GetTableRow());
+    auto reloadedFormat = reloaded->GetFormat();
+    EXPECT_EQ(reloadedFormat->Compression, NCompression::ECodec::Lz4);
+    EXPECT_EQ(reloadedFormat->PatchCompression, NCompression::ECodec::Zstd_1);
+    EXPECT_EQ(reloadedFormat->Delta, NDeltaCodecs::ECodec::None);
+    EXPECT_EQ(reloaded->GetValueAs<TTestYsonState>()->Packable->Value, 345);
+
+    // Re-applying the very same format writes nothing.
+    reloaded->SetFormat(format);
+    reloaded->SetValue(reloaded->GetValueAs<TTestYsonState>());
+    auto reloadedMutation = reloaded->FlushMutation();
+    ASSERT_TRUE(std::get_if<TEmptyMutation>(&reloadedMutation));
+
+    // Changing any single codec field forces a rewrite.
+
+    std::vector<std::function<void(const TTestDerivedFormatPtr&)>> codecChanges = {
+        [] (const TTestDerivedFormatPtr& f) {
+            f->Compression = NCompression::ECodec::Zstd_6;
+        },
+        [] (const TTestDerivedFormatPtr& f) {
+            f->PatchCompression = NCompression::ECodec::Lz4;
+        },
+        [] (const TTestDerivedFormatPtr& f) {
+            f->Delta = NDeltaCodecs::ECodec::XDelta;
+        }};
+
+    for (const auto& changed : codecChanges) {
+        auto state = New<TState>(stateSchema);
+        state->Init(reloaded->GetTableRow());
+        auto ysonState = state->GetValueAs<TTestYsonState>();
+
+        auto changedFormat = New<TTestDerivedFormat>();
+        changedFormat->Compression = NCompression::ECodec::Lz4;
+        changedFormat->PatchCompression = NCompression::ECodec::Zstd_1;
+        changedFormat->Delta = NDeltaCodecs::ECodec::None;
+        changed(changedFormat);
+        state->SetFormat(changedFormat);
+
+        UPDATE_STATE();
+        ASSERT_TRUE(std::get_if<TUpdateMutation>(&mutation));
     }
 }
 
