@@ -111,11 +111,11 @@ TEST(TMergeAttributesTest, RepeatedViewMergedWithInnerField)
     NYson::TYsonString fieldYsonString{R"(["p"; "q";])"sv};
 
     auto mergedYsonString = NewMergeAttributes({
-            {.Path = "", .Value = wholeViewYsonString},
-            {.Path = "/*/b", .Value = fieldYsonString},
-        });
+        {.Path = "", .Value = wholeViewYsonString},
+        {.Path = "/*/b", .Value = fieldYsonString},
+    });
     NYson::TYsonString expectedYsonString{R"([{"a"="x";"b"="p";};{"a"="y";"b"="q";};])"sv};
-    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+    EXPECT_EQ(mergedYsonString, expectedYsonString);
 }
 
 TEST(TMergeAttributesTest, EmptyRepeatedViewMergedWithInnerField)
@@ -124,11 +124,11 @@ TEST(TMergeAttributesTest, EmptyRepeatedViewMergedWithInnerField)
     NYson::TYsonString fieldYsonString{R"([])"sv};
 
     auto mergedYsonString = NewMergeAttributes({
-            {.Path = "", .Value = wholeViewYsonString},
-            {.Path = "/*/b", .Value = fieldYsonString},
-        });
+        {.Path = "", .Value = wholeViewYsonString},
+        {.Path = "/*/b", .Value = fieldYsonString},
+    });
     NYson::TYsonString expectedYsonString{R"([])"sv};
-    EXPECT_EQ(mergedYsonString.AsStringBuf(), expectedYsonString.AsStringBuf());
+    EXPECT_EQ(mergedYsonString, expectedYsonString);
 }
 
 // A non-list value cannot be zipped with the wildcard expansion of the same node.
@@ -308,6 +308,28 @@ TEST(TValidateSortedPathsTest, SimpleError)
     };
 
     ASSERT_ANY_THROW(ValidateSortedPaths(attributes, &TAttributeValue::Path, &TAttributeValue::IsEtc));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TMergeAttributesPlanTest, RejectsNonEtcSelectorMatchingOpenMap)
+{
+    ::testing::FLAGS_gtest_death_test_style = "threadsafe";
+
+    std::vector<TAttributeValue> attributes = {
+        {
+            .Path = "/data",
+            .IsEtc = true,
+        },
+        {
+            .Path = "/data",
+            .IsEtc = false,
+        },
+    };
+
+    ASSERT_DEATH(
+        { TMergeAttributesPlan plan(attributes, &TAttributeValue::Path, &TAttributeValue::IsEtc); },
+        "isEtc");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
