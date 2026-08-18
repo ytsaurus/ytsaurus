@@ -461,6 +461,7 @@ private:
                         .Item("environment").BeginMap()
                             .Item("JAVA_HOME").Value("/opt/jdk17")
                             .Item("SPARK_CONF_DIR").Value(Config_->UseSquashfs ? "/usr/lib/spyt/conf" : "spyt-package/conf")
+                            .Item("SPARK_USER").Value(User_)
                         .EndMap()
                         .DoIf(Settings_->SparkConf.contains("spark.ytsaurus.network.project"), [&] (auto fluent) {
                             fluent
