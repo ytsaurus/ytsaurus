@@ -437,7 +437,7 @@ DB::StoragePtr TYtDatabaseBase::DoGetDictionary(DB::ContextPtr context, TQueryCo
         context);
 
     if (queryContext) {
-        if (TryGetTableDictionarySourcePath(result->getDictionary()->getSource())) {
+        if (TryGetTableDictionarySourcePath(*loadResult.config->config, loadResult.config->key_in_config)) {
             queryContext->Host->ValidateDictionaryGrants(context->getUserName(), storageId);
         }
     }

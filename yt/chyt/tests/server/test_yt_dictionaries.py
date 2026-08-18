@@ -786,6 +786,33 @@ class TestYtDictionaries(ClickHouseTestBase):
             wait(failure("u2", dict_get_q))
             wait(failure("u2", select_q))
 
+    @authors("buyval01")
+    def test_drop_broken_dictionary_with_access_control(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "int64"},
+                    {"name": "b", "type": "int64"},
+                ],
+            },
+        )
+
+        patch = config_update(
+            {"yt": {"dictionary_access_control": {}}},
+            get_disabled_cache_config(),
+        )
+        with Clique(1, config_patch=patch) as clique:
+            clique.make_query(
+                "CREATE DICTIONARY t_dict (`a` Int64, `b` Int64) "
+                "PRIMARY KEY a SOURCE(Yt(Path '//tmp/t')) "
+                "LAYOUT(FLAT()) LIFETIME(MIN 300 MAX 600)"
+            )
+
+            clique.make_query("DROP DICTIONARY t_dict")
+            assert clique.make_query("EXISTS DICTIONARY t_dict") == [{"result": 0}]
+
 
 @enable_sequoia
 class TestYtDictionariesSequoia(TestYtDictionaries):

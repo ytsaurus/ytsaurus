@@ -86,16 +86,19 @@ private:
 
         auto results = ServerContext_->getExternalDictionariesLoader().getLoadResults();
         for (const auto& result : results) {
-            auto dictionary = std::dynamic_pointer_cast<const DB::IDictionary>(result.object);
-            if (!dictionary) {
+            if (!result.config) {
                 continue;
             }
 
-            if (auto path = TryGetTableDictionarySourcePath(dictionary->getSource())) {
+            const auto& dictionaryConfig = *result.config->config;
+            const auto& configKey = result.config->key_in_config;
+            auto storageId = DB::StorageID::fromDictionaryConfig(dictionaryConfig, configKey);
+
+            if (auto path = TryGetTableDictionarySourcePath(dictionaryConfig, configKey)) {
                 auto it = SourceToStorageIds_.emplace(*path, std::vector<DB::StorageID>()).first;
-                it->second.push_back(dictionary->getDictionaryID());
+                it->second.push_back(std::move(storageId));
             } else {
-                FullAccessStorageIds_.push_back(dictionary->getDictionaryID());
+                FullAccessStorageIds_.push_back(std::move(storageId));
             }
         }
     }
