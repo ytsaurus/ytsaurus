@@ -15,6 +15,7 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/client/misc/workload.h>
 
@@ -1490,8 +1491,16 @@ public:
     {
         auto finally = [this] (auto&& guard, auto&& cookie) {
             guard.Release();
+
+            if (Stopping_.load()) {
+                return;
+            }
             EventCount_.Wait(std::move(cookie), TDuration::Seconds(1));
-            YT_UNUSED_FUTURE(BIND(&TFairShareHierarchicalThreadPoolIOEngine::EngineLoop, MakeStrong(this))
+
+            if (Stopping_.load()) {
+                return;
+            }
+            YT_UNUSED_FUTURE(BIND(&TFairShareHierarchicalThreadPoolIOEngine::EngineLoop, MakeWeak(this))
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run());
         };
@@ -1601,7 +1610,22 @@ private:
     THashMap<TGuid, TRequestHandler<TFlushFileResponse>> FlushFileRequestStorage_;
     THashMap<TGuid, TRequestHandler<TFlushFileRangeResponse>> FlushFileRangeRequestStorage_;
 
+    std::atomic<bool> Stopping_ = false;
     NThreading::TEventCount EventCount_;
+
+    // This must run before the priority-100 ThreadPool callback. The flag
+    // prevents EngineLoop from missing the wakeup and then waiting for its
+    // one-second timeout during shutdown.
+    const TShutdownCookie ShutdownCookie_ = RegisterShutdownCallback(
+        Format("FairShareIOEngine(%v)", LocationId_),
+        BIND_NO_PROPAGATE(&TFairShareHierarchicalThreadPoolIOEngine::OnShutdown, MakeWeak(this)),
+        /*priority*/ 101);
+
+    void OnShutdown()
+    {
+        Stopping_.store(true);
+        EventCount_.NotifyAll();
+    }
 
     TIORequestSlicer GetRequestSlicer() const
     {
