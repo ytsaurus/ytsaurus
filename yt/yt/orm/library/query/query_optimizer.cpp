@@ -381,12 +381,20 @@ private:
             if (!OptimizationChecker_.IsOptimizationAllowed(*Query_->GroupExprs)) {
                 return false;
             }
+            for (const auto* expr : *Query_->GroupExprs) {
+                if (const auto* aliasExpr = expr->As<TAliasExpression>()) {
+                    TReference reference(aliasExpr->Name);
+                    if (!ColumnsMapping_.try_emplace(reference, reference).second) {
+                        return false;
+                    }
+                }
+            }
         }
         if (Query_->SelectExprs) {
+            if (!OptimizationChecker_.IsOptimizationAllowed(Query_->SelectExprs)) {
+                return false;
+            }
             for (const auto& expr : *Query_->SelectExprs) {
-                if (!OptimizationChecker_.IsOptimizationAllowed(Query_->SelectExprs)) {
-                    return false;
-                }
                 if (const auto* typeExpr = expr->As<TAliasExpression>()) {
                     // Add virtual references to aliases in select expressions.
                     TReference reference(typeExpr->Name);
