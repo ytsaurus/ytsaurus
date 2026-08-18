@@ -11,6 +11,7 @@ SRCS(
     chunk_slice_ut.cpp
     client_block_cache_ut.cpp
     distributed_chunk_session_pool_ut.cpp
+    distributed_chunk_session_seal_monitor_ut.cpp
     downed_cell_tracker_ut.cpp
     encoding_writer_ut.cpp
     erasure_parts_reader_ut.cpp
