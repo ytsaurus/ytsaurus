@@ -1019,7 +1019,7 @@ private:
         std::optional<std::string> placePath;
 
         const auto& userSandboxOptions = options.UserSandboxOptions;
-        if (userSandboxOptions.EnableRootVolumeDiskQuota && !userSandboxOptions.SlotPath.empty()) {
+        if (userSandboxOptions.DisableRbindRootVolume && !userSandboxOptions.SlotPath.empty()) {
             // Plant porto place for overlay volume in user slot.
             placePath = NFS::CombinePaths(
                 userSandboxOptions.SlotPath,
@@ -1034,7 +1034,7 @@ private:
         std::optional<i64> diskSpaceLimit;
         std::optional<i64> inodeLimit;
 
-        if (userSandboxOptions.EnableDiskQuota && userSandboxOptions.EnableRootVolumeDiskQuota) {
+        if (userSandboxOptions.EnableDiskQuota) {
             if (userSandboxOptions.DiskSpaceLimit) {
                 diskSpaceLimit = *userSandboxOptions.DiskSpaceLimit;
             }

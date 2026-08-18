@@ -61,7 +61,7 @@ struct IUserSlot
     //! Sets up quotas.
     virtual TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
-        bool ignoreQuota = false) = 0;
+        bool hasRootVolume = false) = 0;
 
     virtual TFuture<void> MakeLink(
         TJobId jobId,

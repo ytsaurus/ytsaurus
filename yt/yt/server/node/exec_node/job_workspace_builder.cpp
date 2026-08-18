@@ -856,7 +856,7 @@ private:
         SetJobPhase(EJobPhase::LinkingVolumes);
 
         auto slot = Context_.Slot;
-        if (ResultHolder_.RootVolume && !Context_.UserSandboxOptions.EnableRootVolumeDiskQuota) {
+        if (ResultHolder_.RootVolume && !Context_.UserSandboxOptions.DisableRbindRootVolume) {
             return slot->RbindRootVolume(ResultHolder_.RootVolume)
                 .Apply(BIND(
                     [
@@ -959,11 +959,7 @@ private:
 
         YT_LOG_INFO("Started preparing sandbox directories");
 
-        // NB: If EnableRootVolumeDiskQuota is set and we have RootVolume, then we have already
-        // applied a quota to root volume and should not set it again within sandbox preparation.
-        bool ignoreQuota = Context_.UserSandboxOptions.EnableRootVolumeDiskQuota && ResultHolder_.RootVolume;
-
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, ignoreQuota)
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, /*hasRootVolume*/ static_cast<bool>(ResultHolder_.RootVolume))
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
                     MakeFilesForArtifactBinds();

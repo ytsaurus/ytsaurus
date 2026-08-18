@@ -52,7 +52,7 @@ public:
     TFuture<void> PrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
-        bool ignoreQuota);
+        bool hasRootVolume);
 
     //! Inform slot location about non-root volumes to be used.
     void TakeIntoAccountNonRootVolumes(

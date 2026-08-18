@@ -79,7 +79,7 @@ struct TUserSandboxOptions
     std::vector<TVolumeMountPtr> JobVolumeMounts;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
-    bool EnableRootVolumeDiskQuota = false;
+    bool DisableRbindRootVolume = false;
     bool EnableDiskQuota = true;
     int UserId = 0;
     std::optional<TVirtualSandboxData> VirtualSandboxData;

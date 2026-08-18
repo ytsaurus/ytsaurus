@@ -1605,7 +1605,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             .ReadOnly = false,
         });
 
-        if (Config_->EnableRootVolumeDiskQuota) {
+        if (Config_->DisableRbindRootVolume) {
             auto slotPath = GetSlotPath();
 
             auto addBind = [&] (ESandboxKind sandboxKind) {
@@ -1708,7 +1708,6 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,
         .ThreadLimit = options.ThreadLimit,
-        .EnableRootVolumeDiskQuota = Config_->EnableRootVolumeDiskQuota,
     };
 
     if (Config_->RestrictPortoPlace) {
