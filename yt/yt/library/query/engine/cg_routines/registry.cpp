@@ -829,7 +829,7 @@ void MultiJoinOpHelper(
 
             sortedForeignSequences.push_back(std::move(sortedForeignSequence));
 
-            YT_TLOG_DEBUG("Finished precessing foreign rowset")
+            YT_TLOG_DEBUG("Finished processing foreign rowset")
                 .With("SortingTime", sortingForeignTime);
         }
 
