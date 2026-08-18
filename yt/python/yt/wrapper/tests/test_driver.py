@@ -76,3 +76,16 @@ def test_catching_sigint():
     except Exception:
         os.kill(process.pid, signal.SIGKILL)
         assert False, "Process hanged up for more than 5 seconds on SIGINT"
+
+
+@authors("achains")
+def test_fork_detection():
+    # NB: Runs in a standalone process since fork detection is process-wide and sticky.
+    binary = get_test_file_path("driver_fork_detection.py")
+    process = subprocess.Popen([get_python(), binary])
+    try:
+        process.wait(10)
+    except Exception:
+        process.kill()
+        assert False, "Fork detection test hanged up for more than 10 seconds"
+    assert process.returncode == 0

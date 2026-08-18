@@ -1,4 +1,5 @@
 #include "response.h"
+#include "driver.h"
 #include "private.h"
 
 #include <yt/yt/python/common/error.h>
@@ -192,6 +193,9 @@ Py::Object TDriverResponse::ResponseParameters(Py::Tuple& /*args*/, Py::Dict& /*
 
 Py::Object TDriverResponse::Wait(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
 {
+    // In a forked child the threads completing the future are gone and waiting would hang.
+    ValidateNoForkOccurred();
+
     {
         TReleaseAcquireGilGuard guard;
         Y_UNUSED(SignalFriendlyWaitFor(ResponseFuture_));

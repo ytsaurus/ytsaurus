@@ -244,6 +244,9 @@ def get_driver_instance(client):
         if client_config["proxy"]["rpc_proxy_role"] is not None:
             driver_config.setdefault("proxy_role", client_config["proxy"]["rpc_proxy_role"])
 
+        if client_config["driver_enable_fork_detection"]:
+            driver_config.setdefault("enable_fork_detection", True)
+
         lazy_import_driver_bindings()
         if driver_bindings is None:
             if client_backend == "rpc":
