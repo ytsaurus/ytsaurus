@@ -38,7 +38,7 @@
 
 {% list tabs dropdown group=deploy %}
 
-- Docker {selected}
+- Docker 
 
   1. Установите Docker:
       - Если у вас Linux x86_64 — установите [Docker Engine](https://docs.docker.com/engine/install/ubuntu/).
@@ -310,7 +310,7 @@
 
   Теперь {{product-name}} поднят и готов к использованию — можно переходить к следующему шагу. После того как вы закончите работу с примерами, не забудьте [удалить](#stop-cluster) кластер.
 
-- Kind
+- Kind {selected}
 
   В этом примере вы локально развернёте кластер Kubernetes, состоящий из одного узла, и в нём запустите {{product-name}} кластер. В качестве движка исполнения контейнеров будет использоваться Docker.
 
@@ -635,7 +635,7 @@ Version: YT wrapper 0.13.20
 
 {% list tabs dropdown group=deploy %}
 
-- Docker {selected}
+- Docker
 
   ```bash prompt="$"
   $ export YT_PROXY=localhost:8000
@@ -656,7 +656,7 @@ Version: YT wrapper 0.13.20
 
   {% endnote %}
 
-- Kind
+- Kind {selected}
 
   ```bash prompt="$"
   $ export YT_PROXY='localhost:8081'
@@ -826,7 +826,7 @@ LIMIT 30;
 
 {% list tabs dropdown group=deploy %}
 
-- Docker {selected}
+- Docker
 
   Чтобы удалить {{product-name}} кластер, необходимо завершить работу контейнеров `yt.frontend` и `yt.backend`. Для этого выполните команду:
     ```bash prompt="$"
@@ -868,7 +868,7 @@ LIMIT 30;
      $ podman volume rm minikube
      ```
 
-- Kind
+- Kind {selected}
 
   1. Удалите {{product-name}} кластер:
      ```bash prompt="$"
