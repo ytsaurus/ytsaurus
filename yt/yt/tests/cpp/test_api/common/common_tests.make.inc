@@ -9,6 +9,7 @@ SET(THIS_DIR "${ARCADIA_ROOT}/yt/yt/tests/cpp/test_api/common")
 SRCS(
     ${THIS_DIR}/test_type_v3.cpp
     ${THIS_DIR}/test_api.cpp
+    ${THIS_DIR}/queue_test_base.cpp
     ${THIS_DIR}/test_queues.cpp
     ${THIS_DIR}/modify_rows_test.cpp
     ${THIS_DIR}/distributed_table_api_test.cpp

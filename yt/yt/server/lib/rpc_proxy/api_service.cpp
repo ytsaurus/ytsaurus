@@ -36,6 +36,8 @@
 
 #include <yt/yt/library/auth_server/helpers.h>
 
+#include <yt/yt/library/formats/format.h>
+
 #include <yt/yt/client/arrow/arrow_row_stream_decoder.h>
 #include <yt/yt/client/arrow/arrow_row_stream_encoder.h>
 
@@ -79,6 +81,8 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/table_output.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -123,6 +127,7 @@ using namespace NChunkClient;
 using namespace NCodegen;
 using namespace NCompression;
 using namespace NConcurrency;
+using namespace NFormats;
 using namespace NHydra;
 using namespace NLogging;
 using namespace NObjectClient;
@@ -353,6 +358,56 @@ IRowStreamDecoderPtr CreateRowStreamDecoder(
         default:
             THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
                 NApi::NRpcProxy::NProto::ERowsetFormat_Name(rowsetFormat));
+    }
+}
+
+IUnversionedRowsetPtr DeserializeFormatRowset(
+    TTableSchemaPtr schema,
+    const TFormat& format,
+    const TSharedRef& data,
+    const TLogger& logger)
+{
+    auto typeConversionConfig = ConvertTo<TTypeConversionConfigPtr>(format.Attributes());
+    TBuildingValueConsumer valueConsumer(
+        schema,
+        logger,
+        /*convertNullToEntity*/ false,
+        typeConversionConfig);
+    valueConsumer.SetTreatMissingAsNull(true);
+
+    TTableOutput output(CreateParserForFormat(format, &valueConsumer));
+    output.Write(data.Begin(), data.Size());
+    output.Finish();
+
+    auto rowBuffer = New<TRowBuffer>(TApiServiceBufferTag());
+    auto capturedRows = rowBuffer->CaptureRows(valueConsumer.GetRows());
+    auto rows = MakeSharedRange(
+        std::vector<TUnversionedRow>(capturedRows.begin(), capturedRows.end()),
+        std::move(rowBuffer));
+    return CreateRowset(std::move(schema), std::move(rows));
+}
+
+IUnversionedRowsetPtr DeserializeRowset(
+    const NApi::NRpcProxy::NProto::TRowsetDescriptor& descriptor,
+    TTableSchemaPtr schema,
+    const std::optional<TFormat>& format,
+    const TSharedRef& data,
+    const TLogger& logger)
+{
+    switch (descriptor.rowset_format()) {
+        case NApi::NRpcProxy::NProto::RF_YT_WIRE:
+            return NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(descriptor, data);
+
+        case NApi::NRpcProxy::NProto::RF_FORMAT:
+            if (!format) {
+                THROW_ERROR_EXCEPTION("Format is missing for rowset format %Qv",
+                    NApi::NRpcProxy::NProto::ERowsetFormat_Name(descriptor.rowset_format()));
+            }
+            return DeserializeFormatRowset(std::move(schema), *format, data, logger);
+
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
+                NApi::NRpcProxy::NProto::ERowsetFormat_Name(descriptor.rowset_format()));
     }
 }
 
@@ -5046,9 +5101,19 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PushQueueProducer)
         /*options*/ std::nullopt,
         /*searchInPool*/ true);
 
-    auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+    auto format = GetFormat(context, request);
+
+    auto tableMountCache = client->GetTableMountCache();
+    auto queueTableInfoFuture = tableMountCache->GetTableInfo(queuePath.GetPath());
+    auto queueTableInfo = WaitFor(queueTableInfoFuture)
+        .ValueOrThrow("Path %v does not point to a valid queue", queuePath);
+
+    auto rowset = DeserializeRowset(
         request->rowset_descriptor(),
-        MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+        queueTableInfo->Schemas[ETableSchemaKind::WriteViaQueueProducer],
+        format,
+        MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()),
+        Logger);
 
     ExecuteCall(
         context,
