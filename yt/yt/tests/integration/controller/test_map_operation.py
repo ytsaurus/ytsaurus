@@ -2734,6 +2734,9 @@ print(json.dumps(input))
         job_time_ms = extract_statistic_v2(statistics, "time.exec")
 
         eps_ms = 20
+        # The empty writer's Close() shares the single-threaded ChunkWriter queue with the two
+        # writers closing real chunks, so its overhead over the injected delay is not tiny.
+        close_eps_ms = 1000
 
         def assert_total_time(total_time):
             # Not very precise :(.
@@ -2758,7 +2761,7 @@ print(json.dumps(input))
 
             assert wait_time == 0
             assert write_time == 0
-            assert 100 <= close_time < 100 + eps_ms  # testing_delay_before_chunk_close + eps.
+            assert 100 <= close_time < 100 + close_eps_ms  # testing_delay_before_chunk_close + eps.
             assert_total_time(idle_time + wait_time + write_time + close_time)
 
     @authors("apollo1321")
