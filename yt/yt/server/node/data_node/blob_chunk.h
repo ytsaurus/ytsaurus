@@ -70,12 +70,39 @@ private:
     {
         struct TBlockEntry
         {
+            TBlockEntry() = default;
+
+            TBlockEntry(TBlockEntry&& other) noexcept
+                : BlockIndex(other.BlockIndex)
+                , EntryIndex(other.EntryIndex)
+                , Cached(other.Cached)
+                , Cookie(std::move(other.Cookie))
+                , Block(other.Block.Exchange(NChunkClient::TBlock()))
+                , BeginOffset(other.BeginOffset)
+                , EndOffset(other.EndOffset)
+            { }
+
+            TBlockEntry& operator=(TBlockEntry&& other) noexcept
+            {
+                if (this != &other) {
+                    BlockIndex = other.BlockIndex;
+                    EntryIndex = other.EntryIndex;
+                    Cached = other.Cached;
+                    Cookie = std::move(other.Cookie);
+                    Block.Store(other.Block.Exchange(NChunkClient::TBlock()));
+                    BeginOffset = other.BeginOffset;
+                    EndOffset = other.EndOffset;
+                }
+
+                return *this;
+            }
+
             int BlockIndex = -1;
             //! Index of this entry before sorting by block index.
             int EntryIndex = -1;
             bool Cached = false;
             std::unique_ptr<NChunkClient::ICachedBlockCookie> Cookie;
-            NChunkClient::TBlock Block;
+            NThreading::TAtomicObject<NChunkClient::TBlock> Block;
             i64 BeginOffset = -1;
             i64 EndOffset = -1;
         };
