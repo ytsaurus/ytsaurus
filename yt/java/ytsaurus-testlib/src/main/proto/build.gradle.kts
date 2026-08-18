@@ -17,6 +17,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(11)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "11")
+}
+
 dependencies {
     api("com.google.protobuf:protobuf-java:4.33.0")
     api(project(":yt:yt_proto:yt:formats"))

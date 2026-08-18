@@ -16,6 +16,14 @@ java {
     withJavadocJar()
 }
 
+tasks.withType<JavaCompile>().configureEach {
+    options.release.set(11)
+}
+
+tasks.withType<Javadoc>().configureEach {
+    (options as CoreJavadocOptions).addStringOption("source", "11")
+}
+
 dependencies {
     api("io.dropwizard.metrics:metrics-core:3.1.2")
     api(project(":yt:java:annotations"))
