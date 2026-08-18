@@ -167,6 +167,13 @@ Defines all components and their image sources.
   - `dev` — dev versions (nightly builds)
   - `release` — release versions with versioning
 
+  Each origin entry describes where the image lives:
+  - `registry` — `ghcr` (default, `ghcr.io`) or `yandex_cr` (`cr.yandex`)
+  - `org` — registry namespace: the GitHub org for `ghcr`, the Yandex Cloud Container Registry ID for `yandex_cr`
+  - `repo` — repository/namespace within `org`
+  - `container` — image name
+  - `image_tag` — regexp matched against the registry's list of tags for the image, with named groups `version`/`commit_hash`
+
 **Example:**
 
 ```yaml
@@ -174,6 +181,7 @@ ytsaurus:
   requirements: configs/compat-ytsaurus.yaml
   origins:
     stable:
+      org: ytsaurus
       repo: ytsaurus
       container: ytsaurus
       image_tag: '^stable-(?P<version>{{ version }})-relwithdebinfo$'

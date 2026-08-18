@@ -3,6 +3,7 @@ STYLE_PYTHON()
 
 PY_SRCS(
     __init__.py
+    base_client.py
     check_registry.py
     cloudfunction_client.py
     compatibility_graph.py
@@ -14,8 +15,10 @@ PY_SRCS(
     models.py
     pretty.py
     enums.py
+    registry_clients.py
     scenario_processor.py
     task.py
+    yandex_cr.py
 )
 
 PEERDIR(
@@ -47,6 +50,15 @@ RESOURCE_FILES(
     tests/configs/components.yaml
     tests/configs/scenarios.yaml
 )
+
+IF (NOT OPENSOURCE OR YT_CUSTOM_INTERNAL_BUILD)
+    RESOURCE_FILES(
+        configs/components-internal.yaml
+        configs/compat-ytsaurus-custom-internal-build.yaml
+        configs/compat-query_tracker-custom-internal-build.yaml
+        templates/spec-for-custom-internal-build.yaml
+    )
+ENDIF()
 
 END()
 
