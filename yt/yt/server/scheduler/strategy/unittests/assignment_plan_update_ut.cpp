@@ -240,6 +240,8 @@ protected:
     {
         auto config = New<TGpuSchedulingPolicyConfig>();
         config->Modules = TestModules;
+        // Merges the legacy "modules" field into "module_configs".
+        config->Postprocess();
 
         return config;
     }
@@ -467,7 +469,7 @@ protected:
         TGpuAllocationAssignmentPlanUpdateExecutor updateExecutor(
             context,
             now,
-            std::move(config),
+            TGpuSchedulingPolicyConfigWrapper(std::move(config)),
             Logger);
         updateExecutor.Run();
     }

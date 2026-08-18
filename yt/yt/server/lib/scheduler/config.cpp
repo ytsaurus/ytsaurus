@@ -274,6 +274,23 @@ void TGpuSchedulingPolicyTestingOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGpuSchedulingPolicyModuleConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("module_reconsideration_timeout", &TThis::ModuleReconsiderationTimeout)
+        .Default();
+
+    registrar.Parameter("module_share_to_network_priority", &TThis::ModuleShareToNetworkPriority)
+        .Default();
+
+    registrar.Postprocessor([&] (TGpuSchedulingPolicyModuleConfig* config) {
+        if (config->ModuleShareToNetworkPriority) {
+            ValidateModuleShareToNetworkPriority(*config->ModuleShareToNetworkPriority);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mode", &TThis::Mode)
@@ -289,6 +306,9 @@ void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
         .Default(ESchedulingSegmentModuleType::DataCenter);
 
     registrar.Parameter("modules", &TThis::Modules)
+        .Default();
+
+    registrar.Parameter("module_configs", &TThis::ModuleConfigs)
         .Default();
 
     registrar.Parameter("priority_module_binding_timeout", &TThis::PriorityModuleBindingTimeout)
@@ -311,7 +331,12 @@ void TGpuSchedulingPolicyConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([&] (TGpuSchedulingPolicyConfig* config) {
+        // Merge legacy "modules" into "module_configs", so that after postprocessing
+        // "module_configs" is the single source of truth for the module set.
         for (const auto& module : config->Modules) {
+            config->ModuleConfigs.emplace(module, New<TGpuSchedulingPolicyModuleConfig>());
+        }
+        for (const auto& [module, _] : config->ModuleConfigs) {
             ValidateGpuSchedulingModuleName(module);
         }
 
