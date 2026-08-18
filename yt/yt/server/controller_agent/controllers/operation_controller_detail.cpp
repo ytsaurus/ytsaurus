@@ -5004,7 +5004,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_enable_virtual_sandbox(Spec_->EnableVirtualSandbox);
 
-    jobSpecExt->set_enable_root_volume_disk_quota(Spec_->EnableRootVolumeDiskQuota);
+    jobSpecExt->set_disable_rbind_root_volume(Spec_->DisableRbindRootVolume);
 
     jobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
 

@@ -84,7 +84,7 @@ public:
     void SetGpuCheckVolume(IVolumePtr volume);
     IVolumePtr ReleaseGpuCheckVolume();
 
-    bool IsRootVolumeDiskQuotaEnabled() const;
+    bool IsRbindRootVolumeDisabled() const;
 
     const THashSet<std::string>& GetNbdDeviceIds() const;
     THashSet<std::string> ReleaseNbdDeviceIds();
@@ -146,7 +146,7 @@ private:
     IBootstrap* const Bootstrap_;
     const NLogging::TLogger BaseLogger_;
     NLogging::TLogger Logger;
-    bool RootVolumeDiskQuotaEnabled_ = false;
+    bool RbindRootVolumeDisabled_ = false;
 
     std::optional<std::string> ActualDockerImage_;
     std::optional<std::string> DockerImageId_;

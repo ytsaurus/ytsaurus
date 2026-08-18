@@ -562,9 +562,7 @@ struct TJobProxyInternalConfig
 
     bool UseNewDeliveryFencedConnection;
 
-    //! Enable root volume disk quota.
-    //! Apply the quota to the entire root filesystem instead of the sandbox and tmp folders individually.
-    bool EnableRootVolumeDiskQuota;
+    bool DisableRbindRootVolume;
 
     //! Restrict places allowed for porto volumes and layers.
     bool RestrictPortoPlace;

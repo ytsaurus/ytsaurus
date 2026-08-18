@@ -429,7 +429,7 @@ IJobDirectoryManagerPtr TSlotLocation::GetJobDirectoryManager()
 void TSlotLocation::DoPrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
-    bool ignoreQuota,
+    bool hasRootVolume,
     bool sandboxInsideTmpfs)
 {
     ValidateEnabled();
@@ -441,7 +441,7 @@ void TSlotLocation::DoPrepareSandboxDirectories(
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !ignoreQuota;
+    auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !hasRootVolume;
 
     if (shouldApplyQuota && !sandboxInsideTmpfs) {
         try {
@@ -529,7 +529,7 @@ TFuture<void> TSlotLocation::CreateFakeNonRootVolumes(
 TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     int slotIndex,
     TUserSandboxOptions options,
-    bool ignoreQuota)
+    bool hasRootVolume)
 {
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
     auto sandboxInsideTmpfs = IsInsideTmpfs(slotIndex, sandboxPath);
@@ -541,7 +541,7 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
     return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this),
         slotIndex,
         options,
-        ignoreQuota,
+        hasRootVolume,
         sandboxInsideTmpfs)
         .AsyncVia(invoker)
         .Run();

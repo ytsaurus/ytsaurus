@@ -479,7 +479,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("pipe_reader_timeout_threshold", &TThis::PipeReaderTimeoutThreshold)
         .Default(TDuration::Seconds(30));
 
-    registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
+    registrar.Parameter("disable_rbind_root_volume", &TThis::DisableRbindRootVolume)
+        .Alias("enable_root_volume_disk_quota")
         .Default(false);
 
     registrar.Parameter("restrict_porto_place", &TThis::RestrictPortoPlace)

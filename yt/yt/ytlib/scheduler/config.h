@@ -1277,9 +1277,7 @@ struct TOperationSpecBase
     //! Allow access to all immutable files via NBD.
     bool EnableVirtualSandbox;
 
-    //! Enable root volume disk quota.
-    //! Apply the quota to the entire RootFs instead of the sandbox and tmp folders individually.
-    bool EnableRootVolumeDiskQuota;
+    bool DisableRbindRootVolume;
 
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
 

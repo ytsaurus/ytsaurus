@@ -1027,7 +1027,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_virtual_sandbox", &TThis::EnableVirtualSandbox)
         .Default(false);
 
-    registrar.Parameter("enable_root_volume_disk_quota", &TThis::EnableRootVolumeDiskQuota)
+    registrar.Parameter("disable_rbind_root_volume", &TThis::DisableRbindRootVolume)
+        .Alias("enable_root_volume_disk_quota")
         .Default(false);
 
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
