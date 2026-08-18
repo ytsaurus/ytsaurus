@@ -94,6 +94,10 @@ TMergeAttributesPlan::TMergeAttributesPlan(
             ++matchedPrefixLength;
         }
 
+        if (matchedPrefixLength == std::ssize(literals)) {
+            YT_VERIFY(isEtc);
+        }
+
         auto& transition = Transitions_.emplace_back(TTransition{
             .MapCountToClose = static_cast<int>(std::ssize(pathToCurrentMap) - matchedPrefixLength),
             .IsEtc = isEtc,
