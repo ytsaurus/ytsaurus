@@ -3079,7 +3079,7 @@ public:
     {
         return GetDynamicConfig()->ForwardAuthenticatedUser
             ? GetAuthenticatedUser()->GetName()
-            : std::string{};
+            : RootUserName;
     }
 
 private:
