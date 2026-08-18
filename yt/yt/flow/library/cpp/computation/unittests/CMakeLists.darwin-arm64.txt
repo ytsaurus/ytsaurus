@@ -73,6 +73,7 @@ target_sources(yt-flow-library-cpp-computation-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/meta_setter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/resource_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/state_client_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/state_providers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/swift_map_validation_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/timer_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/transform_ordered_source_validation_ut.cpp
