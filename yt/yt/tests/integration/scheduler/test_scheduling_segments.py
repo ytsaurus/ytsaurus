@@ -2627,9 +2627,9 @@ class TestDefaultGpuFullHostPreemption(YTEnvSetup):
             track=False,
         )
         wait(lambda: big_mapper.get_running_jobs())
+        wait(lambda: len(preemptible_op.get_running_jobs()) == 0)
         for op in small_ops:
             assert len(op.get_running_jobs()) == 2
-        assert len(preemptible_op.get_running_jobs()) == 0
 
     @authors("severovv")
     def test_self_preemption(self):
