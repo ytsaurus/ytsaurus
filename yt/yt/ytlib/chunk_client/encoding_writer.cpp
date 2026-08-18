@@ -31,7 +31,8 @@ TEncodingWriter::TEncodingWriter(
     IChunkWriterPtr chunkWriter,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     IBlockCachePtr blockCache,
-    NLogging::TLogger logger)
+    NLogging::TLogger logger,
+    IInvokerPtr compressionInvokerOverride)
     : Config_(std::move(config))
     , Options_(std::move(options))
     , ChunkWriter_(std::move(chunkWriter))
@@ -41,9 +42,11 @@ TEncodingWriter::TEncodingWriter(
     , SizeSemaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
     , CodecSemaphore_(New<TAsyncSemaphore>(Config_->CompressionConcurrency))
     , Codec_(NCompression::GetCodec(Options_->CompressionCodec))
-    , CompressionInvoker_(CreateFixedPriorityInvoker(
-        NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-        Config_->WorkloadDescriptor.GetPriority()))
+    , CompressionInvoker_(compressionInvokerOverride
+        ? std::move(compressionInvokerOverride)
+        : CreateFixedPriorityInvoker(
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            Config_->WorkloadDescriptor.GetPriority()))
     , WritePendingBlockCallback_(BIND(
         &TEncodingWriter::WritePendingBlock,
         MakeWeak(this)).Via(CompressionInvoker_))

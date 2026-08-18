@@ -290,6 +290,8 @@ struct TStoreCompactorDynamicConfig
     std::optional<std::string> CompactionFairSharePool;
     std::optional<std::string> PartitioningFairSharePool;
 
+    bool ReuseCompactionInvokerForWriterCompression;
+
     bool ScheduleNewTasksAfterTaskCompletion;
 
     double StarvingTablesTasksRatio;
