@@ -221,7 +221,7 @@ std::vector<NChunkClient::TBlock> TBlobChunkBase::CollectBlocks(const TReadBlock
             blocks.resize(originalEntryIndex + 1);
         }
 
-        auto block = std::move(entry.Block);
+        auto block = entry.Block.Exchange(TBlock());
         block.Data = TrackMemory(session->Options.MemoryUsageTracker, std::move(block.Data), true);
 
         if (delayBeforeFree) {
@@ -467,7 +467,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
                         session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                             block.Size(),
                             std::memory_order::relaxed);
-                        session->Entries[entryIndex].Block = std::move(block);
+                        session->Entries[entryIndex].Block.Store(std::move(block));
                     })));
                 continue;
             }
@@ -660,13 +660,14 @@ TBlobChunkBase::FindLastEntryWithinReadGap(
                 auto blockId = TBlockId(Id_, index);
                 auto cookie = blockCache->GetBlockCookie(blockId, session->Options.BlockType);
 
-                EmplaceOrCrash(blockIndexToEntry, index, TReadBlockSetSession::TBlockEntry{
-                    .BlockIndex = index,
-                    .Cached = !cookie->IsActive(),
-                    .Cookie = std::move(cookie),
-                    .BeginOffset = info.Offset,
-                    .EndOffset = info.Offset + info.Size,
-                });
+                TReadBlockSetSession::TBlockEntry blockEntry;
+                blockEntry.BlockIndex = index;
+                blockEntry.Cached = !cookie->IsActive();
+                blockEntry.Cookie = std::move(cookie);
+                blockEntry.BeginOffset = info.Offset;
+                blockEntry.EndOffset = info.Offset + info.Size;
+
+                EmplaceOrCrash(blockIndexToEntry, index, std::move(blockEntry));
             }
         }
 
@@ -940,10 +941,7 @@ void TBlobChunkBase::OnBlocksRead(
             auto block = blocks[relativeBlockIndex];
             YT_VERIFY(block.Size() > 0);
 
-            entry.Block = block;
-
-            YT_VERIFY(entry.Block);
-
+            entry.Block.Store(block);
             ++usefulBlockCount;
             usefulBlockSize += block.Size();
             if (entry.Cookie) {
@@ -1106,7 +1104,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                 session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     block.Size(),
                     std::memory_order::relaxed);
-                entry.Block = std::move(block);
+                entry.Block.Store(std::move(block));
                 entry.Cached = true;
             } else {
                 allCached = false;
