@@ -824,7 +824,7 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Value: `true` or `false` string.
+- Value: (API v4) dictionary with a key `value` and `true` or `false` string as a value. (API v3) `true` or `false` string.
 
 Example:
 
@@ -832,6 +832,8 @@ Example:
 PARAMETERS {
     "path" = "//tmp/my_table/@_format" ;
 }
+OUTPUT(API v4) { "value" = "true" }
+OUTPUT(API v3) true
 ```
 
 ### concatenate { #concatenate }

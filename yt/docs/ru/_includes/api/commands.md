@@ -822,7 +822,7 @@ OUTPUT "0-4-191-6c07cd58"
 Выходные данные:
 
 - Тип: `structured`;
-- Значение: строка `true` или `false`.
+- Значение: (API v4) -  словарь с ключом `value` и со значением `true` или `false`, (API v3) - строка `true` или `false`.
 
 Пример:
 
@@ -830,6 +830,8 @@ OUTPUT "0-4-191-6c07cd58"
 PARAMETERS {
     "path" = "//tmp/my_table/@_format" ;
 }
+OUTPUT(API v4) { "value" = "true" }
+OUTPUT(API v3) true
 ```
 
 ### concatenate { #concatenate }
