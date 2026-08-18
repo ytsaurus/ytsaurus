@@ -1,5 +1,7 @@
 #include "pool_tree_snapshot_state.h"
 
+#include "config_wrapper.h"
+
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_segment_manager.h>
 
 #include <yt/yt/server/scheduler/strategy/field_filter.h>
@@ -75,9 +77,11 @@ TError TPoolTreeSnapshotStateImpl::CheckIsOperationStuck(
         const auto& gpuConfig = treeSnapshot.TreeConfig()->GpuSchedulingPolicy;
         YT_VERIFY(gpuConfig);
 
+        const TGpuSchedulingPolicyConfigWrapper gpuConfigWrapper(gpuConfig);
+        const auto& modules = gpuConfigWrapper.GetModules();
         auto tagFilterFormula = tagFilter.GetBooleanFormula().GetFormula();
         bool isModuleFilter = false;
-        for (const auto& possibleModule : gpuConfig->Modules) {
+        for (const auto& possibleModule : modules) {
             auto moduleTag = TSchedulingSegmentManager::GetNodeTagFromModuleName(
                 possibleModule,
                 gpuConfig->ModuleType);
@@ -95,7 +99,7 @@ TError TPoolTreeSnapshotStateImpl::CheckIsOperationStuck(
                 "Operation has a module specified in the scheduling tag filter, which causes scheduling problems; "
                 "use \"scheduling_segment_modules\" spec option instead")
                 .With("scheduling_tag_filter", tagFilterFormula)
-                .With("available_modules", gpuConfig->Modules);
+                .With("available_modules", modules);
         }
     }
 

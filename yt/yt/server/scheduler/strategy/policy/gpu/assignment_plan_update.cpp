@@ -157,7 +157,7 @@ void FormatValue(TStringBuilderBase* builder, const TOperationModuleBindingOutco
 TGpuAllocationAssignmentPlanUpdateExecutor::TGpuAllocationAssignmentPlanUpdateExecutor(
     IAssignmentPlanUpdateContext* context,
     TInstant now,
-    TGpuSchedulingPolicyConfigPtr config,
+    TGpuSchedulingPolicyConfigWrapper config,
     NLogging::TLogger logger)
     : Context_(context)
     , Operations_(Context_->Operations())
@@ -202,8 +202,9 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::Run()
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
 {
-    ModuleStates_.reserve(Config_->Modules.size());
-    for (const auto& module : Config_->Modules) {
+    const auto& modules = Config_.GetModules();
+    ModuleStates_.reserve(modules.size());
+    for (const auto& module : modules) {
         ModuleStates_.emplace(module, NDetail::TModuleState{});
     }
 
@@ -629,7 +630,8 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldResetModule(const TOperat
 {
     return operation->SchedulingModule() &&
         operation->WaitingForAssignmentsSince() &&
-        operation->WaitingForAssignmentsSince().value() + Config_->ModuleReconsiderationTimeout < Now_;
+        operation->WaitingForAssignmentsSince().value() +
+            Config_.GetModuleReconsiderationTimeout(*operation->SchedulingModule()) < Now_;
 }
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::EvictReservation(
@@ -789,7 +791,9 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::UpdateNetworkPriority(const TOp
     // NB(yaishenka): GetInitialNeededAllocationCount is the canonical "node footprint on a module"
     // signal in this policy — see BindFullHostOperationToModule and FindOperationsToEvict.
     const auto share = static_cast<double>(operation->GetInitialNeededAllocationCount()) / nodeCount;
-    operation->NetworkPriority() = ComputeNetworkPriority(share, Config_->ModuleShareToNetworkPriority);
+    operation->NetworkPriority() = ComputeNetworkPriority(
+        share,
+        Config_.GetModuleShareToNetworkPriority(*operation->SchedulingModule()));
 }
 
 std::optional<NDetail::TOperationModuleBindingOutcome> TGpuAllocationAssignmentPlanUpdateExecutor::ConsiderModuleForFullHostOperation(
@@ -1097,7 +1101,7 @@ std::vector<TAssignmentPtr> TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllo
         availableNodes,
         useFullHostAggressivePreemption,
         Context_,
-        Config_,
+        Config_.GetConfig(),
         Now_,
         Logger);
     planner.Run();

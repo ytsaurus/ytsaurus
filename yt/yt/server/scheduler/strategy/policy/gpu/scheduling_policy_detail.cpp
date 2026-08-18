@@ -222,9 +222,10 @@ void TSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* eleme
         operation->SpecifiedSchedulingModules());
 
     if (const auto& specifiedModules = operation->SpecifiedSchedulingModules()) {
+        const auto& configuredModules = Config_.GetModules();
         std::vector<std::string> unknownModules;
         for (const auto& module : *specifiedModules) {
-            if (!Config_->Modules.contains(module)) {
+            if (!configuredModules.contains(module)) {
                 unknownModules.push_back(module);
             }
         }
@@ -697,7 +698,7 @@ void TSchedulingPolicy::UpdateConfig(TStrategyTreeConfigPtr treeConfig)
         return;
     }
 
-    Config_ = config;
+    Config_ = TGpuSchedulingPolicyConfigWrapper(config);
 
     PlanUpdateExecutor_->SetPeriod(Config_->PlanUpdatePeriod);
 }

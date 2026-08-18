@@ -1,6 +1,7 @@
 #pragma once
 
 #include "assignment_plan_update_context_detail.h"
+#include "config_wrapper.h"
 #include "persistent_state.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
@@ -169,7 +170,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TGpuSchedulingPolicyConfigPtr Config_;
+    TGpuSchedulingPolicyConfigWrapper Config_;
 
     NConcurrency::TPeriodicExecutorPtr PlanUpdateExecutor_;
     TAssignmentHandler AssignmentHandler_;
