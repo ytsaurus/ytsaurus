@@ -11,6 +11,7 @@ image_cr=""
 component="ytsaurus"
 apt_mirror="http://archive.ubuntu.com/"
 install_nvidia_packages="false"
+build_cache_ref=""
 
 print_usage() {
     cat << EOF
@@ -24,6 +25,7 @@ Usage: $script_name [-h|--help]
                     [--image-cr some-cr/ (default: '$image_cr')]
                     [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
                     [--install-nvidia-packages true|false (default: '$install_nvidia_packages')]
+                    [--build-cache-ref registry/image:tag]
 EOF
     exit 1
 }
@@ -66,6 +68,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --install-nvidia-packages)
         install_nvidia_packages="$2"
+        shift 2
+        ;;
+        --build-cache-ref)
+        build_cache_ref="$2"
         shift 2
         ;;
         -h|--help)
@@ -201,4 +207,36 @@ else
 fi
 
 cd ${output_path}
-docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} --build-arg INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+
+common_docker_build_args=(
+    --build-arg "APT_MIRROR=${apt_mirror}"
+    --build-arg "INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages}"
+)
+
+if [[ -n "${build_cache_ref}" ]]; then
+    if ! docker pull "${build_cache_ref}"; then
+        echo "No existing Docker base cache found at ${build_cache_ref}; building it from scratch."
+    fi
+
+    docker build \
+        --target base \
+        --cache-from "${build_cache_ref}" \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        "${common_docker_build_args[@]}" \
+        -t "${build_cache_ref}" .
+
+    if ! docker push "${build_cache_ref}"; then
+        echo "Failed to update Docker base cache at ${build_cache_ref}; continuing with the local cache."
+    fi
+
+    docker build \
+        --target "${component}" \
+        --cache-from "${build_cache_ref}" \
+        "${common_docker_build_args[@]}" \
+        -t "${image_cr}ytsaurus/${component}:${image_tag}" .
+else
+    docker build \
+        --target "${component}" \
+        "${common_docker_build_args[@]}" \
+        -t "${image_cr}ytsaurus/${component}:${image_tag}" .
+fi

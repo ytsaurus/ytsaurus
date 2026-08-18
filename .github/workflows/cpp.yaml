@@ -11,6 +11,7 @@ on:
   push:
     branches:
       - main
+      - members/ilyaibraev/ytsaurussup-2922-docker-base-cache
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
@@ -145,7 +146,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
-      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
+      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/ytsaurussup-2922-docker-base-cache' }}
       publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
       publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
