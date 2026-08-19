@@ -6,11 +6,17 @@ namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NConcurrency::IThroughputThrottlerPtr TCompanionRuntimeContext::GetThrottler(
+NConcurrency::IThroughputThrottlerPtr TCompanionRuntimeContext::GetThrottlerOrThrow(
     const TThrottlerId& throttlerId)
 {
     THROW_ERROR_EXCEPTION("Distributed throttler %Qv is not available in a companion process",
         throttlerId);
+}
+
+NConcurrency::IThroughputThrottlerPtr TCompanionRuntimeContext::TryGetThrottler(
+    const TThrottlerId& throttlerId)
+{
+    return GetThrottlerOrThrow(throttlerId);
 }
 
 TSystemTimestamp TCompanionRuntimeContext::GetCurrentTimestamp() const

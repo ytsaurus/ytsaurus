@@ -88,23 +88,39 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TDistributedThrottlerFactoryTest, GetClientReturnsSameHandleAcrossCalls)
+TEST_F(TDistributedThrottlerFactoryTest, GetClientOrThrowReturnsSameHandleAcrossCalls)
 {
     StartServer({{"api", 1000}});
     auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
 
-    auto first = factory->GetClient(TThrottlerId("api"));
-    auto second = factory->GetClient(TThrottlerId("api"));
+    auto first = factory->GetClientOrThrow(TThrottlerId("api"));
+    auto second = factory->GetClientOrThrow(TThrottlerId("api"));
     EXPECT_EQ(first.Get(), second.Get());
 }
 
-TEST_F(TDistributedThrottlerFactoryTest, GetClientThrowsForUnknownName)
+TEST_F(TDistributedThrottlerFactoryTest, TryGetClientReturnsConfiguredHandle)
+{
+    StartServer({{"api", 1000}});
+    auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
+
+    EXPECT_EQ(factory->TryGetClient(TThrottlerId("api")).Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, TryGetClientReturnsNullForUnknownName)
+{
+    StartServer({{"api", 1000}});
+    auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
+
+    EXPECT_FALSE(factory->TryGetClient(TThrottlerId("nonexistent")));
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, GetClientOrThrowThrowsForUnknownName)
 {
     StartServer({{"api", 1000}});
     auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
 
     EXPECT_THROW_WITH_SUBSTRING(
-        factory->GetClient(TThrottlerId("nonexistent")),
+        factory->GetClientOrThrow(TThrottlerId("nonexistent")),
         "not configured");
 }
 
@@ -113,13 +129,13 @@ TEST_F(TDistributedThrottlerFactoryTest, HandleSurvivesReconfigureWithChangedSpe
     StartServer({{"api", 1000}});
     auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
 
-    auto handle = factory->GetClient(TThrottlerId("api"));
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
     EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
 
     factory->Reconfigure({{TThrottlerId("api"), MakeSpec(500.0, TDuration::Seconds(2))}});
 
     // Same handle pointer keeps working after the underlying client is rebuilt.
-    EXPECT_EQ(handle.Get(), factory->GetClient(TThrottlerId("api")).Get());
+    EXPECT_EQ(handle.Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
     EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
 }
 
@@ -128,14 +144,14 @@ TEST_F(TDistributedThrottlerFactoryTest, HandleSurvivesReconfigureWithUnchangedS
     StartServer({{"api", 1000}});
     auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
 
-    auto handle = factory->GetClient(TThrottlerId("api"));
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
     EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
 
     // New shared pointer carrying an equal spec — handle and underlying must
     // both stay (no rebuild).
     factory->Reconfigure({{TThrottlerId("api"), MakeSpec(1000.0)}});
 
-    EXPECT_EQ(handle.Get(), factory->GetClient(TThrottlerId("api")).Get());
+    EXPECT_EQ(handle.Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
     EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
 }
 
@@ -144,18 +160,19 @@ TEST_F(TDistributedThrottlerFactoryTest, HandleThrowsAfterNameRemoved)
     StartServer({{"api", 1000}});
     auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
 
-    auto handle = factory->GetClient(TThrottlerId("api"));
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
     EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
 
     factory->Reconfigure({});
 
+    EXPECT_FALSE(factory->TryGetClient(TThrottlerId("api")));
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(handle->Throttle(1)).ThrowOnError(),
         "not configured");
 
-    // GetClient with the removed name now throws too.
+    // GetClientOrThrow with the removed name now throws too.
     EXPECT_THROW_WITH_SUBSTRING(
-        factory->GetClient(TThrottlerId("api")),
+        factory->GetClientOrThrow(TThrottlerId("api")),
         "not configured");
 }
 
@@ -164,15 +181,16 @@ TEST_F(TDistributedThrottlerFactoryTest, HandleResumesAfterNameReadded)
     StartServer({{"api", 1000}});
     auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
 
-    auto handle = factory->GetClient(TThrottlerId("api"));
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
     factory->Reconfigure({});
 
     EXPECT_FALSE(WaitFor(handle->Throttle(1)).IsOK());
 
     factory->Reconfigure({{TThrottlerId("api"), MakeSpec(1000.0)}});
 
+    EXPECT_EQ(handle.Get(), factory->TryGetClient(TThrottlerId("api")).Get());
     // The cached handle is rewired to a fresh underlying client.
-    EXPECT_EQ(handle.Get(), factory->GetClient(TThrottlerId("api")).Get());
+    EXPECT_EQ(handle.Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
     EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
 }
 

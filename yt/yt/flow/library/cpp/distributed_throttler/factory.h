@@ -23,12 +23,14 @@ namespace NYT::NFlow::NDistributedThrottler {
 struct IDistributedThrottlerFactory
     : public TRefCounted
 {
-    //! Returns a stable handle for the given throttler, creating it on first
-    //! call. The handle survives Reconfigure: when the underlying client is
-    //! rebuilt, the same pointer keeps working with the new config. Safe to
-    //! cache in user code.
+    //! Returns a stable handle for the given throttler. The handle survives
+    //! Reconfigure: when the underlying client is rebuilt, the same pointer
+    //! keeps working with the new config. Safe to cache in user code.
     //! Throws if the name is not in the current configs.
-    virtual NConcurrency::IThroughputThrottlerPtr GetClient(
+    virtual NConcurrency::IThroughputThrottlerPtr GetClientOrThrow(
+        std::string_view throttlerName) = 0;
+
+    virtual NConcurrency::IThroughputThrottlerPtr TryGetClient(
         std::string_view throttlerName) = 0;
 
     //! Priority key attached to every subsequent RequestQuota RPC.

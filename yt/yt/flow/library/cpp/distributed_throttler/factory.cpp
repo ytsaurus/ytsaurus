@@ -17,7 +17,7 @@ namespace NYT::NFlow::NDistributedThrottler {
 namespace {
 
 // Stable wrapper around an IThroughputThrottler whose underlying instance can
-// be swapped atomically. Returned to users from GetClient and reused across
+// be swapped atomically. Returned to users from GetClientOrThrow and reused across
 // Reconfigure: when the spec changes the factory rebuilds the inner client
 // and stores it here, so a cached pointer keeps working with the fresh config.
 class TThrottlerWrapper
@@ -128,13 +128,21 @@ public:
         }
     }
 
-    NConcurrency::IThroughputThrottlerPtr GetClient(std::string_view throttlerName) override
+    NConcurrency::IThroughputThrottlerPtr GetClientOrThrow(std::string_view throttlerName) override
+    {
+        if (auto client = TryGetClient(throttlerName)) {
+            return client;
+        }
+        THROW_ERROR_EXCEPTION("Throttler %Qv is not configured for this client",
+            throttlerName);
+    }
+
+    NConcurrency::IThroughputThrottlerPtr TryGetClient(std::string_view throttlerName) override
     {
         auto guard = Guard(Lock_);
         auto it = Wrappers_.find(throttlerName);
         if (it == Wrappers_.end() || !it->second.Spec) {
-            THROW_ERROR_EXCEPTION("Throttler %Qv is not configured for this client",
-                throttlerName);
+            return nullptr;
         }
         return it->second.Wrapper;
     }

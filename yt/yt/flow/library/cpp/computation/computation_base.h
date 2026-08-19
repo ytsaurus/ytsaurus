@@ -163,7 +163,8 @@ protected:
     //! Returns the distributed throttler client for the given id.
     //! Throws if |throttlerId| is not in the dynamic pipeline spec's
     //! `throttlers` — this is a configuration error.
-    NConcurrency::IThroughputThrottlerPtr GetThrottler(const TThrottlerId& throttlerId);
+    NConcurrency::IThroughputThrottlerPtr GetThrottlerOrThrow(const TThrottlerId& throttlerId);
+    NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId);
 
 protected:
     const NDistributedThrottler::IDistributedThrottlerFactoryPtr& GetThrottlerFactory() const

@@ -63,7 +63,8 @@ struct IRuntimeContext
 
     //! Returns the distributed throttler client for |throttlerId|. Throws if it is not in
     //! the dynamic pipeline spec's ``throttlers`` (a configuration error).
-    virtual NConcurrency::IThroughputThrottlerPtr GetThrottler(const TThrottlerId& throttlerId) = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr GetThrottlerOrThrow(const TThrottlerId& throttlerId) = 0;
+    virtual NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId) = 0;
 
     //! Raw ``function_parameters`` map from the dynamic computation spec (never null; an empty
     //! map when the block is absent), reflecting the latest reconfiguration. Prefer the typed

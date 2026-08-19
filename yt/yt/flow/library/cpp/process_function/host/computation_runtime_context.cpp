@@ -142,10 +142,16 @@ TTimer TComputationRuntimeContext::MakeTimer(
     return timer;
 }
 
-IThroughputThrottlerPtr TComputationRuntimeContext::GetThrottler(const TThrottlerId& throttlerId)
+IThroughputThrottlerPtr TComputationRuntimeContext::GetThrottlerOrThrow(const TThrottlerId& throttlerId)
 {
     YT_VERIFY(ThrottlerFactory_);
-    return ThrottlerFactory_->GetClient(throttlerId.Underlying());
+    return ThrottlerFactory_->GetClientOrThrow(throttlerId.Underlying());
+}
+
+IThroughputThrottlerPtr TComputationRuntimeContext::TryGetThrottler(const TThrottlerId& throttlerId)
+{
+    YT_VERIFY(ThrottlerFactory_);
+    return ThrottlerFactory_->TryGetClient(throttlerId.Underlying());
 }
 
 IMapNodePtr TComputationRuntimeContext::GetDynamicParametersNode() const

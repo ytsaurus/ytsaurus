@@ -222,10 +222,16 @@ TWatermarkStatePtr TComputationBase::GetWatermarkState() const
     return WatermarkState_;
 }
 
-NConcurrency::IThroughputThrottlerPtr TComputationBase::GetThrottler(const TThrottlerId& throttlerId)
+NConcurrency::IThroughputThrottlerPtr TComputationBase::GetThrottlerOrThrow(const TThrottlerId& throttlerId)
 {
     YT_VERIFY(ThrottlerFactory_);
-    return ThrottlerFactory_->GetClient(throttlerId.Underlying());
+    return ThrottlerFactory_->GetClientOrThrow(throttlerId.Underlying());
+}
+
+NConcurrency::IThroughputThrottlerPtr TComputationBase::TryGetThrottler(const TThrottlerId& throttlerId)
+{
+    YT_VERIFY(ThrottlerFactory_);
+    return ThrottlerFactory_->TryGetClient(throttlerId.Underlying());
 }
 
 const THashMap<TStreamId, TStreamTraverseDataPtr>& TComputationBase::GetInputTraverse() const
@@ -1471,7 +1477,7 @@ void TUniversalComputationBase::ThrottleInputBatch(
     std::vector<TFuture<void>> futures;
     if (rowsThrottlerId) {
         i64 size = std::ssize(messages) + std::ssize(timers) + std::ssize(visits);
-        futures.push_back(GetThrottler(*rowsThrottlerId)->Throttle(size));
+        futures.push_back(GetThrottlerOrThrow(*rowsThrottlerId)->Throttle(size));
     }
     if (bytesThrottlerId) {
         i64 totalBytes = 0;
@@ -1484,7 +1490,7 @@ void TUniversalComputationBase::ThrottleInputBatch(
         for (const auto& visit : visits) {
             totalBytes += visit->ByteSize;
         }
-        futures.push_back(GetThrottler(*bytesThrottlerId)->Throttle(totalBytes));
+        futures.push_back(GetThrottlerOrThrow(*bytesThrottlerId)->Throttle(totalBytes));
     }
 
     WaitFor(AllSucceeded(std::move(futures)))
