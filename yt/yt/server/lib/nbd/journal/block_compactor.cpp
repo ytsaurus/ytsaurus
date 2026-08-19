@@ -22,8 +22,6 @@
 
 #include <library/cpp/yt/logging/logger.h>
 
-#include <library/cpp/yt/memory/leaky_ref_counted_singleton.h>
-
 #include <util/generic/hash_set.h>
 
 namespace NYT::NNbd::NJournal {
@@ -249,30 +247,6 @@ IBlockCompactorPtr CreateBlockCompactor(
         std::move(blockStore),
         std::move(invoker),
         std::move(logger));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-class TNullBlockCompactor
-    : public IBlockCompactor
-{
-public:
-    void Start() final
-    { }
-
-    void Stop() final
-    { }
-};
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-IBlockCompactorPtr GetNullBlockCompactor()
-{
-    return LeakyRefCountedSingleton<TNullBlockCompactor>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

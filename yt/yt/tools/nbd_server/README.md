@@ -51,7 +51,7 @@ Snapshots are point-in-time and taken while the device serves I/O; see
 device's journal chunks as hunks rather than copying block data, so a snapshot is
 cheap and the table pins the chunks it references.
 
-Optional `block_compactor` (absent disables it) turns on background compaction,
+`block_compactor` configures background compaction,
 which relocates the surviving blocks out of mostly-dead chunks so the old ones
 can be reclaimed. A device restored from a snapshot needs it to ever release the
 snapshot's chunks; since the table pins them, they are freed only once it is removed.

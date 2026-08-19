@@ -125,7 +125,7 @@ void TJournalBlockCompactorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("garbage_ratio_threshold", &TThis::GarbageRatioThreshold)
         .Default(0.5)
-        .InRange(0.0, 1.0);
+        .InRange(0.1, 0.9);
     registrar.Parameter("scan_period", &TThis::ScanPeriod)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("max_concurrent_compactions", &TThis::MaxConcurrentCompactions)
@@ -158,7 +158,7 @@ void TJournalBlockDeviceConfig::Register(TRegistrar registrar)
     registrar.Parameter("block_flusher", &TThis::BlockFlusher)
         .DefaultNew();
     registrar.Parameter("block_compactor", &TThis::BlockCompactor)
-        .Default();
+        .DefaultNew();
     registrar.Parameter("snapshot_blocks_per_batch", &TThis::SnapshotBlocksPerBatch)
         .Default(1'000'000)
         .InRange(1, MaxBlocksPerDevice);

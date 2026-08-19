@@ -38,8 +38,6 @@ IBlockCompactorPtr CreateBlockCompactor(
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
-IBlockCompactorPtr GetNullBlockCompactor();
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNbd::NJournal
