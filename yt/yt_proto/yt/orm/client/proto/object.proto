@@ -593,6 +593,8 @@ extend google.protobuf.FileOptions
     optional string module_output_filename = 30035;
 
     optional ESetUpdateObjectMode set_update_object_mode = 30037;
+
+    // Enable generation of `/meta/history` with revision trackers for history attributes.
     optional bool enable_history_revisions = 30038;
 
     // Can be overridden per object.
