@@ -13,6 +13,7 @@
 # changes in this file.
 
 add_subdirectory(flow_execute)
+add_subdirectory(unittests)
 
 add_library(library-cpp-pipeline_helpers)
 

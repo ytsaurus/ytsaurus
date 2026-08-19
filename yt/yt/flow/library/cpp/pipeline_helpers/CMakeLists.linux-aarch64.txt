@@ -15,6 +15,7 @@
 find_package(linux-headers-generic REQUIRED)
 
 add_subdirectory(flow_execute)
+add_subdirectory(unittests)
 
 add_library(library-cpp-pipeline_helpers)
 
