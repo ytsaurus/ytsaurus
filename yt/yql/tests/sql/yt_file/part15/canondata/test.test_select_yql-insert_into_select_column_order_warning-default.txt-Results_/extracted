@@ -1,0 +1,14 @@
+<tmp_path>/program.sql:<main>: Warning: Type annotation
+
+    <tmp_path>/program.sql:<main>:7:14: Warning: At function: RemovePrefixMembers, At function: Unordered
+    	INSERT INTO @x (a, b)
+	             ^
+        <tmp_path>/program.sql:<main>:8:1: Warning: At function: YqlSelect, At tuple, At tuple, At tuple, At function: YqlSetItem, Column names in SELECT don't match column specification in parenthesis
+        	SELECT 1 AS b, 2 AS a;
+	^
+            <tmp_path>/program.sql:<main>:7:17: Warning: At position 1 actual "b" doesn't match expected "a"
+            	INSERT INTO @x (a, b)
+	                ^
+            <tmp_path>/program.sql:<main>:7:20: Warning: At position 2 actual "a" doesn't match expected "b"
+            	INSERT INTO @x (a, b)
+	                   ^

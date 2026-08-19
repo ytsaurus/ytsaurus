@@ -2201,6 +2201,27 @@
             "uri": "https://{canondata_backend}/1925821/00c56205d7e3f6cc551c025a70edf36521cdada7/resource.tar.gz#test.test_select-logical_ops-default.txt-Results_/results.txt"
         }
     ],
+    "test.test[select_yql-insert_into_values_column_order-default.txt-Debug]": [
+        {
+            "checksum": "9faf5f91ebfcf9ed3158f18215f3c3c3",
+            "size": 1772,
+            "uri": "https://{canondata_backend}/1689644/e4245e1e1c43d604711fc320df9039cfc624af48/resource.tar.gz#test.test_select_yql-insert_into_values_column_order-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[select_yql-insert_into_values_column_order-default.txt-Plan]": [
+        {
+            "checksum": "af32811df6a73135df4af9e870487a7b",
+            "size": 5479,
+            "uri": "https://{canondata_backend}/1689644/e4245e1e1c43d604711fc320df9039cfc624af48/resource.tar.gz#test.test_select_yql-insert_into_values_column_order-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[select_yql-insert_into_values_column_order-default.txt-Results]": [
+        {
+            "checksum": "df04585c1a71220e34da88762b97509a",
+            "size": 976,
+            "uri": "https://{canondata_backend}/1689644/e4245e1e1c43d604711fc320df9039cfc624af48/resource.tar.gz#test.test_select_yql-insert_into_values_column_order-default.txt-Results_/results.txt"
+        }
+    ],
     "test.test[table_range-concat_with_view--Debug]": [
         {
             "checksum": "fec1ba5d7f1ef6aa3344e9cbb4787932",
