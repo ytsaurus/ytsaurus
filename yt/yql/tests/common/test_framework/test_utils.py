@@ -88,35 +88,17 @@ def infer_yt_schema(attrs):
     return yt.yson.dumps(attrs, yson_format="pretty").decode()
 
 
-def wait_pipeline_state_or_failed_jobs(
-    target_state, pipeline_path,
+def wait_pipeline_condition_or_failed_jobs(
+    condition, pipeline_path,
     timeout=600,
     client=None,
+    condition_description="condition",
+    ignore_exceptions=False,
 ):
     import yt.logger as logger
 
     from yt.common import YtError
-    from yt.wrapper.flow_commands import PipelineState, get_pipeline_state, flow_execute
-
-    if target_state == PipelineState.Completed:
-        target_states = {PipelineState.Completed, }
-    elif target_state == PipelineState.Working:
-        target_states = {PipelineState.Completed, PipelineState.Working}
-    elif target_state == PipelineState.Stopped:
-        target_states = {PipelineState.Completed, PipelineState.Stopped}
-    elif target_state == PipelineState.Draining:
-        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Draining}
-    elif target_state == PipelineState.Paused:
-        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused}
-    elif target_state == PipelineState.Pausing:
-        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused, PipelineState.Pausing}
-    else:
-        logger.warning("Unknown pipeline state %s", target_state)
-        return
-
-    invalid_state_transitions = {
-        PipelineState.Stopped: {PipelineState.Paused, },
-    }
+    from yt.wrapper.flow_commands import get_pipeline_state, flow_execute
 
     deadline = datetime.now() + timedelta(seconds=timeout)
 
@@ -129,15 +111,18 @@ def wait_pipeline_state_or_failed_jobs(
             timeout=timeout,
             client=client)
 
-        if current_state in target_states:
-            logger.info("Waiting finished (current state: %s, target state: %s)",
-                        current_state, target_state)
-            return
+        try:
+            condition_met = condition(current_state)
+        except Exception:
+            if not ignore_exceptions:
+                raise
+            logger.exception("Failed to check wait condition: %s", condition_description)
+            condition_met = False
 
-        if current_state in invalid_state_transitions.get(target_state, []):
-            raise YtError("Invalid state transition", attributes={
-                "current_state": current_state,
-                "target_state": target_state})
+        if condition_met:
+            logger.info("Waiting finished (current state: %s, condition: %s)",
+                        current_state, condition_description)
+            return
 
         try:
             # TODO(ngc224): debug occasional computation-related method errors
@@ -171,10 +156,56 @@ def wait_pipeline_state_or_failed_jobs(
                 logger.exception("Found failed jobs in some computations")
                 raise
 
-        logger.info("Still waiting (current state: %s, target state: %s)",
-                    current_state, target_state)
+        logger.info("Still waiting (current state: %s, condition: %s)",
+                    current_state, condition_description)
 
         time.sleep(1)
+
+
+def wait_pipeline_state_or_failed_jobs(
+    target_state, pipeline_path,
+    timeout=600,
+    client=None,
+):
+    import yt.logger as logger
+
+    from yt.common import YtError
+    from yt.wrapper.flow_commands import PipelineState
+
+    if target_state == PipelineState.Completed:
+        target_states = {PipelineState.Completed, }
+    elif target_state == PipelineState.Working:
+        target_states = {PipelineState.Completed, PipelineState.Working}
+    elif target_state == PipelineState.Stopped:
+        target_states = {PipelineState.Completed, PipelineState.Stopped}
+    elif target_state == PipelineState.Draining:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Draining}
+    elif target_state == PipelineState.Paused:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused}
+    elif target_state == PipelineState.Pausing:
+        target_states = {PipelineState.Completed, PipelineState.Stopped, PipelineState.Paused, PipelineState.Pausing}
+    else:
+        logger.warning("Unknown pipeline state %s", target_state)
+        return
+
+    invalid_state_transitions = {
+        PipelineState.Stopped: {PipelineState.Paused, },
+    }
+
+    def target_state_reached(current_state):
+        if current_state in invalid_state_transitions.get(target_state, []):
+            raise YtError("Invalid state transition", attributes={
+                "current_state": current_state,
+                "target_state": target_state})
+        return current_state in target_states
+
+    wait_pipeline_condition_or_failed_jobs(
+        target_state_reached,
+        pipeline_path,
+        timeout=timeout,
+        client=client,
+        condition_description="target state: %s" % target_state,
+    )
 
 
 def upper_first(str):
