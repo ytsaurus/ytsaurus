@@ -4745,9 +4745,16 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
             TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp,
             options.PlaceholderValues);
+        YT_LOG_DEBUG("Untruncated select query (Query: %v, Timestamp: %v, PlaceholderValues: %v)",
+            query,
+            options.Timestamp,
+            options.PlaceholderValues);
     } else {
         context->SetRequestInfo("Query: %v, Timestamp: %v",
             TTruncatedStringView(query, queryTruncateLimit),
+            options.Timestamp);
+        YT_LOG_DEBUG("Untruncated select query (Query: %v, Timestamp: %v)",
+            query,
             options.Timestamp);
     }
 
