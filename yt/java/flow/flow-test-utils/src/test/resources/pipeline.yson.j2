@@ -1,0 +1,50 @@
+{
+    spec = {
+        computations = {
+            "{{ computation_id }}" = {
+                computation_class_name = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                group_by_schema = [
+                    {name = "hash"; expression = "farm_hash(hash_column)"; type = "uint64"; required = %true};
+                    {name = "strColumn0"; type = "string"};
+                ];
+                input_stream_ids = ["inputStream-0"];
+                output_stream_ids = ["outputStream-0"];
+                parameters = {
+                    wait_for_actions = "{{ wait_time }}";
+                    internal_states = [];
+                };
+                external_state_managers = {};
+            };
+        };
+        streams = {
+            "inputStream-0" = {
+                schema = [
+                    {name = "hashColumn"; type = "uint64"};
+                    {name = "strColumn0"; type = "string"};
+                    {name = "numColumn0"; type = "int64"};
+                    {name = "strColumn1"; type = "string"};
+                    {name = "numColumn1"; type = "int64"};
+                ];
+            };
+            "outputStream-0" = {
+                schema = [
+                    {name = "hashColumn"; type = "uint64"};
+                    {name = "strColumn0"; type = "string"};
+                    {name = "numColumn0"; type = "int64"};
+                    {name = "strColumn1"; type = "string"};
+                    {name = "numColumn1"; type = "int64"};
+                ];
+            };
+        };
+    };
+    dynamic_spec = {
+        computations = {
+            "{{ computation_id }}" = {
+                parameters = {
+                    min_partition_count = "5";
+                    max_partition_count = "10";
+                };
+            };
+        };
+    };
+}

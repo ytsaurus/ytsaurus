@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(2.18.0)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(4215914375)
+
+SRC_RESOURCE(4215914909)
+
+ORIGINAL_SOURCE(https://github.com/google/error-prone)
+
+END()
