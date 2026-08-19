@@ -31,6 +31,7 @@ ENDIF()
 GO_TEST_SRCS(
     config_test.go
     example_test.go
+    types_test.go
 )
 
 END()
