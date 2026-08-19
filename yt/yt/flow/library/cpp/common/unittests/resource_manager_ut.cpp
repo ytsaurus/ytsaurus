@@ -926,6 +926,50 @@ TEST_F(TResourceManagerTest, PreloadFailedResourceDroppedFromStatus)
     EXPECT_EQ(states.count("res"), 0u);
 }
 
+TEST_F(TResourceManagerTest, PreloadRetryAfterFailureCreatesNewIncarnation)
+{
+    THashMap<TResourceId, TResourceSpecPtr> resources;
+    resources["res"] = BuildPreloadRequiredSlowResourceSpec();
+
+    auto actionQueue = New<TActionQueue>();
+    auto resourceManager = CreateManager(resources, actionQueue->GetInvoker());
+
+    resourceManager->UpdatePreloadedResources({"res"});
+    auto firstResource = TSlowResource::GetLastResource();
+    auto firstLoadFuture = resourceManager->Load("res");
+
+    DrainInvoker(actionQueue->GetInvoker());
+    ASSERT_TRUE(firstResource->IsLoadStarted());
+
+    firstResource->FailLoad(TError("load failed"));
+    WaitUntilSet(firstLoadFuture);
+    DrainInvoker(actionQueue->GetInvoker());
+
+    ASSERT_EQ(resourceManager->GetPreloadedStates().count("res"), 0u);
+
+    resourceManager->UpdatePreloadedResources({"res"});
+    auto secondLoadFuture = resourceManager->Load("res");
+    ASSERT_FALSE(secondLoadFuture.IsSet())
+        << "Failed preload retry must return a fresh pending load future";
+    DrainInvoker(actionQueue->GetInvoker());
+
+    auto secondResource = TSlowResource::GetLastResource();
+    ASSERT_NE(firstResource->GetResourceInstanceId(), secondResource->GetResourceInstanceId())
+        << "Failed preload retry must create a fresh resource incarnation";
+    ASSERT_EQ(
+        firstResource->GetResourceIncarnationGeneration() + 1,
+        secondResource->GetResourceIncarnationGeneration());
+    ASSERT_TRUE(secondResource->IsLoadStarted());
+
+    secondResource->CompleteLoad();
+    WaitFor(secondLoadFuture).ThrowOnError();
+    DrainInvoker(actionQueue->GetInvoker());
+
+    auto states = resourceManager->GetPreloadedStates();
+    ASSERT_EQ(states.count("res"), 1u);
+    EXPECT_EQ(states.at("res"), EPreloadedResourceState::Preloaded);
+}
+
 TEST_F(TResourceManagerTest, PreloadRemoveWhileLoading)
 {
     THashMap<TResourceId, TResourceSpecPtr> resources;
