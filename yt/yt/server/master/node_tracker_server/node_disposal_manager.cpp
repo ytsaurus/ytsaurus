@@ -258,7 +258,10 @@ private:
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& replicasOrError) {
                 if (!replicasOrError.IsOK()) {
                     location->SetBeingDisposed(false);
-                    YT_LOG_ERROR(replicasOrError, "Error getting Sequoia location replicas");
+                    YT_LOG_ERROR(
+                        replicasOrError,
+                        "Error getting Sequoia location replicas during location disposal (locationIndex: %v)",
+                        locationIndex);
                     return;
                 }
 
@@ -323,6 +326,12 @@ private:
                             if (!IsObjectAlive(location)) {
                                 return;
                             }
+
+                            YT_LOG_DEBUG(
+                                response,
+                                "Failed to modify Sequoia replicas during location disposal (LocationUuid: %v, LocationIndex: %v)",
+                                location->GetUuid(),
+                                location->GetIndex());
 
                             location->SetBeingDisposed(false);
                             return;
