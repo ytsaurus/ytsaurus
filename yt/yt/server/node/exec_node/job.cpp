@@ -428,7 +428,7 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
                 GetUserSlot()->GetUserId(),
                 /*hasNbdServer*/ static_cast<bool>(Bootstrap_->GetNbdServer()),
                 JobSpecExt_.enable_virtual_sandbox(),
-                JobSpecExt_.enable_root_volume_disk_quota(),
+                JobSpecExt_.disable_rbind_root_volume(),
                 /*needGpuLayers*/ UserJobSpec_ && (NeedGpuLayers() || Bootstrap_->GetGpuManager()->ShouldTestLayers()));
 
             if (UserJobSpec_) {
@@ -3543,7 +3543,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyInternalConfig->OperationsArchiveVersion = Bootstrap_->GetJobController()->GetOperationsArchiveVersion();
 
-    proxyInternalConfig->EnableRootVolumeDiskQuota = FSSecretary_->IsRootVolumeDiskQuotaEnabled();
+    proxyInternalConfig->DisableRbindRootVolume = FSSecretary_->IsRbindRootVolumeDisabled();
     proxyInternalConfig->RestrictPortoPlace = RestrictPortoPlace_;
 
     return proxyInternalConfig;
@@ -3624,7 +3624,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     // TODO(khlebnikov): Move into volume manager.
-    options.EnableRootVolumeDiskQuota = FSSecretary_->IsRootVolumeDiskQuotaEnabled();
+    options.DisableRbindRootVolume = FSSecretary_->IsRbindRootVolumeDisabled();
     options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
     options.UserId = GetUserSlot()->GetUserId();
 

@@ -1387,9 +1387,8 @@ class TestRootVolumeDiskQuota(YTEnvSetup):
         create("table", "//tmp/t_out")
 
     @authors("artemagafonov")
-    @pytest.mark.parametrize("enable_fault_in", [None, b"", b"/tmp/", b"tmpfs/"])
-    @pytest.mark.parametrize("enable_root_volume_disk_quota", [False, True])
-    def test_root_volume_disk_quota(self, enable_fault_in, enable_root_volume_disk_quota):
+    @pytest.mark.parametrize("enable_fault_in", [None, b"", b"tmpfs/"])
+    def test_root_volume_disk_quota(self, enable_fault_in):
         self.setup_files()
 
         command = b""
@@ -1413,7 +1412,6 @@ class TestRootVolumeDiskQuota(YTEnvSetup):
                     "tmpfs_path": "tmpfs",
                     "tmpfs_size": 1024 * 1024,
                 },
-                "enable_root_volume_disk_quota": enable_root_volume_disk_quota,
             },
             track=False,
         )

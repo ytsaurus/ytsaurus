@@ -246,13 +246,13 @@ void TJobFSSecretary::ConfigureFromSpec(
     int userId,
     bool hasNbdServer,
     bool enableVirtualSandbox,
-    bool enableRootVolumeDiskQuota,
+    bool disableRbindRootVolume,
     bool needGpuLayers)
 {
     const bool firstConfiguration = !JobId_;
 
     OnNewJobStarted(jobId);
-    RootVolumeDiskQuotaEnabled_ = enableRootVolumeDiskQuota;
+    RbindRootVolumeDisabled_ = disableRbindRootVolume;
 
     {
         // Build description directly into a local struct so the result
@@ -646,7 +646,7 @@ const std::vector<TArtifactDescription>& TJobFSSecretary::GetArtifactDescriptors
 
 void TJobFSSecretary::MarkArtifactsAccessedViaVirtualSandbox(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec)
 {
-    if (!description->RootVolumeLayerArtifactKeys.empty() && RootVolumeDiskQuotaEnabled_) {
+    if (!description->RootVolumeLayerArtifactKeys.empty() && RbindRootVolumeDisabled_) {
         for (auto& artifact : description->Artifacts) {
             if (CanBeAccessedViaVirtualSandbox(artifact, userJobSpec)) {
                 artifact.AccessedViaVirtualSandbox = true;
@@ -760,9 +760,9 @@ IVolumePtr TJobFSSecretary::ReleaseGpuCheckVolume()
     return std::move(GpuCheckVolume_);
 }
 
-bool TJobFSSecretary::IsRootVolumeDiskQuotaEnabled() const
+bool TJobFSSecretary::IsRbindRootVolumeDisabled() const
 {
-    return RootVolumeDiskQuotaEnabled_;
+    return RbindRootVolumeDisabled_;
 }
 
 const THashSet<TString>& TJobFSSecretary::GetNbdDeviceIds() const
@@ -1029,7 +1029,7 @@ void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
     JobId_ = jobId;
     Logger = BaseLogger_.WithTag("JobId: %v", jobId);
 
-    RootVolumeDiskQuotaEnabled_ = false;
+    RbindRootVolumeDisabled_ = false;
     DockerImageId_.reset();
     // Verify that root volume is reusable if it's still present.
     // Non-reusable root volume should have been released via ReleaseRootVolumeIfNeeded().

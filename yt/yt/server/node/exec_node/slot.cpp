@@ -603,7 +603,7 @@ public:
 
     TFuture<void> PrepareSandboxDirectories(
         const TUserSandboxOptions& options,
-        bool ignoreQuota) override
+        bool hasRootVolume) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -617,7 +617,7 @@ public:
                 return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
                     options,
-                    ignoreQuota);
+                    hasRootVolume);
             });
     }
 

@@ -52,7 +52,7 @@ public:
     TFuture<void> PrepareSandboxDirectories(
         int slotIndex,
         TUserSandboxOptions options,
-        bool ignoreQuota);
+        bool hasRootVolume);
 
     //! Inform slot location about tmpfses to be used.
     void TakeIntoAccountTmpfsVolumes(
