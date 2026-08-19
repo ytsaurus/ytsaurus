@@ -197,19 +197,16 @@ public:
     {
         TChunkServiceProxy proxy(MasterChannel_);
 
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-        // COMPAT(shakurov): prefer proto ext (above).
-        batchReq->set_suppress_upstream_sync(true);
+        auto req = proxy.AttachChunkTrees();
+        GenerateMutationId(req);
+        SetSuppressUpstreamSync(&req->Header(), true);
 
-        auto* req = batchReq->add_attach_chunk_trees_subrequests();
         ToProto(req->mutable_parent_id(), OutputChunkListId_);
         ToProto(req->mutable_child_ids(), chunksIds);
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            rspOrError,
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Failed to attach chunks to chunk list");
     }
