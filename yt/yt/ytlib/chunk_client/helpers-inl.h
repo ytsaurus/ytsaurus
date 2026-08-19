@@ -88,7 +88,15 @@ std::optional<TPartitionTags> GetOptionalPartitionTags(const TProtoMessage& mess
 {
     using NYT::FromProto;
     if (!message.partition_tags().empty()) {
+        YT_VERIFY(
+            !message.has_partition_tag() ||
+            (message.partition_tags_size() == 1 &&
+                message.partition_tags(0) == message.partition_tag()));
         return TPartitionTags(FromProto<TPartitionTags::TUnderlying>(message.partition_tags()));
+    }
+    // COMPAT(apollo1321): Remove after the 26.2 branch is created.
+    if (message.has_partition_tag()) {
+        return TPartitionTags{message.partition_tag()};
     }
     return {};
 }
