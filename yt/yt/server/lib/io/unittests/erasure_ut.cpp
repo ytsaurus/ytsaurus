@@ -163,7 +163,7 @@ TEST(TErasureCodingTest, RandomText)
         data.push_back(static_cast<char>('a' + (std::abs(std::rand()) % 26)));
     }
 
-    for (auto codecId : TEnumTraits<ECodec>::GetDomainValues()) {
+    for (auto codecId : TEnumTraits<ECodec>::GetUniqueDomainValues()) {
         if (codecId == ECodec::None) {
             continue;
         }
