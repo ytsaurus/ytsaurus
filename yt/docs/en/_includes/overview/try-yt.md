@@ -24,7 +24,7 @@ Regardless of the installation method, the required system components will be de
 
 {% list tabs dropdown %}
 
-- Docker {selected}
+- Docker
 
   1. Install Docker:
       - If you're using Linux x86_64, install [Docker Engine](https://docs.docker.com/engine/install/ubuntu/).
@@ -296,7 +296,7 @@ Regardless of the installation method, the required system components will be de
 
   {{product-name}} is now deployed and ready for use. You may proceed to the next step. After you finish working with the examples, remember to [delete](#delete-cluster) the cluster.
 
-- Kind
+- Kind {selected}
 
   In this example, you will locally deploy a Kubernetes cluster consisting of a single node and run a {{product-name}} cluster in it. Docker will be used as the container runtime engine.
 
@@ -619,7 +619,7 @@ You'll need this to access the cluster via the CLI for the examples that follow.
 
 {% list tabs dropdown %}
 
-- Docker {selected}
+- Docker
 
   ```bash prompt="$"
   $ export YT_PROXY=localhost:8000
@@ -640,7 +640,7 @@ You'll need this to access the cluster via the CLI for the examples that follow.
 
   {% endnote %}
 
-- Kind
+- Kind {selected}
 
   ```bash prompt="$"
   $ export YT_PROXY='localhost:8081'
@@ -810,7 +810,7 @@ LIMIT 30;
 
 {% list tabs dropdown %}
 
-- Docker {selected}
+- Docker
 
   To delete a {{product-name}} cluster, shut down the `yt.frontend` and `yt.backend` containers. To do this, run the command:
     ```bash prompt="$"
@@ -852,7 +852,7 @@ LIMIT 30;
      $ podman volume rm minikube
      ```
 
-- Kind
+- Kind {selected}
 
   1. Delete the {{product-name}} cluster:
      ```bash prompt="$"
