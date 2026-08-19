@@ -1334,23 +1334,32 @@ private:
             chunkSpecs,
             FromProto<NChunkClient::TDataSourcePtr>(key.data_source()));
 
-        return [reader = std::move(reader), key, throttler] (IOutputStream* output) {
+        auto asyncStream = CreateFileReaderAdapter(reader);
+        auto prefetchingStream = CreatePrefetchingAdapter(
+            std::move(asyncStream),
+            GetArtifactCacheReaderConfig()->WindowSize);
+
+        return [prefetchingStream, key, throttler] (IOutputStream* output) {
             TThrottlingOutput throttlingOutput(output, throttler);
-            TBlock block;
-            while (reader->ReadBlock(&block)) {
-                if (block.Data.Empty()) {
-                    auto error = WaitFor(reader->GetReadyEvent());
-                    if (!error.IsOK()) {
-                        THROW_ERROR_EXCEPTION(
-                            NExecNode::EErrorCode::ArtifactFetchFailed,
-                            "Error while fetching artifact chunks")
-                            .With("path", key.data_source().path())
-                            .With("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
-                            .With(std::move(error));
-                    }
-                } else {
-                    throttlingOutput.Write(block.Data.Begin(), block.Size());
+            auto syncStream = CreateSyncAdapter(prefetchingStream);
+
+            const void* buf;
+            while (true) {
+                size_t size;
+                try {
+                    size = syncStream->Next(&buf);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION(
+                        NExecNode::EErrorCode::ArtifactFetchFailed,
+                        "Error while fetching artifact chunks")
+                        .With("path", key.data_source().path())
+                        .With("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
+                        .With(ex);
                 }
+                if (size == 0) {
+                    break;
+                }
+                throttlingOutput.Write(buf, size);
             }
         };
     }
