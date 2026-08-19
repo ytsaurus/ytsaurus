@@ -5209,6 +5209,7 @@ class TestChaosRpcProxy(TestChaos):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    NUM_CHAOS_CACHES = 1
     DELTA_RPC_DRIVER_CONFIG = {
         "table_mount_cache": {
             "expire_after_successful_update_time": 0,
@@ -5487,6 +5488,68 @@ class TestChaosNativeProxy(ChaosTestBase):
         wait(lambda: _get_card_state(a_cell_id, card_id) == "normal")
         self._sync_migrate_replication_cards(a_cell_id, [card_id], destination_cell_id=metadata_cell_id)
         wait(lambda: _get_card_state(metadata_cell_id, card_id) == "normal")
+
+
+##################################################################
+
+
+class TestStandaloneChaosCache(ChaosTestBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTER_CACHES = 0
+    NUM_CHAOS_CACHES = 1
+
+    REPLICATION_CARD_CACHE_CONFIG = {
+        "enable_watching": False,
+        "expire_after_successful_update_time": 60000,
+        "refresh_time": 60000,
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "replication_card_cache": deepcopy(REPLICATION_CARD_CACHE_CONFIG),
+    }
+
+    def _create_native_driver(self):
+        config = deepcopy(self.Env.configs["driver"])
+        config["connection_type"] = "native"
+        config["api_version"] = 3
+        return Driver(config)
+
+    @authors("shamteev")
+    def test_replication_card_cache_hit(self):
+        assert self.Env.configs["master_cache"] == []
+        assert len(self.Env.configs["chaos_cache"]) == 1
+
+        cache_config = self.Env.configs["chaos_cache"][0]
+        cache_address = "{}:{}".format(self.Env.yt_config.fqdn, cache_config["rpc_port"])
+        assert self.Env.configs["driver"]["replication_card_cache"]["addresses"] == [cache_address]
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/ds"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/qs"},
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+
+        profiler = profiler_factory().at_chaos_cache(cache_address)
+        hit_sensor = "chaos_cache/chaos_cache/hit_request_count"
+        miss_sensor = "chaos_cache/chaos_cache/miss_request_count"
+
+        def get_request_counts():
+            hit_count = sum(projection["value"] for projection in profiler.get_all(hit_sensor))
+            miss_count = sum(projection["value"] for projection in profiler.get_all(miss_sensor))
+            return hit_count, miss_count
+
+        initial_request_count = sum(get_request_counts())
+
+        first_driver = self._create_native_driver()
+        insert_rows("//tmp/ds", [{"key": 1, "value": "first"}], driver=first_driver)
+        wait(lambda: sum(get_request_counts()) > initial_request_count)
+
+        hit_count_before_second_request, _ = get_request_counts()
+
+        second_driver = self._create_native_driver()
+        insert_rows("//tmp/ds", [{"key": 2, "value": "second"}], driver=second_driver)
+        wait(lambda: get_request_counts()[0] > hit_count_before_second_request)
 
 
 ##################################################################

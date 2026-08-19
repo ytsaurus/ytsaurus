@@ -405,6 +405,13 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
         if not yt_config.enable_multidaemon:
             _update_address_resolver(config)
 
+    for config in cluster_configuration["chaos_cache"]:
+        if yt_config.delta_chaos_cache_config:
+            update_inplace(config, yt_config.delta_chaos_cache_config)
+
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
+
     if yt_config.enable_multidaemon:
         _update_address_resolver(cluster_configuration["multi"])
 
