@@ -11,7 +11,6 @@ public interface StateManager {
      * Creates a state accessor for the given state descriptor and keyed entity.
      *
      * @param <T>        The type of the state value.
-     * @param <A>        The type of the state accessor.
      * @param descriptor The state descriptor that defines the state.
      * @param entity     The keyed entity for which the state accessor is created.
      * @return A state accessor for the given descriptor and entity.
