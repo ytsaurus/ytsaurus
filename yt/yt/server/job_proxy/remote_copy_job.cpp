@@ -420,8 +420,7 @@ private:
     void CopyErasureChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
     {
         auto cancelableContext = New<TCancelableContext>();
-        auto suspendableInvoker = CreateSuspendableInvoker(GetRemoteCopyInvoker());
-        auto cancelableInvoker = cancelableContext->CreateInvoker(suspendableInvoker);
+        auto cancelableInvoker = cancelableContext->CreateInvoker(GetRemoteCopyInvoker());
 
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto erasureCodecId = FromProto<NErasure::ECodec>(inputChunkSpec.erasure_codec());
@@ -568,7 +567,7 @@ private:
             cancelableContext->Cancel(TError("Erasure part repair started"));
 
             // Wait until all part copyings terminated.
-            WaitFor(suspendableInvoker->Suspend())
+            WaitFor(AllSet(copyFutures))
                 .ThrowOnError();
 
             TCurrentTraceContextGuard guard(OutputTraceContext_);
