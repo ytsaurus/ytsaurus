@@ -2,13 +2,9 @@ import yt.yson as yson
 
 
 # TODO(babenko): drop settings mirrored in get_dynamic_master_config below
-# COMPAT(aleksandra-zh): enable_secondary_master_registration should be removed after compat tests
-# are bumped to 25.1.
 def get_master_config():
     return {
         "enable_provision_lock": False,
-
-        "enable_secondary_master_registration": True,
 
         "timestamp_provider": {
             "soft_backoff_time": 100,
