@@ -4,8 +4,9 @@ import typing as t
 from collections import defaultdict
 
 from sqlglot import alias, exp
+from sqlglot.optimizer.journal import Journal, record
 from sqlglot.optimizer.qualify_columns import Resolver
-from sqlglot.optimizer.scope import Scope, traverse_scope
+from sqlglot.optimizer.scope import Scope, find_in_scope, traverse_scope
 from sqlglot.schema import ensure_schema
 from sqlglot.errors import OptimizeError
 from sqlglot.helper import seq_get
@@ -48,6 +49,7 @@ def pushdown_projections(
     schema: dict[str, object] | Schema | None = None,
     remove_unused_selections: bool = True,
     dialect: DialectType = None,
+    journal: Journal | None = None,
 ) -> E:
     """
     Rewrite sqlglot AST to remove unused columns projections.
@@ -121,7 +123,7 @@ def pushdown_projections(
 
         if isinstance(scope.expression, exp.Select):
             if remove_unused_selections:
-                _remove_unused_selections(scope, parent_selections, schema, alias_count)
+                _remove_unused_selections(scope, parent_selections, schema, alias_count, journal)
 
             if scope.scans_all_subscope_columns:
                 continue
@@ -152,7 +154,7 @@ def pushdown_projections(
     return expression
 
 
-def _remove_unused_selections(scope, parent_selections, schema, alias_count):
+def _remove_unused_selections(scope, parent_selections, schema, alias_count, journal=None):
     order = scope.expression.args.get("order")
 
     if order:
@@ -174,7 +176,7 @@ def _remove_unused_selections(scope, parent_selections, schema, alias_count):
         if select_all or name in parent_selections or name in order_refs or alias_count > 0:
             new_selections.append(selection)
             alias_count -= 1
-        elif selection.find(*SET_RETURNING_FUNCTIONS):
+        elif find_in_scope(selection, *SET_RETURNING_FUNCTIONS):
             # A set-returning function multiplies the rows of the whole query, so this
             # projection affects the cardinality of every output column and must be kept
             # even though it is otherwise unreferenced. It is not a positional alias slot,
@@ -185,7 +187,7 @@ def _remove_unused_selections(scope, parent_selections, schema, alias_count):
                 star = True
             removed = True
 
-        if not is_agg and selection.find(exp.AggFunc):
+        if not is_agg and find_in_scope(selection, exp.AggFunc):
             is_agg = True
 
     if star:
@@ -201,6 +203,9 @@ def _remove_unused_selections(scope, parent_selections, schema, alias_count):
     # If there are no remaining selections, just select a single constant
     if not new_selections:
         new_selections.append(default_selection(is_agg))
+
+    if journal is not None and removed:
+        record(journal, scope.expression, "expressions")
 
     scope.expression.select(*new_selections, append=False, copy=False)
 

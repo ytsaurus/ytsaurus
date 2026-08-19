@@ -9,6 +9,33 @@ if t.TYPE_CHECKING:
     from sqlglot.optimizer.annotate_types import TypeAnnotator
 
 
+COMPRESS_LONGBLOB_TYPES = {
+    exp.DType.TEXT,
+    exp.DType.MEDIUMTEXT,
+    exp.DType.LONGTEXT,
+    exp.DType.BLOB,
+    exp.DType.MEDIUMBLOB,
+    exp.DType.LONGBLOB,
+    exp.DType.JSON,
+}
+
+
+COMPRESS_VARBINARY_TYPES = {
+    exp.DType.CHAR,
+    exp.DType.VARCHAR,
+    exp.DType.BINARY,
+    exp.DType.VARBINARY,
+    exp.DType.TINYBLOB,
+    exp.DType.ENUM,
+    exp.DType.INT,
+    exp.DType.BIGINT,
+    exp.DType.DECIMAL,
+    exp.DType.DOUBLE,
+    exp.DType.DATE,
+    exp.DType.DATETIME,
+}
+
+
 def _annotate_reverse(self: TypeAnnotator, expression: exp.Reverse) -> exp.Reverse:
     if expression.this.is_type(exp.DType.BINARY, exp.DType.VARBINARY, exp.DType.UNKNOWN):
         self._annotate_by_args(expression, "this")
@@ -25,12 +52,42 @@ def _annotate_truncate(self: TypeAnnotator, expression: exp.Trunc) -> exp.Expr:
     return self._annotate_by_args(expression, "this")
 
 
+def _annotate_regexp_replace(self: TypeAnnotator, expression: exp.RegexpReplace) -> exp.Expr:
+    args = (expression.this, expression.expression, expression.args.get("replacement"))
+
+    has_binary = False
+    for arg in args:
+        if arg is not None:
+            if arg.is_type(exp.DType.UNKNOWN):
+                return self._set_type(expression, exp.DType.UNKNOWN)
+            has_binary = has_binary or arg.is_type(*exp.DataType.BINARY_TYPES)
+
+    return self._set_type(expression, exp.DType.LONGBLOB if has_binary else exp.DType.LONGTEXT)
+
+
+def _annotate_compress(self: TypeAnnotator, expression: exp.Compress) -> exp.Expr:
+    this = expression.this
+
+    if this.is_type(*COMPRESS_VARBINARY_TYPES):
+        return self._set_type(expression, exp.DType.VARBINARY)
+
+    if this.is_type(*COMPRESS_LONGBLOB_TYPES):
+        return self._set_type(expression, exp.DType.LONGBLOB)
+
+    if this.is_type(exp.DType.TINYTEXT):
+        return self._set_type(expression, exp.DType.BLOB)
+
+    return self._set_type(expression, exp.DType.UNKNOWN)
+
+
 EXPRESSION_METADATA = {
     **EXPRESSION_METADATA,
     **{
         expr_type: {"returns": exp.DType.DOUBLE}
         for expr_type in {
             exp.Atan2,
+            exp.MatchAgainst,
+            exp.StDistance,
         }
     },
     **{
@@ -59,6 +116,7 @@ EXPRESSION_METADATA = {
             exp.Stuff,  # insert function
             exp.SubstringIndex,
             exp.RegexpSubstr,
+            exp.Collation,
         }
     },
     **{
@@ -68,6 +126,12 @@ EXPRESSION_METADATA = {
             exp.Second,
             exp.Week,
             exp.Minute,
+        }
+    },
+    **{
+        expr_type: {"returns": exp.DType.BIGINT}
+        for expr_type in {
+            exp.RegexpInstr,
         }
     },
     **{
@@ -93,4 +157,6 @@ EXPRESSION_METADATA = {
     },
     exp.Reverse: {"annotator": _annotate_reverse},
     exp.Trunc: {"annotator": _annotate_truncate},
+    exp.RegexpReplace: {"annotator": _annotate_regexp_replace},
+    exp.Compress: {"annotator": _annotate_compress},
 }

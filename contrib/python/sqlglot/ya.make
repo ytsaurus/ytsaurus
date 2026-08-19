@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(30.14.0)
+VERSION(30.15.0)
 
 LICENSE(MIT)
 
@@ -14,6 +14,7 @@ PY_SRCS(
     sqlglot/__main__.py
     sqlglot/_typing.py
     sqlglot/_version.py
+    sqlglot/anonymize.py
     sqlglot/dialects/__init__.py
     sqlglot/dialects/athena.py
     sqlglot/dialects/bigquery.py
@@ -119,6 +120,7 @@ PY_SRCS(
     sqlglot/optimizer/eliminate_joins.py
     sqlglot/optimizer/eliminate_subqueries.py
     sqlglot/optimizer/isolate_table_selects.py
+    sqlglot/optimizer/journal.py
     sqlglot/optimizer/merge_subqueries.py
     sqlglot/optimizer/normalize.py
     sqlglot/optimizer/normalize_identifiers.py
