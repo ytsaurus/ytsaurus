@@ -458,7 +458,8 @@ void WaitPipeline(
 
 void WaitPipeline(
     NApi::IClientPtr client,
-    const TRichYPath& pipelinePath)
+    const TRichYPath& pipelinePath,
+    TDuration controllerUnavailableTimeout)
 {
     const auto& root = pipelinePath.GetPath();
 
@@ -468,6 +469,7 @@ void WaitPipeline(
     TLogReader controllerLogReader(client, NYPath::YPathJoin(root, ControllerLogsTableName));
 
     const auto startWaitingInstant = TInstant::Now();
+    std::optional<TInstant> firstFailureInstant;
     while (true) {
         try {
             if (!controllerLogReader.IsOpen()) {
@@ -487,6 +489,7 @@ void WaitPipeline(
                     .With("Pipeline", pipelinePath);
 
                 controllerLogReader.Read();
+                firstFailureInstant.reset();
 
                 WaitRelativelySmallTime(startWaitingInstant, TDuration::MilliSeconds(50), TDuration::Seconds(3));
             }
@@ -497,6 +500,19 @@ void WaitPipeline(
         } catch (const std::exception& ex) {
             YT_TLOG_ERROR("Failed to check pipeline")
                 .With(ex);
+
+            // A single failure is normal (controller restart, leader re-election); only a
+            // sustained one means there is no controller left to tail.
+            auto now = TInstant::Now();
+            if (!firstFailureInstant) {
+                firstFailureInstant = now;
+            } else if (now - *firstFailureInstant > controllerUnavailableTimeout) {
+                YT_TLOG_WARNING("Controller has been unreachable for too long; stopped tailing the pipeline")
+                    .With("UnreachableFor", now - *firstFailureInstant)
+                    .With(ex);
+                return;
+            }
+
             WaitRelativelySmallTime(startWaitingInstant, TDuration::MilliSeconds(250), TDuration::Seconds(5));
         }
     }

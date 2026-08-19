@@ -71,9 +71,12 @@ void WaitPipeline(
     const std::optional<std::string>& proxyRole,
     const NYPath::TYPath& root);
 
+//! Tails the controller log until the pipeline completes or the controller stays
+//! unreachable for |controllerUnavailableTimeout|.
 void WaitPipeline(
     NApi::IClientPtr client,
-    const NYPath::TRichYPath& pipelinePath);
+    const NYPath::TRichYPath& pipelinePath,
+    TDuration controllerUnavailableTimeout = DefaultWaitPipelineTimeout);
 
 ////////////////////////////////////////////////////////////////////////////////
 

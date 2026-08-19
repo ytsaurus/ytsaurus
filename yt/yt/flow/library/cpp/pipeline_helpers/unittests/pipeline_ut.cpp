@@ -1,5 +1,11 @@
 #include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
 
+#include <yt/yt/client/api/rowset.h>
+
+#include <yt/yt/client/queue_client/queue_rowset.h>
+
+#include <yt/yt/client/table_client/name_table.h>
+
 #include <yt/yt/client/unittests/mock/client.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -12,6 +18,8 @@ namespace {
 using namespace NApi;
 
 using ::testing::_;
+using ::testing::InSequence;
+using ::testing::Return;
 using ::testing::StrictMock;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -161,6 +169,68 @@ TEST(TWaitPipelineStateTest, ZeroWaitDoesNotIssueRequest)
             EPipelineState::Stopped,
             TDuration::Zero()),
         "Wait timed out");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYPath::TRichYPath MakePipelinePath()
+{
+    NYPath::TRichYPath path("//tmp/pipeline");
+    path.SetCluster("primary");
+    return path;
+}
+
+TIntrusivePtr<StrictMock<TMockClient>> MakeClientWithEmptyLog()
+{
+    auto client = New<StrictMock<TMockClient>>();
+    // The controller log reader opens by reading the log table's total row count.
+    EXPECT_CALL(*client, GetTabletInfos(_, _, _))
+        .WillRepeatedly(Return(MakeFuture(std::vector<TTabletInfo>{{}})));
+
+    auto nameTable = New<NTableClient::TNameTable>();
+    nameTable->RegisterName("data");
+    auto emptyLogBatch = NQueueClient::CreateQueueRowset(
+        CreateRowset(nameTable, TSharedRange<NTableClient::TUnversionedRow>()),
+        /*startOffset*/ 0);
+    EXPECT_CALL(*client, PullQueue(_, _, _, _, _))
+        .WillRepeatedly(Return(MakeFuture(emptyLogBatch)));
+    return client;
+}
+
+TFuture<TPipelineState> MakeUnavailableFuture()
+{
+    return MakeFuture<TPipelineState>(TError("Controller is unavailable"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TWaitPipelineTest, DetachesWhenControllerStaysUnreachable)
+{
+    auto client = MakeClientWithEmptyLog();
+    EXPECT_CALL(*client, GetPipelineState(_, _))
+        .WillRepeatedly(Return(MakeUnavailableFuture()));
+
+    auto startInstant = TInstant::Now();
+    WaitPipeline(client, MakePipelinePath(), /*controllerUnavailableTimeout*/ TDuration::MilliSeconds(200));
+    EXPECT_LT(TInstant::Now() - startInstant, TDuration::Seconds(30));
+}
+
+TEST(TWaitPipelineTest, TransientFailureDoesNotDetach)
+{
+    auto client = MakeClientWithEmptyLog();
+    // Without the streak reset on the successful poll the second failure at ~300 ms would
+    // exceed the 200 ms budget and the wait would detach before Completed.
+    InSequence sequence;
+    EXPECT_CALL(*client, GetPipelineState(_, _))
+        .WillOnce(Return(MakeUnavailableFuture()));
+    EXPECT_CALL(*client, GetPipelineState(_, _))
+        .WillOnce(Return(MakeFuture(TPipelineState{.State = EPipelineState::Working})));
+    EXPECT_CALL(*client, GetPipelineState(_, _))
+        .WillOnce(Return(MakeUnavailableFuture()));
+    EXPECT_CALL(*client, GetPipelineState(_, _))
+        .WillOnce(Return(MakeFuture(TPipelineState{.State = EPipelineState::Completed})));
+
+    WaitPipeline(client, MakePipelinePath(), /*controllerUnavailableTimeout*/ TDuration::MilliSeconds(200));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
