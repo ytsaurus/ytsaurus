@@ -918,16 +918,10 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
     context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
 
     GetKeys(limit)
-        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TObjectId>>& keysOrError) {
-            if (!keysOrError.IsOK()) {
-                context->Reply(keysOrError);
-                return;
-            }
-
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TObjectId>& keys) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
 
             std::vector<TFuture<TYsonString>> asyncValues;
-            const auto& keys = keysOrError.Value();
             for (const auto& key : keys) {
                 auto* object = objectManager->FindObject(key);
                 if (!IsObjectAlive(object)) {
@@ -939,6 +933,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 
                 auto* protoItem = response->add_items();
                 protoItem->set_key(ToString(key));
+
                 TAsyncYsonWriter writer(EYsonType::MapFragment);
                 auto proxy = objectManager->GetProxy(object, nullptr);
                 proxy->WriteAttributesFragment(&writer, attributeFilter, false);
@@ -946,28 +941,27 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
             }
 
             response->set_incomplete(response->items_size() == limit);
+            return AllSucceeded(asyncValues);
+        }).AsyncVia(GetCurrentInvoker()))
+        .Subscribe(BIND([=] (const TErrorOr<std::vector<TYsonString>>& valuesOrError) {
+            if (!valuesOrError.IsOK()) {
+                context->Reply(valuesOrError);
+                return;
+            }
 
-            AllSucceeded(asyncValues)
-                .Subscribe(BIND([=] (const TErrorOr<std::vector<TYsonString>>& valuesOrError) {
-                    if (!valuesOrError.IsOK()) {
-                        context->Reply(valuesOrError);
-                        return;
-                    }
+            const auto& values = valuesOrError.Value();
+            YT_VERIFY(response->items_size() == std::ssize(values));
+            for (int index = 0; index < response->items_size(); ++index) {
+                const auto& value = values[index];
+                if (!value.AsStringBuf().empty()) {
+                    response->mutable_items(index)->set_attributes(ToProto(value));
+                }
+            }
 
-                    const auto& values = valuesOrError.Value();
-                    YT_VERIFY(response->items_size() == std::ssize(values));
-                    for (int index = 0; index < response->items_size(); ++index) {
-                        const auto& value = values[index];
-                        if (!value.AsStringBuf().empty()) {
-                            response->mutable_items(index)->set_attributes(ToProto(value));
-                        }
-                    }
-
-                    context->SetResponseInfo("Count: %v, Incomplete: %v",
-                        response->items_size(),
-                        response->incomplete());
-                    context->Reply();
-                }));
+            context->SetResponseInfo("Count: %v, Incomplete: %v",
+                response->items_size(),
+                response->incomplete());
+            context->Reply();
         }).Via(GetCurrentInvoker()));
 }
 

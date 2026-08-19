@@ -7,6 +7,7 @@ TEST_SRCS(
     test_cypress_request_limits.py
     test_cypress.py
     test_portals.py
+    test_virtual_maps.py
 )
 
 END()

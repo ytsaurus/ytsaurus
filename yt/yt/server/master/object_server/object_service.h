@@ -19,8 +19,11 @@ struct IObjectService
     virtual IInvokerPtr CreateEpochLocalReadInvoker(const std::string& user) = 0;
     virtual IInvokerPtr GetLocalReadOffloadInvoker() = 0;
 
-    //! Throws TLeaderFallbackException at followers.
+    //! On followers, throws TError(EErrorCode::LeaderFallbackRequired).
     virtual void RequireLeader() = 0;
+
+    //! On followers, returns TError(EErrorCode::LeaderFallbackRequired).
+    virtual TError RequireLeaderAsync() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectService)
