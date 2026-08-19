@@ -8,6 +8,60 @@ Release notes for this component.
 
 **Releases:**
 
+{% cut "**0.4.1**" %}
+
+**Release date:** 2026-08-10
+
+
+**Release page:** [0.4.1](https://github.com/ytsaurus/ytsaurus-task-proxy/releases/tag/release/0.4.1)
+
+
+**Helm chart:** [0.4.1](https://github.com/orgs/ytsaurus/packages/container/task-proxy-chart/1116607758?tag=0.4.1)
+
+
+fix build scripts
+
+{% endcut %}
+
+
+{% cut "**0.4.0**" %}
+
+**Release date:** 2026-08-10
+
+
+**Release page:** [0.4.0](https://github.com/ytsaurus/ytsaurus-task-proxy/releases/tag/release/0.4.0)
+
+
+#### Added
+
+- Prometheus metrics for service discovery, YTsaurus requests, and authorization.
+- Helm support for `ServiceMonitor` / `VMServiceScrape` and alert rules for Prometheus or VictoriaMetrics.
+- Authorization-result caching with configurable TTL, capacity, backend-request concurrency, and proactive refresh.
+- A Grafana dashboard for authorization metrics.
+- Global task-proxy timeout settings:
+   - `timeouts.connectTimeoutSeconds`
+   - `timeouts.routeTimeoutSeconds`
+   - `timeouts.streamIdleTimeoutSeconds`
+- Per-operation `task_proxy` annotation overrides:
+   - `route_timeout_seconds`
+   - `stream_idle_timeout_seconds`
+- Documentation for the `task_proxy` annotation format and timeout overrides.
+
+ ### Changed
+
+- Improved logging and metrics for authorization and discovery infrastructure errors.
+- Added HTTP retries for YTsaurus requests.
+- Helm now supports an explicit `ytProxy` value; when omitted, it uses the HTTP proxy service in the release namespace.
+- Image tags are now optional in the Helm chart configuration.
+
+ ### Migration notes
+
+- For standalone binary deployments, `--namespace` has been replaced with the required `--yt-proxy` flag.
+- Helm deployments remain compatible: leave `ytProxy` empty to retain the automatically generated proxy address.
+
+{% endcut %}
+
+
 {% cut "**0.3.0**" %}
 
 **Release date:** 2026-03-23
