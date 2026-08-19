@@ -83,7 +83,7 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .Default(100);
     registrar.Parameter("journal_disk_space_per_cell", &TThis::JournalDiskSpacePerCell)
         .GreaterThan(0)
-        .Default(100_GB);
+        .Default(600_GB);
     registrar.Parameter("snapshot_disk_space_per_cell", &TThis::SnapshotDiskSpacePerCell)
         .GreaterThan(0)
         .Default(15_GB);
