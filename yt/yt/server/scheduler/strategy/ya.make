@@ -25,6 +25,7 @@ SRCS(
     policy/gpu/allocation_group_planner.cpp
     policy/gpu/assignment_plan_update_context_detail.cpp
     policy/gpu/assignment_plan_update.cpp
+    policy/gpu/config_wrapper.cpp
     policy/gpu/scheduling_policy.cpp
     policy/gpu/scheduling_policy_detail.cpp
     policy/gpu/structs.cpp

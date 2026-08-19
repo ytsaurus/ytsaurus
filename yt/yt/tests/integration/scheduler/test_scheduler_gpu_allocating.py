@@ -2452,6 +2452,114 @@ class TestAllocatingGpuSchedulingPolicyMultiModulePreemption(AllocatingGpuSchedu
         assert event["preemption_info"]["reason"] == "operation_bound_to_other_module"
         assert get(f"//sys/cluster_nodes/{event['node_address']}/@data_center") == initial_module
 
+    @authors("yaishenka")
+    def test_per_module_reconsideration_timeout(self):
+        # Tree-level timeout is prohibitively long; only the per-module VLA
+        # override is short. Eviction within seconds proves the per-module
+        # value is used instead of the tree-level one.
+        update_pool_tree_config_option(
+            "gpu",
+            "gpu_scheduling_policy/module_reconsideration_timeout",
+            600000,
+        )
+        update_pool_tree_config_option(
+            "gpu",
+            "gpu_scheduling_policy/full_host_aggressive_preemption_timeout",
+            600000,
+        )
+        update_pool_tree_config_option(
+            "gpu",
+            "gpu_scheduling_policy/module_configs",
+            {
+                "SAS": {},
+                "VLA": {"module_reconsideration_timeout": 2000},
+            },
+        )
+
+        # Pin a small filler op to one VLA node so that the FHMB op (pinned
+        # to VLA via scheduling_modules) cannot place a full host there.
+        vla_nodes = [
+            n for n in ls("//sys/cluster_nodes")
+            if get(f"//sys/cluster_nodes/{n}/@data_center") == "VLA"
+        ]
+        assert len(vla_nodes) == 2
+        target_vla_node = vla_nodes[0]
+
+        create_pool(
+            "filler_pool",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 4}},
+        )
+        create_pool(
+            "fhmb_pool",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 16}},
+            wait_for_orchid=False,
+        )
+
+        filler_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            spec={
+                "pool": "filler_pool",
+                "scheduling_tag_filter": target_vla_node,
+            },
+        )
+
+        wait(lambda: len(filler_op.get_running_jobs()) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(filler_op, assignment_count=1, exactly=True)
+
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        fhmb_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={
+                "pool": "fhmb_pool",
+                "scheduling_modules": ["VLA"],
+                "is_gang": True,
+            },
+        )
+
+        # Eviction fires after VLA's per-module 2s timeout, not the 10 min
+        # tree-level one.
+        events = wait_for_allocation_preempted(
+            scheduler_log_file,
+            from_barrier,
+            fhmb_op,
+            reason="eviction_from_scheduling_module",
+        )
+        assert len(events) >= 1
+        assert events[0]["preemption_info"]["reason"] == "eviction_from_scheduling_module"
+
+    @authors("yaishenka")
+    def test_module_configs_define_module_set(self):
+        # The legacy "modules" list is merged into module_configs by the config
+        # postprocessor; with the legacy list cleared, module_configs alone
+        # defines the module set: only VLA remains a configured module.
+        update_pool_tree_config_option("gpu", "gpu_scheduling_policy/modules", [])
+        update_pool_tree_config_option(
+            "gpu",
+            "gpu_scheduling_policy/module_configs",
+            {"VLA": {}},
+        )
+
+        # A gang op pinned to SAS cannot bind: SAS is not a configured module anymore.
+        # NB: Gang ops are used because module binding honours scheduling_modules.
+        sas_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"scheduling_modules": ["SAS"], "is_gang": True},
+        )
+        # A gang op pinned to VLA binds and runs as usual.
+        vla_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={"scheduling_modules": ["VLA"], "is_gang": True},
+        )
+
+        wait(lambda: len(vla_op.get_running_jobs()) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(vla_op, assignment_count=1, exactly=True)
+        wait_for_assignments_in_gpu_policy_orchid(sas_op, assignment_count=0, exactly=True)
+
 
 ##################################################################
 

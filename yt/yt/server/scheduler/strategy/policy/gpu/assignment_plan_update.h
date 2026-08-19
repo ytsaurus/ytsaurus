@@ -1,5 +1,6 @@
 #pragma once
 
+#include "config_wrapper.h"
 #include "structs.h"
 
 #include <library/cpp/yt/string/string_builder.h>
@@ -119,7 +120,7 @@ public:
     TGpuAllocationAssignmentPlanUpdateExecutor(
         IAssignmentPlanUpdateContext* context,
         TInstant now,
-        TGpuSchedulingPolicyConfigPtr config,
+        TGpuSchedulingPolicyConfigWrapper config,
         NLogging::TLogger logger);
 
     void Run();
@@ -130,7 +131,7 @@ private:
     const TNodeMap& Nodes_;
     const TInstant Now_;
 
-    const TGpuSchedulingPolicyConfigPtr Config_;
+    const TGpuSchedulingPolicyConfigWrapper Config_;
     const NLogging::TLogger Logger;
 
     // NB(eshcherbin): This vector can and will be sorted in-place.
