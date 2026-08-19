@@ -7,7 +7,9 @@ SRCS(
     models.go
 )
 
-IF (OPENSOURCE) 
+GO_TEST_SRCS(models_test.go)
+
+IF (OPENSOURCE)
     SRCS(
         accesschecker_external.go
         middleware_external.go
@@ -19,6 +21,12 @@ ELSE()
         middleware_internal.go
         models_internal.go
     )
+
+    GO_TEST_SRCS(middleware_internal_test.go)
 ENDIF()
 
 END()
+
+RECURSE(
+    gotest
+)
