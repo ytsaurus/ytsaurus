@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(0.17)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(2155886357)
+
+SRC_RESOURCE(2155886374)
+
+ORIGINAL_SOURCE(scm:git:git@github.com:janvanbesien/java-ipv6.git)
+
+END()

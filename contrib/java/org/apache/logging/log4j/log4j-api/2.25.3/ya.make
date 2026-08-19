@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(2.25.3)
+
+LICENSE(Apache-2.0)
+
+ORIGINAL_SOURCE(https://github.com/apache/logging-log4j2)
+
+JAR_RESOURCE(10783551476)
+
+SRC_RESOURCE(10783551235)
+
+END()

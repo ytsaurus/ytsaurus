@@ -2,12 +2,12 @@ RECURSE(
     cpp
     docker
     go
+    java
     python
 )
 
 IF (NOT OPENSOURCE)
     RECURSE(
-        java
         kotlin
     )
 ENDIF()

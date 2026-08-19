@@ -1,0 +1,13 @@
+JAVA_CONTRIB(jsr305-3.0.1)
+
+VERSION(3.0.1)
+
+LICENSE(Apache-2.0)
+
+JAR_RESOURCE(130427504)
+
+SRC_RESOURCE(130427143)
+
+ORIGINAL_SOURCE(https://code.google.com/p/jsr-305/)
+
+END()

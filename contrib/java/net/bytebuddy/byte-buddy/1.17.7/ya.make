@@ -1,0 +1,13 @@
+JAVA_CONTRIB()
+
+VERSION(1.17.7)
+
+LICENSE(Apache-2.0)
+
+ORIGINAL_SOURCE(git@github.com:raphw/byte-buddy.git)
+
+JAR_RESOURCE(9938804708)
+
+SRC_RESOURCE(9938804758)
+
+END()
