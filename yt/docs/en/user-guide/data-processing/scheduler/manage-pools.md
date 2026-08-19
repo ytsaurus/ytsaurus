@@ -23,6 +23,19 @@ To request access to a pool:
 - To change all other pool attributes, you need the `administer` permission (only for {{product-name}} cluster administrators).
 - To manage operations in this pool and its descendants, you need the `manage` permission (managing operations means you can perform `suspend`, `resume`, and `update_operation_parameters` operations without being the operation's author).
 
+{% note warning "Limitation" %}
+
+The `manage` permission on a pool lets you change only the following parameters using the `update_operation_parameters` command:
+
+- `weight`;
+- `weight` and `resource_limits` in `scheduling_options_per_pool_tree`;
+- `scheduling_tag_filter`;
+- `controller_agent_tag`.
+
+To change other parameters, you need the `manage` permission on the operation itself; some parameters may require additional permissions. Specifically, the `manage` permission on a pool doesn't let you change the `pool` parameter and move an operation to another pool.
+
+{% endnote %}
+
 As an example, consider the `project-root` pool in the `{{pool-tree}}` pool tree.
 The required set of permissions for managing sub-pools is shown in the listing:
 
