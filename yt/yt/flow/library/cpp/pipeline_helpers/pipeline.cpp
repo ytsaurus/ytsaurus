@@ -121,7 +121,8 @@ static void WaitPipelineState(
     const TYPath& root,
     EPipelineState targetState,
     TDuration waitTimeout,
-    TLogReader* logReader = nullptr)
+    TDuration requestTimeout,
+    TLogReader* logReader)
 {
     auto deadline = TInstant::Now() + waitTimeout;
     static const int retries = 10;
@@ -152,16 +153,24 @@ static void WaitPipelineState(
 
     const auto startWaitingInstant = TInstant::Now();
     while (true) {
-        if (TInstant::Now() > deadline) {
-            THROW_ERROR_EXCEPTION("Wait timed out")
-                .With("timeout", waitTimeout);
-        }
         int attempt = 0;
+        TError lastError;
         while (true) {
+            const auto now = TInstant::Now();
+            if (now >= deadline) {
+                THROW_ERROR_EXCEPTION("Wait timed out")
+                    .With("timeout", waitTimeout)
+                    .With(lastError);
+            }
+
+            NApi::TGetPipelineStateOptions options;
+            options.Timeout = std::min(requestTimeout, deadline - now);
+
             try {
-                currentState = WaitFor(client->GetPipelineState(root)).ValueOrThrow().State;
+                currentState = WaitFor(client->GetPipelineState(root, options)).ValueOrThrow().State;
                 break;
             } catch (const std::exception& ex) {
+                lastError = TError(ex);
                 attempt += 1;
                 YT_TLOG_WARNING("Failed to get pipeline state")
                     .With("Attempt", attempt)
@@ -202,7 +211,8 @@ void WaitPipelineState(
     const std::optional<std::string>& proxyRole,
     const TYPath& root,
     EPipelineState state,
-    TDuration waitTimeout)
+    TDuration waitTimeout,
+    TDuration requestTimeout)
 {
     auto connection = NApi::NRpcProxy::CreateConnection(
         NApi::NRpcProxy::TConnectionConfig::CreateFromClusterUrl(clusterUrl, proxyRole));
@@ -213,6 +223,7 @@ void WaitPipelineState(
         root,
         state,
         waitTimeout,
+        requestTimeout,
         /*logReader*/ nullptr);
 }
 
@@ -220,13 +231,15 @@ void WaitPipelineState(
     NApi::IClientPtr client,
     const TYPath& root,
     EPipelineState state,
-    TDuration waitTimeout)
+    TDuration waitTimeout,
+    TDuration requestTimeout)
 {
     WaitPipelineState(
         std::move(client),
         root,
         state,
         waitTimeout,
+        requestTimeout,
         /*logReader*/ nullptr);
 }
 
@@ -348,6 +361,7 @@ void RunPipeline(
                         root,
                         desiredState,
                         waitTimeout,
+                        DefaultWaitPipelineStateRequestTimeout,
                         &controllerLogReader);
 
                     YT_TLOG_INFO("Stopped");
@@ -400,6 +414,7 @@ void RunPipeline(
                 root,
                 EPipelineState::Working,
                 waitTimeout,
+                DefaultWaitPipelineStateRequestTimeout,
                 &controllerLogReader);
 
             break;
