@@ -7282,7 +7282,9 @@ private:
 
         YT_LOG_EVENT(
             Logger(),
-            reason == EAddReplicaReason::FullHeartbeat ? GetChunkLogLevel(chunk, this) : NLogging::ELogLevel::Debug,
+            reason == EAddReplicaReason::FullHeartbeat && !IsVerboselyLogged(chunk)
+                ? NLogging::ELogLevel::Trace
+                : NLogging::ELogLevel::Debug,
             "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v, Reason: %v)",
             TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()),
             nodeId,

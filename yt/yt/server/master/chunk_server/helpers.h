@@ -250,8 +250,8 @@ bool IsReplicaOnPendingRestartNode(TChunkLocation* replica);
 ////////////////////////////////////////////////////////////////////////////////
 
 #define YT_VERBOSE_LOG_CHUNK_EVENT(chunk, ...)                      YT_LOG_EVENT(Logger(), GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()), __VA_ARGS__)
-#define YT_VERBOSE_LOG_CHUNK_EVENT_IF(condition, chunk, ...)        if (condition)    YT_VERBOSE_LOG_CHUNK_EVENT(__VA_ARGS__)
-#define YT_VERBOSE_LOG_CHUNK_EVENT_UNLESS(condition, chunk, ...)    if (!(condition)) YT_VERBOSE_LOG_CHUNK_EVENT(__VA_ARGS__)
+#define YT_VERBOSE_LOG_CHUNK_EVENT_IF(condition, chunk, ...)        if (condition)    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, __VA_ARGS__)
+#define YT_VERBOSE_LOG_CHUNK_EVENT_UNLESS(condition, chunk, ...)    if (!(condition)) YT_VERBOSE_LOG_CHUNK_EVENT(chunk, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 
