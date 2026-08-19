@@ -11,6 +11,7 @@ image_cr=""
 component="ytsaurus"
 apt_mirror="http://archive.ubuntu.com/"
 install_nvidia_packages="false"
+server_image_base="base-server"
 
 print_usage() {
     cat << EOF
@@ -24,6 +25,7 @@ Usage: $script_name [-h|--help]
                     [--image-cr some-cr/ (default: '$image_cr')]
                     [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
                     [--install-nvidia-packages true|false (default: '$install_nvidia_packages')]
+                    [--server-image-base base-server|base-server-crio (default: '$server_image_base')]
 EOF
     exit 1
 }
@@ -66,6 +68,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --install-nvidia-packages)
         install_nvidia_packages="$2"
+        shift 2
+        ;;
+        --server-image-base)
+        server_image_base="$2"
         shift 2
         ;;
         -h|--help)
@@ -201,4 +207,4 @@ else
 fi
 
 cd ${output_path}
-docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} --build-arg INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} --build-arg INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages} --build-arg SERVER_IMAGE_BASE=${server_image_base} -t ${image_cr}ytsaurus/${component}:${image_tag} .
