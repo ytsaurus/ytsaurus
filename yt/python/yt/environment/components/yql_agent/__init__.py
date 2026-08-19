@@ -257,6 +257,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "production": {
                     "channel": {
                         "addresses": self.addresses,
+                        "disable_balancing_on_single_address": False,
                     }
                 },
             },
