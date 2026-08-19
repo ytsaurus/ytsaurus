@@ -625,8 +625,8 @@
                 "error": {
                     "type": "string"
                 },
-                "is_service": {
-                    "type": "boolean"
+                "service": {
+                    "type": "string"
                 },
                 "user": {
                     "type": "string"

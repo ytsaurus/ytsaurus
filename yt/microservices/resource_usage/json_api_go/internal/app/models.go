@@ -103,7 +103,7 @@ type ListTimestampsRequest struct {
 }
 
 type WhoamiResponse struct {
-	User      string `json:"user"`
-	IsService bool   `json:"is_service"`
-	Error     string `json:"error,omitempty"`
+	User    string `json:"user,omitempty"`
+	Service string `json:"service,omitempty"`
+	Error   string `json:"error,omitempty"`
 }

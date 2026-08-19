@@ -38,7 +38,7 @@ func onAuthSuccess(
 	l log.Structured,
 	authInfo AuthInfo,
 ) {
-	ctxlog.Info(r.Context(), l.Logger(), "Authentication success", log.String("user", authInfo.Login), log.Bool("is_service", authInfo.IsService))
+	ctxlog.Info(r.Context(), l.Logger(), "Authentication success", log.String("user", authInfo.UserLogin), log.String("service", authInfo.ServiceLogin))
 	ctx := context.WithValue(r.Context(), AuthInfoKey, authInfo)
 	ctx = ctxlog.WithFields(ctx, log.Any(string(AuthInfoKey), authInfo))
 	next.ServeHTTP(w, r.WithContext(ctx))

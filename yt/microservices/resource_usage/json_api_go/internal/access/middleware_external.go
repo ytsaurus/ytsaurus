@@ -105,8 +105,7 @@ func (a *AccessChecker) UserAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 		authInfo := AuthInfo{
-			Login:     user.Login,
-			IsService: false,
+			UserLogin: user.Login,
 		}
 
 		// TODO(ilyaibraev): implement view_as_login check
