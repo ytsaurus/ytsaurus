@@ -376,8 +376,10 @@ public:
                         YT_TLOG_ERROR("Resource preload failed")
                             .With("ResourceId", resourceId)
                             .With(error);
-                        // Drop status in order to enable retry.
+                        // Drop failed initialization state so the next update starts a fresh incarnation.
+                        strongThis->ResourcesInitializationFutures_.erase(resourceId);
                         strongThis->PreloadStatus_.erase(resourceId);
+                        strongThis->Resources_[resourceId] = strongThis->CreateResource(resourceId);
                     }
                 })
                     .Via(Invoker_));
