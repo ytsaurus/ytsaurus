@@ -703,6 +703,13 @@ def get_master_cache_config():
     }
 
 
+def get_chaos_cache_config():
+    return {
+        "cluster_connection": {
+        },
+    }
+
+
 # COMPAT(arkady-e1ppa) operation_infos_request_period, total_confirmation_period
 def get_dynamic_node_config():
     return {

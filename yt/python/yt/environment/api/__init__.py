@@ -176,6 +176,7 @@ class LocalYtConfig(object):
     http_proxy_count = attr.ib(1)
     rpc_proxy_count = attr.ib(1)
     master_cache_count = attr.ib(0)
+    chaos_cache_count = attr.ib(0)
     remote_cluster_count = attr.ib(0)
     cell_balancer_count = attr.ib(0)
     enable_bundle_controller = attr.ib(False)
@@ -203,6 +204,7 @@ class LocalYtConfig(object):
     delta_rpc_proxy_config = attr.ib(None)
     delta_driver_config = attr.ib(None)
     delta_master_cache_config = attr.ib(None)
+    delta_chaos_cache_config = attr.ib(None)
     delta_global_cluster_connection_config = attr.ib(None)
 
     """Logging options"""

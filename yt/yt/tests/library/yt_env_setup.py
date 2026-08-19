@@ -26,6 +26,7 @@ from yt.environment.helpers import (  # noqa
     CHAOS_NODES_SERVICE,
     MASTERS_SERVICE,
     MASTER_CACHES_SERVICE,
+    CHAOS_CACHES_SERVICE,
     QUEUE_AGENTS_SERVICE,
     CYPRESS_PROXIES_SERVICE,
     RPC_PROXIES_SERVICE,
@@ -334,6 +335,7 @@ class YTEnvSetup(object):
     NUM_CHAOS_NODES = 0
     DEFER_CHAOS_NODE_START = False
     NUM_MASTER_CACHES = 0
+    NUM_CHAOS_CACHES = 0
     NUM_SCHEDULERS = 0
     DEFER_SCHEDULER_START = False
     NUM_CONTROLLER_AGENTS = None
@@ -411,6 +413,7 @@ class YTEnvSetup(object):
     DELTA_CELL_BALANCER_CONFIG = {}
     DELTA_TABLET_BALANCER_CONFIG = {}
     DELTA_MASTER_CACHE_CONFIG = {}
+    DELTA_CHAOS_CACHE_CONFIG = {}
     DELTA_OFFSHORE_DATA_GATEWAY_CONFIG = {}
     DELTA_QUEUE_AGENT_CONFIG = {}
     DELTA_KAFKA_PROXY_CONFIG = {}
@@ -445,6 +448,7 @@ class YTEnvSetup(object):
     NUM_SECONDARY_MASTER_CELLS_GROUND = 0
     NUM_CHAOS_NODES_GROUND = 0
     NUM_MASTER_CACHES_GROUND = 0
+    NUM_CHAOS_CACHES_GROUND = 0
     NUM_CELL_BALANCERS_GROUND = 0
     NUM_CONTROLLER_AGENTS_GROUND = 0
     NUM_QUEUE_AGENTS_GROUND = 0
@@ -546,6 +550,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_master_cache_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_chaos_cache_config(cls, config):
         pass
 
     @classmethod
@@ -763,6 +771,7 @@ class YTEnvSetup(object):
             chaos_node_count=cls.get_param("NUM_CHAOS_NODES", index),
             defer_chaos_node_start=cls.get_param("DEFER_CHAOS_NODE_START", index),
             master_cache_count=cls.get_param("NUM_MASTER_CACHES", index),
+            chaos_cache_count=cls.get_param("NUM_CHAOS_CACHES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
             job_proxy_logging=job_proxy_logging,
@@ -1312,6 +1321,12 @@ class YTEnvSetup(object):
             cls.modify_master_cache_config(config)
             multidaemon_config["daemons"][f"master_cache_{index}"]["config"] = config
 
+        for index, config in enumerate(configs["chaos_cache"]):
+            cls._apply_effective_config_patch(config, "DELTA_CHAOS_CACHE_CONFIG", cluster_index)
+            cls.update_timestamp_provider_config(config, cluster_index)
+            cls.modify_chaos_cache_config(config)
+            multidaemon_config["daemons"][f"chaos_cache_{index}"]["config"] = config
+
         for index, config in enumerate(configs["offshore_data_gateway"]):
             cls._apply_effective_config_patch(config, "DELTA_OFFSHORE_DATA_GATEWAY_CONFIG", cluster_index)
             cls.update_timestamp_provider_config(config, cluster_index)
@@ -1446,12 +1461,14 @@ class YTEnvSetup(object):
     def update_master_replication_card_cache_config(cls, config, cluster_index, cluster_connection_config):
         if cls._is_ground_cluster(cluster_index):
             return config
-        if not cls.get_param("NUM_CHAOS_NODES", cluster_index) or not cls.get_param("NUM_MASTER_CACHES", cluster_index):
+        if not cls.get_param("NUM_CHAOS_NODES", cluster_index) or not (
+                cls.get_param("NUM_MASTER_CACHES", cluster_index) or
+                cls.get_param("NUM_CHAOS_CACHES", cluster_index)):
             return config
 
-        chaos_cache_addresses = cluster_connection_config["replication_card_cache"]["addresses"]
-        if chaos_cache_addresses:
-            config["cluster_connection"]["replication_card_cache"]["addresses"] = chaos_cache_addresses
+        replication_card_cache_addresses = cluster_connection_config["replication_card_cache"]["addresses"]
+        if replication_card_cache_addresses:
+            config["cluster_connection"]["replication_card_cache"]["addresses"] = replication_card_cache_addresses
 
     @classmethod
     def update_sequoia_connection_config(cls, config, cluster_index):
@@ -2699,6 +2716,7 @@ def get_service_component_name(service):
         CHAOS_NODES_SERVICE: "node",
         MASTERS_SERVICE: "master",
         MASTER_CACHES_SERVICE: "master-cache",
+        CHAOS_CACHES_SERVICE: "chaos-cache",
         QUEUE_AGENTS_SERVICE: "queue-agent",
         RPC_PROXIES_SERVICE: "proxy",
         HTTP_PROXIES_SERVICE: "http-proxy",

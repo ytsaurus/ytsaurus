@@ -37,6 +37,7 @@ ALL_COMPONENTS = [
     "cell-balancer",
     "tablet-balancer",
     "master-cache",
+    "chaos-cache",
     "queue-agent",
     "cypress-proxy",
     "query-tracker",

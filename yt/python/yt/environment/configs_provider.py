@@ -100,6 +100,17 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         ports_generator,
         logs_dir)
 
+    chaos_cache_configs, chaos_cache_addresses = _build_chaos_cache_configs(
+        yt_config,
+        multidaemon_config,
+        master_connection_configs,
+        clock_connection_config,
+        discovery_configs,
+        timestamp_provider_addresses,
+        cypress_proxy_rpc_ports,
+        ports_generator,
+        logs_dir)
+
     cell_balancer_configs, cell_balancer_addresses = _build_cell_balancer_configs(
         yt_config,
         multidaemon_config,
@@ -108,6 +119,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -122,6 +134,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -135,6 +148,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -147,6 +161,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         queue_agent_rpc_ports,
         ports_generator,
@@ -160,6 +175,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -173,6 +189,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -186,6 +203,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -199,6 +217,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         queue_agent_rpc_ports,
         ports_generator,
@@ -221,6 +240,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         yt_config)
@@ -243,6 +263,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         queue_agent_rpc_ports,
         yt_config=yt_config)
@@ -262,6 +283,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -275,6 +297,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -288,6 +311,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -301,6 +325,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
@@ -321,6 +346,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         "node": node_configs,
         "chaos_node": chaos_node_configs,
         "master_cache": master_cache_configs,
+        "chaos_cache": chaos_cache_configs,
         "http_proxy": http_proxy_configs,
         "rpc_proxy": rpc_proxy_configs,
         "rpc_client": rpc_client_config,
@@ -335,6 +361,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
             discovery_configs,
             timestamp_provider_addresses,
             master_cache_addresses,
+            chaos_cache_addresses,
             cypress_proxy_rpc_ports,
             queue_agent_rpc_ports),
         "multi": multidaemon_config,
@@ -401,6 +428,7 @@ def _build_master_configs(yt_config,
             discovery_configs,
             timestamp_provider_addresses=[],
             master_cache_addresses=[],
+            chaos_cache_addresses=[],
             cypress_proxy_rpc_ports=cypress_proxy_rpc_ports,
             queue_agent_rpc_ports=queue_agent_rpc_ports)
 
@@ -622,6 +650,7 @@ def _build_queue_agent_configs(multidaemon_config_output,
                                discovery_configs,
                                timestamp_provider_addresses,
                                master_cache_addresses,
+                               chaos_cache_addresses,
                                cypress_proxy_rpc_ports,
                                rpc_ports,
                                ports_generator,
@@ -653,6 +682,7 @@ def _build_queue_agent_configs(multidaemon_config_output,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports)
 
         config["rpc_port"] = rpc_ports[index]
@@ -677,6 +707,7 @@ def _build_kafka_proxy_configs(multidaemon_config_output,
                                discovery_configs,
                                timestamp_provider_addresses,
                                master_cache_addresses,
+                               chaos_cache_addresses,
                                cypress_proxy_rpc_ports,
                                ports_generator,
                                logs_dir,
@@ -711,6 +742,7 @@ def _build_kafka_proxy_configs(multidaemon_config_output,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports)
 
         config["monitoring_port"] = next(ports_generator)
@@ -780,6 +812,7 @@ def _build_cell_balancer_configs(yt_config,
                                  discovery_configs,
                                  timestamp_provider_addresses,
                                  master_cache_addresses,
+                                 chaos_cache_addresses,
                                  cypress_proxy_rpc_ports,
                                  ports_generator,
                                  logs_dir):
@@ -813,6 +846,7 @@ def _build_cell_balancer_configs(yt_config,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
@@ -885,6 +919,7 @@ def _build_master_cache_configs(yt_config,
                 discovery_configs,
                 timestamp_provider_addresses,
                 [],  # master cache addresses
+                [],  # chaos cache addresses
                 cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
@@ -901,6 +936,60 @@ def _build_master_cache_configs(yt_config,
     return configs, addresses
 
 
+def _build_chaos_cache_configs(yt_config,
+                               multidaemon_config_output,
+                               master_connection_configs,
+                               clock_connection_config,
+                               discovery_configs,
+                               timestamp_provider_addresses,
+                               cypress_proxy_rpc_ports,
+                               ports_generator,
+                               logs_dir):
+    configs = []
+    addresses = []
+
+    for index in range(yt_config.chaos_cache_count):
+        config = default_config.get_chaos_cache_config()
+
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        if not yt_config.enable_multidaemon:
+            init_singletons(singletons_config, yt_config)
+
+            _init_logging(logs_dir,
+                          "chaos-cache-" + str(index),
+                          singletons_config.setdefault("logging", {}),
+                          yt_config,
+                          has_structured_logs=True)
+
+        init_jaeger_collector(singletons_config, "chaos_cache", {"chaos_cache_index": str(index)})
+
+        init_cypress_annotations(config, index)
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                discovery_configs,
+                timestamp_provider_addresses,
+                [],  # master cache addresses
+                [],  # chaos cache addresses
+                cypress_proxy_rpc_ports,
+                config_template=config["cluster_connection"])
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+
+        multidaemon_config_output["daemons"][f"chaos_cache_{index}"] = {
+            "type": "chaos_cache",
+            "config": config,
+        }
+        configs.append(config)
+        addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
+
+    return configs, addresses
+
+
 def _build_scheduler_configs(multidaemon_config_output,
                              scheduler_dirs,
                              master_connection_configs,
@@ -908,6 +997,7 @@ def _build_scheduler_configs(multidaemon_config_output,
                              discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
+                             chaos_cache_addresses,
                              cypress_proxy_rpc_ports,
                              ports_generator,
                              logs_dir,
@@ -939,6 +1029,7 @@ def _build_scheduler_configs(multidaemon_config_output,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
@@ -961,6 +1052,7 @@ def _build_controller_agent_configs(multidaemon_config_output,
                                     discovery_configs,
                                     timestamp_provider_addresses,
                                     master_cache_addresses,
+                                    chaos_cache_addresses,
                                     cypress_proxy_rpc_ports,
                                     ports_generator,
                                     logs_dir,
@@ -993,6 +1085,7 @@ def _build_controller_agent_configs(multidaemon_config_output,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
@@ -1016,6 +1109,7 @@ def _build_node_configs(multidaemon_config_output,
                         discovery_configs,
                         timestamp_provider_addresses,
                         master_cache_addresses,
+                        chaos_cache_addresses,
                         cypress_proxy_rpc_ports,
                         ports_generator,
                         logs_dir,
@@ -1062,6 +1156,7 @@ def _build_node_configs(multidaemon_config_output,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
@@ -1306,6 +1401,7 @@ def _build_chaos_node_configs(multidaemon_config_output,
                               discovery_configs,
                               timestamp_provider_addresses,
                               master_cache_addresses,
+                              chaos_cache_addresses,
                               cypress_proxy_rpc_ports,
                               ports_generator,
                               logs_dir,
@@ -1344,6 +1440,7 @@ def _build_chaos_node_configs(multidaemon_config_output,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
@@ -1376,6 +1473,7 @@ def _build_http_proxy_config(multidaemon_config_output,
                              discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
+                             chaos_cache_addresses,
                              cypress_proxy_rpc_ports,
                              queue_agent_rpc_ports,
                              ports_generator,
@@ -1394,6 +1492,7 @@ def _build_http_proxy_config(multidaemon_config_output,
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        chaos_cache_addresses,
         cypress_proxy_rpc_ports,
         queue_agent_rpc_ports)
 
@@ -1483,6 +1582,7 @@ def _build_native_driver_configs(master_connection_configs,
                                  discovery_configs,
                                  timestamp_provider_addresses,
                                  master_cache_addresses,
+                                 chaos_cache_addresses,
                                  cypress_proxy_rpc_ports,
                                  queue_agent_rpc_ports,
                                  yt_config):
@@ -1507,6 +1607,7 @@ def _build_native_driver_configs(master_connection_configs,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports,
                 queue_agent_rpc_ports))
         else:
@@ -1620,6 +1721,7 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
                              discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
+                             chaos_cache_addresses,
                              cypress_proxy_rpc_ports,
                              ports_generator,
                              yt_config):
@@ -1684,6 +1786,7 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
             discovery_configs,
             timestamp_provider_addresses,
             master_cache_addresses,
+            chaos_cache_addresses,
             cypress_proxy_rpc_ports)
 
         config["rpc_port"] = \
@@ -1748,6 +1851,7 @@ def _build_cluster_connection_config(yt_config,
                                      discovery_configs,
                                      timestamp_provider_addresses,
                                      master_cache_addresses,
+                                     chaos_cache_addresses,
                                      cypress_proxy_rpc_ports,
                                      queue_agent_rpc_ports=None,
                                      config_template=None):
@@ -1895,6 +1999,8 @@ def _build_cluster_connection_config(yt_config,
     discovery_connection_config["addresses"] = discovery_server_addresses
     cluster_connection["discovery_connection"] = discovery_connection_config
 
+    replication_card_cache_addresses = chaos_cache_addresses or master_cache_addresses
+
     if yt_config.enable_master_cache:
         cluster_connection["master_cache"] = {
             "enable_master_cache_discovery": len(master_cache_addresses) == 0,
@@ -1925,7 +2031,7 @@ def _build_cluster_connection_config(yt_config,
             "expiration_period": 50,
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,
-            "addresses": master_cache_addresses,
+            "addresses": replication_card_cache_addresses,
         }
         cluster_connection["chaos_cell_channel"] = {
             "enable_exponential_retry_backoffs": True,
@@ -1959,6 +2065,7 @@ def _build_tablet_balancer_configs(yt_config,
                                    discovery_configs,
                                    timestamp_provider_addresses,
                                    master_cache_addresses,
+                                   chaos_cache_addresses,
                                    cypress_proxy_rpc_ports,
                                    ports_generator,
                                    logs_dir):
@@ -1989,6 +2096,7 @@ def _build_tablet_balancer_configs(yt_config,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports)
 
         config["rpc_port"] = next(ports_generator)
@@ -2011,6 +2119,7 @@ def _build_replicated_table_tracker_configs(yt_config,
                                             discovery_configs,
                                             timestamp_provider_addresses,
                                             master_cache_addresses,
+                                            chaos_cache_addresses,
                                             cypress_proxy_rpc_ports,
                                             ports_generator,
                                             logs_dir):
@@ -2041,6 +2150,7 @@ def _build_replicated_table_tracker_configs(yt_config,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports)
 
         config["rpc_port"] = next(ports_generator)
@@ -2062,6 +2172,7 @@ def _build_offshore_data_gateway_configs(yt_config,
                                          discovery_configs,
                                          timestamp_provider_addresses,
                                          master_cache_addresses,
+                                         chaos_cache_addresses,
                                          cypress_proxy_rpc_ports,
                                          ports_generator,
                                          logs_dir):
@@ -2090,6 +2201,7 @@ def _build_offshore_data_gateway_configs(yt_config,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports)
 
         config["rpc_port"] = next(ports_generator)
@@ -2121,6 +2233,7 @@ def _build_cypress_proxy_configs(yt_config,
                                  discovery_configs,
                                  timestamp_provider_addresses,
                                  master_cache_addresses,
+                                 chaos_cache_addresses,
                                  cypress_proxy_rpc_ports,
                                  ports_generator,
                                  logs_dir):
@@ -2151,6 +2264,7 @@ def _build_cypress_proxy_configs(yt_config,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                chaos_cache_addresses,
                 cypress_proxy_rpc_ports=[])
 
         config["rpc_port"] = cypress_proxy_rpc_ports[index]
