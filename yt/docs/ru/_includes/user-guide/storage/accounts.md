@@ -128,6 +128,16 @@ yt create account --attributes='{ name = "my_subaccount3"; parent_name = "my_acc
 
 {% endnote %}
 
+{% if audience == "internal" %}
+
+{% note info "Примечание" %}
+
+Корневые аккаунты во внутренних инсталляциях {{product-name}} необходимо удалять через [интерфейс ABC](../../../user-guide/storage/quota-request.md#sozdanie-akkaunta-i-diskovoj-kvoty-pod-novyj-proekt) — там же, где они создаются. Описанные ниже способы удаления через веб-интерфейс {{product-name}} и командную строку применимы только к вложенным аккаунтам.
+
+{% endnote %}
+
+{% endif %}
+
 {% cut "В веб-интерфейсе {{product-name}}" %}
 
 Для удаления аккаунта необходимо:
