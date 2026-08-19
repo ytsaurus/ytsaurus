@@ -20,6 +20,7 @@ tasks.withType<Javadoc>().configureEach {
 }
 
 dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
     api(project(":yt:java:flow:flow-runner"))
     api(project(":yt:java:flow:flow-spring-boot-starter"))
     api("javax.persistence:persistence-api:1.0")
@@ -49,6 +50,44 @@ dependencies {
     api("org.lz4:lz4-java:1.6.0")
     api("org.jspecify:jspecify:1.0.0")
     api("com.beust:jcommander:1.82")
+    testImplementation(project(":yt:java:flow:flow-test-utils"))
+    testImplementation("com.google.protobuf:protobuf-java:4.33.0")
+    testImplementation("com.google.protobuf:protobuf-java-util:4.33.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:6.0.2")
+    testImplementation("org.springframework.boot:spring-boot-test:4.0.2")
+    testImplementation("org.springframework.boot:spring-boot-test-autoconfigure:4.0.2")
+    testImplementation("org.assertj:assertj-core:3.27.6")
+    testImplementation("org.mockito:mockito-core:5.21.0")
+    testImplementation("io.grpc:grpc-api:1.78.0")
+    testImplementation("io.grpc:grpc-context:1.78.0")
+    testImplementation("io.grpc:grpc-stub:1.78.0")
+    testImplementation("io.grpc:grpc-protobuf:1.78.0")
+    testImplementation("io.grpc:grpc-protobuf-lite:1.78.0")
+    testImplementation("io.grpc:grpc-netty-shaded:1.78.0")
+    testImplementation("io.grpc:grpc-services:1.78.0")
+    testImplementation("com.google.api.grpc:proto-google-common-protos:2.63.1")
+    testImplementation("com.google.guava:guava:33.5.0-jre")
+    testImplementation("com.google.guava:failureaccess:1.0.3")
+    testImplementation("com.google.j2objc:j2objc-annotations:3.1")
+    testImplementation("com.google.errorprone:error_prone_annotations:2.44.0")
+    testImplementation("com.google.code.gson:gson:2.12.1")
+    testImplementation("com.google.code.findbugs:jsr305:3.0.2")
+    testImplementation("io.micrometer:micrometer-core:1.16.3")
+    testImplementation("io.micrometer:micrometer-commons:1.16.3")
+    testImplementation("io.micrometer:micrometer-observation:1.16.3")
+    testImplementation("org.slf4j:slf4j-api:2.0.17")
+    testImplementation("org.apache.logging.log4j:log4j-api:2.25.3")
+    testImplementation("org.apache.logging.log4j:log4j-core:2.25.3")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.3")
+    testImplementation("org.lz4:lz4-java:1.6.0")
+    testImplementation("org.jspecify:jspecify:1.0.0")
+    testImplementation("com.beust:jcommander:1.82")
+    testImplementation("com.hubspot.jinjava:jinjava:2.8.0")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }
 
 tasks.test {

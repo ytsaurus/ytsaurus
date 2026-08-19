@@ -20,6 +20,7 @@ tasks.withType<Javadoc>().configureEach {
 }
 
 dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
     api(project(":yt:java:flow:flow-core"))
     api("com.google.protobuf:protobuf-java:4.33.0")
     api("com.google.protobuf:protobuf-java-util:4.33.0")
@@ -43,6 +44,22 @@ dependencies {
     api("org.slf4j:slf4j-api:2.0.17")
     api("org.lz4:lz4-java:1.6.0")
     api("org.jspecify:jspecify:1.0.0")
+    testImplementation(project(":yt:java:flow:flow-core"))
+    testImplementation(project(":yt:java:flow:flow-test-utils"))
+    testImplementation("javax.persistence:persistence-api:1.0")
+    testImplementation("com.google.protobuf:protobuf-java:4.33.0")
+    testImplementation("com.google.protobuf:protobuf-java-util:4.33.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:6.0.2")
+    testImplementation("org.mockito:mockito-core:5.21.0")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.1")
+    testImplementation("io.grpc:grpc-netty-shaded:1.78.0")
+    testImplementation("io.grpc:grpc-services:1.78.0")
+    testImplementation("org.awaitility:awaitility:4.3.0")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }
 
 tasks.test {

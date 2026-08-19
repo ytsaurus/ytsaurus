@@ -20,6 +20,7 @@ tasks.withType<Javadoc>().configureEach {
 }
 
 dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
     api(project(":yt:yt:flow:library:cpp:companion:proto"))
     api(project(":yt:java:ytsaurus-client"))
     api("com.google.protobuf:protobuf-java:4.33.0")
@@ -39,6 +40,17 @@ dependencies {
     api("org.slf4j:slf4j-api:2.0.17")
     api("org.lz4:lz4-java:1.6.0")
     api("org.jspecify:jspecify:1.0.0")
+    testImplementation(project(":yt:java:flow:flow-core:src:test_proto"))
+    testImplementation("javax.persistence:persistence-api:1.0")
+    testImplementation("com.google.protobuf:protobuf-java:4.33.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:6.0.2")
+    testImplementation("org.mockito:mockito-core:5.21.0")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.1")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }
 
 tasks.test {

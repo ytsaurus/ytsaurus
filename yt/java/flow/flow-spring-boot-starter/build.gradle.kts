@@ -20,6 +20,7 @@ tasks.withType<Javadoc>().configureEach {
 }
 
 dependencies {
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
     api(project(":yt:java:flow:flow-core"))
     api(project(":yt:java:flow:flow-runner"))
     api(project(":yt:java:flow:flow-server"))
@@ -52,6 +53,22 @@ dependencies {
     api("org.springframework.boot:spring-boot-starter-log4j2:4.0.2")
     api("org.springframework.boot:spring-boot-autoconfigure:4.0.2")
     api("org.springframework:spring-context:7.0.3")
+    testImplementation(project(":yt:java:flow:flow-core"))
+    testImplementation(project(":yt:java:flow:flow-test-utils"))
+    testImplementation("javax.persistence:persistence-api:1.0")
+    testImplementation("com.google.protobuf:protobuf-java:4.33.0")
+    testImplementation("com.google.protobuf:protobuf-java-util:4.33.0")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:6.0.2")
+    testImplementation("org.mockito:mockito-core:5.21.0")
+    testImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.25.1")
+    testImplementation("org.springframework.boot:spring-boot-test:4.0.2")
+    testImplementation("org.springframework.boot:spring-boot-test-autoconfigure:4.0.2")
+    testImplementation("org.assertj:assertj-core:3.27.6")
+}
+
+tasks.named<Test>("test") {
+    useJUnitPlatform()
 }
 
 tasks.test {
