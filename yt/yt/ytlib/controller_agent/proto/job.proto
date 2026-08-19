@@ -508,10 +508,11 @@ message TJobSpecExt
 
     optional string task_name = 25;
 
-    reserved 26;
-
     // Indices of partitions job belongs to. This field is set only in
     // Sort and MapReduce jobs.
+    // COMPAT(apollo1321): Remove after the 26.2 branch is created.
+    optional int32 partition_tag = 26;
+
     repeated int32 partition_tags = 47;
 
     optional string tree_id = 27;

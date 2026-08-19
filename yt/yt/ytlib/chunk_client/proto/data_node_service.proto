@@ -483,7 +483,8 @@ message TReqGetChunkMeta
     // If true, then extension_tags are ignored and
     // the whole available meta is returned.
     optional bool all_extension_tags = 3 [default = false];
-    reserved 4;
+    // COMPAT(apollo1321): Remove after the 26.2 branch is created.
+    optional int32 partition_tag = 4;
     repeated int32 partition_tags = 9;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
 
