@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ResourceMonitorTest {
 
+    private long sink;
+
     @Test
     public void testStats() throws Exception {
         var resourceMonitor = new ResourceMonitor();
@@ -16,8 +18,10 @@ class ResourceMonitorTest {
                 var bytes = new byte[1000];
                 length += bytes.length;
             }
-            // In order to make 'length' variable used.
-            System.out.println(length);
+            // In order to make 'length' variable used. Must not allocate: everything allocated inside
+            // the callback is measured, and printing here costs over 100 KB of lazily initialized
+            // buffers under some test runners, which breaks the upper bound below.
+            sink = length;
         });
         // 1000 * 1000 + some fixed costs.
         assertTrue(stats.getAllocatedBytes().toBytes() > 1_000_000);
