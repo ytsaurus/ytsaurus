@@ -166,7 +166,7 @@ struct TJournalBlockDeviceConfig
     //! The flusher: how dirty blocks are buffered and drained to the store.
     TJournalBlockFlusherConfigPtr BlockFlusher;
 
-    //! Background compaction of mostly-dead chunks; absent disables it.
+    //! Background compaction of mostly-dead chunks.
     TJournalBlockCompactorConfigPtr BlockCompactor;
 
     //! How wide a block index window a snapshot scans, resolves and writes at a time. Caps the save's

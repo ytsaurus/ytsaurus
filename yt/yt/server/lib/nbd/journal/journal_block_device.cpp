@@ -161,14 +161,12 @@ public:
             BlockStore_,
             Invoker_,
             Logger))
-        , BlockCompactor_(Config_->BlockCompactor
-            ? CreateBlockCompactor(
-                Config_->BlockCompactor,
-                BlockMap_,
-                BlockStore_,
-                Invoker_,
-                Logger)
-            : GetNullBlockCompactor())
+        , BlockCompactor_(CreateBlockCompactor(
+            Config_->BlockCompactor,
+            BlockMap_,
+            BlockStore_,
+            Invoker_,
+            Logger))
     { }
 
     i64 GetTotalSize() const final
