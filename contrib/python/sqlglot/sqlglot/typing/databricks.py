@@ -26,10 +26,16 @@ EXPRESSION_METADATA = {
             exp.RegexpInstr,
         }
     },
-    exp.RegexpSubstr: {"returns": exp.DType.VARCHAR},
+    **{
+        exp_type: {"returns": exp.DType.VARCHAR}
+        for exp_type in {
+            exp.RegexpSubstr,
+            exp.Secret,
+            exp.Trim,
+        }
+    },
     exp.RegrCount: {"returns": exp.DType.BIGINT},
     exp.Search: {"returns": exp.DType.BOOLEAN},
-    exp.Trim: {"returns": exp.DType.VARCHAR},
     exp.RegexpExtractAll: {
         "annotator": lambda self, e: self._set_type(
             e, exp.DataType.from_str("ARRAY<STRING>", dialect="databricks")
