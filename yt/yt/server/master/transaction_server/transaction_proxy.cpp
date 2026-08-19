@@ -252,10 +252,26 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::LastPingTime:
-                return MakeFuture(ConvertToYsonString(TInstant::Now()));
+                if (auto error = RequireLeaderAsync(); !error.IsOK()) {
+                    return MakeFuture<TYsonString>(std::move(error));
+                }
+                return Bootstrap_
+                    ->GetTransactionManager()
+                    ->GetLastPingTime(transaction)
+                    .Apply(BIND([] (TInstant value) {
+                        return ConvertToYsonString(value);
+                    }));
 
             case EInternedAttributeKey::LastPingAddress:
-                return MakeFuture(ConvertToYsonString(std::optional<std::string>()));
+                if (auto error = RequireLeaderAsync(); !error.IsOK()) {
+                    return MakeFuture<TYsonString>(std::move(error));
+                }
+                return Bootstrap_
+                    ->GetTransactionManager()
+                    ->GetLastPingAddress(transaction)
+                    .Apply(BIND([] (std::optional<std::string> value) {
+                        return ConvertToYsonString(value);
+                    }));
 
             case EInternedAttributeKey::ResourceUsage:
                 return GetAggregatedResourceUsageMap().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TAccountResourcesMap& usageMap) {
