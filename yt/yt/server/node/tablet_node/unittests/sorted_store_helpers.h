@@ -36,9 +36,15 @@ class TMockChunkReader
     : public IChunkReader
 {
 public:
-    TMockChunkReader(TChunkId chunkId, TChunkData chunkData)
+    TMockChunkReader(
+        TChunkId chunkId,
+        TChunkData chunkData,
+        TFuture<void> metaReadAllowedToProceedFuture = VoidFuture,
+        TPromise<void> notifyMetaReadStartedPromise = {})
         : ChunkId_(chunkId)
         , ChunkData_(std::move(chunkData))
+        , MetaReadAllowedToProceedFuture_(std::move(metaReadAllowedToProceedFuture))
+        , NotifyMetaReadStartedPromise_(std::move(notifyMetaReadStartedPromise))
     { }
 
     // IChunkReader implementation.
@@ -67,7 +73,12 @@ public:
         const std::optional<TPartitionTags>& /*partitionTags*/,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
-        return MakeFuture(ChunkData_.Meta);
+        if (NotifyMetaReadStartedPromise_) {
+            NotifyMetaReadStartedPromise_.TrySet();
+        }
+        return MetaReadAllowedToProceedFuture_.Apply(BIND([meta = ChunkData_.Meta] {
+            return meta;
+        }));
     }
 
     TChunkId GetChunkId() const override
@@ -83,6 +94,8 @@ public:
 private:
     const TChunkId ChunkId_;
     const TChunkData ChunkData_;
+    const TFuture<void> MetaReadAllowedToProceedFuture_;
+    const TPromise<void> NotifyMetaReadStartedPromise_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,12 +106,20 @@ class TMockBackendChunkReadersHolder
     : public IBackendChunkReadersHolder
 {
 public:
-    void RegisterBackendChunkReader(TChunkId chunkId, TChunkData chunkData)
+    void RegisterBackendChunkReader(
+        TChunkId chunkId,
+        TChunkData chunkData,
+        TFuture<void> metaReadAllowedToProceedFuture = VoidFuture,
+        TPromise<void> notifyMetaReadStartedPromise = {})
     {
         EmplaceOrCrash(
             ChunkIdToReaders_,
             chunkId,
-            New<TMockChunkReader>(chunkId, std::move(chunkData)));
+            New<TMockChunkReader>(
+                chunkId,
+                std::move(chunkData),
+                std::move(metaReadAllowedToProceedFuture),
+                std::move(notifyMetaReadStartedPromise)));
     }
 
     // IBackendChunkReadersHolder implementation.
