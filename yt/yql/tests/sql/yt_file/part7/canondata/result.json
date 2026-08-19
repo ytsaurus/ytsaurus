@@ -2021,6 +2021,27 @@
             "uri": "file://test.test_select-struct_access_without_table_name--Results_/extracted"
         }
     ],
+    "test.test[select_yql-insert_into_values_minimal-default.txt-Debug]": [
+        {
+            "checksum": "cb8a8eae7ce74a2924c2c41c3f6e418c",
+            "size": 1718,
+            "uri": "https://{canondata_backend}/1903885/2b130edf63d617210f88b9a8fc9ec5d2f09c2e0d/resource.tar.gz#test.test_select_yql-insert_into_values_minimal-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[select_yql-insert_into_values_minimal-default.txt-Plan]": [
+        {
+            "checksum": "0ddad86a71199c7ecce9377a2a27f8d4",
+            "size": 5168,
+            "uri": "https://{canondata_backend}/1903885/2b130edf63d617210f88b9a8fc9ec5d2f09c2e0d/resource.tar.gz#test.test_select_yql-insert_into_values_minimal-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[select_yql-insert_into_values_minimal-default.txt-Results]": [
+        {
+            "checksum": "be249f98dc2716ef63bcf745c510f97c",
+            "size": 689,
+            "uri": "https://{canondata_backend}/1903885/2b130edf63d617210f88b9a8fc9ec5d2f09c2e0d/resource.tar.gz#test.test_select_yql-insert_into_values_minimal-default.txt-Results_/results.txt"
+        }
+    ],
     "test.test[simple_columns-simple_columns_join_coalesce_qualified_all_disable-default.txt-Debug]": [
         {
             "checksum": "16f2b6edb0903607dbc15ed9df36fe40",
