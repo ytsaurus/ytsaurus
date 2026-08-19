@@ -85,7 +85,10 @@ TEST(TCompanionRuntimeContextTest, ThrottlerThrows)
 {
     auto context = MakeRuntimeContext();
     EXPECT_THROW_WITH_SUBSTRING(
-        Y_UNUSED(context->GetThrottler(TThrottlerId("my_throttler"))),
+        Y_UNUSED(context->GetThrottlerOrThrow(TThrottlerId("my_throttler"))),
+        "not available in a companion process");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(context->TryGetThrottler(TThrottlerId("my_throttler"))),
         "not available in a companion process");
 }
 

@@ -103,7 +103,8 @@ A process function is `TRefCounted`, so you must always create it via `New<...>(
 | `ConvertToMessage(ysonMessage)` | `TYsonMessage` → `TMessage` |
 | `ConvertToYsonMessage<T>(message)` | `TMessage` → typed `TYsonMessage` |
 | `MakeTimer(key, streamId, trigger, event)` | Creates a [timer](../../../flow/concepts/glossary.md#timer) |
-| `GetThrottler(throttlerId)` | Gets a distributed throttler |
+| `GetThrottlerOrThrow(throttlerId)` | Gets a distributed throttler |
+| `TryGetThrottler(throttlerId)` | Same, but returns `nullptr` if the throttler is not declared |
 
 ## States
 

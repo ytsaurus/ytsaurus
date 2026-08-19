@@ -52,7 +52,7 @@ public:
 
     void DoProcessMessage(const TMessage& message, IOutputCollectorPtr output) override
     {
-        WaitFor(GetThrottler(TThrottlerId("api"))->Throttle(1))
+        WaitFor(GetThrottlerOrThrow(TThrottlerId("api"))->Throttle(1))
             .ThrowOnError();
 
         auto builder = MakeOutputMessageBuilder();

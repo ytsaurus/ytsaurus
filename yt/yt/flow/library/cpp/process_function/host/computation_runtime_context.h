@@ -52,7 +52,8 @@ public:
         TSystemTimestamp triggerTimestamp,
         TSystemTimestamp eventTimestamp) const override;
 
-    NConcurrency::IThroughputThrottlerPtr GetThrottler(const TThrottlerId& throttlerId) override;
+    NConcurrency::IThroughputThrottlerPtr GetThrottlerOrThrow(const TThrottlerId& throttlerId) override;
+    NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId) override;
 
     NYTree::IMapNodePtr GetDynamicParametersNode() const override;
 

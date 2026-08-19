@@ -101,7 +101,8 @@ Process function — `TRefCounted`, поэтому создавать её вс�
 | `ConvertToMessage(ysonMessage)` | `TYsonMessage` → `TMessage` |
 | `ConvertToYsonMessage<T>(message)` | `TMessage` → типизированный `TYsonMessage` |
 | `MakeTimer(key, streamId, trigger, event)` | Создать [таймер](../../../flow/concepts/glossary.md#timer) |
-| `GetThrottler(throttlerId)` | Получить distributed throttler |
+| `GetThrottlerOrThrow(throttlerId)` | Получить distributed throttler |
+| `TryGetThrottler(throttlerId)` | То же, но `nullptr`, если троттлер не объявлен |
 
 ## Стейты
 

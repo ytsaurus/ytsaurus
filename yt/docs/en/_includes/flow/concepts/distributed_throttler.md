@@ -66,11 +66,11 @@ The wait is recorded as a separate `Input.Throttle` span in the Computation’s 
 
 The ID must be declared in `dynamic_spec/throttlers`.
 
-### Manual: `GetThrottler(id)` from user code {#manual}
+### Manual: `GetThrottlerOrThrow(id)` from user code {#manual}
 
-If automatic throttling on the input batch isn’t enough — for example, if you need a rate limit for each external request — you get the throttler directly from your user `Computation`. The base class has a `GetThrottler(id)` method that returns `IThroughputThrottlerPtr` — the standard YT throttler. You call `Throttle(amount)` on it and wait for the result.
+If automatic throttling on the input batch isn’t enough — for example, if you need a rate limit for each external request — you get the throttler directly from your user `Computation`. The base class has a `GetThrottlerOrThrow(id)` method that returns `IThroughputThrottlerPtr` — the standard YT throttler. You call `Throttle(amount)` on it and wait for the result. `GetThrottlerOrThrow` throws if the id is not declared in `throttlers`; `TryGetThrottler(id)` returns `nullptr` instead — handy when declaring a throttler in `dynamic_spec` is what turns throttling on for the matching entity (say, one throttler per model or per external service).
 
-The returned pointer stays stable for the entire life of the Job: the factory replaces the internal client during `Reconfigure`, so you can store it in `DoInit` and keep using it without re-fetching.
+The returned pointer stays stable for the entire life of the Job: the factory replaces the internal client during `Reconfigure`, so you can store it in `DoInit` and keep using it without re-fetching. This does not apply to a `nullptr` from `TryGetThrottler`: it only means "not declared right now", and once the throttler is added to `dynamic_spec` you have to query it again.
 
 Right now, this mechanism is supported only in C++.
 

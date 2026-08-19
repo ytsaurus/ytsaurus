@@ -20,7 +20,8 @@ class TCompanionRuntimeContext
 public:
     using TComputationRuntimeContext::TComputationRuntimeContext;
 
-    NConcurrency::IThroughputThrottlerPtr GetThrottler(const TThrottlerId& throttlerId) override;
+    NConcurrency::IThroughputThrottlerPtr GetThrottlerOrThrow(const TThrottlerId& throttlerId) override;
+    NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId) override;
 
     //! The epoch timestamp does not travel to the companion; throwing beats
     //! silently returning zero (which would misdate every relative timer).

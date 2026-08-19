@@ -31,7 +31,12 @@ class TUnlimitedThrottlerFactory
     : public NDistributedThrottler::IDistributedThrottlerFactory
 {
 public:
-    IThroughputThrottlerPtr GetClient(std::string_view /*throttlerName*/) override
+    IThroughputThrottlerPtr GetClientOrThrow(std::string_view /*throttlerName*/) override
+    {
+        return GetUnlimitedThrottler();
+    }
+
+    IThroughputThrottlerPtr TryGetClient(std::string_view /*throttlerName*/) override
     {
         return GetUnlimitedThrottler();
     }
