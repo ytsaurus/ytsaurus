@@ -79,7 +79,9 @@ public:
     void AddChunkStore(
         bool eden,
         const std::vector<TVersionedOwningRow>& rows,
-        const TTableSchemaPtr& chunkSchema = nullptr)
+        const TTableSchemaPtr& chunkSchema = nullptr,
+        TFuture<void> metaReadAllowedToProceedFuture = VoidFuture,
+        TPromise<void> notifyMetaReadStartedPromise = {})
     {
         NTabletNode::NProto::TAddStoreDescriptor descriptor;
         descriptor.set_store_type(ToProto(EStoreType::SortedChunk));
@@ -98,7 +100,11 @@ public:
 
         OnNewChunkStore(std::move(descriptor), eden);
 
-        TabletContext_.GetBackendChunkReadersHolder()->RegisterBackendChunkReader(storeId, chunkData);
+        TabletContext_.GetBackendChunkReadersHolder()->RegisterBackendChunkReader(
+            storeId,
+            chunkData,
+            std::move(metaReadAllowedToProceedFuture),
+            std::move(notifyMetaReadStartedPromise));
     }
 
     void OnChunkStoresAdded()
@@ -111,7 +117,7 @@ public:
         return YsonToSchemafulRow(rowString, *TableSchema_, /*treatMissingAsNull*/ false);
     }
 
-    std::vector<TUnversionedOwningRow> DoLookupRows(
+    TFuture<std::vector<TUnversionedOwningRow>> StartDoLookupRows(
         const std::vector<TUnversionedRow>& keys,
         TTimestamp timestamp = SyncLastCommittedTimestamp,
         std::optional<TTimestamp> retentionTimestamp = std::nullopt,
@@ -128,7 +134,7 @@ public:
 
         chunkReadOptions.InitialQueryKind = EInitialQueryKind::LookupRows;
 
-        return WaitFor(BIND(&LookupRowsImpl,
+        return BIND(&LookupRowsImpl,
             Tablet_.get(),
             keys,
             timestampRange,
@@ -136,7 +142,24 @@ public:
             tabletSnapshot,
             chunkReadOptions)
             .AsyncVia(LookupQueue_->GetInvoker())
-            .Run())
+            .Run();
+    }
+
+    std::vector<TUnversionedOwningRow> DoLookupRows(
+        const std::vector<TUnversionedRow>& keys,
+        TTimestamp timestamp = SyncLastCommittedTimestamp,
+        std::optional<TTimestamp> retentionTimestamp = std::nullopt,
+        const std::vector<int>& columnIndexes = {},
+        TTabletSnapshotPtr tabletSnapshot = nullptr,
+        NChunkClient::TClientChunkReadOptions chunkReadOptions = TClientChunkReadOptions())
+    {
+        return WaitFor(StartDoLookupRows(
+            keys,
+            timestamp,
+            retentionTimestamp,
+            columnIndexes,
+            tabletSnapshot,
+            chunkReadOptions))
             .ValueOrThrow();
     }
 
@@ -541,6 +564,56 @@ TEST_F(TLookupTest, TwoPartitions)
     ValidateLookup(
         {YsonToKey("0"), YsonToKey("1")},
         {BuildRow("k=0;v=1"), BuildRow("k=1;v=2")});
+}
+
+TEST_F(TLookupTest, WaitForPrefetchedPartitionStoreSessions)
+{
+    // Put the keys into two partitions to verify that the prefetched second
+    // partition is not read before its store sessions finish opening.
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 0",
+                "<id=1;ts=100> 0"),
+        });
+
+    // With this two futures keep the prefetched store from finishing its asynchronous Open.
+    auto metaReadStartedPromise = NewPromise<void>();
+    auto metaReadAllowToProceedPromise = NewPromise<void>();
+    AddChunkStore(
+        /*eden*/ false,
+        {
+            YsonToVersionedRow(
+                "<id=0> 1",
+                "<id=1;ts=100> 1"),
+        },
+        /*chunkSchema*/ nullptr,
+        metaReadAllowToProceedPromise.ToFuture(),
+        metaReadStartedPromise);
+
+    TableSettings_.MountConfig->MinPartitionDataSize = 1;
+    TableSettings_.MountConfig->EnableHashChunkIndexForLookup = true;
+    TableSettings_.MountConfig->PartitionReaderPrefetchKeyLimit = 2;
+
+    OnChunkStoresAdded();
+
+    EXPECT_EQ(2, std::ssize(Tablet_->PartitionList()));
+
+    auto key0 = YsonToKey("0");
+    auto key1 = YsonToKey("1");
+    auto lookupRowsFuture = StartDoLookupRows({key0, key1});
+
+    // The lookup must wait for the prefetched store session to finish opening.
+    WaitFor(metaReadStartedPromise.ToFuture()).ThrowOnError();
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+    EXPECT_FALSE(lookupRowsFuture.IsSet());
+
+    // Complete metadata loading and let the lookup finish.
+    metaReadAllowToProceedPromise.Set();
+    EXPECT_EQ(
+        (std::vector{BuildRow("k=0;v=0"), BuildRow("k=1;v=1")}),
+        WaitFor(lookupRowsFuture).ValueOrThrow());
 }
 
 TEST_F(TLookupTest, VersionedLookup)
