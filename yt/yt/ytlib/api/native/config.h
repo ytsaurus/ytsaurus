@@ -310,6 +310,8 @@ struct TConnectionDynamicConfig
     std::optional<TDuration> LookupRowsInMemoryLoggingSuppressionTimeout;
     std::optional<TDuration> LookupRowsExtMemoryLoggingSuppressionTimeout;
 
+    std::optional<NCompression::ECodec> PullQueueResponseCodec;
+
     int DefaultGetTabletErrorsLimit;
 
     NYPath::TYPath UdfRegistryPath;
