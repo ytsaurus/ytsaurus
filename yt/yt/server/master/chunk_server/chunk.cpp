@@ -992,17 +992,6 @@ void TChunk::AccumulateNewlyReferencedHunkStatistics(i64 dataWeightDelta, i64 da
             dataSizeDelta);
     }
 
-    // TODO(akozhikhov): We can only check for journal chunks now because
-    // dictionary compression of regular hunk chunks can interfere with this check.
-    if (IsSealed() && IsJournal() && newUncompressedDataSize > GetDiskSpace()) {
-        YT_LOG_ALERT("Unexpected statistics upon accounting referenced hunk data size "
-            "(ChunkId: %v, UncompressedDataSize: %v, NewUncompressedDataSize: %v, DiskSpace: %v)",
-            GetId(),
-            GetUncompressedDataSize(),
-            newUncompressedDataSize,
-            GetDiskSpace());
-    }
-
     TMiscExt miscExt;
     NChunkClient::NProto::TChunkMeta protoMeta;
     if (IsConfirmed()) {
