@@ -998,6 +998,24 @@ class ComponentRoutingTest(unittest.TestCase):
             ("tablet-node", "node"),
         )
 
+    def test_tablet_sen_hostname_maps_to_node_base(self):
+        self.assertEqual(
+            logslice.infer_host_component(
+                "vla5-6094-bundlename-001-tab-sen-v.vla.yp-c.yandex.net"
+            ),
+            ("tablet-node", "node"),
+        )
+
+    def test_node_hostname_resolves_location_suffixed_base(self):
+        route = logslice.resolve_component_route(
+            "vla5-6094-bundlename-001-tab-sen-v.vla.yp-c.yandex.net",
+            None,
+            ["node-vla5-6094"],
+        )
+        self.assertEqual(route["role"], "tablet-node")
+        self.assertEqual(route["component"], "node")
+        self.assertEqual(route["base"], "node-vla5-6094")
+
     def test_master_hostname_maps_to_master_base(self):
         self.assertEqual(
             logslice.infer_host_component("m001-zeno.vla.yp-c.yandex.net"),
