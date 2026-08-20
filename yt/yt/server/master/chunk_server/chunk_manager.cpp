@@ -994,10 +994,9 @@ public:
         std::vector<i64> ReferencedDataWeightPerChunk;
         std::vector<i64> ReferencedDataSizePerChunk;
         TMasterTableSchema* MasterTableSchema = nullptr;
-        TError ValidationError;
     };
 
-    TConfirmChunkSuccessfulValidationResult ValidateConfirmChunk(
+    TErrorOr<TConfirmChunkSuccessfulValidationResult> ValidateConfirmChunk(
         TChunk* chunk,
         const TChunkMeta& chunkMeta,
         TMasterTableSchemaId schemaId,
@@ -1015,13 +1014,17 @@ public:
         const auto& tableManager = Bootstrap_->GetTableManager();
         // TODO(h0pless): Maybe think of a better exception here.
         if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
-            if (!tableManager->FindMasterTableSchema(schemaId)) {
-                result.ValidationError = TError(NYTree::EErrorCode::ResolveError,
+            auto tableSchema = tableManager->FindMasterTableSchema(schemaId);
+            if (!tableSchema || !IsObjectAlive(tableSchema)) {
+                YT_LOG_ALERT_IF(tableSchema && !IsObjectAlive(tableSchema),
+                    "Got zombie schema on chunk confirmation (ChunkId: %v, SchemaId: %v)",
+                    id,
+                    schemaId);
+                return TError(NYTree::EErrorCode::ResolveError,
                     "No such schema %v",
                     schemaId);
-                return result;
             }
-            result.MasterTableSchema = tableManager->GetMasterTableSchema(schemaId);
+            result.MasterTableSchema = tableSchema;
         }
 
         // NB: Figure out and validate all hunk chunks we are about to reference _before_ confirming
@@ -1032,10 +1035,9 @@ public:
                 auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
                 auto* hunkChunk = FindChunk(hunkChunkId);
                 if (!IsObjectAlive(hunkChunk)) {
-                    result.ValidationError = TError("Cannot confirm chunk %v since it references an unknown hunk chunk %v",
+                    return TError("Cannot confirm chunk %v since it references an unknown hunk chunk %v",
                         id,
                         hunkChunkId);
-                    return result;
                 }
                 result.ReferencedHunkChunks.push_back(hunkChunk);
                 result.ReferencedDataWeightPerChunk.push_back(protoRef.total_hunk_length());
@@ -1044,8 +1046,10 @@ public:
         }
 
         if (validateChunkMeta) {
-            auto error = ValidateChunkMetaOnConfirmation(chunkMeta);
-            result.ValidationError = error;
+            auto error = CheckChunkMetaOnConfirmation(chunkMeta);
+            if (!error.IsOK()) {
+                return error;
+            }
         }
 
         return result;
@@ -1360,7 +1364,7 @@ public:
             GetObjectId(transaction));
 
         THashMap<TChunkId, TConfirmChunkSuccessfulValidationResult> chunkToConfirmationValidationResult;
-        THashMap<TGuid, TError> batchConfirmErrors;
+        THashMap<NRpc::TRequestId, TError> batchConfirmErrors;
         chunkToConfirmationValidationResult.reserve(request->chunk_confirmations_size());
         for (const auto& protoChunkInfo : request->chunk_confirmations()) {
             auto chunkId = FromProto<TChunkId>(protoChunkInfo.chunk_id());
@@ -1368,7 +1372,7 @@ public:
                 chunkId);
 
             auto schemaId = FromProto<TMasterTableSchemaId>(protoChunkInfo.schema_id());
-            auto requestId = protoChunkInfo.has_request_id() ? TGuid{} : FromProto<TGuid>(protoChunkInfo.request_id());
+            auto requestId = FromProto<TGuid>(protoChunkInfo.request_id());
             auto* chunk = FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 // Chunk is dead, but we consider it a "success" here, so that we don't fail
@@ -1384,18 +1388,20 @@ public:
                 schemaId,
                 /*validateChunkMeta*/ false);
 
-            if (!result.ValidationError.IsOK()) {
-                auto error = TError("Chunk %v validation failed", chunkId) << result.ValidationError;
+            if (!result.IsOK()) {
+                auto error = TError("Chunk %v validation failed", chunkId)
+                    .With(result);
                 YT_LOG_DEBUG(error);
                 batchConfirmErrors.emplace(requestId, error);
                 continue;
             }
 
-            if (!chunkToConfirmationValidationResult.emplace(chunkId, result).second) {
+            if (!chunkToConfirmationValidationResult.emplace(chunkId, result.Value()).second) {
                 YT_LOG_ALERT("A chunk was found in confirmation batch multiple times (ChunkId: %v)",
                     chunkId);
-                batchConfirmErrors.emplace(requestId, TError(NRpc::EErrorCode::TransientFailure, "Chunk %v confirmation failed",
-                    chunkId));
+                batchConfirmErrors.emplace(
+                    requestId,
+                    TError(NRpc::EErrorCode::TransientFailure, "Chunk %v confirmation failed", chunkId));
                 continue;
             }
         }
@@ -1406,12 +1412,14 @@ public:
                 batchError.MutableInnerErrors()->push_back(confirmError);
 
                 if (!requestId.IsEmpty()) {
-                    ChunkConfirmErrors_.emplace(requestId, confirmError);
+                    if (IsLeader()) {
+                        ChunkConfirmErrors_.emplace(requestId, confirmError);
+                    }
                 } else {
-                    YT_LOG_ALERT("Chunk without request id found in confirmation batch");
+                    YT_LOG_ALERT("Chunk without request ID found in confirmation batch");
                 }
             }
-            YT_LOG_ALERT_AND_THROW(batchError);
+            batchError.ThrowOnError();
         }
 
        for (const auto& protoChunkInfo : request->chunk_confirmations()) {
@@ -2882,7 +2890,7 @@ private:
 
     std::vector<std::pair<TReqConfirmChunk, TGuid>> WaitingConfirmRequests_;
     TPromise<void> BatchConfirmTransactionCommitPromise_;
-    THashMap<TGuid, TError> ChunkConfirmErrors_;
+    THashMap<NRpc::TRequestId, TError> ChunkConfirmErrors_;
 
     TPeriodicExecutorPtr SequoiaBatchIncrementalHeartbeatExecutor_;
 
@@ -4171,7 +4179,7 @@ private:
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    TError ExtractConfirmSequoiaChunkError(TGuid requestId) override
+    TError ExtractConfirmSequoiaChunkError(NRpc::TRequestId requestId) override
     {
         if (auto errorIt = ChunkConfirmErrors_.find(requestId); errorIt != ChunkConfirmErrors_.end()) {
             auto chunkConfirmError = errorIt->second;
@@ -5806,13 +5814,13 @@ private:
             subrequest->chunk_meta(),
             schemaId,
             /*validateChunkMeta*/ true);
-        validationResult.ValidationError.ThrowOnError();
+        validationResult.ThrowOnError();
         ConfirmChunk(
             chunk,
             replicas,
             subrequest->chunk_info(),
             subrequest->chunk_meta(),
-            validationResult);
+            validationResult.Value());
 
         if (subresponse) {
             if (subrequest->request_statistics()) {
@@ -6938,6 +6946,8 @@ private:
             WaitingSequoiaIncrementalHeartbeatRequests_.clear();
             ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ = 0;
         }
+
+        ChunkConfirmErrors_.clear();
     }
 
     void OnFollowerRecoveryComplete() override

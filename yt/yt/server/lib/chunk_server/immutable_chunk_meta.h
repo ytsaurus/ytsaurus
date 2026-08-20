@@ -77,10 +77,10 @@ private:
 
 //! Checks that deserializing TImmutableChunkMeta from protobuf message won't throw.
 //! Must be kept consistent with FromProto below.
-TError ValidateFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta);
+TError CheckFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta);
 
 //! Deserializes TImmutableChunkMeta from protobuf message.
-//! Must be kept consistent with ValidateFromProto above.
+//! Must be kept consistent with CheckFromProto above.
 void FromProto(
     TImmutableChunkMetaPtr* meta,
     const NChunkClient::NProto::TChunkMeta& protoMeta);
