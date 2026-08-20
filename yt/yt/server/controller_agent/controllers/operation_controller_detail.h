@@ -727,6 +727,7 @@ protected:
     void InitAccountResourceUsageLeases();
     void ValidateCollectiveOptions() const;
     void ValidateSecureVault() const;
+    virtual void ValidateInputTablePaths() const;
     void ValidateOutputTablePaths() const;
 
     // Preparation.

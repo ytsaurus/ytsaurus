@@ -71,6 +71,11 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
                     "use_remote_master_caches": True,
                 },
             },
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
+                },
+            },
         },
     }
 
@@ -1292,6 +1297,20 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         assert assert_statistic("chunk_reader_statistics.data_bytes_transmitted", lambda actual: actual is not None and actual > 0)
         # NB: remote_copy jobs do not operate on rows, so row count should be zero.
         assert assert_statistic("chunk_reader_statistics.row_count", lambda actual: actual is None)
+
+    @authors("coteeq")
+    def test_no_cluster_attribute(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "c"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        with raises_yt_error("\"cluster\" attribute is not allowed"):
+            remote_copy(
+                in_='<cluster="some_cluster">//tmp/t1',
+                out="//tmp/t2",
+                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+            )
 
 
 ##################################################################
