@@ -51,7 +51,9 @@ public:
         std::optional<NIO::TIOFairShareState> fairShareState) override;
 
     bool ShouldUseProbePutBlocks() const override;
-    void ProbePutBlocks(i64 requestedCumulativeMemorySize) override;
+    void ProbePutBlocks(
+        i64 requestedCumulativeMemorySize,
+        std::optional<NIO::TIOFairShareState> fairShareState) override;
     i64 GetApprovedCumulativeBlockSize() const override;
     i64 GetMaxRequestedCumulativeBlockSize() const override;
 

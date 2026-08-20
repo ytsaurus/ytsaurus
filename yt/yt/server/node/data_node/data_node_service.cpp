@@ -490,9 +490,16 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbePutBlocks)
     {
-        context->SetRequestInfo("SessionId: %v, CumulativeBlockSize: %v",
+        auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
+        auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
+        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+
+        context->SetRequestInfo(
+            "SessionId: %v, CumulativeBlockSize: %v, IOConsumed: %v, IOFairShareWeight: %v",
             request->session_id(),
-            request->cumulative_block_size());
+            request->cumulative_block_size(),
+            ioConsumed,
+            ioFairShareWeight);
 
         const auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
         const auto cumulativeBlockSize = request->cumulative_block_size();
@@ -500,7 +507,7 @@ private:
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(chunkId);
 
-        session->ProbePutBlocks(cumulativeBlockSize);
+        session->ProbePutBlocks(cumulativeBlockSize, fairShareState);
 
         auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
         auto approvedCumulativeBlockSize = GetReportedApprovedCumulativeBlockSize(context, session);

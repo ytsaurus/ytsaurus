@@ -352,6 +352,26 @@ double TChunkLocation::GetFairShareWorkloadCategoryWeight(EWorkloadCategory cate
     return config->FairShareWorkloadCategoryWeights[category].value_or(DefaultFairShareWorkloadCategoryWeights[category]);
 }
 
+std::vector<std::pair<std::string, double>> TChunkLocation::BuildFairShareTags(
+    EWorkloadCategory category,
+    const std::optional<NIO::TIOFairShareState>& fairShareState) const
+{
+    auto config = GetRuntimeConfig();
+
+    std::vector<std::pair<std::string, double>> tags;
+    tags.emplace_back(
+        ToString(category),
+        GetFairShareWorkloadCategoryWeight(category));
+
+    tags.emplace_back(
+        fairShareState ? "weighted" : "unweighted",
+        fairShareState
+            ? config->WeightedRequestWeight
+            : config->UnweightedRequestWeight);
+
+    return tags;
+}
+
 THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -641,10 +661,9 @@ void TChunkLocation::DoCheckFairShareProbePutBlocksRequests()
         return CreateFairShareQueueSlot(
             request->CumulativeBlockSize - supplier->GetCurrentApprovedMemory(),
             std::vector<IFairShareHierarchicalSlotQueueResourcePtr>{},
-            CreateHierarchyLevels<std::string>({{
-                ToString(request->WorkloadDescriptor.Category),
-                GetFairShareWorkloadCategoryWeight(request->WorkloadDescriptor.Category),
-            }}));
+            CreateHierarchyLevels(BuildFairShareTags(
+                request->WorkloadDescriptor.Category,
+                request->FairShareState)));
     };
 
     auto slots = RangeTo<std::vector<TFairShareHierarchicalSlotQueueSlotPtr<std::string>>>(

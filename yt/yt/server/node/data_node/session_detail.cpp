@@ -384,7 +384,9 @@ bool TSessionBase::ShouldUseProbePutBlocks() const
     return UseProbePutBlocks_;
 }
 
-void TSessionBase::ProbePutBlocks(i64 requestedCumulativeMemorySize)
+void TSessionBase::ProbePutBlocks(
+    i64 requestedCumulativeMemorySize,
+    std::optional<NIO::TIOFairShareState> fairShareState)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -395,6 +397,7 @@ void TSessionBase::ProbePutBlocks(i64 requestedCumulativeMemorySize)
     ProbePutBlocksRequestSupplier_->PushRequest({
         .CumulativeBlockSize = requestedCumulativeMemorySize,
         .WorkloadDescriptor = GetWorkloadDescriptor(),
+        .FairShareState = fairShareState,
     });
 
     Location_->PushProbePutBlocksRequestSupplier(ProbePutBlocksRequestSupplier_);

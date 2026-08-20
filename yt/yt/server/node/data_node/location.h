@@ -301,6 +301,10 @@ public:
 
     double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
 
+    std::vector<std::pair<std::string, double>> BuildFairShareTags(
+        EWorkloadCategory category,
+        const std::optional<NIO::TIOFairShareState>& fairShareState) const;
+
     //! Push supplier to the queue.
     void PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier);
 
