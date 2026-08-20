@@ -340,19 +340,13 @@ void TBlobChunkBase::DoReadMeta(
         auto reader = GetReader();
         auto metaSize = reader->GetMetaSize();
 
-        auto tags = session->Options.FairShareTags;
-        if (tags.empty()) {
-            auto category = session->Options.WorkloadDescriptor.Category;
-            tags.emplace_back(
-                ToString(category),
-                Location_->GetFairShareWorkloadCategoryWeight(category));
-        }
-
         // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
         auto fairShareQueueSlot = Location_->AddFairShareQueueSlot(
             metaSize,
             {},
-            CreateHierarchyLevels(tags));
+            CreateHierarchyLevels(Location_->BuildFairShareTags(
+                session->Options.WorkloadDescriptor.Category,
+                session->Options.FairShareState)));
 
         YT_VERIFY(fairShareQueueSlot.IsOK());
 
@@ -584,19 +578,13 @@ void TBlobChunkBase::DoReadSession(
         return;
     }
 
-    auto tags = session->Options.FairShareTags;
-    if (tags.empty()) {
-        auto category = session->Options.WorkloadDescriptor.Category;
-        tags.emplace_back(
-            ToString(category),
-            Location_->GetFairShareWorkloadCategoryWeight(category));
-    }
-
     // TODO(don-dron): Add resource acquiring (memory, cpu, net etc).
     auto fairShareSlotOrError = Location_->AddFairShareQueueSlot(
         alignedPendingDataSize,
         {},
-        CreateHierarchyLevels(tags));
+        CreateHierarchyLevels(Location_->BuildFairShareTags(
+            session->Options.WorkloadDescriptor.Category,
+            session->Options.FairShareState)));
 
     YT_VERIFY(fairShareSlotOrError.IsOK());
 

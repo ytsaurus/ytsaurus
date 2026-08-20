@@ -243,7 +243,9 @@ bool TNbdSession::ShouldUseProbePutBlocks() const
     YT_UNIMPLEMENTED();
 }
 
-void TNbdSession::ProbePutBlocks(i64 /*requestedCumulativeMemorySize*/)
+void TNbdSession::ProbePutBlocks(
+    i64 /*requestedCumulativeMemorySize*/,
+    std::optional<NIO::TIOFairShareState> /*fairShareState*/)
 {
     YT_UNIMPLEMENTED();
 }

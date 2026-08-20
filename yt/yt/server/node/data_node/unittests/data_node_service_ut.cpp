@@ -5,6 +5,7 @@
 #include <yt/yt/server/node/data_node/config.h>
 #include <yt/yt/server/node/data_node/data_node_service.h>
 #include <yt/yt/server/node/data_node/chunk_store.h>
+#include <yt/yt/server/node/data_node/chunk_meta_manager.h>
 #include <yt/yt/server/node/data_node/master_connector.h>
 #include <yt/yt/server/node/data_node/medium_aware_block_cache_manager.h>
 #include <yt/yt/server/node/data_node/medium_directory_manager.h>
@@ -19,6 +20,7 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/lib/io/huge_page_manager.h>
+#include <yt/yt/server/lib/io/io_engine.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -519,6 +521,8 @@ public:
         bool PreallocateDiskSpace = false;
         bool WaitPrecedingBlocksReceived = true;
         TEnumIndexedArray<EWorkloadCategory, std::optional<double>> FairShareWorkloadCategoryWeights;
+        double WeightedRequestWeight = 1.0;
+        double UnweightedRequestWeight = 1.0;
         TDuration DelayBeforePerformPutBlocks = TDuration::Seconds(2);
         bool EnableMediumAwareBlockCache = false;
     };
@@ -548,6 +552,8 @@ public:
         storeLocationConfig->ReadMemoryLimit = TestParams_.ReadMemoryLimit;
         storeLocationConfig->CoalescedReadMaxGapSize = TestParams_.CoalescedReadMaxGapSize;
         storeLocationConfig->FairShareWorkloadCategoryWeights = TestParams_.FairShareWorkloadCategoryWeights;
+        storeLocationConfig->WeightedRequestWeight = TestParams_.WeightedRequestWeight;
+        storeLocationConfig->UnweightedRequestWeight = TestParams_.UnweightedRequestWeight;
 
         for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
             if (!storeLocationConfig->Throttlers[kind]) {
@@ -791,7 +797,11 @@ public:
         return req->Invoke();
     }
 
-    auto ProbePutBlocks(const TSessionId& sessionId, i64 cumulativeBlockSize)
+    auto ProbePutBlocks(
+        const TSessionId& sessionId,
+        i64 cumulativeBlockSize,
+        std::optional<i64> ioConsumed = {},
+        std::optional<double> ioFairShareWeight = {})
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -799,6 +809,8 @@ public:
         auto req = proxy.ProbePutBlocks();
         req->set_cumulative_block_size(cumulativeBlockSize);
         ToProto(req->mutable_session_id(), sessionId);
+        YT_OPTIONAL_SET_PROTO(req, io_consumed, ioConsumed);
+        YT_OPTIONAL_SET_PROTO(req, io_fair_share_weight, ioFairShareWeight);
         return req->Invoke();
     }
 
@@ -817,7 +829,9 @@ public:
         const std::vector<TBlock>& blocks,
         int firstBlockIndex,
         i64 cumulativeBlockSize,
-        bool populateCache = false)
+        bool populateCache = false,
+        std::optional<i64> ioConsumed = {},
+        std::optional<double> ioFairShareWeight = {})
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -829,6 +843,8 @@ public:
         req->set_first_block_index(firstBlockIndex);
         req->set_cumulative_block_size(cumulativeBlockSize);
         req->set_populate_cache(populateCache);
+        YT_OPTIONAL_SET_PROTO(req, io_consumed, ioConsumed);
+        YT_OPTIONAL_SET_PROTO(req, io_fair_share_weight, ioFairShareWeight);
         req->SetTimeout(RequestTimeout_);
         SetRpcAttachedBlocks(req, blocks);
 
@@ -848,7 +864,11 @@ public:
         return req->Invoke();
     }
 
-    auto FinishChunk(const TSessionId& sessionId, int blockCount)
+    auto FinishChunk(
+        const TSessionId& sessionId,
+        int blockCount,
+        std::optional<i64> ioConsumed = {},
+        std::optional<double> ioFairShareWeight = {})
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -860,6 +880,8 @@ public:
         *deferredMeta->mutable_extensions() = {};
         *req->mutable_chunk_meta() = *deferredMeta;
         req->set_block_count(blockCount);
+        YT_OPTIONAL_SET_PROTO(req, io_consumed, ioConsumed);
+        YT_OPTIONAL_SET_PROTO(req, io_fair_share_weight, ioFairShareWeight);
         req->SetTimeout(RequestTimeout_);
         ToProto(req->mutable_session_id(), sessionId);
 
@@ -886,7 +908,9 @@ public:
         bool fetchFromCache,
         bool fetchFromDisk,
         TWorkloadDescriptor workloadDescriptor = {},
-        std::optional<TDuration> requestTimeout = {})
+        std::optional<TDuration> requestTimeout = {},
+        std::optional<i64> ioConsumed = {},
+        std::optional<double> ioFairShareWeight = {})
     {
         auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
         TDataNodeServiceProxy proxy(channel);
@@ -907,11 +931,32 @@ public:
         req->set_populate_cache(populateCache);
         req->set_fetch_from_cache(fetchFromCache);
         req->set_fetch_from_disk(fetchFromDisk);
+        YT_OPTIONAL_SET_PROTO(req, io_consumed, ioConsumed);
+        YT_OPTIONAL_SET_PROTO(req, io_fair_share_weight, ioFairShareWeight);
 
         TGuid readSessionId{};
         readSessionId.Parts32[0] = Counter_++;
         ToProto(req->mutable_read_session_id(), readSessionId);
 
+        return req->Invoke();
+    }
+
+    auto GetChunkMeta(
+        const TChunkId& chunkId,
+        TWorkloadDescriptor workloadDescriptor,
+        std::optional<i64> ioConsumed = {},
+        std::optional<double> ioFairShareWeight = {})
+    {
+        auto channel = ChannelFactory_->CreateChannel(DataNodeServiceAddress);
+        TDataNodeServiceProxy proxy(channel);
+
+        auto req = proxy.GetChunkMeta();
+        ToProto(req->mutable_chunk_id(), chunkId);
+        req->set_all_extension_tags(true);
+        SetRequestWorkloadDescriptor(req, workloadDescriptor);
+        YT_OPTIONAL_SET_PROTO(req, io_consumed, ioConsumed);
+        YT_OPTIONAL_SET_PROTO(req, io_fair_share_weight, ioFairShareWeight);
+        req->SetTimeout(RequestTimeout_);
         return req->Invoke();
     }
 
@@ -1521,6 +1566,130 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TDataNodeTest, BuildsBucketTagsWithDefaultWeights)
+{
+    const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+    ASSERT_EQ(locations.size(), 1u);
+    const auto& location = locations.front();
+
+    auto weightedTags = location->BuildFairShareTags(
+        EWorkloadCategory::UserBatch,
+        NIO::MakeIOFairShareState(/*ioConsumed*/ 0, /*ioFairShareWeight*/ 0.0));
+    ASSERT_EQ(weightedTags.size(), 2u);
+    EXPECT_EQ(weightedTags[1].first, "weighted");
+    EXPECT_EQ(weightedTags[1].second, 1.0);
+
+    auto unweightedTags = location->BuildFairShareTags(
+        EWorkloadCategory::UserBatch,
+        /*fairShareState*/ {});
+    ASSERT_EQ(unweightedTags.size(), 2u);
+    EXPECT_EQ(unweightedTags[1].first, "unweighted");
+    EXPECT_EQ(unweightedTags[1].second, 1.0);
+}
+
+class TZeroBucketWeightTest
+    : public TDataNodeTest
+{
+public:
+    TZeroBucketWeightTest()
+        : TDataNodeTest(TDataNodeTestParams{
+            .WeightedRequestWeight = 0.0,
+            .UnweightedRequestWeight = 0.0,
+        })
+    { }
+};
+
+TEST_F(TZeroBucketWeightTest, AcceptsZeroWeights)
+{
+    const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+    ASSERT_EQ(locations.size(), 1u);
+    const auto& location = locations.front();
+
+    auto weightedTags = location->BuildFairShareTags(
+        EWorkloadCategory::UserBatch,
+        NIO::MakeIOFairShareState(/*ioConsumed*/ 0, /*ioFairShareWeight*/ 0.0));
+    ASSERT_EQ(weightedTags.size(), 2u);
+    EXPECT_EQ(weightedTags[1].first, "weighted");
+    EXPECT_EQ(weightedTags[1].second, 0.0);
+
+    auto unweightedTags = location->BuildFairShareTags(
+        EWorkloadCategory::UserBatch,
+        /*fairShareState*/ {});
+    ASSERT_EQ(unweightedTags.size(), 2u);
+    EXPECT_EQ(unweightedTags[1].first, "unweighted");
+    EXPECT_EQ(unweightedTags[1].second, 0.0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TDataNodeTest, RoutesBlobIOByFairShareStatePresence)
+{
+    constexpr int BlockSize = 64_KB;
+
+    TRandomGenerator generator(42);
+    auto blocks = CreateBlocks(/*blockCount*/ 1, BlockSize, generator);
+    auto cumulativeBlockSize = CalculateCummulativeBlockSize(blocks);
+    TSessionId sessionId(
+        MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)),
+        GenericMediumIndex);
+
+    WaitFor(StartChunk(
+        sessionId,
+        /*useProbePutBlocks*/ false,
+        /*preallocateDiskSpace*/ false,
+        /*useDirectIo*/ false,
+        TWorkloadDescriptor(EWorkloadCategory::UserBatch)))
+        .ThrowOnError();
+    WaitFor(PutBlocks(
+        sessionId,
+        blocks,
+        /*firstBlockIndex*/ 0,
+        cumulativeBlockSize,
+        /*populateCache*/ false,
+        /*ioConsumed*/ 0,
+        /*ioFairShareWeight*/ 1.0))
+        .ThrowOnError();
+    WaitFor(FlushBlocks(sessionId, /*blockIndex*/ 0)).ThrowOnError();
+    WaitFor(FinishChunk(sessionId, /*blockCount*/ 1)).ThrowOnError();
+
+    const auto& scheduler = GetDataNodeBootstrap()->GetFairShareHierarchicalScheduler();
+    EXPECT_TRUE(scheduler->GetBucket({
+        ToString(EWorkloadCategory::UserBatch),
+        "weighted",
+    }));
+    EXPECT_TRUE(scheduler->GetBucket({
+        ToString(EWorkloadCategory::UserBatch),
+        "unweighted",
+    }));
+
+    GetDataNodeBootstrap()->GetChunkMetaManager()->RemoveCachedMeta(sessionId.ChunkId);
+    WaitFor(GetChunkMeta(
+        sessionId.ChunkId,
+        TWorkloadDescriptor(EWorkloadCategory::UserInteractive),
+        /*ioConsumed*/ 0,
+        /*ioFairShareWeight*/ 1.0))
+        .ThrowOnError();
+    EXPECT_TRUE(scheduler->GetBucket({
+        ToString(EWorkloadCategory::UserInteractive),
+        "weighted",
+    }));
+
+    WaitFor(GetBlockSet(
+        sessionId.ChunkId,
+        /*blockIndices*/ {0},
+        /*populateCache*/ false,
+        /*fetchFromCache*/ false,
+        /*fetchFromDisk*/ true,
+        TWorkloadDescriptor(EWorkloadCategory::UserRealtime)))
+        .ThrowOnError();
+    EXPECT_TRUE(scheduler->GetBucket({
+        ToString(EWorkloadCategory::UserRealtime),
+        "unweighted",
+    }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProbePutBlocksFairShareTest
     : public TDataNodeTest
 {
@@ -1533,7 +1702,10 @@ public:
         i64 RequestWindowLogCount = 0;
     };
 
-    explicit TProbePutBlocksFairShareTest(i64 writeMemoryLimit = 128_MB)
+    explicit TProbePutBlocksFairShareTest(
+        i64 writeMemoryLimit = 128_MB,
+        double weightedRequestWeight = 1.0,
+        double unweightedRequestWeight = 1.0)
         : TDataNodeTest(TDataNodeTestParams{
             .IOEngineType = NIO::EIOEngineType::FairShareHierarchical,
             .ReadThreadCount = 4,
@@ -1546,6 +1718,8 @@ public:
                 {EWorkloadCategory::UserInteractive, 2},
                 {EWorkloadCategory::UserRealtime, 4}
             },
+            .WeightedRequestWeight = weightedRequestWeight,
+            .UnweightedRequestWeight = unweightedRequestWeight,
             .DelayBeforePerformPutBlocks = TDuration::Zero(),
         })
     { }
@@ -1562,9 +1736,9 @@ public:
         GetFairShareHierarchicalScheduler()->Reconfigure(schedulerConfig);
     }
 
-    TWindowCounters GetWindowCounters(EWorkloadCategory category) const
+    TWindowCounters GetWindowCounters(const std::vector<std::string>& tags) const
     {
-        auto bucket = GetFairShareHierarchicalScheduler()->GetBucket({ToString(category)});
+        auto bucket = GetFairShareHierarchicalScheduler()->GetBucket(tags);
         if (!bucket) {
             return {};
         }
@@ -1575,6 +1749,11 @@ public:
             .SlotWindowLogCount = bucket->SlotWindowLogCount.load(),
             .RequestWindowLogCount = bucket->RequestWindowLogCount.load(),
         };
+    }
+
+    TWindowCounters GetWindowCounters(EWorkloadCategory category) const
+    {
+        return GetWindowCounters({ToString(category)});
     }
 
     void ProbeAndExpectApproval(const TSessionId& sessionId, i64 cumulativeBlockSize)
@@ -1606,13 +1785,19 @@ public:
     TSessionId SubmitProbeRequests(
         i64 blockSize,
         int requestCount,
-        EWorkloadCategory category)
+        EWorkloadCategory category,
+        std::optional<i64> ioConsumed = {},
+        std::optional<double> ioFairShareWeight = {})
     {
         auto sessionId = StartProbingSession(category);
 
         for (int i = 0; i < requestCount; i++) {
             const i64 cumulativeSize = (i + 1) * blockSize;
-            WaitFor(ProbePutBlocks(sessionId, cumulativeSize))
+            WaitFor(ProbePutBlocks(
+                sessionId,
+                cumulativeSize,
+                ioConsumed,
+                ioFairShareWeight))
                 .ThrowOnError();
         }
         return sessionId;
@@ -1624,6 +1809,71 @@ class TProbePutBlocksPriorityTest : public TProbePutBlocksFairShareTest
 public:
     TProbePutBlocksPriorityTest() : TProbePutBlocksFairShareTest(1_MB) {}
 };
+
+class TZeroWeightProbePutBlocksPriorityTest
+    : public TProbePutBlocksFairShareTest
+{
+public:
+    TZeroWeightProbePutBlocksPriorityTest()
+        : TProbePutBlocksFairShareTest(
+            /*writeMemoryLimit*/ 1_MB,
+            /*weightedRequestWeight*/ 1.0,
+            /*unweightedRequestWeight*/ 0.0)
+    { }
+};
+
+TEST_F(TProbePutBlocksFairShareTest, RoutesRequestsByFairShareStatePresence)
+{
+    auto weightedSession = StartProbingSession(EWorkloadCategory::UserBatch);
+    WaitFor(ProbePutBlocks(
+        weightedSession,
+        1_MB,
+        /*ioConsumed*/ 0,
+        /*ioFairShareWeight*/ 1.0))
+        .ThrowOnError();
+
+    auto unweightedSession = StartProbingSession(EWorkloadCategory::UserInteractive);
+    WaitFor(ProbePutBlocks(unweightedSession, 1_MB))
+        .ThrowOnError();
+
+    auto onlyConsumedSession = StartProbingSession(EWorkloadCategory::UserRealtime);
+    WaitFor(ProbePutBlocks(
+        onlyConsumedSession,
+        1_MB,
+        /*ioConsumed*/ 0,
+        /*ioFairShareWeight*/ {}))
+        .ThrowOnError();
+
+    auto onlyWeightSession = StartProbingSession(EWorkloadCategory::SystemReplication);
+    WaitFor(ProbePutBlocks(
+        onlyWeightSession,
+        1_MB,
+        /*ioConsumed*/ {},
+        /*ioFairShareWeight*/ 1.0))
+        .ThrowOnError();
+
+    EXPECT_TRUE(GetFairShareHierarchicalScheduler()->GetBucket({
+        ToString(EWorkloadCategory::UserBatch),
+        "weighted",
+    }));
+    EXPECT_TRUE(GetFairShareHierarchicalScheduler()->GetBucket({
+        ToString(EWorkloadCategory::UserInteractive),
+        "unweighted",
+    }));
+    EXPECT_TRUE(GetFairShareHierarchicalScheduler()->GetBucket({
+        ToString(EWorkloadCategory::UserRealtime),
+        "unweighted",
+    }));
+    EXPECT_TRUE(GetFairShareHierarchicalScheduler()->GetBucket({
+        ToString(EWorkloadCategory::SystemReplication),
+        "unweighted",
+    }));
+
+    WaitFor(CancelChunk(weightedSession)).ThrowOnError();
+    WaitFor(CancelChunk(unweightedSession)).ThrowOnError();
+    WaitFor(CancelChunk(onlyConsumedSession)).ThrowOnError();
+    WaitFor(CancelChunk(onlyWeightSession)).ThrowOnError();
+}
 
 TEST_F(TProbePutBlocksPriorityTest,
     WorkloadFairShareTest)
@@ -1679,6 +1929,60 @@ TEST_F(TProbePutBlocksPriorityTest,
 
     WaitFor(CancelChunk(batchSession)).ThrowOnError();
     WaitFor(CancelChunk(realtimeSession)).ThrowOnError();
+}
+
+TEST_F(TZeroWeightProbePutBlocksPriorityTest, ZeroWeightConsumesRemainingBandwidth)
+{
+    const auto& locations = GetDataNodeBootstrap()->GetChunkStore()->Locations();
+    ASSERT_EQ(locations.size(), 1u);
+    const auto& location = locations.front();
+
+    const i64 writeMemoryLimit = location->GetWriteMemoryLimit();
+    ASSERT_GT(writeMemoryLimit, 0);
+
+    auto blockerSession = StartProbingSession(EWorkloadCategory::SystemMerge);
+    ProbeAndExpectApproval(blockerSession, writeMemoryLimit);
+
+    constexpr int ProbeRequestCount = 512;
+    ASSERT_GE(writeMemoryLimit, ProbeRequestCount);
+    const auto blockSize = writeMemoryLimit / ProbeRequestCount;
+
+    auto weightedSession = SubmitProbeRequests(
+        blockSize,
+        ProbeRequestCount,
+        EWorkloadCategory::UserBatch,
+        /*ioConsumed*/ 0,
+        /*ioFairShareWeight*/ 1.0);
+    auto unweightedSession = SubmitProbeRequests(
+        blockSize,
+        ProbeRequestCount,
+        EWorkloadCategory::UserBatch);
+
+    WaitFor(CancelChunk(blockerSession, /*waitForCancelation*/ true))
+        .ThrowOnError();
+
+    auto weightedCounters = GetWindowCounters({
+        ToString(EWorkloadCategory::UserBatch),
+        "weighted",
+    });
+    auto unweightedCounters = GetWindowCounters({
+        ToString(EWorkloadCategory::UserBatch),
+        "unweighted",
+    });
+    EXPECT_EQ(writeMemoryLimit, weightedCounters.SlotWindowSize + unweightedCounters.SlotWindowSize);
+    EXPECT_GT(weightedCounters.SlotWindowSize, unweightedCounters.SlotWindowSize);
+    EXPECT_LE(unweightedCounters.SlotWindowSize, blockSize);
+
+    WaitFor(CancelChunk(weightedSession, /*waitForCancelation*/ true))
+        .ThrowOnError();
+
+    unweightedCounters = GetWindowCounters({
+        ToString(EWorkloadCategory::UserBatch),
+        "unweighted",
+    });
+    EXPECT_EQ(writeMemoryLimit, unweightedCounters.SlotWindowSize);
+
+    WaitFor(CancelChunk(unweightedSession)).ThrowOnError();
 }
 
 TEST_F(TProbePutBlocksFairShareTest, ProbeDoesNotChangeIOEngineRequestAccounting)

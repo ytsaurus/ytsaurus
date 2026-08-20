@@ -108,6 +108,9 @@ message TReqProbePutBlocks
 {
     required TSessionId session_id = 1;
     required int64 cumulative_block_size = 2;
+
+    optional int64 io_consumed = 3;
+    optional double io_fair_share_weight = 4;
 }
 
 message TProbePutBlocksState

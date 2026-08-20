@@ -41,6 +41,7 @@ public:
     {
         i64 CumulativeBlockSize;
         TWorkloadDescriptor WorkloadDescriptor;
+        std::optional<NIO::TIOFairShareState> FairShareState;
 
         std::strong_ordering operator<=>(const TRequest& other) const
         {
@@ -99,7 +100,6 @@ struct TSessionOptions
     std::optional<i64> MinLocationAvailableSpace;
     std::optional<i64> NbdChunkSize;
     std::optional<NNbd::EFilesystemType> NbdChunkFsType;
-    std::vector<std::pair<std::string, double>> FairShareTags;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,7 +177,9 @@ struct ISession
     //! Checks is probe put blocks should be used.
     virtual bool ShouldUseProbePutBlocks() const = 0;
     //! Prerequest memory for PutBlocks.
-    virtual void ProbePutBlocks(i64 cumulativeBlockSize) = 0;
+    virtual void ProbePutBlocks(
+        i64 cumulativeBlockSize,
+        std::optional<NIO::TIOFairShareState> fairShareState) = 0;
     virtual i64 GetApprovedCumulativeBlockSize() const = 0;
     virtual i64 GetMaxRequestedCumulativeBlockSize() const = 0;
 

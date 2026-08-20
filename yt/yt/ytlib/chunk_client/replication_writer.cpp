@@ -1432,6 +1432,8 @@ void TGroup::ProbePutBlocks(const TReplicationWriterPtr& writer, const IChunkWri
             auto req = proxy.ProbePutBlocks();
             req->set_cumulative_block_size(CumulativeBlockSize_);
             ToProto(req->mutable_session_id(), writer->SessionId_);
+            SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
+            SetRequestIoFairShareWeight(req, writer->Config_->IoFairShareWeight);
             auto rspOrError = WaitFor(req->Invoke());
 
             if (rspOrError.IsOK()) {

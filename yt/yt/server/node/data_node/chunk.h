@@ -34,7 +34,6 @@ struct TChunkReadOptions
     TInstant ReadBlocksDeadline = TInstant::Max();
     TInstant ReadMetaDeadLine = TInstant::Max();
 
-    std::vector<std::pair<std::string, double>> FairShareTags;
     std::optional<NIO::TIOFairShareState> FairShareState;
 
     //! This option set to |true| overrides the default behavior of journal chunk reader, namely

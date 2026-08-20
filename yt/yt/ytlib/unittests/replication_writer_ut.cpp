@@ -199,6 +199,12 @@ public:
         YT_VERIFY(SessionId_.has_value());
         YT_VERIFY(*SessionId_ == FromProto<TSessionId>(request->session_id()));
 
+        ProbeHasIOConsumed_.store(request->has_io_consumed());
+        LastProbeIOFairShareWeight_.store(
+            request->has_io_fair_share_weight()
+                ? request->io_fair_share_weight()
+                : -1.0);
+
         if (AlwaysFail_) {
             response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(0);
         } else {
@@ -423,6 +429,16 @@ public:
         return LastFinishIoFairShareWeight_.load();
     }
 
+    bool GetProbeHasIOConsumed() const
+    {
+        return ProbeHasIOConsumed_.load();
+    }
+
+    double GetLastProbeIOFairShareWeight() const
+    {
+        return LastProbeIOFairShareWeight_.load();
+    }
+
 private:
     const int ThrottledBlockCount_;
     const bool AlwaysFail_;
@@ -446,6 +462,8 @@ private:
     std::atomic<double> LastIoFairShareWeight_ = -1;
     std::atomic<bool> FinishHasIoConsumed_ = false;
     std::atomic<double> LastFinishIoFairShareWeight_ = -1;
+    std::atomic<bool> ProbeHasIOConsumed_ = false;
+    std::atomic<double> LastProbeIOFairShareWeight_ = -1.0;
 
     // Weak Pointer because of circular dependency
     TWeakPtr<IChannelFactory> ChannelFactory_ = nullptr;
@@ -875,6 +893,9 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
 
     for (const auto& service : Services) {
         EXPECT_TRUE(service->GetFinishHasIoConsumed());
+        if (GetParam().UseProbePutBlocks) {
+            EXPECT_TRUE(service->GetProbeHasIOConsumed());
+        }
     }
 }
 
@@ -927,6 +948,9 @@ TEST_P(TIoFairShareWeightWriterTest, ReportsIoFairShareWeight)
     for (const auto& service : Services) {
         EXPECT_EQ(service->GetLastIoFairShareWeight(), GetParam().IoFairShareWeight.value());
         EXPECT_EQ(service->GetLastFinishIoFairShareWeight(), GetParam().IoFairShareWeight.value());
+        if (GetParam().UseProbePutBlocks) {
+            EXPECT_EQ(service->GetLastProbeIOFairShareWeight(), GetParam().IoFairShareWeight.value());
+        }
     }
 }
 
