@@ -14,7 +14,6 @@
 
 add_subdirectory(chunk)
 add_subdirectory(image)
-add_subdirectory(journal)
 
 add_library(server-lib-nbd)
 

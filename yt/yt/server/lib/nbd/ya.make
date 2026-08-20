@@ -23,6 +23,9 @@ RECURSE(
     chunk
     dynamic_table
     image
-    journal
     memory
 )
+
+IF (YT_ENABLE_JOURNAL_NBD)
+    RECURSE(journal)
+ENDIF()
