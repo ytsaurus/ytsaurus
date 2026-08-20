@@ -110,7 +110,7 @@ struct TPatchPaths
     std::vector<TYPath> JobIOPaths;
 };
 
-TPatchPaths GetPatchPaths(const IMapNodePtr& spec, EOperationType type)
+TPatchPaths ComputePatchPaths(const IMapNodePtr& spec, EOperationType type)
 {
     std::vector<TYPath> userJobPaths;
     std::vector<TYPath> jobIOPaths;
@@ -178,7 +178,7 @@ void ApplyExperiments(
     const std::vector<TExperimentAssignmentPtr>& experimentAssignments,
     INodePtr* optionsPatch)
 {
-    auto paths = GetPatchPaths(spec, type);
+    auto paths = ComputePatchPaths(spec, type);
     auto effect = MergeEffects(experimentAssignments);
 
     for (const auto& path : paths.UserJobPaths) {

@@ -138,8 +138,8 @@ TEST(TApplyExperimentsTest, SeveralAssignmentsAppliedInOrder)
     ExpectSpecEquals(optionsPatch->AsMap(), "{a=1;b=2}");
 }
 
-//! Templates are bases, so an earlier assignment wins over a later one; patches are applied
-//! on top, so a later assignment wins over an earlier one.
+// Templates are bases, so an earlier assignment wins over a later one; patches are applied
+// on top, so a later assignment wins over an earlier one.
 TEST(TApplyExperimentsTest, EarlierAssignmentWinsAmongTemplates)
 {
     auto spec = ParseSpec("{mapper={command=cat}}");
