@@ -342,7 +342,6 @@ class TestYtflowBase(TestQueueAgentBase):
                 dict(name='_MasterLockPingPeriod', value='30s'),
                 dict(name='_FiniteStreams', value=str(run_vanilla_operation)),
                 dict(name='EnableComputationPatternResources', value='false'),
-                dict(name='_UseCpuAwareBalancer', value='false'),
                 dict(name='_ControllerWriteFullLogsToYT', value='true'),
                 dict(name='_ControllerWriteLogsToFile', value='false'),
                 dict(name='_ControllerLogLevel', value='debug'),

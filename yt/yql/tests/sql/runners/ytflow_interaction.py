@@ -139,11 +139,6 @@ Ytflow {
     }
 
     DefaultSettings {
-        Name: "_UseCpuAwareBalancer"
-        Value: "false"
-    }
-
-    DefaultSettings {
         Name: "_ControllerWriteFullLogsToYT"
         Value: "true"
     }
