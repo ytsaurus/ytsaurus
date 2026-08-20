@@ -261,7 +261,7 @@ void TProcessManagerBase::DoStart()
         try {
             ValidateParameters();
         } catch (const std::exception& ex) {
-            auto error = TError("Companion process parameters are invalid").With(TError(ex));
+            auto error = TError("Companion process parameters are invalid").With(ex);
             ErrorState_->SetError(error);
             THROW_ERROR error;
         }
@@ -360,7 +360,7 @@ void TProcessManagerBase::StopIncarnation()
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Failed to kill process properly")
                 .With("Pid", processToKill->GetProcessId())
-                .With(TError(ex));
+                .With(ex);
             KillProcessWithChildren(processToKill->GetProcessId());
         }
     }

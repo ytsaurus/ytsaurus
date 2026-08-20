@@ -545,7 +545,7 @@ public:
         } catch (const std::exception& ex) {
             auto error = TError("Failed to get query progress")
                 .With("query_id", queryId)
-                .With(TError(ex));
+                .With(ex);
             YT_LOG_INFO(error, "YQL plugin call failed");
             THROW_ERROR error;
         }
@@ -836,7 +836,7 @@ private:
             throw;
         } catch (const std::exception& ex) {
             queryState.Error = makeCommonQueryError()
-                .With(TError(ex));
+                .With(ex);
         } catch (...) {
             queryState.Error = makeCommonQueryError()
                 .With("message", CurrentExceptionMessage());
@@ -912,7 +912,7 @@ private:
             throw;
         } catch (const std::exception& ex) {
             queryState.Error = makeCommonQueryError()
-                .With(TError(ex));
+                .With(ex);
         } catch (...) {
             queryState.Error = makeCommonQueryError()
                 .With("message", CurrentExceptionMessage());
@@ -946,7 +946,7 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Failed to abort query")
                 .With("query_id", queryId)
-                .With(TError(ex));
+                .With(ex);
             YT_LOG_INFO(error, "YQL plugin call failed");
             THROW_ERROR error;
         }

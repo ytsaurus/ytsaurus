@@ -116,7 +116,7 @@ TCompanionResource::~TCompanionResource()
             } catch (const std::exception& ex) {
                 YT_TLOG_WARNING("Best-effort companion resource unload failed")
                     .With("ResourceId", resourceId)
-                    .With(TError(ex));
+                    .With(ex);
             }
         }));
     }
@@ -199,7 +199,7 @@ void TCompanionResource::DoLoad(const THashMap<TResourceId, IResourcePtr>& depen
             .With("ResourceId", GetContext()->ResourceId)
             .With("Attempt", backoffStrategy.GetInvocationIndex())
             .With("SleepDuration", backoff)
-            .With(TError(ex));
+            .With(ex);
         NConcurrency::TDelayedExecutor::WaitForDuration(backoff);
     };
     while (true) {
@@ -530,7 +530,7 @@ void TCompanionResource::OnReconfigured(
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Failed to prepare or publish companion resource revision")
             .With("ResourceId", GetContext()->ResourceId)
-            .With(TError(ex));
+            .With(ex);
     }
     FinishPreparation(preparationEpoch);
 }
@@ -608,16 +608,16 @@ void TCompanionResource::KeepAlive()
             YT_UNUSED_FUTURE(KeepAliveExecutor_->Stop());
             YT_TLOG_INFO("Stopping keep-alive for stale companion resource incarnation")
                 .With("ResourceId", GetContext()->ResourceId)
-                .With(TError(ex));
+                .With(ex);
             return;
         }
         YT_TLOG_WARNING("Companion resource keep-alive failed")
             .With("ResourceId", GetContext()->ResourceId)
-            .With(TError(ex));
+            .With(ex);
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Companion resource keep-alive failed")
             .With("ResourceId", GetContext()->ResourceId)
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

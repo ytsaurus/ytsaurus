@@ -1844,7 +1844,7 @@ void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& dynamicSpec)
                     field,
                     name)
                     .With("computation_id", computationId)
-                    .With(TError(ex));
+                    .With(ex);
             }
         };
 

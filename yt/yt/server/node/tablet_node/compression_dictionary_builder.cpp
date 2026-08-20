@@ -764,7 +764,7 @@ private:
                 auto error = TError("Trained compression dictionary cannot be digested; skipping it")
                     .With("column_id", columnId)
                     .With("dictionary_size", columnInfo.Dictionary.Size())
-                    .With(TError(ex));
+                    .With(ex);
                 YT_LOG_ALERT(error);
                 continue;
             }

@@ -1354,7 +1354,7 @@ private:
             DoStart();
         } catch (const std::exception& ex) {
             YT_TLOG_FATAL("Unexpected exception escaped TController::DoStart")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 
@@ -1364,7 +1364,7 @@ private:
             DoStop();
         } catch (const std::exception& ex) {
             YT_TLOG_FATAL("Unexpected exception escaped TController::DoStop")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 

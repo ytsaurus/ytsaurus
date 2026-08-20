@@ -50,7 +50,7 @@ std::optional<TInstant> TBuildInfo::ParseBuildTime()
         return TInstant::ParseIso8601(rawBuildTime);
     } catch (const std::exception& ex) {
         YT_TLOG_ERROR("Error parsing build time")
-            .With(TError(ex));
+            .With(ex);
         return std::nullopt;
     }
 }

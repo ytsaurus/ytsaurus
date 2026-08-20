@@ -1015,7 +1015,7 @@ public:
                 } catch (const std::exception& ex) {
                     YT_TLOG_FATAL("Error while converting value")
                         .With("Index", index)
-                        .With(TError(ex));
+                        .With(ex);
                 }
             }
 

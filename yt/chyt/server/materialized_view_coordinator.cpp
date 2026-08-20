@@ -249,7 +249,7 @@ public:
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Failed to persist materialized view refresh error")
                 .With("View", View_.ObjectName)
-                .With(TError(ex));
+                .With(ex);
         }
     }
 
@@ -538,7 +538,7 @@ private:
             Scan();
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Materialized view coordinator scan failed")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 

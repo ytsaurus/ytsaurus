@@ -159,7 +159,7 @@ private:
             GuardedUpdateCachedLeaderTransactionAttributes();
         } catch (const std::exception& ex) {
             YT_TLOG_DEBUG("Leader transaction attribute cache update iteration failed")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 
@@ -234,7 +234,7 @@ private:
             }
         } catch (const std::exception& ex) {
             YT_TLOG_INFO("Lock acquisition iteration failed")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 
@@ -376,7 +376,7 @@ private:
             LeadingStarted_.Fire();
         } catch (const std::exception& ex) {
             YT_TLOG_ALERT("Unexpected error occurred during leading start")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 
@@ -421,7 +421,7 @@ private:
                 LeadingEnded_.Fire();
             } catch (const std::exception& ex) {
                 YT_TLOG_ALERT("Unexpected error occurred during leading end")
-                    .With(TError(ex));
+                    .With(ex);
             }
         }
 

@@ -379,7 +379,7 @@ private:
             } catch (const std::exception& ex) {
                 auto error = TError(NTabletClient::EErrorCode::HunkStoreAllocationFailed,
                     "Hunk tablet scanner failed to allocate stores")
-                    .With(TError(ex));
+                    .With(ex);
                 Tablet_->OnStoreAllocationFailed(error);
                 THROW_ERROR(error);
             }

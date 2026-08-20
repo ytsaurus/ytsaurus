@@ -215,7 +215,7 @@ void TFileResourceController::Discover()
                 TError("File source discovery returned no revision"));
         }
     } catch (const std::exception& ex) {
-        auto error = TError("File source discovery failed").With(TError(ex));
+        auto error = TError("File source discovery failed").With(ex);
         DiscoveryError_->SetError(error);
         YT_TLOG_WARNING("File source discovery failed")
             .With(error);

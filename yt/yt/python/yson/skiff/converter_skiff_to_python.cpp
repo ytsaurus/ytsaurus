@@ -123,7 +123,7 @@ public:
                 Description_,
                 PythonType,
                 WireType)
-                .With(TError(exception));
+                .With(exception);
         }
         if (!result) {
             THROW_ERROR_EXCEPTION("Failed to parse field %Qv of Python type %Qlv from wire type %Qlv",
@@ -573,7 +573,7 @@ public:
         } catch (const std::exception& exception) {
             THROW_ERROR_EXCEPTION("Failed to parse system columns for class %Qv from Skiff",
                 RowClassName_)
-                .With(TError(exception));
+                .With(exception);
         }
         return obj;
     }

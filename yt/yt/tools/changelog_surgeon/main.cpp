@@ -297,7 +297,7 @@ void Run(int argc, char** argv)
         PerformSurgery(params);
     } catch (const TErrorException& ex) {
         YT_TLOG_ERROR("Changelog surgery failed")
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

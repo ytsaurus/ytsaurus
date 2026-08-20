@@ -47,7 +47,7 @@ TInputVisit::TInputVisit(TVisit&& visit)
         ValidateVisit(*this);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create visit")
-            .With(TError(ex))
+            .With(ex)
             .With("message_id", MessageId.Underlying())
             .With("stream_id", StreamId);
     }

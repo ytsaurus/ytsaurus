@@ -102,7 +102,7 @@ private:
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Failed to build XOR filter")
                 .With("KeyCount", ssize(Keys_))
-                .With(TError(ex));
+                .With(ex);
 
             Keys_.clear();
             FilterBuildingFailed_ = true;

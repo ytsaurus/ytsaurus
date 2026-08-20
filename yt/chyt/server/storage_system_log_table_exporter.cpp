@@ -391,7 +391,7 @@ public:
             } catch (const std::exception& ex) {
                 YT_TLOG_ERROR("Failed to convert chunk to unverionsed rows; chunk skipped")
                     .With("RowCount", chunk.getNumRows())
-                    .With(TError(ex));
+                    .With(ex);
             }
         }
     }

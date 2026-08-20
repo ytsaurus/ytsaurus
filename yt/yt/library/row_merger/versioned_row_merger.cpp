@@ -1297,7 +1297,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                     };
                 } catch (const std::exception& ex) {
                     YT_TLOG_ERROR("Failed to prepare watermark runtime data")
-                        .With(TError(ex));
+                        .With(ex);
                     watermarkRuntimeData = std::nullopt;
                 }
             }

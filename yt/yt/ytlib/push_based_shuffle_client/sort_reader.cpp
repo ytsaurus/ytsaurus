@@ -323,7 +323,7 @@ private:
         try {
             MakeHeap(MergeHeap_.begin(), MergeHeap_.end(), MakeMergeComparator());
         } catch (const std::exception& ex) {
-            Fail(TError("Error merging sorted shuffle rows").With(TError(ex)));
+            Fail(TError("Error merging sorted shuffle rows").With(ex));
             return;
         }
 
@@ -375,7 +375,7 @@ private:
             Fail(error);
             SetReadPromise(promise, error);
         } catch (const std::exception& ex) {
-            auto error = TError("Error merging sorted shuffle rows").With(TError(ex));
+            auto error = TError("Error merging sorted shuffle rows").With(ex);
             Fail(error);
             SetReadPromise(promise, error);
         }
@@ -409,7 +409,7 @@ private:
             Fail(ex.Error());
             return;
         } catch (const std::exception& ex) {
-            Fail(TError("Error merging sorted shuffle rows").With(TError(ex)));
+            Fail(TError("Error merging sorted shuffle rows").With(ex));
             return;
         }
 

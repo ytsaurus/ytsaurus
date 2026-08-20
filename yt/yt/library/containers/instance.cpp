@@ -899,7 +899,7 @@ public:
             } catch (const std::exception& ex) {
                 YT_TLOG_DEBUG("Failed to get CGroups for process")
                     .With("Pid", pid)
-                    .With(TError(ex));
+                    .With(ex);
                 continue;
             }
 

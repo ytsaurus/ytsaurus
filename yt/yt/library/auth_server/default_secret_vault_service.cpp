@@ -180,7 +180,7 @@ public:
                 .With("SecretId", request.SecretId)
                 .With("Signature", request.Signature)
                 .With("CallId", callId)
-                .With(TError(ex));
+                .With(ex);
         }
     }
 

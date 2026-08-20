@@ -124,7 +124,7 @@ void TDiscoveryBase::DoUpdateListNonThrowing()
         DoUpdateList();
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Failed to update discovery")
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

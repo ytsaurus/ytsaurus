@@ -62,7 +62,7 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input, TDuration timeou
                 YT_TLOG_ERROR("Failed to kill process")
                     .With("Path", path)
                     .With("ProcessId", process->GetProcessId())
-                    .With(TError(ex));
+                    .With(ex);
             }
         }),
         timeout);

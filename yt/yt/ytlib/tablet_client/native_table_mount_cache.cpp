@@ -186,7 +186,7 @@ private:
                 return mountInfoOrError.ValueOrThrow();
             } catch (const std::exception& ex) {
                 YT_TLOG_DEBUG("Error getting table mount info")
-                    .With(TError(ex));
+                    .With(ex);
                 THROW_ERROR_EXCEPTION("Error getting mount info for %v",
                     Path_)
                     .With(ex);

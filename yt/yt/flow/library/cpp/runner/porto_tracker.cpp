@@ -33,7 +33,7 @@ bool IsPortoAvailable(const TLogger& logger)
         return true;
     } catch (const std::exception& ex) {
         YT_TLOG_DEBUG("Porto is not available")
-            .With(TError(ex));
+            .With(ex);
         return false;
     }
 }

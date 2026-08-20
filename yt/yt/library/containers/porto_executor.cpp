@@ -921,7 +921,7 @@ private:
             }
         } catch (const std::exception& ex) {
             YT_TLOG_ERROR("Fatal exception occurred while polling Porto")
-                .With(TError(ex));
+                .With(ex);
             Failed_.Fire(TError(ex));
         }
     }

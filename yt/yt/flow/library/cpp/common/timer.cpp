@@ -148,7 +148,7 @@ TInputTimer::TInputTimer(TTimer&& timer, const NTableClient::TTableSchemaPtr& ex
         ValidateTimer(*this, {.ExpectedSchema = expectedKeySchema});
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to create timer")
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

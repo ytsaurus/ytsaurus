@@ -201,7 +201,7 @@ private:
             GuardedFetchAllCookies();
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Failed to fetch native cookies from Cypress")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 
@@ -249,7 +249,7 @@ private:
             } catch (const std::exception& ex) {
                 YT_TLOG_WARNING("Failed to parse cookie")
                     .With("Cookie", child->GetValue<std::string>())
-                    .With(TError(ex));
+                    .With(ex);
             }
         }
 

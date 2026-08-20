@@ -178,14 +178,14 @@ protected:
             GuardedRefreshCache();
         } catch (const std::exception& ex) {
             YT_TLOG_DEBUG("Could not refresh queue consumer registration cache")
-                .With(TError(ex));
+                .With(ex);
         }
 
         try {
             GuardedRefreshReplicationTableMappingCache();
         } catch (const std::exception& ex) {
             YT_TLOG_DEBUG("Could not refresh queue consumer replication table mapping cache")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 
@@ -517,7 +517,7 @@ private:
             GuardedRefreshConfiguration();
         } catch (const std::exception& ex) {
             YT_TLOG_ERROR("Could not refresh queue consumer registration manager configuration")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 

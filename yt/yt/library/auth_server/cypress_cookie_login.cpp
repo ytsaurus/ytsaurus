@@ -184,7 +184,7 @@ private:
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
             auto error = TError("Failed to fetch password revision for user %Qv", login)
-                .With(TError(ex));
+                .With(ex);
             ReplyAndLogError(req, rsp, error, /*maskError*/ false, login);
             throw;
         }

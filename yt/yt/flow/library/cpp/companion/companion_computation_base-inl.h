@@ -207,7 +207,7 @@ void TCompanionComputationBaseAdapter<TBase>::OnRequiredCompanionResourceStateCh
         // the retry loop re-sends init.
         YT_TLOG_WARNING("Failed to propagate prepared companion resource state to companion")
             .With("ComputationId", this->GetComputationId())
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

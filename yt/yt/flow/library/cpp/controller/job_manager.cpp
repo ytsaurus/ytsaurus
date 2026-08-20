@@ -123,7 +123,7 @@ public:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create computation controller")
                     .With("computation_id", computationId)
-                    .With(TError(ex));
+                    .With(ex);
             }
         }
 
@@ -157,7 +157,7 @@ public:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create resource controller")
                     .With("resource_id", resourceId)
-                    .With(TError(ex));
+                    .With(ex);
             }
         }
 
