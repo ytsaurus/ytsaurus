@@ -31,6 +31,7 @@ using TControllersMap = THashMap<TComputationId, IComputationControllerPtr>;
 static constexpr TDuration StableJobInterval = TDuration::Minutes(12);
 //! Pretty much arbitrary value.
 static constexpr TDuration MaxJobInterval = TDuration::Minutes(40);
+static constexpr TDuration EmptyIterationBackoff = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 //! All information about partition that is used for partition distribution over workers.
@@ -2106,6 +2107,7 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
     };
 
     if (Emulation_.ComputationInfos().empty() || Emulation_.Workers().empty()) {
+        NConcurrency::TDelayedExecutor::WaitForDuration(EmptyIterationBackoff);
         return result;
     }
 
