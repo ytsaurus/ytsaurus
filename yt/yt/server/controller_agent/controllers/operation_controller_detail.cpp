@@ -8259,7 +8259,7 @@ bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const
                         return false;
                     }
 
-                    auto diskRequest = volume.second->DiskRequest->template TryGetConcrete<TLocalDiskRequest>();
+                    auto diskRequest = volume.second->DiskRequest->template TryGetConcrete<TDiskRequestConfig>();
                     return diskRequest && diskRequest->Account;
                 });
         });

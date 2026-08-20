@@ -7,7 +7,7 @@ from yt_commands import (
     sort, wait_for_nodes, update_nodes_dynamic_config, update_controller_agent_config,
     wait_breakpoint, with_breakpoint, release_breakpoint, print_debug,
     make_random_string, sync_create_cells, get_allocation_id_from_job_id,
-    create_domestic_medium,
+    create_domestic_medium, create_account, set_account_disk_space_limit,
 )
 
 from yt.common import YtError, YtResponseError, update
@@ -2308,6 +2308,30 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
         wait(lambda: profiler.get("volumes/removed", tags) is not None)
         wait(lambda: profiler.get("volumes/remove_time", tags) is not None)
+
+    @authors("babenko")
+    @pytest.mark.timeout(150)
+    def test_nbd_disk_request_with_account_and_no_input(self):
+        create_account("my_account")
+        set_account_disk_space_limit("my_account", 16 * 1024 * 1024, "ssd_nbd")
+
+        vanilla(spec={
+            "max_failed_job_count": 1,
+            "tasks": {
+                "task": {
+                    "job_count": 1,
+                    "command": "true",
+                    "disk_request": {
+                        "medium_name": "ssd_nbd",
+                        "account": "my_account",
+                        "disk_space": 16 * 1024 * 1024,
+                        "nbd_disk": {},
+                    },
+                },
+            },
+        })
+
+        assert get("//sys/accounts/my_account/@resource_usage/disk_space_per_medium/ssd_nbd") == 0
 
     @authors("yuryalekseev")
     @pytest.mark.timeout(150)
