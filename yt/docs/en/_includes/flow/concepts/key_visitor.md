@@ -70,6 +70,7 @@ To make a computation accept a visit stream, you must fill the `key_visitor_stre
 
 - `names`: a list of internal-state names to count keys from. If unspecified or empty, all keys from all internal states of the computation are used.
 - `external_names`: a list of [external-state managers](../../../flow/concepts/glossary.md#state) and visitor-driven external-state joiners (see [Static table joiner](#static-table-joiner)) for the computation, whose tables are used to count keys. This lets the visitor scan the external state (including that of companion computations) and evict outdated records via `clear()` in the visit handler. If only `external_names` is specified (without `names`), only the listed external state is scanned; internal states aren’t scanned. If neither `names` nor `external_names` is specified, all internal states are scanned, but external state and joiners aren’t; a joiner is scanned only if explicitly listed in `external_names`, and in no more than one visit stream of the computation (checked at spec submit time).
+- `upstream_streams`: which of the computation’s input and source streams the visitor follows, that is, whose completion it waits for before the final pass (see [Pass lifecycle](#pass-lifecycle)). When unspecified, all input and source streams of the computation. Only meaningful with `finite=%true` (see [Dynamic spec parameters](#dynamic-params)). For when the list needs narrowing, see [`streams_dependency`](#deps).
 
 ### Dynamic spec parameters {#dynamic-params}
 
@@ -111,6 +112,25 @@ If the computation **emits messages to output from `DoProcessVisit`**, you must 
 ```
 
 Here, `visits` is the output stream, `keys` is the input, and `visit_iter` is the key-visitor stream. For a computation with only a visit stream (no input), there’s a single parent: `"visits" = ["visit_iter"]`.
+
+If that output comes back to the same computation as an input stream, you get a **cyclic topology**: the cycle `visit_iter → requests → … → responses` closes on the computation’s own input stream. By default, the visitor follows that input, but it only completes once the visitor stops scanning the state.
+
+In a production pipeline this doesn’t matter: sources are infinite, input streams never complete, and no value of `upstream_streams` starts a final pass. It matters where all pipeline sources are [finite](../../../flow/python/testing.md) and the pipeline must reach [`completed`](../../../flow/concepts/glossary.md#start-stop-pause-pipeline), that is, in [integration tests](../../../flow/python/testing.md). There, keep in `upstream_streams` (see [Static spec parameters](#static-params)) only the input streams that don’t depend on the visitor:
+
+```yson
+"input_stream_ids" = ["keys"; "responses"];
+"output_stream_ids" = ["requests"];
+"key_visitor_streams" = {
+    "visit_iter" = {
+        "upstream_streams" = ["keys"];
+    };
+};
+"streams_dependency" = {
+    "requests" = ["keys"; "visit_iter"];
+};
+```
+
+Here, `responses` is produced by the visitor via `requests`, so the visitor follows `keys` only.
 
 ## Observability {#observability}
 
