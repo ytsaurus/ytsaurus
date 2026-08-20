@@ -73,7 +73,7 @@ void TPortoProcess::DoSpawn()
             // It's not a problem, since for Porto process pid is used for logging purposes only.
             YT_TLOG_DEBUG("Failed to get pid of root process")
                 .With("Container", instance->GetName())
-                .With(TError(ex));
+                .With(ex);
         }
 
         YT_TLOG_DEBUG("Process inside Porto spawned successfully")

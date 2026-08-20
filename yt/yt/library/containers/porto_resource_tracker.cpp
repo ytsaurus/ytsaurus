@@ -341,7 +341,7 @@ T TPortoResourceTracker::GetStatistics(
         }
         YT_TLOG_WARNING("Unable to get statistics; using the last one")
             .With("StatisticsKind", statisticsKind)
-            .With(TError(ex));
+            .With(ex);
         return *cachedStatistics;
     }
 }
@@ -505,7 +505,7 @@ void TPortoResourceTracker::DoUpdateResourceUsage() const
         ReCalculateResourceUsage(Instance_->GetResourceUsage());
     } catch (const std::exception& ex) {
         YT_TLOG_ERROR("Couldn't get metrics from Porto")
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

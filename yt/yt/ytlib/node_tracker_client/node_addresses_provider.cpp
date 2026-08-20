@@ -266,7 +266,7 @@ private:
             YT_TLOG_DEBUG("Finished updating node list");
         } catch (const std::exception& ex) {
             YT_TLOG_INFO("Failed updating node list")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 };

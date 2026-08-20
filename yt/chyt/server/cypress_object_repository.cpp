@@ -256,7 +256,7 @@ void TCypressObjectRepository::RefreshSnapshot()
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Failed to refresh Cypress object snapshot")
             .With("RootPath", RootPath_)
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

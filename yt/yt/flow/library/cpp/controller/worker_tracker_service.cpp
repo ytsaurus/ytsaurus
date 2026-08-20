@@ -82,7 +82,7 @@ private:
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Worker node incarnation id check failed")
-                .With(TError(ex))
+                .With(ex)
                 .With("worker_identifying_string", workerNodeInfo.GetIdentifyingString());
         }
     }

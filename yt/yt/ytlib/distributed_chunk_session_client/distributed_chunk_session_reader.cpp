@@ -1081,7 +1081,7 @@ private:
                 CellTagFromId(ChunkId_));
         } catch (const std::exception& ex) {
             YT_TLOG_DEBUG("Failed to acquire master channel while updating distributed chunk session reader replicas")
-                .With(TError(ex));
+                .With(ex);
             return TError("Failed to acquire master channel for chunk %v", ChunkId_)
                 .With(ex);
         }

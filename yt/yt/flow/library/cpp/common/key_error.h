@@ -18,7 +18,7 @@ void TagErrorWithKey(TStringBuf what, const TKey& key, const TCallback& callback
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to process %v", what)
             .With("key", key)
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

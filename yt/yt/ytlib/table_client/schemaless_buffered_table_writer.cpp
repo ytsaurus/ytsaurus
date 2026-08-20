@@ -284,7 +284,7 @@ private:
             } catch (const std::exception& ex) {
                 YT_TLOG_WARNING("Failed to flush table chunk; will retry later")
                     .With("BufferIndex", buffer->GetIndex())
-                    .With(TError(ex));
+                    .With(ex);
                 TDelayedExecutor::WaitForDuration(Config_->RetryBackoffTime);
             }
         }

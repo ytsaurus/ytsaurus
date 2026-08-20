@@ -734,7 +734,7 @@ private:
             } catch (const std::exception& cleanupEx) {
                 StartupError_->SetError(
                     TError("Failed to clean file storage staging directory")
-                        .With(TError(cleanupEx)));
+                        .With(cleanupEx));
             }
             throw;
         }
@@ -858,7 +858,7 @@ private:
         } catch (const std::exception& ex) {
             *error = TError("Failed to read file storage object during validation")
                 .With("path", finalDirectory.GetPath())
-                .With(TError(ex));
+                .With(ex);
             return EObjectValidationResult::Error;
         }
 
@@ -888,7 +888,7 @@ private:
         } catch (const std::exception& ex) {
             *error = TError("Failed to inspect file storage payload during validation")
                 .With("path", finalDirectory.GetPath())
-                .With(TError(ex));
+                .With(ex);
             return EObjectValidationResult::Error;
         }
         if (!AreManifestsEqual(actual, parsed)) {
@@ -1122,7 +1122,7 @@ private:
             *error = TError("Failed to remove file storage trash entry")
                 .With("path", path.GetPath())
                 .With("size", size)
-                .With(TError(ex));
+                .With(ex);
             return EEvictionResult::Failed;
         }
     }
@@ -1146,7 +1146,7 @@ private:
         } catch (const std::exception& ex) {
             *error = TError("Failed to remove unaccounted file storage trash entry")
                 .With("path", path.GetPath())
-                .With(TError(ex));
+                .With(ex);
             return false;
         }
     }
@@ -1178,7 +1178,7 @@ private:
             *error = TError("Failed to quarantine invalid file storage entry")
                 .With("source_path", source.GetPath())
                 .With("trash_path", destination.GetPath())
-                .With(TError(ex));
+                .With(ex);
             return false;
         }
 
@@ -1221,7 +1221,7 @@ private:
                 .With("object_id", rawId)
                 .With("source_path", directory.GetPath())
                 .With("trash_path", trashPath.GetPath())
-                .With(TError(ex));
+                .With(ex);
             if (directory.Exists()) {
                 {
                     auto guard = Guard(Lock_);

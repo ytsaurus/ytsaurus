@@ -304,7 +304,7 @@ void TEncodingWriter::VerifyVector(
         }
     } catch (const std::exception& ex) {
         YT_TLOG_FATAL("Compression verification failed: decompressor error")
-            .With(TError(ex));
+            .With(ex);
     }
 }
 
@@ -320,7 +320,7 @@ void TEncodingWriter::VerifyBlock(
             "Compression verification failed: content differs");
     } catch (const std::exception& ex) {
         YT_TLOG_FATAL("Compression verification failed: decompressor error")
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

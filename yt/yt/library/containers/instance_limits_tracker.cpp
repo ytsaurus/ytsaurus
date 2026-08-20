@@ -135,7 +135,7 @@ void TInstanceLimitsTracker::DoUpdateLimits()
         }
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Failed to get instance limits")
-            .With(TError(ex));
+            .With(ex);
     }
 #endif
 }

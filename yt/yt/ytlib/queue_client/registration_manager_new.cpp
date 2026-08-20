@@ -308,7 +308,7 @@ public:
             return RunGuarded();
         } catch (const std::exception& ex) {
             YT_TLOG_ERROR("Lookup session failed")
-                .With(TError(ex));
+                .With(ex);
             ProfilingCounters_->ErrorCounter.Increment();
             ProfilingCounters_->ErrorKeyCounter.Increment(Keys_.size());
             throw;
@@ -896,7 +896,7 @@ private:
                 }
             } catch (const std::exception& ex) {
                 YT_TLOG_ERROR("Failed to set error response for batched requests upon destruction")
-                    .With(TError(ex));
+                    .With(ex);
             }
 
             YT_TLOG_DEBUG("Lookup request batcher destroyed");

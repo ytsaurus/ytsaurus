@@ -209,7 +209,7 @@ public:
                 credentials);
         } catch (const std::exception& ex) {
             error = makeCommonError()
-                .With(TError(ex));
+                .With(ex);
         } catch (...) {
             error = makeCommonError()
                 .With("message", CurrentExceptionMessage());
@@ -319,7 +319,7 @@ public:
             pluginProcess->UnregisterQuery(queryId);
         } catch (const std::exception& ex) {
             error = makeCommonUnregisterError()
-                .With(TError(ex));
+                .With(ex);
         } catch (...) {
             error = makeCommonUnregisterError()
                 .With("message", CurrentExceptionMessage());

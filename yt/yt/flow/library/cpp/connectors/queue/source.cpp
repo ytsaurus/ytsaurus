@@ -299,7 +299,7 @@ void TQueueSourceImpl::TryUpdatePartitionInfo()
         }
         UpdatePartitionInfoErrorState_->ClearError();
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to update partition info").With(TError(ex));
+        auto error = TError("Failed to update partition info").With(ex);
         UpdatePartitionInfoErrorState_->SetError(error);
     }
 }
@@ -439,7 +439,7 @@ auto TQueueSourceImpl::ParseData(
                             .With(ex);
                     } else {
                         THROW_ERROR_EXCEPTION("Failed to parse flow queue meta from %Qv", *raw)
-                            .With(TError(ex));
+                            .With(ex);
                     }
                 }
             }

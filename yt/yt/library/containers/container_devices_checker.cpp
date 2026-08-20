@@ -68,7 +68,7 @@ void TContainerDevicesChecker::OnCheck()
         Check_.Fire(result);
     } catch (const std::exception& ex) {
         YT_TLOG_ERROR("Container devices check failed")
-            .With(TError(ex));
+            .With(ex);
     }
 }
 
@@ -133,7 +133,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
             DirectoryPrepared_ = true;
         } catch (const std::exception& ex) {
             YT_TLOG_ERROR("Directory preparation failed")
-                .With(TError(ex));
+                .With(ex);
             WaitFor(PeriodicExecutor_->Stop()).ThrowOnError();
         }
     }
@@ -211,7 +211,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
         // If container doesn't exist it's OK.
         if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
             YT_TLOG_WARNING("Test container remove failed")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 

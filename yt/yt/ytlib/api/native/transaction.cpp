@@ -769,7 +769,7 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error preparing rows for table %v",
                     TableSession_->GetInfo()->Path)
-                    .With(TError(ex));
+                    .With(ex);
             }
         }
 
@@ -1055,7 +1055,7 @@ private:
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error submitting rows for table %v",
                     TableSession_->GetInfo()->Path)
-                    .With(TError(ex));
+                    .With(ex);
             }
         }
 

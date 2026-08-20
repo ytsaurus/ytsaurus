@@ -244,7 +244,7 @@ TErrorOr<std::string> TryParseControllerAgentAddress(
         return TError(
             "No suitable controller agent address exists from %v",
             GetValues(addresses))
-            .With(TError(ex));
+            .With(ex);
     }
 }
 

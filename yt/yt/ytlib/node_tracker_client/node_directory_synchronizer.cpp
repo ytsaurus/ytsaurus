@@ -134,7 +134,7 @@ private:
             DoSync();
         } catch (const std::exception& ex) {
             YT_TLOG_DEBUG("Error synchronizing node directory")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 
@@ -144,7 +144,7 @@ private:
             DoSync();
         } catch (const std::exception& ex) {
             YT_TLOG_DEBUG("Error synchronizing node directory")
-                .With(TError(ex));
+                .With(ex);
         }
     }
 };

@@ -107,7 +107,7 @@ public:
                 cookie.EndInsert(New<TCachedExpressionEvaluator>(std::move(key), std::move(evaluator)));
             } catch (const std::exception& ex) {
                 YT_TLOG_DEBUG("Failed to compile an expression")
-                    .With(TError(ex));
+                    .With(ex);
                 cookie.Cancel(TError(ex).Wrap("Failed to compile an expression"));
             }
         }

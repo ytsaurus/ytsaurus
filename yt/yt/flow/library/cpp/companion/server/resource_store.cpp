@@ -288,7 +288,7 @@ TResourceCommandOutcome TResourceStore::DoInit(
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Companion resource init failed")
             .With("ResourceId", resourceId)
-            .With(TError(ex));
+            .With(ex);
         return ErrorOutcome(TError(ex));
     }
 }
@@ -459,7 +459,7 @@ TResourceCommandOutcome TResourceStore::ApplyReconfigure(
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Companion resource reconfigure failed")
             .With("ResourceId", resourceId)
-            .With(TError(ex));
+            .With(ex);
         IResourcePtr detached;
         {
             auto guard = Guard(entry->Lock);

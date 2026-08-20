@@ -298,7 +298,7 @@ private:
             SyncObjects();
         } catch (const std::exception& ex) {
             YT_TLOG_WARNING("Failed to sync objects")
-                .With(TError(ex));
+                .With(ex);
 
             if (TInstant::Now() - LastSuccessfulSyncTime_ > Config_->ExpireAfterSuccessfulSyncTime) {
                 auto lock = getLock();

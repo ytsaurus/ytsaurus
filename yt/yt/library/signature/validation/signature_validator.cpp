@@ -57,7 +57,7 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Received invalid signature header")
             .With("Header", signature->Header_.ToString())
-            .With(TError(ex));
+            .With(ex);
         return MakeFuture(false);
     }
 

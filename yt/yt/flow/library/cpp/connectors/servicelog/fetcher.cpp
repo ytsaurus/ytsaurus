@@ -275,7 +275,7 @@ public:
                 } catch (const std::exception& e) {
                     CachedReader_ = std::nullopt;
 
-                    auto error = TError("Error fetching batch").With(TError(e));
+                    auto error = TError("Error fetching batch").With(e);
                     ReadErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
 
@@ -351,7 +351,7 @@ public:
                     range->Lower->Key = lastKey;
                     range->Lower->Exclusive = true;
                 } catch (const std::exception& e) {
-                    auto error = TError("Error fetching batch").With(TError(e));
+                    auto error = TError("Error fetching batch").With(e);
                     ReadErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
                     const auto& retryTimeout = Spec_->RetryTimeout;
@@ -453,7 +453,7 @@ private:
                     SupplementaryErrorState_->ClearError();
                     break;
                 } catch (const std::exception& e) {
-                    auto error = TError("Error retrieving schema").With(TError(e));
+                    auto error = TError("Error retrieving schema").With(e);
                     SupplementaryErrorState_->SetError(error);
                     RetryableErrorsCounter_.Increment(1);
                     const auto& retryTimeout = Spec_->RetryTimeout;

@@ -180,7 +180,7 @@ void TDynamicConfigManagerBase<TConfig>::DoUpdateConfig()
         ConfigLoadedPromise_.TrySet();
     } catch (const std::exception& ex) {
         YT_TLOG_WARNING("Failed to update dynamic config")
-            .With(TError(ex));
+            .With(ex);
         error = ex;
     }
 
@@ -329,7 +329,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         AfterConfigChanged_.Fire(newConfig);
     } catch (const std::exception& ex) {
         YT_TLOG_ALERT_AND_THROW("An exception was thrown during dynamic config application")
-            .With(TError(ex));
+            .With(ex);
     }
 
     return true;

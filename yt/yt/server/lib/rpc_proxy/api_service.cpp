@@ -5541,7 +5541,7 @@ void TApiService::DoModifyRows(
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error sending rows for table %v",
             path)
-            .With(TError(ex));
+            .With(ex);
     }
 
     auto rowsetRows = rowset->GetRows();
