@@ -46,6 +46,8 @@ struct TIOEngineConfigBase
     i64 MaxBytesPerRead;
     i64 MaxBytesPerWrite;
 
+    int DirectIOBlockSize;
+
     // For tests only.
     std::optional<i64> SimulatedMaxBytesPerWrite;
     std::optional<i64> SimulatedMaxBytesPerRead;

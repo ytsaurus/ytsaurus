@@ -40,6 +40,11 @@ void TIOEngineConfigBase::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1)
         .Default(256_MB);
 
+    registrar.Parameter("direct_io_block_size", &TThis::DirectIOBlockSize)
+        .Alias("direct_io_page_size")
+        .GreaterThan(0)
+        .Default(4_KB);
+
     registrar.Parameter("simulated_max_bytes_per_read", &TThis::SimulatedMaxBytesPerRead)
         .Default()
         .GreaterThan(0);
@@ -74,6 +79,19 @@ void TIOEngineConfigBase::Register(TRegistrar registrar)
         .Default(std::numeric_limits<i64>::max());
     registrar.Parameter("read_request_limit", &TThis::ReadRequestLimit)
         .Default(std::numeric_limits<i64>::max());
+
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_IF(
+            config->MaxBytesPerRead < config->DirectIOBlockSize,
+            "\"max_bytes_per_read\" must be at least \"direct_io_block_size\" (MaxBytesPerRead: %v, DirectIOBlockSize: %v)",
+            config->MaxBytesPerRead,
+            config->DirectIOBlockSize);
+        THROW_ERROR_EXCEPTION_IF(
+            config->MaxBytesPerWrite < config->DirectIOBlockSize,
+            "\"max_bytes_per_write\" must be at least \"direct_io_block_size\" (MaxBytesPerWrite: %v, DirectIOBlockSize: %v)",
+            config->MaxBytesPerWrite,
+            config->DirectIOBlockSize);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
