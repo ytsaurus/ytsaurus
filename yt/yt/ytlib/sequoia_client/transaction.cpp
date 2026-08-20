@@ -297,6 +297,12 @@ public:
                 .AsyncVia(SerializedInvoker_))
             .Apply(BIND(&TSequoiaTransaction::DoCommitTransaction, MakeStrong(this), options)
                 .AsyncVia(SerializedInvoker_))
+            .Apply(BIND([groundClient = GroundClient_] (const TError& error) {
+                // Tablet resolution happens against the cached mount info, so a retry
+                // is pointless unless the stale entry is dropped.
+                groundClient->GetTableMountCache()->InvalidateOnError(error, /*forceRetry*/ true);
+                return error;
+            }))
             .Apply(BIND(TransformSequoiaTransactionCommitError<void>))
             .Apply(BIND([type = Type_] (const TError& error) {
                 auto* counters = GetPerTransactionTypeCounters(type);
