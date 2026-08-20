@@ -11,6 +11,7 @@ image_cr=""
 component="ytsaurus"
 apt_mirror="http://archive.ubuntu.com/"
 install_nvidia_packages="false"
+build_cache_repository=""
 
 print_usage() {
     cat << EOF
@@ -24,6 +25,7 @@ Usage: $script_name [-h|--help]
                     [--image-cr some-cr/ (default: '$image_cr')]
                     [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
                     [--install-nvidia-packages true|false (default: '$install_nvidia_packages')]
+                    [--build-cache-repository registry/image]
 EOF
     exit 1
 }
@@ -66,6 +68,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --install-nvidia-packages)
         install_nvidia_packages="$2"
+        shift 2
+        ;;
+        --build-cache-repository)
+        build_cache_repository="$2"
         shift 2
         ;;
         -h|--help)
@@ -201,4 +207,33 @@ else
 fi
 
 cd ${output_path}
-docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} --build-arg INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+
+common_docker_build_args=(
+    --build-arg "APT_MIRROR=${apt_mirror}"
+    --build-arg "INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages}"
+)
+
+if [[ -n "${build_cache_repository}" ]]; then
+    cache_from_args=(
+        --cache-from "type=registry,ref=${build_cache_repository}:ya-make-main"
+    )
+    for cache_family in stable query-tracker chyt; do
+        for cache_slot in 0 1 2; do
+            cache_from_args+=(
+                --cache-from "type=registry,ref=${build_cache_repository}:ya-make-${cache_family}-${cache_slot}"
+            )
+        done
+    done
+
+    docker buildx build \
+        --load \
+        --target "${component}" \
+        "${cache_from_args[@]}" \
+        "${common_docker_build_args[@]}" \
+        -t "${image_cr}ytsaurus/${component}:${image_tag}" .
+else
+    docker build \
+        --target "${component}" \
+        "${common_docker_build_args[@]}" \
+        -t "${image_cr}ytsaurus/${component}:${image_tag}" .
+fi

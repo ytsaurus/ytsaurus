@@ -128,7 +128,8 @@ EOT
 # https://nvidia.github.io/libnvidia-container/stable/
 # https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html
 # NOTE: key is expired 2021-06-16 but still in use, they publish repo like from 2018.
-ADD --chmod=664 \
+ADD --checksum=sha256:c880576d6cf75a48e5027a871bac70fd0421ab07d2b55f30877b21f1c87959c9 \
+  --chmod=664 \
   https://nvidia.github.io/libnvidia-container/gpgkey \
   /etc/apt/keyrings/nvidia-container-toolkit-keyring.asc
 
@@ -151,11 +152,11 @@ nvidia_packages=(
 )
 
 export DEBIAN_FRONTEND=noninteractive
-apt update -q --error-on=any
+apt -o Acquire::Retries=5 -o Acquire::https::Timeout=30 update -q --error-on=any
 
 apt policy nvidia-container-toolkit
 
-apt install -y "${nvidia_packages[@]}"
+apt -o Acquire::Retries=5 -o Acquire::https::Timeout=30 install -y "${nvidia_packages[@]}"
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
