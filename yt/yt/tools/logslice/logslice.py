@@ -1014,8 +1014,8 @@ def discover_component_candidates(ssh, log_type, start_time, end_time,
 def infer_host_component(host):
     """Infer ``(role, component)`` from known YP pod hostname markers."""
     short = host.split(".", 1)[0].lower()
-    node = re.match(
-        r"^(?P<prefix>[a-z]{3}\d+-\d+)-(?P<role>tab|dat|exec)-node(?:-|$)",
+    node = re.search(
+        r"(?:^|-)(?P<role>tab|dat|exec)-(?:node|sen)(?:-|$)",
         short,
     )
     if node:
@@ -1046,14 +1046,21 @@ def infer_host_component(host):
     return None, None
 
 
-def _master_base(component, available):
+def _resolve_base(role, component, available):
     if component in available:
         return component
-    matches = [
-        candidate for candidate in available
-        if candidate.startswith("master-")
-        and not candidate.startswith("master-cache")
-    ]
+    if role == "master":
+        matches = [
+            candidate for candidate in available
+            if candidate.startswith("master-")
+            and not candidate.startswith("master-cache")
+        ]
+    else:
+        prefix = component + "-"
+        matches = [
+            candidate for candidate in available
+            if candidate.startswith(prefix)
+        ]
     if not matches:
         return None
     return sorted(
@@ -1087,8 +1094,8 @@ def resolve_component_route(host, override, candidates):
             "cannot infer the YT component from host {!r}; discovered: {}; "
             "pass --component NAME".format(host, shown)
         )
-    base = _master_base(component, available) if role == "master" else component
-    if base not in available:
+    base = _resolve_base(role, component, available)
+    if base is None:
         raise ValueError(
             "host {!r} maps to role={} component={!r}, but that base was not "
             "found; discovered: {}; pass --component NAME only after verifying "
