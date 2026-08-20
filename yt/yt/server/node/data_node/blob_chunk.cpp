@@ -31,6 +31,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <util/system/align.h>
 
 namespace NYT::NDataNode {
@@ -675,10 +677,16 @@ void TBlobChunkBase::DoReadBlockSet(
 
     auto readBlocksRequests = CalculateReadBlocksRequests(session);
 
-    if (session->Options.EnableSequentialIORequests) {
-        DoReadBlockSetSequentially(session, std::move(readBlocksRequests), 0);
-    } else {
-        DoReadBlockSetInParallel(session, std::move(readBlocksRequests));
+    switch (session->Options.ReadIORequestsMode) {
+        case EReadIORequestsMode::Sequential:
+            DoReadBlockSetSequentially(session, std::move(readBlocksRequests), 0);
+            break;
+        case EReadIORequestsMode::Batched:
+            DoReadBlockSetInBatches(session, std::move(readBlocksRequests));
+            break;
+        case EReadIORequestsMode::Parallel:
+            DoReadBlockSetInParallel(session, std::move(readBlocksRequests));
+            break;
     }
 }
 
@@ -705,12 +713,27 @@ TFuture<void> TBlobChunkBase::ReadBlocks(
     YT_VERIFY(readBlocksRequest.FirstBlockIndex >= 0);
     YT_VERIFY(readBlocksRequest.BlocksToRead > 0);
 
-    auto reader = GetReader();
-
     if (auto delay = Location_->GetDelayBeforeBlobChunkRead()) {
         YT_LOG_DEBUG("Delaying blob chunk read (ChunkId: %v, Delay: %v)", Id_, *delay);
-        TDelayedExecutor::WaitForDuration(*delay);
+        return TDelayedExecutor::MakeDelayed(*delay).Apply(
+            BIND(
+                &TBlobChunkBase::DoReadBlocks,
+                MakeStrong(this),
+                session,
+                Passed(std::move(readBlocksRequest)))
+                .AsyncVia(session->Invoker));
     }
+
+    return DoReadBlocks(session, std::move(readBlocksRequest));
+}
+
+TFuture<void> TBlobChunkBase::DoReadBlocks(
+    const TReadBlockSetSessionPtr& session,
+    TReadBlocksRequest readBlocksRequest)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
+
+    auto reader = GetReader();
 
     YT_VERIFY(session->FairShareSlot);
     auto asyncBlocks = reader->ReadBlocks(
@@ -744,6 +767,22 @@ i64 TBlobChunkBase::CalculateAdditionalMemory(const TReadBlocksRequest& request)
     }
 
     return additionalMemory;
+}
+
+i64 TBlobChunkBase::CalculateReadDataSize(
+    const TReadBlockSetSessionPtr& session,
+    const TReadBlocksRequest& request)
+{
+    i64 readDataSize = 0;
+
+    for (int blockIndex = request.FirstBlockIndex;
+        blockIndex < request.FirstBlockIndex + request.BlocksToRead;
+        ++blockIndex)
+    {
+        readDataSize += session->BlocksExt->Blocks[blockIndex].Size;
+    }
+
+    return readDataSize;
 }
 
 void TBlobChunkBase::DoReadBlockSetSequentially(
@@ -793,16 +832,76 @@ void TBlobChunkBase::DoReadBlockSetInParallel(
 {
     YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
-    std::vector<TFuture<void>> readRequests;
+    session->DiskFetchPromise.TrySetFrom(
+        AllSucceeded(RunReadBlocksRequests(session, std::move(requests))));
+}
 
-    for (auto& readBlocksRequest : requests) {
-        readRequests.push_back(ReadBlocks(session, std::move(readBlocksRequest)));
+void TBlobChunkBase::DoReadBlockSetInBatches(
+    const TReadBlockSetSessionPtr& session,
+    std::vector<TReadBlocksRequest> requests)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
+
+    auto state = New<TReadBlockSetBatchState>();
+    state->Requests = std::move(requests);
+    TryScheduleReadBlocks(session, state);
+}
+
+TBlobChunkBase::TReadBlocksRequestBatch TBlobChunkBase::GetReadBlocksRequestsToRun(
+    const TReadBlockSetSessionPtr& session,
+    const TReadBlockSetBatchStatePtr& state)
+{
+    YT_VERIFY(session->Options.MaxInFlightReadRequestCount > 0);
+    YT_VERIFY(session->Options.MaxInFlightReadDataSize > 0);
+
+    auto guard = Guard(state->SpinLock);
+    TReadBlocksRequestBatch batch;
+
+    if (!state->Stopped &&
+        state->NextRequestIndex < std::ssize(state->Requests) &&
+        (session->DiskFetchPromise.IsCanceled() || TInstant::Now() > session->Options.ReadBlocksDeadline))
+    {
+        state->Stopped = true;
+        batch.FirstEntryIndexToFail = state->Requests[state->NextRequestIndex].BeginEntryIndex;
     }
 
-    i64 additionalMemory = 0;
+    while (!state->Stopped && state->NextRequestIndex < std::ssize(state->Requests)) {
+        auto& request = state->Requests[state->NextRequestIndex];
+        auto fitsRequestCount =
+            state->InFlightRequestCount < session->Options.MaxInFlightReadRequestCount;
+        auto fitsDataSize =
+            state->InFlightReadDataSize + request.ReadDataSize <= session->Options.MaxInFlightReadDataSize;
+        auto canStartOversizedRequest = state->InFlightRequestCount == 0;
 
-    for (const auto& currentRequest : requests) {
-        additionalMemory += CalculateAdditionalMemory(currentRequest);
+        if (!fitsRequestCount || (!fitsDataSize && !canStartOversizedRequest)) {
+            break;
+        }
+
+        ++state->NextRequestIndex;
+        ++state->InFlightRequestCount;
+        state->InFlightReadDataSize += request.ReadDataSize;
+        batch.Requests.push_back(std::move(request));
+    }
+
+    return batch;
+}
+
+bool TBlobChunkBase::IsReadBlockSetBatchFinished(
+    const TReadBlockSetBatchStatePtr& state)
+{
+    auto guard = Guard(state->SpinLock);
+    return
+        (state->Stopped || state->NextRequestIndex == std::ssize(state->Requests)) &&
+        state->InFlightRequestCount == 0;
+}
+
+std::vector<TFuture<void>> TBlobChunkBase::RunReadBlocksRequests(
+    const TReadBlockSetSessionPtr& session,
+    std::vector<TReadBlocksRequest> requests)
+{
+    i64 additionalMemory = 0;
+    for (const auto& request : requests) {
+        additionalMemory += CalculateAdditionalMemory(request);
     }
 
     session->LocationMemoryGuard.Transform([additionalMemory] (TLocationMemoryGuard& guard) {
@@ -811,7 +910,77 @@ void TBlobChunkBase::DoReadBlockSetInParallel(
         }
     });
 
-    session->DiskFetchPromise.TrySetFrom(AllSucceeded(readRequests));
+    std::vector<TFuture<void>> readRequests;
+    readRequests.reserve(requests.size());
+    for (auto& request : requests) {
+        readRequests.push_back(ReadBlocks(session, std::move(request)));
+    }
+
+    return readRequests;
+}
+
+void TBlobChunkBase::TryScheduleReadBlocks(
+    const TReadBlockSetSessionPtr& session,
+    const TReadBlockSetBatchStatePtr& state)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
+
+    auto batch = GetReadBlocksRequestsToRun(session, state);
+
+    if (batch.FirstEntryIndexToFail) {
+        YT_LOG_DEBUG(
+            "Read session trimmed due to deadline or cancellation (Deadline: %v, IsCanceled: %v)",
+            session->Options.ReadBlocksDeadline,
+            session->DiskFetchPromise.IsCanceled());
+
+        auto error = TError(NChunkClient::EErrorCode::ReaderTimeout, "Read session trimmed due to deadline");
+        for (auto index = *batch.FirstEntryIndexToFail; index < session->EntryCount; ++index) {
+            if (!session->Entries[index].Cached && session->Entries[index].Cookie) {
+                session->Entries[index].Cookie->SetBlock(error);
+            }
+        }
+    }
+
+    std::vector<i64> readDataSizes;
+    readDataSizes.reserve(batch.Requests.size());
+    for (const auto& request : batch.Requests) {
+        readDataSizes.push_back(request.ReadDataSize);
+    }
+
+    auto readRequests = RunReadBlocksRequests(session, std::move(batch.Requests));
+    for (auto&& [readRequest, readDataSize] : Zip(readRequests, readDataSizes)) {
+        YT_UNUSED_FUTURE(readRequest.Apply(
+            BIND(
+                &TBlobChunkBase::OnBatchedReadBlocksCompleted,
+                MakeStrong(this),
+                session,
+                state,
+                readDataSize)
+                .AsyncVia(session->Invoker)));
+    }
+
+    if (IsReadBlockSetBatchFinished(state)) {
+        session->DiskFetchPromise.TrySet();
+    }
+}
+
+void TBlobChunkBase::OnBatchedReadBlocksCompleted(
+    const TReadBlockSetSessionPtr& session,
+    const TReadBlockSetBatchStatePtr& state,
+    i64 readDataSize)
+{
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
+
+    {
+        auto guard = Guard(state->SpinLock);
+        YT_VERIFY(state->InFlightRequestCount > 0);
+        YT_VERIFY(state->InFlightReadDataSize >= readDataSize);
+
+        --state->InFlightRequestCount;
+        state->InFlightReadDataSize -= readDataSize;
+    }
+
+    TryScheduleReadBlocks(session, state);
 }
 
 std::vector<TBlobChunkBase::TReadBlocksRequest> TBlobChunkBase::CalculateReadBlocksRequests(
@@ -824,6 +993,7 @@ std::vector<TBlobChunkBase::TReadBlocksRequest> TBlobChunkBase::CalculateReadBlo
         if (readBlocksRequest) {
             YT_VERIFY(readBlocksRequest->BeginEntryIndex >= beginEntryIndex);
             YT_VERIFY(readBlocksRequest->EndEntryIndex > beginEntryIndex);
+            readBlocksRequest->ReadDataSize = CalculateReadDataSize(session, *readBlocksRequest);
             beginEntryIndex = readBlocksRequest->EndEntryIndex;
             result.push_back(std::move(*readBlocksRequest));
         } else {

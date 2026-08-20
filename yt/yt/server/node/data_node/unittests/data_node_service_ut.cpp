@@ -500,6 +500,9 @@ public:
         NIO::EDirectIOPolicy UseDirectIOForWrites = NIO::EDirectIOPolicy::Never;
         i64 MinRequestSizeToUseHugePages = 2_MB;
         bool EnableSequentialIORequests = true;
+        std::optional<EReadIORequestsMode> ReadIORequestsMode;
+        int MaxInFlightReadRequestCount = std::numeric_limits<int>::max();
+        i64 MaxInFlightReadDataSize = 16_MB;
         i64 CoalescedReadMaxGapSize = 10_MB;
         i64 BlockCacheCapacity = 0;
         i64 PerLocationBlockCacheCapacity = 0;
@@ -583,6 +586,9 @@ public:
 
         bootstrapConfig->DataNode = New<TDataNodeConfig>();
         bootstrapConfig->DataNode->EnableSequentialIORequests = TestParams_.EnableSequentialIORequests;
+        bootstrapConfig->DataNode->ReadIORequestsMode = TestParams_.ReadIORequestsMode;
+        bootstrapConfig->DataNode->MaxInFlightReadRequestCount = TestParams_.MaxInFlightReadRequestCount;
+        bootstrapConfig->DataNode->MaxInFlightReadDataSize = TestParams_.MaxInFlightReadDataSize;
 
         bootstrapConfig->DataNode->MasterConnector = New<TMasterConnectorConfig>();
         bootstrapConfig->DataNode->MasterConnector->JobHeartbeatPeriod = TDuration::Seconds(1);
@@ -1128,6 +1134,86 @@ public:
             })
     { }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGetBlockSetBatchTest
+    : public TDataNodeTest
+{
+public:
+    TGetBlockSetBatchTest()
+        : TDataNodeTest(
+            TDataNodeTest::TDataNodeTestParams {
+                .EnableSequentialIORequests = true,
+                .ReadIORequestsMode = EReadIORequestsMode::Batched,
+                .CoalescedReadMaxGapSize = 0,
+                .ReadThreadCount = 4,
+                .WriteThreadCount = 4,
+            })
+    { }
+
+    auto ReadBlocksWithLimits(
+        int maxInFlightReadRequestCount,
+        i64 maxInFlightReadDataSize,
+        TDuration readDelay,
+        int blockCount = 8,
+        int blockSize = 1_KB)
+    {
+        TSessionId sessionId(
+            MakeRandomId(EObjectType::Chunk, TCellTag(0xf003)),
+            GenericMediumIndex);
+        FillWithRandomBlocks(sessionId, blockCount, blockSize);
+
+        std::vector<int> blockIndices(blockCount / 2);
+        for (int index = 0; index < std::ssize(blockIndices); ++index) {
+            blockIndices[index] = index * 2;
+        }
+
+        auto dynamicConfig = GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode;
+        dynamicConfig->MaxInFlightReadRequestCount = maxInFlightReadRequestCount;
+        dynamicConfig->MaxInFlightReadDataSize = maxInFlightReadDataSize;
+        dynamicConfig->TestingOptions->BlockReadTimeoutFraction = 0.25;
+        dynamicConfig->TestingOptions->DelayBeforeBlobChunkRead = readDelay;
+
+        return WaitFor(GetBlockSet(
+            sessionId.ChunkId,
+            blockIndices,
+            /*populateCache*/ false,
+            /*fetchFromCache*/ false,
+            /*fetchFromDisk*/ true,
+            /*workloadDescriptor*/ {},
+            /*requestTimeout*/ TDuration::Seconds(8)))
+            .ValueOrThrow();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TReadIORequestsModeTest, FallsBackToLegacySetting)
+{
+    auto config = New<TDataNodeConfig>();
+    auto dynamicConfig = New<TDataNodeDynamicConfig>();
+
+    config->EnableSequentialIORequests = true;
+    EXPECT_EQ(GetReadIORequestsMode(config, dynamicConfig), EReadIORequestsMode::Sequential);
+
+    dynamicConfig->EnableSequentialIORequests = false;
+    EXPECT_EQ(GetReadIORequestsMode(config, dynamicConfig), EReadIORequestsMode::Parallel);
+}
+
+TEST(TReadIORequestsModeTest, ExplicitModeHasPriority)
+{
+    auto config = New<TDataNodeConfig>();
+    auto dynamicConfig = New<TDataNodeDynamicConfig>();
+
+    config->EnableSequentialIORequests = true;
+    config->ReadIORequestsMode = EReadIORequestsMode::Batched;
+    dynamicConfig->EnableSequentialIORequests = false;
+    EXPECT_EQ(GetReadIORequestsMode(config, dynamicConfig), EReadIORequestsMode::Batched);
+
+    dynamicConfig->ReadIORequestsMode = EReadIORequestsMode::Parallel;
+    EXPECT_EQ(GetReadIORequestsMode(config, dynamicConfig), EReadIORequestsMode::Parallel);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2518,6 +2604,109 @@ INSTANTIATE_TEST_SUITE_P(
         }
     )
 );
+
+TEST_F(TGetBlockSetBatchTest, LimitsInFlightReadsByRequestCount)
+{
+    auto rsp = ReadBlocksWithLimits(
+        /*maxInFlightReadRequestCount*/ 1,
+        /*maxInFlightReadDataSize*/ std::numeric_limits<i64>::max(),
+        TDuration::MilliSeconds(2500));
+
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_io_requests(), 1);
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_bytes_read_from_disk(), 1_KB);
+    auto blocks = GetRpcAttachedBlocks(rsp);
+    ASSERT_EQ(blocks.size(), 4u);
+    EXPECT_TRUE(blocks[0]);
+    EXPECT_FALSE(blocks[1]);
+    EXPECT_FALSE(blocks[2]);
+    EXPECT_FALSE(blocks[3]);
+}
+
+TEST_F(TGetBlockSetBatchTest, LimitsInFlightReadsByDataSize)
+{
+    auto rsp = ReadBlocksWithLimits(
+        /*maxInFlightReadRequestCount*/ std::numeric_limits<int>::max(),
+        /*maxInFlightReadDataSize*/ 1_KB,
+        TDuration::MilliSeconds(2500));
+
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_io_requests(), 1);
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_bytes_read_from_disk(), 1_KB);
+    auto blocks = GetRpcAttachedBlocks(rsp);
+    ASSERT_EQ(blocks.size(), 4u);
+    EXPECT_TRUE(blocks[0]);
+    EXPECT_FALSE(blocks[1]);
+    EXPECT_FALSE(blocks[2]);
+    EXPECT_FALSE(blocks[3]);
+}
+
+TEST_F(TGetBlockSetBatchTest, RefillsSlidingWindow)
+{
+    auto rsp = ReadBlocksWithLimits(
+        /*maxInFlightReadRequestCount*/ 2,
+        /*maxInFlightReadDataSize*/ std::numeric_limits<i64>::max(),
+        TDuration::MilliSeconds(500));
+
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_io_requests(), 4);
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_bytes_read_from_disk(), 4_KB);
+    auto blocks = GetRpcAttachedBlocks(rsp);
+    ASSERT_EQ(blocks.size(), 4u);
+    EXPECT_TRUE(blocks[0]);
+    EXPECT_TRUE(blocks[1]);
+    EXPECT_TRUE(blocks[2]);
+    EXPECT_TRUE(blocks[3]);
+}
+
+TEST_F(TGetBlockSetBatchTest, UsesStricterLimit)
+{
+    auto rsp = ReadBlocksWithLimits(
+        /*maxInFlightReadRequestCount*/ 1,
+        /*maxInFlightReadDataSize*/ 2_KB,
+        TDuration::MilliSeconds(2500));
+
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_io_requests(), 1);
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_bytes_read_from_disk(), 1_KB);
+    auto blocks = GetRpcAttachedBlocks(rsp);
+    ASSERT_EQ(blocks.size(), 4u);
+    EXPECT_TRUE(blocks[0]);
+    EXPECT_FALSE(blocks[1]);
+    EXPECT_FALSE(blocks[2]);
+    EXPECT_FALSE(blocks[3]);
+}
+
+TEST_F(TGetBlockSetBatchTest, StartsSingleOversizedRequest)
+{
+    auto rsp = ReadBlocksWithLimits(
+        /*maxInFlightReadRequestCount*/ 1,
+        /*maxInFlightReadDataSize*/ 1_KB,
+        TDuration::Zero(),
+        /*blockCount*/ 2,
+        /*blockSize*/ 2_KB);
+
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_io_requests(), 1);
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_bytes_read_from_disk(), 2_KB);
+    auto blocks = GetRpcAttachedBlocks(rsp);
+    ASSERT_EQ(blocks.size(), 1u);
+    EXPECT_TRUE(blocks[0]);
+}
+
+TEST_F(TGetBlockSetBatchTest, HandlesConcurrentCompletions)
+{
+    constexpr int BlockCount = 32;
+
+    auto rsp = ReadBlocksWithLimits(
+        /*maxInFlightReadRequestCount*/ 8,
+        /*maxInFlightReadDataSize*/ std::numeric_limits<i64>::max(),
+        TDuration::Zero(),
+        BlockCount);
+
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_io_requests(), BlockCount / 2);
+    EXPECT_EQ(rsp->chunk_reader_statistics().data_bytes_read_from_disk(), BlockCount / 2 * 1_KB);
+    auto blocks = GetRpcAttachedBlocks(rsp);
+    ASSERT_EQ(std::ssize(blocks), BlockCount / 2);
+    for (const auto& block : blocks) {
+        EXPECT_TRUE(block);
+    }
+}
 
 TEST_P(TGetBlockSetTest, DISABLED_GetBlockSetTest)
 {

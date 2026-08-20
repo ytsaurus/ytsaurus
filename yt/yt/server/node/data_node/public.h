@@ -144,6 +144,12 @@ YT_DEFINE_ERROR_ENUM(
     // ((LayerUnpackingFailed)      (1301))
 );
 
+DEFINE_ENUM(EReadIORequestsMode,
+    (Sequential)
+    (Batched)
+    (Parallel)
+);
+
 DEFINE_ENUM(EDataNodeThrottlerKind,
     //! Controls the total incoming bandwidth.
     (TotalIn)
