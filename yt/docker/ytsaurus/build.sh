@@ -11,7 +11,7 @@ image_cr=""
 component="ytsaurus"
 apt_mirror="http://archive.ubuntu.com/"
 install_nvidia_packages="false"
-build_cache_ref=""
+build_cache_repository=""
 
 print_usage() {
     cat << EOF
@@ -25,7 +25,7 @@ Usage: $script_name [-h|--help]
                     [--image-cr some-cr/ (default: '$image_cr')]
                     [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
                     [--install-nvidia-packages true|false (default: '$install_nvidia_packages')]
-                    [--build-cache-ref registry/image:tag]
+                    [--build-cache-repository registry/image]
 EOF
     exit 1
 }
@@ -70,8 +70,8 @@ while [[ $# -gt 0 ]]; do
         install_nvidia_packages="$2"
         shift 2
         ;;
-        --build-cache-ref)
-        build_cache_ref="$2"
+        --build-cache-repository)
+        build_cache_repository="$2"
         shift 2
         ;;
         -h|--help)
@@ -213,25 +213,22 @@ common_docker_build_args=(
     --build-arg "INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages}"
 )
 
-if [[ -n "${build_cache_ref}" ]]; then
-    if ! docker pull "${build_cache_ref}"; then
-        echo "No existing Docker base cache found at ${build_cache_ref}; building it from scratch."
-    fi
+if [[ -n "${build_cache_repository}" ]]; then
+    cache_from_args=(
+        --cache-from "type=registry,ref=${build_cache_repository}:ya-make-main"
+    )
+    for cache_family in stable query-tracker chyt; do
+        for cache_slot in 0 1 2; do
+            cache_from_args+=(
+                --cache-from "type=registry,ref=${build_cache_repository}:ya-make-${cache_family}-${cache_slot}"
+            )
+        done
+    done
 
-    docker build \
-        --target base \
-        --cache-from "${build_cache_ref}" \
-        --build-arg BUILDKIT_INLINE_CACHE=1 \
-        "${common_docker_build_args[@]}" \
-        -t "${build_cache_ref}" .
-
-    if ! docker push "${build_cache_ref}"; then
-        echo "Failed to update Docker base cache at ${build_cache_ref}; continuing with the local cache."
-    fi
-
-    docker build \
+    docker buildx build \
+        --load \
         --target "${component}" \
-        --cache-from "${build_cache_ref}" \
+        "${cache_from_args[@]}" \
         "${common_docker_build_args[@]}" \
         -t "${image_cr}ytsaurus/${component}:${image_tag}" .
 else
