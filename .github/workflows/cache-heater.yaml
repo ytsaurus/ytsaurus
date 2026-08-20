@@ -157,26 +157,22 @@ jobs:
         run: |
           echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
 
-      - name: Docker setup mirror
+      - name: Docker setup daemon
         run: |
           mkdir -p /etc/docker
           touch /etc/docker/daemon.json
-          if grep -q 'mirror.gcr.io' /etc/docker/daemon.json; then
-            echo "Docker mirror already set up, skipping."
+          if grep -q 'mirror.gcr.io' /etc/docker/daemon.json && grep -Eq '"containerd-snapshotter"[[:space:]]*:[[:space:]]*true' /etc/docker/daemon.json; then
+            echo "Docker daemon already set up, skipping."
           else
-            echo '{"registry-mirrors": ["https://mirror.gcr.io"]}' > /etc/docker/daemon.json
+            echo '{"features":{"containerd-snapshotter":true},"registry-mirrors":["https://mirror.gcr.io"]}' > /etc/docker/daemon.json
             systemctl restart docker
           fi
 
       - name: Docker setup buildx
         run: |
           source docker-cache-retry.sh
-          if docker buildx inspect yt-builder >/dev/null 2>&1; then
-            docker buildx use yt-builder
-          else
-            docker buildx create --name yt-builder --driver docker-container --use
-          fi
-          retry docker buildx inspect --bootstrap
+          docker buildx use default
+          retry docker buildx inspect default --bootstrap
 
       - name: Heat Docker base cache
         env:
