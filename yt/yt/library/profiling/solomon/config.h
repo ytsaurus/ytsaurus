@@ -26,6 +26,21 @@ DEFINE_REFCOUNTED_TYPE(TShardConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSolomonExporterDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<int> ThreadPoolSize;
+    std::optional<TDuration> ThreadPoolPollingPeriod;
+
+    REGISTER_YSON_STRUCT(TSolomonExporterDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSolomonExporterDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSolomonExporterConfig
     : public NYTree::TYsonStruct
 {
@@ -88,6 +103,8 @@ struct TSolomonExporterConfig
     ELabelSanitizationPolicy LabelSanitizationPolicy;
 
     TShardConfigPtr MatchShard(const std::string& sensorName);
+
+    TSolomonExporterConfigPtr ApplyDynamic(const TSolomonExporterDynamicConfigPtr& dynamicConfig) const;
 
     ESummaryPolicy GetSummaryPolicy() const;
 

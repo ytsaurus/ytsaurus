@@ -93,7 +93,7 @@
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/helpers.h>
 
-#include <yt/yt/library/profiling/solomon/registry.h>
+#include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
@@ -1506,6 +1506,8 @@ private:
 
         BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
+
+        ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>()->Reconfigure(newConfig->SolomonExporter);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
         for (const auto& [_, service] : GetCachingObjectServices()) {
