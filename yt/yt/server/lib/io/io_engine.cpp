@@ -417,6 +417,8 @@ TWriteResponse DoWriteAligned(
     auto fileOffset = request.Offset;
     YT_VERIFY(fileOffset % directIoBlockSize == 0);
 
+    maxBytesPerWrite = AlignDown<i64>(maxBytesPerWrite, directIoBlockSize);
+
     TWriteResponse response;
 
     NFS::WrapIOErrors([&] {
@@ -735,8 +737,6 @@ struct TThreadPoolIOEngineConfig
     int WriteThreadCount;
     int FairShareThreadCount;
 
-    int DirectIOBlockSize;
-
     bool EnablePwritev;
     bool FlushAfterWrite;
     bool AsyncFlushAfterWrite;
@@ -766,10 +766,6 @@ struct TThreadPoolIOEngineConfig
         registrar.Parameter("fair_share_thread_count", &TThis::FairShareThreadCount)
             .GreaterThanOrEqual(1)
             .Default(4);
-
-        registrar.Parameter("direct_io_block_size", &TThis::DirectIOBlockSize)
-            .GreaterThan(0)
-            .Default(4_KB);
 
         registrar.Parameter("min_request_size_to_use_huge_pages", &TThis::MinRequestSizeToUseHugePages)
             .GreaterThanOrEqual(0)

@@ -559,6 +559,7 @@ const char DefaultConfig[] =
 const char CustomConfig[] =
     "{"
     "    max_bytes_per_read = 4099;"
+    "    max_bytes_per_write = 4099;"
     "    simulated_max_bytes_per_read = 4096;"
     "    simulated_max_bytes_per_write = 4096;"
     "    large_unaligned_direct_io_read_size = 16384;"

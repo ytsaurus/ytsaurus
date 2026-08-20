@@ -76,8 +76,6 @@ struct TUringIOEngineConfig
     //! Limits the number of concurrent (outstanding) #IIOEngine requests per a single uring thread.
     int MaxConcurrentRequestsPerThread;
 
-    int DirectIOBlockSize;
-
     bool FlushAfterWrite;
 
     // Request size in bytes.
@@ -101,11 +99,6 @@ struct TUringIOEngineConfig
             .GreaterThan(0)
             .LessThanOrEqual(MaxUringConcurrentRequestsPerThread)
             .Default(22);
-
-        registrar.Parameter("direct_io_block_size", &TThis::DirectIOBlockSize)
-            .Alias("direct_io_page_size")
-            .GreaterThan(0)
-            .Default(4_KB);
 
         registrar.Parameter("flush_after_write", &TThis::FlushAfterWrite)
             .Default(false);
@@ -428,8 +421,9 @@ struct TUringConfigProvider final
 {
     const std::optional<i64> SimulatedMaxBytesPerRead;
     const std::optional<i64> SimulatedMaxBytesPerWrite;
-    const int MaxBytesPerRead;
-    const int MaxBytesPerWrite;
+
+    const i64 MaxBytesPerRead;
+    const i64 MaxBytesPerWrite;
     const bool EnableIOUringLogging;
 
     YT_DECLARE_ATOMIC_FIELD(int, UringThreadCount)
@@ -709,10 +703,16 @@ private:
             auto& subrequestState = request->ReadSubrequestStates[subrequestIndex];
             auto& buffer = subrequestState.Buffer;
 
+            auto maxBytesPerRead = Config_->MaxBytesPerRead;
+            if (subrequest.Handle->IsOpenForDirectIO()) {
+                auto directIoBlockSize = Config_->GetDirectIOBlockSize();
+                maxBytesPerRead = AlignDown<i64>(maxBytesPerRead, directIoBlockSize);
+            }
+
             auto* sqe = AllocateSqe();
             subrequestState.Iov = {
                 .iov_base = buffer.Begin(),
-                .iov_len = Min<size_t>(buffer.Size(), Config_->MaxBytesPerRead)
+                .iov_len = Min<size_t>(buffer.Size(), maxBytesPerRead)
             };
 
             YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Submitting read operation (Request: %p/%v, FD: %v, Offset: %v, Buffer: %p@%v)",
@@ -793,11 +793,17 @@ private:
             request->WriteIovBuffer = AllocateIovBuffer();
         }
 
+        auto maxBytesPerWrite = Config_->MaxBytesPerWrite;
+        if (request->WriteRequest.Handle->IsOpenForDirectIO()) {
+            auto directIoBlockSize = Config_->GetDirectIOBlockSize();
+            maxBytesPerWrite = AlignDown<i64>(maxBytesPerWrite, directIoBlockSize);
+        }
+
         int iovCount = 0;
         i64 toWrite = 0;
         while (request->CurrentWriteSubrequestIndex + iovCount < totalSubrequestCount &&
             iovCount < std::ssize(*request->WriteIovBuffer) &&
-            toWrite < Config_->MaxBytesPerWrite)
+            toWrite < maxBytesPerWrite)
         {
             const auto& buffer = request->WriteRequest.Buffers[request->CurrentWriteSubrequestIndex + iovCount];
             auto& iov = (*request->WriteIovBuffer)[iovCount];
@@ -805,8 +811,8 @@ private:
                 .iov_base = const_cast<char*>(buffer.Begin()),
                 .iov_len = buffer.Size()
             };
-            if (toWrite + static_cast<i64>(iov.iov_len) > Config_->MaxBytesPerWrite) {
-                iov.iov_len = Config_->MaxBytesPerWrite - toWrite;
+            if (toWrite + static_cast<i64>(iov.iov_len) > maxBytesPerWrite) {
+                iov.iov_len = maxBytesPerWrite - toWrite;
             }
             toWrite += iov.iov_len;
             ++iovCount;
