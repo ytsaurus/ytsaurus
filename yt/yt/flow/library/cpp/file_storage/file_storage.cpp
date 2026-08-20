@@ -1256,7 +1256,8 @@ private:
             CleanupToSoftLimit(&complete);
         } catch (const std::exception& ex) {
             complete = false;
-            YT_LOG_WARNING(TError(ex), "File storage reconciliation failed");
+            YT_TLOG_WARNING("File storage reconciliation failed")
+                .With(ex);
         }
 
         if (complete) {
@@ -1301,10 +1302,9 @@ private:
         }
         if (!unknownEntries.empty()) {
             *complete = false;
-            YT_LOG_WARNING("File storage root contains unknown entries; publication is blocked "
-                "(Root: %v, Entries: %v)",
-                Root_.GetPath(),
-                unknownEntries);
+            YT_TLOG_WARNING("File storage root contains unknown entries; publication is blocked")
+                .With("Root", Root_.GetPath())
+                .With("Entries", unknownEntries);
         }
     }
 
@@ -1323,9 +1323,9 @@ private:
                 RemoveTree(entry);
             } catch (const std::exception& ex) {
                 *complete = false;
-                YT_LOG_WARNING(TError(ex),
-                    "Failed to sweep file storage staging entry (Path: %v)",
-                    entry.GetPath());
+                YT_TLOG_WARNING("Failed to sweep file storage staging entry")
+                    .With("Path", entry.GetPath())
+                    .With(ex);
             }
         }
         FlushDirectory(Root_ / "staging");
@@ -1369,9 +1369,9 @@ private:
             }
             if (!removed) {
                 *complete = false;
-                YT_LOG_WARNING(error,
-                    "Failed to sweep file storage trash entry (Path: %v)",
-                    entry.GetPath());
+                YT_TLOG_WARNING("Failed to sweep file storage trash entry")
+                    .With("Path", entry.GetPath())
+                    .With(error);
             }
         }
 
@@ -1452,17 +1452,16 @@ private:
                     }
                     if (hasPinnedEntry) {
                         objectsComplete = false;
-                        YT_LOG_WARNING("Pinned file storage object is under an invalid prefix "
-                            "(Path: %v)",
-                            prefix.GetPath());
+                        YT_TLOG_WARNING("Pinned file storage object is under an invalid prefix")
+                            .With("Path", prefix.GetPath());
                         continue;
                     }
                     TError error;
                     if (!QuarantineUnknownPath(prefix, &error)) {
                         objectsComplete = false;
-                        YT_LOG_WARNING(error,
-                            "Failed to quarantine invalid file storage prefix (Path: %v)",
-                            prefix.GetPath());
+                        YT_TLOG_WARNING("Failed to quarantine invalid file storage prefix")
+                            .With("Path", prefix.GetPath())
+                            .With(error);
                     }
                     continue;
                 }
@@ -1481,9 +1480,9 @@ private:
                             &validationError);
                         if (validationResult == EObjectValidationResult::Error) {
                             objectsComplete = false;
-                            YT_LOG_WARNING(validationError,
-                                "Failed to validate file storage object during reconciliation (Path: %v)",
-                                object.GetPath());
+                            YT_TLOG_WARNING("Failed to validate file storage object during reconciliation")
+                                .With("Path", object.GetPath())
+                                .With(validationError);
                             continue;
                         }
                         if (validationResult == EObjectValidationResult::Invalid) {
@@ -1504,8 +1503,8 @@ private:
                             if (pinned) {
                                 objectsComplete = false;
                                 seenIds.insert(*indexedId);
-                                YT_LOG_WARNING("Pinned file storage object failed reconciliation validation (Path: %v)",
-                                    object.GetPath());
+                                YT_TLOG_WARNING("Pinned file storage object failed reconciliation validation")
+                                    .With("Path", object.GetPath());
                                 continue;
                             }
                             TError error;
@@ -1513,16 +1512,15 @@ private:
                                 auto result = Evict(*indexedId, &error);
                                 if (result != EEvictionResult::Evicted) {
                                     objectsComplete = false;
-                                    YT_LOG_WARNING(error,
-                                        "Failed to quarantine indexed invalid file storage object "
-                                        "(Path: %v)",
-                                        object.GetPath());
+                                    YT_TLOG_WARNING("Failed to quarantine indexed invalid file storage object")
+                                        .With("Path", object.GetPath())
+                                        .With(error);
                                 }
                             } else if (!QuarantineUnknownPath(object, &error)) {
                                 objectsComplete = false;
-                                YT_LOG_WARNING(error,
-                                    "Failed to quarantine invalid file storage object (Path: %v)",
-                                    object.GetPath());
+                                YT_TLOG_WARNING("Failed to quarantine invalid file storage object")
+                                    .With("Path", object.GetPath())
+                                    .With(error);
                             }
                             continue;
                         }
@@ -1538,16 +1536,16 @@ private:
                         });
                     } catch (const std::exception& ex) {
                         objectsComplete = false;
-                        YT_LOG_WARNING(TError(ex),
-                            "Failed to reconcile file storage object (Path: %v)",
-                            object.GetPath());
+                        YT_TLOG_WARNING("Failed to reconcile file storage object")
+                            .With("Path", object.GetPath())
+                            .With(ex);
                     }
                 }
             } catch (const std::exception& ex) {
                 objectsComplete = false;
-                YT_LOG_WARNING(TError(ex),
-                    "Failed to reconcile file storage prefix (Path: %v)",
-                    prefix.GetPath());
+                YT_TLOG_WARNING("Failed to reconcile file storage prefix")
+                    .With("Path", prefix.GetPath())
+                    .With(ex);
             }
         }
 
@@ -1639,7 +1637,8 @@ private:
             if (result == EEvictionResult::Failed) {
                 *complete = false;
                 failedVictims.insert(victim);
-                YT_LOG_WARNING(error, "Failed to evict file storage object during cleanup");
+                YT_TLOG_WARNING("Failed to evict file storage object during cleanup")
+                    .With(error);
             }
         }
     }
