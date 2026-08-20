@@ -17,7 +17,15 @@ Exactly-once is ensured by three mechanisms that work together.
 
 #### 1. Lease transaction {#lease}
 
-For each [job](../../../flow/concepts/glossary.md#job) you create, the controller sets up a special transaction — `Lease`. The job commits any data using this transaction as `PrerequisiteTransaction`. Lease has a barrier property: after Lease is canceled, any attempt to commit a transaction that references it is guaranteed to fail. This lets the controller reliably stop arbitrary jobs and immediately start new ones on the same [partitions](../../../flow/concepts/glossary.md#partition).
+A `Lease` is a controller-owned master transaction that the controller creates for each [job](../../../flow/concepts/glossary.md#job). Users do not create the Lease or control its lifetime. The controller keeps the Lease active with periodic pings and checks the state of all Leases on every scheduling cycle.
+
+Every ordinary transaction in which a job commits [epoch](../../../flow/concepts/glossary.md#epoch) data lists that job’s Lease as a prerequisite in `prerequisite_transaction_ids`. The Lease must remain active for the commit to succeed. A Lease ends in one of two ways. The controller aborts it whenever it removes the job: during partition rebalancing, after a job failure or a lost worker, or when the pipeline stops, pauses, or completes. A Lease also expires on its own if the controller stops keeping it alive with pings. Both routes activate the same barrier.
+
+After the Lease is aborted or expires, commits guarded by that prerequisite are rejected, so a zombie job cannot write data after the controller no longer considers it the owner of its [partition](../../../flow/concepts/glossary.md#partition). Even when it has no data, a job periodically commits a nearly empty transaction with the same prerequisite to detect that its Lease has been lost.
+
+When a Lease expires, the controller notices it on the next scheduling cycle and removes the job it belonged to. While the pipeline remains active and scheduling continues, after a Lease is aborted or expires the controller removes the old job if it is still present, schedules the necessary replacement jobs for the affected current partitions, and creates a new Lease for each replacement job. Each replacement restores state from the last committed epoch, resumes processing the affected current partitions, and may reprocess only uncommitted work. When the pipeline completes, stops, or pauses, the controller instead removes jobs, terminates their Leases, and schedules no replacements.
+
+Lease is a commit-time ownership barrier. By itself, it does not perform [input message deduplication](#input-dedup), provide [output data atomicity](#output-atomicity) or [state atomicity](#automatic-guarantees), or cover [arbitrary external side effects](#side-effects).
 
 #### 2. Input message deduplication {#input-dedup}
 
@@ -270,7 +278,7 @@ For more details, see [Monium](../../../yandex-specific/flow/extensions/monium.m
 ## Fault tolerance {#fault-tolerance}
 
 - The [pipeline](../../../flow/concepts/glossary.md#pipeline) survives the failure of individual machines and data centers.
-- If a job fails, the controller cancels the Lease and starts a new job on the same partitions. The state is restored from the last committed epoch.
+- While the pipeline remains active and scheduling continues, if a job fails, the controller removes it, aborts its [Lease](#lease) if it is still active, and schedules the necessary replacement jobs for the affected current partitions, with a new Lease for each replacement job. See [Lease transaction](#lease) for the fencing and recovery sequence.
 - Internal streams are stored in {{product-name}} dynamic tables — data loss isn’t possible during normal storage operation.
 - [Automatic partition balancing](../../../flow/about.md) redistributes load when the cluster topology changes.
 
