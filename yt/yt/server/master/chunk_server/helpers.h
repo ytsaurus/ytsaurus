@@ -204,7 +204,7 @@ NSequoiaClient::TSelectRowsQuery BuildSelectLocationSequoiaReplicasQuery(
     TNodeId nodeId,
     NNodeTrackerClient::TChunkLocationIndex locationIndex);
 
-TError ValidateChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+TError CheckChunkMetaOnConfirmation(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
 EChunkReplicaState GetAddedChunkReplicaState(
         TChunkId chunkId,

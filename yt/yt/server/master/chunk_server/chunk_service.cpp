@@ -1009,7 +1009,8 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        ValidateChunkMetaOnConfirmation(request->chunk_meta()).ThrowOnError();
+        CheckChunkMetaOnConfirmation(request->chunk_meta())
+            .ThrowOnError();
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
 
         auto doConfirmChunks = [
@@ -1065,7 +1066,7 @@ private:
                             return error;
                         } else {
                             return TError(NRpc::EErrorCode::TransientFailure, "Chunk batched confirmation failed due to another chunk")
-                                << result;
+                                .With(result);
                         }
                     }
                 } else {

@@ -79,7 +79,7 @@ TRef TImmutableChunkMeta::GetExtensionData(const TExtensionDescriptor& descripto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError ValidateFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta)
+TError CheckFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta)
 {
     // NB: FromProto should throw on unknown values, so manual checks is just to be safe (and future-proofed).
     auto chunkType = FromProto<EChunkType>(protoMeta.type());
