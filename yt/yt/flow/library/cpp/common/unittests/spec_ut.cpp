@@ -1947,6 +1947,105 @@ TEST(TSpecTest, KeyVisitorStreamCanBeAddedToOutputDepsExplicitly)
         << "explicit user-provided dependency on visit-stream must be preserved";
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! A visitor computation fed by both an input stream (`finite_keys`) and a source stream
+//! (`infinite_keys`), so a narrowed wait has something to leave out. |visitStreamBody| fills
+//! the key-visitor entry.
+TPipelineSpecPtr MakeKeyVisitorUpstreamSpec(TStringBuf visitStreamBody)
+{
+    auto specYson = Format(R""""(
+        {
+            computations = {
+                producer = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    output_stream_ids = [ finite_keys ];
+                    group_by_schema = [];
+                };
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    input_stream_ids = [ finite_keys ];
+                    group_by_schema = [
+                        {name = hash; expression = "farm_hash(key)"; type = uint64; required = %%true; sort_order = ascending};
+                        {name = key; type = string; sort_order = ascending};
+                    ];
+                    source_streams = {
+                        infinite_keys = {source_class_name = "NYT::NFlow::TNullSource"};
+                    };
+                    key_visitor_streams = {visit_iter = {%v}};
+                };
+            };
+            streams = {
+                finite_keys = {schema = [{name = key; type = string}]};
+            };
+        }
+    )"""",
+        visitStreamBody);
+    return ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+}
+
+THashSet<TStreamId> UpstreamStreamsOf(const TPipelineSpecPtr& spec)
+{
+    return ComputeKeyVisitorUpstreamStreams(
+        *spec->Computations.at(TComputationId("c")),
+        TStreamId("visit_iter"));
+}
+
+TKeyVisitorStreamSpecPtr VisitStreamSpecOf(const TPipelineSpecPtr& spec)
+{
+    return spec->Computations.at(TComputationId("c"))->KeyVisitorStreams.at(TStreamId("visit_iter"));
+}
+
+TEST(TSpecTest, KeyVisitorUpstreamStreamsDefaultToEveryInputAndSource)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("");
+    ValidatePipelineSpec(spec);
+
+    EXPECT_FALSE(VisitStreamSpecOf(spec)->UpstreamStreams);
+    EXPECT_EQ(
+        UpstreamStreamsOf(spec),
+        (THashSet<TStreamId>{TStreamId("finite_keys"), TStreamId("infinite_keys")}));
+}
+
+TEST(TSpecTest, KeyVisitorUpstreamStreamsNarrowTheWait)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("upstream_streams = [ finite_keys ]");
+    ValidatePipelineSpec(spec);
+
+    EXPECT_EQ(UpstreamStreamsOf(spec), (THashSet<TStreamId>{TStreamId("finite_keys")}))
+        << "the source stream the visitor did not list must not be waited for";
+}
+
+// Waiting for nothing is a legitimate ask: it is what a computation with no upstream at
+// all does implicitly, spelled out for one that does have upstreams.
+TEST(TSpecTest, KeyVisitorUpstreamStreamsMayBeEmpty)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("upstream_streams = []");
+    ValidatePipelineSpec(spec);
+
+    EXPECT_TRUE(VisitStreamSpecOf(spec)->UpstreamStreams)
+        << "an empty set is not the same as an absent one";
+    EXPECT_TRUE(UpstreamStreamsOf(spec).empty());
+}
+
+TEST(TSpecTest, KeyVisitorUpstreamStreamsRejectUnknownStream)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("upstream_streams = [ finite_keys; strangers ]");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "not an input or source stream");
+}
+
+// The visit stream cannot wait for itself; naming it is the natural typo, so it must not
+// pass for an upstream.
+TEST(TSpecTest, KeyVisitorUpstreamStreamsRejectVisitStreamItself)
+{
+    auto spec = MakeKeyVisitorUpstreamSpec("upstream_streams = [ visit_iter ]");
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "not an input or source stream");
+}
+
 TEST(TSpecTest, StateJoinerKeyTypeMismatchNoOverride)
 {
     TStringBuf specYson(R""""(

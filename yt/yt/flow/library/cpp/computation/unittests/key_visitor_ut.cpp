@@ -5,6 +5,7 @@
 #include <yt/yt/flow/library/cpp/common/traverse.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
 
+#include <yt/yt/flow/library/cpp/computation/computation_base.h>
 #include <yt/yt/flow/library/cpp/computation/key_visitor.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
@@ -81,6 +82,7 @@ class TKeyVisitorTest
 protected:
     const TComputationId ComputationId = TComputationId("c");
     const TStreamId StreamId = TStreamId("s");
+    const TStreamId SecondStreamId = TStreamId("s2");
 
     NTables::TInMemoryKeyStatesPtr KeyStates_ = New<NTables::TInMemoryKeyStates>();
     NTables::TInMemoryKeyVisitorStatesPtr KeyVisitorStates_ = New<NTables::TInMemoryKeyVisitorStates>();
@@ -200,6 +202,32 @@ protected:
                 .AsyncVia(Queue_->GetInvoker())
                 .Run())
             .ThrowOnError();
+    }
+
+    //! A computation reading two input streams, with the visit stream following
+    //! |upstreamStreams|.
+    TComputationSpecPtr MakeComputationSpec(std::optional<THashSet<TStreamId>> upstreamStreams)
+    {
+        auto streamSpec = New<TKeyVisitorStreamSpec>();
+        streamSpec->UpstreamStreams = std::move(upstreamStreams);
+
+        auto spec = New<TComputationSpec>();
+        spec->InputStreamIds = {StreamId, SecondStreamId};
+        spec->KeyVisitorStreams = {{StreamId, std::move(streamSpec)}};
+        return spec;
+    }
+
+    //! Delivers one epoch's worth of the decision BuildInflights makes: the visitor hears
+    //! about the completion only when every stream it follows is in
+    //! |completedUpstreamStreams|.
+    void ApplyUpstreamCompletionOnQueue(
+        const TKeyVisitorPtr& visitor,
+        const TComputationSpecPtr& spec,
+        const THashSet<TStreamId>& completedUpstreamStreams)
+    {
+        if (IsKeyVisitorUpstreamCompleted(*spec, StreamId, completedUpstreamStreams)) {
+            SetUpstreamCompletedOnQueue(visitor);
+        }
     }
 
     void ReconfigureOnQueue(
@@ -759,6 +787,95 @@ TEST_F(TKeyVisitorTest, ReconfigureToFiniteTerminatesRunningVisitor)
     std::vector<TKey> tail;
     DrainKeys(visitor, &tail, /*stopCount*/ 2 * std::ssize(seeded));
     EXPECT_TRUE(IsEmptyOnQueue(visitor)) << "the flip must let the visitor finish";
+
+    StopOnQueue(visitor);
+}
+
+// `upstream_streams` narrows the wait to one input stream, so the other one still owing
+// data must not keep the visitor going: it runs its final pass and stops.
+TEST_F(TKeyVisitorTest, NarrowedUpstreamStreamsIgnoreTheStreamsTheyLeaveOut)
+{
+    std::vector<TKey> seeded;
+    for (ui64 hash = 1; hash <= 8; ++hash) {
+        seeded.push_back(MakeUintKey(hash * 5));
+    }
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto visitor = New<TKeyVisitor>(
+        context,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100));
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    // One key at a time, so the pass stays genuinely mid-sweep when the signal lands and
+    // the pass after it is the final one — which makes the emitted total exact.
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, /*stopCount*/ 1, /*batchSize*/ 1);
+    ASSERT_FALSE(drained.empty());
+
+    auto spec = MakeComputationSpec(THashSet<TStreamId>{StreamId});
+    ApplyUpstreamCompletionOnQueue(visitor, spec, /*completedUpstreamStreams*/ {StreamId});
+
+    const auto wanted = 2 * std::ssize(seeded) - std::ssize(drained);
+    EXPECT_EQ(DrainKeys(visitor, &drained, wanted), wanted) << "the final pass must still run in full";
+    EXPECT_TRUE(IsEmptyOnQueue(visitor)) << "an unlisted stream must not hold the visitor open";
+
+    std::vector<TKey> extra;
+    DrainKeys(visitor, &extra, /*stopCount*/ 1, /*batchSize*/ 100, /*timeout*/ TDuration::MilliSeconds(500));
+    EXPECT_TRUE(extra.empty()) << "no pass may follow the final one";
+
+    StopOnQueue(visitor);
+}
+
+// The same incomplete stream, but now it is the one the visitor was told to follow.
+TEST_F(TKeyVisitorTest, NarrowedUpstreamStreamsWaitForTheStreamTheyName)
+{
+    const std::vector<TKey> seeded{MakeUintKey(10), MakeUintKey(20)};
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto visitor = New<TKeyVisitor>(
+        context,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100));
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    auto spec = MakeComputationSpec(THashSet<TStreamId>{StreamId});
+    ApplyUpstreamCompletionOnQueue(visitor, spec, /*completedUpstreamStreams*/ {SecondStreamId});
+
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, /*stopCount*/ 3 * std::ssize(seeded));
+    EXPECT_EQ(std::ssize(drained), 3 * std::ssize(seeded)) << "the visitor keeps sweeping";
+    EXPECT_FALSE(IsEmptyOnQueue(visitor)) << "the stream the visitor waits for is still running";
+
+    StopOnQueue(visitor);
+}
+
+// Without the narrowing the very same state reads as "not completed yet": an unset
+// `upstream_streams` waits for every input stream of the computation.
+TEST_F(TKeyVisitorTest, UnsetUpstreamStreamsWaitForEveryInput)
+{
+    const std::vector<TKey> seeded{MakeUintKey(10), MakeUintKey(20)};
+    SeedKeys(seeded, "/state");
+
+    auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
+    auto visitor = New<TKeyVisitor>(
+        context,
+        MakeDynamicContext(
+            /*period*/ TDuration::MilliSeconds(10),
+            /*bufferRowLimit*/ 100));
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    auto spec = MakeComputationSpec(/*upstreamStreams*/ std::nullopt);
+    ApplyUpstreamCompletionOnQueue(visitor, spec, /*completedUpstreamStreams*/ {StreamId});
+
+    std::vector<TKey> drained;
+    DrainKeys(visitor, &drained, /*stopCount*/ 3 * std::ssize(seeded));
+    EXPECT_EQ(std::ssize(drained), 3 * std::ssize(seeded)) << "the visitor keeps sweeping";
+    EXPECT_FALSE(IsEmptyOnQueue(visitor)) << "every input stream must complete first";
 
     StopOnQueue(visitor);
 }

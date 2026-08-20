@@ -117,8 +117,9 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
     YT_VERIFY(TimerStore_);
     WaitFor(InputStore_->Init()).ThrowOnError();
     WaitFor(TimerStore_->Init()).ThrowOnError();
-    for (const auto& [_, visitor] : KeyVisitors_) {
-        WaitFor(visitor->Init()).ThrowOnError();
+    for (const auto& [streamId, visitor] : KeyVisitors_) {
+        const bool upstreamCompletedAtInit = ComputeKeyVisitorUpstreamStreams(*GetSpec(), streamId).empty();
+        WaitFor(visitor->Init(upstreamCompletedAtInit)).ThrowOnError();
     }
 
     bool isFinished = true;

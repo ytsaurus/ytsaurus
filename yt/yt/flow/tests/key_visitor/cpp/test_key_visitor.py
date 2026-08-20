@@ -23,6 +23,9 @@ PIPELINE_EXTERNAL_CONFIG_PATH = yatest.common.source_path(
 PIPELINE_KEYVISITOR_ONLY_CONFIG_PATH = yatest.common.source_path(
     f"{yatest.common.context.project_path}/pipeline_keyvisitor_only/pipeline.yson"
 )
+PIPELINE_VISITOR_LOOP_CONFIG_PATH = yatest.common.source_path(
+    f"{yatest.common.context.project_path}/pipeline_visitor_loop/pipeline.yson"
+)
 
 
 class Test(FlowTestBase):
@@ -32,6 +35,9 @@ class Test(FlowTestBase):
     )
     FLOW_KEYVISITOR_ONLY_BINARY_PATH = yatest.common.binary_path(
         f"{yatest.common.context.project_path}/pipeline_keyvisitor_only/pipeline"
+    )
+    FLOW_VISITOR_LOOP_BINARY_PATH = yatest.common.binary_path(
+        f"{yatest.common.context.project_path}/pipeline_visitor_loop/pipeline"
     )
 
     def setup_method(self, method):
@@ -116,6 +122,29 @@ class Test(FlowTestBase):
         self.patch_config(pipeline_config)
         return self.dump_config_to_log_dir(pipeline_config, "pipeline_keyvisitor_only.yson")
 
+    def prepare_pipeline_visitor_loop_config(self, period_ms=1000, upstream_streams=None):
+        pipeline_config = get_yson_config(PIPELINE_VISITOR_LOOP_CONFIG_PATH)
+
+        computations = pipeline_config["spec"]["computations"]
+        computations["key_reader"]["source_streams"]["queue"]["parameters"].update(
+            {
+                "queue_path": f"<cluster=primary>{self.input_queue}",
+                "consumer_path": f"<cluster=primary>{self.input_consumer}",
+                "finite": True,
+            }
+        )
+        computations["tester"]["sinks"]["queue"]["parameters"].update(
+            {"queue_path": f"<cluster=primary>{self.output_queue}"}
+        )
+        if upstream_streams is not None:
+            computations["tester"]["key_visitor_streams"]["visit_iter"]["upstream_streams"] = upstream_streams
+
+        dynamic_tester = pipeline_config["dynamic_spec"]["computations"]["tester"]
+        dynamic_tester["key_visitor_streams"]["visit_iter"]["period"] = period_ms
+
+        self.patch_config(pipeline_config)
+        return self.dump_config_to_log_dir(pipeline_config, "pipeline_visitor_loop.yson")
+
     def seed_user_state(self, entries):
         rows = [{"key": k, "payload": p, "visit_index": 0} for k, p in entries]
         self.client.insert_rows(self.user_state, rows)
@@ -126,15 +155,18 @@ class Test(FlowTestBase):
         )
         return [pid for pid, partition in partitions.items() if partition.get("computation_id") == "reviser_like"]
 
-    def _reviser_partition_states(self):
+    def _partition_states(self, computation_id):
         partitions = self.client.get_flow_view(
             self.pipeline_path, view_path="/state/execution_spec/layout/partitions", cache=False
         )
         return {
             pid: partition.get("state")
             for pid, partition in partitions.items()
-            if partition.get("computation_id") == "reviser_like"
+            if partition.get("computation_id") == computation_id
         }
+
+    def _reviser_partition_states(self):
+        return self._partition_states("reviser_like")
 
     def _max_visit_index_per_key(self):
         result = {}
@@ -286,6 +318,103 @@ class Test(FlowTestBase):
 
             states = self._reviser_partition_states()
             assert set(states.values()) == {"completed"}, f"partitions did not retire: {states}"
+
+    # `upstream_streams` narrows what the visitor waits for. `tester` reads a finite
+    # `finite_keys` stream, and every visit it emits goes out as a ping request that comes
+    # back on `ping_responses` — a stream that cannot end before the visitor does. Told to
+    # follow `finite_keys` alone, the visitor runs its final pass once the input drains, the
+    # loop then drains behind it and the whole pipeline reaches `completed`.
+    @pytest.mark.authors(["vv-glazkov"])
+    def test_key_visitor_upstream_streams_narrow_the_wait(self):
+        run_yt_sync("primary", self.work_yt_path)
+
+        # Both batches are queued before the pipeline starts, so the finite source cannot
+        # complete before it has delivered v2 — and the visitor cannot finalize before that
+        # either, since it follows that source's stream.
+        v1 = [(f"k_{i:03d}", f"v1_{i}") for i in range(10)]
+        v2 = [(f"k_{i:03d}", f"v2_{i}") for i in range(10)]
+        expected_keys = {k for k, _ in v1}
+        expected_latest = {k: p for k, p in v2}
+
+        pipeline_config_path = self.prepare_pipeline_visitor_loop_config(
+            period_ms=1000, upstream_streams=["finite_keys"]
+        )
+        self.send_keys(v1)
+        self.send_keys(v2)
+        with self.start_flow_process_federation(
+            binary_path=self.FLOW_VISITOR_LOOP_BINARY_PATH,
+            pipeline_binary_args={"--config": pipeline_config_path},
+        ):
+            self.wait_pipeline_state("completed", timeout=120)
+
+            # Only a pass that ran after the input was processed sees v2, so an earlier
+            # finalization would leave v1 here.
+            latest = {}
+            for row in self.get_output():
+                idx = row["visit_index"]
+                if idx > latest.get(row["key"], (-1, None))[0]:
+                    latest[row["key"]] = (idx, row["payload"])
+
+            missing = expected_keys - set(latest)
+            assert not missing, f"keys the final pass never visited: {sorted(missing)[:10]}"
+            for key, expected_payload in expected_latest.items():
+                actual_payload = latest[key][1]
+                assert actual_payload == expected_payload, (
+                    f"key={key!r}: latest visit had payload {actual_payload!r}, expected "
+                    f"{expected_payload!r} — the final pass did not run after the input completed"
+                )
+
+    # The same pipeline with the default wait: the visitor also waits for `ping_responses`,
+    # which is fed by its own visits, so neither can ever finish and it sweeps for good.
+    @pytest.mark.authors(["vv-glazkov"])
+    def test_key_visitor_without_upstream_streams_waits_for_every_input(self):
+        run_yt_sync("primary", self.work_yt_path)
+
+        entries = [(f"k_{i:03d}", f"v_{i}") for i in range(10)]
+        expected_keys = {k for k, _ in entries}
+
+        pipeline_config_path = self.prepare_pipeline_visitor_loop_config(period_ms=1000, upstream_streams=None)
+        self.send_keys(entries)
+        with self.start_flow_process_federation(
+            binary_path=self.FLOW_VISITOR_LOOP_BINARY_PATH,
+            pipeline_binary_args={"--config": pipeline_config_path},
+        ):
+            self.wait_pipeline_state("working", timeout=120)
+
+            # The finite input is fully read: a narrowed visitor would be retiring by now.
+            wait(
+                lambda: bool(self._partition_states("key_reader"))
+                and set(self._partition_states("key_reader").values()) == {"completed"},
+                timeout=120,
+                ignore_exceptions=True,
+            )
+            assert set(self._partition_states("key_reader").values()) == {
+                "completed"
+            }, f"finite input never retired: {self._partition_states('key_reader')}"
+
+            # Three more visits of every key mean the visitor rotated its pass at least twice
+            # past the point where it would have stopped had it not waited for the loop.
+            wait(
+                lambda: set(self._max_visit_index_per_key()) >= expected_keys,
+                timeout=120,
+                ignore_exceptions=True,
+            )
+            visited = self._max_visit_index_per_key()
+
+            def keys_swept_again(times):
+                return {
+                    key
+                    for key, index in self._max_visit_index_per_key().items()
+                    if index >= visited.get(key, 0) + times
+                }
+
+            try:
+                wait(lambda: keys_swept_again(3) >= expected_keys, timeout=120, ignore_exceptions=True)
+            except WaitFailed as ex:
+                raise AssertionError(
+                    "visitor stopped although the loop it feeds never completed: keys below three further "
+                    f"visits {sorted(expected_keys - keys_swept_again(3))[:10]}"
+                ) from ex
 
     @pytest.mark.authors(["mikari"])
     def test_key_visitor(self):

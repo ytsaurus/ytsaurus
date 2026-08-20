@@ -282,6 +282,12 @@ struct TKeyVisitorStreamSpec
     // A visitor-driven joiner may be listed in at most one key-visitor stream.
     std::optional<THashSet<std::string>> ExternalNames;
 
+    // Input and source streams whose completion the visitor waits for before it may finalize.
+    // Unset — every input and source stream of the computation. Narrowing lets a visitor
+    // retire once the streams it actually feeds on are done, ignoring the ones that outlive
+    // it; an explicit empty set waits for nothing, so the visitor may finalize right away.
+    std::optional<THashSet<TStreamId>> UpstreamStreams;
+
     // Static — changing it invalidates persisted coverage intervals.
     int BucketCount{};
 
@@ -596,6 +602,16 @@ DEFINE_REFCOUNTED_TYPE(TComputationSpec);
 THashSet<TStreamId> ComputeAllowedInputStreams(
     const THashSet<TStreamId>& allowedOutputStreams,
     const TComputationSpecPtr& spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! The input and source streams whose completion the key-visitor stream |visitStreamId|
+//! waits for: its ``upstream_streams`` when set, every input and source stream of the
+//! computation otherwise. An empty result means the visitor has nothing to wait for and
+//! may finalize as soon as it starts.
+THashSet<TStreamId> ComputeKeyVisitorUpstreamStreams(
+    const TComputationSpec& computationSpec,
+    const TStreamId& visitStreamId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

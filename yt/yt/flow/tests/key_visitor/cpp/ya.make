@@ -13,6 +13,7 @@ DEPENDS(
     ${MODDIR}/pipeline_external
     ${MODDIR}/pipeline_keyvisitor_only
     ${MODDIR}/pipeline_swift
+    ${MODDIR}/pipeline_visitor_loop
     yt/python/yt/wrapper/bin/yt_make
 )
 
@@ -21,6 +22,7 @@ DATA(
     arcadia/${MODDIR}/pipeline_external/pipeline.yson
     arcadia/${MODDIR}/pipeline_keyvisitor_only/pipeline.yson
     arcadia/${MODDIR}/pipeline_swift/pipeline.yson
+    arcadia/${MODDIR}/pipeline_visitor_loop/pipeline.yson
 )
 
 REQUIREMENTS(
@@ -40,6 +42,7 @@ RECURSE(
     pipeline_external
     pipeline_keyvisitor_only
     pipeline_swift
+    pipeline_visitor_loop
 )
 
 RECURSE_FOR_TESTS(

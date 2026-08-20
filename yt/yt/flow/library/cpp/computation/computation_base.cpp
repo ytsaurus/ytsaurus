@@ -1211,8 +1211,8 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::B
     }
 
     // Materialize source / source-substitute inflights first so we can hand the
-    // KeyVisitors an "all upstream non-visit streams are completed" signal —
-    // visit-streams use it to terminate finite-input pipelines.
+    // KeyVisitors their "upstream streams are completed" signal — visit-streams use
+    // it to terminate finite-input pipelines.
     for (const auto& sourceStreamId : GetKeys(GetSpec()->SourceStreams)) {
         inflights[sourceStreamId] = CloneYsonStruct(emptyStream);
     }
@@ -1221,15 +1221,17 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::B
         inflights[*ActiveSourceStreamId_] = ActiveSource_->BuildInflight();
     }
 
-    bool upstreamCompleted = true;
-    if (ActiveSource_) {
-        upstreamCompleted &= inflights[*ActiveSourceStreamId_]->Empty;
+    THashSet<TStreamId> completedUpstreamStreams;
+    if (ActiveSource_ && inflights[*ActiveSourceStreamId_]->Empty) {
+        completedUpstreamStreams.insert(*ActiveSourceStreamId_);
     }
-    for (const auto& [_, streamData] : GetInputTraverse()) {
-        upstreamCompleted &= (streamData->State >= EStreamState::Completed);
+    for (const auto& [streamId, streamData] : GetInputTraverse()) {
+        if (streamData->State >= EStreamState::Completed) {
+            completedUpstreamStreams.insert(streamId);
+        }
     }
-    if (upstreamCompleted) {
-        for (const auto& [_, visitor] : KeyVisitors_) {
+    for (const auto& [streamId, visitor] : KeyVisitors_) {
+        if (IsKeyVisitorUpstreamCompleted(*GetSpec(), streamId, completedUpstreamStreams)) {
             visitor->SetUpstreamCompleted();
         }
     }
@@ -2101,6 +2103,20 @@ void ValidateKeyVisitorJoinerBindings(const TComputationSpec& spec)
                 streamId);
         }
     }
+}
+
+bool IsKeyVisitorUpstreamCompleted(
+    const TComputationSpec& spec,
+    const TStreamId& visitStreamId,
+    const THashSet<TStreamId>& completedUpstreamStreams)
+{
+    auto upstreamStreams = ComputeKeyVisitorUpstreamStreams(spec, visitStreamId);
+    for (const auto& streamId : upstreamStreams) {
+        if (!completedUpstreamStreams.contains(streamId)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void TUniversalComputationBase::ValidateSpec(const TComputationSpec& spec)

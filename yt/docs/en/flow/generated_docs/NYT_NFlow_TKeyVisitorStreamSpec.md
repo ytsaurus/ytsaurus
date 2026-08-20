@@ -9,6 +9,10 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
  ||
 || `external_names` | **Type**: `std::optional<THashSet<std::string>>`
  ||
+|| `upstream_streams` | **Type**: `std::optional<THashSet<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>>>`
+List of the computation's input and source streams whose completion the visitor waits for. Only meaningful with `finite=%true` (see the dynamic spec): with `finite=%false` the visitor never finishes, so the parameter has no effect.
+When unset, the visitor waits for every input and source stream, that is, it finishes together with the whole input of the computation.
+For example, the list lets the visitor skip streams that are themselves produced by the visit streams of this computation: such a stream only ends once the visitor stops sweeping, so waiting for it is a deadlock. ||
 || `bucket_count` | **Type**: `int`
 **Default value**: `8`
  ||

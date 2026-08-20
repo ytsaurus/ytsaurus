@@ -202,6 +202,8 @@ void TKeyVisitorStreamSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("external_names", &TThis::ExternalNames)
         .Default();
+    registrar.Parameter("upstream_streams", &TThis::UpstreamStreams)
+        .Default();
     registrar.Parameter("bucket_count", &TThis::BucketCount)
         .GreaterThanOrEqual(1)
         .Default(8);
@@ -493,6 +495,22 @@ THashSet<TStreamId> ComputeAllowedInputStreams(
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+THashSet<TStreamId> ComputeKeyVisitorUpstreamStreams(
+    const TComputationSpec& computationSpec,
+    const TStreamId& visitStreamId)
+{
+    const auto& streamSpec = GetOrCrash(computationSpec.KeyVisitorStreams, visitStreamId);
+    if (streamSpec->UpstreamStreams) {
+        return *streamSpec->UpstreamStreams;
+    }
+    auto allUpstreamStreams = Concatenate(
+        computationSpec.InputStreamIds,
+        GetKeys(computationSpec.SourceStreams));
+    return THashSet<TStreamId>(allUpstreamStreams.begin(), allUpstreamStreams.end());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1430,6 +1448,19 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
                                     "unknown external state manager or joiner %Qv",
                                     streamId,
                                     name);
+                            }
+                        }
+                    }
+                    if (streamSpec->UpstreamStreams) {
+                        for (const auto& upstreamStreamId : *streamSpec->UpstreamStreams) {
+                            if (!computationSpec->InputStreamIds.contains(upstreamStreamId) &&
+                                !computationSpec->SourceStreams.contains(upstreamStreamId))
+                            {
+                                THROW_ERROR_EXCEPTION(
+                                    "key_visitor_streams[%Qv].upstream_streams references %Qv, "
+                                    "which is not an input or source stream of the computation",
+                                    streamId,
+                                    upstreamStreamId);
                             }
                         }
                     }
