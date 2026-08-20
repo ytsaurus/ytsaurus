@@ -467,10 +467,6 @@ public:
             TVector<TString> udfPaths;
             NKikimr::NMiniKQL::FindUdfsInDir(staticGatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
             for (const auto& path : udfPaths) {
-                // Skip YQL plugin shared library itself, it is not a UDF.
-                if (path.EndsWith("libyqlplugin.so")) {
-                    continue;
-                }
                 ui32 flags = 0;
                 // System Python UDFs are not used locally so we only need types.
                 if (path.Contains("systempython") && path.Contains(TString("udf") + MKQL_UDF_LIB_SUFFIX)) {
