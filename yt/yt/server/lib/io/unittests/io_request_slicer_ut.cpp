@@ -18,7 +18,8 @@ void CheckRead(i64 readRequestSize, i64 desiredSize, i64 minimalSize, const TBuf
     auto request = TReadRequest{
         .Handle = New<TIOEngineHandle>(),
         .Offset = 4096,
-        .Size = readRequestSize
+        .Size = readRequestSize,
+        .FairShareSlotId = TGuid(1, 2, 3, 4),
     };
     auto slices = TIORequestSlicer(desiredSize, minimalSize, /*enableSlicing*/ true).Slice(request, buffer, 4096);
 
@@ -33,6 +34,7 @@ void CheckRead(i64 readRequestSize, i64 desiredSize, i64 minimalSize, const TBuf
         EXPECT_EQ(slice.Request.Handle.Get(), request.Handle.Get());
         EXPECT_EQ(slice.Request.Offset, offset);
         EXPECT_EQ(slice.Request.Size, expectedSizes[i]);
+        EXPECT_EQ(slice.Request.FairShareSlotId, request.FairShareSlotId);
         EXPECT_EQ(slice.OutputBuffer.begin(), outputIterator);
         EXPECT_EQ(slice.OutputBuffer.end(), outputIterator + expectedSizes[i]);
 

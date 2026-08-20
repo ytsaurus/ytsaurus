@@ -85,6 +85,7 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
         slice.Request.Offset = offset;
         slice.Request.Handle = request.Handle;
         slice.Request.Size = sliceSize;
+        slice.Request.FairShareSlotId = request.FairShareSlotId;
         slice.OutputBuffer = buffer.Slice(bufferOffset, bufferOffset + sliceSize);
     });
 }
