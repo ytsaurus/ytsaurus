@@ -76,8 +76,8 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
     YT_VERIFY(InputStore_);
     WaitFor(TimerStore_->Init()).ThrowOnError();
     WaitFor(InputStore_->Init()).ThrowOnError();
-    const bool upstreamCompletedAtInit = GetSpec()->InputStreamIds.empty();
-    for (const auto& [_, visitor] : KeyVisitors_) {
+    for (const auto& [streamId, visitor] : KeyVisitors_) {
+        const bool upstreamCompletedAtInit = ComputeKeyVisitorUpstreamStreams(*GetSpec(), streamId).empty();
         WaitFor(visitor->Init(upstreamCompletedAtInit)).ThrowOnError();
     }
 

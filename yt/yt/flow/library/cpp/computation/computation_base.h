@@ -374,6 +374,17 @@ void ValidateKeyVisitorJoinerBindings(const TComputationSpec& spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! True once every stream the key-visitor stream |visitStreamId| waits for is listed in
+//! |completedUpstreamStreams|, which holds the input and source streams that have nothing
+//! left to deliver to this partition. This is the signal that lets the visitor arm its
+//! final pass.
+bool IsKeyVisitorUpstreamCompleted(
+    const TComputationSpec& spec,
+    const TStreamId& visitStreamId,
+    const THashSet<TStreamId>& completedUpstreamStreams);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Measures the share of the job lifetime spent blocked on each (limit type,
 //! stream), as reported in #TJobEntityLimitStatus::BlockedTimeShare.
 class TBlockedTimeAccountant

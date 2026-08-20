@@ -78,6 +78,37 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! TVisitTesterFunction that also pings a downstream computation on every visit. The answer
+//! comes back as an input message, so neither the request nor the response stream can finish
+//! before the visitor stops sweeping — which is what a visit stream must not wait for.
+class TPingingVisitTesterFunction
+    : public IProcessFunction
+{
+public:
+    //! Streams the function emits into; both are output streams of its computation.
+    static const TStreamId VisitStreamId;
+    static const TStreamId PingRequestStreamId;
+    //! The input stream the answers arrive on.
+    static const TStreamId PingResponseStreamId;
+
+    void Init(const IRuntimeInitContextPtr& initContext) override;
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override;
+
+    void ProcessVisit(
+        const TInputVisitConstPtr& visit,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override;
+
+private:
+    TMutableStateKeyClient<TUserState> StateClient_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Same behavior as TVisitTesterFunction, but the per-key state lives in a
 //! TSimpleExternalStateManager-backed dynamic table instead of the per-job internal state.
 class TExternalVisitTesterFunction

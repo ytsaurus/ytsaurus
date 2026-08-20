@@ -117,6 +117,68 @@ TEST(TKeyVisitorJoinerBindingsTest, IgnoresScanAllStreams)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TStreamId FiniteKeysStreamId{"finite_keys"};
+const TStreamId InfiniteKeysStreamId{"infinite_keys"};
+const TStreamId SourceStreamId{"source"};
+const TStreamId VisitStreamId{"visit_iter"};
+
+//! A visitor computation with two input streams and a source stream, so a narrowed wait
+//! has something to leave out.
+TComputationSpecPtr MakeUpstreamSpec(std::optional<THashSet<TStreamId>> upstreamStreams)
+{
+    auto streamSpec = New<TKeyVisitorStreamSpec>();
+    streamSpec->UpstreamStreams = std::move(upstreamStreams);
+
+    auto spec = New<TComputationSpec>();
+    spec->InputStreamIds = {FiniteKeysStreamId, InfiniteKeysStreamId};
+    spec->SourceStreams = {{SourceStreamId, New<TSourceSpec>()}};
+    spec->KeyVisitorStreams = {{VisitStreamId, std::move(streamSpec)}};
+    return spec;
+}
+
+//! |completedUpstreamStreams| lists the streams that have nothing left to deliver.
+bool UpstreamCompleted(const TComputationSpecPtr& spec, const THashSet<TStreamId>& completedUpstreamStreams)
+{
+    return IsKeyVisitorUpstreamCompleted(*spec, VisitStreamId, completedUpstreamStreams);
+}
+
+TEST(TKeyVisitorUpstreamCompletionTest, UnsetUpstreamStreamsWaitForEveryInputAndSource)
+{
+    auto spec = MakeUpstreamSpec(std::nullopt);
+    EXPECT_FALSE(UpstreamCompleted(spec, {}));
+    EXPECT_FALSE(UpstreamCompleted(spec, {FiniteKeysStreamId, InfiniteKeysStreamId}))
+        << "the source stream is an upstream too";
+    EXPECT_TRUE(UpstreamCompleted(spec, {FiniteKeysStreamId, InfiniteKeysStreamId, SourceStreamId}));
+}
+
+// The point of the narrowing: a visitor retires on the end of the streams it feeds on,
+// while the ones that outlive it keep running.
+TEST(TKeyVisitorUpstreamCompletionTest, NarrowedSetIgnoresTheStreamsItLeftOut)
+{
+    auto spec = MakeUpstreamSpec(THashSet<TStreamId>{FiniteKeysStreamId});
+    EXPECT_FALSE(UpstreamCompleted(spec, {InfiniteKeysStreamId, SourceStreamId}));
+    EXPECT_TRUE(UpstreamCompleted(spec, {FiniteKeysStreamId}))
+        << "streams outside the set must not hold the visitor back";
+}
+
+TEST(TKeyVisitorUpstreamCompletionTest, NarrowedSetWaitsForEveryStreamItNames)
+{
+    auto spec = MakeUpstreamSpec(THashSet<TStreamId>{FiniteKeysStreamId, SourceStreamId});
+    EXPECT_FALSE(UpstreamCompleted(spec, {FiniteKeysStreamId}));
+    EXPECT_FALSE(UpstreamCompleted(spec, {SourceStreamId, InfiniteKeysStreamId}));
+    EXPECT_TRUE(UpstreamCompleted(spec, {FiniteKeysStreamId, SourceStreamId}));
+}
+
+// An empty set waits for nothing, so the visitor is completed from the very first check —
+// the same standing as a computation with no upstream at all.
+TEST(TKeyVisitorUpstreamCompletionTest, EmptySetNeverWaits)
+{
+    auto spec = MakeUpstreamSpec(THashSet<TStreamId>{});
+    EXPECT_TRUE(UpstreamCompleted(spec, {}));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBlockedTimeShareTest
     : public ::testing::Test
 {

@@ -20,7 +20,7 @@ A key-visitor stream solves this problem. A background task in the worker period
 2. **Emit**. Ready `TVisit` messages are delivered by the engine via `GetNextBatch` and reach the computation in `DoProcessVisit`.
 3. **Coverage**. After visits for a key range are delivered to the consumer, the range is marked as *Committed* in `TKeyVisitorStore`. The coverage is persisted to the system table `key_visitor_states`. That’s why a worker restart or partition rebalance doesn’t cause a re-scan.
 4. **End of pass**. When the coverage is complete, the background loop immediately calls `StartNewPass`. The pace is set by the throttler, so the next pass still takes `Period`. Rotation is atomic: a single Sync-transaction deletes the previous pass’s rows and seeds the first interval of the new one. If a crash happens midway, it rolls back, and the coverage is preserved.
-5. **Final pass**. When all input streams are Completed, the next pass is marked *Final*. After its commit, the visit stream becomes `Empty` and doesn’t start new passes. You’re guaranteed at least one full pass after the inputs finish.
+5. **Final pass**. When every stream the visitor follows is Completed (by default, all input and source streams of the computation—see `upstream_streams`), the next pass is marked *Final*. After its commit, the visit stream becomes `Empty` and doesn’t start new passes. You’re guaranteed at least one full pass after the inputs finish.
 
 ### Partitioning {#partitioning}
 
@@ -35,7 +35,7 @@ Inside a partition, the range is split into a statically defined number of *buck
 | Each key per period | You get exactly one visit per key (no duplicates or omissions). |
 | Worker restart | Coverage is preserved; rotation is atomic, and a crash keeps the old pass. |
 | Partition rebalance | The new worker sees the committed coverage via `key_visitor_states`. |
-| Input completion | At least one final pass is guaranteed; `Empty` is declared only after it. |
+| Completion of the followed streams | At least one final pass is guaranteed; `Empty` is declared only after it. Which streams are followed is set by `upstream_streams`; by default, all input and source streams. |
 | `Period` | Best-effort. Under throttler load or slow `KeyStates` reads, the achieved period grows. See observability below. |
 | Scan order | Within a bucket, keys are sorted; between buckets, the order is round-robin. Not event-time. |
 

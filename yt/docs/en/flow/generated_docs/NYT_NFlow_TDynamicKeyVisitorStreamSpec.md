@@ -25,7 +25,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
  ||
 || `finite` | **Type**: `bool`
 **Default value**: `true`
- ||
+Whether the visitor is finite: with `%true` it finishes once the streams it follows complete (see `upstream_streams` in the static spec), with `%false` it never finishes. ||
 || `full_final_pass` | **Type**: `bool`
 **Default value**: `true`
  ||

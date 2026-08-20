@@ -73,6 +73,57 @@ void TVisitTesterFunction::ProcessVisit(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TStreamId TPingingVisitTesterFunction::VisitStreamId{"visits"};
+const TStreamId TPingingVisitTesterFunction::PingRequestStreamId{"ping_requests"};
+const TStreamId TPingingVisitTesterFunction::PingResponseStreamId{"ping_responses"};
+
+void TPingingVisitTesterFunction::Init(const IRuntimeInitContextPtr& initContext)
+{
+    initContext->InitClient<TUserState>(StateClient_, "user_state");
+}
+
+void TPingingVisitTesterFunction::ProcessMessage(
+    const TInputMessageConstPtr& message,
+    const IOutputCollectorPtr& /*output*/,
+    const IRuntimeContextPtr& context)
+{
+    // An answer only exists to keep the loop alive: it carries the payload the request took
+    // from the state, so storing it would resurrect whatever the state held back then.
+    if (message->StreamId == PingResponseStreamId) {
+        return;
+    }
+    auto ysonMessage = context->ConvertToYsonMessage<TKeyMessage>(message);
+    auto state = StateClient_.GetState(message->Key);
+    state->Payload = ysonMessage->Payload;
+}
+
+void TPingingVisitTesterFunction::ProcessVisit(
+    const TInputVisitConstPtr& visit,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context)
+{
+    auto state = StateClient_.GetState(visit->Key);
+    if (state.IsEmpty()) {
+        return;
+    }
+    auto ysonKey = context->ConvertToYsonKey<TKeyMessage>(visit->Key);
+
+    auto outputMessage = New<TVisitMessage>();
+    outputMessage->Key = ysonKey->Key;
+    outputMessage->Payload = state->Payload;
+    outputMessage->VisitIndex = ++state->VisitIndex;
+    outputMessage->Meta->StreamId = VisitStreamId;
+    output->AddMessage(context->ConvertToMessage(outputMessage));
+
+    auto ping = New<TKeyMessage>();
+    ping->Key = ysonKey->Key;
+    ping->Payload = state->Payload;
+    ping->Meta->StreamId = PingRequestStreamId;
+    output->AddMessage(context->ConvertToMessage(ping));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TExternalVisitTesterFunction::Init(const IRuntimeInitContextPtr& initContext)
 {
     initContext->InitExternalStateClient(StateClient_, "/user-state-external");
