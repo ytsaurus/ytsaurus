@@ -20,9 +20,12 @@ public:
         : ChangelogId_(changelogId)
         , FutureChangelog_(futureChangelog)
         , BacklogAppendPromise_(NewPromise<void>())
+    { }
+
+    void InitializeRefCounted()
     {
         FutureChangelog_.Subscribe(
-            BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeWeak(this)));
+            BIND(&TLazyChangelog::OnUnderlyingChangelogReady, MakeStrong(this)));
     }
 
     int GetId() const override
