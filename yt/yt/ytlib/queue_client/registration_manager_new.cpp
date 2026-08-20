@@ -22,6 +22,8 @@
 
 #include <util/random/normal.h>
 
+#include <span>
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
@@ -85,13 +87,13 @@ auto GroupByMany(F f, std::vector<T> values)
     groupedValues.reserve(values.size());
     for (auto& value : values) {
         auto groupKey = f(value);
-        if (groupKey.size() == 1) {
-            groupedValues[groupKey.front()].push_back(std::move(value));
-        } else {
-            for (auto& key : groupKey) {
-                groupedValues[key].push_back(value);
-            }
+        if (groupKey.empty()) {
+            continue;
         }
+        for (const auto& key : std::span(groupKey).first(groupKey.size() - 1)) {
+            groupedValues[key].push_back(value);
+        }
+        groupedValues[groupKey.back()].push_back(std::move(value));
     }
     return groupedValues;
 }
@@ -698,7 +700,7 @@ private:
                         return std::vector<TConsumerReference>{v.Consumer};
                     }
                 };
-                return GroupByMany(getKeys, result);
+                return GroupByMany(getKeys, std::move(result));
             }));
     }
 };
