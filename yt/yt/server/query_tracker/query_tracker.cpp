@@ -635,6 +635,10 @@ private:
             }
 
             {
+                // See YQLOVERYT-307. We must remove tokens from settings for long-term storage
+                auto settingsNode = ConvertToNode(activeQueryRecord->Settings)->AsMap();
+                settingsNode->RemoveChild("tokens");
+
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
@@ -644,7 +648,7 @@ private:
                     .Engine = activeQueryRecord->Engine,
                     .Query = activeQueryRecord->Query,
                     .Files = activeQueryRecord->Files,
-                    .Settings = activeQueryRecord->Settings,
+                    .Settings = ConvertToYsonString(settingsNode),
                     .User = activeQueryRecord->User,
                     .AccessControlObjects = activeQueryRecord->AccessControlObjects.value_or(TYsonString(TString("[]"))),
                     .StartTime = activeQueryRecord->StartTime,

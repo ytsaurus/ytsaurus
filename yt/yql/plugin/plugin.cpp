@@ -63,4 +63,12 @@ TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString DetectFlavorFromSettings(const NYson::TYsonString& settings)
+{
+    auto settingsMap = NYTree::ConvertTo<NYTree::IMapNodePtr>(settings);
+    return settingsMap->GetChildValueOrDefault<TString>("yql_flavor", TString{DefaultFlavor});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYqlPlugin

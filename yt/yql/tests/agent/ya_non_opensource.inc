@@ -7,6 +7,8 @@ PEERDIR(
 
     logbroker/tools/lib/recipe_helpers
 
+    yql/tools/yqlworker/interface/proto
+
     yt/yql/tests/common/test_framework
 
     yt/yt/flow/yandex/extensions/monium/python

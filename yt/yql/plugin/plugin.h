@@ -167,4 +167,10 @@ TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline constexpr TStringBuf DefaultFlavor = "default";
+
+TString DetectFlavorFromSettings(const NYson::TYsonString& settings);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYqlPlugin

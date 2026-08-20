@@ -5,9 +5,11 @@ from common import TestQueriesYqlBase, TestUpdateYqlAgentQtWorkerDynamicConfigMi
 
 from yt.environment.helpers import assert_items_equal
 
-from yt_commands import authors, create, create_user, write_table, raises_yt_error, wait, update_access_control_object_acl
+from yt_commands import authors, create, create_user, issue_token, write_table, raises_yt_error, wait, update_access_control_object_acl
 
 from dirty_equals import AnyThing
+
+import yql.tools.yqlworker.interface.proto.task_pb2 as task_pb2
 
 import pytest
 
@@ -400,3 +402,173 @@ class TestUdfRegistry(TestQueriesYqlBase):
                 "Udfs": AnyThing(),
             }
         ]
+
+
+class TaskDataFlavorsMixin:
+    YQL_SERVICE_TOKEN = "fake-yql-service-token"
+
+    @staticmethod
+    def _make_task_data(**fields):
+        # These fields are filled by the yql service in production and must be
+        # taken from the task data as is, unlike the fields overwritten by the plugin.
+        fields = {
+            "Syntax": task_pb2.SQLv1,
+            "PersistedId": True,
+            "Runner": "yql-agent",
+            "Program": "select \"the program from the task data must not be used\"",
+            "Id": "the id from the task data must not be used",
+            **fields,
+        }
+        return task_pb2.TTaskData(**fields).SerializeToString()
+
+    @classmethod
+    def _yql_service_settings(self, task_data=None, tokens=None, **extra):
+        settings = {
+            "yql_flavor": "yql-service",
+            "tokens": {
+                "yql_service_token": self.YQL_SERVICE_TOKEN,
+                **(tokens or {}),
+            },
+        }
+        if task_data is not None:
+            settings["yql_task_data"] = task_data
+        settings.update(extra)
+        return settings
+
+
+class TestTaskDataFlavors(TaskDataFlavorsMixin, test_simple.TestQueriesYqlSimpleBase):
+    YQL_QTWORKER = True
+
+    @authors("mpereskokova")
+    def test_default_flavor(self, query_tracker, yql_agent):
+        self._test_simple_query("select 1 as a", [{"a": 1}])
+        self._test_simple_query("select 1 as a", [{"a": 1}], settings={"yql_flavor": "default"})
+
+    @authors("mpereskokova")
+    def test_unknown_flavor(self, query_tracker, yql_agent):
+        with raises_yt_error("No task data builder registered for flavor 'unknown-flavor'") as err:
+            self._run_simple_query("select 1", settings={"yql_flavor": "unknown-flavor"})
+        assert err[0].contains_text("default")
+
+    @authors("mpereskokova")
+    def test_yql_service_flavor_without_token(self, query_tracker, yql_agent):
+        self._test_simple_query_error(
+            "select 1",
+            "Missed yql_service_token setting for yql-service flavor",
+            settings={"yql_flavor": "yql-service", "yql_task_data": self._make_task_data()},
+        )
+
+    @authors("mpereskokova")
+    def test_yql_service_flavor_without_task_data(self, query_tracker, yql_agent):
+        self._test_simple_query_error(
+            "select 1",
+            "Missed yql_task_data setting for yql-service flavor",
+            settings=self._yql_service_settings(),
+        )
+
+    @authors("mpereskokova")
+    def test_yql_service_flavor_with_malformed_task_data(self, query_tracker, yql_agent):
+        self._test_simple_query_error(
+            "select 1",
+            "Failed to deserialize TTaskData",
+            settings=self._yql_service_settings("not-a-serialized-task-data"),
+        )
+
+    @authors("mpereskokova")
+    def test_yql_service_flavor_with_malformed_user_auth_data(self, query_tracker, yql_agent):
+        self._test_simple_query_error(
+            "select 1",
+            "Failed to deserialize UserAuthData",
+            settings=self._yql_service_settings(
+                self._make_task_data(),
+                tokens={"yql_user_auth_data": "not-a-serialized-user-auth-data"},
+            ),
+        )
+
+    @authors("mpereskokova")
+    def test_yql_service_flavor(self, query_tracker, yql_agent):
+        result = self._run_simple_query(
+            "select CurrentLanguageVersion() as result",
+            settings=self._yql_service_settings(
+                self._make_task_data(),
+                yql_version="2025.02",
+                tokens={"yql_auth_data": task_pb2.TTaskAuthTokens().SerializeToString()},
+            ),
+        )
+        assert_items_equal(result, [{"result": "2025.02"}])
+
+    @authors("mpereskokova")
+    def test_yql_service_flavor_files(self, query_tracker, yql_agent):
+        task_data = self._make_task_data(Files=[
+            task_pb2.TTaskFile(
+                Name="test_file_raw",
+                Type=task_pb2.TTaskFile.CONTENT,
+                Content="the file from the task data must not be used",
+            ),
+        ])
+
+        self._test_simple_query(
+            "select FileContent(\"test_file_raw\") as column",
+            [{"column": "test_content"}],
+            files=[{"name": "test_file_raw", "content": "test_content", "type": "raw_inline_data"}],
+            settings=self._yql_service_settings(task_data),
+        )
+
+    @authors("mpereskokova")
+    def test_yql_service_flavor_reads_table(self, query_tracker, yql_agent):
+        cluster = yql_agent.yql_agent.env.id
+
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        rows = [{"a": 42}, {"a": 43}]
+        write_table("//tmp/t", rows)
+
+        task_data = self._make_task_data(DefaultTranslationCluster=cluster, Url=cluster)
+
+        self._test_simple_query(
+            f"select * from {cluster}.`//tmp/t`",
+            rows,
+            settings=self._yql_service_settings(task_data),
+        )
+
+
+class TestTaskDataFlavorsAuth(TaskDataFlavorsMixin, test_simple.TestQueriesYqlAuthBase):
+    # //tmp/t with a = 42 is created by the base class, it is readable by "allowed_user" only.
+    YQL_QTWORKER = True
+
+    def _run_yql_service_query(self, username, auth_tokens=None):
+        cluster = self.Env.id
+
+        tokens = {}
+        if auth_tokens is not None:
+            tokens["yql_auth_data"] = auth_tokens.SerializeToString()
+
+        self._test_simple_query(
+            f"select a + 1 as b from {cluster}.`//tmp/t`",
+            [{"b": 43}],
+            authenticated_user=username,
+            settings=self._yql_service_settings(
+                self._make_task_data(DefaultTranslationCluster=cluster, Url=cluster),
+                tokens=tokens,
+            ),
+        )
+
+    @staticmethod
+    def _make_auth_tokens(token):
+        return task_pb2.TTaskAuthTokens(Tokens=[
+            task_pb2.TTaskAuthToken(Alias="default_yt", Category="yt", Content=token.encode("utf-8")),
+        ])
+
+    @authors("mpereskokova")
+    @pytest.mark.timeout(180)
+    def test_yql_service_flavor_auth_data(self, query_tracker, yql_agent):
+        allowed_token, _ = issue_token("allowed_user")
+        self._run_yql_service_query("allowed_user", self._make_auth_tokens(allowed_token))
+
+        denied_token, _ = issue_token("denied_user")
+        with raises_yt_error("Access denied for user \"denied_user\""):
+            self._run_yql_service_query("denied_user", self._make_auth_tokens(denied_token))
+
+        self._run_yql_service_query(
+            "allowed_user",
+            self._make_auth_tokens(allowed_token),
+        )
