@@ -443,6 +443,11 @@ void TSlotLocation::DoPrepareSandboxDirectories(
 
     auto shouldApplyQuota = Config_->EnableDiskQuota && options.DiskSpaceLimit && !hasRootVolume;
 
+    if (hasRootVolume && options.EnableDiskQuota && options.DiskSpaceLimit) {
+        auto guard = WriterGuard(SlotsLock_);
+        SlotsWithQuota_.insert(slotIndex);
+    }
+
     if (shouldApplyQuota && !sandboxInsideTmpfs) {
         try {
             auto properties = TJobDirectoryProperties {
