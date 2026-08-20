@@ -14,8 +14,6 @@ PEERDIR(
 END()
 
 RECURSE(
-    bridge
-    dynamic
     native
     process
     qtworker

@@ -56,7 +56,6 @@ CORE_TARGETS=(
     "${YTSAURUS_SOURCE_PATH}/contrib/libs/libiconv/dynamic"
     
     # Build required binaries and libraries
-    "${YTSAURUS_SOURCE_PATH}/yt/yql/plugin/dynamic"
     "${YTSAURUS_SOURCE_PATH}/yt/yql/dq_vanilla_job"
     "${YTSAURUS_SOURCE_PATH}/yt/yql/dq_vanilla_job.lite"
     "${YTSAURUS_SOURCE_PATH}/yql/essentials/udfs/logs/dsv"

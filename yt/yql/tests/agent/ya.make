@@ -18,7 +18,6 @@ DEPENDS(
     yt/yt/packages/tests_package
     yt/yql/agent/bin
 
-    yt/yql/plugin/dynamic
     yt/yql/tools/mrjob
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file

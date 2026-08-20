@@ -39,7 +39,6 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
         .Libraries = ConvertToYsonString(config->Libraries),
         .InitialDynamicConfig = ConvertToYsonString(initialDynamicConfig),
         .YTTokenPath = config->YTTokenPath,
-        .YqlPluginSharedLibrary = config->YqlPluginSharedLibrary,
         .StartDqManager = startDqManager,
     };
 
