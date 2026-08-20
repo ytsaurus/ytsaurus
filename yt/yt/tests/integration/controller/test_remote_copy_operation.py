@@ -2716,6 +2716,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         wait(lambda: is_not_available(self.REMOTE_CLUSTER_NAME, op))
 
     @authors("yuryalekseev")
+    @pytest.mark.timeout(300, func_only=True)
     def test_cluster_throttlers(self):
         # Create and initialize default cluster throttlers config on all exe nodes.
         self._init_cluster_throttlers_config()
@@ -2756,7 +2757,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         remote_copy_end_time = time.time()
 
         # Check result table on local cluster.
-        assert read_table("//tmp/local_table") == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
+        assert read_table("//tmp/local_table", verbose=False) == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
         assert not get("//tmp/local_table/@sorted")
 
         # Check that throttling has happened.
@@ -2771,6 +2772,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
 
     @authors("yuryalekseev")
+    @pytest.mark.timeout(300, func_only=True)
     @pytest.mark.parametrize("config_type", ["empty", "malformed"])
     def test_absent_cluster_throttlers(self, config_type):
         if config_type == "empty":
@@ -2823,7 +2825,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert (remote_copy_end_time - remote_copy_start_time) < (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / self.BANDWIDTH_LIMIT)
 
         # Check result table on local cluster.
-        assert read_table("//tmp/local_table") == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
+        assert read_table("//tmp/local_table", verbose=False) == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
         assert not get("//tmp/local_table/@sorted")
 
     @authors("yuryalekseev")
