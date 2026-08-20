@@ -231,7 +231,6 @@ jobs:
             ninja libtop_udf.so
             ninja libunicode_udf.so
             ninja liburl_udf.so
-            ninja libyqlplugin.so
             ninja libyson2_udf.so
 
             cd ../build_${{ matrix.build-type }}
