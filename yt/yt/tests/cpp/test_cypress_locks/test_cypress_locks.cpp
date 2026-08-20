@@ -108,7 +108,8 @@ std::string MakeRandomString(int stringSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRandomizeChildKeys{ };
+struct TRandomizeChildKeys
+{ };
 
 class TCypressLocksTest
     : public TCypressLocksTestBase
