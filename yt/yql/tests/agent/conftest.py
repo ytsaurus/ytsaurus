@@ -32,7 +32,6 @@ class YqlAgent():
             "path": yatest.common.binary_path("yt/yql/agent/bin"),
             "mr_job_bin": yatest.common.binary_path("yt/yql/tools/mrjob/mrjob"),
             "mr_job_udfs_dir": yatest.common.binary_path("yql/essentials/udfs/common"),
-            "yql_plugin_shared_library": yatest.common.binary_path("yt/yql/plugin/dynamic/libyqlplugin.so"),
             "native_client_supported": True,
             "libraries": libraries,
         } | config

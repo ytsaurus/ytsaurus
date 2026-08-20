@@ -45,8 +45,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
         elif "mr_job_bin" not in config \
-                or "mr_job_udfs_dir" not in config \
-                or "yql_plugin_shared_library" not in config:
+                or "mr_job_udfs_dir" not in config:
             raise YtError("Artifacts path is not specified in yql agent config")
 
         if "subprocess_count" in config and config["subprocess_count"] != 0:
@@ -300,7 +299,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
     def _resolve_yql_plugin_so(self):
         if self.artifacts_path:
             return self._get_artifact_path("libyqlplugin.so")
-        return self.config["yql_plugin_shared_library"]
+        return self.config.get("yql_plugin_shared_library") or ""
 
     def override_common_settings(self, config, instance_index: int):
         # TODO(mpereskokova): YQLOVERYT-333: Remove after rpc timeout set in dq
