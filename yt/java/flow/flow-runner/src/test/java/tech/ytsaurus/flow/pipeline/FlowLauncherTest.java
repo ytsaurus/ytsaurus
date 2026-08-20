@@ -33,10 +33,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FlowLauncherTest {
 
-    // Mirrors yt-porto-layers.yson for the launcher's runtime major version.
-    private static final String EXPECTED_JDK_LAYER =
-            "//porto_layers/delta/jdk/jdk17/layer_with_jdk17_latest.tar.gz";
-    private static final String EXPECTED_JAVA_BIN_PATH = "/opt/jdk17/bin/java";
+    // Mirrors yt-porto-layers.yson. The launcher picks the entry for the JVM it runs on, and that is
+    // not always the JDK the module is compiled for: the OpenSource Gradle build has no toolchain and
+    // runs the tests on whatever JDK the CI provides.
+    private static final Map<Integer, String> EXPECTED_JDK_LAYERS = Map.of(
+            17, "//porto_layers/delta/jdk/jdk17/layer_with_jdk17_latest.tar.gz",
+            21, "//porto_layers/delta/jdk/jdk21/layer_with_jdk21_latest.tar.gz",
+            25, "//porto_layers/delta/jdk/jdk25/layer_with_jdk25_latest.tar.gz");
+    private static final Map<Integer, String> EXPECTED_JAVA_BIN_PATHS = Map.of(
+            17, "/opt/jdk17/bin/java",
+            21, "/opt/jdk21/bin/java",
+            25, "/opt/jdk25/bin/java");
+
+    private static final int JDK_MAJOR_VERSION = Runtime.version().feature();
+    private static final String EXPECTED_JDK_LAYER = Objects.requireNonNull(
+            EXPECTED_JDK_LAYERS.get(JDK_MAJOR_VERSION),
+            () -> "No expected JDK layer for major version " + JDK_MAJOR_VERSION);
+    private static final String EXPECTED_JAVA_BIN_PATH = Objects.requireNonNull(
+            EXPECTED_JAVA_BIN_PATHS.get(JDK_MAJOR_VERSION),
+            () -> "No expected java bin path for major version " + JDK_MAJOR_VERSION);
     private static final String EXPECTED_SYSTEM_LAYER =
             "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz";
 
