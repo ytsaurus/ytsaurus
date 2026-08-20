@@ -330,9 +330,15 @@ class TestChunkServer(YTEnvSetup):
 
         known_requisition_indexes = frozenset(ls(master_orchid_path))
         set("//tmp/t/@replication_factor", 4)
-        sleep(0.3)
-        new_requisition_indexes = frozenset(ls(master_orchid_path)) - known_requisition_indexes
-        assert len(new_requisition_indexes) == 1
+
+        new_requisition_indexes = None
+
+        def has_new_requisition_index():
+            nonlocal new_requisition_indexes
+            new_requisition_indexes = frozenset(ls(master_orchid_path)) - known_requisition_indexes
+            return len(new_requisition_indexes) == 1
+
+        wait(has_new_requisition_index)
         new_requisition_index = next(iter(new_requisition_indexes))
 
         new_requisition = get("{0}/{1}".format(master_orchid_path, new_requisition_index))
