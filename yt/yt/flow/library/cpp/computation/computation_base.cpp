@@ -1794,7 +1794,8 @@ void TUniversalComputationBase::InitBufferWarmupState()
             GetContext()->PartitionBufferState->SeedWarmup(warmup);
         }
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to recover the buffer warmup state; starting cold");
+        YT_TLOG_WARNING("Failed to recover the buffer warmup state; starting cold")
+            .With(ex);
         BufferWarmupState_ = nullptr;
     }
 }

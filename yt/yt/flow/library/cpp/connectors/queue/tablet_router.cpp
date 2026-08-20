@@ -58,7 +58,8 @@ void TTabletRouter::Start()
 
     // Routing can't proceed without a count, so fail hard if the first resolution fails.
     TabletCount_.store(FetchTabletCount());
-    YT_LOG_INFO("Resolved queue tablet count for routing (TabletCount: %v)", TabletCount_.load());
+    YT_TLOG_INFO("Resolved queue tablet count for routing")
+        .With("TabletCount", TabletCount_.load());
 
     RefreshExecutor_ = New<NConcurrency::TPeriodicExecutor>(
         Context_->PoolInvoker,
@@ -97,12 +98,15 @@ void TTabletRouter::RefreshTabletCount()
     try {
         auto tabletCount = FetchTabletCount();
         if (tabletCount != TabletCount_.load()) {
-            YT_LOG_INFO("Queue tablet count changed (TabletCount: %v)", tabletCount);
+            YT_TLOG_INFO("Queue tablet count changed")
+                .With("TabletCount", tabletCount);
         }
         TabletCount_.store(tabletCount);
     } catch (const std::exception& ex) {
         // Keep the last-known-good count and keep routing; retry on the next tick.
-        YT_LOG_WARNING(ex, "Failed to refresh queue tablet count, keeping last known value (TabletCount: %v)", TabletCount_.load());
+        YT_TLOG_WARNING("Failed to refresh queue tablet count, keeping last known value")
+            .With("TabletCount", TabletCount_.load())
+            .With(ex);
     }
 }
 
