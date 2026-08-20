@@ -161,6 +161,15 @@ public:
     {
         VerifyPersistentStateRead();
 
+        const auto& chunkManagerConfig = GetDynamicConfig();
+
+        if (!chunkManagerConfig->EnableChunkRefresh) {
+            YT_LOG_DEBUG("Skipping Sequoia location refresh as chunk refresh is disabled (LocationId: %v, NodeAddress: %v)",
+                location->GetId(),
+                location->GetNode()->GetDefaultAddress());
+            return;
+        }
+
         auto guard = Guard(Lock_);
 
         const auto node = location->GetNode();
@@ -737,7 +746,7 @@ private:
         }
 
         if (batchSize == 0) {
-            YT_LOG_DEBUG("Global sequoia chunk refresh has zero chunk batch size, skipping global Sequoia chunk refresh iteration");
+            YT_LOG_DEBUG("Global Sequoia chunk refresh has zero chunk batch size, skipping global Sequoia chunk refresh iteration");
             return;
         }
 
