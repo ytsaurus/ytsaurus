@@ -331,6 +331,45 @@ class TestQueriesMock(YTEnvSetup):
         assert len(list_queries()["queries"]) == 1
         assert str(get_query(q.id)["is_indexed"]) == "false"
 
+    def _get_stored_finished_query_settings(self, query_id):
+        rows = select_rows(f"settings from [//sys/query_tracker/finished_queries] where query_id = \"{query_id}\"")
+        assert len(rows) == 1
+        return rows[0]["settings"]
+
+    @authors("mpereskokova")
+    def test_tokens_are_stripped_from_completed_query_settings(self, query_tracker):
+        settings = {
+            "duration": 0,
+            "cluster": "primary",
+            "tokens": {"yql_auth_data": "secret_auth_data"},
+        }
+        q = start_query("mock", "complete_after", settings=settings)
+        q.track()
+
+        finished_settings = q.get()["settings"]
+        assert "tokens" not in finished_settings
+        assert finished_settings["cluster"] == "primary"
+        assert finished_settings["duration"] == 0
+
+        stored_settings = self._get_stored_finished_query_settings(q.id)
+        assert "tokens" not in stored_settings
+        assert stored_settings["cluster"] == "primary"
+
+    @authors("mpereskokova")
+    def test_tokens_are_stripped_from_aborted_query_settings(self, query_tracker):
+        settings = {"tokens": {"yql_auth_data": "secret_auth_data"}}
+        q = start_query("mock", "run_forever", settings=settings)
+        wait(lambda: q.get_state() == "running")
+
+        assert q.get()["settings"]["tokens"] == {"yql_auth_data": "secret_auth_data"}
+
+        q.abort()
+        with raises_yt_error("Query .* aborted"):
+            q.track()
+
+        assert "tokens" not in q.get()["settings"]
+        assert "tokens" not in self._get_stored_finished_query_settings(q.id)
+
 
 class TestQueryTrackerBan(YTEnvSetup):
     NUM_QUERY_TRACKER = 1

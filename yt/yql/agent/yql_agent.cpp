@@ -4,6 +4,7 @@
 #include "interop.h"
 #include "udf_meta_manager.h"
 
+#include <yt/yql/plugin/plugin.h>
 #include <yt/yql/plugin/native/plugin.h>
 #include <yt/yql/plugin/process/plugin.h>
 #include <yt/yql/plugin/qtworker/plugin.h>
@@ -692,6 +693,7 @@ private:
         try {
             auto query = TString(yqlRequest.query());
             auto settings = yqlRequest.has_settings() ? TYsonString(yqlRequest.settings()) : EmptyMap;
+            auto flavor = DetectFlavorFromSettings(settings);
 
             std::vector<TQueryFile> files;
             files.reserve(yqlRequest.files_size());
@@ -710,66 +712,68 @@ private:
             THashMap<TString, THashMap<TString, TString>> credentials;
             TString token;
             TClustersResult clustersResult;
-            switch (queryType) {
-            case EQueryType::Regular: {
-                clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, files);
-                if (clustersResult.YsonError) {
-                    auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
-                    THROW_ERROR error;
+            if (flavor == DefaultFlavor) {
+                switch (queryType) {
+                case EQueryType::Regular: {
+                    clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, files);
+                    if (clustersResult.YsonError) {
+                        auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
+                        THROW_ERROR error;
+                    }
+
+                    EraseNonYtClusters(clustersResult.Clusters);
+
+                    THashMap<TString, IClientPtr> queryClients;
+                    for (const auto& clusterName : clustersResult.Clusters) {
+                        queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
+                    }
+
+                    token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
+
+                    queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
+                    queryState.RefreshTokenExecutor->Start();
+
+                    const auto defaultCluster = clustersResult.Clusters.front().first;
+                    credentials = {
+                        {"default_yt", {{"category", "yt"}, {"content", token}}},
+                        {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
+                    };
+
+                    FillCredentials(
+                        credentials,
+                        yqlRequest.secrets(),
+                        defaultCluster,
+                        user,
+                        queryClients);
+                    break;
                 }
 
-                EraseNonYtClusters(clustersResult.Clusters);
+                case EQueryType::UdfMeta: {
+                    if (!Config_->UdfMetaUser) {
+                        THROW_ERROR_EXCEPTION("UdfMetaUser must be specified for running %Qv queries", EQueryType::UdfMeta);
+                    }
 
-                THashMap<TString, IClientPtr> queryClients;
-                for (const auto& clusterName : clustersResult.Clusters) {
-                    queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
+                    // Issue token for UdfMetaUser for native cluster
+                    auto nativeCluster = std::optional<TString>(Client_->GetNativeConnection()->GetClusterName());
+                    YT_VERIFY(nativeCluster);
+
+                    THashMap<TString, IClientPtr> queryClients = {{
+                        *nativeCluster,
+                        ClusterDirectory_->GetConnectionOrThrow(*nativeCluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(Config_->UdfMetaUser))
+                    }};
+                    clustersResult.Clusters = {{*nativeCluster, ""}};
+
+                    token = IssueToken(queryId, Config_->UdfMetaUser, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
+
+                    queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, Config_->UdfMetaUser, token, queryClients), Config_->RefreshTokenPeriod);
+                    queryState.RefreshTokenExecutor->Start();
+
+                    credentials = {
+                        {"default_yt", {{"category", "yt"}, {"content", token}}},
+                    };
+                    break;
                 }
-
-                token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
-
-                queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
-                queryState.RefreshTokenExecutor->Start();
-
-                const auto defaultCluster = clustersResult.Clusters.front().first;
-                credentials = {
-                    {"default_yt", {{"category", "yt"}, {"content", token}}},
-                    {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
-                };
-
-                FillCredentials(
-                    credentials,
-                    yqlRequest.secrets(),
-                    defaultCluster,
-                    user,
-                    queryClients);
-                break;
-            }
-
-            case EQueryType::UdfMeta: {
-                if (!Config_->UdfMetaUser) {
-                    THROW_ERROR_EXCEPTION("UdfMetaUser must be specified for running %Qv queries", EQueryType::UdfMeta);
                 }
-
-                // Issue token for UdfMetaUser for native cluster
-                auto nativeCluster = std::optional<TString>(Client_->GetNativeConnection()->GetClusterName());
-                YT_VERIFY(nativeCluster);
-
-                THashMap<TString, IClientPtr> queryClients = {{
-                    *nativeCluster,
-                    ClusterDirectory_->GetConnectionOrThrow(*nativeCluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(Config_->UdfMetaUser))
-                }};
-                clustersResult.Clusters = {{*nativeCluster, ""}};
-
-                token = IssueToken(queryId, Config_->UdfMetaUser, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
-
-                queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, Config_->UdfMetaUser, token, queryClients), Config_->RefreshTokenPeriod);
-                queryState.RefreshTokenExecutor->Start();
-
-                credentials = {
-                    {"default_yt", {{"category", "yt"}, {"content", token}}},
-                };
-                break;
-            }
             }
 
             // This is a long blocking call.

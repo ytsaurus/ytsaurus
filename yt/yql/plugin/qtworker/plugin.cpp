@@ -1,6 +1,7 @@
 #include "plugin.h"
 
 #include "helpers.h"
+#include "task_data_builder.h"
 
 #include <yt/yql/plugin/config.h>
 #include <yt/yql/plugin/native/plugin.h>
@@ -31,7 +32,6 @@
 #include <util/stream/file.h>
 #include <util/stream/str.h>
 
-#include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NYqlPlugin {
@@ -104,18 +104,6 @@ NYson::TYsonString SerializeProtoToYson(const google::protobuf::Message& message
     NYson::WriteProtobufMessage(&ysonWriter, message);
     ysonStream.Finish();
     return NYson::TYsonString(ysonStream.Str());
-}
-
-std::optional<TString> ExtractDefaultCluster(const NYql::TGatewaysConfig& config)
-{
-    if (config.HasYt()) {
-        for (const auto& mapping : config.GetYt().GetClusterMapping()) {
-            if (mapping.GetDefault()) {
-                return mapping.GetName();
-            }
-        }
-    }
-    return {};
 }
 
 class TQtWorkerYqlPlugin
@@ -418,22 +406,13 @@ private:
         const std::vector<TQueryFile>& files,
         NYqlClient::EQueryType queryType = NYqlClient::EQueryType::Regular)
     {
-        NYql::NProto::TTaskData data;
-        data.SetId(ToString(queryId));
-        data.SetSyntax((queryType == NYqlClient::EQueryType::UdfMeta) ? NYql::NProto::ESyntax::UDF_META : NYql::NProto::ESyntax::SQLv1);
-        data.SetProgram(queryText);
-        data.SetUsername(user);
-        data.SetResultFormat(NYql::NProto::EDataFormat::YSON_TEXT);
-        data.SetAuthData(SerializeCredentials(credentials));
-        data.SetIsSystemRequest(false);
-        data.SetFunctionRegistryData(FunctionRegistryData_.Load());
-        data.SetPersistedId(true);
+        auto flavor = DetectFlavorFromSettings(settings);
+        auto builder = CreateTaskDataBuilder(flavor);
 
         std::optional<NYql::TGatewaysConfig> gatewaysConfig;
         {
             TGuard guard(FlavorConfigsLock_);
-            // TODO(mpereskokova): Change to custom query flavor
-            if (auto snapshot = GatewaysConfigSnapshotByFlavor_.find("default"); snapshot != GatewaysConfigSnapshotByFlavor_.end()) {
+            if (auto snapshot = GatewaysConfigSnapshotByFlavor_.find(flavor); snapshot != GatewaysConfigSnapshotByFlavor_.end()) {
                 gatewaysConfig = snapshot->second;
             }
         }
@@ -441,47 +420,21 @@ private:
             gatewaysConfig = *StaticGatewaysSnapshot_;
         }
 
-        std::optional<TString> defaultTranslationCluster;
-        if (gatewaysConfig) {
-            TString fullTextProto;
-            if (!::google::protobuf::TextFormat::PrintToString(*gatewaysConfig, &fullTextProto)) {
-                ythrow yexception() << "Failed to serialize gateways config to TextProto";
-            }
+        auto functionRegistryData = FunctionRegistryData_.Load();
 
-            data.SetGatewaysConfig(fullTextProto);
-            defaultTranslationCluster = ExtractDefaultCluster(*gatewaysConfig);
-        }
-
-        auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
-        if (auto cluster = settingsMap.FindPtr("cluster")) {
-            defaultTranslationCluster = cluster->AsString();
-        }
-        if (auto maxLangVer = NYql::FormatLangVersion(MaxYqlLangVersion_.load())) {
-            data.SetMaxLangVer(*maxLangVer);
-        }
-        if (auto version = settingsMap.FindPtr("yql_version")) {
-            data.SetLangVer(version->AsString());
-        } else if (auto defaultLangVer = NYql::FormatLangVersion(DefaultYqlApiLangVersion_)) {
-            data.SetLangVer(*defaultLangVer);
-        }
-        if (auto parameters = settingsMap.FindPtr("declared_parameters")) {
-            data.SetParameters(parameters->AsString());
-        }
-
-        if (defaultTranslationCluster) {
-            data.SetDefaultTranslationCluster(*defaultTranslationCluster);
-            data.SetUrl(*defaultTranslationCluster);
-        }
-        data.SetRunner("yql-agent");
-
-        for (const auto& file : files) {
-            auto* protoFile = data.MutableFiles()->Add();
-            protoFile->SetName(TString(file.Name));
-            protoFile->SetType(FileTypeToProto(file.Type));
-            protoFile->SetContent(TString(file.Content));
-        }
-
-        return data;
+        return builder->Build(TTaskDataBuildContext{
+            .QueryId = queryId,
+            .User = user,
+            .QueryText = queryText,
+            .Settings = settings,
+            .Credentials = credentials,
+            .Files = files,
+            .FunctionRegistryData = functionRegistryData,
+            .GatewaysConfig = gatewaysConfig,
+            .MaxYqlLangVersion = NYql::FormatLangVersion(MaxYqlLangVersion_.load()),
+            .DefaultYqlLangVersion = NYql::FormatLangVersion(DefaultYqlApiLangVersion_),
+            .QueryType = queryType,
+        });
     }
 
     std::shared_ptr<TTaskEventCallback> RunTaskToCompletion(
@@ -522,26 +475,6 @@ private:
         TGuard guard(ActiveQueriesLock_);
         ActiveQueries_.erase(queryId);
         return callback;
-    }
-
-    TString SerializeCredentials(const TYsonString& credentials)
-    {
-        NYql::NProto::TTaskAuthTokens authTokens;
-
-        auto credentialsNode = NodeFromYsonString(credentials.ToString());
-        if (!credentialsNode.IsMap()) {
-            return authTokens.SerializeAsString();
-        }
-
-        for (const auto& [alias, value] : credentialsNode.AsMap()) {
-            auto* token = authTokens.AddTokens();
-            token->SetAlias(alias);
-            token->SetCategory(value.HasKey("category") ? value.ChildAsString("category") : "");
-            token->SetSubcategory(value.HasKey("subcategory") ? value.ChildAsString("subcategory") : "");
-            token->SetContent(value.HasKey("content") ? value.ChildAsString("content") : "");
-        }
-
-        return authTokens.SerializeAsString();
     }
 };
 
