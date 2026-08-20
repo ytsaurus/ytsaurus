@@ -1206,32 +1206,6 @@
             "uri": "https://{canondata_backend}/1923547/47fffc855d258e0a6a645c15eeafaf20aaf44136/resource.tar.gz#test.test_optimizers-keepworld_scalar_subquery--Results_/results.txt"
         }
     ],
-    "test.test[optimizers-keepworld_yson_prune--Debug]": [
-        {
-            "checksum": "cf87cd05db8bc99e5e0ba0b59373289a",
-            "size": 1949,
-            "uri": "https://{canondata_backend}/1881367/369617ff707bd7545ef278b85dfa20462724e6fc/resource.tar.gz#test.test_optimizers-keepworld_yson_prune--Debug_/opt.yql"
-        }
-    ],
-    "test.test[optimizers-keepworld_yson_prune--Plan]": [
-        {
-            "checksum": "76c7509e2a1d2dfb0fab5a3be64309f2",
-            "size": 5097,
-            "uri": "https://{canondata_backend}/1881367/369617ff707bd7545ef278b85dfa20462724e6fc/resource.tar.gz#test.test_optimizers-keepworld_yson_prune--Plan_/plan.txt"
-        }
-    ],
-    "test.test[optimizers-keepworld_yson_prune--Results]": [
-        {
-            "checksum": "a93bbc32fb626af88e2c3c50d0a858ab",
-            "size": 30,
-            "uri": "https://{canondata_backend}/1881367/369617ff707bd7545ef278b85dfa20462724e6fc/resource.tar.gz#test.test_optimizers-keepworld_yson_prune--Results_/Output.txt"
-        },
-        {
-            "checksum": "d22113e7e49a95d79a785c4bea1b8d86",
-            "size": 476,
-            "uri": "https://{canondata_backend}/1881367/369617ff707bd7545ef278b85dfa20462724e6fc/resource.tar.gz#test.test_optimizers-keepworld_yson_prune--Results_/Output.yqlrun.txt.attr"
-        }
-    ],
     "test.test[optimizers-sorted_scalar_content--Debug]": [
         {
             "checksum": "328806bca08ad09db7abe5040ab5542b",
