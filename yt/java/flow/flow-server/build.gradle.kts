@@ -21,6 +21,7 @@ tasks.withType<Javadoc>().configureEach {
 
 dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter:6.0.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.0.2")
     api(project(":yt:java:flow:flow-core"))
     api("com.google.protobuf:protobuf-java:4.33.0")
     api("com.google.protobuf:protobuf-java-util:4.33.0")
