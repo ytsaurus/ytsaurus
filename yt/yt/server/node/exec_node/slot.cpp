@@ -488,8 +488,8 @@ public:
 
                                 auto& volumeResults = volumeResultsOrError.Value();
 
-                                // Inform slot location about tmpfses to be used.
-                                Location_->TakeIntoAccountTmpfsVolumes(
+                                // Inform slot location about non-root volumes to be used.
+                                Location_->TakeIntoAccountNonRootVolumes(
                                     SlotIndex_,
                                     rootVolume,
                                     volumeResults,

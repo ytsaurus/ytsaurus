@@ -93,29 +93,29 @@ private:
 
 static constexpr i64 CopyRateGaugeGrid[] = {0, 1_MB, 10_MB, 100_MB, 1000_MB};
 
-bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const std::string& path, const NLogging::TLogger& Logger) const
+std::optional<NExecNode::EVolumeType> TSlotLocation::TNonRootVolumeRegistry::IsInsideNonRootVolume(const std::string& path, const NLogging::TLogger& Logger) const
 {
     YT_LOG_DEBUG(
-        "Checking if path is inside tmpfs volume (Path: %v, VolumePathToType: %v)",
+        "Checking if path is inside non-root volume (Path: %v, VolumePathToType: %v)",
         path,
         VolumePathToType_);
 
-    bool isTmpfs = false;
+    std::optional<NExecNode::EVolumeType> result;
     std::optional<std::string_view> longestVolumePath;
     for (const auto& [volumePath, type] : VolumePathToType_) {
         if (volumePath.IsAncestorOf(path, /*treatEqualPathAsAncestor*/ true)) {
             if (!longestVolumePath || volumePath.Path().native().size() > longestVolumePath->size()) {
                 longestVolumePath = volumePath.Path().native();
-                isTmpfs = type == EVolumeType::Tmpfs;
+                result = type;
             }
         }
     }
 
     if (longestVolumePath) {
         YT_LOG_DEBUG(
-            "Path %v inside tmpfs (Path: %v, VolumePath: %v, VolumePathToType: %v, SandboxPaths: %v)",
-            isTmpfs ? "is" : "isn't",
+            "Path is inside non-root volume (Path: %v, VolumeType: %v, VolumePath: %v, VolumePathToType: %v, SandboxPaths: %v)",
             path,
+            result,
             *longestVolumePath,
             VolumePathToType_,
             SandboxPaths_);
@@ -126,15 +126,15 @@ bool TSlotLocation::TSandboxTmpfsData::IsInsideTmpfs(const std::string& path, co
             VolumePathToType_,
             SandboxPaths_);
     }
-    return isTmpfs;
+    return result;
 }
 
-void TSlotLocation::TSandboxTmpfsData::AddSandboxPath(TAbsoluteNormalizedPath&& sandboxPath)
+void TSlotLocation::TNonRootVolumeRegistry::AddSandboxPath(TAbsoluteNormalizedPath&& sandboxPath)
 {
     SandboxPaths_.insert(std::move(sandboxPath));
 }
 
-void TSlotLocation::TSandboxTmpfsData::AddVolumeInfo(TAbsoluteNormalizedPath&& volumePath, EVolumeType volumeType)
+void TSlotLocation::TNonRootVolumeRegistry::AddVolumeInfo(TAbsoluteNormalizedPath&& volumePath, EVolumeType volumeType)
 {
     EmplaceOrCrash(VolumePathToType_, std::move(volumePath), volumeType);
 }
@@ -389,7 +389,7 @@ void TSlotLocation::DoRepair()
         {
             auto guard = WriterGuard(SlotsLock_);
             SandboxOptionsPerSlot_.clear();
-            SandboxTmpfsData_.clear();
+            NonRootVolumeRegistryPerSlot_.clear();
             SlotsWithQuota_.clear();
         }
 
@@ -545,28 +545,28 @@ TFuture<void> TSlotLocation::PrepareSandboxDirectories(
         .Run();
 }
 
-void TSlotLocation::TakeIntoAccountTmpfsVolumes(
+void TSlotLocation::TakeIntoAccountNonRootVolumes(
     int slotIndex,
     const IVolumePtr& rootVolume,
     const std::vector<TVolumeResultPtr>& volumeResults,
     const std::vector<TVolumeMountPtr>& volumeMounts)
 {
-    YT_LOG_DEBUG("Taking into account tmpfs volumes (SlotIndex: %v, VolumeCount: %v)",
+    YT_LOG_DEBUG("Taking into account non-root volumes (SlotIndex: %v, VolumeCount: %v)",
         slotIndex,
         volumeResults.size());
 
     auto guard = WriterGuard(SlotsLock_);
 
-    auto& tmpfsData = SandboxTmpfsData_[slotIndex];
+    auto& nonRootVolumeRegistry = NonRootVolumeRegistryPerSlot_[slotIndex];
 
     if (rootVolume) {
-        tmpfsData.AddSandboxPath(TAbsoluteNormalizedPath(NFS::CombinePaths(
+        nonRootVolumeRegistry.AddSandboxPath(TAbsoluteNormalizedPath(NFS::CombinePaths(
             rootVolume->GetPath(),
             Format("slot/%v", GetSandboxRelPath(ESandboxKind::User)))));
     }
 
     // TODO(yuryalekseev): it should be in the else clause of the above if.
-    tmpfsData.AddSandboxPath(TAbsoluteNormalizedPath(std::string(GetSandboxPath(slotIndex, ESandboxKind::User))));
+    nonRootVolumeRegistry.AddSandboxPath(TAbsoluteNormalizedPath(std::string(GetSandboxPath(slotIndex, ESandboxKind::User))));
 
     for (const auto& volumeMount: volumeMounts) {
         if (volumeMount->MountPath.Path() == "/") {
@@ -580,9 +580,9 @@ void TSlotLocation::TakeIntoAccountTmpfsVolumes(
         if (volumeIt == volumeResults.end()) {
             continue;
         }
-        tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
+        nonRootVolumeRegistry.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(GetSlotPath(slotIndex), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
         if (rootVolume) {
-            tmpfsData.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(rootVolume->GetPath(), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
+            nonRootVolumeRegistry.AddVolumeInfo(TAbsoluteNormalizedPath(NFS::JoinPaths(rootVolume->GetPath(), volumeMount->MountPath.Path().string())), (*volumeIt)->VolumeType);
         }
     }
 }
@@ -992,7 +992,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 {
                     auto guard = WriterGuard(SlotsLock_);
 
-                    SandboxTmpfsData_.erase(slotIndex);
+                    NonRootVolumeRegistryPerSlot_.erase(slotIndex);
 
                     SlotsWithQuota_.erase(slotIndex);
                 }
@@ -1143,7 +1143,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
         slotWithQuota = SlotsWithQuota_.contains(slotIndex);
     }
 
-    bool destinationInsideTmpfs = destinationPath && IsInsideTmpfs(slotIndex, *destinationPath);
+    bool destinationInsideNonRootVolume = destinationPath && IsInsideNonRootVolume(slotIndex, *destinationPath);
 
     bool brokenPipe = static_cast<bool>(error.FindMatching(ELinuxErrorCode::PIPE));
     bool noSpace = static_cast<bool>(error.FindMatching({ELinuxErrorCode::NOSPC, ELinuxErrorCode::DQUOT}));
@@ -1160,11 +1160,11 @@ void TSlotLocation::OnArtifactPreparationFailed(
             sandboxKind)
             << error
             << TErrorAttribute("job_id", jobId);
-    } else if (destinationInsideTmpfs && noSpace) {
-        YT_LOG_INFO(error, "Failed to build file in sandbox: tmpfs is too small");
+    } else if (destinationInsideNonRootVolume && noSpace) {
+        YT_LOG_INFO(error, "Failed to build file in sandbox: non-root volume is too small");
 
-        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::TmpfsOverflow,
-            "Failed to build file %Qv in sandbox %Qlv: tmpfs is too small",
+        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::VolumeSizeLimitExceeded,
+            "Failed to build file %Qv in sandbox %Qlv: non-root volume is too small",
             artifactName,
             sandboxKind)
             << error
@@ -1212,19 +1212,25 @@ TFuture<void> TSlotLocation::Repair()
         .Run();
 }
 
-bool TSlotLocation::IsInsideTmpfs(int slotIndex, const std::string& path) const
+std::optional<NExecNode::EVolumeType> TSlotLocation::IsInsideNonRootVolume(int slotIndex, const std::string& path) const
 {
     auto guard = ReaderGuard(SlotsLock_);
 
-    auto it = SandboxTmpfsData_.find(slotIndex);
-    if (it == SandboxTmpfsData_.end()) {
-        YT_LOG_DEBUG("Received unknown slot index while checking if path is inside tmpfs (SlotIndex: %v, Path: %v)",
+    auto it = NonRootVolumeRegistryPerSlot_.find(slotIndex);
+    if (it == NonRootVolumeRegistryPerSlot_.end()) {
+        YT_LOG_DEBUG("No non-root volumes are registered for slot (SlotIndex: %v, Path: %v)",
             slotIndex,
             path);
-        return false;
+        return std::nullopt;
     }
 
-    return it->second.IsInsideTmpfs(path, Logger);
+    return it->second.IsInsideNonRootVolume(path, Logger);
+}
+
+bool TSlotLocation::IsInsideTmpfs(int slotIndex, const std::string& path) const
+{
+    auto result = IsInsideNonRootVolume(slotIndex, path);
+    return result == EVolumeType::Tmpfs;
 }
 
 void TSlotLocation::ForceSubdirectories(const std::string& filePath, const std::string& sandboxPath) const

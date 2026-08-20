@@ -54,8 +54,8 @@ public:
         TUserSandboxOptions options,
         bool hasRootVolume);
 
-    //! Inform slot location about tmpfses to be used.
-    void TakeIntoAccountTmpfsVolumes(
+    //! Inform slot location about non-root volumes to be used.
+    void TakeIntoAccountNonRootVolumes(
         int slotIndex,
         const IVolumePtr& rootVolume,
         const std::vector<TVolumeResultPtr>& volumeResults,
@@ -201,10 +201,10 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
 
-    class TSandboxTmpfsData
+    class TNonRootVolumeRegistry
     {
     public:
-        bool IsInsideTmpfs(const std::string& path, const NLogging::TLogger& Logger) const;
+        std::optional<EVolumeType> IsInsideNonRootVolume(const std::string& path, const NLogging::TLogger& Logger) const;
         void AddSandboxPath(TAbsoluteNormalizedPath&& sandboxPath);
         void AddVolumeInfo(TAbsoluteNormalizedPath&& volumePath, EVolumeType volumeType);
 
@@ -213,7 +213,7 @@ private:
         std::map<TAbsoluteNormalizedPath, EVolumeType> VolumePathToType_;
     };
 
-    THashMap<int, TSandboxTmpfsData> SandboxTmpfsData_;
+    THashMap<int, TNonRootVolumeRegistry> NonRootVolumeRegistryPerSlot_;
     THashSet<int> SlotsWithQuota_;
     THashMap<int, TUserSandboxOptions> SandboxOptionsPerSlot_;
     THashMap<int, TDiskStatistics> DiskStatisticsPerSlot_;
@@ -243,6 +243,7 @@ private:
 
     static void ValidateNotExists(const std::string& path);
 
+    std::optional<NExecNode::EVolumeType> IsInsideNonRootVolume(int slotIndex, const std::string& path) const;
     bool IsInsideTmpfs(int slotIndex, const std::string& path) const;
 
     void EnsureNotInUse(const std::string& path) const;

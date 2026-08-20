@@ -32,7 +32,7 @@ YT_DEFINE_ERROR_ENUM(
     ((SetupCommandFailed)                    (1121))
     ((GpuLayerNotFetched)                    (1122))
     ((GpuJobWithoutLayers)                   (1123))
-    ((TmpfsOverflow)                         (1124))
+    ((VolumeSizeLimitExceeded)               (1124))
     ((GpuCheckCommandFailed)                 (1125))
     ((GpuCheckCommandPreparationFailed)      (1126))
     ((JobProxyUnavailable)                   (1127))
