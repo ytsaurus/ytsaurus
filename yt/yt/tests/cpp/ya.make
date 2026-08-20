@@ -14,7 +14,6 @@ RECURSE(
     test_data_node_rpc
     test_distributed_chunk_sessions
     test_hydra
-    test_journal_nbd
     test_multiproxy
     test_push_based_shuffle
     test_readers
@@ -22,3 +21,7 @@ RECURSE(
     test_sequoia
     test_transaction_expiration_mode
 )
+
+IF (YT_ENABLE_JOURNAL_NBD)
+    RECURSE(test_journal_nbd)
+ENDIF()
