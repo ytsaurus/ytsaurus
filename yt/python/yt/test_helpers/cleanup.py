@@ -13,6 +13,7 @@ SYSTEM_TRANSACTION_TITLE_SUBSTRINGS = [
     "Chunk merger",
     "Chunk autotomizer",
     "Lock transaction for QueueAgent",
+    "Lock transaction for MultiConsumerNamesGarbageCollector",
     "Lock for changelog store",
     "Upload to //sys/",
     "Prerequisite for cell",

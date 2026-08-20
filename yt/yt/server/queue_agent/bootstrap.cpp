@@ -1,10 +1,11 @@
 #include "bootstrap.h"
 
 #include "config.h"
-#include "private.h"
-#include "queue_agent.h"
 #include "cypress_synchronizer.h"
 #include "dynamic_config_manager.h"
+#include "multi_consumer_names_garbage_collector.h"
+#include "private.h"
+#include "queue_agent.h"
 #include "queue_agent_sharding_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -23,44 +24,46 @@
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/queue_client/config.h>
+
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
+#include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/cypress_election/election_manager.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
-#include <yt/yt/library/cypress_election/election_manager.h>
-
 #include <yt/yt/library/orchid/orchid_service.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
 
-#include <yt/yt/client/logging/dynamic_table_log_writer.h>
-
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/https/server.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
-
-#include <yt/yt/library/coredumper/coredumper.h>
-
-#include <yt/yt/library/profiling/solomon/public.h>
-
-#include <yt/yt/library/fusion/service_locator.h>
-
-#include <yt/yt/core/misc/ref_counted_tracker.h>
-#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -160,7 +163,8 @@ private:
 
     NDiscoveryClient::IMemberClientPtr MemberClient_;
     NDiscoveryClient::IDiscoveryClientPtr DiscoveryClient_;
-    NCypressElection::ICypressElectionManagerPtr ElectionManager_;
+    NCypressElection::ICypressElectionManagerPtr CypressSynchronizerElectionManager_;
+    NCypressElection::ICypressElectionManagerPtr MultiConsumerNamesGarbageCollectorElectionManager_;
 
     NAlertManager::IAlertManagerPtr AlertManager_;
 
@@ -170,6 +174,8 @@ private:
     TQueueAgentPtr QueueAgent_;
 
     ICypressSynchronizerPtr CypressSynchronizer_;
+
+    IMultiConsumerNamesGarbageCollectorPtr MultiConsumerNamesGarbageCollector_;
 
     void DoRun()
     {
@@ -239,7 +245,24 @@ private:
             options->MemberName = AgentId_;
             options->TransactionAttributes = CreateEphemeralAttributes();
             options->TransactionAttributes->Set("host", AgentId_);
-            ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
+            CypressSynchronizerElectionManager_ = CreateCypressElectionManager(
+                NativeClient_,
+                ControlInvoker_,
+                Config_->CypressSynchronizerElectionManager,
+                std::move(options));
+        }
+
+        {
+            TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
+            options->GroupName = "MultiConsumerNamesGarbageCollector";
+            options->MemberName = AgentId_;
+            options->TransactionAttributes = CreateEphemeralAttributes();
+            options->TransactionAttributes->Set("host", AgentId_);
+            MultiConsumerNamesGarbageCollectorElectionManager_ = CreateCypressElectionManager(
+                NativeClient_,
+                ControlInvoker_,
+                Config_->MultiConsumerNamesGarbageCollectorElectionManager,
+                std::move(options));
         }
 
         DynamicState_ = New<TDynamicState>(Config_->DynamicState, NativeClient_, ClientDirectory_);
@@ -264,7 +287,6 @@ private:
             /*queueAgentUser*/ Config_->User,
             ControlInvoker_,
             DynamicState_,
-            ElectionManager_,
             CreateAlertCollector(AlertManager_),
             AgentId_);
 
@@ -273,6 +295,13 @@ private:
             ControlInvoker_,
             DynamicState_,
             ClientDirectory_,
+            /*createAlertCollectorCallback*/ BIND_NO_PROPAGATE([alertManager = AlertManager_] {
+                return CreateAlertCollector(alertManager);
+            }));
+
+        MultiConsumerNamesGarbageCollector_ = CreateMultiConsumerNamesGarbageCollector(
+            ControlInvoker_,
+            DynamicState_,
             /*createAlertCollectorCallback*/ BIND_NO_PROPAGATE([alertManager = AlertManager_] {
                 return CreateAlertCollector(alertManager);
             }));
@@ -320,6 +349,10 @@ private:
             orchidRoot,
             "/cypress_synchronizer",
             CreateVirtualNode(CypressSynchronizer_->GetOrchidService()));
+        SetNodeByYPath(
+            orchidRoot,
+            "/multi_consumer_names_garbage_collector",
+            CreateVirtualNode(MultiConsumerNamesGarbageCollector_->GetOrchidService()));
         SetBuildAttributes(
             orchidRoot,
             "queue_agent");
@@ -351,11 +384,19 @@ private:
 
         YT_UNUSED_FUTURE(MemberClient_->Start());
 
-        ElectionManager_->SubscribeLeadingStarted(BIND_NO_PROPAGATE(&ICypressSynchronizer::Start, CypressSynchronizer_));
+        CypressSynchronizerElectionManager_->SubscribeLeadingStarted(BIND_NO_PROPAGATE(&ICypressSynchronizer::Start, CypressSynchronizer_));
 
-        ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(&ICypressSynchronizer::Stop, CypressSynchronizer_));
+        CypressSynchronizerElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(&ICypressSynchronizer::Stop, CypressSynchronizer_));
 
-        ElectionManager_->Start();
+        CypressSynchronizerElectionManager_->Start();
+
+        MultiConsumerNamesGarbageCollectorElectionManager_->SubscribeLeadingStarted(
+            BIND_NO_PROPAGATE(&IMultiConsumerNamesGarbageCollector::Start, MultiConsumerNamesGarbageCollector_));
+
+        MultiConsumerNamesGarbageCollectorElectionManager_->SubscribeLeadingEnded(
+            BIND_NO_PROPAGATE(&IMultiConsumerNamesGarbageCollector::Stop, MultiConsumerNamesGarbageCollector_));
+
+        MultiConsumerNamesGarbageCollectorElectionManager_->Start();
 
         AlertManager_->Start();
         QueueAgentShardingManager_->Start();
@@ -410,6 +451,7 @@ private:
         YT_VERIFY(QueueAgentShardingManager_);
         YT_VERIFY(QueueAgent_);
         YT_VERIFY(CypressSynchronizer_);
+        YT_VERIFY(MultiConsumerNamesGarbageCollector_);
 
         std::vector<TFuture<void>> asyncUpdateComponents{
             BIND(
@@ -438,6 +480,13 @@ private:
                 CypressSynchronizer_,
                 oldConfig->CypressSynchronizer,
                 newConfig->CypressSynchronizer)
+                .AsyncVia(ControlInvoker_)
+                .Run(),
+            BIND(
+                &IMultiConsumerNamesGarbageCollector::OnDynamicConfigChanged,
+                MultiConsumerNamesGarbageCollector_,
+                oldConfig->MultiConsumerNamesGarbageCollector,
+                newConfig->MultiConsumerNamesGarbageCollector)
                 .AsyncVia(ControlInvoker_)
                 .Run(),
         };

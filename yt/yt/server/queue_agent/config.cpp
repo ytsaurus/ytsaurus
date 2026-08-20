@@ -46,6 +46,17 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMultiConsumerNamesGarbageCollectorDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("pass_period", &TThis::PassPeriod)
+        .Default(TDuration::Minutes(1))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueExportManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("user", &TThis::User)
@@ -195,7 +206,10 @@ void TQueueAgentBootstrapConfig::Register(TRegistrar registrar)
         ->AsMap());
     registrar.Parameter("dynamic_state", &TThis::DynamicState)
         .DefaultNew();
-    registrar.Parameter("election_manager", &TThis::ElectionManager)
+    registrar.Parameter("cypress_synchronizer_election_manager", &TThis::CypressSynchronizerElectionManager)
+        .Alias("election_manager")
+        .DefaultNew();
+    registrar.Parameter("multi_consumer_names_garbage_collector_election_manager", &TThis::MultiConsumerNamesGarbageCollectorElectionManager)
         .DefaultNew();
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
@@ -203,8 +217,11 @@ void TQueueAgentBootstrapConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
+        if (auto& lockPath = config->CypressSynchronizerElectionManager->LockPath; lockPath.empty()) {
             lockPath = config->DynamicState->Root + "/leader_lock";
+        }
+        if (auto& lockPath = config->MultiConsumerNamesGarbageCollectorElectionManager->LockPath; lockPath.empty()) {
+            lockPath = config->DynamicState->Root + "/multi_consumer_names_garbage_collector_leader_lock";
         }
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
             dynamicConfigPath = config->DynamicState->Root + "/config";
@@ -235,6 +252,8 @@ void TQueueAgentComponentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("cypress_synchronizer", &TThis::CypressSynchronizer)
         .DefaultNew();
     registrar.Parameter("dynamic_state", &TThis::DynamicState)
+        .DefaultNew();
+    registrar.Parameter("multi_consumer_names_garbage_collector", &TThis::MultiConsumerNamesGarbageCollector)
         .DefaultNew();
 }
 

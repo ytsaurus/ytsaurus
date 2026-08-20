@@ -499,7 +499,6 @@ TQueueAgent::TQueueAgent(
     std::string queueAgentUser,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
-    ICypressElectionManagerPtr electionManager,
     IAlertCollectorPtr alertCollector,
     std::string agentId)
     : Config_(std::move(config))
@@ -508,7 +507,6 @@ TQueueAgent::TQueueAgent(
     , QAClientDirectory_(New<TQueueAgentClientDirectory>(ClientDirectory_))
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
-    , ElectionManager_(std::move(electionManager))
     , AlertCollector_(std::move(alertCollector))
     , ControllerThreadPool_(CreateThreadPool(DynamicConfig_->ControllerThreadCount, "Controller"))
     , PassExecutor_(New<TPeriodicExecutor>(

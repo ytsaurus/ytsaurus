@@ -1,5 +1,3 @@
-import pytest
-
 from yt_queue_agent_test_base import TestQueueAgentBase, QueueAgentOrchid, GenericObjectPath
 
 from yt_commands import (
@@ -19,6 +17,8 @@ from yt_commands import (
 )
 
 from yt.common import YtError
+
+import pytest
 
 ##################################################################
 
@@ -128,6 +128,42 @@ class TestMultiConsumerController(TestQueueAgentBase):
         orchid.wait_fresh_pass()
 
         assert orchid.get_queue_consumer_names() == []
+        assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == []
+
+    @authors("panesher")
+    def test_delete_consumer_names_without_table(self):
+        path = self.create_consumer_path("multi_consumer")
+        self._create_consumer(path, multi_consumer=True, queue_agent_stage="production")
+
+        self._wait_for_component_passes()
+
+        orchid = self._get_orchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
+        assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == []
+
+        # Check controller will insert to multi_consumer_names table
+        names = ["my_1", "my_2", "my_3"]
+        insert_rows(path, [
+            {
+                "queue_consumer_name": name,
+                "queue_cluster": "primary",
+                "queue_path": "//tmp/any_queue",
+                "partition_index": 0,
+                "offset": 0,
+            }
+            for name in names
+        ])
+        orchid.wait_fresh_pass()
+
+        assert sorted(
+            select_rows("* from [//sys/queue_agents/multi_consumer_names]"),
+            key=lambda r: r["name"],
+        ) == sorted(
+            [{"cluster": "primary", "path": path, "name": name, "queue_agent_stage": "production"} for name in names],
+            key=lambda r: r["name"],
+        )
+
+        remove(path)
+        self._wait_for_component_passes()
         assert select_rows("* from [//sys/queue_agents/multi_consumer_names]") == []
 
     @authors("panesher")
