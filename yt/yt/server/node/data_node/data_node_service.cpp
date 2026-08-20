@@ -1090,7 +1090,11 @@ private:
             : Bootstrap_->GetBlockCache();
         options.FetchFromCache = fetchFromCache;
         options.FetchFromDisk = fetchFromDisk;
-        options.EnableSequentialIORequests = GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
+        options.ReadIORequestsMode = GetReadIORequestsMode(Config_, GetDynamicConfig());
+        options.MaxInFlightReadRequestCount = GetDynamicConfig()->MaxInFlightReadRequestCount.value_or(
+            Config_->MaxInFlightReadRequestCount);
+        options.MaxInFlightReadDataSize = GetDynamicConfig()->MaxInFlightReadDataSize.value_or(
+            Config_->MaxInFlightReadDataSize);
         options.ReturnBlocksIfSessionFails = GetDynamicConfig()->ReturnBlocksIfSessionFails.value_or(Config_->ReturnBlocksIfSessionFails);
         options.FailSessionAtReadBlocksDeadline = GetDynamicConfig()->FailSessionAtReadBlocksDeadline.value_or(Config_->FailSessionAtReadBlocksDeadline);
         options.ChunkReaderStatistics = chunkReaderStatistics;
@@ -1567,8 +1571,11 @@ private:
             options.FetchFromDisk = true;
             options.BlockCache = Bootstrap_->GetBlockCacheForMedium(
                 chunkWithBlockRequests.Chunk->GetLocation()->GetMediumIndex());
-            options.EnableSequentialIORequests =
-                GetDynamicConfig()->EnableSequentialIORequests.value_or(Config_->EnableSequentialIORequests);
+            options.ReadIORequestsMode = GetReadIORequestsMode(Config_, GetDynamicConfig());
+            options.MaxInFlightReadRequestCount = GetDynamicConfig()->MaxInFlightReadRequestCount.value_or(
+                Config_->MaxInFlightReadRequestCount);
+            options.MaxInFlightReadDataSize = GetDynamicConfig()->MaxInFlightReadDataSize.value_or(
+                Config_->MaxInFlightReadDataSize);
             options.ChunkReaderStatistics = chunkReaderStatistics;
             options.ReadSessionId = readSessionId;
             options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();

@@ -125,10 +125,29 @@ private:
         int BlocksToRead = -1;
         int BeginEntryIndex = -1;
         int EndEntryIndex = -1;
+        i64 ReadDataSize = 0;
         THashMap<int, TReadBlockSetSession::TBlockEntry> BlockIndexToEntry;
     };
 
+    struct TReadBlockSetBatchState
+        : public TRefCounted
+    {
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
+        std::vector<TReadBlocksRequest> Requests;
+        int NextRequestIndex = 0;
+        int InFlightRequestCount = 0;
+        i64 InFlightReadDataSize = 0;
+        bool Stopped = false;
+    };
+
+    struct TReadBlocksRequestBatch
+    {
+        std::vector<TReadBlocksRequest> Requests;
+        std::optional<int> FirstEntryIndexToFail;
+    };
+
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
+    using TReadBlockSetBatchStatePtr = TIntrusivePtr<TReadBlockSetBatchState>;
 
     NChunkClient::NProto::TChunkInfo Info_;
 
@@ -169,6 +188,9 @@ private:
         const TReadBlockSetSessionPtr& session);
 
     i64 CalculateAdditionalMemory(const TReadBlocksRequest& request);
+    i64 CalculateReadDataSize(
+        const TReadBlockSetSessionPtr& session,
+        const TReadBlocksRequest& request);
 
     void DoReadBlockSetSequentially(
         const TReadBlockSetSessionPtr& session,
@@ -177,8 +199,29 @@ private:
     void DoReadBlockSetInParallel(
         const TReadBlockSetSessionPtr& session,
         std::vector<TReadBlocksRequest> requests);
+    void DoReadBlockSetInBatches(
+        const TReadBlockSetSessionPtr& session,
+        std::vector<TReadBlocksRequest> requests);
+    TReadBlocksRequestBatch GetReadBlocksRequestsToRun(
+        const TReadBlockSetSessionPtr& session,
+        const TReadBlockSetBatchStatePtr& state);
+    bool IsReadBlockSetBatchFinished(
+        const TReadBlockSetBatchStatePtr& state);
+    std::vector<TFuture<void>> RunReadBlocksRequests(
+        const TReadBlockSetSessionPtr& session,
+        std::vector<TReadBlocksRequest> requests);
+    void TryScheduleReadBlocks(
+        const TReadBlockSetSessionPtr& session,
+        const TReadBlockSetBatchStatePtr& state);
+    void OnBatchedReadBlocksCompleted(
+        const TReadBlockSetSessionPtr& session,
+        const TReadBlockSetBatchStatePtr& state,
+        i64 readDataSize);
 
     TFuture<void> ReadBlocks(
+        const TReadBlockSetSessionPtr& session,
+        TReadBlocksRequest readBlocksRequest);
+    TFuture<void> DoReadBlocks(
         const TReadBlockSetSessionPtr& session,
         TReadBlocksRequest readBlocksRequest);
 
