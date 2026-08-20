@@ -341,9 +341,6 @@ private:
     {
         auto guard = Guard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), amount);
-        if (amount == 0) {
-            return;
-        }
 
         EnsureProfilingInitialized();
 
@@ -1325,27 +1322,6 @@ public:
         MemberClient_->SetPriority(MemberPriority_);
     }
 
-    i64 GenerateMemberPriority(
-        EDistributedThrottlerMemberPriorityGenerator generator,
-        std::optional<i64> memberPriorityHint)
-    {
-        if (memberPriorityHint) {
-            return *memberPriorityHint;
-        }
-
-        switch (generator) {
-            case EDistributedThrottlerMemberPriorityGenerator::StartTime:
-                return TInstant::Now().Seconds();
-
-            case EDistributedThrottlerMemberPriorityGenerator::Random:
-                return RandomNumber<ui64>();
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported member priority generator %Qlv",
-                    generator);
-        }
-    }
-
     void InitializeRefCounted()
     {
         UpdateLimitsExecutor_->Start();
@@ -1523,7 +1499,7 @@ private:
     const TThrottlersPtr Throttlers_ = New<TThrottlers>();
     const TDistributedThrottlerServicePtr DistributedThrottlerService_;
 
-    // This value is responsoible for choosing the leader.
+    // This value is responsible for choosing the leader.
     // Member with the lowest value wins.
     const i64 MemberPriority_;
 
@@ -1536,6 +1512,27 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, UpdateQueueLock_);
     TRingQueue<std::pair<TThrottlerId, TWeakPtr<TWrappedThrottler>>> UpdateQueue_;
     THashSet<TThrottlerId> UnreportedThrottlers_;
+
+    static i64 GenerateMemberPriority(
+        EDistributedThrottlerMemberPriorityGenerator generator,
+        std::optional<i64> memberPriorityHint)
+    {
+        if (memberPriorityHint) {
+            return *memberPriorityHint;
+        }
+
+        switch (generator) {
+            case EDistributedThrottlerMemberPriorityGenerator::StartTime:
+                return TInstant::Now().Seconds();
+
+            case EDistributedThrottlerMemberPriorityGenerator::Random:
+                return RandomNumber<ui64>();
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported member priority generator %Qlv",
+                    generator);
+        }
+    }
 
     void Start()
     {
