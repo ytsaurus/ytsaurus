@@ -15,7 +15,8 @@ TErrorOr<int> GetMinimalTabletCount(std::vector<TErrorOr<int>> tabletCounts);
 TFuture<NChaosClient::TReplicationCardPtr> GetReplicationCard(
     const NApi::NNative::IConnectionPtr& connection,
     NChaosClient::TReplicationCardId replicationCardId,
-    const NChaosClient::TReplicationCardFetchOptions& options = {});
+    const NChaosClient::TReplicationCardFetchOptions& options = {},
+    bool bypassCache = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

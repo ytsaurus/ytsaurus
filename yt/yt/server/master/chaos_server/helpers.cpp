@@ -44,11 +44,12 @@ TErrorOr<int> GetMinimalTabletCount(std::vector<TErrorOr<int>> tabletCounts)
 TFuture<TReplicationCardPtr> GetReplicationCard(
     const NNative::IConnectionPtr& connection,
     TReplicationCardId replicationCardId,
-    const TReplicationCardFetchOptions& options)
+    const TReplicationCardFetchOptions& options,
+    bool bypassCache)
 {
     TGetReplicationCardOptions getCardOptions;
     static_cast<TReplicationCardFetchOptions&>(getCardOptions) = options;
-    getCardOptions.BypassCache = true;
+    getCardOptions.BypassCache = bypassCache;
 
     auto clientOptions = TClientOptions::FromAuthenticationIdentity(NRpc::GetCurrentAuthenticationIdentity());
     auto client = connection->CreateClient(clientOptions);

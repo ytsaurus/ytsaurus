@@ -537,7 +537,7 @@ private:
             }
 
             case EInternedAttributeKey::AllReplicasReachedLastGlobalEra:
-                return GetReplicationCard(MinimalFetchOptions)
+                return GetReplicationCard(FetchOptionsWithProgress, /*bypassCache*/ false)
                     .Apply(BIND([=] (const TReplicationCardPtr& card) {
                         auto lastEraTimestamp = GetLastEraTimestamp(card);
 
@@ -561,7 +561,7 @@ private:
 
                 // TODO(osidorkin): Write better implementation after replication card progress format is changed (YT-17817)
                 return TChaosReplicatedTableTabletsCountGetter::GetTabletsCountYson(
-                    GetReplicationCard({.IncludeHistory = true}),
+                    GetReplicationCard({.IncludeHistory = true}, /*bypassCache*/ false),
                     Bootstrap_->GetClusterConnection());
             }
 
@@ -603,12 +603,15 @@ private:
         return TBase::DoInvoke(context);
     }
 
-    TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardFetchOptions& options = {})
+    TFuture<TReplicationCardPtr> GetReplicationCard(
+        const TReplicationCardFetchOptions& options = {},
+        bool bypassCache = true)
     {
         return ::NYT::NChaosServer::GetReplicationCard(
             Bootstrap_->GetClusterConnection(),
             GetThisImpl()->GetReplicationCardId(),
-            options);
+            options,
+            bypassCache);
     }
 
     static TFuture<std::vector<TReplicationCardId>> GetCollocatedReplicationCards(
@@ -685,7 +688,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
 
     if (trunkTable->IsQueue()) {
         auto tabletCountFuture = TChaosReplicatedTableTabletsCountGetter::GetTabletCount(
-            GetReplicationCard({.IncludeHistory = true}),
+            GetReplicationCard({.IncludeHistory = true}, /*bypassCache*/ false),
             Bootstrap_->GetClusterConnection());
 
         context->ReplyFrom(tabletCountFuture.AsUnique().Apply(BIND(
