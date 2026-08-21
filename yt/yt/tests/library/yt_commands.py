@@ -2245,7 +2245,7 @@ def remove_user(name, **kwargs):
 
 
 def make_random_string(length=10):
-    return "".join(random.choice(ascii_letters) for _ in range(length))
+    return "".join(random.choices(ascii_letters, k=length))
 
 
 def create_test_tables(row_count=1, **kwargs):
