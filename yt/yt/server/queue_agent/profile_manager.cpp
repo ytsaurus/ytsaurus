@@ -45,7 +45,9 @@ void SafeUpdate(TGauge& gauge, std::optional<i64> value)
 auto ResizePartitionCounters(auto& counters, const TProfiler& profiler, int partitionCount, const TLogger& Logger)
 {
     if (std::ssize(counters) != partitionCount) {
-        YT_LOG_DEBUG("Resizing partition counters (Size: %v -> %v)", counters.size(), partitionCount);
+        YT_TLOG_DEBUG("Resizing partition counters")
+            .With("OldSize", counters.size())
+            .With("NewSize", partitionCount);
     }
 
     if (std::ssize(counters) > partitionCount) {
@@ -169,12 +171,14 @@ public:
         if (auto snapshotCompatibilityError = CheckSnapshotCompatibility(previousQueueSnapshot, currentQueueSnapshot); !snapshotCompatibilityError.IsOK()) {
             // Simply wait for the next call when snapshots are compatible.
             // Losing an iteration of profiling is not bad for since profiling is essentially stateless.
-            YT_LOG_DEBUG(snapshotCompatibilityError, "Skipping profiling iteration due to snapshot incompatibility");
+            YT_TLOG_DEBUG("Skipping profiling iteration due to snapshot incompatibility")
+                .With(snapshotCompatibilityError);
             return;
         }
 
         if (auto snapshotError = GetSnapshotError(previousQueueSnapshot->Error, currentQueueSnapshot->Error); !snapshotError.IsOK()) {
-            YT_LOG_DEBUG(snapshotError, "Skipping profiling iteration due to snapshot error");
+            YT_TLOG_DEBUG("Skipping profiling iteration due to snapshot error")
+                .With(snapshotError);
             return;
         }
 
@@ -200,10 +204,9 @@ public:
             const auto& currentQueuePartitionSnapshot = currentQueueSnapshot->PartitionSnapshots[partitionIndex];
 
             if (auto snapshotError = GetSnapshotError(previousQueuePartitionSnapshot->Error, currentQueuePartitionSnapshot->Error); !snapshotError.IsOK()) {
-                YT_LOG_DEBUG(
-                    "Skipping partition in profiling due to error (Partition: %v, Error: %v)",
-                    partitionIndex,
-                    snapshotError);
+                YT_TLOG_DEBUG("Skipping partition in profiling due to error")
+                    .With("PartitionIndex", partitionIndex)
+                    .With(snapshotError);
                 continue;
             }
 
@@ -355,12 +358,14 @@ public:
         if (auto snapshotCompatibilityError = CheckSnapshotCompatibility(previousConsumerSnapshot, currentConsumerSnapshot); !snapshotCompatibilityError.IsOK()) {
             // Simply wait for the next call when snapshots are compatible.
             // Losing an iteration of profiling is not bad for since profiling is essentially stateless.
-            YT_LOG_DEBUG(snapshotCompatibilityError, "Skipping profiling iteration due to snapshot incompatibility");
+            YT_TLOG_DEBUG("Skipping profiling iteration due to snapshot incompatibility")
+                .With(snapshotCompatibilityError);
             return;
         }
 
         if (auto snapshotError = GetSnapshotError(previousConsumerSnapshot->Error, currentConsumerSnapshot->Error); !snapshotError.IsOK()) {
-            YT_LOG_DEBUG(snapshotError, "Skipping profiling iteration due to snapshot error");
+            YT_TLOG_DEBUG("Skipping profiling iteration due to snapshot error")
+                .With(snapshotError);
             return;
         }
 
@@ -368,7 +373,8 @@ public:
         // Otherwise, we might end up using incorrect default values from the snapshot.
         EnsureCounters(currentConsumerSnapshot);
 
-        YT_LOG_DEBUG("Profiling consumer (SubConsumerSnapshots: %v)", currentConsumerSnapshot->SubSnapshots.size());
+        YT_TLOG_DEBUG("Profiling consumer")
+            .With("SubConsumerSnapshots", currentConsumerSnapshot->SubSnapshots.size());
 
         for (const auto& queuePath : GetKeys(currentConsumerSnapshot->SubSnapshots)) {
             const auto& previousSubSnapshot = previousConsumerSnapshot->SubSnapshots[queuePath];
@@ -377,10 +383,9 @@ public:
             auto partitionCount = currentSubSnapshot->PartitionCount;
 
             if (auto snapshotError = GetSnapshotError(previousSubSnapshot->Error, currentSubSnapshot->Error); !snapshotError.IsOK()) {
-                YT_LOG_DEBUG(
-                    "Skipping sub-consumer snapshot in profiling due to error (Queue: %v, Error: %v)",
-                    queuePath,
-                    snapshotError);
+                YT_TLOG_DEBUG("Skipping sub-consumer snapshot in profiling due to error")
+                    .With("Queue", queuePath)
+                    .With(snapshotError);
                 continue;
             }
 
@@ -393,21 +398,19 @@ public:
 
             auto& subConsumerProfilingCounters = ConsumerPartitionProfilingCounters_[queuePath].Counters;
 
-            YT_LOG_DEBUG(
-                "Profiling partitions for sub-consumer (Queue: %v, Partitions: %v)",
-                queuePath,
-                partitionCount);
+            YT_TLOG_DEBUG("Profiling partitions for sub-consumer")
+                .With("Queue", queuePath)
+                .With("Partitions", partitionCount);
 
             for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
                 const auto& previousConsumerPartitionSnapshot = previousPartitionSnapshots[partitionIndex];
                 const auto& currentConsumerPartitionSnapshot = currentPartitionSnapshots[partitionIndex];
 
                 if (auto snapshotError = GetSnapshotError(previousConsumerPartitionSnapshot->Error, currentConsumerPartitionSnapshot->Error); !snapshotError.IsOK()) {
-                    YT_LOG_DEBUG(
-                        "Skipping partition in profiling due to error (Queue: %v, Partition: %v, Error: %v)",
-                        queuePath,
-                        partitionIndex,
-                        snapshotError);
+                    YT_TLOG_DEBUG("Skipping partition in profiling due to error")
+                        .With("Queue", queuePath)
+                        .With("PartitionIndex", partitionIndex)
+                        .With(snapshotError);
                     continue;
                 }
 
@@ -422,20 +425,18 @@ public:
                 SafeIncrement(profilingCounters.DataWeightConsumed, dataWeightConsumed);
 
                 if (rowsConsumed > 0 && !dataWeightConsumed && currentSubSnapshot->HasCumulativeDataWeightColumn) {
-                    YT_LOG_DEBUG(
-                        "Consumer for queue with cumulative data weight support could not export data weight consumed "
-                        "(Queue: %v, Partition: %v, CumulativeDataWeight: %v -> %v, NextRowIndex: %v -> %v, RowsConsumed: %v, UnreadRowCount: %v -> %v, UnreadDataWeight: %v -> %v)",
-                        queuePath,
-                        partitionIndex,
-                        previousConsumerPartitionSnapshot->CumulativeDataWeight,
-                        currentConsumerPartitionSnapshot->CumulativeDataWeight,
-                        previousConsumerPartitionSnapshot->NextRowIndex,
-                        currentConsumerPartitionSnapshot->NextRowIndex,
-                        rowsConsumed,
-                        previousConsumerPartitionSnapshot->UnreadRowCount,
-                        currentConsumerPartitionSnapshot->UnreadRowCount,
-                        previousConsumerPartitionSnapshot->UnreadDataWeight,
-                        currentConsumerPartitionSnapshot->UnreadDataWeight);
+                    YT_TLOG_DEBUG("Consumer for queue with cumulative data weight support could not export data weight consumed")
+                        .With("Queue", queuePath)
+                        .With("PartitionIndex", partitionIndex)
+                        .With("OldCumulativeDataWeight", previousConsumerPartitionSnapshot->CumulativeDataWeight)
+                        .With("NewCumulativeDataWeight", currentConsumerPartitionSnapshot->CumulativeDataWeight)
+                        .With("OldNextRowIndex", previousConsumerPartitionSnapshot->NextRowIndex)
+                        .With("NewNextRowIndex", currentConsumerPartitionSnapshot->NextRowIndex)
+                        .With("RowsConsumed", rowsConsumed)
+                        .With("OldUnreadRowCount", previousConsumerPartitionSnapshot->UnreadRowCount)
+                        .With("NewUnreadRowCount", currentConsumerPartitionSnapshot->UnreadRowCount)
+                        .With("OldUnreadDataWeight", previousConsumerPartitionSnapshot->UnreadDataWeight)
+                        .With("NewUnreadDataWeight", currentConsumerPartitionSnapshot->UnreadDataWeight);
                 }
 
                 profilingCounters.Offset.Update(currentConsumerPartitionSnapshot->NextRowIndex);
@@ -495,12 +496,11 @@ private:
         auto& partitionProfiler = ConsumerPartitionProfilingCounters_[queuePath];
 
         if (partitionProfiler.CurrentQueueTag != subConsumerSnapshot->QueueProfilingTag) {
-            YT_LOG_DEBUG(
-                "Updating consumer partition counters (Queue: %v, Partitions: %v, QueueTag: %v -> %v)",
-                queuePath,
-                subConsumerSnapshot->PartitionCount,
-                partitionProfiler.CurrentQueueTag,
-                subConsumerSnapshot->QueueProfilingTag);
+            YT_TLOG_DEBUG("Updating consumer partition counters")
+                .With("Queue", queuePath)
+                .With("Partitions", subConsumerSnapshot->PartitionCount)
+                .With("OldQueueTag", partitionProfiler.CurrentQueueTag)
+                .With("NewQueueTag", subConsumerSnapshot->QueueProfilingTag);
 
             partitionProfiler.CurrentQueueTag = subConsumerSnapshot->QueueProfilingTag;
             partitionProfiler.Counters = {};

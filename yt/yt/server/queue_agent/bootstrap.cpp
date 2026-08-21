@@ -184,10 +184,9 @@ private:
 
     void DoInitialize()
     {
-        YT_LOG_INFO(
-            "Starting queue agent process (NativeCluster: %v, User: %v)",
-            Config_->ClusterConnection->Static->ClusterName,
-            Config_->User);
+        YT_TLOG_INFO("Starting queue agent process")
+            .With("NativeCluster", Config_->ClusterConnection->Static->ClusterName)
+            .With("User", Config_->User);
 
         AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
         GroupId_ = "/queue_agents";
@@ -368,14 +367,17 @@ private:
 
     void DoStart()
     {
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
         if (HttpsServer_) {
-            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            YT_TLOG_INFO("Listening for HTTPS requests")
+                .With("Port", HttpsServer_->GetAddress().GetPort());
             HttpsServer_->Start();
         }
 
-        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
@@ -427,7 +429,8 @@ private:
             if (error.IsOK()) {
                 break;
             } else {
-                YT_LOG_DEBUG(error, "Error updating Cypress node");
+                YT_TLOG_DEBUG("Error updating Cypress node")
+                    .With(error);
             }
         }
     }
@@ -492,10 +495,9 @@ private:
         WaitFor(AllSucceeded(asyncUpdateComponents))
             .ThrowOnError();
 
-        YT_LOG_DEBUG(
-            "Updated queue agent server dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated queue agent server dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 };
 

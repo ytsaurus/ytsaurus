@@ -60,9 +60,9 @@ public:
         Throttler_->Reconfigure(TThroughputThrottlerConfig::Create(newConfig->ExportRateLimit));
         DynamicConfig_ = newConfig;
 
-        YT_LOG_DEBUG("Updated queue export manager dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated queue export manager dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
 private:

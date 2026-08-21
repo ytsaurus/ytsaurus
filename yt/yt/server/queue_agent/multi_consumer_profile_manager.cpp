@@ -69,7 +69,8 @@ public:
         const TMultiConsumerSnapshotPtr& /*previousSnapshot*/,
         const TMultiConsumerSnapshotPtr& currentSnapshot) override
     {
-        YT_LOG_DEBUG("Updating counters (QueueConsumerNames: %v)", currentSnapshot->QueueConsumerNames.size());
+        YT_TLOG_DEBUG("Updating counters")
+            .With("QueueConsumerCount", currentSnapshot->QueueConsumerNames.size());
         MultiConsumerCounters_.Consumers.Update(currentSnapshot->QueueConsumerNames.size());
     }
 

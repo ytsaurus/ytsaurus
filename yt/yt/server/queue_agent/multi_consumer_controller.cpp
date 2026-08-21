@@ -103,7 +103,7 @@ public:
         PassExecutor_->Start();
         AlertManager_.Acquire()->Start();
 
-        YT_LOG_INFO("Multi consumer controller started");
+        YT_TLOG_INFO("Multi consumer controller started");
     }
 
     void Stop() override
@@ -153,10 +153,9 @@ public:
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
-        YT_LOG_DEBUG(
-            "Updated multi consumer controller dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated multi consumer controller dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
     TRefCountedPtr GetLatestSnapshot() const override
@@ -170,8 +169,9 @@ public:
 
         auto snapshot = Snapshot_.Acquire();
 
-        YT_LOG_DEBUG("Building multi consumer controller orchid (PassIndex: %v, TotalConsumersCount: %v)",
-            snapshot->PassIndex, snapshot->QueueConsumerNames.size());
+        YT_TLOG_DEBUG("Building multi consumer controller orchid")
+            .With("PassIndex", snapshot->PassIndex)
+            .With("QueueConsumerCount", snapshot->QueueConsumerNames.size());
 
         auto consumerOrchids = GetConsumerOrchids(snapshot->QueueConsumerNames);
 
@@ -230,7 +230,8 @@ private:
         YT_VERIFY(previousSnapshot);
         auto passIndex = previousSnapshot->PassIndex + 1;
 
-        YT_LOG_INFO("Multi consumer controller pass started (PassIndex: %v)", passIndex);
+        YT_TLOG_INFO("Multi consumer controller pass started")
+            .With("PassIndex", passIndex);
 
         auto passProfiler = PassProfiler_.Acquire();
         YT_VERIFY(passProfiler);
@@ -239,7 +240,8 @@ private:
         try {
             GuardedPass(previousSnapshot, startTime);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Multi consumer controller pass failed");
+            YT_TLOG_ERROR("Multi consumer controller pass failed")
+                .With(ex);
             SynchronizationAlertCollector_.Acquire()->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentMultiConsumerControllerPassFailed,
                 "Multi consumer controller pass failed",
@@ -248,7 +250,8 @@ private:
             passProfiler->OnError();
         }
 
-        YT_LOG_INFO("Multi consumer controller pass finished (PassIndex: %v)", passIndex);
+        YT_TLOG_INFO("Multi consumer controller pass finished")
+            .With("PassIndex", passIndex);
         passProfiler->OnFinish(TInstant::Now() - startTime);
         SynchronizationAlertCollector_.Acquire()->PublishAlerts();
     }
@@ -267,10 +270,11 @@ private:
         auto snapshot = snapshotFuture.GetOrCrash().Value();
         Snapshot_.Store(snapshot);
 
-        YT_LOG_DEBUG("Multi consumer snapshot updated");
+        YT_TLOG_DEBUG("Multi consumer snapshot updated");
 
         if (snapshot->Banned) {
-            YT_LOG_INFO(snapshot->Error, "Multi consumer is banned");
+            YT_TLOG_INFO("Multi consumer is banned")
+                .With(snapshot->Error);
             return;
         }
         if (!snapshot->Error.IsOK()) {
@@ -294,8 +298,11 @@ private:
             })
             | RangeTo<THashSet<std::string>>();
 
-        YT_LOG_DEBUG("Performing mutating operations (NamesToWriteCount: %v, NamesToDeleteCount: %v, ConsumersInStateCount: %v, ConsumersInTableCount: %v)",
-            namesToWrite.size(), namesToDelete.size(), consumersInStateSize, snapshot->QueueConsumerNames.size());
+        YT_TLOG_DEBUG("Performing mutating operations")
+            .With("NamesToWriteCount", namesToWrite.size())
+            .With("NamesToDeleteCount", namesToDelete.size())
+            .With("ConsumersInStateCount", consumersInStateSize)
+            .With("ConsumersInTableCount", snapshot->QueueConsumerNames.size());
         if (auto error = WaitFor(SyncConsumerNamesInState(namesToWrite, namesToDelete));
                 !error.IsOK()) {
             THROW_ERROR_EXCEPTION("Error while synchronizing multi_consumer_names table")
@@ -338,7 +345,8 @@ private:
             ValidateConsumer(*snapshot->Row, snapshot->ReplicatedTableMappingRow);
         } catch (const std::exception& ex) {
             snapshot->Error = ex;
-            YT_LOG_WARNING(snapshot->Error, "Invalid multi consumer");
+            YT_TLOG_WARNING("Invalid multi consumer")
+                .With(snapshot->Error);
             return MakeFuture(snapshot);
         }
 
