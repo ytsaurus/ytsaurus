@@ -67,6 +67,21 @@ def _find_fixture_dir():
 FIXTURE_DIR = _find_fixture_dir()
 
 
+def _find_auth_preflight_fixture():
+    relative_path = (
+        "yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_58495/"
+        "authentication_unavailable.json")
+    try:
+        import yatest.common
+        return yatest.common.source_path(relative_path)
+    except ImportError:
+        return os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "fixtures",
+            "ytadmin_58495",
+            "authentication_unavailable.json")
+
+
 def _ssh_localhost_works():
     try:
         return subprocess.run(
@@ -411,6 +426,62 @@ class MultiTypeAndOutcomeTest(unittest.TestCase):
             ["debug"], start, end, allow_broad=True)
         logslice.validate_debug_window(
             ["error"], None, None, allow_broad=False)
+
+
+class AuthenticationPreflightTest(unittest.TestCase):
+    def setUp(self):
+        with open(_find_auth_preflight_fixture()) as stream:
+            self.fixture = json.load(stream)
+
+    def test_exact_gateway_failure_has_distinct_preflight_class(self):
+        self.assertEqual(
+            logslice.preflight_failure_class(self.fixture["error"]),
+            "authentication_unavailable")
+        self.assertIsNone(logslice.preflight_failure_class(
+            "ssh true failed: Connection timed out"))
+        self.assertIsNone(logslice.preflight_failure_class(
+            "requested component base was not found"))
+
+    def test_preflight_record_preserves_scope_and_inspects_no_rotations(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            logslice.report_authentication_preflight(
+                self.fixture["host"],
+                self.fixture["component"],
+                self.fixture["window_start"],
+                self.fixture["window_end"])
+        output = stderr.getvalue()
+        self.assertIn("status=authentication_unavailable", output)
+        self.assertIn("host=" + self.fixture["host"], output)
+        self.assertIn("component=" + self.fixture["component"], output)
+        self.assertIn("rotations_inspected=0", output)
+        self.assertIn("files=0", output)
+        self.assertIn("exit_code=2", output)
+        self.assertNotIn(self.fixture["error"], output)
+
+    def test_main_reports_authentication_before_build_or_discovery(self):
+        fixture = self.fixture
+        argv = [
+            "logslice.py", fixture["host"], "--type", "error",
+            "-t", fixture["window_start"], "-e", fixture["window_end"],
+        ]
+        stderr = io.StringIO()
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(
+                    logslice.Ssh, "connect",
+                    side_effect=SystemExit(fixture["error"])), \
+                mock.patch.object(logslice, "resolve_logslice") as resolve, \
+                mock.patch.object(
+                    logslice, "discover_component_candidates") as discover, \
+                contextlib.redirect_stderr(stderr):
+            self.assertEqual(
+                logslice.main(), logslice.OPERATIONAL_FAILURE_EXIT)
+        resolve.assert_not_called()
+        discover.assert_not_called()
+        output = stderr.getvalue()
+        self.assertIn("status=authentication_unavailable", output)
+        self.assertIn("component=" + fixture["component"], output)
+        self.assertIn("rotations_inspected=0", output)
 
 
 class ParseUserTimeTest(unittest.TestCase):
@@ -1019,6 +1090,12 @@ class ComponentRoutingTest(unittest.TestCase):
     def test_master_hostname_maps_to_master_base(self):
         self.assertEqual(
             logslice.infer_host_component("m001-zeno.vla.yp-c.yandex.net"),
+            ("master", "master"),
+        )
+
+    def test_bare_master_hostname_maps_to_master_base(self):
+        self.assertEqual(
+            logslice.infer_host_component("mc014-seneca-vla"),
             ("master", "master"),
         )
 
