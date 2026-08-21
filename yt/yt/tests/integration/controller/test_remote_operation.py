@@ -941,8 +941,8 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         },
     }
 
-    CHUNK_COUNT = 32
-    BANDWIDTH_LIMIT = 10 ** 7
+    CHUNK_COUNT = 4
+    BANDWIDTH_LIMIT = 10 ** 6
     THROTTLER_JITTER_MULTIPLIER = 0.5
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
@@ -1095,7 +1095,7 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
         operation_end_time = time.time()
 
         # Check result table on local cluster.
-        assert read_table("//tmp/local_table") == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
+        assert read_table("//tmp/local_table", verbose=False) == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
         assert not get("//tmp/local_table/@sorted")
 
         # Check that throttling has happened.
