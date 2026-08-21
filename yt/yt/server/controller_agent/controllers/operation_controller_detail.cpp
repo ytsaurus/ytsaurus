@@ -831,6 +831,9 @@ void TOperationControllerBase::ValidateSecureVault() const
     }
 }
 
+void TOperationControllerBase::ValidateInputTablePaths() const
+{ }
+
 void TOperationControllerBase::ValidateOutputTablePaths() const
 {
     for (const auto& path : GetOutputTablePaths()) {
@@ -853,6 +856,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         ValidateSecureVault();
         InitializeClients();
         InitializeClusterResolver();
+        ValidateInputTablePaths();
         ValidateOutputTablePaths();
         InitializeInputTransactions();
         StartTransactions();

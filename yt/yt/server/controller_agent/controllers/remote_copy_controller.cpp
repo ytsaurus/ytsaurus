@@ -480,6 +480,17 @@ private:
         ValidateTableType(InputManager_->GetInputTables()[0]);
     }
 
+    void ValidateInputTablePaths() const override
+    {
+        for (const auto& path : GetInputTablePaths()) {
+            if (path.GetCluster()) {
+                THROW_ERROR_EXCEPTION(
+                    "\"cluster\" attribute is not allowed on an input table path for \"remote_copy\" operation")
+                    << TErrorAttribute("input_table_path", path);
+            }
+        }
+    }
+
     void ValidateUpdatingTablesTypes() const override
     {
         // NB(coteeq): remote_copy always has one input table.
