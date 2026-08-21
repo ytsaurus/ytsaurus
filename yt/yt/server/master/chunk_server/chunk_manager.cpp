@@ -1015,11 +1015,7 @@ public:
         // TODO(h0pless): Maybe think of a better exception here.
         if (GetDynamicConfig()->EnableChunkSchemas && schemaId != NullTableSchemaId) {
             auto tableSchema = tableManager->FindMasterTableSchema(schemaId);
-            if (!tableSchema || !IsObjectAlive(tableSchema)) {
-                YT_LOG_ALERT_IF(tableSchema && !IsObjectAlive(tableSchema),
-                    "Got zombie schema on chunk confirmation (ChunkId: %v, SchemaId: %v)",
-                    id,
-                    schemaId);
+            if (!IsObjectAlive(tableSchema)) {
                 return TError(NYTree::EErrorCode::ResolveError,
                     "No such schema %v",
                     schemaId);
