@@ -50,6 +50,11 @@ static const auto QueueLogSchema = New<TTableSchema>(
     },
     /*strict*/ true);
 
+//! The queue is created with a single tablet (see GetControllerLogsTableAttributes), so every row
+//! belongs to tablet 0. The index must be written explicitly: a chaos ordered table rejects rows
+//! without one, and for a plain ordered table this matches the default routing anyway.
+constexpr i64 ControllerLogsTabletIndex = 0;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TQueueLogWriterConfig
@@ -92,6 +97,7 @@ public:
         , NameTable_(TNameTable::FromSchema(*QueueLogSchema))
         , DataColumnId_(NameTable_->GetIdOrThrow("data"))
         , HostColumnId_(NameTable_->GetIdOrThrow("host"))
+        , TabletIndexColumnId_(NameTable_->GetIdOrRegisterName(TabletIndexColumnName))
     { }
 
     const TRichYPath& QueuePath() const
@@ -131,6 +137,7 @@ private:
 
         for (const auto& logRow : LogRows_) {
             TUnversionedRowBuilder rowBuilder;
+            rowBuilder.AddValue(ToUnversionedValue(ControllerLogsTabletIndex, rowBuffer, TabletIndexColumnId_));
             rowBuilder.AddValue(ToUnversionedValue(NNet::GetLocalHostNameRaw(), rowBuffer, HostColumnId_));
             rowBuilder.AddValue(ToUnversionedValue(logRow, rowBuffer, DataColumnId_));
 
@@ -154,6 +161,7 @@ private:
 
     const int DataColumnId_;
     const int HostColumnId_;
+    const int TabletIndexColumnId_;
 
     std::vector<std::string> LogRows_;
 };
