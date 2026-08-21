@@ -178,7 +178,7 @@ public:
         TQueryId queryId,
         TString queryText,
         TYsonString settings,
-        std::vector<TQueryFile> files) noexcept override
+        std::vector<TQueryFile> files) override
     {
         return YqlPluginForGetUsedClusters_->GetUsedClusters(queryId, queryText, settings, files);
     }
@@ -191,7 +191,7 @@ public:
         TYsonString settings,
         std::vector<TQueryFile> files,
         int executeMode,
-        NYqlClient::EQueryType queryType) noexcept override
+        NYqlClient::EQueryType queryType) override
     {
         if (!WorkerApi_ || !WorkerApi_->IsHealthy()) {
             return TQueryResult{
@@ -214,7 +214,7 @@ public:
         }
     }
 
-    TQueryResult GetProgress(TQueryId queryId) noexcept override
+    TQueryResult GetProgress(TQueryId queryId) override
     {
         NYql::NProto::TTaskResult taskResult;
         TString progress;
@@ -234,7 +234,7 @@ public:
         return TaskResultToYqlResult(taskResult, progress);
     }
 
-    TAbortResult Abort(TQueryId queryId) noexcept override
+    TAbortResult Abort(TQueryId queryId) override
     {
         std::shared_ptr<NYql::NWorkerApi::ITaskHandle> taskHandle;
         {
@@ -258,7 +258,7 @@ public:
         return {};
     }
 
-    void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) noexcept override
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfigPtr config) override
     {
         if (!config->MaxSupportedYqlVersion) {
             MaxYqlLangVersion_ = MaxYqlLangVersionInitial_;
@@ -480,7 +480,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IYqlPlugin> CreateQtWorkerYqlPlugin(TYqlQTWorkerPluginOptions options) noexcept
+std::unique_ptr<IYqlPlugin> CreateQtWorkerYqlPlugin(TYqlQTWorkerPluginOptions options)
 {
     return std::make_unique<TQtWorkerYqlPlugin>(std::move(options));
 }
