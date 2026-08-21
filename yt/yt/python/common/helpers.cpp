@@ -148,7 +148,7 @@ TError BuildErrorFromPythonException(bool clear)
         .With("exception_type", Str(errorType));
 
     if (!errorBacktrace.isNone()) {
-        error <<= TErrorAttribute("backtrace", Str(errorBacktrace));
+        error.Add("backtrace", Str(errorBacktrace));
     }
 
     return error;

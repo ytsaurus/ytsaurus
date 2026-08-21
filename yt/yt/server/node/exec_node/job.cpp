@@ -414,9 +414,10 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
             NodeDirectoryPreparationStartTime_ = TInstant::Now();
 
             if (!resolvedNodeAddresses.IsOK() || (CommonConfig_->Testing && CommonConfig_->Testing->FailAddressResolve)) {
-                THROW_ERROR TError("Failed to resolve node addresses")
+                // Resolution may well have succeeded: the failure can be injected by config.
+                THROW_ERROR_EXCEPTION("Failed to resolve node addresses")
                     .With("abort_reason", EAbortReason::AddressResolveFailed)
-                    .With(std::move(resolvedNodeAddresses));
+                    .WithIf(!resolvedNodeAddresses.IsOK(), std::move(resolvedNodeAddresses));
             }
 
             ResolvedNodeAddresses_ = std::move(resolvedNodeAddresses.Value());
@@ -907,7 +908,7 @@ bool TJob::Finalize(
     } else {
         if (*finalJobState == EJobState::Aborted) {
             if (auto deducedAbortReason = DeduceAbortReason()) {
-                currentError <<= TErrorAttribute("abort_reason", deducedAbortReason);
+                currentError.Add("abort_reason", deducedAbortReason);
 
                 YT_LOG_DEBUG(
                     "Deduced abort reason set to error (AbortReason: %v, Error: %v)",
@@ -981,12 +982,12 @@ void TJob::DeduceAndSetFinishedJobState()
     if (currentError.IsOK()) {
         SetJobState(EJobState::Completed);
     } else if (IsFatalError(currentError)) {
-        currentError <<= TErrorAttribute("fatal", true);
+        currentError.Add("fatal", true);
         SetJobState(EJobState::Failed);
     } else {
         auto deducedAbortReason = DeduceAbortReason();
         if (deducedAbortReason) {
-            currentError <<= TErrorAttribute("abort_reason", deducedAbortReason);
+            currentError.Add("abort_reason", deducedAbortReason);
             SetJobState(EJobState::Aborted);
         } else {
             SetJobState(EJobState::Failed);
@@ -1029,11 +1030,11 @@ void TJob::OnResultReceived(TJobResult jobResult)
                             // Save the first found NBD error.
                             if (nbdError.IsOK()) {
                                 nbdError = std::move(error);
-                                nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdError);
-                                nbdError <<= TErrorAttribute("device_description", device->GetDescription());
+                                nbdError.Add("abort_reason", EAbortReason::NbdError);
+                                nbdError.Add("device_description", device->GetDescription());
                                 // Save job error as well.
                                 if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {
-                                    nbdError <<= jobError;
+                                    nbdError.Add(jobError);
                                 }
                             }
                         }
@@ -2009,7 +2010,9 @@ void TJob::DoRequestGracefulAbort(TError error)
     } catch (const std::exception& ex) {
         auto abortionError = TError("Error failing job on job proxy")
             .With(ex);
-        abortionError <<= std::move(error);
+        if (!error.IsOK()) {
+            abortionError.Add(std::move(error));
+        }
         Abort(std::move(abortionError));
     }
 }
@@ -2316,8 +2319,7 @@ void TJob::DoSetResult(
     if (CommonConfig_->TestJobErrorTruncation) {
         if (!error.IsOK()) {
             for (int index = 0; index < 10; ++index) {
-                error
-                    <<= TError("Test error %v", index);
+                error.Add(TError("Test error %v", index));
             }
             YT_LOG_DEBUG(error, "TestJobErrorTruncation");
         }
@@ -3805,7 +3807,7 @@ TError TJob::BuildJobProxyError(const TError& spawnError)
         auto reason = EJobProxyExitCode(spawnError.Attributes().Get<int>("exit_code"));
         const auto& validReasons = TEnumTraits<EJobProxyExitCode>::GetDomainValues();
         if (std::find(validReasons.begin(), validReasons.end(), reason) != validReasons.end()) {
-            jobProxyError <<= TErrorAttribute("reason", reason);
+            jobProxyError.Add("reason", reason);
         }
     }
 

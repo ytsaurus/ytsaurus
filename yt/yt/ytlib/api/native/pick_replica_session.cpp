@@ -296,7 +296,7 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
                 .With(ex);
 
             error = ex.Error();
-            error <<= TErrorAttribute("replica_cluster", cluster);
+            error.Add("replica_cluster", cluster);
             if (auto banDirective = TReplicaBanDirective::FromError(error);
                 banDirective.Mode == EBanMode::Replica &&
                 banDirective.ReplicaId)

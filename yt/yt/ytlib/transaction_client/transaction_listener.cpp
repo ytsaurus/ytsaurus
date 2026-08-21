@@ -91,8 +91,8 @@ TError TTransactionListener::GetAbortError() const
             : TError("Transactions %v aborted", AbortedTransactionIds_);
         for (auto transactionId : AbortedTransactionIds_) {
             auto it = TransactionIdToCustomError_.find(transactionId);
-            if (it != TransactionIdToCustomError_.end()) {
-                error <<= it->second;
+            if (it != TransactionIdToCustomError_.end() && !it->second.IsOK()) {
+                error.Add(it->second);
             }
         }
         return error;

@@ -92,12 +92,14 @@ public:
             body(transaction);
         } catch (const NYT::TErrorException& exception) {
             auto error = TError("Failed to commit transaction during %v", stepName);
-            error <<= exception.Error();
+            if (auto addedError = exception.Error(); !addedError.IsOK()) {
+                error.Add(std::move(addedError));
+            }
             auto abortError = WaitFor(transaction->Abort());
             if (abortError.IsOK()) {
                 THROW_ERROR(error);
             }
-            THROW_ERROR(error <<= abortError);
+            THROW_ERROR(error.Add(abortError));
         }
 
         WaitFor(transaction->Commit())

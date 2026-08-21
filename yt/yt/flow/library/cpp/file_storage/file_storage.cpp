@@ -786,13 +786,13 @@ private:
 
         TError quarantineError;
         if (indexedId) {
-            auto result = Evict(*indexedId, &quarantineError);
-            THROW_ERROR_EXCEPTION_UNLESS(
-                result == EEvictionResult::Evicted,
-                "Invalid indexed file storage object is pinned or changed during quarantine")
-                .With("object_id", *indexedId)
-                .With("path", finalDirectory.GetPath())
-                .With(quarantineError);
+            // Eviction is skipped without an error of its own when the object is merely pinned.
+            if (Evict(*indexedId, &quarantineError) != EEvictionResult::Evicted) {
+                THROW_ERROR_EXCEPTION("Invalid indexed file storage object is pinned or changed during quarantine")
+                    .With("object_id", *indexedId)
+                    .With("path", finalDirectory.GetPath())
+                    .WithIf(!quarantineError.IsOK(), std::move(quarantineError));
+            }
         } else {
             THROW_ERROR_EXCEPTION_UNLESS(
                 QuarantineUnknownPath(finalDirectory, &quarantineError),

@@ -444,7 +444,7 @@ private:
 
         if (!firstBatchError.Attributes().Contains("retry_skip_reason")) {
             YT_VERIFY(!retrySkipReason.empty());
-            firstBatchError <<= TErrorAttribute("retry_skip_reason", std::move(retrySkipReason));
+            firstBatchError.Add("retry_skip_reason", std::move(retrySkipReason));
         }
 
         HandleErrorOrInvokeNextBatch(commitContext, firstBatchError);

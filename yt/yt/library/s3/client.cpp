@@ -464,7 +464,7 @@ private:
         auto headers = response->GetHeaders();
         for (TStringBuf header : {"x-amz-request-id", "x-amz-id-2"}) {
             if (auto* value = headers->Find(header)) {
-                error <<= TErrorAttribute(std::string(header), *value);
+                error.Add(std::string(header), *value);
             }
         }
     }
@@ -476,7 +476,7 @@ private:
             "Got status code %v %v",
             ToUnderlying(statusCode),
             ToHttpString(statusCode));
-        error <<= TErrorAttribute("http_code", statusCode);
+        error.Add("http_code", statusCode);
         if (method == NHttp::EMethod::Head) {
             FillErrorWithHeaders(error, response);
             return error;
@@ -486,10 +486,10 @@ private:
         try {
             auto parsedDocument = ParseXmlDocument(responseBody);
             for (auto* child = parsedDocument->firstChild(); child; child = child->nextSibling()) {
-                error <<= TErrorAttribute(child->nodeName(), child->innerText());
+                error.Add(child->nodeName(), child->innerText());
             }
         } catch (const std::exception&) {
-            error <<= TErrorAttribute("response_body", responseBody.ToStringBuf());
+            error.Add("response_body", responseBody.ToStringBuf());
             FillErrorWithHeaders(error, response);
         }
         return error;

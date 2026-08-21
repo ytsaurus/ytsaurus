@@ -819,7 +819,7 @@ public:
 
         auto error = TError("Suspend operation by user request");
         if (reason) {
-            error <<= TErrorAttribute("reason", *reason);
+            error.Add("reason", *reason);
         }
         DoSuspendOperation(
             operation,

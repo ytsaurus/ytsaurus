@@ -681,8 +681,8 @@ public:
                         instanceResult.Stderr,
                         instanceResult.Stdout);
 
-                    error <<= TErrorAttribute("stdout", TruncateString(instanceResult.Stdout, MaxCommandOutputSizeInError));
-                    error <<= TErrorAttribute("stderr", TruncateString(instanceResult.Stderr, MaxCommandOutputSizeInError));
+                    error.Add("stdout", TruncateString(instanceResult.Stdout, MaxCommandOutputSizeInError));
+                    error.Add("stderr", TruncateString(instanceResult.Stderr, MaxCommandOutputSizeInError));
 
                     if (throwOnFailedCommand) {
                         THROW_ERROR error;

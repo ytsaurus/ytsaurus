@@ -102,13 +102,13 @@ void ThrowAuthorizationError(
     NYTree::EPermission permission,
     const std::string &userName)
 {
-    error <<= TErrorAttribute("permission", permission);
-    error <<= TErrorAttribute("user", userName);
-    error <<= TErrorAttribute("object_id", target.ObjectId);
+    error.Add("permission", permission);
+    error.Add("user", userName);
+    error.Add("object_id", target.ObjectId);
     if (target.Column) {
-        error <<= TErrorAttribute("object_column", target.Column);
+        error.Add("object_column", target.Column);
     }
-    error <<= TErrorAttribute("object_type", TypeFromId(target.ObjectId));
+    error.Add("object_type", TypeFromId(target.ObjectId));
 
     THROW_ERROR(error);
 }

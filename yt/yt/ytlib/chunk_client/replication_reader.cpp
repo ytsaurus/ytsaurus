@@ -744,7 +744,7 @@ protected:
 
                 if (!resultOrError.IsOK()) {
                     if (!isPrimaryRequest) {
-                        resultOrError <<= TErrorAttribute(BackupFailedKey, true);
+                        resultOrError.Add(BackupFailedKey, true);
                     }
                     Promise_.TrySet(std::move(resultOrError));
                     return;
@@ -820,7 +820,7 @@ protected:
             YT_VERIFY(!throttlingError.IsOK());
 
             if (!isPrimaryRequest) {
-                throttlingError <<= TErrorAttribute(BackupFailedKey, true);
+                throttlingError.Add(BackupFailedKey, true);
             }
 
             if (ThrottlingErrorSet_.exchange(true)) {

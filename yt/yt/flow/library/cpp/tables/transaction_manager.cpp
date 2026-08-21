@@ -119,7 +119,7 @@ TError TTransactionManager::DoCommitWithRetriesSync(TDynamicRetryableRequestSpec
     auto makeNoMoreRetriesError = [&] () -> TError {
         auto resultError = enrichError(TError("Common attempts timeout exceeded or attempts count limit exceeded"));
         if (!lastError.IsOK()) {
-            resultError <<= lastError;
+            resultError.Add(lastError);
         }
         return resultError;
     };

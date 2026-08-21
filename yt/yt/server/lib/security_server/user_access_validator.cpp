@@ -110,7 +110,9 @@ private:
                         wrappedError = TError("Error getting user info for user %Qv",
                             user);
                     }
-                    wrappedError <<= resultOrError;
+                    if (!resultOrError.IsOK()) {
+                        wrappedError.Add(resultOrError);
+                    }
                     YT_LOG_WARNING(wrappedError);
                     THROW_ERROR wrappedError;
                 }

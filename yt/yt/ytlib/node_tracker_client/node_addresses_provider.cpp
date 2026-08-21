@@ -102,8 +102,8 @@ public:
             return MakeFuture<IChannelPtr>(TError(
                 NRpc::EErrorCode::TransportError,
                 "Channel terminated")
-                << NullChannel_->GetEndpointAttributes()
-                << TerminationError_);
+                .With(NullChannel_->GetEndpointAttributes())
+                .With(TerminationError_));
         }
         return ChannelPromise_;
     }

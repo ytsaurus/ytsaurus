@@ -150,8 +150,8 @@ void TDiskHealthChecker::DoRunCheck()
             fileContents = TFileInput(lockFilePath).ReadAll();
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Failed to extract error from location lock file");
-            lockFileError <<= TError("Failed to extract error from location lock file")
-                .With(ex);
+            lockFileError.Add(TError("Failed to extract error from location lock file")
+                .With(ex));
 
             THROW_ERROR(lockFileError);
         }
@@ -160,13 +160,14 @@ void TDiskHealthChecker::DoRunCheck()
                 auto error = NYTree::ConvertTo<TError>(NYson::TYsonString(fileContents));
                 !error.IsOK())
             {
-                lockFileError <<= std::move(error);
+                lockFileError.Add(std::move(error));
             }
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Failed to parse error from location lock file");
 
-            lockFileError <<= TError("Failed to parse error from location lock file (%v)", fileContents)
-                .With(ex);
+            lockFileError.Add(TError("Failed to parse error from location lock file")
+                .With(ex)
+                .With("file_contents", fileContents));
         }
 
         THROW_ERROR(lockFileError);

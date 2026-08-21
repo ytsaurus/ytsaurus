@@ -325,7 +325,7 @@ std::vector<TRequestId> TTransactionReplicationSessionBase::DoConstructReplicati
 TError TTransactionReplicationSessionBase::WrapError(TError error) const
 {
     if (RequestInfo_) {
-        error <<= TErrorAttribute("request_id", RequestInfo_->RequestId);
+        error.Add("request_id", RequestInfo_->RequestId);
     }
     return error;
 }

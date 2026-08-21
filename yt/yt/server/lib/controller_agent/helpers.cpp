@@ -214,7 +214,7 @@ void UpdateAbortedJobError(
         error = TError("Job aborted by controller agent")
             .With("abort_reason", abortReason);
         if (!inner.IsOK()) {
-            error <<= std::move(inner);
+            error.Add(std::move(inner));
         }
     }
 }

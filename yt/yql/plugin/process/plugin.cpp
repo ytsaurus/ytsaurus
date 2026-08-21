@@ -270,7 +270,7 @@ public:
         TYqlExecutorProcessPtr acquiredProcess = AcquireSlotForQuery(queryId);
 
         if (!acquiredProcess) {
-            THROW_ERROR TError("No available slots to acquire");
+            THROW_ERROR_EXCEPTION("No available slots to acquire");
         }
 
         YT_LOG_INFO("Acquired slot for query (SlotIndex: %v, QueryId: %v)",
@@ -311,7 +311,9 @@ public:
             if (error.IsOK()) {
                 error = std::move(extraError);
             } else {
-                error <<= std::move(extraError);
+                if (!extraError.IsOK()) {
+                    error.Add(std::move(extraError));
+                }
             }
         };
 

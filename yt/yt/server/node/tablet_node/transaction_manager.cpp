@@ -224,7 +224,7 @@ public:
 
         auto error = CreateNoSuchTransactionError(transactionId);
         if (externalizationToken) {
-            error <<= TErrorAttribute("externalization_token", externalizationToken);
+            error.Add("externalization_token", externalizationToken);
         }
         THROW_ERROR error;
     }
@@ -260,7 +260,7 @@ public:
         if (!transaction) {
             auto error = CreateNoSuchTransactionError(transactionId);
             if (externalizationToken) {
-                error <<= TErrorAttribute("externalization_token", externalizationToken);
+                error.Add("externalization_token", externalizationToken);
             }
             THROW_ERROR error;
         }

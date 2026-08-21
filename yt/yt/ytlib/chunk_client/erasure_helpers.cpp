@@ -433,7 +433,7 @@ public:
             return blocksFuture.Apply(BIND(
                 [=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& errorOrBlocks) -> TSharedRef {
                     if (!errorOrBlocks.IsOK()) {
-                        THROW_ERROR TError(errorOrBlocks);
+                        THROW_ERROR_EXCEPTION(errorOrBlocks);
                     }
                     OnBlocksRead(indicesToRequest, TBlock::Unwrap(errorOrBlocks.Value()));
                     return BuildBlock(range);

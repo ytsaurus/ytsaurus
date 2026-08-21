@@ -454,7 +454,7 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
                 for (const auto& [component, error] : currentJobStatus->RetryableErrors) {
                     auto [it, success] = retryableErrors.try_emplace(component, error);
                     if (success) {
-                        it->second <<= TErrorAttribute("flow_partition_id", intermediatePartition.Partition->PartitionId);
+                        it->second.Add("flow_partition_id", intermediatePartition.Partition->PartitionId);
                     }
                 }
             }
@@ -462,7 +462,7 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
                 if (!state->PreviousJobFailError.IsOK()) {
                     auto [it, success] = jobFailErrors.try_emplace(state->PreviousJobFinishReason, state->PreviousJobFailError);
                     if (success) {
-                        it->second <<= TErrorAttribute("flow_partition_id", intermediatePartition.Partition->PartitionId);
+                        it->second.Add("flow_partition_id", intermediatePartition.Partition->PartitionId);
                     }
                 }
             }
@@ -573,7 +573,7 @@ void FillPartitionDescription(
                 partitionEphemaralState->PreviousJobFinishReason,
                 partitionEphemaralState->PreviousJobFailError);
             if (success) {
-                it->second <<= TErrorAttribute("flow_partition_id", description.PartitionId);
+                it->second.Add("flow_partition_id", description.PartitionId);
             }
             FillJobFailErrors(jobFailErrors, messages, &description.Status);
         }

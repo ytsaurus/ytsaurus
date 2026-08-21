@@ -2714,14 +2714,14 @@ TError TTablet::ValidateServantIsWritable(
         (role == ESmoothMovementRole::Target && stage == ESmoothMovementStage::ServantSwitchRequested);
 
     if (retryInplace) {
-        error <<= TErrorAttribute("retry_inplace", retryInplace);
-        error <<= TErrorAttribute("retryable", retryable);
+        error.Add("retry_inplace", retryInplace);
+        error.Add("retryable", retryable);
     } else if (!retryable) {
-        error <<= TErrorAttribute("retryable", retryable);
+        error.Add("retryable", retryable);
     }
 
     if (role == ESmoothMovementRole::Source && !retryInplace) {
-        error <<= TErrorAttribute("redirection_hint", BuildRedirectionHint(
+        error.Add("redirection_hint", BuildRedirectionHint(
             Logger,
             cellDirectory,
             MountRevision_,

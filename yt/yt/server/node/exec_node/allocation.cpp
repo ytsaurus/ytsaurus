@@ -522,7 +522,7 @@ void TAllocation::OnSettledJobReceived(
 
         YT_LOG_INFO(error, "Failed to settle job in allocation; aborting allocation");
 
-        error <<= TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed);
+        error.Add("abort_reason", EAbortReason::GetSpecFailed);
 
         Abort(std::move(error));
         return;

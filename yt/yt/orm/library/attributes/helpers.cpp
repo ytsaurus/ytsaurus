@@ -507,9 +507,9 @@ void ReduceErrors(TError& base, TError incoming, NAttributes::EErrorCode mismatc
         base = TError(mismatchErrorCode, "Some messages have errors")
             << std::move(base);
     } else if (base.GetCode() == mismatchErrorCode) {
-        base <<= std::move(incoming);
+        base.Add(std::move(incoming));
     } else if (base.GetCode() == incoming.GetCode()) {
-        base <<= std::move(incoming);
+        base.Add(std::move(incoming));
     } else {
         base = TError(mismatchErrorCode, "Some messages have errors")
             << std::move(base)

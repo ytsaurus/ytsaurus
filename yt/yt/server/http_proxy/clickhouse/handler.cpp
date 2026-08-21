@@ -922,7 +922,7 @@ private:
                     CliqueAlias_)
                     .With(error);
                 if (OperationAcl_) {
-                    replyError <<= TErrorAttribute("operation_acl", OperationAcl_);
+                    replyError.Add("operation_acl", OperationAcl_);
                 }
                 ReplyWithError(EStatusCode::Forbidden, replyError);
             } else {

@@ -328,7 +328,7 @@ private:
                 Slot_->EstimateChangelogMediumBytes(changelogPayloadBytes),
                 context->GetTimeout());
         } catch (const std::exception& ex) {
-            THROW_ERROR TError(ex)
+            THROW_ERROR_EXCEPTION(ex)
                 .With("tablet_id", tabletId)
                 .With("table_path", tabletSnapshot->TablePath);
         }

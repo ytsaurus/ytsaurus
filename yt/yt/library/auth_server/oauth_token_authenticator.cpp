@@ -82,7 +82,7 @@ private:
             YT_TLOG_DEBUG("Authentication via OAuth failed")
                 .With("TokenHash", tokenHash)
                 .With(error);
-            error <<= TErrorAttribute("token_hash", tokenHash);
+            error.Add("token_hash", tokenHash);
             THROW_ERROR error;
         }
 
