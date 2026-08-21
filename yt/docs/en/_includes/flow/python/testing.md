@@ -210,7 +210,7 @@ def test_yson_state_roundtrip():
 
 ```python
 # Proto definition is common for Java and Python examples
-from yt.yt.flow.yandex.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState
+from yt.yt.flow.yandex.extensions.logbroker.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState
 
 
 def test_proto_state_roundtrip():
@@ -293,7 +293,7 @@ The test inherits from `FlowTestPythonBase` and sets the `PYTHON_COMPANION_BINAR
 
 [Example of an E2E WordCount test]({{source-root}}/yt/yt/flow/examples/python/word_count/test/test_wordcount.py)
 
-{% if audience == "internal" %}[Example of an E2E lb_wait_click_join test]({{source-root}}/yt/yt/flow/yandex/examples/python/lb_wait_click_join/test/test_lb_wait_click_join.py){% endif %}
+{% if audience == "internal" %}[Example of an E2E lb_wait_click_join test]({{source-root}}/yt/yt/flow/yandex/extensions/logbroker/examples/python/lb_wait_click_join/test/test_lb_wait_click_join.py){% endif %}
 
 {% note warning %}
 

@@ -56,9 +56,9 @@ state_accessor = ctx.proto_state("state-name", message, TJoinState)
 
 {% if audience == "internal" %}
 
-Пример из [Logbroker WaitClickJoin](../../../flow/python/examples/lb_wait_click_join.md) — `JoinFunction.on_message`. Класс `TJoinState` импортируется из общего для Java и Python proto-модуля `yt.yt.flow.yandex.examples.java.lb_wait_click_join.proto.message_pb2`:
+Пример из [Logbroker WaitClickJoin](../../../flow/python/examples/lb_wait_click_join.md) — `JoinFunction.on_message`. Класс `TJoinState` импортируется из общего для Java и Python proto-модуля `yt.yt.flow.yandex.extensions.logbroker.examples.java.lb_wait_click_join.proto.message_pb2`:
 
-{% code '/yt/yt/flow/yandex/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
+{% code '/yt/yt/flow/yandex/extensions/logbroker/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
 
 {% endif %}
 

@@ -210,7 +210,7 @@ def test_yson_state_roundtrip():
 
 ```python
 # Proto-определение общее для Java и Python примеров
-from yt.yt.flow.yandex.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState
+from yt.yt.flow.yandex.extensions.logbroker.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState
 
 
 def test_proto_state_roundtrip():
@@ -293,7 +293,7 @@ def test_external_state_roundtrip():
 
 [Пример E2E-теста WordCount]({{source-root}}/yt/yt/flow/examples/python/word_count/test/test_wordcount.py)
 
-{% if audience == "internal" %}[Пример E2E-теста lb_wait_click_join]({{source-root}}/yt/yt/flow/yandex/examples/python/lb_wait_click_join/test/test_lb_wait_click_join.py){% endif %}
+{% if audience == "internal" %}[Пример E2E-теста lb_wait_click_join]({{source-root}}/yt/yt/flow/yandex/extensions/logbroker/examples/python/lb_wait_click_join/test/test_lb_wait_click_join.py){% endif %}
 
 {% note warning %}
 

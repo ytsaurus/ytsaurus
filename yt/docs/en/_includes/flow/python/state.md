@@ -56,9 +56,9 @@ This returns a `ProtoStateAccessor` with the following methods:
 
 {% if audience == "internal" %}
 
-Example from [Logbroker WaitClickJoin](../../../yandex-specific/flow/python/examples/lb_wait_click_join.md) — `JoinFunction.on_message`. The `TJoinState` class is imported from the proto module that’s shared between Java and Python: `yt.yt.flow.yandex.examples.java.lb_wait_click_join.proto.message_pb2`:
+Example from [Logbroker WaitClickJoin](../../../yandex-specific/flow/python/examples/lb_wait_click_join.md) — `JoinFunction.on_message`. The `TJoinState` class is imported from the proto module that’s shared between Java and Python: `yt.yt.flow.yandex.extensions.logbroker.examples.java.lb_wait_click_join.proto.message_pb2`:
 
-{% code '/yt/yt/flow/yandex/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
+{% code '/yt/yt/flow/yandex/extensions/logbroker/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
 
 {% endif %}
 

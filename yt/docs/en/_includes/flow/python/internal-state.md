@@ -132,17 +132,17 @@ The `get_or_default()` method with no arguments returns an empty instance of the
 
 {% note info %}
 
-The `TJoinState` proto definition is in the Java example directory (`yt/yt/flow/yandex/examples/java/lb_wait_click_join/proto`) because the proto files are shared between Java and Python: `from yt.yt.flow.yandex.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState`.
+The `TJoinState` proto definition is in the Java example directory (`yt/yt/flow/yandex/extensions/logbroker/examples/java/lb_wait_click_join/proto`) because the proto files are shared between Java and Python: `from yt.yt.flow.yandex.extensions.logbroker.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState`.
 
 {% endnote %}
 
 `JoinFunction.on_message`:
 
-{% code '/yt/yt/flow/yandex/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
+{% code '/yt/yt/flow/yandex/extensions/logbroker/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
 
 `JoinFunction.on_timer`:
 
-{% code '/yt/yt/flow/yandex/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_timer]-[END on_timer]' keep-indents %}
+{% code '/yt/yt/flow/yandex/extensions/logbroker/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_timer]-[END on_timer]' keep-indents %}
 
 {% endif %}
 

@@ -167,11 +167,11 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
 
 - Java
 
-  {% code '/yt/yt/flow/yandex/examples/java/lb_wait_click_join/lb_wait_click_join/src/main/java/tech/ytsaurus/flow/examples/lbjoin/JoinFunction.java' lang='java' lines='[BEGIN registration]-[END registration]' %}
+  {% code '/yt/yt/flow/yandex/extensions/logbroker/examples/java/lb_wait_click_join/lb_wait_click_join/src/main/java/tech/ytsaurus/flow/examples/lbjoin/JoinFunction.java' lang='java' lines='[BEGIN registration]-[END registration]' %}
 
 - Kotlin
 
-  {% code '/yt/yt/flow/yandex/examples/kotlin/lb_wait_click_join/lb_wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/lbjoin/JoinFunction.kt' lang='kotlin' lines='[BEGIN registration]-[END registration]' %}
+  {% code '/yt/yt/flow/yandex/extensions/logbroker/examples/kotlin/lb_wait_click_join/lb_wait_click_join/src/main/kotlin/tech/ytsaurus/flow/examples/lbjoin/JoinFunction.kt' lang='kotlin' lines='[BEGIN registration]-[END registration]' %}
 
 {% endlist %}
 
@@ -423,6 +423,6 @@ Spring Boot Starter автоматически создаёт следующие
 
 {% endlist %}
 
-{% if audience == "internal" %}Пример на аннотациях — [Logbroker Wait Click Join](../../../flow/java/examples/lb_wait_click_join.md): [Java]({{source-root}}/yt/yt/flow/yandex/examples/java/lb_wait_click_join), [Kotlin]({{source-root}}/yt/yt/flow/yandex/examples/kotlin/lb_wait_click_join).{% endif %}
+{% if audience == "internal" %}Пример на аннотациях — [Logbroker Wait Click Join](../../../flow/java/examples/lb_wait_click_join.md): [Java]({{source-root}}/yt/yt/flow/yandex/extensions/logbroker/examples/java/lb_wait_click_join), [Kotlin]({{source-root}}/yt/yt/flow/yandex/extensions/logbroker/examples/kotlin/lb_wait_click_join).{% endif %}
 
 Пример с аннотацией `@FlowComputation` и стримами через `ComputationProvider` — [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_click_join) (Java) и [wait_click_join]({{source-root}}/yt/yt/flow/examples/kotlin/wait_click_join) (Kotlin).
