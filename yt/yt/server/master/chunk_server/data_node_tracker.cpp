@@ -170,18 +170,21 @@ public:
             std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr> ||
             std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>);
 
+        i64 chunkReplicaCount = 0;
+        if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
+            for (const auto& statistics : context->Request().per_location_chunk_counts()) {
+                chunkReplicaCount += statistics.chunk_count();
+            }
+        } else {
+            chunkReplicaCount += context->Request().chunks_size();
+        }
+
+        ReplicaCountInReceivedFullHeartbeats_ += chunkReplicaCount;
+
         auto getSemaphore = [&] () -> std::pair<const TAsyncSemaphorePtr&, i64> {
             const auto& config = GetDynamicConfig();
             if (config->EnableChunkReplicasThrottlingInHeartbeats) {
-                i64 chunkReplicasCount = 0;
-                if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
-                    for (const auto& statistics : context->Request().per_location_chunk_counts()) {
-                        chunkReplicasCount += statistics.chunk_count();
-                    }
-                } else {
-                    chunkReplicasCount += context->Request().chunks_size();
-                }
-                return {FullHeartbeatPerReplicasSemaphore_, chunkReplicasCount};
+                return {FullHeartbeatPerReplicasSemaphore_, chunkReplicaCount};
             }
 
             if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
@@ -197,6 +200,7 @@ public:
             context->Reply(TError(
                 NRpc::EErrorCode::TransientFailure,
                 "Full data node heartbeats are disabled"));
+            ReplicaCountInRejectedBySemaphoreFullHeartbeats_ += chunkReplicaCount;
             return;
         }
 
@@ -213,6 +217,7 @@ public:
         if (requestTimeout && timeAfter + GetDynamicConfig()->ExpectedDataNodeHeartbeatDuration >= timeBefore + *requestTimeout) {
             context->Reply(TError(NYT::EErrorCode::Timeout, "Full heartbeat semaphore acquisition took too long"));
             ++FullHeartbeatsRejectedDueToSemaphoreTimeout_;
+            ReplicaCountInRejectedBySemaphoreFullHeartbeats_ += chunkReplicaCount;
             return;
         }
 
@@ -220,6 +225,8 @@ public:
 
         if (sequoiaReplicasConfig->Enable || sequoiaReplicasConfig->EnableInGhostMode) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+            const auto sequoiaReplicaCount = preparedRequest->SequoiaRequest->added_chunks_size();
 
             if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>) {
                 auto locationUuid = FromProto<TChunkLocationUuid>(preparedRequest->NonSequoiaRequest.location_uuid());
@@ -230,7 +237,7 @@ public:
                     (!sequoiaReplicasConfig->EnableGlobalSequoiaChunkRefresh || !sequoiaReplicasConfig->EnableLocationRefresh))
                 {
                     YT_LOG_ALERT(
-                        "Using no disposal for node restart is unsafe without enabled sequoia refreshes "
+                        "Using no disposal for node restart is unsafe without enabled Sequoia refreshes "
                         "(GlobalSequoiaRefreshEnabled: %v, SequoiaLocationRefreshEnabled: %v)",
                         sequoiaReplicasConfig->EnableGlobalSequoiaChunkRefresh,
                         sequoiaReplicasConfig->EnableLocationRefresh);
@@ -272,10 +279,16 @@ public:
 
                     preparedRequest->SequoiaRequest.reset();
 
-                    WaitFor(chunkManager->ReplaceSequoiaLocationReplicas(
+                    ReplicaCountInReceivedSequoiaFullHeartbeats_ += sequoiaReplicaCount;
+
+                    auto result = WaitFor(chunkManager->ReplaceSequoiaLocationReplicas(
                         ESequoiaTransactionType::FullHeartbeat,
-                        std::move(replaceLocationRequest)))
-                        .ThrowOnError();
+                        std::move(replaceLocationRequest)));
+
+                    if (!result.IsOK()) {
+                        ReplicaCountInSequoiaFailedFullHeartbeats_ += sequoiaReplicaCount;
+                        result.ThrowOnError();
+                    }
                 }
 
                 if (preparedRequest->NonSequoiaRequest.is_validation()) {
@@ -287,18 +300,25 @@ public:
 
             auto& sequoiaRequest = preparedRequest->SequoiaRequest;
             // We will reset Sequoia request in case the location replacement is applied.
-            if (sequoiaRequest && sequoiaRequest->removed_chunks_size() + sequoiaRequest->added_chunks_size() > 0) {
-                WaitFor(
+            if (sequoiaRequest && sequoiaReplicaCount > 0) {
+                ReplicaCountInReceivedSequoiaFullHeartbeats_ += sequoiaReplicaCount;
+                auto result = WaitFor(
                     chunkManager->ModifySequoiaReplicas(
                         ESequoiaTransactionType::FullHeartbeat,
                         std::move(sequoiaRequest),
-                        /*allowBatching*/ false))
-                    .ThrowOnError();
+                        /*allowBatching*/ false));
+
+                if (!result.IsOK()) {
+                    ReplicaCountInSequoiaFailedFullHeartbeats_ += sequoiaReplicaCount;
+                    result.ThrowOnError();
+                }
             }
         }
 
         if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>) {
             if (!GetDynamicConfig()->ValidateMasterReplicas && preparedRequest->NonSequoiaRequest.is_validation()) {
+                // The request is successful, even though it is not processed on master.
+                ReplicaCountInSuccessfulFullHeartbeats_ += chunkReplicaCount;
                 context->Reply();
                 return;
             }
@@ -321,12 +341,14 @@ public:
 
         auto result = WaitFor(mutation->Commit());
         if (!result.IsOK()) {
+            ReplicaCountInMasterFailedFullHeartbeats_ += chunkReplicaCount;
             context->Reply(result);
             return;
         }
 
         auto* response = &context->Response();
         response->Swap(&preparedRequest->NonSequoiaResponse);
+        ReplicaCountInSuccessfulFullHeartbeats_ += chunkReplicaCount;
         context->Reply();
     }
 
@@ -364,6 +386,7 @@ public:
         if (!LocationsWithOngoingFullHeartbeat_.insert(locationUuid).second) {
             ++FullHeartbeatsRejectedDueToOngoingHeartbeat_;
             if (GetDynamicConfig()->RejectSimultaneousFullHeartbeats) {
+                // We do not increment counters here, as the previous request is being processed.
                 context->Reply(TError(
                     NRpc::EErrorCode::TransientFailure,
                     "Full heartbeat for location %v is already in progress",
@@ -492,6 +515,25 @@ public:
 
         ValidateHeartbeatRequest(node, originalRequest);
 
+        if (!NodesWithOngoingIncrementalHeartbeat_.insert(nodeId).second) {
+            ++IncrementalHeartbeatsRejectedDueToOngoingHeartbeat_;
+            if (GetDynamicConfig()->RejectSimultaneousIncrementalHeartbeats) {
+                // We do not increment replica counters here, as the request should not be processed at all.
+                context->Reply(TError(
+                    NRpc::EErrorCode::TransientFailure,
+                    "Incremental heartbeat for node %v is already in progress",
+                    nodeId));
+                return;
+            }
+        }
+
+        auto finallyGuard = Finally([&] {
+            NodesWithOngoingIncrementalHeartbeat_.erase(nodeId);
+        });
+
+        auto chunkReplicaCount = originalRequest.added_chunks_size() + originalRequest.removed_chunks_size();
+        ReplicaCountInReceivedIncrementalHeartbeats_ += chunkReplicaCount;
+
         auto enableChunkReplicasThrottling = GetDynamicConfig()->EnableChunkReplicasThrottlingInHeartbeats;
 
         const auto& semaphore = enableChunkReplicasThrottling
@@ -502,26 +544,13 @@ public:
             context->Reply(TError(
                 NRpc::EErrorCode::TransientFailure,
                 "Incremental data node heartbeats are disabled"));
+            ReplicaCountInRejectedBySemaphoreIncrementalHeartbeats_ += chunkReplicaCount;
             return;
         }
 
-        if (!NodesWithOngoingIncrementalHeartbeat_.insert(nodeId).second) {
-            ++IncrementalHeartbeatsRejectedDueToOngoingHeartbeat_;
-            if (GetDynamicConfig()->RejectSimultaneousIncrementalHeartbeats) {
-                context->Reply(TError(
-                    NRpc::EErrorCode::TransientFailure,
-                    "Incremental heartbeat for node %v is already in progress",
-                    nodeId));
-                return;
-            }
-        }
-        auto finallyGuard = Finally([&] {
-            NodesWithOngoingIncrementalHeartbeat_.erase(nodeId);
-        });
-
         i64 slots = 1;
         if (enableChunkReplicasThrottling) {
-            slots = originalRequest.added_chunks_size() + originalRequest.removed_chunks_size();
+            slots = chunkReplicaCount;
 
             const auto& sequoiaReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
             if (!GetDynamicConfig()->FlushBatchedIncrementalHeartbeatsOnThrottling &&
@@ -561,6 +590,7 @@ public:
         if (requestTimeout && timeAfter + GetDynamicConfig()->ExpectedDataNodeHeartbeatDuration >= timeBefore + *requestTimeout) {
             context->Reply(TError(NYT::EErrorCode::Timeout, "Incremental heartbeat semaphore acquisition took too long"));
             ++IncrementalHeartbeatsRejectedDueToSemaphoreTimeout_;
+            ReplicaCountInRejectedBySemaphoreIncrementalHeartbeats_ += chunkReplicaCount;
             return;
         }
 
@@ -568,7 +598,9 @@ public:
 
         auto preparedRequest = SplitRequest(context, locationDirectory);
 
-        if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
+        auto sequoiaReplicaCount = preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size();
+
+        if (sequoiaReplicaCount > 0) {
             YT_LOG_TRACE("There are Sequoia replicas for this request (NodeId: %v)", nodeId);
 
             auto allowBatching = true;
@@ -579,6 +611,8 @@ public:
                 NodesWithFailedPreviousIncrementalHeartbeat_.erase(it);
             }
 
+            ReplicaCountInReceivedSequoiaIncrementalHeartbeats_ += sequoiaReplicaCount;
+
             auto sequoiaModificationResult = WaitFor(chunkManager->ModifySequoiaReplicas(
                 ESequoiaTransactionType::IncrementalHeartbeat,
                 std::move(preparedRequest->SequoiaRequest),
@@ -588,9 +622,11 @@ public:
                 NodesWithFailedPreviousIncrementalHeartbeat_.insert(nodeId);
                 YT_LOG_DEBUG(
                     sequoiaModificationResult,
-                    "Failed to modify Sequoia replicas during incremental heartbeat (NodeAddress: %v, NodeId: %v)",
+                    "Failed to modify Sequoia replicas during incremental heartbeat (NodeAddress: %v, NodeId: %v, ReplicaCount: %v)",
                     node->GetDefaultAddress(),
-                    nodeId);
+                    nodeId,
+                    sequoiaReplicaCount);
+                ReplicaCountInSequoiaFailedIncrementalHeartbeats_ += sequoiaReplicaCount;
                 sequoiaModificationResult.ThrowOnError();
             }
         } else {
@@ -605,12 +641,14 @@ public:
             this);
         auto result = WaitFor(mutation->Commit());
         if (!result.IsOK()) {
+            ReplicaCountInMasterFailedIncrementalHeartbeats_ += chunkReplicaCount;
             context->Reply(result);
             return;
         }
 
         auto* response = &context->Response();
         response->Swap(&preparedRequest->NonSequoiaResponse);
+        ReplicaCountInSuccessfulIncrementalHeartbeats_ += chunkReplicaCount;
         context->Reply();
     }
 
@@ -997,6 +1035,24 @@ private:
     i64 FullHeartbeatsRejectedDueToSemaphoreTimeout_ = 0;
     i64 IncrementalHeartbeatsRejectedDueToSemaphoreTimeout_ = 0;
 
+    i64 ReplicaCountInReceivedIncrementalHeartbeats_ = 0;
+    i64 ReplicaCountInReceivedFullHeartbeats_ = 0;
+
+    i64 ReplicaCountInSuccessfulIncrementalHeartbeats_ = 0;
+    i64 ReplicaCountInSuccessfulFullHeartbeats_ = 0;
+
+    i64 ReplicaCountInMasterFailedIncrementalHeartbeats_ = 0;
+    i64 ReplicaCountInMasterFailedFullHeartbeats_ = 0;
+
+    i64 ReplicaCountInRejectedBySemaphoreIncrementalHeartbeats_ = 0;
+    i64 ReplicaCountInRejectedBySemaphoreFullHeartbeats_ = 0;
+
+    i64 ReplicaCountInReceivedSequoiaIncrementalHeartbeats_ = 0;
+    i64 ReplicaCountInReceivedSequoiaFullHeartbeats_ = 0;
+
+    i64 ReplicaCountInSequoiaFailedIncrementalHeartbeats_ = 0;
+    i64 ReplicaCountInSequoiaFailedFullHeartbeats_ = 0;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     template <class THeartbeatContextPtr>
@@ -1098,6 +1154,21 @@ private:
         buffer->AddGauge("/full_heartbeat_semaphore_waiter_count", FullHeartbeatSemaphore_->GetWaiterCount());
         buffer->AddGauge("/location_full_heartbeat_semaphore_waiter_count", LocationFullHeartbeatSemaphore_->GetWaiterCount());
         buffer->AddGauge("/incremental_heartbeat_semaphore_waiter_count", IncrementalHeartbeatSemaphore_->GetWaiterCount());
+
+        buffer->AddCounter("/replica_count_in_received_incremental_heartbeats", ReplicaCountInReceivedIncrementalHeartbeats_);
+        buffer->AddCounter("/replica_count_in_received_full_heartbeats", ReplicaCountInReceivedFullHeartbeats_);
+        buffer->AddCounter("/replica_count_in_rejected_by_semaphore_incremental_heartbeats", ReplicaCountInRejectedBySemaphoreIncrementalHeartbeats_);
+        buffer->AddCounter("/replica_count_in_rejected_by_semaphore_full_heartbeats", ReplicaCountInRejectedBySemaphoreFullHeartbeats_);
+        buffer->AddCounter("/replica_count_in_successful_incremental_heartbeats", ReplicaCountInSuccessfulIncrementalHeartbeats_);
+        buffer->AddCounter("/replica_count_in_successful_full_heartbeats", ReplicaCountInSuccessfulFullHeartbeats_);
+
+        buffer->AddCounter("/replica_count_in_master_failed_incremental_heartbeats", ReplicaCountInMasterFailedIncrementalHeartbeats_);
+        buffer->AddCounter("/replica_count_in_master_failed_full_heartbeats", ReplicaCountInMasterFailedFullHeartbeats_);
+
+        buffer->AddCounter("/replica_count_in_sequoia_failed_incremental_heartbeats", ReplicaCountInSequoiaFailedIncrementalHeartbeats_);
+        buffer->AddCounter("/replica_count_in_sequoia_failed_full_heartbeats", ReplicaCountInSequoiaFailedFullHeartbeats_);
+        buffer->AddCounter("/replica_count_in_received_sequoia_incremental_heartbeats", ReplicaCountInReceivedSequoiaIncrementalHeartbeats_);
+        buffer->AddCounter("/replica_count_in_received_sequoia_full_heartbeats", ReplicaCountInReceivedSequoiaFullHeartbeats_);
     }
 
     template <bool FullHeartbeat>
