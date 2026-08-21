@@ -6,7 +6,7 @@ namespace NYT::NYqlPlugin {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IYqlPlugin> CreateQtWorkerYqlPlugin(TYqlQTWorkerPluginOptions options) noexcept;
+std::unique_ptr<IYqlPlugin> CreateQtWorkerYqlPlugin(TYqlQTWorkerPluginOptions options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
