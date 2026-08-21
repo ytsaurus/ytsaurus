@@ -491,7 +491,7 @@ private:
             ParseJson(&stream, builder.get(), jsonConfig);
             return builder->EndTree()->AsMap();
         } catch (const std::exception& ex) {
-            THROW_ERROR TError(ESecretVaultErrorCode::MalformedResponse,
+            THROW_ERROR_EXCEPTION(ESecretVaultErrorCode::MalformedResponse,
                 "Error parsing Vault response");
         }
     }

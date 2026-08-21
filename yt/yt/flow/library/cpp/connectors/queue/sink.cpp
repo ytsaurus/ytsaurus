@@ -356,7 +356,9 @@ bool TAsyncMultiClusterQueueWriter::TryExecuteIteration(const std::string& produ
         std::advance(it, CurrentClusterIndex_);
         if (auto internalError = TryExecuteIterationOnCluster(producerId, requests, it); !internalError.IsOK()) {
             CurrentClusterIndex_ = (CurrentClusterIndex_ + 1) % DataByCluster_.size();
-            error <<= internalError;
+            if (!internalError.IsOK()) {
+                error.Add(internalError);
+            }
         } else {
             ErrorState_->ClearError();
             return true;

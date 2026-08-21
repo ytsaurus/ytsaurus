@@ -187,7 +187,7 @@ protected:
                     .With("Name", login)
                     .With("CallId", callId)
                     .With(error);
-                error <<= TErrorAttribute("call_id", callId);
+                error.Add("call_id", callId);
                 THROW_ERROR error;
             }
         }

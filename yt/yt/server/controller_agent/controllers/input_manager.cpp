@@ -783,7 +783,7 @@ void TInputManager::Prepare()
                 }
 
                 if (!error.IsOK()) {
-                    error <<= TErrorAttribute("path", table->Path);
+                    error.Add("path", table->Path);
                     THROW_ERROR error;
                 }
             }

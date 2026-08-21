@@ -74,9 +74,9 @@ void SetupGdbPrinterFixtures()
         // couple of user attributes and an inner error to exercise every field.
         // NYT::EErrorCode is qualified to disambiguate it from NTableClient's.
         auto error = TError(NYT::EErrorCode::Generic, "Disk quota exceeded");
-        error <<= TErrorAttribute("limit", 100);
-        error <<= TErrorAttribute("account", "intermediate");
-        error <<= TError(NYT::EErrorCode::Generic, "Underlying IO error");
+        error.Add("limit", 100);
+        error.Add("account", "intermediate");
+        error.Add(TError(NYT::EErrorCode::Generic, "Underlying IO error"));
         GdbPrinterError = error;
     }
 

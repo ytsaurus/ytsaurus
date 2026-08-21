@@ -1255,8 +1255,8 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             if (resultOrError.IsOK()) {
                 return resultOrError.Value();
             } else {
-                resultOrError <<= TErrorAttribute("replica_cluster", replicaFallbackInfo.ClusterName);
-                resultOrError <<= TErrorAttribute("replica_path", replicaFallbackInfo.Path);
+                resultOrError.Add("replica_cluster", replicaFallbackInfo.ClusterName);
+                resultOrError.Add("replica_path", replicaFallbackInfo.Path);
             }
 
             YT_TLOG_DEBUG("Fallback to replica failed")
@@ -1676,7 +1676,7 @@ TDuration TClient::CheckPermissionsForQuery(
         if (tableInfoOrError.IsOK()) {
             const auto& tableInfo = tableInfoOrError.Value();
             if (tableInfo->UpstreamReplicaId) {
-                error <<= TErrorAttribute("replica_path", tableInfo->PhysicalPath);
+                error.Add("replica_path", tableInfo->PhysicalPath);
             }
         }
 

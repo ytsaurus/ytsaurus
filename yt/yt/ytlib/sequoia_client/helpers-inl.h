@@ -50,8 +50,7 @@ TErrorOr<T> TransformSequoiaTransactionCommitError(
     }
 
     auto transformedError = *currentError;
-    transformedError
-        <<= TErrorAttribute(NTransactionClient::StrippedErrorMessages, strippedMessages);
+    transformedError.Add(NTransactionClient::StrippedErrorMessages, strippedMessages);
 
     if (retriable) {
         transformedError = WrapSequoiaRetriableError<T>(std::move(transformedError));

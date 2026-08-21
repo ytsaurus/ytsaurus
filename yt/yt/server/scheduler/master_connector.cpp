@@ -630,7 +630,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto savedAlert = alert;
-        savedAlert <<= TErrorAttribute("alert_type", alertType);
+        savedAlert.Add("alert_type", alertType);
         Alerts_[alertType] = std::move(savedAlert);
     }
 

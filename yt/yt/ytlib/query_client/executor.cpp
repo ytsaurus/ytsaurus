@@ -91,7 +91,7 @@ namespace {
 void MarkMountCacheInvalidationExhausted(TError* error)
 {
     if (error->Attributes().Contains("tablet_id") && TableMountCacheRetryableCodes.contains(error->GetCode())) {
-        (*error) <<= TErrorAttribute("mount_cache_invalidation_exhausted", true);
+        error->Add("mount_cache_invalidation_exhausted", true);
     }
 
     for (auto& innerError : *error->MutableInnerErrors()) {

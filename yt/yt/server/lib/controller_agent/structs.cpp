@@ -330,9 +330,9 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(
 {
     TAbortedJobSummary summary{other, abortReason};
 
-    outerError <<= TErrorAttribute("abort_reason", abortReason);
+    outerError.Add("abort_reason", abortReason);
     if (other.Error && !other.Error->IsOK()) {
-        outerError <<= *other.Error;
+        outerError.Add(*other.Error);
     }
 
     ToProto(

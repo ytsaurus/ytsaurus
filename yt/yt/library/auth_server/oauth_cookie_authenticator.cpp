@@ -92,7 +92,7 @@ private:
             YT_TLOG_DEBUG("Authentication via OAuth failed")
                 .With("AccessTokenMD5", accessTokenMD5)
                 .With(error);
-            error <<= TErrorAttribute("access_token_md5", accessTokenMD5);
+            error.Add("access_token_md5", accessTokenMD5);
             THROW_ERROR error;
         }
 

@@ -1016,7 +1016,9 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             auto size = throttledLocations.size();
             auto index = RandomNumber(size);
             throttledLocations[index]->ReportThrottledWrite();
-            error <<= throttledLocationErrors[index];
+            if (!throttledLocationErrors[index].IsOK()) {
+                error.Add(throttledLocationErrors[index]);
+            }
         }
 
         THROW_ERROR_EXCEPTION(error);

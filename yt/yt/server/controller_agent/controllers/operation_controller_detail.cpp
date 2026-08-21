@@ -3644,7 +3644,7 @@ bool TOperationControllerBase::OnJobFailed(
     }
 
     auto makeOperationFailedError = [&] (TError failureKindError) {
-        failureKindError <<= TErrorAttribute("job_id", jobId);
+        failureKindError.Add("job_id", jobId);
         if (IsFailingByTimeout()) {
             return GetTimeLimitError()
                 << std::move(failureKindError)
@@ -3662,9 +3662,9 @@ bool TOperationControllerBase::OnJobFailed(
             .With("max_failed_job_count", GetMaxJobFailCountForExitCode(maybeExitCode));
 
         if (maybeExitCode.has_value()) {
-            (jobsFailToleranceExceededError
-                <<= TErrorAttribute("exit_code_known", IsExitCodeKnown(*maybeExitCode)))
-                <<= TErrorAttribute("exit_code", *maybeExitCode);
+            jobsFailToleranceExceededError
+                .Add("exit_code_known", IsExitCodeKnown(*maybeExitCode))
+                .Add("exit_code", *maybeExitCode);
         }
 
         OnOperationFailed(makeOperationFailedError(std::move(jobsFailToleranceExceededError)));
@@ -3809,8 +3809,8 @@ bool TOperationControllerBase::OnJobAborted(
         if (--it->second == 0) {
             JobAbortsUntilOperationFailure_.clear();
             auto wrappedError = TError("Operation failed due to excessive successive job aborts");
-            if (error) {
-                wrappedError <<= std::move(*error);
+            if (error && !error->IsOK()) {
+                wrappedError.Add(std::move(*error));
             }
             OnOperationFailed(wrappedError);
             return false;

@@ -1067,7 +1067,7 @@ TDuration TSortedDynamicStore::WaitOnBlockedRow(
                 .With("timeout", maxBlockedRowWaitTime)
                 .With("timestamp", timestamp);
             if (blockingTransactionId) {
-                error <<= TErrorAttribute("blocking_transaction_id", blockingTransactionId);
+                error.Add("blocking_transaction_id", blockingTransactionId);
             }
 
             THROW_ERROR(std::move(error));

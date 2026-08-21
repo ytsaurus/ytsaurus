@@ -87,7 +87,7 @@ TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchema(const TCo
     } catch (const std::exception& ex) {
         auto result = TError(NCellServer::EErrorCode::CompactSchemaParseError,
             "Failed to parse table schema");
-        result <<= TError(ex);
+        result.Add(TError(ex));
         return result;
     }
 }
@@ -128,7 +128,7 @@ TFuture<TYsonString> TYsonTableSchemaCache::DoGet(
     } catch (const std::exception& ex) {
         auto result = TError(NCellServer::EErrorCode::CompactSchemaParseError,
             "Failed to convert table schema to yson string");
-        result <<= TError(ex);
+        result.Add(TError(ex));
         return result;
     }
 }

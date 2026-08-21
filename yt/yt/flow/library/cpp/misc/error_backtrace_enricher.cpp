@@ -80,7 +80,7 @@ void EnrichErrorWithBacktrace(TError* error, const std::exception&)
                 symbolizedBacktrace);
         }
 
-        *error <<= TErrorAttribute(backtraceAttributeKey, symbolizedBacktrace);
+        error->Add(backtraceAttributeKey, symbolizedBacktrace);
     }
 }
 

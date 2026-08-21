@@ -565,7 +565,7 @@ public:
         if (Client_ && Client_->GetNativeConnection()->IsTerminated()) {
             auto replyError = TError(NRpc::EErrorCode::TransportError, "Connection to cluster %v was terminated", ClientClusterName_);
             if (!error.IsOK()) {
-                replyError <<= error;
+                replyError.Add(error);
             }
             TBase::Reply(replyError);
         } else {

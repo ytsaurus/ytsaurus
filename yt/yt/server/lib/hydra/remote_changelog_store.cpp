@@ -360,7 +360,7 @@ private:
                             BIND([=] (const TError& removeResult) -> IChangelogPtr {
                                 auto error = result;
                                 if (!removeResult.IsOK()) {
-                                    error <<= removeResult;
+                                    error.Add(removeResult);
                                 }
                                  THROW_ERROR(error);
                             }));

@@ -782,7 +782,7 @@ private:
 
         auto error = TError("Static export config check failed");
         for (const auto& directory : duplicateDirectories) {
-            error <<= TError("Duplicate directory %v in config", directory);
+            error.Add(TError("Duplicate directory %v in config", directory));
         }
         return error;
     }

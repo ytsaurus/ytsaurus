@@ -300,7 +300,7 @@ void TProcessManagerBase::OnProcessStopped(const TError& error, const std::strin
     auto stopError = TError("Companion process was stopped")
         .With(error);
     if (exitCode) {
-        stopError <<= TErrorAttribute("exit_code", *exitCode);
+        stopError.Add("exit_code", *exitCode);
     }
 
     ErrorState_->SetError(stopError);

@@ -47,7 +47,7 @@ TFuture<TResult> ExecuteWithRetriesSyncImpl(
     auto makeNoMoreRetriesErrorFuture = [&] () -> TFuture<TResult> {
         auto resultError = makeError("Common attempts timeout exceeded or attempts count limit exceeded");
         if (!lastError.IsOK()) {
-            resultError <<= lastError;
+            resultError.Add(lastError);
         }
         return MakeFuture<TResult>(resultError);
     };

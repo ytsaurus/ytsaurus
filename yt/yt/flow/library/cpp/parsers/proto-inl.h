@@ -36,7 +36,7 @@ void ParseProtoColumnPropagatingHookErrors(
         auto error = TError("Failed to parse protobuf message %v", proto.GetTypeName())
             .With("data_size", rawData->size());
         if (!proto.IsInitialized()) {
-            error <<= TErrorAttribute("initialization_error", proto.InitializationErrorString());
+            error.Add("initialization_error", proto.InitializationErrorString());
         }
         onUnparsed(std::move(error));
         return;

@@ -160,7 +160,7 @@ static void WaitPipelineState(
             if (now >= deadline) {
                 THROW_ERROR_EXCEPTION("Wait timed out")
                     .With("timeout", waitTimeout)
-                    .With(lastError);
+                    .WithIf(!lastError.IsOK(), lastError);
             }
 
             NApi::TGetPipelineStateOptions options;

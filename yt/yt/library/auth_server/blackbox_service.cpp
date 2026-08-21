@@ -240,7 +240,7 @@ private:
         TInstant deadline)
     {
         auto onError = [&] (TError error) {
-            error <<= TErrorAttribute("call_id", callId);
+            error.Add("call_id", callId);
             YT_TLOG_DEBUG("Blackbox call failed")
                 .With(error);
             THROW_ERROR(error);
