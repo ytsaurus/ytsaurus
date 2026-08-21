@@ -517,7 +517,7 @@ protected:
     const NTransactionClient::TTransactionId UserTransactionId_;
 
     const NLogging::TLogger Logger;
-    const std::vector<TString> CoreNotes_;
+    const std::vector<std::string> CoreNotes_;
 
     NThreading::TAtomicObject<NScheduler::TAccessControlRule> AccessControlRule_;
 
