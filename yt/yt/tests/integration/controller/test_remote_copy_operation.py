@@ -1300,6 +1300,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_no_cluster_attribute(self):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "c"}, driver=self.remote_driver)
 
