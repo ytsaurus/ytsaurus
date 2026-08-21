@@ -8,6 +8,32 @@ Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**v0.36.0**" %}
+
+**Release date:** 2026-08-20
+
+
+**Release page:** [v0.36.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/v0.36.0)
+
+
+**Helm chart:** [0.36.0](https://github.com/orgs/ytsaurus/packages/container/ytop-chart/1154294264?tag=0.36.0)
+
+
+#### What's Changed
+* Tag API module during release by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/862
+* Added minReadyInstanceCount into OnDelete logic evaluation by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/866
+* Add option to focus on test-case by name by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/868
+* Requeue reconcile after update step progress and fix race at UpdateIsPossible by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/864
+* Set memory limit in HTTP and RPC proxy configs by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/861
+* Default location QUOTA should came from volume storage LIMIT by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/860
+* Cleanup rolling update calculations by @koct9i in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/837
+* Added ytProxy into DQEngine spec by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/872
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/v0.35.0...v0.36.0
+
+{% endcut %}
+
+
 {% cut "**v0.35.0**" %}
 
 **Release date:** 2026-08-18
