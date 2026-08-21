@@ -96,6 +96,8 @@ private:
 
     IShuffleControllerPtr GetShuffleControllerOrThrow(TTransactionId transactionId) const
     {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
+
         auto it = ShuffleControllers_.find(transactionId);
         THROW_ERROR_EXCEPTION_IF(
             it == ShuffleControllers_.end(),
@@ -113,6 +115,8 @@ private:
         TPushShuffleConfigPtr pushConfig,
         ITransactionPtr&& transaction)
     {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
+
         auto transactionId = transaction->GetId();
         YT_LOG_DEBUG("Shuffle transaction is created (TransactionId: %v)", transactionId);
 
@@ -121,13 +125,13 @@ private:
                 &TShuffleManager::OnTransactionAborted,
                 MakeStrong(this),
                 transactionId)
-            .Via(Invoker_));
+            .Via(SerializedInvoker_));
 
         transaction->SubscribeCommitted(
             BIND(&TShuffleManager::OnTransactionCommitted,
                 MakeStrong(this),
                 transactionId)
-            .Via(Invoker_));
+            .Via(SerializedInvoker_));
 
         if (usePushBasedShuffle) {
             ShuffleControllers_[transactionId] = CreatePushBasedShuffleController(
@@ -153,6 +157,8 @@ private:
 
     void OnTransactionAborted(TTransactionId transactionId, const TErrorOr<void>& error)
     {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
+
         YT_LOG_INFO(error, "Shuffle transaction is aborted (TransactionId: %v)", transactionId);
 
         DoFinishShuffle(transactionId);
@@ -160,6 +166,8 @@ private:
 
     void OnTransactionCommitted(TTransactionId transactionId)
     {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
+
         YT_LOG_INFO("Shuffle transaction is committed (TransactionId: %v)", transactionId);
 
         DoFinishShuffle(transactionId);
@@ -167,6 +175,8 @@ private:
 
     void DoFinishShuffle(TTransactionId transactionId)
     {
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
+
         EraseOrCrash(ShuffleControllers_, transactionId);
         ActiveShuffleCounter_.Update(ShuffleControllers_.size());
     }
