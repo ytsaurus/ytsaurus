@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: gevent
-Version: 25.8.2
+Version: 25.9.1
 Summary: Coroutine-based network library
 Home-page: http://www.gevent.org/
 Author: Denis Bilenko
