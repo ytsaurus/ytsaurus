@@ -125,9 +125,9 @@ NApi::IClientPtr TQueueAgentClientDirectory::GetFederatedClient(const std::vecto
 
     guard.Release();
 
-    YT_LOG_DEBUG("New federated client created (Key: %v, Emplaced: %v)",
-        key,
-        emplaced);
+    YT_TLOG_DEBUG("New federated client created")
+        .With("Key", key)
+        .With("Emplaced", emplaced);
 
     return client;
 }

@@ -98,10 +98,9 @@ public:
 
         SyncBannedQueueAgentInstancesFrequency_.exchange(CalculateSyncBannedQueueAgentInstancesFrequency(*newConfig));
 
-        YT_LOG_DEBUG(
-            "Updated queue agent manager dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated queue agent manager dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
 private:
@@ -160,7 +159,9 @@ private:
             PassError_ = TError();
         } catch (const std::exception& ex) {
             PassError_ = ex;
-            YT_LOG_ERROR(ex, "Error performing queue agent manager pass (PassIndex: %v)", PassIndex_);
+            YT_TLOG_ERROR("Error performing queue agent manager pass")
+                .With("PassIndex", PassIndex_)
+                .With(ex);
             AlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentShardingManagerPassFailed,
                 "Error performing queue agent manager pass",
@@ -224,9 +225,10 @@ private:
     {
         BannedQueueAgentInstances_.clear();
 
-        YT_LOG_DEBUG("Synchronization of banned queue agents started");
+        YT_TLOG_DEBUG("Synchronization of banned queue agents started");
         auto logFinally = Finally([&] {
-            YT_LOG_DEBUG("Synchronization of banned queue agents finished (BannedInstances: %v)", BannedQueueAgentInstances_);
+            YT_TLOG_DEBUG("Synchronization of banned queue agents finished")
+                .With("BannedInstances", BannedQueueAgentInstances_);
         });
 
         auto instancesPath = YPathJoin(DynamicStateRoot_, "instances");
@@ -262,9 +264,9 @@ private:
 
         auto Logger = QueueAgentShardingManagerLogger().WithTag("PassIndex", PassIndex_);
 
-        YT_LOG_INFO("Pass started");
+        YT_TLOG_INFO("Pass started");
         auto logFinally = Finally([&] {
-            YT_LOG_INFO("Pass finished");
+            YT_TLOG_INFO("Pass finished");
         });
 
         // Collect discovery information.
@@ -272,7 +274,8 @@ private:
         auto queueAgents = WaitFor(DiscoveryClient_->ListMembers(MemberClient_->GetGroupId(), {}))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Collected discovery information (Members: %v)", queueAgents.size());
+        YT_TLOG_DEBUG("Collected discovery information")
+            .With("Members", queueAgents.size());
 
         if (queueAgents.empty()) {
             THROW_ERROR_EXCEPTION("No queue agents in discovery");
@@ -281,7 +284,7 @@ private:
         if (ShouldSyncBannedQueueAgentInstances()) {
             SyncBannedQueueAgentInstances();
         } else {
-            YT_LOG_DEBUG("Skipped the synchronization of banned queue agent instances");
+            YT_TLOG_DEBUG("Skipped the synchronization of banned queue agent instances");
         }
 
         // Filter out banned queue agent instances.
@@ -301,12 +304,13 @@ private:
         }
 
         if (filteredQueueAgents[0].Id != MemberClient_->GetId()) {
-            YT_LOG_DEBUG("Queue agent is not leading, skipping pass (LeadingHost: %v)", filteredQueueAgents[0].Id);
+            YT_TLOG_DEBUG("Queue agent is not leading, skipping pass")
+                .With("LeadingHost", filteredQueueAgents[0].Id);
             Active_ = false;
             PassProfiler_ = nullptr;
             return;
         } else if (!Active_) {
-            YT_LOG_INFO("Sharding manager leadership acquired");
+            YT_TLOG_INFO("Sharding manager leadership acquired");
             Active_ = true;
             PassProfiler_ = New<TPassProfiler>(Profiler_.WithPrefix("/queue_agent_sharding_manager"));
         }
@@ -335,12 +339,11 @@ private:
         const auto& multiConsumerNameRows = asyncMultiConsumeNamesRows.GetOrCrash().Value();
         const auto& objectMappingRows = asyncObjectMappingRows.GetOrCrash().Value();
 
-        YT_LOG_DEBUG(
-            "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, MultiConsumerNameRows: %v, ObjectMappingRowCount: %v)",
-            queueRows.size(),
-            consumerRows.size(),
-            multiConsumerNameRows.size(),
-            objectMappingRows.size());
+        YT_TLOG_DEBUG("State table rows collected")
+            .With("QueueRowCount", queueRows.size())
+            .With("ConsumerRowCount", consumerRows.size())
+            .With("MultiConsumerNameRowCount", multiConsumerNameRows.size())
+            .With("ObjectMappingRowCount", objectMappingRows.size());
 
         // Map all objects to their responsible queue agents via rendezvous hashing.
 
@@ -370,11 +373,10 @@ private:
                     .Object = object,
                     .QueueAgentHost = responsibleQueueAgentHost,
                 });
-                YT_LOG_DEBUG(
-                    "Assigning object to queue agent (Object: %v, QueueAgentHost: %v -> %v)",
-                    object,
-                    (currentMappingIt == currentMapping.end() ? std::nullopt : std::optional(currentMappingIt->second)),
-                    responsibleQueueAgentHost);
+                YT_TLOG_DEBUG("Assigning object to queue agent")
+                    .With("Object", object)
+                    .With("OldQueueAgentHost", currentMappingIt == currentMapping.end() ? std::nullopt : std::optional(currentMappingIt->second))
+                    .With("NewQueueAgentHost", responsibleQueueAgentHost);
             }
         }
 
@@ -384,10 +386,9 @@ private:
                 keysToDelete.push_back(TQueueAgentObjectMappingTableRow{
                     .Object = object,
                 });
-                YT_LOG_DEBUG(
-                    "Removing object from mapping (Object: %v, LastQueueAgentHost: %v)",
-                    object,
-                    queueAgentHost);
+                YT_TLOG_DEBUG("Removing object from mapping")
+                    .With("Object", object)
+                    .With("LastQueueAgentHost", queueAgentHost);
             }
         }
 
@@ -396,10 +397,9 @@ private:
             DynamicState_->QueueAgentObjectMapping->Insert(rowsToModify),
             DynamicState_->QueueAgentObjectMapping->Delete(keysToDelete)}))
             .ThrowOnError();
-        YT_LOG_DEBUG(
-            "Updated queue agent object mapping (RowsModified: %v, RowsDeleted: %v)",
-            rowsToModify.size(),
-            keysToDelete.size());
+        YT_TLOG_DEBUG("Updated queue agent object mapping")
+            .With("RowsModified", rowsToModify.size())
+            .With("RowsDeleted", keysToDelete.size());
     }
 
     i64 CalculateSyncBannedQueueAgentInstancesFrequency(const TQueueAgentShardingManagerDynamicConfig& dynamicConfig) const

@@ -85,10 +85,9 @@ public:
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
-        YT_LOG_DEBUG(
-            "Updated multi consumer names garbage collector dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, NYson::EYsonFormat::Text),
-            ConvertToYsonString(newConfig, NYson::EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated multi consumer names garbage collector dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, NYson::EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, NYson::EYsonFormat::Text));
     }
 
 private:
@@ -117,7 +116,7 @@ private:
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
         if (!DynamicConfig_.Acquire()->Enable) {
-            YT_LOG_DEBUG("Pass skipped");
+            YT_TLOG_DEBUG("Pass skipped");
             return;
         }
 
@@ -132,13 +131,15 @@ private:
             passProfiler->OnStart(PassIndex_, PassInstant_);
         }
 
-        YT_LOG_DEBUG("Pass started (PassIndex: %v)", PassIndex_);
+        YT_TLOG_DEBUG("Pass started")
+            .With("PassIndex", PassIndex_);
         try {
             GuardedPass();
             PassError_ = TError();
         } catch (const std::exception& ex) {
             PassError_ = TError(ex);
-            YT_LOG_ERROR(ex, "Error performing multi consumer names garbage collector pass");
+            YT_TLOG_ERROR("Error performing multi consumer names garbage collector pass")
+                .With(ex);
             alertCollector->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentMultiConsumerNamesGarbageCollectorPassFailed,
                 "Error performing multi consumer names garbage collector pass",
@@ -148,7 +149,8 @@ private:
                 passProfiler->OnError();
             }
         }
-        YT_LOG_DEBUG("Pass finished (PassIndex: %v)", PassIndex_);
+        YT_TLOG_DEBUG("Pass finished")
+            .With("PassIndex", PassIndex_);
 
         alertCollector->PublishAlerts();
         if (passProfiler) {
@@ -188,8 +190,8 @@ private:
         std::vector<TMultiConsumerNameTableRow> rowsToDelete;
         for (auto& row : multiConsumerNameRows) {
             if (!consumerPaths.contains(ToTablePath(row.Ref))) {
-                YT_LOG_DEBUG("Multi consumer is not found in consumers table, scheduled to delete its name row (Ref: %v)",
-                    row.Ref);
+                YT_TLOG_DEBUG("Multi consumer is not found in consumers table, scheduled to delete its name row")
+                    .With("Ref", row.Ref);
                 rowsToDelete.push_back(std::move(row));
             }
         }
@@ -198,7 +200,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Deleting multi consumer name rows (Count: %v)", rowsToDelete.size());
+        YT_TLOG_DEBUG("Deleting multi consumer name rows")
+            .With("Count", rowsToDelete.size());
         WaitFor(DynamicState_->MultiConsumerNames->Delete(rowsToDelete))
             .ThrowOnError();
     }

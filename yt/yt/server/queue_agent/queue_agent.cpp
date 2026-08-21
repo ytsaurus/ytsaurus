@@ -555,7 +555,7 @@ void TQueueAgent::Start()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_INFO("Starting queue agent");
+    YT_TLOG_INFO("Starting queue agent");
 
     PassExecutor_->Start();
 }
@@ -564,7 +564,8 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_DEBUG("Executing orchid request (LastSuccessfulPassIndex: %v)", PassIndex_ - 1);
+    YT_TLOG_DEBUG("Executing orchid request")
+        .With("LastSuccessfulPassIndex", PassIndex_ - 1);
 
     auto virtualScalarNode = [] (auto callable) {
         return CreateVirtualNode(IYPathService::FromProducer(BIND([callable] (IYsonConsumer* consumer) {
@@ -625,10 +626,9 @@ void TQueueAgent::OnDynamicConfigChanged(
     QueueExportManager_->Reconfigure(
         newConfig->QueueExportManager);
 
-    YT_LOG_DEBUG(
-        "Updated queue agent dynamic config (OldConfig: %v, NewConfig: %v)",
-        ConvertToYsonString(oldConfig, EYsonFormat::Text),
-        ConvertToYsonString(newConfig, EYsonFormat::Text));
+    YT_TLOG_DEBUG("Updated queue agent dynamic config")
+        .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+        .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
 TQueueSnapshotConstPtr TQueueAgent::FindQueueSnapshot(const TTablePath& path) const
@@ -692,14 +692,15 @@ void TQueueAgent::Pass()
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
     auto Logger = QueueAgentLogger().WithTag("PassIndex", PassIndex_);
 
-    YT_LOG_INFO("Pass started");
+    YT_TLOG_INFO("Pass started");
 
     try {
         GuardedPass(Logger);
         PassError_ = TError();
     } catch (const std::exception& ex) {
         PassError_ = ex;
-        YT_LOG_ERROR(PassError_, "Error in Queue Agent pass");
+        YT_TLOG_ERROR("Error in Queue Agent pass")
+            .With(PassError_);
         AlertCollector_->StageAlert(CreateAlert(
             NAlerts::EErrorCode::QueueAgentPassFailed,
             "Error in Queue Agent pass",
@@ -710,7 +711,7 @@ void TQueueAgent::Pass()
 
     AlertCollector_->PublishAlerts();
     PassProfiler_.OnFinish(TInstant::Now() - PassInstant_);
-    YT_LOG_INFO("Pass finished");
+    YT_TLOG_INFO("Pass finished");
 }
 
 void TQueueAgent::GuardedPass(const TLogger& Logger)
@@ -760,19 +761,18 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     if (replicatedTableMappingRowsOrError.IsOK()) {
         replicatedTableMappingRows = std::move(replicatedTableMappingRowsOrError.Value());
     } else {
-        YT_LOG_DEBUG(replicatedTableMappingRowsOrError, "Error while reading replicated table mapping");
+        YT_TLOG_DEBUG("Error while reading replicated table mapping")
+            .With(replicatedTableMappingRowsOrError);
     }
 
-    YT_LOG_INFO(
-        "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, MultiConsumerRows: %v, "
-        "MultiConsumerNameRows: %v, RegistrationRowCount: %v, QueueAgentObjectMappingRows: %v, ReplicatedTableMappingRowCount: %v)",
-        queueRows.size(),
-        consumerInfos.size(),
-        multiConsumerRows.size(),
-        multiConsumerNameRows.size(),
-        registrationRows.size(),
-        objectMappingRows.size(),
-        replicatedTableMappingRows.size());
+    YT_TLOG_INFO("State table rows collected")
+        .With("QueueRowCount", queueRows.size())
+        .With("ConsumerRowCount", consumerInfos.size())
+        .With("MultiConsumerRowCount", multiConsumerRows.size())
+        .With("MultiConsumerNameRowCount", multiConsumerNameRows.size())
+        .With("RegistrationRowCount", registrationRows.size())
+        .With("QueueAgentObjectMappingRowCount", objectMappingRows.size())
+        .With("ReplicatedTableMappingRowCount", replicatedTableMappingRows.size());
 
     auto allMultiConsumers = GetHashTable<TTablePath>(multiConsumerRows);
 
@@ -819,9 +819,8 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
 
     if (skippedReplicatedTableObjects > 0) {
         YT_VERIFY(!DynamicConfig_->HandleReplicatedObjects);
-        YT_LOG_DEBUG(
-            "All (chaos) replicated table objects were skipped, since \"handle_replicated_objects\" is false in queue agent dynamic config "
-            "(SkippedReplicatedTableObjectCount: %v)", skippedReplicatedTableObjects);
+        YT_TLOG_DEBUG("All (chaos) replicated table objects were skipped, since \"handle_replicated_objects\" is false in queue agent dynamic config")
+            .With("SkippedReplicatedTableObjectCount", skippedReplicatedTableObjects);
     }
 
     // The remaining objects are considered leading for this queue agent.
@@ -839,10 +838,10 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         for (const auto& entity : entities) {
             TGenericObjectReference ref(GetObjectReference(entity));
 
-            YT_LOG_TRACE("Processing row (Kind: %v, Ref: %v, Row: %v)",
-                objectKind,
-                ref,
-                ConvertToYsonString(GetTableRow(entity), EYsonFormat::Text).ToString());
+            YT_TLOG_TRACE("Processing row")
+                .With("Kind", objectKind)
+                .With("Ref", ref)
+                .With("Row", ConvertToYsonString(GetTableRow(entity), EYsonFormat::Text));
 
             auto& freshObject = freshObjects[objectKind][ref];
             auto& controller = freshObject.Controller;
@@ -857,13 +856,12 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
             // If we keep existing controller, we notify it of (potential) row change.
             auto recreated = updateController(controller, leading, entity, GetReplicatedTableMappingRow(replicatedTableMapping, GetTableRow(entity).Path));
 
-            YT_LOG_DEBUG(
-                "Controller updated (Kind: %v, Object: %v, Reused: %v, Recreated: %v, Leading: %v)",
-                objectKind,
-                ref,
-                reused,
-                recreated,
-                leading);
+            YT_TLOG_DEBUG("Controller updated")
+                .With("Kind", objectKind)
+                .With("Object", ref)
+                .With("Reused", reused)
+                .With("Recreated", recreated)
+                .With("Leading", leading);
         }
     };
 
@@ -1117,9 +1115,9 @@ NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const std::string& ho
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Redirecting orchid request (QueueAgentHost: %v, RemoteRoot: %v)",
-        host,
-        remoteRoot);
+    YT_TLOG_DEBUG("Redirecting orchid request")
+        .With("QueueAgentHost", host)
+        .With("RemoteRoot", remoteRoot);
 
     auto leaderChannel = QueueAgentChannelFactory_.Acquire()->CreateChannel(host);
     return CreateOrchidYPathService({
