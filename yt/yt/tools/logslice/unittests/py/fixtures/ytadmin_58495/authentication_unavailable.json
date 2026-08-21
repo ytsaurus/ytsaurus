@@ -1,0 +1,7 @@
+{
+  "host": "mc014-seneca-vla",
+  "component": "master",
+  "window_start": "2026-06-29 14:17:40,000",
+  "window_end": "2026-06-29 14:18:00,000",
+  "error": "SSH_AUTH_SOCK does not exist"
+}

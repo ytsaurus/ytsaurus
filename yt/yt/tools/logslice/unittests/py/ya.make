@@ -13,6 +13,7 @@ DATA(
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_13061/error.log
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_13061/info.log
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_13061/rotation_outcomes.json
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_58495/authentication_unavailable.json
 )
 
 SIZE(SMALL)
