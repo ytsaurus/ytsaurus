@@ -8,6 +8,34 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**0.4.1**" %}
+
+**Release date:** 2026-08-10
+
+
+**Release page:** [0.4.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/query-tracker/0.4.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/query-tracker:stable-0.4.1](https://github.com/orgs/ytsaurus/packages/container/query-tracker/1123897735?tag=stable-0.4.1)
+
+
+YQL:
+- Added row-level security support for YT tables.
+- Extended `QLFilter` with Boolean, floating-point, string, and UTF-8 types, plus per-cluster activation.
+- Added partial CBO execution.
+- Improved descending-sort handling and compatibility with older tables under the yt.UseNativeDescSort pragma.
+- Supported dynamic-table writes by REPLACE INTO (https://ytsaurus.tech/docs/ru/yql/syntax/replace_into)
+- Fixed the behavior of the yt.FuseMapToMapReduce pragma with horizontal joins.
+- Supported YQL language version 2025.05 (https://ytsaurus.tech/docs/ru/yql/changelog/2025.05)
+
+СHYT:
+- Fixed chyt queries starts with fresh ytsaurus clients
+
+NB! Аvailable only with ytsaurus server version [25.4.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.4.0) and later.
+
+{% endcut %}
+
+
 {% cut "**0.1.2**" %}
 
 **Release date:** 2026-01-27

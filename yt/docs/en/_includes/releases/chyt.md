@@ -5,7 +5,49 @@ Is released as a docker image.
 
 
 
+
 **Releases:**
+
+{% cut "**2.19.0**" %}
+
+**Release date:** 2026-08-03
+
+
+**Release page:** [2.19.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.19.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/chyt:2.19.0](https://github.com/orgs/ytsaurus/packages/container/chyt/1133249434?tag=2.19.0)
+
+
+#### Features
+
+- Update ClickHouse code to 25.3.13.19 ([8f32778](https://github.com/ytsaurus/ytsaurus/commit/8f327788b63da1c3b8fc35233aa96b40e575a3d6))
+- Enable the CHYT 2.18 feature set by default ([f9eab3d](https://github.com/ytsaurus/ytsaurus/commit/f9eab3d8770962f3d6723c58c2637f1ec9db6479)).
+- Add `CREATE DICTIONARY` and `DROP DICTIONARY` support backed by a new dictionary configuration repository ([34b00e3](https://github.com/ytsaurus/ytsaurus/commit/34b00e35812bb99eb274c50640de22ad319fc1d4)).
+- Manage permissions for YT-backed dictionaries using source-table ACLs and dictionary access control ([6110125](https://github.com/ytsaurus/ytsaurus/commit/61101252a4dad7e61ff7c80860d506a7f242f9de), [d8797c1](https://github.com/ytsaurus/ytsaurus/commit/d8797c1cd775e8185103044f2de0cc7c647d3314)).
+- Support missing dictionary layouts, partial-column reads, caching, and background updates for YT-backed dictionaries ([7bb6211](https://github.com/ytsaurus/ytsaurus/commit/7bb6211b8b921637797d94047e219dc574080d03), [68c5b0d](https://github.com/ytsaurus/ytsaurus/commit/68c5b0d7447b3484b7742b2a39f9e8e70e74d43a), [40a03ac](https://github.com/ytsaurus/ytsaurus/commit/40a03ac1a56445da125f155a1635d54d9523d9ed)).
+- Split table-schema fetching and add an SLRU schema cache ([bee91e2](https://github.com/ytsaurus/ytsaurus/commit/bee91e2500705942838b697a90d78bde7201f282), [3cd80b5](https://github.com/ytsaurus/ytsaurus/commit/3cd80b5640bdc1d34875004238690287e0742f40)).
+- Add optional conversion of selected columns to `LowCardinality` and expose the corresponding runtime variable ([61f7927](https://github.com/ytsaurus/ytsaurus/commit/61f79274f50c05be7fcfc016dcb90a2b927c3f92), [ec09374](https://github.com/ytsaurus/ytsaurus/commit/ec09374408c87f015e3ae8ec2c853e2ed6052d37)).
+- Add support for YT date and time types with time zones ([4b3113f](https://github.com/ytsaurus/ytsaurus/commit/4b3113f6de83e0c0cc2288fabe12ff18e4019aaf)).
+- Unify table-attribute fetching and add profiling ([9a01e5b](https://github.com/ytsaurus/ytsaurus/commit/9a01e5bc1d2b0e2daa5a650f3b23c4795df6af77)).
+- Add `$cumulative_data_weight` and `$timestamp` virtual columns to exported system log tables ([56c0645](https://github.com/ytsaurus/ytsaurus/commit/56c06451c14264c57e00597a3b7eda133df9a6a4)).
+
+#### Fixes
+
+- Improve common-type deduction when concatenating YT tables ([eda7986](https://github.com/ytsaurus/ytsaurus/commit/eda798616e76bb0ab253f43d8678c895457d5718)).
+- Fix `YSONExtract` handling and casts ([a9175db](https://github.com/ytsaurus/ytsaurus/commit/a9175db72cd25da6e68dc83264e4f393b72cbaff), [c5d4299](https://github.com/ytsaurus/ytsaurus/commit/c5d4299684cf83370afdf133275c4c4d1e53b614)).
+- Fix predicate pushdown for table functions and improve pushed-down conditions ([f76052f](https://github.com/ytsaurus/ytsaurus/commit/f76052f9b451ad899f20c28483f470052134d14e), [df228c0](https://github.com/ytsaurus/ytsaurus/commit/df228c051c5160cc4da76a1d0aaa29d2e6ea8cf2), [b32a17c](https://github.com/ytsaurus/ytsaurus/commit/b32a17c89ae9c338bdd4396c4132647eabe971d4)).
+- Fix compatibility and initialization of user settings ([88b9531](https://github.com/ytsaurus/ytsaurus/commit/88b953175af96ec8b2f3b373fa3eb912a3c3daf0), [0ab4127](https://github.com/ytsaurus/ytsaurus/commit/0ab4127fd26e9b9e53b1b5a79dbf7a8279693bd0)).
+- Fix double-closing of writers ([cfa5254](https://github.com/ytsaurus/ytsaurus/commit/cfa5254e7d6c6b9845758f87681b1d9261f063c5)).
+
+#### Notes
+
+- Proper usage of the new release requires YTsaurus Server version 25.4 or newer.
+- Strawberry controller [0.0.18](https://github.com/ytsaurus/ytsaurus/releases/tag/yt%2Fchyt%2Fcontroller%2Fv0.0.18) or newer is required to use dictionary support in CHYT 2.19.
+
+
+{% endcut %}
+
 
 {% cut "**2.18.6**" %}
 

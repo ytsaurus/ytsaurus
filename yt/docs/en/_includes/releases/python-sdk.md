@@ -8,6 +8,34 @@ Available as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.53**" %}
+
+**Release date:** 2026-07-24
+
+
+**Release page:** [0.13.53](https://github.com/ytsaurus/ytsaurus/releases/tag/python/ytsaurus-client/0.13.53)
+
+
+**PyPI package:** [0.13.53](https://pypi.org/project/ytsaurus-client/0.13.53/)
+
+
+#### Features
+- Make `yt admin logs k8s` use the active kubeconfig or in-cluster namespace by default, falling back to `default` [77e6e2c7f83aa240c9bddf2500577c6c3087776b]
+- Add `yt dq` CLI commands for managing DQ cliques through Strawberry [c1c4106e9dfa2c32f7565506d17bb8167b245454]
+- Add the `annotate_objects` config option and `YT_ANNOTATE_OBJECTS` environment variable to automatically attach underscore-prefixed attributes to newly created tables, files, and map nodes
+[6c162f1874bf54cd5ce5eaea94eb845dda3bba8a, 734943a5e2e14b3590013e924a61e90c18db4481]
+- Add `--status-only` to `yt flow describe-pipeline` to request only the pipeline status and related messages instead of its full description [bc0f6eb4c49e71cc7fed6e345153a59620894232]
+
+#### Fixes
+- Fix batch request retries to recognize retriable errors nested in individual batch responses [4d0033adc1f595d57a8e203f22ee08568209d791]
+- Fix wrapper retries after failed master transaction commits when using the native driver through an RPC proxy [ec101cfdbd3089d85d576367d7719150f5db633a]
+- Improve diagnostics when heavy-proxy discovery finds no proxy matching `http_proxy_role`, including explicit errors when light-proxy fallback is disabled [44df8fae938e8de235accde85690d155106f9845]
+- Fix crashes when reading zero-row results in Arrow format [a7e02e14416e58384ba71c862013012ef1acc351]
+- Fix `yt whoami` with invalid credentials to report the underlying authentication error instead of raising `AttributeError` [17b88749ad8696aabca8586237f32bf54c9602ff]
+
+{% endcut %}
+
+
 {% cut "**0.13.52**" %}
 
 **Release date:** 2026-07-08
