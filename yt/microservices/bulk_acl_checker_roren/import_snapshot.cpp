@@ -152,7 +152,7 @@ TAcl CombineAcl(const std::optional<TAcl>& aclA, const std::optional<TAcl>& aclB
     return newReadAcl;
 }
 
-// Creates TAcl from TNode, taking only read permission.
+// Creates TAcl from TNode, taking only read|full_read permission.
 TAcl MapAcl(const TNode& acl)
 {
     auto readAcl = DEFAULT_ACL;
@@ -164,7 +164,9 @@ TAcl MapAcl(const TNode& acl)
         Y_ABORT_IF(permissions == aceAsMap.end());
         Y_ABORT_IF(!permissions->second.IsList());
         auto& permissionsList = permissions->second.AsList();
-        if (Find(permissionsList.begin(), permissionsList.end(), TNode("read")) == permissionsList.end()) {
+        if (Find(permissionsList.begin(), permissionsList.end(), TNode("read")) == permissionsList.end() &&
+            Find(permissionsList.begin(), permissionsList.end(), TNode("full_read")) == permissionsList.end())
+        {
             continue;
         }
 
