@@ -132,13 +132,13 @@ ESecurityAction CheckAccessControl(
     EPermission permission)
 {
     auto userSubjects = GetUserSubjects(user, client);
-    if (userSubjects.contains(NSecurityClient::SuperusersGroupName)) {
-        return NSecurityClient::ESecurityAction::Allow;
+    if (userSubjects.contains(SuperusersGroupName)) {
+        return ESecurityAction::Allow;
     }
 
     auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(accessControlObjects);
     if (!accessControlObjectList) {
-        return NSecurityClient::ESecurityAction::Deny;
+        return ESecurityAction::Deny;
     }
 
     TCheckPermissionOptions checkPermissionOptions;
@@ -154,12 +154,12 @@ ESecurityAction CheckAccessControl(
             .ValueOrThrow()
             .Action;
 
-        if (securityAction == NSecurityClient::ESecurityAction::Allow) {
-            return NSecurityClient::ESecurityAction::Allow;
+        if (securityAction == ESecurityAction::Allow) {
+            return ESecurityAction::Allow;
         }
     }
 
-    return NSecurityClient::ESecurityAction::Deny;
+    return ESecurityAction::Deny;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

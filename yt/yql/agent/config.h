@@ -48,8 +48,8 @@ struct TYqlAgentConfig
     //! Path to the base gateways.conf used by qtworker and qtworker plugin.
     std::optional<TString> QtWorkerGatewaysConfigPath;
 
-    TString UdfMetaPath;
-    TString UdfMetaUser;
+    NYPath::TYPath UdfMetaPath;
+    std::string UdfMetaUser;
 
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
 

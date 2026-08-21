@@ -115,19 +115,19 @@ public:
     {
         if (QueryType_ != EQueryType::Regular) {
             if (IsIndexed_) {
-                THROW_ERROR_EXCEPTION("Query of type %Qv must not be indexed", QueryType_);
+                THROW_ERROR_EXCEPTION("Query of type %Qlv must not be indexed", QueryType_);
             }
 
             auto accessControlObjectList = ConvertTo<std::optional<std::vector<std::string>>>(AccessControlObjects_);
             if (!accessControlObjectList || accessControlObjectList->size() != 1 || (*accessControlObjectList)[0] != AdminAccessControlObjectName) {
-                THROW_ERROR_EXCEPTION("Query of type %Qv is expected to have only %Qv access control object set",
+                THROW_ERROR_EXCEPTION("Query of type %Qlv is expected to have only %Qv access control object set",
                     QueryType_,
                     AdminAccessControlObjectName);
             }
 
             if (CheckAccessControl(User_, AccessControlObjects_, StateClient_, EPermission::Administer) == ESecurityAction::Deny) {
                 THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AuthorizationError,
-                    "%Qv permission required to run %Qv queries",
+                    "%Qlv permission required to run %Qlv queries",
                     EPermission::Administer,
                     QueryType_)
                     .With("user", User_)

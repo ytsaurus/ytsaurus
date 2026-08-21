@@ -674,7 +674,8 @@ private:
 
         TRspStartQuery response;
 
-        YT_LOG_INFO("Running query via YQL plugin");
+        auto queryType = FromProto<EQueryType>(yqlRequest.query_type());
+        YT_LOG_INFO("Running query via YQL plugin (QueryType: %v)", queryType);
 
         std::vector<TSharedRef> wireRowsets;
 
@@ -686,9 +687,6 @@ private:
             return TError("Failed to run query")
                 .With("query_id", queryId);
         };
-
-        auto queryType = FromProto<EQueryType>(yqlRequest.query_type());
-        YT_LOG_INFO("QueryType: %v", queryType);
 
         try {
             auto query = TString(yqlRequest.query());
@@ -749,23 +747,24 @@ private:
                 }
 
                 case EQueryType::UdfMeta: {
-                    if (!Config_->UdfMetaUser) {
-                        THROW_ERROR_EXCEPTION("UdfMetaUser must be specified for running %Qv queries", EQueryType::UdfMeta);
+                    if (Config_->UdfMetaUser.empty()) {
+                        THROW_ERROR_EXCEPTION("UDF meta user must be configured to run %Qlv queries", EQueryType::UdfMeta);
                     }
 
-                    // Issue token for UdfMetaUser for native cluster
-                    auto nativeCluster = std::optional<TString>(Client_->GetNativeConnection()->GetClusterName());
+                    const auto udfMetaUser = TString(Config_->UdfMetaUser);
+                    const auto& nativeCluster = Client_->GetNativeConnection()->GetClusterName();
                     YT_VERIFY(nativeCluster);
+                    const auto nativeClusterName = TString(*nativeCluster);
 
                     THashMap<TString, IClientPtr> queryClients = {{
-                        *nativeCluster,
-                        ClusterDirectory_->GetConnectionOrThrow(*nativeCluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(Config_->UdfMetaUser))
+                        nativeClusterName,
+                        ClusterDirectory_->GetConnectionOrThrow(*nativeCluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(udfMetaUser))
                     }};
-                    clustersResult.Clusters = {{*nativeCluster, ""}};
+                    clustersResult.Clusters = {{nativeClusterName, ""}};
 
-                    token = IssueToken(queryId, Config_->UdfMetaUser, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
+                    token = IssueToken(queryId, udfMetaUser, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
 
-                    queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, Config_->UdfMetaUser, token, queryClients), Config_->RefreshTokenPeriod);
+                    queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, udfMetaUser, token, queryClients), Config_->RefreshTokenPeriod);
                     queryState.RefreshTokenExecutor->Start();
 
                     credentials = {

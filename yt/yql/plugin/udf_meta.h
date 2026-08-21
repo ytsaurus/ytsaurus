@@ -27,7 +27,7 @@ struct TUdfEntryMeta
 {
     TString Alias;
     TString UpdatedAt;
-    THashMap<TString, TIntrusivePtr<TUdfModuleMeta>> Modules;
+    THashMap<std::string, TUdfModuleMetaPtr> Modules;
 
     REGISTER_YSON_STRUCT(TUdfEntryMeta);
 
@@ -41,7 +41,7 @@ DEFINE_REFCOUNTED_TYPE(TUdfEntryMeta)
 struct TUdfMeta
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, TIntrusivePtr<TUdfEntryMeta>> Udfs;
+    THashMap<std::string, TUdfEntryMetaPtr> Udfs;
 
     REGISTER_YSON_STRUCT(TUdfMeta);
 

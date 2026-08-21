@@ -56,8 +56,7 @@ public:
           TYsonString(request->settings()),
           std::move(files),
           request->mode(),
-          FromProto<NYqlClient::EQueryType>(request->query_type())
-        );
+          FromProto<NYqlClient::EQueryType>(request->query_type()));
 
         auto yqlResponse = ToYqlResponse(queryResult);
 
