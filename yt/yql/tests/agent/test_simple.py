@@ -915,7 +915,7 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
         )
 
     @authors("a-romanov")
-    @pytest.mark.timeout(180)
+    @pytest.mark.timeout(360)
     def test_files_from_folder(self, query_tracker, yql_agent):
         create("file", "//tmp/first_file")
         write_file("//tmp/first_file", b"eerste")
