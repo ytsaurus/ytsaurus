@@ -179,6 +179,7 @@ protected:
 
     void DoBuildOrchidYson(NYTree::TFluentMap fluent) override;
 
+    void OnDynamicMemoryUsageUpdated() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

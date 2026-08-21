@@ -138,6 +138,8 @@ struct TTabletManagerDynamicConfig
 
     bool YieldBeforeBuildingLsmActions;
 
+    bool AccountActiveStoreLookupHashTableToTabletStatic;
+
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

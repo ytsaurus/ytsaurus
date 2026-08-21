@@ -221,6 +221,8 @@ private:
 
     TSortedDynamicStoreRevision FlushRevision_ = InvalidRevision;
 
+    TMemoryUsageTrackerGuard LookupHashTableActiveStoreTabletStaticGuard_;
+
     // Generic information:
     // Column's values are sorted by timestamp and each value annotated with revision.
     // Each revision corresponds to timestamp.
@@ -357,7 +359,7 @@ private:
     TSortedDynamicStoreRevision GetSnapshotRevision() const;
     TSortedDynamicStoreRevision RegisterRevision(TTimestamp timestamp);
 
-    void OnDynamicMemoryUsageUpdated();
+    void OnDynamicMemoryUsageUpdated() override;
 
     void InsertIntoLookupHashTable(const TUnversionedValue* keyBegin, TSortedDynamicRow dynamicRow);
 };

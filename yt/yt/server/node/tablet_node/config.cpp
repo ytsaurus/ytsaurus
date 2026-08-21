@@ -130,6 +130,9 @@ void TTabletManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("yield_before_building_lsm_actions", &TThis::YieldBeforeBuildingLsmActions)
         .Default(false);
+
+    registrar.Parameter("account_active_store_lookup_hash_table_to_tablet_static", &TThis::AccountActiveStoreLookupHashTableToTabletStatic)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
