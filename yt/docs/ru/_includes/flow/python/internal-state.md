@@ -132,17 +132,17 @@ state = ctx.proto_state("state-name", timer, TJoinState)
 
 {% note info %}
 
-Proto-определение `TJoinState` находится в директории Java-примера (`yt/yt/flow/yandex/examples/java/lb_wait_click_join/proto`), т.к. proto-файлы являются общими для Java и Python: `from yt.yt.flow.yandex.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState`.
+Proto-определение `TJoinState` находится в директории Java-примера (`yt/yt/flow/yandex/extensions/logbroker/examples/java/lb_wait_click_join/proto`), т.к. proto-файлы являются общими для Java и Python: `from yt.yt.flow.yandex.extensions.logbroker.examples.java.lb_wait_click_join.proto.message_pb2 import TJoinState`.
 
 {% endnote %}
 
 `JoinFunction.on_message`:
 
-{% code '/yt/yt/flow/yandex/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
+{% code '/yt/yt/flow/yandex/extensions/logbroker/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_message]-[END on_message]' keep-indents %}
 
 `JoinFunction.on_timer`:
 
-{% code '/yt/yt/flow/yandex/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_timer]-[END on_timer]' keep-indents %}
+{% code '/yt/yt/flow/yandex/extensions/logbroker/examples/python/lb_wait_click_join/join_function.py' lang='python' lines='[BEGIN on_timer]-[END on_timer]' keep-indents %}
 
 {% endif %}
 
