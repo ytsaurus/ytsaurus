@@ -130,35 +130,25 @@ public:
         YT_VERIFY(TimestampProvider_);
 
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitSimpleTransaction, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitSimpleTransaction"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitSimpleTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitDistributedTransactionPhaseOne"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitDistributedTransactionPhaseTwo"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorAbortDistributedTransactionPhaseTwo"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortTransaction, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorAbortTransaction"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorFinishDistributedTransaction"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantPrepareTransaction"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantMakeTransactionReadyToCommit, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantMakeTransactionReadyToCommit"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantMakeTransactionReadyToCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantCommitTransaction"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantAbortTransaction, Unretained(this)),
-            /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantAbortTransaction"});
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantAbortTransaction, Unretained(this)));
 
         RegisterLoader(
             "TransactionSupervisor.Keys",
