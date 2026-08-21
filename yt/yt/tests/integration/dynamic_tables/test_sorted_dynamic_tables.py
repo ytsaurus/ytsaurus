@@ -2361,13 +2361,12 @@ class TestWriteRetries(TestSortedDynamicTablesBase):
 
     @authors("alexelexa")
     def test_first_batch_write_retries_after_tablet_moving(self):
-        if len(self.get_cluster_names()) > 1:
-            pytest.skip()
-
         path = "//tmp/tablet_moved"
-        cell_ids, _ = self._prepare_test(path, failure_probability=0., retry_count=0)
+        cell_ids, data_path = self._prepare_test(path, failure_probability=0., retry_count=0)
+        data_driver = self._get_data_driver()
 
-        h = SmoothMovementHelper(get(f"{path}/@tablets/0/tablet_id"), cell_id=cell_ids[1])
+        tablet_id = get(f"{data_path}/@tablets/0/tablet_id", driver=data_driver)
+        h = SmoothMovementHelper(tablet_id, cell_id=cell_ids[1], driver=data_driver)
         h.start(stage="waiting_for_locks_before_switch")
 
         with raises_yt_error("Cannot write into tablet since it is a smooth movement source in stage \"waiting_for_locks_before_switch\""):
