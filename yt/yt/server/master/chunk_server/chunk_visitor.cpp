@@ -48,11 +48,8 @@ void TChunkReplicasVisitor::OnSuccess()
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
-    chunkReplicaFetcher->GetChunkReplicasAsync(std::move(Chunks_), /*includeUnapproved*/ true)
-        .AsUnique()
-        .Subscribe(BIND([this, this_ = MakeStrong(this)] (TErrorOr<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>> replicasOrError) {
-            Promise_.TrySet(std::move(replicasOrError));
-    }));
+    Promise_.TrySetFrom(
+        chunkReplicaFetcher->GetChunkReplicasAsync(std::move(Chunks_), /*includeUnapproved*/ true));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
