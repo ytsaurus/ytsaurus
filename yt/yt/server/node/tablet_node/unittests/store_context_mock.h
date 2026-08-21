@@ -16,6 +16,7 @@ public:
     const IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() final;
     const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() final;
     const TTabletManagerConfigPtr& GetTabletManagerConfig() final;
+    bool GetAccountActiveStoreLookupHashTableToTabletStatic() const final;
 
 private:
     const NChunkClient::IBlockCachePtr BlockCache_;

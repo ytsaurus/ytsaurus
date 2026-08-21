@@ -817,6 +817,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
         memory_size = get("//tmp/t/@tablet_statistics/uncompressed_data_size")
+        # Allowance for the active store lookup hash table now charged to tablet static category.
+        lht_tax = 16_000_000 if enable_lookup_hash_table else 0
 
         lower_bound = 3800
         upper_bound = 5200
@@ -830,7 +832,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         def _check_memory_usage():
             memory_usage = get("//sys/cluster_nodes/{}/@statistics/memory/tablet_static/used".format(node))
-            return 0 < memory_usage < memory_size
+            return 0 < memory_usage - lht_tax < memory_size
         if optimize_for == "lookup":
             wait(_check_memory_usage)
 

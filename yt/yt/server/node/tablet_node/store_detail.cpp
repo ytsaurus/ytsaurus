@@ -647,6 +647,7 @@ void TDynamicStoreBase::SetStoreState(EStoreState state)
         OnSetRemoved();
     }
     TStoreBase::SetStoreState(state);
+    OnDynamicMemoryUsageUpdated();
 }
 
 i64 TDynamicStoreBase::GetDataWeight() const
@@ -751,6 +752,9 @@ void TDynamicStoreBase::PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* 
     meta->set_format(0);
     meta->mutable_extensions();
 }
+
+void TDynamicStoreBase::OnDynamicMemoryUsageUpdated()
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

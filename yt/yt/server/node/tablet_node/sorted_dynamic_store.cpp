@@ -968,6 +968,16 @@ TSortedDynamicStore::TSortedDynamicStore(
             Tablet_->GetHashTableSize(),
             RowKeyComparer_,
             Tablet_->GetPhysicalSchema()->GetKeyColumnCount());
+
+        if (Context_->GetAccountActiveStoreLookupHashTableToTabletStatic()) {
+            YT_ASSERT(GetStoreState() == EStoreState::ActiveDynamic);
+
+            if (auto nodeMemoryTracker = Tablet_->TryGetNodeMemoryUsageTracker()) {
+                LookupHashTableActiveStoreTabletStaticGuard_ = TMemoryUsageTrackerGuard::Acquire(
+                    nodeMemoryTracker->WithCategory(EMemoryCategory::TabletStatic),
+                    LookupHashTable_->GetByteSize());
+            }
+        }
     }
 
     YT_LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",
@@ -1846,10 +1856,13 @@ void TSortedDynamicStore::OnSetPassive()
 {
     YT_VERIFY(FlushRevision_ == InvalidRevision);
     FlushRevision_ = GetLatestRevision();
+    LookupHashTableActiveStoreTabletStaticGuard_.Release();
 }
 
 void TSortedDynamicStore::OnSetRemoved()
-{ }
+{
+    LookupHashTableActiveStoreTabletStaticGuard_.Release();
+}
 
 TSortedDynamicRow TSortedDynamicStore::AllocateRow()
 {
@@ -2886,7 +2899,13 @@ TSortedDynamicStoreRevision TSortedDynamicStore::RegisterRevision(TTimestamp tim
 
 void TSortedDynamicStore::OnDynamicMemoryUsageUpdated()
 {
-    auto hashTableSize = LookupHashTable_ ? LookupHashTable_->GetByteSize() : 0;
+    bool accountLookupHashTableToTabletDynamic = static_cast<bool>(LookupHashTable_);
+    if (GetStoreState() == EStoreState::ActiveDynamic && Context_->GetAccountActiveStoreLookupHashTableToTabletStatic()) {
+        accountLookupHashTableToTabletDynamic = false;
+    }
+    auto hashTableSize = accountLookupHashTableToTabletDynamic
+        ? LookupHashTable_->GetByteSize()
+        : 0;
     SetDynamicMemoryUsage(GetUncompressedDataSize() + hashTableSize);
 }
 
@@ -2897,6 +2916,7 @@ void TSortedDynamicStore::InsertIntoLookupHashTable(
     if (LookupHashTable_) {
         if (GetRowCount() >= LookupHashTable_->GetSize()) {
             LookupHashTable_.reset();
+            LookupHashTableActiveStoreTabletStaticGuard_.Release();
         } else {
             LookupHashTable_->Insert(keyBegin, dynamicRow);
         }

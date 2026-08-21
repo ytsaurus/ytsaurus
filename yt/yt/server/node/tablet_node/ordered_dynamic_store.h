@@ -95,7 +95,7 @@ private:
     void OnSetRemoved() override;
 
     void AllocateCurrentSegment(int index);
-    void OnDynamicMemoryUsageUpdated();
+    void OnDynamicMemoryUsageUpdated() override;
 
     void CommitRow(TOrderedDynamicRow row);
     void LoadRow(NTableClient::TUnversionedRow row);

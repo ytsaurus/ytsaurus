@@ -823,6 +823,14 @@ private:
             return Config_;
         }
 
+        bool GetAccountActiveStoreLookupHashTableToTabletStatic() const override
+        {
+            return Bootstrap_
+                ->GetTabletNodeDynamicConfig()
+                ->TabletManager
+                ->AccountActiveStoreLookupHashTableToTabletStatic;
+        }
+
     private:
         const TTabletManagerConfigPtr Config_;
         IBootstrap* const Bootstrap_;
