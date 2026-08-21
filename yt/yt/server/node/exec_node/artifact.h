@@ -8,6 +8,10 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
+#include <yt/yt/core/actions/callback.h>
+
+#include <library/cpp/yt/cpu_clock/public.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +20,10 @@ struct TArtifactDownloadOptions
 {
     NChunkClient::TTrafficMeterPtr TrafficMeter;
     std::vector<std::string> WorkloadDescriptorAnnotations;
+
+    //! Called after a layer artifact is downloaded and imported.
+    //! Parameters: downloadCpuDuration (network fetch), importCpuDuration (porto import).
+    TCallback<void(TCpuDuration downloadCpuDuration, TCpuDuration importCpuDuration)> OnLayerDownloaded;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

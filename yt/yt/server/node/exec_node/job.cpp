@@ -118,6 +118,8 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 #include <library/cpp/yt/error/error_helpers.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
@@ -178,8 +180,6 @@ static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -667,13 +667,18 @@ void TJob::PrepareArtifact(
                 auto downloadOptions = MakeArtifactDownloadOptions();
                 auto producer = artifactCache->MakeArtifactDownloadProducer(artifact.Key, downloadOptions);
 
+                auto bypassCpuStartTime = GetCpuInstant();
                 ArtifactPrepareFutures_.push_back(
                     GetUserSlot()->MakeFile(
                         Id_,
                         artifact.Name,
                         artifact.SandboxKind,
                         producer,
-                        pipe));
+                        pipe)
+                        .Apply(BIND([this, bypassCpuStartTime, this_ = MakeStrong(this)] {
+                            ArtifactStatistics_.FilesDownloadCpuDuration +=
+                                GetCpuInstant() - bypassCpuStartTime;
+                        }).Via(Invoker_)));
             } else if (artifact.CopyFile) {
                 const auto& preparedArtifact = FSSecretary_->GetArtifactByName(artifact.Name);
 
@@ -684,6 +689,8 @@ void TJob::PrepareArtifact(
                     artifact.SandboxKind,
                     artifact.Key.GetCompressedDataSize());
 
+                auto copyCpuStartTime = GetCpuInstant();
+                auto compressedDataSize = artifact.Key.GetCompressedDataSize();
                 ArtifactPrepareFutures_.push_back(
                     GetUserSlot()->MakeCopy(
                         Id_,
@@ -691,7 +698,12 @@ void TJob::PrepareArtifact(
                         artifact.SandboxKind,
                         TString(preparedArtifact->GetFileName()),
                         pipe,
-                        preparedArtifact->GetLocation()));
+                        preparedArtifact->GetLocation())
+                        .Apply(BIND([this, copyCpuStartTime, compressedDataSize, this_ = MakeStrong(this)] {
+                            ArtifactStatistics_.FilesCopyCpuDuration +=
+                                GetCpuInstant() - copyCpuStartTime;
+                            ArtifactStatistics_.FilesCopiedSize += compressedDataSize;
+                        }).Via(Invoker_)));
             }
         });
 }
@@ -1402,11 +1414,11 @@ void TJob::SetCoreInfos(TCoreInfos value)
     CoreInfos_ = std::move(value);
 }
 
-const TArtifactCacheStatistics& TJob::GetArtifactCacheStatistics() const
+const TArtifactStatistics& TJob::GetArtifactStatistics() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    return ArtifactCacheStatistics_;
+    return ArtifactStatistics_;
 }
 
 TYsonString TJob::GetStatistics() const
@@ -3638,7 +3650,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     return options;
 }
 
-TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
+TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -3650,6 +3662,13 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
 
     auto options = TArtifactDownloadOptions{
         .TrafficMeter = TrafficMeter_,
+        .OnLayerDownloaded = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (
+            TCpuDuration downloadCpuDuration,
+            TCpuDuration importCpuDuration)
+        {
+            ArtifactStatistics_.LayersDownloadCpuDuration += downloadCpuDuration;
+            ArtifactStatistics_.LayersImportCpuDuration += importCpuDuration;
+        }).Via(Invoker_),
     };
 
     return options;
@@ -3665,7 +3684,8 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
     // Account for bypassed artifacts.
     for (const auto& artifact : FSSecretary_->GetArtifactDescriptors()) {
         if (artifact.BypassArtifactCache) {
-            ArtifactCacheStatistics_.CacheBypassedArtifactsSize += artifact.Key.GetCompressedDataSize();
+            ArtifactStatistics_.CacheBypassedArtifactsSize += artifact.Key.GetCompressedDataSize();
+            ArtifactStatistics_.FilesDownloadedSize += artifact.Key.GetCompressedDataSize();
         }
     }
 
@@ -3681,12 +3701,15 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
 
         auto downloadOptions = MakeArtifactDownloadOptions();
         bool fetchedFromCache = false;
+        auto downloadCpuStart = GetCpuInstant();
         auto asyncArtifact = artifactCache->DownloadArtifact(artifact.Key, downloadOptions, &fetchedFromCache)
             .Apply(BIND(
                 [
                     fileName = artifact.Name,
                     this,
-                    this_ = MakeStrong(this)
+                    this_ = MakeStrong(this),
+                    downloadCpuStart,
+                    fetchedFromCache
                 ] (const TErrorOr<TArtifactPtr>& chunkOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(
                         chunkOrError,
@@ -3700,12 +3723,20 @@ TFuture<std::vector<TArtifactPtr>> TJob::DownloadArtifacts()
                         fileName,
                         chunk->GetLocation()->GetId(),
                         chunk->GetId());
+                    if (!fetchedFromCache) {
+                        auto downloadCpuFinish = GetCpuInstant();
+                        Invoker_->Invoke(BIND_NO_PROPAGATE(
+                            [this, this_ = MakeStrong(this), downloadCpuStart, downloadCpuFinish] {
+                                ArtifactStatistics_.FilesDownloadCpuDuration +=
+                                    downloadCpuFinish - downloadCpuStart;
+                            }));
+                    }
                     return chunk;
             }));
 
         asyncArtifacts.push_back(std::move(asyncArtifact));
 
-        UpdateArtifactStatistics(artifact.Key.GetCompressedDataSize(), fetchedFromCache);
+        UpdateArtifactStatistics(artifact.Key.GetCompressedDataSize(), fetchedFromCache, /*isLayer*/ false);
     }
 
     return AllSucceeded(std::move(asyncArtifacts))
@@ -4104,9 +4135,49 @@ void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
 
 void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
 {
-    statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size"_SP, ArtifactCacheStatistics_.CacheHitArtifactsSize);
-    statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size"_SP, ArtifactCacheStatistics_.CacheMissArtifactsSize);
-    statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size"_SP, ArtifactCacheStatistics_.CacheBypassedArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_hit_artifacts_size"_SP, ArtifactStatistics_.CacheHitArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_miss_artifacts_size"_SP, ArtifactStatistics_.CacheMissArtifactsSize);
+    statistics->AddSample("/exec_agent/artifacts/cache_bypassed_artifacts_size"_SP, ArtifactStatistics_.CacheBypassedArtifactsSize);
+
+    // Bytes served from cache (cache hit).
+    statistics->AddSample(
+        "/exec_agent/artifacts/files_cached_size"_SP,
+        ArtifactStatistics_.FilesCachedSize);
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_cached_size"_SP,
+        ArtifactStatistics_.LayersCachedSize);
+
+    // Bytes downloaded from data nodes (excludes cache hits).
+    // Files: cache miss bytes + bypass bytes.
+    statistics->AddSample(
+        "/exec_agent/artifacts/files_downloaded_size"_SP,
+        ArtifactStatistics_.FilesDownloadedSize);
+    // Files: bytes copied from cache to sandbox (copy_file=true artifacts).
+    statistics->AddSample(
+        "/exec_agent/artifacts/files_copied_size"_SP,
+        ArtifactStatistics_.FilesCopiedSize);
+    // Layers: cache miss bytes.
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_downloaded_size"_SP,
+        ArtifactStatistics_.LayersDownloadedSize);
+
+    // Download durations; monotonic CPU clock is used to avoid NTP jumps.
+    // Files: sum of per-file download durations (cache miss + bypass).
+    statistics->AddSample(
+        "/exec_agent/artifacts/files_downloaded_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.FilesDownloadCpuDuration).MilliSeconds());
+    // Files: sum of per-file copy durations (copy_file=true, copying from cache to sandbox).
+    statistics->AddSample(
+        "/exec_agent/artifacts/files_copied_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.FilesCopyCpuDuration).MilliSeconds());
+    // Layers: sum of per-layer network download durations (DownloadArtifact), excludes porto import.
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_downloaded_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.LayersDownloadCpuDuration).MilliSeconds());
+    // Layers: sum of per-layer porto import durations (ImportLayer).
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_import_total_duration"_SP,
+        CpuDurationToDuration(ArtifactStatistics_.LayersImportCpuDuration).MilliSeconds());
 }
 
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
@@ -4159,12 +4230,25 @@ void TJob::UpdateIOStatistics(const TStatistics& statistics)
     IORequestsWritten_ = newIORequestsWritten;
 }
 
-void TJob::UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)
+void TJob::UpdateArtifactStatistics(
+    i64 compressedDataSize,
+    bool cacheHit,
+    bool isLayer)
 {
     if (cacheHit) {
-        ArtifactCacheStatistics_.CacheHitArtifactsSize += compressedDataSize;
+        ArtifactStatistics_.CacheHitArtifactsSize += compressedDataSize;
+        if (isLayer) {
+            ArtifactStatistics_.LayersCachedSize += compressedDataSize;
+        } else {
+            ArtifactStatistics_.FilesCachedSize += compressedDataSize;
+        }
     } else {
-        ArtifactCacheStatistics_.CacheMissArtifactsSize += compressedDataSize;
+        ArtifactStatistics_.CacheMissArtifactsSize += compressedDataSize;
+        if (isLayer) {
+            ArtifactStatistics_.LayersDownloadedSize += compressedDataSize;
+        } else {
+            ArtifactStatistics_.FilesDownloadedSize += compressedDataSize;
+        }
     }
 }
 

@@ -35,6 +35,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 namespace NYT::NExecNode {
 
 using namespace NChunkClient;
@@ -1368,8 +1370,10 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
         "Start loading layer into cache (HasTargetLocation: %v)",
         static_cast<bool>(location));
 
+    auto downloadCpuStart = GetCpuInstant();
     return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) mutable {
+            auto downloadCpuDuration = GetCpuInstant() - downloadCpuStart;
             YT_LOG_DEBUG("Layer artifact loaded, starting import");
 
             // NB(psushin): we limit number of concurrently imported layers, since this is heavy operation
@@ -1392,8 +1396,15 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
                 container = "self";
             }
 
+            auto importCpuStart = GetCpuInstant();
             auto layerMeta = WaitFor(location->ImportLayer(artifactKey, TString(artifactChunk->GetFileName()), container, layerId, tag))
                 .ValueOrThrow();
+            auto importCpuDuration = GetCpuInstant() - importCpuStart;
+
+            if (downloadOptions.OnLayerDownloaded) {
+                downloadOptions.OnLayerDownloaded(downloadCpuDuration, importCpuDuration);
+            }
+
             return New<TLayer>(layerMeta, artifactKey, location);
         })
         // We must pass this action through invoker to avoid synchronous execution.

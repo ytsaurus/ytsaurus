@@ -105,7 +105,7 @@ class TJobWorkspaceBuilder
 {
 public:
     DEFINE_SIGNAL(void(EJobPhase phase), UpdateBuilderPhase);
-    DEFINE_SIGNAL(void(i64 compressedDataSize, bool cacheHit), UpdateArtifactStatistics);
+    DEFINE_SIGNAL(void(i64 compressedDataSize, bool cacheHit, bool isLayer), UpdateArtifactStatistics);
     DEFINE_SIGNAL(void(TJobWorkspaceBuilderTimePoints), UpdateTimePoints);
 
 public:
@@ -158,7 +158,10 @@ protected:
 
     void SetJobPhase(EJobPhase phase);
 
-    void UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit);
+    void UpdateArtifactStatistics(
+        i64 compressedDataSize,
+        bool cacheHit,
+        bool isLayer);
 
     void MakeArtifactSymlinks();
 

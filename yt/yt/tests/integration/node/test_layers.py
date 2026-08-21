@@ -3670,6 +3670,7 @@ class TestVolumeReuseInGangOperation(TestPortoLayersBase):
 class TestLayerReuseInAllocationBase(TestPortoLayersBase):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
 
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
@@ -3679,6 +3680,30 @@ class TestLayerReuseInAllocationBase(TestPortoLayersBase):
                         "enable_multiple_jobs": True,
                     },
                 },
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
             },
         },
     }
@@ -3719,6 +3744,10 @@ class TestLayerReuseInAllocationBase(TestPortoLayersBase):
 
     def setup_method(self, method):
         super().setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -3800,6 +3829,19 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         assert new_imports == 1, \
             "Layer should be imported exactly once for the whole allocation; " \
             "new imports during this test: {}, all logs: {}".format(new_imports, logs)
+
+        # Check layer download statistics.
+        stats1 = op.get_job_statistics(job_id1)
+        stats2 = op.get_job_statistics(job_id2)
+
+        # First job must have downloaded and imported the layer.
+        assert stats1["exec_agent"]["artifacts"]["layers_downloaded_size"]["sum"] > 0
+
+        # Second job in same allocation must not have downloaded or imported any layers.
+        assert stats2["exec_agent"]["artifacts"]["layers_cached_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_downloaded_size"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_downloaded_total_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_import_total_duration"]["sum"] == 0
 
     @authors("pogorelov")
     def test_layer_evicted_when_allocation_not_reused(self):
