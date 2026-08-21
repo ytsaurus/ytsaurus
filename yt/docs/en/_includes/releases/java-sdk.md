@@ -8,6 +8,35 @@ Is released as packages in [Maven Central](https://central.sonatype.com/artifact
 
 **Releases:**
 
+{% cut "**1.2.17**" %}
+
+**Release date:** 2026-07-30
+
+
+**Release page:** [1.2.17](https://github.com/ytsaurus/ytsaurus/releases/tag/java-sdk/1.2.17)
+
+
+**Maven Central:** [1.2.17](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.17)
+
+
+#### Features:
+- Retry `DirectYTsaurusClient` requests according to the `RetryPolicy` configured in `RpcOptions` [ee088b1a3638d4a5fbac3f639dc7c09c6d068d06]
+- Support `diskRequest` in `CommandSpec`, `MapperSpec` and `ReducerSpec` [00ea7fe0dc346a7180c949b801dad6d83f6714f3]
+- Support `UnregisterQueueConsumer` [ce1ba0db13680be6bd9992af8c7a096d44488c42]
+- Support push-based shuffle API: `setUsePushBasedShuffle` and `setSchema` in `StartShuffle` [ad2c6fde1ee188486068fe4a69a379189128c688]
+- Add `pushConfig` option to `StartShuffle` [4f334f912cfc1c685c552835da64640db126ff3e]
+- Support prerequisite transactions on `CommitTransaction` [b066ec2b7323a4e5deb7b4aaf64e96119f9814da]
+- Add `QUEUE_CONSUMER` and `QUEUE_PRODUCER` to `CypressNodeType` [a024c95be7715d9ddaa18cac5928180d49dc41fa]
+
+#### Fixes:
+- Fixed per-request timeout being ignored in `FailoverRpcExecutor`; `RpcOptions.globalTimeout` is now a default that a request can override [b099c481764411645ed1aa75945c70a5e259fa85]
+- Fixed `TableSchema.toBuilder()` mutating the original schema [700962be850e6822345eb7fae54a6c0cf97255d0]
+- Speed up `String` serialization in `YsonBinaryWriter` by avoiding a per-string byte array copy [e19476ee14816744efc6949761490ca9ac0dc14b]
+- Fixed possible native memory leak in `ZlibCodec` [f836bf83ae4eb80d34475c11edd4bdfaa46d3112]
+
+{% endcut %}
+
+
 {% cut "**1.2.16**" %}
 
 **Release date:** 2026-05-25

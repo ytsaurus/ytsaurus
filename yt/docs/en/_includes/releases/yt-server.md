@@ -8,6 +8,171 @@ All main components are released as docker images.
 
 **Releases:**
 
+{% cut "**25.4.0**" %}
+
+**Release date:** 2026-07-29
+
+
+**Release page:** [25.4.0](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/25.4.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-25.4.0](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/1097942667?tag=stable-25.4.0)
+
+
+
+#### Overview
+
+This document summarizes the key changes, improvements, features, and bug fixes introduced in **YTsaurus 25.4.0**. Thank you to all contributors and maintainers for their work.
+
+YTsaurus Server 25.4.0 is supported since [0.27.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.27.0) version of the Kubernetes operator.
+
+#### Significant changes
+
+- **Row-Level Security (RLS) — end-to-end support.** ACEs now accept an `expression`, restricting access to individual rows; `full_read` is extended row-wise (covers `copy`/`concatenate`/`remote_copy`). Wired through master, proxy `read_table` and controller agent in operations; CHYT 2.18+ already supports it, SPYT 2.9.0 is required and YQL/QT — 0.4.1.
+
+- **Bulk-insert under user transaction — now general use.** Introduced as experimental in 25.3 (the prerequisite for `REPLACE INTO //dynamic/table` in YQL), it is promoted to general availability in 25.4 — safe to use in production workloads.
+
+- **Authorized node expiration.** Master now remembers who set `expiration_time`/`expiration_timeout` and, with `enable_authorized_expiration` on, runs the removal under that user. Prevents accidental cross-account deletions of shared subtrees and gives an auditable lifecycle for auto-expiring nodes.
+
+- **Distributed write protocol for files.** Files can now be written from many client processes in parallel, the same way tables already could. Removes the single-writer bottleneck for large artifacts and enables fan-out uploads from operations and pipelines.
+
+- **`transfer_bundle_resources` command.** Atomically moves resource quotas (tablet count, tablet static memory) between two tablet cell bundles in a single mutation, making bundle rebalancing safe for automation and the bundle controller.
+
+- **Heavy hitters for lookup queries.** Dynamic tables expose raw and data-weighted heavy hitters for lookups, giving operators a first-class way to find the keys behind cache pressure, hot tablets and skewed read patterns.
+
+- **`check_operation_permission` API.** Lets users and orchestrators ask the scheduler whether a given user has a given permission on an operation, mirroring `check_permission` for Cypress objects.
+
+- **Chunk filtration via `input_query` in path attributes.** Filters chunks based on a query directly in path attributes — useful for read optimizations, [a12fb8b](https://github.com/ytsaurus/ytsaurus/commit/a12fb8b55619d57c13592d876263c2e05eedc5aa).
+
+- **Compressed-data-size constraints for sorted operations.** Adds primary compressed-data-size limits and a `consider_only_primary_size` job-sizing option that accounts only for the primary size when slicing jobs, [1057b82](https://github.com/ytsaurus/ytsaurus/commit/1057b829c51b93680ae5a0db3a90e1ec317cc543).
+
+- **CPU overload handling on data node.** Integrates CPU overload handling into the data node; adds dynamic adjustment of pending-disk-read / pending-disk-write memory limits and the maximum session count, [5a4fe1f](https://github.com/ytsaurus/ytsaurus/commit/5a4fe1f315e49e7add5a3dcb7360899444de46eb).
+
+- **YTQL syntax v3 — expressivity upgrades.** Several long-standing limitations are lifted:
+  - Expressions allowed in `IN` and `BETWEEN`.
+  - Integer index in `GROUP BY` / `GROUP BY KEY` (`GROUP BY 1, 2`).
+  - New string functions `make_ngrams` and `split`.
+  - Reads from tablet followers in `SELECT` queries.
+  - Fetch join executed on proxy.
+  - Array join with lists of composite and `any` values.
+
+#### Breaking changes
+
+- **List nodes have been completely removed.** Loading a snapshot that contains list nodes will crash master-server. To ensure that no list nodes exist before the update, the following steps can be taken:
+1. If `alert_on_list_node_load` option in the master dynamic config is set to `true`, then validation should have produced an alert when loading from snapshot in 25.2 and a crash in 25.3. If no alerts or crashes were observed, then it should be safe to update.
+2. Otherwise, it is advised to use the dry-run option `--validate-snapshot` with the master-server binary version 25.4 to validate that the snapshot can be loaded before updating, [0abb6d3](https://github.com/ytsaurus/ytsaurus/commit/0abb6d394ae55f8025558d69b2100b4fa3d8eba2).
+
+- **Pool tree config cleanup.** Removed `enable_scheduling_tags` (the feature it disabled is no longer relevant) and `max_share_ratio` from pool config (it was used to limit guarantees pre-vector-HDRF), [d807f21](https://github.com/ytsaurus/ytsaurus/commit/d807f213201a3d8621670c9393a9b6eaa46a1437).
+
+- **Deprecating `list_queue_consumer_registrations`.** New `disallow_list_all_registrations` option in queue consumer registration manager config; this will become the default in subsequent releases after a migration phase, [3a49cef](https://github.com/ytsaurus/ytsaurus/commit/3a49cef6d9c5761736f4c492e5a5758620c23181).
+
+#### Full changelog
+
+#### Scheduler and GPU
+##### New Features & Changes:
+- Introduce `check_operation_permission` API to verify a user's permission on an operation, [05236de](https://github.com/ytsaurus/ytsaurus/commit/05236dea42005b9d96ab389565ce2a7ef9e32896).
+- Add `allow_children_guarantees` option for scheduler pools to forbid child pools from having guarantees, [8b93622](https://github.com/ytsaurus/ytsaurus/commit/8b93622a1fe8cc3b56d4c6ccbd08d62f97dd81e5).
+- Introduce `list-job-traces` API to retrieve a job's GPU traces, [d495b01](https://github.com/ytsaurus/ytsaurus/commit/d495b0102af93f629b20a2adc9a221fbab6bf2a5).
+- Allow `scheduling_tag_filter` for operations spanning several pool trees, [5c17ea5](https://github.com/ytsaurus/ytsaurus/commit/5c17ea5d5e225c2b135e3d728e9901c37b3976af).
+- Increase default allocation preemption timeout to 30 seconds, [f3d1c5a](https://github.com/ytsaurus/ytsaurus/commit/f3d1c5ae864a7c8a0417b3f32d14b4d8d902c2cd).
+- Alert when an operation's spec is too large, [9067544](https://github.com/ytsaurus/ytsaurus/commit/9067544414412ce4f794101c7d8846c849986a88).
+
+##### Fixes & Optimizations:
+- Removed `enable_scheduling_tags` from pool tree config and `max_share_ratio` from pool config (both obsolete), [d807f21](https://github.com/ytsaurus/ytsaurus/commit/d807f213201a3d8621670c9393a9b6eaa46a1437).
+- Removed obsolete checks that blocked preemption when an ancestor pool was starving, [721def2](https://github.com/ytsaurus/ytsaurus/commit/721def28efcf69550e3c1c35759746c107d6569a).
+- Allow resource limits overcommit during preemptive scheduling to mitigate resource distribution issues, [273bbc6](https://github.com/ytsaurus/ytsaurus/commit/273bbc600f9545fa1bd917841d4084940687f954).
+
+#### Queue Agent
+##### New Features & Changes:
+- Add a profiling metric exposing whether a queue agent instance is banned, so external systems can alert on instances banned for too long, [8095e03](https://github.com/ytsaurus/ytsaurus/commit/8095e03f57c31687b106e8bb7e2a73b516fc119f).
+- Server-side support for the `queue_agent_controller_liveness` Odin check in multi-cluster environments, [c960ce5](https://github.com/ytsaurus/ytsaurus/commit/c960ce5772797d56389d55b5a880185c1f24af85).
+
+##### Fixes & Optimizations:
+
+#### Proxy
+##### New Features & Changes:
+- New `disallow_list_all_registrations` option in queue consumer registration manager config — a transitional step toward removing `list_queue_consumer_registrations`, [3a49cef](https://github.com/ytsaurus/ytsaurus/commit/3a49cef6d9c5761736f4c492e5a5758620c23181).
+- Support `LinkNode` with attributes via RPC, [570c83f](https://github.com/ytsaurus/ytsaurus/commit/570c83f316e60b00dee9da669af9931de4e9d49c).
+- Support RLS (Row-Level Security) in the `read_table` command, [9ee66dd](https://github.com/ytsaurus/ytsaurus/commit/9ee66dd3708f4087b630c68b535c2bb9b1ca471a).
+- Register `chyt_http(s)_server` in Cypress, [69595e0](https://github.com/ytsaurus/ytsaurus/commit/69595e0e4872c7eba08f57a89365ff60a6bfcce6).
+
+##### Fixes & Optimizations:
+- Fix datetime mapping to protobuf integral types, [c04424a](https://github.com/ytsaurus/ytsaurus/commit/c04424aa0e2aeb7d78705c05414a6c00e7fc0dd1).
+- HTTP server now starts listening only after `Start()` is called, [8af9288](https://github.com/ytsaurus/ytsaurus/commit/8af9288c0a15fe9f6944c8a6e1a41f6c08eaeb3b).
+
+#### Dynamic Tables
+##### New Features & Changes:
+- New `transfer_bundle_resources` command — atomically transfers resources between two tablet cell bundles, [e2479e2](https://github.com/ytsaurus/ytsaurus/commit/e2479e29e77ab9cf7bb68f5f40ec33827f754ecc).
+- A configurable share of compaction tasks is reserved for the most starving `{table, compaction reason}` pairs, [5f2ad34](https://github.com/ytsaurus/ytsaurus/commit/5f2ad3481d1910205f46cd837d1aaff5656746e7).
+- Heavy hitters and data-weighted heavy hitters for lookup queries, [75e474e](https://github.com/ytsaurus/ytsaurus/commit/75e474ea0d0dc3663ccf8d6697b8c9cca07ce2c5).
+- YTQL `make_ngrams` function, [c848ed3](https://github.com/ytsaurus/ytsaurus/commit/c848ed3bf4ff9017e1a22189295b35373214b84e).
+- YTQL `split` function — splits a string by a delimiter into a list, [d355e0b](https://github.com/ytsaurus/ytsaurus/commit/d355e0b216eac5e3363f71576711c9bc045f934f).
+- Expressions in `IN` and `BETWEEN` (syntax v3), [128294e](https://github.com/ytsaurus/ytsaurus/commit/128294e03b10f4e51ec56d75a9a91b95cd5d8c1e).
+- Integer index in `GROUP BY` / `GROUP BY KEY` (syntax v3), [359dfb3](https://github.com/ytsaurus/ytsaurus/commit/359dfb314b554ac070af11b6596acecab835dfe9).
+- Aggregating columns are now allowed for unfolding indices; if the unfolded value contains repeats (e.g. `[1;2;3;1]`), table values are aggregated, [8b5954a](https://github.com/ytsaurus/ytsaurus/commit/8b5954ab0143da720af30c25cfc027ec046aae8f).
+- Reads from followers enabled in `select` queries, [f8c5fde](https://github.com/ytsaurus/ytsaurus/commit/f8c5fdef325d8bb916d0213f437b2fab85a82e11).
+- Proxy subqueries supported in `explain-query`, [0f2799f](https://github.com/ytsaurus/ytsaurus/commit/0f2799fef934603f44738a1d0f466d83ee1c6954).
+- Fetch join on proxy, [3c3515c](https://github.com/ytsaurus/ytsaurus/commit/3c3515c9e9eb00c9bf7c4f279c23293deb15c4b4).
+- Array join with lists of composite and any values, [be8bc8c](https://github.com/ytsaurus/ytsaurus/commit/be8bc8ccf3baae0a9c14dc00df6e9c209b5907e2).
+
+##### Fixes & Optimizations:
+- Sample keys are now tracked under the `tablet_background` category, [009a33d](https://github.com/ytsaurus/ytsaurus/commit/009a33ddd1f74965b4e29eb16ed07c6d44196b1d).
+- Query builder produces more balanced ASTs for predicates, [913c370](https://github.com/ytsaurus/ytsaurus/commit/913c370ca25352bd319945e7e9fd7d8682ba438a).
+- Avoid excessive memory footprint from memory-tracking in-memory chunks within a memory pool, [8f7f624](https://github.com/ytsaurus/ytsaurus/commit/8f7f624a5417af2ed70baa5c220caa0dcb46307a).
+- Fix compaction timestamp digest for `min_data_versions=1`, [7a2a576](https://github.com/ytsaurus/ytsaurus/commit/7a2a5764d1c7e7adfee1b2218cf496b34b35262a).
+- Improved performance of aggregate column evaluation, [7ffe4d2](https://github.com/ytsaurus/ytsaurus/commit/7ffe4d276a4dccbd860106a175e56d78915503e9).
+- Slimmer QL codegen cache, [ba32890](https://github.com/ytsaurus/ytsaurus/commit/ba328902793b126d5e702955c284cdc89d790fb5).
+- Fix crashes from incorrect ids produced by range inference on `is_prefix(...)` expressions, [9c64c4a](https://github.com/ytsaurus/ytsaurus/commit/9c64c4a7d72cd028082274619fc1dd7d2462ac22).
+- Add missing `/overload_controller` prefix to profiling sensors, [01f2324](https://github.com/ytsaurus/ytsaurus/commit/01f23249c795f2d982ca5be9b5ebd978019fe329).
+- Fix `CASE` operator ignoring the `use_canonical_null_relations` option, [5b48f8b](https://github.com/ytsaurus/ytsaurus/commit/5b48f8b44c5a98b4b720ef01e207c9330b29d996).
+- Fix array join when unpacking null lists, [3f8ca76](https://github.com/ytsaurus/ytsaurus/commit/3f8ca760e5a939c28d00202e051b4396bb5da41a).
+- Minor use-after-free fix, [2e99e6d](https://github.com/ytsaurus/ytsaurus/commit/2e99e6d2c1ec9b6332afd3c2a0b889d2afea3d74).
+- Fix segfault in YTQL codegen for queries with nested subqueries under certain conditions, [63fcaa9](https://github.com/ytsaurus/ytsaurus/commit/63fcaa95f8d8db3535acc0ad3acc1ff53032816f).
+- Add missing casts for the `CAST` operator in YTQL, [910cf8b](https://github.com/ytsaurus/ytsaurus/commit/910cf8b213861101762e3a4e1c394c1b7526176b).
+
+#### MapReduce
+##### New Features & Changes:
+- Job API in job proxy — exposed to user jobs over Unix domain sockets. Initial endpoint `OnProgressSaved` bumps a job's preemptible-progress start time, [50011e3](https://github.com/ytsaurus/ytsaurus/commit/50011e34c3a6b5965450a67e775ad778d6f19244).
+- Use a code-generated comparator in partition reduce when the schema is known, for higher performance, [984cee5](https://github.com/ytsaurus/ytsaurus/commit/984cee50daee8b38850c5de1adbebc6eddedd7c1).
+- Exec node chunk cache renamed to artifact cache; metrics moved to `yt/exec_node/artifact_cache`, [70fb3e0](https://github.com/ytsaurus/ytsaurus/commit/70fb3e02c969280515b37b31ee032bbef3714e92).
+- Chunk filtration via `input_query` in path attributes — useful for read optimizations, [a12fb8b](https://github.com/ytsaurus/ytsaurus/commit/a12fb8b55619d57c13592d876263c2e05eedc5aa).
+- Compressed-data-size constraints for sorted operations, including primary compressed-data-size limits and a `consider_only_primary_size` job-sizing option, [1057b82](https://github.com/ytsaurus/ytsaurus/commit/1057b829c51b93680ae5a0db3a90e1ec317cc543).
+
+##### Fixes & Optimizations:
+- Fix readers in MR operations not accounting for nested tables, [ea0179f](https://github.com/ytsaurus/ytsaurus/commit/ea0179f54fe297cec4fd2c0935dd89f3029ee822).
+
+#### Master Server
+##### New Features & Changes:
+
+- Permission check during removal of expired nodes (authorized expiration). New attributes `expiration_time_user`, `expiration_timeout_user`, `expiration_time_last_reset_time`, `expiration_timeout_last_reset_time` and config entries `enable_authorized_expiration`, `expiration_attempt_limit`, `expiration_persist_period`, [5bc8e76](https://github.com/ytsaurus/ytsaurus/commit/5bc8e7615854d2775d329a591b970e13161b35c2).
+- Skip node disposal when a node was restarted, [8616a6b](https://github.com/ytsaurus/ytsaurus/commit/8616a6b4c6b5c838956f933d53fc67e8baeb39eb).
+- List nodes have been completely removed. Loading a snapshot containing list nodes will crash master-server, [0abb6d3](https://github.com/ytsaurus/ytsaurus/commit/0abb6d394ae55f8025558d69b2100b4fa3d8eba2).
+- "Lie" about `full_read` permission in authorization errors. When a user lacks even basic `read`, the error mentions only basic `read`, so they don't unnecessarily request `full_read`, [655e1a4](https://github.com/ytsaurus/ytsaurus/commit/655e1a468b9a90d3423dfca0253ae289c4697652).
+- Removed duplicate alerts about misconfigured roles on master cells in multicell manager — alerts now only fire on the primary master, [1e5aeff](https://github.com/ytsaurus/ytsaurus/commit/1e5aeff33f4dd30bf58d619932a56dd47bb66549).
+
+##### Fixes & Optimizations:
+- Fix requests like `create //a/b&` previously failing with "no such child 'b'", [28cecce](https://github.com/ytsaurus/ytsaurus/commit/28cecce8f10b7137e7c404d0d28030ad894ccc43).
+- Secondary index objects now receive a proper ACD (matching the indexed table), [57f8185](https://github.com/ytsaurus/ytsaurus/commit/57f81852eb4745babd4c1caedfe5fab8e97752a2).
+
+#### Node
+##### New Features & Changes:
+- Option to skip waiting for preceding blocks in `PutBlocks` requests, [5b23e49](https://github.com/ytsaurus/ytsaurus/commit/5b23e496caee6e015fbe081fa453d762fb64dc64).
+- Metrics for huge-pages I/O operations, [320f828](https://github.com/ytsaurus/ytsaurus/commit/320f82816e7cf03ccba2e89e436ecd1f36cab818).
+- Integrate CPU overload handling into data node; allow dynamic adjustment of pending-disk-read / pending-disk-write memory limits and the maximum session count, [5a4fe1f](https://github.com/ytsaurus/ytsaurus/commit/5a4fe1f315e49e7add5a3dcb7360899444de46eb).
+
+##### Fixes & Optimizations:
+- Fix race in node lease handling: when a node is banned and its lease tx is aborted while a registration is in flight, the new registration could reuse the already-aborted lease, [fe7b03f](https://github.com/ytsaurus/ytsaurus/commit/fe7b03f06c0ee7230beec745a85cba68e9011204).
+
+#### Other
+
+- Make `TAsyncExpiringCache` sharded, [dd06cc5](https://github.com/ytsaurus/ytsaurus/commit/dd06cc5409adcd0e668795ce98b3ab14cd024a05).
+- Time at which a memory profile was collected and its collection duration are added to the profile dump, [9aa42a7](https://github.com/ytsaurus/ytsaurus/commit/9aa42a737b0e33efce5f368dcf0632dbe9a093ae).
+- Fix extra trace contexts when reading columnar chunks outside the schemaless multi-chunk reader context, [f0f0103](https://github.com/ytsaurus/ytsaurus/commit/f0f01032254371a2ea8603cdab14dcc673ac4f78).
+- Fix races on memory guard (was not thread-safe, unlike memory tracker), [640e137](https://github.com/ytsaurus/ytsaurus/commit/640e137828c63b47da10eafb9e17ae079fde0911).
+
+{% endcut %}
+
+
 {% cut "**25.3.1**" %}
 
 **Release date:** 2026-03-25

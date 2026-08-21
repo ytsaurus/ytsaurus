@@ -8,6 +8,37 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**v0.0.18**" %}
+
+**Release date:** 2026-08-14
+
+
+**Release page:** [v0.0.18](https://github.com/ytsaurus/ytsaurus/releases/tag/yt/chyt/controller/v0.0.18)
+
+
+**Docker image:** [ghcr.io/ytsaurus/strawberry:0.0.18](https://github.com/orgs/ytsaurus/packages/container/strawberry/1133321328?tag=0.0.18)
+
+
+#### Features
+
+- Stop retrying operation restarts indefinitely when broken-state signal errors occur. After a configurable number of consecutive failures, mark the oplet as `Broken` ([902c7bc](https://github.com/ytsaurus/ytsaurus/commit/902c7bc08453873f7557e79ce2623a39b55130f4)).
+- Check permissions for network projects ([ba5fad9](https://github.com/ytsaurus/ytsaurus/commit/ba5fad9864242ddb2dd58e0e74aa260d05fc1fa5)).
+- Add a handler exposing agent metrics for active and failed oplets ([9844d63](https://github.com/ytsaurus/ytsaurus/commit/9844d630faf3d101f602995e788a0539116f1ec7)).
+- Support the CHYT `dictionary_repository` configuration section and initialize the `storage_artifacts` directory ([d0c8921](https://github.com/ytsaurus/ytsaurus/commit/d0c892193a631108b48fdfeec72794ebb4beff51)).
+- Expose the `chyt_running_version` attribute ([f794179](https://github.com/ytsaurus/ytsaurus/commit/f79417970e645ef1cedfc3faef9a53fff02f30fe)).
+- Add oplet-pass duration histograms ([ec124b9](https://github.com/ytsaurus/ytsaurus/commit/ec124b9a4f4bd8d2b7776b9b66cdef5fb3899a88)).
+- Add ODBC support for CHYT ([35e94c6](https://github.com/ytsaurus/ytsaurus/commit/35e94c6bc4296f8226bd0d60a35f5a538444cb82)).
+
+#### Fixes
+
+- Resolve a deadlock between the operation collector and job checker ([83c0bf9](https://github.com/ytsaurus/ytsaurus/commit/83c0bf9d1529aec7caf70db902c6d1d204ce162f)).
+- Avoid panicking when discovery-client initialization fails ([659a609](https://github.com/ytsaurus/ytsaurus/commit/659a609095b0d303c556386462dfd3fd391ac8a2)).
+- Update the restart condition for CHYT version drift ([d58548e](https://github.com/ytsaurus/ytsaurus/commit/d58548e3b0cd09bf417c4f0c4cfbb052ed34bc85)).
+
+
+{% endcut %}
+
+
 {% cut "**v0.0.17**" %}
 
 **Release date:** 2026-04-03

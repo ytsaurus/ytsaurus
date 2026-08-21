@@ -26,12 +26,33 @@ Major release that enables support for Spark 4.2.x and submitting jobs to an inn
 - Refactor submit to an inner standalone cluster to use pure Python implementation without JVM
 - Support for enabling YTsaurus shuffle service on per application basis for standalone clusters
 - Push based mode for the YTsaurus shuffle service, enabled with `spark.ytsaurus.shuffle.push.enabled`
-- Asynchronous read task creation for ytPartitioning, limited by the new `spark.ytsaurus.throttling.maxConcurrency` option
+- Asynchronous read task creation for ytPartitioning, limited by the new `spark.ytsaurus.throttling.maxConcurrency` option 
 - `spark.ytsaurus.*` became the primary configuration prefix, `spark.yt.*` is kept as a fallback alias
 - Log export to Monium, enabled with `spark.ytsaurus.logs.export.enabled`
 - Spark Connect driver uses the temporary token of its vanilla operation, the `spark.ytsaurus.connect.token.refresh.period` option is removed
 - Fixed driver hangs for distributed writes in case of errors
 - Fixed duplicates of Spark configuration keys re-injected from the environment
+- Other minor fixes and improvements
+
+{% endcut %}
+
+
+{% cut "**2.9.3**" %}
+
+**Release date:** 2026-07-13
+
+
+**Release page:** [2.9.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.3)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.9.3](https://github.com/orgs/ytsaurus/packages/container/spyt/1028609465?tag=2.9.3)
+
+
+Maintenance release with minor enhancements
+
+- Enable YTsaurus shuffle service per application instead of globally on standalone clusters
+- Fix operation_alias and enable_multi_operation_mode compatibility
+- Fix driver hangs for distributed writes in case of errors
 - Other minor fixes and improvements
 
 {% endcut %}
@@ -57,27 +78,6 @@ Major release that enables support for Spark 4.0.x and 4.1.x.
 - Drop Java 11 support, all JVM classes are compiled with Java 17
 - Drop Python 3.8, 3.9 and 3.10 support
 - Drop Livy support for Query Tracker integration
-
-{% endcut %}
-
-
-{% cut "**2.9.3**" %}
-
-**Release date:** 2026-07-13
-
-
-**Release page:** [2.9.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.3)
-
-
-**Docker image:** [ghcr.io/ytsaurus/spyt:2.9.3](https://github.com/orgs/ytsaurus/packages/container/spyt/1028609465?tag=2.9.3)
-
-
-Maintenance release with minor enhancements
-
-- Enable YTsaurus shuffle service per application instead of globally on standalone clusters
-- Fix operation_alias and enable_multi_operation_mode compatibility
-- Fix driver hangs for distributed writes in case of errors
-- Other minor fixes and improvements
 
 {% endcut %}
 
@@ -383,7 +383,7 @@ Maintenance release with minor enhancements and bug fixes
 **Release page:** [2.5.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.5.0)
 
 
-Major release that enables support for Spark 3.4.x and 3.5.x.
+Major release that enables support for Spark 3.4.x and 3.5.x. 
 
 - Compile-time Spark version is changed from 3.2.2 to 3.5.4;
 - SPYT compile-time Spark version will be the latest available supported version since this release;
@@ -474,7 +474,7 @@ Maintenance release with bug fixes:
 
 * Support for running local files and their dependencies in direct submit mode by uploading it to YTsaurus cache
 * Support for submitting compiled python binaries as spark applications via direct submit
-* Dataframe write schema hints
+* Dataframe write schema hints 
 * Bug fixes:
 * * Writing to external S3 from YTsaurus
 * * Reading float values from nested structures
