@@ -8,12 +8,13 @@
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/server/lib/io/io_engine.h>
+#include <yt/yt/server/lib/io/private.h>
 
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
 
-#include <optional>
 #include <limits>
+#include <optional>
 
 namespace NYT::NIO {
 namespace {
@@ -39,6 +40,66 @@ void WriteFile(const std::string& fileName, TRef data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TFairShareHierarchicalIOEngineTest, RequestsWithLowerWeightedConsumptionAreProcessedFirst)
+{
+    auto scheduler = CreateFairShareHierarchicalScheduler<std::string>(
+        New<TFairShareHierarchicalSchedulerDynamicConfig>());
+    auto queue = CreateFairShareHierarchicalSlotQueue(scheduler);
+
+    const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
+        {"root", 1.0},
+    };
+    auto lowerWeightedConsumptionSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+    auto higherWeightedConsumptionSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+
+    const auto compareRequests = [&] (
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& rhs)
+    {
+        auto getFairShareState = [&] (const auto& slot) {
+            return slot == lowerWeightedConsumptionSlot
+                ? TIOFairShareState{.IOConsumed = 20, .IOFairShareWeight = 2.0}
+                : TIOFairShareState{.IOConsumed = 15, .IOFairShareWeight = 1.0};
+        };
+
+        return CompareIOFairShareStates(getFairShareState(lhs), getFairShareState(rhs));
+    };
+
+    EXPECT_EQ(
+        queue->PeekSlot(
+            {lowerWeightedConsumptionSlot->GetSlotId(), higherWeightedConsumptionSlot->GetSlotId()},
+            compareRequests),
+        lowerWeightedConsumptionSlot);
+}
+
+TEST(TFairShareHierarchicalIOEngineTest, EqualRequestStatisticsPreserveFifoOrder)
+{
+    auto scheduler = CreateFairShareHierarchicalScheduler<std::string>(
+        New<TFairShareHierarchicalSchedulerDynamicConfig>());
+    auto queue = CreateFairShareHierarchicalSlotQueue(scheduler);
+
+    const std::vector<TFairShareHierarchyLevel<std::string>> levels = {
+        {"root", 1.0},
+    };
+    auto firstSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+    Sleep(TDuration::MilliSeconds(1));
+    auto secondSlot = queue->EnqueueSlot(1, {}, levels).ValueOrThrow();
+
+    const auto compareRequests = [&] (
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& lhs,
+        const TFairShareHierarchicalSlotQueueSlotPtr<std::string>& rhs)
+    {
+        auto comparisonResult = CompareIOFairShareStates(
+            TIOFairShareState{.IOConsumed = 10, .IOFairShareWeight = 1.0},
+            TIOFairShareState{.IOConsumed = 20, .IOFairShareWeight = 2.0});
+        return std::is_eq(comparisonResult) ? CompareByEnqueueTime(lhs, rhs) : comparisonResult;
+    };
+
+    EXPECT_EQ(
+        queue->PeekSlot({firstSlot->GetSlotId(), secondSlot->GetSlotId()}, compareRequests),
+        firstSlot);
+}
+
 TEST(TIOFairShareStateTest, MakesOnlyValidState)
 {
     EXPECT_TRUE(MakeIOFairShareState(0, 1.0));
@@ -51,6 +112,44 @@ TEST(TIOFairShareStateTest, MakesOnlyValidState)
     EXPECT_FALSE(MakeIOFairShareState(0, -1.0));
     EXPECT_FALSE(MakeIOFairShareState(0, std::numeric_limits<double>::quiet_NaN()));
     EXPECT_FALSE(MakeIOFairShareState(0, std::numeric_limits<double>::infinity()));
+}
+
+TEST(TIOFairShareStateTest, RequestsWithoutStatisticsHaveGuaranteedPriority)
+{
+    const auto state = TIOFairShareState{
+        .IOConsumed = 0,
+        .IOFairShareWeight = 1.0,
+    };
+
+    EXPECT_TRUE(std::is_lt(CompareIOFairShareStates(std::nullopt, state)));
+    EXPECT_TRUE(std::is_gt(CompareIOFairShareStates(state, std::nullopt)));
+    EXPECT_TRUE(std::is_eq(CompareIOFairShareStates(std::nullopt, std::nullopt)));
+}
+
+TEST(TIOFairShareStateTest, RequestsWithZeroWeightHaveLowestPriority)
+{
+    const auto zeroWeightState = TIOFairShareState{
+        .IOConsumed = 0,
+        .IOFairShareWeight = 0.0,
+    };
+    const auto positiveWeightState = TIOFairShareState{
+        .IOConsumed = 10,
+        .IOFairShareWeight = 1.0,
+    };
+    const auto anotherZeroWeightState = TIOFairShareState{
+        .IOConsumed = 10,
+        .IOFairShareWeight = 0.0,
+    };
+
+    EXPECT_TRUE(std::is_gt(CompareIOFairShareStates(
+        zeroWeightState,
+        positiveWeightState)));
+    EXPECT_TRUE(std::is_lt(CompareIOFairShareStates(
+        positiveWeightState,
+        zeroWeightState)));
+    EXPECT_TRUE(std::is_eq(CompareIOFairShareStates(
+        zeroWeightState,
+        anotherZeroWeightState)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

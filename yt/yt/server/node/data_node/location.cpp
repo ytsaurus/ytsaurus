@@ -670,11 +670,15 @@ void TChunkLocation::DoCheckFairShareProbePutBlocksRequests()
         ProbePutBlocksRequests_ | std::views::transform(createSelectionSlot));
 
     while (!ProbePutBlocksRequests_.empty()) {
-        auto supplierIndex = std::max_element(
+        auto supplierIndex = std::min_element(
             slots.begin(),
             slots.end(),
             [&fairShareScheduler] (const auto& lhs, const auto& rhs) {
-                return fairShareScheduler->CompareSlots(lhs, rhs, /*isSlot*/ true);
+                return std::is_lt(fairShareScheduler->CompareSlots(
+                    lhs,
+                    rhs,
+                    /*isSlot*/ true,
+                    CompareByEnqueueTime<std::string>));
             }) - slots.begin();
 
         auto supplier = ProbePutBlocksRequests_[supplierIndex];
