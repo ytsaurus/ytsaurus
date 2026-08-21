@@ -24,6 +24,7 @@ DEFINE_ENUM(ETransactionSupervisorReign,
     ((StrongOrderingTags)                                           (17))  // h0pless
     ((ExpectedPrepareSignature)                                     (18))  // atalmenev
     ((StopSendingUnnecessaryRequests)                               (19))  // h0pless
+    ((RemoveUnusedAliases)                                          (20))  // h0pless
 );
 
 static_assert(
