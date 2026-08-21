@@ -120,12 +120,13 @@ void TCommit::Load(TLoadContext& context)
 {
     using NYT::Load;
 
+    auto contextVersion = static_cast<ETransactionSupervisorReign>(context.GetVersion());
     Persistent_ = true;
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
     // COMPAT(atalmenev) old changelog entries don't carry per-participant signatures.
-    if (static_cast<ETransactionSupervisorReign>(context.GetVersion()) >= ETransactionSupervisorReign::ExpectedPrepareSignature) {
+    if (contextVersion >= ETransactionSupervisorReign::ExpectedPrepareSignature) {
         Load(context, ExpectedPrepareSignatures_);
     } else {
         ExpectedPrepareSignatures_.Participants.assign(
@@ -133,44 +134,27 @@ void TCommit::Load(TLoadContext& context)
             FinalTransactionSignature);
     }
     Load(context, PrepareOnlyParticipantCellIds_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= 10) {
-        Load(context, CellIdsToSyncWithBeforePrepare_);
-    }
+    Load(context, CellIdsToSyncWithBeforePrepare_);
     Load(context, Distributed_);
     Load(context, GeneratePrepareTimestamp_);
     Load(context, InheritCommitTimestamp_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= 12) {
-        Load(context, PrepareTimestamp_);
-        Load(context, PrepareTimestampClusterTag_);
-    } else {
-        PrepareTimestamp_ = NTransactionClient::NullTimestamp;
-        PrepareTimestampClusterTag_ = NObjectClient::InvalidCellTag;
-    }
+    Load(context, PrepareTimestamp_);
+    Load(context, PrepareTimestampClusterTag_);
     Load(context, CommitTimestamps_);
     Load(context, PersistentState_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= 12) {
-        Load(context, CoordinatorPrepareMode_);
-    } else {
-        CoordinatorPrepareMode_ = NApi::ETransactionCoordinatorPrepareMode::Early;
-    }
+    Load(context, CoordinatorPrepareMode_);
     Load(context, CoordinatorCommitMode_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= 11) {
-        Load(context, MaxAllowedCommitTimestamp_);
-    }
+    Load(context, MaxAllowedCommitTimestamp_);
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
 
     // COMPAT(h0pless): StrongOrderingTags.
-    if (14 <= context.GetVersion() && context.GetVersion() < 17) {
+    if (ETransactionSupervisorReign::Sequencer <= contextVersion && contextVersion < ETransactionSupervisorReign::StrongOrderingTags) {
         Load<bool>(context);
     }
 
     // COMPAT(h0pless): StrongOrderingTags.
-    if (context.GetVersion() >= 17) {
+    if (contextVersion >= ETransactionSupervisorReign::StrongOrderingTags) {
         Load(context, StrongOrderingTags_);
     }
 }
