@@ -312,7 +312,7 @@ public:
                 module->set_name(moduleName);
 
                 for (const auto& functionNode : moduleMeta->Functions->GetChildren()) {
-                    // TODO: switch proto fields to optional with default value somehow
+                    // TODO(ziganshinmr): switch proto fields to optional with default value somehow
                     auto functionMap = CloneNode(functionNode)->AsMap();
                     if (!functionMap->FindChild("ArgCount")) {
                         functionMap->AddChild("ArgCount", NYTree::ConvertToNode(0u));
@@ -333,7 +333,7 @@ public:
         YT_VERIFY(::google::protobuf::TextFormat::PrintToString(functionRegistryData, &textProto));
         FunctionRegistryData_.Store(std::move(textProto));
 
-        YQL_LOG(INFO) << Format("Udf meta updated (packages count: %v)", functionRegistryData.packages_size());
+        YQL_LOG(INFO) << Format("UDF meta updated (PackageCount: %v)", functionRegistryData.packages_size());
     }
 
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(

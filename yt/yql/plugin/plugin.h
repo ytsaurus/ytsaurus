@@ -5,7 +5,6 @@
 #include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/core/ytree/public.h>
-#include <yt/yt/ytlib/yql_client/public.h>
 
 #include <library/cpp/logger/log.h>
 

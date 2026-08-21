@@ -345,7 +345,7 @@ class TestUdfRegistry(TestQueriesYqlBase):
         cluster = yql_agent.yql_agent.env.id
         addresss = yql_agent.yql_agent.env.get_http_proxy_address()
 
-        with raises_yt_error("Query of type \"UdfMeta\" must not be indexed"):
+        with raises_yt_error("Query of type \"udf_meta\" must not be indexed"):
             self.start_query(
                 "yql",
                 "",
@@ -354,7 +354,7 @@ class TestUdfRegistry(TestQueriesYqlBase):
                 # Indexed
             ).track()
 
-        with raises_yt_error("Query of type \"UdfMeta\" is expected to have only \"admin\" access control object set"):
+        with raises_yt_error("Query of type \"udf_meta\" is expected to have only \"admin\" access control object set"):
             self.start_query(
                 "yql",
                 "",
@@ -362,7 +362,7 @@ class TestUdfRegistry(TestQueriesYqlBase):
                 # No ACO
             ).track()
 
-        with raises_yt_error("\"Administer\" permission required to run \"UdfMeta\" queries"):
+        with raises_yt_error("\"administer\" permission required to run \"udf_meta\" queries"):
             create_user("unprivileged")
             self.start_query(
                 "yql",
