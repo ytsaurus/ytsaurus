@@ -40,7 +40,6 @@ class TChunkReplicasVisitor
     : public TChunkVisitorBase<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>>
 {
 public:
-
     using TChunkVisitorBase<THashMap<TChunkId, TErrorOr<std::vector<TSequoiaChunkReplica>>>>::TChunkVisitorBase;
 
     bool OnChunk(
