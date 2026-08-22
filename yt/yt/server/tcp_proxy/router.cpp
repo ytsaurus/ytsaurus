@@ -117,9 +117,9 @@ private:
             if (destinationsIt == newRoutingTable.end()) {
                 YT_VERIFY(stateIt != PortToState_.end());
 
-                YT_LOG_INFO("Stopped listening port (Port: %v, Endpoints: %v)",
-                    port,
-                    GetLoggingString(stateIt->second.Endpoints));
+                YT_TLOG_INFO("Stopped listening port")
+                    .With("Port", port)
+                    .With("Endpoints", GetLoggingString(stateIt->second.Endpoints));
 
                 const auto& listener = stateIt->second.Listener;
                 listener->Shutdown();
@@ -137,21 +137,22 @@ private:
                         Acceptor_,
                         Config_->MaxListenerBacklogSize);
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to create listener (Port: %v)",
-                        port);
+                    YT_TLOG_WARNING("Failed to create listener")
+                        .With("Port", port)
+                        .With(ex);
                 }
 
-                YT_LOG_INFO("Started listening port (Port: %v, Endpoints: %v)",
-                    port,
-                    GetLoggingString(state.Endpoints));
+                YT_TLOG_INFO("Started listening port")
+                    .With("Port", port)
+                    .With("Endpoints", GetLoggingString(state.Endpoints));
 
                 EmplaceOrCrash(PortToState_, port, state);
                 RearmListener(state.Listener, port);
             } else if (stateIt->second.Endpoints != destinationsIt->second) {
-                YT_LOG_INFO("Updated destinations list (Port: %v, Endpoints: %v -> %v)",
-                    port,
-                    GetLoggingString(stateIt->second.Endpoints),
-                    GetLoggingString(destinationsIt->second));
+                YT_TLOG_INFO("Updated destinations list")
+                    .With("Port", port)
+                    .With("OldEndpoints", GetLoggingString(stateIt->second.Endpoints))
+                    .With("NewEndpoints", GetLoggingString(destinationsIt->second));
 
                 stateIt->second.Endpoints = destinationsIt->second;
             }
@@ -211,15 +212,16 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_INFO("Updating routing table");
+        YT_TLOG_INFO("Updating routing table");
 
         try {
             GuardedUpdateRoutingTable();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to update routing table");
+            YT_TLOG_WARNING("Failed to update routing table")
+                .With(ex);
         }
 
-        YT_LOG_INFO("Routing table updated");
+        YT_TLOG_INFO("Routing table updated");
     }
 
     void GuardedUpdateRoutingTable()
