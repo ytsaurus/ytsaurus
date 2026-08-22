@@ -146,7 +146,8 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         InstanceId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
-        YT_LOG_INFO("Starting offshore data gateway process (InstanceId: %v)", InstanceId_);
+        YT_TLOG_INFO("Starting offshore data gateway process")
+            .With("InstanceId", InstanceId_);
 
         NNative::TConnectionOptions connectionOptions;
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
@@ -180,13 +181,11 @@ private:
         AlertManager_ = CreateAlertManager(OffshoreDataGatewayLogger(), TProfiler{}, ControlInvoker_);
 
         {
-            YT_LOG_INFO("Loading dynamic config for the first time");
+            YT_TLOG_INFO("Loading dynamic config for the first time");
             auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Unexpected failure while waiting for the first dynamic config loaded");
-            YT_LOG_INFO("Dynamic config loaded");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for the first dynamic config loaded")
+                .With(error);
+            YT_TLOG_INFO("Dynamic config loaded");
         }
 
         IMapNodePtr orchidRoot;
@@ -265,10 +264,12 @@ private:
 
         AlertManager_->Start();
 
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
 
-        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
@@ -285,10 +286,9 @@ private:
 
         StorageThreadPool_->SetThreadCount(newConfig->StorageThreadCount);
 
-        YT_LOG_DEBUG(
-            "Updated offshore data gateway dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated offshore data gateway dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 };
 
