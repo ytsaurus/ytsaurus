@@ -291,14 +291,17 @@ private:
     {
         DynamicConfigManager_->Start();
 
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
         if (HttpsServer_) {
-            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            YT_TLOG_INFO("Listening for HTTPS requests")
+                .With("Port", HttpsServer_->GetAddress().GetPort());
             HttpsServer_->Start();
         }
 
-        YT_LOG_INFO("Listening for Kafka requests (Port: %v)", Config_->Port);
+        YT_TLOG_INFO("Listening for Kafka requests")
+            .With("Port", Config_->Port);
         Server_->Start();
 
         RpcServer_->Start();

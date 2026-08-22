@@ -93,7 +93,7 @@ public:
 
         Started_ = true;
 
-        YT_LOG_INFO("Kafka server started");
+        YT_TLOG_INFO("Kafka server started");
     }
 
 private:
@@ -136,7 +136,8 @@ private:
         AsyncAcceptConnection();
 
         if (!connectionOrError.IsOK()) {
-            YT_LOG_INFO(connectionOrError, "Error accepting connection");
+            YT_TLOG_INFO("Error accepting connection")
+                .With(connectionOrError);
             return;
         }
 
@@ -149,11 +150,10 @@ private:
             BIND(&TServer::OnConnectionFailure, MakeWeak(this)));
         kafkaConnection->Start();
 
-        YT_LOG_DEBUG("Connection accepted "
-            "(ConnectionId: %v, LocalAddress: %v, RemoteAddress: %v)",
-            kafkaConnection->GetConnectionId(),
-            connection->GetLocalAddress(),
-            connection->GetRemoteAddress());
+        YT_TLOG_DEBUG("Connection accepted")
+            .With("ConnectionId", kafkaConnection->GetConnectionId())
+            .With("LocalAddress", connection->GetLocalAddress())
+            .With("RemoteAddress", connection->GetRemoteAddress());
 
         auto connectionState = New<TKafkaConnection>(kafkaConnection);
         auto guard = WriterGuard(ConnectionMapLock_);
@@ -168,9 +168,9 @@ private:
         try {
             GuardedOnRequest(connection, std::move(request));
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to process request "
-                "(ConnectionId: %v)",
-                connection->GetConnectionId());
+            YT_TLOG_ERROR("Failed to process request")
+                .With("ConnectionId", connection->GetConnectionId())
+                .With(ex);
 
             OnConnectionFailure(connection, TError(ex));
         }
@@ -216,17 +216,16 @@ private:
     {
         auto connectionId = connection->GetConnectionId();
 
-        YT_LOG_INFO(
-            error,
-            "Kafka proxy server observed connection failure, terminating connection "
-            "(ConnectionId: %v)",
-            connectionId);
+        YT_TLOG_INFO("Kafka proxy server observed connection failure, terminating connection")
+            .With("ConnectionId", connectionId)
+            .With(error);
 
         if (UnregisterConnection(connection->GetConnectionId())) {
             // TODO(max42): switch to Subscribe.
             YT_UNUSED_FUTURE(connection->Terminate()
                 .Apply(BIND([=] (const TError& error) {
-                    YT_LOG_WARNING(error, "Failed to terminate connection");
+                    YT_TLOG_WARNING("Failed to terminate connection")
+                        .With(error);
                 })));
         }
     }
@@ -237,8 +236,8 @@ private:
 
         auto guard = WriterGuard(ConnectionMapLock_);
         if (Connections_.erase(connectionId)) {
-            YT_LOG_DEBUG("Connection unregistered (ConnectionId: %v)",
-                connectionId);
+            YT_TLOG_DEBUG("Connection unregistered")
+                .With("ConnectionId", connectionId);
             return true;
         }
 
@@ -268,7 +267,8 @@ IServerPtr CreateServer(
             if (retryIndex + 1 == config->BindRetryCount) {
                 throw;
             } else {
-                YT_LOG_ERROR(ex, "Kafka proxy server bind failed");
+                YT_TLOG_ERROR("Kafka proxy server bind failed")
+                    .With(ex);
                 Sleep(config->BindRetryBackoff);
             }
         }
