@@ -59,8 +59,10 @@ protected:
     {
         ResumeBothCells();
         std::tie(EnabledCell_, DisabledCell_) = FindEnabledAndDisabledCells();
-        YT_LOG_INFO("Test starting (EnabledCell: %v, DisabledCell: %v, Migrate: %v)",
-            EnabledCell_, DisabledCell_, GetParam());
+        YT_TLOG_INFO("Test starting")
+            .With("EnabledCell", EnabledCell_)
+            .With("DisabledCell", DisabledCell_)
+            .With("Migrate", GetParam());
     }
 
     void TearDown() override
@@ -83,7 +85,8 @@ protected:
             {.Timeout = TDuration::Seconds(120), .IgnoreExceptions = true});
 
         std::swap(EnabledCell_, DisabledCell_);
-        YT_LOG_INFO("Migrated lease manager (NewEnabledCell: %v)", EnabledCell_);
+        YT_TLOG_INFO("Migrated lease manager")
+            .With("NewEnabledCell", EnabledCell_);
     }
 
     static IPrerequisitePtr CreateLease(
@@ -146,7 +149,7 @@ protected:
         WaitFor(Client_->CreateObject(EObjectType::ChaosCellBundle, options))
             .ValueOrThrow();
 
-        YT_LOG_INFO("Chaos cell bundle created");
+        YT_TLOG_INFO("Chaos cell bundle created");
     }
 
     static TCellId SyncCreateChaosCell(TCellTag cellTag)
@@ -166,7 +169,8 @@ protected:
 
         WaitUntilEqual(Format("#%v/@health", cellId), "good");
 
-        YT_LOG_INFO("Chaos cell created and healthy (CellId: %v)", cellId);
+        YT_TLOG_INFO("Chaos cell created and healthy")
+            .With("CellId", cellId);
         return cellId;
     }
 
@@ -234,7 +238,8 @@ TEST_P(TChaosLeaseTest, PingProlongsTtl)
 {
     auto lease = CreateLease(EnabledCell_, TDuration::Seconds(5));
 
-    YT_LOG_INFO("Lease created (LeaseId: %v)", lease->GetId());
+    YT_TLOG_INFO("Lease created")
+        .With("LeaseId", lease->GetId());
 
     MaybeMigrate();
 
@@ -242,7 +247,8 @@ TEST_P(TChaosLeaseTest, PingProlongsTtl)
         Sleep(TDuration::Seconds(1));
         WaitFor(lease->Ping())
             .ThrowOnError();
-        YT_LOG_INFO("Ping %v succeeded", i);
+        YT_TLOG_INFO("Ping succeeded")
+                .With("Index", i);
     }
 
     ASSERT_TRUE(LeaseExists(lease->GetId()));
@@ -251,7 +257,7 @@ TEST_P(TChaosLeaseTest, PingProlongsTtl)
         [&] { return !LeaseExists(lease->GetId()); },
         "lease did not expire after pinging stopped");
 
-    YT_LOG_INFO("Lease expired after pinging stopped");
+    YT_TLOG_INFO("Lease expired after pinging stopped");
 }
 
 TEST_P(TChaosLeaseTest, RemoveParentCascadesToChildren)
@@ -262,8 +268,10 @@ TEST_P(TChaosLeaseTest, RemoveParentCascadesToChildren)
     auto child1 = CreateLease(EnabledCell_, TDuration::Seconds(120), parent->GetId());
     auto child2 = CreateLease(EnabledCell_, TDuration::Seconds(120), parent->GetId());
 
-    YT_LOG_INFO("Lease tree created (Parent: %v, Child1: %v, Child2: %v)",
-        parent->GetId(), child1->GetId(), child2->GetId());
+    YT_TLOG_INFO("Lease tree created")
+        .With("Parent", parent->GetId())
+        .With("Child1", child1->GetId())
+        .With("Child2", child2->GetId());
 
     ASSERT_TRUE(LeaseExists(parent->GetId()));
     ASSERT_TRUE(LeaseExists(child1->GetId()));
@@ -289,7 +297,8 @@ TEST_P(TChaosLeaseTest, PingFailsAfterExpiration)
     WaitFor(lease->Ping())
         .ThrowOnError();
 
-    YT_LOG_INFO("Initial ping succeeded (LeaseId: %v)", lease->GetId());
+    YT_TLOG_INFO("Initial ping succeeded")
+        .With("LeaseId", lease->GetId());
 
     MaybeMigrate();
 
@@ -299,8 +308,8 @@ TEST_P(TChaosLeaseTest, PingFailsAfterExpiration)
 
     auto result = WaitFor(lease->Ping());
     ASSERT_FALSE(result.IsOK());
-    YT_LOG_INFO("Ping after expiration failed as expected (Error: %v)",
-        result.GetCode());
+    YT_TLOG_INFO("Ping after expiration failed as expected")
+        .With("Error", result.GetCode());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

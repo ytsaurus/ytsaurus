@@ -67,7 +67,8 @@ public:
         auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Cypress transaction started (TransactionId: %v)", tx->GetId());
+        YT_TLOG_DEBUG("Cypress transaction started")
+            .With("TransactionId", tx->GetId());
 
         return tx;
     }
@@ -181,13 +182,11 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
         }
     }
 
-    YT_LOG_DEBUG(
-        "Concurrent node creations are finished (RequestCount: %v, CreatedNodeCount: %v, "
-        "LockConflictCount: %v, AlreadyExistsErrorCount: %v)",
-        RequestCount,
-        createdNodeCount,
-        lockConflictCount,
-        nodeExistsCount);
+    YT_TLOG_DEBUG("Concurrent node creations are finished")
+        .With("RequestCount", RequestCount)
+        .With("CreatedNodeCount", createdNodeCount)
+        .With("LockConflictCount", lockConflictCount)
+        .With("AlreadyExistsErrorCount", nodeExistsCount);
 
     // TODO(kvk1920): implement per-request option to disable Sequoia retries
     // and rewrite this test in the following way: if Sequoia retries are
@@ -231,7 +230,7 @@ TEST_F(TSequoiaTest, TestCypressTransactionSimple)
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", nestedTx->GetId()))).ValueOrThrow());
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", dependentTx->GetId()))).ValueOrThrow());
 
-    YT_LOG_DEBUG("All 3 transactions are aborted");
+    YT_TLOG_DEBUG("All 3 transactions are aborted");
 
     // All these transactions are expected to be aborted in TearDownTestCase().
     auto tx1 = StartCypressTransaction({.AutoAbort = false});
@@ -262,17 +261,15 @@ TEST_F(TSequoiaTest, TestConcurrentCommitTx)
             WaitFor(barrier)
                 .ThrowOnError();
 
-            YT_LOG_DEBUG(
-                "Request started (TransactionId: %v, InFlightRequestCount: %v)",
-                transactions[txIndex]->GetId(),
-                inFlightRequests.fetch_add(1, std::memory_order::relaxed) + 1);
+            YT_TLOG_DEBUG("Request started")
+                .With("TransactionId", transactions[txIndex]->GetId())
+                .With("InFlightRequestCount", inFlightRequests.fetch_add(1, std::memory_order::relaxed) + 1);
 
             auto finally = Finally([&] {
-                YT_LOG_DEBUG(
-                    "Request finished (TransactionId: %v, InFlightRequestCount: %v, FinishedRequestCount: %v)",
-                    transactions[txIndex]->GetId(),
-                    inFlightRequests.fetch_sub(1, std::memory_order::relaxed) - 1,
-                    finishedRequests.fetch_add(1, std::memory_order::relaxed) + 1);
+                YT_TLOG_DEBUG("Request finished")
+                    .With("TransactionId", transactions[txIndex]->GetId())
+                    .With("InFlightRequestCount", inFlightRequests.fetch_sub(1, std::memory_order::relaxed) - 1)
+                    .With("FinishedRequestCount", finishedRequests.fetch_add(1, std::memory_order::relaxed) + 1);
             });
 
             WaitFor(transactions[txIndex]->Commit())
@@ -320,7 +317,9 @@ TEST_F(TSequoiaTest, TestConcurrentCommitTx)
         }
     }
 
-    YT_LOG_DEBUG("All transactions finished (Committed: %v, AlreadyAborted: %v)", committed, alreadyAborted);
+    YT_TLOG_DEBUG("All transactions finished")
+        .With("Committed", committed)
+        .With("AlreadyAborted", alreadyAborted);
 }
 
 TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
@@ -374,7 +373,10 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
             auto startTimestamp = timestamp.fetch_add(1, std::memory_order::acquire);
             auto error = WaitFor(prerequisiteTx->Commit());
             auto endTimestamp = timestamp.fetch_add(1, std::memory_order::release);
-            YT_LOG_DEBUG(error, "Request executed (StartTimestamp: %v, EndTimestamp: %v)", startTimestamp, endTimestamp);
+            YT_TLOG_DEBUG("Request executed")
+                .With("StartTimestamp", startTimestamp)
+                .With("EndTimestamp", endTimestamp)
+                .With(error);
             return {startTimestamp, endTimestamp, error};
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -389,10 +391,9 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
     auto [startCommitTimestamp, endCommitTimestamp, commitError] = commitResult.Value();
     YT_VERIFY(commitError.IsOK());
 
-    YT_LOG_DEBUG(
-        "Commit request (StartTimestamp: %v, EndTimestamp: %v)",
-        startCommitTimestamp,
-        endCommitTimestamp);
+    YT_TLOG_DEBUG("Commit request")
+        .With("StartTimestamp", startCommitTimestamp)
+        .With("EndTimestamp", endCommitTimestamp);
 
     auto createdNodeCount = 0;
     auto prerequisiteCheckFailedCount = 0;
@@ -401,11 +402,10 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
         auto [startTimestamp, endTimestamp, error] = result.Value();
-        YT_LOG_DEBUG(
-            "Create request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
-            requestIndex,
-            startTimestamp,
-            endTimestamp);
+        YT_TLOG_DEBUG("Create request")
+            .With("RequestIndex", requestIndex)
+            .With("StartTimestamp", startTimestamp)
+            .With("EndTimestamp", endTimestamp);
 
         if (error.IsOK()) {
             YT_VERIFY(startTimestamp < endCommitTimestamp);
@@ -416,17 +416,16 @@ TEST_F(TSequoiaTest, TestParallelWriteActionsWithPrerequisiteTx)
         } else if (error.GetMessage().contains("Failed to issue leases for prerequisite transactions")) {
             ++leaseIssueFailedCount;
         } else {
-            YT_LOG_FATAL(error, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(error);
         }
     }
 
-    YT_LOG_DEBUG(
-        "Creations with prerequisite transaction are finished "
-        "(CreatedNodeCount: %v, PrerequisiteCheckFailedCount: %v, LeaseIssueFailedCount: %v, PrerequisiteTransactionId: %v)",
-        createdNodeCount,
-        prerequisiteCheckFailedCount,
-        leaseIssueFailedCount,
-        prerequisiteTx->GetId());
+    YT_TLOG_DEBUG("Creations with prerequisite transaction are finished")
+        .With("CreatedNodeCount", createdNodeCount)
+        .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount)
+        .With("LeaseIssueFailedCount", leaseIssueFailedCount)
+        .With("PrerequisiteTransactionId", prerequisiteTx->GetId());
 
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", prerequisiteTx->GetId()))).ValueOrThrow());
 
@@ -502,7 +501,10 @@ TEST_F(TSequoiaTest, TestParallelReadActionsWithPrerequisiteTx)
             auto startTimestamp = timestamp.fetch_add(1, std::memory_order::acquire);
             auto error = WaitFor(prerequisiteTx->Commit());
             auto endTimestamp = timestamp.fetch_add(1, std::memory_order::release);
-            YT_LOG_DEBUG(error, "Request executed (StartTimestamp: %v, EndTimestamp: %v)", startTimestamp, endTimestamp);
+            YT_TLOG_DEBUG("Request executed")
+                .With("StartTimestamp", startTimestamp)
+                .With("EndTimestamp", endTimestamp)
+                .With(error);
             return {startTimestamp, endTimestamp, error};
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -517,21 +519,19 @@ TEST_F(TSequoiaTest, TestParallelReadActionsWithPrerequisiteTx)
     auto [startCommitTimestamp, endCommitTimestamp, commitError] = commitResult.Value();
     YT_VERIFY(commitError.IsOK());
 
-    YT_LOG_DEBUG(
-        "Commit request (StartTimestamp: %v, EndTimestamp: %v)",
-        startCommitTimestamp,
-        endCommitTimestamp);
+    YT_TLOG_DEBUG("Commit request")
+        .With("StartTimestamp", startCommitTimestamp)
+        .With("EndTimestamp", endCommitTimestamp);
 
     int listedNodeCount = 0, prerequisiteCheckFailedCount = 0;
     for (int requestIndex : std::views::iota(0, RequestCount)) {
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
         auto [startTimestamp, endTimestamp, error] = result.Value();
-        YT_LOG_DEBUG(
-            "Create request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
-            requestIndex,
-            startTimestamp,
-            endTimestamp);
+        YT_TLOG_DEBUG("Create request")
+            .With("RequestIndex", requestIndex)
+            .With("StartTimestamp", startTimestamp)
+            .With("EndTimestamp", endTimestamp);
 
         if (error.IsOK()) {
             YT_VERIFY(startTimestamp < endCommitTimestamp);
@@ -540,16 +540,15 @@ TEST_F(TSequoiaTest, TestParallelReadActionsWithPrerequisiteTx)
             YT_VERIFY(startCommitTimestamp < endTimestamp);
             ++prerequisiteCheckFailedCount;
         } else {
-            YT_LOG_FATAL(error, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(error);
         }
     }
 
-    YT_LOG_DEBUG(
-        "Lists with prerequisite transaction are finished "
-        "(ListedNodeCount: %v, PrerequisiteCheckFailedCount: %v, PrerequisiteTransactionId: %v)",
-        listedNodeCount,
-        prerequisiteCheckFailedCount,
-        prerequisiteTx->GetId());
+    YT_TLOG_DEBUG("Lists with prerequisite transaction are finished")
+        .With("ListedNodeCount", listedNodeCount)
+        .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount)
+        .With("PrerequisiteTransactionId", prerequisiteTx->GetId());
 
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", prerequisiteTx->GetId()))).ValueOrThrow());
 
@@ -644,11 +643,10 @@ TEST_F(TSequoiaTest, TestManyCopyReqsWithPrerequisiteRevisionAndOneSet)
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
         auto [startTimestamp, endTimestamp, error] = result.Value();
-        YT_LOG_DEBUG(
-            "Copy request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
-            requestIndex,
-            startTimestamp,
-            endTimestamp);
+        YT_TLOG_DEBUG("Copy request")
+            .With("RequestIndex", requestIndex)
+            .With("StartTimestamp", startTimestamp)
+            .With("EndTimestamp", endTimestamp);
 
         if (result.IsOK()) {
             YT_VERIFY(startTimestamp < endSetTimestamp);
@@ -657,15 +655,14 @@ TEST_F(TSequoiaTest, TestManyCopyReqsWithPrerequisiteRevisionAndOneSet)
             YT_VERIFY(startSetTimestamp < endTimestamp);
             ++prerequisiteCheckFailedCount;
         } else {
-            YT_LOG_FATAL(result, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(result);
         }
     }
 
-    YT_LOG_DEBUG(
-        "Copyings with prerequisite revision are finished "
-        "(CopiedNodeCount: %v, PrerequisiteCheckFailedCount: %v)",
-        copiedNodeCount,
-        prerequisiteCheckFailedCount);
+    YT_TLOG_DEBUG("Copyings with prerequisite revision are finished")
+        .With("CopiedNodeCount", copiedNodeCount)
+        .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount);
 }
 
 TEST_F(TSequoiaTest, TestManySetReqsWithPrerequisiteRevision)
@@ -724,11 +721,10 @@ TEST_F(TSequoiaTest, TestManySetReqsWithPrerequisiteRevision)
         auto result = results[requestIndex];
         YT_VERIFY(result.IsOK());
         auto [startTimestamp, endTimestamp, error] = result.Value();
-        YT_LOG_DEBUG(
-            "Set request (RequestIndex: %v, StartTimestamp: %v, EndTimestamp: %v)",
-            requestIndex,
-            startTimestamp,
-            endTimestamp);
+        YT_TLOG_DEBUG("Set request")
+            .With("RequestIndex", requestIndex)
+            .With("StartTimestamp", startTimestamp)
+            .With("EndTimestamp", endTimestamp);
 
         if (result.IsOK()) {
             ++setNodeCount;
@@ -745,15 +741,14 @@ TEST_F(TSequoiaTest, TestManySetReqsWithPrerequisiteRevision)
             YT_VERIFY(intersectingRequestIndex >= 0 && intersectingRequestIndex < RequestCount);
             ++prerequisiteCheckFailedCount;
         } else {
-            YT_LOG_FATAL(result, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(result);
         }
     }
 
-    YT_LOG_DEBUG(
-        "Sets with prerequisite revision are finished "
-        "(SetNodeCount: %v, PrerequisiteCheckFailedCount: %v)",
-        setNodeCount,
-        prerequisiteCheckFailedCount);
+    YT_TLOG_DEBUG("Sets with prerequisite revision are finished")
+        .With("SetNodeCount", setNodeCount)
+        .With("PrerequisiteCheckFailedCount", prerequisiteCheckFailedCount);
 }
 
 TEST_F(TSequoiaTest, TestTransactionAbortConflict)
@@ -882,14 +877,14 @@ TEST_F(TSequoiaTest, TestTransactionAbortNoStarvation)
                 .Run());
     }
 
-    YT_LOG_DEBUG("Started setting node values");
+    YT_TLOG_DEBUG("Started setting node values");
     barrierPromise.Set();
 
-    YT_LOG_DEBUG("Aborting topmost transaction (TransactionId: %v)",
-        topmostTransaction->GetId());
+    YT_TLOG_DEBUG("Aborting topmost transaction")
+        .With("TransactionId", topmostTransaction->GetId());
     WaitFor(topmostTransaction->Abort())
         .ThrowOnError();
-    YT_LOG_DEBUG("Topmost transaction aborted");
+    YT_TLOG_DEBUG("Topmost transaction aborted");
 
     WaitFor(AllSet(resultFutures))
         .ThrowOnError();
@@ -925,7 +920,8 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
             auto rsp = batchRsp->template GetResponse<NCypressClient::TCypressYPathProxy::TRspRemove>(0);
-            YT_LOG_DEBUG(TError(rsp), "Response finished");
+            YT_TLOG_DEBUG("Response finished")
+                .With(TError(rsp));
             rsp.ThrowOnError();
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -955,15 +951,17 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
             ++sequoiaRetriableErrors;
         } else if (error.GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
-            YT_LOG_FATAL(error, "Unexpected retriable error when retries were enabled");
+            YT_TLOG_FATAL("Unexpected retriable error when retries were enabled")
+                .With(error);
         } else {
-            YT_LOG_FATAL(error, "Unexpected error");
+            YT_TLOG_FATAL("Unexpected error")
+                .With(error);
         }
     }
 
-    YT_LOG_DEBUG("Requests finished (OkRequests: %v, SequoiaRetriableErrors: %v)",
-        okRequests,
-        sequoiaRetriableErrors);
+    YT_TLOG_DEBUG("Requests finished")
+        .With("OkRequests", okRequests)
+        .With("SequoiaRetriableErrors", sequoiaRetriableErrors);
 
     // Every request with Sequoia retries should succeed thanks to PRK.
     EXPECT_GE(okRequests, RequestCount / 2);
@@ -977,37 +975,39 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
     auto invoker = threadPool->GetInvoker();
 
     for (int iteration : std::views::iota(0, IterationCount)) {
-        YT_LOG_DEBUG("Starting iteration %v", iteration);
+        YT_TLOG_DEBUG("Starting iteration")
+            .With("Iteration", iteration);
 
         WaitFor(Client_->CreateNode("//sequoia/a", EObjectType::MapNode))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Node \"//sequoia/a\" created");
+        YT_TLOG_DEBUG("Node \"//sequoia/a\" created");
 
         auto barrier = NewPromise<void>();
         auto conncurrentReplaceFuture = BIND([client = Client_, barrier = barrier.ToFuture()] () {
             WaitFor(barrier)
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Concurrent worker started");
+            YT_TLOG_DEBUG("Concurrent worker started");
 
             WaitFor(Client_->CreateNode("//sequoia/b", EObjectType::MapNode))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Node \"//sequoia/b\" created");
+            YT_TLOG_DEBUG("Node \"//sequoia/b\" created");
 
             TMoveNodeOptions moveOptions = {};
             moveOptions.Force = true;
             WaitFor(Client_->MoveNode("//sequoia/b", "//sequoia/a", moveOptions))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("\"//sequoia/b\" replaced with \"//sequoia/a\"");
+            YT_TLOG_DEBUG("\"//sequoia/b\" replaced with \"//sequoia/a\"");
         })
             .AsyncVia(invoker)
             .Run();
 
         auto now = TInstant::Now();
-        YT_LOG_DEBUG("(Old creation time: %v)", now);
+        YT_TLOG_DEBUG("Recorded creation time before replacement")
+            .With("OldCreationTime", now);
 
         TDelayedExecutor::Submit(BIND([&] { barrier.Set(); }), TDuration::MicroSeconds(50));
 
@@ -1018,7 +1018,8 @@ TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
                 .ValueOrThrow();
 
             auto creationTime = ConvertTo<TInstant>(creationTimeString);
-            YT_LOG_DEBUG("Creation time fetched (CurrentCreationTime: %v)", creationTime);
+            YT_TLOG_DEBUG("Creation time fetched")
+                .With("CurrentCreationTime", creationTime);
 
             if (creationTime >= now) {
                 break;
@@ -1089,7 +1090,8 @@ TEST_F(TSequoiaTest, TestLatency)
             .ValueOrThrow();
     }
 
-    YT_LOG_DEBUG("Mean time per test: %vms", total.MilliSeconds() / AttemptCount);
+    YT_TLOG_DEBUG("Mean time per test")
+        .WithFormat("MeanTime", "%vms", total.MilliSeconds() / AttemptCount);
 }
 
 TEST_F(TSequoiaTest, TestSequoiaPrelockDisable)
@@ -1295,7 +1297,9 @@ TEST_P(TSequoiaTestPrelocks, Test)
         targetNodeId = WaitFor(Client_->CreateNode("//sequoia/race_2pc_execute/m", EObjectType::MapNode)).ValueOrThrow();
     } while (CellTagFromId(targetNodeId) == CellTagFromId(parentNodeId));
 
-    YT_LOG_DEBUG("Test nodes created (ParentId: %v, NodeId: %v)", parentNodeId, targetNodeId);
+    YT_TLOG_DEBUG("Test nodes created")
+        .With("ParentId", parentNodeId)
+        .With("NodeId", targetNodeId);
 
     TEnumIndexedArray<ETestSequoiaPrelocksTransaction, ITransactionPtr> tx;
     auto startTx = [&] (ETestSequoiaPrelocksTransaction thisTx, const ITransactionPtr& parent) {
@@ -1332,7 +1336,7 @@ TEST_P(TSequoiaTestPrelocks, Test)
     auto removalFinished = BIND([&] {
         NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("LockNode"));
 
-        YT_LOG_DEBUG("Planning removal");
+        YT_TLOG_DEBUG("Planning removal");
 
         WaitFor(Client_->SetNode(
             "//sys/@config/transaction_manager/testing/artificial_participant_commit_delay",
@@ -1353,7 +1357,7 @@ TEST_P(TSequoiaTestPrelocks, Test)
     auto lockAttemptFinished = BIND([&] {
         NTracing::TTraceContextGuard guard(NTracing::GetOrCreateTraceContext("LockNode"));
 
-        YT_LOG_DEBUG("Planning locking");
+        YT_TLOG_DEBUG("Planning locking");
 
         auto nativeConnection = DynamicPointerCast<NNative::IConnection>(Connection_);
         auto channel = nativeConnection

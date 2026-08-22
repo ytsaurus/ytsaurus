@@ -1039,7 +1039,8 @@ TEST_F(TConcatenateTest, TestParallelConcatenateToSortedWithAppend)
     for (auto& result : results) {
         if (!result.IsOK()) {
             ++failedCount;
-            YT_LOG_INFO("Concatenate failed with error (ErrorMessage: %v)", result);
+            YT_TLOG_INFO("Concatenate failed with error")
+                .With("ErrorMessage", result);
             EXPECT_TRUE(result.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict));
         }
     }
