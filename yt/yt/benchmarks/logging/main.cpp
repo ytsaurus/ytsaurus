@@ -20,7 +20,7 @@ struct TLoggingBenchmark
         size_t messageCount = 0;
         while (!Stopped) {
             for (size_t index = 0; index < 100; ++index) {
-                YT_LOG_INFO("Starting access statistics commit for nodes");
+                YT_TLOG_INFO("Starting access statistics commit for nodes");
                 ++messageCount;
             }
         }

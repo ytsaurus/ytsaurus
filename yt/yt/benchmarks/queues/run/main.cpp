@@ -97,10 +97,9 @@ protected:
         partitionReaderConfig->MaxDataWeight = MaxDataWeight_;
         partitionReaderConfig->UseNativeTabletNodeApi = UseNativeTabletNodeApi_;
         partitionReaderConfig->UsePullQueueConsumer = UsePullQueueConsumer_;
-        YT_LOG_INFO(
-            "Partition reader config (UseNativeTabletNodeApi: %v, UsePullQueueConsumer: %v)",
-            partitionReaderConfig->UseNativeTabletNodeApi,
-            partitionReaderConfig->UsePullQueueConsumer);
+        YT_TLOG_INFO("Partition reader config")
+            .With("UseNativeTabletNodeApi", partitionReaderConfig->UseNativeTabletNodeApi)
+            .With("UsePullQueueConsumer", partitionReaderConfig->UsePullQueueConsumer);
         auto partitionReader = CreateMultiQueueConsumerPartitionReader(
             partitionReaderConfig,
             Client_,
@@ -126,7 +125,8 @@ protected:
             readTimer.Stop();
 
             if (!rowsetOrError.IsOK()) {
-                YT_LOG_INFO(rowsetOrError, "Finished reading due to error");
+                YT_TLOG_INFO("Finished reading due to error")
+                    .With(rowsetOrError);
                 break;
             }
 
@@ -135,10 +135,10 @@ protected:
             // For compatibility with the old partition reader implementation.
             if (rowset->GetRows().empty()) {
                 if (Mode_ == "online") {
-                    YT_LOG_INFO("Read empty batch, skipping to next iteration");
+                    YT_TLOG_INFO("Read empty batch, skipping to next iteration");
                     continue;
                 } else {
-                    YT_LOG_INFO("Read empty batch, finishing up");
+                    YT_TLOG_INFO("Read empty batch, finishing up");
                     break;
                 }
             }
@@ -208,36 +208,30 @@ private:
             ++SampleCount_;
 
             if (SampleCount_ % LoggingPeriod_ == 0) {
-                YT_LOG_INFO(
-                    "Iteration statistics (ReadTime: %vms, AdvanceOffsetTime: %vms, WallTime: %vms, CpuTime: %v)",
-                    readTime.MillisecondsFloat(),
-                    advanceOffsetTime.MillisecondsFloat(),
-                    totalTime.MillisecondsFloat(),
-                    totalCpuTime);
+                YT_TLOG_INFO("Iteration statistics")
+                    .WithFormat("ReadTime", "%vms", readTime.MillisecondsFloat())
+                    .WithFormat("AdvanceOffsetTime", "%vms", advanceOffsetTime.MillisecondsFloat())
+                    .WithFormat("WallTime", "%vms", totalTime.MillisecondsFloat())
+                    .With("CpuTime", totalCpuTime);
 
                 LogOverallStatistics();
             }
         }
 
-        void LogOverallStatistics(const std::string& message = "Reporting overall statistics") const
+        void LogOverallStatistics(const std::string& reason = {}) const
         {
             if (SampleCount_ == 0) {
                 return;
             }
 
-            YT_LOG_INFO(
-                "%v ("
-                "AverageReadTime: %vms, "
-                "AverageAdvanceOffsetTime: %vms, "
-                "AverageWallTime: %vms, TotalWallTime: %vs, "
-                "Throughput: %vMB/s, RowsetsRead: %v)",
-                message,
-                (TotalReadTime_/ SampleCount_).MilliSeconds(),
-                (TotalAdvanceOffsetTime_ / SampleCount_).MilliSeconds(),
-                (TotalTime_ / SampleCount_).MilliSeconds(),
-                TotalTime_.SecondsFloat(),
-                DataWeightRead_ / TotalTime_.SecondsFloat() / 1_MB,
-                SampleCount_);
+            YT_TLOG_INFO("Reporting overall statistics")
+                .WithIf(!reason.empty(), "Reason", reason)
+                .WithFormat("AverageReadTime", "%vms", (TotalReadTime_ / SampleCount_).MilliSeconds())
+                .WithFormat("AverageAdvanceOffsetTime", "%vms", (TotalAdvanceOffsetTime_ / SampleCount_).MilliSeconds())
+                .WithFormat("AverageWallTime", "%vms", (TotalTime_ / SampleCount_).MilliSeconds())
+                .WithFormat("TotalWallTime", "%vs", TotalTime_.SecondsFloat())
+                .WithFormat("Throughput", "%vMB/s", DataWeightRead_ / TotalTime_.SecondsFloat() / 1_MB)
+                .With("RowsetsRead", SampleCount_);
         }
 
     private:
@@ -257,7 +251,8 @@ private:
         transaction->AdvanceConsumer(ConsumerPath_.GetPath(), QueuePath_, 0, {}, offset);
         WaitFor(transaction->Commit())
             .ThrowOnError();
-        YT_LOG_INFO("Advanced consumer out of band (Offset: %v)", offset);
+        YT_TLOG_INFO("Advanced consumer out of band")
+            .With("Offset", offset);
     }
 
     void Init()
@@ -296,7 +291,8 @@ private:
             auto latestOffset = WaitFor(FetchLatestOffset())
                 .ValueOrThrow();
             AdvanceConsumerOutOfBand(latestOffset);
-            YT_LOG_INFO("Advanced consumer to the front of the queue (LatestOffset: %v)", latestOffset);
+            YT_TLOG_INFO("Advanced consumer to the front of the queue")
+                .With("LatestOffset", latestOffset);
         }
     }
 
@@ -321,11 +317,10 @@ private:
             .ValueOrThrow();
 
         auto lag = lastOffset - nextRowIndex;
-        YT_LOG_INFO(
-            "Reporting current lag (NextRowIndex: %v, LastOffset: %v, Lag: %v)",
-            nextRowIndex,
-            lastOffset,
-            lag);
+        YT_TLOG_INFO("Reporting current lag")
+            .With("NextRowIndex", nextRowIndex)
+            .With("LastOffset", lastOffset)
+            .With("Lag", lag);
     }
 
     void CreateConsumer()
@@ -368,7 +363,8 @@ private:
         WaitFor(Client_->SetNode(ConsumerPath_.GetPath() + "/@target_queue", ConvertToYsonString(Format("%v:%v", Cluster_, QueuePath_))))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Created consumer (Path: %v)", ConsumerPath_);
+        YT_TLOG_DEBUG("Created consumer")
+            .With("Path", ConsumerPath_);
     }
 
     void CreateYTConsumer()
@@ -391,7 +387,8 @@ private:
         YT_UNUSED_FUTURE(Client_->MountTable(ConsumerPath_.GetPath()));
         WaitUntil(ConsumerPath_.GetPath() + "/@tablet_state", "mounted");
 
-        YT_LOG_DEBUG("Created consumer (Path: %v)", ConsumerPath_);
+        YT_TLOG_DEBUG("Created consumer")
+            .With("Path", ConsumerPath_);
     }
 
     void WaitUntil(const TYPath& path, const std::string& expected)
