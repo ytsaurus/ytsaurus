@@ -110,7 +110,7 @@ public:
 
     void Start() override
     {
-        YT_LOG_DEBUG("Starting CHYT query");
+        YT_TLOG_DEBUG("Starting CHYT query");
         OnQueryStarted();
         StartProgressWriter();
 
@@ -192,7 +192,7 @@ private:
 
     void CheckPermission()
     {
-        YT_LOG_DEBUG("Checking permission");
+        YT_TLOG_DEBUG("Checking permission");
 
         auto principalAclPath = Format("//sys/access_control_object_namespaces/chyt/%v/principal", ToYPathLiteral(Clique_));
         TCheckPermissionOptions options;
@@ -208,7 +208,7 @@ private:
 
     void InitializeInstances()
     {
-        YT_LOG_DEBUG("Initializing instances");
+        YT_TLOG_DEBUG("Initializing instances");
 
         Discovery_ = CreateDiscovery();
         auto error = WaitFor(Discovery_->UpdateList());
@@ -224,7 +224,7 @@ private:
 
     IDiscoveryPtr CreateDiscovery()
     {
-        YT_LOG_DEBUG("Getting discovery");
+        YT_TLOG_DEBUG("Getting discovery");
 
         auto config = New<TDiscoveryConfig>();
         config->GroupId = Format("/chyt/%v", Clique_);
@@ -364,7 +364,9 @@ private:
                 IsProgressImplemented_ = false;
                 return;
             }
-            YT_LOG_ERROR(errorOrProgress, "Failed to get progress from coordinator (InstanceEndpoint: %v)", endpoint);
+            YT_TLOG_ERROR("Failed to get progress from coordinator")
+                .With("InstanceEndpoint", endpoint)
+                .With(errorOrProgress);
         }
     }
 

@@ -122,15 +122,16 @@ std::vector<TParsedToken> Tokenize(
         result.emplace_back(token, occurrences);
     }
 
-    YT_LOG_DEBUG("Query parsed (TokenOccurences: %v)", MakeShrunkFormattableView(
-        result,
-        [] (
-            TStringBuilderBase* builder,
-            const TParsedToken& entry
-        ) {
-            builder->AppendFormat("%v: %v", entry.Token, entry.Occurrences);
-        },
-        20));
+    YT_TLOG_DEBUG("Query parsed")
+        .With("TokenOccurences", MakeShrunkFormattableView(
+            result,
+            [] (
+                TStringBuilderBase* builder,
+                const TParsedToken& entry
+            ) {
+                builder->AppendFormat("%v: %v", entry.Token, entry.Occurrences);
+            },
+            20));
 
     return result;
 }
