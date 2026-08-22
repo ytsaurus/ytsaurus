@@ -115,10 +115,9 @@ void TBootstrap::Run()
 
 void TBootstrap::DoRun()
 {
-    YT_LOG_INFO(
-        "Starting Yql agent process (NativeCluster: %v, User: %v)",
-        Config_->ClusterConnection->Static->ClusterName,
-        Config_->User);
+    YT_TLOG_INFO("Starting YQL agent process")
+        .With("NativeCluster", Config_->ClusterConnection->Static->ClusterName)
+        .With("User", Config_->User);
 
     AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
@@ -159,13 +158,11 @@ void TBootstrap::DoRun()
     DynamicConfigManager_->Start();
 
     {
-        YT_LOG_INFO("Loading dynamic config for the first time");
+        YT_TLOG_INFO("Loading dynamic config for the first time");
         auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
-        YT_LOG_FATAL_UNLESS(
-            error.IsOK(),
-            error,
-            "Unexpected failure while waiting for the first dynamic config loaded");
-        YT_LOG_INFO("Dynamic config loaded");
+        YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for the first dynamic config loaded")
+            .With(error);
+        YT_TLOG_INFO("Dynamic config loaded");
     }
 
     YqlAgent_ = CreateYqlAgent(
@@ -232,12 +229,14 @@ void TBootstrap::DoRun()
         YqlAgent_,
         ComponentStateChecker_));
 
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_->Start();
 
     YqlAgent_->Start();
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 
@@ -251,7 +250,8 @@ void TBootstrap::UpdateCypressNode()
         try {
             GuardedUpdateCypressNode();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error updating cypress node");
+            YT_TLOG_DEBUG("Error updating cypress node")
+                .With(ex);
             continue;
         }
         return;
@@ -273,12 +273,13 @@ void TBootstrap::GuardedUpdateCypressNode()
                 .Item("annotations").Value(Config_->CypressAnnotations)
             .EndMap());
 
-        YT_LOG_INFO("Creating instance node (Path: %v)", instancePath);
+        YT_TLOG_INFO("Creating instance node")
+            .With("Path", instancePath);
 
         WaitFor(NativeClient_->CreateNode(instancePath, EObjectType::MapNode, options))
             .ThrowOnError();
 
-        YT_LOG_INFO("Instance node created");
+        YT_TLOG_INFO("Instance node created");
     }
     {
         TCreateNodeOptions options;
@@ -291,12 +292,13 @@ void TBootstrap::GuardedUpdateCypressNode()
 
         auto orchidPath = instancePath + "/orchid";
 
-        YT_LOG_INFO("Creating orchid node (Path: %v)", orchidPath);
+        YT_TLOG_INFO("Creating orchid node")
+            .With("Path", orchidPath);
 
         WaitFor(NativeClient_->CreateNode(orchidPath, EObjectType::Orchid, options))
             .ThrowOnError();
 
-        YT_LOG_INFO("Orchid node created");
+        YT_TLOG_INFO("Orchid node created");
     }
 }
 
@@ -305,7 +307,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TYqlAgentServerDynamicConfigPtr& newConfig)
 {
     if (!YqlAgent_) {
-        YT_LOG_DEBUG("Yql agent is not ready to update dynconfig");
+        YT_TLOG_DEBUG("YQL agent is not ready to update dynamic config");
         return;
     }
 
@@ -325,10 +327,9 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ComponentStateChecker_->SetPeriod(newConfig->YqlAgent->StateCheckPeriod);
 
-    YT_LOG_DEBUG(
-        "Updated Yql agent server dynamic config (OldConfig: %v, NewConfig: %v)",
-        ConvertToYsonString(oldConfig, EYsonFormat::Text),
-        ConvertToYsonString(newConfig, EYsonFormat::Text));
+    YT_TLOG_DEBUG("Updated YQL agent server dynamic config")
+        .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+        .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
 const NNative::TConnectionCompoundConfigPtr TBootstrap::GetClusterConnectionConfig() const
