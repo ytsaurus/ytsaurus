@@ -189,9 +189,9 @@ private:
         DoNotOptimizeAway(serverSlots);
 
         for (const auto& [serverId, serverConfig] : config->Daemons) {
-            YT_LOG_INFO("Creating daemon (Type: %v, Id: %v)",
-                serverConfig->Type,
-                serverId);
+            YT_TLOG_INFO("Creating daemon")
+                .With("Type", serverConfig->Type)
+                .With("Id", serverId);
             auto factory = serverTypeMap.GetFactoryOrThrow(serverConfig->Type);
             auto bootstrap = factory(serverConfig->Config, GetServiceLocator());
             serverSlots.emplace_back(serverId, std::move(bootstrap));
@@ -199,26 +199,26 @@ private:
 
         std::vector<TFuture<void>> startFutures;
         for (const auto& slot : serverSlots) {
-            YT_LOG_INFO("Starting daemon (Id: %v)",
-                slot.Name);
+            YT_TLOG_INFO("Starting daemon")
+                .With("Id", slot.Name);
             startFutures.push_back(slot.Bootstrap->Run()
                 .Apply(BIND([name = slot.Name] (const TError& error) {
                     if (!error.IsOK()) {
                         THROW_ERROR_EXCEPTION("Error starting daemon %Qv", name)
                             .With(error);
                     }
-                    YT_LOG_INFO("Daemon started (Id: %v)",
-                        name);
+                    YT_TLOG_INFO("Daemon started")
+                        .With("Id", name);
                 })));
         }
 
-        YT_LOG_INFO("Waiting for daemon to start");
+        YT_TLOG_INFO("Waiting for daemon to start");
 
         AllSucceeded(std::move(startFutures))
             .BlockingGet()
             .ThrowOnError();
 
-        YT_LOG_INFO("Multidaemon is running");
+        YT_TLOG_INFO("Multidaemon is running");
 
        SleepForever();
     }
