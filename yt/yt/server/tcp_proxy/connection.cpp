@@ -45,7 +45,7 @@ void PipeConnectionReaderToWriter(
             auto readSize = WaitFor(reader->Read(buffer))
                 .ValueOrThrow();
             if (readSize == 0) {
-                YT_LOG_DEBUG("Connection terminated");
+                YT_TLOG_DEBUG("Connection terminated");
                 break;
             }
             auto data = buffer.Slice(0, readSize);
@@ -53,7 +53,8 @@ void PipeConnectionReaderToWriter(
                 .ThrowOnError();
         }
     } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Terminating connection");
+        YT_TLOG_DEBUG("Terminating connection")
+            .With(ex);
     }
 }
 
@@ -66,18 +67,19 @@ void HandleConnection(
     auto connectionId = TGuid::Create();
     auto Logger = TcpProxyLogger().WithTag("ConnectionId", connectionId);
 
-    YT_LOG_DEBUG("Connection accepted (SourceAddress: %v, DestinationAddress: %v)",
-        sourceConnection->GetRemoteAddress(),
-        destinationAddress);
+    YT_TLOG_DEBUG("Connection accepted")
+        .With("SourceAddress", sourceConnection->GetRemoteAddress())
+        .With("DestinationAddress", destinationAddress);
 
     auto onDestinationDialed = BIND([=] (const TErrorOr<IConnectionPtr>& connectionOrError) {
         if (!connectionOrError.IsOK()) {
-            YT_LOG_DEBUG(connectionOrError, "Failed to dial destination, dropping connection");
+            YT_TLOG_DEBUG("Failed to dial destination, dropping connection")
+                .With(connectionOrError);
             return;
         }
         const auto& destinationConnection = connectionOrError.Value();
 
-        YT_LOG_DEBUG("Started connection proxying");
+        YT_TLOG_DEBUG("Started connection proxying");
 
         invoker->Invoke(BIND(&PipeConnectionReaderToWriter, sourceConnection, destinationConnection, connectionId));
         invoker->Invoke(BIND(&PipeConnectionReaderToWriter, destinationConnection, sourceConnection, connectionId));
