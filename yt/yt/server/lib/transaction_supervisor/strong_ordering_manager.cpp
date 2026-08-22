@@ -38,7 +38,7 @@ TFuture<void> TStrongOrderingManager::WaitUntilPreparedCommitsFinish()
     return PreparedCommitsFinished_.Transform([&] (TPromise<void>& promise) {
         auto preparedCommitCount = PreparedCommitCount_.load(std::memory_order::relaxed);
         if (preparedCommitCount == 0) {
-            YT_LOG_DEBUG("No prepared strongly ordered commits");
+            YT_TLOG_DEBUG("No prepared strongly ordered commits");
             return OKFuture;
         }
 
@@ -46,8 +46,8 @@ TFuture<void> TStrongOrderingManager::WaitUntilPreparedCommitsFinish()
             promise = NewPromise<void>();
         }
 
-        YT_LOG_DEBUG("Waiting for currently prepared strongly ordered commits to be finished (PreparedCommitCount: %v)",
-            preparedCommitCount);
+        YT_TLOG_DEBUG("Waiting for currently prepared strongly ordered commits to be finished")
+            .With("PreparedCommitCount", preparedCommitCount);
         return promise.ToFuture();
     });
 }
@@ -133,10 +133,9 @@ void TStrongOrderingManager::PromoteLastCommitTimestamp(
         auto* shard = GetShardOrCrash(tag);
         auto previousCommitTimestamp = shard->LastCommitTimestamp;
         if (commitTimestamp < previousCommitTimestamp) {
-            YT_LOG_ALERT("Last strongly ordered committed timestamp is greater than current "
-                "(PreviousCommitTimestamp: %v, CurrentCommitTimestamp: %v)",
-                previousCommitTimestamp,
-                commitTimestamp);
+            YT_TLOG_ALERT("Last strongly ordered committed timestamp is greater than current")
+                .With("PreviousCommitTimestamp", previousCommitTimestamp)
+                .With("CurrentCommitTimestamp", commitTimestamp);
         }
 
         shard->LastCommitTimestamp = commitTimestamp;
@@ -159,23 +158,23 @@ void TStrongOrderingManager::ValidateProfilingMetricsConsistency() const
         }
     }
 
-    YT_LOG_ALERT_UNLESS(
+    YT_TLOG_ALERT_UNLESS(
         preparedTransactionCount == PreparedTransactionCount_.load(std::memory_order::relaxed),
-        "Prepared transaction count is wrong (ExpectedValue: %v, ActualValue: %v)",
-        preparedTransactionCount,
-        PreparedTransactionCount_.load(std::memory_order::relaxed));
+        "Prepared transaction count is wrong")
+        .With("ExpectedValue", preparedTransactionCount)
+        .With("ActualValue", PreparedTransactionCount_.load(std::memory_order::relaxed));
 
-    YT_LOG_ALERT_UNLESS(
+    YT_TLOG_ALERT_UNLESS(
         readyToCommitTransactionCount == ReadyToCommitTransactionCount_.load(std::memory_order::relaxed),
-        "Ready to commit transaction count is wrong (ExpectedValue: %v, ActualValue: %v)",
-        readyToCommitTransactionCount,
-        ReadyToCommitTransactionCount_.load(std::memory_order::relaxed));
+        "Ready to commit transaction count is wrong")
+        .With("ExpectedValue", readyToCommitTransactionCount)
+        .With("ActualValue", ReadyToCommitTransactionCount_.load(std::memory_order::relaxed));
 
-    YT_LOG_ALERT_UNLESS(
+    YT_TLOG_ALERT_UNLESS(
         readyToFlushTransactionCount == ReadyToFlushTransactionCount_.load(std::memory_order::relaxed),
-        "Ready to flush transaction count is wrong (ExpectedValue: %v, ActualValue: %v)",
-        readyToFlushTransactionCount,
-        ReadyToFlushTransactionCount_.load(std::memory_order::relaxed));
+        "Ready to flush transaction count is wrong")
+        .With("ExpectedValue", readyToFlushTransactionCount)
+        .With("ActualValue", ReadyToFlushTransactionCount_.load(std::memory_order::relaxed));
 }
 
 void TStrongOrderingManager::OnProfiling(TSensorBuffer* buffer) const
@@ -255,8 +254,8 @@ TStrongOrderingManager::TStrongOrderingShard* TStrongOrderingManager::GetOrCreat
 
     auto [it, emplaced] = OrderingTagToShard_.emplace(tag, TStrongOrderingShard{});
     if (emplaced) {
-        YT_LOG_DEBUG("Created strong ordering shard (Tag: %v)",
-            tag);
+        YT_TLOG_DEBUG("Created strong ordering shard")
+            .With("Tag", tag);
     }
 
     return &it->second;
@@ -280,10 +279,10 @@ bool TStrongOrderingManager::ValidateCommitState(
     auto isTransactionPresent = transactionInfoIt != TransactionIdToTransactionInfo_.end();
 
     if (!isTransactionPresent) {
-        YT_LOG_DEBUG("Transaction is missing in strong ordering manager (TransactionId: %v, ExpectedStates: %v, Action: %v)",
-            transactionId,
-            expectedStates,
-            actionOnMissingTransaction);
+        YT_TLOG_DEBUG("Transaction is missing in strong ordering manager")
+            .With("TransactionId", transactionId)
+            .With("ExpectedStates", expectedStates)
+            .With("Action", actionOnMissingTransaction);
 
         switch (actionOnMissingTransaction) {
             case EActionOnValidationFailure::None:
@@ -300,21 +299,19 @@ bool TStrongOrderingManager::ValidateCommitState(
             }
 
             case EActionOnValidationFailure::Crash:
-                YT_LOG_FATAL("Cannot find transaction (TransactionId: %v, ExpectedStates: %v)",
-                    transactionId,
-                    expectedStates);
+                YT_TLOG_FATAL("Cannot find transaction")
+                    .With("TransactionId", transactionId)
+                    .With("ExpectedStates", expectedStates);
         }
     }
 
     auto state = transactionInfoIt->second.CommitState;
     if (std::find(expectedStates.begin(), expectedStates.end(), state) == expectedStates.end()) {
-        YT_LOG_DEBUG(
-            "Transaction is in an unexpected state in strong ordering manager "
-            "(TransactionId: %v, ActualState: %v, ExpectedStates: %v, Action: %v)",
-            transactionId,
-            state,
-            expectedStates,
-            actionOnMissingTransaction);
+        YT_TLOG_DEBUG("Transaction is in an unexpected state in strong ordering manager")
+            .With("TransactionId", transactionId)
+            .With("ActualState", state)
+            .With("ExpectedStates", expectedStates)
+            .With("Action", actionOnMissingTransaction);
 
         switch (actionOnUnexpectedState) {
             case EActionOnValidationFailure::None:
@@ -332,10 +329,10 @@ bool TStrongOrderingManager::ValidateCommitState(
             }
 
             case EActionOnValidationFailure::Crash:
-                YT_LOG_FATAL("Transaction is in an unexpected state (TransactionId: %v, State: %v, ExpectedState: %v)",
-                    transactionId,
-                    state,
-                    expectedStates);
+                YT_TLOG_FATAL("Transaction is in an unexpected state")
+                    .With("TransactionId", transactionId)
+                    .With("State", state)
+                    .With("ExpectedState", expectedStates);
         }
     }
 
@@ -430,20 +427,19 @@ TCommitInfos TStrongOrderingManager::FlushCommits(std::vector<TTransactionId> tr
 
         auto& transactionInfo = GetOrCrash(TransactionIdToTransactionInfo_, transactionId);
         auto commitTimestamp = transactionInfo.CommitTimestamp;
-        YT_LOG_DEBUG("Flushing stronly ordered transaction (TransactionId: %v, CommitTimestamp: %v)",
-            transactionId,
-            commitTimestamp);
+        YT_TLOG_DEBUG("Flushing stronly ordered transaction")
+            .With("TransactionId", transactionId)
+            .With("CommitTimestamp", commitTimestamp);
 
-        YT_LOG_FATAL_UNLESS(transactionInfo.CanFlush,
-            "Transaction not marked as flushable was passed to be flushed (TransactionId: %v)",
-            transactionId);
+        YT_TLOG_FATAL_UNLESS(transactionInfo.CanFlush, "Transaction not marked as flushable was passed to be flushed")
+            .With("TransactionId", transactionId);
 
-        YT_LOG_FATAL_UNLESS(transactionInfo.FirstInShardCounter == std::ssize(transactionInfo.StrongOrderingTags),
-            "Transaction was passed to be flushed with wrong first in shard counter "
-            "(TransactionId: %v, FirstInShardCounter: %v, StrongOrderingTagCount: %v)",
-            transactionId,
-            transactionInfo.FirstInShardCounter,
-            std::ssize(transactionInfo.StrongOrderingTags));
+        YT_TLOG_FATAL_UNLESS(
+            transactionInfo.FirstInShardCounter == std::ssize(transactionInfo.StrongOrderingTags),
+            "Transaction was passed to be flushed with wrong first in shard counter")
+            .With("TransactionId", transactionId)
+            .With("FirstInShardCounter", transactionInfo.FirstInShardCounter)
+            .With("StrongOrderingTagCount", std::ssize(transactionInfo.StrongOrderingTags));
 
         // TODO(h0pless): This is for validation only. Can be removed after manager is stable.
         const auto& strongOrderingTags = transactionInfo.StrongOrderingTags;
@@ -451,24 +447,24 @@ TCommitInfos TStrongOrderingManager::FlushCommits(std::vector<TTransactionId> tr
             auto* shard = GetShardOrCrash(tag);
 
             auto [smallestCommitTimestamp, transactionIdToVerify] = *(shard->ReadyToCommitTransactions.begin());
-            YT_LOG_FATAL_UNLESS(commitTimestamp == smallestCommitTimestamp,
-                "Cannot commit transaction since transaction with smaller commit timestamp is not committed yet "
-                "(TransactionId: %v, CommitTimestamp: %v, SmallestCommitTimestamp: %v, StrongOrderingTag: %v)",
-                transactionId,
-                commitTimestamp,
-                smallestCommitTimestamp,
-                tag);
+            YT_TLOG_FATAL_UNLESS(
+                commitTimestamp == smallestCommitTimestamp,
+                "Cannot commit transaction since transaction with smaller commit timestamp is not committed yet")
+                .With("TransactionId", transactionId)
+                .With("CommitTimestamp", commitTimestamp)
+                .With("SmallestCommitTimestamp", smallestCommitTimestamp)
+                .With("StrongOrderingTag", tag);
 
             YT_VERIFY(transactionIdToVerify == transactionId);
 
             const auto& commitTimestampLowerBounds = shard->CommitTimestampLowerBounds;
-            YT_LOG_FATAL_UNLESS(commitTimestampLowerBounds.empty() || commitTimestampLowerBounds.begin()->first >= commitTimestamp,
-                "Cannot commit transaction as there is a prepared transaction with lesser commit timestamp lower bound "
-                "(TransactionId: %v, MinCommitTimestampLowerBound: %v, CommitTimestamp: %v, StrongOrderingTag: %v)",
-                transactionId,
-                commitTimestampLowerBounds.begin()->first,
-                commitTimestamp,
-                tag);
+            YT_TLOG_FATAL_UNLESS(
+                commitTimestampLowerBounds.empty() || commitTimestampLowerBounds.begin()->first >= commitTimestamp,
+                "Cannot commit transaction as there is a prepared transaction with lesser commit timestamp lower bound")
+                .With("TransactionId", transactionId)
+                .With("MinCommitTimestampLowerBound", commitTimestampLowerBounds.begin()->first)
+                .With("CommitTimestamp", commitTimestamp)
+                .With("StrongOrderingTag", tag);
         }
 
         TCommitInfo commitInfo{
@@ -502,11 +498,11 @@ std::vector<TTransactionId> TStrongOrderingManager::ForgetTransaction(TTransacti
     const auto& strongOrderingTags = transactionInfo.StrongOrderingTags;
 
     auto preparedCommitCount = PreparedCommitCount_.fetch_sub(1, std::memory_order::relaxed);
-    YT_LOG_DEBUG("Removing transaction from strong ordering manager (TransactionId: %v, State: %v, PreparedCommitCount: %v, StrongOrderingTags: %v)",
-        transactionId,
-        state,
-        preparedCommitCount,
-        MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
+    YT_TLOG_DEBUG("Removing transaction from strong ordering manager")
+        .With("TransactionId", transactionId)
+        .With("State", state)
+        .With("PreparedCommitCount", preparedCommitCount)
+        .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
 
     std::vector<TTransactionId> transactionsToFlush;
     if (state == ECommitState::Prepare) {
@@ -570,8 +566,8 @@ void TStrongOrderingManager::MaybeRemoveShard(const std::string& tag)
     auto it = GetIteratorOrCrash(OrderingTagToShard_, tag);
     if (it->second.CommitTimestampLowerBounds.empty() && it->second.ReadyToCommitTransactions.empty()) {
         OrderingTagToShard_.erase(it);
-        YT_LOG_DEBUG("Strong ordering shard removed (Tag: %v)",
-            tag);
+        YT_TLOG_DEBUG("Strong ordering shard removed")
+            .With("Tag", tag);
     }
 }
 
@@ -588,14 +584,12 @@ void TStrongOrderingManager::RegisterTransaction(
 
     auto commitTimestampLowerBound = NTransactionClient::TTimestamp(ObserveTimestamp(prepareTimestamp).Underlying() + 1);
     auto preparedCommitCount = PreparedCommitCount_.fetch_add(1, std::memory_order::relaxed);
-    YT_LOG_DEBUG(
-        "Transaction prepare timestamp is added to strong ordering manager "
-        "(TransactionId: %v, PrepareTimestamp: %v, CommitTimestampLowerBound: %v, PreparedCommitCount: %v, StrongOrderingTags: %v)",
-        transactionId,
-        prepareTimestamp,
-        commitTimestampLowerBound,
-        preparedCommitCount,
-        MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
+    YT_TLOG_DEBUG("Transaction prepare timestamp is added to strong ordering manager")
+        .With("TransactionId", transactionId)
+        .With("PrepareTimestamp", prepareTimestamp)
+        .With("CommitTimestampLowerBound", commitTimestampLowerBound)
+        .With("PreparedCommitCount", preparedCommitCount)
+        .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
 
     for (const auto& tag : strongOrderingTags) {
         auto* shard = GetOrCreateShard(tag);
@@ -653,30 +647,28 @@ TCommitInfos TStrongOrderingManager::RecordCommitTimestamp(
     auto prepareTimestamp = transactionInfo.PrepareTimestamp;
     auto commitTimestampLowerBound = transactionInfo.CommitTimestampLowerBound;
 
-    YT_LOG_FATAL_IF(prepareTimestampToValidate && prepareTimestamp != *prepareTimestampToValidate,
-        "Locally saved prepare timestamp differs from the prepare timestamp in TCommit (TransactionId: %v, LocalValue: %v, CommitValue: %v)",
-        transactionId,
-        prepareTimestamp,
-        *prepareTimestampToValidate);
+    YT_TLOG_FATAL_IF(
+        prepareTimestampToValidate && prepareTimestamp != *prepareTimestampToValidate,
+        "Locally saved prepare timestamp differs from the prepare timestamp in TCommit")
+        .With("TransactionId", transactionId)
+        .With("LocalValue", prepareTimestamp)
+        .With("CommitValue", *prepareTimestampToValidate);
 
-    YT_LOG_FATAL_IF(commitTimestamp < commitTimestampLowerBound,
-        "Commit timestamp lower bound estimation was incorrect (TransactionId: %v, CommitTimestampLowerBound: %v, CommitTimestamp: %v)",
-        transactionId,
-        transactionInfo.CommitTimestampLowerBound,
-        commitTimestamp);
+    YT_TLOG_FATAL_IF(commitTimestamp < commitTimestampLowerBound, "Commit timestamp lower bound estimation was incorrect")
+        .With("TransactionId", transactionId)
+        .With("CommitTimestampLowerBound", transactionInfo.CommitTimestampLowerBound)
+        .With("CommitTimestamp", commitTimestamp);
 
     ObserveTimestamp(commitTimestamp);
 
     const auto& strongOrderingTags = transactionInfo.StrongOrderingTags;
-    YT_LOG_DEBUG(
-        "Replacing prepare timestamp with commit timestamp in strong ordering manager (TransactionId: %v, "
-        "PrepareTimestamp: %v, CommitTimestampLowerBound: %v, CommitTimestamp: %v, CommitTimestampClusterTag: %v, StrongOrderingTags: %v)",
-        transactionId,
-        prepareTimestamp,
-        commitTimestampLowerBound,
-        commitTimestamp,
-        commitTimestampClusterTag,
-        MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
+    YT_TLOG_DEBUG("Replacing prepare timestamp with commit timestamp in strong ordering manager")
+        .With("TransactionId", transactionId)
+        .With("PrepareTimestamp", prepareTimestamp)
+        .With("CommitTimestampLowerBound", commitTimestampLowerBound)
+        .With("CommitTimestamp", commitTimestamp)
+        .With("CommitTimestampClusterTag", commitTimestampClusterTag)
+        .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
 
     YT_VERIFY(transactionInfo.CommitState == ECommitState::Prepare);
     YT_VERIFY(transactionInfo.CanFlush == false);
@@ -711,14 +703,13 @@ TCommitInfos TStrongOrderingManager::PermitCommitFlush(
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasHydraContext());
 
-    YT_LOG_FATAL_UNLESS(
+    YT_TLOG_FATAL_UNLESS(
         commitState == ECommitState::ReadyToCommit && isCoordinator ||
         commitState == ECommitState::Commit && !isCoordinator,
-        "Transaction commit was marked as flushable while being in a wrong commit state "
-        "(TransactionId: %v, IsCoordinator: %v, CommitState: %v)",
-        transactionId,
-        isCoordinator,
-        commitState);
+        "Transaction commit was marked as flushable while being in a wrong commit state")
+        .With("TransactionId", transactionId)
+        .With("IsCoordinator", isCoordinator)
+        .With("CommitState", commitState);
 
     // Coordinator is in charge of committing this transaction, and strict
     // enforcement here seems warranted.
@@ -761,14 +752,12 @@ TCommitInfos TStrongOrderingManager::PermitCommitFlush(
 
     const auto& strongOrderingTags = transactionInfo.StrongOrderingTags;
 
-    YT_LOG_DEBUG(
-        "Marking transaction commit as ready to be flushed (TransactionId: %v, CommitTimestamp: %v, "
-        "CommitTimestampClusterTag: %v, IsCoordinator: %v, StrongOrderingTags: %v)",
-        transactionId,
-        commitTimestamp,
-        commitTimestampClusterTag,
-        transactionInfo.IsCoordinator,
-        MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
+    YT_TLOG_DEBUG("Marking transaction commit as ready to be flushed")
+        .With("TransactionId", transactionId)
+        .With("CommitTimestamp", commitTimestamp)
+        .With("CommitTimestampClusterTag", commitTimestampClusterTag)
+        .With("IsCoordinator", transactionInfo.IsCoordinator)
+        .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
 
     transactionInfo.CommitState = commitState;
     transactionInfo.CanFlush = true;
@@ -817,17 +806,14 @@ TCommitInfos TStrongOrderingManager::UnregisterTransaction(
     auto commitTimestamp = transactionInfo.CommitTimestamp;
     const auto& strongOrderingTags = transactionInfo.StrongOrderingTags;
 
-    YT_LOG_DEBUG(
-        "Transaction was not committed and is being unregistered from the strong ordering manager "
-        "(TransactionId: %v, PrepareTimestamp: %v, CommitTimestampLowerBound: %v, State: %v, "
-        "CommitTimestamp: %v, IsCoordinator: %v, StrongOrderingTags: %v)",
-        transactionId,
-        transactionInfo.PrepareTimestamp,
-        transactionInfo.CommitTimestampLowerBound,
-        commitState,
-        commitTimestamp,
-        isCoordinator,
-        MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
+    YT_TLOG_DEBUG("Transaction was not committed and is being unregistered from the strong ordering manager")
+        .With("TransactionId", transactionId)
+        .With("PrepareTimestamp", transactionInfo.PrepareTimestamp)
+        .With("CommitTimestampLowerBound", transactionInfo.CommitTimestampLowerBound)
+        .With("State", commitState)
+        .With("CommitTimestamp", commitTimestamp)
+        .With("IsCoordinator", isCoordinator)
+        .With("StrongOrderingTags", MakeShrunkFormattableView(strongOrderingTags, TDefaultFormatter(), /*limit*/ 100));
 
     YT_VERIFY(commitState == ECommitState::Prepare || commitState == ECommitState::ReadyToCommit);
 

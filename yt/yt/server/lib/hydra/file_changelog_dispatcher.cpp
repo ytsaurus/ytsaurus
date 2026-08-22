@@ -64,8 +64,8 @@ public:
 
     ~TFileChangelogQueue()
     {
-        YT_LOG_DEBUG("Changelog queue destroyed (Path: %v)",
-            Changelog_->GetFileName());
+        YT_TLOG_DEBUG("Changelog queue destroyed")
+            .With("Path", Changelog_->GetFileName());
     }
 
     const IUnbufferedFileChangelogPtr& GetChangelog()
@@ -203,9 +203,8 @@ public:
                     readFromMemory(FlushQueue_, FlushedRecordCount_);
                     readFromMemory(AppendQueue_, FlushedRecordCount_ + std::ssize(FlushQueue_));
 
-                    YT_LOG_DEBUG_IF(firstCopiedRecordId, "Changelog records copied from memory (RecordIds: %v-%v)",
-                        *firstCopiedRecordId,
-                        *lastCopiedRecordId);
+                    YT_TLOG_DEBUG_IF(firstCopiedRecordId, "Changelog records copied from memory")
+                        .WithFormat("RecordIds", "%v-%v", *firstCopiedRecordId, *lastCopiedRecordId);
                 }
                 break;
             }
@@ -525,8 +524,8 @@ private:
         InsertOrCrash(Queues_, queue);
         ProfileQueues();
 
-        YT_LOG_DEBUG("Changelog queue registered (Path: %v)",
-            queue->GetChangelog()->GetFileName());
+        YT_TLOG_DEBUG("Changelog queue registered")
+            .With("Path", queue->GetChangelog()->GetFileName());
 
         // See wakeup.
         queue->Process();
@@ -540,8 +539,8 @@ private:
         ShrinkHashTable(Queues_);
         ProfileQueues();
 
-        YT_LOG_DEBUG("Changelog queue unregistered (Path: %v)",
-            queue->GetChangelog()->GetFileName());
+        YT_TLOG_DEBUG("Changelog queue unregistered")
+            .With("Path", queue->GetChangelog()->GetFileName());
     }
 
     void ProfileQueues()
@@ -650,8 +649,8 @@ public:
 
     ~TFileChangelog()
     {
-        YT_LOG_DEBUG("Destroying changelog queue (Path: %v)",
-            Queue_->GetChangelog()->GetFileName());
+        YT_TLOG_DEBUG("Destroying changelog queue")
+            .With("Path", Queue_->GetChangelog()->GetFileName());
         YT_UNUSED_FUTURE(Close());
         Dispatcher_->UnregisterQueue(Queue_);
     }

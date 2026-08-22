@@ -146,9 +146,10 @@ TFuture<void> ReportMutationStateHashesToLeader(
                 .With("StartSequenceNumber", startSequenceNumber)
                 .With("EndSequenceNumber", endSequenceNumber);
         } else {
-            YT_LOG_DEBUG(rspOrError, "Error reporting mutations state hashes (StartSequenceNumber: %v, EndSequenceNumber: %v)",
-                startSequenceNumber,
-                endSequenceNumber);
+            YT_TLOG_DEBUG("Error reporting mutations state hashes")
+                .With("StartSequenceNumber", startSequenceNumber)
+                .With("EndSequenceNumber", endSequenceNumber)
+                .With(rspOrError);
         }
     }));
 }

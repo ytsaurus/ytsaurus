@@ -51,7 +51,7 @@ public:
 
     TFuture<void> Open() override
     {
-        YT_LOG_DEBUG("Offshore S3 writer opened");
+        YT_TLOG_DEBUG("Offshore S3 writer opened");
 
         return ChunkUploadSession_->Start();
     }

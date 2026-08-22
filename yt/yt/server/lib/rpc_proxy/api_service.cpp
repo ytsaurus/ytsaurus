@@ -611,7 +611,8 @@ public:
                 DoEmitError();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error while logging structured event");
+            YT_TLOG_ERROR("Error while logging structured event")
+                .With(ex);
         }
     }
 
@@ -1372,10 +1373,9 @@ void TApiService::OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& conf
 
     auto oldConfig = Config_.Acquire();
 
-    YT_LOG_DEBUG(
-        "Updating API service config (OldConfig: %v, NewConfig: %v)",
-        ConvertToYsonString(oldConfig, EYsonFormat::Text),
-        ConvertToYsonString(config, EYsonFormat::Text));
+    YT_TLOG_DEBUG("Updating API service config")
+        .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+        .With("NewConfig", ConvertToYsonString(config, EYsonFormat::Text));
 
     AuthenticatedClientCache_->Reconfigure(config->ClientCache);
 
@@ -1420,9 +1420,9 @@ void TApiService::AllocateTestData(const TTraceContextPtr& traceContext)
 
         MakeTestHeapAllocation(size, delay);
 
-        YT_LOG_DEBUG("Test heap allocation is finished (AllocationSize: %v, AllocationReleaseDelay: %v)",
-            size,
-            delay);
+        YT_TLOG_DEBUG("Test heap allocation is finished")
+            .With("AllocationSize", size)
+            .With("AllocationReleaseDelay", delay);
     }
 }
 
@@ -1562,9 +1562,9 @@ NNative::IClientPtr TApiService::GetAuthenticatedClientOrThrow(
 
     // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
     if (config->VerboseLogging) {
-        YT_LOG_DEBUG("RequestId: %v, RequestBody: %v",
-            context->GetRequestId(),
-            request->ShortDebugString());
+        YT_TLOG_DEBUG("Request body")
+            .With("RequestId", context->GetRequestId())
+            .With("RequestBody", request->ShortDebugString());
     }
 
     NApi::NNative::IConnectionPtr connection;
@@ -1811,10 +1811,9 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, GenerateTimestamps)
                         return MakeFuture(std::move(providerResult));
                     }
 
-                    YT_LOG_WARNING(
-                        providerResult,
-                        "Wrong clock cluster tag %v, trying to generate timestamps via direct call",
-                        clockClusterTag);
+                    YT_TLOG_WARNING("Wrong clock cluster tag, trying to generate timestamps via direct call")
+                        .With("ClockClusterTag", clockClusterTag)
+                        .With(providerResult);
 
                     auto alienClient = connection->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
                     return alienClient->GenerateTimestamps(count);
@@ -4798,17 +4797,17 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
             TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp,
             options.PlaceholderValues);
-        YT_LOG_DEBUG("Untruncated select query (Query: %v, Timestamp: %v, PlaceholderValues: %v)",
-            query,
-            options.Timestamp,
-            options.PlaceholderValues);
+        YT_TLOG_DEBUG("Untruncated select query")
+            .With("Query", query)
+            .With("Timestamp", options.Timestamp)
+            .With("PlaceholderValues", options.PlaceholderValues);
     } else {
         context->SetRequestInfo("Query: %v, Timestamp: %v",
             TTruncatedStringView(query, queryTruncateLimit),
             options.Timestamp);
-        YT_LOG_DEBUG("Untruncated select query (Query: %v, Timestamp: %v)",
-            query,
-            options.Timestamp);
+        YT_TLOG_DEBUG("Untruncated select query")
+            .With("Query", query)
+            .With("Timestamp", options.Timestamp);
     }
 
     ExecuteCall(

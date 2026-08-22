@@ -30,13 +30,13 @@ void DoDownloadChangelog(
     const auto& Logger = logger;
 
     try {
-        YT_LOG_INFO("Requested changelog records (RecordCount: %v, ChangelogId: %v)",
-            recordCount,
-            changelog->GetId());
+        YT_TLOG_INFO("Requested changelog records")
+            .With("RecordCount", recordCount)
+            .With("ChangelogId", changelog->GetId());
 
         if (changelog->GetRecordCount() >= recordCount) {
-            YT_LOG_INFO("Local changelog already contains enough records, no download needed (RecordCount: %v)",
-                changelog->GetRecordCount());
+            YT_TLOG_INFO("Local changelog already contains enough records, no download needed")
+                .With("RecordCount", changelog->GetRecordCount());
             return;
         }
 
@@ -45,10 +45,10 @@ void DoDownloadChangelog(
             .ValueOrThrow();
         int downloadedRecordCount = changelog->GetRecordCount();
 
-        YT_LOG_INFO("Downloading records from peer (StartRecord: %v, EndRecord: %v, PeerId: %v)",
-            changelog->GetRecordCount(),
-            recordCount - 1,
-            changelogInfo.PeerId);
+        YT_TLOG_INFO("Downloading records from peer")
+            .With("StartRecord", changelog->GetRecordCount())
+            .With("EndRecord", recordCount - 1)
+            .With("PeerId", changelogInfo.PeerId);
 
         TInternalHydraServiceProxy proxy(cellManager->GetPeerChannel(changelogInfo.PeerId));
         proxy.SetDefaultTimeout(config->ChangelogDownloadRpcTimeout);
@@ -58,9 +58,9 @@ void DoDownloadChangelog(
                 config->MaxChangelogRecordsPerRequest,
                 recordCount - downloadedRecordCount);
 
-            YT_LOG_DEBUG("Requesting records (StartRecord: %v, EndRecord: %v)",
-                downloadedRecordCount,
-                downloadedRecordCount + desiredChunkSize - 1);
+            YT_TLOG_DEBUG("Requesting records")
+                .With("StartRecord", downloadedRecordCount)
+                .With("EndRecord", downloadedRecordCount + desiredChunkSize - 1);
 
             auto req = proxy.ReadChangeLog();
             req->set_changelog_id(changelog->GetId());
@@ -84,11 +84,11 @@ void DoDownloadChangelog(
             }
 
             int actualChunkSize = std::ssize(records);
-            YT_LOG_DEBUG("Received records (StartRecord: %v, EndRecord: %v, DesiredRecordCount: %v, ActualRecordCount: %v)",
-                downloadedRecordCount,
-                downloadedRecordCount + actualChunkSize - 1,
-                desiredChunkSize,
-                actualChunkSize);
+            YT_TLOG_DEBUG("Received records")
+                .With("StartRecord", downloadedRecordCount)
+                .With("EndRecord", downloadedRecordCount + actualChunkSize - 1)
+                .With("DesiredRecordCount", desiredChunkSize)
+                .With("ActualRecordCount", actualChunkSize);
 
             auto future = changelog->Append(records);
             downloadedRecordCount += std::ssize(records);
@@ -100,7 +100,7 @@ void DoDownloadChangelog(
         WaitFor(changelog->Flush())
             .ThrowOnError();
 
-        YT_LOG_INFO("Changelog downloaded successfully");
+        YT_TLOG_INFO("Changelog downloaded successfully");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error downloading changelog %v", changelog->GetId())
             .With(ex);

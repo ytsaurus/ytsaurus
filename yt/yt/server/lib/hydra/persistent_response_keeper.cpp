@@ -117,9 +117,9 @@ public:
         YT_ASSERT(id);
 
         if (!response) {
-            YT_LOG_ALERT("Null response passed to response keeper (MutationId: %v, Remember: %v)",
-                id,
-                remember);
+            YT_TLOG_ALERT("Null response passed to response keeper")
+                .With("MutationId", id)
+                .With("Remember", remember);
         }
 
         auto space = static_cast<i64>(GetByteSize(response));
@@ -156,10 +156,9 @@ public:
                 if (groundUpdateQueueSequenceNumber) {
                     GroundUpdateQueueSequenceNumbers_.emplace(id, *groundUpdateQueueSequenceNumber);
                 }
-                YT_LOG_DEBUG("Response added to persistent response keeper "
-                    "(MutationId: %v, ResponseHash: %v)",
-                    id,
-                    responseHash);
+                YT_TLOG_DEBUG("Response added to persistent response keeper")
+                    .With("MutationId", id)
+                    .With("ResponseHash", responseHash);
             }
         }
 
@@ -217,7 +216,8 @@ public:
             promise.TrySet(error);
         }
 
-        YT_LOG_INFO(error, "All pending requests canceled");
+        YT_TLOG_INFO("All pending requests canceled")
+            .With(error);
     }
 
     void Clear() override
@@ -264,9 +264,9 @@ public:
 
         auto guard = WriterGuard(Lock_);
 
-        YT_LOG_DEBUG("Response keeper eviction pass started (ExpirationTimeout: %v, MaxResponseCountPerEvictionPass: %v)",
-            expirationTimeout,
-            maxResponseCountPerEvictionPass);
+        YT_TLOG_DEBUG("Response keeper eviction pass started")
+            .With("ExpirationTimeout", expirationTimeout)
+            .With("MaxResponseCountPerEvictionPass", maxResponseCountPerEvictionPass);
 
         int counter = 0;
         auto deadline = GetCurrentMutationContext()->GetTimestamp() - expirationTimeout;
@@ -278,10 +278,10 @@ public:
             }
 
             if (counter >= maxResponseCountPerEvictionPass) {
-                YT_LOG_WARNING("Response keeper eviction pass interrupted (ResponseCount: %v, ResponsesLeft: %v, OccupiedSpace: %v)",
-                    counter,
-                    FinishedResponseCount_.load(std::memory_order::acquire),
-                    FinishedResponseSpace_.load(std::memory_order::acquire));
+                YT_TLOG_WARNING("Response keeper eviction pass interrupted")
+                    .With("ResponseCount", counter)
+                    .With("ResponsesLeft", FinishedResponseCount_.load(std::memory_order::acquire))
+                    .With("OccupiedSpace", FinishedResponseSpace_.load(std::memory_order::acquire));
                 break;
             }
 
@@ -299,8 +299,8 @@ public:
             ResponseEvictionQueue_.pop_front();
         }
 
-        YT_LOG_DEBUG("Response keeper eviction pass completed (ResponseCount: %v)",
-            counter);
+        YT_TLOG_DEBUG("Response keeper eviction pass completed")
+            .With("ResponseCount", counter);
     }
 
 private:
@@ -367,7 +367,8 @@ private:
         if (pendingIt != PendingResponses_.end()) {
             ValidateRetry(id, isRetry);
 
-            YT_LOG_DEBUG("Replying with pending response (MutationId: %v)", id);
+            YT_TLOG_DEBUG("Replying with pending response")
+                .With("MutationId", id);
             return pendingIt->second;
         }
 
@@ -375,7 +376,8 @@ private:
         if (finishedIt != FinishedResponses_.end()) {
             ValidateRetry(id, isRetry);
 
-            YT_LOG_DEBUG("Replying with finished response (MutationId: %v)", id);
+            YT_TLOG_DEBUG("Replying with finished response")
+                .With("MutationId", id);
             return MakeFuture(finishedIt->second);
         }
         return {};

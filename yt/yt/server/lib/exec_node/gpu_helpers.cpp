@@ -72,8 +72,8 @@ std::vector<TGpuDeviceDescriptor> ListNvidiaGpuDevices()
         auto deviceName = Format("%v/%v", DevPath, fileName);
 
         if (MetaGpuDevices.contains(deviceName)) {
-            YT_LOG_INFO("Nvidia meta GPU device found (Name: %v)",
-                deviceName);
+            YT_TLOG_INFO("Nvidia meta GPU device found")
+                .With("Name", deviceName);
             ++foundMetaDeviceCount;
             continue;
         }
@@ -83,9 +83,9 @@ std::vector<TGpuDeviceDescriptor> ListNvidiaGpuDevices()
             continue;
         }
 
-        YT_LOG_INFO("Nvidia GPU device found (Name: %v, Number: %v)",
-            deviceName,
-            deviceNumber);
+        YT_TLOG_INFO("Nvidia GPU device found")
+            .With("Name", deviceName)
+            .With("Number", deviceNumber);
         result.push_back({deviceName, *deviceNumber});
     }
 
@@ -93,9 +93,9 @@ std::vector<TGpuDeviceDescriptor> ListNvidiaGpuDevices()
         if (!result.empty()) {
             THROW_ERROR_EXCEPTION("Too few Nvidia meta GPU devices found, but Nvidia devices presented");
         }
-        YT_LOG_INFO("Too few Nvidia meta GPU devices found; assuming no device is present (Found: %v, Needed: %v)",
-            foundMetaDeviceCount,
-            MetaGpuDevices.size());
+        YT_TLOG_INFO("Too few Nvidia meta GPU devices found; assuming no device is present")
+            .With("Found", foundMetaDeviceCount)
+            .With("Needed", MetaGpuDevices.size());
         result.clear();
     }
 

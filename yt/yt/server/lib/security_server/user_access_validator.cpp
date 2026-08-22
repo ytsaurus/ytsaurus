@@ -55,9 +55,9 @@ private:
     TFuture<void> DoGet(const TUserBanCacheKey& cacheKey, bool /*isPeriodicUpdate*/) noexcept override
     {
         const auto& [user, cluster] = cacheKey;
-        YT_LOG_DEBUG("Getting user ban flag (User: %v, Cluster: %v)",
-            user,
-            cluster);
+        YT_TLOG_DEBUG("Getting user ban flag")
+            .With("User", user)
+            .With("Cluster", cluster);
 
         if (!cluster) {
             return CheckUser(Client_, user);
@@ -113,15 +113,16 @@ private:
                     if (!resultOrError.IsOK()) {
                         wrappedError.Add(resultOrError);
                     }
-                    YT_LOG_WARNING(wrappedError);
+                    YT_TLOG_WARNING("Failed to get user info")
+                        .With(wrappedError);
                     THROW_ERROR wrappedError;
                 }
 
                 auto banned = ConvertTo<bool>(resultOrError.Value());
 
-                YT_LOG_DEBUG("Got user ban flag (User: %v, Banned: %v)",
-                    user,
-                    banned);
+                YT_TLOG_DEBUG("Got user ban flag")
+                    .With("User", user)
+                    .With("Banned", banned);
 
                 if (banned) {
                     THROW_ERROR_EXCEPTION("User %Qv is banned on cluster %Qv",

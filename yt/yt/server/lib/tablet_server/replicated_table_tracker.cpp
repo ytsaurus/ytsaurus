@@ -214,8 +214,8 @@ public:
         return Underlying_->GetOrPut(
             clusterName,
             [&] () -> TErrorOr<NApi::IClientPtr> {
-                YT_LOG_DEBUG("Creating cached client (Cluster: %v)",
-                    clusterName);
+                YT_TLOG_DEBUG("Creating cached client")
+                    .With("Cluster", clusterName);
 
                 if (auto client = Host_->CreateClusterClient(clusterName)) {
                     return client;
@@ -558,8 +558,8 @@ public:
         , ClusterIncomingReplicationChecker_(Config_->ClusterStateCache, ClusterClientCache_)
         , BundleHealthChecker_(Config_->BundleHealthCache, ClusterClientCache_)
     {
-        YT_LOG_INFO("Replicated table tracker created (Config: %v)",
-            ConvertToYsonString(Config_, EYsonFormat::Text));
+        YT_TLOG_INFO("Replicated table tracker created")
+            .With("Config", ConvertToYsonString(Config_, EYsonFormat::Text));
 
         MaxActionQueueSize_.store(Config_->MaxActionQueueSize);
 
@@ -798,7 +798,8 @@ public:
             if (!replicaLagTime) {
                 ReplicaLagTime_ = std::nullopt;
                 LastReplicaLagTimeUpdate_ = std::nullopt;
-                YT_LOG_DEBUG("Replica lag time is zero (ReplicaId %v)", Id_);
+                YT_TLOG_DEBUG("Replica lag time is zero")
+                    .With("ReplicaId", Id_);
                 return;
             }
 
@@ -813,11 +814,10 @@ public:
             ReplicaLagTime_ = cappedReplicaLagTime;
             LastReplicaLagTimeUpdate_ = now;
 
-            YT_LOG_DEBUG(
-                "Set replica lag time (ReplicaId %v, LagTime: %v, CappedLagTime: %v)",
-                Id_,
-                *replicaLagTime,
-                cappedReplicaLagTime);
+            YT_TLOG_DEBUG("Set replica lag time")
+                .With("ReplicaId", Id_)
+                .With("LagTime", *replicaLagTime)
+                .With("CappedLagTime", cappedReplicaLagTime);
         }
 
         const TCounter& GetReplicaModeSwitchCounter() const
@@ -966,10 +966,11 @@ public:
             auto oldState = State_;
             ChangeState(/*good*/ false, GetReplicaModeFromState(oldState));
 
-            YT_LOG_DEBUG(error, "Table replica check failed (ReplicaId: %v, State: %v -> %v)",
-                Id_,
-                oldState,
-                State_);
+            YT_TLOG_DEBUG("Table replica check failed")
+                .With("ReplicaId", Id_)
+                .With("OldState", oldState)
+                .With("NewState", State_)
+                .With(error);
         }
 
         void OnCheckSucceeded()
@@ -978,10 +979,10 @@ public:
             ChangeState(/*good*/ true, GetReplicaModeFromState(oldState));
 
             if (oldState != State_) {
-                YT_LOG_DEBUG("Table replica check succeeded (ReplicaId: %v, State: %v -> %v)",
-                    Id_,
-                    oldState,
-                    State_);
+                YT_TLOG_DEBUG("Table replica check succeeded")
+                    .With("ReplicaId", Id_)
+                    .With("OldState", oldState)
+                    .With("NewState", State_);
             }
         }
 
@@ -1164,14 +1165,13 @@ public:
                 changeReplicaState(EReplicaState::GoodSync, EReplicaState::GoodAsync);
             }
 
-            YT_LOG_DEBUG("Grouped replicas by target state "
-                "(TableId: %v, ContentType: %v, GoodSync: %v, BadSync: %v, GoodAsync: %v, BadAsync: %v)",
-                Id_,
-                contentType,
-                MakeFormattableView(replicasByState[EReplicaState::GoodSync], TReplicaIdFormatter()),
-                MakeFormattableView(replicasByState[EReplicaState::BadSync], TReplicaIdFormatter()),
-                MakeFormattableView(replicasByState[EReplicaState::GoodAsync], TReplicaIdFormatter()),
-                MakeFormattableView(replicasByState[EReplicaState::BadAsync], TReplicaIdFormatter()));
+            YT_TLOG_DEBUG("Grouped replicas by target state")
+                .With("TableId", Id_)
+                .With("ContentType", contentType)
+                .With("GoodSync", MakeFormattableView(replicasByState[EReplicaState::GoodSync], TReplicaIdFormatter()))
+                .With("BadSync", MakeFormattableView(replicasByState[EReplicaState::BadSync], TReplicaIdFormatter()))
+                .With("GoodAsync", MakeFormattableView(replicasByState[EReplicaState::GoodAsync], TReplicaIdFormatter()))
+                .With("BadAsync", MakeFormattableView(replicasByState[EReplicaState::BadAsync], TReplicaIdFormatter()));
 
             return replicasByState;
         }
@@ -1306,7 +1306,7 @@ private:
         }
 
         if (!UseNewReplicatedTableTracker(Config_)) {
-            YT_LOG_DEBUG("New replicated table tracker is disabled");
+            YT_TLOG_DEBUG("New replicated table tracker is disabled");
             ScheduleTrackerIteration();
             return;
         }
@@ -1324,10 +1324,11 @@ private:
                     UpdateReplicaStates();
                     UpdateReplicaModes();
                 } else {
-                    YT_LOG_INFO("Replicated table tracker is disabled");
+                    YT_TLOG_INFO("Replicated table tracker is disabled");
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Replicated table tracker iteration failed");
+                YT_TLOG_WARNING("Replicated table tracker iteration failed")
+                    .With(ex);
             }
         }
 
@@ -1343,7 +1344,7 @@ private:
                 ActionQueue_.clear();
                 guard.Release();
 
-                YT_LOG_DEBUG("Replicated table tracker started loading from snapshot");
+                YT_TLOG_DEBUG("Replicated table tracker started loading from snapshot");
 
                 // NB: RTT thread is blocked intentionally here.
                 auto snapshot = Host_->GetSnapshot()
@@ -1351,7 +1352,7 @@ private:
                     .ValueOrThrow();
                 DoLoadFromSnapshot(std::move(snapshot));
 
-                YT_LOG_DEBUG("Replicated table tracker finished loading from snapshot");
+                YT_TLOG_DEBUG("Replicated table tracker finished loading from snapshot");
 
                 continue;
             }
@@ -1379,10 +1380,9 @@ private:
             ++trackedTableCount;
         }
 
-        YT_LOG_DEBUG("Replicated table tracker check iteration finished "
-            "(TrackedTableCount: %v, TableCount: %v)",
-            trackedTableCount,
-            IdToTable_.size());
+        YT_TLOG_DEBUG("Replicated table tracker check iteration finished")
+            .With("TrackedTableCount", trackedTableCount)
+            .With("TableCount", IdToTable_.size());
     }
 
     void UpdateReplicaModes()
@@ -1466,11 +1466,10 @@ private:
                     }
                 }
 
-                YT_LOG_DEBUG("Identified good clusters for collocation "
-                    "(CollocationId: %v, ContentType: %v, GoodClusters: %v)",
-                    collocationId,
-                    contentType,
-                    goodReplicaClusters);
+                YT_TLOG_DEBUG("Identified good clusters for collocation")
+                    .With("CollocationId", collocationId)
+                    .With("ContentType", contentType)
+                    .With("GoodClusters", goodReplicaClusters);
 
                 auto it = EmplaceOrCrash(
                     collocationIdToClusterPriorities[contentType],
@@ -1512,20 +1511,18 @@ private:
                 preferredReplicas,
                 goodReplicaPriorities);
 
-            YT_LOG_DEBUG_IF(!tableCommands.empty(),
-                "Generated replica mode change commands "
-                "(TableId: %v, ContentType: %v, CollocationId: %v, PreferredReplicas: %v, Commands: %v)",
-                replicaFamily.TableId,
-                replicaFamily.ContentType,
-                table.GetCollocationId(),
-                preferredReplicas,
-                tableCommands);
+            YT_TLOG_DEBUG_IF(!tableCommands.empty(), "Generated replica mode change commands")
+                .With("TableId", replicaFamily.TableId)
+                .With("ContentType", replicaFamily.ContentType)
+                .With("CollocationId", table.GetCollocationId())
+                .With("PreferredReplicas", preferredReplicas)
+                .With("Commands", tableCommands);
 
             std::move(tableCommands.begin(), tableCommands.end(), std::back_inserter(commands));
         }
 
-        YT_LOG_DEBUG("Replicated table tracker replica mode update iteration finished (UpdateCommandCount: %v)",
-            commands.size());
+        YT_TLOG_DEBUG("Replicated table tracker replica mode update iteration finished")
+            .With("UpdateCommandCount", commands.size());
 
         if (commands.empty()) {
             return;
@@ -1534,14 +1531,16 @@ private:
         Host_->ApplyChangeReplicaModeCommands(std::move(commands)).Subscribe(BIND(
             [=] (const TErrorOr<TApplyChangeReplicaCommandResults>& resultsOrError) {
                 if (!resultsOrError.IsOK()) {
-                    YT_LOG_ERROR(resultsOrError, "Failed to apply change replica mode commands");
+                    YT_TLOG_ERROR("Failed to apply change replica mode commands")
+                        .With(resultsOrError);
                     return;
                 }
 
                 bool failed = false;
                 for (const auto& commandResultOrError : resultsOrError.Value()) {
                     if (!commandResultOrError.IsOK()) {
-                        YT_LOG_ERROR(commandResultOrError, "Failed to apply change replica mode command");
+                        YT_TLOG_ERROR("Failed to apply change replica mode command")
+                            .With(commandResultOrError);
                         failed = true;
                     }
                 }
@@ -1550,8 +1549,8 @@ private:
                     return;
                 }
 
-                YT_LOG_DEBUG("Successfully applied change replica mode commands (CommandCount: %v)",
-                    resultsOrError.Value().size());
+                YT_TLOG_DEBUG("Successfully applied change replica mode commands")
+                    .With("CommandCount", resultsOrError.Value().size());
             })
             .Via(RttInvoker_));
     }
@@ -1642,7 +1641,8 @@ private:
         }
 
         if (!ReplicaLagTimesOrError_.IsOK()) {
-            YT_LOG_ERROR(ReplicaLagTimesOrError_, "Failed to compute replica lag times");
+            YT_TLOG_ERROR("Failed to compute replica lag times")
+                .With(ReplicaLagTimesOrError_);
             return;
         }
 
@@ -1656,9 +1656,9 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Successfully updated replica lag times (RequestedReplicaCount: %v, UpdatedReplicaCount: %v)",
-            IdToReplica_.size(),
-            updateCount);
+        YT_TLOG_DEBUG("Successfully updated replica lag times")
+            .With("RequestedReplicaCount", IdToReplica_.size())
+            .With("UpdatedReplicaCount", updateCount);
     }
 
     TReplicatedTable* GetTable(TTableId tableId)
@@ -1691,8 +1691,8 @@ private:
         if (std::ssize(ActionQueue_) >= MaxActionQueueSize_.load()) {
             RequestLoadingFromSnapshot(guard);
             guard.Release();
-            YT_LOG_WARNING("Action queue is reset due to overflow (MaxActionQueueSize: %v)",
-                MaxActionQueueSize_.load());
+            YT_TLOG_WARNING("Action queue is reset due to overflow")
+                .With("MaxActionQueueSize", MaxActionQueueSize_.load());
             return;
         }
 
@@ -1708,9 +1708,9 @@ private:
 
             auto it = IdToTable_.find(tableId);
             if (it == IdToTable_.end()) {
-                YT_LOG_DEBUG("Replicated table created (TableId: %v, Options: %v)",
-                    tableId,
-                    ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
+                YT_TLOG_DEBUG("Replicated table created")
+                    .With("TableId", tableId)
+                    .With("Options", ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
                 auto it = EmplaceOrCrash(
                     IdToTable_,
@@ -1729,9 +1729,9 @@ private:
                     it->second.SetCollocationId(*tableCollocationId);
                 }
             } else {
-                YT_LOG_DEBUG("Replicated table updated (TableId: %v, Options: %v)",
-                    tableId,
-                    ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
+                YT_TLOG_DEBUG("Replicated table updated")
+                    .With("TableId", tableId)
+                    .With("Options", ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
                 it->second.SetOptions(std::move(data.Options));
             }
@@ -1741,8 +1741,8 @@ private:
     void OnReplicatedTableDestroyed(TTableId tableId)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
-            YT_LOG_DEBUG("Replicated table destroyed (TableId: %v)",
-                tableId);
+            YT_TLOG_DEBUG("Replicated table destroyed")
+                .With("TableId", tableId);
 
             auto* table = GetTable(tableId);
             if (table->GetCollocationId() != NullObjectId) {
@@ -1781,22 +1781,20 @@ private:
 
             auto* table = GetTable(tableId);
 
-            auto formattedParameters = Format(
-                "TableId: %v, ReplicaId: %v, Mode: %v, Enabled: %v, ClusterName: %v, "
-                "TablePath: %v, ContentType: %v, TrackingEnabled: %v",
-                tableId,
-                replicaId,
-                data.Mode,
-                data.Enabled,
-                data.ClusterName,
-                data.TablePath,
-                data.ContentType,
-                data.TrackingEnabled);
+            auto replicaTags = NLogging::TLoggingTagList()
+                .With("TableId", tableId)
+                .With("ReplicaId", replicaId)
+                .With("Mode", data.Mode)
+                .With("Enabled", data.Enabled)
+                .With("ClusterName", data.ClusterName)
+                .With("TablePath", data.TablePath)
+                .With("ContentType", data.ContentType)
+                .With("TrackingEnabled", data.TrackingEnabled);
 
             auto it = IdToReplica_.find(replicaId);
             if (it == IdToReplica_.end()) {
-                YT_LOG_DEBUG("Table replica created (%v)",
-                    formattedParameters);
+                YT_TLOG_DEBUG("Table replica created")
+                    .With(replicaTags);
 
                 EmplaceOrCrash(
                     IdToReplica_,
@@ -1804,8 +1802,8 @@ private:
                     TReplica(this, table, std::move(data)));
                 EmplaceOrCrash(*table->GetReplicaIds(), replicaId);
             } else {
-                YT_LOG_DEBUG("Table replica updated (%v)",
-                    formattedParameters);
+                YT_TLOG_DEBUG("Table replica updated")
+                    .With(replicaTags);
 
                 it->second.SetMode(data.Mode);
                 it->second.SetEnabled(data.Enabled);
@@ -1818,8 +1816,8 @@ private:
     void OnReplicaDestroyed(TTableReplicaId replicaId)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
-            YT_LOG_DEBUG("Table replica destroyed (ReplicaId: %v)",
-                replicaId);
+            YT_TLOG_DEBUG("Table replica destroyed")
+                .With("ReplicaId", replicaId);
 
             YT_VERIFY(IsTableReplicaType(TypeFromId(replicaId)));
 
@@ -1839,10 +1837,10 @@ private:
     void OnReplicationCollocationCreated(TTableCollocationData data)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] () mutable {
-            YT_LOG_DEBUG("Replication collocation created (CollocationId: %v, TableIds: %v, Options: %v)",
-                data.Id,
-                data.TableIds,
-                ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
+            YT_TLOG_DEBUG("Replication collocation created")
+                .With("CollocationId", data.Id)
+                .With("TableIds", data.TableIds)
+                .With("Options", ConvertToYsonString(data.Options, EYsonFormat::Text).AsStringBuf());
 
             YT_VERIFY(IsCollocationType(TypeFromId(data.Id)));
 
@@ -1870,8 +1868,8 @@ private:
     void OnReplicationCollocationDestroyed(TTableCollocationId collocationId)
     {
         EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
-            YT_LOG_DEBUG("Replication collocation destroyed (CollocationId: %v)",
-                collocationId);
+            YT_TLOG_DEBUG("Replication collocation destroyed")
+                .With("CollocationId", collocationId);
 
             YT_VERIFY(IsCollocationType(TypeFromId(collocationId)));
 
@@ -1888,11 +1886,11 @@ private:
 
     void ApplyConfigChange(TDynamicReplicatedTableTrackerConfigPtr config)
     {
-        YT_LOG_DEBUG("Applying config change (NewConfig: %v)",
-            ConvertToYsonString(config, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Applying config change")
+            .With("NewConfig", ConvertToYsonString(config, EYsonFormat::Text));
 
         if (UseNewReplicatedTableTracker(Config_) != UseNewReplicatedTableTracker(config)) {
-            YT_LOG_DEBUG("New replicated table tracker is turned on; will load state from snapshot");
+            YT_TLOG_DEBUG("New replicated table tracker is turned on; will load state from snapshot");
             RequestLoadingFromSnapshot();
         }
 

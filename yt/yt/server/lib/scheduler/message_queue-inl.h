@@ -105,12 +105,10 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
         }
         Queue_.move_forward(it);
     }
-    YT_LOG_DEBUG(
-        "Sending outbox items (ItemIds: %v-%v, ItemCount: %v, RetainedCount: %v)",
-        firstItemId,
-        lastItemId,
-        itemCount,
-        Queue_.size() - itemCount);
+    YT_TLOG_DEBUG("Sending outbox items")
+        .WithFormat("ItemIds", "%v-%v", firstItemId, lastItemId)
+        .With("ItemCount", itemCount)
+        .With("RetainedCount", Queue_.size() - itemCount);
 }
 
 template <class TItem>
@@ -144,10 +142,9 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
         return;
     }
     if (nextExpectedItemId < FirstItemId_) {
-        YT_LOG_DEBUG(
-            "Stale outbox items confirmed (NextExpectedItemId: %v, FirstItemId: %v)",
-            nextExpectedItemId,
-            FirstItemId_);
+        YT_TLOG_DEBUG("Stale outbox items confirmed")
+            .With("NextExpectedItemId", nextExpectedItemId)
+            .With("FirstItemId", FirstItemId_);
         return;
     }
     auto firstConfirmedItemId = FirstItemId_;
@@ -159,11 +156,9 @@ void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 
     HandledItemsCounter_.Increment(lastConfirmedItemId - firstConfirmedItemId + 1);
 
-    YT_LOG_DEBUG(
-        "Outbox items confirmed (ItemIds: %v-%v, ItemCount: %v)",
-        firstConfirmedItemId,
-        lastConfirmedItemId,
-        lastConfirmedItemId - firstConfirmedItemId + 1);
+    YT_TLOG_DEBUG("Outbox items confirmed")
+        .WithFormat("ItemIds", "%v-%v", firstConfirmedItemId, lastConfirmedItemId)
+        .With("ItemCount", lastConfirmedItemId - firstConfirmedItemId + 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,9 +179,8 @@ void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 
     request->set_next_expected_item_id(NextExpectedItemId_);
 
-    YT_LOG_DEBUG(
-        "Inbox status reported (NextExpectedItemId: %v)",
-        NextExpectedItemId_);
+    YT_TLOG_DEBUG("Inbox status reported")
+        .With("NextExpectedItemId", NextExpectedItemId_);
 }
 
 template <class TProtoMessage, class TConsumer>
@@ -216,18 +210,13 @@ void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoI
     HandledItemsCounter_.Increment(message->items_size());
 
     if (firstConsumedItemId >= 0) {
-        YT_LOG_DEBUG(
-            "Inbox items received and consumed (ReceivedIds: %v-%v, ConsumedIds: %v-%v, ItemCount: %v)",
-            message->first_item_id(),
-            message->first_item_id() + message->items_size() - 1,
-            firstConsumedItemId,
-            lastConsumedItemId,
-            message->items_size());
+        YT_TLOG_DEBUG("Inbox items received and consumed")
+            .WithFormat("ReceivedIds", "%v-%v", message->first_item_id(), message->first_item_id() + message->items_size() - 1)
+            .WithFormat("ConsumedIds", "%v-%v", firstConsumedItemId, lastConsumedItemId)
+            .With("ItemCount", message->items_size());
     } else {
-        YT_LOG_DEBUG(
-            "Inbox items received but none consumed (ReceivedIds: %v-%v)",
-            message->first_item_id(),
-            message->first_item_id() + message->items_size() - 1);
+        YT_TLOG_DEBUG("Inbox items received but none consumed")
+            .WithFormat("ReceivedIds", "%v-%v", message->first_item_id(), message->first_item_id() + message->items_size() - 1);
     }
 }
 

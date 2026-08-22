@@ -16,8 +16,8 @@ TStateHashChecker::TStateHashChecker(
     , Limit_(limit)
     , TotalPeerCount_(totalPeerCount)
 {
-    YT_LOG_ALERT_IF(TotalPeerCount_ <= 0, "State hash checker constructor fail; total peer count should be a positive integer, have: %x",
-        TotalPeerCount_);
+    YT_TLOG_ALERT_IF(TotalPeerCount_ <= 0, "Total peer count must be a positive integer")
+        .With("TotalPeerCount", TotalPeerCount_);
 }
 
 void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash, int peerId)
@@ -43,23 +43,20 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash, int peerId)
             reported.Diverged = true;
             if (!FirstDivergedSequenceNumber_ || sequenceNumber < *FirstDivergedSequenceNumber_) {
                 FirstDivergedSequenceNumber_ = sequenceNumber;
-                YT_LOG_ALERT("State hashes differ "
-                    "(SequenceNumber: %v, FirstStateHash: %x, FirstPeerId: %v, SecondStateHash: %x, SecondPeerId: %v)",
-                    sequenceNumber,
-                    reported.StateHash,
-                    reported.PeerId,
-                    stateHash,
-                    peerId);
+                YT_TLOG_ALERT("State hashes differ")
+                    .With("SequenceNumber", sequenceNumber)
+                    .WithFormat("FirstStateHash", "%x", reported.StateHash)
+                    .With("FirstPeerId", reported.PeerId)
+                    .WithFormat("SecondStateHash", "%x", stateHash)
+                    .With("SecondPeerId", peerId);
             } else {
-                YT_LOG_DEBUG("State hashes differ, but an earlier divergence is already known "
-                    "(SequenceNumber: %v, FirstDivergedSequenceNumber: %v, FirstStateHash: %x, FirstPeerId: %v, "
-                    "SecondStateHash: %x, SecondPeerId: %v)",
-                    sequenceNumber,
-                    *FirstDivergedSequenceNumber_,
-                    reported.StateHash,
-                    reported.PeerId,
-                    stateHash,
-                    peerId);
+                YT_TLOG_DEBUG("State hashes differ, but an earlier divergence is already known")
+                    .With("SequenceNumber", sequenceNumber)
+                    .With("FirstDivergedSequenceNumber", *FirstDivergedSequenceNumber_)
+                    .WithFormat("FirstStateHash", "%x", reported.StateHash)
+                    .With("FirstPeerId", reported.PeerId)
+                    .WithFormat("SecondStateHash", "%x", stateHash)
+                    .With("SecondPeerId", peerId);
             }
         }
     }
@@ -69,21 +66,19 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash, int peerId)
         std::ssize(it->second.ReportedPeerIds) >= TotalPeerCount_ &&
         !it->second.Diverged)
     {
-        YT_LOG_DEBUG("State hashes converged again, resetting first diverged sequence number "
-            "(FirstDivergedSequenceNumber: %v, SequenceNumber: %v)",
-            *FirstDivergedSequenceNumber_,
-            sequenceNumber);
+        YT_TLOG_DEBUG("State hashes converged again, resetting first diverged sequence number")
+            .With("FirstDivergedSequenceNumber", *FirstDivergedSequenceNumber_)
+            .With("SequenceNumber", sequenceNumber);
         FirstDivergedSequenceNumber_.reset();
     }
 
     while (std::ssize(SequenceNumberToStateHash_) > Limit_) {
         const auto& [evictedSequenceNumber, evictedStateHash] = *SequenceNumberToStateHash_.begin();
         if (std::ssize(evictedStateHash.ReportedPeerIds) < TotalPeerCount_) {
-            YT_LOG_DEBUG("Evicting state hash before all peers have reported it "
-                "(SequenceNumber: %v, ReportedPeerCount: %v, TotalPeerCount: %v)",
-                evictedSequenceNumber,
-                std::ssize(evictedStateHash.ReportedPeerIds),
-                TotalPeerCount_);
+            YT_TLOG_DEBUG("Evicting state hash before all peers have reported it")
+                .With("SequenceNumber", evictedSequenceNumber)
+                .With("ReportedPeerCount", std::ssize(evictedStateHash.ReportedPeerIds))
+                .With("TotalPeerCount", TotalPeerCount_);
         }
         SequenceNumberToStateHash_.erase(SequenceNumberToStateHash_.begin());
     }

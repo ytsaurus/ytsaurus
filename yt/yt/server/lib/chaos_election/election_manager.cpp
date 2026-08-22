@@ -90,7 +90,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Starting chaos election manager");
+        YT_TLOG_DEBUG("Starting chaos election manager");
 
         IsActive_ = true;
 
@@ -101,7 +101,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Stopping chaos election manager");
+        YT_TLOG_DEBUG("Stopping chaos election manager");
 
         return BIND(&TChaosElectionManager::DoStop, MakeWeak(this))
             .AsyncVia(Invoker_)
@@ -119,7 +119,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Stopping leading");
+        YT_TLOG_DEBUG("Stopping leading");
 
         return BIND(&TChaosElectionManager::DoStopLeading, MakeWeak(this))
             .AsyncVia(Invoker_)
@@ -180,7 +180,8 @@ private:
         try {
             GuardedTryAcquireLock();
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Lock acquisition iteration failed");
+            YT_TLOG_INFO("Lock acquisition iteration failed")
+                .With(ex);
         }
     }
 
@@ -230,12 +231,10 @@ private:
                   && TInstant::Now() < *lastPingTime + *leaseTimeout;
 
                 if (timeoutIsActive) {
-                    YT_LOG_DEBUG(
-                        "Existing leader lease timeout is still active, backing off "
-                        "(LeaseId: %v, LastPingTime: %v, LeaseTimeout: %v)",
-                        existingLeaseId,
-                        lastPingTime,
-                        leaseTimeout);
+                    YT_TLOG_DEBUG("Existing leader lease timeout is still active, backing off")
+                        .With("LeaseId", existingLeaseId)
+                        .With("LastPingTime", lastPingTime)
+                        .With("LeaseTimeout", leaseTimeout);
                     WaitFor(transaction->Abort())
                         .ThrowOnError();
                     return;
@@ -245,8 +244,8 @@ private:
                     auto existingLease = WaitFor(Client_->AttachChaosLease(*existingLeaseId))
                         .ValueOrThrow();
 
-                    YT_LOG_DEBUG("Existing leader lease is alive (LeaseId: %v)",
-                        existingLeaseId);
+                    YT_TLOG_DEBUG("Existing leader lease is alive")
+                        .With("LeaseId", existingLeaseId);
 
                     WaitFor(transaction->Abort())
                         .ThrowOnError();
@@ -254,8 +253,8 @@ private:
                     return;
                 } catch (const TErrorException& ex) {
                     if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-                        YT_LOG_DEBUG("Existing leader lease is dead, attempting takeover (LeaseId: %v)",
-                            existingLeaseId);
+                        YT_TLOG_DEBUG("Existing leader lease is dead, attempting takeover")
+                            .With("LeaseId", existingLeaseId);
                     } else {
                         throw;
                     }
@@ -265,7 +264,8 @@ private:
 
         auto chaosLeaseId = CreateLeaseOnEnabledCell();
 
-        YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)", chaosLeaseId);
+        YT_TLOG_DEBUG("Created chaos lease")
+            .With("LeaseId", chaosLeaseId);
 
         TChaosLeaseAttachOptions leaseAttachOptions;
         leaseAttachOptions.Ping = true;
@@ -292,12 +292,13 @@ private:
 
         auto commitResultOrError = WaitFor(transaction->Commit());
         if (!commitResultOrError.IsOK()) {
-            YT_LOG_DEBUG(commitResultOrError, "Lock acquisition commit failed, will retry");
+            YT_TLOG_DEBUG("Lock acquisition commit failed, will retry")
+                .With(commitResultOrError);
             return;
         }
 
-        YT_LOG_DEBUG("Lock acquisition committed successfully (LeaseId: %v)",
-            lease->GetId());
+        YT_TLOG_DEBUG("Lock acquisition committed successfully")
+            .With("LeaseId", lease->GetId());
 
         Lease_ = std::move(lease);
 
@@ -336,8 +337,8 @@ private:
                     .ValueOrThrow();
             } catch (const TErrorException& ex) {
                 if (ex.Error().FindMatching(NChaosClient::EErrorCode::ChaosCellIsNotEnabled)) {
-                    YT_LOG_DEBUG("Chaos cell is not enabled, trying next (CellId: %v)",
-                        cellId);
+                    YT_TLOG_DEBUG("Chaos cell is not enabled, trying next")
+                        .With("CellId", cellId);
                     continue;
                 }
                 throw;
@@ -363,9 +364,10 @@ private:
 
             UpdateLastPingTime(pingTime);
 
-            YT_LOG_DEBUG("Chaos lease pinged successfully");
+            YT_TLOG_DEBUG("Chaos lease pinged successfully");
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to ping chaos lease");
+            YT_TLOG_WARNING("Failed to ping chaos lease")
+                .With(ex);
         }
     }
 
@@ -406,11 +408,9 @@ private:
             }
 
             if (!rowLeaseId || *rowLeaseId != leaseId) {
-                YT_LOG_WARNING(
-                    "Lock row no longer references our lease, dropping leadership "
-                    "(OurLeaseId: %v, RowLeaseId: %v)",
-                    leaseId,
-                    rowLeaseId);
+                YT_TLOG_WARNING("Lock row no longer references our lease, dropping leadership")
+                    .With("OurLeaseId", leaseId)
+                    .With("RowLeaseId", rowLeaseId);
                 WaitFor(transaction->Abort())
                     .ThrowOnError();
                 YT_UNUSED_FUTURE(Lease_->Abort());
@@ -437,7 +437,8 @@ private:
             WaitFor(transaction->Commit())
                 .ThrowOnError();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to update last ping time in lock table");
+            YT_TLOG_WARNING("Failed to update last ping time in lock table")
+                .With(ex);
         }
     }
 
@@ -445,8 +446,9 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        YT_LOG_DEBUG(error, "Chaos lease aborted (LeaseId: %v)",
-            leaseId);
+        YT_TLOG_DEBUG("Chaos lease aborted")
+            .With("LeaseId", leaseId)
+            .With(error);
 
         if (!Lease_ || Lease_->GetId() != leaseId) {
             return;
@@ -463,14 +465,15 @@ private:
 
         PrerequisiteId_.Store(Lease_->GetId());
 
-        YT_LOG_DEBUG("Leading started (LeaseId: %v)",
-            Lease_->GetId());
+        YT_TLOG_DEBUG("Leading started")
+            .With("LeaseId", Lease_->GetId());
 
         try {
             TForbidContextSwitchGuard guard;
             LeadingStarted_.Fire();
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Unexpected error occurred during leading start");
+            YT_TLOG_ALERT("Unexpected error occurred during leading start")
+                .With(ex);
         }
     }
 
@@ -487,7 +490,7 @@ private:
 
         IsActive_ = false;
 
-        YT_LOG_DEBUG("Election manager stopped");
+        YT_TLOG_DEBUG("Election manager stopped");
     }
 
     void DoStopLeading()
@@ -504,7 +507,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (IsLeader()) {
-            YT_LOG_DEBUG("Leading ended");
+            YT_TLOG_DEBUG("Leading ended");
 
             PrerequisiteId_.Store(NPrerequisiteClient::TPrerequisiteId{});
 
@@ -512,7 +515,8 @@ private:
                 TForbidContextSwitchGuard guard;
                 LeadingEnded_.Fire();
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Unexpected error occurred during leading end");
+                YT_TLOG_ALERT("Unexpected error occurred during leading end")
+                    .With(ex);
             }
         }
 

@@ -49,8 +49,8 @@ TPageCache::TPageCache(
 
     Pages_.reserve(MaxPages_);
 
-    YT_LOG_INFO("Created page cache (WritebackPeriod: %v)",
-        Config_->WritebackPeriod);
+    YT_TLOG_INFO("Created page cache")
+        .With("WritebackPeriod", Config_->WritebackPeriod);
 }
 
 TPageCache::~TPageCache()
@@ -64,14 +64,14 @@ TPageCache::~TPageCache()
         dirtyPages = std::ssize(DirtyPagesList_);
     }
 
-    YT_LOG_INFO("Destroying page cache (DirtyPages: %v, CachedPages: %v)",
-        dirtyPages,
-        cachedPages);
+    YT_TLOG_INFO("Destroying page cache")
+        .With("DirtyPages", dirtyPages)
+        .With("CachedPages", cachedPages);
 }
 
 TFuture<void> TPageCache::Initialize()
 {
-    YT_LOG_DEBUG("Initializing page cache");
+    YT_TLOG_DEBUG("Initializing page cache");
 
     // Chain on ChunkHandler_->Initialize() so we never block the Invoker_ thread
     // with WaitFor while SerializedInvoker_ (which runs on the same Invoker_) is idle.
@@ -83,7 +83,7 @@ TFuture<void> TPageCache::Initialize()
 
 TFuture<void> TPageCache::Finalize()
 {
-    YT_LOG_DEBUG("Finalizing page cache");
+    YT_TLOG_DEBUG("Finalizing page cache");
 
     // Sequential async chain — each step receives the previous step's TError so all
     // errors are collected even when an earlier step fails.  Using WaitFor here would
@@ -133,10 +133,10 @@ TFuture<void> TPageCache::Flush(const TFlushOptions& options)
 
 TFuture<void> TPageCache::ScheduleDirtyDataWriteback(std::optional<i64> maxDirtyDataPerWriteback, ui64 cookie, TStringBuf reason)
 {
-    YT_LOG_DEBUG("Scheduling dirty data writeback (MaxDirtyDataPerWriteback: %v, Cookie: %x, Reason: %v)",
-        maxDirtyDataPerWriteback,
-        cookie,
-        reason);
+    YT_TLOG_DEBUG("Scheduling dirty data writeback")
+        .With("MaxDirtyDataPerWriteback", maxDirtyDataPerWriteback)
+        .WithFormat("Cookie", "%x", cookie)
+        .With("Reason", reason);
 
     return BIND([this, this_ = MakeStrong(this), maxDirtyDataPerWriteback, cookie, reason = TString(reason)] {
         auto startTime = TInstant::Now();
@@ -182,7 +182,7 @@ TFuture<void> TPageCache::ScheduleDirtyDataWriteback(std::optional<i64> maxDirty
         auto snapshotTime = TInstant::Now();
 
         if (dirtyPages.empty()) {
-            YT_LOG_DEBUG("No dirty pages to write back");
+            YT_TLOG_DEBUG("No dirty pages to write back");
             return;
         }
 
@@ -192,9 +192,9 @@ TFuture<void> TPageCache::ScheduleDirtyDataWriteback(std::optional<i64> maxDirty
                 return a.PageIndex < b.PageIndex;
             });
 
-        YT_LOG_DEBUG("Writing back dirty pages (Count: %v, MaxDirtyPagesPerWriteback: %v)",
-            std::ssize(dirtyPages),
-            MaxDirtyPagesPerWriteback_);
+        YT_TLOG_DEBUG("Writing back dirty pages")
+            .With("Count", std::ssize(dirtyPages))
+            .With("MaxDirtyPagesPerWriteback", MaxDirtyPagesPerWriteback_);
 
         // Build the WriteBatch writeback ranges. Each range covers up to MaxDirtyPagesPerWriteback_
         // dirty pages; adjacent (consecutive) pages within a range are merged into a single
@@ -252,9 +252,9 @@ TFuture<void> TPageCache::ScheduleDirtyDataWriteback(std::optional<i64> maxDirty
                 rangeStart = rangeEnd;
             }
 
-            YT_LOG_DEBUG("WriteBatch subrequests after merging (Pages: %v, Subrequests: %v)",
-                rangeDirtyEnd - rangeDirtyBegin,
-                std::ssize(subrequests));
+            YT_TLOG_DEBUG("WriteBatch subrequests after merging")
+                .With("Pages", rangeDirtyEnd - rangeDirtyBegin)
+                .With("Subrequests", std::ssize(subrequests));
 
             ranges.push_back({rangeDirtyBegin, rangeDirtyEnd, std::move(subrequests)});
         }
@@ -324,17 +324,17 @@ TFuture<void> TPageCache::ScheduleDirtyDataWriteback(std::optional<i64> maxDirty
         for (const auto& range : ranges) {
             totalSubrequests += std::ssize(range.Subrequests);
         }
-        YT_LOG_INFO("Dirty writeback completed (Pages: %v, Bytes: %v, Ranges: %v, Subrequests: %v, FailedRanges: %v, Full: %v, Reason: %v, SnapshotDuration: %v, RpcDuration: %v, TotalDuration: %v)",
-            std::ssize(dirtyPages),
-            std::ssize(dirtyPages) * PageSize_,
-            std::ssize(ranges),
-            totalSubrequests,
-            failedCount,
-            !maxDirtyDataPerWriteback,
-            reason,
-            snapshotTime - startTime,
-            rpcFinishTime - rpcStartTime,
-            TInstant::Now() - startTime);
+        YT_TLOG_INFO("Dirty writeback completed")
+            .With("Pages", std::ssize(dirtyPages))
+            .With("Bytes", std::ssize(dirtyPages) * PageSize_)
+            .With("Ranges", std::ssize(ranges))
+            .With("Subrequests", totalSubrequests)
+            .With("FailedRanges", failedCount)
+            .With("Full", !maxDirtyDataPerWriteback)
+            .With("Reason", reason)
+            .With("SnapshotDuration", snapshotTime - startTime)
+            .With("RpcDuration", rpcFinishTime - rpcStartTime)
+            .With("TotalDuration", TInstant::Now() - startTime);
         if (failedCount > 0) {
             THROW_ERROR_EXCEPTION("Failed to write back some dirty pages")
                 .With("failed_writes", failedCount)
@@ -351,10 +351,10 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
     YT_VERIFY(length >= 0);
     YT_VERIFY(offset <= std::numeric_limits<i64>::max() - length);
 
-    YT_LOG_DEBUG("Reading from page cache (Offset: %v, Length: %v, Cookie: %x)",
-        offset,
-        length,
-        options.Cookie);
+    YT_TLOG_DEBUG("Reading from page cache")
+        .With("Offset", offset)
+        .With("Length", length)
+        .WithFormat("Cookie", "%x", options.Cookie);
 
     if (length == 0) {
         auto result = TSharedMutableRef::Allocate<TPageCacheBufferTag>(
@@ -433,10 +433,10 @@ TFuture<TReadResponse> TPageCache::Read(i64 offset, i64 length, const TReadOptio
     const i64 rangeBegin = missingPages.front().PageIndex * PageSize_;
     const i64 rangeEnd = (missingPages.back().PageIndex + 1) * PageSize_;
 
-    YT_LOG_DEBUG("Cache miss, issuing read RPC (Offset: %v, Length: %v, MissingPages: %v)",
-        rangeBegin,
-        rangeEnd - rangeBegin,
-        std::ssize(missingPages));
+    YT_TLOG_DEBUG("Cache miss, issuing read RPC")
+        .With("Offset", rangeBegin)
+        .With("Length", rangeEnd - rangeBegin)
+        .With("MissingPages", std::ssize(missingPages));
 
     return ChunkHandler_->Read(rangeBegin, rangeEnd - rangeBegin, {.Cookie = options.Cookie})
         .Apply(BIND([
@@ -509,11 +509,11 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
     YT_VERIFY(length >= 0);
     YT_VERIFY(offset <= std::numeric_limits<i64>::max() - length);
 
-    YT_LOG_DEBUG("Writing to page cache (Offset: %v, Length: %v, Cookie: %x, Flush: %v)",
-        offset,
-        length,
-        options.Cookie,
-        options.Flush);
+    YT_TLOG_DEBUG("Writing to page cache")
+        .With("Offset", offset)
+        .With("Length", length)
+        .WithFormat("Cookie", "%x", options.Cookie)
+        .With("Flush", options.Flush);
 
     if (length == 0) {
         return MakeFuture<TWriteResponse>(TWriteResponse{});
@@ -729,10 +729,10 @@ TFuture<TWriteResponse> TPageCache::Write(i64 offset, const TSharedRef& data, co
 TFuture<TWriteResponse> TPageCache::ScheduleRangeWriteback(TWritebackRange range, ui64 cookie)
 {
     return BIND([this, this_ = MakeStrong(this), range = std::move(range), cookie] () {
-        YT_LOG_DEBUG("FUA writeback: writing to data node (Offset: %v, Length: %v, Cookie: %x)",
-            range.Offset,
-            std::ssize(range.Data),
-            cookie);
+        YT_TLOG_DEBUG("FUA writeback: writing to data node")
+            .With("Offset", range.Offset)
+            .With("Length", std::ssize(range.Data))
+            .WithFormat("Cookie", "%x", cookie);
 
         // Write directly to the data node with Flush = true (write + sync_file_range).
         WaitFor(ChunkHandler_->Write(range.Offset, range.Data, {.Flush = true, .Cookie = cookie}))
@@ -771,7 +771,7 @@ TFuture<TWriteResponse> TPageCache::WriteBatch(
 void TPageCache::Start()
 {
     if (!Config_->WritebackPeriod) {
-        YT_LOG_DEBUG("Periodic writeback is disabled");
+        YT_TLOG_DEBUG("Periodic writeback is disabled");
         return;
     }
 
@@ -852,9 +852,11 @@ i64 TPageCache::EvictCleanPages(i64 count)
     }
 
     if (evicted > 0) {
-        YT_LOG_DEBUG("Evicted clean pages (Count: %v)", evicted);
+        YT_TLOG_DEBUG("Evicted clean pages")
+            .With("Count", evicted);
     } else if (count > 0) {
-        YT_LOG_DEBUG("Cannot evict: no clean pages (DirtyPages: %v)", std::ssize(DirtyPagesList_));
+        YT_TLOG_DEBUG("Cannot evict: no clean pages")
+            .With("DirtyPages", std::ssize(DirtyPagesList_));
     }
 
     return evicted;
@@ -897,10 +899,10 @@ TFuture<void> TPageCache::GetOrScheduleWriteback(ui64 cookie, TStringBuf reason)
         InflightWriteback_ = future;
     }
 
-    YT_LOG_DEBUG("Scheduling writeback (Reason: %v, MaxDirtyDataPerWriteback: %v, Cookie: %x)",
-        reason,
-        MaxDirtyDataPerWriteback_,
-        cookie);
+    YT_TLOG_DEBUG("Scheduling writeback")
+        .With("Reason", reason)
+        .With("MaxDirtyDataPerWriteback", MaxDirtyDataPerWriteback_)
+        .WithFormat("Cookie", "%x", cookie);
 
     ScheduleDirtyDataWriteback(MaxDirtyDataPerWriteback_, cookie, reason).Subscribe(
         BIND([this, this_ = MakeStrong(this), promise, reason = TString(reason)] (const TError& error) {
@@ -914,7 +916,9 @@ TFuture<void> TPageCache::GetOrScheduleWriteback(ui64 cookie, TStringBuf reason)
 
             promise.Set(error);
             if (!error.IsOK()) {
-                YT_LOG_WARNING(error, "Writeback failed (Reason: %v)", reason);
+                YT_TLOG_WARNING("Writeback failed")
+                    .With("Reason", reason)
+                    .With(error);
             }
         }));
 
@@ -949,7 +953,7 @@ void TPageCache::MaybeScheduleBackgroundWriteback(ui64 cookie, TStringBuf reason
 
 void TPageCache::OnPeriodicWriteback()
 {
-    YT_LOG_DEBUG("Periodic writeback triggered");
+    YT_TLOG_DEBUG("Periodic writeback triggered");
 
     // Delegate to MaybeScheduleBackgroundWriteback which already owns the CAS
     // and fire-and-forget logic.  This avoids blocking the Invoker_ thread with

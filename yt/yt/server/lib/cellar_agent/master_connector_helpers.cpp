@@ -86,7 +86,7 @@ void UpdateCellarFromHeartbeatResponse(
     auto Logger = CellarAgentLogger().WithTag("CellarType", cellarType);
 
     if (!cellar) {
-        YT_LOG_WARNING("Processing heartbeat for non-existing cellar, ignored");
+        YT_TLOG_WARNING("Processing heartbeat for non-existing cellar, ignored");
         return;
     }
 
@@ -96,13 +96,13 @@ void UpdateCellarFromHeartbeatResponse(
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {
-            YT_LOG_WARNING("Requested to remove a non-existing cell, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to remove a non-existing cell, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
-        YT_LOG_DEBUG("Requested to remove cell (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Requested to remove cell")
+            .With("CellId", cellId);
 
         YT_UNUSED_FUTURE(cellar->RemoveOccupant(slot));
     }
@@ -112,19 +112,19 @@ void UpdateCellarFromHeartbeatResponse(
         YT_VERIFY(GetCellarTypeFromCellId(cellId) == cellarType);
 
         if (cellar->GetAvailableSlotCount() == 0) {
-            YT_LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to start cell when all slots are used, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
         if (cellar->FindOccupant(cellId)) {
-            YT_LOG_WARNING("Requested to start cell when this cell is already being served by the node, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to start cell when this cell is already being served by the node, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
-        YT_LOG_DEBUG("Requested to start cell (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Requested to start cell")
+            .With("CellId", cellId);
 
         cellar->CreateOccupant(info);
     }
@@ -136,20 +136,20 @@ void UpdateCellarFromHeartbeatResponse(
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {
-            YT_LOG_WARNING("Requested to configure a non-existing cell, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to configure a non-existing cell, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
         if (!slot->CanConfigure()) {
-            YT_LOG_WARNING("Cannot configure cell in non-configurable state, ignored (CellId: %v, State: %v)",
-                cellId,
-                slot->GetControlState());
+            YT_TLOG_WARNING("Cannot configure cell in non-configurable state, ignored")
+                .With("CellId", cellId)
+                .With("State", slot->GetControlState());
             continue;
         }
 
-        YT_LOG_DEBUG("Configuring cell (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Configuring cell")
+            .With("CellId", cellId);
 
         cellar->ConfigureOccupant(slot, info);
     }
@@ -160,13 +160,13 @@ void UpdateCellarFromHeartbeatResponse(
 
         auto slot = cellar->FindOccupant(cellId);
         if (!slot) {
-            YT_LOG_WARNING("Requested to update dynamic options for a non-existing cell, ignored (CellId: %v)",
-                cellId);
+            YT_TLOG_WARNING("Requested to update dynamic options for a non-existing cell, ignored")
+                .With("CellId", cellId);
             continue;
         }
 
-        YT_LOG_DEBUG("Updating cell dynamic config (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Updating cell dynamic config")
+            .With("CellId", cellId);
 
         cellar->UpdateOccupant(slot, info);
     }

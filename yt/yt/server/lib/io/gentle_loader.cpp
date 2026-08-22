@@ -76,11 +76,11 @@ public:
         for (const auto& result : results) {
             if (result.IsOK()) {
                 filesToRead.push_back(result.Value());
-                YT_LOG_TRACE("Opened file for read (FilePath: %v, FileHandle: %v, FileSize: %v, FileLen: %v)",
-                    result.Value().FilePath,
-                    static_cast<FHANDLE>(*result.Value().Handle),
-                    result.Value().FileSize,
-                    result.Value().Handle->GetLength());
+                YT_TLOG_TRACE("Opened file for read")
+                    .With("FilePath", result.Value().FilePath)
+                    .With("FileHandle", static_cast<FHANDLE>(*result.Value().Handle))
+                    .With("FileSize", result.Value().FileSize)
+                    .With("FileLen", result.Value().Handle->GetLength());
             }
         }
 
@@ -281,8 +281,9 @@ private:
             try {
                 NFS::Remove(fileName);
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Can not remove file (FileName: %v)",
-                    fileName);
+                YT_TLOG_DEBUG("Can not remove file")
+                    .With("FileName", fileName)
+                    .With(ex);
             }
         }
     }
@@ -303,9 +304,9 @@ private:
             .ValueOrThrow();
 
         if (Config_->PreallocateWriteFiles) {
-            YT_LOG_INFO("Preallocating test write file (WriterIndex: %v, FileSize: %v)",
-                info.WriterIndex,
-                Config_->MaxWriteFileSize);
+            YT_TLOG_INFO("Preallocating test write file")
+                .With("WriterIndex", info.WriterIndex)
+                .With("FileSize", Config_->MaxWriteFileSize);
 
             WaitFor(IOEngine_->Allocate({.Handle = info.Handle, .Size = Config_->MaxWriteFileSize}))
                 .ThrowOnError();
@@ -315,8 +316,8 @@ private:
     TDuration DoWrite(TWriterInfo& fileInfo, EWorkloadCategory category, i64 packetSize)
     {
         if (!fileInfo.Handle  || fileInfo.Offset >= Config_->MaxWriteFileSize) {
-            YT_LOG_DEBUG("Opening new file (WriterIndex: %v)",
-                fileInfo.WriterIndex);
+            YT_TLOG_DEBUG("Opening new file")
+                .With("WriterIndex", fileInfo.WriterIndex);
             OpenNewFile(fileInfo);
         }
 
@@ -346,8 +347,8 @@ private:
 
     void RunWriter(int writerIndex)
     {
-        YT_LOG_DEBUG("Random writer started (WriterIndex: %v)",
-                writerIndex);
+        YT_TLOG_DEBUG("Random writer started")
+            .With("WriterIndex", writerIndex);
 
         auto queue = WritersQueue_[writerIndex];
         TWriterInfo writerInfo{.WriterIndex = writerIndex};
@@ -371,8 +372,8 @@ private:
             CleanupStaleFiles(writerInfo.StaleFiles);
         }
 
-        YT_LOG_DEBUG("Random writer stopped (WriterIndex: %v)",
-                writerIndex);
+        YT_TLOG_DEBUG("Random writer stopped")
+            .With("WriterIndex", writerIndex);
     }
 
     static TSharedMutableRef MakeRandomBuffer(int size)
@@ -453,11 +454,11 @@ private:
         auto q99Latency = TDuration::MilliSeconds(quantiles.P99);
 
         if (quantiles.TotalCount) {
-            YT_LOG_DEBUG("User interactive request congestion status (Count: %v, 90p: %v ms, 99p: %v ms, 99.9p: %v ms)",
-                quantiles.TotalCount,
-                quantiles.P90,
-                quantiles.P99,
-                quantiles.P99_9);
+            YT_TLOG_DEBUG("User interactive request congestion status")
+                .With("Count", quantiles.TotalCount)
+                .WithFormat("P90", "%v ms", quantiles.P90)
+                .WithFormat("P99", "%v ms", quantiles.P99)
+                .WithFormat("P99_9", "%v ms", quantiles.P99_9);
         }
 
         if (q99Latency > Config_->UserRequestHeavyOverloadThreshold) {
@@ -521,7 +522,8 @@ public:
         std::vector<TDuration> timings;
         for (const auto& result : results) {
             if (!result.IsOK()) {
-                YT_LOG_DEBUG(result, "Probe is failed");
+                YT_TLOG_DEBUG("Probe is failed")
+                    .With(result);
             } else {
                 timings.push_back(result.Value());
             }
@@ -531,12 +533,12 @@ public:
         }
         int failedRequestsPercentage = failedRequestCount * 100 / lastProbes.size();
 
-        YT_LOG_DEBUG("Probes congested status (Count: %v, Failed: %v, Percentage: %v, TotalCount: %v, Timings: %v)",
-            lastProbes.size(),
-            failedRequestCount,
-            failedRequestsPercentage,
-            Probes_.size(),
-            timings);
+        YT_TLOG_DEBUG("Probes congested status")
+            .With("Count", lastProbes.size())
+            .With("Failed", failedRequestCount)
+            .With("Percentage", failedRequestsPercentage)
+            .With("TotalCount", Probes_.size())
+            .With("Timings", timings);
 
         if (failedRequestsPercentage > Config_->HeavyOverloadThreshold) {
             return ECongestedStatus::HeavyOverload;
@@ -569,10 +571,11 @@ private:
             if (std::ssize(Probes_) < Config_->MaxInFlightProbeCount) {
                 Probes_.push_back(RandomReader_->Read(EWorkloadCategory::Idle, Config_->PacketSize));
             } else {
-                YT_LOG_ERROR("Congestion Detector max probe request count reached");
+                YT_TLOG_ERROR("Congestion Detector max probe request count reached");
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Congestion Detector probes failed");
+            YT_TLOG_ERROR("Congestion Detector probes failed")
+                .With(ex);
         }
     }
 };
@@ -801,17 +804,15 @@ private:
         i64 readExtraDebt = std::max<i64>(0, totalReadDelta - SyntheticReadBytes_);
         i64 writeExtraDebt = std::max<i64>(0, totalWrittenDelta - SyntheticWrittenBytes_);
 
-        YT_LOG_TRACE("Adjusting for background load "
-            "(TotalRead: %v, TotalWritten: %v, SyntheticRead: %v, SyntheticWritten: %v, "
-            "ReadSkip: %v, WriteSkip: %v, ReadDebt: %v, WriteDebt: %v)",
-            totalReadDelta,
-            totalWrittenDelta,
-            SyntheticReadBytes_,
-            SyntheticWrittenBytes_,
-            SkipReadProbability_,
-            SkipWriteProbability_,
-            readExtraDebt,
-            writeExtraDebt);
+        YT_TLOG_TRACE("Adjusting for background load")
+            .With("TotalRead", totalReadDelta)
+            .With("TotalWritten", totalWrittenDelta)
+            .With("SyntheticRead", SyntheticReadBytes_)
+            .With("SyntheticWritten", SyntheticWrittenBytes_)
+            .With("ReadSkip", SkipReadProbability_)
+            .With("WriteSkip", SkipWriteProbability_)
+            .With("ReadDebt", readExtraDebt)
+            .With("WriteDebt", writeExtraDebt);
 
         SyntheticReadBytes_ = 0;
         SyntheticWrittenBytes_ = 0;
@@ -870,7 +871,7 @@ public:
     {
         YT_VERIFY(Started_);
         Started_ = false;
-        YT_LOG_DEBUG("Signaling Gentle Loader to stop");
+        YT_TLOG_DEBUG("Signaling Gentle Loader to stop");
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(i64 /*currentWindow*/), Congested);
@@ -899,7 +900,8 @@ private:
             try {
                 DoRun(workloadModel);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Gentle Loader run failed");
+                YT_TLOG_ERROR("Gentle Loader run failed")
+                    .With(ex);
                 TDelayedExecutor::WaitForDuration(Config_->WaitAfterCongested);
             }
         }
@@ -972,12 +974,11 @@ private:
                 auto windowTime = TInstant::Now() - congestionWindowChanged;
 
                 if (congestionWindow == maxWindowSize && windowTime >= Config_->WindowPeriod) {
-                    YT_LOG_INFO("Reporting congested state because we have reached maximum window size"
-                        " (Index: %v, Status: %v, CongestionWindow: %v, MaxWindowSize: %v)",
-                        state.Epoch,
-                        state.Status,
-                        congestionWindow,
-                        maxWindowSize);
+                    YT_TLOG_INFO("Reporting congested state because we have reached maximum window size")
+                        .With("Index", state.Epoch)
+                        .With("Status", state.Status)
+                        .With("CongestionWindow", congestionWindow)
+                        .With("MaxWindowSize", maxWindowSize);
 
                     state.Status = ECongestedStatus::Overload;
                 }
@@ -1023,13 +1024,12 @@ private:
                     congestionWindowChanged = TInstant::Now();
                 }
 
-                YT_LOG_INFO("New congestion message received"
-                    " (Index: %v, Status: %v, CongestionWindow: %v, SlowStartThreshold: %v, RequestCounter: %v)",
-                    state.Epoch,
-                    state.Status,
-                    congestionWindow,
-                    slowStartThreshold,
-                    requestCounter);
+                YT_TLOG_INFO("New congestion message received")
+                    .With("Index", state.Epoch)
+                    .With("Status", state.Status)
+                    .With("CongestionWindow", congestionWindow)
+                    .With("SlowStartThreshold", slowStartThreshold)
+                    .With("RequestCounter", requestCounter);
 
                 // Signal probing round finished.
                 ProbesRoundFinished_.Fire(prevWindow);
@@ -1043,7 +1043,8 @@ private:
                     ResetStatistics();
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Gentle Loader loop failed");
+                YT_TLOG_ERROR("Gentle Loader loop failed")
+                    .With(ex);
             }
         }
     }
@@ -1055,9 +1056,9 @@ private:
 
         static const int MaxWaitAttempt = 10;
         for (int attempt = 0; attempt < MaxWaitAttempt; ++attempt) {
-            YT_LOG_DEBUG("Waiting after congested (Duration: %v, Attempt: %v)",
-                Config_->WaitAfterCongested,
-                attempt);
+            YT_TLOG_DEBUG("Waiting after congested")
+                .With("Duration", Config_->WaitAfterCongested)
+                .With("Attempt", attempt);
 
             TDelayedExecutor::WaitForDuration(Config_->WaitAfterCongested);
             auto state = congestionDetector->GetState();
@@ -1076,7 +1077,8 @@ private:
                 Results_.end(),
                 [&] (const TFuture<TDuration>& future) {
                     if (future.IsSet() && !future.GetOrCrash().IsOK()) {
-                        YT_LOG_DEBUG(future.GetOrCrash(), "Request is failed");
+                        YT_TLOG_DEBUG("Request is failed")
+                            .With(future.GetOrCrash());
                     }
                     return future.IsSet();
                 }),
@@ -1143,9 +1145,9 @@ private:
     }
 
     void ImbueWorkloadModel(const TRequestSizes& model) {
-        YT_LOG_INFO("Using workload model for io test (Reads: %v, Writes: %v)",
-            model.Reads,
-            model.Writes);
+        YT_TLOG_INFO("Using workload model for io test")
+            .With("Reads", model.Reads)
+            .With("Writes", model.Writes);
 
         ReadRequestSampler_ = New<TRequestSampler>(Config_->PacketSize, model.Reads);
         WriteRequestSampler_ = New<TRequestSampler>(Config_->PacketSize, model.Writes);
@@ -1172,12 +1174,11 @@ private:
         int calculatedMaxWindowSize = std::min(Config_->MaxWindowSize, maxTotalIops);
         calculatedMaxWindowSize = std::max(calculatedMaxWindowSize, 1);
 
-        YT_LOG_DEBUG("Max window size calculated based on MaxWriteRate "
-            "(MaxWriteRate: %v, ReadToWriteRatio: %v, ConfigMaxWindowSize: %v, CalculatedMaxWindowSize: %v)",
-            Config_->MaxWriteRate,
-            ReadToWriteRatio_,
-            Config_->MaxWindowSize,
-            calculatedMaxWindowSize);
+        YT_TLOG_DEBUG("Max window size calculated based on MaxWriteRate")
+            .With("MaxWriteRate", Config_->MaxWriteRate)
+            .With("ReadToWriteRatio", ReadToWriteRatio_)
+            .With("ConfigMaxWindowSize", Config_->MaxWindowSize)
+            .With("CalculatedMaxWindowSize", calculatedMaxWindowSize);
 
         return calculatedMaxWindowSize;
     }

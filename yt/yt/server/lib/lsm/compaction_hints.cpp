@@ -118,13 +118,12 @@ bool TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TryApplyR
     TInstant timestamp,
     EStoreCompactionReason reason)
 {
-    YT_LOG_DEBUG("Candidate store compaction hint lsm response provided "
-        "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v)",
-        Store_->GetTablet()->LoggingTags(),
-        Store_->GetId(),
-        Hint_->StoreCompactionHintKind_,
-        timestamp,
-        reason);
+    YT_TLOG_DEBUG("Candidate store compaction hint lsm response provided")
+        .With(Store_->GetTablet()->LoggingTags())
+        .With("StoreId", Store_->GetId())
+        .With("StoreCompactionHintKind", Hint_->StoreCompactionHintKind_)
+        .With("Timestamp", timestamp)
+        .With("Reason", reason);
 
     return TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason);
 }
@@ -136,15 +135,13 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
             std::bind_front(DoRecalculateStoreCompactionHint<Kind>, store.get()),
             {&store, 1});
 
-        YT_LOG_DEBUG_IF(recalculated,
-            "Store compaction hint lsm response was made "
-            "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v)",
-            store->GetTablet()->LoggingTags(),
-            store->GetId(),
-            StoreCompactionHintKind_,
-            Timestamp_,
-            Reason_,
-            LsmResponseRevision_);
+        YT_TLOG_DEBUG_IF(recalculated, "Store compaction hint lsm response was made")
+            .With(store->GetTablet()->LoggingTags())
+            .With("StoreId", store->GetId())
+            .With("StoreCompactionHintKind", StoreCompactionHintKind_)
+            .With("Timestamp", Timestamp_)
+            .With("Reason", Reason_)
+            .With("Revision", LsmResponseRevision_);
 
         return recalculated;
     };
@@ -157,8 +154,8 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
             return doRecalculate.operator()<EStoreCompactionHintKind::VersionedRowDigest>();
 
         default:
-            YT_LOG_FATAL("Recalculation of store compaction hint is not supported (StoreCompactionHintKind: %v)",
-                StoreCompactionHintKind_);
+            YT_TLOG_FATAL("Recalculation of store compaction hint is not supported")
+                .With("StoreCompactionHintKind", StoreCompactionHintKind_);
     }
 }
 
@@ -229,14 +226,13 @@ void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::T
     EStoreCompactionReason reason,
     ui64 storeSubset)
 {
-    YT_LOG_DEBUG("Candidate partition compaction hint lsm response provided "
-        "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, StoreSubset: %v)",
-        Partition_->GetTablet()->LoggingTags(),
-        Partition_->GetId(),
-        Hint_->StoreCompactionHintKind_,
-        timestamp,
-        reason,
-        storeSubset);
+    YT_TLOG_DEBUG("Candidate partition compaction hint lsm response provided")
+        .With(Partition_->GetTablet()->LoggingTags())
+        .With("PartitionId", Partition_->GetId())
+        .With("PartitionCompactionHintKind", Hint_->StoreCompactionHintKind_)
+        .With("Timestamp", timestamp)
+        .With("Reason", reason)
+        .With("StoreSubset", storeSubset);
 
     if (TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason)) {
         StoreSubset_ = storeSubset;
@@ -272,16 +268,14 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
             std::bind_front(DoRecalculatePartitionCompactionHint<Kind>, partition),
             partition->Stores());
 
-        YT_LOG_DEBUG_IF(recalculated,
-            "Partition compaction hint lsm response was made "
-            "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v, StoreIds: %v)",
-            partition->GetTablet()->LoggingTags(),
-            partition->GetId(),
-            PartitionCompactionHintKind_,
-            Timestamp_,
-            Reason_,
-            LsmResponseRevision_,
-            StoreIds_);
+        YT_TLOG_DEBUG_IF(recalculated, "Partition compaction hint lsm response was made")
+            .With(partition->GetTablet()->LoggingTags())
+            .With("PartitionId", partition->GetId())
+            .With("PartitionCompactionHintKind", PartitionCompactionHintKind_)
+            .With("Timestamp", Timestamp_)
+            .With("Reason", Reason_)
+            .With("Revision", LsmResponseRevision_)
+            .With("StoreIds", StoreIds_);
 
         return recalculated;
     };
@@ -294,8 +288,8 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
             return doRecalculate.operator()<EPartitionCompactionHintKind::MinHashDigest>();
 
         default:
-            YT_LOG_FATAL("Recalculation of partition compaction hint is not supported (PartitionCompactionHintKind: %v)",
-                PartitionCompactionHintKind_);
+            YT_TLOG_FATAL("Recalculation of partition compaction hint is not supported")
+                .With("PartitionCompactionHintKind", PartitionCompactionHintKind_);
     }
 }
 
@@ -370,8 +364,8 @@ bool TPartitionCompactionHints::IsCompactionAllowed(
             break;
 
         default:
-            YT_LOG_FATAL("Unknown compaction reason for partition compaction hint (Reason: %v)",
-                hint.GetReason());
+            YT_TLOG_FATAL("Unknown compaction reason for partition compaction hint")
+                .With("Reason", hint.GetReason());
     }
 
     // Latest timestamp among the data that will be deleted.

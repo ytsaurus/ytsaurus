@@ -77,13 +77,12 @@ public:
         const std::string& bundleName) override
     {
         if (!BackendState_.Bundles.contains(bundleName)) {
-            YT_LOG_WARNING("Backend state does not contain bundle, will not "
-                "process tablets (BundleName: %v)",
-                bundleName);
+            YT_TLOG_WARNING("Backend state does not contain bundle, will not process tablets")
+                .With("BundleName", bundleName);
             return {};
         }
 
-        YT_LOG_DEBUG("Started building store rotator action batch");
+        YT_TLOG_DEBUG("Started building store rotator action batch");
 
         TLsmActionBatch batch;
         TMemoryDigest digest;
@@ -110,7 +109,7 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Finished building store rotator action batch");
+        YT_TLOG_DEBUG("Finished building store rotator action batch");
 
         return batch;
     }
@@ -146,9 +145,9 @@ private:
         if (auto rotationReason = GetImmediateRotationReason(tablet);
             rotationReason != EStoreRotationReason::None)
         {
-            YT_LOG_DEBUG("Scheduling store rotation (Reason: %v, %v)",
-                rotationReason,
-                tablet->LoggingTags());
+            YT_TLOG_DEBUG("Scheduling store rotation")
+                .With("Reason", rotationReason)
+                .With(tablet->LoggingTags());
             YT_VERIFY(static_cast<bool>(tablet->FindActiveStore()));
 
             TRotateStoreRequest request{
@@ -234,16 +233,14 @@ private:
                 continue;
             }
 
-            YT_LOG_INFO("Scheduling store rotation due to %v (%v, "
-                "GlobalMemory: %v, Bundle: %v, BundleMemory: %v, "
-                "TabletMemoryUsage: %v, ForcedRotationMemoryRatio: %v)",
-                reason,
-                store->GetTablet()->LoggingTags(),
-                MemoryDigest_,
-                bundleName,
-                bundleMemoryDigest,
-                store->GetDynamicMemoryUsage(),
-                bundleState.ForcedRotationMemoryRatio);
+            YT_TLOG_INFO("Scheduling store rotation")
+                .With("Reason", reason)
+                .With(store->GetTablet()->LoggingTags())
+                .With("GlobalMemory", MemoryDigest_)
+                .With("Bundle", bundleName)
+                .With("BundleMemory", bundleMemoryDigest)
+                .With("TabletMemoryUsage", store->GetDynamicMemoryUsage())
+                .With("ForcedRotationMemoryRatio", bundleState.ForcedRotationMemoryRatio);
 
             batch.Rotations.push_back(TRotateStoreRequest{
                 .Tablet = MakeStrong(store->GetTablet()),
@@ -317,12 +314,11 @@ private:
             RandomDuration(mountConfig->DynamicStoreFlushPeriodSplay);
 
         if (passedPeriodCount > 1) {
-            YT_LOG_DEBUG("More than one periodic rotation period passed between subsequent attempts "
-                "(%v, LastRotated: %v, RotationPeriod: %v, SkippedPeriodCount: %v)",
-                request->Tablet->LoggingTags(),
-                lastRotated,
-                period,
-                passedPeriodCount - 1);
+            YT_TLOG_DEBUG("More than one periodic rotation period passed between subsequent attempts")
+                .With(request->Tablet->LoggingTags())
+                .With("LastRotated", lastRotated)
+                .With("RotationPeriod", period)
+                .With("SkippedPeriodCount", passedPeriodCount - 1);
         }
 
         request->ExpectedLastPeriodicRotationTime = lastRotated;

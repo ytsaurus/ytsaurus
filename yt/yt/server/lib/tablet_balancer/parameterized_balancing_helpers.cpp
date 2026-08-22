@@ -188,10 +188,9 @@ public:
         , Logger(logger)
     {
         auto newMetric = ReplaceAliases(Metric_);
-        YT_LOG_DEBUG_IF(newMetric != Metric_,
-            "Replaced aliases in parameterized balancing metric (OldMetric: %v, NewMetric: %v)",
-            Metric_,
-            newMetric);
+        YT_TLOG_DEBUG_IF(newMetric != Metric_, "Replaced aliases in parameterized balancing metric")
+            .With("OldMetric", Metric_)
+            .With("NewMetric", newMetric);
         Evaluator_ = NOrm::NQuery::CreateOrmExpressionEvaluator(
             ParseSource(newMetric, EParseMode::Expression),
             ParameterizedBalancingAttributes);
@@ -269,9 +268,8 @@ public:
     THashMap<TTabletId, double> GetTableMetrics(const TTable* table) const override
     {
         if (table->AlienTables.empty()) {
-            YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-                "Calculating replica table metrics as only major table metrics (TableId: %v)",
-                table->Id);
+            YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Calculating replica table metrics as only major table metrics")
+                .With("TableId", table->Id);
             return TParameterizedMetricsCalculator::GetTableMetrics(table);
         }
 
@@ -279,9 +277,8 @@ public:
             return TParameterizedMetricsCalculator::GetTableMetrics(table);
         }
 
-        YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-            "Calculating replica table metrics by approximate metrics of minor tables (TableId: %v)",
-            table->Id);
+        YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Calculating replica table metrics by approximate metrics of minor tables")
+            .With("TableId", table->Id);
 
         auto getTabletSizes = [] (const auto& table) {
             std::vector<i64> sizes;
@@ -348,12 +345,12 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_IF(EnableVerboseLogging_ && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Calculated tablet metric as sum of minor table tablet metrics and major table tablet metric "
-            "(TableId: %v, TabletId: %v, Metric: %v)",
-            tablet->Table->Id,
-            tablet->Id,
-            metric);
+        YT_TLOG_DEBUG_IF(
+            EnableVerboseLogging_ && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
+            "Calculated tablet metric as sum of minor table tablet metrics and major table tablet metric")
+            .With("TableId", tablet->Table->Id)
+            .With("TabletId", tablet->Id)
+            .With("Metric", metric);
 
         return metric;
     }
@@ -373,21 +370,18 @@ private:
         for (const auto& [cluster, minorTables] : table->AlienTables) {
             for (const auto& minorTable : minorTables) {
                 if (minorTable->PivotKeys != table->PivotKeys) {
-                    YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-                        "Pivots of minor and major tables are different "
-                        "(MinorTableId: %v, MajorTableId: %v, MinorPivotKeys: %v, MajorPivotKeys: %v)",
-                        minorTable->Id,
-                        table->Id,
-                        minorTable->PivotKeys,
-                        table->PivotKeys);
+                    YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Pivots of minor and major tables are different")
+                        .With("MinorTableId", minorTable->Id)
+                        .With("MajorTableId", table->Id)
+                        .With("MinorPivotKeys", minorTable->PivotKeys)
+                        .With("MajorPivotKeys", table->PivotKeys);
                     return false;
                 }
             }
         }
 
-        YT_LOG_DEBUG_IF(EnableVerboseLogging_,
-            "Pivot keys of minor tables and major table are the same (MajorTableId: %v)",
-            table->Id);
+        YT_TLOG_DEBUG_IF(EnableVerboseLogging_, "Pivot keys of minor tables and major table are the same")
+            .With("MajorTableId", table->Id);
         return true;
     }
 };
@@ -444,16 +438,15 @@ public:
 
     std::vector<TMoveDescriptor> BuildActionDescriptors() override
     {
-        YT_LOG_DEBUG("Reporting parameterized balancing config (Config: %v)",
-            Config_);
+        YT_TLOG_DEBUG("Reporting parameterized balancing config")
+            .With("Config", Config_);
 
         Initialize();
 
         if (!ShouldTrigger()) {
-            YT_LOG_DEBUG("Parameterized balancing was not triggered "
-                "(NodeDeviationThreshold: %v, CellDeviationThreshold: %v)",
-                Config_.NodeDeviationThreshold,
-                Config_.CellDeviationThreshold);
+            YT_TLOG_DEBUG("Parameterized balancing was not triggered")
+                .With("NodeDeviationThreshold", Config_.NodeDeviationThreshold)
+                .With("CellDeviationThreshold", Config_.CellDeviationThreshold);
             return {};
         }
 
@@ -463,31 +456,29 @@ public:
             if (TryFindBestAction()) {
                 if (CurrentMetric_ * Config_.MinRelativeMetricImprovement / std::ssize(Nodes_) >= BestActionInfo_.MetricDiff)
                 {
-                    YT_LOG_DEBUG(
-                        "Metric-improving action is not better enough (CurrentMetric: %e, MetricAfterAction: %e)",
-                        CurrentMetric_,
-                        BestActionInfo_.MetricDiff);
+                    YT_TLOG_DEBUG("Metric-improving action is not better enough")
+                        .WithFormat("CurrentMetric", "%e", CurrentMetric_)
+                        .WithFormat("MetricAfterAction", "%e", BestActionInfo_.MetricDiff);
                     break;
                 }
 
                 ApplyBestAction(&availableActionCount);
 
-                YT_LOG_DEBUG(
-                    "Total parameterized metric changed (Old: %e, Diff: %e)",
-                    CurrentMetric_,
-                    BestActionInfo_.MetricDiff);
+                YT_TLOG_DEBUG("Total parameterized metric changed")
+                    .WithFormat("Old", "%e", CurrentMetric_)
+                    .WithFormat("Diff", "%e", BestActionInfo_.MetricDiff);
                 CurrentMetric_ -= BestActionInfo_.MetricDiff;
 
                 YT_VERIFY(CurrentMetric_ >= 0);
             } else {
-                YT_LOG_DEBUG("Metric-improving action was not found");
+                YT_TLOG_DEBUG("Metric-improving action was not found");
                 break;
             }
         }
 
-        YT_LOG_INFO("Found all move actions (FullRecomputeAttempts: %v, PartialRecomputeAttempts: %v)",
-            FullRecomputeAttempts_,
-            PartialRecomputeAttempts_);
+        YT_TLOG_INFO("Found all move actions")
+            .With("FullRecomputeAttempts", FullRecomputeAttempts_)
+            .With("PartialRecomputeAttempts", PartialRecomputeAttempts_);
 
         std::vector<TMoveDescriptor> descriptors;
         for (auto& tablet : Tablets_) {
@@ -503,17 +494,15 @@ public:
         }
 
         if (std::ssize(descriptors) > Config_.MaxMoveActionCount) {
-            YT_LOG_ALERT(
-                "Too many actions created during parametrized balancing (DescriptorCount: %v, MoveActionLimit: %v)",
-                std::ssize(descriptors),
-                Config_.MaxMoveActionCount);
+            YT_TLOG_ALERT("Too many actions created during parametrized balancing")
+                .With("DescriptorCount", std::ssize(descriptors))
+                .With("MoveActionLimit", Config_.MaxMoveActionCount);
             return {};
         }
 
-        YT_LOG_DEBUG(
-            "Scheduled move actions for parameterized tablets balancing (ActionCount: %v, MoveActionLimit: %v)",
-            std::ssize(descriptors),
-            Config_.MaxMoveActionCount);
+        YT_TLOG_DEBUG("Scheduled move actions for parameterized tablets balancing")
+            .With("ActionCount", std::ssize(descriptors))
+            .With("MoveActionLimit", Config_.MaxMoveActionCount);
 
         if (MetricTracker_) {
             MetricTracker_->AfterMetric.Update(CurrentMetric_);
@@ -621,7 +610,7 @@ private:
         auto cells = Bundle_->GetAliveCells();
 
         if (cells.empty()) {
-            YT_LOG_WARNING("There are no alive cells");
+            YT_TLOG_WARNING("There are no alive cells");
             return;
         }
 
@@ -700,13 +689,12 @@ private:
                         .With("group", GroupName_)
                         .With("bundle", Bundle_->Name);
                 } else if (tabletMetric <= MinimumAcceptableMetricValue) {
-                    YT_LOG_DEBUG_IF(
+                    YT_TLOG_DEBUG_IF(
                         Bundle_->Config->EnableVerboseLogging,
-                        "Skip tablet since it has metric less than %e "
-                        "(TabletId: %v, TableId: %v)",
-                        MinimumAcceptableMetricValue,
-                        tabletId,
-                        tablet->Table->Id);
+                        "Skipping tablet since its metric is below the minimum acceptable value")
+                        .WithFormat("MinimumAcceptableMetricValue", "%e", MinimumAcceptableMetricValue)
+                        .With("TabletId", tabletId)
+                        .With("TableId", tablet->Table->Id);
                     continue;
                 }
 
@@ -738,8 +726,7 @@ private:
 
         int tableCount = std::ssize(tableInfoIndex);
         if (tableCount == 0) {
-            YT_LOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging,
-                "There are no tables to balance");
+            YT_TLOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging, "There are no tables to balance");
             return;
         }
 
@@ -769,9 +756,9 @@ private:
 
         if (Bundle_->Config->EnableVerboseLogging) {
             for (const auto& [nodeAddress, nodeInfo] : Nodes_) {
-                YT_LOG_DEBUG("Calculated node metric (NodeAddress: %v, NodeMetric: %e)",
-                    nodeAddress,
-                    nodeInfo.Metric);
+                YT_TLOG_DEBUG("Calculated node metric")
+                    .With("NodeAddress", nodeAddress)
+                    .WithFormat("NodeMetric", "%e", nodeInfo.Metric);
             }
         }
 
@@ -787,7 +774,7 @@ private:
     void CalculateMemory(const THashMap<TTabletCellId, int>& cellInfoIndex)
     {
         if (Bundle_->NodeStatistics.empty()) {
-            YT_LOG_DEBUG("Don't calculate memory because there are no in-memory tables with parameterized balancing");
+            YT_TLOG_DEBUG("Don't calculate memory because there are no in-memory tables with parameterized balancing");
             return;
         }
 
@@ -809,8 +796,8 @@ private:
         THashMap<TNodeAddress, i64> cellMemoryLimit;
         for (const auto& [address, statistics] : Bundle_->NodeStatistics) {
             if (!cellCount.contains(address)) {
-                YT_LOG_DEBUG("There are no alive cells on the node (Node: %v)",
-                    address);
+                YT_TLOG_DEBUG("There are no alive cells on the node")
+                    .With("Node", address);
                 continue;
             }
 
@@ -820,20 +807,19 @@ private:
             auto count = GetOrCrash(cellCount, address);
 
             if (actualUsage > statistics.MemoryUsed) {
-                YT_LOG_DEBUG("Using total cell memory as node memory usage (Node: %v, Used: %v, Sum: %v, Limit: %v)",
-                    address,
-                    statistics.MemoryUsed,
-                    actualUsage,
-                    statistics.MemoryLimit);
+                YT_TLOG_DEBUG("Using total cell memory as node memory usage")
+                    .With("Node", address)
+                    .With("Used", statistics.MemoryUsed)
+                    .With("Sum", actualUsage)
+                    .With("Limit", statistics.MemoryLimit);
                 if (statistics.MemoryLimit < actualUsage) {
-                    YT_LOG_WARNING("Node memory usage exceeds memory limit (MemoryLimit: %v, MemoryUsage: %v, "
-                        "ActualMemoryUsage: %v, Node: %v, CellCount: %v, TabletSlotCount: %v)",
-                        statistics.MemoryLimit,
-                        statistics.MemoryUsed,
-                        actualUsage,
-                        address,
-                        count,
-                        statistics.TabletSlotCount);
+                    YT_TLOG_WARNING("Node memory usage exceeds memory limit")
+                        .With("MemoryLimit", statistics.MemoryLimit)
+                        .With("MemoryUsage", statistics.MemoryUsed)
+                        .With("ActualMemoryUsage", actualUsage)
+                        .With("Node", address)
+                        .With("CellCount", count)
+                        .With("TabletSlotCount", statistics.TabletSlotCount);
                 }
                 free = statistics.MemoryLimit - actualUsage;
             } else {
@@ -884,17 +870,15 @@ private:
         bool byCellTrigger = maxCell->Metric >=
             minCell->Metric * (1 + Config_.CellDeviationThreshold);
 
-        YT_LOG_DEBUG_IF(
+        YT_TLOG_DEBUG_IF(
             Bundle_->Config->EnableVerboseLogging,
-            "Arguments for checking whether parameterized balancing should trigger have been calculated "
-            "(MinNodeMetric: %e, MaxNodeMetric: %e, MinCellMetric: %e, MaxCellMetric: %e, "
-            "NodeDeviationThreshold: %v, CellDeviationThreshold: %v)",
-            minNode->second.Metric,
-            maxNode->second.Metric,
-            minCell->Metric,
-            maxCell->Metric,
-            Config_.NodeDeviationThreshold,
-            Config_.CellDeviationThreshold);
+            "Arguments for checking whether parameterized balancing should trigger have been calculated")
+            .WithFormat("MinNodeMetric", "%e", minNode->second.Metric)
+            .WithFormat("MaxNodeMetric", "%e", maxNode->second.Metric)
+            .WithFormat("MinCellMetric", "%e", minCell->Metric)
+            .WithFormat("MaxCellMetric", "%e", maxCell->Metric)
+            .With("NodeDeviationThreshold", Config_.NodeDeviationThreshold)
+            .With("CellDeviationThreshold", Config_.CellDeviationThreshold);
 
         return byNodeTrigger || byCellTrigger;
     }
@@ -927,13 +911,11 @@ private:
         }
         tableNodeMetric *= TableNormalizingCoefficient_;
 
-        YT_LOG_DEBUG(
-            "Calculated total metrics (CellMetric: %e, NodeMetric: %e, "
-            "TableCellMetric: %e, TableNodeMetric: %e)",
-            cellMetric,
-            nodeMetric,
-            tableCellMetric,
-            tableNodeMetric);
+        YT_TLOG_DEBUG("Calculated total metrics")
+            .WithFormat("CellMetric", "%e", cellMetric)
+            .WithFormat("NodeMetric", "%e", nodeMetric)
+            .WithFormat("TableCellMetric", "%e", tableCellMetric)
+            .WithFormat("TableNodeMetric", "%e", tableNodeMetric);
 
         return cellMetric + nodeMetric + tableCellMetric + tableNodeMetric;
     }
@@ -960,13 +942,10 @@ private:
             TableCellFactors_[tableIndex] *= Config_.Factors->TableCell.value();
             TableNodeFactors_[tableIndex] *= Config_.Factors->TableNode.value();
 
-            YT_LOG_DEBUG_IF(
-                Bundle_->Config->EnableVerboseLogging,
-                "Calculated per-table factors for cells and nodes "
-                "(TableId: %v, TableCellFactor: %v, TableNodeFactor: %v)",
-                TableIds_[tableIndex],
-                TableCellFactors_[tableIndex],
-                TableNodeFactors_[tableIndex]);
+            YT_TLOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging, "Calculated per-table factors for cells and nodes")
+                .With("TableId", TableIds_[tableIndex])
+                .With("TableCellFactor", TableCellFactors_[tableIndex])
+                .With("TableNodeFactor", TableNodeFactors_[tableIndex]);
 
             for (auto& value : TableByCellMetric_[tableIndex]) {
                 value *= TableCellFactors_[tableIndex];
@@ -1002,10 +981,9 @@ private:
         CellFactor_ *= Config_.Factors->Cell.value();
         NodeFactor_ *= Config_.Factors->Node.value();
 
-        YT_LOG_DEBUG(
-            "Calculated modifying factors (CellFactor: %v, NodeFactor: %v)",
-            CellFactor_,
-            NodeFactor_);
+        YT_TLOG_DEBUG("Calculated modifying factors")
+            .With("CellFactor", CellFactor_)
+            .With("NodeFactor", NodeFactor_);
     }
 
     bool CheckMoveFollowsMemoryLimits(
@@ -1052,13 +1030,11 @@ private:
 
         if (!CheckMoveFollowsMemoryLimits(tablet, sourceCell, cell)) {
             // Cannot move due to memory limits.
-            YT_LOG_DEBUG_IF(
-                Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                "Cannot move tablet (TabletId: %v, CellId: %v, SourceNode: %v, DestinationNode: %v)",
-                tablet->Id,
-                cell->Id,
-                sourceNode->Address,
-                destinationNode->Address);
+            YT_TLOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration, "Cannot move tablet")
+                .With("TabletId", tablet->Id)
+                .With("CellId", cell->Id)
+                .With("SourceNode", sourceNode->Address)
+                .With("DestinationNode", destinationNode->Address);
             return true;
         }
 
@@ -1112,20 +1088,18 @@ private:
 
         newMetricDiff *= 2 * tablet->Metric;
 
-        YT_LOG_DEBUG_IF(
+        YT_TLOG_DEBUG_IF(
             Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-            "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %e, "
-            "NewMetricDiff: %e, TabletMetric: %e, SourceCellMetric: %e, DestinationCellMetric: %e, "
-            "SourceNodeMetric: %e, DestinationNodeMetric: %e)",
-            tablet->Id,
-            cell->Id,
-            CurrentMetric_,
-            newMetricDiff,
-            tablet->Metric,
-            sourceCell->Metric,
-            cell->Metric,
-            sourceNode->Metric,
-            destinationNode->Metric);
+            "Trying to move tablet to another cell")
+            .With("TabletId", tablet->Id)
+            .With("CellId", cell->Id)
+            .WithFormat("CurrentMetric", "%e", CurrentMetric_)
+            .WithFormat("NewMetricDiff", "%e", newMetricDiff)
+            .WithFormat("TabletMetric", "%e", tablet->Metric)
+            .WithFormat("SourceCellMetric", "%e", sourceCell->Metric)
+            .WithFormat("DestinationCellMetric", "%e", cell->Metric)
+            .WithFormat("SourceNodeMetric", "%e", sourceNode->Metric)
+            .WithFormat("DestinationNodeMetric", "%e", destinationNode->Metric);
 
         if (newMetricDiff > 0.0) {
             moveActions->Insert(
@@ -1185,14 +1159,12 @@ private:
                 BestActionInfo_.Tablet->Metric * TableNodeFactors_[BestActionInfo_.Tablet->TableIndex];
         }
 
-        YT_LOG_DEBUG("Applying best action: moving tablet to another cell "
-            "(TabletId: %v, SourceCellId: %v, DestinationCellId: %v, "
-            "SourceNode: %v, DestinationNode: %v)",
-            BestActionInfo_.Tablet->Id,
-            BestActionInfo_.SourceCell->Id,
-            BestActionInfo_.DestinationCell->Id,
-            BestActionInfo_.SourceCell->Node->Address,
-            BestActionInfo_.DestinationCell->Node->Address);
+        YT_TLOG_DEBUG("Applying best action: moving tablet to another cell")
+            .With("TabletId", BestActionInfo_.Tablet->Id)
+            .With("SourceCellId", BestActionInfo_.SourceCell->Id)
+            .With("DestinationCellId", BestActionInfo_.DestinationCell->Id)
+            .With("SourceNode", BestActionInfo_.SourceCell->Node->Address)
+            .With("DestinationNode", BestActionInfo_.DestinationCell->Node->Address);
 
         auto tabletSize = BestActionInfo_.Tablet->MemorySize;
         if (tabletSize == 0) {
@@ -1354,8 +1326,8 @@ public:
             Bundle_->PerformanceCountersTableSchema,
             Logger))
     {
-        YT_LOG_DEBUG("Reporting parameterized resharder config (Config: %v)",
-            Config_);
+        YT_TLOG_DEBUG("Reporting parameterized resharder config")
+            .With("Config", Config_);
     }
 
     std::vector<TReshardDescriptor> BuildTableActionDescriptors(const TTablePtr& table) override
@@ -1363,11 +1335,11 @@ public:
         LogMessageCount_ = 0;
 
         if (!IsParameterizedReshardEnabled(table)) {
-            YT_LOG_DEBUG_IF(
+            YT_TLOG_DEBUG_IF(
                 (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                 LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                "Parameterized balancing via reshard is not enabled (TableId: %v)",
-                table->Id);
+                "Parameterized balancing via reshard is not enabled")
+                .With("TableId", table->Id);
             return {};
         }
 
@@ -1375,11 +1347,10 @@ public:
             table->TableConfig->DesiredTabletMetric.has_value());
 
         if (table->TableConfig->DesiredTabletCount.has_value() && *table->TableConfig->DesiredTabletCount <= 0) {
-            YT_LOG_WARNING("Table desired tablet count is not positive "
-                "(TableId: %v, TablePath: %v, DesiredTabletCount: %v)",
-                table->Id,
-                table->Path,
-                table->TableConfig->DesiredTabletCount);
+            YT_TLOG_WARNING("Table desired tablet count is not positive")
+                .With("TableId", table->Id)
+                .With("TablePath", table->Path)
+                .With("DesiredTabletCount", table->TableConfig->DesiredTabletCount);
             return {};
         }
 
@@ -1401,12 +1372,10 @@ public:
             }
         }
 
-        YT_LOG_DEBUG_UNLESS(actions.empty(),
-            "Parameterized reshard action creation requested "
-            "(TabletCount: %v, NewTabletCount: %v, DesiredTabletCount: %v)",
-            std::ssize(table->Tablets),
-            tabletCount,
-            statistics.DesiredTabletCount);
+        YT_TLOG_DEBUG_UNLESS(actions.empty(), "Parameterized reshard action creation requested")
+            .With("TabletCount", std::ssize(table->Tablets))
+            .With("NewTabletCount", tabletCount)
+            .With("DesiredTabletCount", statistics.DesiredTabletCount);
 
         SortTabletActionsByUsefulness(&actions);
         TrimTabletActions(std::ssize(table->Tablets), &actions);
@@ -1496,12 +1465,12 @@ private:
     {
         const auto& tablet = table->Tablets[tabletIndex];
         if (tablet->State != ETabletState::Mounted) {
-            YT_LOG_DEBUG_IF(
+            YT_TLOG_DEBUG_IF(
                 (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                 LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                "Tablet is not mounted, skipping reshard (TabletId: %v, TabletState: %v)",
-                tablet->Id,
-                tablet->State);
+                "Tablet is not mounted, skipping reshard")
+                .With("TabletId", tablet->Id)
+                .With("TabletState", tablet->State);
             return std::nullopt;
         }
 
@@ -1514,17 +1483,16 @@ private:
         {
             if (tabletSize == 0) {
                 // Should not happen othen.
-                YT_LOG_WARNING_IF(
+                YT_TLOG_WARNING_IF(
                     (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                     LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                    "Trying to split an empty tablet. Skip it "
-                    "(TableId: %v, TabletId: %v, TabletMetric: %e, TableSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
-                    table->Id,
-                    tablet->Id,
-                    tabletMetric,
-                    statistics.TableSize,
-                    statistics.DesiredTabletSize,
-                    statistics.MaxTabletSize);
+                    "Trying to split an empty tablet; skipping it")
+                    .With("TableId", table->Id)
+                    .With("TabletId", tablet->Id)
+                    .WithFormat("TabletMetric", "%e", tabletMetric)
+                    .With("TableSize", statistics.TableSize)
+                    .With("DesiredTabletSize", statistics.DesiredTabletSize)
+                    .With("MaxTabletSize", statistics.MaxTabletSize);
                 return std::nullopt;
             }
 
@@ -1535,13 +1503,13 @@ private:
         if (tabletMetric >= statistics.MinTabletMetric &&
             tabletSize >= statistics.MinTabletSize)
         {
-            YT_LOG_DEBUG_IF(
+            YT_TLOG_DEBUG_IF(
                 (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                 LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                "Tablet is just right (TabletId: %v, TabletMetric: %e, TabletSize: %v)",
-                tablet->Id,
-                tabletMetric,
-                tabletSize);
+                "Tablet is just right")
+                .With("TabletId", tablet->Id)
+                .WithFormat("TabletMetric", "%e", tabletMetric)
+                .With("TabletSize", tabletSize);
             return std::nullopt;
         }
 
@@ -1568,11 +1536,11 @@ private:
         YT_VERIFY(tabletCount > 0);
 
         auto correlationId = TGuid::Create();
-        YT_LOG_DEBUG("Splitting tablet (Tablet: %v, TabletSize: %v, TabletMetric: %e, CorrelationId: %v)",
-            tabletId,
-            DivCeil<i64>(tabletSize, tabletCount),
-            tabletMetric / tabletCount,
-            correlationId);
+        YT_TLOG_DEBUG("Splitting tablet")
+            .With("Tablet", tabletId)
+            .With("TabletSize", DivCeil<i64>(tabletSize, tabletCount))
+            .WithFormat("TabletMetric", "%e", tabletMetric / tabletCount)
+            .With("CorrelationId", correlationId);
 
         auto deviation = std::max(
             tabletMetric / statistics.DesiredTabletMetric,
@@ -1643,15 +1611,14 @@ private:
         }
 
         if (rightTabletIndex - leftTabletIndex == 1) {
-            YT_LOG_DEBUG_IF(
+            YT_TLOG_DEBUG_IF(
                 (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                 LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                "The tablet is too small, but there are no tablets to merge with it "
-                "(TabletId: %v, TabletIndex: %v, TabletSize: %v, TabletMetric: %e)",
-                table->Tablets[tabletIndex]->Id,
-                tabletIndex,
-                enlargedTabletSize,
-                enlargedTabletMetric);
+                "The tablet is too small, but there are no tablets to merge with it")
+                .With("TabletId", table->Tablets[tabletIndex]->Id)
+                .With("TabletIndex", tabletIndex)
+                .With("TabletSize", enlargedTabletSize)
+                .WithFormat("TabletMetric", "%e", enlargedTabletMetric);
             return std::nullopt;
         }
 
@@ -1662,11 +1629,11 @@ private:
         }
 
         auto correlationId = TGuid::Create();
-        YT_LOG_DEBUG("Merging tablets (Tablets: %v, TabletSize: %v, TabletMetric: %e, CorrelationId: %v)",
-            tabletsToMerge,
-            enlargedTabletSize,
-            enlargedTabletMetric,
-            correlationId);
+        YT_TLOG_DEBUG("Merging tablets")
+            .With("Tablets", tabletsToMerge)
+            .With("TabletSize", enlargedTabletSize)
+            .WithFormat("TabletMetric", "%e", enlargedTabletMetric)
+            .With("CorrelationId", correlationId);
 
         return TReshardDescriptor{
             .Tablets = std::move(tabletsToMerge),
@@ -1734,26 +1701,25 @@ private:
             statistics.TabletMetrics.push_back(tabletMetric);
             statistics.TableMetric += tabletMetric;
 
-            YT_LOG_DEBUG_IF(
+            YT_TLOG_DEBUG_IF(
                 (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                 LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                "Reporting tablet statistics (TabletId: %v, Size: %v, Metric: %e, TableId: %v)",
-                tablet->Id,
-                statistics.TabletSizes.back(),
-                tabletMetric,
-                table->Id);
+                "Reporting tablet statistics")
+                .With("TabletId", tablet->Id)
+                .With("Size", statistics.TabletSizes.back())
+                .WithFormat("Metric", "%e", tabletMetric)
+                .With("TableId", table->Id);
         }
 
         if (config->DesiredTabletCount.has_value()) {
-            YT_LOG_DEBUG_IF(
+            YT_TLOG_DEBUG_IF(
                 config->DesiredTabletMetric.has_value() &&
                 (Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging) &&
                 LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
-                "Desired tablet count and desired tablet metric both set in config, use desired tablet count "
-                "(TableId: %v, DesiredTabletCount: %v, DesiredTabletMetric: %v)",
-                table->Id,
-                config->DesiredTabletCount,
-                config->DesiredTabletMetric);
+                "Desired tablet count and desired tablet metric both set in config, use desired tablet count")
+                .With("TableId", table->Id)
+                .With("DesiredTabletCount", config->DesiredTabletCount)
+                .With("DesiredTabletMetric", config->DesiredTabletMetric);
 
             statistics.DesiredTabletCount = config->DesiredTabletCount.value();
             statistics.DesiredTabletMetric = statistics.TableMetric / statistics.DesiredTabletCount;
@@ -1773,30 +1739,25 @@ private:
         statistics.MinTabletMetric = statistics.DesiredTabletMetric / 1.9;
 
         if (statistics.TableMetric == 0.0 || statistics.DesiredTabletMetric == 0.0) {
-            YT_LOG_DEBUG("Calculated table metric for parameterized balancing via reshard is zero or almost zero "
-                "(TableId: %v, TablePath: %v, TableMetric: %e)",
-                table->Id,
-                table->Path,
-                statistics.TableMetric);
+            YT_TLOG_DEBUG("Calculated table metric for parameterized balancing via reshard is zero or almost zero")
+                .With("TableId", table->Id)
+                .With("TablePath", table->Path)
+                .WithFormat("TableMetric", "%e", statistics.TableMetric);
             statistics.DesiredTabletMetric = 1;
         }
 
         statistics.MaxTabletMetric = statistics.DesiredTabletMetric * 1.9;
 
-        YT_LOG_DEBUG_IF(
-            Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging,
-            "Reporting reshard limits and statistics "
-            "(MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v, TableSize: %v, "
-            "MinTabletMetric: %e, DesiredTabletMetric: %e, MaxTabletMetric: %e, TableMetric: %e, TableId: %v)",
-            statistics.MinTabletSize,
-            statistics.DesiredTabletSize,
-            statistics.MaxTabletSize,
-            statistics.TableSize,
-            statistics.MinTabletMetric,
-            statistics.DesiredTabletMetric,
-            statistics.MaxTabletMetric,
-            statistics.TableMetric,
-            table->Id);
+        YT_TLOG_DEBUG_IF(Bundle_->Config->EnableVerboseLogging || table->TableConfig->EnableVerboseLogging, "Reporting reshard limits and statistics")
+            .With("MinTabletSize", statistics.MinTabletSize)
+            .With("DesiredTabletSize", statistics.DesiredTabletSize)
+            .With("MaxTabletSize", statistics.MaxTabletSize)
+            .With("TableSize", statistics.TableSize)
+            .WithFormat("MinTabletMetric", "%e", statistics.MinTabletMetric)
+            .WithFormat("DesiredTabletMetric", "%e", statistics.DesiredTabletMetric)
+            .WithFormat("MaxTabletMetric", "%e", statistics.MaxTabletMetric)
+            .WithFormat("TableMetric", "%e", statistics.TableMetric)
+            .With("TableId", table->Id);
 
         return statistics;
     }

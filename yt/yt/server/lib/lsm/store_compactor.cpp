@@ -64,7 +64,7 @@ public:
         const std::vector<TTabletPtr>& tablets,
         const std::string& /*bundleName*/) override
     {
-        YT_LOG_DEBUG("Started building store compactor action batch");
+        YT_TLOG_DEBUG("Started building store compactor action batch");
 
         TLsmActionBatch batch;
         for (const auto& tablet : tablets) {
@@ -77,7 +77,7 @@ public:
             OverallCompactionRequests_.MergeWith(std::move(batch));
         }
 
-        YT_LOG_DEBUG("Finished building store compactor action batch");
+        YT_TLOG_DEBUG("Finished building store compactor action batch");
 
         return {};
     }
@@ -371,14 +371,13 @@ private:
             stores.push_back(store->GetId());
         }
 
-        YT_LOG_DEBUG("Found partition with expired stores (%v, PartitionId: %v, PartitionIndex: %v, "
-            "PartitionMaxTimestamp: %v, MajorTimestamp: %v, StoreCount: %v)",
-            tablet->LoggingTags(),
-            partition->GetId(),
-            partition->GetIndex(),
-            partitionMaxTimestamp,
-            majorTimestamp,
-            partition->Stores().size());
+        YT_TLOG_DEBUG("Found partition with expired stores")
+            .With(tablet->LoggingTags())
+            .With("PartitionId", partition->GetId())
+            .With("PartitionIndex", partition->GetIndex())
+            .With("PartitionMaxTimestamp", partitionMaxTimestamp)
+            .With("MajorTimestamp", majorTimestamp)
+            .With("StoreCount", partition->Stores().size());
 
         return TCompactionRequest{
             .Tablet = MakeStrong(tablet),
@@ -552,8 +551,7 @@ private:
             .WithTag("PartitionId", partition->GetId())
             .WithTag("Eden", partition->IsEden());
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Picking stores for compaction");
+        YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Picking stores for compaction");
 
         std::vector<TStoreWithReason> candidates;
 
@@ -586,13 +584,13 @@ private:
             partition->GetTablet()->LsmStatistics().PendingCompactionStoreCount[reason] += storeCountByReason[reason];
         }
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging &&
+        YT_TLOG_DEBUG_IF(
+            mountConfig->EnableLsmVerboseLogging &&
                 (storeCountByReason[EStoreCompactionReason::TooManyTimestamps] > 0 ||
                  storeCountByReason[EStoreCompactionReason::TtlCleanupExpected] > 0),
-            "Row digest provides stores for compaction (TooManyTimestampsCount: %v, "
-            "TtlCleanupExpectedCount: %v)",
-            storeCountByReason[EStoreCompactionReason::TooManyTimestamps],
-            storeCountByReason[EStoreCompactionReason::TtlCleanupExpected]);
+            "Row digest provides stores for compaction")
+            .With("TooManyTimestampsCount", storeCountByReason[EStoreCompactionReason::TooManyTimestamps])
+            .With("TtlCleanupExpectedCount", storeCountByReason[EStoreCompactionReason::TtlCleanupExpected]);
 
         // Strictly determine order of incoming stores.
         // Use std::stable_sort instead of std::sort in the further for compaction candidates.
@@ -645,10 +643,9 @@ private:
                 }
             }
 
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Finalist stores for compaction picked by row digest advice (StoreCount: %v, Reason: %v)",
-                std::ssize(finalists),
-                EStoreCompactionReason::TooManyTimestamps);
+            YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Finalist stores for compaction picked by row digest advice")
+                .With("StoreCount", std::ssize(finalists))
+                .With("Reason", EStoreCompactionReason::TooManyTimestamps);
         } else if (*std::max_element(storeCountByReason.begin(), storeCountByReason.end()) > 0) {
             for (auto [store, reason] : candidates) {
                 if (reason == EStoreCompactionReason::Forced && !allowForcedCompaction) {
@@ -658,10 +655,9 @@ private:
                 if (reason != EStoreCompactionReason::None) {
                     finalistCompactionReason = reason;
                     finalists.push_back(store);
-                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                        "Finalist store picked out of order (StoreId: %v, CompactionReason: %v)",
-                        store->GetId(),
-                        reason);
+                    YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Finalist store picked out of order")
+                        .With("StoreId", store->GetId())
+                        .With("CompactionReason", reason);
                 }
 
                 if (std::ssize(finalists) >= mountConfig->MaxCompactionStoreCount) {
@@ -695,8 +691,7 @@ private:
         bool criticalPartition = overlappingStoreCount >= GetOverlappingStoreLimit(mountConfig);
 
         if (criticalPartition) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Partition is critical, picking as many stores as possible");
+            YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Partition is critical, picking as many stores as possible");
         }
 
         for (int i = 0; i < std::ssize(candidates); ++i) {
@@ -724,12 +719,9 @@ private:
                     finalists.push_back(candidates[i].Store);
                     ++i;
                 }
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Picked stores for compaction (DataSize: %v, StoreId: %v)",
-                    dataSizeSum,
-                    MakeFormattableView(
-                        TRange(finalists),
-                        TDefaultFormatter{}));
+                YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Picked stores for compaction")
+                    .With("DataSize", dataSizeSum)
+                    .With("StoreId", MakeFormattableView(TRange(finalists), TDefaultFormatter{}));
                 break;
             }
         }
@@ -793,10 +785,9 @@ private:
                     // NB: GetHunkCompactionReason will produce same result for each hunk chunk occurrence.
                     ++hunkChunkCountByReason[compactionReason];
 
-                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                        "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
-                        hunkChunk->Id,
-                        compactionReason);
+                    YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Hunk chunk is picked for compaction")
+                        .With("HunkChunkId", hunkChunk->Id)
+                        .With("Reason", compactionReason);
                 }
             }
         }
@@ -838,10 +829,9 @@ private:
             if (j - i >= mountConfig->MinHunkCompactionChunkCount) {
                 while (i < j) {
                     const auto& candidate = sortedSmallCandidates[i];
-                    YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                        "Hunk chunk is picked for compaction (HunkChunkId: %v, Reason: %v)",
-                        candidate->Id,
-                        EHunkCompactionReason::HunkChunkTooSmall);
+                    YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Hunk chunk is picked for compaction")
+                        .With("HunkChunkId", candidate->Id)
+                        .With("Reason", EHunkCompactionReason::HunkChunkTooSmall);
 
                     ++hunkChunkCountByReason[EHunkCompactionReason::HunkChunkTooSmall];
 
@@ -872,13 +862,12 @@ private:
         }
 
         if (CurrentTime_ > config.StartTime + config.Duration) {
-            YT_LOG_DEBUG_IF(store->GetTablet()->GetMountConfig()->EnableLsmVerboseLogging,
-                "Found store that was supposed to be compacted by now (%v, StoreId: %v, StartTime: %v, Duration: %v, Now: %v)",
-                store->GetTablet()->LoggingTags(),
-                store->GetId(),
-                config.StartTime,
-                config.Duration,
-                CurrentTime_);
+            YT_TLOG_DEBUG_IF(store->GetTablet()->GetMountConfig()->EnableLsmVerboseLogging, "Found store that was supposed to be compacted by now")
+                .With(store->GetTablet()->LoggingTags())
+                .With("StoreId", store->GetId())
+                .With("StartTime", config.StartTime)
+                .With("Duration", config.Duration)
+                .With("Now", CurrentTime_);
 
             return true;
         }

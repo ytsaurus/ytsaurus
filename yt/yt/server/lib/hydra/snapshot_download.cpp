@@ -40,7 +40,7 @@ void DoDownloadSnapshot(
     }
 
     try {
-        YT_LOG_INFO("Will download snapshot from peers");
+        YT_TLOG_INFO("Will download snapshot from peers");
 
         auto params = WaitFor(DiscoverSnapshot(config, cellManager, snapshotId))
             .ValueOrThrow();
@@ -49,9 +49,9 @@ void DoDownloadSnapshot(
         WaitFor(writer->Open())
             .ThrowOnError();
 
-        YT_LOG_INFO("Downloading snapshot from peer (CompressedLength: %v, PeerId: %v)",
-            params.CompressedLength,
-            params.PeerId);
+        YT_TLOG_INFO("Downloading snapshot from peer")
+            .With("CompressedLength", params.CompressedLength)
+            .With("PeerId", params.PeerId);
 
         TInternalHydraServiceProxy proxy(cellManager->GetPeerChannel(params.PeerId));
         proxy.SetDefaultTimeout(config->SnapshotDownloadTotalStreamingTimeout);
@@ -73,7 +73,7 @@ void DoDownloadSnapshot(
         WaitFor(writer->Close())
             .ThrowOnError();
 
-        YT_LOG_INFO("Snapshot downloaded successfully");
+        YT_TLOG_INFO("Snapshot downloaded successfully");
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error downloading snapshot %v", snapshotId)
             .With(ex);

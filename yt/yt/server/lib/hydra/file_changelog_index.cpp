@@ -77,16 +77,16 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
     const auto* end = buffer.End();
 
     if (current + sizeof(TChangelogIndexHeader) > end) {
-        YT_LOG_WARNING("Changelog index file is too short to fit header, recreating (Length: %v)",
-            buffer.Size());
+        YT_TLOG_WARNING("Changelog index file is too short to fit header, recreating")
+            .With("Length", buffer.Size());
         return recreate(EFileChangelogIndexOpenResult::ExistingRecreatedBrokenIndexHeader);
     }
 
     const auto* header = reinterpret_cast<const TChangelogIndexHeader*>(current);
     if (header->Signature != TChangelogIndexHeader::ExpectedSignature) {
-        YT_LOG_WARNING("Changelog index file signature mismatch, recreating (ExpectedSignature: %x, ActualSignature: %x)",
-            TChangelogIndexHeader::ExpectedSignature,
-            header->Signature);
+        YT_TLOG_WARNING("Changelog index file signature mismatch, recreating")
+            .WithFormat("ExpectedSignature", "%x", TChangelogIndexHeader::ExpectedSignature)
+            .WithFormat("ActualSignature", "%x", header->Signature);
         return recreate(EFileChangelogIndexOpenResult::ExistingRecreatedBrokenIndexHeader);
     }
 
@@ -101,10 +101,10 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
         WaitFor(IOEngine_->FlushFile({.Handle = handle, .Mode = EFlushFileMode::All}))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Changelog index file truncated (RecordCount: %v, IndexFilePosition: %v, DataFileLength: %v)",
-            GetRecordCount(),
-            IndexFilePosition_,
-            DataFileLength_);
+        YT_TLOG_DEBUG("Changelog index file truncated")
+            .With("RecordCount", GetRecordCount())
+            .With("IndexFilePosition", IndexFilePosition_)
+            .With("DataFileLength", DataFileLength_);
 
         Handle_ = std::move(handle);
         return result;
@@ -113,10 +113,10 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
     auto finish = [&] {
         IndexFilePosition_ = current - buffer.Begin();
 
-        YT_LOG_DEBUG("Changelog index file opened (RecordCount: %v, IndexFilePosition: %v, DataFileLength: %v)",
-            GetRecordCount(),
-            IndexFilePosition_,
-            DataFileLength_);
+        YT_TLOG_DEBUG("Changelog index file opened")
+            .With("RecordCount", GetRecordCount())
+            .With("IndexFilePosition", IndexFilePosition_)
+            .With("DataFileLength", DataFileLength_);
 
         Handle_ = std::move(handle);
         return EFileChangelogIndexOpenResult::ExistingOpened;
@@ -126,31 +126,31 @@ EFileChangelogIndexOpenResult TFileChangelogIndex::Open()
 
     while (current != end) {
         if (current + sizeof(TChangelogIndexSegmentHeader) > end) {
-            YT_LOG_WARNING("Changelog index file is too short to fit segment header, truncating (IndexFilePosition: %v, Length: %v)",
-                current - buffer.Begin(),
-                buffer.Size());
+            YT_TLOG_WARNING("Changelog index file is too short to fit segment header, truncating")
+                .With("IndexFilePosition", current - buffer.Begin())
+                .With("Length", buffer.Size());
             return truncate(EFileChangelogIndexOpenResult::ExistingTruncatedBrokenSegment);
         }
 
         const auto* segmentHeader = reinterpret_cast<const TChangelogIndexSegmentHeader*>(current);
         if (segmentHeader->RecordCount < 0) {
-            YT_LOG_ALERT("Negative number of records in changelog index segment, recreating (IndexFilePosition: %v)",
-                current - buffer.Begin());
+            YT_TLOG_ALERT("Negative number of records in changelog index segment, recreating")
+                .With("IndexFilePosition", current - buffer.Begin());
             return recreate(EFileChangelogIndexOpenResult::ExistingRecreatedBrokenSegmentHeader);
         }
 
         const auto* segmentEnd = current + sizeof(TChangelogIndexSegmentHeader) + sizeof(TChangelogIndexRecord) * segmentHeader->RecordCount;
         if (segmentEnd > end) {
-            YT_LOG_WARNING("Changelog index file is too short to fit full segment, truncating (IndexFilePosition: %v, Length: %v, RecordCount: %v)",
-                current - buffer.Begin(),
-                buffer.Size(),
-                segmentHeader->RecordCount);
+            YT_TLOG_WARNING("Changelog index file is too short to fit full segment, truncating")
+                .With("IndexFilePosition", current - buffer.Begin())
+                .With("Length", buffer.Size())
+                .With("RecordCount", segmentHeader->RecordCount);
             return truncate(EFileChangelogIndexOpenResult::ExistingTruncatedBrokenSegment);
         }
 
         if (GetChecksum(buffer.Slice(current + sizeof(ui64), segmentEnd)) != segmentHeader->Checksum) {
-            YT_LOG_ALERT("Invalid changelog index segment checksum, recreating (IndexFilePosition: %v)",
-                current - buffer.Begin());
+            YT_TLOG_ALERT("Invalid changelog index segment checksum, recreating")
+                .With("IndexFilePosition", current - buffer.Begin());
             return recreate(EFileChangelogIndexOpenResult::ExistingRecreatedBrokenSegmentChecksum);
         }
 
@@ -194,7 +194,7 @@ void TFileChangelogIndex::Create()
     Handle_ = std::move(handle);
     IndexFilePosition_ = sizeof(TChangelogIndexHeader);
 
-    YT_LOG_DEBUG("Changelog index file created");
+    YT_TLOG_DEBUG("Changelog index file created");
 }
 
 void TFileChangelogIndex::Close()
@@ -318,10 +318,10 @@ void TFileChangelogIndex::AsyncFlush()
 
     header->Checksum = GetChecksum(buffer.Slice(sizeof(ui64), size));
 
-    YT_LOG_DEBUG("Started flushing changelog file index segment (FirstRecordIndex: %v, RecordCount: %v, IndexFilePosition: %v)",
-        FlushedIndexRecordCount_,
-        flushRecordCount,
-        IndexFilePosition_);
+    YT_TLOG_DEBUG("Started flushing changelog file index segment")
+        .With("FirstRecordIndex", FlushedIndexRecordCount_)
+        .With("RecordCount", flushRecordCount)
+        .With("IndexFilePosition", IndexFilePosition_);
 
     YT_VERIFY(!Flushing_.exchange(true));
 
@@ -339,7 +339,7 @@ void TFileChangelogIndex::AsyncFlush()
         .AsVoid()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(Flushing_.exchange(false));
-            YT_LOG_DEBUG("Finished flushing changelog file index segment");
+            YT_TLOG_DEBUG("Finished flushing changelog file index segment");
         }));
 }
 

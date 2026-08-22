@@ -149,11 +149,9 @@ std::optional<ELocationState> TDiskLocation::ChangeState(
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!disableReason.IsOK()) {
-        YT_LOG_FATAL_UNLESS(
-            newState == ELocationState::Disabled,
-            disableReason,
-            "Disable reason provided for a non-disable state (NewState: %v)",
-            newState);
+        YT_TLOG_FATAL_UNLESS(newState == ELocationState::Disabled, "Disable reason provided for a non-disable state")
+            .With("NewState", newState)
+            .With(disableReason);
     }
 
     auto guard = NThreading::WriterGuard(StateChangingLock_);
@@ -162,10 +160,9 @@ std::optional<ELocationState> TDiskLocation::ChangeState(
         ELocationState currentState = State_.load();
 
         if (expectedState != currentState) {
-            YT_LOG_WARNING(
-                "Incompatible location state (Expected: %v, Actual: %v)",
-                expectedState,
-                currentState);
+            YT_TLOG_WARNING("Incompatible location state")
+                .With("Expected", expectedState)
+                .With("Actual", currentState);
             return std::nullopt;
         }
     }
@@ -205,7 +202,7 @@ void TDiskLocation::InitializeDiskLocationProfiling(const NProfiling::TProfiler&
 
 void TDiskLocation::ValidateLockFile() const
 {
-    YT_LOG_INFO("Checking lock file");
+    YT_TLOG_INFO("Checking lock file");
 
     auto lockFilePath = NFS::CombinePaths(StaticConfig_->Path, DisabledLockFileName);
     if (!NFS::Exists(lockFilePath)) {
@@ -236,7 +233,7 @@ void TDiskLocation::ValidateLockFile() const
 
 void TDiskLocation::ValidateMinimumSpace() const
 {
-    YT_LOG_INFO("Checking minimum space");
+    YT_TLOG_INFO("Checking minimum space");
 
     auto config = GetRuntimeConfig();
     if (config->MinDiskSpace) {

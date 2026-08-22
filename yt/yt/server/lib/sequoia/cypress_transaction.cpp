@@ -1061,10 +1061,9 @@ private:
             // NB: Consider disabling Cypress tx mirroring by setting
             // //sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia to false.
             // Ensure that you actually know what are you doing.
-            YT_LOG_ALERT(
-                *error,
-                "Failed to %v Cypress transaction in Sequoia",
-                Description_);
+            YT_TLOG_ALERT("Failed to finish Cypress transaction in Sequoia")
+                .With("Description", Description_)
+                .With(*error);
         }
 
         THROW_ERROR result;

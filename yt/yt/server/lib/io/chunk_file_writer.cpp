@@ -56,10 +56,8 @@ TSerializedBlocksRequest SerializeBlocks(
 
     for (const auto& block : blocks) {
         auto error = block.CheckChecksum();
-        YT_LOG_FATAL_UNLESS(
-            error.IsOK(),
-            error,
-            "Block checksum mismatch during file writing");
+        YT_TLOG_FATAL_UNLESS(error.IsOK(), "Block checksum mismatch during file writing")
+            .With(error);
 
         auto* blockInfo = blocksExt.add_blocks();
         blockInfo->set_offset(request.EndOffset);
@@ -182,8 +180,8 @@ void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
         return;
     }
 
-    YT_LOG_WARNING("Error locking chunk data file, retrying (Path: %v)",
-        FileName_);
+    YT_TLOG_WARNING("Error locking chunk data file, retrying")
+        .With("Path", FileName_);
 
     TDelayedExecutor::Submit(
         BIND(&TChunkFileWriter::TryLockDataFile, MakeStrong(this), promise),

@@ -105,9 +105,9 @@ void TOperationEventReporter::ReportEvent(TOperationEventReport event)
     }
 
     if (!Config_->Enabled) {
-        YT_LOG_DEBUG("Operation event reporter disabled (OperationId: %v, EventType: %v)",
-            event.OperationId,
-            event.EventType);
+        YT_TLOG_DEBUG("Operation event reporter disabled")
+            .With("OperationId", event.OperationId)
+            .With("EventType", event.EventType);
         return;
     }
 

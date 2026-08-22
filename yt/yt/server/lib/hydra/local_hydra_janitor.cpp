@@ -58,8 +58,8 @@ public:
                 YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
             }
 
-            YT_LOG_DEBUG("Janitor was %v",
-                newConfig->EnableLocalJanitor ? "enabled" : "disabled");
+            YT_TLOG_DEBUG("Janitor toggled")
+                .With("Enabled", newConfig->EnableLocalJanitor);
         }
 
         Config_.Store(std::move(newConfig));
@@ -101,8 +101,9 @@ private:
                 id = ParseFileId(fileName, suffix);
                 size = NFS::GetPathStatistics(fullFileName).Size;
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Janitor has found a broken Hydra file (FileName: %v)",
-                    fullFileName);
+                YT_TLOG_WARNING("Janitor has found a broken Hydra file")
+                    .With("FileName", fullFileName)
+                    .With(ex);
                 continue;
             }
             result.push_back({id, size});
@@ -134,13 +135,14 @@ private:
 
             auto fullFileName = NFS::CombinePaths(path, fileName);
 
-            YT_LOG_INFO("Janitor is removing Hydra file (FileName: %v)",
-                fullFileName);
+            YT_TLOG_INFO("Janitor is removing Hydra file")
+                .With("FileName", fullFileName);
             try {
                 NFS::Remove(fullFileName);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Janitor is unable to remove Hydra file (FileName: %v)",
-                    fullFileName);
+                YT_TLOG_WARNING("Janitor is unable to remove Hydra file")
+                    .With("FileName", fullFileName)
+                    .With(ex);
             }
         }
     }

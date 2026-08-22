@@ -80,7 +80,7 @@ public:
 
     void Start()
     {
-        YT_LOG_INFO("Starting NBD server");
+        YT_TLOG_INFO("Starting NBD server");
 
         try {
             int maxBacklogSize = 0;
@@ -104,7 +104,8 @@ public:
                 THROW_ERROR_EXCEPTION("NBD server config must contain socket section");
             }
 
-            YT_LOG_INFO("Creating listener (Address: %v)", address);
+            YT_TLOG_INFO("Creating listener")
+                .With("Address", address);
 
             Listener_ = CreateListener(
                 address,
@@ -112,24 +113,26 @@ public:
                 Poller_,
                 maxBacklogSize);
 
-            YT_LOG_INFO("Created listener (Address: %v)", address);
+            YT_TLOG_INFO("Created listener")
+                .With("Address", address);
 
             AcceptConnection();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to start NBD server");
+            YT_TLOG_ERROR("Failed to start NBD server")
+                .With(ex);
             throw;
         }
 
-        YT_LOG_INFO("Started NBD server");
+        YT_TLOG_INFO("Started NBD server");
     }
 
     void RegisterDevice(
         const std::string& name,
         IBlockDevicePtr device) override
     {
-        YT_LOG_INFO("Registering device (Name: %v, Description: %v)",
-            name,
-            device->GetDescription());
+        YT_TLOG_INFO("Registering device")
+            .With("Name", name)
+            .With("Description", device->GetDescription());
 
         auto guard = WriterGuard(NameToDeviceLock_);
         auto [it, inserted] = NameToDevice_.emplace(name, device);
@@ -138,25 +141,28 @@ public:
                 name,
                 device->GetDescription());
 
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Device is already registered")
+                .With(error);
             THROW_ERROR_EXCEPTION(error);
         }
 
         TNbdProfilerCounters::Get()->GetCounter(TNbdProfilerCounters::MakeTagSet(device->GetProfileSensorTag()), "/device/registered").Increment(1);
 
-        YT_LOG_INFO("Registered device (Name: %v, Description: %v)",
-            name,
-            device->GetDescription());
+        YT_TLOG_INFO("Registered device")
+            .With("Name", name)
+            .With("Description", device->GetDescription());
     }
 
     IBlockDevicePtr TryUnregisterDevice(const std::string& name) override
     {
-        YT_LOG_INFO("Unregistering device (Name: %v)", name);
+        YT_TLOG_INFO("Unregistering device")
+            .With("Name", name);
 
         auto guard = WriterGuard(NameToDeviceLock_);
         auto it = NameToDevice_.find(name);
         if (it == NameToDevice_.end()) {
-            YT_LOG_INFO("Can not unregister unknown device (Name: %v)", name);
+            YT_TLOG_INFO("Can not unregister unknown device")
+                .With("Name", name);
             return nullptr;
         }
 
@@ -165,7 +171,8 @@ public:
         auto device = it->second;
         NameToDevice_.erase(it);
 
-        YT_LOG_INFO("Unregistered device (Name: %v)", name);
+        YT_TLOG_INFO("Unregistered device")
+            .With("Name", name);
         return device;
     }
 
@@ -313,8 +320,8 @@ private:
                 Server_->UnregisterConnection(ConnectionId_);
             });
 
-            YT_LOG_INFO("Connection accepted (RemoteAddress: %v)",
-                Connection_->GetRemoteAddress());
+            YT_TLOG_INFO("Connection accepted")
+                .With("RemoteAddress", Connection_->GetRemoteAddress());
 
             try {
                 try {
@@ -330,13 +337,14 @@ private:
                 }
                 DoTransmission();
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Connection failed");
+                YT_TLOG_WARNING("Connection failed")
+                    .With(ex);
             }
         }
 
         void DoHandshake()
         {
-            YT_LOG_INFO("Handshake phase entered");
+            YT_TLOG_INFO("Handshake phase entered");
 
             {
                 TServerHandshakeMessage message{
@@ -350,8 +358,8 @@ private:
             {
                 auto netFlags = ReadPod<EClientHandshakeFlags>();
                 auto flags = InetToHost(netFlags);
-                YT_LOG_INFO("Received client flags (Flags: %x)",
-                    flags);
+                YT_TLOG_INFO("Received client flags")
+                    .WithFormat("Flags", "%x", flags);
                 if (flags != EClientHandshakeFlags::NBD_FLAG_C_FIXED_NEWSTYLE) {
                     THROW_ERROR_EXCEPTION("Unsupported client flags")
                         .With("flags", flags);
@@ -387,7 +395,7 @@ private:
                 status.State = EConnectionState::Transmission;
             });
 
-            YT_LOG_INFO("Transmission phase entered");
+            YT_TLOG_INFO("Transmission phase entered");
 
             while (!Abort_) {
                 auto message = ReadPod<TClientRequestMessage>();
@@ -433,9 +441,9 @@ private:
                     break;
 
                 default:
-                    YT_LOG_INFO("Received unknown client option (Option: %v, PayloadLength: %v)",
-                        option,
-                        payload.size());
+                    YT_TLOG_INFO("Received unknown client option")
+                        .With("Option", option)
+                        .With("PayloadLength", payload.size());
                     WriteOptionResponse(option, EServerOptionReply::NBD_REP_ERR_UNSUP);
                     break;
             }
@@ -443,7 +451,7 @@ private:
 
         void HandleAbortOption(const TSharedRef& payload)
         {
-            YT_LOG_INFO("Received NBD_OPT_ABORT client option, closing connection");
+            YT_TLOG_INFO("Received NBD_OPT_ABORT client option, closing connection");
 
             if (!payload.empty()) {
                 WriteOptionErrorResponseOnNonemptyPayload(EClientOption::NBD_OPT_ABORT);
@@ -457,7 +465,7 @@ private:
 
         void HandleListOption(const TSharedRef& payload)
         {
-            YT_LOG_INFO("Received NBD_OPT_LIST client option");
+            YT_TLOG_INFO("Received NBD_OPT_LIST client option");
 
             if (!payload.empty()) {
                 WriteOptionErrorResponseOnNonemptyPayload(EClientOption::NBD_OPT_LIST);
@@ -477,8 +485,8 @@ private:
         {
             auto name = ToString(payload);
 
-            YT_LOG_INFO("Received NBD_OPT_EXPORT_NAME client option (Name: %v)",
-                name);
+            YT_TLOG_INFO("Received NBD_OPT_EXPORT_NAME client option")
+                .With("Name", name);
 
             Device_ = Server_->GetDeviceOrThrow(name);
             Status_.Transform([&] (TStatus& status) {
@@ -508,8 +516,8 @@ private:
 
         void WriteOptionErrorResponseOnNonemptyPayload(EClientOption option)
         {
-            YT_LOG_WARNING("Unexpected payload in client option (Option: %v)",
-                option);
+            YT_TLOG_WARNING("Unexpected payload in client option")
+                .With("Option", option);
             WriteOptionResponse(option, EServerOptionReply::NBD_REP_ERR_INVALID);
         }
 
@@ -555,9 +563,9 @@ private:
                     break;
 
                 default:
-                    YT_LOG_DEBUG("Received unknown client message (Type: %v, Cookie: %x)",
-                        type,
-                        cookie);
+                    YT_TLOG_DEBUG("Received unknown client message")
+                        .With("Type", type)
+                        .WithFormat("Cookie", "%x", cookie);
                     WriteServerResponse(EServerError::NBD_EINVAL, cookie);
                     break;
             }
@@ -571,11 +579,11 @@ private:
             auto length = InetToHost(message.Length);
 
             if (Server_->GetConfig()->TestOptions->SetErrorOnRead) {
-                YT_LOG_DEBUG("Set error on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    flags);
+                YT_TLOG_DEBUG("Set error on NBD_CMD_READ request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Flags", flags);
 
                 Device_->SetError(TError("Test error on NBD_CMD_READ"));
                 WriteServerResponse(EServerError::NBD_EIO, cookie);
@@ -583,11 +591,11 @@ private:
             }
 
             if (Server_->GetConfig()->TestOptions->AbortConnectionOnRead) {
-                YT_LOG_DEBUG("Abort connection on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    flags);
+                YT_TLOG_DEBUG("Abort connection on NBD_CMD_READ request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Flags", flags);
 
                 Abort_ = true;
                 return;
@@ -596,30 +604,30 @@ private:
             // Compare without adding: offset is a client-supplied ui64, so offset + length wraps.
             auto deviceSize = static_cast<ui64>(Device_->GetTotalSize());
             if (offset > deviceSize || length > deviceSize - offset) {
-                YT_LOG_WARNING("Received an out-of-range NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    Device_->GetTotalSize());
+                YT_TLOG_WARNING("Received an out-of-range NBD_CMD_READ request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Size", Device_->GetTotalSize());
                 WriteServerResponse(EServerError::NBD_EINVAL, cookie);
                 return;
             }
 
             if (Server_->GetConfig()->TestOptions->SleepOnRead) {
-                YT_LOG_DEBUG("Sleep on NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    Server_->GetConfig()->TestOptions->SleepOnRead);
+                YT_TLOG_DEBUG("Sleep on NBD_CMD_READ request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Duration", Server_->GetConfig()->TestOptions->SleepOnRead);
 
                 TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->SleepOnRead);
             }
 
-            YT_LOG_DEBUG("Started serving NBD_CMD_READ request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
-                cookie,
-                offset,
-                length,
-                flags);
+            YT_TLOG_DEBUG("Started serving NBD_CMD_READ request")
+                .WithFormat("Cookie", "%x", cookie)
+                .With("Offset", offset)
+                .With("Length", length)
+                .With("Flags", flags);
 
             TEventTimerGuard readTimeGuard(
                 TNbdProfilerCounters::Get()->GetTimer(
@@ -641,9 +649,10 @@ private:
                         }
 
                         if (!result.IsOK()) {
-                            YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x, Duration: %v)",
-                                cookie,
-                                duration);
+                            YT_TLOG_WARNING("NBD_CMD_READ request failed")
+                                .WithFormat("Cookie", "%x", cookie)
+                                .With("Duration", duration)
+                                .With(result);
 
                             Device_->SetError(result);
 
@@ -666,10 +675,10 @@ private:
                             Device_->SetError(TError("Stop using device"));
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
-                            cookie,
-                            response.ShouldStopUsingDevice,
-                            duration);
+                        YT_TLOG_DEBUG("Finished serving NBD_CMD_READ request")
+                            .WithFormat("Cookie", "%x", cookie)
+                            .With("ShouldStopUsingDevice", response.ShouldStopUsingDevice)
+                            .With("Duration", duration);
 
                         const auto& payload = response.Data;
                         YT_VERIFY(payload.size() == length);
@@ -686,22 +695,22 @@ private:
             auto payload = ReadBuffer(length);
 
             if (Server_->GetConfig()->TestOptions->SetErrorOnWrite) {
-                YT_LOG_DEBUG("Set error on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    flags);
+                YT_TLOG_DEBUG("Set error on NBD_CMD_WRITE request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Flags", flags);
                 Device_->SetError(TError("Test error on NBD_CMD_WRITE"));
                 WriteServerResponse(EServerError::NBD_EIO, cookie);
                 return;
             }
 
             if (Server_->GetConfig()->TestOptions->AbortConnectionOnWrite) {
-                YT_LOG_DEBUG("Abort connection on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    flags);
+                YT_TLOG_DEBUG("Abort connection on NBD_CMD_WRITE request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Flags", flags);
 
                 Abort_ = true;
                 return;
@@ -710,36 +719,37 @@ private:
             // Compare without adding: offset is a client-supplied ui64, so offset + length wraps.
             auto deviceSize = static_cast<ui64>(Device_->GetTotalSize());
             if (offset > deviceSize || length > deviceSize - offset) {
-                YT_LOG_WARNING("Received an out-of-range NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    Device_->GetTotalSize());
+                YT_TLOG_WARNING("Received an out-of-range NBD_CMD_WRITE request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Size", Device_->GetTotalSize());
                 WriteServerResponse(EServerError::NBD_ENOSPC, cookie);
                 return;
             }
 
             if (Device_->IsReadOnly()) {
-                YT_LOG_WARNING("Received NBD_CMD_WRITE request for a read-only device (Cookie: %x)", cookie);
+                YT_TLOG_WARNING("Received NBD_CMD_WRITE request for a read-only device")
+                    .WithFormat("Cookie", "%x", cookie);
                 WriteServerResponse(EServerError::NBD_EPERM, cookie);
                 return;
             }
 
             if (Server_->GetConfig()->TestOptions->SleepOnWrite) {
-                YT_LOG_DEBUG("Sleep on NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Duration: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    Server_->GetConfig()->TestOptions->SleepOnWrite);
+                YT_TLOG_DEBUG("Sleep on NBD_CMD_WRITE request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Duration", Server_->GetConfig()->TestOptions->SleepOnWrite);
 
                 TDelayedExecutor::WaitForDuration(*Server_->GetConfig()->TestOptions->SleepOnWrite);
             }
 
-            YT_LOG_DEBUG("Started serving NBD_CMD_WRITE request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
-                cookie,
-                offset,
-                length,
-                flags);
+            YT_TLOG_DEBUG("Started serving NBD_CMD_WRITE request")
+                .WithFormat("Cookie", "%x", cookie)
+                .With("Offset", offset)
+                .With("Length", length)
+                .With("Flags", flags);
 
             TWriteOptions options;
             options.Cookie = cookie;
@@ -767,9 +777,10 @@ private:
                         }
 
                         if (!result.IsOK()) {
-                            YT_LOG_WARNING(result, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",
-                                cookie,
-                                duration);
+                            YT_TLOG_WARNING("NBD_CMD_WRITE request failed")
+                                .WithFormat("Cookie", "%x", cookie)
+                                .With("Duration", duration)
+                                .With(result);
 
                             Device_->SetError(result);
 
@@ -792,10 +803,10 @@ private:
                             Device_->SetError(TError("Stop using device"));
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
-                            cookie,
-                            response.ShouldStopUsingDevice,
-                            duration);
+                        YT_TLOG_DEBUG("Finished serving NBD_CMD_WRITE request")
+                            .WithFormat("Cookie", "%x", cookie)
+                            .With("ShouldStopUsingDevice", response.ShouldStopUsingDevice)
+                            .With("Duration", duration);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
                     }));
@@ -809,20 +820,20 @@ private:
             auto length = InetToHost(message.Length);
 
             if (offset != 0) {
-                YT_LOG_WARNING("Nonzero offset in NBD_CMD_FLUSH request");
+                YT_TLOG_WARNING("Nonzero offset in NBD_CMD_FLUSH request");
                 WriteServerResponse(EServerError::NBD_EINVAL, cookie);
                 return;
             }
 
             if (length != 0) {
-                YT_LOG_WARNING("Nonzero length in NBD_CMD_FLUSH request");
+                YT_TLOG_WARNING("Nonzero length in NBD_CMD_FLUSH request");
                 WriteServerResponse(EServerError::NBD_EINVAL, cookie);
                 return;
             }
 
-            YT_LOG_DEBUG("Started serving NBD_CMD_FLUSH request (Cookie: %x, Flags: %v)",
-                cookie,
-                flags);
+            YT_TLOG_DEBUG("Started serving NBD_CMD_FLUSH request")
+                .WithFormat("Cookie", "%x", cookie)
+                .With("Flags", flags);
 
             TEventTimerGuard flushTimeGuard(
                 TNbdProfilerCounters::Get()->GetTimer(
@@ -844,16 +855,17 @@ private:
                         }
 
                         if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "NBD_CMD_FLUSH request failed (Cookie: %x, Duration: %v)",
-                                cookie,
-                                duration);
+                            YT_TLOG_WARNING("NBD_CMD_FLUSH request failed")
+                                .WithFormat("Cookie", "%x", cookie)
+                                .With("Duration", duration)
+                                .With(error);
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_FLUSH request (Cookie: %x, Duration: %v)",
-                            cookie,
-                            duration);
+                        YT_TLOG_DEBUG("Finished serving NBD_CMD_FLUSH request")
+                            .WithFormat("Cookie", "%x", cookie)
+                            .With("Duration", duration);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
                     }));
@@ -869,33 +881,34 @@ private:
             // Compare without adding: offset is a client-supplied ui64, so offset + length wraps.
             auto deviceSize = static_cast<ui64>(Device_->GetTotalSize());
             if (offset > deviceSize || length > deviceSize - offset) {
-                YT_LOG_WARNING("Received an out-of-range NBD_CMD_TRIM request (Cookie: %x, Offset: %v, Length: %v, Size: %v)",
-                    cookie,
-                    offset,
-                    length,
-                    Device_->GetTotalSize());
+                YT_TLOG_WARNING("Received an out-of-range NBD_CMD_TRIM request")
+                    .WithFormat("Cookie", "%x", cookie)
+                    .With("Offset", offset)
+                    .With("Length", length)
+                    .With("Size", Device_->GetTotalSize());
                 WriteServerResponse(EServerError::NBD_EINVAL, cookie);
                 return;
             }
 
             if (!Device_->IsTrimSupported()) {
-                YT_LOG_WARNING("Received NBD_CMD_TRIM request for a device that does not support trim (Cookie: %x)",
-                    cookie);
+                YT_TLOG_WARNING("Received NBD_CMD_TRIM request for a device that does not support trim")
+                    .WithFormat("Cookie", "%x", cookie);
                 WriteServerResponse(EServerError::NBD_EINVAL, cookie);
                 return;
             }
 
             if (Device_->IsReadOnly()) {
-                YT_LOG_WARNING("Received NBD_CMD_TRIM request for a read-only device (Cookie: %x)", cookie);
+                YT_TLOG_WARNING("Received NBD_CMD_TRIM request for a read-only device")
+                    .WithFormat("Cookie", "%x", cookie);
                 WriteServerResponse(EServerError::NBD_EPERM, cookie);
                 return;
             }
 
-            YT_LOG_DEBUG("Started serving NBD_CMD_TRIM request (Cookie: %x, Offset: %v, Length: %v, Flags: %v)",
-                cookie,
-                offset,
-                length,
-                flags);
+            YT_TLOG_DEBUG("Started serving NBD_CMD_TRIM request")
+                .WithFormat("Cookie", "%x", cookie)
+                .With("Offset", offset)
+                .With("Length", length)
+                .With("Flags", flags);
 
             TEventTimerGuard trimTimeGuard(
                 TNbdProfilerCounters::Get()->GetTimer(
@@ -917,9 +930,10 @@ private:
                         }
 
                         if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "NBD_CMD_TRIM request failed (Cookie: %x, Duration: %v)",
-                                cookie,
-                                duration);
+                            YT_TLOG_WARNING("NBD_CMD_TRIM request failed")
+                                .WithFormat("Cookie", "%x", cookie)
+                                .With("Duration", duration)
+                                .With(error);
 
                             TNbdProfilerCounters::Get()->GetCounter(
                                 TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
@@ -935,9 +949,9 @@ private:
                             "/device/trim_bytes")
                             .Increment(length);
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_TRIM request (Cookie: %x, Duration: %v)",
-                            cookie,
-                            duration);
+                        YT_TLOG_DEBUG("Finished serving NBD_CMD_TRIM request")
+                            .WithFormat("Cookie", "%x", cookie)
+                            .With("Duration", duration);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
                     }));
@@ -945,7 +959,7 @@ private:
 
         void HandleClientDisconnectRequest(const TClientRequestMessage& /*message*/)
         {
-            YT_LOG_INFO("Received NBD_CMD_DISC request, closing connection");
+            YT_TLOG_INFO("Received NBD_CMD_DISC request, closing connection");
 
             Abort_ = true;
         }
@@ -985,7 +999,8 @@ private:
             auto error = WaitFor(Connection_->Write(buffer));
             if (!error.IsOK()) {
                 // WriteBuffer might be called asynchronously so abort connection gracefully (don't throw).
-                YT_LOG_WARNING(error, "Failed to write buffer, aborting connection");
+                YT_TLOG_WARNING("Failed to write buffer, aborting connection")
+                    .With(error);
                 Abort_ = true;
             }
         }
@@ -1006,9 +1021,10 @@ private:
                         strTagSet = Device_->GetProfileSensorTag();
                         tagSet = TNbdProfilerCounters::MakeTagSet(strTagSet);
 
-                        YT_LOG_DEBUG(Device_->GetError(), "Connection has been closed by the peer (Abort: %v, DeviceDescription: %v)",
-                            Abort_,
-                            Device_->GetDescription());
+                        YT_TLOG_DEBUG("Connection has been closed by the peer")
+                            .With("Abort", Abort_)
+                            .With("DeviceDescription", Device_->GetDescription())
+                            .With(Device_->GetError());
                     }
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/server/request/zero_read_buffer").Increment(1);
                     THROW_ERROR_EXCEPTION("Read returned zero bytes")
@@ -1041,7 +1057,8 @@ private:
     {
         if (!connectionOrError.IsOK()) {
             TNbdProfilerCounters::Get()->GetCounter(NProfiling::TTagSet({{"status", "failure"}}), "/server/connection/accepted").Increment(1);
-            YT_LOG_INFO(connectionOrError, "Error accepting connection");
+            YT_TLOG_INFO("Error accepting connection")
+                .With(connectionOrError);
             return;
         }
 

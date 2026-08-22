@@ -64,14 +64,13 @@ void LogAccess(
 
     auto maybeAlert = [&] (const TErrorOr<TYPath>& ypathOrError, const auto& unparsedYPath, TStringBuf ypathType) {
         if (!ypathOrError.IsOK()) {
-            YT_LOG_ALERT(ypathOrError,
-                "Failed to parse YPath while logging access "
-                "(NodeId: %v, Path: %v, TransactionId: %v, UnparsedYPathType: %v, UnparsedYPath: %v)",
-                id,
-                path,
-                transactionInfo.GetTransactionId(),
-                ypathType,
-                unparsedYPath);
+            YT_TLOG_ALERT("Failed to parse YPath while logging access")
+                .With("NodeId", id)
+                .With("Path", path)
+                .With("TransactionId", transactionInfo.GetTransactionId())
+                .With("UnparsedYPathType", ypathType)
+                .With("UnparsedYPath", unparsedYPath)
+                .With(ypathOrError);
             return true;
         }
         return false;

@@ -196,9 +196,9 @@ TFuture<TMutationResponse> TSimpleHydraManagerMock::CommitMutation(TMutationRequ
 {
     YT_VERIFY(IsActiveLeader());
 
-    YT_LOG_DEBUG("Committing mutation (SequenceNumber: %v, Type: %v)",
-        MutationRequests_.size(),
-        request.Type);
+    YT_TLOG_DEBUG("Committing mutation")
+        .With("SequenceNumber", MutationRequests_.size())
+        .With("Type", request.Type);
     MutationRequests_.emplace_back(std::move(request));
     auto promise = MutationResponsePromises_.emplace_back(NewPromise<TMutationResponse>());
     return promise;

@@ -78,19 +78,16 @@ public:
                 options.JobSizeAdjusterConfig);
         }
 
-        YT_LOG_INFO("New sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
-            "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
-            "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, "
-            "MinManiacDataWeight: %v, HasJobSizeAdjuster: %v)",
-            SortedJobOptions_.EnableKeyGuarantee,
-            SortedJobOptions_.PrimaryComparator.GetLength(),
-            SortedJobOptions_.ForeignComparator.GetLength(),
-            JobSizeConstraints_->GetDataWeightPerJob(),
-            JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
-            JobSizeConstraints_->GetMaxDataSlicesPerJob(),
-            JobSizeConstraints_->GetInputSliceDataWeight(),
-            MinManiacDataWeight_,
-            static_cast<bool>(JobSizeAdjuster_));
+        YT_TLOG_INFO("New sorted chunk pool created")
+            .With("EnableKeyGuarantee", SortedJobOptions_.EnableKeyGuarantee)
+            .With("PrimaryPrefixLength", SortedJobOptions_.PrimaryComparator.GetLength())
+            .With("ForeignPrefixLength", SortedJobOptions_.ForeignComparator.GetLength())
+            .With("DataWeightPerJob", JobSizeConstraints_->GetDataWeightPerJob())
+            .With("PrimaryDataWeightPerJob", JobSizeConstraints_->GetPrimaryDataWeightPerJob())
+            .With("MaxDataSlicesPerJob", JobSizeConstraints_->GetMaxDataSlicesPerJob())
+            .With("InputSliceDataWeight", JobSizeConstraints_->GetInputSliceDataWeight())
+            .With("MinManiacDataWeight", MinManiacDataWeight_)
+            .With("HasJobSizeAdjuster", static_cast<bool>(JobSizeAdjuster_));
     }
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
@@ -119,7 +116,8 @@ public:
                 YT_VERIFY(!dataSlice->UpperLimit().KeyBound.IsUniversal());
             }
 
-            YT_LOG_TRACE("Data slice added (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
+            YT_TLOG_TRACE("Data slice added")
+                .With("DataSlice", GetDataSliceDebugString(dataSlice));
 
             dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, prefixLength, RowBuffer_);
             dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, prefixLength, RowBuffer_);
@@ -194,12 +192,11 @@ public:
         TJobSplittingBase::Completed(cookie, jobSummary);
 
         if (jobSummary.InterruptionReason != EInterruptionReason::None) {
-            YT_LOG_DEBUG(
-                "Splitting job (JobId: %v, OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
-                jobSummary.Id,
-                cookie,
-                jobSummary.InterruptionReason,
-                jobSummary.SplitJobCount);
+            YT_TLOG_DEBUG("Splitting job")
+                .With("JobId", jobSummary.Id)
+                .With("OutputCookie", cookie)
+                .With("InterruptionReason", jobSummary.InterruptionReason)
+                .With("SplitJobCount", jobSummary.SplitJobCount);
             YT_VERIFY(jobSummary.UnreadInputDataSlices.size() > 0);
 
             std::vector<TLegacyDataSlicePtr> foreignSlices;
@@ -245,7 +242,9 @@ public:
             }
 
             if (action == EJobAdjustmentAction::RebuildJobs) {
-                YT_LOG_INFO("Job completion triggered enlargement (JobId: %v, JobCookie: %v)", jobSummary.Id, cookie);
+                YT_TLOG_INFO("Job completion triggered enlargement")
+                    .With("JobId", jobSummary.Id)
+                    .With("JobCookie", cookie);
                 auto primaryDataWeightRatio = static_cast<double>(JobSizeConstraints_->GetPrimaryDataWeightPerJob())
                     / JobSizeConstraints_->GetDataWeightPerJob();
                 JobManager_->Enlarge(
@@ -317,7 +316,7 @@ private:
         };
 
         if (!chunkSliceFetcher) {
-            YT_LOG_DEBUG("Data slices will not be fetched, as chunk slice fetcher is not present");
+            YT_TLOG_DEBUG("Data slices will not be fetched, as chunk slice fetcher is not present");
             for (const auto& [inputCookie, suspendableStripe] : SEnumerate(Stripes_)) {
                 if (suspendableStripe.GetTeleport()) {
                     continue;
@@ -333,12 +332,11 @@ private:
         i64 primarySliceSize = std::min(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetPrimaryDataWeightPerJob());
         i64 foreignSliceSize = JobSizeConstraints_->GetForeignSliceDataWeight();
 
-        YT_LOG_DEBUG(
-            "Fetching non-teleport data slices (HasChunkSliceFetcher: %v, PrimarySliceSize: %v, ForeignSliceSize: %v, SliceForeignChunks: %v)",
-            static_cast<bool>(chunkSliceFetcher),
-            primarySliceSize,
-            foreignSliceSize,
-            SliceForeignChunks_);
+        YT_TLOG_DEBUG("Fetching non-teleport data slices")
+            .With("HasChunkSliceFetcher", static_cast<bool>(chunkSliceFetcher))
+            .With("PrimarySliceSize", primarySliceSize)
+            .With("ForeignSliceSize", foreignSliceSize)
+            .With("SliceForeignChunks", SliceForeignChunks_);
 
         THashMap<TInputChunkPtr, std::pair<TLegacyDataSlicePtr, IChunkPoolInput::TCookie>> inputChunkToOwningDataSlice;
 
@@ -365,13 +363,12 @@ private:
                     ? primarySliceSize
                     : foreignSliceSize;
                 auto inputChunk = dataSlice->GetSingleUnversionedChunk();
-                YT_LOG_TRACE(
-                    "Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, Comparator: %v, SliceSize: %v)",
-                    inputChunk->GetChunkId(),
-                    inputChunk->GetDataWeight(),
-                    isPrimary,
-                    comparator,
-                    sliceSize);
+                YT_TLOG_TRACE("Slicing chunk")
+                    .With("ChunkId", inputChunk->GetChunkId())
+                    .With("DataWeight", inputChunk->GetDataWeight())
+                    .With("IsPrimary", isPrimary)
+                    .With("Comparator", comparator)
+                    .With("SliceSize", sliceSize);
 
                 chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true, MinManiacDataWeight_);
 
@@ -568,10 +565,10 @@ private:
             totalTeleportChunkSize += teleportChunk->GetUncompressedDataSize();
         }
 
-        YT_LOG_DEBUG("Chunks teleported (ChunkCount: %v, DroppedChunkCount: %v, TotalSize: %v)",
-            TeleportChunks_.size(),
-            droppedTeleportChunkCount,
-            totalTeleportChunkSize);
+        YT_TLOG_DEBUG("Chunks teleported")
+            .With("ChunkCount", TeleportChunks_.size())
+            .With("DroppedChunkCount", droppedTeleportChunkCount)
+            .With("TotalSize", totalTeleportChunkSize);
     }
 
     void SetupSuspendedStripes()
@@ -619,10 +616,10 @@ private:
                 break;
             } catch (TErrorException& ex) {
                 if (ex.Error().FindMatching(NChunkPools::EErrorCode::DataSliceLimitExceeded)) {
-                    YT_LOG_DEBUG(ex,
-                        "Retriable error during job building (RetryIndex: %v, MaxBuildRetryCount: %v)",
-                        retryIndex,
-                        JobSizeConstraints_->GetMaxBuildRetryCount());
+                    YT_TLOG_DEBUG("Retriable error during job building")
+                        .With("RetryIndex", retryIndex)
+                        .With("MaxBuildRetryCount", JobSizeConstraints_->GetMaxBuildRetryCount())
+                        .With(ex);
                     errors.emplace_back(std::move(ex.Error()));
                     continue;
                 }
@@ -630,7 +627,8 @@ private:
             }
         }
         if (!succeeded) {
-            YT_LOG_DEBUG("Retry limit exceeded (MaxBuildRetryCount: %v)", JobSizeConstraints_->GetMaxBuildRetryCount());
+            YT_TLOG_DEBUG("Retry limit exceeded")
+                .With("MaxBuildRetryCount", JobSizeConstraints_->GetMaxBuildRetryCount());
             THROW_ERROR_EXCEPTION("Retry limit exceeded while building jobs")
                 .With(errors);
         }
@@ -645,10 +643,9 @@ private:
 
         auto cookies = JobManager_->AddJobs(std::move(jobStubPtrs));
 
-        YT_LOG_TRACE(
-            "Jobs are built (CookieCount: %v, Statistics: %v)",
-            cookies,
-            ChunkPoolStatistics_);
+        YT_TLOG_TRACE("Jobs are built")
+            .With("CookieCount", cookies)
+            .With("Statistics", ChunkPoolStatistics_);
 
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
@@ -745,7 +742,8 @@ private:
             JobSizeConstraints_->GetForeignSliceDataWeight(),
             /*samplingRate*/ std::nullopt);
 
-        YT_LOG_DEBUG("Initialized constraints (Constraints: %v)", jobSizeConstraints);
+        YT_TLOG_DEBUG("Initialized constraints")
+            .With("Constraints", jobSizeConstraints);
 
         auto splitSortedJobOptions = SortedJobOptions_;
         // We do not want to yield during job splitting because it may potentially lead
@@ -795,10 +793,9 @@ private:
         }
         childCookies.resize(writeIndex);
 
-        YT_LOG_TRACE(
-            "Jobs are built (CookieCount: %v, ChunkPoolStatistics: %v)",
-            std::ssize(childCookies),
-            ChunkPoolStatistics_);
+        YT_TLOG_TRACE("Jobs are built")
+            .With("CookieCount", std::ssize(childCookies))
+            .With("ChunkPoolStatistics", ChunkPoolStatistics_);
 
         return childCookies;
     }

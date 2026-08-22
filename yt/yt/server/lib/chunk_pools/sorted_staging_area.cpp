@@ -149,7 +149,8 @@ public:
     {
         UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
 
-        YT_LOG_TRACE("Pushing to domain back (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
+        YT_TLOG_TRACE("Pushing to domain back")
+            .With("DataSlice", GetDataSliceDebugString(dataSlice));
         Statistics_ += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
         DataSlices_.push_back(std::move(dataSlice));
     }
@@ -158,7 +159,8 @@ public:
     {
         UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
 
-        YT_LOG_TRACE("Pushing to domain front (DataSlice: %v)", GetDataSliceDebugString(dataSlice));
+        YT_TLOG_TRACE("Pushing to domain front")
+            .With("DataSlice", GetDataSliceDebugString(dataSlice));
         Statistics_ += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ true);
         DataSlices_.push_front(std::move(dataSlice));
     }
@@ -296,12 +298,13 @@ public:
             ? std::make_optional<TPrimaryDomain>("Solid", Logger, PrimaryComparator_)
             : std::nullopt)
     {
-        YT_LOG_DEBUG("Staging area instantiated");
+        YT_TLOG_DEBUG("Staging area instantiated");
     }
 
     void PromoteUpperBound(TKeyBound newUpperBound) override
     {
-        YT_LOG_TRACE("Promoting upper bound (NewUpperBound: %v)", newUpperBound);
+        YT_TLOG_TRACE("Promoting upper bound")
+            .With("NewUpperBound", newUpperBound);
 
         YT_VERIFY(PrimaryComparator_.CompareKeyBounds(UpperBound_, newUpperBound) <= 0);
 
@@ -355,14 +358,13 @@ public:
     {
         // If we have no Main nor Solid slices, we have nothing to do.
         if (IsExhausted()) {
-            YT_LOG_TRACE("Nothing to flush in staging area");
+            YT_TLOG_TRACE("Nothing to flush in staging area");
             // Nothing to flush.
             return JobsStatistics_;
         }
 
-        YT_LOG_TRACE(
-            "Performing flush in staging area (Statistics: %v)",
-            GetStatisticsDebugString());
+        YT_TLOG_TRACE("Performing flush in staging area")
+            .With("Statistics", GetStatisticsDebugString());
 
         // By this moment singleton slices are not yet in the Main, so we cut only
         // proper Main data slices.
@@ -372,9 +374,8 @@ public:
         // to main. Now flush Main domain into job.
         DoFlush();
 
-        YT_LOG_TRACE(
-            "Staging area flushed (Statistics: %v)",
-            GetStatisticsDebugString());
+        YT_TLOG_TRACE("Staging area flushed")
+            .With("Statistics", GetStatisticsDebugString());
 
         // Make a sanity check that Main domain is empty.
         YT_VERIFY(MainDomain_.IsEmpty());
@@ -384,7 +385,7 @@ public:
 
     std::pair<std::vector<TNewJobStub>, TCurrentJobsStatistics> Finish() && override
     {
-        YT_LOG_TRACE("Finishing work in staging area");
+        YT_TLOG_TRACE("Finishing work in staging area");
 
         PromoteUpperBound(TKeyBound::MakeUniversal(/*isUpper*/ true));
 
@@ -464,7 +465,8 @@ private:
 
     void CutNonSolidMainByUpperBound()
     {
-        YT_LOG_TRACE("Cutting non-solid main domain by upper bound (UpperBound: %v)", UpperBound_);
+        YT_TLOG_TRACE("Cutting non-solid main domain by upper bound")
+            .With("UpperBound", UpperBound_);
 
         // We first collect data slice to push to buffer domain, and only then push them.
         // We have to preserve the order of the slices from `NonSolidMainDataSlices_` and
@@ -532,10 +534,8 @@ private:
 
     void ValidateCurrentJobBounds(TKeyBound actualLowerBound, TKeyBound actualUpperBound) const
     {
-        YT_LOG_TRACE(
-            "Current job key bounds (KeyBounds: %v:%v)",
-            actualLowerBound,
-            actualUpperBound);
+        YT_TLOG_TRACE("Current job key bounds")
+            .WithFormat("KeyBounds", "%v:%v", actualLowerBound, actualUpperBound);
 
         // In general case, previous and current job are located like this:
         //
@@ -589,7 +589,8 @@ private:
             if (!ForeignComparator_.IsRangeEmpty(actualLowerBound, smallestForeignDataSlice->UpperLimit().KeyBound)) {
                 break;
             }
-            YT_LOG_TRACE("Trimming foreign data slice (DataSlice: %v)", smallestForeignDataSlice);
+            YT_TLOG_TRACE("Trimming foreign data slice")
+                .With("DataSlice", smallestForeignDataSlice);
             ForeignDomain_.Pop();
         }
     }
@@ -600,10 +601,9 @@ private:
 
         auto& job = PreparedJobs_.emplace_back();
 
-        YT_LOG_TRACE(
-            "Flushing main and solid domains into job (MainStatistics: %v, SolidStatistics: %v)",
-            MainDomain_.GetStatistics(),
-            SolidDomain_.has_value() ? SolidDomain_->GetStatistics() : TResourceVector());
+        YT_TLOG_TRACE("Flushing main and solid domains into job")
+            .With("MainStatistics", MainDomain_.GetStatistics())
+            .With("SolidStatistics", SolidDomain_.has_value() ? SolidDomain_->GetStatistics() : TResourceVector());
 
         // Calculate the actual lower and upper bounds of newly formed job and move data slices to the job.
         auto actualLowerBound = TKeyBound::MakeEmpty(/*isUpper*/ false);
@@ -616,15 +616,13 @@ private:
                 YT_VERIFY(dataSlice->Tag);
                 const auto& Logger = domain.GetLogger();
                 if (!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
-                    YT_LOG_TRACE(
-                        "Adding primary data slice to job (DataSlice: %v)",
-                        GetDataSliceDebugString(dataSlice));
+                    YT_TLOG_TRACE("Adding primary data slice to job")
+                        .With("DataSlice", GetDataSliceDebugString(dataSlice));
                     auto tag = *dataSlice->Tag;
                     job.AddDataSlice(std::move(dataSlice), tag, /*isPrimary*/ true);
                 } else {
-                    YT_LOG_TRACE(
-                        "Not adding empty data slice to job (DataSlice: %v)",
-                        GetDataSliceDebugString(dataSlice));
+                    YT_TLOG_TRACE("Not adding empty data slice to job")
+                        .With("DataSlice", GetDataSliceDebugString(dataSlice));
                 }
             }
         };
@@ -636,7 +634,8 @@ private:
 
         if (job.GetPrimarySliceCount() == 0) {
             YT_VERIFY(PrimaryComparator_.IsRangeEmpty(actualLowerBound, actualUpperBound));
-            YT_LOG_TRACE("Dropping empty job (DataSlices: %v)", job.GetDebugString());
+            YT_TLOG_TRACE("Dropping empty job")
+                .With("DataSlices", job.GetDebugString());
             PreparedJobs_.pop_back();
             return;
         }
@@ -669,19 +668,20 @@ private:
                         CreateInputDataSlice(dataSlice, ForeignComparator_, shortenedActualLowerBound, shortenedActualUpperBound),
                         *dataSlice->Tag,
                         /*isPrimary*/ false);
-                    YT_LOG_TRACE(
-                        "Adding foreign data slice to job (DataSlice: %v)",
-                        GetDataSliceDebugString(dataSlice));
+                    YT_TLOG_TRACE("Adding foreign data slice to job")
+                        .With("DataSlice", GetDataSliceDebugString(dataSlice));
                     foreignStatistics += TResourceVector::FromDataSlice(dataSlice, /*isPrimary*/ false);
                 }
             }
         }
 
         if (!foreignStatistics.IsZero()) {
-            YT_LOG_TRACE("Attaching foreign data slices to job (Statistics: %v)", foreignStatistics);
+            YT_TLOG_TRACE("Attaching foreign data slices to job")
+                .With("Statistics", foreignStatistics);
         }
 
-        YT_LOG_TRACE("Job prepared (DataSlices: %v)", job.GetDebugString());
+        YT_TLOG_TRACE("Job prepared")
+            .With("DataSlices", job.GetDebugString());
 
         ++JobsStatistics_.JobCount;
         JobsStatistics_.DataSliceCount += job.GetSliceCount();

@@ -45,9 +45,9 @@ TFuture<std::optional<TSharedRefArray>> FindKeptResponseInSequoiaAndLog(
     }
 
     const auto& Logger = logger;
-    YT_LOG_DEBUG("Started looking for response in Sequoia response keeper (MutationId: %v, Retry: %v)",
-        mutationId,
-        retry);
+    YT_TLOG_DEBUG("Started looking for response in Sequoia response keeper")
+        .With("MutationId", mutationId)
+        .With("Retry", retry);
 
     return client
         ->LookupRows<NRecords::TSequoiaResponseKeeperKey>(
@@ -58,21 +58,18 @@ TFuture<std::optional<TSharedRefArray>> FindKeptResponseInSequoiaAndLog(
             YT_VERIFY(rows.size() == 1);
             auto& row = rows.front();
 
-            YT_LOG_DEBUG("Response was %v in Sequoia response keeper (MutationId: %v, Retry: %v%v)",
-                row.has_value() ? "found" : "not found",
-                mutationId,
-                retry,
-                MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
-                    if (!row.has_value()) {
-                        return;
-                    }
+            i64 responseSize = 0;
+            if (row.has_value()) {
+                for (const auto& part : row->Response) {
+                    responseSize += part.size();
+                }
+            }
 
-                    i64 size = 0;
-                    for (const auto& part : row->Response) {
-                        size += part.size();
-                    }
-                    builder->AppendFormat(", ResponseSize: %v", size);
-                }));
+            YT_TLOG_DEBUG("Response lookup in Sequoia response keeper finished")
+                .With("Found", row.has_value())
+                .With("MutationId", mutationId)
+                .With("Retry", retry)
+                .WithIf(row.has_value(), "ResponseSize", responseSize);
 
             if (!row.has_value()) {
                 return std::optional<TSharedRefArray>();
@@ -100,8 +97,8 @@ void KeepResponseInSequoiaAndLog(
     const auto& Logger = logger;
 
     if (!response) {
-        YT_LOG_ALERT("Null response is passed to Sequoia response keeper (MutationId: %v)",
-            mutationId);
+        YT_TLOG_ALERT("Null response is passed to Sequoia response keeper")
+            .With("MutationId", mutationId);
         return;
     }
 
@@ -120,9 +117,9 @@ void KeepResponseInSequoiaAndLog(
         .Response = std::move(serializedParts),
     });
 
-    YT_LOG_DEBUG("Response is kept in Sequoia response keeper (MutationId: %v, ResponseSize: %v)",
-        mutationId,
-        response.ByteSize());
+    YT_TLOG_DEBUG("Response is kept in Sequoia response keeper")
+        .With("MutationId", mutationId)
+        .With("ResponseSize", response.ByteSize());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -116,8 +116,8 @@ public:
         const std::optional<TPartitionTags>& /*partitionTags*/,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        YT_LOG_ALERT_AND_THROW_IF(extensionTags,
-            "Get meta request for S3 media was formed with extension tags (ExtensionTags: %v)", extensionTags);
+        YT_TLOG_ALERT_AND_THROW_IF(extensionTags, "Get meta request for S3 media was formed with extension tags")
+            .With("ExtensionTags", extensionTags);
 
         return DoGetMeta();
     }

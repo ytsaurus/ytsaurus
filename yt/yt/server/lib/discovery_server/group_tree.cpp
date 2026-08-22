@@ -869,12 +869,14 @@ public:
             const auto& config = groupManagerInfo.Config;
             for (auto token = tokenizer.Advance(); token != NYPath::ETokenType::EndOfStream; token = tokenizer.Advance()) {
                 if (tokenizer.GetType() != NYPath::ETokenType::Slash) {
-                    YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
+                    YT_TLOG_WARNING("Invalid group id")
+                        .With("GroupId", id);
                     RemovePath(currentNode->GetPath(), currentNode);
                     return;
                 }
                 if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
-                    YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
+                    YT_TLOG_WARNING("Invalid group id")
+                        .With("GroupId", id);
                     RemovePath(currentNode->GetPath(), currentNode);
                     return;
                 }
@@ -1000,12 +1002,14 @@ private:
         auto guard = WriterGuard(Lock_);
 
         if (!DoFindGroup(groupId)) {
-            YT_LOG_WARNING("Empty group is already deleted (GroupId: %v)", groupId);
+            YT_TLOG_WARNING("Empty group is already deleted")
+                .With("GroupId", groupId);
             return;
         }
 
         if (GetMemberCount(node) != 0) {
-            YT_LOG_WARNING("Trying to delete not empty group (GroupId: %v)", groupId);
+            YT_TLOG_WARNING("Trying to delete not empty group")
+                .With("GroupId", groupId);
             return;
         }
 
@@ -1025,7 +1029,8 @@ private:
             auto key = node->GetKey();
             node = node->GetParent().Lock();
             if (!node) {
-                YT_LOG_WARNING("Parent node was already deleted (Path: %v)", path);
+                YT_TLOG_WARNING("Parent node was already deleted")
+                    .With("Path", path);
                 break;
             }
             node->RemoveChild(key);

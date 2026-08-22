@@ -84,7 +84,9 @@ public:
         }
 
         i64 recordIndex = RecordIndex_.fetch_add(1);
-        YT_LOG_DEBUG("Writing record (RecordIndex: %v, RecordSize: %v)", recordIndex, record.Size());
+        YT_TLOG_DEBUG("Writing record")
+            .With("RecordIndex", recordIndex)
+            .With("RecordSize", record.Size());
 
         auto result = Writer_->WriteRecord(std::move(record)).AsVoid();
         result.Subscribe(BIND_NO_PROPAGATE(
@@ -119,11 +121,14 @@ private:
     void OnWriteFinished(i64 recordIndex, const TError& error)
     {
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Record writing finished (RecordIndex: %v)", recordIndex);
+            YT_TLOG_DEBUG("Record writing finished")
+                .With("RecordIndex", recordIndex);
             return;
         }
 
-        YT_LOG_DEBUG(error, "Record writing failed (RecordIndex: %v)", recordIndex);
+        YT_TLOG_DEBUG("Record writing failed")
+            .With("RecordIndex", recordIndex)
+            .With(error);
 
         YT_UNUSED_FUTURE(Close());
     }
@@ -132,11 +137,12 @@ private:
     {
         if (error.IsOK()) {
             YT_VERIFY(!IsOpen_.exchange(true));
-            YT_LOG_DEBUG("Journal chunk writer was opened");
+            YT_TLOG_DEBUG("Journal chunk writer was opened");
             return;
         }
 
-        YT_LOG_DEBUG(error, "Failed to open journal chunk writer");
+        YT_TLOG_DEBUG("Failed to open journal chunk writer")
+            .With(error);
 
         YT_UNUSED_FUTURE(Close());
     }

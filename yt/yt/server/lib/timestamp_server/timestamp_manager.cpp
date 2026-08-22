@@ -197,7 +197,7 @@ private:
 
         if (!enoughSpareTimestamps) {
             // Backoff and retry.
-            YT_LOG_WARNING_UNLESS(BackingOff_, "Not enough spare timestamps; backing off");
+            YT_TLOG_WARNING_UNLESS(BackingOff_, "Not enough spare timestamps; backing off");
             BackingOff_ = true;
             TDelayedExecutor::Submit(
                 BIND(&TImpl::DoGenerateTimestamps, MakeStrong(this), context)
@@ -207,7 +207,7 @@ private:
         }
 
         if (BackingOff_) {
-            YT_LOG_INFO("Spare timestamps are available again");
+            YT_TLOG_INFO("Spare timestamps are available again");
             BackingOff_ = false;
         }
 
@@ -244,9 +244,9 @@ private:
         }
 
         if (clockUnixTime < currentTimestampUnixTime) {
-            YT_LOG_WARNING("Clock went back, keeping current timestamp (CurrentTimestampUnixTime: %v, ClockUnixTime: %v)",
-                currentTimestampUnixTime,
-                clockUnixTime);
+            YT_TLOG_WARNING("Clock went back, keeping current timestamp")
+                .With("CurrentTimestampUnixTime", currentTimestampUnixTime)
+                .With("ClockUnixTime", clockUnixTime);
             return;
         }
 
@@ -264,9 +264,9 @@ private:
 
         auto proposedTimestamp = TimestampFromUnixTime(clockUnixTime + Config_->TimestampPreallocationInterval.Seconds());
 
-        YT_LOG_DEBUG("Timestamp calibrated (CurrentTimestamp: %v, ProposedTimestamp: %v)",
-            CurrentTimestamp_,
-            proposedTimestamp);
+        YT_TLOG_DEBUG("Timestamp calibrated")
+            .With("CurrentTimestamp", CurrentTimestamp_)
+            .With("ProposedTimestamp", proposedTimestamp);
 
         TReqCommitTimestamp request;
         request.set_timestamp(ToProto(proposedTimestamp));
@@ -286,14 +286,15 @@ private:
         YT_ASSERT_THREAD_AFFINITY(TimestampThread);
 
         if (!result.IsOK()) {
-            YT_LOG_ERROR(result, "Error committing timestamp");
+            YT_TLOG_ERROR("Error committing timestamp")
+                .With(result);
             return;
         }
 
         CommittedTimestamp_ = std::max(CommittedTimestamp_, timestamp);
 
-        YT_LOG_DEBUG("Timestamp committed (CommittedTimestamp: %v)",
-            CommittedTimestamp_);
+        YT_TLOG_DEBUG("Timestamp committed")
+            .With("CommittedTimestamp", CommittedTimestamp_);
     }
 
 
@@ -325,8 +326,8 @@ private:
 
         TCompositeAutomatonPart::OnLeaderActive();
 
-        YT_LOG_INFO("Activating timestamp generator (PersistentTimestamp: %v)",
-            PersistentTimestamp_);
+        YT_TLOG_INFO("Activating timestamp generator")
+            .With("PersistentTimestamp", PersistentTimestamp_);
 
         auto persistentTimestamp = PersistentTimestamp_;
         auto invoker = HydraManager_
@@ -344,8 +345,8 @@ private:
                 CurrentTimestamp_ = EmbedCellTagIntoTimestamp(CurrentTimestamp_, CellTag_);
             }
 
-            YT_LOG_INFO("Timestamp generator is now active (PersistentTimestamp: %v)",
-                persistentTimestamp);
+            YT_TLOG_INFO("Timestamp generator is now active")
+                .With("PersistentTimestamp", persistentTimestamp);
         }).Via(invoker);
 
         ui64 deadlineTime = UnixTimeFromTimestamp(PersistentTimestamp_);
@@ -354,8 +355,8 @@ private:
             callback.Run();
         } else {
             auto delay = TDuration::Seconds(deadlineTime - currentTime + 1); // +1 to be sure
-            YT_LOG_INFO("Timestamp generator postponed to ensure monotonicity (Delay: %v)",
-                delay);
+            YT_TLOG_INFO("Timestamp generator postponed to ensure monotonicity")
+                .With("Delay", delay);
             TDelayedExecutor::Submit(callback, delay);
         }
     }
@@ -377,7 +378,7 @@ private:
             CurrentTimestamp_ = NullTimestamp;
             CommittedTimestamp_ = NullTimestamp;
 
-            YT_LOG_INFO("Timestamp generator is no longer active");
+            YT_TLOG_INFO("Timestamp generator is no longer active");
         }));
     }
 
@@ -388,8 +389,8 @@ private:
 
         PersistentTimestamp_ = FromProto<TTimestamp>(request->timestamp());
 
-        YT_LOG_DEBUG("Persistent timestamp updated (Timestamp: %v)",
-            PersistentTimestamp_);
+        YT_TLOG_DEBUG("Persistent timestamp updated")
+            .With("Timestamp", PersistentTimestamp_);
     }
 
 

@@ -106,9 +106,9 @@ public:
 
             auto it = nameToAllowedMethods.find(presetName);
             if (it == nameToAllowedMethods.end()) {
-                YT_LOG_ERROR("Multiproxy preset is not found in configuration (Preset: %Qv, Cluster: %Qv)",
-                    presetName,
-                    clusterName);
+                YT_TLOG_ERROR("Multiproxy preset is not found in configuration")
+                    .With("Preset", presetName)
+                    .With("Cluster", clusterName);
                 newClusterAllowedMethods.emplace(clusterName, TAllowedMethods::Empty());
             } else {
                 newClusterAllowedMethods.emplace(clusterName, it->second);
