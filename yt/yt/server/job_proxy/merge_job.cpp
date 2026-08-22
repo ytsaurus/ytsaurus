@@ -60,7 +60,7 @@ public:
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<TKeyColumns>(mergeJobSpec.key_columns());
-            YT_LOG_INFO("Ordered merge produces sorted output");
+            YT_TLOG_INFO("Ordered merge produces sorted output");
         }
 
         auto dataSliceDescriptors = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();

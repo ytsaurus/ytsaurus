@@ -83,9 +83,8 @@ std::optional<T> ValueOrNullopt(const TErrorOr<T>& result) noexcept
     // used on fields obtained via GetFieldOrError
     // method from resource tracker, which print
     // field name in the error message.
-    YT_LOG_WARNING(
-        result,
-        "Failed to extract value");
+    YT_TLOG_WARNING("Failed to extract value")
+        .With(result);
 
     return std::nullopt;
 }
@@ -230,9 +229,8 @@ void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
         case ESidecarRestartPolicy::OnFailure:
             // Restart only if sidecar failed.
             if (sidecarResult.IsOK()) {
-                YT_LOG_DEBUG(
-                    "Not restarting the sidecar (SidecarName: %v)",
-                    Name_);
+                YT_TLOG_DEBUG("Not restarting the sidecar")
+                    .With("SidecarName", Name_);
             } else {
                 RestartSidecar();
             }
@@ -240,18 +238,15 @@ void TSidecarEnvironmentBase::OnSidecarFinished(const TError& sidecarResult)
         case ESidecarRestartPolicy::FailOnError:
             // Do not restart in case of success, fail the whole job otherwise.
             if (sidecarResult.IsOK()) {
-                YT_LOG_DEBUG(
-                    "Not restarting the sidecar (SidecarName: %v)",
-                    Name_);
+                YT_TLOG_DEBUG("Not restarting the sidecar")
+                    .With("SidecarName", Name_);
                 break;
             }
 
-            YT_LOG_DEBUG(
-                "Sidecar has failed, exiting the main job (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
-                Name_,
-                Spec_->RestartPolicy,
-                sidecarResult
-            );
+            YT_TLOG_DEBUG("Sidecar has failed, exiting the main job")
+                .With("SidecarName", Name_)
+                .With("RestartPolicy", Spec_->RestartPolicy)
+                .With("ExitValue", sidecarResult);
             if (auto jobProxy = JobProxy_.Lock()) {
                 jobProxy->ShutdownSidecars();
             }
@@ -344,7 +339,8 @@ public:
                 instance->Stop();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to stop user container");
+            YT_TLOG_WARNING("Failed to stop user container")
+                .With(ex);
         }
     }
 
@@ -437,18 +433,16 @@ public:
                 "mkfifo " + slotCorePipeFile + " && " +
                 "cat >" + slotCorePipeFile;
             auto coreHandler = "bash -c \'" + bashCoreHandler + "\'";
-            YT_LOG_DEBUG(
-                "Enabling core forwarding for Porto container (CoreHandler: %v)",
-                coreHandler);
+            YT_TLOG_DEBUG("Enabling core forwarding for Porto container")
+                .With("CoreHandler", coreHandler);
             launcher->SetCoreDumpHandler(coreHandler);
 
             if (Options_.EnableCudaGpuCoreDump) {
                 auto slotGpuCorePipeFile = NFS::CombinePaths(slotCoreDirectory, CudaGpuCoreDumpPipeName);
                 auto gpuCorePipeFile = NFS::CombinePaths(coreDirectory, CudaGpuCoreDumpPipeName);
-                YT_LOG_DEBUG(
-                    "Creating pipe for GPU core dumps (SlotGpuCorePipeFile: %v, GpuCorePipeFile: %v)",
-                    slotGpuCorePipeFile,
-                    gpuCorePipeFile);
+                YT_TLOG_DEBUG("Creating pipe for GPU core dumps")
+                    .With("SlotGpuCorePipeFile", slotGpuCorePipeFile)
+                    .With("GpuCorePipeFile", gpuCorePipeFile);
                 if (mkfifo(gpuCorePipeFile.c_str(), 0666) == -1) {
                     THROW_ERROR_EXCEPTION("Failed to create CUDA GPU core dump pipe")
                         .With("path", gpuCorePipeFile)
@@ -648,11 +642,10 @@ private:
 
             YT_VERIFY(signal);
 
-            YT_LOG_INFO(
-                "Sending signal to sidecar (Sidecar: %v, Signal: %v, Timeout: %v)",
-                Name_,
-                signal,
-                Spec_->GracefulShutdown->Timeout);
+            YT_TLOG_INFO("Sending signal to sidecar")
+                .With("Sidecar", Name_)
+                .With("Signal", signal)
+                .With("Timeout", Spec_->GracefulShutdown->Timeout);
 
             Instance_->Kill(*signal);
 
@@ -665,10 +658,9 @@ private:
                 WaitFor(future)
                     .ThrowOnError();
             } catch (...) {
-                YT_LOG_INFO(
-                    "Sidecar's shutdown timeout has expired (Sidecar: %v, Timeout: %v)",
-                    Name_,
-                    Spec_->GracefulShutdown->Timeout);
+                YT_TLOG_INFO("Sidecar's shutdown timeout has expired")
+                    .With("Sidecar", Name_)
+                    .With("Timeout", Spec_->GracefulShutdown->Timeout);
             }
         }
 
@@ -842,7 +834,8 @@ private:
     {
         // We can't abort the user job (the reason is we need Porto to do this),
         // so we will abort the job proxy.
-        YT_LOG_ERROR(error, "Fatal error during Porto polling");
+        YT_TLOG_ERROR("Fatal error during Porto polling")
+            .With(error);
 
         NLogging::TLogManager::Get()->Shutdown();
         AbortProcessSilently(EJobProxyExitCode::PortoManagementFailed);
@@ -894,9 +887,11 @@ public:
             for (auto pid : pids) {
                 if (pid != process->GetProcessId()) {
                     if (TryKillProcessByPid(pid, 9)) {
-                        YT_LOG_DEBUG("Child job process killed (Pid: %v)", pid);
+                        YT_TLOG_DEBUG("Child job process killed")
+                            .With("Pid", pid);
                     } else {
-                        YT_LOG_DEBUG("Failed to kill child job process (Pid: %v)", pid);
+                        YT_TLOG_DEBUG("Failed to kill child job process")
+                            .With("Pid", pid);
                     }
                 }
             }
@@ -986,17 +981,17 @@ class TSimpleJobProxyEnvironment
 public:
     void SetCpuGuarantee(double /*value*/) override
     {
-        YT_LOG_WARNING("CPU guarantees are not supported in simple job environment");
+        YT_TLOG_WARNING("CPU guarantees are not supported in simple job environment");
     }
 
     void SetCpuLimit(double /*value*/) override
     {
-        YT_LOG_WARNING("CPU limits are not supported in simple job environment");
+        YT_TLOG_WARNING("CPU limits are not supported in simple job environment");
     }
 
     void SetCpuPolicy(const std::string& /*value*/) override
     {
-        YT_LOG_WARNING("CPU policy is not supported in simple job environment");
+        YT_TLOG_WARNING("CPU policy is not supported in simple job environment");
     }
 
     TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
@@ -1044,7 +1039,7 @@ public:
 
         if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
-            YT_LOG_WARNING("GPU devices are not supported in simple job environment");
+            YT_TLOG_WARNING("GPU devices are not supported in simple job environment");
         }
 
         if (options.EnablePortoMemoryTracking) {
@@ -1118,7 +1113,7 @@ public:
 
         if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
-            YT_LOG_WARNING("GPU devices are not supported in testing job environment");
+            YT_TLOG_WARNING("GPU devices are not supported in testing job environment");
         }
 
         if (options.EnablePortoMemoryTracking) {
@@ -1182,9 +1177,11 @@ public:
             for (auto pid : pids) {
                 if (pid != process->GetProcessId()) {
                     if (TryKillProcessByPid(pid, SIGKILL)) {
-                        YT_LOG_DEBUG("Child job process killed (Pid: %v)", pid);
+                        YT_TLOG_DEBUG("Child job process killed")
+                            .With("Pid", pid);
                     } else {
-                        YT_LOG_DEBUG("Failed to kill child job process (Pid: %v)", pid);
+                        YT_TLOG_DEBUG("Failed to kill child job process")
+                            .With("Pid", pid);
                     }
                 }
             }
@@ -1311,17 +1308,17 @@ public:
 
     void SetCpuGuarantee(double /*value*/) override
     {
-        YT_LOG_WARNING("CPU guarantees are not supported in CRI job environment");
+        YT_TLOG_WARNING("CPU guarantees are not supported in CRI job environment");
     }
 
     void SetCpuLimit(double /*value*/) override
     {
-        YT_LOG_WARNING("CPU limits are not supported in CRI job environment");
+        YT_TLOG_WARNING("CPU limits are not supported in CRI job environment");
     }
 
     void SetCpuPolicy(const std::string& /*value*/) override
     {
-        YT_LOG_WARNING("CPU policy is not supported in CRI job environment");
+        YT_TLOG_WARNING("CPU policy is not supported in CRI job environment");
     }
 
     TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override
@@ -1370,7 +1367,8 @@ public:
         try {
             return NCGroups::TSelfCGroupsStatisticsFetcher::Get()->GetOomKillCount();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get OOM kill count");
+            YT_TLOG_WARNING("Failed to get OOM kill count")
+                .With(ex);
             return std::nullopt;
         }
     }
@@ -1390,7 +1388,7 @@ public:
 
         if (!options.GpuIndexes.empty()) {
             // This could only happen in tests, e.g. TestSchedulerGpu.
-            YT_LOG_WARNING("GPU devices are not supported in CRI job environment");
+            YT_TLOG_WARNING("GPU devices are not supported in CRI job environment");
         }
 
         if (options.EnablePortoMemoryTracking) {
@@ -1478,9 +1476,8 @@ public:
             }
 
             if (!gpuContainerConfig->InfinibandDevices.empty()) {
-                YT_LOG_DEBUG(
-                    "Binding InfiniBand devices to sidecar container (Devices: %v)",
-                    gpuContainerConfig->InfinibandDevices);
+                YT_TLOG_DEBUG("Binding InfiniBand devices to sidecar container")
+                    .With("Devices", gpuContainerConfig->InfinibandDevices);
 
                 // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
                 // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
@@ -1543,20 +1540,17 @@ public:
 
     void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &exitValue)
     {
-        YT_LOG_INFO(
-            "Sidecar has finished the execution (SidecarName: %v, ExitValue: %v)",
-            sidecarName,
-            exitValue);
+        YT_TLOG_INFO("Sidecar has finished the execution")
+            .With("SidecarName", sidecarName)
+            .With("ExitValue", exitValue);
 
         // When a sidecar exits, we need to take an appropriate action depending on the RestartPolicy.
         const auto restartPolicy = GetOrCrash(RunningSidecars_, sidecarName).Config.JobSpec->RestartPolicy;
         auto restartSidecar = [this, &sidecarName, restartPolicy, &exitValue] {
-            YT_LOG_DEBUG(
-                "Restarting the sidecar as part of the exit event processing (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
-                sidecarName,
-                restartPolicy,
-                exitValue
-            );
+            YT_TLOG_DEBUG("Restarting the sidecar as part of the exit event processing")
+                .With("SidecarName", sidecarName)
+                .With("RestartPolicy", restartPolicy)
+                .With("ExitValue", exitValue);
             StartSidecar(sidecarName);
         };
 
@@ -1568,9 +1562,8 @@ public:
             case ESidecarRestartPolicy::OnFailure:
                 // Restart only if sidecar failed.
                 if (exitValue.IsOK()) {
-                    YT_LOG_DEBUG(
-                        "Not restarting the sidecar (SidecarName: %v)",
-                        sidecarName);
+                    YT_TLOG_DEBUG("Not restarting the sidecar")
+                        .With("SidecarName", sidecarName);
                 } else {
                     restartSidecar();
                 }
@@ -1578,18 +1571,15 @@ public:
             case ESidecarRestartPolicy::FailOnError:
                 // Do not restart in case of success, fail the whole job otherwise.
                 if (exitValue.IsOK()) {
-                    YT_LOG_DEBUG(
-                        "Not restarting the sidecar (SidecarName: %v)",
-                        sidecarName);
+                    YT_TLOG_DEBUG("Not restarting the sidecar")
+                        .With("SidecarName", sidecarName);
                     break;
                 }
 
-                YT_LOG_DEBUG(
-                    "Sidecar has failed, exiting the main job (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
-                    sidecarName,
-                    restartPolicy,
-                    exitValue
-                );
+                YT_TLOG_DEBUG("Sidecar has failed, exiting the main job")
+                    .With("SidecarName", sidecarName)
+                    .With("RestartPolicy", restartPolicy)
+                    .With("ExitValue", exitValue);
                 ShutdownSidecars();
                 FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
                     .With("sidecar_name", sidecarName)
@@ -1602,7 +1592,8 @@ public:
     {
         for (auto& [name, sidecar]: RunningSidecars_) {
             if (!sidecar.Process->IsFinished()) {
-                YT_LOG_DEBUG("Killing a CRI sidecar (Name: %v)", name);
+                YT_TLOG_DEBUG("Killing a CRI sidecar")
+                    .With("Name", name);
                 sidecar.Future.Unsubscribe(sidecar.FutureCallbackCookie);
                 sidecar.Process->Kill(SIGKILL);
             }

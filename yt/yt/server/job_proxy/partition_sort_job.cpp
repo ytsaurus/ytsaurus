@@ -137,14 +137,15 @@ public:
     {
         auto total = TotalRowCount_;
         if (total == 0) {
-            YT_LOG_WARNING("GetProgress: empty total");
+            YT_TLOG_WARNING("Total row count is zero");
             return 0;
         } else {
             // Split progress evenly between reading and writing.
             double progress =
                 0.5 * Reader_->GetDataStatistics().row_count() / total +
                 0.5 * Writer_->GetDataStatistics().row_count() / total;
-            YT_LOG_DEBUG("GetProgress: %lf", progress);
+            YT_TLOG_DEBUG("Progress requested")
+                .WithFormat("Progress", "%lf", progress);
             return progress;
         }
     }

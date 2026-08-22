@@ -210,7 +210,7 @@ TUserJobWriteController::~TUserJobWriteController() = default;
 
 void TUserJobWriteController::Init(TCpuInstant ioStartTime)
 {
-    YT_LOG_INFO("Opening writers");
+    YT_TLOG_INFO("Opening writers");
 
     auto guard = Finally([&] {
         Initialized_ = true;
@@ -275,7 +275,8 @@ void TUserJobWriteController::Init(TCpuInstant ioStartTime)
 
         Writers_.push_back(CreateProfilingMultiChunkWriter(std::move(writer), ioStartTime));
 
-        YT_LOG_DEBUG("Table writer created (TableIndex: %v)", index);
+        YT_TLOG_DEBUG("Table writer created")
+            .With("TableIndex", index);
     }
 
     if (jobSpecExt.user_job_spec().has_stderr_table_spec()) {
@@ -306,7 +307,7 @@ void TUserJobWriteController::Init(TCpuInstant ioStartTime)
                 Host_->GetOutBandwidthThrottler(),
                 /*writeBlocksOptions*/ {}));
 
-        YT_LOG_DEBUG("Stderr table writer created");
+        YT_TLOG_DEBUG("Stderr table writer created");
     }
 }
 

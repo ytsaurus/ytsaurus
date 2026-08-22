@@ -81,7 +81,7 @@ public:
     {
         TJob::Initialize();
 
-        YT_LOG_INFO("Shallow merge job initializing");
+        YT_TLOG_INFO("Shallow merge job initializing");
 
         ChunkReadOptions_.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
         ChunkReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
@@ -94,18 +94,18 @@ public:
         PackBaggages();
         CreateChunkWriters();
 
-        YT_LOG_INFO("Shallow merge job initialized");
+        YT_TLOG_INFO("Shallow merge job initialized");
     }
 
     TJobResult Run() override
     {
-        YT_LOG_INFO("Shallow merge job preparing");
+        YT_TLOG_INFO("Shallow merge job preparing");
 
         BuildInputChunkStates();
         CalculateTotalBlocksSize();
         Prepared_.store(true);
 
-        YT_LOG_INFO("Shallow merge job prepared");
+        YT_TLOG_INFO("Shallow merge job prepared");
 
         Host_->OnPrepared();
 
@@ -113,17 +113,18 @@ public:
             THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge is aborted");
         }
 
-        YT_LOG_INFO("Shallow merge is running");
-        YT_LOG_DEBUG("Absorbing metas");
+        YT_TLOG_INFO("Shallow merge is running");
+        YT_TLOG_DEBUG("Absorbing metas");
 
         try {
             AbsorbMetas();
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(TError(ex), "Error absorbing metas");
+            YT_TLOG_INFO("Error absorbing metas")
+                .With(TError(ex));
             THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::ShallowMergeFailed, "Shallow merge failed").With(ex);
         }
 
-        YT_LOG_DEBUG("Shallow merging blocks");
+        YT_TLOG_DEBUG("Shallow merging blocks");
         MergeInputChunks();
 
         TJobResult jobResult;
@@ -133,7 +134,7 @@ public:
             ToProto(jobResultExt->add_output_chunk_specs(), GetOutputChunkSpec());
         }
 
-        YT_LOG_INFO("Shallow merge completed");
+        YT_TLOG_INFO("Shallow merge completed");
         return jobResult;
     }
 
@@ -321,7 +322,8 @@ private:
 
     TInputChunkState BuildInputChunkStateFromSpec(const TChunkSpec& chunkSpec, int inputSpecIndex)
     {
-        YT_LOG_DEBUG("Building chunk state (ChunkId: %v)", chunkSpec.chunk_id());
+        YT_TLOG_DEBUG("Building chunk state")
+            .With("ChunkId", chunkSpec.chunk_id());
 
         try {
             auto reader = CreateChunkReader(chunkSpec);

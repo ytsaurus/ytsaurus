@@ -50,14 +50,15 @@ public:
             try {
                 JobProxyCpuProfiler_->Start();
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to initialize job proxy CPU profiler");
+                YT_TLOG_WARNING("Failed to initialize job proxy CPU profiler")
+                    .With(ex);
 
                 JobProxyCpuProfile_ = {};
                 JobProxyCpuProfiler_ = {};
             }
 
             if (JobProxyCpuProfile_) {
-                YT_LOG_INFO("Job proxy CPU profiler is enabled");
+                YT_TLOG_INFO("Job proxy CPU profiler is enabled");
             }
         }
 
@@ -65,13 +66,14 @@ public:
             try {
                 JobProxyMemoryProfilingToken_ = tcmalloc::MallocExtension::StartAllocationProfiling();
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to initialize job proxy memory profiler");
+                YT_TLOG_WARNING("Failed to initialize job proxy memory profiler")
+                    .With(ex);
 
                 JobProxyMemoryProfile_ = {};
             }
 
             if (JobProxyMemoryProfile_) {
-                YT_LOG_INFO("Job proxy memory profiler is enabled");
+                YT_TLOG_INFO("Job proxy memory profiler is enabled");
             }
         }
     }

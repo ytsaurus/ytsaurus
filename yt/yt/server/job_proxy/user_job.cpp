@@ -297,7 +297,8 @@ public:
         TJob::Initialize();
 
         IOStartTime_ = GetCpuInstant();
-        YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", CpuInstantToInstant(IOStartTime_));
+        YT_TLOG_INFO("Started measuring I/O time")
+            .With("IOStartTime", CpuInstantToInstant(IOStartTime_));
 
         UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
@@ -313,7 +314,7 @@ public:
 
     TJobResult Run() override
     {
-        YT_LOG_INFO("Starting job process");
+        YT_TLOG_INFO("Starting job process");
 
         UserJobWriteController_->Init(IOStartTime_);
 
@@ -322,7 +323,7 @@ public:
         bool expected = false;
         if (Prepared_.compare_exchange_strong(expected, true)) {
             ProcessFinished_ = SpawnUserProcess();
-            YT_LOG_INFO("Job process started");
+            YT_TLOG_INFO("Job process started");
 
             InitShellManager();
 
@@ -333,9 +334,8 @@ public:
             TDelayedExecutorCookie timeLimitCookie;
             if (UserJobSpec_.has_job_time_limit()) {
                 auto timeLimit = FromProto<TDuration>(UserJobSpec_.job_time_limit());
-                YT_LOG_INFO(
-                    "Setting job time limit (Limit: %v)",
-                    timeLimit);
+                YT_TLOG_INFO("Setting job time limit")
+                    .With("Limit", timeLimit);
                 timeLimitCookie = TDelayedExecutor::Submit(
                     BIND(&TUserJob::OnJobTimeLimitExceeded, MakeWeak(this))
                         .Via(AuxQueue_->GetInvoker()),
@@ -383,7 +383,8 @@ public:
             try {
                 DumpFailContexts(jobResultExt);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to dump input context");
+                YT_TLOG_ERROR("Failed to dump input context")
+                    .With(ex);
             }
         } else {
             UserJobWriteController_->PopulateResult(jobResultExt);
@@ -394,23 +395,20 @@ public:
             std::optional<TDuration> finalizationTimeout;
             if (coreDumped) {
                 finalizationTimeout = Config_->CoreWatcher->FinalizationTimeout;
-                YT_LOG_INFO(
-                    "Job seems to produce core dump, core watcher will wait for it (FinalizationTimeout: %v)",
-                    finalizationTimeout);
+                YT_TLOG_INFO("Job seems to produce core dump, core watcher will wait for it")
+                    .With("FinalizationTimeout", finalizationTimeout);
             }
             auto coreResult = CoreWatcher_->Finalize(finalizationTimeout);
 
-            YT_LOG_INFO(
-                "Core watcher finalized (CoreDumpCount: %v)",
-                coreResult.CoreInfos.size());
+            YT_TLOG_INFO("Core watcher finalized")
+                .With("CoreDumpCount", coreResult.CoreInfos.size());
 
             if (!coreResult.CoreInfos.empty()) {
                 for (const auto& coreInfo : coreResult.CoreInfos) {
-                    YT_LOG_INFO(
-                        "Core file found (Pid: %v, ExecutableName: %v, Size: %v)",
-                        coreInfo.process_id(),
-                        coreInfo.executable_name(),
-                        coreInfo.size());
+                    YT_TLOG_INFO("Core file found")
+                        .With("Pid", coreInfo.process_id())
+                        .With("ExecutableName", coreInfo.executable_name())
+                        .With("Size", coreInfo.size());
                 }
                 if (UserJobSpec_.fail_job_on_core_dump()) {
                     innerErrors.push_back(TError(NJobProxy::EErrorCode::UserJobProducedCoreFiles, "User job produced core files")
@@ -435,7 +433,8 @@ public:
         if (Config_->CheckUserJobOomKill) {
             // Detect OOM kills in job environment regardless of exit status of the main process.
             if (auto oomKillCount = UserJobEnvironment_->GetJobOomKillCount(); oomKillCount.value_or(0)) {
-                YT_LOG_INFO("Out of memory kill detected (OomKillCount: %v)", *oomKillCount);
+                YT_TLOG_INFO("Out of memory kill detected")
+                    .With("OomKillCount", *oomKillCount);
                 auto error = TError(
                     EErrorCode::MemoryLimitExceeded,
                     "User job process killed by OOM")
@@ -466,7 +465,7 @@ public:
 
     void PrepareArtifacts() override
     {
-        YT_LOG_INFO("Started preparing artifacts");
+        YT_TLOG_INFO("Started preparing artifacts");
 
         // Prepare user artifacts.
         for (const auto& file : UserJobSpec_.files()) {
@@ -496,7 +495,7 @@ public:
             RunTool<TChownChmodTool>(config);
         }
 
-        YT_LOG_INFO("Artifacts prepared");
+        YT_TLOG_INFO("Artifacts prepared");
     }
 
     void PrepareArtifact(
@@ -506,7 +505,7 @@ public:
         auto Logger = this->Logger
             .WithTag("ArtifactName", artifactName);
 
-        YT_LOG_INFO("Preparing artifact");
+        YT_TLOG_INFO("Preparing artifact");
 
         std::string sandboxPath;
         if (UserJobEnvironment_->HasRootFS()) {
@@ -523,8 +522,8 @@ public:
         YT_VERIFY(NFS::Exists(sandboxPath));
         auto artifactPath = CombinePaths(sandboxPath, artifactName);
 
-        YT_LOG_INFO("Copy artifact (ArtifactPath: %v)",
-            artifactPath);
+        YT_TLOG_INFO("Copy artifact")
+            .With("ArtifactPath", artifactPath);
 
         auto onError = [&] (const TError& error) {
             Host_->OnArtifactPreparationFailed(artifactName, artifactPath, error);
@@ -551,7 +550,7 @@ public:
                     .With(TError::FromSystem());
             }
 
-            YT_LOG_INFO("Materializing artifact");
+            YT_TLOG_INFO("Materializing artifact");
 
             if (Config_->TestingConfig->HaltWhenMaterializingArtifact) {
                 Sleep(TDuration::Max());
@@ -562,7 +561,8 @@ public:
 
             SetPermissions(artifactPath, permissions);
 
-            YT_LOG_INFO("Artifact materialized with permissions (Permissions: %x)", permissions);
+            YT_TLOG_INFO("Artifact materialized with permissions")
+                .WithFormat("Permissions", "%x", permissions);
         } catch (const TSystemError& ex) {
             // For util functions.
             onError(TError::FromSystem(ex));
@@ -922,10 +922,9 @@ private:
             contextOutput.Finish();
 
             auto contextChunkId = contextOutput.GetChunkId();
-            YT_LOG_INFO(
-                "Input context chunk generated (ChunkId: %v, InputIndex: %v)",
-                contextChunkId,
-                index);
+            YT_TLOG_INFO("Input context chunk generated")
+                .With("ChunkId", contextChunkId)
+                .With("InputIndex", index);
 
             result.push_back(contextChunkId);
         }
@@ -1027,20 +1026,20 @@ private:
                 } else {
                     auto pids = GetPidsForInterrupt();
 
-                    YT_LOG_INFO(
-                        "Sending interrupt signal to user job (SignalName: %v, UserJobPids: %v)",
-                        signal,
-                        pids);
+                    YT_TLOG_INFO("Sending interrupt signal to user job")
+                        .With("SignalName", signal)
+                        .With("UserJobPids", pids);
 
                     auto signalerConfig = New<TSignalerConfig>();
                     signalerConfig->Pids = pids;
                     signalerConfig->SignalName = signal;
                     RunTool<TSignalerTool>(signalerConfig);
 
-                    YT_LOG_INFO("Interrupt signal successfully sent");
+                    YT_TLOG_INFO("Interrupt signal successfully sent");
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to send interrupt signal to user job");
+                YT_TLOG_WARNING("Failed to send interrupt signal to user job")
+                    .With(ex);
             }
         }
 
@@ -1051,14 +1050,16 @@ private:
     {
         auto jobError = TError("Job failed by node request")
             .With(std::move(error));
-        YT_LOG_DEBUG(jobError, "User job failed");
+        YT_TLOG_DEBUG("User job failed")
+            .With(jobError);
         JobErrorPromise_.TrySet(std::move(jobError));
         CleanupUserProcesses();
     }
 
     void GracefulAbort(TError error) override
     {
-        YT_LOG_DEBUG("User job gracefully aborted (Error: %v)", error);
+        YT_TLOG_DEBUG("User job gracefully aborted")
+            .With("Error", error);
         YT_VERIFY(error.GetCode() == NExecNode::EErrorCode::AbortByControllerAgent);
         JobErrorPromise_.TrySet(std::move(error));
         CleanupUserProcesses();
@@ -1105,10 +1106,9 @@ private:
             auto reader = PrepareOutputPipeReader(CreateNamedPipe(), fds, TableOutputs_[i].get(), &OutputActions_, wrappingError);
             TablePipeReaders_.push_back(std::move(reader));
 
-            YT_LOG_DEBUG(
-                "Output pipe reader created (Index: %v, FDs: %v)",
-                i,
-                fds);
+            YT_TLOG_DEBUG("Output pipe reader created")
+                .With("Index", i)
+                .With("FDs", fds);
         }
 
         FinalizeActions_.push_back(BIND([this, this_ = MakeStrong(this)] {
@@ -1153,14 +1153,14 @@ private:
         actions->push_back(BIND([=, this, this_ = MakeStrong(this)] {
             try {
                 auto totalBytes = PipeInputToOutput(asyncInput, output, BufferSize);
-                YT_LOG_INFO(
-                    "Data successfully read from pipe (PipePath: %v, ReadBytes: %v)",
-                    pipe->GetPath(),
-                    totalBytes);
+                YT_TLOG_INFO("Data successfully read from pipe")
+                    .With("PipePath", pipe->GetPath())
+                    .With("ReadBytes", totalBytes);
             } catch (const std::exception& ex) {
                 auto error = wrappingError
                     .With(ex);
-                YT_LOG_ERROR(error);
+                YT_TLOG_ERROR("Failed to read data from pipe")
+                    .With(error);
 
                 onError(asyncInput, error);
             }
@@ -1172,10 +1172,9 @@ private:
     void PrepareInputTablePipe()
     {
         if (!HasInput()) {
-            YT_LOG_DEBUG(
-                "Input table pipe is not needed (JobType: %v, IsSecondaryDistributed: %v)",
-                JobType_,
-                Host_->GetJobSpecHelper()->GetJobSpecExt().user_job_spec().is_secondary_distributed());
+            YT_TLOG_DEBUG("Input table pipe is not needed")
+                .With("JobType", JobType_)
+                .With("IsSecondaryDistributed", Host_->GetJobSpecHelper()->GetJobSpecExt().user_job_spec().is_secondary_distributed());
             return;
         }
 
@@ -1191,17 +1190,16 @@ private:
 
         if (deliveryFencedMode == EDeliveryFencedMode::New) {
             if (!DeliveryFencedWriteEnabled) {
-                YT_LOG_INFO("Delivery fenced write is disabled, fail job");
+                YT_TLOG_INFO("Delivery fenced write is disabled, fail job");
                 THROW_ERROR_EXCEPTION("Delivery fenced write is disabled");
             }
         }
 
-        YT_LOG_DEBUG(
-            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, DeliveryFencedMode: %v)",
-            InputPipePath_,
-            DefaultArtifactPermissions,
-            JobIOConfig_->PipeCapacity,
-            deliveryFencedMode);
+        YT_TLOG_DEBUG("Creating input table pipe")
+            .With("Path", InputPipePath_)
+            .With("Permission", DefaultArtifactPermissions)
+            .With("CustomCapacity", JobIOConfig_->PipeCapacity)
+            .With("DeliveryFencedMode", deliveryFencedMode);
 
         auto pipe = TNamedPipe::Create(InputPipePath_, DefaultArtifactPermissions, JobIOConfig_->PipeCapacity);
         auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
@@ -1263,7 +1261,7 @@ private:
 
     void PreparePipes()
     {
-        YT_LOG_INFO("Initializing pipes");
+        YT_TLOG_INFO("Initializing pipes");
 
         // We use the following convention for designating input and output file descriptors
         // in job processes:
@@ -1292,7 +1290,7 @@ private:
             // Redirect stdout to stderr to allow writing to stdout.
             if (UserJobSpec_.redirect_stdout_to_stderr()) {
                 errorOutputDescriptors.push_back(STDOUT_FILENO);
-                YT_LOG_INFO("Redirecting stdout to stderr");
+                YT_TLOG_INFO("Redirecting stdout to stderr");
             }
 
             StderrPipeReader_ = PrepareOutputPipeReader(
@@ -1311,10 +1309,11 @@ private:
                     THROW_ERROR error;
                 });
 
-            YT_LOG_DEBUG("Stderr pipes initialized (FDs: %v)", errorOutputDescriptors);
+            YT_TLOG_DEBUG("Stderr pipes initialized")
+                .With("FDs", errorOutputDescriptors);
         }
 
-        YT_LOG_DEBUG("Initializing output pipes");
+        YT_TLOG_DEBUG("Initializing output pipes");
 
         PrepareOutputTablePipes();
 
@@ -1326,7 +1325,8 @@ private:
                 &OutputActions_,
                 TError("Error writing custom job statistics"));
 
-            YT_LOG_DEBUG("Statistics pipe reader created (FD: %v)", JobStatisticsFD);
+            YT_TLOG_DEBUG("Statistics pipe reader created")
+                .With("FD", JobStatisticsFD);
 
             auto* profileOutput = [&] () -> IOutputStream* {
                 if (!JobProfiler_ || !JobProfiler_->GetUserJobProfilerSpec()) {
@@ -1357,13 +1357,14 @@ private:
                         ++JobProfilerFailureCount_;
                     });
 
-                YT_LOG_DEBUG("Profile pipe reader created (FD: %v)", JobProfileFD);
+                YT_TLOG_DEBUG("Profile pipe reader created")
+                    .With("FD", JobProfileFD);
             }
         }
 
         PrepareInputTablePipe();
 
-        YT_LOG_INFO("Pipes initialized");
+        YT_TLOG_INFO("Pipes initialized");
     }
 
     void SetEnvironmentVariable(const std::string& nameValuePair)
@@ -1443,7 +1444,8 @@ private:
             auto spec = ConvertToYsonString(jobProfilerSpec, EYsonFormat::Text);
             SetEnvironmentVariable("YT_JOB_PROFILER_SPEC", spec.ToString());
 
-            YT_LOG_INFO("User job profiler is enabled (Spec: %v)", spec);
+            YT_TLOG_INFO("User job profiler is enabled")
+                .With("Spec", spec);
         }
 
         if (!UserJobSpec_.use_yamr_descriptors()) {
@@ -1494,7 +1496,8 @@ private:
                 .ValueOrThrow();
             return statistic;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Unable to get CPU statistics for user job");
+            YT_TLOG_WARNING("Unable to get CPU statistics for user job")
+                .With(ex);
             return std::nullopt;
         }
     }
@@ -1557,7 +1560,8 @@ private:
                     .ValueOrThrow();
                 statistics.AddSample("/user_job/block_io"_SP, blockIOStatistics);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Unable to get block io statistics for user job");
+                YT_TLOG_WARNING("Unable to get block io statistics for user job")
+                    .With(ex);
             }
 
             try {
@@ -1567,7 +1571,8 @@ private:
                     statistics.AddSample("/user_job/network"_SP, *networkStatistics);
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Unable to get network statistics for user job");
+                YT_TLOG_WARNING("Unable to get network statistics for user job")
+                    .With(ex);
             }
 
             statistics.AddSample("/user_job/woodpecker"_SP, Woodpecker_ ? 1 : 0);
@@ -1580,13 +1585,15 @@ private:
         try {
             TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job"_SP);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to dump user job tmpfs statistics");
+            YT_TLOG_WARNING("Failed to dump user job tmpfs statistics")
+                .With(ex);
         }
 
         try {
             MemoryTracker_->DumpMemoryUsageStatistics(&statistics, "/user_job"_SP);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to dump user job memory usage statistics");
+            YT_TLOG_WARNING("Failed to dump user job memory usage statistics")
+                .With(ex);
         }
 
         YT_VERIFY(UserJobSpec_.memory_limit() > 0);
@@ -1664,7 +1671,7 @@ private:
         TraceEventProcessor_->FinishGlobalTrace();
     }
 
-    void OnIOErrorOrFinished(const TError& error, const std::string& message)
+    void OnIOErrorOrFinished(const TError& error, TStringBuf reason)
     {
         if (error.IsOK() || error.FindMatching(NNet::EErrorCode::Aborted)) {
             return;
@@ -1674,7 +1681,9 @@ private:
             return;
         }
 
-        YT_LOG_ERROR(TError(TRuntimeFormat(message)) << error);
+        YT_TLOG_ERROR("Job IO failed, aborting")
+            .With("Reason", reason)
+            .With(error);
 
         CleanupUserProcesses();
 
@@ -1738,7 +1747,7 @@ private:
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
 #ifdef _asan_enabled_
-            YT_LOG_WARNING("Core dumps are not allowed in ASAN build");
+            YT_TLOG_WARNING("Core dumps are not allowed in ASAN build");
 #else
             executorConfig->EnableCoreDump = true;
 #endif
@@ -1785,17 +1794,18 @@ private:
     void DoJobIO()
     {
         auto onIOError = BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-            OnIOErrorOrFinished(error, "Job input/output error, aborting");
+            OnIOErrorOrFinished(error, "Job input/output error");
         });
 
         auto onStartIOError = BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-            OnIOErrorOrFinished(error, "Executor input/output error, aborting");
+            OnIOErrorOrFinished(error, "Executor input/output error");
         });
 
         auto onProcessFinished = BIND([=, this, this_ = MakeStrong(this)] (const TError& userJobError) {
-            YT_LOG_INFO("Process finished (UserJobError: %v)", userJobError);
+            YT_TLOG_INFO("Process finished")
+                .With("UserJobError", userJobError);
 
-            OnIOErrorOrFinished(userJobError, "Job control process has finished, aborting");
+            OnIOErrorOrFinished(userJobError, "Job control process has finished");
 
             // If process has crashed before sending notification we stuck
             // on waiting executor promise, so set it here.
@@ -1821,7 +1831,7 @@ private:
         auto processFinished = ProcessFinished_.Apply(onProcessFinished);
 
         // Wait until executor opens and dup named pipes.
-        YT_LOG_INFO("Waiting for signal from executor");
+        YT_TLOG_INFO("Waiting for signal from executor");
         ExecutorInfo_ = WaitFor(ExecutorPreparedPromise_.ToFuture())
             .ValueOrThrow();
 
@@ -1837,10 +1847,12 @@ private:
             // Actually, ExecutorInfo_ must be non-null at this point, since it is
             // explicitly set a few lines before. We still keep the condition as a
             // defensive measure from possible future code changes.
-            YT_LOG_ERROR(JobErrorPromise_.GetOrCrash(), "Failed to prepare executor");
+            YT_TLOG_ERROR("Failed to prepare executor")
+                .With(JobErrorPromise_.GetOrCrash());
             return;
         }
-        YT_LOG_INFO("Start actions finished (UserProcessPid: %v)", ExecutorInfo_->ProcessPid);
+        YT_TLOG_INFO("Start actions finished")
+            .With("UserProcessPid", ExecutorInfo_->ProcessPid);
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);
@@ -1849,11 +1861,11 @@ private:
         // If job successfully completes or dies prematurely, they close automatically.
         WaitFor(AllSet(outputFutures))
             .ThrowOnError();
-        YT_LOG_INFO("Output actions finished");
+        YT_TLOG_INFO("Output actions finished");
 
         WaitFor(AllSet(stderrFutures))
             .ThrowOnError();
-        YT_LOG_INFO("Error actions finished");
+        YT_TLOG_INFO("Error actions finished");
 
         TWallTimer userContainerFinalizationTimer;
 
@@ -1861,7 +1873,8 @@ private:
         // Theoretically, process could have explicitly closed its output pipes
         // but still be doing some computations.
         YT_VERIFY(WaitFor(processFinished).IsOK());
-        YT_LOG_INFO("Job process finished (Error: %v)", JobErrorPromise_.ToFuture().TryGet());
+        YT_TLOG_INFO("Job process finished")
+            .With("Error", JobErrorPromise_.ToFuture().TryGet());
 
         UserContainerFinalizationTime_.store(userContainerFinalizationTimer.GetElapsedTime());
 
@@ -1875,7 +1888,7 @@ private:
         // Now make sure that input pipes are also completed.
         WaitFor(AllSet(inputFutures))
             .ThrowOnError();
-        YT_LOG_INFO("Input actions finished");
+        YT_TLOG_INFO("Input actions finished");
     }
 
     void FinalizeJobIO()
@@ -1895,15 +1908,15 @@ private:
         try {
             memoryUsage = MemoryTracker_->GetMemoryUsage();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get user job memory usage");
+            YT_TLOG_WARNING("Failed to get user job memory usage")
+                .With(ex);
             return;
         }
 
         auto memoryLimit = UserJobSpec_.memory_limit();
-        YT_LOG_DEBUG(
-            "Checking memory usage (MemoryUsage: %v, MemoryLimit: %v)",
-            memoryUsage,
-            memoryLimit);
+        YT_TLOG_DEBUG("Checking memory usage")
+            .With("MemoryUsage", memoryUsage)
+            .With("MemoryLimit", memoryLimit);
 
         if (memoryUsage > memoryLimit && Config_->CheckUserJobMemoryLimit) {
             auto memoryStatistics = MemoryTracker_->GetMemoryStatistics();
@@ -1916,7 +1929,7 @@ private:
                     return lhs->Rss > rhs->Rss;
                 });
 
-            YT_LOG_INFO("Memory limit exceeded");
+            YT_TLOG_INFO("Memory limit exceeded");
             auto error = TError(
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
@@ -1937,7 +1950,8 @@ private:
 
         if (Config_->CheckUserJobOomKill) {
             if (auto oomKillCount = UserJobEnvironment_->GetJobOomKillCount(); oomKillCount.value_or(0)) {
-                YT_LOG_INFO("Out of memory kill detected (OomKillCount: %v)", *oomKillCount);
+                YT_TLOG_INFO("Out of memory kill detected")
+                    .With("OomKillCount", *oomKillCount);
                 CleanupUserProcesses();
             }
         }
@@ -1949,9 +1963,8 @@ private:
         try {
             currentFaultCount = UserJobEnvironment_->GetMajorPageFaultCount();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(
-                ex,
-                "Error getting information about major page faults in user job container");
+            YT_TLOG_ERROR("Error getting information about major page faults in user job container")
+                .With(ex);
             return;
         }
 
@@ -1963,15 +1976,13 @@ private:
     void HandleMajorPageFaultCountIncrease(i64 currentFaultCount)
     {
         auto config = Config_->JobEnvironment->JobThrashingDetector;
-        YT_LOG_DEBUG(
-            "Increased rate of major page faults in user job container detected "
-            "(MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v, PageFaultLimitOverflowCount: %v)",
-            LastMajorPageFaultCount_,
-            currentFaultCount,
-            currentFaultCount - LastMajorPageFaultCount_,
-            config->MajorPageFaultCountLimit,
-            config->CheckPeriod,
-            PageFaultLimitOverflowCount_);
+        YT_TLOG_DEBUG("Increased rate of major page faults in user job container detected")
+            .With("OldMajorPageFaultCount", LastMajorPageFaultCount_)
+            .With("NewMajorPageFaultCount", currentFaultCount)
+            .With("Delta", currentFaultCount - LastMajorPageFaultCount_)
+            .With("Threshold", config->MajorPageFaultCountLimit)
+            .With("Period", config->CheckPeriod)
+            .With("PageFaultLimitOverflowCount", PageFaultLimitOverflowCount_);
 
         if (config->Enabled &&
             currentFaultCount - LastMajorPageFaultCount_ > config->MajorPageFaultCountLimit)
@@ -1979,12 +1990,10 @@ private:
             ++PageFaultLimitOverflowCount_;
 
             if (PageFaultLimitOverflowCount_ > config->LimitOverflowCountThresholdToAbortJob) {
-                YT_LOG_DEBUG(
-                    "Too many times in a row page fault count limit was violated, aborting job "
-                    "(PageFaultLimitOverflowCountThresholdToAbortJob: %v, MajorPageFaultCountLimit: %v, CheckPeriod: %v)",
-                    config->LimitOverflowCountThresholdToAbortJob,
-                    config->MajorPageFaultCountLimit,
-                    config->CheckPeriod);
+                YT_TLOG_DEBUG("Too many times in a row page fault count limit was violated, aborting job")
+                    .With("PageFaultLimitOverflowCountThresholdToAbortJob", config->LimitOverflowCountThresholdToAbortJob)
+                    .With("MajorPageFaultCountLimit", config->MajorPageFaultCountLimit)
+                    .With("CheckPeriod", config->CheckPeriod);
                 Host_->OnJobMemoryThrashing();
             }
         } else {
@@ -2001,7 +2010,8 @@ private:
             blockIOStats = UserJobEnvironment_->GetBlockIOStatistics()
                 .ValueOrThrow();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Unable to get block io statistics to find a woodpecker");
+            YT_TLOG_WARNING("Unable to get block io statistics to find a woodpecker")
+                .With(ex);
             return;
         }
 
@@ -2017,20 +2027,20 @@ private:
                 blockIOStats->IOOps.value() > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
                 !Woodpecker_)
             {
-                YT_LOG_INFO(
-                    "Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
-                    blockIOStats->IOReadOps.value(),
-                    blockIOStats->IOOps.value(),
-                    UserJobSpec_.iops_threshold());
+                YT_TLOG_INFO("Woodpecker detected")
+                    .With("IORead", blockIOStats->IOReadOps.value())
+                    .With("IOTotal", blockIOStats->IOOps.value())
+                    .With("Threshold", UserJobSpec_.iops_threshold());
                 Woodpecker_ = true;
 
                 if (UserJobSpec_.has_iops_throttler_limit()) {
-                    YT_LOG_INFO("Setting IO throttle (Iops: %v)", UserJobSpec_.iops_throttler_limit());
+                    YT_TLOG_INFO("Setting IO throttle")
+                        .With("Iops", UserJobSpec_.iops_throttler_limit());
                     UserJobEnvironment_->SetIOThrottle(UserJobSpec_.iops_throttler_limit());
                 }
             }
         } else {
-            YT_LOG_WARNING("Cannot get block io statistics from job environment");
+            YT_TLOG_WARNING("Cannot get block io statistics from job environment");
         }
     }
 
@@ -2058,7 +2068,9 @@ private:
         if (fd >= 0) {
             ::close(fd);
         } else {
-            YT_LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe (Path: %v)", InputPipePath_);
+            YT_TLOG_WARNING("Failed to blink input pipe")
+                .With("Path", InputPipePath_)
+                .With(TError::FromSystem());
         }
     }
 
@@ -2120,7 +2132,8 @@ private:
                 pids.push_back(pid);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error getting user process PIDs");
+            YT_TLOG_WARNING("Error getting user process PIDs")
+                .With(ex);
             return;
         }
 
