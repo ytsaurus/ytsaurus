@@ -80,14 +80,15 @@ public:
             }
 
             if (state == EGroupCoordinatorState::JoinFinished && TInstant::Now() > joinDeadline + rebalanceTimeout) {
-                YT_LOG_DEBUG("Join finished too long ago, start new join phase (JoinDeadline: %v)", joinDeadline);
+                YT_TLOG_DEBUG("Join finished too long ago, start new join phase")
+                    .With("JoinDeadline", joinDeadline);
                 return std::optional<TRspJoinGroup>(std::nullopt);
             }
 
-            YT_LOG_DEBUG("JoinGroup request cannot be accepted now (MemberId: %v, State: %v, AcceptNew: %v)",
-                request.MemberId,
-                state,
-                acceptNew);
+            YT_TLOG_DEBUG("JoinGroup request cannot be accepted now")
+                .With("MemberId", request.MemberId)
+                .With("State", state)
+                .With("AcceptNew", acceptNew);
             return std::make_optional(TRspJoinGroup{.ErrorCode = NKafka::EErrorCode::RebalanceInProgress});
         };
 
@@ -110,7 +111,8 @@ public:
             memberId = request.MemberId;
             if (memberId.empty()) {
                 memberId = NYT::ToString(TGuid::Create());
-                YT_LOG_DEBUG("Member id is assigned (MemberId: %v)", memberId);
+                YT_TLOG_DEBUG("Member id is assigned")
+                    .With("MemberId", memberId);
             }
 
             // First member resets everything, becomes a new leader and waits JoinGroup request from the rest of the members.
@@ -132,18 +134,19 @@ public:
                 ++ProtocolNameToMemberCount_[protocol.Name];
             }
 
-            YT_LOG_DEBUG("Group member joined (MemberId: %v, JoinDeadline: %v)",
-                memberId,
-                JoinDeadline_.load());
+            YT_TLOG_DEBUG("Group member joined")
+                .With("MemberId", memberId)
+                .With("JoinDeadline", JoinDeadline_.load());
         }
 
-        YT_LOG_DEBUG("Waiting for the rest of the members to join (MemberId: %v, WaitDuration: %v)",
-            memberId,
-            waitDuration);
+        YT_TLOG_DEBUG("Waiting for the rest of the members to join")
+            .With("MemberId", memberId)
+            .With("WaitDuration", waitDuration);
 
         TDelayedExecutor::WaitForDuration(waitDuration);
 
-        YT_LOG_DEBUG("Wait finished (MemberId: %v)", memberId);
+        YT_TLOG_DEBUG("Wait finished")
+            .With("MemberId", memberId);
 
         auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
             .ValueOrThrow();
@@ -154,7 +157,8 @@ public:
         }
 
         if (!isLeader) {
-            YT_LOG_DEBUG("Waiting for the JoinGroup response from the leader (MemberId: %v)", memberId);
+            YT_TLOG_DEBUG("Waiting for the JoinGroup response from the leader")
+                .With("MemberId", memberId);
             auto response = WaitFor(JoinGroupResponsePromise_.ToFuture()
                 .WithTimeout(TDuration::Seconds(1)))  // TODO(nadya73): Add it in static config.
                 .ValueOrThrow();
@@ -162,7 +166,8 @@ public:
             return response;
         }
 
-        YT_LOG_DEBUG("Making JoinGroup response (MemberId: %v)", memberId);
+        YT_TLOG_DEBUG("Making JoinGroup response")
+            .With("MemberId", memberId);
 
         std::optional<std::string> commonProtocolName;
         for (const auto& [protocolName, memberCount] : ProtocolNameToMemberCount_) {
@@ -173,7 +178,8 @@ public:
         }
 
         if (!commonProtocolName) {
-            YT_LOG_DEBUG("There is no common protocol (MemberId: %v)", memberId);
+            YT_TLOG_DEBUG("There is no common protocol")
+                .With("MemberId", memberId);
             auto response = TRspJoinGroup{.ErrorCode = NKafka::EErrorCode::InconsistentGroupProtocol};
             JoinGroupResponsePromise_.TrySet(response);
             return response;
@@ -205,7 +211,8 @@ public:
 
         JoinGroupResponsePromise_.TrySet(response);
 
-        YT_LOG_DEBUG("Group leader made a JoinGroup response (MemberId: %v)", memberId);
+        YT_TLOG_DEBUG("Group leader made a JoinGroup response")
+            .With("MemberId", memberId);
 
         return response;
     }
@@ -224,9 +231,9 @@ public:
                 return std::optional<TRspSyncGroup>(std::nullopt);
             }
 
-            YT_LOG_DEBUG("SyncGroup request cannot be accepted now (State: %v, AcceptNew: %v)",
-                state,
-                acceptNew);
+            YT_TLOG_DEBUG("SyncGroup request cannot be accepted now")
+                .With("State", state)
+                .With("AcceptNew", acceptNew);
 
             return std::make_optional(TRspSyncGroup{.ErrorCode = NKafka::EErrorCode::RebalanceInProgress});
         };
@@ -249,9 +256,9 @@ public:
             }
 
             if (GenerationId_ != request.GenerationId) {
-                YT_LOG_DEBUG("Invalid generation (CurrentGenerationId: %v, RequestGenerationId: %v)",
-                    GenerationId_,
-                    request.GenerationId);
+                YT_TLOG_DEBUG("Invalid generation")
+                    .With("CurrentGenerationId", GenerationId_)
+                    .With("RequestGenerationId", request.GenerationId);
                 return TRspSyncGroup{.ErrorCode = NKafka::EErrorCode::IllegalGeneration};
             }
 
@@ -274,19 +281,20 @@ public:
             waitDuration = SyncDeadline_ - TInstant::Now();
         }
 
-        YT_LOG_DEBUG("Waiting for the rest of the members to sync (WaitDuration: %v)", waitDuration);
+        YT_TLOG_DEBUG("Waiting for the rest of the members to sync")
+            .With("WaitDuration", waitDuration);
 
         TDelayedExecutor::WaitForDuration(waitDuration);
 
-        YT_LOG_DEBUG("Wait finished");
+        YT_TLOG_DEBUG("Wait finished");
 
         auto guard = WaitFor(TAsyncLockReaderGuard::Acquire(&Lock_))
             .ValueOrThrow();
 
         if (GenerationId_ != request.GenerationId) {
-            YT_LOG_DEBUG("During sync other generation started (CurrentGenerationId: %v, RequestGenerationId: %v",
-                GenerationId_,
-                request.GenerationId);
+            YT_TLOG_DEBUG("Another generation started during sync")
+                .With("CurrentGenerationId", GenerationId_)
+                .With("RequestGenerationId", request.GenerationId);
             return TRspSyncGroup{.ErrorCode = NKafka::EErrorCode::IllegalGeneration};
         }
 
@@ -297,20 +305,21 @@ public:
         State_.store(EGroupCoordinatorState::Ok);
 
         if (Assignments_.empty()) {
-            YT_LOG_DEBUG("Assignments are empty");
+            YT_TLOG_DEBUG("Assignments are empty");
             return TRspSyncGroup{.ErrorCode = NKafka::EErrorCode::UnknownServerError};
         }
 
         for (const auto& [memberId, _] : JoinedMembers_) {
             if (SyncedMembers_.find(memberId) == SyncedMembers_.end()) {
-                YT_LOG_DEBUG("Some joined members were not synced (MissedMemberId: %v)", memberId);
+                YT_TLOG_DEBUG("Some joined members were not synced")
+                    .With("MissedMemberId", memberId);
                 return TRspSyncGroup{.ErrorCode = NKafka::EErrorCode::UnknownServerError};
             }
         }
 
         auto assignmentIt = Assignments_.find(request.MemberId);
         if (assignmentIt == Assignments_.end()) {
-            YT_LOG_DEBUG("There is no assignment");
+            YT_TLOG_DEBUG("There is no assignment");
             return TRspSyncGroup{.ErrorCode = NKafka::EErrorCode::UnknownServerError};
         }
 
@@ -331,7 +340,8 @@ public:
             auto state = State_.load();
 
             if (state != EGroupCoordinatorState::Ok) {
-                YT_LOG_DEBUG("Rebalance in progress (State: %v)", state);
+                YT_TLOG_DEBUG("Rebalance in progress")
+                    .With("State", state);
                 return std::make_optional(TRspHeartbeat{.ErrorCode = NKafka::EErrorCode::RebalanceInProgress});
             }
 
@@ -355,14 +365,14 @@ public:
             }
 
             if (request.GenerationId != GenerationId_) {
-                YT_LOG_DEBUG("Heartbeat with invalid generation id (GenerationId: %v)",
-                    request.GenerationId);
+                YT_TLOG_DEBUG("Heartbeat with invalid generation id")
+                    .With("GenerationId", request.GenerationId);
                 return TRspHeartbeat{.ErrorCode = NKafka::EErrorCode::RebalanceInProgress};
             }
 
             auto joinedMembersIt = JoinedMembers_.find(request.MemberId);
             if (joinedMembersIt == JoinedMembers_.end()) {
-                YT_LOG_DEBUG("Heartbeat from not joined member");
+                YT_TLOG_DEBUG("Heartbeat from not joined member");
                 return TRspHeartbeat{.ErrorCode = NKafka::EErrorCode::RebalanceInProgress};
             }
 
@@ -378,11 +388,11 @@ public:
             // TODO(nadya73): Rewrite this code. Now every heartbeat is checking if there is an inactive member.
             for (const auto& [memberId, member] : JoinedMembers_) {
                 if (now - member.LastHeartbeat > sessionTimeout) {
-                    YT_LOG_DEBUG("There are no hearbeats for too long (InactiveMemberId: %v, LastHeartbeat: %v, Now: %v, SessionTimeout: %v)",
-                        memberId,
-                        member.LastHeartbeat,
-                        now,
-                        sessionTimeout);
+                    YT_TLOG_DEBUG("There are no heartbeats for too long")
+                        .With("InactiveMemberId", memberId)
+                        .With("LastHeartbeat", member.LastHeartbeat)
+                        .With("Now", now)
+                        .With("SessionTimeout", sessionTimeout);
                     return TRspHeartbeat{.ErrorCode = NKafka::EErrorCode::RebalanceInProgress};
                 }
             }
