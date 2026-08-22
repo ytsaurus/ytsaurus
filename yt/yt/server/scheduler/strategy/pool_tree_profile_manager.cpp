@@ -267,7 +267,6 @@ void TPoolTreeProfileManager::ProfileElement(
 
     writer->AddGauge("/dominant_usage_share", element->GetResourceDominantUsageShareAtUpdate());
     writer->AddGauge("/dominant_demand_share", MaxComponent(attributes.DemandShare));
-    writer->AddGauge("/promised_dominant_fair_share", MaxComponent(attributes.PromisedFairShare));
     writer->AddGauge("/dominant_estimated_guarantee_share", MaxComponent(attributes.EstimatedGuaranteeShare));
     writer->AddGauge("/accumulated_volume_dominant_share", element->GetAccumulatedResourceRatioVolume());
     writer->AddGauge("/weight", element->GetWeight());

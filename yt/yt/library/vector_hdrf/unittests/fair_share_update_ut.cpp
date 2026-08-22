@@ -1757,7 +1757,7 @@ TEST_P(TFairShareUpdateParametrizedTest, TestStrongGuaranteeAndRelaxedPoolVsRela
     }
 }
 
-TEST_P(TFairShareUpdateParametrizedTest, PromisedFairShareOfIntegralPools)
+TEST_P(TFairShareUpdateParametrizedTest, EstimatedGuaranteeShareIgnoresIntegralPools)
 {
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
@@ -1778,14 +1778,11 @@ TEST_P(TFairShareUpdateParametrizedTest, PromisedFairShareOfIntegralPools)
         auto now = TInstant::Now();
         DoFairShareUpdate(totalResourceLimits, rootElement, now, now - TDuration::Minutes(1));
 
-        TResourceVector unit = {0.1, 0.1, 0.0, 0.1, 0.0};
-        EXPECT_RV_NEAR(unit * 3, burstPool->Attributes().PromisedFairShare);
-        EXPECT_RV_NEAR(unit * 3, burstPoolParent->Attributes().PromisedFairShare);
-
-        EXPECT_RV_NEAR(unit * 7, relaxedPool->Attributes().PromisedFairShare);
-        EXPECT_RV_NEAR(unit * 7, relaxedPoolParent->Attributes().PromisedFairShare);
-
-        EXPECT_EQ(unit * 10, rootElement->Attributes().PromisedFairShare);
+        EXPECT_EQ(TResourceVector{}, burstPool->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(TResourceVector{}, burstPoolParent->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(TResourceVector{}, relaxedPool->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(TResourceVector{}, relaxedPoolParent->Attributes().EstimatedGuaranteeShare);
+        EXPECT_EQ(TResourceVector{}, rootElement->Attributes().EstimatedGuaranteeShare);
     }
 }
 

@@ -574,31 +574,24 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 
 void TCompositeElement::ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context)
 {
-    auto computeGuaranteeFairShare = [&] (TResourceVector TSchedulableAttributes::* estimatedGuaranteeFairShare) {
-        double weightSum = 0.0;
-        auto undistributedEstimatedGuaranteeFairShare = Attributes().*estimatedGuaranteeFairShare;
+    double weightSum = 0.0;
+    auto undistributedEstimatedGuaranteeShare = Attributes().EstimatedGuaranteeShare;
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        auto* child = GetChild(childIndex);
+        weightSum += child->GetWeight();
+
+        child->Attributes().EstimatedGuaranteeShare = TResourceVector::Min(
+            child->Attributes().StrongGuaranteeShare,
+            undistributedEstimatedGuaranteeShare);
+        undistributedEstimatedGuaranteeShare -= child->Attributes().EstimatedGuaranteeShare;
+    }
+
+    for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
-            weightSum += child->GetWeight();
-
-            // NB: Sum of total strong guarantee share and total resource flow can be greater than total resource limits. This results in a scheduler alert.
-            // However, no additional adjustment is done so we need to handle this case here as well.
-            child->Attributes().*estimatedGuaranteeFairShare = TResourceVector::Min(
-                child->Attributes().StrongGuaranteeShare + TResourceVector::FromDouble(child->Attributes().TotalResourceFlowRatio),
-                undistributedEstimatedGuaranteeFairShare);
-            undistributedEstimatedGuaranteeFairShare -= child->Attributes().*estimatedGuaranteeFairShare;
+            child->Attributes().EstimatedGuaranteeShare[resourceType] += undistributedEstimatedGuaranteeShare[resourceType] * child->GetWeight() / weightSum;
         }
-
-        for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-            for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-                auto* child = GetChild(childIndex);
-                (child->Attributes().*estimatedGuaranteeFairShare)[resourceType] += undistributedEstimatedGuaranteeFairShare[resourceType] * child->GetWeight() / weightSum;
-            }
-        }
-    };
-
-    computeGuaranteeFairShare(/*estimatedGuaranteeFairShare*/ &TSchedulableAttributes::PromisedFairShare);
-    computeGuaranteeFairShare(/*estimatedGuaranteeFairShare*/ &TSchedulableAttributes::EstimatedGuaranteeShare);
+    }
 
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         GetChild(childIndex)->ComputeEstimatedGuaranteeShare(context);
@@ -1491,7 +1484,6 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
 
 void TRootElement::ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context)
 {
-    Attributes().PromisedFairShare = TResourceVector::FromJobResources(context->TotalResourceLimits, context->TotalResourceLimits);
     Attributes().EstimatedGuaranteeShare = Attributes().StrongGuaranteeShare;
 
     TCompositeElement::ComputeEstimatedGuaranteeShare(context);

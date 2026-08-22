@@ -185,6 +185,65 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         release_breakpoint()
         op.track()
 
+    @authors("eshcherbin")
+    def test_estimated_guarantee_share_ignores_integral_guarantees(self):
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+
+        create_pool(
+            "burst_pool",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "burst",
+                    "resource_flow": {"cpu": 0.3 * total_cpu_limit},
+                    "burst_guarantee_resources": {"cpu": 0.3 * total_cpu_limit},
+                },
+            },
+        )
+
+        create_pool(
+            "relaxed_pool",
+            attributes={
+                "integral_guarantees": {
+                    "guarantee_type": "relaxed",
+                    "resource_flow": {"cpu": 0.7 * total_cpu_limit},
+                },
+            },
+        )
+
+        expected_shares = {
+            "<Root>": 0.0,
+            "burst_pool": 0.0,
+            "relaxed_pool": 0.0,
+        }
+
+        @wait_no_assert
+        def check_estimated_guarantee_shares():
+            for pool, expected_share in expected_shares.items():
+                actual_share = get(scheduler_orchid_pool_path(pool) + "/dominant_estimated_guarantee_share")
+                assert are_almost_equal(actual_share, expected_share)
+
+    @authors("eshcherbin")
+    def test_estimated_guarantee_share_of_pool_with_strong_and_integral_guarantees(self):
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+
+        create_pool(
+            "mixed_pool",
+            attributes={
+                "strong_guarantee_resources": {"cpu": 0.3 * total_cpu_limit},
+                "integral_guarantees": {
+                    "guarantee_type": "burst",
+                    "resource_flow": {"cpu": 0.4 * total_cpu_limit},
+                    "burst_guarantee_resources": {"cpu": 0.4 * total_cpu_limit},
+                },
+            },
+        )
+
+        @wait_no_assert
+        def check_estimated_guarantee_shares():
+            for pool in ["<Root>", "mixed_pool"]:
+                actual_share = get(scheduler_orchid_pool_path(pool) + "/dominant_estimated_guarantee_share")
+                assert are_almost_equal(actual_share, 0.3)
+
     @authors("ignat")
     def test_resource_limits(self):
         resource_limits = {"cpu": 1.0, "memory": 1000 * 1024 * 1024, "network": 10}
