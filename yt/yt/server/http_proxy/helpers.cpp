@@ -344,7 +344,8 @@ std::optional<TNetworkStatistics> GetNetworkStatistics()
 
         return totals;
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to read network statistics");
+        YT_TLOG_ERROR("Failed to read network statistics")
+            .With(ex);
         return {};
     }
 }

@@ -203,7 +203,8 @@ bool TContext::TryParseUser()
 
     auto authResult = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!authResult.IsOK()) {
-        YT_LOG_DEBUG(authResult, "Authentication error");
+        YT_TLOG_DEBUG("Authentication error")
+            .With(authResult);
 
         if (DriverRequest_.CommandName == "discover_proxies") {
             DriverRequest_.AuthenticatedUser = NSecurityClient::RootUserName;
@@ -241,7 +242,8 @@ bool TContext::TryParseUser()
     }
 
     if (auto error = Api_->CheckAccess(authenticatedUser); !error.IsOK()) {
-        YT_LOG_DEBUG(error);
+        YT_TLOG_DEBUG("Proxy access check failed")
+            .With(error);
         Response_->SetStatus(EStatusCode::Forbidden);
         auto proxyRole = Api_->GetCoordinator()->GetSelfEntry()->Role;
         ReplyError(TError("User %Qv is not allowed to access proxy with role %Qv", authenticatedUser, proxyRole));
@@ -590,15 +592,15 @@ void TContext::LogRequest()
     Parameters_ = ConvertToYsonString(
         HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
         EYsonFormat::Text).ToString();
-    YT_LOG_INFO("Gathered request parameters (Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v, ErrorFormat: %v)",
-        Descriptor_->CommandName,
-        DriverRequest_.AuthenticatedUser,
-        Parameters_,
-        ConvertToYsonString(InputFormat_, EYsonFormat::Text).AsStringBuf(),
-        InputContentEncoding_,
-        ConvertToYsonString(OutputFormat_, EYsonFormat::Text).AsStringBuf(),
-        OutputContentEncoding_,
-        ConvertToYsonString(ErrorFormat_, EYsonFormat::Text).AsStringBuf());
+    YT_TLOG_INFO("Gathered request parameters")
+        .With("Command", Descriptor_->CommandName)
+        .With("User", DriverRequest_.AuthenticatedUser)
+        .With("Parameters", Parameters_)
+        .With("InputFormat", ConvertToYsonString(InputFormat_, EYsonFormat::Text).AsStringBuf())
+        .With("InputCompression", InputContentEncoding_)
+        .With("OutputFormat", ConvertToYsonString(OutputFormat_, EYsonFormat::Text).AsStringBuf())
+        .With("OutputCompression", OutputContentEncoding_)
+        .With("ErrorFormat", ConvertToYsonString(ErrorFormat_, EYsonFormat::Text).AsStringBuf());
 }
 
 void TContext::LogStructuredRequest()
@@ -623,13 +625,13 @@ void TContext::LogStructuredRequest()
     auto userTicketHeader = Request_->GetHeaders()->Find(NHeaders::UserTicketHeaderName);
     auto serviceTicketHeader = Request_->GetHeaders()->Find(NHeaders::ServiceTicketHeaderName);
 
-    YT_LOG_DEBUG("Request finished (Command: %v, User: %v, WallTime: %v, CpuTime: %v, InBytes: %v, OutBytes: %v)",
-        Descriptor_->CommandName,
-        DriverRequest_.AuthenticatedUser,
-        WallTime_,
-        ResultCpuTime_,
-        Request_->GetReadByteCount(),
-        Response_->GetWriteByteCount());
+    YT_TLOG_DEBUG("Request finished")
+        .With("Command", Descriptor_->CommandName)
+        .With("User", DriverRequest_.AuthenticatedUser)
+        .With("WallTime", WallTime_)
+        .With("CpuTime", ResultCpuTime_)
+        .With("InBytes", Request_->GetReadByteCount())
+        .With("OutBytes", Response_->GetWriteByteCount());
 
     LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
         .Item("request_id").Value(Request_->GetRequestId())
@@ -727,18 +729,19 @@ void TContext::SetupOutputStream()
         // NB: This lambda should not capture |this| (by strong reference) to avoid cyclic references.
         auto sendKeepAliveFrame = [Logger = Logger] (const TFramingAsyncOutputStreamPtr& stream) {
             // All errors are ignored.
-            YT_LOG_DEBUG("Sending keep-alive frame");
+            YT_TLOG_DEBUG("Sending keep-alive frame");
             auto error = WaitFor(stream->WriteKeepAliveFrame());
             if (!error.IsOK()) {
-                YT_LOG_ERROR(error, "Error sending keep-alive frame");
+                YT_TLOG_ERROR("Error sending keep-alive frame")
+                    .With(error);
                 return;
             }
             Y_UNUSED(WaitFor(stream->Flush()));
         };
 
         if (auto keepAlivePeriod = GetFramingConfig()->KeepAlivePeriod; keepAlivePeriod) {
-            YT_LOG_DEBUG("Creating periodic executor to send keep-alive frames (KeepAlivePeriod: %v)",
-                *keepAlivePeriod);
+            YT_TLOG_DEBUG("Creating periodic executor to send keep-alive frames")
+                .With("KeepAlivePeriod", *keepAlivePeriod);
             SendKeepAliveExecutor_ = New<TPeriodicExecutor>(
                 invoker,
                 BIND(sendKeepAliveFrame, FramingStream_),
@@ -763,7 +766,7 @@ void TContext::SetupOutputParameters()
         OnOutputParameters();
 
         if (SendKeepAliveExecutor_) {
-            YT_LOG_DEBUG("Starting periodic executor to send keep-alive frames");
+            YT_TLOG_DEBUG("Starting periodic executor to send keep-alive frames");
             SendKeepAliveExecutor_->Start();
         }
 
@@ -863,7 +866,8 @@ void TContext::SetEnrichedError(const TError& error)
         Error_ = TError(NRpc::EErrorCode::Unavailable, "Proxy is unavailable").With(error);
     }
 
-    YT_LOG_ERROR(Error_, "Command failed");
+    YT_TLOG_ERROR("Command failed")
+        .With(Error_);
 }
 
 void TContext::ProcessFormatsInOperationSpec()
@@ -918,7 +922,7 @@ void TContext::SetupCumulativeCpuProfiling()
 
     CumulativeCpuProfilingExecutor_->Start();
 
-    YT_LOG_DEBUG("Cumulative CPU profiling stopped");
+    YT_TLOG_DEBUG("Cumulative CPU profiling started");
 }
 
 void TContext::FinishPrepare()
@@ -938,7 +942,7 @@ void TContext::FinishPrepare()
     AddHeaders();
     PrepareFinished_ = true;
 
-    YT_LOG_DEBUG("Prepare finished");
+    YT_TLOG_DEBUG("Prepare finished");
 }
 
 void TContext::Run()
@@ -1067,12 +1071,12 @@ void TContext::LogAndProfile()
 void TContext::Finalize()
 {
     if (SendKeepAliveExecutor_) {
-        YT_LOG_DEBUG("Stopping periodic executor that sends keep-alive frames");
+        YT_TLOG_DEBUG("Stopping periodic executor that sends keep-alive frames");
         Y_UNUSED(WaitFor(SendKeepAliveExecutor_->Stop()));
     }
 
     if (CumulativeCpuProfilingExecutor_) {
-        YT_LOG_DEBUG("Cumulative CPU profiling stopped");
+        YT_TLOG_DEBUG("Cumulative CPU profiling stopped");
         Y_UNUSED(WaitFor(CumulativeCpuProfilingExecutor_->Stop()));
     }
 
@@ -1174,7 +1178,8 @@ void TContext::DispatchNotFound(const std::string& message)
 
 void TContext::ReplyError(const TError& error)
 {
-    YT_LOG_DEBUG(error, "Request finished with error");
+    YT_TLOG_DEBUG("Request finished with error")
+        .With(error);
     NHttpProxy::ReplyError(Response_, error);
 }
 
@@ -1236,8 +1241,8 @@ void TContext::ProcessDelayBeforeCommandTestingOption()
     if (nodeString.AsStringBuf().find(commandDelayOptions.Substring) == std::string::npos) {
         return;
     }
-    YT_LOG_DEBUG("Waiting for %v seconds due to \"delay_before_command\" testing option",
-        commandDelayOptions.Delay.SecondsFloat());
+    YT_TLOG_DEBUG("Waiting due to \"delay_before_command\" testing option")
+        .With("Delay", commandDelayOptions.Delay);
     TDelayedExecutor::WaitForDuration(commandDelayOptions.Delay);
 }
 
@@ -1259,9 +1264,9 @@ void TContext::AllocateTestData(const TTraceContextPtr& traceContext)
 
         MakeTestHeapAllocation(size, delay);
 
-        YT_LOG_DEBUG("Test heap allocation is finished (AllocationSize: %v, AllocationReleaseDelay: %v)",
-            size,
-            delay);
+        YT_TLOG_DEBUG("Test heap allocation is finished")
+            .With("AllocationSize", size)
+            .With("AllocationReleaseDelay", delay);
     }
 }
 
