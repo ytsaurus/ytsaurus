@@ -146,7 +146,8 @@ protected:
                 .ValueOrThrow()
                 ->session_id());
 
-        YT_LOG_INFO("Created journal chunk (ChunkId: %v)", sessionId.ChunkId);
+        YT_TLOG_INFO("Created journal chunk")
+            .With("ChunkId", sessionId.ChunkId);
 
         // Allocate write targets.
         auto targets = AllocateWriteTargets(
@@ -210,9 +211,9 @@ protected:
         WaitFor(writer->Close())
             .ThrowOnError();
 
-        YT_LOG_INFO("Chunk written and closed (ChunkId: %v, RecordCount: %v)",
-            result.ChunkId,
-            recordCount);
+        YT_TLOG_INFO("Chunk written and closed")
+            .With("ChunkId", result.ChunkId)
+            .With("RecordCount", recordCount);
 
         return result;
     }

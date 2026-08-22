@@ -68,7 +68,8 @@ public:
         auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Cypress transaction started (TransactionId: %v)", tx->GetId());
+        YT_TLOG_DEBUG("Cypress transaction started")
+            .With("TransactionId", tx->GetId());
 
         return tx;
     }
@@ -136,13 +137,13 @@ TEST_P(TCypressLocksTest, LockConflictResolution)
         workingTxs.push_back(StartCypressTransaction());
     }
 
-    YT_LOG_DEBUG("Transactions started (BlockingTxId: %v, WorkingTxIds: [%v])",
-        blockingTx->GetId(),
-        MakeFormattableView(
-            workingTxs,
-            [] (auto* builder, const auto& transaction) {
-                builder->AppendFormat("%v", transaction->GetId());
-            }));
+    YT_TLOG_DEBUG("Transactions started")
+        .With("BlockingTxId", blockingTx->GetId())
+        .WithFormat("WorkingTxIds", "[%v]", MakeFormattableView(
+                workingTxs,
+                [] (auto* builder, const auto& transaction) {
+                    builder->AppendFormat("%v", transaction->GetId());
+                }));
 
     // Setup a lot of waitable locks.
     auto createRequest = [workingTxs = workingTxs, waitbleLockMode = waitbleLockMode, childKey = childKey] {
@@ -193,8 +194,8 @@ TEST_P(TCypressLocksTest, LockConflictResolution)
     Y_UNUSED(WaitFor(Client_->SetNode(NodePath + "/@some_attr", ConvertToYsonString("some_value"))));
 
     auto transactionAbortDuration = GetInstant() - start;
-    YT_LOG_DEBUG("Recorded transaction abort duration (AbortDuration: %v)",
-        transactionAbortDuration);
+    YT_TLOG_DEBUG("Recorded transaction abort duration")
+        .With("AbortDuration", transactionAbortDuration);
     // 5 seconds is _very_ conservative.
     ASSERT_LT(transactionAbortDuration, TDuration::Seconds(5));
 

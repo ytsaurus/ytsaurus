@@ -101,8 +101,8 @@ void TApiTestBase::SetUpTestCase()
 
     {
         const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
-        YT_LOG_INFO("Testcase setup (SuiteName: %v)",
-            testSuite->name());
+        YT_TLOG_INFO("Testcase setup")
+            .With("SuiteName", testSuite->name());
     }
 
     Client_ = CreateClient(NRpc::RootUserName);
@@ -114,8 +114,8 @@ void TApiTestBase::TearDownTestCase()
 {
     {
         const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
-        YT_LOG_INFO("Testcase teardown (SuiteName: %v)",
-            testSuite->name());
+        YT_TLOG_INFO("Testcase teardown")
+            .With("SuiteName", testSuite->name());
     }
 
     AbortCypressTransactions();
@@ -182,7 +182,7 @@ void TApiTestBase::WaitUntilEqual(const TYPath& path, TStringBuf expected)
 
 void TApiTestBase::AbortCypressTransactions()
 {
-    YT_LOG_DEBUG("Aborting Cypress transactions");
+    YT_TLOG_DEBUG("Aborting Cypress transactions");
 
     auto transactions = ConvertToNode(WaitFor(Client_->ListNode("//sys/transactions", NApi::TListNodeOptions{
         .Attributes = {"cypress_transaction"},
@@ -212,18 +212,17 @@ void TApiTestBase::AbortCypressTransactions()
         auto transactionId = transactions->FindChild(transactionIndex)->GetValue<std::string>();
 
         if (value->IsOK()) {
-            YT_LOG_DEBUG(
-                "Cypress transaction aborted (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Cypress transaction aborted")
+                .With("TransactionId", transactionId);
         } else {
-            YT_LOG_DEBUG(
-                "Failed to abort Cypress transaction (TransactionId: %v, Error: %v)",
-                transactionId,
-                value->GetMessage());
+            YT_TLOG_DEBUG("Failed to abort Cypress transaction")
+                .With("TransactionId", transactionId)
+                .With("Error", value->GetMessage());
         }
     }
 
-    YT_LOG_DEBUG("All Cypress transactions aborted (TransactionCount: %v)", abortFutures.size());
+    YT_TLOG_DEBUG("All Cypress transactions aborted")
+        .With("TransactionCount", abortFutures.size());
 }
 
 NApi::IConnectionPtr TApiTestBase::Connection_;
@@ -435,9 +434,9 @@ void TDynamicTablesTestBase::RemoveSystemObjects(const TYPath& path)
     for (const auto& item : itemsList->GetChildren()) {
         const auto& name = item->AsString()->GetValue();
         if (item->Attributes().Get<bool>("builtin", false)) {
-            YT_LOG_DEBUG("Do not remove builtin object during teardown (Path: %v, Item: %v)",
-                path,
-                name);
+            YT_TLOG_DEBUG("Do not remove builtin object during teardown")
+                .With("Path", path)
+                .With("Item", name);
             continue;
         }
         asyncWait.push_back(Client_->RemoveNode(path + "/" + name));

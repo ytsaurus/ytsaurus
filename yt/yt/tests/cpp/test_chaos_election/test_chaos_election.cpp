@@ -167,7 +167,8 @@ protected:
             {.Timeout = TDuration::Seconds(120), .IgnoreExceptions = true});
 
         std::swap(EnabledCell_, DisabledCell_);
-        YT_LOG_INFO("Migrated lease manager (NewEnabledCell: %v)", EnabledCell_);
+        YT_TLOG_INFO("Migrated lease manager")
+            .With("NewEnabledCell", EnabledCell_);
     }
 
     static TYPath GetCellOrchidPath(TCellId cellId)
@@ -294,7 +295,7 @@ protected:
         WaitFor(Client_->CreateObject(EObjectType::ChaosCellBundle, options))
             .ValueOrThrow();
 
-        YT_LOG_INFO("Chaos cell bundle created");
+        YT_TLOG_INFO("Chaos cell bundle created");
     }
 
     static TCellId SyncCreateChaosCell(int cellTag)
@@ -314,7 +315,8 @@ protected:
 
         WaitUntilEqual(Format("#%v/@health", cellId), "good");
 
-        YT_LOG_INFO("Chaos cell created and healthy (CellId: %v)", cellId);
+        YT_TLOG_INFO("Chaos cell created and healthy")
+            .With("CellId", cellId);
         return cellId;
     }
 };
@@ -338,8 +340,8 @@ TEST_F(TChaosElectionTest, SingleManagerBecomesLeader)
     EXPECT_EQ(StartCount_.load(), 1);
     EXPECT_EQ(EndCount_.load(), 0);
 
-    YT_LOG_INFO("Single manager became leader (PrerequisiteId: %v)",
-        manager->GetPrerequisiteId());
+    YT_TLOG_INFO("Single manager became leader")
+        .With("PrerequisiteId", manager->GetPrerequisiteId());
 
     WaitFor(manager->Stop())
         .ThrowOnError();
@@ -361,7 +363,8 @@ TEST_F(TChaosElectionTest, StopLeadingAndReElect)
     auto firstPrerequisiteId = manager->GetPrerequisiteId();
     EXPECT_EQ(StartCount_.load(), 1);
 
-    YT_LOG_INFO("Stopping leading (FirstPrerequisiteId: %v)", firstPrerequisiteId);
+    YT_TLOG_INFO("Stopping leading")
+        .With("FirstPrerequisiteId", firstPrerequisiteId);
 
     YT_UNUSED_FUTURE(manager->StopLeading());
 
@@ -379,7 +382,8 @@ TEST_F(TChaosElectionTest, StopLeadingAndReElect)
     EXPECT_EQ(StartCount_.load(), 2);
     EXPECT_EQ(EndCount_.load(), 1);
 
-    YT_LOG_INFO("Re-elected (SecondPrerequisiteId: %v)", secondPrerequisiteId);
+    YT_TLOG_INFO("Re-elected")
+        .With("SecondPrerequisiteId", secondPrerequisiteId);
 
     WaitFor(manager->Stop())
         .ThrowOnError();
@@ -410,8 +414,8 @@ TEST_F(TChaosElectionTest, TwoManagersExactlyOneLeader)
     auto* leader = manager1->IsLeader() ? &manager1 : &manager2;
     auto* follower = manager1->IsLeader() ? &manager2 : &manager1;
 
-    YT_LOG_INFO("Leader elected (LeaderPrerequisiteId: %v)",
-        (*leader)->GetPrerequisiteId());
+    YT_TLOG_INFO("Leader elected")
+        .With("LeaderPrerequisiteId", (*leader)->GetPrerequisiteId());
 
     WaitFor((*leader)->Stop())
         .ThrowOnError();
@@ -423,8 +427,8 @@ TEST_F(TChaosElectionTest, TwoManagersExactlyOneLeader)
     EXPECT_TRUE((*follower)->IsLeader());
     EXPECT_FALSE((*leader)->IsLeader());
 
-    YT_LOG_INFO("Follower took over (NewLeaderPrerequisiteId: %v)",
-        (*follower)->GetPrerequisiteId());
+    YT_TLOG_INFO("Follower took over")
+        .With("NewLeaderPrerequisiteId", (*follower)->GetPrerequisiteId());
 
     WaitFor((*follower)->Stop())
         .ThrowOnError();
@@ -443,7 +447,8 @@ TEST_F(TChaosElectionTest, ExternalLeaseRemoval)
     EXPECT_TRUE(IsActive(prerequisiteId));
     EXPECT_EQ(StartCount_.load(), 1);
 
-    YT_LOG_INFO("Removing prerequisite externally (PrerequisiteId: %v)", prerequisiteId);
+    YT_TLOG_INFO("Removing prerequisite externally")
+        .With("PrerequisiteId", prerequisiteId);
 
     WaitFor(Client_->RemoveNode(Format("#%v", prerequisiteId)))
         .ThrowOnError();
@@ -458,8 +463,8 @@ TEST_F(TChaosElectionTest, ExternalLeaseRemoval)
     EXPECT_EQ(StartCount_.load(), 2);
     EXPECT_EQ(EndCount_.load(), 1);
 
-    YT_LOG_INFO("Re-elected after external removal (NewPrerequisiteId: %v)",
-        manager->GetPrerequisiteId());
+    YT_TLOG_INFO("Re-elected after external removal")
+        .With("NewPrerequisiteId", manager->GetPrerequisiteId());
 
     WaitFor(manager->Stop())
         .ThrowOnError();
@@ -477,8 +482,8 @@ TEST_F(TChaosElectionTest, LeaderSurvivesMigration)
         return manager->IsLeader();
     });
 
-    YT_LOG_INFO("Leader elected before migration (PrerequisiteId: %v)",
-        manager->GetPrerequisiteId());
+    YT_TLOG_INFO("Leader elected before migration")
+        .With("PrerequisiteId", manager->GetPrerequisiteId());
 
     MigrateLeaseManager();
 
@@ -488,8 +493,8 @@ TEST_F(TChaosElectionTest, LeaderSurvivesMigration)
 
     EXPECT_TRUE(IsActive(manager->GetPrerequisiteId()));
 
-    YT_LOG_INFO("Leader survived migration (PrerequisiteId: %v)",
-        manager->GetPrerequisiteId());
+    YT_TLOG_INFO("Leader survived migration")
+        .With("PrerequisiteId", manager->GetPrerequisiteId());
 
     WaitFor(manager->Stop())
         .ThrowOnError();
@@ -508,7 +513,8 @@ TEST_F(TChaosElectionTest, MigrationDoesNotReElectStableLeader)
     EXPECT_EQ(StartCount_.load(), 1);
     EXPECT_EQ(EndCount_.load(), 0);
 
-    YT_LOG_INFO("Leader elected before migration (PrerequisiteId: %v)", prerequisiteId);
+    YT_TLOG_INFO("Leader elected before migration")
+        .With("PrerequisiteId", prerequisiteId);
 
     MigrateLeaseManager();
 
@@ -519,7 +525,8 @@ TEST_F(TChaosElectionTest, MigrationDoesNotReElectStableLeader)
     EXPECT_EQ(StartCount_.load(), 1);
     EXPECT_EQ(EndCount_.load(), 0);
 
-    YT_LOG_INFO("Leader stable after migration (PrerequisiteId: %v)", prerequisiteId);
+    YT_TLOG_INFO("Leader stable after migration")
+        .With("PrerequisiteId", prerequisiteId);
 
     WaitFor(manager->Stop())
         .ThrowOnError();
@@ -540,8 +547,9 @@ TEST_F(TChaosElectionTest, TwoManagersMigrationFailover)
         return manager1->IsLeader() != manager2->IsLeader();
     }, /*iterationCount*/ 600, /*period*/ TDuration::MilliSeconds(200));
 
-    YT_LOG_INFO("Leader elected before migration (Manager1IsLeader: %v, Manager2IsLeader: %v)",
-        manager1->IsLeader(), manager2->IsLeader());
+    YT_TLOG_INFO("Leader elected before migration")
+        .With("Manager1IsLeader", manager1->IsLeader())
+        .With("Manager2IsLeader", manager2->IsLeader());
 
     MigrateLeaseManager();
 
@@ -552,8 +560,9 @@ TEST_F(TChaosElectionTest, TwoManagersMigrationFailover)
         return manager1->IsLeader() != manager2->IsLeader();
     }, "expected exactly one leader after migration");
 
-    YT_LOG_INFO("Leader after migration (Manager1IsLeader: %v, Manager2IsLeader: %v)",
-        manager1->IsLeader(), manager2->IsLeader());
+    YT_TLOG_INFO("Leader after migration")
+        .With("Manager1IsLeader", manager1->IsLeader())
+        .With("Manager2IsLeader", manager2->IsLeader());
 
     WaitFor(manager1->Stop())
         .ThrowOnError();
@@ -574,8 +583,8 @@ TEST_F(TChaosElectionTest, ElectionFindsEnabledCellAfterMigration)
 
     EXPECT_TRUE(manager->IsLeader());
 
-    YT_LOG_INFO("Manager elected after migration (PrerequisiteId: %v)",
-        manager->GetPrerequisiteId());
+    YT_TLOG_INFO("Manager elected after migration")
+        .With("PrerequisiteId", manager->GetPrerequisiteId());
 
     WaitFor(manager->Stop())
         .ThrowOnError();
@@ -601,7 +610,8 @@ TEST_F(TChaosElectionTest, ElectionWorksOnNonEmptyTable)
 
     auto rows = selectResult.Rowset->GetRows();
 
-    YT_LOG_INFO("Started and stopped leader (ElectionTableRowsCount: %v)", rows.size());
+    YT_TLOG_INFO("Started and stopped leader")
+        .With("ElectionTableRowsCount", rows.size());
     EXPECT_EQ(std::ssize(rows), 1);
 
     manager->Start();
@@ -616,7 +626,8 @@ TEST_F(TChaosElectionTest, ElectionWorksOnNonEmptyTable)
 
     auto newRows = newSelectResult.Rowset->GetRows();
 
-    YT_LOG_INFO("Selected rows after new election started (ElectionTableRowsCount: %v)", newRows.size());
+    YT_TLOG_INFO("Selected rows after new election started")
+        .With("ElectionTableRowsCount", newRows.size());
     EXPECT_EQ(std::ssize(newRows), 1);
 
     EXPECT_NE(rows[0], newRows[0]);
