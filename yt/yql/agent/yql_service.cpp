@@ -59,20 +59,27 @@ private:
         context->SetResponseInfo("QueryId: %v", queryId);
 
         if (ComponentStateChecker_->IsComponentBanned()) {
-            YT_LOG_INFO("Yql agent is banned, failing query (QueryId: %v, User: %v)", queryId, user);
+            YT_TLOG_INFO("YQL agent is banned; failing query")
+                .With("QueryId", queryId)
+                .With("User", user);
             THROW_ERROR_EXCEPTION(NYqlClient::EErrorCode::YqlAgentBanned, "Yql agent is banned");
         }
 
         auto responseFuture = YqlAgent_->StartQuery(queryId, user, *request);
 
         context->SubscribeCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-            YT_LOG_INFO(error, "Request is canceled, aborting query (QueryId: %v)", queryId);
+            YT_TLOG_INFO("Request is canceled, aborting query")
+                .With("QueryId", queryId)
+                .With(error);
 
             YqlAgent_->AbortQuery(queryId).Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (error.IsOK()) {
-                    YT_LOG_INFO("Query abort finished (QueryId: %v)", queryId);
+                    YT_TLOG_INFO("Query abort finished")
+                        .With("QueryId", queryId);
                 } else {
-                    YT_LOG_ERROR(error, "Failed to abort query (QueryId: %v)", queryId);
+                    YT_TLOG_ERROR("Failed to abort query")
+                        .With("QueryId", queryId)
+                        .With(error);
                 }
             }));
         }));
