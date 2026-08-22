@@ -202,7 +202,8 @@ void TCoordinator::Start()
     UpdateStateExecutor_->ScheduleOutOfBand();
 
     auto result = WaitFor(FirstUpdateIterationFinished_.ToFuture());
-    YT_LOG_INFO(result, "Initial coordination iteration finished");
+    YT_TLOG_INFO("Initial coordination iteration finished")
+        .With(result);
 }
 
 bool TCoordinator::IsBanned() const
@@ -335,8 +336,9 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
             proxy->Endpoint = proxyNode->GetValue<std::string>();
             proxies.push_back(New<TCoordinatorProxy>(std::move(proxy)));
         } catch (std::exception& ex) {
-            YT_LOG_WARNING(ex, "Broken proxy node found in Cypress (ProxyNode: %v)",
-                ConvertToYsonString(proxyNode));
+            YT_TLOG_WARNING("Broken proxy node found in Cypress")
+                .With("ProxyNode", ConvertToYsonString(proxyNode))
+                .With(ex);
         }
     }
 
@@ -386,7 +388,8 @@ void TCoordinator::UpdateState()
     try {
         UpdateReadOnly();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error updating read-only");
+        YT_TLOG_ERROR("Error updating read-only")
+            .With(ex);
     }
 
     auto selfPath = NApi::HttpProxiesPath + "/" + ToYPathLiteral(GetSelfEntry()->Endpoint);
@@ -396,20 +399,21 @@ void TCoordinator::UpdateState()
     SetSelf(New<TCoordinatorProxy>(std::move(selfEntry)));
 
     auto onUpdateSuccess = [&] {
-        YT_LOG_DEBUG("Coordinator update succeeded");
+        YT_TLOG_DEBUG("Coordinator update succeeded");
         BannedGauge_.Update(GetSelfEntry()->IsBanned ? 1 : 0);
         AvailableAt_.store(TInstant::Now());
         FirstUpdateIterationFinished_.TrySet();
     };
 
     auto onUpdateFailure = [&] (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Coordinator update failed");
+        YT_TLOG_ERROR("Coordinator update failed")
+            .With(ex);
         FirstUpdateIterationFinished_.TrySet(TError(ex));
     };
 
     try {
         if (!Config_->Enable) {
-            YT_LOG_INFO("Coordinator is disabled");
+            YT_TLOG_INFO("Coordinator is disabled");
             FirstUpdateIterationFinished_.TrySet();
             return;
         }
@@ -420,7 +424,8 @@ void TCoordinator::UpdateState()
                 .Finish();
             auto error = WaitFor(CypressRegistrar_->UpdateNodes(attributes));
             if (!error.IsOK()) {
-                YT_LOG_INFO(error, "Error updating proxy liveness");
+                YT_TLOG_INFO("Error updating proxy liveness")
+                    .With(error);
             }
         }
 
@@ -436,15 +441,15 @@ void TCoordinator::UpdateState()
             }
 
             if (proxy->Entry->IsBanned != GetSelfEntry()->IsBanned) {
-                YT_LOG_INFO("Updating self banned attribute (Old: %v, New: %v)",
-                    GetSelfEntry()->IsBanned,
-                    proxy->Entry->IsBanned);
+                YT_TLOG_INFO("Updating self banned attribute")
+                    .With("Old", GetSelfEntry()->IsBanned)
+                    .With("New", proxy->Entry->IsBanned);
             }
 
             if (proxy->Entry->Role != GetSelfEntry()->Role) {
-                YT_LOG_INFO("Updating self role attribute (Old: %v, New: %v)",
-                    GetSelfEntry()->Role,
-                    proxy->Entry->Role);
+                YT_TLOG_INFO("Updating self role attribute")
+                    .With("Old", GetSelfEntry()->Role)
+                    .With("New", proxy->Entry->Role);
                 OnSelfRoleChanged_.Fire(proxy->Entry->Role);
             }
 
@@ -454,7 +459,7 @@ void TCoordinator::UpdateState()
         onUpdateSuccess();
     } catch (const TErrorException& ex) {
         if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
-            YT_LOG_INFO("Master is in read-only mode");
+            YT_TLOG_INFO("Master is in read-only mode");
             onUpdateSuccess();
         } else {
             onUpdateFailure(ex);

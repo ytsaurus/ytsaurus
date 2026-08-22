@@ -501,7 +501,8 @@ void TBootstrap::DoStart()
 
     MonitoringServer_->Start();
     if (MonitoringHttpsServer_) {
-        YT_LOG_INFO("Listening for HTTPS monitoring requests (Port: %v)", MonitoringHttpsServer_->GetAddress().GetPort());
+        YT_TLOG_INFO("Listening for HTTPS monitoring requests")
+            .With("Port", MonitoringHttpsServer_->GetAddress().GetPort());
         MonitoringHttpsServer_->Start();
     }
 
