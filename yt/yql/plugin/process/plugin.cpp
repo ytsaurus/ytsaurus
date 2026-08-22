@@ -315,10 +315,8 @@ public:
         auto appendError = [&](auto&& extraError) {
             if (error.IsOK()) {
                 error = std::move(extraError);
-            } else {
-                if (!extraError.IsOK()) {
-                    error.Add(std::move(extraError));
-                }
+            } else if (!extraError.IsOK()) {
+                error.Add(std::move(extraError));
             }
         };
 
