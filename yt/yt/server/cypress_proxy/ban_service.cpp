@@ -90,13 +90,15 @@ public:
             try {
                 Enable();
             } catch (const TErrorException& error) {
-                YT_LOG_ALERT(error, "Failed to enable ban service");
+                YT_TLOG_ALERT("Failed to enable ban service")
+                    .With(error);
             }
         } else {
             try {
                 Disable();
             } catch (const TErrorException& error) {
-                YT_LOG_ERROR(error, "Failed to disable ban service");
+                YT_TLOG_ERROR("Failed to disable ban service")
+                    .With(error);
             }
         }
     }
@@ -162,12 +164,13 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        YT_LOG_DEBUG("Starting ban cache refresh iteration");
+        YT_TLOG_DEBUG("Starting ban cache refresh iteration");
         auto crossClusterReplicatedState = CrossClusterReplicatedState_;
         YT_ASSERT(crossClusterReplicatedState);
         auto fetchedVersions = WaitFor(crossClusterReplicatedState->FetchVersions());
         if (!fetchedVersions.IsOK()) {
-            YT_LOG_ALERT(fetchedVersions, "Cannot fetch versions");
+            YT_TLOG_ALERT("Cannot fetch versions")
+                .With(fetchedVersions);
             return;
         }
 
@@ -193,7 +196,9 @@ private:
             try {
                 version = ExtractVersion(userNode);
             } catch (const TErrorException& error) {
-                YT_LOG_ALERT(error, "Failed to extract version of user %qv entry", user);
+                YT_TLOG_ALERT("Failed to extract version of user entry")
+                    .With("User", user)
+                    .With(error);
                 continue;
             }
             auto isBanned = userNode->GetChildValueOrDefault("is_banned", false);
@@ -243,7 +248,7 @@ private:
         if (IsEnabled_.load()) {
             THROW_ERROR_EXCEPTION("Attempt to enable running ban service");
         }
-        YT_LOG_DEBUG("Enabling ban service");
+        YT_TLOG_DEBUG("Enabling ban service");
 
         WaitFor(Bootstrap_->GetNativeConnection()->GetClusterDirectorySynchronizer()->GetFirstSuccessfulSyncFuture())
             .ThrowOnError();
@@ -282,7 +287,7 @@ private:
         if (!IsEnabled_.load()) {
             THROW_ERROR_EXCEPTION("Attempt to disable a non-running ban service");
         }
-        YT_LOG_DEBUG("Disabling ban service");
+        YT_TLOG_DEBUG("Disabling ban service");
 
         IsEnabled_.store(false);
         WaitFor(BanCacheRefreshExecutor_->Stop())

@@ -56,11 +56,9 @@ void LogAndThrowAuthorizationError(
             });
 
         if (it == std::ranges::end(nodeRange)) {
-            YT_LOG_ALERT(
-                "Missing path for node with matching ACE "
-                "(PathMissingObjectId: %v, TargetNodeId: %v)",
-                result.ObjectId,
-                nodeAncestry.Back().Id);
+            YT_TLOG_ALERT("Missing path for node with matching ACE")
+                .With("PathMissingObjectId", result.ObjectId)
+                .With("TargetNodeId", nodeAncestry.Back().Id);
 
             THROW_ERROR_EXCEPTION("Path not found for node %v with matching ACE",
                 result.ObjectId);

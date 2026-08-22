@@ -50,10 +50,9 @@ public:
         auto keptResponse = WaitFor(FindKeptResponseInSequoiaAndLog(transaction, mutationId, retry, Logger))
             .ValueOrThrow();
         if (keptResponse.has_value()) {
-            YT_LOG_DEBUG(
-                "Replying with finished response (MutationId: %v, Retry: %v)",
-                mutationId,
-                context->IsRetry());
+            YT_TLOG_DEBUG("Replying with finished response")
+                .With("MutationId", mutationId)
+                .With("Retry", context->IsRetry());
 
             context->SuppressMissingRequestInfoCheck();
             context->SetResponseInfo("KeptResponse: %v", true);
@@ -74,7 +73,8 @@ public:
         YT_VERIFY(transaction);
 
         if (!IsEnabled()) {
-            YT_LOG_DEBUG("Sequoia response keeper is disabled, skipping response (MutationId: %v)", mutationId);
+            YT_TLOG_DEBUG("Sequoia response keeper is disabled, skipping response")
+                .With("MutationId", mutationId);
             return;
         }
 
@@ -95,8 +95,8 @@ public:
         auto newEnable = newConfig->Enable;
         auto oldEnable = Config_.Exchange(newConfig)->Enable;
 
-        YT_LOG_INFO_IF(oldEnable != newEnable,
-            "Sequoia response keeper %v", newEnable ? "enabled" : "disabled");
+        YT_TLOG_INFO_IF(oldEnable != newEnable, "Sequoia response keeper toggled")
+            .With("Enabled", newEnable);
     }
 
 private:

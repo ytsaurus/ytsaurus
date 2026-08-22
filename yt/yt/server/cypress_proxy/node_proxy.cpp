@@ -363,9 +363,8 @@ protected:
         auto parentAncestry = TRange(nodeAncestry).Slice(0, std::ssize(nodeAncestry) - 1);
 
         if (parentAncestry.empty()) {
-            YT_LOG_ALERT(
-                "Missing parent for node during permission validation (NodeId: %v)",
-                MakeVersionedNodeId(Id_));
+            YT_TLOG_ALERT("Missing parent for node during permission validation")
+                .With("NodeId", MakeVersionedNodeId(Id_));
             THROW_ERROR_EXCEPTION(
                 "Permission validation failed: missing parent for node %v",
                 MakeVersionedNodeId(Id_));
@@ -518,7 +517,9 @@ protected:
             .Execute(std::move(req))
             .Apply(BIND([id = Id_] (const TErrorOr<TResponsePtr>& rspOrError) {
                 if (!rspOrError.IsOK()) {
-                    YT_LOG_ERROR(rspOrError, "Node touch failed (NodeId: %v)", id);
+                    YT_TLOG_ERROR("Node touch failed")
+                        .With("NodeId", id)
+                        .With(rspOrError);
                 }
             })));
     }
@@ -1280,7 +1281,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
     ValidateCreateOptions(request);
 
     // This alert can be safely removed since hintId is not used in this function.
-    YT_LOG_ALERT_IF(hintId, "Hint ID was received on Cypress proxy (HintId: %v)", hintId);
+    YT_TLOG_ALERT_IF(hintId, "Hint ID was received on Cypress proxy")
+        .With("HintId", hintId);
 
     if (type == EObjectType::MapNode) {
         type = EObjectType::SequoiaMapNode;
@@ -2034,14 +2036,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
         force);
 
     // Sanity checks.
-    YT_LOG_ALERT_AND_THROW_IF(
-        request->node_id_to_children_size() == 0,
-        "Empty list received when attempting to assemble tree copy");
-    YT_LOG_ALERT_AND_THROW_IF(
+    YT_TLOG_ALERT_AND_THROW_IF(request->node_id_to_children_size() == 0, "Empty list received when attempting to assemble tree copy");
+    YT_TLOG_ALERT_AND_THROW_IF(
         rootNodeId != FromProto<TNodeId>(request->node_id_to_children()[0].node_id()),
-        "Received malformed request to assemble tree copy (RootNodeId: %v, FirstElementInMapping: %v)",
-        rootNodeId,
-        FromProto<TNodeId>(request->node_id_to_children()[0].node_id()));
+        "Received malformed request to assemble tree copy")
+        .With("RootNodeId", rootNodeId)
+        .With("FirstElementInMapping", FromProto<TNodeId>(request->node_id_to_children()[0].node_id()));
 
     TNodeIdToChildDescriptors nodeIdToChildren;
     for (const auto& nodeIdToChild : request->node_id_to_children()) {
@@ -2565,16 +2565,13 @@ private:
                     !children.empty() &&
                     std::ssize(nodeIdToChildren) + layerChildrenCount + std::ssize(children) > responseSizeLimit)
                 {
-                    YT_LOG_TRACE(
-                        "Node subtree exceeds size limit, marking as opaque "
-                        "(RootId: %v, ResponseSubtreeSize: %v, NodeId: %v, NodeChildrenCount: %v, "
-                        "CurrentLayerSize: %v, ResponseSizeLimit: %v)",
-                        Id_,
-                        std::ssize(nodeIdToChildren),
-                        parent.Id,
-                        std::ssize(children),
-                        layerChildrenCount,
-                        responseSizeLimit);
+                    YT_TLOG_TRACE("Node subtree exceeds size limit, marking as opaque")
+                        .With("RootId", Id_)
+                        .With("ResponseSubtreeSize", std::ssize(nodeIdToChildren))
+                        .With("NodeId", parent.Id)
+                        .With("NodeChildrenCount", std::ssize(children))
+                        .With("CurrentLayerSize", layerChildrenCount)
+                        .With("ResponseSizeLimit", responseSizeLimit);
                     opaqueNodeIds.insert(parent.Id);
                     continue;
                 }
@@ -2610,12 +2607,10 @@ private:
             std::swap(layerToFetch, nextLayerToFetch);
         }
 
-        YT_LOG_DEBUG(
-            "Finished collecting nodes to fetch "
-            "(ResponseSubtreeSize: %v, ScalarNodeCount: %v, MasterAttribueFilter: %v)",
-            std::ssize(nodeIdToChildren),
-            std::ssize(scalarNodeIdsToFetchFromMaster),
-            masterAttributeFilter);
+        YT_TLOG_DEBUG("Finished collecting nodes to fetch")
+            .With("ResponseSubtreeSize", std::ssize(nodeIdToChildren))
+            .With("ScalarNodeCount", std::ssize(scalarNodeIdsToFetchFromMaster))
+            .With("MasterAttribueFilter", masterAttributeFilter);
 
         auto attributesFuture = FetchAttributesForGetRequest(
             SequoiaSession_,

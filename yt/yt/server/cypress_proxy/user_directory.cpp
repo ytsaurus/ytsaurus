@@ -129,10 +129,9 @@ std::vector<std::string> TUserDirectory::LoadFrom(
         {
             auto [it, inserted] = result.emplace(alias, descriptor);
             if (!inserted) {
-                YT_LOG_ALERT("Detected  name collision in user directory (SubjectIds: [%v, %v], Alias: %v)",
-                    it->second->SubjectId,
-                    descriptor->SubjectId,
-                    alias);
+                YT_TLOG_ALERT("Detected  name collision in user directory")
+                    .WithFormat("SubjectIds", "[%v, %v]", it->second->SubjectId, descriptor->SubjectId)
+                    .With("Alias", alias);
             }
         };
 
@@ -141,8 +140,8 @@ std::vector<std::string> TUserDirectory::LoadFrom(
 
             auto inserted = subjectDescriptors.emplace(descriptorHolder->SubjectId, descriptorHolder).second;
             if (!inserted) {
-                YT_LOG_ALERT("Received multiple occurrences of subject descriptor (SubjectId: %v)",
-                    descriptorHolder->SubjectId);
+                YT_TLOG_ALERT("Received multiple occurrences of subject descriptor")
+                    .With("SubjectId", descriptorHolder->SubjectId);
                 continue;
             }
 

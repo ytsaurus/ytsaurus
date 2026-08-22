@@ -154,9 +154,8 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, bool pathIsAdditional, TString
     // actions leading to data loss. E.g., it's better to remove link instead
     // of table pointed by link.
 
-    YT_LOG_ALERT_IF(pathIsAdditional && method != "Copy",
-        "Attempting to resolve path as additional for an unexpected method (Method: %v)",
-        method);
+    YT_TLOG_ALERT_IF(pathIsAdditional && method != "Copy", "Attempting to resolve path as additional for an unexpected method")
+        .With("Method", method);
 
     if (method == "Copy" && pathIsAdditional) {
         return true;
@@ -300,8 +299,8 @@ TResolveIterationResult ResolveByObjectId(
 
         auto rewrittenPath = nodeAttributes->Get<TYPath>(pathAttribute);
         if (CheckStartsWithObjectIdOrThrow(rewrittenPath)) [[unlikely]] {
-            YT_LOG_ALERT("Failed to rewrite root object path (ObjectId: %v)",
-                rootDesignator);
+            YT_TLOG_ALERT("Failed to rewrite root object path")
+                .With("ObjectId", rootDesignator);
             return TForwardToMaster{std::move(path)};
         }
 

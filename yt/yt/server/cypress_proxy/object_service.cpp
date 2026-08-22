@@ -258,8 +258,8 @@ private:
                 /*enableBytesThrottling*/ false);
             RequestQueueProvider_->ReconfigureAllQueues();
 
-            YT_LOG_DEBUG("Per-user request weight throttling was %v",
-                newObjectServiceConfig->EnablePerUserRequestWeightThrottling ? "enabled" : "disabled");
+            YT_TLOG_DEBUG("Per-user request weight throttling toggled")
+                .With("Enabled", newObjectServiceConfig->EnablePerUserRequestWeightThrottling);
         }
     }
 };
@@ -435,24 +435,20 @@ private:
 
             auto mutatingSubrequest = ypathExt->mutating();
 
-            YT_LOG_DEBUG("Parsed subrequest (Method: %v, TargetPath: %v, TransactionId: %v, Mutating: %v%v, Retry: %v)",
-                header.method(),
-                ypathExt->target_path(),
-                GetTransactionId(header),
-                mutatingSubrequest,
-                MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
-                    if (mutatingSubrequest) {
-                        builder->AppendFormat(", MutationId: %v", NRpc::GetMutationId(header));
-                    }
-                }),
-                header.retry());
+            YT_TLOG_DEBUG("Parsed subrequest")
+                .With("Method", header.method())
+                .With("TargetPath", ypathExt->target_path())
+                .With("TransactionId", GetTransactionId(header))
+                .With("Mutating", mutatingSubrequest)
+                .WithIf(mutatingSubrequest, "MutationId", NRpc::GetMutationId(header))
+                .With("Retry", header.retry());
 
             if (!mutating.has_value()) {
                 mutating = mutatingSubrequest;
             }
 
             if (mutating != mutatingSubrequest) {
-                YT_LOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
+                YT_TLOG_ALERT("Batch request contains both mutating and non-mutating subrequests");
             }
         }
     }
@@ -647,11 +643,11 @@ private:
         }
 
         auto responseFuture = masterRequest->Invoke();
-        YT_LOG_DEBUG("Some subrequests are forwarded to master cell (TargetCellTag: %v, OriginRequestId: %v, ForwardedRequestId: %v, SubrequestIndices: %v)",
-            cellTag,
-            RpcContext_->GetRequestId(),
-            masterRequest->GetRequestId(),
-            MakeFormattableView(subrequestIndices, TDefaultFormatter{}));
+        YT_TLOG_DEBUG("Some subrequests are forwarded to master cell")
+            .With("TargetCellTag", cellTag)
+            .With("OriginRequestId", RpcContext_->GetRequestId())
+            .With("ForwardedRequestId", masterRequest->GetRequestId())
+            .With("SubrequestIndices", MakeFormattableView(subrequestIndices, TDefaultFormatter{}));
         return responseFuture;
     }
 
@@ -697,21 +693,17 @@ private:
 
             if (beforeSequoiaResolve) {
                 if (RewriteSubrequestTargetIfRejectedByMaster(index, subresponseMessage)) {
-                    YT_LOG_DEBUG(
-                        "Subrequest was rejected by master server in favor of Sequoia "
-                        "(SubrequestIndex: %v)",
-                        index);
+                    YT_TLOG_DEBUG("Subrequest was rejected by master server in favor of Sequoia")
+                        .With("SubrequestIndex", index);
                     continue;
                 }
             } else {
                 auto [patchedMessage, originalError] = WrapRetriableResolveError(index, subresponseMessage);
                 if (patchedMessage) {
-                    YT_LOG_DEBUG(
-                        originalError,
-                        "Possible Sequoia resolve miss encountered; marking it as retriable "
-                        "(SubrequestIndex: %v, SequoiaObjectId: %v)",
-                        index,
-                        Subrequests_[index].ResolvedNodeId);
+                    YT_TLOG_DEBUG("Possible Sequoia resolve miss encountered; marking it as retriable")
+                        .With("SubrequestIndex", index)
+                        .With("SequoiaObjectId", Subrequests_[index].ResolvedNodeId)
+                        .With(originalError);
                     // See comment next to |TSubrequest::TResolvedNodeId|.
                     subresponseMessage = std::move(patchedMessage);
                 }
@@ -824,7 +816,8 @@ private:
                 "Error parsing response header")
                 .With("request_id", RpcContext_->GetRequestId())
                 .With("subrequest_index", subrequestIndex);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Error parsing response header")
+                .With(error);
 
             THROW_ERROR error;
         }
@@ -927,10 +920,9 @@ private:
 
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
 
-        YT_LOG_DEBUG(
-            "Forwarding subrequest to master after resolve in Sequoia (SubrequestIndex: %v, TargetPath: %v)",
-            subrequest->Index,
-            ypathExt->target_path());
+        YT_TLOG_DEBUG("Forwarding subrequest to master after resolve in Sequoia")
+            .With("SubrequestIndex", subrequest->Index)
+            .With("TargetPath", ypathExt->target_path());
     }
 
     //! Either executes subrequest in Sequoia or marks it as non-Sequoia. May
@@ -966,9 +958,9 @@ private:
                 subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, *subrequest->RequestHeader);
             }
 
-            YT_LOG_DEBUG("Forwarding subrequest to master because of non-Cypress transaction (SubrequestIndex: %v, TransactionId: %v)",
-                subrequest->Index,
-                cypressTransactionId);
+            YT_TLOG_DEBUG("Forwarding subrequest to master because of non-Cypress transaction")
+                .With("SubrequestIndex", subrequest->Index)
+                .With("TransactionId", cypressTransactionId);
 
             return std::nullopt;
         }
@@ -991,8 +983,9 @@ private:
                 header.service(),
                 header.method());
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Subrequest resolve failed (SubrequestIndex: %v)",
-                subrequest->Index);
+            YT_TLOG_DEBUG("Subrequest resolve failed")
+                .With("SubrequestIndex", subrequest->Index)
+                .With(ex);
             return CreateErrorResponseMessage(ex);
         }
 
@@ -1084,8 +1077,8 @@ private:
             }
 
             auto future = BIND([subrequestIndex, this, this_ = MakeStrong(this)] {
-                YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
-                    subrequestIndex);
+                YT_TLOG_DEBUG("Executing subrequest in Sequoia")
+                    .With("SubrequestIndex", subrequestIndex);
                 auto& subrequest = Subrequests_[subrequestIndex];
                 return ExecuteSequoiaSubrequest(&subrequest);
             })
@@ -1114,7 +1107,8 @@ private:
                     ReplyOnSubrequest(subrequestIndex, *subresponse);
                 }
             } else {
-                YT_LOG_DEBUG("Subrequest offloading failed (SubrequestIndex: %v)", subrequestIndex);
+                YT_TLOG_DEBUG("Subrequest offloading failed")
+                    .With("SubrequestIndex", subrequestIndex);
                 ReplyOnSubrequest(subrequestIndex, subresponseOrError);
             }
 
@@ -1171,11 +1165,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Synchronizing with master before Sequoia request invocation "
-            "(UserDirectoryPerRequestSync: %v, GroundUpdateQueuesSync: %v)",
-            config->EnableUserDirectoryPerRequestSync,
-            config->EnableGroundUpdateQueuesSync);
+        YT_TLOG_DEBUG("Synchronizing with master before Sequoia request invocation")
+            .With("UserDirectoryPerRequestSync", config->EnableUserDirectoryPerRequestSync)
+            .With("GroundUpdateQueuesSync", config->EnableGroundUpdateQueuesSync);
 
         std::vector<TFuture<void>> futures;
         if (config->EnableUserDirectoryPerRequestSync) {
@@ -1190,7 +1182,7 @@ private:
         WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Successfully synchronized with master");
+        YT_TLOG_DEBUG("Successfully synchronized with master");
     }
 
     TFuture<void> DoSyncWithGroundUpdateQueues() const

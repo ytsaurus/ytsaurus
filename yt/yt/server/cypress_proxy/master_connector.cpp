@@ -134,14 +134,11 @@ private:
 
         auto rspOrError = WaitFor(request->Invoke());
         if (!rspOrError.IsOK()) {
-            YT_LOG_EVENT(
-                Logger,
-                Bootstrap_->IsSequoiaEnabled() && rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)
+            YT_TLOG_EVENT(Logger, Bootstrap_->IsSequoiaEnabled() && rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)
                     ? NLogging::ELogLevel::Alert
-                    : NLogging::ELogLevel::Error,
-                "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
-                GetCurrentSequoiaReign(),
-                GetVersion());
+                    : NLogging::ELogLevel::Error, "Failed to send heartbeat")
+                .With("CurrentSequoiaReign", GetCurrentSequoiaReign())
+                .With("Version", GetVersion());
 
             auto error = WrapCypressProxyRegistrationError(std::move(rspOrError));
 
@@ -174,13 +171,14 @@ private:
 
         auto oldFeatures = SequoiaTransactionFeatures_.Exchange(features);
         if (oldFeatures != features) {
-            YT_LOG_DEBUG("Sequoia transaction features updated (OldSequoiaTransactionFeatures: %v, NewSequoiaTransactionFeatures: %v)",
-                oldFeatures,
-                features);
+            YT_TLOG_DEBUG("Sequoia transaction features updated")
+                .With("OldSequoiaTransactionFeatures", oldFeatures)
+                .With("NewSequoiaTransactionFeatures", features);
         }
 
         if (!RegistrationError_.Exchange(TError{}).IsOK()) {
-            YT_LOG_DEBUG("Cypress proxy registered at primary master (MasterReign: %v)", reign);
+            YT_TLOG_DEBUG("Cypress proxy registered at primary master")
+                .With("MasterReign", reign);
         }
     }
 };

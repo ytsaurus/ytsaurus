@@ -81,7 +81,8 @@ TError WrapRetriableResolveError(const TError& error, NCypressClient::TNodeId re
                 return *id == resolvedNodeId;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to parse resolve error attribute");
+            YT_TLOG_ALERT("Failed to parse resolve error attribute")
+                .With(ex);
         }
 
         return false;

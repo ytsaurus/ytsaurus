@@ -120,7 +120,7 @@ private:
     void DoSync()
     {
         try {
-            YT_LOG_DEBUG("Started synchronizing user directory");
+            YT_TLOG_DEBUG("Started synchronizing user directory");
 
             TGetClusterMetaOptions options;
             options.ReadFrom = ReadFrom_;
@@ -141,7 +141,7 @@ private:
                 std::move(groups));
 
             UserDescriptorUpdated_.Fire(updatedUsers);
-            YT_LOG_DEBUG("Finished synchronizing user directory");
+            YT_TLOG_DEBUG("Finished synchronizing user directory");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error synchronizing user directory")
                 .With(ex);
@@ -168,7 +168,8 @@ private:
         } catch (const std::exception& ex) {
             error = TError(ex);
             Synchronized_.Fire(error);
-            YT_LOG_DEBUG(error);
+            YT_TLOG_DEBUG("Failed to synchronize user directory")
+                .With(error);
         }
 
         if (!RecentSyncPromise_.IsSet()) {

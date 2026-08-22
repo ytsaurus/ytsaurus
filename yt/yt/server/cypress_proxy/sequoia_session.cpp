@@ -687,7 +687,8 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
             }
 
             if (error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
-                YT_LOG_ALERT(error, "Failed to commit Sequoia transaction");
+                YT_TLOG_ALERT("Failed to commit Sequoia transaction")
+                    .With(error);
 
                 return WrapCypressProxyRegistrationError(std::move(error));
             }
