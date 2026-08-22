@@ -38,9 +38,8 @@ std::vector<const TAccessControlDescriptor*> DoFetch(
         auto fetchedAcds = FetchAcds(missingAcds, sequoiaTransaction);
         for (auto&& [nodeId, acd] : Zip(missingAcds, fetchedAcds)) {
             if (!acd.has_value()) {
-                YT_LOG_DEBUG(
-                    "Unable to fetch ACD entry from Sequoia tables for node: entry not found (NodeId: %v)",
-                    nodeId);
+                YT_TLOG_DEBUG("Unable to fetch ACD entry from Sequoia tables for node: entry not found")
+                    .With("NodeId", nodeId);
                 // NB: Stale read of an object ACD is fine. Default descriptor
                 // acts as no permission rights were configured.
                 acd = TAccessControlDescriptor{.NodeId = nodeId};
