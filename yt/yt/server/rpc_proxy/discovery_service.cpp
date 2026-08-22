@@ -268,7 +268,8 @@ private:
                 .With(ex);
         }
 
-        YT_LOG_INFO("Proxy node created (Path: %v)", ProxyPath_);
+        YT_TLOG_INFO("Proxy node created")
+            .With("Path", ProxyPath_);
     }
 
     bool IsAvailable() const
@@ -283,13 +284,15 @@ private:
             backoffDuration = Min(
                 backoffDuration + RandomDuration(Max(backoffDuration, Config_->DiscoveryService->LivenessUpdatePeriod)),
                 Config_->DiscoveryService->BackoffPeriod);
-            YT_LOG_WARNING(ex, "Failed to perform update, backing off (Duration: %v)", backoffDuration);
+            YT_TLOG_WARNING("Failed to perform update, backing off")
+                .With("Duration", backoffDuration)
+                .With(ex);
         };
 
         auto setUnavaliable = [&] {
             if (!IsAvailable() && ProxyCoordinator_->SetAvailableState(false)) {
                 Initialized_ = false;
-                YT_LOG_WARNING("Connectivity lost");
+                YT_TLOG_WARNING("Connectivity lost");
             }
         };
 
@@ -300,7 +303,7 @@ private:
             } catch (const TErrorException& ex) {
                 setBackoff(ex);
                 if (ex.Error().FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                    YT_LOG_WARNING("Master is in read-only mode");
+                    YT_TLOG_WARNING("Master is in read-only mode");
                 } else {
                     setUnavaliable();
                 }
@@ -331,7 +334,7 @@ private:
 
         LastSuccessTimestamp_.store(Now());
         if (ProxyCoordinator_->SetAvailableState(true)) {
-            YT_LOG_INFO("Connectivity restored");
+            YT_TLOG_INFO("Connectivity restored");
         }
     }
 
@@ -393,7 +396,9 @@ private:
                 if (banned) {
                     ProxyCoordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, std::string()));
                 }
-                YT_LOG_INFO("Proxy has been %v (Path: %v)", banned ? "banned" : "unbanned", ProxyPath_);
+                YT_TLOG_INFO("Proxy ban state changed")
+                    .With("Banned", banned)
+                    .With("Path", ProxyPath_);
             }
 
             auto role = attributes->Find<std::string>(RoleAttributeName);
@@ -427,7 +432,8 @@ private:
                     proxies.push_back({addresses, role});
                 }
             }
-            YT_LOG_DEBUG("Updated proxy list (ProxyCount: %v)", proxies.size());
+            YT_TLOG_DEBUG("Updated proxy list")
+                .With("ProxyCount", proxies.size());
 
             {
                 auto guard = Guard(ProxySpinLock_);

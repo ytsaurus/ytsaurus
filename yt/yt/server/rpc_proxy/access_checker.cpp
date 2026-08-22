@@ -73,9 +73,10 @@ public:
                 .With(error);
         }
 
-        YT_LOG_INFO(error, "Failed to check if user is allowed to use RPC proxy (User: %v, Role: %v)",
-            user,
-            proxyRole);
+        YT_TLOG_INFO("Failed to check if user is allowed to use RPC proxy")
+            .With("User", user)
+            .With("Role", proxyRole)
+            .With(error);
 
         return TError();
     }

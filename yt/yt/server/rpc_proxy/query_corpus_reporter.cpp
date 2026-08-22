@@ -125,16 +125,17 @@ private:
         auto batch = Batch_.DequeueAll();
         BatchSize_ -= batch.size();
 
-        YT_LOG_DEBUG("Started reporting queries for corpus");
+        YT_TLOG_DEBUG("Started reporting queries for corpus");
         auto timer = TWallTimer();
 
         try {
             DoReportStatistics(Config_.Acquire()->TablePath, batch);
             ReportCount_.Increment();
-            YT_LOG_DEBUG("Finished reporting queries for corpus");
+            YT_TLOG_DEBUG("Finished reporting queries for corpus");
         } catch (const std::exception& ex) {
             ReportErrorCount_.Increment();
-            YT_LOG_ERROR(ex, "Failed to report queries for corpus");
+            YT_TLOG_ERROR("Failed to report queries for corpus")
+                .With(ex);
             timer.Stop();
             TDelayedExecutor::WaitForDuration(Config_.Acquire()->ReportBackoffTime);
         }
