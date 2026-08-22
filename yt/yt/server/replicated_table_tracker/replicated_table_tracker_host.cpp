@@ -199,7 +199,7 @@ void TReplicatedTableTrackerHost::ScheduleUpdateIteration()
 void TReplicatedTableTrackerHost::RunUpdateIteration()
 {
     if (!UpdatesEnabled_ || !TrackerEnabled_) {
-        YT_LOG_DEBUG("Skipping host update iteration");
+        YT_TLOG_DEBUG("Skipping host update iteration");
         ScheduleUpdateIteration();
         return;
     }
@@ -208,7 +208,8 @@ void TReplicatedTableTrackerHost::RunUpdateIteration()
         RequestStateUpdates();
         Counters_.SuccessfulUpdateIterationCounter.Increment();
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Update iteration failed");
+        YT_TLOG_WARNING("Update iteration failed")
+            .With(ex);
         Counters_.FailedUpdateIterationCounter.Increment();
     }
 
@@ -221,7 +222,7 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
     {
         auto guard = Guard(SnapshotLock_);
         if (SnapshotPromise_ && SnapshotPromise_.IsSet()) {
-            YT_LOG_DEBUG("Skipping host update iteration due to set snapshot");
+            YT_TLOG_DEBUG("Skipping host update iteration due to set snapshot");
             return;
         }
         loadFromSnapshot = SnapshotPromise_.operator bool();
@@ -310,9 +311,9 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
             }
             CellTagToInfo_[cellTag].Revision = response->snapshot_revision();
 
-            YT_LOG_DEBUG("RTT host received new snapshot part (CellTag: %v, Revision: %v)",
-                cellTag,
-                response->snapshot_revision());
+            YT_TLOG_DEBUG("RTT host received new snapshot part")
+                .With("CellTag", cellTag)
+                .With("Revision", response->snapshot_revision());
         }
 
         auto guard = Guard(SnapshotLock_);
@@ -333,9 +334,9 @@ void TReplicatedTableTrackerHost::RequestStateUpdates()
                 YT_VERIFY(CellTagToInfo_[cellTag].Revision < action.revision());
                 CellTagToInfo_[cellTag].Revision = action.revision();
 
-                YT_LOG_DEBUG("RTT host received new action (CellTag: %v, Revision: %v)",
-                    cellTag,
-                    action.revision());
+                YT_TLOG_DEBUG("RTT host received new action")
+                    .With("CellTag", cellTag)
+                    .With("Revision", action.revision());
 
                 if (action.has_created_replicated_table_data()) {
                     TReplicatedTableData tableData;
