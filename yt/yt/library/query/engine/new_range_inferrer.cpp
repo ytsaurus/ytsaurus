@@ -992,8 +992,8 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 
     YT_TLOG_DEBUG_IF(options.VerboseLogging, "Predicate defines key constraints")
-        .WithFormat("Predicate", "%Qv", InferName(predicate))
-        .WithFormat("Constraints", "%Qv", ToString(constraints, constraintRef));
+        .With("Predicate", InferName(predicate))
+        .With("Constraints", ToString(constraints, constraintRef));
 
     using TAlloc = TAllocatorOverChunkProvider<TRowRange>;
     std::set<TRowRange, std::less<TRowRange>, TAlloc> nonOverlappingEnrichedRanges(TAlloc(
@@ -1089,8 +1089,8 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 
     YT_TLOG_DEBUG_IF(options.VerboseLogging, "Predicate defines key constraints")
-        .WithFormat("Predicate", "%Qv", InferName(predicate))
-        .WithFormat("Constraints", "%Qv", ToString(constraints, constraintRef));
+        .With("Predicate", InferName(predicate))
+        .With("Constraints", ToString(constraints, constraintRef));
 
     TRowRanges resultRanges;
 

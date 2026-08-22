@@ -40,7 +40,7 @@ public:
         for (size_t i = 0; i < message.Size(); ++i) {
             YT_TLOG_INFO("Received message part")
                 .With("PartIndex", i)
-                .WithFormat("Part", "%Qv", message[i])
+                .With("Part", message[i])
                 .With("Size", message[i].Size())
                 .With("MessageId", id);
         }
