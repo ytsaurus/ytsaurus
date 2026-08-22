@@ -196,7 +196,8 @@ private:
 
     void TryStart()
     {
-        YT_LOG_DEBUG("Start YQL query attempt (Stage: %v)", Stage_);
+        YT_TLOG_DEBUG("Start YQL query attempt")
+            .With("Stage", Stage_);
         auto yqlServiceChannel = WaitForFast(YqlAgentChannelProvider_->GetChannel(YqlServiceName_))
             .ValueOrThrow();
 
@@ -234,13 +235,14 @@ private:
         {
             auto guard = Guard(QueryStateSpinLock_);
             if (QueryState_ != EYqlQueryState::Pending && QueryState_ != EYqlQueryState::Throttled) {
-                YT_LOG_DEBUG("Start YQL query attempt failed, query is not in pending or throttled state (State: %v)", QueryState_);
+                YT_TLOG_DEBUG("Start YQL query attempt failed, query is not in pending or throttled state")
+                    .With("State", QueryState_);
                 return;
             }
 
-            YT_LOG_DEBUG("Start YQL query (Stage: %v, Channel: %v)",
-                Stage_,
-                yqlServiceChannel->GetEndpointDescription());
+            YT_TLOG_DEBUG("Start YQL query")
+                .With("Stage", Stage_)
+                .With("Channel", yqlServiceChannel->GetEndpointDescription());
 
             QueryState_ = EYqlQueryState::Running;
 
@@ -264,7 +266,9 @@ private:
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO(rspOrError, "Error getting query progress (QueryId: %v)", QueryId_);
+            YT_TLOG_INFO("Error getting query progress")
+                .With("QueryId", QueryId_)
+                .With(rspOrError);
             return;
         }
 
@@ -307,7 +311,8 @@ private:
             try {
                 TryStart();
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");
+                YT_TLOG_INFO("Unrecoverable error on query start, finishing query")
+                    .With(ex);
                 OnQueryFailed(TError(ex));
             }
             return;
@@ -375,7 +380,7 @@ public:
 
         auto proxy = CreateProxy(stage);
 
-        YT_LOG_DEBUG("Sending YQLA GetYqlAgentInfo request");
+        YT_TLOG_DEBUG("Sending YQLA GetYqlAgentInfo request");
 
         auto getYqlAgentInfoRequest = proxy.GetYqlAgentInfo();
         getYqlAgentInfoRequest->SetTimeout(TDuration::Seconds(10));
@@ -387,7 +392,9 @@ public:
 
         FromProto(&availableYqlVersions, getYqlAgentInfoResponse->available_yql_versions());
         FromProto(&defaultYqlUIVersion, getYqlAgentInfoResponse->default_ui_yql_version());
-        YT_LOG_DEBUG("GetYqlAgentInfo response recieved (AvailableVersions: %v, DefaultYqlUIVersion: %v)", availableYqlVersions, defaultYqlUIVersion);
+        YT_TLOG_DEBUG("GetYqlAgentInfo response received")
+            .With("AvailableVersions", availableYqlVersions)
+            .With("DefaultYqlUIVersion", defaultYqlUIVersion);
 
         return BuildYsonStringFluently()
             .BeginMap()
@@ -405,7 +412,7 @@ public:
 
         auto proxy = CreateProxy(stage);
 
-        YT_LOG_DEBUG("Sending YQLA GetDeclaredParametersInfo request");
+        YT_TLOG_DEBUG("Sending YQLA GetDeclaredParametersInfo request");
 
         auto getDeclaredParametersInfoRequest = proxy.GetDeclaredParametersInfo();
         getDeclaredParametersInfoRequest->SetTimeout(TDuration::Seconds(10));
@@ -417,23 +424,27 @@ public:
             .ValueOrThrow();
 
         auto declaredParametersInfo = TYsonString(TString(getDeclaredParametersInfoResponse->declared_parameters_info()));
-        YT_LOG_DEBUG("GetYqlAgentInfo response recieved (DeclaredParametersInfo: %v)", declaredParametersInfo);
+        YT_TLOG_DEBUG("GetDeclaredParametersInfo response received")
+            .With("DeclaredParametersInfo", declaredParametersInfo);
 
         static const TYsonString EmptyMap = TYsonString(TString("{}"));
         auto rawParametersNode = ConvertToNode(declaredParametersInfo);
         if (rawParametersNode->GetType() != ENodeType::Map) {
-            YT_LOG_DEBUG("Declared parameters node recieved from YQL facade has incorrect type. Expected map. (NodeType: %v)", rawParametersNode->GetType());
+            YT_TLOG_DEBUG("Declared parameters node received from YQL facade has incorrect type; expected map")
+                .With("NodeType", rawParametersNode->GetType());
             return EmptyMap;
         }
         auto processedParameters = ConvertToNode(EmptyMap)->AsMap();
         for (const auto& [key, valueNode] : rawParametersNode->AsMap()->GetChildren()) {
             if (valueNode->GetType() != ENodeType::List) {
-                YT_LOG_DEBUG("Node with declared parameter info has incorrect type. Expected list. (NodeType: %v)", valueNode->GetType());
+                YT_TLOG_DEBUG("Node with declared parameter info has incorrect type; expected list")
+                    .With("NodeType", valueNode->GetType());
                 continue;
             }
             auto list = valueNode->AsList()->GetChildren();
             if (list.size() != 2 || list[0]->AsString()->GetValue() != "DataType") {
-                YT_LOG_DEBUG("Declared parameter info list has incorrect format. Expected first element to be 'DataType', and second to be parameter type. (ParameterInfoList: %v)", ConvertToYsonString(valueNode));
+                YT_TLOG_DEBUG("Declared parameter info list has incorrect format; expected first element to be 'DataType' and second to be parameter type")
+                    .With("ParameterInfoList", ConvertToYsonString(valueNode));
                 continue;
             }
             processedParameters->AddChild(key, ConvertToNode(list[1]->AsString()->GetValue()));

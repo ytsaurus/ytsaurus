@@ -266,24 +266,24 @@ public:
             auto operationId = *operation.Id;
             auto runningOpSettingsHash = GetAnnotation(operation, "settings_hash");
             if (runningOpSettingsHash) {
-                YT_LOG_DEBUG("An operation already exists for a user (User: %v, RunningOpSettingsHash: %v, SettingsHash: %v, OperationId: %v)",
-                    User_,
-                    *runningOpSettingsHash,
-                    SettingsHash_,
-                    operationId);
+                YT_TLOG_DEBUG("An operation already exists for a user")
+                    .With("User", User_)
+                    .With("RunningOpSettingsHash", *runningOpSettingsHash)
+                    .With("SettingsHash", SettingsHash_)
+                    .With("OperationId", operationId);
             }
             if (!runningOpSettingsHash || SettingsHash_ != *runningOpSettingsHash) {
                 // TODO(atokarew): Should we allow more than one session from a user with different configurations?
-                YT_LOG_DEBUG("Stopping current Spark connect driver operation to launch a new one (User: %v, DriverOperationId: %v)",
-                    User_,
-                    operationId);
+                YT_TLOG_DEBUG("Stopping current Spark connect driver operation to launch a new one")
+                    .With("User", User_)
+                    .With("DriverOperationId", operationId);
                 StopDriverOperation(operationId);
                 return false;
             }
             DriverOperationId_ = operationId;
-            YT_LOG_DEBUG("Reusing existing driver operation (User: %v, DriverOperationId: %v)",
-                User_,
-                DriverOperationId_);
+            YT_TLOG_DEBUG("Reusing existing driver operation")
+                .With("User", User_)
+                .With("DriverOperationId", DriverOperationId_);
             return true;
         }
         return false;
@@ -293,15 +293,15 @@ public:
     {
         auto specNode = CreateDriverSpec();
         auto spec = ConvertToYsonString(specNode);
-        YT_LOG_DEBUG("Created Spark connect driver specification (DriverSpecification: %v)",
-            spec);
+        YT_TLOG_DEBUG("Created Spark connect driver specification")
+            .With("DriverSpecification", spec);
 
         auto opFuture = TargetClusterClient_->StartOperation(EOperationType::Vanilla, spec);
         DriverOperationId_ = WaitFor(opFuture)
             .ValueOrThrow();
-        YT_LOG_DEBUG("Started new Spark connect driver operation (User: %v, DriverOperationId: %v)",
-            User_,
-            DriverOperationId_);
+        YT_TLOG_DEBUG("Started new Spark connect driver operation")
+            .With("User", User_)
+            .With("DriverOperationId", DriverOperationId_);
     }
 
     std::string WaitForSparkConnectEndpoint() override
@@ -317,16 +317,16 @@ public:
             }
             endpoint = GetAnnotation(operation, "spark_connect_endpoint");
         }
-        YT_LOG_DEBUG("Received Spark connect endpoint (SparkConnectEndpoint: %v)",
-            endpoint);
+        YT_TLOG_DEBUG("Received Spark connect endpoint")
+            .With("SparkConnectEndpoint", endpoint);
         return *endpoint;
     }
 
     void Abort() override
     {
-        YT_LOG_DEBUG("Aborting Spark connect query (User: %v, DriverOperationId: %v)",
-            User_,
-            DriverOperationId_);
+        YT_TLOG_DEBUG("Aborting Spark connect query")
+            .With("User", User_)
+            .With("DriverOperationId", DriverOperationId_);
     }
 
     void Detach() override
@@ -399,11 +399,10 @@ private:
             .ValueOrThrow();
         auto releaseConfigNode = ConvertToNode(releaseConfig)->AsMap();
 
-        YT_LOG_DEBUG(
-            "Creating Spark connect driver specification (SparkVersion: %v, SpytVersion: %v, LaunchCommand: %v)",
-            Config_->SparkVersion,
-            Config_->SpytVersion,
-            command);
+        YT_TLOG_DEBUG("Creating Spark connect driver specification")
+            .With("SparkVersion", Config_->SparkVersion)
+            .With("SpytVersion", Config_->SpytVersion)
+            .With("LaunchCommand", command);
 
         std::vector<std::string> layerPaths;
         std::vector<std::string> filePaths;
@@ -482,9 +481,9 @@ private:
 
     void StopDriverOperation(const TOperationId& operationId)
     {
-        YT_LOG_DEBUG("Stopping Spark connect driver operation (User: %v, DriverOperationId: %v)",
-            User_,
-            operationId);
+        YT_TLOG_DEBUG("Stopping Spark connect driver operation")
+            .With("User", User_)
+            .With("DriverOperationId", operationId);
         WaitFor(TargetClusterClient_->CompleteOperation(operationId))
             .ThrowOnError();
     }
@@ -539,15 +538,15 @@ public:
             auto settingsHash = runningApp->AsMap()->GetChildValueOrDefault<std::string>("settingsHash", "");
             if (settingsHash == SettingsHash_) {
                 UpdateFieldsFromResponse(runningApp);
-                YT_LOG_DEBUG("Reusing existing Spark connect driver (User: %v, DriverId: %v)",
-                    User_,
-                    *DriverId_);
+                YT_TLOG_DEBUG("Reusing existing Spark connect driver")
+                    .With("User", User_)
+                    .With("DriverId", *DriverId_);
             } else {
                 auto runningDriverId = runningApp->AsMap()->GetChildValueOrThrow<std::string>("driverId");
-                YT_LOG_DEBUG("Settings hashes are different, will stop an existing driver and launch a new one (OldSettingsHash: %v, NewSettingsHash: %v, OldDriverId: %v)",
-                    settingsHash,
-                    SettingsHash_,
-                    runningDriverId);
+                YT_TLOG_DEBUG("Settings hashes are different, will stop an existing driver and launch a new one")
+                    .With("OldSettingsHash", settingsHash)
+                    .With("NewSettingsHash", SettingsHash_)
+                    .With("OldDriverId", runningDriverId);
                 StopDriver(runningDriverId);
             }
         }
@@ -565,11 +564,11 @@ public:
         ValidateStatusCode(response, NHttp::EStatusCode::OK);
         auto responseNode = ParseJson(response->ReadAll());
         UpdateFieldsFromResponse(responseNode);
-        YT_LOG_DEBUG("Started new Spark connect driver in inner cluster (User: %v, DiscoveryPath: %v, Endpoint: %v, DriverId: %v)",
-            User_,
-            Settings_->DiscoveryPath,
-            *GrpcEndpoint_,
-            *DriverId_);
+        YT_TLOG_DEBUG("Started new Spark connect driver in inner cluster")
+            .With("User", User_)
+            .With("DiscoveryPath", Settings_->DiscoveryPath)
+            .With("Endpoint", *GrpcEndpoint_)
+            .With("DriverId", *DriverId_);
     }
 
     std::string WaitForSparkConnectEndpoint() override
@@ -579,10 +578,10 @@ public:
 
     void Abort() override
     {
-        YT_LOG_DEBUG("Aborting Spark connect query (User: %v, DiscoveryPath: %v, DriverId: %v)",
-            User_,
-            Settings_->DiscoveryPath,
-            DriverId_);
+        YT_TLOG_DEBUG("Aborting Spark connect query")
+            .With("User", User_)
+            .With("DiscoveryPath", Settings_->DiscoveryPath)
+            .With("DriverId", DriverId_);
     }
 
     void Detach() override
@@ -607,13 +606,13 @@ private:
         auto options = TIssueTemporaryTokenOptions{ .ExpirationTimeout = Config_->TokenExpirationTimeout };
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("responsible", "query_tracker");
-        YT_LOG_DEBUG("Requesting token (User: %v)",
-            User_);
+        YT_TLOG_DEBUG("Requesting token")
+            .With("User", User_);
         auto result = WaitFor(TargetClusterClient_->IssueTemporaryToken(User_, attributes, options))
             .ValueOrThrow();
         auto token = result.Token;
-        YT_LOG_DEBUG("Token received (User: %v)",
-            User_);
+        YT_TLOG_DEBUG("Token received")
+            .With("User", User_);
         return token;
     }
 
@@ -703,10 +702,10 @@ private:
 
     void StopDriver(const std::string& driverId)
     {
-        YT_LOG_DEBUG("Stopping Spark connect driver operation (User: %v, DiscoveryPath: %v, DriverId: %v)",
-            User_,
-            Settings_->DiscoveryPath,
-            driverId);
+        YT_TLOG_DEBUG("Stopping Spark connect driver operation")
+            .With("User", User_)
+            .With("DiscoveryPath", Settings_->DiscoveryPath)
+            .With("DriverId", driverId);
         auto response = WaitFor(HttpClient_->Post(SparkMasterKillDriverEndpoint_ + driverId, TSharedRef::MakeEmpty()))
             .ValueOrThrow();
         ValidateStatusCode(response, NHttp::EStatusCode::OK);
@@ -742,8 +741,8 @@ public:
                 User_,
                 TargetClusterClient_,
                 Logger);
-            YT_LOG_DEBUG("Discovery path is set in settings, Spark inner cluster will be used (DiscoveryPath: %v)",
-                Settings_->DiscoveryPath);
+            YT_TLOG_DEBUG("Discovery path is set in settings, Spark inner cluster will be used")
+                .With("DiscoveryPath", Settings_->DiscoveryPath);
         } else {
             ServerLauncher_ = New<TStandaloneConnectServerLauncher>(
                 config,
@@ -751,14 +750,14 @@ public:
                 User_,
                 TargetClusterClient_,
                 Logger);
-            YT_LOG_DEBUG("Discovery path is not set, a separate operation for connect server will be launched or reused");
+            YT_TLOG_DEBUG("Discovery path is not set, a separate operation for connect server will be launched or reused");
         }
     }
 
     void Start() override
     {
-        YT_LOG_DEBUG("Starting Spark connect query (Query: %v)",
-            Query_);
+        YT_TLOG_DEBUG("Starting Spark connect query")
+            .With("Query", Query_);
         OnQueryStarted();
         AsyncQueryResult_ = BIND(&TSpytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
@@ -776,7 +775,8 @@ public:
 
     void Detach() override
     {
-        YT_LOG_DEBUG("Detaching Spark connect query (User: %v)", User_);
+        YT_TLOG_DEBUG("Detaching Spark connect query")
+            .With("User", User_);
         AsyncQueryResult_.Cancel(TError("Query detached"));
         CancelQuery();
         ServerLauncher_->Detach();
@@ -797,10 +797,11 @@ private:
     {
         if (!ServerLauncher_->TryConnectToExistingSession()) {
             try {
-                YT_LOG_DEBUG("Starting session");
+                YT_TLOG_DEBUG("Starting session");
                 ServerLauncher_->StartDriver();
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Caught error while preparing session");
+                YT_TLOG_ERROR("Caught error while preparing session")
+                    .With(ex);
                 throw;
             }
         }
@@ -829,8 +830,8 @@ private:
             sqlArgs->emplace(std::move(name), std::move(valueLiteral));
         }
 
-        YT_LOG_DEBUG("Created gRPC request for executing a plan (ExecutePlanRequest: %v)",
-            request.DebugString());
+        YT_TLOG_DEBUG("Created gRPC request for executing a plan")
+            .With("ExecutePlanRequest", request.DebugString());
 
         // TODO(babenko): migrate to std::string
         auto channel = grpc::CreateChannel(TString(endpoint), grpc::InsecureChannelCredentials());
@@ -883,7 +884,7 @@ private:
 
     void CancelQuery()
     {
-        YT_LOG_DEBUG("Cancelling gRPC request for query");
+        YT_TLOG_DEBUG("Cancelling gRPC request for query");
         GrpcContext_->TryCancel();
     }
 
@@ -893,7 +894,8 @@ private:
         try {
             return SubmitQuery(endpoint);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Caught error while executing query");
+            YT_TLOG_DEBUG("Caught error while executing query")
+                .With(ex);
             throw;
         }
     }
@@ -911,8 +913,8 @@ private:
 
         TBuildingValueConsumer valueConsumer(tableSchema, Logger, true);
         auto parser = CreateParserForArrow(&valueConsumer);
-        YT_LOG_DEBUG("Processing response arrow batches (ArrowBatchesNum: %v)",
-            result.ArrowData.size());
+        YT_TLOG_DEBUG("Processing response arrow batches")
+            .With("ArrowBatchesNum", result.ArrowData.size());
         for (size_t i = 0; i < result.ArrowData.size(); i++) {
             parser->Read(result.ArrowData[i]);
         }
