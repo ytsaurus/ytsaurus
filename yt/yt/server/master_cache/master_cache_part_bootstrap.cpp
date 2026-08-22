@@ -124,10 +124,8 @@ private:
         const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
         const THashSet<TCellTag>& removedSecondaryMasterCellTags)
     {
-        YT_LOG_ALERT_UNLESS(
-            removedSecondaryMasterCellTags.empty(),
-            "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
-            removedSecondaryMasterCellTags);
+        YT_TLOG_ALERT_UNLESS(removedSecondaryMasterCellTags.empty(), "Some cells disappeared in received configuration of secondary masters")
+            .With("RemovedCellTags", removedSecondaryMasterCellTags);
 
         {
             auto guard = Guard(Lock_);
@@ -142,11 +140,10 @@ private:
             });
         };
 
-        YT_LOG_INFO("Received new master cell cluster configuration "
-            "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
-            makeFormattableCellTagsView(newSecondaryMasterConfigs),
-            makeFormattableCellTagsView(changedSecondaryMasterConfigs),
-            removedSecondaryMasterCellTags);
+        YT_TLOG_INFO("Received new master cell cluster configuration")
+            .With("NewCellTags", makeFormattableCellTagsView(newSecondaryMasterConfigs))
+            .With("ChangedCellTags", makeFormattableCellTagsView(changedSecondaryMasterConfigs))
+            .With("RemovedCellTags", removedSecondaryMasterCellTags);
     }
 };
 
