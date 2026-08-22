@@ -141,12 +141,11 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Row generation statistics "
-            "(TotalValueCount: %v, WriteTimestampCount: %v, DeleteTimestampCount: %v, ColumnValueCounts: %v)",
-            totalValueCount,
-            writeTimestampSet.size(),
-            deleteTimestampSet.size(),
-            MakeFormattableView(
+        YT_TLOG_DEBUG("Row generation statistics")
+            .With("TotalValueCount", totalValueCount)
+            .With("WriteTimestampCount", writeTimestampSet.size())
+            .With("DeleteTimestampCount", deleteTimestampSet.size())
+            .With("ColumnValueCounts", MakeFormattableView(
                 TRange(writeTimestamps.begin(), writeTimestamps.end()),
                 [] (auto* builder, const auto& timestamps) {
                     builder->AppendFormat("%v", timestamps.size());

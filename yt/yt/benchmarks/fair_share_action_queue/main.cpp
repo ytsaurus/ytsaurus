@@ -324,12 +324,12 @@ void BenchmarkThreadPool(size_t iterations, size_t threadCount, size_t taskCount
 
     auto actionCount = iterations * std::min(threadCount, taskCount);
 
-    YT_LOG_DEBUG("WARMUP");
+    YT_TLOG_DEBUG("WARMUP");
 
     // Warmup
     test(actionCount / 10);
 
-    YT_LOG_DEBUG("TESTING");
+    YT_TLOG_DEBUG("TESTING");
 
     auto cpuDuration = test(actionCount);
 
@@ -403,12 +403,12 @@ void BenchmarkFSThreadPool(
 
     auto actionCount = iterations * std::min(threadCount, taskCount);
 
-    YT_LOG_DEBUG("WARMUP");
+    YT_TLOG_DEBUG("WARMUP");
 
     // Warmup
     test(actionCount / 10);
 
-    YT_LOG_DEBUG("TESTING");
+    YT_TLOG_DEBUG("TESTING");
 
     auto cpuDuration = test(actionCount);
 
