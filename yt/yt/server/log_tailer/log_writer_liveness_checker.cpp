@@ -37,23 +37,27 @@ void TLogWriterLivenessChecker::CheckLiveness()
     LastLogWriterLivenessCheckTime_ = TInstant::Now();
 
     auto logWriterPid = *Bootstrap_->GetConfig()->LogRotation->LogWriterPid;
-    YT_LOG_INFO("Checking log writer liveness (LogWriterPid: %v)", logWriterPid);
+    YT_TLOG_INFO("Checking log writer liveness")
+        .With("LogWriterPid", logWriterPid);
 
     int killResult = kill(logWriterPid, 0);
     if (killResult == 0) {
-        YT_LOG_INFO("Log writer is alive (LogWriterPid: %v)", logWriterPid);
+        YT_TLOG_INFO("Log writer is alive")
+            .With("LogWriterPid", logWriterPid);
     } else if (LastSystemError() == ESRCH) {
-        YT_LOG_INFO("Log writer is dead; uploading rest of the log (LogWriterPid: %v)", logWriterPid);
+        YT_TLOG_INFO("Log writer is dead; uploading rest of the log")
+            .With("LogWriterPid", logWriterPid);
         for (const auto& reader : Bootstrap_->GetLogTailer()->GetLogReaders()) {
             reader->OnTermination();
         }
 
-        YT_LOG_INFO("Log writer has stopped; terminating (LogWriterPid: %v)", logWriterPid);
+        YT_TLOG_INFO("Log writer has stopped; terminating")
+            .With("LogWriterPid", logWriterPid);
         Bootstrap_->Abort(ToUnderlying(EProcessExitCode::OK));
     } else {
-        YT_LOG_ERROR("Unexpected kill result (LogWriterPid: %v, KillResult: %v)",
-            logWriterPid,
-            LastSystemErrorText());
+        YT_TLOG_ERROR("Unexpected kill result")
+            .With("LogWriterPid", logWriterPid)
+            .With("KillResult", LastSystemErrorText());
     }
 }
 

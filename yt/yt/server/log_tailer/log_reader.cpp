@@ -131,7 +131,8 @@ TLogFileReader::TLogFileReader(
     for (const auto& tableConfig : Config_->Tables) {
         const auto& path = tableConfig->Path;
         if (!WaitFor(Bootstrap_->GetClient()->NodeExists(path)).ValueOrThrow()) {
-            YT_LOG_FATAL("Log table does not exist; exiting (TablePath: %v)", path);
+            YT_TLOG_FATAL("Log table does not exist; exiting")
+                .With("TablePath", path);
         }
         paths.emplace_back(path);
     }
@@ -140,7 +141,8 @@ TLogFileReader::TLogFileReader(
     try {
         DoOpenLogFile();
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Cannot open log file");
+        YT_TLOG_WARNING("Cannot open log file")
+            .With(ex);
         Log_ = std::nullopt;
     }
 
@@ -177,7 +179,8 @@ void TLogFileReader::OnLogRotation()
     try {
         DoOpenLogFile();
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Cannot reopen log file");
+        YT_TLOG_WARNING("Cannot reopen log file")
+            .With(ex);
         Log_ = std::nullopt;
     }
 }
@@ -194,11 +197,12 @@ i64 TLogFileReader::GetTotalBytesRead() const
 
 void TLogFileReader::DoReadLog()
 {
-    YT_LOG_INFO("Reading started");
+    YT_TLOG_INFO("Reading started");
     try {
         DoOpenLogFile();
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Cannot open log file");
+        YT_TLOG_WARNING("Cannot open log file")
+            .With(ex);
         return;
     }
 
@@ -206,10 +210,11 @@ void TLogFileReader::DoReadLog()
         DoReadBuffer();
         DoWriteRows();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Unexpected error");
+        YT_TLOG_ERROR("Unexpected error")
+            .With(ex);
     }
 
-    YT_LOG_INFO("Reading finished");
+    YT_TLOG_INFO("Reading finished");
 }
 
 void TLogFileReader::DoOpenLogFile()
@@ -217,10 +222,11 @@ void TLogFileReader::DoOpenLogFile()
     if (!Log_) {
         TFile file(TString(Config_->Path), OpenExisting | RdOnly | Seq);
         TFileStat fstat(file.GetHandle());
-        YT_LOG_INFO("Log is not open; trying to open (Inode: %v)", fstat.INode);
+        YT_TLOG_INFO("Log is not open; trying to open")
+            .With("Inode", fstat.INode);
         Log_ = TUnbufferedFileInput(file);
         FileOffset_ = 0;
-        YT_LOG_INFO("File opened");
+        YT_TLOG_INFO("File opened");
     }
 }
 
@@ -229,10 +235,12 @@ void TLogFileReader::DoReadBuffer()
     auto bufferSize = Bootstrap_->GetConfig()->ReadBufferSize;
     TBuffer buffer(bufferSize);
     while (true) {
-        YT_LOG_INFO("Reading from log file");
+        YT_TLOG_INFO("Reading from log file");
         TWallTimer timer;
         int bytesRead = Log_->Read(buffer.data(), bufferSize);
-        YT_LOG_INFO("Read from log file (ByteCount: %v, ElapsedTime: %v)", bytesRead, timer.GetElapsedTime());
+        YT_TLOG_INFO("Read from log file")
+            .With("ByteCount", bytesRead)
+            .With("ElapsedTime", timer.GetElapsedTime());
         if (bytesRead == 0) {
             break;
         }
@@ -245,9 +253,10 @@ void TLogFileReader::DoReadBuffer()
                     try {
                         record = ParseLogRecord(Buffer_);
                     } catch (const std::exception& ex) {
-                        YT_LOG_DEBUG(ex, "Cannot parse log record (Offset: %v, RecordPrefix: %v)",
-                            FileOffset_ + index - Buffer_.size(),
-                            Buffer_.substr(20));
+                        YT_TLOG_DEBUG("Cannot parse log record")
+                            .With("Offset", FileOffset_ + index - Buffer_.size())
+                            .With("RecordPrefix", Buffer_.substr(20))
+                            .With(ex);
                         TotalUnparsedRows_.Increment();
                         Buffer_.clear();
                         continue;
@@ -281,11 +290,11 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
 
     auto boundaryTimestamps = GetBoundaryTimestampString(*recordRange.begin(), *(recordRange.end() - 1));
 
-    YT_LOG_INFO("Processing rows (FirstRecordIncrement: %v, LastRecordIncrement: %v, RecordCount: %v, BoundaryTimestamps: %v)",
-        recordRange.begin()->Increment,
-        (recordRange.end() - 1)->Increment,
-        recordRange.size(),
-        boundaryTimestamps);
+    YT_TLOG_INFO("Processing rows")
+        .With("FirstRecordIncrement", recordRange.begin()->Increment)
+        .With("LastRecordIncrement", (recordRange.end() - 1)->Increment)
+        .With("RecordCount", recordRange.size())
+        .With("BoundaryTimestamps", boundaryTimestamps);
 
     TTransactionStartOptions transactionStartOptions;
     transactionStartOptions.Atomicity = NTransactionClient::EAtomicity::None;
@@ -295,7 +304,8 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             transactionStartOptions));
 
     if (!transactionOrError.IsOK()) {
-        YT_LOG_WARNING(transactionOrError, "Error starting transaction");
+        YT_TLOG_WARNING("Error starting transaction")
+            .With(transactionOrError);
         return false;
     }
 
@@ -326,11 +336,11 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
     for (size_t tableIndex = 0; tableIndex < Config_->Tables.size(); ++tableIndex) {
         const auto& tableConfig = Config_->Tables[tableIndex];
         const auto& rows = rowsPerTable[tableIndex];
-        YT_LOG_DEBUG("Writing rows to table (TableIndex: %v, Path: %v, RowCount: %v, TransactionId: %v)",
-            tableIndex,
-            tableConfig->Path,
-            rows.size(),
-            transaction->GetId());
+        YT_TLOG_DEBUG("Writing rows to table")
+            .With("TableIndex", tableIndex)
+            .With("Path", tableConfig->Path)
+            .With("RowCount", rows.size())
+            .With("TransactionId", transaction->GetId());
         transaction->WriteRows(
             tableConfig->Path,
             LogTableNameTable_,
@@ -341,20 +351,21 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
     RowBuffer_->Clear();
 
     if (commitResultOrError.IsOK()) {
-        YT_LOG_INFO("Rows committed (RecordCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
-            recordRange.size(),
-            transaction->GetId(),
-            timer.GetElapsedTime(),
-            boundaryTimestamps);
+        YT_TLOG_INFO("Rows committed")
+            .With("RecordCount", recordRange.size())
+            .With("TransactionId", transaction->GetId())
+            .With("ElapsedTime", timer.GetElapsedTime())
+            .With("BoundaryTimestamps", boundaryTimestamps);
         TotalRowsWritten_.Increment(rowsToWrite);
         TotalBytesWritten_.Increment(bytesToWrite);
         return true;
     } else {
-        YT_LOG_WARNING(commitResultOrError, "Error committing rows (RecordCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
-            recordRange.size(),
-            transaction->GetId(),
-            timer.GetElapsedTime(),
-            boundaryTimestamps);
+        YT_TLOG_WARNING("Error committing rows")
+            .With("RecordCount", recordRange.size())
+            .With("TransactionId", transaction->GetId())
+            .With("ElapsedTime", timer.GetElapsedTime())
+            .With("BoundaryTimestamps", boundaryTimestamps)
+            .With(commitResultOrError);
         TotalWriteErrors_.Increment();
         return false;
     }
@@ -380,10 +391,12 @@ void TLogFileReader::DoWriteRows()
 
     i64 maxRecordsInBuffer = Bootstrap_->GetConfig()->MaxRecordsInBuffer;
     if (recordsLeftInBuffer > maxRecordsInBuffer) {
-        YT_LOG_WARNING("Too many records in buffer; trimming (RecordCount: %v, MaxRecordCount: %v, TrimmedBoundaryTimestamps: %v)",
-            recordsLeftInBuffer,
-            maxRecordsInBuffer,
-            GetBoundaryTimestampString(*(RecordsBuffer_.end() - recordsLeftInBuffer), *(RecordsBuffer_.end() - maxRecordsInBuffer - 1)));
+        YT_TLOG_WARNING("Too many records in buffer; trimming")
+            .With("RecordCount", recordsLeftInBuffer)
+            .With("MaxRecordCount", maxRecordsInBuffer)
+            .With(
+                "TrimmedBoundaryTimestamps",
+                GetBoundaryTimestampString(*(RecordsBuffer_.end() - recordsLeftInBuffer), *(RecordsBuffer_.end() - maxRecordsInBuffer - 1)));
 
         int rowsToTrim = recordsLeftInBuffer - maxRecordsInBuffer;
         TotalTrimmedRows_.Increment(rowsToTrim);
