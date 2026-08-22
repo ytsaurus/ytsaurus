@@ -730,21 +730,32 @@ private:
         std::vector<std::string> visibleEnvironment;
         visibleEnvironment.reserve(EnvironmentNameValuePairs_.size());
 
+        auto ignoreYTVariablesInShell = Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment();
+        auto enableVaultVariablesInShell = UserJobSpec_.enable_secure_vault_variables_in_job_shell();
         for (const auto& variable : EnvironmentNameValuePairs_) {
-            if (variable.starts_with(NControllerAgent::SecureVaultEnvPrefix) &&
-                !UserJobSpec_.enable_secure_vault_variables_in_job_shell())
-            {
+            if (variable.empty()) {
                 continue;
             }
-            if (JobEnvironmentType_ == EJobEnvironmentType::Cri
-                ? !variable.starts_with("YT_") || !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()
+            if (variable.starts_with("YT_")) {
+                if (ignoreYTVariablesInShell) {
+                    continue;
+                }
+            } else if (JobEnvironmentType_ != EJobEnvironmentType::Cri) {
                 // TODO(ignat, faucct): investigate why $HOME breaks shell start in porto tests
                 // https://github.com/ytsaurus/ytsaurus/pull/1041#issuecomment-2608440987
-                : variable.starts_with("YT_") && !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment())
-            {
-                shellEnvironment.push_back(variable);
+                continue;
             }
-            visibleEnvironment.push_back(variable);
+            if (variable.starts_with(NControllerAgent::SecureVaultEnvPrefix)) {
+                if (!enableVaultVariablesInShell) {
+                    continue;
+                }
+                if (auto sep = variable.find('='); sep != TString::npos) {
+                    visibleEnvironment.push_back(variable.substr(0, sep));
+                }
+            } else {
+                visibleEnvironment.push_back(variable);
+            }
+            shellEnvironment.push_back(variable);
         }
 
         auto shellManagerUid = UserId_;
