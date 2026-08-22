@@ -123,6 +123,10 @@ private:
             .FullSync = fullSync
         };
 
+        asyncAlienClusterInfos.reserve(descriptorsMap.size());
+        clusterIndexes.reserve(descriptorsMap.size());
+        clusterNames.reserve(descriptorsMap.size());
+        clients.reserve(descriptorsMap.size());
         for (auto& [alienClusterIndex, descriptors] : descriptorsMap) {
             auto clusterName = GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex);
             if (auto client = GetAlienClusterClient(clusterName)) {
@@ -137,7 +141,7 @@ private:
         YT_LOG_DEBUG("Syncing alien cells (AlienClusters: %v)",
             clusterNames);
 
-        auto alienClusterInfosOrError = WaitFor(AllSet(asyncAlienClusterInfos));
+        auto alienClusterInfosOrError = WaitFor(AllSet(std::move(asyncAlienClusterInfos)));
         if (!alienClusterInfosOrError.IsOK()) {
             YT_LOG_DEBUG(alienClusterInfosOrError, "Error synchronizing alien cells");
             return;
@@ -147,6 +151,7 @@ private:
         std::vector<TAlienCellConstellation> constellations;
         YT_VERIFY(alienClusterInfos.size() == clusterIndexes.size());
 
+        constellations.reserve(alienClusterInfos.size());
         for (int index = 0; index < std::ssize(clusterIndexes); ++index) {
             const auto& alienClusterInfoOrError = alienClusterInfos[index];
             const auto& alienClusterIndex = clusterIndexes[index];
