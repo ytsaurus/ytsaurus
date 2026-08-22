@@ -942,7 +942,7 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
     }
 
     CHUNK_COUNT = 4
-    BANDWIDTH_LIMIT = 10 ** 6
+    BANDWIDTH_LIMIT = 4 * 10 ** 6
     THROTTLER_JITTER_MULTIPLIER = 0.5
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
