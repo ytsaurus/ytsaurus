@@ -85,13 +85,13 @@ public:
             sessionId));
 
         EmplaceOrCrash(Sequencers_, sessionId, std::pair(sequencer, std::move(lease)));
-        YT_LOG_INFO(
-            "Sequencer started (SessionId: %v, SessionTimeout: %v)",
-            sessionId,
-            sessionTimeout);
+        YT_TLOG_INFO("Sequencer started")
+            .With("SessionId", sessionId)
+            .With("SessionTimeout", sessionTimeout);
 
         return sequencer->Open().Apply(BIND([sessionId] () {
-            YT_LOG_INFO("Sequencer opened (SessionId: %v)", sessionId);
+            YT_TLOG_INFO("Sequencer opened")
+                .With("SessionId", sessionId);
             return;
         }));
     }
@@ -155,9 +155,12 @@ private:
         if (!sequencer) {
             return;
         }
-        YT_LOG_INFO("Sequencer lease expired, closing (SessionId: %v)", sessionId);
+        YT_TLOG_INFO("Sequencer lease expired, closing")
+            .With("SessionId", sessionId);
         sequencer->Close().Subscribe(BIND_NO_PROPAGATE([sessionId] (const TError& error) {
-            YT_LOG_INFO(error, "Sequencer session has been closed (SessionId: %v)", sessionId);
+            YT_TLOG_INFO("Sequencer session has been closed")
+                .With("SessionId", sessionId)
+                .With(error);
         }));
     }
 
@@ -165,7 +168,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_INFO(error, "Sequencer finished (SessionId: %v)", sessionId);
+        YT_TLOG_INFO("Sequencer finished")
+            .With("SessionId", sessionId)
+            .With(error);
 
         IDistributedChunkSessionSequencerPtr sequencer;
         auto guard = WriterGuard(SequencerMapLock_);

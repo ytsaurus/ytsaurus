@@ -293,9 +293,9 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (Finalizing_) {
-            YT_LOG_DEBUG("Peer is finalized (CellId: %v, State: %v)",
-                GetCellId(),
-                EPeerState::Stopped);
+            YT_TLOG_DEBUG("Peer is finalized")
+                .With("CellId", GetCellId())
+                .With("State", EPeerState::Stopped);
             return EPeerState::Stopped;
         }
 
@@ -304,9 +304,9 @@ public:
         }
 
         if (Initialized_) {
-            YT_LOG_DEBUG("Peer is not initialized yet (CellId: %v, State: %v)",
-                GetCellId(),
-                EPeerState::Stopped);
+            YT_TLOG_DEBUG("Peer is not initialized yet")
+                .With("CellId", GetCellId())
+                .With("State", EPeerState::Stopped);
             return EPeerState::Stopped;
         }
 
@@ -423,7 +423,7 @@ public:
 
         Initialized_ = true;
 
-        YT_LOG_INFO("Cellar occupant initialized");
+        YT_TLOG_INFO("Cellar occupant initialized");
     }
 
     bool CanConfigure() const override
@@ -499,9 +499,9 @@ public:
         if (configureInfo.has_peer_id()) {
             int peerId = configureInfo.peer_id();
             if (PeerId_ != peerId) {
-                YT_LOG_DEBUG("Peer id updated (PeerId: %v -> %v)",
-                    PeerId_,
-                    peerId);
+                YT_TLOG_DEBUG("Peer id updated")
+                    .With("OldPeerId", PeerId_)
+                    .With("NewPeerId", peerId);
 
                 PeerId_ = peerId;
 
@@ -511,8 +511,8 @@ public:
         }
 
         if (configureInfo.has_options()) {
-            YT_LOG_DEBUG("Dynamic cell options updated (Options: %v)",
-                ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).AsStringBuf());
+            YT_TLOG_DEBUG("Dynamic cell options updated")
+                .With("Options", ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).AsStringBuf());
             Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(configureInfo.options()));
         }
 
@@ -522,9 +522,9 @@ public:
 
         auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
         if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {
-            YT_LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
-                PrerequisiteTransactionId_,
-                newPrerequisiteTransactionId);
+            YT_TLOG_INFO("Prerequisite transaction updated")
+                .With("OldTransactionId", PrerequisiteTransactionId_)
+                .With("NewTransactionId", newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
             if (ElectionManager_) {
                 YT_UNUSED_FUTURE(ElectionManager_->Abandon(TError("Cell slot reconfigured")));
@@ -537,8 +537,8 @@ public:
             TTransactionAttachOptions attachOptions;
             attachOptions.Ping = false;
             PrerequisiteTransaction_ = client->AttachTransaction(PrerequisiteTransactionId_, attachOptions);
-            YT_LOG_INFO("Prerequisite transaction attached (TransactionId: %v)",
-                PrerequisiteTransactionId_);
+            YT_TLOG_INFO("Prerequisite transaction attached")
+                .With("TransactionId", PrerequisiteTransactionId_);
         }
 
         // COMPAT(akozhikhov)
@@ -588,8 +588,8 @@ public:
             slotHydraManager->SetDynamicOptions(hydraManagerDynamicOptions);
             ElectionManager_->ReconfigureCell(CellManager_);
 
-            YT_LOG_INFO("Cellar occupant reconfigured (ConfigVersion: %v)",
-                CellDescriptor_.ConfigVersion);
+            YT_TLOG_INFO("Cellar occupant reconfigured")
+                .With("ConfigVersion", CellDescriptor_.ConfigVersion);
         } else {
             Automaton_ = occupier->CreateAutomaton();
 
@@ -725,8 +725,8 @@ public:
             OrchidService_ = occupier->PopulateOrchidService(CreateOrchidService())
                 ->Via(Bootstrap_->GetControlInvoker());
 
-            YT_LOG_INFO("Cellar occupant configured (ConfigVersion: %v)",
-                CellDescriptor_.ConfigVersion);
+            YT_TLOG_INFO("Cellar occupant configured")
+                .With("ConfigVersion", CellDescriptor_.ConfigVersion);
         }
     }
 
@@ -751,9 +751,9 @@ public:
         auto updateVersion = updateInfo.dynamic_config_version();
 
         if (DynamicConfigVersion_ >= updateVersion) {
-            YT_LOG_DEBUG("Received outdated dynamic config update (DynamicConfigVersion: %v, UpdateVersion: %v)",
-                DynamicConfigVersion_,
-                updateVersion);
+            YT_TLOG_DEBUG("Received outdated dynamic config update")
+                .With("DynamicConfigVersion", DynamicConfigVersion_)
+                .With("UpdateVersion", updateVersion);
             return;
         }
 
@@ -777,11 +777,12 @@ public:
             DynamicConfigVersion_ = updateInfo.dynamic_config_version();
             DynamicOptions_.Store(std::move(dynamicOptions));
 
-            YT_LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
-                DynamicConfigVersion_);
+            YT_TLOG_DEBUG("Updated dynamic config")
+                .With("DynamicConfigVersion", DynamicConfigVersion_);
         } catch (const std::exception& ex) {
             // TODO(savrus): Write this to cell errors once we have them.
-            YT_LOG_ERROR(ex, "Error while updating dynamic config");
+            YT_TLOG_ERROR("Error while updating dynamic config")
+                .With(ex);
         }
     }
 
@@ -810,7 +811,7 @@ public:
             return FinalizeResult_;
         }
 
-        YT_LOG_INFO("Finalizing cellar occupant");
+        YT_TLOG_INFO("Finalizing cellar occupant");
 
         Finalizing_ = true;
 
@@ -1002,7 +1003,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (PrerequisiteTransaction_) {
-            YT_LOG_DEBUG("Checking prerequisite transaction");
+            YT_TLOG_DEBUG("Checking prerequisite transaction");
             TPrerequisitePingOptions options{
                 .EnableRetries = true
             };
@@ -1083,9 +1084,9 @@ private:
     {
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
 
-        YT_LOG_INFO("Configure cell timestamp provider (ClockClusterTag: %v, ClusterTag: %v)",
-            clockClusterTag,
-            connection->GetClusterTag());
+        YT_TLOG_INFO("Configure cell timestamp provider")
+            .With("ClockClusterTag", clockClusterTag)
+            .With("ClusterTag", connection->GetClusterTag());
 
         TimestampProvider_ = clockClusterTag == connection->GetClusterTag()
             ? connection->GetTimestampProvider()

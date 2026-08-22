@@ -36,21 +36,19 @@ public:
         , Logger(std::move(logger))
     {
         SwitchDominantResource(EResourceKind::DataWeight);
-        YT_LOG_DEBUG(
-            "Job size tracker instantiated (LocalLimitVector: %v, HysteresizedLocalLimitVector: %v, CumulativeLimitVector: %v)",
-            LocalLimitVector_,
-            HysteresizedLocalLimitVector_,
-            CumulativeLimitVector_);
+        YT_TLOG_DEBUG("Job size tracker instantiated")
+            .With("LocalLimitVector", LocalLimitVector_)
+            .With("HysteresizedLocalLimitVector", HysteresizedLocalLimitVector_)
+            .With("CumulativeLimitVector", CumulativeLimitVector_);
     }
 
     void AccountSlice(TResourceVector vector) override
     {
         LocalVector_ += vector;
         CumulativeVector_ += vector;
-        YT_LOG_TRACE(
-            "Slice accounted (LocalVector: %v, CumulativeVector: %v)",
-            LocalVector_,
-            CumulativeVector_);
+        YT_TLOG_TRACE("Slice accounted")
+            .With("LocalVector", LocalVector_)
+            .With("CumulativeVector", CumulativeVector_);
     }
 
     double SuggestRowSplitFraction(TResourceVector vector) const override
@@ -105,21 +103,18 @@ public:
         if (result) {
             result->FlushIndex = FlushIndex_;
 
-            YT_LOG_TRACE(
-                "Overflow detected (ExtraVector: %v, LocalVector: %v, CumulativeVector: %v, LocalLimitVector: %v, "
-                "HysteresizedLocalLimitVector: %v, CumulativeLimitVector: %v, LocalGap: %v, CumulativeGap: %v, OverflowIsLocal: %v, "
-                "OverflowResource: %v, FlushIndex: %v)",
-                extraVector,
-                LocalVector_,
-                CumulativeVector_,
-                LocalLimitVector_,
-                HysteresizedLocalLimitVector_,
-                CumulativeLimitVector_,
-                GetLocalGap(),
-                GetCumulativeGap(),
-                result->IsLocal,
-                result->OverflownResource,
-                FlushIndex_);
+            YT_TLOG_TRACE("Overflow detected")
+                .With("ExtraVector", extraVector)
+                .With("LocalVector", LocalVector_)
+                .With("CumulativeVector", CumulativeVector_)
+                .With("LocalLimitVector", LocalLimitVector_)
+                .With("HysteresizedLocalLimitVector", HysteresizedLocalLimitVector_)
+                .With("CumulativeLimitVector", CumulativeLimitVector_)
+                .With("LocalGap", GetLocalGap())
+                .With("CumulativeGap", GetCumulativeGap())
+                .With("OverflowIsLocal", result->IsLocal)
+                .With("OverflowResource", result->OverflownResource)
+                .With("FlushIndex", FlushIndex_);
             return *result;
         }
 
@@ -133,11 +128,10 @@ public:
             typedToken = std::any_cast<TOverflowToken>(*overflowToken);
         }
 
-        YT_LOG_TRACE(
-            "Flushing job size tracker (LocalVector: %v, OverflowToken: %v, FlushIndex: %v)",
-            LocalVector_,
-            typedToken.has_value() ? std::optional(FormatToken(*typedToken)) : std::nullopt,
-            FlushIndex_);
+        YT_TLOG_TRACE("Flushing job size tracker")
+            .With("LocalVector", LocalVector_)
+            .With("OverflowToken", typedToken.has_value() ? std::optional(FormatToken(*typedToken)) : std::nullopt)
+            .With("FlushIndex", FlushIndex_);
 
         YT_VERIFY(!typedToken.has_value() || typedToken->FlushIndex == FlushIndex_);
 
@@ -160,14 +154,11 @@ public:
                 ++LimitProgressionOffset_;
             }
 
-            YT_LOG_TRACE(
-                "Limit progression iteration (LimitProgressionLength: %v/%v, LimitProgressionOffset: %v/%v, LocalLimitVector: %v, HysteresizedLocalLimitVector: %v)",
-                LimitProgressionLength_,
-                Options_.LimitProgressionLength,
-                LimitProgressionOffset_,
-                Options_.LimitProgressionOffset,
-                LocalLimitVector_,
-                HysteresizedLocalLimitVector_);
+            YT_TLOG_TRACE("Limit progression iteration")
+                .WithFormat("LimitProgressionLength", "%v/%v", LimitProgressionLength_, Options_.LimitProgressionLength)
+                .WithFormat("LimitProgressionOffset", "%v/%v", LimitProgressionOffset_, Options_.LimitProgressionOffset)
+                .With("LocalLimitVector", LocalLimitVector_)
+                .With("HysteresizedLocalLimitVector", HysteresizedLocalLimitVector_);
         }
 
         YT_VERIFY(!typedToken->IsLocal || typedToken->OverflownResource != DominantResource_);
@@ -216,10 +207,9 @@ private:
             SwitchDominantResource(dominantResource);
         }
 
-        YT_LOG_TRACE(
-            "New run started (DominantResource: %v, CumulativeLimitVector: %v)",
-            DominantResource_,
-            CumulativeLimitVector_);
+        YT_TLOG_TRACE("New run started")
+            .With("DominantResource", DominantResource_)
+            .With("CumulativeLimitVector", CumulativeLimitVector_);
     }
 
     void SwitchDominantResource(EResourceKind dominantResource)
@@ -229,11 +219,10 @@ private:
         HysteresizedLocalLimitVector_ = LocalLimitVector_ * HysteresisFactor;
         HysteresizedLocalLimitVector_.Values[DominantResource_] = std::numeric_limits<i64>::max();
         HysteresizedLocalLimitVector_ = SafeClamp(HysteresizedLocalLimitVector_);
-        YT_LOG_DEBUG(
-            "Switching dominant resource (Resource: %v -> %v, HysteresizedLocalLimitVector: %v)",
-            oldDominantResource,
-            DominantResource_,
-            HysteresizedLocalLimitVector_);
+        YT_TLOG_DEBUG("Switching dominant resource")
+            .With("OldResource", oldDominantResource)
+            .With("NewResource", DominantResource_)
+            .With("HysteresizedLocalLimitVector", HysteresizedLocalLimitVector_);
     }
 
     TResourceVector GetLocalGap() const

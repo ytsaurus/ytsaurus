@@ -44,9 +44,9 @@ public:
 
     ~TChunkHandler()
     {
-        YT_LOG_DEBUG("Destroying chunk handler (Size: %v, FsType: %v)",
-            Config_->Size,
-            Config_->FsType);
+        YT_TLOG_DEBUG("Destroying chunk handler")
+            .With("Size", Config_->Size)
+            .With("FsType", Config_->FsType);
     }
 
     TFuture<void> Initialize() override
@@ -56,14 +56,15 @@ public:
             return InitializeFuture_;
         }
 
-        YT_LOG_DEBUG("Initializing chunk handler");
+        YT_TLOG_DEBUG("Initializing chunk handler");
 
         InitializeFuture_ = DoInitialize();
         InitializeFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)](const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_DEBUG("Initialized chunk handler");
+                YT_TLOG_DEBUG("Initialized chunk handler");
             } else {
-                YT_LOG_ERROR(error, "Failed to initialize chunk handler");
+                YT_TLOG_ERROR("Failed to initialize chunk handler")
+                    .With(error);
             }
         }));
         return InitializeFuture_;
@@ -76,14 +77,15 @@ public:
             return FinalizeFuture_;
         }
 
-        YT_LOG_DEBUG("Finalizing chunk handler");
+        YT_TLOG_DEBUG("Finalizing chunk handler");
 
         FinalizeFuture_ = DoFinalize();
         FinalizeFuture_.Subscribe(BIND([this, this_ = MakeStrong(this)](const TError& error) {
             if (error.IsOK()) {
-                YT_LOG_DEBUG("Finalized chunk handler");
+                YT_TLOG_DEBUG("Finalized chunk handler");
             } else {
-                YT_LOG_ERROR(error, "Failed to finalize chunk handler");
+                YT_TLOG_ERROR("Failed to finalize chunk handler")
+                    .With(error);
             }
         }));
         return FinalizeFuture_;
@@ -92,13 +94,13 @@ public:
     TFuture<void> Flush(const TFlushOptions& options) override
     {
         if (State_ != EState::Initialized) {
-            YT_LOG_DEBUG("Can not flush uninitialized chunk handler (Cookie: %x)",
-                options.Cookie);
+            YT_TLOG_DEBUG("Can not flush uninitialized chunk handler")
+                .WithFormat("Cookie", "%x", options.Cookie);
             return OKFuture;
         }
 
-        YT_LOG_DEBUG("Flushing chunk handler (Cookie: %x)",
-            options.Cookie);
+        YT_TLOG_DEBUG("Flushing chunk handler")
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         auto req = Proxy_.Flush();
         req->SetRequestInfo("ChunkId: %v, Cookie: %x",
@@ -114,17 +116,18 @@ public:
         auto startTime = TInstant::Now();
         return req->Invoke().Apply(BIND([startTime, Logger = Logger] (const TErrorOr<TDataNodeNbdServiceProxy::TRspFlushPtr>& rspOrError) {
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-            YT_LOG_DEBUG("Flushed chunk handler (Duration: %v)", TInstant::Now() - startTime);
+            YT_TLOG_DEBUG("Flushed chunk handler")
+                .With("Duration", TInstant::Now() - startTime);
         }));
     }
 
     TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
         if (State_ != EState::Initialized) {
-            YT_LOG_ERROR("Can not read from uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %x)",
-                offset,
-                length,
-                options.Cookie);
+            YT_TLOG_ERROR("Can not read from uninitialized chunk handler")
+                .With("Offset", offset)
+                .With("Length", length)
+                .WithFormat("Cookie", "%x", options.Cookie);
 
             THROW_ERROR_EXCEPTION("Read from uninitialized chunk handler")
                 .With("chunk_id", SessionId_.ChunkId)
@@ -163,10 +166,10 @@ public:
     TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
         if (State_ != EState::Initialized) {
-            YT_LOG_ERROR("Can not write to uninitialized chunk handler (Offset: %v, Length: %v, Cookie: %x)",
-                offset,
-                data.size(),
-                options.Cookie);
+            YT_TLOG_ERROR("Can not write to uninitialized chunk handler")
+                .With("Offset", offset)
+                .With("Length", data.size())
+                .WithFormat("Cookie", "%x", options.Cookie);
 
             THROW_ERROR_EXCEPTION("Write to uninitialized chunk handler")
                 .With("chunk_id", SessionId_.ChunkId)
@@ -315,7 +318,8 @@ private:
                 .With("fs_type", Config_->FsType)
                 .With("actual_state", expected)
                 .With("expected_state", EState::Uninitialized);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Can not initialize chunk handler in non-uninitialized state")
+                .With(error);
             return MakeFuture(error);
         }
 
@@ -356,7 +360,8 @@ private:
                 .With("fs_type", Config_->FsType)
                 .With("actual_state", expected)
                 .With("expected_state", EState::Initialized);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Can not finalize chunk handler in non-initialized state")
+                .With(error);
             return MakeFuture(error);
         }
 
@@ -379,7 +384,7 @@ private:
 
     void KeepSessionAlive()
     {
-        YT_LOG_DEBUG("Sending keep alive request");
+        YT_TLOG_DEBUG("Sending keep alive request");
 
         auto req = Proxy_.KeepSessionAlive();
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
@@ -391,10 +396,11 @@ private:
 
         if (!rspOrError.IsOK()) {
             // Only log error since it might be caused by intermittent problems.
-            YT_LOG_ERROR(rspOrError, "Keep alive request failed");
+            YT_TLOG_ERROR("Keep alive request failed")
+                .With(rspOrError);
         } else {
-            YT_LOG_DEBUG("Received keep alive response (ShouldCloseSession: %v)",
-                rspOrError.Value()->should_close_session());
+            YT_TLOG_DEBUG("Received keep alive response")
+                .With("ShouldCloseSession", rspOrError.Value()->should_close_session());
 
             if (rspOrError.Value()->should_close_session()) {
                 BlockDevice_->SetError(TError("Stop using device"));

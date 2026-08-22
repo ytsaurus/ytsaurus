@@ -62,16 +62,16 @@ public:
     {
         ReadBytes_ += length;
 
-        YT_LOG_DEBUG("Start read from file (Offset: %v, Length: %v, Cookie: %x)",
-            offset,
-            length,
-            options.Cookie);
+        YT_TLOG_DEBUG("Start read from file")
+            .With("Offset", offset)
+            .With("Length", length)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish read from file (Offset: %v, Length: %v, Cookie: %x)",
-                offset,
-                length,
-                options.Cookie);
+            YT_TLOG_DEBUG("Finish read from file")
+                .With("Offset", offset)
+                .With("Length", length)
+                .WithFormat("Cookie", "%x", options.Cookie);
             return MakeFuture<TSharedRef>({});
         }
 
@@ -88,11 +88,11 @@ public:
 
             // Merge refs into single ref.
             auto mergedRefs = MergeRefsToRef<TRandomAccessFileReaderTag>(refs);
-            YT_LOG_DEBUG("Finish read from file (Offset: %v, ExpectedLength: %v, ResultLength: %v, Cookie: %x)",
-                offset,
-                length,
-                mergedRefs.Size(),
-                options.Cookie);
+            YT_TLOG_DEBUG("Finish read from file")
+                .With("Offset", offset)
+                .With("ExpectedLength", length)
+                .With("ResultLength", mergedRefs.Size())
+                .WithFormat("Cookie", "%x", options.Cookie);
             return mergedRefs;
         }).AsyncVia(Invoker_));
     }
@@ -214,8 +214,8 @@ private:
             return chunk.BlocksExtFuture;
         }
 
-        YT_LOG_INFO("Start fetching chunk meta blocks extension (Chunk: %v)",
-            chunk.Index);
+        YT_TLOG_INFO("Start fetching chunk meta blocks extension")
+            .With("Chunk", chunk.Index);
 
         std::vector<int> extensionTags = {TProtoExtensionTag<NFileClient::NProto::TBlocksExt>::Value};
         auto index = chunk.Index;
@@ -237,9 +237,9 @@ private:
                     blockOffset += blockInfo.size();
                 }
 
-                YT_LOG_INFO("Finish fetching chunk meta blocks extension (Chunk: %v, BlockInfoCount: %v)",
-                    index,
-                    blocksExt.blocks_size());
+                YT_TLOG_INFO("Finish fetching chunk meta blocks extension")
+                    .With("Chunk", index)
+                    .With("BlockInfoCount", blocksExt.blocks_size());
                 return blocks;
             }));
 
@@ -253,12 +253,12 @@ private:
         i64 length,
         const TReadOptions& options)
     {
-        YT_LOG_DEBUG("Read from chunk (Chunk: %v, ChunkSize: %v, Offset: %v, Length: %v, Cookie: %x)",
-            chunk.Index,
-            chunk.Size,
-            offset,
-            length,
-            options.Cookie);
+        YT_TLOG_DEBUG("Read from chunk")
+            .With("Chunk", chunk.Index)
+            .With("ChunkSize", chunk.Size)
+            .With("Offset", offset)
+            .With("Length", length)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         if (offset + length > chunk.Size) {
             THROW_ERROR_EXCEPTION(
@@ -366,13 +366,13 @@ private:
                 YT_VERIFY(sizeWithinBlock <= blockSize);
                 YT_VERIFY(sizeWithinBlock <= length);
 
-                YT_LOG_DEBUG("Read from block (Chunk: %v, Block: %v, Begin: %v, End: %v, Size %v, Cookie: %x)",
-                    index,
-                    blockIndex,
-                    beginWithinBlock,
-                    endWithinBlock,
-                    sizeWithinBlock,
-                    cookie);
+                YT_TLOG_DEBUG("Read from block")
+                    .With("Chunk", index)
+                    .With("Block", blockIndex)
+                    .With("Begin", beginWithinBlock)
+                    .With("End", endWithinBlock)
+                    .With("Size", sizeWithinBlock)
+                    .WithFormat("Cookie", "%x", cookie);
 
                 auto ref = blocks[i].Data.Slice(
                     beginWithinBlock,
@@ -390,8 +390,8 @@ private:
 
     void InitializeChunks()
     {
-        YT_LOG_INFO("Initializing chunks (Count: %v)",
-            ChunkSpecs_.size());
+        YT_TLOG_INFO("Initializing chunks")
+            .With("Count", ChunkSpecs_.size());
 
         auto readerConfig = New<TReplicationReaderConfig>();
         readerConfig->UseBlockCache = true;
@@ -415,8 +415,8 @@ private:
                     Path_);
             }
 
-            YT_LOG_INFO("Creating chunk reader (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_INFO("Creating chunk reader")
+                .With("ChunkId", chunkId);
 
             Chunks_.push_back({
                 .Index = chunkIndex,
@@ -450,8 +450,8 @@ private:
         WaitFor(AllSucceeded(std::move(blocksExtFutures)))
             .ThrowOnError();
 
-        YT_LOG_INFO("Initialized chunks (Count: %v)",
-            Chunks_.size());
+        YT_TLOG_INFO("Initialized chunks")
+            .With("Count", Chunks_.size());
     }
 };
 

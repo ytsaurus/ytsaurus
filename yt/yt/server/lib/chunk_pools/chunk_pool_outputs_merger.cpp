@@ -63,7 +63,8 @@ public:
 
         UpdateCounters();
 
-        YT_LOG_INFO("Chunk pool outputs merger created (PoolCount: %v)", ChunkPools_.size());
+        YT_TLOG_INFO("Chunk pool outputs merger created")
+            .With("PoolCount", ChunkPools_.size());
     }
 
     TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
@@ -74,13 +75,15 @@ public:
             result.insert(result.end(), poolStats.begin(), poolStats.end());
         }
 
-        YT_LOG_TRACE("Retrieved approximate stripe statistics (TotalStripes: %v)", result.size());
+        YT_TLOG_TRACE("Retrieved approximate stripe statistics")
+            .With("TotalStripes", result.size());
         return result;
     }
 
     TCookie Extract(TNodeId nodeId) override
     {
-        YT_LOG_DEBUG("Extracting job (NodeId: %v)", nodeId);
+        YT_TLOG_DEBUG("Extracting job")
+            .With("NodeId", nodeId);
 
         if (JobCounter_->GetPending() == 0) {
             return NullCookie;
@@ -90,7 +93,8 @@ public:
 
         ExtractedCookie_ = static_cast<TCookie>(RandomNumber<ui32>(std::numeric_limits<TCookie>::max()));
 
-        YT_LOG_DEBUG("Generated cookie (Cookie: %v)", ExtractedCookie_);
+        YT_TLOG_DEBUG("Generated cookie")
+            .With("Cookie", ExtractedCookie_);
 
         UnderlyingChunkPoolCookies_.clear();
         UnderlyingChunkPoolCookies_.resize(ChunkPools_.size());
@@ -107,11 +111,9 @@ public:
                     stripeLists.push_back(chunkPool->GetStripeList(cookie));
                 }
 
-                YT_LOG_DEBUG_IF(
-                    !UnderlyingChunkPoolCookies_[poolIndex].empty(),
-                    "Extracted cookies from pool (PoolIndex: %v, ExtractedCount: %v)",
-                    poolIndex,
-                    std::ssize(UnderlyingChunkPoolCookies_[poolIndex]));
+                YT_TLOG_DEBUG_IF(!UnderlyingChunkPoolCookies_[poolIndex].empty(), "Extracted cookies from pool")
+                    .With("PoolIndex", poolIndex)
+                    .With("ExtractedCount", std::ssize(UnderlyingChunkPoolCookies_[poolIndex]));
 
                 const auto& jobCounter = chunkPool->GetJobCounter();
                 YT_VERIFY(jobCounter->GetTotal() == std::ssize(UnderlyingChunkPoolCookies_[poolIndex]));
@@ -126,19 +128,19 @@ public:
         IsRunning_ = true;
         UpdateCounters();
 
-        YT_LOG_DEBUG(
-            "Job extracted (Cookie: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
-            ExtractedCookie_,
-            statistics.DataWeight,
-            statistics.RowCount,
-            ExtractedChunkStripeList_->GetSliceCount());
+        YT_TLOG_DEBUG("Job extracted")
+            .With("Cookie", ExtractedCookie_)
+            .With("DataWeight", statistics.DataWeight)
+            .With("RowCount", statistics.RowCount)
+            .With("SliceCount", ExtractedChunkStripeList_->GetSliceCount());
 
         return ExtractedCookie_;
     }
 
     TChunkStripeListPtr GetStripeList(TCookie cookie) override
     {
-        YT_LOG_TRACE("Getting stripe list (Cookie: %v)", cookie);
+        YT_TLOG_TRACE("Getting stripe list")
+            .With("Cookie", cookie);
 
         VerifyExtractedCookieState(cookie, /*shouldBeRunning*/ true, /*shouldBeCompleted*/ false);
         YT_VERIFY(std::ssize(UnderlyingChunkPoolCookies_) == std::ssize(ChunkPools_));
@@ -163,10 +165,9 @@ public:
             }
         }
 
-        YT_LOG_TRACE(
-            "Retrieved stripe list slice count (Cookie: %v, TotalSlices: %v)",
-            cookie,
-            totalSlices);
+        YT_TLOG_TRACE("Retrieved stripe list slice count")
+            .With("Cookie", cookie)
+            .With("TotalSlices", totalSlices);
 
         return totalSlices;
     }
@@ -188,7 +189,8 @@ public:
                 const auto& jobCounter = chunkPool->GetJobCounter();
                 YT_VERIFY(jobCounter->GetTotal() == jobCounter->GetCompletedTotal());
 
-                YT_LOG_DEBUG("Completed pool (PoolIndex: %v)", poolIndex);
+                YT_TLOG_DEBUG("Completed pool")
+                    .With("PoolIndex", poolIndex);
             }
         });
 
@@ -197,7 +199,8 @@ public:
         IsRunning_ = false;
         UpdateCounters();
 
-        YT_LOG_DEBUG("Job completed (Cookie: %v)", cookie);
+        YT_TLOG_DEBUG("Job completed")
+            .With("Cookie", cookie);
     }
 
     void Failed(TCookie cookie) override
@@ -218,7 +221,8 @@ public:
         ExtractedChunkStripeList_.Reset();
         ExtractedCookie_ = IChunkPoolOutput::NullCookie;
 
-        YT_LOG_DEBUG("Job failed (Cookie: %v)", cookie);
+        YT_TLOG_DEBUG("Job failed")
+            .With("Cookie", cookie);
     }
 
     void Aborted(TCookie cookie, EAbortReason reason) override
@@ -239,7 +243,8 @@ public:
         ExtractedChunkStripeList_.Reset();
         ExtractedCookie_ = IChunkPoolOutput::NullCookie;
 
-        YT_LOG_DEBUG("Job aborted (Cookie: %v)", cookie);
+        YT_TLOG_DEBUG("Job aborted")
+            .With("Cookie", cookie);
     }
 
     void Lost(TCookie cookie) override
@@ -258,7 +263,8 @@ public:
 
         UpdateCounters();
 
-        YT_LOG_DEBUG("Job lost (Cookie: %v)", cookie);
+        YT_TLOG_DEBUG("Job lost")
+            .With("Cookie", cookie);
     }
 
     bool IsSplittable(TCookie /*cookie*/) const override
@@ -349,7 +355,9 @@ private:
 
                 YT_VERIFY(!chunkPool->IsCompleted());
 
-                YT_LOG_DEBUG("%v pool (PoolIndex: %v)", actionName, poolIndex);
+                YT_TLOG_DEBUG("Applied action to pool")
+                    .With("Action", actionName)
+                    .With("PoolIndex", poolIndex);
             }
         });
     }
@@ -386,10 +394,10 @@ private:
         IsCompleted_ = std::ranges::all_of(ChunkPools_, [] (const auto& chunkPool) { return chunkPool->IsCompleted(); });
 
         if (!wasCompleted && IsCompleted_) {
-            YT_LOG_DEBUG("All pools completed, firing completed callback");
+            YT_TLOG_DEBUG("All pools completed, firing completed callback");
             Completed_.Fire();
         } else if (wasCompleted && !IsCompleted_) {
-            YT_LOG_DEBUG("Some pools become uncompleted, firing uncompleted callback");
+            YT_TLOG_DEBUG("Some pools become uncompleted, firing uncompleted callback");
             Uncompleted_.Fire();
         }
     }
@@ -398,15 +406,14 @@ private:
     {
         // May be disabled when counters may be inconsistent.
         if (DisableUpdate_) {
-            YT_LOG_TRACE("Counter update disabled, skipping");
+            YT_TLOG_TRACE("Counter update disabled, skipping");
             return;
         }
 
-        YT_LOG_TRACE(
-            "Updating counters (IsRunning: %v, IsCompleted: %v, ParentJobCounter: %v)",
-            IsRunning_,
-            IsCompleted_,
-            ParentJobCounter_);
+        YT_TLOG_TRACE("Updating counters")
+            .With("IsRunning", IsRunning_)
+            .With("IsCompleted", IsCompleted_)
+            .With("ParentJobCounter", ParentJobCounter_);
 
         auto verifyCompletedZero = [&] {
             for (auto* counter : GetAllParentCounters()) {
@@ -428,13 +435,13 @@ private:
             CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, EProgressCategory::Running);
 
 
-            YT_LOG_TRACE("Counters updated in running state");
+            YT_TLOG_TRACE("Counters updated in running state");
         } else if (IsCompleted_) {
             YT_VERIFY(ParentJobCounter_->GetTotal() == ParentJobCounter_->GetCompletedTotal());
 
             CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, EProgressCategory::Completed);
 
-            YT_LOG_TRACE("Counters updated in completed state");
+            YT_TLOG_TRACE("Counters updated in completed state");
         } else if (ParentJobCounter_->GetTotal() == ParentJobCounter_->GetPending()) {
             verifyCompletedZero();
 
@@ -445,12 +452,11 @@ private:
 
             CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, EProgressCategory::Pending);
 
-            YT_LOG_TRACE(
-                "Counters updated in pending state (JobPending: %v, DataWeightPending: %v, RowPending: %v, SlicePending: %v)",
-                JobCounter_->GetPending(),
-                DataWeightCounter_->GetPending(),
-                RowCounter_->GetPending(),
-                DataSliceCounter_->GetPending());
+            YT_TLOG_TRACE("Counters updated in pending state")
+                .With("JobPending", JobCounter_->GetPending())
+                .With("DataWeightPending", DataWeightCounter_->GetPending())
+                .With("RowPending", RowCounter_->GetPending())
+                .With("SlicePending", DataSliceCounter_->GetPending());
         } else {
             verifyCompletedZero();
 
@@ -461,11 +467,10 @@ private:
 
             CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, EProgressCategory::Suspended);
 
-            YT_LOG_TRACE(
-                "Counters updated in suspended state (DataWeightSuspended: %v, RowSuspended: %v, SliceSuspended: %v)",
-                DataWeightCounter_->GetSuspended(),
-                RowCounter_->GetSuspended(),
-                DataSliceCounter_->GetSuspended());
+            YT_TLOG_TRACE("Counters updated in suspended state")
+                .With("DataWeightSuspended", DataWeightCounter_->GetSuspended())
+                .With("RowSuspended", RowCounter_->GetSuspended())
+                .With("SliceSuspended", DataSliceCounter_->GetSuspended());
         }
 
         CheckCompleted();

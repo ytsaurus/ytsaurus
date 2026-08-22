@@ -59,10 +59,10 @@ public:
         bool fillEmptyBlocksWithZeros,
         const TReadOptions& options)
     {
-        YT_LOG_DEBUG("Start reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, Cookie: %x)",
-            blocks.size(),
-            fillEmptyBlocksWithZeros,
-            options.Cookie);
+        YT_TLOG_DEBUG("Start reading blocks")
+            .With("Blocks", blocks.size())
+            .With("FillEmptyBlocksWithZeros", fillEmptyBlocksWithZeros)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         // First try to get blocks from the cache.
         std::map<i64, TSharedMutableRef> blocksToRead;
@@ -104,10 +104,10 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Finish reading blocks (Blocks: %v, FillEmptyBlocksWithZeros: %v, Cookie: %x)",
-            blocks.size(),
-            fillEmptyBlocksWithZeros,
-            options.Cookie);
+        YT_TLOG_DEBUG("Finish reading blocks")
+            .With("Blocks", blocks.size())
+            .With("FillEmptyBlocksWithZeros", fillEmptyBlocksWithZeros)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         return std::move(blocks);
     }
@@ -117,10 +117,10 @@ public:
         bool flush,
         const TWriteOptions& options)
     {
-        YT_LOG_DEBUG("Start writing blocks (Blocks: %v, Flush: %v, Cookie: %x)",
-            blocks.size(),
-            flush,
-            options.Cookie);
+        YT_TLOG_DEBUG("Start writing blocks")
+            .With("Blocks", blocks.size())
+            .With("Flush", flush)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         for (auto& [blockId, blockPayload] : blocks) {
             BlockCache_[blockId] = blockPayload;
@@ -128,22 +128,22 @@ public:
         }
 
         if (!flush) {
-            YT_LOG_DEBUG("Finish writing blocks (Blocks: %v, Flush: %v, Cookie: %x)",
-                blocks.size(),
-                flush,
-                options.Cookie);
+            YT_TLOG_DEBUG("Finish writing blocks")
+                .With("Blocks", blocks.size())
+                .With("Flush", flush)
+                .WithFormat("Cookie", "%x", options.Cookie);
             return;
         }
 
-        YT_LOG_DEBUG("Starting tablet transaction (Cookie: %x)",
-            options.Cookie);
+        YT_TLOG_DEBUG("Starting tablet transaction")
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Started tablet transaction (TransactionId: %v, Cookie: %x)",
-            transaction->GetId(),
-            options.Cookie);
+        YT_TLOG_DEBUG("Started tablet transaction")
+            .With("TransactionId", transaction->GetId())
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         RowBuffer_->Clear();
         std::vector<TUnversionedRow> rows;
@@ -160,24 +160,24 @@ public:
 
         RowBuffer_->Clear();
 
-        YT_LOG_DEBUG("Start committing tablet transaction (TransactionId: %v, Cookie: %x)",
-            transaction->GetId(),
-            options.Cookie);
+        YT_TLOG_DEBUG("Start committing tablet transaction")
+            .With("TransactionId", transaction->GetId())
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         WaitFor(transaction->Commit())
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Finish committing tablet transaction (Cookie: %x)",
-            options.Cookie);
+        YT_TLOG_DEBUG("Finish committing tablet transaction")
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         for (auto& [blockId, _] : blocks) {
             DirtyBlocks_.erase(blockId);
         }
 
-        YT_LOG_DEBUG("Finish writing blocks (Blocks: %v, Flush: %v, Cookie: %x)",
-            blocks.size(),
-            flush,
-            options.Cookie);
+        YT_TLOG_DEBUG("Finish writing blocks")
+            .With("Blocks", blocks.size())
+            .With("Flush", flush)
+            .WithFormat("Cookie", "%x", options.Cookie);
     }
 
     TFuture<void> FlushDirtyBlocks()
@@ -221,9 +221,9 @@ private:
         YT_VERIFY(!blocksToRead.empty());
         YT_VERIFY(blocksToRead.begin()->first + std::ssize(blocksToRead) - 1 == blocksToRead.rbegin()->first);
 
-        YT_LOG_DEBUG("Start select (Blocks: %v, Cookie: %x)",
-            blocksToRead.size(),
-            cookie);
+        YT_TLOG_DEBUG("Start select")
+            .With("Blocks", blocksToRead.size())
+            .WithFormat("Cookie", "%x", cookie);
 
         const auto query = Sprintf("* FROM [%s] WHERE device_id = %ld AND block_id >= %ld AND block_id <= %ld",
             DeviceConfig_->TablePath.c_str(),
@@ -235,9 +235,9 @@ private:
             .ValueOrThrow()
             .Rowset->GetRows();
 
-        YT_LOG_DEBUG("Finish select (Blocks: %v, Cookie: %x)",
-            rows.size(),
-            cookie);
+        YT_TLOG_DEBUG("Finish select")
+            .With("Blocks", rows.size())
+            .WithFormat("Cookie", "%x", cookie);
 
         return rows;
     }
@@ -257,9 +257,9 @@ private:
             keys.push_back(RowBuffer_->CaptureRow(builder.GetRow()));
         }
 
-        YT_LOG_DEBUG("Start lookup (Blocks: %v, Cookie: %x)",
-            keys.size(),
-            cookie);
+        YT_TLOG_DEBUG("Start lookup")
+            .With("Blocks", keys.size())
+            .WithFormat("Cookie", "%x", cookie);
 
         auto rows = WaitFor(Client_->LookupRows(DeviceConfig_->TablePath, NameTable_, MakeSharedRange(std::move(keys), MakeStrong(this))))
             .ValueOrThrow()
@@ -267,9 +267,9 @@ private:
 
         RowBuffer_->Clear();
 
-        YT_LOG_DEBUG("Finish lookup (Blocks: %v, Cookie: %x)",
-            rows.size(),
-            cookie);
+        YT_TLOG_DEBUG("Finish lookup")
+            .With("Blocks", rows.size())
+            .WithFormat("Cookie", "%x", cookie);
 
         return rows;
     }
@@ -327,16 +327,16 @@ public:
         i64 length,
         const TReadOptions& options) override
     {
-        YT_LOG_DEBUG("Start read (Offset: %v, Length: %v, Cookie: %x)",
-            offset,
-            length,
-            options.Cookie);
+        YT_TLOG_DEBUG("Start read")
+            .With("Offset", offset)
+            .With("Length", length)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish read (Offset: %v, Length: %v, Cookie: %x)",
-                offset,
-                length,
-                options.Cookie);
+            YT_TLOG_DEBUG("Finish read")
+                .With("Offset", offset)
+                .With("Length", length)
+                .WithFormat("Cookie", "%x", options.Cookie);
             return MakeFuture<TReadResponse>({});
         }
 
@@ -368,9 +368,9 @@ public:
         // Merge refs into single ref.
         auto result = MergeRefsToRef<TDynamicTableBlockDeviceTag>(refs);
 
-        YT_LOG_DEBUG("Finish read (Size: %v, Cookie: %x)",
-            result.size(),
-            options.Cookie);
+        YT_TLOG_DEBUG("Finish read")
+            .With("Size", result.size())
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         return MakeFuture<TReadResponse>({std::move(result), false});
     }
@@ -382,18 +382,18 @@ public:
     {
         i64 length = data.size();
 
-        YT_LOG_DEBUG("Start write (Offset: %v, Length: %v, Flush: %v, Cookie: %x)",
-            offset,
-            length,
-            options.Flush,
-            options.Cookie);
+        YT_TLOG_DEBUG("Start write")
+            .With("Offset", offset)
+            .With("Length", length)
+            .With("Flush", options.Flush)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         if (length == 0) {
-            YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, Flush: %v, Cookie: %x)",
-                offset,
-                length,
-                options.Flush,
-                options.Cookie);
+            YT_TLOG_DEBUG("Finish write")
+                .With("Offset", offset)
+                .With("Length", length)
+                .With("Flush", options.Flush)
+                .WithFormat("Cookie", "%x", options.Cookie);
 
             return MakeFuture<TWriteResponse>({});
         }
@@ -402,34 +402,34 @@ public:
         auto blocks = PrepareBlocksForWriting(std::move(blockIds), data, offset, options);
         BlockCache_->WriteBlocks(std::move(blocks), options.Flush, options);
 
-        YT_LOG_DEBUG("Finish write (Offset: %v, Length: %v, Flush: %v, Cookie: %x)",
-            offset,
-            length,
-            options.Flush,
-            options.Cookie);
+        YT_TLOG_DEBUG("Finish write")
+            .With("Offset", offset)
+            .With("Length", length)
+            .With("Flush", options.Flush)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         return MakeFuture<TWriteResponse>({});
     }
 
     TFuture<void> Flush(const TFlushOptions& options) override
     {
-        YT_LOG_INFO("Start flush (TablePath: %v, Cookie: %x)",
-            DeviceConfig_->TablePath,
-            options.Cookie);
+        YT_TLOG_INFO("Start flush")
+            .With("TablePath", DeviceConfig_->TablePath)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         auto future = BlockCache_->FlushDirtyBlocks();
         WaitFor(future).ThrowOnError();
 
-        YT_LOG_INFO("Finish flush (TablePath: %v)",
-            DeviceConfig_->TablePath);
+        YT_TLOG_INFO("Finish flush")
+            .With("TablePath", DeviceConfig_->TablePath);
 
         return OKFuture;
     }
 
     TFuture<void> Initialize() override
     {
-        YT_LOG_INFO("Start initialization of dynamic table block device (TablePath: %v)",
-            DeviceConfig_->TablePath);
+        YT_TLOG_INFO("Start initialization of dynamic table block device")
+            .With("TablePath", DeviceConfig_->TablePath);
 
         // Check that the table does exist.
         auto tableExists = WaitFor(Client_->NodeExists(DeviceConfig_->TablePath))
@@ -481,17 +481,17 @@ public:
         YT_VERIFY((deviceSize == -1 && blockSize == -1) || (deviceSize != -1 && blockSize != -1));
 
         if (blockSize == -1) {
-            YT_LOG_INFO("Save device and block sizes (DeviceSize: %v, BlockSize: %v, TablePath: %v)",
-                DeviceConfig_->Size,
-                DeviceConfig_->BlockSize,
-                DeviceConfig_->TablePath);
+            YT_TLOG_INFO("Save device and block sizes")
+                .With("DeviceSize", DeviceConfig_->Size)
+                .With("BlockSize", DeviceConfig_->BlockSize)
+                .With("TablePath", DeviceConfig_->TablePath);
 
             blocks[DeviceSizeBlockId] = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(ToString(DeviceConfig_->Size)));
             blocks[BlockSizeBlockId] = TSharedMutableRef::MakeCopy<TDynamicTableBlockDeviceTag>(TSharedRef::FromString(ToString(DeviceConfig_->BlockSize)));
             BlockCache_->WriteBlocks(std::move(blocks), true /*flush*/, {.Cookie = 0} /*options*/);
 
-            YT_LOG_INFO("Finish initialization of dynamic table block device (TablePath: %v)",
-                DeviceConfig_->TablePath);
+            YT_TLOG_INFO("Finish initialization of dynamic table block device")
+                .With("TablePath", DeviceConfig_->TablePath);
 
             return OKFuture;
         }
@@ -511,8 +511,8 @@ public:
                 DeviceId_);
         }
 
-        YT_LOG_INFO("Finish initialization of dynamic table block device (TablePath: %v)",
-            DeviceConfig_->TablePath);
+        YT_TLOG_INFO("Finish initialization of dynamic table block device")
+            .With("TablePath", DeviceConfig_->TablePath);
 
         return OKFuture;
     }
@@ -554,9 +554,9 @@ private:
 
     std::map<i64, TSharedMutableRef> PrepareBlocksForWriting(std::map<i64, TSharedMutableRef>&& blocks, const TSharedRef& data, i64 offset, const TWriteOptions& options)
     {
-        YT_LOG_DEBUG("Start preparing blocks for writing (Blocks: %v, Cookie: %x)",
-            blocks.size(),
-            options.Cookie);
+        YT_TLOG_DEBUG("Start preparing blocks for writing")
+            .With("Blocks", blocks.size())
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         YT_VERIFY(!blocks.empty());
         YT_VERIFY(!data.empty());
@@ -631,9 +631,9 @@ private:
         YT_VERIFY(length == 0);
         YT_VERIFY(dataOffset == std::ssize(data));
 
-        YT_LOG_DEBUG("Finish preparing blocks for writing (Blocks: %v, Cookie: %x)",
-            blocks.size(),
-            options.Cookie);
+        YT_TLOG_DEBUG("Finish preparing blocks for writing")
+            .With("Blocks", blocks.size())
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         return std::move(blocks);
     }

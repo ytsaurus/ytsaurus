@@ -54,7 +54,9 @@ TLogger CreateSchemafulLogger(std::string category, TTableSchemaPtr schema)
         try {
             YsonToSchemafulRow(yson.ToString(), *schema, /*treatMissingAsNull*/ true, EYsonType::MapFragment, /*validateValues*/ true);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Structured log validation error (LogCategory: %v)", category);
+            YT_TLOG_ALERT("Structured log validation error")
+                .With("LogCategory", category)
+                .With(ex);
         }
     });
 }

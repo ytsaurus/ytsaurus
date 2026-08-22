@@ -169,12 +169,10 @@ public:
         SegmentPrimaryEndpoints_.resize(teleportChunks.size() + 1);
 
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
-            YT_LOG_DEBUG(
-                "Building jobs with sampling "
-                "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
-                *samplingRate,
-                JobSizeConstraints_->GetSamplingDataWeightPerJob(),
-                JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
+            YT_TLOG_DEBUG("Building jobs with sampling")
+                .With("SamplingRate", *samplingRate)
+                .With("SamplingDataWeightPerJob", JobSizeConstraints_->GetSamplingDataWeightPerJob())
+                .With("SamplingPrimaryDataWeightPerJob", JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
     }
 
@@ -221,16 +219,14 @@ public:
                 }) - TeleportChunkUpperBounds_.begin();
             SegmentPrimaryEndpoints_[segmentIndex].push_back(endpoint);
 
-            YT_LOG_TRACE(
-                "Adding primary data slice to builder (DataSlice: %v, SegmentIndex: %v)",
-                GetDataSliceDebugString(dataSlice),
-                segmentIndex);
+            YT_TLOG_TRACE("Adding primary data slice to builder")
+                .With("DataSlice", GetDataSliceDebugString(dataSlice))
+                .With("SegmentIndex", segmentIndex);
         } else {
             ForeignSlices_.push_back(dataSlice);
 
-            YT_LOG_TRACE(
-                "Adding foreign data slice to builder (DataSlice: %v)",
-                GetDataSliceDebugString(dataSlice));
+            YT_TLOG_TRACE("Adding foreign data slice to builder")
+                .With("DataSlice", GetDataSliceDebugString(dataSlice));
         }
 
         // Verify that in each input stream data slice lower key bounds and upper key bounds are monotonic.
@@ -247,11 +243,10 @@ public:
             (comparator.CompareKeyBounds(lastDataSlice->LowerLimit().KeyBound, dataSlice->LowerLimit().KeyBound) > 0 ||
             comparator.CompareKeyBounds(lastDataSlice->UpperLimit().KeyBound, dataSlice->UpperLimit().KeyBound) > 0))
         {
-            YT_LOG_FATAL(
-                "Input data slices non-monotonic (InputStreamIndex: %v, Lhs: %v, Rhs: %v)",
-                inputStreamIndex,
-                GetDataSliceDebugString(lastDataSlice),
-                GetDataSliceDebugString(dataSlice));
+            YT_TLOG_FATAL("Input data slices non-monotonic")
+                .With("InputStreamIndex", inputStreamIndex)
+                .With("Lhs", GetDataSliceDebugString(lastDataSlice))
+                .With("Rhs", GetDataSliceDebugString(dataSlice));
         }
         lastDataSlice = dataSlice;
     }
@@ -270,7 +265,9 @@ public:
             // since segments are processed independently. This would eliminate the need to share
             // StagingArea_ between segments, remove the need to pass periodicYielder between segments,
             // and improve overall code modularity and maintainability.
-            YT_LOG_TRACE("Processing segment (SegmentIndex: %v, EndpointCount: %v)", index, endpoints.size());
+            YT_TLOG_TRACE("Processing segment")
+                .With("SegmentIndex", index)
+                .With("EndpointCount", endpoints.size());
             SortPrimaryEndpoints(endpoints);
             LogDetails(endpoints);
             BuildJobs(endpoints);
@@ -300,10 +297,8 @@ public:
                 [] (i64 acc, const auto& job) {
                     return acc + !job.GetIsBarrier();
                 });
-            YT_LOG_FATAL_IF(
-                jobCount > 1,
-                "Expected to build at most one job, but built multiple (JobCount: %v)",
-                jobCount);
+            YT_TLOG_FATAL_IF(jobCount > 1, "Expected to build at most one job, but built multiple")
+                .With("JobCount", jobCount);
         }
 
         LogStructured();
@@ -318,15 +313,13 @@ public:
                 return;
             }
 
-            YT_LOG_DEBUG(
-                "Maximum allowed size per sorted job exceeds the limit (ErrorCode: %v, Size: %v, MaxSize: %v, "
-                "PrimaryLowerBound: %v, PrimaryUpperBound: %v, JobDebugString: %v)",
-                errorCode,
-                size,
-                maxSize,
-                job->GetPrimaryLowerBound(),
-                job->GetPrimaryUpperBound(),
-                job->GetDebugString());
+            YT_TLOG_DEBUG("Maximum allowed size per sorted job exceeds the limit")
+                .With("ErrorCode", errorCode)
+                .With("Size", size)
+                .With("MaxSize", maxSize)
+                .With("PrimaryLowerBound", job->GetPrimaryLowerBound())
+                .With("PrimaryUpperBound", job->GetPrimaryUpperBound())
+                .With("JobDebugString", job->GetDebugString());
 
             THROW_ERROR_EXCEPTION(
                 errorCode,
@@ -407,11 +400,10 @@ public:
                 }
                 LogStructured();
                 // Actually a safe core dump.
-                YT_LOG_FATAL(
-                    "Error validating slice order guarantee (InputStreamIndex: %v, Lhs: %v, Rhs: %v)",
-                    inputStreamIndex,
-                    GetDataSliceDebugString(lhs),
-                    GetDataSliceDebugString(rhs));
+                YT_TLOG_FATAL("Error validating slice order guarantee")
+                    .With("InputStreamIndex", inputStreamIndex)
+                    .With("Lhs", GetDataSliceDebugString(lhs))
+                    .With("Rhs", GetDataSliceDebugString(rhs));
             };
 
             // Validate slice order between slices in each stripe.
@@ -543,7 +535,8 @@ private:
     //! Sort foreign slices in ascending order of lower key bound using foreign comparator.
     void SortForeignSlices()
     {
-        YT_LOG_DEBUG("Sorting foreign slices (Count: %v)", ForeignSlices_.size());
+        YT_TLOG_DEBUG("Sorting foreign slices")
+            .With("Count", ForeignSlices_.size());
         std::stable_sort(
             ForeignSlices_.begin(),
             ForeignSlices_.end(),
@@ -562,10 +555,9 @@ private:
             primaryUpperBound = primaryUpperBound.ToggleInclusiveness();
         }
 
-        YT_LOG_TRACE(
-            "Attaching foreign slices (PrimaryUpperBound: %v, FirstUnstagedForeignIndex: %v)",
-            primaryUpperBound,
-            FirstUnstagedForeignIndex_);
+        YT_TLOG_TRACE("Attaching foreign slices")
+            .With("PrimaryUpperBound", primaryUpperBound)
+            .With("FirstUnstagedForeignIndex", FirstUnstagedForeignIndex_);
 
         auto shouldBeStaged = [&] (size_t index) {
             return
@@ -583,14 +575,14 @@ private:
             FirstUnstagedForeignIndex_++;
         }
 
-        YT_LOG_TRACE(
-            "Foreign slices attached (FirstUnstagedForeignIndex: %v)",
-            FirstUnstagedForeignIndex_);
+        YT_TLOG_TRACE("Foreign slices attached")
+            .With("FirstUnstagedForeignIndex", FirstUnstagedForeignIndex_);
     }
 
     void SortPrimaryEndpoints(std::vector<TPrimaryEndpoint>& endpoints)
     {
-        YT_LOG_DEBUG("Sorting primary endpoints (Count: %v)", endpoints.size());
+        YT_TLOG_DEBUG("Sorting primary endpoints")
+            .With("Count", endpoints.size());
         // We sort endpoints by their location. In each group of endpoints at the same point
         // we sort them by type: barriers first, then primary endpoints.
         // NB(coteeq): stable_sort is needed not to mess up row-sliced slices.
@@ -628,11 +620,11 @@ private:
         }
         for (int index = 0; index < std::ssize(endpoints); ++index) {
             const auto& endpoint = endpoints[index];
-            YT_LOG_TRACE("Endpoint (Index: %v, KeyBound: %v, Type: %v, DataSlice: %v)",
-                index,
-                endpoint.KeyBound,
-                endpoint.Type,
-                endpoint.DataSlice ? GetDataSliceDebugString(endpoint.DataSlice) : "<null>");
+            YT_TLOG_TRACE("Endpoint")
+                .With("Index", index)
+                .With("KeyBound", endpoint.KeyBound)
+                .With("Type", endpoint.Type)
+                .With("DataSlice", endpoint.DataSlice ? GetDataSliceDebugString(endpoint.DataSlice) : "<null>");
         }
     }
 
@@ -716,37 +708,34 @@ private:
     void AddJob(TNewJobStub& job)
     {
         if (JobSampler_.Sample()) {
-            YT_LOG_DEBUG("Sorted job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
-                "PrimarySliceCount: %v, ForeignDataSize: %v, ForeignRowCount: %v, "
-                "ForeignSliceCount: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
-                JobIndex_,
-                Jobs_.size(),
-                job.GetPrimaryDataWeight(),
-                job.GetPrimaryRowCount(),
-                job.GetPrimarySliceCount(),
-                job.GetForeignDataWeight(),
-                job.GetForeignRowCount(),
-                job.GetForeignSliceCount(),
-                job.GetPrimaryLowerBound(),
-                job.GetPrimaryUpperBound());
+            YT_TLOG_DEBUG("Sorted job created")
+                .With("JobIndex", JobIndex_)
+                .With("BuiltJobCount", Jobs_.size())
+                .With("PrimaryDataSize", job.GetPrimaryDataWeight())
+                .With("PrimaryRowCount", job.GetPrimaryRowCount())
+                .With("PrimarySliceCount", job.GetPrimarySliceCount())
+                .With("ForeignDataSize", job.GetForeignDataWeight())
+                .With("ForeignRowCount", job.GetForeignRowCount())
+                .With("ForeignSliceCount", job.GetForeignSliceCount())
+                .With("PrimaryLowerBound", job.GetPrimaryLowerBound())
+                .With("PrimaryUpperBound", job.GetPrimaryUpperBound());
 
             TotalDataWeight_ += job.GetDataWeight();
 
-            YT_LOG_TRACE("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
-                JobIndex_,
-                Jobs_.size(),
-                job.GetDebugString());
+            YT_TLOG_TRACE("Sorted job details")
+                .With("JobIndex", JobIndex_)
+                .With("BuiltJobCount", Jobs_.size())
+                .With("Details", job.GetDebugString());
 
             Jobs_.emplace_back(std::move(job));
         } else {
-            YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
-                "ForeignDataSize: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
-                JobIndex_,
-                std::ssize(Jobs_),
-                job.GetPrimaryDataWeight(),
-                job.GetForeignDataWeight(),
-                job.GetPrimaryLowerBound(),
-                job.GetPrimaryUpperBound());
+            YT_TLOG_DEBUG("Sorted job skipped")
+                .With("JobIndex", JobIndex_)
+                .With("BuiltJobCount", std::ssize(Jobs_))
+                .With("PrimaryDataSize", job.GetPrimaryDataWeight())
+                .With("ForeignDataSize", job.GetForeignDataWeight())
+                .With("PrimaryLowerBound", job.GetPrimaryLowerBound())
+                .With("PrimaryUpperBound", job.GetPrimaryUpperBound());
         }
         ++JobIndex_;
     }
@@ -864,7 +853,7 @@ private:
     // Flush job size tracker (if it is present) and staging area.
     void Flush(const std::optional<std::any>& overflowToken = std::nullopt)
     {
-        YT_LOG_TRACE("Flushing job");
+        YT_TLOG_TRACE("Flushing job");
         if (JobSizeTracker_) {
             JobSizeTracker_->Flush(overflowToken);
         }
@@ -881,7 +870,8 @@ private:
     //! Put data slice to staging area.
     void Stage(TLegacyDataSlicePtr dataSlice, ESliceType sliceType, const TPeriodicYielderGuard& periodicYielder)
     {
-        YT_LOG_TRACE("Staging slice (Type: %v)", sliceType);
+        YT_TLOG_TRACE("Staging slice")
+            .With("Type", sliceType);
         if (JobSizeTracker_) {
             auto vector = TResourceVector::FromDataSlice(
                 dataSlice,
@@ -910,7 +900,8 @@ private:
     //! Stage several data slices using row slicing for better job size constraints meeting.
     void StageRangeWithRowSlicing(TRange<TPrimaryEndpoint> endpoints, const TPeriodicYielderGuard& periodicYielder)
     {
-        YT_LOG_TRACE("Processing endpoint range with row slicing (EndpointCount: %v)", endpoints.size());
+        YT_TLOG_TRACE("Processing endpoint range with row slicing")
+            .With("EndpointCount", endpoints.size());
 
         auto lowerBound = endpoints[0].KeyBound;
 
@@ -920,7 +911,8 @@ private:
         // TODO(coteeq): Do Max's todo.
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
         if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(Options_.PrimaryComparator.GetLength())) {
-            YT_LOG_TRACE("Weird max42 case (LowerBound: %v)", lowerBound);
+            YT_TLOG_TRACE("Weird max42 case")
+                .With("LowerBound", lowerBound);
             PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness(), periodicYielder);
         }
 
@@ -960,11 +952,13 @@ private:
             // the remaining logic into IIFE.
             [&] {
                 auto fraction = JobSizeTracker_->SuggestRowSplitFraction(vector);
-                YT_LOG_TRACE("Row split factor suggested (Factor: %v)", fraction);
+                YT_TLOG_TRACE("Row split factor suggested")
+                    .With("Factor", fraction);
 
                 // Due to rounding issues, we still decided to take data slice as a whole. This is ok.
                 if (fraction == 1.0) {
-                    YT_LOG_TRACE("Fraction for the remaining data slice is high enough to take it as a whole (Fraction: %v)", fraction);
+                    YT_TLOG_TRACE("Fraction for the remaining data slice is high enough to take it as a whole")
+                        .With("Fraction", fraction);
                     Stage(std::move(dataSlice), ESliceType::Solid, periodicYielder);
                     return;
                 }
@@ -976,13 +970,12 @@ private:
                 auto rowCount = static_cast<i64>(std::ceil((upperRowIndex - lowerRowIndex) * fraction));
                 rowCount = ClampVal<i64>(rowCount, 0, upperRowIndex - lowerRowIndex);
 
-                YT_LOG_TRACE(
-                    "Splitting data slice by rows (Fraction: %v, LowerRowIndex: %v, UpperRowIndex: %v, RowCount: %v, MiddleRowIndex: %v)",
-                    fraction,
-                    lowerRowIndex,
-                    upperRowIndex,
-                    rowCount,
-                    lowerRowIndex + rowCount);
+                YT_TLOG_TRACE("Splitting data slice by rows")
+                    .With("Fraction", fraction)
+                    .With("LowerRowIndex", lowerRowIndex)
+                    .With("UpperRowIndex", upperRowIndex)
+                    .With("RowCount", rowCount)
+                    .With("MiddleRowIndex", lowerRowIndex + rowCount);
 
                 auto [leftDataSlice, rightDataSlice] = dataSlice->SplitByRowIndex(rowCount);
 
@@ -1009,10 +1002,9 @@ private:
         ERowSliceabilityDecision decision,
         const TPeriodicYielderGuard& periodicYielder)
     {
-        YT_LOG_TRACE(
-            "Processing endpoint range without row slicing (EndpointCount: %v, Decision: %v)",
-            endpoints.size(),
-            decision);
+        YT_TLOG_TRACE("Processing endpoint range without row slicing")
+            .With("EndpointCount", endpoints.size())
+            .With("Decision", decision);
 
         YT_VERIFY(nextEndpointLowerBound);
 
@@ -1075,9 +1067,8 @@ private:
                 break;
             }
 
-            YT_LOG_TRACE(
-                "Trying to flush since a new foreign slice can be attached (ForeignSliceIndex: %v)",
-                foreignDataSliceIndex);
+            YT_TLOG_TRACE("Trying to flush since a new foreign slice can be attached")
+                .With("ForeignSliceIndex", foreignDataSliceIndex);
             auto upperBound = dataSlice->LowerLimit().KeyBound.Invert();
             PromoteUpperBound(upperBound, periodicYielder);
             tryFlush();
@@ -1106,7 +1097,8 @@ private:
         for (int startIndex = 0, endIndex = 0; startIndex < std::ssize(endpoints); startIndex = endIndex) {
             periodicYielder.TryYield();
 
-            YT_LOG_TRACE("Moving to next endpoint (Endpoint: %v)", endpoints[startIndex].KeyBound);
+            YT_TLOG_TRACE("Moving to next endpoint")
+                .With("Endpoint", endpoints[startIndex].KeyBound);
             PromoteUpperBound(endpoints[startIndex].KeyBound.Invert(), periodicYielder);
 
             int primaryIndex = startIndex;
@@ -1122,7 +1114,7 @@ private:
 
             // No need to add more than one barrier at the same point.
             if (bool barriersPresent = (primaryIndex != startIndex); barriersPresent) {
-                YT_LOG_TRACE("Putting barrier");
+                YT_TLOG_TRACE("Putting barrier");
                 Flush();
                 StagingArea_->PutBarrier();
             }
@@ -1180,7 +1172,9 @@ private:
 
         JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
 
-        YT_LOG_DEBUG("Jobs created (JobCount: %v, BarrierCount: %v)", std::ssize(Jobs_) - barrierCount, barrierCount);
+        YT_TLOG_DEBUG("Jobs created")
+            .With("JobCount", std::ssize(Jobs_) - barrierCount)
+            .With("BarrierCount", barrierCount);
     }
 
     bool MustProduceSingleJob() const

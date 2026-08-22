@@ -279,12 +279,11 @@ TInternalReadResponse DoRead(
                 sensors->RegisterReadBytes(reallyRead, category);
             }
 
-            YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
-                "Finished reading from disk (Handle: %v, ReadBytes: %v, ReadSessionId: %v, ReadTime: %v)",
-                static_cast<FHANDLE>(*request.Handle),
-                reallyRead,
-                sessionId,
-                statsGuard.GetElapsedTime());
+            YT_TLOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive, "Finished reading from disk")
+                .With("Handle", static_cast<FHANDLE>(*request.Handle))
+                .With("ReadBytes", reallyRead)
+                .With("ReadSessionId", sessionId)
+                .With("ReadTime", statsGuard.GetElapsedTime());
 
             if (useDirectIO && reallyRead < toRead && fileOffset + reallyRead != request.Handle->GetLength()) {
                 THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "DirectIO call failed")
@@ -995,12 +994,11 @@ public:
                     const auto readWaitTime = timer.GetElapsedTime();
                     AddReadWaitTimeSample(readWaitTime);
 
-                    YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
-                        "Started reading from disk (Handle: %v, RequestSize: %v, ReadSessionId: %v, ReadWaitTime: %v)",
-                        static_cast<FHANDLE>(*request.Handle),
-                        request.Size,
-                        sessionId,
-                        readWaitTime);
+                    YT_TLOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive, "Started reading from disk")
+                        .With("Handle", static_cast<FHANDLE>(*request.Handle))
+                        .With("RequestSize", request.Size)
+                        .With("ReadSessionId", sessionId)
+                        .With("ReadWaitTime", readWaitTime);
 
                     return DoRead(
                         std::move(request),
@@ -1298,12 +1296,11 @@ public:
                     const auto readWaitTime = timer.GetElapsedTime();
                     AddReadWaitTimeSample(readWaitTime);
 
-                    YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
-                        "Started reading from disk (Handle: %v, RequestSize: %v, ReadSessionId: %v, ReadWaitTime: %v)",
-                        static_cast<FHANDLE>(*request.Handle),
-                        request.Size,
-                        sessionId,
-                        readWaitTime);
+                    YT_TLOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive, "Started reading from disk")
+                        .With("Handle", static_cast<FHANDLE>(*request.Handle))
+                        .With("RequestSize", request.Size)
+                        .With("ReadSessionId", sessionId)
+                        .With("ReadWaitTime", readWaitTime);
 
                     return DoRead(
                         std::move(request),
@@ -1617,7 +1614,8 @@ public:
                         FlushFileRangeRequestStorage_);
                     break;
                 default:
-                    YT_LOG_FATAL("Unknown request type (RequestType: %v)", requestType);
+                    YT_TLOG_FATAL("Unknown request type")
+                        .With("RequestType", requestType);
             }
         }
     }

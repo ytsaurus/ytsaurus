@@ -103,10 +103,9 @@ TTabletSizeConfig GetTabletSizeConfig(
         if (tableConfig->MinTabletSize >= tableConfig->DesiredTabletSize ||
             tableConfig->DesiredTabletSize >= tableConfig->MaxTabletSize)
         {
-            YT_LOG_WARNING("Tablet size inequalities violated in tablet balancer config "
-                "(TableId: %v, Config: %v)",
-                table->Id,
-                ConvertToYsonString(tableConfig, NYson::EYsonFormat::Text));
+            YT_TLOG_WARNING("Tablet size inequalities violated in tablet balancer config")
+                .With("TableId", table->Id)
+                .With("Config", ConvertToYsonString(tableConfig, NYson::EYsonFormat::Text));
             desiredTabletSize = std::max(desiredTabletSize, minTabletSize + 1);
             maxTabletSize = std::max(maxTabletSize, desiredTabletSize + 1);
         }
@@ -132,23 +131,22 @@ TTabletSizeConfig GetTabletSizeConfig(
             desiredTabletSize = tabletSizeLimit;
             maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
 
-            auto logMessage = "Tablet size config overridden by tablet to cell ratio";
+            auto reason = "tablet to cell ratio";
             if (maxTabletCount == MaxTabletCount) {
                 // In order not to enlarge existing tablets after moving table to a smaller bundle.
                 // However, you must always consider max tablet count in one table.
                 minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
-                logMessage = "Table is too big, tablet size config overriden";
+                reason = "table size";
             }
 
-            YT_LOG_DEBUG("%v (TableId: %v, TableSize: %v, MaxTabletCount: %v, "
-                "MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
-                logMessage,
-                table->Id,
-                tableSize,
-                maxTabletCount,
-                minTabletSize,
-                desiredTabletSize,
-                maxTabletSize);
+            YT_TLOG_DEBUG("Tablet size config overridden")
+                .With("Reason", reason)
+                .With("TableId", table->Id)
+                .With("TableSize", tableSize)
+                .With("MaxTabletCount", maxTabletCount)
+                .With("MinTabletSize", minTabletSize)
+                .With("DesiredTabletSize", desiredTabletSize)
+                .With("MaxTabletSize", maxTabletSize);
         }
     }
 
@@ -159,13 +157,11 @@ TTabletSizeConfig GetTabletSizeConfig(
             // minTabletSize should be nonzero so desiredTabletSize is bounded with 2.
             desiredTabletSize = std::max<i64>(2, tabletSizeLimit);
             minTabletSize = std::min(minTabletSize, desiredTabletSize - 1);
-            YT_LOG_DEBUG_IF(enableVerboseLogging,
-                "Tablet size config overridden by min tablet count (TableId: %v, "
-                "MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
-                table->Id,
-                minTabletSize,
-                desiredTabletSize,
-                maxTabletSize);
+            YT_TLOG_DEBUG_IF(enableVerboseLogging, "Tablet size config overridden by min tablet count")
+                .With("TableId", table->Id)
+                .With("MinTabletSize", minTabletSize)
+                .With("DesiredTabletSize", desiredTabletSize)
+                .With("MaxTabletSize", maxTabletSize);
         }
     }
 
@@ -173,17 +169,14 @@ TTabletSizeConfig GetTabletSizeConfig(
         auto newMinTabletSize = std::min<i64>(minDesiredTabletSize / 2, minTabletSize);
         auto newDesiredTabletSize = minDesiredTabletSize;
         auto newMaxTabletSize = std::max<i64>(minDesiredTabletSize * 2, maxTabletSize);
-        YT_LOG_DEBUG_IF(enableVerboseLogging,
-            "Desired tablet size is too small, tablet size config overriden (TableId: %v, "
-            "OldMinTabletSize: %v, OldDesiredTabletSize: %v, OldMaxTabletSize: %v, "
-            "MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
-            table->Id,
-            minTabletSize,
-            desiredTabletSize,
-            maxTabletSize,
-            newMinTabletSize,
-            newDesiredTabletSize,
-            newMaxTabletSize);
+        YT_TLOG_DEBUG_IF(enableVerboseLogging, "Desired tablet size is too small, tablet size config overriden")
+            .With("TableId", table->Id)
+            .With("OldMinTabletSize", minTabletSize)
+            .With("OldDesiredTabletSize", desiredTabletSize)
+            .With("OldMaxTabletSize", maxTabletSize)
+            .With("MinTabletSize", newMinTabletSize)
+            .With("DesiredTabletSize", newDesiredTabletSize)
+            .With("MaxTabletSize", newMaxTabletSize);
 
         minTabletSize = newMinTabletSize;
         desiredTabletSize = newDesiredTabletSize;
@@ -221,22 +214,19 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
         tablet->Table->Bundle->Config->EnableVerboseLogging;
 
     if (size >= bounds.MinTabletSize && size <= bounds.MaxTabletSize) {
-        YT_LOG_DEBUG_IF(enableVerboseLogging,
-            "Tablet fits the size restrictions (TabletId: %v, TabletIndex: %v, TabletSize: %v)",
-            tablet->Id,
-            tablet->Index,
-            size);
+        YT_TLOG_DEBUG_IF(enableVerboseLogging, "Tablet fits the size restrictions")
+            .With("TabletId", tablet->Id)
+            .With("TabletIndex", tablet->Index)
+            .With("TabletSize", size);
 
         return {};
     }
 
     if (size < bounds.MinTabletSize && table->Tablets.size() == 1) {
-        YT_LOG_DEBUG_IF(enableVerboseLogging,
-            "Tablet is too small, but it's the only one in the table "
-            "(TabletId: %v, TabletIndex: %v, TabletSize: %v)",
-            tablet->Id,
-            tablet->Index,
-            size);
+        YT_TLOG_DEBUG_IF(enableVerboseLogging, "Tablet is too small, but it's the only one in the table")
+            .With("TabletId", tablet->Id)
+            .With("TabletIndex", tablet->Index)
+            .With("TabletSize", size);
 
         return {};
     }
@@ -245,14 +235,12 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
         std::ssize(table->Tablets) <= bounds.MinTabletCount &&
         size < bounds.MinTabletSize)
     {
-        YT_LOG_DEBUG_IF(enableVerboseLogging,
-            "Tablet is too small, but tablet count is less than or equal to the minimum "
-            "(TabletId: %v, TabletIndex: %v, TabletSize: %v, TabletCount: %v, MinTabletCount: %v)",
-            tablet->Id,
-            tablet->Index,
-            size,
-            std::ssize(table->Tablets),
-            *bounds.MinTabletCount);
+        YT_TLOG_DEBUG_IF(enableVerboseLogging, "Tablet is too small, but tablet count is less than or equal to the minimum")
+            .With("TabletId", tablet->Id)
+            .With("TabletIndex", tablet->Index)
+            .With("TabletSize", size)
+            .With("TabletCount", std::ssize(table->Tablets))
+            .With("MinTabletCount", *bounds.MinTabletCount);
 
         return {};
     }
@@ -318,33 +306,30 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 
     if (!pickPivotKeys) {
         if (endIndex == startIndex && tablet->Statistics.PartitionCount == 1) {
-            YT_LOG_DEBUG_IF(enableVerboseLogging,
-                "Tablet balancer is unable to reshard tablet with one partition "
-                "(TabletId: %v, TabletIndex: %v, TabletSize: %v)",
-                tablet->Id,
-                tablet->Index,
-                size);
+            YT_TLOG_DEBUG_IF(enableVerboseLogging, "Tablet balancer is unable to reshard tablet with one partition")
+                .With("TabletId", tablet->Id)
+                .With("TabletIndex", tablet->Index)
+                .With("TabletSize", size);
             return {};
         }
     }
 
     if (endIndex == startIndex && newTabletCount == 1) {
-        YT_LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v, TabletSize: %v)",
-            table->Id,
-            tablet->Id,
-            size);
+        YT_TLOG_DEBUG("Tablet balancer is unable to reshard tablet")
+            .With("TableId", table->Id)
+            .With("TabletId", tablet->Id)
+            .With("TabletSize", size);
         return {};
     }
 
     if (std::ssize(table->Tablets) + newTabletCount -
         (endIndex - startIndex + 1) >= MaxTabletCount)
     {
-        YT_LOG_DEBUG("Tablet balancer will not split tablets since tablet count "
-            "would exceed the limit (TableId: %v, TabletId: %v, TabletsSize: %v, DesiredCount: %v)",
-            table->Id,
-            tablet->Id,
-            size,
-            newTabletCount);
+        YT_TLOG_DEBUG("Tablet balancer will not split tablets since tablet count would exceed the limit")
+            .With("TableId", table->Id)
+            .With("TabletId", tablet->Id)
+            .With("TabletsSize", size)
+            .With("DesiredCount", newTabletCount);
         return {};
     }
 
@@ -361,17 +346,15 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
     }
 
     auto correlationId = TGuid::Create();
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Planning to create reshard action (Tablets: %v, TabletSizes: %v, TabletCount: %v, "
-        "TotalSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TableId: %v, CorrelationId: %v)",
-        tablets,
-        sizes,
-        newTabletCount,
-        size,
-        startIndex,
-        endIndex,
-        table->Id,
-        correlationId);
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Planning to create reshard action")
+        .With("Tablets", tablets)
+        .With("TabletSizes", sizes)
+        .With("TabletCount", newTabletCount)
+        .With("TotalSize", size)
+        .With("FirstTabletIndex", startIndex)
+        .With("LastTabletIndex", endIndex)
+        .With("TableId", table->Id)
+        .With("CorrelationId", correlationId);
 
     return {TReshardDescriptor{
         .Tablets = std::move(tablets),
@@ -400,15 +383,15 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     const auto& table = tablets.front()->Table;
     auto config = GetTabletSizeConfig(table, minDesiredTabletSize, Logger);
 
-    YT_LOG_DEBUG_IF(table->TableConfig->EnableVerboseLogging ||
+    YT_TLOG_DEBUG_IF(
+        table->TableConfig->EnableVerboseLogging ||
         table->Bundle->Config->EnableVerboseLogging,
-        "Reshard tablet size config (TableId: %v, MinTabletSize: %v, MaxTabletSize: %v, "
-        "DesiredTabletSize: %v, MinTabletCount: %v)",
-        table->Id,
-        config.MinTabletSize,
-        config.MaxTabletSize,
-        config.DesiredTabletSize,
-        config.MinTabletCount);
+        "Reshard tablet size config")
+        .With("TableId", table->Id)
+        .With("MinTabletSize", config.MinTabletSize)
+        .With("MaxTabletSize", config.MaxTabletSize)
+        .With("DesiredTabletSize", config.DesiredTabletSize)
+        .With("MinTabletCount", config.MinTabletCount);
 
     // If MinTabletCount is set then the number of merges is limited. We want
     // to distribute merges evenly across the table. Merge budget (the number
@@ -486,10 +469,9 @@ std::vector<TReshardDescriptor> MergeSplitReplicaTable(
         for (auto& [tabletCount, pivotKeys] : actions) {
             if (tabletCount == 1 && std::ssize(pivotKeys) == 1) {
                 const auto& tablet = minorTable->Tablets[minorLeftPivotIndex];
-                YT_LOG_DEBUG_IF(enableVerboseLogging,
-                    "Skipping reshard action because it's a trivial one (TabletId: %v, TabletIndex: %v)",
-                    tablet->Id,
-                    tablet->Index);
+                YT_TLOG_DEBUG_IF(enableVerboseLogging, "Skipping reshard action because it's a trivial one")
+                    .With("TabletId", tablet->Id)
+                    .With("TabletIndex", tablet->Index);
                 continue;
             }
 
@@ -646,11 +628,10 @@ void ReassignOrdinaryTabletsOfTable(
     auto enableVerboseLogging = table->TableConfig->EnableVerboseLogging ||
         table->Bundle->Config->EnableVerboseLogging;
 
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Ordinary table balancing started (BundleName: %v, TableId: %v, TabletCount: %v)",
-        table->Bundle->Name,
-        table->Id,
-        std::ssize(tablets));
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Ordinary table balancing started")
+        .With("BundleName", table->Bundle->Name)
+        .With("TableId", table->Id)
+        .With("TabletCount", std::ssize(tablets));
 
     THashMap<const TTabletCell*, std::vector<TTabletPtr>> cellToTablets;
     for (const auto& tablet : tablets) {
@@ -862,11 +843,10 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
         }
     }
 
-    YT_LOG_DEBUG_IF(bundle->Config->EnableVerboseLogging,
-        "Balancing ordinary tables (BundleName: %v, CellCount: %v, HaveEmptyCells: %v)",
-        bundle->Name,
-        std::ssize(cells),
-        haveEmptyCells);
+    YT_TLOG_DEBUG_IF(bundle->Config->EnableVerboseLogging, "Balancing ordinary tables")
+        .With("BundleName", bundle->Name)
+        .With("CellCount", std::ssize(cells))
+        .With("HaveEmptyCells", haveEmptyCells);
 
     THashMap<const TTablet*, TTabletCellId> tabletToTargetCell;
     for (const auto& [table, tablets] : tableToTablets) {

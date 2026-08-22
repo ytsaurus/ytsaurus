@@ -229,7 +229,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Shell manager is terminating");
+        YT_TLOG_INFO("Shell manager is terminating");
 
         Terminated_ = true;
         for (const auto& [_, shell] : IdToShell_) {
@@ -243,7 +243,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Shell manager is shutting down");
+        YT_TLOG_INFO("Shell manager is shutting down");
 
         std::vector<TFuture<void>> futures;
         futures.reserve(IdToShell_.size());
@@ -278,9 +278,9 @@ protected:
         EmplaceOrCrash(IdToShell_, shell->GetId(), shell);
         EmplaceOrCrash(IndexToShell_, shell->GetIndex(), shell);
 
-        YT_LOG_DEBUG("Shell registered (ShellId: %v, ShellIndex: %v)",
-            shell->GetId(),
-            shell->GetIndex());
+        YT_TLOG_DEBUG("Shell registered")
+            .With("ShellId", shell->GetId())
+            .With("ShellIndex", shell->GetIndex());
     }
 
     IShellPtr Find(TShellId shellId) const
@@ -368,9 +368,9 @@ private:
         auto containerRoot = WaitFor(PortoExecutor_->ConvertPath("/", container))
             .ValueOrThrow();
 
-        YT_LOG_DEBUG("Preparing shell tool path (Container: %v, ContainerRoot: %v)",
-            container,
-            containerRoot);
+        YT_TLOG_DEBUG("Preparing shell tool path")
+            .With("Container", container)
+            .With("ContainerRoot", containerRoot);
 
         auto toolDirectory = JoinPaths(containerRoot, ShellToolDirectory);
         if (!Exists(toolDirectory)) {
@@ -431,7 +431,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Shell manager is terminating");
+        YT_TLOG_INFO("Shell manager is terminating");
         Terminated_ = true;
         for (const auto& [_, shell] : IdToShell_) {
             shell->Terminate(error);

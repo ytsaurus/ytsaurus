@@ -99,7 +99,8 @@ TRefCountedChunkMetaPtr DeserializeChunkMeta(
             try {
                 onBrokenMeta(metaBlob);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Caught unexpected exception during execution of OnBrokenMeta callback");
+                YT_TLOG_WARNING("Caught unexpected exception during execution of OnBrokenMeta callback")
+                    .With(ex);
             }
         }
         THROW_ERROR_EXCEPTION(
@@ -152,7 +153,8 @@ std::vector<TBlock> DeserializeBlocks(
                     try {
                         onBrokenBlock(blockIndex, blockInfo, block);
                     } catch (const std::exception& ex) {
-                        YT_LOG_WARNING(ex, "Caught unexpected exception during execution of OnBrokenBlock callback");
+                        YT_TLOG_WARNING("Caught unexpected exception during execution of OnBrokenBlock callback")
+                            .With(ex);
                     }
                 }
                 THROW_ERROR_EXCEPTION(
@@ -548,8 +550,8 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
 
-    YT_LOG_DEBUG("Started reading chunk meta file (FileName: %v)",
-        metaFileName);
+    YT_TLOG_DEBUG("Started reading chunk meta file")
+        .With("FileName", metaFileName);
 
     return IOEngine_->ReadAll(
         metaFileName,
@@ -569,8 +571,8 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     YT_VERIFY(readResponse.OutputBuffers.size() == 1);
     const auto& metaFileBlob = readResponse.OutputBuffers[0];
 
-    YT_LOG_DEBUG("Finished reading chunk meta file (FileName: %v)",
-        metaFileName);
+    YT_TLOG_DEBUG("Finished reading chunk meta file")
+        .With("FileName", metaFileName);
 
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(
         metaFileBlob.Size(),
@@ -600,9 +602,9 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
     }
 
     if (!fileHandleFuture) {
-        YT_LOG_DEBUG("Started opening chunk data file (FileName: %v, DirectIO: %v)",
-            FileName_,
-            useDirectIO);
+        YT_TLOG_DEBUG("Started opening chunk data file")
+            .With("FileName", FileName_)
+            .With("DirectIO", useDirectIO);
 
         EOpenMode mode = OpenExisting | RdOnly | CloseOnExec;
         if (useDirectIO == EDirectIOFlag::On) {
@@ -618,10 +620,10 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
 
 TIOEngineHandlePtr TChunkFileReader::OnDataFileOpened(EDirectIOFlag useDirectIO, const TIOEngineHandlePtr& file)
 {
-    YT_LOG_DEBUG("Finished opening chunk data file (FileName: %v, Handle: %v, DirectIO: %v)",
-        FileName_,
-        static_cast<FHANDLE>(*file),
-        useDirectIO);
+    YT_TLOG_DEBUG("Finished opening chunk data file")
+        .With("FileName", FileName_)
+        .With("Handle", static_cast<FHANDLE>(*file))
+        .With("DirectIO", useDirectIO);
 
     DataFileHandle_[useDirectIO] = file;
 

@@ -246,7 +246,8 @@ private:
         while (IsEnabled()) {
             auto dropped = DroppedCount_.exchange(0);
             if (dropped > 0) {
-                YT_LOG_WARNING("Maximum items reached, dropping archived rows (DroppedItems: %v)", dropped);
+                YT_TLOG_WARNING("Maximum items reached, dropping archived rows")
+                    .With("DroppedItems", dropped);
             }
             try {
                 TryHandleBatch(batch);
@@ -260,9 +261,10 @@ private:
             } catch (const std::exception& ex) {
                 WriteFailuresCount_.fetch_add(1, std::memory_order::relaxed);
                 WriteFailuresCounter_.Increment();
-                YT_LOG_WARNING(ex, "Failed to upload archived rows (RetryDelay: %v, PendingItems: %v)",
-                    delay.Seconds(),
-                    GetPendingCount());
+                YT_TLOG_WARNING("Failed to upload archived rows")
+                    .With("RetryDelay", delay.Seconds())
+                    .With("PendingItems", GetPendingCount())
+                    .With(ex);
             }
             TDelayedExecutor::WaitForDuration(RandomDuration(delay));
             delay = std::min(maxRepeatDelay, delay * 2);
@@ -271,10 +273,10 @@ private:
 
     void TryHandleBatch(const TBatch& batch)
     {
-        YT_LOG_DEBUG("Archive table transaction starting (Items: %v, PendingItems: %v, ArchiveVersion: %v)",
-            batch.size(),
-            GetPendingCount(),
-            Version_->Get());
+        YT_TLOG_DEBUG("Archive table transaction starting")
+            .With("Items", batch.size())
+            .With("PendingItems", GetPendingCount())
+            .With("ArchiveVersion", Version_->Get());
 
         TTransactionStartOptions transactionOptions;
         transactionOptions.Atomicity = EAtomicity::None;
@@ -282,9 +284,9 @@ private:
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
 
-        YT_LOG_DEBUG("Archive table transaction started (TransactionId: %v, Items: %v)",
-            transaction->GetId(),
-            batch.size());
+        YT_TLOG_DEBUG("Archive table transaction started")
+            .With("TransactionId", transaction->GetId())
+            .With("Items", batch.size());
 
         size_t dataWeight = HandleBatchTransaction(*transaction, batch);
 
@@ -294,11 +296,10 @@ private:
         CommittedCounter_.Increment();
         CommittedDataWeightCounter_.Increment(dataWeight);
 
-        YT_LOG_DEBUG("Archive table transaction committed (TransactionId: %v, "
-            "CommittedItems: %v, CommittedDataWeight: %v)",
-            transaction->GetId(),
-            batch.size(),
-            dataWeight);
+        YT_TLOG_DEBUG("Archive table transaction committed")
+            .With("TransactionId", transaction->GetId())
+            .With("CommittedItems", batch.size())
+            .With("CommittedDataWeight", dataWeight);
     }
 
     //! Returns data weight of written batch inside transaction.
@@ -339,7 +340,7 @@ private:
     void DoEnable()
     {
         EnableSemaphore_->Release();
-        YT_LOG_INFO("Archive reporter enabled");
+        YT_TLOG_INFO("Archive reporter enabled");
     }
 
     void DoDisable()
@@ -350,7 +351,7 @@ private:
         DroppedCount_.store(0, std::memory_order::relaxed);
         PendingCounter_.Update(PendingCount_ = 0);
         QueueIsTooLargeCounter_.Update(0);
-        YT_LOG_INFO("Archive reporter disabled");
+        YT_TLOG_INFO("Archive reporter disabled");
     }
 
     bool IsEnabled() const
@@ -364,10 +365,10 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Waiting for archive reporter to become enabled");
+        YT_TLOG_INFO("Waiting for archive reporter to become enabled");
         WaitFor(EnableSemaphore_->GetReadyEvent())
             .ThrowOnError();
-        YT_LOG_INFO("Archive reporter became enabled, resuming archive uploading");
+        YT_TLOG_INFO("Archive reporter became enabled, resuming archive uploading");
     }
 
     bool IsValueWeightViolated(TUnversionedRow row) const
@@ -375,12 +376,10 @@ private:
         for (auto value : row) {
             auto valueWeight = GetDataWeight(value);
             if (valueWeight > MaxStringValueLength) {
-                YT_LOG_WARNING(
-                    "Archive table row violates value data weight, archivation skipped "
-                    "(Key: %v, Weight: %v, WeightLimit: %v)",
-                    NameTable_->GetNameOrThrow(value.Id),
-                    valueWeight,
-                    MaxStringValueLength);
+                YT_TLOG_WARNING("Archive table row violates value data weight, archivation skipped")
+                    .With("Key", NameTable_->GetNameOrThrow(value.Id))
+                    .With("Weight", valueWeight)
+                    .With("WeightLimit", MaxStringValueLength);
                 return true;
             }
         }

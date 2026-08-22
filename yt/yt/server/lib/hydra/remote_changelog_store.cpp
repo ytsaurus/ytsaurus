@@ -131,7 +131,7 @@ protected:
         const std::vector<std::string>& attributes,
         std::function<void(const INodePtr&, int id)> functor)
     {
-        YT_LOG_DEBUG("Requesting changelog list from remote store");
+        YT_TLOG_DEBUG("Requesting changelog list from remote store");
 
         TListNodeOptions options{
             .Attributes = attributes,
@@ -139,7 +139,7 @@ protected:
 
         auto result = WaitFor(Client_->ListNode(Path_, options))
             .ValueOrThrow();
-        YT_LOG_DEBUG("Changelog list received");
+        YT_TLOG_DEBUG("Changelog list received");
 
         auto items = ConvertTo<IListNodePtr>(result);
         for (const auto& item : items->GetChildren()) {
@@ -271,8 +271,8 @@ private:
         try {
             ValidateWritable();
 
-            YT_LOG_DEBUG("Setting remote changelog store term (Term: %v)",
-                term);
+            YT_TLOG_DEBUG("Setting remote changelog store term")
+                .With("Term", term);
 
             TSetNodeOptions options;
             options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
@@ -282,8 +282,8 @@ private:
 
             Term_.Store(term);
 
-            YT_LOG_DEBUG("Remote changelog store term set (Term: %v)",
-                term);
+            YT_TLOG_DEBUG("Remote changelog store term set")
+                .With("Term", term);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error setting remote changelog store term")
                 .With("store_path", Path_)
@@ -299,8 +299,8 @@ private:
                 return;
             }
         } while (!LatestChangelogId_.CompareExchange(expected, id));
-        YT_LOG_DEBUG("Latest changelog id updated (NewChangelogId: %v)",
-            id);
+        YT_TLOG_DEBUG("Latest changelog id updated")
+            .With("NewChangelogId", id);
     }
 
     TFuture<IChangelogPtr> DoCreateChangelog(int id, const NProto::TChangelogMeta& meta, const TChangelogOptions& options)
@@ -309,8 +309,8 @@ private:
         try {
             ValidateWritable();
 
-            YT_LOG_DEBUG("Creating remote changelog (ChangelogId: %v)",
-                id);
+            YT_TLOG_DEBUG("Creating remote changelog")
+                .With("ChangelogId", id);
 
             ResourceLimitsManager_->ValidateResourceLimits(
                 Options_->ChangelogAccount,
@@ -342,8 +342,8 @@ private:
             WaitFor(future)
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Remote changelog created (ChangelogId: %v)",
-                id);
+            YT_TLOG_DEBUG("Remote changelog created")
+                .With("ChangelogId", id);
 
             auto changelogFuture = CreateRemoteChangelog(
                 id,
@@ -379,8 +379,8 @@ private:
     {
         auto path = GetChangelogPath(Path_, id);
         try {
-            YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
-                id);
+            YT_TLOG_DEBUG("Getting remote changelog attributes")
+                .With("ChangelogId", id);
 
             TGetNodeOptions getNodeOptions;
             getNodeOptions.Attributes = {"uncompressed_data_size", "quorum_row_count"};
@@ -398,14 +398,14 @@ private:
             auto dataSize = attributes.Get<i64>("uncompressed_data_size");
             auto recordCount = attributes.Get<int>("quorum_row_count");
 
-            YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v, DataSize: %v, RecordCount: %v)",
-                id,
-                dataSize,
-                recordCount);
+            YT_TLOG_DEBUG("Remote changelog attributes received")
+                .With("ChangelogId", id)
+                .With("DataSize", dataSize)
+                .With("RecordCount", recordCount);
 
-            YT_LOG_DEBUG("Remote changelog opened (ChangelogId: %v, Path: %v)",
-                id,
-                path);
+            YT_TLOG_DEBUG("Remote changelog opened")
+                .With("ChangelogId", id)
+                .With("Path", path);
 
             return CreateRemoteChangelog(
                 id,
@@ -427,8 +427,8 @@ private:
         try {
             ValidateWritable();
 
-            YT_LOG_DEBUG("Removing remote changelog (ChangelogId: %v)",
-                id);
+            YT_TLOG_DEBUG("Removing remote changelog")
+                .With("ChangelogId", id);
 
             TRemoveNodeOptions options;
             options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
@@ -436,8 +436,8 @@ private:
             WaitFor(Client_->RemoveNode(path, options))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Remote changelog removed (ChangelogId: %v)",
-                id);
+            YT_TLOG_DEBUG("Remote changelog removed")
+                .With("ChangelogId", id);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error removing remote changelog")
                 .With("changelog_path", path)
@@ -626,19 +626,20 @@ private:
             auto guard = Guard(WriterLock_);
 
             if (!Writer_) {
-                YT_LOG_DEBUG("Remote changelog has no underlying writer and is now closed");
+                YT_TLOG_DEBUG("Remote changelog has no underlying writer and is now closed");
                 return OKFuture;
             }
 
-            YT_LOG_DEBUG("Closing remote changelog with its underlying writer");
+            YT_TLOG_DEBUG("Closing remote changelog with its underlying writer");
 
             auto future = PendingRecordsFlushFuture_.Apply(
                 BIND(&IJournalWriter::Close, Writer_));
             future.Subscribe(BIND([Logger = Logger] (const TError& error) {
                 if (error.IsOK()) {
-                    YT_LOG_DEBUG("Remote changelog closed");
+                    YT_TLOG_DEBUG("Remote changelog closed");
                 } else {
-                    YT_LOG_DEBUG(error, "Error closing remote changelog");
+                    YT_TLOG_DEBUG("Error closing remote changelog")
+                        .With(error);
                 }
             }));
             return future;
@@ -695,7 +696,7 @@ private:
                 THROW_ERROR_EXCEPTION("Changelog is read-only");
             }
 
-            YT_LOG_DEBUG("Creating remote changelog writer");
+            YT_TLOG_DEBUG("Creating remote changelog writer");
 
             try {
                 auto writerOptions = Owner_->GetJournalWriterOptions();
@@ -716,8 +717,8 @@ private:
         {
             auto guard = Guard(WriterLock_);
 
-            YT_LOG_DEBUG("Journal writer opened; flushing pending records (PendingRecordCount: %v)",
-                PendingRecords_.size());
+            YT_TLOG_DEBUG("Journal writer opened; flushing pending records")
+                .With("PendingRecordCount", PendingRecords_.size());
 
             auto rows = std::exchange(PendingRecords_, {});
             auto flushedFuture = rows.empty() ? OKFuture : Writer_->Write(TRange(rows));
@@ -851,7 +852,7 @@ private:
             }
         });
 
-        YT_LOG_DEBUG("No unsealed changelogs in remote store");
+        YT_TLOG_DEBUG("No unsealed changelogs in remote store");
     }
 
     TChangelogStoreScanResult Scan()
@@ -890,7 +891,7 @@ private:
 
     int GetTerm()
     {
-        YT_LOG_DEBUG("Requesting term from remote store");
+        YT_TLOG_DEBUG("Requesting term from remote store");
 
         TGetNodeOptions options;
         options.Attributes = {"term"};
@@ -900,8 +901,8 @@ private:
         auto attributes = ConvertToAttributes(yson);
         auto term = attributes->Get<int>("term", 0);
 
-        YT_LOG_DEBUG("Term received (Term: %v)",
-            term);
+        YT_TLOG_DEBUG("Term received")
+            .With("Term", term);
 
         return term;
     }

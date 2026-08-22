@@ -94,23 +94,21 @@ public:
             YT_VERIFY(!JobSizeConstraints_->GetSamplingRate());
         }
 
-        YT_LOG_INFO(
-            "Ordered chunk pool created (DataWeightPerJob: %v, SamplingDataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
-            "CompressedDataSizePerJob: %v, MaxCompressedDataSizePerJob: %v, "
-            "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "
-            "BatchRowCount: %v, SamplingRate: %v, SingleJob: %v, HasJobSizeAdjuster: %v)",
-            JobSizeConstraints_->GetDataWeightPerJob(),
-            JobSizeConstraints_->GetSamplingRate() ? std::optional<i64>(JobSizeConstraints_->GetSamplingDataWeightPerJob()) : std::nullopt,
-            JobSizeConstraints_->GetMaxDataWeightPerJob(),
-            JobSizeConstraints_->GetCompressedDataSizePerJob(),
-            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
-            JobSizeConstraints_->GetMaxDataSlicesPerJob(),
-            JobSizeConstraints_->GetInputSliceDataWeight(),
-            JobSizeConstraints_->GetInputSliceRowCount(),
-            JobSizeConstraints_->GetBatchRowCount(),
-            JobSizeConstraints_->GetSamplingRate(),
-            SingleJob_,
-            static_cast<bool>(JobSizeAdjuster_));
+        YT_TLOG_INFO("Ordered chunk pool created")
+            .With("DataWeightPerJob", JobSizeConstraints_->GetDataWeightPerJob())
+            .With(
+                "SamplingDataWeightPerJob",
+                JobSizeConstraints_->GetSamplingRate() ? std::optional<i64>(JobSizeConstraints_->GetSamplingDataWeightPerJob()) : std::nullopt)
+            .With("MaxDataWeightPerJob", JobSizeConstraints_->GetMaxDataWeightPerJob())
+            .With("CompressedDataSizePerJob", JobSizeConstraints_->GetCompressedDataSizePerJob())
+            .With("MaxCompressedDataSizePerJob", JobSizeConstraints_->GetMaxCompressedDataSizePerJob())
+            .With("MaxDataSlicesPerJob", JobSizeConstraints_->GetMaxDataSlicesPerJob())
+            .With("InputSliceDataWeight", JobSizeConstraints_->GetInputSliceDataWeight())
+            .With("InputSliceRowCount", JobSizeConstraints_->GetInputSliceRowCount())
+            .With("BatchRowCount", JobSizeConstraints_->GetBatchRowCount())
+            .With("SamplingRate", JobSizeConstraints_->GetSamplingRate())
+            .With("SingleJob", SingleJob_)
+            .With("HasJobSizeAdjuster", static_cast<bool>(JobSizeAdjuster_));
     }
 
     // IPersistentChunkPoolInput implementation.
@@ -175,12 +173,11 @@ public:
         TJobSplittingBase::Completed(cookie, jobSummary);
 
         if (jobSummary.InterruptionReason != EInterruptionReason::None) {
-            YT_LOG_DEBUG(
-                "Splitting job (JobId: %v, OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
-                jobSummary.Id,
-                cookie,
-                jobSummary.InterruptionReason,
-                jobSummary.SplitJobCount);
+            YT_TLOG_DEBUG("Splitting job")
+                .With("JobId", jobSummary.Id)
+                .With("OutputCookie", cookie)
+                .With("InterruptionReason", jobSummary.InterruptionReason)
+                .With("SplitJobCount", jobSummary.SplitJobCount);
             YT_VERIFY(jobSummary.UnreadInputDataSlices.size() > 0);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
             ValidateChildJobSizes(cookie, childCookies, [this] (TOutputCookie cookie) {
@@ -199,7 +196,8 @@ public:
             }
 
             if (action == EJobAdjustmentAction::RebuildJobs) {
-                YT_LOG_INFO("Job completion triggered enlargement (JobCookie: %v)", cookie);
+                YT_TLOG_INFO("Job completion triggered enlargement")
+                    .With("JobCookie", cookie);
                 JobManager_->Enlarge(
                     JobSizeAdjuster_->GetDataWeightPerJob(),
                     JobSizeAdjuster_->GetDataWeightPerJob(),
@@ -325,12 +323,10 @@ private:
     void BuildJobsAndFindTeleportChunks()
     {
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
-            YT_LOG_DEBUG(
-                "Building jobs with sampling "
-                "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
-                *samplingRate,
-                JobSizeConstraints_->GetSamplingDataWeightPerJob(),
-                JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
+            YT_TLOG_DEBUG("Building jobs with sampling")
+                .With("SamplingRate", *samplingRate)
+                .With("SamplingDataWeightPerJob", JobSizeConstraints_->GetSamplingDataWeightPerJob())
+                .With("SamplingPrimaryDataWeightPerJob", JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
 
         // TODO(apollo1321): Is it really a good place to set up job size constraints for partitioning tables?
@@ -393,10 +389,10 @@ private:
         }
         EndJob();
 
-        YT_LOG_INFO("Jobs created (Count: %v, TeleportChunkCount: %v, DroppedTeleportChunkCount: %v)",
-            BuiltJobCount_,
-            chunksTeleported,
-            droppedTeleportChunkCount);
+        YT_TLOG_INFO("Jobs created")
+            .With("Count", BuiltJobCount_)
+            .With("TeleportChunkCount", chunksTeleported)
+            .With("DroppedTeleportChunkCount", droppedTeleportChunkCount);
 
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
@@ -430,16 +426,13 @@ private:
             compressedDataSizePerJob = DivCeil(compressedDataSize, static_cast<i64>(splitJobCount));
         }
 
-        YT_LOG_DEBUG(
-            "Job split parameters computed (OutputCookie: %v, SplitJobCount: %v, "
-            "DataWeightPerJob: %v, CompressedDataSizePerJob: %v, "
-            "UnreadDataWeight: %v, UnreadCompressedDataSize: %v)",
-            cookie,
-            splitJobCount,
-            dataWeightPerJob,
-            compressedDataSizePerJob,
-            dataWeight,
-            compressedDataSize);
+        YT_TLOG_DEBUG("Job split parameters computed")
+            .With("OutputCookie", cookie)
+            .With("SplitJobCount", splitJobCount)
+            .With("DataWeightPerJob", dataWeightPerJob)
+            .With("CompressedDataSizePerJob", compressedDataSizePerJob)
+            .With("UnreadDataWeight", dataWeight)
+            .With("UnreadCompressedDataSize", compressedDataSize);
 
         // NB: Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
@@ -654,12 +647,12 @@ private:
         if (CurrentJob()->GetSliceCount() > 0) {
             auto jobIndex = JobIndex_++;
             if (Sampler_.Sample()) {
-                YT_LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataWeight: %v, RowCount: %v, SliceCount: %v)",
-                    jobIndex,
-                    BuiltJobCount_,
-                    CurrentJob()->GetPrimaryDataWeight(),
-                    CurrentJob()->GetPrimaryRowCount(),
-                    CurrentJob()->GetPrimarySliceCount());
+                YT_TLOG_DEBUG("Ordered job created")
+                    .With("JobIndex", jobIndex)
+                    .With("BuiltJobCount", BuiltJobCount_)
+                    .With("PrimaryDataWeight", CurrentJob()->GetPrimaryDataWeight())
+                    .With("RowCount", CurrentJob()->GetPrimaryRowCount())
+                    .With("SliceCount", CurrentJob()->GetPrimarySliceCount());
 
                 GetDataSliceCounter()->AddUncategorized(CurrentJob()->GetSliceCount());
 
@@ -680,12 +673,12 @@ private:
 
                 return cookie;
             } else {
-                YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
-                    jobIndex,
-                    BuiltJobCount_,
-                    CurrentJob()->GetPrimaryDataWeight(),
-                    CurrentJob()->GetPrimaryRowCount(),
-                    CurrentJob()->GetPrimarySliceCount());
+                YT_TLOG_DEBUG("Ordered job skipped")
+                    .With("JobIndex", jobIndex)
+                    .With("BuiltJobCount", BuiltJobCount_)
+                    .With("DataWeight", CurrentJob()->GetPrimaryDataWeight())
+                    .With("RowCount", CurrentJob()->GetPrimaryRowCount())
+                    .With("SliceCount", CurrentJob()->GetPrimarySliceCount());
                 CurrentJob().reset();
             }
         }

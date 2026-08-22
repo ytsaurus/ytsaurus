@@ -376,9 +376,9 @@ protected:
             auto roundResult = WaitForFast(queue->Dequeue())
                 .ValueOrThrow();
             result.push_back(roundResult);
-            YT_LOG_INFO("Next congested step (Index: %v, IOPS: %v)",
-                index,
-                roundResult);
+            YT_TLOG_INFO("Next congested step")
+                .With("Index", index)
+                .With("IOPS", roundResult);
         }
 
         gentleLoader->Stop();

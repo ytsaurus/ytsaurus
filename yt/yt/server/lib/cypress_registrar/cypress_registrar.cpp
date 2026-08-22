@@ -60,8 +60,8 @@ public:
 
     void Start(TCallback<IAttributeDictionaryPtr()> attributeFactory) override
     {
-        YT_LOG_INFO("Starting Cypress registrar (UpdatePeriod: %v)",
-            Config_->UpdatePeriod);
+        YT_TLOG_INFO("Starting Cypress registrar")
+            .With("UpdatePeriod", Config_->UpdatePeriod);
 
         YT_VERIFY(!Started_);
         Started_ = true;
@@ -78,7 +78,8 @@ public:
             .Run()
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
-                    YT_LOG_ERROR(error, "Failed to create nodes");
+                    YT_TLOG_ERROR("Failed to create nodes")
+                        .With(error);
                     THROW_ERROR_EXCEPTION("Cypress registrar failed to create nodes")
                         .With(error);
                 }
@@ -94,7 +95,8 @@ public:
             .Run()
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
-                    YT_LOG_ERROR(error, "Failed to update nodes");
+                    YT_TLOG_ERROR("Failed to update nodes")
+                        .With(error);
                     THROW_ERROR_EXCEPTION("Cypress registrar failed to update nodes")
                         .With(error);
                 }
@@ -150,18 +152,18 @@ private:
         WaitFor(Client_->CreateNode(RootPath_ + "/" + AliveNodeName, EObjectType::MapNode, options))
             .ThrowOnError();
 
-        YT_LOG_INFO("Liveness updated");
+        YT_TLOG_INFO("Liveness updated");
     }
 
     void DoCreateNodes()
     {
-        YT_LOG_INFO("Started creating nodes");
+        YT_TLOG_INFO("Started creating nodes");
 
         bool createdRoot = false;
 
         // Create root node.
         if (!WaitFor(Client_->NodeExists(RootPath_)).ValueOrThrow()) {
-            YT_LOG_DEBUG("Creating new nodes");
+            YT_TLOG_DEBUG("Creating new nodes");
             createdRoot = true;
 
             TCreateNodeOptions options;
@@ -172,16 +174,15 @@ private:
             // COMPAT(kvk1920): Remove after all masters are updated to 23.2.
             if (errorOrId.GetMessage().contains("EObjectType(1500)")) {
                 // Old master does not support this type.
-                YT_LOG_DEBUG(
-                    errorOrId,
-                    "Failed to create cluster proxy node; fall back to map node");
+                YT_TLOG_DEBUG("Failed to create cluster proxy node; fall back to map node")
+                    .With(errorOrId);
                 errorOrId = WaitFor(Client_->CreateNode(RootPath_, EObjectType::MapNode, options));
             } else {
-                YT_LOG_DEBUG("Cluster proxy node successfully created");
+                YT_TLOG_DEBUG("Cluster proxy node successfully created");
             }
             errorOrId.ThrowOnError();
 
-            YT_LOG_INFO("Root node created");
+            YT_TLOG_INFO("Root node created");
         } else if (Options_.NodeType == EObjectType::ClusterProxyNode) {
             // COMPAT(kvk1920): Remove after all masters are updated to 23.2.
             TGetNodeOptions getOptions;
@@ -189,11 +190,11 @@ private:
             auto result = ConvertToNode(WaitFor(Client_->GetNode(RootPath_ + "/@", getOptions))
                 .ValueOrThrow())->AsMap();
             auto type = result->FindChildValue<std::string>("type");
-            YT_LOG_DEBUG("Existing entry type: %Qv",
-                type);
+            YT_TLOG_DEBUG("Found existing entry")
+                .With("Type", type);
             if (type == "map_node") {
-                YT_LOG_INFO("Trying to recreate root node as %Qlv",
-                    Options_.NodeType);
+                YT_TLOG_INFO("Trying to recreate root node")
+                    .With("NodeType", Options_.NodeType);
 
                 TCreateNodeOptions createNodeOptions;
                 SetRequestOptions(createNodeOptions);
@@ -207,9 +208,9 @@ private:
                 auto errorOrId = WaitFor(Client_->CreateNode(RootPath_, Options_.NodeType, createNodeOptions));
 
                 if (errorOrId.IsOK()) {
-                    YT_LOG_INFO("Root node recreated");
+                    YT_TLOG_INFO("Root node recreated");
                 } else if (errorOrId.GetMessage().contains("EObjectType(1500)")) {
-                    YT_LOG_INFO("Root node is not recreated: cluster still does not support \"cluster_proxy_node\"");
+                    YT_TLOG_INFO("Root node is not recreated: cluster still does not support \"cluster_proxy_node\"");
                 } else {
                     errorOrId.ThrowOnError();
                 }
@@ -229,7 +230,7 @@ private:
             WaitFor(Client_->CreateNode(OrchidPath_, EObjectType::Orchid, options))
                 .ThrowOnError();
 
-            YT_LOG_INFO("Orchid node created");
+            YT_TLOG_INFO("Orchid node created");
         }
 
         // Set root node initial attributes.
@@ -238,7 +239,7 @@ private:
             SetRequestOptions(options);
             WaitFor(Client_->MultisetAttributesNode(RootPath_ + "/@", attributes->ToMap(), options))
                 .ThrowOnError();
-            YT_LOG_INFO("Initial attributes set");
+            YT_TLOG_INFO("Initial attributes set");
         }
 
         // Create |alive| child.
@@ -246,7 +247,7 @@ private:
             CreateAliveChild();
         }
 
-        YT_LOG_INFO("Finished creating nodes");
+        YT_TLOG_INFO("Finished creating nodes");
     }
 
     bool IsMigrationNeeded()
@@ -265,7 +266,7 @@ private:
 
     void DoUpdateNodes(IAttributeDictionaryPtr attributes)
     {
-        YT_LOG_INFO("Started updating nodes");
+        YT_TLOG_INFO("Started updating nodes");
 
         // Create nodes if needed.
         if (Options_.EnableImplicitInitialization && (!Initialized_ || IsMigrationNeeded())) {
@@ -284,7 +285,7 @@ private:
                     Options_.EnableImplicitInitialization &&
                     rsp.FindMatching(NYTree::EErrorCode::ResolveError))
                 {
-                    YT_LOG_WARNING("Root node has expired, will reinitialize");
+                    YT_TLOG_WARNING("Root node has expired, will reinitialize");
                     Initialized_ = false;
                 }
                 rsp.ThrowOnError();
@@ -296,7 +297,7 @@ private:
             CreateAliveChild();
         }
 
-        YT_LOG_INFO("Finished updating nodes");
+        YT_TLOG_INFO("Finished updating nodes");
     }
 
     void DoUpdateNodesGuarded()
@@ -307,7 +308,8 @@ private:
                 : nullptr;
             DoUpdateNodes(attributes);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to update nodes");
+            YT_TLOG_ERROR("Failed to update nodes")
+                .With(ex);
         }
     }
 };

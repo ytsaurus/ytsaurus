@@ -133,14 +133,15 @@ void TDiskHealthChecker::OnCheckCompleted(const TError& error)
     auto actualError = error.GetCode() == NYT::EErrorCode::Timeout
         ? TError("Disk health check timed out at %v", Path_)
         : error;
-    YT_LOG_ERROR(actualError);
+    YT_TLOG_ERROR("Disk health check failed")
+        .With(actualError);
 
     Failed_.Fire(actualError);
 }
 
 void TDiskHealthChecker::DoRunCheck()
 {
-    YT_LOG_DEBUG("Disk health check started");
+    YT_TLOG_DEBUG("Disk health check started");
 
     if (auto lockFilePath = NFS::CombinePaths(Path_, DisabledLockFileName); NFS::Exists(lockFilePath)) {
         auto lockFileError = TError(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found")
@@ -149,7 +150,8 @@ void TDiskHealthChecker::DoRunCheck()
         try {
             fileContents = TFileInput(lockFilePath).ReadAll();
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Failed to extract error from location lock file");
+            YT_TLOG_INFO("Failed to extract error from location lock file")
+                .With(ex);
             lockFileError.Add(TError("Failed to extract error from location lock file")
                 .With(ex));
 
@@ -163,7 +165,8 @@ void TDiskHealthChecker::DoRunCheck()
                 lockFileError.Add(std::move(error));
             }
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Failed to parse error from location lock file");
+            YT_TLOG_INFO("Failed to parse error from location lock file")
+                .With(ex);
 
             lockFileError.Add(TError("Failed to parse error from location lock file")
                 .With(ex)
@@ -191,7 +194,8 @@ void TDiskHealthChecker::DoRunCheck()
                 file.Write(writeData.data(), testSize);
             } catch (const TSystemError& ex) {
                 if (ex.Status() == ENOSPC) {
-                    YT_LOG_WARNING(ex, "Disk health check ignored");
+                    YT_TLOG_WARNING("Disk health check ignored")
+                        .With(ex);
                     return;
                 } else {
                     throw;
@@ -219,7 +223,7 @@ void TDiskHealthChecker::DoRunCheck()
             .With(ex);
     }
 
-    YT_LOG_DEBUG("Disk health check finished");
+    YT_TLOG_DEBUG("Disk health check finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

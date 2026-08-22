@@ -29,8 +29,8 @@ public:
         , Logger(std::move(logger))
     {
         SetType(defaultEngineType, defaultIOConfig);
-        YT_LOG_INFO("Dynamic IO engine initialized (Type: %v)",
-            defaultEngineType);
+        YT_TLOG_INFO("Dynamic IO engine initialized")
+            .With("Type", defaultEngineType);
 
         for (auto engineType : GetSupportedIOEngineTypes()) {
             Profiler_
@@ -156,8 +156,8 @@ public:
 
         CurrentType_.store(type);
 
-        YT_LOG_INFO("Dynamic IO engine reconfigured (Type: %v)",
-            type);
+        YT_TLOG_INFO("Dynamic IO engine reconfigured")
+            .With("Type", type);
     }
 
     void Reconfigure(const NYTree::INodePtr& dynamicIOConfig) override

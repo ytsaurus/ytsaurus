@@ -60,6 +60,7 @@ int main(int argc, const char** argv)
             groupName,
             parameterizedConfig);
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Dry run failed");
+        YT_TLOG_ERROR("Dry run failed")
+            .With(ex);
     }
 }

@@ -64,30 +64,30 @@ public:
 
     void Prepare(TTestTransaction transaction)
     {
-        YT_LOG_DEBUG("Calling Prepare (TransactionId: %v, PrepareTimestamp: %v, IsCoordinated: %v)",
-            transaction.Id,
-            transaction.PrepareTimestamp,
-            transaction.IsCoordinated);
+        YT_TLOG_DEBUG("Calling Prepare")
+            .With("TransactionId", transaction.Id)
+            .With("PrepareTimestamp", transaction.PrepareTimestamp)
+            .With("IsCoordinated", transaction.IsCoordinated);
 
         Manager_.OnCommitPrepare(transaction.Id, transaction.PrepareTimestamp, transaction.IsCoordinated, transaction.Tags);
     };
 
     [[nodiscard]] std::vector<TCommitInfo> ReadyToCommit(TTestTransaction transaction)
     {
-        YT_LOG_DEBUG("Calling ReadyToCommit (TransactionId: %v, CommitTimestamp: %v, IsCoordinated: %v)",
-            transaction.Id,
-            transaction.CommitTimestamp,
-            transaction.IsCoordinated);
+        YT_TLOG_DEBUG("Calling ReadyToCommit")
+            .With("TransactionId", transaction.Id)
+            .With("CommitTimestamp", transaction.CommitTimestamp)
+            .With("IsCoordinated", transaction.IsCoordinated);
 
         return Manager_.OnCommitReadyToCommit(transaction.Id, transaction.CommitTimestamp, SelfClockClusterTagMock);
     }
 
     [[nodiscard]] std::vector<TCommitInfo> Commit(TTestTransaction transaction)
     {
-        YT_LOG_DEBUG("Calling Commit (TransactionId: %v, CommitTimestamp: %v, IsCoordinated: %v)",
-            transaction.Id,
-            transaction.CommitTimestamp,
-            transaction.IsCoordinated);
+        YT_TLOG_DEBUG("Calling Commit")
+            .With("TransactionId", transaction.Id)
+            .With("CommitTimestamp", transaction.CommitTimestamp)
+            .With("IsCoordinated", transaction.IsCoordinated);
 
         return Manager_.OnCommitCommit(
             transaction.Id,
@@ -99,10 +99,10 @@ public:
 
     [[nodiscard]] std::vector<TCommitInfo> Abort(TTestTransaction transaction)
     {
-        YT_LOG_DEBUG("Calling Abort (TransactionId: %v, CommitTimestamp: %v, IsCoordinated: %v)",
-            transaction.Id,
-            transaction.CommitTimestamp,
-            transaction.IsCoordinated);
+        YT_TLOG_DEBUG("Calling Abort")
+            .With("TransactionId", transaction.Id)
+            .With("CommitTimestamp", transaction.CommitTimestamp)
+            .With("IsCoordinated", transaction.IsCoordinated);
 
         return Manager_.OnCommitAbort(transaction.Id, transaction.CommitTimestamp.Underlying());
     };
@@ -481,19 +481,16 @@ protected:
     void LogTransactionInfo(const std::vector<TTestTransaction>& transactions)
     {
         for (const auto& transaction : transactions) {
-            YT_LOG_DEBUG(
-                "Transaction information (Id: %v, IsCoordinated: %v, PrepareTimestamp: %v "
-                "CommitTimestamp: %v, Tags: %v, DelayedPrepareTimestamp: %v, "
-                "DelayedReadyToCommitTimestamp: %v, DelayedCommitTimestamp: %v, ShouldAbortInsteadOfCommit: %v)",
-                transaction.Id,
-                transaction.IsCoordinated,
-                transaction.PrepareTimestamp,
-                transaction.CommitTimestamp,
-                transaction.Tags,
-                transaction.DelayedPrepareTimestamp,
-                transaction.DelayedReadyToCommitTimestamp,
-                transaction.DelayedCommitTimestamp,
-                transaction.ShouldAbortInsteadOfCommit);
+            YT_TLOG_DEBUG("Transaction information")
+                .With("Id", transaction.Id)
+                .With("IsCoordinated", transaction.IsCoordinated)
+                .With("PrepareTimestamp", transaction.PrepareTimestamp)
+                .With("CommitTimestamp", transaction.CommitTimestamp)
+                .With("Tags", transaction.Tags)
+                .With("DelayedPrepareTimestamp", transaction.DelayedPrepareTimestamp)
+                .With("DelayedReadyToCommitTimestamp", transaction.DelayedReadyToCommitTimestamp)
+                .With("DelayedCommitTimestamp", transaction.DelayedCommitTimestamp)
+                .With("ShouldAbortInsteadOfCommit", transaction.ShouldAbortInsteadOfCommit);
         }
     }
 

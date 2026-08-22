@@ -95,10 +95,9 @@ private:
             .AsUnique()
             .Apply(BIND([this, this_ = MakeStrong(this)] (ITransactionPtr&& tx) {
                 Transaction_ = std::move(tx);
-                YT_LOG_DEBUG(
-                    "Started update transaction (ReplicaIndex: %v, ReplicaVersionTag: %v)",
-                    Client_->GetIndex(),
-                    Tag_);
+                YT_TLOG_DEBUG("Started update transaction")
+                    .With("ReplicaIndex", Client_->GetIndex())
+                    .With("ReplicaVersionTag", Tag_);
             }));
     }
 
@@ -129,15 +128,14 @@ private:
     TFuture<void> DoUpdate()
     {
         if (!AcquiredLock_) {
-            YT_LOG_DEBUG("Outdated version, no reason to wait for lock (ReplicaIndex: %v, ReplicaVersionTag: %v)",
-                Client_->GetIndex(),
-                Tag_);
+            YT_TLOG_DEBUG("Outdated version, no reason to wait for lock")
+                .With("ReplicaIndex", Client_->GetIndex())
+                .With("ReplicaVersionTag", Tag_);
             return Transaction_->Abort();
         }
-        YT_LOG_DEBUG(
-            "Lock acquired (ReplicaIndex: %v, ReplicaVersionTag: %v)",
-            Client_->GetIndex(),
-            Tag_);
+        YT_TLOG_DEBUG("Lock acquired")
+            .With("ReplicaIndex", Client_->GetIndex())
+            .With("ReplicaVersionTag", Tag_);
         return GetCurrentVersion()
             .Apply(BIND(&TReplicaUpdater::SetValueOrAbort, MakeStrong(this)));
     }
@@ -158,28 +156,25 @@ private:
     {
         auto newVersion = ExtractVersion(Node_);
         if (CurrentVersion_ >= newVersion) {
-            YT_LOG_DEBUG(
-                "Outdated version, aborting transaction (ReplicaIndex: %v, CurrentVersion: %v, NewVersion: %v)",
-                Client_->GetIndex(),
-                CurrentVersion_,
-                newVersion);
+            YT_TLOG_DEBUG("Outdated version, aborting transaction")
+                .With("ReplicaIndex", Client_->GetIndex())
+                .With("CurrentVersion", CurrentVersion_)
+                .With("NewVersion", newVersion);
             return Transaction_->Abort();
         }
-        YT_LOG_DEBUG(
-            "Setting new value (ReplicaIndex: %v, CurrentVersion: %v, NewVersion: %v)",
-            Client_->GetIndex(),
-            CurrentVersion_,
-            newVersion);
+        YT_TLOG_DEBUG("Setting new value")
+            .With("ReplicaIndex", Client_->GetIndex())
+            .With("CurrentVersion", CurrentVersion_)
+            .With("NewVersion", newVersion);
 
         auto setCallback = [this, this_ = MakeStrong(this)] (const ISingleClusterClientPtr&) {
             return SetValue()
                 .Apply(BIND(&TReplicaUpdater::SetVersionAttribute, MakeStrong(this)))
                 .Apply(BIND(&TReplicaUpdater::Commit, MakeStrong(this)))
                 .Apply(BIND([this, this_ = MakeStrong(this)] {
-                    YT_LOG_DEBUG(
-                        "Committed update (ReplicaIndex: %v, ReplicaVersionTag: %v)",
-                        Client_->GetIndex(),
-                        Tag_);
+                    YT_TLOG_DEBUG("Committed update")
+                        .With("ReplicaIndex", Client_->GetIndex())
+                        .With("ReplicaVersionTag", Tag_);
                     return std::monostate();
                 }));
         };
@@ -272,7 +267,8 @@ public:
             if (!requiresUpdate) {
                 return MakeFuture(std::move(latestNode.second));
             }
-            YT_LOG_DEBUG("Found inconsistency, updating (ReplicaVersionTag: %v)", Tag_);
+            YT_TLOG_DEBUG("Found inconsistency, updating")
+                .With("ReplicaVersionTag", Tag_);
             return this_->UpdateNodes(this_->Client_, latestNode.second, std::move(shouldIngoreReplica))
                 .Apply(BIND([latestNode = latestNode.second] {
                     return latestNode;
@@ -383,7 +379,8 @@ private:
     std::vector<TErrorOr<std::pair<TReplicaVersion, INodePtr>>> ProcessGets(
         std::vector<TErrorOr<std::pair<TReplicaVersion, INodePtr>>>&& getResults)
     {
-        YT_LOG_DEBUG("Processing gets (ReplicaVersionTag: %v)", Tag_);
+        YT_TLOG_DEBUG("Processing gets")
+            .With("ReplicaVersionTag", Tag_);
         std::vector<int> failedClusters;
         std::vector<TError> innerErrors;
         for (auto&& [index, result] : SEnumerate(getResults)) {
@@ -391,9 +388,10 @@ private:
                 if (result.GetCode() == NYTree::EErrorCode::ResolveError) {
                     getResults[index] = std::pair(NullReplicaVersion, INodePtr());
                 } else {
-                    YT_LOG_DEBUG(
-                        result,
-                        "Fetching error (ReplicaIndex: %v, ReplicaVersionTag: %v)", index, Tag_);
+                    YT_TLOG_DEBUG("Fetching error")
+                        .With("ReplicaIndex", index)
+                        .With("ReplicaVersionTag", Tag_)
+                        .With(result);
                     failedClusters.emplace_back(index);
                     innerErrors.push_back(static_cast<const TError&>(result));
                 }
@@ -416,9 +414,10 @@ private:
         std::vector<TError> innerErrors;
         for (auto&& [index, result] : SEnumerate(updateResults)) {
             if (!result.IsOK()) {
-                YT_LOG_DEBUG(
-                    result,
-                    "Updating error (ReplicaIndex: %v, ReplicaVersionTag: %v)", index, Tag_);
+                YT_TLOG_DEBUG("Updating error")
+                    .With("ReplicaIndex", index)
+                    .With("ReplicaVersionTag", Tag_)
+                    .With(result);
                 failedClusters.emplace_back(index);
                 innerErrors.push_back(static_cast<const TError&>(result));
             }

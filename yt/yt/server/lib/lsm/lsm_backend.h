@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +93,7 @@ struct TLsmActionBatch
 
     void MergeWith(TLsmActionBatch&& other);
 
-    std::string GetStatsLoggingString() const;
+    NLogging::TLoggingTagList GetStatsTags() const;
 
 private:
     template <class TRequest>

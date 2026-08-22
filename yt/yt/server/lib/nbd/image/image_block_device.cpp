@@ -69,8 +69,8 @@ public:
             .Increment(1);
 
         auto guard = TCurrentTraceContextGuard(TraceContext_);
-        YT_LOG_INFO("Destroying file system block device (Path: %v)",
-            Reader_->GetPath());
+        YT_TLOG_INFO("Destroying file system block device")
+            .With("Path", Reader_->GetPath());
     }
 
     i64 GetTotalSize() const override
@@ -156,11 +156,13 @@ private:
 
     void DoInitialize()
     {
-        YT_LOG_INFO("Initializing File system block device (Path: %v)", Reader_->GetPath());
+        YT_TLOG_INFO("Initializing File system block device")
+            .With("Path", Reader_->GetPath());
 
         Reader_->Initialize();
 
-        YT_LOG_INFO("Initialized File system block device (Path: %v)", Reader_->GetPath());
+        YT_TLOG_INFO("Initialized File system block device")
+            .With("Path", Reader_->GetPath());
     }
 
     static NProfiling::TTaggedCounters<int>& FileBlockDeviceCount()

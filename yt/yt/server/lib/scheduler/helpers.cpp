@@ -123,7 +123,9 @@ void MaybeDelay(const TDelayConfigPtr& delayConfig, const TLogger* logger)
     if (delayConfig) {
         if (logger) {
             const auto& Logger = *logger;
-            YT_LOG_DEBUG("Making test delay (Duration: %v, Type: %v)", delayConfig->Duration, delayConfig->Type);
+            YT_TLOG_DEBUG("Making test delay")
+                .With("Duration", delayConfig->Duration)
+                .With("Type", delayConfig->Type);
         }
 
         Delay(delayConfig->Duration, delayConfig->Type);

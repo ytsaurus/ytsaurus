@@ -106,11 +106,11 @@ private:
 
         auto alivePeerIds = epochContext->AlivePeerIds.Load();
 
-        YT_LOG_DEBUG("Sending ping to follower (FollowerId: %v, Term: %v, EpochId: %v, AlivePeerIds: %v)",
-            followerId,
-            epochContext->Term,
-            epochContext->EpochId,
-            alivePeerIds);
+        YT_TLOG_DEBUG("Sending ping to follower")
+            .With("FollowerId", followerId)
+            .With("Term", epochContext->Term)
+            .With("EpochId", epochContext->EpochId)
+            .With("AlivePeerIds", alivePeerIds);
 
         TInternalHydraServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
@@ -138,16 +138,17 @@ private:
 
         if (!rspOrError.IsOK()) {
             PingErrors_.push_back(rspOrError);
-            YT_LOG_WARNING(rspOrError, "Error pinging follower (PeerId: %v)",
-                followerId);
+            YT_TLOG_WARNING("Error pinging follower")
+                .With("PeerId", followerId)
+                .With(rspOrError);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         auto state = EPeerState(rsp->state());
-        YT_LOG_DEBUG("Follower ping succeeded (PeerId: %v, State: %v)",
-            followerId,
-            state);
+        YT_TLOG_DEBUG("Follower ping succeeded")
+            .With("PeerId", followerId)
+            .With("State", state);
 
         if (voting) {
             if (state == EPeerState::Following || state == EPeerState::FollowerRecovery) {
@@ -272,19 +273,20 @@ void TLeaseTracker::OnLeaseCheck()
     auto checkPromise = std::move(NextCheckPromise_);
     NextCheckPromise_ = NewPromise<void>();
 
-    YT_LOG_DEBUG("Starting leader lease check (TrackingEnabled: %v)",
-        trackingEnabled);
+    YT_TLOG_DEBUG("Starting leader lease check")
+        .With("TrackingEnabled", trackingEnabled);
 
     auto checkResult = WaitFor(FireLeaseCheck());
     if (checkResult.IsOK()) {
-        YT_LOG_DEBUG("Leader lease check succeeded (TrackingEnabled: %v)",
-            trackingEnabled);
+        YT_TLOG_DEBUG("Leader lease check succeeded")
+            .With("TrackingEnabled", trackingEnabled);
         if (trackingEnabled) {
             Lease_->Extend(startTime + NProfiling::DurationToCpuDuration(Config_->LeaderLeaseTimeout));
         }
     } else {
-        YT_LOG_DEBUG(checkResult, "Leader lease check failed (TrackingEnabled: %v)",
-            trackingEnabled);
+        YT_TLOG_DEBUG("Leader lease check failed")
+            .With("TrackingEnabled", trackingEnabled)
+            .With(checkResult);
         if (trackingEnabled) {
             LeaseLost_.Fire(checkResult);
         }

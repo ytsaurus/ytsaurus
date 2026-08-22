@@ -521,7 +521,8 @@ std::vector<IChunkPoolOutput::TCookie> TNewJobManager::AddJobs(std::vector<std::
     if (jobStubs.empty()) {
         return {};
     }
-    YT_LOG_DEBUG("Adding jobs to job manager (JobCount: %v)", jobStubs.size());
+    YT_TLOG_DEBUG("Adding jobs to job manager")
+        .With("JobCount", jobStubs.size());
     std::vector<IChunkPoolOutput::TCookie> outputCookies;
     outputCookies.reserve(jobStubs.size());
     for (auto& jobStub : jobStubs) {
@@ -542,28 +543,26 @@ IChunkPoolOutput::TCookie TNewJobManager::AddJob(std::unique_ptr<TNewJobStub> jo
     JobOrder_->Push(outputCookie);
 
     if (jobStub->GetIsBarrier()) {
-        YT_LOG_DEBUG("Adding barrier to job manager (Index: %v)", outputCookie);
+        YT_TLOG_DEBUG("Adding barrier to job manager")
+            .With("Index", outputCookie);
         Jobs_.emplace_back(this, std::move(jobStub), outputCookie);
         Jobs_.back().SetState(EJobState::Completed);
         // TODO(max42): do not assign cookie to barriers.
         return outputCookie;
     }
 
-    YT_LOG_DEBUG(
-        "Job added to job manager (OutputCookie: %v, PrimaryDataWeight: %v, PrimaryCompressedDataSize: %v, "
-        "PrimaryRowCount: %v, PrimarySliceCount: %v, ForeignDataWeight: %v, ForeignCompressedDataSize: %v, "
-        "ForeignRowCount: %v, ForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
-        outputCookie,
-        jobStub->GetPrimaryDataWeight(),
-        jobStub->GetPrimaryCompressedDataSize(),
-        jobStub->GetPrimaryRowCount(),
-        jobStub->GetPrimarySliceCount(),
-        jobStub->GetForeignDataWeight(),
-        jobStub->GetForeignCompressedDataSize(),
-        jobStub->GetForeignRowCount(),
-        jobStub->GetForeignSliceCount(),
-        jobStub->GetPrimaryLowerBound(),
-        jobStub->GetPrimaryUpperBound());
+    YT_TLOG_DEBUG("Job added to job manager")
+        .With("OutputCookie", outputCookie)
+        .With("PrimaryDataWeight", jobStub->GetPrimaryDataWeight())
+        .With("PrimaryCompressedDataSize", jobStub->GetPrimaryCompressedDataSize())
+        .With("PrimaryRowCount", jobStub->GetPrimaryRowCount())
+        .With("PrimarySliceCount", jobStub->GetPrimarySliceCount())
+        .With("ForeignDataWeight", jobStub->GetForeignDataWeight())
+        .With("ForeignCompressedDataSize", jobStub->GetForeignCompressedDataSize())
+        .With("ForeignRowCount", jobStub->GetForeignRowCount())
+        .With("ForeignSliceCount", jobStub->GetForeignSliceCount())
+        .With("LowerPrimaryKey", jobStub->GetPrimaryLowerBound())
+        .With("UpperPrimaryKey", jobStub->GetPrimaryUpperBound());
 
     int initialSuspendedStripeCount = 0;
 
@@ -800,9 +799,9 @@ void TNewJobManager::Enlarge(
     i64 primaryDataWeightPerJob,
     const IJobSizeConstraintsPtr& jobSizeConstraints)
 {
-    YT_LOG_DEBUG("Enlarging jobs (DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v)",
-        dataWeightPerJob,
-        primaryDataWeightPerJob);
+    YT_TLOG_DEBUG("Enlarging jobs")
+        .With("DataWeightPerJob", dataWeightPerJob)
+        .With("PrimaryDataWeightPerJob", primaryDataWeightPerJob);
 
     auto shouldJoinJob = [&] (const TNewJobStub* currentJobStub, const TJob& job, bool force) -> bool {
         i64 primaryDataWeight = currentJobStub->GetPrimaryDataWeight();
@@ -811,7 +810,7 @@ void TNewJobManager::Enlarge(
         i64 sliceCount = currentJobStub->GetSliceCount();
         for (const auto& stripe : job.StripeList()->Stripes()) {
             if (!force && stripe->IsForeign()) {
-                YT_LOG_DEBUG("Stopping enlargement due to the foreign data stripe");
+                YT_TLOG_DEBUG("Stopping enlargement due to the foreign data stripe");
                 return false;
             }
             for (const auto& dataSlice : stripe->DataSlices()) {
@@ -831,19 +830,22 @@ void TNewJobManager::Enlarge(
         if (fits || force) {
             return true;
         }
-        YT_LOG_DEBUG("Stopping enlargement due to size constraints "
-            "(NewSize: {DataWeight: %v, PrimaryDataWeight: %v, CompressedDataSize: %v, SliceCount: %v}, "
-            "NewConstraints: {DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
-            "MaxCompressedDataSizePerJob: %v, MaxDataSlicesPerJob: %v})",
-            foreignDataWeight + primaryDataWeight,
-            primaryDataWeight,
-            compressedDataSize,
-            sliceCount,
-            dataWeightPerJob,
-            primaryDataWeightPerJob,
-            jobSizeConstraints->GetMaxDataWeightPerJob(),
-            jobSizeConstraints->GetMaxCompressedDataSizePerJob(),
-            jobSizeConstraints->GetMaxDataSlicesPerJob());
+        YT_TLOG_DEBUG("Stopping enlargement due to size constraints")
+            .WithFormat(
+                "NewSize",
+                "{DataWeight: %v, PrimaryDataWeight: %v, CompressedDataSize: %v, SliceCount: %v}",
+                foreignDataWeight + primaryDataWeight,
+                primaryDataWeight,
+                compressedDataSize,
+                sliceCount)
+            .WithFormat(
+                "NewConstraints",
+                "{DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v, MaxDataWeightPerJob: %v, MaxCompressedDataSizePerJob: %v, MaxDataSlicesPerJob: %v}",
+                dataWeightPerJob,
+                primaryDataWeightPerJob,
+                jobSizeConstraints->GetMaxDataWeightPerJob(),
+                jobSizeConstraints->GetMaxCompressedDataSizePerJob(),
+                jobSizeConstraints->GetMaxDataSlicesPerJob());
         return false;
     };
 
@@ -869,20 +871,18 @@ void TNewJobManager::Enlarge(
 
         while (true) {
             if (!finishIndex) {
-                YT_LOG_DEBUG(
-                    "Stopping enlargement due to end of job list (StartIndex: %v, FinishIndex: %v)",
-                    startIndex,
-                    finishIndex);
+                YT_TLOG_DEBUG("Stopping enlargement due to end of job list")
+                    .With("StartIndex", startIndex)
+                    .With("FinishIndex", finishIndex);
                 break;
             }
 
             YT_VERIFY(!Jobs_[*finishIndex].IsInvalidated());
 
             if (isJobJoinable(*finishIndex)) {
-                YT_LOG_DEBUG(
-                    "Stopping enlargement due to non-joinable job (StartIndex: %v, FinishIndex: %v)",
-                    startIndex,
-                    finishIndex);
+                YT_TLOG_DEBUG("Stopping enlargement due to non-joinable job")
+                    .With("StartIndex", startIndex)
+                    .With("FinishIndex", finishIndex);
                 break;
             }
 
@@ -920,10 +920,10 @@ void TNewJobManager::Enlarge(
 
         if (joinedJobCookies.size() > 1) {
             std::vector<IChunkPoolOutput::TCookie> outputCookies;
-            YT_LOG_DEBUG("Joining together jobs (JoinedJobCookies: %v, DataWeight: %v, PrimaryDataWeight: %v)",
-                MakeCompactIntervalView(joinedJobCookies),
-                currentJobStub->GetDataWeight(),
-                currentJobStub->GetPrimaryDataWeight());
+            YT_TLOG_DEBUG("Joining together jobs")
+                .With("JoinedJobCookies", MakeCompactIntervalView(joinedJobCookies))
+                .With("DataWeight", currentJobStub->GetDataWeight())
+                .With("PrimaryDataWeight", currentJobStub->GetPrimaryDataWeight());
 
             currentJobStub->Finalize();
             JobOrder_->Seek(joinedJobCookies.back());
@@ -936,7 +936,8 @@ void TNewJobManager::Enlarge(
                 YT_VERIFY(JobOrder_->Remove() == index);
             }
         } else {
-            YT_LOG_DEBUG("Leaving job as is (Cookie: %v)", startIndex);
+            YT_TLOG_DEBUG("Leaving job as is")
+                .With("Cookie", startIndex);
         }
     }
 }

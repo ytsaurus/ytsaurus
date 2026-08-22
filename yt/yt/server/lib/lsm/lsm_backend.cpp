@@ -65,17 +65,16 @@ void TLsmActionBatch::MergeWith(TLsmActionBatch&& other)
     DoMerge(other, &TLsmActionBatch::CompactionHintUpdates);
 }
 
-std::string TLsmActionBatch::GetStatsLoggingString() const
+NLogging::TLoggingTagList TLsmActionBatch::GetStatsTags() const
 {
-    return Format("Compactions: %v, Partitionings: %v, Samplings: %v, "
-        "Splits: %v, Merges: %v, Rotations: %v, CompactionHintUpdates: %v",
-        Compactions.size(),
-        Partitionings.size(),
-        Samplings.size(),
-        Splits.size(),
-        Merges.size(),
-        Rotations.size(),
-        CompactionHintUpdates.size());
+    return NLogging::TLoggingTagList()
+        .With("Compactions", Compactions.size())
+        .With("Partitionings", Partitionings.size())
+        .With("Samplings", Samplings.size())
+        .With("Splits", Splits.size())
+        .With("Merges", Merges.size())
+        .With("Rotations", Rotations.size())
+        .With("CompactionHintUpdates", CompactionHintUpdates.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,8 +90,8 @@ public:
             CreateStoreRotator(),
         })
     {
-        YT_LOG_DEBUG("Created LSM backend (BackendCount: %v)",
-            Backends_.size());
+        YT_TLOG_DEBUG("Created LSM backend")
+            .With("BackendCount", Backends_.size());
     }
 
     void StartNewRound(const TLsmBackendState& state) override
@@ -106,30 +105,30 @@ public:
         const std::vector<TTabletPtr>& tablets,
         const std::string& bundleName) override
     {
-        YT_LOG_DEBUG("Started building LSM action batch");
+        YT_TLOG_DEBUG("Started building LSM action batch");
 
         TLsmActionBatch batch;
         for (const auto& backend : Backends_) {
             batch.MergeWith(backend->BuildLsmActions(tablets, bundleName));
         }
 
-        YT_LOG_DEBUG("Finished building LSM action batch (%v)",
-            batch.GetStatsLoggingString());
+        YT_TLOG_DEBUG("Finished building LSM action batch")
+            .With(batch.GetStatsTags());
 
         return batch;
     }
 
     TLsmActionBatch BuildOverallLsmActions() override
     {
-        YT_LOG_DEBUG("Started building overall LSM action batch");
+        YT_TLOG_DEBUG("Started building overall LSM action batch");
 
         TLsmActionBatch batch;
         for (const auto& backend : Backends_) {
             batch.MergeWith(backend->BuildOverallLsmActions());
         }
 
-        YT_LOG_DEBUG("Finished building overall LSM action batch (%v)",
-            batch.GetStatsLoggingString());
+        YT_TLOG_DEBUG("Finished building overall LSM action batch")
+            .With(batch.GetStatsTags());
 
         return batch;
     }

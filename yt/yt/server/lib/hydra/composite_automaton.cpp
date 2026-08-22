@@ -319,17 +319,17 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
 
             const auto& Logger = context.GetLogger();
             for (const auto& descriptor : syncSavers) {
-                YT_LOG_INFO("Started saving sync automaton part (Name: %v, Version: %v)",
-                    descriptor.Name,
-                    descriptor.SnapshotVersion);
+                YT_TLOG_INFO("Started saving sync automaton part")
+                    .With("Name", descriptor.Name)
+                    .With("Version", descriptor.SnapshotVersion);
                 WritePartHeader(context, descriptor);
                 descriptor.Callback(context);
                 // Wait for async writes to finish.
                 context.Flush();
-                YT_LOG_INFO("Finished saving sync automaton part (Name: %v, Version: %v, Checksum: %x)",
-                    descriptor.Name,
-                    descriptor.SnapshotVersion,
-                    writer->GetChecksum());
+                YT_TLOG_INFO("Finished saving sync automaton part")
+                    .With("Name", descriptor.Name)
+                    .With("Version", descriptor.SnapshotVersion)
+                    .WithFormat("Checksum", "%x", writer->GetChecksum());
                 writer->SetChecksum(0);
             }
         });
@@ -369,15 +369,15 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
                     const auto& Logger = context.GetLogger();
                     for (int index = 0; index < std::ssize(asyncSavers); ++index) {
                         const auto& descriptor = asyncSavers[index];
-                        YT_LOG_INFO("Started saving async automaton part (Name: %v, Version: %v)",
-                            descriptor.Name,
-                            descriptor.SnapshotVersion);
+                        YT_TLOG_INFO("Started saving async automaton part")
+                            .With("Name", descriptor.Name)
+                            .With("Version", descriptor.SnapshotVersion);
                         WritePartHeader(context, descriptor);
                         asyncCallbacks[index](context);
                         context.Flush();
-                        YT_LOG_INFO("Finished saving async automaton part (Name: %v, Version: %v)",
-                            descriptor.Name,
-                            descriptor.SnapshotVersion);
+                        YT_TLOG_INFO("Finished saving async automaton part")
+                            .With("Name", descriptor.Name)
+                            .With("Version", descriptor.SnapshotVersion);
                     }
                 });
         })
@@ -420,23 +420,23 @@ void TCompositeAutomaton::LoadSnapshot(const TSnapshotLoadContext& context)
                         auto it = PartNameToLoaderDescriptor_.find(name);
                         if (it == PartNameToLoaderDescriptor_.end()) {
                             SERIALIZATION_DUMP_WRITE(context, "<skipped>");
-                            YT_LOG_INFO("Started skipping unknown automaton part (Name: %v, Version: %v)",
-                                name,
-                                version);
+                            YT_TLOG_INFO("Started skipping unknown automaton part")
+                                .With("Name", name)
+                                .With("Version", version);
                             auto size = readPart([] { });
-                            YT_LOG_INFO("Finished skipping unknown automaton part (Name: %v, Size: %v)",
-                                name,
-                                size);
+                            YT_TLOG_INFO("Finished skipping unknown automaton part")
+                                .With("Name", name)
+                                .With("Size", size);
                         } else {
-                            YT_LOG_INFO("Started loading automaton part (Name: %v, Version: %v)",
-                                name,
-                                version);
+                            YT_TLOG_INFO("Started loading automaton part")
+                                .With("Name", name)
+                                .With("Version", version);
                             context.SetVersion(version);
                             const auto& descriptor = it->second;
                             auto size = readPart([&] { descriptor.Callback(context); });
-                            YT_LOG_INFO("Finished loading automaton part (Name: %v, Size: %v)",
-                                name,
-                                size);
+                            YT_TLOG_INFO("Finished loading automaton part")
+                                .With("Name", name)
+                                .With("Size", size);
                         }
                     }
                 }
@@ -456,10 +456,10 @@ void TCompositeAutomaton::RememberReign(TReign reign)
     auto recoveryAction = GetActionToRecoverFromReign(reign);
 
     if (recoveryAction != FinalRecoveryAction_) {
-        YT_LOG_DEBUG("Updating final recovery action (MutationReign: %v, CurrentFinalRecoveryAction: %v, MutationFinalRecoveryAction: %v)",
-            reign,
-            FinalRecoveryAction_,
-            recoveryAction);
+        YT_TLOG_DEBUG("Updating final recovery action")
+            .With("MutationReign", reign)
+            .With("CurrentFinalRecoveryAction", FinalRecoveryAction_)
+            .With("MutationFinalRecoveryAction", recoveryAction);
         FinalRecoveryAction_ = std::max(FinalRecoveryAction_, recoveryAction);
     }
 }
@@ -520,10 +520,9 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
             if (error.GetCode() == EErrorCode::ExpectedMutationHandlerException) {
                 int innerErrorCount = error.InnerErrors().size();
                 if (innerErrorCount > 1) {
-                    YT_LOG_ALERT(
-                        error,
-                        "Too many inner errors within expected mutation handler exception (InnerErrorCount: %v)",
-                        innerErrorCount);
+                    YT_TLOG_ALERT("Too many inner errors within expected mutation handler exception")
+                        .With("InnerErrorCount", innerErrorCount)
+                        .With(error);
                 }
                 error = error.InnerErrors().empty()
                     ? TError()
@@ -531,20 +530,20 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
                 // Exceptions should only be wrapped once.
                 if (error.FindMatching(EErrorCode::ExpectedMutationHandlerException)) {
-                    YT_LOG_ALERT(error, "Malformed mutation handler exception");
+                    YT_TLOG_ALERT("Malformed mutation handler exception")
+                        .With(error);
                 } else {
-                    YT_LOG_DEBUG(error, "Expected mutation handler exception");
+                    YT_TLOG_DEBUG("Expected mutation handler exception")
+                        .With(error);
                 }
             } else if (!descriptor->ExceptionsAreAllowed) {
                 auto logLevel = HydraManager_->GetMutationHandlerFailureLogLevel(mutationType);
-                YT_LOG_EVENT(
-                    Logger,
-                    logLevel,
-                    error,
-                    "Error applying mutation (MutationType: %Qv)",
-                    mutationType);
+                YT_TLOG_EVENT(Logger, logLevel, "Error applying mutation")
+                    .With("MutationType", mutationType)
+                    .With(error);
             } else {
-                YT_LOG_DEBUG(error, "Expected mutation handler exception");
+                YT_TLOG_DEBUG("Expected mutation handler exception")
+                    .With(error);
             }
 
             context->SetResponseData(error);
@@ -621,8 +620,8 @@ TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor
 {
     auto it = MethodNameToDescriptor_.find(mutationType);
     if (it == MethodNameToDescriptor_.end()) {
-        YT_LOG_FATAL("No handler for mutation (MutationType: %v)",
-            mutationType);
+        YT_TLOG_FATAL("No handler for mutation")
+            .With("MutationType", mutationType);
     }
     return &it->second;
 }
@@ -663,8 +662,8 @@ EFinalRecoveryAction TCompositeAutomaton::GetFinalRecoveryAction()
 void TCompositeAutomaton::ResetFinalRecoveryAction()
 {
     if (FinalRecoveryAction_ != EFinalRecoveryAction::None) {
-        YT_LOG_INFO("Resetting the final recovery action on its completion (CurrentFinalRecoveryAction: %v)",
-            FinalRecoveryAction_);
+        YT_TLOG_INFO("Resetting the final recovery action on its completion")
+            .With("CurrentFinalRecoveryAction", FinalRecoveryAction_);
     }
 
     FinalRecoveryAction_ = EFinalRecoveryAction::None;
@@ -713,10 +712,9 @@ void TCompositeAutomaton::HydraResetStateHash(NProto::TReqResetStateHash* reques
 
     auto* mutationContext = GetCurrentMutationContext();
 
-    YT_LOG_INFO(
-        "Resetting state hash (CurrentStateHash: %x, NewStateHash: %x)",
-        mutationContext->GetStateHash(),
-        newStateHash);
+    YT_TLOG_INFO("Resetting state hash")
+        .WithFormat("CurrentStateHash", "%x", mutationContext->GetStateHash())
+        .WithFormat("NewStateHash", "%x", newStateHash);
 
     mutationContext->SetStateHash(newStateHash);
 }
@@ -725,10 +723,9 @@ void TCompositeAutomaton::HydraReportReignChange(NProto::TReqReportReignChange* 
 {
     auto previousReign = request->previous_reign();
 
-    YT_LOG_INFO(
-        "Reporting reign change (PreviousReign: %v, CurrentReign: %v)",
-        previousReign,
-        GetCurrentMutationContext()->Request().Reign);
+    YT_TLOG_INFO("Reporting reign change")
+        .With("PreviousReign", previousReign)
+        .With("CurrentReign", GetCurrentMutationContext()->Request().Reign);
 
     for (const auto& weakPart : Parts_) {
         if (auto part = weakPart.Lock()) {

@@ -38,11 +38,11 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing Cypress file image reader");
+        YT_TLOG_INFO("Initializing Cypress file image reader");
 
         Reader_->Initialize();
 
-        YT_LOG_INFO("Initialized Cypress file image reader");
+        YT_TLOG_INFO("Initialized Cypress file image reader");
     }
 
     TFuture<TSharedRef> Read(
@@ -99,15 +99,16 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing virtual squashfs image reader (FileCount: %v)", std::ssize(MountOptions_));
+        YT_TLOG_INFO("Initializing virtual squashfs image reader")
+            .With("FileCount", std::ssize(MountOptions_));
 
         auto builder = CreateSquashFSLayoutBuilder(BuilderOptions_);
 
         for (const auto& mount : MountOptions_) {
             mount.Reader->Initialize();
-            YT_LOG_DEBUG("Add file to virtual layer (Path: %v, Size: %v)",
-                mount.Path,
-                mount.Reader->GetSize());
+            YT_TLOG_DEBUG("Add file to virtual layer")
+                .With("Path", mount.Path)
+                .With("Size", mount.Reader->GetSize());
             builder->AddFile(
                 mount.Path,
                 mount.Permissions,
@@ -117,11 +118,11 @@ public:
         Layout_ = builder->Build();
         Size_ = Layout_->GetSize();
 
-        YT_LOG_INFO("Initialized virtual squashfs image reader (Size: %v, HeadSize: %v, TailSize: %v, FileCount: %v)",
-            Size_,
-            Layout_->GetHeadSize(),
-            Layout_->GetTailSize(),
-            std::ssize(MountOptions_));
+        YT_TLOG_INFO("Initialized virtual squashfs image reader")
+            .With("Size", Size_)
+            .With("HeadSize", Layout_->GetHeadSize())
+            .With("TailSize", Layout_->GetTailSize())
+            .With("FileCount", std::ssize(MountOptions_));
     }
 
     TFuture<TSharedRef> Read(
@@ -138,14 +139,14 @@ public:
                 .With("length", length));
         }
 
-        YT_LOG_INFO("Start read virtual squashfs image (Offset: %v, Length: %v)",
-            offset,
-            length);
+        YT_TLOG_INFO("Start read virtual squashfs image")
+            .With("Offset", offset)
+            .With("Length", length);
 
         if (length == 0) {
-            YT_LOG_INFO("Finish read virtual squashfs image (Offset: %v, Length: %v)",
-                offset,
-                length);
+            YT_TLOG_INFO("Finish read virtual squashfs image")
+                .With("Offset", offset)
+                .With("Length", length);
             return MakeFuture<TSharedRef>({});
         }
 
@@ -224,10 +225,10 @@ public:
         return AllSucceeded(readFutures).Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TSharedRef>& partReadResults) {
             // Merge refs into single ref.
             auto mergedRefs = MergeRefsToRef<TVirtualSquashFSImageReaderTag>(partReadResults);
-            YT_LOG_INFO("Finish read virtual squashfs image (Offset: %v, ExpectedLength: %v, ResultLength: %v)",
-                offset,
-                length,
-                mergedRefs.Size());
+            YT_TLOG_INFO("Finish read virtual squashfs image")
+                .With("Offset", offset)
+                .With("ExpectedLength", length)
+                .With("ResultLength", mergedRefs.Size());
             return mergedRefs;
         }).AsyncVia(Invoker_));
     }

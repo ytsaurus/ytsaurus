@@ -115,12 +115,12 @@ public:
 
         if (!reader) {
             // Recover using changelogs only.
-            YT_LOG_INFO("Not using snapshots for dry run recovery");
+            YT_TLOG_INFO("Not using snapshots for dry run recovery");
             return;
         }
 
-        YT_LOG_INFO("Dry run instance started recovery using snapshot (SnapshotId: %v)",
-            snapshotId);
+        YT_TLOG_INFO("Dry run instance started recovery using snapshot")
+            .With("SnapshotId", snapshotId);
 
         WaitFor(reader->Open())
             .ThrowOnError();
@@ -150,14 +150,14 @@ public:
         WaitFor(loadSnapshotFuture)
             .ThrowOnError();
 
-        YT_LOG_INFO("Successfully finished loading snapshot in dry run mode");
+        YT_TLOG_INFO("Successfully finished loading snapshot in dry run mode");
     }
 
     void DryRunCheckInvariants() override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Checking invariants");
+        YT_TLOG_INFO("Checking invariants");
 
         auto checkInvariantsFuture = BIND(&TDecoratedAutomaton::CheckInvariants, DecoratedAutomaton_)
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
@@ -165,16 +165,16 @@ public:
         WaitFor(checkInvariantsFuture)
             .ThrowOnError();
 
-        YT_LOG_INFO("Successfully finished checking invariants in dry run mode");
+        YT_TLOG_INFO("Successfully finished checking invariants in dry run mode");
     }
 
     void DryRunReplayChangelog(IChangelogPtr changelog) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Replaying changelog (ChangelogId: %v, RecordCount: %v)",
-            changelog->GetId(),
-            changelog->GetRecordCount());
+        YT_TLOG_INFO("Replaying changelog")
+            .With("ChangelogId", changelog->GetId())
+            .With("RecordCount", changelog->GetRecordCount());
 
         auto startLeadingFuture = BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
@@ -184,8 +184,8 @@ public:
 
         int currentRecordId = 0;
         while (currentRecordId < changelog->GetRecordCount()) {
-            YT_LOG_INFO("Started reading changelog records (FirstRecordId: %v)",
-                currentRecordId);
+            YT_TLOG_INFO("Started reading changelog records")
+                .With("FirstRecordId", currentRecordId);
 
             auto asyncRecordsData = changelog->Read(
                 currentRecordId,
@@ -195,13 +195,11 @@ public:
                 .ValueOrThrow();
             auto recordsRead = std::ssize(recordsData);
 
-            YT_LOG_INFO("Finished reading changelog records (RecordIds: %v-%v)",
-                currentRecordId,
-                currentRecordId + recordsRead - 1);
+            YT_TLOG_INFO("Finished reading changelog records")
+                .WithFormat("RecordIds", "%v-%v", currentRecordId, currentRecordId + recordsRead - 1);
 
-            YT_LOG_INFO("Applying changelog records (RecordIds: %v-%v)",
-                currentRecordId,
-                currentRecordId + recordsRead - 1);
+            YT_TLOG_INFO("Applying changelog records")
+                .WithFormat("RecordIds", "%v-%v", currentRecordId, currentRecordId + recordsRead - 1);
 
             auto applyMutationFuture = BIND([=, this, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
                     DecoratedAutomaton_->ApplyMutationsDuringRecovery(recordsData);
@@ -214,8 +212,8 @@ public:
             currentRecordId += recordsRead;
         }
 
-        YT_LOG_INFO("Changelog replayed (ChangelogId: %v)",
-            changelog->GetId());
+        YT_TLOG_INFO("Changelog replayed")
+            .With("ChangelogId", changelog->GetId());
     }
 
     void DryRunCompleteRecovery() override
@@ -240,7 +238,7 @@ public:
         WaitFor(startLeadingFuture)
             .ThrowOnError();
 
-        YT_LOG_INFO("Started building snapshot in dry run mode");
+        YT_TLOG_INFO("Started building snapshot in dry run mode");
         auto sequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
         auto nextSnapshotId = DecoratedAutomaton_->GetAutomatonVersion().GetSegmentId() + 1;
         auto buildSnapshotFuture = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
@@ -252,7 +250,7 @@ public:
 
     void DryRunShutdown() override
     {
-        YT_LOG_INFO("Dry run hydra instance is shutting down");
+        YT_TLOG_INFO("Dry run hydra instance is shutting down");
         TLogManager::Get()->Shutdown();
     }
 
@@ -489,7 +487,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Mocking leading start");
+        YT_TLOG_INFO("Mocking leading start");
 
         YT_VERIFY(!AutomatonEpochContext_);
 
@@ -513,7 +511,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Mocking leader recovery completion");
+        YT_TLOG_INFO("Mocking leader recovery completion");
 
         DecoratedAutomaton_->OnLeaderRecoveryComplete();
 

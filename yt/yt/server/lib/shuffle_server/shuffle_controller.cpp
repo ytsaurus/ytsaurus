@@ -206,11 +206,10 @@ public:
         , Transaction_(std::move(transaction))
         , Client_(std::move(client))
     {
-        YT_LOG_DEBUG(
-            "Initializing push-based shuffle (Account: %v, Medium: %v, ReplicationFactor: %v)",
-            account,
-            medium,
-            replicationFactor);
+        YT_TLOG_DEBUG("Initializing push-based shuffle")
+            .With("Account", account)
+            .With("Medium", medium)
+            .With("ReplicationFactor", replicationFactor);
 
         // SetDefaults() is required here; New<>() does not apply YSON defaults.
         auto writerOptions = New<TJournalChunkWriterOptions>();
@@ -255,10 +254,9 @@ public:
             Pool_->GetSession(partitionIndex)
                 .Subscribe(BIND_NO_PROPAGATE([partitionIndex] (const TErrorOr<TSessionDescriptor>& sessionOrError) {
                     if (!sessionOrError.IsOK()) {
-                        YT_LOG_DEBUG(
-                            sessionOrError,
-                            "Failed to eagerly start partition write session (PartitionIndex: %v)",
-                            partitionIndex);
+                        YT_TLOG_DEBUG("Failed to eagerly start partition write session")
+                            .With("PartitionIndex", partitionIndex)
+                            .With(sessionOrError);
                     }
                 }));
         }

@@ -60,7 +60,7 @@ TFuture<void> TForkExecutor::Fork()
     YT_VERIFY(ChildPid_ < 0);
 
     try {
-        YT_LOG_INFO("Going to fork");
+        YT_TLOG_INFO("Going to fork");
 
         TDelayedExecutor::Submit(
             BIND([this, weakThis = MakeWeak(this)] {
@@ -69,8 +69,8 @@ TFuture<void> TForkExecutor::Fork()
                     return;
                 }
 
-                YT_LOG_FATAL_UNLESS(Forked_, "Process did not fork within timeout; terminating (ForkTimeout: %v)",
-                    GetForkTimeout());
+                YT_TLOG_FATAL_UNLESS(Forked_, "Process did not fork within timeout; terminating")
+                    .With("ForkTimeout", GetForkTimeout());
             }),
             GetForkTimeout());
 
@@ -97,7 +97,8 @@ TFuture<void> TForkExecutor::Fork()
         DoRunParent();
         Result_.OnCanceled(BIND(&TForkExecutor::OnCanceled, MakeWeak(this)));
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error executing fork");
+        YT_TLOG_ERROR("Error executing fork")
+            .With(ex);
         DoCleanup();
         Result_.Set(ex);
     }
@@ -120,7 +121,8 @@ void TForkExecutor::DoRunChild()
 
 void TForkExecutor::DoRunParent()
 {
-    YT_LOG_INFO("Fork succeeded (ChildPid: %v)", ChildPid_);
+    YT_TLOG_INFO("Fork succeeded")
+        .With("ChildPid", ChildPid_);
 
     RunParent();
 
@@ -156,7 +158,7 @@ void TForkExecutor::OnWatchdogCheck()
         if (DumpCoreOnTimeout_ && DumpCoreStartTime_ && TInstant::Now() < DumpCoreStartTime_.value() + CoreDumpTimeout) {
             int status;
             if (::waitpid(ChildPid_, &status, WNOHANG) != 0) {
-                YT_LOG_INFO("Child process killed");
+                YT_TLOG_INFO("Child process killed");
                 DoEndChild();
             }
             return;
@@ -164,7 +166,8 @@ void TForkExecutor::OnWatchdogCheck()
 
         auto error = TError("Child process timed out")
             .With("timeout", timeout);
-        YT_LOG_ERROR(error);
+        YT_TLOG_ERROR("Child process timed out")
+            .With(error);
         Result_.TrySet(error);
 
         if (!DumpCoreStartTime_ && DumpCoreOnTimeout_) {
@@ -182,9 +185,12 @@ void TForkExecutor::OnWatchdogCheck()
 
     auto error = StatusToError(status);
     if (error.IsOK()) {
-        YT_LOG_INFO("Child process finished (ChildPid: %v)", ChildPid_);
+        YT_TLOG_INFO("Child process finished")
+            .With("ChildPid", ChildPid_);
     } else {
-        YT_LOG_ERROR(error, "Child process failed (ChildPid: %v)", ChildPid_);
+        YT_TLOG_ERROR("Child process failed")
+            .With("ChildPid", ChildPid_)
+            .With(error);
     }
     Result_.Set(error);
 
@@ -215,7 +221,8 @@ void TForkExecutor::DoEndChild()
 
 void TForkExecutor::OnCanceled(const TError& error)
 {
-    YT_LOG_INFO(error, "Fork executor canceled");
+    YT_TLOG_INFO("Fork executor canceled")
+        .With(error);
     GetWatchdogInvoker()->Invoke(
         BIND(&TForkExecutor::DoCancel, MakeStrong(this), error));
 }
@@ -226,7 +233,8 @@ void TForkExecutor::KillWithCore()
         return;
     }
 
-    YT_LOG_ALERT("Killing child process with core dump (ChildPid: %v)", ChildPid_);
+    YT_TLOG_ALERT("Killing child process with core dump")
+        .With("ChildPid", ChildPid_);
 #ifdef _unix_
     ::kill(ChildPid_, SIGABRT);
 #endif
@@ -240,14 +248,15 @@ void TForkExecutor::DoCancel(const TError& error)
         return;
     }
 
-    YT_LOG_INFO("Killing child process (ChildPid: %v)", ChildPid_);
+    YT_TLOG_INFO("Killing child process")
+        .With("ChildPid", ChildPid_);
 
 #ifdef _unix_
     ::kill(ChildPid_, SIGKILL);
     ::waitpid(ChildPid_, nullptr, 0);
 #endif
 
-    YT_LOG_INFO("Child process killed");
+    YT_TLOG_INFO("Child process killed");
 
     Result_.TrySet(TError(NYT::EErrorCode::Canceled, "Fork executor canceled")
         .With(error));

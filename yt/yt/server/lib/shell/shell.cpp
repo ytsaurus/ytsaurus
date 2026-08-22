@@ -117,10 +117,9 @@ public:
         }
 
         if (inputOffset + InputOffsetWarningLevel < ConsumedOffset_) {
-            YT_LOG_WARNING(
-                "Input offset is significantly less than consumed offset (InputOffset: %v, ConsumedOffset: %v)",
-                inputOffset,
-                ConsumedOffset_);
+            YT_TLOG_WARNING("Input offset is significantly less than consumed offset")
+                .With("InputOffset", inputOffset)
+                .With("ConsumedOffset", ConsumedOffset_);
         }
 
         size_t offset = ConsumedOffset_ - inputOffset;
@@ -175,7 +174,8 @@ public:
 
         TerminateSpecific();
 
-        YT_LOG_INFO(error, "Shell terminated");
+        YT_TLOG_INFO("Shell terminated")
+            .With(error);
     }
 
     bool Terminated() const override
@@ -234,7 +234,8 @@ public:
         YT_VERIFY(!IsRunning_);
         IsRunning_ = true;
 
-        YT_LOG_INFO("Spawning job shell container (ContainerName: %v)", Options_->ContainerName);
+        YT_TLOG_INFO("Spawning job shell container")
+            .With("ContainerName", Options_->ContainerName);
         auto launcher = CreatePortoInstanceLauncher(Options_->ContainerName, PortoExecutor_);
 
         int uid = Options_->Uid.value_or(::getuid());
@@ -243,18 +244,17 @@ public:
         auto preparationDir = Options_->PreparationDir;
         auto workingDir = Options_->WorkingDir;
 
-        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, "
-            "Gid: %v, PreparationDir: %v, WorkingDir: %v, InactivityTimeout: %v, Command: %v)",
-            Options_->Term,
-            CurrentHeight_,
-            CurrentWidth_,
-            uid,
-            user,
-            gid,
-            preparationDir,
-            workingDir,
-            InactivityTimeout_,
-            Command_);
+        YT_TLOG_INFO("Spawning TTY")
+            .With("Term", Options_->Term)
+            .With("Height", CurrentHeight_)
+            .With("Width", CurrentWidth_)
+            .With("Uid", uid)
+            .With("Username", user)
+            .With("Gid", gid)
+            .With("PreparationDir", preparationDir)
+            .With("WorkingDir", workingDir)
+            .With("InactivityTimeout", InactivityTimeout_)
+            .With("Command", Command_);
 
         Pty_ = std::make_unique<TPty>(CurrentHeight_, CurrentWidth_);
         const auto tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
@@ -373,7 +373,7 @@ public:
             .Subscribe(
                 BIND(&TPortoShell::Terminate, MakeWeak(this))
                     .Via(GetCurrentInvoker()));
-        YT_LOG_INFO("Shell started");
+        YT_TLOG_INFO("Shell started");
     }
 
     void TerminateSpecific() override
@@ -423,15 +423,15 @@ public:
         auto user = SafeGetUsernameByUid(uid);
         auto home = Options_->WorkingDir;
 
-        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v, Command: %v)",
-            Options_->Term,
-            CurrentHeight_,
-            CurrentWidth_,
-            uid,
-            user,
-            home,
-            InactivityTimeout_,
-            Command_);
+        YT_TLOG_INFO("Spawning TTY")
+            .With("Term", Options_->Term)
+            .With("Height", CurrentHeight_)
+            .With("Width", CurrentWidth_)
+            .With("Uid", uid)
+            .With("Username", user)
+            .With("Home", home)
+            .With("InactivityTimeout", InactivityTimeout_)
+            .With("Command", Command_);
 
         TPty pty(CurrentHeight_, CurrentWidth_);
 
@@ -510,7 +510,7 @@ public:
         }
         ResizeWindow(CurrentHeight_, CurrentWidth_);
         Process_->Spawn().Subscribe(BIND(&TShell::Terminate, MakeWeak(this)).Via(GetCurrentInvoker()));
-        YT_LOG_INFO("Shell started");
+        YT_TLOG_INFO("Shell started");
     }
 
 private:

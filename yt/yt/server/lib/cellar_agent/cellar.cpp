@@ -55,9 +55,9 @@ public:
     {
         Occupants_.resize(Config_->Size);
 
-        YT_LOG_DEBUG("Cellar initialized (CellarType: %v, Size: %v)",
-            Type_,
-            Config_->Size);
+        YT_TLOG_DEBUG("Cellar initialized")
+            .With("CellarType", Type_)
+            .With("Size", Config_->Size);
     }
 
     void Reconfigure(const TCellarDynamicConfigPtr& config) override
@@ -134,9 +134,9 @@ public:
 
         CreateOccupant_.Fire();
 
-        YT_LOG_DEBUG("Created cellar occupant (CellarType: %v, Index: %v)",
-            Type_,
-            index);
+        YT_TLOG_DEBUG("Created cellar occupant")
+            .With("CellarType", Type_)
+            .With("Index", index);
     }
 
     void ConfigureOccupant(
@@ -195,7 +195,8 @@ public:
             THROW_ERROR_EXCEPTION("Cellar %Qlv already has a provider", Type_);
         }
 
-        YT_LOG_DEBUG("Registered occupier provider (CellarType: %v)", Type_);
+        YT_TLOG_DEBUG("Registered occupier provider")
+            .With("CellarType", Type_);
 
         OccupierProvider_ = std::move(provider);
     }
@@ -308,8 +309,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Create occupier (CellarType: %v)",
-            Type_);
+        YT_TLOG_DEBUG("Create occupier")
+            .With("CellarType", Type_);
 
         if (!OccupierProvider_) {
             THROW_ERROR_EXCEPTION("No provider at cellar %Qlv", Type_);
@@ -326,10 +327,10 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Updating cellar size (CellarType: %v, OldCellarSize: %v, NewCellarSize: %v)",
-            Type_,
-            Occupants_.size(),
-            cellarSize);
+        YT_TLOG_INFO("Updating cellar size")
+            .With("CellarType", Type_)
+            .With("OldCellarSize", Occupants_.size())
+            .With("NewCellarSize", cellarSize);
 
         if (cellarSize < std::ssize(Occupants_)) {
             std::vector<TFuture<void>> futures;
@@ -340,7 +341,8 @@ private:
             }
 
             auto error = WaitFor(AllSet(std::move(futures)));
-            YT_LOG_ALERT_UNLESS(error.IsOK(), error, "Failed to finalize occpant during cellar reconfiguration");
+            YT_TLOG_ALERT_UNLESS(error.IsOK(), "Failed to finalize occpant during cellar reconfiguration")
+                .With(error);
         }
 
         while (std::ssize(Occupants_) > cellarSize) {

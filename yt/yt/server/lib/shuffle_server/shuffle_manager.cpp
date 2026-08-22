@@ -118,7 +118,8 @@ private:
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
 
         auto transactionId = transaction->GetId();
-        YT_LOG_DEBUG("Shuffle transaction is created (TransactionId: %v)", transactionId);
+        YT_TLOG_DEBUG("Shuffle transaction is created")
+            .With("TransactionId", transactionId);
 
         transaction->SubscribeAborted(
             BIND(
@@ -159,7 +160,9 @@ private:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
 
-        YT_LOG_INFO(error, "Shuffle transaction is aborted (TransactionId: %v)", transactionId);
+        YT_TLOG_INFO("Shuffle transaction is aborted")
+            .With("TransactionId", transactionId)
+            .With(error);
 
         DoFinishShuffle(transactionId);
     }
@@ -168,7 +171,8 @@ private:
     {
         YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
 
-        YT_LOG_INFO("Shuffle transaction is committed (TransactionId: %v)", transactionId);
+        YT_TLOG_INFO("Shuffle transaction is committed")
+            .With("TransactionId", transactionId);
 
         DoFinishShuffle(transactionId);
     }

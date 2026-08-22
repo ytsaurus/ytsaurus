@@ -66,7 +66,8 @@ public:
 
     void LostAll() override
     {
-        YT_LOG_DEBUG("Lost all cookies (Count: %v)", JobCount_);
+        YT_TLOG_DEBUG("Lost all cookies")
+            .With("Count", JobCount_);
 
         for (TOutputCookie cookie = 0; cookie < JobCount_; ++cookie) {
             JobManager_->Lost(cookie, /*force*/ false);

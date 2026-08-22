@@ -54,9 +54,10 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunPrepa
             auto* state = GetOrCreateTransactionActionState(&action, descriptor);
             descriptor.Prepare(transaction, action.Value, state, options);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Prepare action failed (TransactionId: %v, ActionType: %v)",
-                transaction->GetId(),
-                action.Type);
+            YT_TLOG_DEBUG("Prepare action failed")
+                .With("TransactionId", transaction->GetId())
+                .With("ActionType", action.Type)
+                .With(ex);
             throw;
         }
 
@@ -91,9 +92,10 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunCommi
             auto* state = GetOrCreateTransactionActionState(&action, descriptor);
             descriptor.Commit(transaction, action.Value, state, options);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Commit action failed (TransactionId: %v, ActionType: %v)",
-                transaction->GetId(),
-                action.Type);
+            YT_TLOG_ALERT("Commit action failed")
+                .With("TransactionId", transaction->GetId())
+                .With("ActionType", action.Type)
+                .With(ex);
         }
         if (needDestroyState) {
             // After transaction is finished its side effects should become
@@ -128,9 +130,10 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunAbort
             auto* state = GetOrCreateTransactionActionState(&action, descriptor);
             descriptor.Abort(transaction, action.Value, state, options);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Abort action failed (TransactionId: %v, ActionType: %v)",
-                transaction->GetId(),
-                action.Type);
+            YT_TLOG_ALERT("Abort action failed")
+                .With("TransactionId", transaction->GetId())
+                .With("ActionType", action.Type)
+                .With(ex);
         }
         // After transaction is finished its side effects should become
         // observable immediately.
@@ -167,9 +170,10 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunSeria
             auto* state = GetOrCreateTransactionActionState(&action, descriptor);
             descriptor.Serialize(transaction, action.Value, state);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Serialize action failed (TransactionId: %v, ActionType: %v)",
-                transaction->GetId(),
-                action.Type);
+            YT_TLOG_ALERT("Serialize action failed")
+                .With("TransactionId", transaction->GetId())
+                .With("ActionType", action.Type)
+                .With(ex);
         }
         // After transaction is finished its side effects should become
         // observable immediately.

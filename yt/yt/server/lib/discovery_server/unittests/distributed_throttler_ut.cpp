@@ -76,7 +76,7 @@ public:
         TThroughputThrottlerConfigPtr leaderThrottlerConfig,
         TDistributedThrottlerConfigPtr config)
     {
-        YT_LOG_DEBUG("Started setting throttlers up");
+        YT_TLOG_DEBUG("Started setting throttlers up");
 
         const auto& channelFactory = GetChannelFactory();
         auto rpcServer = CreateLocalServer();
@@ -131,7 +131,7 @@ public:
 
         Sleep(TDuration::Seconds(1));
 
-        YT_LOG_DEBUG("Waiting for leader to update limits");
+        YT_TLOG_DEBUG("Waiting for leader to update limits");
 
         // Wait for leader to update limits.
         while (true) {
@@ -156,7 +156,7 @@ public:
         // Just to make sure all throttlers are alive.
         Sleep(TDuration::Seconds(3));
 
-        YT_LOG_DEBUG("Throttlers are ready");
+        YT_TLOG_DEBUG("Throttlers are ready");
 
         return result;
     }

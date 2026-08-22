@@ -26,9 +26,9 @@ TMemberPtr TGroup::AddOrUpdateMember(
     TDuration leaseTimeout,
     bool respectLimits)
 {
-    YT_LOG_DEBUG("Updating member (MemberId: %v, LeaseTimeout: %v)",
-        memberInfo.Id,
-        leaseTimeout);
+    YT_TLOG_DEBUG("Updating member")
+        .With("MemberId", memberInfo.Id)
+        .With("LeaseTimeout", leaseTimeout);
 
     {
         auto readerGuard = ReaderGuard(MembersLock_);
@@ -71,13 +71,15 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
             return;
         }
 
-        YT_LOG_DEBUG("Member lease expired (MemberId: %v)", memberId);
+        YT_TLOG_DEBUG("Member lease expired")
+            .With("MemberId", memberId);
 
         auto guard = WriterGuard(MembersLock_);
 
         auto it = IdToMember_.find(memberId);
         if (it == IdToMember_.end()) {
-            YT_LOG_WARNING("Member is already deleted from group (MemberId: %v)", memberId);
+            YT_TLOG_WARNING("Member is already deleted from group")
+                .With("MemberId", memberId);
             return;
         }
 
@@ -97,9 +99,9 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
     Members_.insert(member);
     IdToMember_.emplace(member->GetId(), member);
 
-    YT_LOG_DEBUG("Member added (MemberId: %v, LeaseTimeout: %v)",
-        memberInfo.Id,
-        leaseTimeout);
+    YT_TLOG_DEBUG("Member added")
+        .With("MemberId", memberInfo.Id)
+        .With("LeaseTimeout", leaseTimeout);
 
     return member;
 }

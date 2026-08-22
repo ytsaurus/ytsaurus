@@ -25,9 +25,12 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(NLogging::TLogger logger)
     auto callback =
         BIND([Logger = std::move(logger), type = Request_.Type] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
-                YT_LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
+                YT_TLOG_DEBUG("Mutation commit succeeded")
+                    .With("MutationType", type);
             } else {
-                YT_LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
+                YT_TLOG_DEBUG("Mutation commit failed")
+                    .With("MutationType", type)
+                    .With(result);
             }
             return result;
         });

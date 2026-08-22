@@ -208,10 +208,9 @@ public:
                 if (lockState == ELockState::Acquired) {
                     return MakeFuture(ELockAcquisionState::Acquired);
                 }
-                YT_LOG_DEBUG(
-                    "Starting waiting (ReplicaIndex: %v, ReplicaVersionTag: %v)",
-                    client->GetIndex(),
-                    targetVersion.second);
+                YT_TLOG_DEBUG("Starting waiting")
+                    .With("ReplicaIndex", client->GetIndex())
+                    .With("ReplicaVersionTag", targetVersion.second);
 
                 auto waitingLockEntry = New<TWaitingLockEntry>(
                     std::move(lockEntry),
@@ -245,7 +244,8 @@ private:
 
     void OnCheckLocks()
     {
-        YT_LOG_DEBUG("Starting check locks iteration (LockEntriesSize: %v)", LockEntries_.size());
+        YT_TLOG_DEBUG("Starting check locks iteration")
+            .With("LockEntriesSize", LockEntries_.size());
         TCompactVector<TLockId, 4> locksToErase;
         for (const auto& [lockId, lockEntry] : LockEntries_) {
             if (lockEntry->IsReadyOrCanceled()) {
@@ -255,11 +255,14 @@ private:
             if (auto runningCheck = RunningChecks_.find(lockId); runningCheck != RunningChecks_.end()) {
                 if (!runningCheck->second.IsSet()) {
                     runningCheck->second.Cancel(TError("Exceeded lock check time"));
-                    YT_LOG_DEBUG("Exceeded lock check time (LockId: %v)", lockId);
+                    YT_TLOG_DEBUG("Exceeded lock check time")
+                        .With("LockId", lockId);
                 } else {
                     const auto& checkResult = runningCheck->second.GetOrCrash();
                     if (!checkResult.IsOK()) {
-                        YT_LOG_DEBUG(checkResult, "Lock check failed (LockId: %v)", lockId);
+                        YT_TLOG_DEBUG("Lock check failed")
+                            .With("LockId", lockId)
+                            .With(checkResult);
                     }
                 }
             }

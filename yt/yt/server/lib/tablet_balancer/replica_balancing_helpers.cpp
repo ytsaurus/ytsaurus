@@ -23,9 +23,8 @@ std::vector<double> GetUniformDistribution(
     }
     distribution.push_back(1.0);
 
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Calculated distribution by zero sizes as uniform (Distribution: %v)",
-        distribution);
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Calculated distribution by zero sizes as uniform")
+        .With("Distribution", distribution);
 
     return distribution;
 }
@@ -60,11 +59,10 @@ std::vector<std::pair<int, int>> GetCommonKeyIndices(
     YT_VERIFY(indices.front() == std::pair(0, 0));
     indices.emplace_back(std::ssize(majorTableKeys), std::ssize(minorTableKeys));
 
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Found common key indices (CommonIndices: %v, MajorKeys: %v, MinorKeys: %v)",
-        indices,
-        majorTableKeys,
-        minorTableKeys);
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Found common key indices")
+        .With("CommonIndices", indices)
+        .With("MajorKeys", majorTableKeys)
+        .With("MinorKeys", minorTableKeys);
     return indices;
 }
 
@@ -95,11 +93,10 @@ std::vector<double> GetCumulativeDistribution(
     // To ensure that the first and last elements are equal to the same elements in another distribution
     distribution.back() = 1.0;
 
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Calculated distribution by sizes (Distribution: %v, TotalSize: %v, Sizes: %v)",
-        distribution,
-        prefixTotalSize,
-        MakeFormattableView(sizes, TDefaultFormatter{}));
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Calculated distribution by sizes")
+        .With("Distribution", distribution)
+        .With("TotalSize", prefixTotalSize)
+        .With("Sizes", MakeFormattableView(sizes, TDefaultFormatter{}));
 
     return distribution;
 }
@@ -140,9 +137,8 @@ std::vector<double> CalculateMajorMetricsBetweenSamePivots(
         }
     }
 
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Calculated major metrics by minor metrics between same pivot keys (Metrics: %v)",
-        metrics);
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Calculated major metrics by minor metrics between same pivot keys")
+        .With("Metrics", metrics);
 
     return metrics;
 }
@@ -156,14 +152,12 @@ std::vector<double> CalculateMajorMetrics(
     const NLogging::TLogger& Logger,
     bool enableVerboseLogging)
 {
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Calculating major metrics by minor table "
-        "(MinorMetrics: %v, MajorTabletSizes: %v, MinorTabletSizes: %v, MajorPivotKeys: %v, MinorPivotKeys: %v)",
-        minorTableMetrics,
-        majorTabletSizes,
-        minorTabletSizes,
-        majorTablePivotKeys,
-        minorTablePivotKeys);
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Calculating major metrics by minor table")
+        .With("MinorMetrics", minorTableMetrics)
+        .With("MajorTabletSizes", majorTabletSizes)
+        .With("MinorTabletSizes", minorTabletSizes)
+        .With("MajorPivotKeys", majorTablePivotKeys)
+        .With("MinorPivotKeys", minorTablePivotKeys);
 
     YT_VERIFY(std::ssize(minorTableMetrics) == std::ssize(minorTablePivotKeys));
     YT_VERIFY(std::ssize(minorTableMetrics) == std::ssize(minorTabletSizes));
@@ -187,9 +181,8 @@ std::vector<double> CalculateMajorMetrics(
             enableVerboseLogging);
         metrics.insert(metrics.end(), reshardedMinorMetrics.begin(), reshardedMinorMetrics.end());
     }
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Calculated major table metrics by minor table (Metrics: %v)",
-        metrics);
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Calculated major table metrics by minor table")
+        .With("Metrics", metrics);
     return metrics;
 }
 
@@ -200,12 +193,10 @@ std::vector<std::pair<int, std::vector<TLegacyOwningKey>>> ReshardByReferencePiv
     const NLogging::TLogger& Logger,
     bool enableVerboseLogging)
 {
-    YT_LOG_DEBUG_IF(enableVerboseLogging,
-        "Building reshard descriptors to split table by reference table between same pivots "
-        "(Keys: %v, ReferenceKeys: %v, MaxTabletCountPerAction: %v)",
-        MakeFormattableView(keys, TDefaultFormatter{}),
-        MakeFormattableView(referenceKeys, TDefaultFormatter{}),
-        maxTabletCountPerAction);
+    YT_TLOG_DEBUG_IF(enableVerboseLogging, "Building reshard descriptors to split table by reference table between same pivots")
+        .With("Keys", MakeFormattableView(keys, TDefaultFormatter{}))
+        .With("ReferenceKeys", MakeFormattableView(referenceKeys, TDefaultFormatter{}))
+        .With("MaxTabletCountPerAction", maxTabletCountPerAction);
 
     std::vector<std::pair<int, std::vector<TLegacyOwningKey>>> actions;
     int leftIndex = 0;
@@ -215,11 +206,9 @@ std::vector<std::pair<int, std::vector<TLegacyOwningKey>>> ReshardByReferencePiv
 
     while (rightIndex < std::ssize(keys)) {
         while (referencePivot != referenceKeys.end() && *referencePivot <= keys[leftIndex]) {
-            YT_LOG_DEBUG_IF(enableVerboseLogging,
-                "Shifting reference pivot iterator to right to skip extra pivots "
-                "(NextFirstPivot: %v, ReferenceTablePivot: %v)",
-                keys[leftIndex],
-                *referencePivot);
+            YT_TLOG_DEBUG_IF(enableVerboseLogging, "Shifting reference pivot iterator to right to skip extra pivots")
+                .With("NextFirstPivot", keys[leftIndex])
+                .With("ReferenceTablePivot", *referencePivot);
             ++referencePivot;
         }
 
@@ -233,22 +222,18 @@ std::vector<std::pair<int, std::vector<TLegacyOwningKey>>> ReshardByReferencePiv
             if (referencePivot == referenceKeys.end() ||
                 rightIndex < std::ssize(keys) && keys[rightIndex] < *referencePivot)
             {
-                YT_LOG_DEBUG_IF(enableVerboseLogging,
-                    "Added minor tablet to descriptor "
-                    "(FirstIndex: %v, LastIndex: %v, Pivot: %v, ReferencePivot: %v)",
-                    leftIndex,
-                    rightIndex,
-                    keys[rightIndex],
-                    referencePivot != referenceKeys.end() ? std::optional(*referencePivot) : std::nullopt);
+                YT_TLOG_DEBUG_IF(enableVerboseLogging, "Added minor tablet to descriptor")
+                    .With("FirstIndex", leftIndex)
+                    .With("LastIndex", rightIndex)
+                    .With("Pivot", keys[rightIndex])
+                    .With("ReferencePivot", referencePivot != referenceKeys.end() ? std::optional(*referencePivot) : std::nullopt);
                 ++rightIndex;
             } else {
-                YT_LOG_DEBUG_IF(enableVerboseLogging,
-                    "Added pivot key to descriptor "
-                    "(FirstIndex: %v, LastIndex: %v, Pivot: %v, AddedPivot: %v)",
-                    leftIndex,
-                    rightIndex,
-                    rightIndex < std::ssize(keys) ? std::optional(keys[rightIndex]) : std::nullopt,
-                    *referencePivot);
+                YT_TLOG_DEBUG_IF(enableVerboseLogging, "Added pivot key to descriptor")
+                    .With("FirstIndex", leftIndex)
+                    .With("LastIndex", rightIndex)
+                    .With("Pivot", rightIndex < std::ssize(keys) ? std::optional(keys[rightIndex]) : std::nullopt)
+                    .With("AddedPivot", *referencePivot);
 
                 YT_VERIFY(pivotKeys.back() != *referencePivot);
                 pivotKeys.push_back(*referencePivot);

@@ -23,8 +23,8 @@ std::vector<TTabletCellPtr> TTabletCellBundle::GetAliveCells() const
     for (const auto& [id, cell] : TabletCells) {
         if (cell->IsAlive()) {
             if (!cell->NodeAddress) {
-                YT_LOG_WARNING("Alive cell is not assigned to any node (CellId: %v)",
-                    id);
+                YT_TLOG_WARNING("Alive cell is not assigned to any node")
+                    .With("CellId", id);
                 continue;
             }
             cells.push_back(cell);

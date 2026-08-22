@@ -56,7 +56,8 @@ TEST(TPhysicalChunkLayoutTest, SerializeAndDeserializeBlocks)
 
     auto chunkId = MakeRandomId(NCypressClient::EObjectType::Chunk, NObjectClient::TCellTag(0xf003));
     auto seed = TInstant::Now().GetValue();
-    YT_LOG_INFO("Test started (Seed: %v)", seed);
+    YT_TLOG_INFO("Test started")
+        .With("Seed", seed);
     auto generator = TRandomGenerator(seed);
 
     auto originalBlocks = CreateBlocks(BlockCount, &generator);

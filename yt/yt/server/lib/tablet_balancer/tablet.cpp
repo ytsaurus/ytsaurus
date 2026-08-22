@@ -43,12 +43,12 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
             .DoMap([&] (TFluentMap fluent) {
                 for (const auto& performanceCounterKey : performanceCountersKeys) {
                     if (!performanceCountersTableSchema->FindColumn(performanceCounterKey)) {
-                        YT_LOG_DEBUG_IF(Index == 0 &&
+                        YT_TLOG_DEBUG_IF(
+                            Index == 0 &&
                                 performanceCountersTableSchema->GetValueColumnCount() == std::ssize(performanceCountersKeys),
-                            "Statistics reporter schema does not contain performance counter column "
-                            "(PerformanceCounterKey: %v, TabletId: %v)",
-                            performanceCounterKey,
-                            Id);
+                            "Statistics reporter schema does not contain performance counter column")
+                            .With("PerformanceCounterKey", performanceCounterKey)
+                            .With("TabletId", Id);
                         continue;
                     }
 
@@ -70,30 +70,24 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
         });
     }
 
-    YT_LOG_FATAL_IF(
-        !Table,
-        "Probably alien table missing performance counters (TabletId: %v, MountTime: %v, TabletState: %v)",
-        Id,
-        MountTime,
-        State);
+    YT_TLOG_FATAL_IF(!Table, "Probably alien table missing performance counters")
+        .With("TabletId", Id)
+        .With("MountTime", MountTime)
+        .With("TabletState", State);
 
     auto performanceCountersProto = std::get_if<TPerformanceCountersProtoList>(&PerformanceCounters);
     YT_VERIFY(performanceCountersProto);
 
-    YT_LOG_FATAL_IF(
-        performanceCountersProto->size() != std::ssize(performanceCountersKeys),
-        "Performance counters proto has unexpected keys (TabletId: %v, TableId: %v, TablePath: %v, "
-        "MountTime: %v, TabletState: %v, PerformanceCountersProtoSize: %v, PerformanceCountersKeysSize: %v, "
-        "PerformanceCountersProto: %v, PerformanceCountersKeys: %v)",
-        Id,
-        Table->Id,
-        Table->Path,
-        MountTime,
-        State,
-        performanceCountersProto->size(),
-        std::ssize(performanceCountersKeys),
-        performanceCountersProto,
-        performanceCountersKeys);
+    YT_TLOG_FATAL_IF(performanceCountersProto->size() != std::ssize(performanceCountersKeys), "Performance counters proto has unexpected keys")
+        .With("TabletId", Id)
+        .With("TableId", Table->Id)
+        .With("TablePath", Table->Path)
+        .With("MountTime", MountTime)
+        .With("TabletState", State)
+        .With("PerformanceCountersProtoSize", performanceCountersProto->size())
+        .With("PerformanceCountersKeysSize", std::ssize(performanceCountersKeys))
+        .With("PerformanceCountersProto", performanceCountersProto)
+        .With("PerformanceCountersKeys", performanceCountersKeys);
 
     return BuildYsonStringFluently()
         .DoMap([&] (TFluentMap fluent) {

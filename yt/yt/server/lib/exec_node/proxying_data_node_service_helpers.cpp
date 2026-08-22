@@ -139,15 +139,11 @@ void PrepareProxiedChunkReading(
             continue;
         }
 
-        YT_LOG_DEBUG(
-            "Modify chunk spec for job input cache (OldChunkId: %v, "
-            "NewChunkId: %v, "
-            "OldReplicaCount: %v, "
-            "NewReplicaCount: %v)",
-            chunkId,
-            proxiedChunkId,
-            chunkSpec.replicas_size(),
-            1);
+        YT_TLOG_DEBUG("Modify chunk spec for job input cache")
+            .With("OldChunkId", chunkId)
+            .With("NewChunkId", proxiedChunkId)
+            .With("OldReplicaCount", chunkSpec.replicas_size())
+            .With("NewReplicaCount", 1);
 
         TChunkSpec proxiedChunkSpec;
         proxiedChunkSpec.CopyFrom(chunkSpec);
@@ -220,16 +216,11 @@ THashMap<TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(TJobSpec* job
                 newChunkSpec.mutable_replicas()->CopyFrom(proxiedChunkSpec.replicas());
                 chunkIdToOriginalSpec.emplace(proxiedChunkId, New<TRefCountedChunkSpec>(chunkSpec));
 
-                YT_LOG_DEBUG(
-                    "Modify chunk spec for job input cache ("
-                    "OldChunkId: %v, "
-                    "NewChunkId: %v, "
-                    "OldReplicaCount: %v, "
-                    "NewReplicaCount: %v)",
-                    chunkId,
-                    proxiedChunkId,
-                    chunkSpec.replicas_size(),
-                    proxiedChunkSpec.replicas_size());
+                YT_TLOG_DEBUG("Modify chunk spec for job input cache")
+                    .With("OldChunkId", chunkId)
+                    .With("NewChunkId", proxiedChunkId)
+                    .With("OldReplicaCount", chunkSpec.replicas_size())
+                    .With("NewReplicaCount", proxiedChunkSpec.replicas_size());
 
                 newChunkSpecs.push_back(std::move(newChunkSpec));
             }

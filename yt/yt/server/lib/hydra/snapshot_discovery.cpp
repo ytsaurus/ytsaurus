@@ -44,11 +44,11 @@ public:
     TFuture<TRemoteSnapshotParams> DoRun()
     {
         if (ExactId_) {
-            YT_LOG_INFO("Running snapshot discovery (SnapshotId: %v)",
-                MaxSnapshotId_);
+            YT_TLOG_INFO("Running snapshot discovery")
+                .With("SnapshotId", MaxSnapshotId_);
         } else {
-            YT_LOG_INFO("Running snapshot discovery (MaxSnapshotId: %v)",
-                MaxSnapshotId_);
+            YT_TLOG_INFO("Running snapshot discovery")
+                .With("MaxSnapshotId", MaxSnapshotId_);
         }
 
         std::vector<TFuture<void>> asyncResults;
@@ -59,8 +59,8 @@ public:
                 continue;
             }
 
-            YT_LOG_DEBUG("Requesting snapshot info (PeerId: %v)",
-                peerId);
+            YT_TLOG_DEBUG("Requesting snapshot info")
+                .With("PeerId", peerId);
 
             TInternalHydraServiceProxy proxy(std::move(channel));
             proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
@@ -94,17 +94,18 @@ private:
         const TInternalHydraServiceProxy::TErrorOrRspLookupSnapshotPtr& rspOrError)
     {
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error requesting snapshot info (PeerId: %v)",
-                peerId);
+            YT_TLOG_WARNING("Error requesting snapshot info")
+                .With("PeerId", peerId)
+                .With(rspOrError);
             return;
         }
 
         const auto& rsp = rspOrError.Value();
         int snapshotId = rsp->snapshot_id();
 
-        YT_LOG_DEBUG("Snapshot info received (PeerId: %v, SnapshotId: %v)",
-            peerId,
-            snapshotId);
+        YT_TLOG_DEBUG("Snapshot info received")
+            .With("PeerId", peerId)
+            .With("SnapshotId", snapshotId);
 
         if (rsp->snapshot_id() > Params_.SnapshotId) {
             Params_.PeerId = peerId;
@@ -124,11 +125,11 @@ private:
         }
 
         if (Params_.SnapshotId == InvalidSegmentId) {
-            YT_LOG_INFO("Snapshot discovery finished; no feasible snapshot is found");
+            YT_TLOG_INFO("Snapshot discovery finished; no feasible snapshot is found");
         } else {
-            YT_LOG_INFO("Snapshot discovery succeeded (PeerId: %v, SnapshotId: %v)",
-                Params_.PeerId,
-                Params_.SnapshotId);
+            YT_TLOG_INFO("Snapshot discovery succeeded")
+                .With("PeerId", Params_.PeerId)
+                .With("SnapshotId", Params_.SnapshotId);
         }
 
         return Params_;

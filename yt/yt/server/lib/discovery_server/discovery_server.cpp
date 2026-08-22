@@ -270,7 +270,8 @@ public:
 
         GossipPeriodicExecutor_->Start();
 
-        YT_LOG_INFO("Server initialized (Addresses: %v)", Config_->ServerAddresses);
+        YT_TLOG_INFO("Server initialized")
+            .With("Addresses", Config_->ServerAddresses);
     }
 
     void Finalize() override
@@ -280,7 +281,7 @@ public:
 
         YT_UNUSED_FUTURE(GossipPeriodicExecutor_->Stop());
 
-        YT_LOG_INFO("Server finalized");
+        YT_TLOG_INFO("Server finalized");
     }
 
     NYTree::IYPathServicePtr GetYPathService() override
@@ -302,7 +303,8 @@ private:
     void SendGossip()
     {
         auto modifiedMembers = GroupManager_->GetModifiedMembers();
-        YT_LOG_DEBUG("Gossip started (ModifiedMemberCount: %v)", modifiedMembers.size());
+        YT_TLOG_DEBUG("Gossip started")
+            .With("ModifiedMemberCount", modifiedMembers.size());
 
         auto gossipStartTime = TInstant::Now();
 
@@ -311,7 +313,8 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Sending gossip (Address: %v)", address);
+            YT_TLOG_DEBUG("Sending gossip")
+                .With("Address", address);
 
             auto channel = ChannelFactory_->CreateChannel(address);
             auto proxy = TDiscoveryServerServiceProxy(std::move(channel));
@@ -326,7 +329,8 @@ private:
                 {
                     auto reader = member->CreateReader();
                     if (gossipStartTime - member->GetLastGossipAttributesUpdateTime() > Config_->AttributesUpdatePeriod) {
-                        YT_LOG_DEBUG("Sending attributes (Address: %v)", address);
+                        YT_TLOG_DEBUG("Sending attributes")
+                            .With("Address", address);
                         ToProto(memberInfo->mutable_attributes(), *reader.GetAttributes());
                     }
                     memberInfo->set_revision(reader.GetRevision());
@@ -339,9 +343,12 @@ private:
             req->Invoke().Subscribe(
                 BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryServerServiceProxy::TRspProcessGossipPtr>& rspOrError) {
                     if (rspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Gossip succeeded (Address: %v)", address);
+                        YT_TLOG_DEBUG("Gossip succeeded")
+                            .With("Address", address);
                     } else {
-                        YT_LOG_DEBUG(rspOrError, "Gossip failed (Address: %v)", address);
+                        YT_TLOG_DEBUG("Gossip failed")
+                            .With("Address", address)
+                            .With(rspOrError);
                     }
                 }));
         }

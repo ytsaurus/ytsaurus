@@ -307,11 +307,10 @@ private:
 
         const auto Logger = IOLogger;
         if (result == -1) {
-            YT_LOG_ERROR(
-                TSystemError(),
-                "Failed to munmap huge page blob (Address: %p, Size: %v)",
-                hugePageBlob.Begin(),
-                hugePageBlob.Size());
+            YT_TLOG_ERROR("Failed to munmap huge page blob")
+                .WithFormat("Address", "%p", hugePageBlob.Begin())
+                .With("Size", hugePageBlob.Size())
+                .With(TSystemError());
         }
 #else
         YT_UNIMPLEMENTED();

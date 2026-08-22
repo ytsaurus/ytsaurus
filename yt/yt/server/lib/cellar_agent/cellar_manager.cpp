@@ -70,8 +70,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // TODO(savrus) Remove when reconfiguration is deployed and verified.
-        YT_LOG_DEBUG("Reconfiguring cellar manager (NewConfig: %v)",
-            ConvertToYsonString(config, EYsonFormat::Text).AsStringBuf());
+        YT_TLOG_DEBUG("Reconfiguring cellar manager")
+            .With("NewConfig", ConvertToYsonString(config, EYsonFormat::Text).AsStringBuf());
 
         THashSet<ECellarType> updatedCellarTypes;
         for (const auto& [type, cellarConfig] : config->Cellars) {
