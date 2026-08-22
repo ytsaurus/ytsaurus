@@ -44,9 +44,10 @@ void TLogRotator::RotateLogs()
     LastLogRotationTime_ = TInstant::Now();
 
     ++RotationCount_;
-    YT_LOG_INFO("Rotating log (RotationCount: %v)", RotationCount_);
+    YT_TLOG_INFO("Rotating log")
+        .With("RotationCount", RotationCount_);
     if (RotationCount_ == 1) {
-        YT_LOG_INFO("Ignoring first rotation");
+        YT_TLOG_INFO("Ignoring first rotation");
         return;
     }
 
@@ -59,7 +60,7 @@ void TLogRotator::RotateLogs()
     }
 
     if (!logWriterLoggingStarted) {
-        YT_LOG_INFO("Log writer didn't write any log yet, ignoring rotation");
+        YT_TLOG_INFO("Log writer didn't write any log yet, ignoring rotation");
         return;
     }
 
@@ -69,13 +70,14 @@ void TLogRotator::RotateLogs()
             ++segmentCount;
         }
 
-        YT_LOG_INFO("Moving log segments (LogName: %v, SegmentCount: %v)",
-            file,
-            segmentCount);
+        YT_TLOG_INFO("Moving log segments")
+            .With("LogName", file)
+            .With("SegmentCount", segmentCount);
 
         if (segmentCount == Config_->LogSegmentCount) {
             auto lastLogSegmentPath = GetLogSegmentPath(file, segmentCount - 1);
-            YT_LOG_INFO("Removing last log segment (FileName: %v)", lastLogSegmentPath);
+            YT_TLOG_INFO("Removing last log segment")
+                .With("FileName", lastLogSegmentPath);
             Remove(lastLogSegmentPath);
             --segmentCount;
         }
@@ -84,21 +86,22 @@ void TLogRotator::RotateLogs()
             auto oldLogSegmentPath = GetLogSegmentPath(file, segmentId - 1);
             auto newLogSegmentPath = GetLogSegmentPath(file, segmentId);
 
-            YT_LOG_DEBUG("Renaming log segment (OldName: %v, NewName: %v)",
-                oldLogSegmentPath,
-                newLogSegmentPath);
+            YT_TLOG_DEBUG("Renaming log segment")
+                .With("OldName", oldLogSegmentPath)
+                .With("NewName", newLogSegmentPath);
             Rename(oldLogSegmentPath, newLogSegmentPath);
         }
     }
 
     auto logWriterPid = *Config_->LogWriterPid;
 
-    YT_LOG_DEBUG("Sending SIGHUP to process (LogWriterPid: %v)", logWriterPid);
+    YT_TLOG_DEBUG("Sending SIGHUP to process")
+        .With("LogWriterPid", logWriterPid);
     int killResult = kill(logWriterPid, SIGHUP);
     if (killResult != 0 && LastSystemError() != ESRCH) {
-        YT_LOG_ERROR("Unexpected kill result (LogWriterPid: %v, KillResult: %v)",
-            logWriterPid,
-            LastSystemErrorText());
+        YT_TLOG_ERROR("Unexpected kill result")
+            .With("LogWriterPid", logWriterPid)
+            .With("KillResult", LastSystemErrorText());
     }
 
     Sleep(Config_->RotationDelay);

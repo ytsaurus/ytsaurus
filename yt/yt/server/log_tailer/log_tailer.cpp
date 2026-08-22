@@ -46,7 +46,7 @@ void TLogTailer::Run()
 
     LogTailerExecutor_->Start();
 
-    YT_LOG_INFO("Log tailer started");
+    YT_TLOG_INFO("Log tailer started");
 }
 
 const std::vector<TLogFileReaderPtr>& TLogTailer::GetLogReaders() const
@@ -56,7 +56,7 @@ const std::vector<TLogFileReaderPtr>& TLogTailer::GetLogReaders() const
 
 void TLogTailer::OnTick()
 {
-    YT_LOG_DEBUG("Tick started");
+    YT_TLOG_DEBUG("Tick started");
 
     LogRotator_->RotateLogs();
 
@@ -66,7 +66,7 @@ void TLogTailer::OnTick()
 
     LogWriterLivenessChecker_->CheckLiveness();
 
-    YT_LOG_DEBUG("Tick finished");
+    YT_TLOG_DEBUG("Tick finished");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

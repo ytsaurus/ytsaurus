@@ -41,7 +41,7 @@ TBootstrap::TBootstrap(TLogTailerBootstrapConfigPtr config)
 
 void TBootstrap::Run()
 {
-    YT_LOG_INFO("Starting log tailer");
+    YT_TLOG_INFO("Starting log tailer");
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
@@ -71,11 +71,12 @@ void TBootstrap::Run()
 void TBootstrap::SigintHandler()
 {
     auto counter = ++SigintCounter_;
-    YT_LOG_INFO("Received SIGINT (SigintCount: %v)", counter);
+    YT_TLOG_INFO("Received SIGINT")
+        .With("SigintCount", counter);
     if (counter > 1) {
         Abort(ToUnderlying(EProcessExitCode::OK));
     }
-    YT_LOG_INFO("Ignoring first SIGINT");
+    YT_TLOG_INFO("Ignoring first SIGINT");
 }
 
 const TLogTailerConfigPtr& TBootstrap::GetConfig()
