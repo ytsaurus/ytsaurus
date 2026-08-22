@@ -37,7 +37,8 @@ YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
         // NB(pogorelov): In some cases (for example, when using mac os and docker with colima),
         // there may be strange threads at the application start, which we can not send signals to.
         //
-        // YT_LOG_INFO("Thread count is not 1, trying to get thread infos (ThreadCount: %v)", threadCount);
+        // YT_TLOG_INFO("Thread count is not 1, trying to get thread infos")
+        //     .With("ThreadCount", threadCount);
         // auto threadInfos = IntrospectThreads();
         // auto descripion = FormatIntrospectionInfos(threadInfos);
         // AbortProcessDramatically(
@@ -48,9 +49,8 @@ YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
         //         descripion));
 
         if (!ok) {
-            YT_LOG_WARNING(
-                "Failed to block SIGRTMIN for process: thread count is not 1 at the process start; delivery fenced write will be disabled (ThreadCount: %v)",
-                threadCount);
+            YT_TLOG_WARNING("Failed to block SIGRTMIN for process: thread count is not 1 at the process start; delivery fenced write will be disabled")
+                .With("ThreadCount", threadCount);
         }
         DeliveryFencedWriteEnabled = ok;
     });
@@ -133,9 +133,8 @@ protected:
 
         // Everything should be properly destructed.
         if (auto residualRefCount = ResetAndGetResidualRefCount(jobProxy)) {
-            YT_LOG_ERROR(
-                "Job proxy ref counter is positive at the end of job; memory leak is possible (RefCounter: %v)",
-                residualRefCount);
+            YT_TLOG_ERROR("Job proxy ref counter is positive at the end of job; memory leak is possible")
+                .With("RefCounter", residualRefCount);
         }
 
 #ifdef _asan_enabled_

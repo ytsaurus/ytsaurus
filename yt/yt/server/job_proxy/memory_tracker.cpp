@@ -100,9 +100,11 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
             {
                 pids.push_back(*pid);
             }
-            YT_LOG_DEBUG("Job process pids collected (Pids: %v)", pids);
+            YT_TLOG_DEBUG("Job process pids collected")
+                .With("Pids", pids);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get list of user job processes");
+            YT_TLOG_WARNING("Failed to get list of user job processes")
+                .With(ex);
             return New<TJobMemoryStatistics>();
         }
 
@@ -114,19 +116,20 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                 try {
                     smaps = RunTool<TReadProcessSmapsTool>(pid);
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to read process smaps (Pid: %v)", pid);
+                    YT_TLOG_WARNING("Failed to read process smaps")
+                        .With("Pid", pid)
+                        .With(ex);
                     continue;
                 }
 
                 for (const auto& segment : ParseMemoryMappings(smaps)) {
-                    YT_LOG_DEBUG("Memory segment parsed (Pid: %v, DeviceId: %v, "
-                        "PrivateClean: %v, PrivateDirty: %v, SharedClean: %v, SharedDirty: %v)",
-                        pid,
-                        segment.DeviceId,
-                        segment.Statistics.PrivateClean,
-                        segment.Statistics.PrivateDirty,
-                        segment.Statistics.SharedClean,
-                        segment.Statistics.SharedDirty);
+                    YT_TLOG_DEBUG("Memory segment parsed")
+                        .With("Pid", pid)
+                        .With("DeviceId", segment.DeviceId)
+                        .With("PrivateClean", segment.Statistics.PrivateClean)
+                        .With("PrivateDirty", segment.Statistics.PrivateDirty)
+                        .With("SharedClean", segment.Statistics.SharedClean)
+                        .With("SharedDirty", segment.Statistics.SharedDirty);
 
                     if (segment.DeviceId && TmpfsManager_->IsTmpfsDevice(*segment.DeviceId)) {
                         skippedBecauseOfTmpfs += segment.Statistics.SharedClean + segment.Statistics.SharedDirty;
@@ -139,10 +142,10 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
             jobMemoryStatistics->Total.ResidentAnon = memoryMappingStatistics.PrivateClean + memoryMappingStatistics.PrivateDirty;
             jobMemoryStatistics->Total.MappedFile = memoryMappingStatistics.SharedClean + memoryMappingStatistics.SharedDirty;
 
-            YT_LOG_DEBUG("Job memory statistics updated (ResidentAnon: %v, MappedFile: %v, SkippedBecauseOfTmpfs: %v)",
-                jobMemoryStatistics->Total.ResidentAnon,
-                jobMemoryStatistics->Total.MappedFile,
-                skippedBecauseOfTmpfs);
+            YT_TLOG_DEBUG("Job memory statistics updated")
+                .With("ResidentAnon", jobMemoryStatistics->Total.ResidentAnon)
+                .With("MappedFile", jobMemoryStatistics->Total.MappedFile)
+                .With("SkippedBecauseOfTmpfs", skippedBecauseOfTmpfs);
         } else {
             for (auto pid : pids) {
                 try {
@@ -151,11 +154,11 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                     auto commandLine = GetProcessCommandLine(pid);
 
                     if (!commandLine.empty() && commandLine[0].ends_with("/portod")) {
-                        YT_LOG_DEBUG("Memory tracker found portod, ignoring (Pid: %v, CommandLine: %v, Rss: %v, Shared: %v)",
-                            pid,
-                            commandLine,
-                            memoryUsage.Rss,
-                            memoryUsage.Shared);
+                        YT_TLOG_DEBUG("Memory tracker found portod, ignoring")
+                            .With("Pid", pid)
+                            .With("CommandLine", commandLine)
+                            .With("Rss", memoryUsage.Rss)
+                            .With("Shared", memoryUsage.Shared);
                         continue;
                     }
 
@@ -163,8 +166,9 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                     try {
                         majorPageFaults = GetProcessCumulativeMajorPageFaults(pid);
                     } catch (const std::exception& ex) {
-                        YT_LOG_WARNING(ex, "Failed to get process major page fault count (Pid: %v)",
-                            pid);
+                        YT_TLOG_WARNING("Failed to get process major page fault count")
+                            .With("Pid", pid)
+                            .With(ex);
                     }
 
                     auto processMemoryStatistics = New<TProcessMemoryStatistics>();
@@ -174,14 +178,13 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
                     processMemoryStatistics->Shared = memoryUsage.Shared;
                     jobMemoryStatistics->ProcessesStatistics.push_back(processMemoryStatistics);
 
-                    YT_LOG_DEBUG(
-                        "Process memory statistics collected (Pid: %v, ProcessName: %v, CommandLine: %v, Rss: %v, Shared: %v, MajorPageFaults: %v)",
-                        pid,
-                        processName,
-                        TruncateString(Format("%v", commandLine), CommandLineMaxLength),
-                        memoryUsage.Rss,
-                        memoryUsage.Shared,
-                        majorPageFaults);
+                    YT_TLOG_DEBUG("Process memory statistics collected")
+                        .With("Pid", pid)
+                        .With("ProcessName", processName)
+                        .With("CommandLine", TruncateString(Format("%v", commandLine), CommandLineMaxLength))
+                        .With("Rss", memoryUsage.Rss)
+                        .With("Shared", memoryUsage.Shared)
+                        .With("MajorPageFaults", majorPageFaults);
 
                     // RSS from /proc/pid/statm includes all pages resident to current process,
                     // including memory-mapped files and shared memory.
@@ -191,8 +194,9 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
 
                     jobMemoryStatistics->Total.MajorPageFaults += majorPageFaults;
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to collect process memory statistics (Pid: %v)",
-                        pid);
+                    YT_TLOG_WARNING("Failed to collect process memory statistics")
+                        .With("Pid", pid)
+                        .With(ex);
                 }
             }
         }
@@ -210,10 +214,10 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
         CumulativeMemoryUsageMBSec_ += memoryUsage * (now - LastMemoryMeasureTime_).SecondsFloat() / 1_MB;
     }
 
-    YT_LOG_DEBUG("Job memory statistics updated (ResidentAnon: %v, MappedFile: %v, TmpfsUsage: %v)",
-        jobMemoryStatistics->Total.ResidentAnon,
-        jobMemoryStatistics->Total.MappedFile,
-        jobMemoryStatistics->Total.TmpfsUsage);
+    YT_TLOG_DEBUG("Job memory statistics updated")
+        .With("ResidentAnon", jobMemoryStatistics->Total.ResidentAnon)
+        .With("MappedFile", jobMemoryStatistics->Total.MappedFile)
+        .With("TmpfsUsage", jobMemoryStatistics->Total.TmpfsUsage);
 
     LastMemoryMeasureTime_ = now;
     CachedMemoryStatistics_ = jobMemoryStatistics;
