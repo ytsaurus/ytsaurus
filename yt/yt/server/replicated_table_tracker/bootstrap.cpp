@@ -154,8 +154,8 @@ private:
 
     void DoInitialize()
     {
-        YT_LOG_INFO("Starting replicated table tracker process (ClusterName: %v)",
-            Config_->ClusterConnection->Static->ClusterName);
+        YT_TLOG_INFO("Starting replicated table tracker process")
+            .With("ClusterName", Config_->ClusterConnection->Static->ClusterName);
 
         LocalAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
@@ -191,13 +191,11 @@ private:
         DynamicConfigManager_->Start();
 
         {
-            YT_LOG_INFO("Loading dynamic config for the first time");
+            YT_TLOG_INFO("Loading dynamic config for the first time");
             auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Unexpected failure while waiting for the first dynamic config loaded");
-            YT_LOG_INFO("Dynamic config loaded");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for the first dynamic config loaded")
+                .With(error);
+            YT_TLOG_INFO("Dynamic config loaded");
         }
 
         auto coreDumper = ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>();
@@ -242,14 +240,17 @@ private:
 
     void DoStart()
     {
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
         if (HttpsServer_) {
-            YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+            YT_TLOG_INFO("Listening for HTTPS requests")
+                .With("Port", HttpsServer_->GetAddress().GetPort());
             HttpsServer_->Start();
         }
 
-        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
@@ -279,7 +280,7 @@ private:
 
         ElectionManager_->Start();
 
-        YT_LOG_INFO("Finished initializing bootstrap");
+        YT_TLOG_INFO("Finished initializing bootstrap");
     }
 
     void RegisterInstance()
@@ -301,14 +302,15 @@ private:
             if (error.IsOK()) {
                 break;
             } else {
-                YT_LOG_DEBUG(error, "Error updating Cypress node");
+                YT_TLOG_DEBUG("Error updating Cypress node")
+                    .With(error);
             }
         }
     }
 
     void OnLeadingStarted() const
     {
-        YT_LOG_DEBUG("RTT instance started leading");
+        YT_TLOG_DEBUG("RTT instance started leading");
 
         ReplicatedTableTrackerHost_->EnableUpdates();
         ReplicatedTableTracker_->Initialize();
@@ -317,7 +319,7 @@ private:
 
     void OnLeadingEnded() const
     {
-        YT_LOG_DEBUG("RTT instance finished leading");
+        YT_TLOG_DEBUG("RTT instance finished leading");
 
         ReplicatedTableTrackerHost_->DisableUpdates();
         ReplicatedTableTracker_->DisableTracking();
