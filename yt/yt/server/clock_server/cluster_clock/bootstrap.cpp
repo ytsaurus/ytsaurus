@@ -216,10 +216,10 @@ void TBootstrap::DoInitialize()
     CellId_ = localCellConfig->CellId;
     CellTag_ = CellTagFromId(CellId_);
 
-    YT_LOG_INFO("Running clock server (CellId: %v, CellTag: %v, PeerId: %v)",
-        CellId_,
-        CellTag_,
-        localPeerId);
+    YT_TLOG_INFO("Running clock server")
+        .With("CellId", CellId_)
+        .With("CellTag", CellTag_)
+        .With("PeerId", localPeerId);
 
     auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
 
@@ -273,7 +273,8 @@ void TBootstrap::DoStart()
 {
     HydraFacade_->Initialize();
 
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
     if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
         HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
@@ -312,11 +313,13 @@ void TBootstrap::DoStart()
 
     HttpServer_->Start();
     if (HttpsServer_) {
-        YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+        YT_TLOG_INFO("Listening for HTTPS requests")
+            .With("Port", HttpsServer_->GetAddress().GetPort());
         HttpsServer_->Start();
     }
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker(),
