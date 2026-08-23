@@ -82,8 +82,8 @@ public:
 
         Logger = ChaosNodeLogger().WithTag("CellId", slot->GetCellId());
 
-        YT_LOG_INFO("Set transaction manager clock cluster tag (ClockClusterTag: %v)",
-            ClockClusterTag_);
+        YT_TLOG_INFO("Set transaction manager clock cluster tag")
+            .With("ClockClusterTag", ClockClusterTag_);
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -178,11 +178,9 @@ public:
 
             RunPrepareTransactionActions(transaction, options);
 
-            YT_LOG_DEBUG("Transaction commit prepared (TransactionId: %v, "
-                "PrepareTimestamp: %v@%v)",
-                transactionId,
-                options.PrepareTimestamp,
-                options.PrepareTimestampClusterTag);
+            YT_TLOG_DEBUG("Transaction commit prepared")
+                .With("TransactionId", transactionId)
+                .WithFormat("PrepareTimestamp", "%v@%v", options.PrepareTimestamp, options.PrepareTimestampClusterTag);
         }
     }
 
@@ -201,8 +199,8 @@ public:
         if (transaction->GetTransientState() == ETransactionState::Active) {
             transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
-            YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Transaction abort prepared")
+                .With("TransactionId", transactionId);
         }
     }
 
@@ -222,8 +220,8 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            YT_LOG_DEBUG("Transaction is already committed (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Transaction is already committed")
+                .With("TransactionId", transactionId);
             return;
         }
 
@@ -242,11 +240,9 @@ public:
 
         RunCommitTransactionActions(transaction, options);
 
-        YT_LOG_DEBUG(
-            "Transaction committed (TransactionId: %v, CommitTimestamp: %v@%v)",
-            transactionId,
-            options.CommitTimestamp,
-            options.CommitTimestampClusterTag);
+        YT_TLOG_DEBUG("Transaction committed")
+            .With("TransactionId", transactionId)
+            .WithFormat("CommitTimestamp", "%v@%v", options.CommitTimestamp, options.CommitTimestampClusterTag);
 
         TransactionMap_.Remove(transactionId);
     }
@@ -277,9 +273,9 @@ public:
             /*requireLegacyBehavior*/ NHydra::HasMutationContext() &&
                 NHydra::GetCurrentMutationContext()->Request().Reign < static_cast<int>(EChaosReign::FixTransactionActionAbort));
 
-        YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, Force: %v)",
-            transactionId,
-            options.Force);
+        YT_TLOG_DEBUG("Transaction aborted")
+            .With("TransactionId", transactionId)
+            .With("Force", options.Force);
 
         TransactionMap_.Remove(transactionId);
     }
@@ -382,8 +378,9 @@ private:
         transactionSupervisor->AbortTransaction(id)
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
-                    YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
-                        id);
+                    YT_TLOG_DEBUG("Error aborting expired transaction")
+                        .With("TransactionId", id)
+                        .With(error);
                 }
             }));
     }
@@ -398,12 +395,11 @@ private:
         for (auto [transactionId, transaction] : TransactionMap_) {
             auto state = transaction->GetPersistentState();
 
-            YT_LOG_FATAL_IF(state != transaction->GetTransientState(),
-                "Found transaction in unexpected state (TransactionId: %v, PersistentState: %v, TransientState: %v, StartTimestamp: %v)",
-                transactionId,
-                state,
-                transaction->GetTransientState(),
-                transaction->GetStartTimestamp());
+            YT_TLOG_FATAL_IF(state != transaction->GetTransientState(), "Found transaction in unexpected state")
+                .With("TransactionId", transactionId)
+                .With("PersistentState", state)
+                .With("TransientState", transaction->GetTransientState())
+                .With("StartTimestamp", transaction->GetStartTimestamp());
 
             if (state == ETransactionState::Active ||
                 state == ETransactionState::PersistentCommitPrepared)
@@ -497,9 +493,9 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             auto& action = transaction->Actions().emplace_back(std::move(data));
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
-                transactionId,
-                action.Type);
+            YT_TLOG_DEBUG("Transaction action registered")
+                .With("TransactionId", transactionId)
+                .With("ActionType", action.Type);
         }
 
         transaction->SetSignature(transaction->GetSignature() + signature);
@@ -546,12 +542,11 @@ private:
             CreateLease(transaction);
         }
 
-        YT_LOG_DEBUG("Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
-            "Timeout: %v)",
-            transactionId,
-            startTimestamp,
-            TimestampToInstant(startTimestamp).first,
-            timeout);
+        YT_TLOG_DEBUG("Transaction started")
+            .With("TransactionId", transactionId)
+            .With("StartTimestamp", startTimestamp)
+            .With("StartTime", TimestampToInstant(startTimestamp).first)
+            .With("Timeout", timeout);
 
         return transaction;
     }
@@ -585,12 +580,10 @@ private:
                     .With("coordinator_clock_cluster_tag", ClockClusterTag_);
             }
 
-            YT_LOG_ALERT(
-                "Transaction timestamp is generated from unexpected clock "
-                "(TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
-                transactionId,
-                timestampClusterTag,
-                ClockClusterTag_);
+            YT_TLOG_ALERT("Transaction timestamp is generated from unexpected clock")
+                .With("TransactionId", transactionId)
+                .With("TransactionClusterTag", timestampClusterTag)
+                .With("ClockClusterTag", ClockClusterTag_);
         }
     }
 };
