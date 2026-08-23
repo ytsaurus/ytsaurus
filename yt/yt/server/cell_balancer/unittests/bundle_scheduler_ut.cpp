@@ -2779,6 +2779,12 @@ TEST_P(TBundleSchedulerTest, CheckResourceLimits)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
     EXPECT_EQ(0, std::ssize(mutations.ChangedTabletStaticMemory));
+
+    bundleInfo->Options->PeerCount = 2;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedTabletStaticMemory));
+    EXPECT_EQ(25_GBs * GetDataCenterCount(), mutations.ChangedTabletStaticMemory["bigd"]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

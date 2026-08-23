@@ -516,7 +516,9 @@ void ManageResourceLimits(TSchedulerInputState& input, TSchedulerMutations* muta
             continue;
         }
 
-        auto availableTabletStatic = *targetConfig->MemoryLimits->TabletStatic * targetConfig->TabletNodeCount;
+        auto availableTabletStatic =
+            *targetConfig->MemoryLimits->TabletStatic * targetConfig->TabletNodeCount /
+            bundleInfo->Options->PeerCount;
 
         if (availableTabletStatic != bundleInfo->ResourceLimits->TabletStaticMemory) {
             YT_TLOG_INFO("Adjusting tablet static memory limit")
