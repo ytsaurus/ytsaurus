@@ -439,10 +439,9 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Master cell membership configuration has changed, starting reconfiguration "
-            "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
-            NCellMasterClient::GetMasterCellTags(oldSecondaryMastersConnectionConfigs),
-            NCellMasterClient::GetMasterCellTags(newSecondaryMastersConnectionConfigs));
+        YT_TLOG_INFO("Master cell membership configuration has changed, starting reconfiguration")
+            .With("SecondaryMasterCellTags", NCellMasterClient::GetMasterCellTags(oldSecondaryMastersConnectionConfigs))
+            .With("ReceivedSecondaryMasterCellTags", NCellMasterClient::GetMasterCellTags(newSecondaryMastersConnectionConfigs));
 
         masterCellDirectory->ReconfigureMasterCellDirectory(newSecondaryMastersConnectionConfigs);
     }
@@ -458,7 +457,8 @@ private:
 
         for (const auto& dynamicAlert : alerts) {
             YT_VERIFY(!dynamicAlert.IsOK());
-            YT_LOG_WARNING(dynamicAlert, "Dynamic alert registered");
+            YT_TLOG_WARNING("Dynamic alert registered")
+                .With(dynamicAlert);
         }
 
         return alerts;
@@ -521,7 +521,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_WARNING(error, "Master transaction lease aborted");
+        YT_TLOG_WARNING("Master transaction lease aborted")
+            .With(error);
 
         LeaseTransaction_.Reset();
 
@@ -562,23 +563,22 @@ private:
                 SyncDirectories();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error registering at primary master");
+            YT_TLOG_WARNING("Error registering at primary master")
+                .With(ex);
             ResetAndRegisterAtMaster(ERegistrationReason::RegistrationFailure);
             return;
         }
 
         if (Bootstrap_->GetConfig()->DelayMasterCellDirectoryStart) {
             auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->NextSync());
-            YT_LOG_WARNING_UNLESS(
-                syncResultOrError.IsOK(),
-                syncResultOrError,
-                "Failed to sync master cell directory");
+            YT_TLOG_WARNING_UNLESS(syncResultOrError.IsOK(), "Failed to sync master cell directory")
+                .With(syncResultOrError);
         }
         RegisteredAtPrimary_.store(true);
 
-        YT_LOG_INFO("Successfully registered at primary master (NodeId: %v, KnownMasterCellTags: %v)",
-            GetNodeId(),
-            GetMasterCellTags());
+        YT_TLOG_INFO("Successfully registered at primary master")
+            .With("NodeId", GetNodeId())
+            .With("KnownMasterCellTags", GetMasterCellTags());
 
         MasterConnected_.Fire();
 
@@ -588,7 +588,8 @@ private:
         try {
             StartHeartbeats_.Fire();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error starting heartbeats");
+            YT_TLOG_WARNING("Error starting heartbeats")
+                .With(ex);
             ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             return;
         }
@@ -701,7 +702,7 @@ private:
             req->set_location_indexes_in_heartbeats_supported(true);
         }
 
-        YT_LOG_INFO("Registering at primary master");
+        YT_TLOG_INFO("Registering at primary master");
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -752,20 +753,20 @@ private:
 
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
 
-        YT_LOG_INFO("Synchronizing cell directory");
+        YT_TLOG_INFO("Synchronizing cell directory");
         WaitFor(connection->GetCellDirectorySynchronizer()->Sync())
             .ThrowOnError();
-        YT_LOG_INFO("Cell directory synchronized");
+        YT_TLOG_INFO("Cell directory synchronized");
 
-        YT_LOG_INFO("Synchronizing cluster directory");
+        YT_TLOG_INFO("Synchronizing cluster directory");
         WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true))
             .ThrowOnError();
-        YT_LOG_INFO("Cluster directory synchronized");
+        YT_TLOG_INFO("Cluster directory synchronized");
 
-        YT_LOG_INFO("Synchronizing master cell directory");
+        YT_TLOG_INFO("Synchronizing master cell directory");
         WaitFor(connection->GetMasterCellDirectorySynchronizer()->NextSync())
             .ThrowOnError();
-        YT_LOG_INFO("Master cell directory synchronized");
+        YT_TLOG_INFO("Master cell directory synchronized");
     }
 
     void UpdateLocalHostName(bool useHostObjects)
@@ -792,7 +793,7 @@ private:
 
         UpdateLocalHostName(newNodeConfig->MasterConnector->UseHostObjects);
 
-        YT_LOG_INFO("Dynamic config changed");
+        YT_TLOG_INFO("Dynamic config changed");
     }
 
     void OnSecondaryMasterCellListChanged(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)

@@ -490,7 +490,7 @@ TFuture<void> TNodeResourceManager::SyncUpdateLimits()
         return MakeFuture(TError("Node resource update executor is not started"));
     }
 
-    YT_LOG_DEBUG("Requested out of band node limits update");
+    YT_TLOG_DEBUG("Requested out of band node limits update");
 
     auto event = UpdateExecutor_->GetExecutedEvent();
     UpdateExecutor_->ScheduleOutOfBand();
@@ -634,7 +634,7 @@ void TNodeResourceManager::UpdateLimits()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_DEBUG("Updating node resource limits");
+    YT_TLOG_DEBUG("Updating node resource limits");
 
     UpdateMemoryLimits();
     UpdateJobsCpuLimit();
@@ -656,20 +656,18 @@ void TNodeResourceManager::UpdateMemoryLimits()
     if (totalMemory >= freeMemoryWatermark) {
         totalMemory -= freeMemoryWatermark;
     } else {
-        YT_LOG_WARNING(
-            "Free memory watermark more than total memory (FreeMemoryWatermark: %v, TotalMemory: %v)",
-            freeMemoryWatermark,
-            totalMemory);
+        YT_TLOG_WARNING("Free memory watermark more than total memory")
+            .With("FreeMemoryWatermark", freeMemoryWatermark)
+            .With("TotalMemory", totalMemory);
     }
 
     bool jobResourceAvailabilityIncreased = false;
 
     if (auto oldMemoryLimit = memoryUsageTracker->GetTotalLimit(); totalMemory != oldMemoryLimit) {
-        YT_LOG_INFO(
-            "Setting new memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v, FreeMemoryWatermark: %v)",
-            oldMemoryLimit,
-            totalMemory,
-            freeMemoryWatermark);
+        YT_TLOG_INFO("Setting new memory limit")
+            .With("OldMemoryLimit", oldMemoryLimit)
+            .With("NewMemoryLimit", totalMemory)
+            .With("FreeMemoryWatermark", freeMemoryWatermark);
 
         memoryUsageTracker->SetTotalLimit(totalMemory);
 
@@ -686,11 +684,10 @@ void TNodeResourceManager::UpdateMemoryLimits()
         auto newLimit = *limit->Value;
 
         if (std::abs(oldLimit - newLimit) > config->MemoryAccountingTolerance) {
-            YT_LOG_INFO(
-                "Updating memory category limit (Category: %v, OldLimit: %v, NewLimit: %v)",
-                category,
-                oldLimit,
-                newLimit);
+            YT_TLOG_INFO("Updating memory category limit")
+                .With("Category", category)
+                .With("OldLimit", oldLimit)
+                .With("NewLimit", newLimit);
             memoryUsageTracker->SetCategoryLimit(category, newLimit);
 
             if (category == EMemoryCategory::UserJobs && newLimit > oldLimit) {
@@ -700,7 +697,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
     }
 
     if (jobResourceAvailabilityIncreased) {
-        YT_LOG_DEBUG("Job memory availability increased, notifying job resource manager");
+        YT_TLOG_DEBUG("Job memory availability increased, notifying job resource manager");
         Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
     }
 
@@ -743,11 +740,9 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
     JobsCpuLimit_.store(newJobsCpuLimit);
 
     if (newJobsCpuLimit > oldJobsCpuLimit) {
-        YT_LOG_DEBUG(
-            "Jobs cpu limit increased, notifying job resource manager "
-            "(OldJobsCpuLimit: %v, NewJobsCpuLimit: %v)",
-            oldJobsCpuLimit,
-            newJobsCpuLimit);
+        YT_TLOG_DEBUG("Jobs cpu limit increased, notifying job resource manager")
+            .With("OldJobsCpuLimit", oldJobsCpuLimit)
+            .With("NewJobsCpuLimit", newJobsCpuLimit);
         Bootstrap_->GetJobResourceManager()->OnResourceAvailabilityChanged();
     }
 

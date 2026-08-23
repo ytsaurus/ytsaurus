@@ -156,10 +156,10 @@ private:
             proxyRequest->SetTimeout(owner->ConnectionConfig_->RpcTimeout);
             ToProto(proxyRequest->Header().mutable_request_id(), requestId);
 
-            YT_LOG_DEBUG("Chunk Service proxy request created (User: %v, RequestId: %v -> %v)",
-                user,
-                context->GetRequestId(),
-                requestId);
+            YT_TLOG_DEBUG("Chunk Service proxy request created")
+                .With("User", user)
+                .With("RequestId", context->GetRequestId())
+                .With("ForwardedRequestId", requestId);
 
             ForwardRequest(context, proxyRequest);
         }
@@ -198,8 +198,8 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Chunk Service proxy request sent (RequestId: %v)",
-                request->GetRequestId());
+            YT_TLOG_DEBUG("Chunk Service proxy request sent")
+                .With("RequestId", request->GetRequestId());
 
             request->Invoke().Subscribe(
                 BIND(&THandlerBase::OnResponse, MakeStrong(this), context)
