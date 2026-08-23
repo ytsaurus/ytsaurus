@@ -139,7 +139,7 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing cellar node");
+        YT_TLOG_INFO("Initializing cellar node");
 
         // Cycles are fine for bootstrap.
         GetBundleDynamicConfigManager()
@@ -322,13 +322,10 @@ private:
         auto clockClusterTag = GetConfig()->DryRun->ClockClusterTag;
         YT_VERIFY(cellId);
 
-        YT_LOG_EVENT(
-            DryRunLogger,
-            NLogging::ELogLevel::Info,
-            "Creating dry run occupant (CellId: %v, TabletCellBundle: %v, ClockClusterTag: %v)",
-            cellId,
-            tabletCellBundle,
-            clockClusterTag);
+        YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Creating dry run occupant")
+            .With("CellId", cellId)
+            .With("TabletCellBundle", tabletCellBundle)
+            .With("ClockClusterTag", clockClusterTag);
 
         DryRunOccupant_ = CreateFakeOccupant(this, cellId, tabletCellBundle, clockClusterTag);
     }
@@ -339,8 +336,8 @@ private:
         ESerializationDumpMode dumpMode,
         bool checkInvariants)
     {
-        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Snapshot meta received (Meta: %v)",
-            meta);
+        YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Snapshot meta received")
+            .With("Meta", meta);
 
         EnsureDryRunOccupantCreated();
         auto snapshotReader = CreateUncompressedHeaderlessLocalSnapshotReader(
@@ -375,11 +372,11 @@ private:
         for (const auto& changelogFileName : changelogFileNames) {
             int changelogId  = InvalidSegmentId;
             if (!TryFromString(NFS::GetFileNameWithoutExtension(changelogFileName), changelogId)) {
-                YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Error parsing changelog name as id, using id %v as substitute",
-                    changelogId);
+                YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Error parsing changelog name as ID; using a substitute")
+                    .With("ChangelogId", changelogId);
             }
 
-            YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Started loading changelog");
+            YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Started loading changelog");
             auto changelog = CreateJournalAsLocalFileReadOnlyChangelog(changelogFileName, changelogId);
             dryRunHydraManager->DryRunReplayChangelog(changelog);
         }
