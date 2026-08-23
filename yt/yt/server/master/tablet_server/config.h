@@ -360,6 +360,7 @@ struct TDynamicTabletManagerConfig
     i64 MaxReshardComplexity;
 
     bool UpdateTableContentRevisionOnHeartbeat;
+    bool LogReviseOnHeartbeatAtNativeCell;
 
     TDynamicTabletManagerTestingConfigPtr Testing;
 

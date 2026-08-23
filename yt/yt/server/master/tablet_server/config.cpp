@@ -292,6 +292,10 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("log_revise_on_heartbeat_at_native_cell", &TThis::LogReviseOnHeartbeatAtNativeCell)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Preprocessor([] (TThis* config) {
         config->MaxSnapshotCountToKeep = 2;
 

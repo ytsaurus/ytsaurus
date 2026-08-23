@@ -1677,6 +1677,7 @@ private:
 
         auto externalCellTag = InvalidCellTag;
         const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& tabletManagerConfig = Bootstrap_->GetDynamicConfig()->TabletManager;
         for (const auto& entry : request->entries()) {
             auto nodeId = FromProto<TTableId>(entry.node_id());
             auto* node = cypressManager->FindNode(TVersionedNodeId(nodeId));
@@ -1726,16 +1727,33 @@ private:
                 chunkOwner->SnapshotStatistics() = FromProto<NChunkServer::TChunkOwnerDataStatistics>(entry.data_statistics());
             }
 
+            bool modificationTimeUpdated = false;
             if (entry.has_modification_time()) {
-                chunkOwner->SetModificationTime(std::max(
-                    chunkOwner->GetModificationTime(),
-                    FromProto<TInstant>(entry.modification_time())));
+                auto modificationTime = FromProto<TInstant>(entry.modification_time());
+                if (modificationTime > chunkOwner->GetModificationTime()) {
+                    chunkOwner->SetModificationTime(modificationTime);
+                    modificationTimeUpdated = true;
+                }
             }
 
             if (entry.has_access_time()) {
                 chunkOwner->SetAccessTime(std::max(
                     chunkOwner->GetAccessTime(),
                     FromProto<TInstant>(entry.access_time())));
+            }
+
+            // TODO(ifsmirnov): YT-29373: Support Sequoia tables.
+            if (modificationTimeUpdated &&
+                IsTableType(chunkOwner->GetType()) &&
+                !chunkOwner->IsSequoia() &&
+                chunkOwner->As<TTableNode>()->IsDynamic() &&
+                tabletManagerConfig->UpdateTableContentRevisionOnHeartbeat)
+            {
+                if (tabletManagerConfig->LogReviseOnHeartbeatAtNativeCell) {
+                    cypressManager->SetModified(chunkOwner, EModificationType::Content);
+                } else {
+                    chunkOwner->SetModified(EModificationType::Content);
+                }
             }
         }
 
