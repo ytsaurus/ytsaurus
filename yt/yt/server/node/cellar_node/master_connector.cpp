@@ -233,7 +233,7 @@ private:
 
         Reconfigure(newNodeConfig->CellarNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
-        YT_LOG_INFO("Dynamic config changed");
+        YT_TLOG_INFO("Dynamic config changed");
     }
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
