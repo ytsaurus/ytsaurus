@@ -126,9 +126,12 @@ public:
                 if (!nodeInfo->UserTags.contains(bundleInfo->NodeTagFilter) ||
                     std::ssize(nodeInfo->TabletSlots) != expectedSlotCount)
                 {
-                    YT_LOG_DEBUG("Node is not ready (NodeName: %v, "
-                        "ExpectedSlotCount: %v, NodeTagFilter: %v, SlotCount: %v, UserTags: %v)",
-                        nodeName, expectedSlotCount, bundleInfo->NodeTagFilter, std::ssize(nodeInfo->TabletSlots), nodeInfo->UserTags);
+                    YT_TLOG_DEBUG("Node is not ready")
+                        .With("NodeName", nodeName)
+                        .With("ExpectedSlotCount", expectedSlotCount)
+                        .With("NodeTagFilter", bundleInfo->NodeTagFilter)
+                        .With("SlotCount", std::ssize(nodeInfo->TabletSlots))
+                        .With("UserTags", nodeInfo->UserTags);
 
                     notReadyNodes.push_back(nodeName);
                 }
@@ -137,8 +140,8 @@ public:
             if (!notReadyNodes.empty() && std::ssize(notReadyNodes) != std::ssize(aliveDataCenterNodes)) {
                 // Wait while all alive nodes have updated settings.
 
-                YT_LOG_INFO("Skipping nodes deallocation because nodes are not ready (DataCenter: %v)",
-                    dataCenterName);
+                YT_TLOG_INFO("Skipping nodes deallocation because nodes are not ready")
+                    .With("DataCenter", dataCenterName);
                 return false;
             }
         }
@@ -173,13 +176,12 @@ public:
         int datacenterMaxNodeCount = *zoneInfo->MaxTabletNodeCount / std::ssize(zoneInfo->DataCenters);
 
         if (currentDataCenterNodeCount >= datacenterMaxNodeCount) {
-            YT_LOG_WARNING("Max nodes count limit reached"
-                " (Zone: %v, DataCenter: %v, CurrentDataCenterNodeCount: %v, ZoneMaxTabletNodeCount: %v, DatacenterMaxTabletNodeCount: %v)",
-                zoneName,
-                dataCenterName,
-                currentDataCenterNodeCount,
-                *zoneInfo->MaxTabletNodeCount,
-                datacenterMaxNodeCount);
+            YT_TLOG_WARNING("Max nodes count limit reached")
+                .With("Zone", zoneName)
+                .With("DataCenter", dataCenterName)
+                .With("CurrentDataCenterNodeCount", currentDataCenterNodeCount)
+                .With("ZoneMaxTabletNodeCount", *zoneInfo->MaxTabletNodeCount)
+                .With("DatacenterMaxTabletNodeCount", datacenterMaxNodeCount);
             return true;
         }
         return false;
@@ -261,10 +263,10 @@ public:
     {
         auto nodeIt = input.TabletNodes.find(instanceName);
         if (nodeIt == input.TabletNodes.end()) {
-            YT_LOG_ERROR("Cannot find node from deallocation request state (DeallocationId: %v, Node: %v, BundleName: %v)",
-                deallocationId,
-                instanceName,
-                bundleName);
+            YT_TLOG_ERROR("Cannot find node from deallocation request state")
+                .With("DeallocationId", deallocationId)
+                .With("Node", instanceName)
+                .With("BundleName", bundleName);
             return false;
         }
 
@@ -275,43 +277,40 @@ public:
         const auto& nodeInfo = nodeIt->second;
 
         if (!nodeInfo->Decommissioned) {
-            YT_LOG_INFO("Decommissioning node before deallocation (DeallocationId: %v, Node: %v)",
-                deallocationId,
-                instanceName);
+            YT_TLOG_INFO("Decommissioning node before deallocation")
+                .With("DeallocationId", deallocationId)
+                .With("Node", instanceName);
             mutations->ChangedDecommissionedFlag[instanceName] = mutations->WrapMutation(true);
             return false;
         }
 
         int usedSlotCount = GetUsedSlotCount(nodeInfo);
         if (usedSlotCount == 0) {
-            YT_LOG_INFO("All tablet slots are empty, node is ready for deallocation (DeallocationId: %v, Node: %v)",
-                deallocationId,
-                instanceName);
+            YT_TLOG_INFO("All tablet slots are empty, node is ready for deallocation")
+                .With("DeallocationId", deallocationId)
+                .With("Node", instanceName);
             return true;
         } else {
-            YT_LOG_DEBUG("Node still has tablet cells and is not ready for deallocation "
-                "(DeallocationId: %v, Node: %v, UsedSlotCount: %v)",
-                deallocationId,
-                instanceName,
-                usedSlotCount);
+            YT_TLOG_DEBUG("Node still has tablet cells and is not ready for deallocation")
+                .With("DeallocationId", deallocationId)
+                .With("Node", instanceName)
+                .With("UsedSlotCount", usedSlotCount);
         }
 
         if (deallocationAge > input.Config->DecommissionedNodeDrainTimeout) {
-            YT_LOG_INFO("Tablet cell migration taking too long, node deallocation allowed without full drain "
-                "(DeallocationId: %v, Node: %v, DeallocationAge: %v, Timeout: %v)",
-                deallocationId,
-                instanceName,
-                deallocationAge,
-                input.Config->DecommissionedNodeDrainTimeout);
+            YT_TLOG_INFO("Tablet cell migration taking too long, node deallocation allowed without full drain")
+                .With("DeallocationId", deallocationId)
+                .With("Node", instanceName)
+                .With("DeallocationAge", deallocationAge)
+                .With("Timeout", input.Config->DecommissionedNodeDrainTimeout);
 
             // Long deallocations usually are caused by hardware or connectivity problems.
             // It is better to remove cells from the broken node forcefully.
             auto bundleInfo = GetOrCrash(input.Bundles, bundleName);
             if (nodeInfo->UserTags.contains(bundleInfo->NodeTagFilter)) {
-                YT_LOG_INFO("Tablet cell migration taking too long, will ban node "
-                    "(DeallocationId: %v, Node: %v)",
-                    deallocationId,
-                    instanceName);
+                YT_TLOG_INFO("Tablet cell migration taking too long, will ban node")
+                    .With("DeallocationId", deallocationId)
+                    .With("Node", instanceName);
 
                 mutations->ChangedBannedFlag[instanceName] = mutations->WrapMutation(true);
             }
@@ -336,24 +335,24 @@ public:
     {
         auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         if (!nodeInfo->IsOnline()) {
-            YT_LOG_DEBUG("Allocated node is not online (BundleName: %v, NodeAddress: %v)",
-                bundleName,
-                nodeName);
+            YT_TLOG_DEBUG("Allocated node is not online")
+                .With("BundleName", bundleName)
+                .With("NodeAddress", nodeName);
             return false;
         }
 
         if (nodeInfo->Decommissioned) {
-            YT_LOG_DEBUG("Removing decommissioned flag from node after allocation (BundleName: %v, Node: %v)",
-                bundleName,
-                nodeName);
+            YT_TLOG_DEBUG("Removing decommissioned flag from node after allocation")
+                .With("BundleName", bundleName)
+                .With("Node", nodeName);
             mutations->ChangedDecommissionedFlag[nodeName] = mutations->WrapMutation(false);
             return false;
         }
 
         if (!nodeInfo->UserTags.empty()) {
-            YT_LOG_INFO("Removing node user tags (BundleName: %v, Node: %v)",
-                bundleName,
-                nodeName);
+            YT_TLOG_INFO("Removing node user tags")
+                .With("BundleName", bundleName)
+                .With("Node", nodeName);
             mutations->ChangedNodeUserTags[nodeName] = mutations->WrapMutation<TSchedulerMutations::TUserTags>({});
             return false;
         }
@@ -361,19 +360,19 @@ public:
         const auto& bundleControllerAnnotations = nodeInfo->BundleControllerAnnotations;
 
         if (auto changed = GetBundleControllerInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, bundleControllerAnnotations)) {
-            YT_LOG_DEBUG("Setting node annotations (BundleName: %v, NodeName: %v, Annotations: %v)",
-                bundleName,
-                nodeName,
-                ConvertToYsonString(changed, EYsonFormat::Text));
+            YT_TLOG_DEBUG("Setting node annotations")
+                .With("BundleName", bundleName)
+                .With("NodeName", nodeName)
+                .With("Annotations", ConvertToYsonString(changed, EYsonFormat::Text));
             mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(changed);
             return false;
         }
 
         if (bundleControllerAnnotations->AllocatedForBundle != bundleName) {
-            YT_LOG_WARNING("Inconsistent allocation state (AnnotationsBundleName: %v, ActualBundleName: %v, NodeName: %v)",
-                bundleControllerAnnotations->AllocatedForBundle,
-                bundleName,
-                nodeName);
+            YT_TLOG_WARNING("Inconsistent allocation state")
+                .With("AnnotationsBundleName", bundleControllerAnnotations->AllocatedForBundle)
+                .With("ActualBundleName", bundleName)
+                .With("NodeName", nodeName);
 
             mutations->AlertsToFire.push_back({
                 .Id = "inconsistent_allocation_state",
@@ -387,9 +386,9 @@ public:
         }
 
         if (!GetAliveInstances(dataCenterName).contains(nodeName)) {
-            YT_LOG_DEBUG("Allocated node is not alive (BundleName: %v, NodeAddress: %v)",
-                bundleName,
-                nodeName);
+            YT_TLOG_DEBUG("Allocated node is not alive")
+                .With("BundleName", bundleName)
+                .With("NodeAddress", nodeName);
             return false;
         }
 
@@ -436,8 +435,8 @@ public:
 
         if (strategy == DeallocationStrategyReturnToBB) {
             if (!instanceInfo->EnableBundleBalancer || *instanceInfo->EnableBundleBalancer == false) {
-                YT_LOG_DEBUG("Returning node to BundleBalancer (NodeName: %v)",
-                    nodeName);
+                YT_TLOG_DEBUG("Returning node to BundleBalancer")
+                    .With("NodeName", nodeName);
 
                 mutations->ChangedEnableBundleBalancerFlag[nodeName] = mutations->WrapMutation(true);
             }
@@ -479,12 +478,11 @@ public:
 
             mutations->ChangedNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
 
-            YT_LOG_INFO(
-                "Annotating new tablet node (NodeName: %v, Bundle: %v, Vcpu: %v, Memory: %v)",
-                nodeName,
-                spareBundleName,
-                resource->Vcpu,
-                resource->Memory);
+            YT_TLOG_INFO("Annotating new tablet node")
+                .With("NodeName", nodeName)
+                .With("Bundle", spareBundleName)
+                .With("Vcpu", resource->Vcpu)
+                .With("Memory", resource->Memory);
         }
     }
 

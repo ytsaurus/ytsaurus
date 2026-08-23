@@ -156,8 +156,8 @@ public:
     {
         DoInitialize();
 
-        YT_LOG_DEBUG("Iteration started (DryRun: %v)",
-            dryRun);
+        YT_TLOG_DEBUG("Iteration started")
+            .With("DryRun", dryRun);
 
         DynamicConfigManager_->Start();
 
@@ -167,7 +167,7 @@ public:
                 .Run())
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Iteration finished");
+        YT_TLOG_DEBUG("Iteration finished");
     }
 
 private:
@@ -280,10 +280,12 @@ private:
 
     void DoStart()
     {
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
 
-        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Start();
 
         RegisterInstance();
@@ -324,7 +326,8 @@ private:
             if (error.IsOK()) {
                 break;
             } else {
-                YT_LOG_DEBUG(error, "Error updating Cypress node");
+                YT_TLOG_DEBUG("Error updating Cypress node")
+                    .With(error);
             }
         }
     }

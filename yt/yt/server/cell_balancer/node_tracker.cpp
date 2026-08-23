@@ -32,10 +32,10 @@ public:
 
         auto& nodeState = NodeHeartbeatStates_.emplace(nodeAddress, TNodeState{}).first->second;
 
-        YT_LOG_DEBUG("Processing node heartbeat (NodeAddress: %v, PreviousPingTime: %v, RequestConfigUpdate: %v)",
-            nodeAddress,
-            nodeState.LastPingTime,
-            nodeState.RequestConfigUpdate);
+        YT_TLOG_DEBUG("Processing node heartbeat")
+            .With("NodeAddress", nodeAddress)
+            .With("PreviousPingTime", nodeState.LastPingTime)
+            .With("RequestConfigUpdate", nodeState.RequestConfigUpdate);
 
         nodeState.LastPingTime = TInstant::Now();
 
@@ -63,7 +63,7 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG("Updating node states through the heartbeat node tracker");
+        YT_TLOG_DEBUG("Updating node states through the heartbeat node tracker");
 
         auto now = TInstant::Now();
 
@@ -74,8 +74,8 @@ public:
             const auto& [address, heartbeatState] = *it;
 
             if (!nodes.contains(address)) {
-                YT_LOG_DEBUG("Node dropped from node tracker state (NodeAddress: %v)",
-                    address);
+                YT_TLOG_DEBUG("Node dropped from node tracker state")
+                    .With("NodeAddress", address);
 
                 NodeHeartbeatStates_.erase(it++);
                 continue;
@@ -128,16 +128,16 @@ public:
                     info->LocalState = localState;
                 } else if (reportedOfflineNodeCount < DynamicConfig_->MaxDetectedOfflineNodes) {
                     ++reportedOfflineNodeCount;
-                    YT_LOG_INFO("Node considered offline by node tracker (NodeAddress: %v, ReportedOfflineNodeCount: %v)",
-                        address,
-                        reportedOfflineNodeCount);
+                    YT_TLOG_INFO("Node considered offline by node tracker")
+                        .With("NodeAddress", address)
+                        .With("ReportedOfflineNodeCount", reportedOfflineNodeCount);
                     info->LocalState = localState;
                     heartbeatState.LastReportedLocalState = localState;
                 } else {
-                    YT_LOG_DEBUG("Too many nodes are considered offline by node tracker, "
-                        "will not add new one (NodeAddress: %v, ReportedOfflineNodeCount: %v)",
-                        address,
-                        reportedOfflineNodeCount);
+                    YT_TLOG_DEBUG("Too many nodes are considered offline by node tracker, "
+                        "will not add new one")
+                        .With("NodeAddress", address)
+                        .With("ReportedOfflineNodeCount", reportedOfflineNodeCount);
                 }
             } else {
                 // Node is online (or its state is unknown); record the local state.
@@ -151,14 +151,14 @@ public:
 
         ReportedOfflineNodeCountGauge_.Update(reportedOfflineNodeCount);
 
-        YT_LOG_DEBUG("Finished node states update through the heartbeat node tracker");
+        YT_TLOG_DEBUG("Finished node states update through the heartbeat node tracker");
     }
 
     void RequestConfigUpdate(const std::string& nodeAddress, std::string nodeTag) override
     {
-        YT_LOG_DEBUG("Requested node config update (NodeAddress: %v, ExpectedTag: %v)",
-            nodeAddress,
-            nodeTag);
+        YT_TLOG_DEBUG("Requested node config update")
+            .With("NodeAddress", nodeAddress)
+            .With("ExpectedTag", nodeTag);
 
         NodeHeartbeatStates_[nodeAddress].RequestConfigUpdate = true;
         NodeHeartbeatStates_[nodeAddress].ExpectedTag = std::move(nodeTag);

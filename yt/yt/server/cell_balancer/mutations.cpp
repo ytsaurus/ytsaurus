@@ -46,18 +46,18 @@ void TSchedulerMutations::Log(const TLogger& Logger) const
 
     auto onIndexedEntries = [&] (TStringBuf prefix, const auto& entries) {
         for (const auto& [key, value] : entries) {
-            YT_LOG_DEBUG("Mutation: %v (Key: %v, Value: %v)",
-                prefix,
-                key,
-                formatValue(value));
+            YT_TLOG_DEBUG("Mutation")
+                .With("Mutation", prefix)
+                .With("Key", key)
+                .With("Value", formatValue(value));
         }
     };
 
     auto onSet = [&] (TStringBuf prefix, const auto& entries) {
         for (const auto& entry : entries) {
-            YT_LOG_DEBUG("Mutation: %v (Value: %v)",
-                prefix,
-                formatValue(entry));
+            YT_TLOG_DEBUG("Mutation")
+                .With("Mutation", prefix)
+                .With("Value", formatValue(entry));
         }
     };
 
@@ -77,20 +77,21 @@ void TSchedulerMutations::Log(const TLogger& Logger) const
     onIndexedEntries("change proxy role", ChangedProxyRole);
     onSet("remove proxy role", RemovedProxyRole);
     for (const auto& mutation : CellsToRemove) {
-        YT_LOG_DEBUG("Mutation: remove cell (Value: %v)",
-            mutation.Mutation);
+        YT_TLOG_DEBUG("Mutation: remove cell")
+            .With("Value", mutation.Mutation);
     }
     onIndexedEntries("create cells", CellsToCreate);
     onIndexedEntries("lift system account limit", LiftedSystemAccountLimit);
     onIndexedEntries("lower system account limit", LoweredSystemAccountLimit);
     if (ChangedRootSystemAccountLimit) {
-        YT_LOG_DEBUG("Mutation: change root system account limit (Value: %v)",
-            ConvertToYsonString(ChangedRootSystemAccountLimit, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Mutation: change root system account limit")
+            .With("Value", ConvertToYsonString(ChangedRootSystemAccountLimit, EYsonFormat::Text));
     }
     if (BundlesDynamicConfig) {
         std::string configStr = ConvertToYsonString(*BundlesDynamicConfig, EYsonFormat::Text).ToString();
         TruncateStringInplace(&configStr, 100);
-        YT_LOG_DEBUG("Mutation: change bundles dynamic config (Value: %v)", configStr);
+        YT_TLOG_DEBUG("Mutation: change bundles dynamic config")
+            .With("Value", configStr);
     }
     onSet("node to cleanup", NodesToCleanup);
     onSet("proxy to cleanup", ProxiesToCleanup);

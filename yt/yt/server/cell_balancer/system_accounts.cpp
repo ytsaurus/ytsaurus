@@ -48,22 +48,21 @@ void AddQuotaChanges(
     const auto& bundleOptions = bundleInfo->Options;
 
     if (bundleOptions->SnapshotAccount != bundleOptions->ChangelogAccount) {
-        YT_LOG_DEBUG("Skip adjusting quota for bundle with different "
-            "snapshot and changelog accounts (BundleName: %v, SnapshotAccount: %v, ChangelogAccount: %v)",
-            bundleName,
-            bundleOptions->SnapshotAccount,
-            bundleOptions->ChangelogAccount);
+        YT_TLOG_DEBUG("Skip adjusting quota for bundle with different "
+            "snapshot and changelog accounts")
+            .With("BundleName", bundleName)
+            .With("SnapshotAccount", bundleOptions->SnapshotAccount)
+            .With("ChangelogAccount", bundleOptions->ChangelogAccount);
         return;
     }
 
     const auto accountName = bundleOptions->SnapshotAccount;
     auto accountIt = input.SystemAccounts.find(accountName);
     if (accountIt == input.SystemAccounts.end()) {
-        YT_LOG_DEBUG("Skip adjusting quota for bundle with custom account"
-            " (BundleName: %v, SnapshotAccount: %v, ChangelogAccount: %v)",
-            bundleName,
-            bundleOptions->SnapshotAccount,
-            bundleOptions->ChangelogAccount);
+        YT_TLOG_DEBUG("Skip adjusting quota for bundle with custom account")
+            .With("BundleName", bundleName)
+            .With("SnapshotAccount", bundleOptions->SnapshotAccount)
+            .With("ChangelogAccount", bundleOptions->ChangelogAccount);
         return;
     }
 
@@ -192,24 +191,24 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
 
         if (!loweredDiff.Empty()) {
             mutations->LoweredSystemAccountLimit[accountName] = mutations->WrapMutation(newLoweredQuota);
-            YT_LOG_INFO("Lowering system account resource limits (Account: %v, NewResourceLimit: %v, OldResourceLimit: %v)",
-                accountName,
-                ConvertToYsonString(newLoweredQuota, EYsonFormat::Text),
-                ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
+            YT_TLOG_INFO("Lowering system account resource limits")
+                .With("Account", accountName)
+                .With("NewResourceLimit", ConvertToYsonString(newLoweredQuota, EYsonFormat::Text))
+                .With("OldResourceLimit", ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
         }
         if (!liftedDiff.Empty()) {
             mutations->LiftedSystemAccountLimit[accountName] = mutations->WrapMutation(newLiftedQuota);
-            YT_LOG_INFO("Lifting system account resource limits (Account: %v, NewResourceLimit: %v, OldResourceLimit: %v)",
-                accountName,
-                ConvertToYsonString(newLiftedQuota, EYsonFormat::Text),
-                ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
+            YT_TLOG_INFO("Lifting system account resource limits")
+                .With("Account", accountName)
+                .With("NewResourceLimit", ConvertToYsonString(newLiftedQuota, EYsonFormat::Text))
+                .With("OldResourceLimit", ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
         }
     }
 
     mutations->ChangedRootSystemAccountLimit = rootQuota;
-    YT_LOG_INFO("Adjusting root system account resource limits (NewResourceLimit: %v, OldResourceLimit: %v)",
-        ConvertToYsonString(rootQuota, EYsonFormat::Text),
-        ConvertToYsonString(input.RootSystemAccount->ResourceLimits, EYsonFormat::Text));
+    YT_TLOG_INFO("Adjusting root system account resource limits")
+        .With("NewResourceLimit", ConvertToYsonString(rootQuota, EYsonFormat::Text))
+        .With("OldResourceLimit", ConvertToYsonString(input.RootSystemAccount->ResourceLimits, EYsonFormat::Text));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -102,10 +102,11 @@ TCellTrackerImpl::TCellTrackerImpl(
 
 void TCellTrackerImpl::UpdateDynamicConfig()
 {
-    YT_LOG_DEBUG("Updating dynamic config");
+    YT_TLOG_DEBUG("Updating dynamic config");
     auto result = WaitFor(Bootstrap_->GetClient()->GetNode("//sys/@config/tablet_manager"));
     if (!result.IsOK()) {
-        YT_LOG_ERROR(result, "Failed to update dynamic config");
+        YT_TLOG_ERROR("Failed to update dynamic config")
+            .With(result);
         return;
     }
     Config_ = ConvertTo<TDynamicTabletManagerConfigPtr>(result.Value());
@@ -116,10 +117,10 @@ void TCellTrackerImpl::ScanCells()
 {
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-    YT_LOG_DEBUG("Starting scan cells");
+    YT_TLOG_DEBUG("Starting scan cells");
 
     if (!Bootstrap_->GetElectionManager()->IsLeader()) {
-        YT_LOG_DEBUG("Cell balancer is not leading");
+        YT_TLOG_DEBUG("Cell balancer is not leading");
         return;
     }
 
@@ -135,7 +136,7 @@ void TCellTrackerImpl::ScanCells()
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
 
-    YT_LOG_DEBUG("Cluster state is received");
+    YT_TLOG_DEBUG("Cluster state is received");
 
     ClusterStateProvider_ = New<TClusterStateProvider>(rsp.Get());
 
@@ -154,27 +155,22 @@ void TCellTrackerImpl::ScanCells()
 
     auto transactionId = Bootstrap_->GetElectionManager()->GetPrerequisiteTransactionId();
     if (transactionId == NTransactionClient::NullTransactionId) {
-        YT_LOG_DEBUG("Cell balancer is not leading");
+        YT_TLOG_DEBUG("Cell balancer is not leading");
         return;
     }
 
     auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
     ToProto(prerequisiteTransaction->mutable_transaction_id(), transactionId);
 
-    YT_LOG_DEBUG(
-        "Request is created "
-        "(AssignmentCount: %v, "
-        "RevokationCount: %v, "
-        "UpdateLeadingPeerCount: %v, "
-        "PeerCountUpdateCount: %v)",
-        mutationRequest.Get()->assignments_size(),
-        mutationRequest.Get()->revocations_size(),
-        mutationRequest.Get()->leading_peer_updates_size(),
-        mutationRequest.Get()->peer_count_updates_size());
+    YT_TLOG_DEBUG("Request is created")
+        .With("AssignmentCount", mutationRequest.Get()->assignments_size())
+        .With("RevokationCount", mutationRequest.Get()->revocations_size())
+        .With("UpdateLeadingPeerCount", mutationRequest.Get()->leading_peer_updates_size())
+        .With("PeerCountUpdateCount", mutationRequest.Get()->peer_count_updates_size());
 
     WaitFor(mutationRequest->Invoke()).ValueOrThrow();
 
-    YT_LOG_DEBUG("Scan cells completed");
+    YT_TLOG_DEBUG("Scan cells completed");
 }
 
 void TCellTrackerImpl::ScanCellarCells(
@@ -288,10 +284,11 @@ bool TCellTrackerImpl::ScheduleLeaderReassignment(
         return false;
     }
 
-    YT_LOG_DEBUG(error, "Scheduling leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
-        cell->GetId(),
-        cell->GetLeadingPeerId(),
-        leadingPeer.Descriptor.GetDefaultAddress());
+    YT_TLOG_DEBUG("Scheduling leader reassignment")
+        .With("CellId", cell->GetId())
+        .With("PeerId", cell->GetLeadingPeerId())
+        .With("Address", leadingPeer.Descriptor.GetDefaultAddress())
+        .With(error);
 
     auto leaderPeerUpdateRequest = request->add_leading_peer_updates();
     ToProto(leaderPeerUpdateRequest->mutable_cell_id(), cell->GetId());
@@ -378,10 +375,11 @@ void TCellTrackerImpl::SchedulePeerRevocation(
                 // Followers are decommssioned by simple revocation.
             }
 
-            YT_LOG_DEBUG(error, "Scheduling peer revocation (CellId: %v, PeerId: %v, Address: %v)",
-                cell->GetId(),
-                peerId,
-                peer.Descriptor.GetDefaultAddress());
+            YT_TLOG_DEBUG("Scheduling peer revocation")
+                .With("CellId", cell->GetId())
+                .With("PeerId", peerId)
+                .With("Address", peer.Descriptor.GetDefaultAddress())
+                .With(error);
 
             balancer->RevokePeer(cell, peerId, error);
         }

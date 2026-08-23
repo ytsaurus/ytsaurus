@@ -192,10 +192,9 @@ public:
 
         Bootstrap_->GetNodeTracker()->OnDynamicConfigChanged(oldConfig->NodeTracker, newConfig->NodeTracker);
 
-        YT_LOG_DEBUG(
-            "Updated bundle controller dynamic config (OldConfig: %v, NewConfig: %v)",
-            ConvertToYsonString(oldConfig, EYsonFormat::Text),
-            ConvertToYsonString(newConfig, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Updated bundle controller dynamic config")
+            .With("OldConfig", ConvertToYsonString(oldConfig, EYsonFormat::Text))
+            .With("NewConfig", ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
 private:
@@ -260,23 +259,23 @@ private:
         if (!dryRun && !IsLeader() && !ignoreGlobalDisabledSwitch) {
             ClearState();
 
-            YT_LOG_DEBUG("Bundle controller is not leading");
+            YT_TLOG_DEBUG("Bundle controller is not leading");
             return;
         }
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         if (!dynamicConfigManager->IsConfigLoaded()) {
-            YT_LOG_INFO("Loading dynamic config for the first time");
+            YT_TLOG_INFO("Loading dynamic config for the first time");
             WaitFor(dynamicConfigManager->GetConfigLoadedFuture())
                 .ThrowOnError();
-            YT_LOG_INFO("Dynamic config loaded");
+            YT_TLOG_INFO("Dynamic config loaded");
         }
 
         ScanTabletCellBundles(dryRun, ignoreGlobalDisabledSwitch);
 
         if (!dryRun) {
             if (ChaosBundlesScanFuture_) {
-                YT_LOG_DEBUG("Chaos scan is already in progress, will skip new iteration");
+                YT_TLOG_DEBUG("Chaos scan is already in progress, will skip new iteration");
             } else {
                 ChaosBundlesScanFuture_ = BIND(
                     &TBundleController::ScanChaosCellBundles,
@@ -302,12 +301,13 @@ private:
                 SuccessfulScanBundleCounter_.Increment();
                 OrchidScanBundleCounter_->Successful += 1;
             }
-            YT_LOG_DEBUG_UNLESS(BundleJail_.empty(), "Jail cleared (BundleJail: %v)",
-                BundleJail_);
+            YT_TLOG_DEBUG_UNLESS(BundleJail_.empty(), "Jail cleared")
+                .With("BundleJail", BundleJail_);
             BundleJail_.clear();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Scanning tablet cell bundles failed (BundleJail: %v)",
-                BundleJail_);
+            YT_TLOG_ERROR("Scanning tablet cell bundles failed")
+                .With("BundleJail", BundleJail_)
+                .With(ex);
 
             for (const auto& bundle : BundleJail_) {
                 RegisterAlert({
@@ -333,7 +333,8 @@ private:
             DoScanChaosBundles();
             SuccessfulScanChaosBundleCounter_.Increment();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Scanning chaos cell bundles failed");
+            YT_TLOG_ERROR("Scanning chaos cell bundles failed")
+                .With(ex);
             FailedScanChaosBundleCounter_.Increment();
         }
 
@@ -367,7 +368,7 @@ private:
             .ValueOrThrow();
 
         if (!exists) {
-            YT_LOG_INFO("Creating bundle controller orchid node");
+            YT_TLOG_INFO("Creating bundle controller orchid node");
 
             TCreateNodeOptions createOptions;
             createOptions.IgnoreExisting = true;
@@ -387,9 +388,9 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Setting new remote address for orchid node (OldValue: %v, NewValue: %v)",
-            ConvertToYsonString(currentRemoteAddress, EYsonFormat::Text),
-            ConvertToYsonString(addresses, EYsonFormat::Text));
+        YT_TLOG_INFO("Setting new remote address for orchid node")
+            .With("OldValue", ConvertToYsonString(currentRemoteAddress, EYsonFormat::Text))
+            .With("NewValue", ConvertToYsonString(addresses, EYsonFormat::Text));
 
         WaitFor(client->SetNode(remoteAddressPath, ConvertToYsonString(addresses)))
             .ThrowOnError();
@@ -419,8 +420,8 @@ private:
             }
         }
 
-        YT_LOG_INFO("Setting new address for BundleController (NewValue: %v)",
-            ConvertToYsonString(addresses, EYsonFormat::Text));
+        YT_TLOG_INFO("Setting new address for BundleController")
+            .With("NewValue", ConvertToYsonString(addresses, EYsonFormat::Text));
 
         WaitFor(client->SetNode(addressesPath, ConvertToYsonString(addresses)))
             .ThrowOnError();
@@ -488,7 +489,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        YT_LOG_DEBUG("Bundles scan started");
+        YT_TLOG_DEBUG("Bundles scan started");
 
         auto transaction = CreateTransaction();
 
@@ -526,7 +527,7 @@ private:
                 Mutate(transaction, mutations);
             }
         } else {
-            YT_LOG_WARNING("Bundle controller is disabled");
+            YT_TLOG_WARNING("Bundle controller is disabled");
 
             RegisterAlert({
                 .Id = "bundle_controller_is_disabled",
@@ -552,7 +553,7 @@ private:
             return GetBundleSensors(bundleName);
         });
 
-        YT_LOG_DEBUG("Bundles scan finished");
+        YT_TLOG_DEBUG("Bundles scan finished");
     }
 
     void DoScanChaosBundles()
@@ -565,7 +566,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Chaos bundles scan started");
+        YT_TLOG_DEBUG("Chaos bundles scan started");
 
         TForeignClientProvider clientProvider(Bootstrap_);
 
@@ -579,10 +580,10 @@ private:
             WaitFor(transaction->Commit())
                 .ThrowOnError();
         } else {
-            YT_LOG_WARNING("Bundle controller is disabled");
+            YT_TLOG_WARNING("Bundle controller is disabled");
         }
 
-        YT_LOG_DEBUG("Chaos bundles scan finished");
+        YT_TLOG_DEBUG("Chaos bundles scan finished");
     }
 
     inline static const std::string AttributeBundleControllerAnnotations = "bundle_controller_annotations";
@@ -603,7 +604,9 @@ private:
             return;
         }
         BundleJail_.insert(bundleName);
-        YT_LOG_ERROR(result, "Bundle moved to jail (BundleName: %v)", bundleName);
+        YT_TLOG_ERROR("Bundle moved to jail")
+            .With("BundleName", bundleName)
+            .With(result);
         result.ThrowOnError();
     }
 
@@ -729,9 +732,9 @@ private:
             auto client = clientProvider->Get(cluster);
 
             for (const auto& account : accounts) {
-                YT_LOG_INFO("Creating system account (Cluster: %v, Account: %v)",
-                    cluster,
-                    account);
+                YT_TLOG_INFO("Creating system account")
+                    .With("Cluster", cluster)
+                    .With("Account", account);
 
                 CreateSystemAccount(client, account);
             }
@@ -741,9 +744,9 @@ private:
             auto client = clientProvider->Get(cluster);
 
             for (const auto& [bundleName, attributes] : bundlesInfo) {
-                YT_LOG_INFO("Creating tablet cell bundle (Cluster: %v, BundleName: %v)",
-                    cluster,
-                    bundleName);
+                YT_TLOG_INFO("Creating tablet cell bundle")
+                    .With("Cluster", cluster)
+                    .With("BundleName", bundleName);
 
                 CreateObject(EObjectType::TabletCellBundle, client, attributes);
             }
@@ -762,9 +765,9 @@ private:
             auto client = clientProvider->Get(cluster);
 
             for (const auto& [bundleName, attributes] : chaosBundlesInfo) {
-                YT_LOG_INFO("Creating chaos cell bundle (Cluster: %v, BundleName: %v)",
-                    cluster,
-                    bundleName);
+                YT_TLOG_INFO("Creating chaos cell bundle")
+                    .With("Cluster", cluster)
+                    .With("BundleName", bundleName);
 
                 CreateObject(EObjectType::ChaosCellBundle, client, attributes);
             }
@@ -774,9 +777,9 @@ private:
             auto client = clientProvider->Get(cluster);
 
             for (const auto& [bundleName, attributes] : chaosAreasInfo) {
-                YT_LOG_INFO("Creating chaos area (Cluster: %v, BundleName: %v)",
-                    cluster,
-                    bundleName);
+                YT_TLOG_INFO("Creating chaos area")
+                    .With("Cluster", cluster)
+                    .With("BundleName", bundleName);
 
                 CreateObject(EObjectType::Area, client, attributes);
             }
@@ -786,9 +789,9 @@ private:
             auto client = clientProvider->Get(cluster);
 
             for (const auto& [cellId, attributes] : chaosCellsInfo) {
-                YT_LOG_INFO("Creating chaos cell (Cluster: %v, CellId: %v)",
-                    cluster,
-                    cellId);
+                YT_TLOG_INFO("Creating chaos cell")
+                    .With("Cluster", cluster)
+                    .With("CellId", cellId);
 
                 CreateObject(EObjectType::ChaosCell, client, attributes);
             }
@@ -1347,8 +1350,9 @@ private:
         for (const auto& [bundle, error] : unparsedEntries) {
             inputState.BundleStates.erase(bundle);
 
-            YT_LOG_DEBUG(error, "Error parsing bundle configuration: (Bundle: %v)",
-                bundle);
+            YT_TLOG_DEBUG("Error parsing bundle configuration")
+                .With("Bundle", bundle)
+                .With(error);
 
             RegisterAlert({
                 .Id = "invalid_bundle_config",
@@ -1396,18 +1400,16 @@ private:
 
         inputState.SysConfig = GetSystemConfig(transaction);
 
-        YT_LOG_DEBUG("Bundle controller input state loaded "
-            "(ZoneCount: %v, BundleCount: %v, BundleStateCount: %v, TabletNodeCount: %v, TabletCellCount: %v, "
-            "NodeAllocationRequestCount: %v, NodeDeallocationRequestCount: %v, RpcProxyCount: %v, SystemAccounts: %v)",
-            inputState.Zones.size(),
-            inputState.Bundles.size(),
-            inputState.BundleStates.size(),
-            inputState.TabletNodes.size(),
-            inputState.TabletCells.size(),
-            inputState.AllocationRequests.size(),
-            inputState.DeallocationRequests.size(),
-            inputState.RpcProxies.size(),
-            inputState.SystemAccounts.size());
+        YT_TLOG_DEBUG("Bundle controller input state loaded")
+            .With("ZoneCount", inputState.Zones.size())
+            .With("BundleCount", inputState.Bundles.size())
+            .With("BundleStateCount", inputState.BundleStates.size())
+            .With("TabletNodeCount", inputState.TabletNodes.size())
+            .With("TabletCellCount", inputState.TabletCells.size())
+            .With("NodeAllocationRequestCount", inputState.AllocationRequests.size())
+            .With("NodeDeallocationRequestCount", inputState.DeallocationRequests.size())
+            .With("RpcProxyCount", inputState.RpcProxies.size())
+            .With("SystemAccounts", inputState.SystemAccounts.size());
 
         return inputState;
     }
@@ -1415,8 +1417,8 @@ private:
     void DropJailedBundlesFromInputState(TSchedulerInputState* inputState) const
     {
         if (!Config_->SkipJailedBundles) {
-            YT_LOG_WARNING_UNLESS(BundleJail_.empty(), "Jailed bundles filtration explicitly turned off in config (BundleJail: %v)",
-                BundleJail_);
+            YT_TLOG_WARNING_UNLESS(BundleJail_.empty(), "Jailed bundles filtration explicitly turned off in config")
+                .With("BundleJail", BundleJail_);
             return;
         }
 
@@ -1425,8 +1427,8 @@ private:
             inputState->BundleStates.erase(bundleName);
         }
 
-        YT_LOG_DEBUG_UNLESS(BundleJail_.empty(), "Removed bundles from input state (BundleJail: %v)",
-            BundleJail_);
+        YT_TLOG_DEBUG_UNLESS(BundleJail_.empty(), "Removed bundles from input state")
+            .With("BundleJail", BundleJail_);
     }
 
     TChaosSchedulerInputState GetChaosInputState(ITransactionPtr& transaction, TForeignClientProvider* clientProvider) const
@@ -1442,8 +1444,8 @@ private:
         const auto& dynamicConfig = GetDynamicConfig();
 
         for (const auto& cluster : chaosConfig->TabletCellClusters) {
-            YT_LOG_DEBUG("Loading tablet cell bundles for foreign cluster (Cluster: %v)",
-                cluster);
+            YT_TLOG_DEBUG("Loading tablet cell bundles for foreign cluster")
+                .With("Cluster", cluster);
 
             auto foreignClient = clientProvider->Get(cluster);
             try {
@@ -1454,8 +1456,9 @@ private:
                     .Result);
             } catch (const TErrorException& ex) {
                 if (ex.Error().FindMatching(NYT::EErrorCode::Timeout)) {
-                    YT_LOG_WARNING(ex, "Failed to load tablet cell bundles for foreign cluster, will ignore (Cluster: %v)",
-                        cluster);
+                    YT_TLOG_WARNING("Failed to load tablet cell bundles for foreign cluster, will ignore")
+                        .With("Cluster", cluster)
+                        .With(ex);
                     continue;
                 }
                 throw;
@@ -1463,8 +1466,8 @@ private:
         }
 
         for (const auto& cluster : chaosConfig->ChaosCellClusters) {
-            YT_LOG_DEBUG("Loading chaos cell bundles for foreign cluster (Cluster: %v)",
-                cluster);
+            YT_TLOG_DEBUG("Loading chaos cell bundles for foreign cluster")
+                .With("Cluster", cluster);
 
             auto foreignClient = clientProvider->Get(cluster);
             try {
@@ -1475,8 +1478,9 @@ private:
                     .Result);
             } catch (const TErrorException& ex) {
                 if (ex.Error().FindMatching(NYT::EErrorCode::Timeout)) {
-                    YT_LOG_WARNING(ex, "Failed to load chaos cell bundles for foreign cluster, will ignore (Cluster: %v)",
-                        cluster);
+                    YT_TLOG_WARNING("Failed to load chaos cell bundles for foreign cluster, will ignore")
+                        .With("Cluster", cluster)
+                        .With(ex);
                     continue;
                 }
                 throw;
@@ -1802,8 +1806,8 @@ private:
                 NYPath::ToYPathLiteral(instanceName.Mutation),
                 attributeName);
 
-            YT_LOG_DEBUG("Removing attribute (Path: %v)",
-                path);
+            YT_TLOG_DEBUG("Removing attribute")
+                .With("Path", path);
             callbacks.push_back(BIND([=] {
                 return transaction->RemoveNode(path);
             }));
@@ -1939,9 +1943,9 @@ private:
         for (const auto& cellId : cellsToRemove) {
             auto path = TYPath(Format("%v/%v", TabletCellsPath, cellId.Mutation));
 
-            YT_LOG_INFO("Removing tablet cell (CellId: %v, Path: %v)",
-                cellId.Mutation,
-                path);
+            YT_TLOG_INFO("Removing tablet cell")
+                .With("CellId", cellId.Mutation)
+                .With("Path", path);
 
             callbacks.push_back(BIND([=] {
                 return transaction->RemoveNode(path);

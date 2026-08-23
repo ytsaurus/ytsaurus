@@ -104,13 +104,12 @@ public:
         int maxDataCenterProxyCount = *zoneInfo->MaxRpcProxyCount / std::ssize(zoneInfo->DataCenters);
 
         if (currentDataCenterProxyCount >= maxDataCenterProxyCount) {
-            YT_LOG_WARNING("Max Rpc proxies count limit reached"
-                " (Zone: %v, DataCenter: %v, DataCenterRpcProxyCount: %v, ZoneMaxRpcProxyCount: %v, DataCenterMaxProxyCount: %v)",
-                zoneName,
-                dataCenterName,
-                currentDataCenterProxyCount,
-                *zoneInfo->MaxRpcProxyCount,
-                maxDataCenterProxyCount);
+            YT_TLOG_WARNING("Max RPC proxy count limit reached")
+                .With("Zone", zoneName)
+                .With("DataCenter", dataCenterName)
+                .With("DataCenterRpcProxyCount", currentDataCenterProxyCount)
+                .With("ZoneMaxRpcProxyCount", *zoneInfo->MaxRpcProxyCount)
+                .With("DataCenterMaxProxyCount", maxDataCenterProxyCount);
             return true;
         }
         return false;
@@ -208,9 +207,9 @@ public:
         }
 
         if (proxyInfo->Role == TrashRole) {
-            YT_LOG_INFO("Removing proxy role (BundleName: %v, ProxyName: %v)",
-                bundleName,
-                proxyName);
+            YT_TLOG_INFO("Removing proxy role")
+                .With("BundleName", bundleName)
+                .With("ProxyName", proxyName);
             mutations->RemovedProxyRole.insert(mutations->WrapMutation(proxyName));
             return false;
         }
@@ -218,19 +217,19 @@ public:
         const auto& bundleControllerAnnotations = proxyInfo->BundleControllerAnnotations;
 
         if (auto changed = GetBundleControllerInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, bundleControllerAnnotations)) {
-            YT_LOG_DEBUG("Setting proxy annotations (BundleName: %v, NodeName: %v, Annotations: %v)",
-                bundleName,
-                proxyName,
-                ConvertToYsonString(changed, EYsonFormat::Text));
+            YT_TLOG_DEBUG("Setting proxy annotations")
+                .With("BundleName", bundleName)
+                .With("NodeName", proxyName)
+                .With("Annotations", ConvertToYsonString(changed, EYsonFormat::Text));
             mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(changed);
             return false;
         }
 
         if (bundleControllerAnnotations->AllocatedForBundle != bundleName) {
-            YT_LOG_WARNING("Inconsistent allocation state (AnnotationsBundleName: %v, ActualBundleName: %v, ProxyName: %v)",
-                bundleControllerAnnotations->AllocatedForBundle,
-                bundleName,
-                proxyName);
+            YT_TLOG_WARNING("Inconsistent allocation state")
+                .With("AnnotationsBundleName", bundleControllerAnnotations->AllocatedForBundle)
+                .With("ActualBundleName", bundleName)
+                .With("ProxyName", proxyName);
 
             return false;
         }
@@ -311,12 +310,11 @@ public:
 
             mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(newAnnotations);
 
-            YT_LOG_INFO(
-                "Annotating new rpc proxy (ProxyName: %v, Bundle: %v, Vcpu: %v, Memory: %v)",
-                proxyName,
-                spareBundleName,
-                resource->Vcpu,
-                resource->Memory);
+            YT_TLOG_INFO("Annotating new rpc proxy")
+                .With("ProxyName", proxyName)
+                .With("Bundle", spareBundleName)
+                .With("Vcpu", resource->Vcpu)
+                .With("Memory", resource->Memory);
         }
     }
 
