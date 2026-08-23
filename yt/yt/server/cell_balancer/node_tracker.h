@@ -23,6 +23,8 @@ struct INodeTracker
     virtual void UpdateNodeStates(const std::map<std::string, TTabletNodeInfoPtr>& nodes) = 0;
 
     virtual void RequestConfigUpdate(const std::string& nodeAddress, std::string nodeTag) = 0;
+
+    virtual void OnStopLeading() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeTracker)

@@ -164,6 +164,14 @@ public:
         NodeHeartbeatStates_[nodeAddress].ExpectedTag = std::move(nodeTag);
     }
 
+    void OnStopLeading() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        NodeHeartbeatStates_.clear();
+        ReportedOfflineNodeCountGauge_.Update(0);
+    }
+
 private:
     struct TNodeState
     {
