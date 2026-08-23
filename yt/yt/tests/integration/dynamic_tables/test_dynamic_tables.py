@@ -4493,11 +4493,17 @@ class TestTabletOrchid(DynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
-        def check_zero_passive():
+        # NB: @chunk_ids appears at the master before the node adds the chunk store and its backing
+        # store; passive memory is already zero in that window, so it alone is not a valid barrier.
+        def check_flush_applied_at_node():
             memory_stats = get_stats()
-            return memory_stats["total"]["tablet_dynamic"]["passive"] == 0
+            total = memory_stats["total"]
+            return (
+                total["tablet_dynamic"]["passive"] == 0 and
+                total["tablet_dynamic"]["backing"] > 0 and
+                total["tablet_static"]["usage"] > 0)
 
-        wait(check_zero_passive)
+        wait(check_flush_applied_at_node)
 
         memory_stats = get_stats()
         total = memory_stats["total"]
