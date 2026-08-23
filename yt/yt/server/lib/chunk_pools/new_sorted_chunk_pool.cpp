@@ -224,11 +224,9 @@ public:
                 foreignSlices,
                 jobSummary.SplitJobCount,
                 cookie);
-
-            // NB(apollo1321): The sorted pool slices data by key bound, not by row index, and
-            // key-bound slicing does not re-estimate per-slice statistics: a slice keeps the full
-            // chunk's data weight and row count. Therefore, it is not feasible in the current
-            // implementation to ValidateChildJobSizes.
+            ValidateChildJobSizes(cookie, childCookies, [this] (TOutputCookie cookie) {
+                return GetStripeList(cookie);
+            });
 
             RegisterChildCookies(jobSummary.Id, cookie, std::move(childCookies));
         }

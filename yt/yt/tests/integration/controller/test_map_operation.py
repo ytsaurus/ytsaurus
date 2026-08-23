@@ -3005,6 +3005,49 @@ print(json.dumps(input))
         op.track()
 
     @authors("apollo1321")
+    def test_interruption_does_not_increase_compressed_data_size(self):
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "selected", "type": "string"},
+                {"name": "payload", "type": "string"},
+            ]),
+            "optimize_for": "scan",
+            "replication_factor": 1,
+        })
+        write_table(
+            "//tmp/t_in",
+            [{"selected": "", "payload": "x" * 1000}] * 2050,
+        )
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in{selected}",
+            out="//tmp/t_out",
+            command=with_breakpoint("read row; BREAKPOINT; cat"),
+            spec={
+                "mapper": {"format": "json"},
+                "job_count": 1,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 200,
+                },
+                "enable_job_splitting": False,
+                "max_speculative_job_count_per_task": 0,
+                "input_table_columnar_statistics": {
+                    "enabled": True,
+                    "mode": "from_master",
+                },
+                "force_allow_job_interruption": True,
+            },
+        )
+
+        job_id, = wait_breakpoint(job_count=1)
+        op.interrupt_job(job_id)
+        release_breakpoint()
+        op.track()
+
+    @authors("apollo1321")
     def test_fail_tactics_with_chunk_scraper(self):
         """
         This test ensures that unavailable input chunk is not added to chunk scraper if

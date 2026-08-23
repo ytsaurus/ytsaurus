@@ -126,6 +126,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((HighThreadCountJobThreshold)           (302303))
     ((SamplingSeed)                          (302304))
     ((SerializableLoggerTagPayload)          (302305))
+    ((InputChunkSliceUncompressedDataSize)   (302306))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
