@@ -29,6 +29,7 @@ RECURSE(
     s3
     fake_blackbox
     yt_cli
+    stress
 )
 
 IF (NOT OPENSOURCE)
