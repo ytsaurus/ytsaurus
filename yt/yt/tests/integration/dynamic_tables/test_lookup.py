@@ -302,6 +302,9 @@ class TestLookup(TestSortedDynamicTablesBase):
     ])
     def test_stress_versioned_lookup(self, optimize_for, enable_hash_chunk_index, in_memory_mode):
         # This test checks that versioned lookup gives the same result for scan and lookup versioned formats.
+        if self.USE_SEQUOIA:
+            pytest.skip("Test is too long and has no sequoia specifics")
+
         random.seed(12345)
 
         schema = [
