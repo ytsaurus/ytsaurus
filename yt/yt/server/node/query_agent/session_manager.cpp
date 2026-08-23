@@ -100,12 +100,12 @@ public:
 
     void OnDistributedSessionLeaseExpired(TDistributedSessionId sessionId) override
     {
-        YT_LOG_DEBUG("Distributed query session lease expired (SessionId: %v)",
-            sessionId);
+        YT_TLOG_DEBUG("Distributed query session lease expired")
+            .With("SessionId", sessionId);
 
         if (CloseDistributedSession(sessionId)) {
-            YT_LOG_DEBUG("Distributed query session closed by expiration (SessionId: %v)",
-                sessionId);
+            YT_TLOG_DEBUG("Distributed query session closed by expiration")
+                .With("SessionId", sessionId);
         }
     }
 
