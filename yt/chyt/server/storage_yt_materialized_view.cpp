@@ -295,7 +295,6 @@ TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
         .SourcePath = sourcePath,
         .TargetPath = targetPath,
         .SourceObjectId = sourceTable->ObjectId,
-        .TargetObjectId = targetTable->ObjectId,
     };
 }
 

@@ -43,6 +43,13 @@ class TestMaterializedViews(ClickHouseTestBase):
     def _statement_path(clique, database="YT"):
         return clique.storage_artifacts_path + "/{}.mv".format(database)
 
+    @staticmethod
+    def _partition_offsets(partition):
+        return {
+            key: partition[key]
+            for key in ("object_id", "next_row_index", "total_row_count")
+        }
+
     @authors("buyval01")
     def test_lifecycle(self):
         rows = [{"key": i, "value": str(i)} for i in range(3)]
@@ -67,7 +74,14 @@ class TestMaterializedViews(ClickHouseTestBase):
             progress_path = progress_root + "/" + view_id
             assert exists(progress_path)
             persisted_progress = get(progress_path)
-            assert persisted_progress["next_row_index"] == 0
+            partition = persisted_progress["partitions"][0]
+            assert self._partition_offsets(partition) == {
+                "object_id": get("//tmp/source/@id"),
+                "next_row_index": 0,
+                "total_row_count": 0,
+            }
+            assert partition["last_update"]
+            assert partition["last_error"] == ""
             assert persisted_progress["last_error"] == ""
 
             for instance in instances:
@@ -205,7 +219,15 @@ class TestMaterializedViews(ClickHouseTestBase):
             view_id = get(statement_path + "/@id")
             progress_root = clique.materialized_views_path + "/progress"
             progress_path = progress_root + "/" + view_id
-            assert get(progress_path)["next_row_index"] == 2
+            source_id = get("//tmp/source/@id")
+            partition = get(progress_path)["partitions"][0]
+            assert self._partition_offsets(partition) == {
+                "object_id": source_id,
+                "next_row_index": 2,
+                "total_row_count": 2,
+            }
+            assert partition["last_update"]
+            assert partition["last_error"] == ""
             assert read_table("//tmp/target") == []
 
             write_table("<append=%true>//tmp/source", expected_rows)
@@ -214,7 +236,14 @@ class TestMaterializedViews(ClickHouseTestBase):
             assert ls(progress_root) == [view_id]
             assert get(progress_path + "/@type") == "document"
             progress = get(progress_path)
-            assert progress["next_row_index"] == 34
+            partition = progress["partitions"][0]
+            assert self._partition_offsets(partition) == {
+                "object_id": source_id,
+                "next_row_index": 34,
+                "total_row_count": 34,
+            }
+            assert partition["last_update"]
+            assert partition["last_error"] == ""
 
             target_id = get("//tmp/target/@id")
 
@@ -232,7 +261,7 @@ class TestMaterializedViews(ClickHouseTestBase):
             wait(lambda: len(get_refresh_queries()) == len(expected_rows))
 
     @authors("buyval01")
-    def test_background_refresh_persists_initial_validation_error(self):
+    def test_background_refresh_handles_source_replacement(self):
         config_patch = {
             "yt": {
                 "materialized_views": {
@@ -248,11 +277,38 @@ class TestMaterializedViews(ClickHouseTestBase):
 
             remove("//tmp/source")
             create("table", "//tmp/source", attributes={"schema": self.SCHEMA})
+            source_id = get("//tmp/source/@id")
+            rows = [{"key": 1, "value": "new-1"}]
+            write_table("//tmp/source", rows)
 
-            wait(
-                lambda: "source table was replaced" in get(progress_path)["last_error"],
-                ignore_exceptions=True,
-                timeout=10)
+            wait(lambda: read_table("//tmp/target") == rows, timeout=10)
+            progress = get(progress_path)
+            assert progress["last_error"] == ""
+            assert [self._partition_offsets(partition) for partition in progress["partitions"]] == [{
+                "object_id": source_id,
+                "next_row_index": 1,
+                "total_row_count": 1,
+            }]
+
+    @authors("buyval01")
+    def test_background_refresh_handles_target_replacement(self):
+        config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
+
+        with Clique(1, config_patch=config_patch, export_query_log=True) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+
+            initial_rows = [{"key": 1, "value": "initial"}]
+            write_table("<append=%true>//tmp/source", initial_rows)
+            wait(lambda: read_table("//tmp/target") == initial_rows, timeout=10)
+
+            old_target_id = get("//tmp/target/@id")
+            remove("//tmp/target")
+            create("table", "//tmp/target", attributes={"schema": self.SCHEMA})
+            assert get("//tmp/target/@id") != old_target_id
+
+            new_rows = [{"key": 2, "value": "new"}]
+            write_table("<append=%true>//tmp/source", new_rows)
+            wait(lambda: read_table("//tmp/target") == new_rows, timeout=10)
 
     @authors("buyval01")
     def test_background_refresh_lock_contention(self):
@@ -294,6 +350,7 @@ class TestMaterializedViews(ClickHouseTestBase):
                 'AS SELECT key, accurateCast(value, \'Int64\') AS value FROM "//tmp/source"')
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
+            initial_last_update = get(progress_path)["partitions"][0]["last_update"]
 
             write_table("//tmp/source", [{"key": 1, "value": "not-an-integer"}])
 
@@ -302,12 +359,20 @@ class TestMaterializedViews(ClickHouseTestBase):
                 ignore_exceptions=True,
                 timeout=10)
             assert read_table("//tmp/int_target") == []
-            assert get(progress_path)["next_row_index"] == 0
+            progress = get(progress_path)
+            partition = progress["partitions"][0]
+            assert partition["next_row_index"] == 0
+            assert partition["last_update"] == initial_last_update
+            assert partition["last_error"] == ""
 
             expected_rows = [{"key": 2, "value": 42}]
             write_table("//tmp/source", [{"key": 2, "value": "42"}])
             wait(lambda: read_table("//tmp/int_target") == expected_rows, timeout=10)
-            assert get(progress_path)["last_error"] == ""
+            progress = get(progress_path)
+            partition = progress["partitions"][0]
+            assert progress["last_error"] == ""
+            assert partition["last_error"] == ""
+            assert partition["last_update"] != initial_last_update
 
     @authors("buyval01")
     def test_background_refresh_parent_transaction_abort(self):
@@ -329,6 +394,7 @@ class TestMaterializedViews(ClickHouseTestBase):
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
             target_id = get("//tmp/target/@id")
+            initial_last_update = get(progress_path)["partitions"][0]["last_update"]
 
             write_table("//tmp/source", [{"key": 1, "value": "new-1"}])
             wait(
@@ -346,7 +412,9 @@ class TestMaterializedViews(ClickHouseTestBase):
                 ignore_exceptions=True)
 
             assert read_table("//tmp/target") == []
-            assert get(progress_path)["next_row_index"] == 0
+            partition = get(progress_path)["partitions"][0]
+            assert partition["next_row_index"] == 0
+            assert partition["last_update"] == initial_last_update
 
     @authors("buyval01")
     def test_database_scoping(self):

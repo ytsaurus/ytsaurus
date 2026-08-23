@@ -24,7 +24,6 @@ struct TMaterializedViewConfiguration
     NYPath::TYPath SourcePath;
     NYPath::TYPath TargetPath;
     NObjectClient::TObjectId SourceObjectId;
-    NObjectClient::TObjectId TargetObjectId;
 };
 
 TMaterializedViewConfiguration BuildMaterializedViewConfiguration(
