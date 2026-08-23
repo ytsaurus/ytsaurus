@@ -237,6 +237,9 @@ private:
         DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
         CellTracker_ = CreateCellTracker(this, Config_->CellBalancer);
         NodeTracker_ = CreateNodeTracker();
+        ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(
+            &INodeTracker::OnStopLeading,
+            NodeTracker_));
         BundleController_ = CreateBundleController(this, Config_->BundleController);
 
         NMonitoring::Initialize(
