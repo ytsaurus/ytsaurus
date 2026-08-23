@@ -1,12 +1,34 @@
 # flake8: noqa
 from yt_dashboard_generator.dashboard import Rowset
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import MultiSensor, Text, EmptyCell
 from yt_dashboard_generator.backends.monitoring import MonitoringTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 
 from ..common.sensors import *
 
 ##################################################################
+
+
+drills_mode_hint = """\
+When bundle enters drills mode, all tablet cells become failed.
+"""
+
+
+def build_cell_health():
+    return (Rowset()
+        .row()
+            .cell(
+                "Tablet cell health",
+                MonitoringExpr(Master("yt.tablet_server.tablet_cell_count"))
+                    .all("container", "health"))
+            .cell(
+                "Drills mode",
+                BundleController("yt.bundle_controller.scan_bundles_alarms_count.rate")
+                    .all("host")
+                    .value("alarm_id", "bundle_has_drills_mode_enabled")
+                    .aggr("data_center"),
+                description=drills_mode_hint)
+    ).owner
 
 
 def build_user_hydra():
@@ -16,7 +38,11 @@ def build_user_hydra():
             .cell("Hydra restart rate", NodeTablet("yt.hydra.restart_count.rate")
                 .aggr(MonitoringTag("host"))
                 .all("#B", "reason"))
-            .cell("Cell move rate", Master("yt.tablet_server.tablet_tracker.tablet_cell_moves.rate"))
+            .cell(
+                "Cell move rate",
+                MonitoringExpr(Master("yt.tablet_server.tablet_tracker.tablet_cell_moves.rate"))
+                    .all("container")
+                    .series_sum())
     ).owner
 
 
@@ -68,7 +94,7 @@ def build_bundle_controller():
             .cell("Overload Controller", MonitoringExpr(NodeTablet("yt.tablet_node.overload_controller.overloaded.rate")
                 .all("tracker")).alias("{{tracker}}"))
             .cell("Bundle Controller Alerts", MonitoringExpr(BundleController("yt.bundle_controller.scan_bundles_alarms_count.rate")
-                .all("alarm_id")).alias("{{alarm_id}}"))
+                .all("alarm_id", "data_center")).alias("{{alarm_id}}"))
         .row()
             .stack()
             .cell("Target tablet node count", MonitoringExpr(bc("target_tablet_node_count")
@@ -120,3 +146,34 @@ def build_bundle_controller():
                     MonitoringExpr(bc("proxy_deallocation_request_age")).alias("proxy deallocation age max"),
                 ).stack(False))
         ).owner
+
+
+LOGGING_PROFILING_GREETING = """\
+Logging and profiling overloads do not directly affect user requests, \
+but they make diagnostics more difficult. If the charts below show \
+overloads, take appropriate action and contact support.
+"""
+
+
+def build_logging_profiling():
+    return (Rowset()
+        .row(height=2)
+            .cell("", Text(LOGGING_PROFILING_GREETING))
+            .cell("", EmptyCell())
+            .cell("", EmptyCell())
+        .row()
+            .top()
+            .all("host")
+            .cell(
+                "Tablet node dropped logs",
+                TabNodeInternal("yt.logging.dropped_events.rate"))
+            .cell(
+                "Tablet node Logging/LogCompress utilization",
+                TabNodeCpu("yt.resource_tracker.utilization")
+                    .value("thread", "Logging|LogCompress"))
+            .cell(
+                "Tablet node profiling threads utilization",
+                TabNodeCpu("yt.resource_tracker.utilization")
+                    .value("thread", "Prof*"))
+        .row()
+    )

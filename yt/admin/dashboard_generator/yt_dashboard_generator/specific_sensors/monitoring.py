@@ -91,6 +91,12 @@ class MonitoringExpr(Taggable):
     def drop_below(self, value):
         return self.func("drop_below", self, value)
 
+    def drop_label(self, label):
+        return self.func("drop_label", self, f'"{label}"')
+
+    def drop_labels(self, *labels):
+        return self.func("drop_labels", self, [f'"{label}"' for label in labels])
+
     def group_by_labels(self, label, expr):
         return self.func("group_by_labels", self, f'"{label}"', expr)
 

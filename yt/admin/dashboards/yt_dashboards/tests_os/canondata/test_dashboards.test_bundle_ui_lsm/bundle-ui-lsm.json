@@ -265,6 +265,117 @@
             "targets": [
                 {
                     "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_store_compactor_out_data_weight\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\"\", table_tag=~\"\", activity=~\"\", eden=~\"\", reason=~\"\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Compaction/partitioning data weight (per node)",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 24
+            },
+            "options": {
+                "content": "",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_store_compactor_out_data_weight\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\".+\", activity=~\"compaction\", eden=~\"\", reason=~\".+\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Compaction data weight (per table, with reasons)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "fillOpacity": 100,
+                        "hideFrom": {
+                            "legend": true
+                        },
+                        "stacking": {
+                            "group": "A",
+                            "mode": "normal"
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 30
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "rate({cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_tablet_node_store_compactor_out_data_weight\", tablet_cell_bundle=~\"$tablet_cell_bundle\", table_path=~\".+\", activity=~\"partitioning\", eden=~\"\", reason=~\".+\"}[$__rate_interval])",
+                    "refId": "A"
+                }
+            ],
+            "title": "Partitioning data weight (per table, with reasons)",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 36
+            },
+            "targets": [
+                {
+                    "datasource": null,
                     "expr": "(topk(1, {cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_resource_tracker_thread_count\", tablet_cell_bundle=~\"$tablet_cell_bundle\", thread=~\"StoreCompact\"}))",
                     "legendFormat": "\"Limit\"",
                     "refId": "A"
@@ -296,7 +407,7 @@
                 "h": 6,
                 "w": 12,
                 "x": 12,
-                "y": 24
+                "y": 36
             },
             "targets": [
                 {
@@ -314,6 +425,64 @@
             ],
             "title": "Compression thread pool CPU usage",
             "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "axisLabel": "Bytes",
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "unit",
+                                "value": "decbytes"
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 0,
+                "y": 42
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-tablet-node.*\", __name__=~\"yt_cluster_node_memory_usage_used\", tablet_cell_bundle=~\"$tablet_cell_bundle\", category=~\"tablet_background\"}",
+                    "legendFormat": "{{host}} {{pod}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Tablet background memory",
+            "type": "timeseries"
+        },
+        {
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 42
+            },
+            "options": {
+                "content": "",
+                "mode": "markdown"
+            },
+            "title": "",
+            "type": "text"
         }
     ],
     "tags": [],

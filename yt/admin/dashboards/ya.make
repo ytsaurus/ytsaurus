@@ -4,27 +4,37 @@ PY_SRCS(
     TOP_LEVEL
     yt_dashboards/__init__.py
     yt_dashboards/artemis.py
-    yt_dashboards/bundle_ui/bundle_ui_dashboard.py
     yt_dashboards/bundle_ui/__init__.py
-    yt_dashboards/bundle_ui/user_load.py
-    yt_dashboards/bundle_ui/lsm.py
+    yt_dashboards/bundle_ui/bundle_ui_dashboard.py
+    yt_dashboards/bundle_ui/cache_and_filtration.py
+    yt_dashboards/bundle_ui/common.py
     yt_dashboards/bundle_ui/cpu.py
     yt_dashboards/bundle_ui/disk.py
-    yt_dashboards/bundle_ui/common.py
+    yt_dashboards/bundle_ui/efficiency.py
+    yt_dashboards/bundle_ui/key_filter.py
+    yt_dashboards/bundle_ui/lsm.py
     yt_dashboards/bundle_ui/maintenance.py
     yt_dashboards/bundle_ui/memory.py
     yt_dashboards/bundle_ui/network.py
-    yt_dashboards/bundle_ui/efficiency.py
-    yt_dashboards/bundle_ui/resources.py
-    yt_dashboards/bundle_ui/proxy_resources.py
-    yt_dashboards/bundle_ui/proxy_details.py
     yt_dashboards/bundle_ui/planning.py
-    yt_dashboards/bundle_ui/key_filter.py
-    yt_dashboards/bundle_ui/cache_and_filtration.py
+    yt_dashboards/bundle_ui/proxy_details.py
+    yt_dashboards/bundle_ui/proxy_resources.py
+    yt_dashboards/bundle_ui/resources.py
+    yt_dashboards/bundle_ui/user_load.py
     yt_dashboards/cache.py
     yt_dashboards/chyt.py
     yt_dashboards/cluster_resources.py
     yt_dashboards/cluster_workloads.py
+    yt_dashboards/common/__init__.py
+    yt_dashboards/common/postprocessors.py
+    yt_dashboards/common/queue_agent.py
+    yt_dashboards/common/runner.py
+    yt_dashboards/common/sensors.py
+    yt_dashboards/compaction.py
+    yt_dashboards/cypress_proxies.py
+    yt_dashboards/data_node_local.py
+    yt_dashboards/data_nodes.py
+    yt_dashboards/exe_nodes.py
     yt_dashboards/flow/__init__.py
     yt_dashboards/flow/common.py
     yt_dashboards/flow/companion_manager.py
@@ -40,27 +50,18 @@ PY_SRCS(
     yt_dashboards/flow/state_cache.py
     yt_dashboards/flow/worker.py
     yt_dashboards/http_proxies.py
-    yt_dashboards/key_filter.py
-    yt_dashboards/compaction.py
-    yt_dashboards/master.py
-    yt_dashboards/cypress_proxies.py
-    yt_dashboards/scheduler_gpu.py
-    yt_dashboards/scheduler_internal.py
-    yt_dashboards/scheduler_pool.py
-    yt_dashboards/scheduler_operation.py
     yt_dashboards/jobs_monitor.py
-    yt_dashboards/exe_nodes.py
-    yt_dashboards/data_nodes.py
-    yt_dashboards/data_node_local.py
+    yt_dashboards/key_filter.py
+    yt_dashboards/master.py
     yt_dashboards/queue_agent.py
     yt_dashboards/queue_and_consumer_metrics.py
+    yt_dashboards/scheduler_gpu.py
+    yt_dashboards/scheduler_internal.py
+    yt_dashboards/scheduler_operation.py
+    yt_dashboards/scheduler_pool.py
     yt_dashboards/table_dispersion.py
+    yt_dashboards/table_replication.py
     yt_dashboards/user_load.py
-    yt_dashboards/common/__init__.py
-    yt_dashboards/common/postprocessors.py
-    yt_dashboards/common/runner.py
-    yt_dashboards/common/queue_agent.py
-    yt_dashboards/common/sensors.py
 )
 
 IF (OPENSOURCE)
