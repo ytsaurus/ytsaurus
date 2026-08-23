@@ -343,9 +343,9 @@ public:
 
         if (!MultipleTables_) {
             if (TableId_ && tabletSnapshot->TableId != TableId_) {
-                YT_LOG_ERROR("Found different tables in query, profiling will be incorrect (TableId1: %v, TableId2: %v)",
-                    TableId_,
-                    tabletSnapshot->TableId);
+                YT_TLOG_ERROR("Found different tables in query, profiling will be incorrect")
+                    .With("TableId1", TableId_)
+                    .With("TableId2", tabletSnapshot->TableId);
                 MultipleTables_ = true;
             }
 
@@ -905,7 +905,9 @@ private:
                 ] (TErrorOr<TQueryStatistics>&& result) {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
-                        YT_LOG_DEBUG(result, "Bottom query failed (SubqueryId: %v)", bottomQuery->Id);
+                        YT_TLOG_DEBUG("Bottom query failed")
+                            .With("SubqueryId", bottomQuery->Id)
+                            .With(result);
                         return result;
                     } else {
                         auto& statistics = result.Value();
@@ -999,11 +1001,9 @@ private:
 
                     prefixRanges.emplace_back(lowerBound, upperBound);
 
-                    YT_LOG_DEBUG_IF(QueryOptions_.VerboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
-                        range.first,
-                        range.second,
-                        lowerBound,
-                        upperBound);
+                    YT_TLOG_DEBUG_IF(QueryOptions_.VerboseLogging, "Transforming range")
+                        .WithFormat("OldRange", "[%v .. %v]", range.first, range.second)
+                        .WithFormat("NewRange", "[%v .. %v]", lowerBound, upperBound);
                 }
             }
 
@@ -1031,11 +1031,9 @@ private:
 
                 prefixRanges.emplace_back(lowerBound, upperBound);
 
-                YT_LOG_DEBUG_IF(QueryOptions_.VerboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
-                    range.first,
-                    range.second,
-                    lowerBound,
-                    upperBound);
+                YT_TLOG_DEBUG_IF(QueryOptions_.VerboseLogging, "Transforming range")
+                    .WithFormat("OldRange", "[%v .. %v]", range.first, range.second)
+                    .WithFormat("NewRange", "[%v .. %v]", lowerBound, upperBound);
             }
 
             for (const auto& key : split.Keys) {
@@ -1490,7 +1488,9 @@ private:
                         (*partitionIt)->PivotKey);
 
                     if (QueryOptions_.VerboseLogging) {
-                        YT_LOG_DEBUG("Prepared sample key prefixes (KeyWidth: %v, OptimalKeyWidth: %v)", keyWidth, optimalKeyWidth);
+                        YT_TLOG_DEBUG("Prepared sample key prefixes")
+                            .With("KeyWidth", keyWidth)
+                            .With("OptimalKeyWidth", optimalKeyWidth);
                     }
 
                     keyWidth = optimalKeyWidth;
@@ -1538,13 +1538,13 @@ private:
                     });
 
                 if (QueryOptions_.VerboseLogging) {
-                    YT_LOG_DEBUG("Got grouped by samples ranges (PartitionIndex: %v, SampleRanges: %v)",
-                        partitionIndex,
-                        MakeFormattableView(sampleRanges, [] (TStringBuilderBase* builder, const TSampleRange& item) {
-                            builder->AppendFormat("Sample: %kv .. %kv, Ranges: %v",
-                                item.LowerSampleKey,
-                                item.UpperSampleKey,
-                                MakeFormattableView(item.Ranges, TRangeFormatter()));
+                    YT_TLOG_DEBUG("Got grouped by samples ranges")
+                        .With("PartitionIndex", partitionIndex)
+                        .With("SampleRanges", MakeFormattableView(sampleRanges, [] (TStringBuilderBase* builder, const TSampleRange& item) {
+                                builder->AppendFormat("Sample: %kv .. %kv, Ranges: %v",
+                                    item.LowerSampleKey,
+                                    item.UpperSampleKey,
+                                    MakeFormattableView(item.Ranges, TRangeFormatter()));
                         }));
                 }
                 partitionRanges.push_back({std::move(sampleRanges), partitionIndex});
@@ -1729,17 +1729,17 @@ private:
 
         if (QueryOptions_.VerboseLogging) {
             for (const auto& dataSplit : dataSplits) {
-                YT_LOG_DEBUG("Read items in split (TabletId: %v, Partitions: %v, Ranges: %v, Keys: %v)",
-                    dataSplit.TabletId,
-                    MakeFormattableView(
-                        dataSplit.PartitionBounds,
-                        [] (TStringBuilderBase* builder, const TPartitionBounds& source) {
-                            builder->AppendFormat("%v: %v",
-                                source.PartitionIndex,
-                                MakeFormattableView(source.Bounds, TRangeFormatter()));
-                        }),
-                    MakeFormattableView(dataSplit.Ranges, TRangeFormatter()),
-                    MakeFormattableView(dataSplit.Keys, TKeyFormatter()));
+                YT_TLOG_DEBUG("Read items in split")
+                    .With("TabletId", dataSplit.TabletId)
+                    .With("Partitions", MakeFormattableView(
+                            dataSplit.PartitionBounds,
+                            [] (TStringBuilderBase* builder, const TPartitionBounds& source) {
+                                builder->AppendFormat("%v: %v",
+                                    source.PartitionIndex,
+                                    MakeFormattableView(source.Bounds, TRangeFormatter()));
+                            }))
+                    .With("Ranges", MakeFormattableView(dataSplit.Ranges, TRangeFormatter()))
+                    .With("Keys", MakeFormattableView(dataSplit.Keys, TKeyFormatter()));
             }
         }
 

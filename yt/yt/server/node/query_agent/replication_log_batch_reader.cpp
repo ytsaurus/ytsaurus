@@ -94,9 +94,9 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
         while (readAllRows) {
             auto batch = batchFetcher->ReadNextRowBatch(currentRowIndex);
             if (!batch) {
-                YT_LOG_DEBUG("Received empty batch from tablet reader (TabletId: %v, StartRowIndex: %v)",
-                    TabletId_,
-                    currentRowIndex);
+                YT_TLOG_DEBUG("Received empty batch from tablet reader")
+                    .With("TabletId", TabletId_)
+                    .With("StartRowIndex", currentRowIndex);
                 break;
             }
 
@@ -138,12 +138,11 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                         maxTimestamp = std::max(maxTimestamp, upperTimestamp);
                         readAllRows = false;
 
-                        YT_LOG_DEBUG("Stopped reading replication batch because upper timestamp has been reached "
-                            "(TabletId: %v, Timestamp: %v, UpperTimestamp: %v, LastTimestamp: %v)",
-                            TabletId_,
-                            timestamp,
-                            upperTimestamp,
-                            maxTimestamp);
+                        YT_TLOG_DEBUG("Stopped reading replication batch because upper timestamp has been reached")
+                            .With("TabletId", TabletId_)
+                            .With("Timestamp", timestamp)
+                            .With("UpperTimestamp", upperTimestamp)
+                            .With("LastTimestamp", maxTimestamp);
                         break;
                     }
 
@@ -157,18 +156,15 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
                         (maxAllowedCommitInstantExceeded && readTimestampCount > 0))
                     {
                         readAllRows = false;
-                        YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
-                            "(TabletId: %v, Timestamp: %v, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, "
-                            "TimestampCountOverflow: %v, RequestDeadlineExceeded: %v, "
-                            "DataWeightLimitPerPullRowsIteration: %v, MaxAllowedCommitInstantExceeded: %v)",
-                            TabletId_,
-                            timestamp,
-                            batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit,
-                            batchDataWeight >= maxDataWeight,
-                            timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit,
-                            isRequestDeadlineExceeded,
-                            isDataWeightPerPullRowsLimitExceeded,
-                            maxAllowedCommitInstantExceeded);
+                        YT_TLOG_DEBUG("Stopped reading replication batch because stopping conditions are met")
+                            .With("TabletId", TabletId_)
+                            .With("Timestamp", timestamp)
+                            .With("ReadRowCountOverflow", batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit)
+                            .With("ReadDataWeightOverflow", batchDataWeight >= maxDataWeight)
+                            .With("TimestampCountOverflow", timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit)
+                            .With("RequestDeadlineExceeded", isRequestDeadlineExceeded)
+                            .With("DataWeightLimitPerPullRowsIteration", isDataWeightPerPullRowsLimitExceeded)
+                            .With("MaxAllowedCommitInstantExceeded", maxAllowedCommitInstantExceeded);
                         break;
                     }
 
@@ -200,16 +196,15 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
         }
     }
 
-    YT_LOG_DEBUG("Read replication batch (TabletId: %v, StartRowIndex: %v, EndRowIndex: %v, ReadRowCount: %v, "
-        "ResponseRowCount: %v, ResponseDataWeight: %v, RowsDiscardedByProgress: %v, TimestampCount: %v)",
-        TabletId_,
-        startRowIndex,
-        currentRowIndex,
-        readRowCount,
-        batchRowCount,
-        batchDataWeight,
-        discardedByProgress,
-        timestampCount);
+    YT_TLOG_DEBUG("Read replication batch")
+        .With("TabletId", TabletId_)
+        .With("StartRowIndex", startRowIndex)
+        .With("EndRowIndex", currentRowIndex)
+        .With("ReadRowCount", readRowCount)
+        .With("ResponseRowCount", batchRowCount)
+        .With("ResponseDataWeight", batchDataWeight)
+        .With("RowsDiscardedByProgress", discardedByProgress)
+        .With("TimestampCount", timestampCount);
 
     return TReplicationLogBatchDescriptor{
         .ReadRowCount = readRowCount,

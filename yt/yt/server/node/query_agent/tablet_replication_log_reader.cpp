@@ -95,9 +95,9 @@ public:
                 break;
             }
 
-            YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (TabletId: %v, StartRowIndex: %v)",
-                TabletId_,
-                currentRowIndex);
+            YT_TLOG_DEBUG("Waiting for replicated rows from tablet reader")
+                .With("TabletId", TabletId_)
+                .With("StartRowIndex", currentRowIndex);
 
             WaitFor(Reader_->GetReadyEvent())
                 .ThrowOnError();
