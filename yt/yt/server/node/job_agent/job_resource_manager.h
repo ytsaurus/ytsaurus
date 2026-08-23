@@ -256,13 +256,13 @@ private:
     //! cumulative resource usages before and after the call to this function.
     bool DoSetResourceUsage(
         const NClusterNode::TJobResources& resourceUsage,
-        TStringBuf argumentName,
+        NLogging::TLoggingTagKey argumentName,
         TResourceUsageUpdater resourceUsageUpdater,
         bool isReleasing = false);
 
     bool DoTrySetResourceUsage(
         const NClusterNode::TJobResources& resourceUsageDelta,
-        TStringBuf argumentName);
+        NLogging::TLoggingTagKey argumentName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceHolder)
