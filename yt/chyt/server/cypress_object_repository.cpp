@@ -51,7 +51,6 @@ struct TPersistedMaterializedViewConfiguration
     TYPath TargetPath;
     std::string Creator;
     TObjectId SourceObjectId;
-    TObjectId TargetObjectId;
 
     REGISTER_YSON_STRUCT(TPersistedMaterializedViewConfiguration);
 
@@ -62,7 +61,6 @@ struct TPersistedMaterializedViewConfiguration
         registrar.Parameter("target_path", &TThis::TargetPath);
         registrar.Parameter("creator", &TThis::Creator);
         registrar.Parameter("source_object_id", &TThis::SourceObjectId);
-        registrar.Parameter("target_object_id", &TThis::TargetObjectId);
     }
 };
 
@@ -165,7 +163,6 @@ struct TCypressObjectRepository::TObjectSnapshot
             .ObjectName = objectName,
             .ObjectId = entry.ObjectId,
             .SourceObjectId = config->SourceObjectId,
-            .TargetObjectId = config->TargetObjectId,
             .Revision = entry.Revision,
         };
     }
@@ -375,7 +372,6 @@ void TCypressObjectRepository::WriteMaterializedView(
     persistedConfig->TargetPath = config.TargetPath;
     persistedConfig->Creator = context->getClientInfo().initial_user;
     persistedConfig->SourceObjectId = config.SourceObjectId;
-    persistedConfig->TargetObjectId = config.TargetObjectId;
 
     TCreateNodeOptions options;
     options.Attributes = CreateEphemeralAttributes();

@@ -61,7 +61,6 @@ public:
         std::string ObjectName;
         NObjectClient::TObjectId ObjectId;
         NObjectClient::TObjectId SourceObjectId;
-        NObjectClient::TObjectId TargetObjectId;
         NHydra::TRevision Revision;
     };
 
