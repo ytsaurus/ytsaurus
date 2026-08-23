@@ -31,11 +31,9 @@ bool ValidateSnapshotReign(TReign reign)
 
 NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
-    YT_LOG_FATAL_UNLESS(reign <= GetCurrentReign(),
-        "Attempted to recover chaos cell from invalid reign "
-        "(RecoverReign: %v, CurrentReign: %v)",
-        reign,
-        GetCurrentReign());
+    YT_TLOG_FATAL_UNLESS(reign <= GetCurrentReign(), "Attempted to recover chaos cell from invalid reign")
+        .With("RecoverReign", reign)
+        .With("CurrentReign", GetCurrentReign());
 
     if (reign < GetCurrentReign()) {
         return EFinalRecoveryAction::BuildSnapshotAndRestart;

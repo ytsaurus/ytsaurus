@@ -75,13 +75,14 @@ private:
         try {
             Synchronize();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error while chaos cell directory synchronization");
+            YT_TLOG_DEBUG("Error while chaos cell directory synchronization")
+                .With(ex);
         }
     }
 
     void Synchronize()
     {
-        YT_LOG_DEBUG("Chaos cell synchronizer requesting cells from master");
+        YT_TLOG_DEBUG("Chaos cell synchronizer requesting cells from master");
 
         const auto& connection = Bootstrap_->GetConnection();
         const auto& cellDirectory = connection->GetCellDirectory();
@@ -103,8 +104,8 @@ private:
             cellDirectory->ReconfigureCell(descriptor);
         }
 
-        YT_LOG_DEBUG("Chaos cell synchronizer received cells (ChaosCellIds: %v)",
-            chaosCellIds);
+        YT_TLOG_DEBUG("Chaos cell synchronizer received cells")
+            .With("ChaosCellIds", chaosCellIds);
 
         std::vector<TCellId> oldCoordinators;
         const auto& chaosManager = Slot_->GetChaosManager();
@@ -118,9 +119,9 @@ private:
 
         std::vector<TCellId> newCoordinators(chaosCellIds.begin(), chaosCellIds.end());
 
-        YT_LOG_DEBUG("Chaos cell synchronizer will update coordinator cells (NewChaosCellIds: %v, OldChaosCellIds: %v)",
-            newCoordinators,
-            oldCoordinators);
+        YT_TLOG_DEBUG("Chaos cell synchronizer will update coordinator cells")
+            .With("NewChaosCellIds", newCoordinators)
+            .With("OldChaosCellIds", oldCoordinators);
 
         TReqUpdateCoordinatorCells request;
         ToProto(request.mutable_add_coordinator_cell_ids(), newCoordinators);

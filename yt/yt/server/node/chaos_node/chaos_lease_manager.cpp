@@ -240,7 +240,8 @@ public:
         try {
             MakeStateTransition(expectedCurrentState, nextState);
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Unexpected state transition");
+            YT_TLOG_FATAL("Unexpected state transition")
+                .With(ex);
         }
     }
 
@@ -259,8 +260,8 @@ public:
                 createdLeaseIds.push_back(chaosLeaseId);
                 auto chaosLeaseHolder = std::make_unique<TChaosLease>(chaosLeaseId);
                 chaosLease = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLeaseHolder));
-                YT_LOG_DEBUG("Chaos lease created for immigration (ChaosLeaseId: %v)",
-                    chaosLeaseId);
+                YT_TLOG_DEBUG("Chaos lease created for immigration")
+                    .With("ChaosLeaseId", chaosLeaseId);
             }
 
             YT_VERIFY(chaosLease->Coordinators().empty());
@@ -292,8 +293,8 @@ public:
                 chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds());
             }
 
-            YT_LOG_DEBUG("Chaos lease migrated (ChaosLeaseId: %v)",
-                chaosLeaseId);
+            YT_TLOG_DEBUG("Chaos lease migrated")
+                .With("ChaosLeaseId", chaosLeaseId);
         }
 
         std::sort(createdLeaseIds.begin(), createdLeaseIds.end());
@@ -463,9 +464,9 @@ private:
     {
         for (auto nestedId : chaosLease->NestedLeaseIds()) {
             if (FindChaosLease(nestedId)) {
-                YT_LOG_DEBUG("Waiting for child lease to be removed before removing parent (ParentId: %v, ChildId: %v)",
-                    chaosLease->GetId(),
-                    nestedId);
+                YT_TLOG_DEBUG("Waiting for child lease to be removed before removing parent")
+                    .With("ParentId", chaosLease->GetId())
+                    .With("ChildId", nestedId);
                 return;
             }
         }
@@ -473,9 +474,9 @@ private:
         auto chaosLeaseId = chaosLease->GetId();
         auto parentId = chaosLease->GetParentId();
 
-        YT_LOG_DEBUG("Chaos lease removed after revoking all shortcuts (ChaosLeaseId: %v, ParentId: %v)",
-            chaosLeaseId,
-            parentId);
+        YT_TLOG_DEBUG("Chaos lease removed after revoking all shortcuts")
+            .With("ChaosLeaseId", chaosLeaseId)
+            .With("ParentId", parentId);
 
         if (parentId) {
             auto* parent = GetChaosLeaseOrThrow(parentId);
@@ -508,8 +509,8 @@ private:
             if (reign >= EChaosReign::ChaosLeaseRemoveLeaseOnlyAfterChildren) {
                 TryRemoveLeaseBottomUp(chaosLease);
             } else {
-                YT_LOG_DEBUG("Chaos lease removed after revoking all shortcuts (ChaosObjectId: %v)",
-                    chaosLease->GetId());
+                YT_TLOG_DEBUG("Chaos lease removed after revoking all shortcuts")
+                    .With("ChaosObjectId", chaosLease->GetId());
                 DoRemoveChaosLease(chaosLease->GetId());
 
                 if (reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration) {
@@ -626,8 +627,8 @@ private:
         NChaosNode::NProto::TReqMigrateChaosLeases req;
 
         for (const auto* chaosLease : chaosLeases) {
-            YT_LOG_DEBUG("Migrating chaos lease to the sibling cell (ChaosLeaseId: %v)",
-                chaosLease->GetId());
+            YT_TLOG_DEBUG("Migrating chaos lease to the sibling cell")
+                .With("ChaosLeaseId", chaosLease->GetId());
 
             auto protoChaosLease = req.add_chaos_leases();
             ToProto(protoChaosLease->mutable_chaos_lease_id(), chaosLease->GetId());
@@ -681,9 +682,9 @@ private:
 
         auto siblingCellId = GetKnownSiblingCellIdOrThrow();
 
-        YT_LOG_INFO("Changing chaos lease manager state (CurrentState: %v, NextState: %v)",
-            State_,
-            nextState);
+        YT_TLOG_INFO("Changing chaos lease manager state")
+            .With("CurrentState", State_)
+            .With("NextState", nextState);
 
         switch (State_) {
             case EChaosLeaseManagerState::Enabling:
@@ -788,8 +789,8 @@ private:
                     .Via(Slot_->GetEpochAutomatonInvoker()));
         }
 
-        YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)",
-            chaosLeaseId);
+        YT_TLOG_DEBUG("Created chaos lease")
+            .With("LeaseId", chaosLeaseId);
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->GrantShortcuts(chaosLease, chaosManager->CoordinatorCellIds());

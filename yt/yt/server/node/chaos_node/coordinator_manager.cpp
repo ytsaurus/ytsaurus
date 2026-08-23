@@ -268,8 +268,8 @@ private:
 
         Suspended_ = true;
 
-        YT_LOG_DEBUG("Coordinator suspended (SuspendedAtCells: %v)",
-            cellIds);
+        YT_TLOG_DEBUG("Coordinator suspended")
+            .With("SuspendedAtCells", cellIds);
     }
 
     void HydraReqResume(NChaosClient::NProto::TReqResumeCoordinator* /*request*/)
@@ -298,8 +298,8 @@ private:
 
         Suspended_ = false;
 
-        YT_LOG_DEBUG("Coordinator resumed (ResumedAtCells: %v)",
-            cellIds);
+        YT_TLOG_DEBUG("Coordinator resumed")
+            .With("ResumedAtCells", cellIds);
     }
 
 
@@ -317,13 +317,12 @@ private:
             auto era = protoShortcut.era();
 
             if (auto it = Shortcuts_.find(chaosObjectId); it != Shortcuts_.end()) {
-                YT_LOG_ALERT("Granting shortcut while shortcut already present "
-                    "(ChaosCellId: %v, ChaosObjectId: %v, Type: %v, OldEra: %v, OldState: %v)",
-                    chaosCellId,
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    it->second.Era,
-                    it->second.State);
+                YT_TLOG_ALERT("Granting shortcut while shortcut already present")
+                    .With("ChaosCellId", chaosCellId)
+                    .With("ChaosObjectId", chaosObjectId)
+                    .With("Type", TypeFromId(chaosObjectId))
+                    .With("OldEra", it->second.Era)
+                    .With("OldState", it->second.State);
 
                 YT_VERIFY(it->second.AliveTransactions.empty());
             }
@@ -340,8 +339,8 @@ private:
         auto mailbox = hiveManager->GetOrCreateCellMailbox(chaosCellId);
         hiveManager->PostMessage(mailbox, rsp);
 
-        YT_LOG_DEBUG("Shortcuts granted (Shortcuts: %v)",
-            MakeFormattableView(grantedShortcuts, [] (auto* builder, const auto& grantedShortcut) {
+        YT_TLOG_DEBUG("Shortcuts granted")
+            .With("Shortcuts", MakeFormattableView(grantedShortcuts, [] (auto* builder, const auto& grantedShortcut) {
                 builder->AppendFormat("<%v, %v>", grantedShortcut.first, grantedShortcut.second);
             }));
     }
@@ -358,11 +357,11 @@ private:
 
             auto it = Shortcuts_.find(chaosObjectId);
             if (it == Shortcuts_.end()) {
-                YT_LOG_ALERT("Revoking unknown shortcut (ChaosCellId: %v, ChaosObjectId: %v, Type: %v, Era: %v)",
-                    chaosCellId,
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    era);
+                YT_TLOG_ALERT("Revoking unknown shortcut")
+                    .With("ChaosCellId", chaosCellId)
+                    .With("ChaosObjectId", chaosObjectId)
+                    .With("Type", TypeFromId(chaosObjectId))
+                    .With("Era", era);
                 continue;
             }
 
@@ -372,13 +371,12 @@ private:
             }
 
             if (shortcut.Era != era) {
-                YT_LOG_ALERT("Revoking shortcut with invalid era "
-                    "(ChaosCellId: %v, ChaosObjectId: %v, Type: %v, ShortcutEra: %v, RequestedEra: %v)",
-                    chaosCellId,
-                    chaosObjectId,
-                    TypeFromId(chaosObjectId),
-                    shortcut.Era,
-                    era);
+                YT_TLOG_ALERT("Revoking shortcut with invalid era")
+                    .With("ChaosCellId", chaosCellId)
+                    .With("ChaosObjectId", chaosObjectId)
+                    .With("Type", TypeFromId(chaosObjectId))
+                    .With("ShortcutEra", shortcut.Era)
+                    .With("RequestedEra", era);
             }
 
             revokedShortcuts.emplace_back(chaosObjectId, shortcut.Era);
@@ -395,11 +393,11 @@ private:
             SendRevokeShortcutsResponse(chaosCellId, inactiveShortcuts);
         }
 
-        YT_LOG_DEBUG("Shortcuts revoked (Shortcuts: %v, Inactive: %v)",
-            MakeFormattableView(revokedShortcuts, [] (auto* builder, const auto& shortcut) {
+        YT_TLOG_DEBUG("Shortcuts revoked")
+            .With("Shortcuts", MakeFormattableView(revokedShortcuts, [] (auto* builder, const auto& shortcut) {
                 builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
-            }),
-            MakeFormattableView(inactiveShortcuts, [] (auto* builder, const auto& shortcut) {
+            }))
+            .With("Inactive", MakeFormattableView(inactiveShortcuts, [] (auto* builder, const auto& shortcut) {
                 builder->AppendFormat("<%v, %v>", shortcut.first, shortcut.second);
             }));
     }
@@ -413,9 +411,9 @@ private:
 
         auto it = Shortcuts_.find(chaosObjectId);
         if (it == Shortcuts_.end()) {
-            YT_LOG_DEBUG("Trying to forsake unknown shortcut (ChaosObjectId: %v, Type: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId));
+            YT_TLOG_DEBUG("Trying to forsake unknown shortcut")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId));
 
             response->set_success(false);
             return;
@@ -424,19 +422,18 @@ private:
         const auto& shortcut = it->second;
 
         if (!shortcut.AliveTransactions.empty()) {
-            YT_LOG_DEBUG("Trying to forsake shortcut with alive transactions "
-                "(ChaosObjectId: %v, Type: %v, TransactionCount: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId),
-                shortcut.AliveTransactions.size());
+            YT_TLOG_DEBUG("Trying to forsake shortcut with alive transactions")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId))
+                .With("TransactionCount", shortcut.AliveTransactions.size());
 
             response->set_success(false);
         } else {
             EraseShortcut(chaosObjectId);
 
-            YT_LOG_DEBUG("Shortcut was forsaken (ChaosObjectId: %v, Type: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId));
+            YT_TLOG_DEBUG("Shortcut was forsaken")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId));
 
             response->set_success(true);
         }
@@ -518,10 +515,10 @@ private:
             InsertOrCrash(leaseIt->second.AliveTransactions, transactionId);
         }
 
-        YT_LOG_DEBUG("Replication batch prepared (ReplicationCardId: %v, TransactionId: %v, ChaosLeaseIds: %v)",
-            replicationCardId,
-            transactionId,
-            chaosLeaseIds);
+        YT_TLOG_DEBUG("Replication batch prepared")
+            .With("ReplicationCardId", replicationCardId)
+            .With("TransactionId", transactionId)
+            .With("ChaosLeaseIds", chaosLeaseIds);
     }
 
     void HydraCommitReplicatedCommit(
@@ -536,9 +533,9 @@ private:
             DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), false);
         }
 
-        YT_LOG_DEBUG("Replication batch committed (ReplicationCardId: %v, TransactionId: %v)",
-            replicationCardId,
-            transaction->GetId());
+        YT_TLOG_DEBUG("Replication batch committed")
+            .With("ReplicationCardId", replicationCardId)
+            .With("TransactionId", transaction->GetId());
     }
 
     void HydraAbortReplicatedCommit(
@@ -553,20 +550,19 @@ private:
             DiscardAliveTransaction(chaosLeaseId, transaction->GetId(), true);
         }
 
-        YT_LOG_DEBUG("Replication batch aborted (ReplicationCardId: %v, TransactionId: %v)",
-            replicationCardId,
-            transaction->GetId());
+        YT_TLOG_DEBUG("Replication batch aborted")
+            .With("ReplicationCardId", replicationCardId)
+            .With("TransactionId", transaction->GetId());
     }
 
     void DiscardAliveTransaction(TChaosObjectId chaosObjectId, TTransactionId transactionId, bool isAbort)
     {
         auto it = Shortcuts_.find(chaosObjectId);
         if (it == Shortcuts_.end()) {
-            YT_LOG_DEBUG("Trying to decrease transaction count for absent shortcut "
-                "(ChaosObjectId: %v, Type: %v, TransactionId: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId),
-                transactionId);
+            YT_TLOG_DEBUG("Trying to decrease transaction count for absent shortcut")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId))
+                .With("TransactionId", transactionId);
             YT_VERIFY(isAbort);
             return;
         }
@@ -574,11 +570,10 @@ private:
         auto& aliveTransactions = it->second.AliveTransactions;
         auto transactionIt = aliveTransactions.find(transactionId);
         if (transactionIt == aliveTransactions.end()) {
-            YT_LOG_DEBUG("Trying to decrease transaction count for transaction absent shortcut "
-                "(ChaosObjectId: %v, Type: %v, TransactionId: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId),
-                transactionId);
+            YT_TLOG_DEBUG("Trying to decrease transaction count for transaction absent shortcut")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId))
+                .With("TransactionId", transactionId);
             YT_VERIFY(isAbort);
             return;
         }
@@ -592,10 +587,10 @@ private:
             SendRevokeShortcutsResponse(chaosCellId, {{chaosObjectId, era}});
             EraseShortcut(chaosObjectId);
 
-            YT_LOG_DEBUG("Shortcut revoked (ChaosObjectId: %v, Type: %v, Era: %v)",
-                chaosObjectId,
-                TypeFromId(chaosObjectId),
-                era);
+            YT_TLOG_DEBUG("Shortcut revoked")
+                .With("ChaosObjectId", chaosObjectId)
+                .With("Type", TypeFromId(chaosObjectId))
+                .With("Era", era);
         }
     }
 
