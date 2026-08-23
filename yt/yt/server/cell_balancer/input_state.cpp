@@ -197,11 +197,11 @@ THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
                         dataCenterIt->second.RequiredSpareNodeCount),
                 });
 
-                YT_LOG_WARNING("Zone spare nodes violate minus one rack guarantee (Zone: %v, DataCenter: %v, ZoneSpareNodes: %v, RequiredSpareNodes: %v)",
-                    zone,
-                    dataCenter,
-                    zoneInfo->SpareTargetConfig->TabletNodeCount,
-                    dataCenterIt->second.RequiredSpareNodeCount);
+                YT_TLOG_WARNING("Zone spare nodes violate minus one rack guarantee")
+                    .With("Zone", zone)
+                    .With("DataCenter", dataCenter)
+                    .With("ZoneSpareNodes", zoneInfo->SpareTargetConfig->TabletNodeCount)
+                    .With("RequiredSpareNodes", dataCenterIt->second.RequiredSpareNodeCount);
             }
         }
     }

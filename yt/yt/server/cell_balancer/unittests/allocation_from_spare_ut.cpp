@@ -153,7 +153,8 @@ void FinishTabletCellRemoval(TSchedulerInputState* input)
     const auto& state = input->BundleStates["bigd"];
 
     for (const auto& [cellId, _] : state->RemovingCells) {
-        YT_LOG_DEBUG("Removing tablet cell (CellId: %v)", cellId);
+        YT_TLOG_DEBUG("Removing tablet cell")
+            .With("CellId", cellId);
 
         EXPECT_TRUE(Contains(bundleTabletCells, cellId));
         bundleTabletCells.erase(std::ranges::find(bundleTabletCells, cellId));
@@ -213,9 +214,9 @@ void FakeApplyDynamicConfigAtNodes(TSchedulerInputState* input)
             nodeInfo->TabletSlots.push_back(slot);
         }
 
-        YT_LOG_DEBUG("Applied dynamic config at node (NodeAddress: %v, SlotCount: %v)",
-            address,
-            targetSlotCount);
+        YT_TLOG_DEBUG("Applied dynamic config at node")
+            .With("NodeAddress", address)
+            .With("SlotCount", targetSlotCount);
     }
 }
 
@@ -223,7 +224,8 @@ void RemoveCellsFromDecommissionedNodes(TSchedulerInputState* input)
 {
     for (const auto& [address, nodeInfo] : input->TabletNodes) {
         if (nodeInfo->Decommissioned && GetUsedSlotCount(nodeInfo) > 0) {
-            YT_LOG_DEBUG("Removed cells from decommissioned node (NodeAddress: %v)", address);
+            YT_TLOG_DEBUG("Removed cells from decommissioned node")
+                .With("NodeAddress", address);
             SetTabletSlotsState(*input, address, TabletSlotStateEmpty);
         }
     }
@@ -233,11 +235,10 @@ void RemoveCellsFromOfflineNodes(TSchedulerInputState* input)
 {
     for (const auto& [address, nodeInfo] : input->TabletNodes) {
         if ((!nodeInfo->IsOnline() || nodeInfo->UserTags.empty()) && GetUsedSlotCount(nodeInfo) > 0) {
-            YT_LOG_DEBUG("Removed cells from offline node or node without tags "
-                "(NodeAddress: %v, Online: %v, UserTags: %v)",
-                address,
-                nodeInfo->IsOnline(),
-                nodeInfo->UserTags);
+            YT_TLOG_DEBUG("Removed cells from offline node or node without tags")
+                .With("NodeAddress", address)
+                .With("Online", nodeInfo->IsOnline())
+                .With("UserTags", nodeInfo->UserTags);
             SetTabletSlotsState(*input, address, TabletSlotStateEmpty);
         }
     }
@@ -290,7 +291,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
 
     // Create new allocation.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -307,7 +309,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
     // Assign node to allocation.
     // Set node tags.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -326,7 +329,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
 
     // Undecommission picked node.
     if (IsInitiallyDecommissioned()) {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -342,7 +346,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
     // Set node tags.
     // Decommission assigning node.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -363,7 +368,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
 
     // Node has not applied dynamic config.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -374,7 +380,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
 
     // Apply dynamic config.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         const auto& nodeInfo = input.TabletNodes[selectedNode];
         nodeInfo->TabletSlots.clear();
         for (int i = 0; i < CellsPerNode; ++i) {
@@ -384,7 +391,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
 
     // Undecommission assigning node.
     if (input.Config->DecommissionReleasedNodes) {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -396,7 +404,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
 
     // Complete assignment.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -407,7 +416,8 @@ TEST_P(TNoAllocatorTest, AllocationFromScratch)
     }
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -434,7 +444,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
 
     // Create new allocations.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -447,7 +458,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
 
     // Assign node to allocation.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -461,7 +473,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
 
     // Undecommission picked nodes.
     if (IsInitiallyDecommissioned()) {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -476,7 +489,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
     // Set node tags.
     // Decommission assigning nodes.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -499,7 +513,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
 
     // Decommission released nodes.
     if (input.Config->DecommissionReleasedNodes) {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -511,7 +526,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
 
     // Change deallocated nodes |allocated_for_bundle| attribute to "".
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -538,7 +554,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
     // Change deallocated nodes |allocated_for_bundle| attribute to "spare"
     // and remove tags.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -566,7 +583,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
 
     // Complete deallocation.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -577,7 +595,8 @@ TEST_P(TNoAllocatorTest, OfflineNodeReplacement)
     }
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -600,7 +619,9 @@ TEST_P(TNoAllocatorTest, CmsMaintenance)
     }
 
     for (int i = 0; i < 100; ++i) {
-        YT_LOG_DEBUG("Step %v %i", __LINE__, i);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__)
+            .With("Iteration", i);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -653,29 +674,35 @@ TEST_P(TNoAllocatorTest, Stress)
     };
 
     for (int i = 0; i < 500; ++i) {
-        YT_LOG_DEBUG("Step %v %i", __LINE__, i);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__)
+            .With("Iteration", i);
 
         if (rand(30)) {
             auto [node, info] = getRandomNode();
-            YT_LOG_DEBUG("Disturbance: mark node offline (Address: %v)", node);
+            YT_TLOG_DEBUG("Disturbance: mark node offline")
+                .With("Address", node);
             info->State = "offline";
         }
 
         if (rand(25)) {
             auto [node, info] = getRandomNode();
-            YT_LOG_DEBUG("Disturbance: mark node online (Address: %v)", node);
+            YT_TLOG_DEBUG("Disturbance: mark node online")
+                .With("Address", node);
             info->State = "online";
         }
 
         if (rand(30)) {
             auto [node, info] = getRandomNode();
-            YT_LOG_DEBUG("Disturbance: CMS (Address: %v)", node);
+            YT_TLOG_DEBUG("Disturbance: CMS")
+                .With("Address", node);
             info->CmsMaintenanceRequests["foo"] = New<TCmsMaintenanceRequest>();
         }
 
         if (rand(25)) {
             auto [node, info] = getRandomNode();
-            YT_LOG_DEBUG("Disturbance: remove CMS (Address: %v)", node);
+            YT_TLOG_DEBUG("Disturbance: remove CMS")
+                .With("Address", node);
             info->CmsMaintenanceRequests.clear();
         }
 
@@ -693,13 +720,16 @@ TEST_P(TNoAllocatorTest, Stress)
 
     while (getGoodNodeCount() < 3) {
         auto [node, info] = getRandomNode();
-        YT_LOG_DEBUG("Disturbance: remove CMS and mark node online (Address: %v)", node);
+        YT_TLOG_DEBUG("Disturbance: remove CMS and mark node online")
+            .With("Address", node);
         info->CmsMaintenanceRequests.clear();
         info->State = "online";
     }
 
     for (int i = 0; i < 30; ++i) {
-        YT_LOG_DEBUG("Step %v %i", __LINE__, i);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__)
+            .With("Iteration", i);
 
         FakeApplyDynamicConfigAtNodes(&input);
         RemoveCellsFromDecommissionedNodes(&input);
@@ -765,7 +795,8 @@ TEST_P(TNoAllocatorTest, NodeGoneOfflineDuringAllocation)
 
     for (const auto& [address, node] : input.TabletNodes) {
         if (node->BundleControllerAnnotations->AllocatedForBundle == "bigd") {
-            YT_LOG_DEBUG("Node marked as offline (NodeAddress: %v)", address);
+            YT_TLOG_DEBUG("Node marked as offline")
+                .With("NodeAddress", address);
             node->State = "offline";
             node->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
             for (const auto& slot : node->TabletSlots) {
@@ -776,7 +807,8 @@ TEST_P(TNoAllocatorTest, NodeGoneOfflineDuringAllocation)
 
     // Create new allocations.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -789,7 +821,8 @@ TEST_P(TNoAllocatorTest, NodeGoneOfflineDuringAllocation)
 
     // Assign node to allocation.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -805,13 +838,15 @@ TEST_P(TNoAllocatorTest, NodeGoneOfflineDuringAllocation)
     auto allocationId = input.BundleStates["bigd"]->NodeAllocations.begin()->first;
     ASSERT_TRUE(input.AllocationRequests.contains(allocationId));
     auto firstNode = input.AllocationRequests[allocationId]->Status->NodeId;
-    YT_LOG_DEBUG("Node marked as offline during allocation (NodeAddress: %v)", firstNode);
+    YT_TLOG_DEBUG("Node marked as offline during allocation")
+        .With("NodeAddress", firstNode);
     ASSERT_TRUE(!firstNode.empty());
     input.TabletNodes[firstNode]->State = "offline";
 
     // Assign another node to allocation.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -826,7 +861,9 @@ TEST_P(TNoAllocatorTest, NodeGoneOfflineDuringAllocation)
     }
 
     for (int i = 0; i < 10; ++i) {
-        YT_LOG_DEBUG("Step %v %v", __LINE__, i);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__)
+            .With("Iteration", i);
 
         FakeApplyDynamicConfigAtNodes(&input);
         RemoveCellsFromOfflineNodes(&input);
@@ -858,7 +895,8 @@ TEST_P(TNoAllocatorTest, NoAssignmentOnDeallocatedNode)
 
     // Create new deallocation.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -871,7 +909,8 @@ TEST_P(TNoAllocatorTest, NoAssignmentOnDeallocatedNode)
     input.TabletNodes[doomedNode]->State = "online";
 
     if (input.Config->DecommissionReleasedNodes) {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -882,7 +921,8 @@ TEST_P(TNoAllocatorTest, NoAssignmentOnDeallocatedNode)
     }
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -893,7 +933,8 @@ TEST_P(TNoAllocatorTest, NoAssignmentOnDeallocatedNode)
     }
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -905,7 +946,8 @@ TEST_P(TNoAllocatorTest, NoAssignmentOnDeallocatedNode)
     }
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -916,7 +958,8 @@ TEST_P(TNoAllocatorTest, NoAssignmentOnDeallocatedNode)
     }
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -936,7 +979,8 @@ TEST_P(TNoAllocatorTest, IncreaseCellsPerNode)
     input.Bundles["bigd"]->EnableTabletNodeDynamicConfig = true;
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -950,7 +994,8 @@ TEST_P(TNoAllocatorTest, IncreaseCellsPerNode)
     FakeApplyDynamicConfigAtNodes(&input);
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -964,7 +1009,8 @@ TEST_P(TNoAllocatorTest, IncreaseCellsPerNode)
     FakeApplyDynamicConfigAtNodes(&input);
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -984,7 +1030,8 @@ TEST_P(TNoAllocatorTest, DecreaseCellsPerNode)
     input.Bundles["bigd"]->EnableTabletNodeDynamicConfig = true;
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -998,7 +1045,8 @@ TEST_P(TNoAllocatorTest, DecreaseCellsPerNode)
     FakeApplyDynamicConfigAtNodes(&input);
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -1011,7 +1059,8 @@ TEST_P(TNoAllocatorTest, DecreaseCellsPerNode)
     }
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -1021,7 +1070,8 @@ TEST_P(TNoAllocatorTest, DecreaseCellsPerNode)
     FinishTabletCellRemoval(&input);
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -1033,7 +1083,8 @@ TEST_P(TNoAllocatorTest, DecreaseCellsPerNode)
 
     // Now cells are removed and config can be applied.
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -1046,7 +1097,8 @@ TEST_P(TNoAllocatorTest, DecreaseCellsPerNode)
     FakeApplyDynamicConfigAtNodes(&input);
 
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -1062,7 +1114,9 @@ TEST_P(TNoAllocatorTest, MultipeerAllocation)
     input.Bundles["bigd"]->Options->PeerCount = 1;
 
     for (int i = 0; i < 10; ++i) {
-        YT_LOG_DEBUG("Step %v %i", __LINE__, i);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__)
+            .With("Iteration", i);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
 
@@ -1083,14 +1137,16 @@ TEST_P(TNoAllocatorTest, AllNodesGoneOffline)
 
     // Send all nodes offline.
     for (const auto& [address, node] : input.TabletNodes) {
-        YT_LOG_DEBUG("Marking node offline (NodeAddress: %v)", address);
+        YT_TLOG_DEBUG("Marking node offline")
+            .With("NodeAddress", address);
         node->State = "offline";
         node->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
     }
 
     // Run several BC iterations while all nodes are offline.
     for (int i = 0; i < 5; ++i) {
-        YT_LOG_DEBUG("Step offline %v", i);
+        YT_TLOG_DEBUG("Step offline")
+            .With("Iteration", i);
 
         RemoveCellsFromOfflineNodes(&input);
 
@@ -1104,13 +1160,15 @@ TEST_P(TNoAllocatorTest, AllNodesGoneOffline)
 
     // Bring all nodes back online.
     for (const auto& [address, node] : input.TabletNodes) {
-        YT_LOG_DEBUG("Marking node online (NodeAddress: %v)", address);
+        YT_TLOG_DEBUG("Marking node online")
+            .With("NodeAddress", address);
         node->State = "online";
     }
 
     // Run more iterations until convergence.
     for (int i = 0; i < 30; ++i) {
-        YT_LOG_DEBUG("Step online %v", i);
+        YT_TLOG_DEBUG("Step online")
+            .With("Iteration", i);
 
         FakeApplyDynamicConfigAtNodes(&input);
         RemoveCellsFromDecommissionedNodes(&input);
@@ -1134,7 +1192,8 @@ TEST_P(TNoAllocatorTest, CancelAllocationsWhenNoLongerNeeded)
     // Send all bundle nodes offline.
     for (const auto& [address, node] : input.TabletNodes) {
         if (node->BundleControllerAnnotations->AllocatedForBundle == "bigd") {
-            YT_LOG_DEBUG("Marking bundle node offline (NodeAddress: %v)", address);
+            YT_TLOG_DEBUG("Marking bundle node offline")
+                .With("NodeAddress", address);
             node->State = "offline";
             node->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
             for (const auto& slot : node->TabletSlots) {
@@ -1145,7 +1204,8 @@ TEST_P(TNoAllocatorTest, CancelAllocationsWhenNoLongerNeeded)
 
     // Run one iteration: 2 allocation requests should be created (only 2 spare available).
     {
-        YT_LOG_DEBUG("Step %v", __LINE__);
+        YT_TLOG_DEBUG("Step")
+            .With("Line", __LINE__);
         TSchedulerMutations mutations;
         ScheduleBundles(input, &mutations);
         ApplyMutations(&input, mutations);
@@ -1157,7 +1217,8 @@ TEST_P(TNoAllocatorTest, CancelAllocationsWhenNoLongerNeeded)
     // Kill one spare node (mark it offline so it's no longer usable).
     {
         auto spareNode = *spareNodes.begin();
-        YT_LOG_DEBUG("Killing spare node (NodeAddress: %v)", spareNode);
+        YT_TLOG_DEBUG("Killing spare node")
+            .With("NodeAddress", spareNode);
         input.TabletNodes[spareNode]->State = "offline";
         input.TabletNodes[spareNode]->LastSeenTime = TInstant::Now() - TDuration::Seconds(1);
     }
@@ -1165,14 +1226,16 @@ TEST_P(TNoAllocatorTest, CancelAllocationsWhenNoLongerNeeded)
     // Bring all bundle nodes back online.
     for (const auto& [address, node] : input.TabletNodes) {
         if (node->BundleControllerAnnotations->AllocatedForBundle == "bigd") {
-            YT_LOG_DEBUG("Marking bundle node online (NodeAddress: %v)", address);
+            YT_TLOG_DEBUG("Marking bundle node online")
+                .With("NodeAddress", address);
             node->State = "online";
         }
     }
 
     // After several iterations, no allocation requests should remain.
     for (int i = 0; i < 30; ++i) {
-        YT_LOG_DEBUG("Step online %v", i);
+        YT_TLOG_DEBUG("Step online")
+            .With("Iteration", i);
 
         FakeApplyDynamicConfigAtNodes(&input);
         RemoveCellsFromDecommissionedNodes(&input);

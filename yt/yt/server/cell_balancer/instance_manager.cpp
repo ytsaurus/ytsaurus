@@ -92,8 +92,8 @@ void TInstanceManager::ManageInstances()
     auto zoneIt = Input_.Zones.find(bundleInfo->Zone);
 
     if (zoneIt == Input_.Zones.end()) {
-        YT_LOG_WARNING("Cannot locate zone for bundle (Zone: %v)",
-            bundleInfo->Zone);
+        YT_TLOG_WARNING("Cannot locate zone for bundle")
+            .With("Zone", bundleInfo->Zone);
 
         Mutations_->AlertsToFire.push_back(TAlert{
             .Id = "can_not_find_zone_for_bundle",
@@ -109,11 +109,10 @@ void TInstanceManager::ManageInstances()
         if (disruptionIt != Input_.DataCenterDisruptionStatuses.end() &&
             Adapter_->IsDataCenterDisrupted(disruptionIt->second))
         {
-            YT_LOG_WARNING("Instance management skipped for bundle due to zone unhealthy state "
-                "(Zone: %v, DataCenter: %v, InstanceType: %v)",
-                zoneName,
-                dataCenterName,
-                Adapter_->GetInstanceType());
+            YT_TLOG_WARNING("Instance management skipped for bundle due to zone unhealthy state")
+                .With("Zone", zoneName)
+                .With("DataCenter", dataCenterName)
+                .With("InstanceType", Adapter_->GetInstanceType());
 
             Mutations_->AlertsToFire.push_back(TAlert{
                 .Id = "zone_is_disrupted",
@@ -162,9 +161,9 @@ bool TInstanceManager::CheckInstanceCountLimitReached(
     const TZoneInfoPtr& zoneInfo)
 {
     if (Adapter_->IsInstanceCountLimitReached(zoneName, dataCenterName, zoneInfo, Input_)) {
-        YT_LOG_WARNING("Instance count limit reached (DataCenter: %v, InstanceType: %v)",
-            dataCenterName,
-            Adapter_->GetInstanceType());
+        YT_TLOG_WARNING("Instance count limit reached")
+            .With("DataCenter", dataCenterName)
+            .With("InstanceType", Adapter_->GetInstanceType());
 
         Mutations_->AlertsToFire.push_back(TAlert{
             .Id = "zone_instance_limit_reached",
@@ -183,15 +182,19 @@ bool TInstanceManager::CheckResourceUsageExceeded(const TResourceQuotaPtr& resou
 {
     const auto& resourceUsage = GetOrCrash(Input_.BundleResourceTarget, BundleName_);
     if (IsResourceUsageExceeded(resourceUsage, resourceQuota)) {
-        YT_LOG_WARNING("Bundle resource usage exceeded quota "
-            "(ResourceQuota: {Vcpu: %v, Memory: %v, NetworkBytes: %v}, "
-            "ResourceUsage: {Vcpu: %v, Memory: %v, NetworkBytes: %v})",
-            resourceQuota->Vcpu(),
-            resourceQuota->Memory,
-            resourceQuota->Network,
-            resourceUsage->Vcpu,
-            resourceUsage->Memory,
-            resourceUsage->NetBytes);
+        YT_TLOG_WARNING("Bundle resource usage exceeded quota")
+            .WithFormat(
+                "ResourceQuota",
+                "{Vcpu: %v, Memory: %v, NetworkBytes: %v}",
+                resourceQuota->Vcpu(),
+                resourceQuota->Memory,
+                resourceQuota->Network)
+            .WithFormat(
+                "ResourceUsage",
+                "{Vcpu: %v, Memory: %v, NetworkBytes: %v}",
+                resourceUsage->Vcpu,
+                resourceUsage->Memory,
+                resourceUsage->NetBytes);
 
         Mutations_->AlertsToFire.push_back(TAlert{
             .Id = "bundle_resource_quota_exceeded",
@@ -221,9 +224,9 @@ TAllocationRequestStatePtr TInstanceManager::DoCreateAllocationRequest(
     const TDataCenterInfoPtr& dataCenterInfo,
     const TZoneInfoPtr& zoneInfo)
 {
-    YT_LOG_INFO("Init allocation for bundle (InstanceType: %v, AllocationId: %v)",
-        Adapter_->GetInstanceType(),
-        allocationId);
+    YT_TLOG_INFO("Init allocation for bundle")
+        .With("InstanceType", Adapter_->GetInstanceType())
+        .With("AllocationId", allocationId);
 
     auto spec = New<TAllocationRequestSpec>();
     spec->YPCluster = dataCenterInfo->YPCluster;
@@ -263,9 +266,9 @@ void TInstanceManager::InitNewAllocations(
     YT_VERIFY(bundleInfo->EnableBundleController);
 
     if (!Adapter_->IsNewAllocationAllowed(bundleInfo, dataCenterName, Input_)) {
-        YT_LOG_DEBUG("New allocation is not allowed (DataCenter: %v, InstanceType: %v)",
-            dataCenterName,
-            Adapter_->GetInstanceType());
+        YT_TLOG_DEBUG("New allocation is not allowed")
+            .With("DataCenter", dataCenterName)
+            .With("InstanceType", Adapter_->GetInstanceType());
         return;
     }
 
@@ -279,17 +282,14 @@ void TInstanceManager::InitNewAllocations(
         return;
     }
 
-    YT_LOG_DEBUG("Scheduling allocations "
-        "(DataCenter: %v, InstanceType: %v, TargetInstanceCount: %v, "
-        "AliveInstanceCount: %v, PlannedAllocationCount: %v, ExistingAllocationCount: %v, "
-        "InstanceCountToReallocate: %v)",
-        dataCenterName,
-        Adapter_->GetInstanceType(),
-        targetInstanceCount,
-        aliveInstanceCount,
-        instanceCountToAllocate,
-        currentDataCenterAllocations,
-        instanceCountToReallocate);
+    YT_TLOG_DEBUG("Scheduling allocations")
+        .With("DataCenter", dataCenterName)
+        .With("InstanceType", Adapter_->GetInstanceType())
+        .With("TargetInstanceCount", targetInstanceCount)
+        .With("AliveInstanceCount", aliveInstanceCount)
+        .With("PlannedAllocationCount", instanceCountToAllocate)
+        .With("ExistingAllocationCount", currentDataCenterAllocations)
+        .With("InstanceCountToReallocate", instanceCountToReallocate);
 
     if (instanceCountToAllocate > 0) {
         if (CheckInstanceCountLimitReached(bundleInfo->Zone, dataCenterName, zoneInfo)) {
@@ -303,12 +303,11 @@ void TInstanceManager::InitNewAllocations(
         if (!Input_.Config->HasInstanceAllocatorService) {
             int freeSpareCount = SpareInstanceAllocator_->GetFreeInstanceCount(zoneName, dataCenterName);
             if (freeSpareCount < instanceCountToAllocate) {
-                YT_LOG_DEBUG("Not enough spare instances to fulfill all allocations, capping "
-                    "(DataCenter: %v, InstanceType: %v, Requested: %v, Available: %v)",
-                    dataCenterName,
-                    Adapter_->GetInstanceType(),
-                    instanceCountToAllocate,
-                    freeSpareCount);
+                YT_TLOG_DEBUG("Not enough spare instances to fulfill all allocations, capping")
+                    .With("DataCenter", dataCenterName)
+                    .With("InstanceType", Adapter_->GetInstanceType())
+                    .With("Requested", instanceCountToAllocate)
+                    .With("Available", freeSpareCount);
                 instanceCountToAllocate = freeSpareCount;
 
                 Mutations_->AlertsToFire.push_back(TAlert{
@@ -353,21 +352,19 @@ int TInstanceManager::GetInstanceCountToReallocate(const std::string& dataCenter
         const auto& instanceResource = instanceInfo->BundleControllerAnnotations->Resource;
 
         if (*instanceResource != *targetResource) {
-            YT_LOG_WARNING("Instance resource is outdated "
-                "(InstanceName: %v, InstanceResource: %v, TargetResource: %v)",
-                instanceName,
-                ConvertToYsonString(instanceResource, EYsonFormat::Text),
-                ConvertToYsonString(targetResource, EYsonFormat::Text));
+            YT_TLOG_WARNING("Instance resource is outdated")
+                .With("InstanceName", instanceName)
+                .With("InstanceResource", ConvertToYsonString(instanceResource, EYsonFormat::Text))
+                .With("TargetResource", ConvertToYsonString(targetResource, EYsonFormat::Text));
 
             ++count;
             continue;
         }
 
         if (!instanceInfo->CmsMaintenanceRequests.empty()) {
-            YT_LOG_WARNING("Instance is requested for maintenance "
-                "(InstanceName: %v, CmsMaintenanceRequests: %v)",
-                instanceName,
-                ConvertToYsonString(instanceInfo->CmsMaintenanceRequests, EYsonFormat::Text));
+            YT_TLOG_WARNING("Instance is requested for maintenance")
+                .With("InstanceName", instanceName)
+                .With("CmsMaintenanceRequests", ConvertToYsonString(instanceInfo->CmsMaintenanceRequests, EYsonFormat::Text));
 
             ++count;
             continue;
@@ -397,10 +394,9 @@ std::string TInstanceManager::GetPodIdTemplate(
         }
 
         if (state->PodIdTemplate.empty()) {
-            YT_LOG_WARNING("Empty PodIdTemplate found in allocation state "
-                "(AllocationId: %v, InstanceType: %v)",
-                allocationId,
-                adapter->GetInstanceType());
+            YT_TLOG_WARNING("Empty PodIdTemplate found in allocation state")
+                .With("AllocationId", allocationId)
+                .With("InstanceType", adapter->GetInstanceType());
 
             mutations->AlertsToFire.push_back(TAlert{
                     .Id = "unexpected_pod_id",
@@ -455,9 +451,9 @@ bool TInstanceManager::ProcessAllocation(
 {
     auto it = Input_.AllocationRequests.find(allocationId);
     if (it == Input_.AllocationRequests.end()) {
-        YT_LOG_WARNING("Cannot find allocation (AllocationId: %v, InstanceType: %v)",
-            allocationId,
-            Adapter_->GetInstanceType());
+        YT_TLOG_WARNING("Cannot find allocation")
+            .With("AllocationId", allocationId)
+            .With("InstanceType", Adapter_->GetInstanceType());
 
         Mutations_->AlertsToFire.push_back(TAlert{
             .Id = "can_not_find_allocation_request",
@@ -475,9 +471,9 @@ bool TInstanceManager::ProcessAllocation(
     const auto& allocationInfo = it->second;
 
     if (IsAllocationFailed(allocationInfo)) {
-        YT_LOG_WARNING("Allocation failed (AllocationId: %v, InstanceType: %v)",
-            allocationId,
-            Adapter_->GetInstanceType());
+        YT_TLOG_WARNING("Allocation failed")
+            .With("AllocationId", allocationId)
+            .With("InstanceType", Adapter_->GetInstanceType());
 
         Mutations_->AlertsToFire.push_back(TAlert{
             .Id = "instance_allocation_failed",
@@ -503,9 +499,9 @@ bool TInstanceManager::ProcessAllocation(
             Input_,
             Mutations_))
         {
-            YT_LOG_INFO("Instance allocation completed (InstanceName: %v, AllocationId: %v)",
-                instanceName,
-                allocationId);
+            YT_TLOG_INFO("Instance allocation completed")
+                .With("InstanceName", instanceName)
+                .With("AllocationId", allocationId);
 
             if (!Input_.Config->HasInstanceAllocatorService) {
                 Mutations_->CompletedAllocations.insert(Mutations_->WrapMutation(allocationId));
@@ -517,20 +513,19 @@ bool TInstanceManager::ProcessAllocation(
         bool online = instanceInfo && instanceInfo->IsOnline();
         if (!Input_.Config->HasInstanceAllocatorService && !online) {
             // Withdraw allocated instance and pick a new one. This one will be "deallocated" later.
-            YT_LOG_DEBUG("Instance allocated from spare is offline, will pick a new one "
-                "(InstanceName: %v, AllocationId: %v)",
-                instanceName,
-                allocationId);
+            YT_TLOG_DEBUG("Instance allocated from spare is offline, will pick a new one")
+                .With("InstanceName", instanceName)
+                .With("AllocationId", allocationId);
             allocationInfo->Status->NodeId.clear();
         }
     }
 
     auto allocationAge = TInstant::Now() - allocationState->CreationTime;
     if (allocationAge > Input_.Config->HulkRequestTimeout) {
-        YT_LOG_WARNING("Allocation request is stuck (AllocationId: %v, AllocationAge: %v, Threshold: %v)",
-            allocationId,
-            allocationAge,
-            Input_.Config->HulkRequestTimeout);
+        YT_TLOG_WARNING("Allocation request is stuck")
+            .With("AllocationId", allocationId)
+            .With("AllocationAge", allocationAge)
+            .With("Threshold", Input_.Config->HulkRequestTimeout);
 
         Mutations_->AlertsToFire.push_back(TAlert{
             .Id = "stuck_instance_allocation",
@@ -547,10 +542,9 @@ bool TInstanceManager::ProcessAllocation(
         // Cancel this allocation if we have more pending unassigned allocations
         // than are actually needed (e.g. bundle nodes came back online).
         if (*cancellableBudget > 0) {
-            YT_LOG_INFO("Cancelling allocation request since it is no longer needed "
-                "(AllocationId: %v, CancellableBudget: %v)",
-                allocationId,
-                *cancellableBudget);
+            YT_TLOG_INFO("Cancelling allocation request since it is no longer needed")
+                .With("AllocationId", allocationId)
+                .With("CancellableBudget", *cancellableBudget);
             Mutations_->CompletedAllocations.insert(Mutations_->WrapMutation(allocationId));
             --*cancellableBudget;
             return false;
@@ -567,9 +561,9 @@ bool TInstanceManager::ProcessAllocation(
         return true;
     }
 
-    YT_LOG_DEBUG("Tracking existing allocation (AllocationId: %v, InstanceName: %v)",
-        allocationId,
-        instanceName);
+    YT_TLOG_DEBUG("Tracking existing allocation")
+        .With("AllocationId", allocationId)
+        .With("InstanceName", instanceName);
 
     return true;
 }
@@ -604,16 +598,13 @@ void TInstanceManager::ProcessExistingAllocations()
         int neededAllocations = std::max(0, targetInstanceCount - aliveInstanceCount) + instanceCountToReallocate;
         cancellableBudget = std::max(0, unassignedAllocations - neededAllocations);
 
-        YT_LOG_DEBUG_IF(cancellableBudget > 0,
-            "Computed cancellable allocation budget "
-            "(AliveInstanceCount: %v, TargetInstanceCount: %v, InstanceCountToReallocate: %v, "
-            "UnassignedAllocations: %v, NeededAllocations: %v, CancellableBudget: %v)",
-            aliveInstanceCount,
-            targetInstanceCount,
-            instanceCountToReallocate,
-            unassignedAllocations,
-            neededAllocations,
-            cancellableBudget);
+        YT_TLOG_DEBUG_IF(cancellableBudget > 0, "Computed cancellable allocation budget")
+            .With("AliveInstanceCount", aliveInstanceCount)
+            .With("TargetInstanceCount", targetInstanceCount)
+            .With("InstanceCountToReallocate", instanceCountToReallocate)
+            .With("UnassignedAllocations", unassignedAllocations)
+            .With("NeededAllocations", neededAllocations)
+            .With("CancellableBudget", cancellableBudget);
     }
 
     for (const auto& [allocationId, allocationState] : allocations) {
@@ -634,10 +625,9 @@ void TInstanceManager::CompleteExistingAllocationWithoutInstanceAllocatorService
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
-    YT_LOG_DEBUG("Instance allocator service is disabled, allocating instance from spare "
-        "(AllocationId: %v, InstanceType: %v)",
-        allocationId,
-        adapter->GetInstanceType());
+    YT_TLOG_DEBUG("Instance allocator service is disabled, allocating instance from spare")
+        .With("AllocationId", allocationId)
+        .With("InstanceType", adapter->GetInstanceType());
 
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& zoneName = bundleInfo->Zone;
@@ -648,9 +638,9 @@ void TInstanceManager::CompleteExistingAllocationWithoutInstanceAllocatorService
     auto spareBundleName = zoneInfo->SpareBundleName;
 
     if (!spareInstances->HasInstances(zoneName, dataCenterName)) {
-        YT_LOG_WARNING("No spare instances available for bundle (AllocationId: %v, InstanceType: %v)",
-            allocationId,
-            adapter->GetInstanceType());
+        YT_TLOG_WARNING("No spare instances available for bundle")
+            .With("AllocationId", allocationId)
+            .With("InstanceType", adapter->GetInstanceType());
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "no_spare_instances_available",
@@ -666,10 +656,10 @@ void TInstanceManager::CompleteExistingAllocationWithoutInstanceAllocatorService
 
     auto instanceName = spareInstances->Allocate(zoneName, dataCenterName, bundleName);
 
-    YT_LOG_INFO("Allocating instance from spare (AllocationId: %v, InstanceType: %v, InstanceName: %v)",
-        allocationId,
-        adapter->GetInstanceType(),
-        instanceName);
+    YT_TLOG_INFO("Allocating instance from spare")
+        .With("AllocationId", allocationId)
+        .With("InstanceType", adapter->GetInstanceType())
+        .With("InstanceName", instanceName);
 
     const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
     const auto& currentAnnotations = instanceInfo->BundleControllerAnnotations;
@@ -700,10 +690,10 @@ bool TInstanceManager::ReturnToBundleBalancer(
 {
     const auto& instanceName = deallocationState->InstanceName;
 
-    YT_LOG_DEBUG("Tracking existing deallocation (DeallocationId: %v, InstanceName: %v, Strategy: %v)",
-        deallocationId,
-        instanceName,
-        DeallocationStrategyReturnToBB);
+    YT_TLOG_DEBUG("Tracking existing deallocation")
+        .With("DeallocationId", deallocationId)
+        .With("InstanceName", instanceName)
+        .With("Strategy", DeallocationStrategyReturnToBB);
 
     if (!adapter->EnsureDeallocatedInstanceTagsSet(bundleName, instanceName, DeallocationStrategyReturnToBB, input, mutations)) {
         return true;
@@ -729,11 +719,11 @@ bool TInstanceManager::ReturnToSpareBundle(
     auto spareBundleName = zoneInfo->SpareBundleName;
     const auto& bundleControllerAnnotations = adapter->GetInstanceInfo(instanceName, input)->BundleControllerAnnotations;
 
-    YT_LOG_DEBUG("Tracking existing deallocation (DeallocationId: %v, InstanceName: %v, AllocatedFor: %v, Strategy: %v)",
-        deallocationId,
-        instanceName,
-        bundleControllerAnnotations->AllocatedForBundle,
-        DeallocationStrategyReturnToSpareBundle);
+    YT_TLOG_DEBUG("Tracking existing deallocation")
+        .With("DeallocationId", deallocationId)
+        .With("InstanceName", instanceName)
+        .With("AllocatedFor", bundleControllerAnnotations->AllocatedForBundle)
+        .With("Strategy", DeallocationStrategyReturnToSpareBundle);
 
     if (!adapter->EnsureDeallocatedInstanceTagsSet(
         bundleName,
@@ -759,10 +749,9 @@ bool TInstanceManager::ReturnToSpareBundle(
         return true;
     }
 
-    YT_LOG_DEBUG("Instance deallocation completed, returned to spare bundle "
-        "(DeallocationId: %v, InstanceName: %v)",
-        deallocationId,
-        instanceName);
+    YT_TLOG_DEBUG("Instance deallocation completed, returned to spare bundle")
+        .With("DeallocationId", deallocationId)
+        .With("InstanceName", instanceName);
 
     return false;
 }
@@ -798,8 +787,8 @@ bool TInstanceManager::ProcessHulkDeallocation(
 
     auto it = input.DeallocationRequests.find(deallocationId);
     if (it == input.DeallocationRequests.end()) {
-        YT_LOG_WARNING("Cannot find deallocation (DeallocationId: %v)",
-            deallocationId);
+        YT_TLOG_WARNING("Cannot find deallocation")
+            .With("DeallocationId", deallocationId);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "can_not_find_deallocation_request",
@@ -813,10 +802,10 @@ bool TInstanceManager::ProcessHulkDeallocation(
     }
 
     if (IsAllocationFailed(it->second)) {
-        YT_LOG_WARNING("Deallocation failed (DeallocationId: %v, InstanceName: %v, Strategy: %v)",
-            deallocationId,
-            instanceName,
-            DeallocationStrategyHulkRequest);
+        YT_TLOG_WARNING("Deallocation failed")
+            .With("DeallocationId", deallocationId)
+            .With("InstanceName", instanceName)
+            .With("Strategy", DeallocationStrategyHulkRequest);
 
         mutations->AlertsToFire.push_back(TAlert{
             .Id = "instance_deallocation_failed",
@@ -832,18 +821,17 @@ bool TInstanceManager::ProcessHulkDeallocation(
     if (IsAllocationCompleted(it->second) &&
         adapter->EnsureDeallocatedInstanceTagsSet(bundleName, instanceName, DeallocationStrategyHulkRequest, input, mutations))
     {
-        YT_LOG_INFO("Instance deallocation completed "
-            "(InstanceName: %v, DeallocationId: %v, Strategy: %v)",
-            instanceName,
-            deallocationId,
-            DeallocationStrategyHulkRequest);
+        YT_TLOG_INFO("Instance deallocation completed")
+            .With("InstanceName", instanceName)
+            .With("DeallocationId", deallocationId)
+            .With("Strategy", DeallocationStrategyHulkRequest);
         return false;
     }
 
-    YT_LOG_DEBUG("Tracking existing deallocation (DeallocationId: %v, InstanceName: %v, Strategy: %v)",
-        deallocationId,
-        instanceName,
-        DeallocationStrategyHulkRequest);
+    YT_TLOG_DEBUG("Tracking existing deallocation")
+        .With("DeallocationId", deallocationId)
+        .With("InstanceName", instanceName)
+        .With("Strategy", DeallocationStrategyHulkRequest);
     return true;
 }
 
@@ -854,11 +842,10 @@ bool TInstanceManager::ProcessDeallocation(
 {
     auto deallocationAge = TInstant::Now() - deallocationState->CreationTime;
     if (deallocationAge > Input_.Config->HulkRequestTimeout) {
-        YT_LOG_WARNING("Deallocation request is stuck "
-            "(DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
-            deallocationId,
-            deallocationAge,
-            Input_.Config->HulkRequestTimeout);
+        YT_TLOG_WARNING("Deallocation request is stuck")
+            .With("DeallocationId", deallocationId)
+            .With("DeallocationAge", deallocationAge)
+            .With("Threshold", Input_.Config->HulkRequestTimeout);
 
         Mutations_->AlertsToFire.push_back(TAlert{
             .Id = "stuck_instance_deallocation",
@@ -891,9 +878,9 @@ bool TInstanceManager::ProcessDeallocation(
         return ReturnToSpareBundle(BundleName_, Adapter_, deallocationId, deallocationState, Input_, Mutations_);
     }
 
-    YT_LOG_WARNING("Unknown deallocation strategy (DeallocationId: %v, DeallocationStrategy: %v)",
-        deallocationId,
-        deallocationState->Strategy);
+    YT_TLOG_WARNING("Unknown deallocation strategy")
+        .With("DeallocationId", deallocationId)
+        .With("DeallocationStrategy", deallocationState->Strategy);
 
     Mutations_->AlertsToFire.push_back(TAlert{
         .Id = "unknown_deallocation_strategy",
@@ -951,9 +938,9 @@ void TInstanceManager::InitNewDeallocations(
     const auto& zoneInfo = GetOrCrash(Input_.Zones, zoneName);
 
     if (!Adapter_->IsNewDeallocationAllowed(bundleInfo, dataCenterName, Input_)) {
-        YT_LOG_DEBUG("New deallocation is not allowed (DataCenter: %v, InstanceType: %v)",
-            dataCenterName,
-            Adapter_->GetInstanceType());
+        YT_TLOG_DEBUG("New deallocation is not allowed")
+            .With("DataCenter", dataCenterName)
+            .With("InstanceType", Adapter_->GetInstanceType());
         return;
     }
 
@@ -968,16 +955,14 @@ void TInstanceManager::InitNewDeallocations(
         return;
     }
 
-    YT_LOG_DEBUG("Scheduling deallocations "
-        "(DataCenter: %v, InstanceType: %v, TargetInstanceCount: %v, AliveInstanceCount: %v, "
-        "PlannedDeallocationCount: %v, ExistingDeallocationCount: %v, OfflineInstancesToDeallocate: %v)",
-        dataCenterName,
-        Adapter_->GetInstanceType(),
-        targetInstanceCount,
-        ssize(aliveInstances),
-        instanceCountToDeallocate,
-        ssize(deallocationsState),
-        ssize(offlineInstances));
+    YT_TLOG_DEBUG("Scheduling deallocations")
+        .With("DataCenter", dataCenterName)
+        .With("InstanceType", Adapter_->GetInstanceType())
+        .With("TargetInstanceCount", targetInstanceCount)
+        .With("AliveInstanceCount", ssize(aliveInstances))
+        .With("PlannedDeallocationCount", instanceCountToDeallocate)
+        .With("ExistingDeallocationCount", ssize(deallocationsState))
+        .With("OfflineInstancesToDeallocate", ssize(offlineInstances));
 
     auto instancesToRemove = Adapter_->PickInstancesToDeallocate(
         std::max<int>(0, instanceCountToDeallocate),
@@ -1006,11 +991,11 @@ void TInstanceManager::InitNewDeallocations(
 
         deallocationsState[deallocationId] = deallocationState;
 
-        YT_LOG_INFO("Init instance deallocation (InstanceName: %v, InstanceType: %v, DeallocationId: %v, Strategy: %v)",
-            instanceName,
-            Adapter_->GetInstanceType(),
-            deallocationId,
-            deallocationState->Strategy);
+        YT_TLOG_INFO("Init instance deallocation")
+            .With("InstanceName", instanceName)
+            .With("InstanceType", Adapter_->GetInstanceType())
+            .With("DeallocationId", deallocationId)
+            .With("Strategy", deallocationState->Strategy);
     }
 }
 
@@ -1023,17 +1008,17 @@ std::string TInstanceManager::LocateAllocatedInstance(
     }
 
     if (!input.Config->HasInstanceAllocatorService && !requestInfo->Status->NodeId.empty()) {
-        YT_LOG_DEBUG("Found allocated instance (InstanceName: %v)",
-            requestInfo->Status->NodeId);
+        YT_TLOG_DEBUG("Found allocated instance")
+            .With("InstanceName", requestInfo->Status->NodeId);
         return requestInfo->Status->NodeId;
     }
 
     const auto& podId = requestInfo->Status->PodId;
     auto it = input.PodIdToInstanceName.find(podId);
     if (it != input.PodIdToInstanceName.end()) {
-        YT_LOG_DEBUG("Found allocated instance (PodId: %v, InstanceName: %v)",
-            it->first,
-            it->second);
+        YT_TLOG_DEBUG("Found allocated instance")
+            .With("PodId", it->first)
+            .With("InstanceName", it->second);
         return it->second;
     }
 
