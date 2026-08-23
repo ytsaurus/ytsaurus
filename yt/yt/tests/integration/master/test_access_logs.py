@@ -691,9 +691,12 @@ class TestAccessLog(YTEnvSetup):
         ]
         self._validate_entries_against_log(log_list)
 
-    @authors("navasardianna")
+    @authors("ifsmirnov")
     def test_revise_insert_rows(self):
         set("//sys/@config/tablet_manager/update_table_content_revision_on_heartbeat", True)
+        # TODO(ifsmirnov): YT-29373: Enable native-cell Revise logging for Sequoia tables.
+        if not self.USE_SEQUOIA:
+            set("//sys/@config/tablet_manager/log_revise_on_heartbeat_at_native_cell", True)
 
         sync_create_cells(1)
 
@@ -736,6 +739,18 @@ class TestAccessLog(YTEnvSetup):
             {12: {"prefix_path": f"#{table_id}", "tx_methods": False}}
             if self.NUM_SECONDARY_MASTER_CELLS > 0
             else None)
+        if self.NUM_SECONDARY_MASTER_CELLS > 0 and not self.USE_SEQUOIA:
+            log_list.append({
+                "path": "//tmp/access_log/table",
+                "type": "table",
+                "id": table_id,
+                "method": "Revise",
+                "revision_type": "content",
+            })
+            cell_tag_to_log_filter[get("//tmp/access_log/table/@native_cell_tag")] = {
+                "prefix_path": "//tmp/access_log/table",
+                "tx_methods": False,
+            }
 
         self._validate_entries_against_log(log_list, cell_tag_to_log_filter=cell_tag_to_log_filter)
 
