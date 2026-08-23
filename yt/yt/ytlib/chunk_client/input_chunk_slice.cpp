@@ -735,8 +735,15 @@ void TInputChunkSlice::OverrideSize(i64 rowCount, i64 dataWeight, i64 compressed
 {
     RowCount_ = rowCount;
     DataWeight_ = dataWeight;
-    CompressedDataSize_ = compressedDataSize;
-    UncompressedDataSize_ = uncompressedDataSize;
+
+    auto normalizeDataSize = [&] (i64 dataSize) {
+        return rowCount > 0 && dataWeight > 0
+            ? std::max<i64>(1, dataSize)
+            : dataSize;
+    };
+
+    CompressedDataSize_ = normalizeDataSize(compressedDataSize);
+    UncompressedDataSize_ = normalizeDataSize(uncompressedDataSize);
     SizeOverridden_ = true;
 }
 
@@ -821,6 +828,8 @@ void TInputChunkSlice::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(11, SliceIndex_);
     PHOENIX_REGISTER_FIELD(12, CompressedDataSize_,
         .SinceVersion(static_cast<int>(ESnapshotVersion::MaxCompressedDataSizePerJob)));
+    PHOENIX_REGISTER_FIELD(13, UncompressedDataSize_,
+        .SinceVersion(static_cast<int>(ESnapshotVersion::InputChunkSliceUncompressedDataSize)));
 }
 
 PHOENIX_DEFINE_TYPE(TInputChunkSlice);

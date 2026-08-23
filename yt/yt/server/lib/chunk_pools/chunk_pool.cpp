@@ -389,9 +389,6 @@ void TJobSplittingBase::ValidateChildJobSizes(
 
     auto [parentPrimaryStatistics, parentForeignStatistics] = getPrimaryAndForeignStatistics(parentCookie);
 
-    TChunkStripeStatistics totalChildPrimaryStatistics;
-    TChunkStripeStatistics totalChildForeignStatistics;
-
     auto hasGreaterComponent = [] (const TChunkStripeStatistics& childStatistics, const TChunkStripeStatistics& parentStatistics) {
         return childStatistics.DataWeight > parentStatistics.DataWeight ||
             childStatistics.CompressedDataSize > parentStatistics.CompressedDataSize ||
@@ -412,21 +409,7 @@ void TJobSplittingBase::ValidateChildJobSizes(
             .With("ChildPrimaryStatistics", childPrimaryStatistics)
             .With("ParentForeignStatistics", parentForeignStatistics)
             .With("ChildForeignStatistics", childForeignStatistics);
-
-        totalChildPrimaryStatistics += childPrimaryStatistics;
-        totalChildForeignStatistics += childForeignStatistics;
     }
-
-    YT_TLOG_ALERT_IF(
-        totalChildPrimaryStatistics.DataWeight > parentPrimaryStatistics.DataWeight ||
-        totalChildPrimaryStatistics.RowCount > parentPrimaryStatistics.RowCount,
-        "Child jobs have greater primary data weight or primary row count than parent job")
-        .With("ParentCookie", parentCookie)
-        .With("ChildCookies", childCookies)
-        .With("ParentPrimaryStatistics", parentPrimaryStatistics)
-        .With("ParentForeignStatistics", parentForeignStatistics)
-        .With("TotalChildPrimaryStatistics", totalChildPrimaryStatistics)
-        .With("TotalChildForeignStatistics", totalChildForeignStatistics);
 }
 
 void TJobSplittingBase::RegisterMetadata(auto&& registrar)
