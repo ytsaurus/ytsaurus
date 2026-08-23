@@ -987,10 +987,11 @@ private:
         }
 
         template <class T>
-        void WritePod(const T& pod)
+        void WritePod(const T& pod) requires std::is_trivially_copyable_v<T>
         {
-            auto buffer = TSharedMutableRef::Allocate<TNbdNetworkBufferTag>(sizeof(T));
-            std::copy(&pod, &pod + 1, reinterpret_cast<T*>(buffer.Begin()));
+            auto buffer = TSharedMutableRef::Allocate<TNbdNetworkBufferTag>(
+                sizeof(T), {.InitializeStorage = false});
+            std::memcpy(buffer.Begin(), &pod, sizeof(T));
             WriteBuffer(buffer);
         }
 
