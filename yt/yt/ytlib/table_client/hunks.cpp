@@ -2456,6 +2456,13 @@ public:
         return Underlying_->GetDataStatistics();
     }
 
+    i64 GetDataWeight() const override
+    {
+        auto guard = Guard(Lock_);
+
+        return DataWeight_;
+    }
+
     void OnParentReaderFinished(TChunkId compressionDictionaryId) override
     {
         auto guard = Guard(Lock_);

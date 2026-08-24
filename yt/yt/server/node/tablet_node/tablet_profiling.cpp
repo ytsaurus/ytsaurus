@@ -338,7 +338,8 @@ void TLsmCounters::ProfileCompaction(
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics)
+    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+    i64 hunkChunkWriterDataWeight)
 {
     auto& counters = CompactionCounters_
         [reason][isEden ? 1 : 0][EStoreCompactorActivityKind::Compaction];
@@ -348,6 +349,7 @@ void TLsmCounters::ProfileCompaction(
         writerStatistics,
         hunkChunkReaderStatistics,
         hunkChunkWriterStatistics,
+        hunkChunkWriterDataWeight,
         hunkChunkCountByReason);
 }
 
@@ -357,7 +359,8 @@ void TLsmCounters::ProfilePartitioning(
     const NChunkClient::NProto::TDataStatistics& readerStatistics,
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
-    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics)
+    const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+    i64 hunkChunkWriterDataWeight)
 {
     auto& counters = CompactionCounters_
         [reason][/*isEden*/ 1][EStoreCompactorActivityKind::Partitioning];
@@ -367,6 +370,7 @@ void TLsmCounters::ProfilePartitioning(
         writerStatistics,
         hunkChunkReaderStatistics,
         hunkChunkWriterStatistics,
+        hunkChunkWriterDataWeight,
         hunkChunkCountByReason);
 }
 
@@ -386,6 +390,7 @@ void TLsmCounters::DoProfileCompaction(
     const NChunkClient::NProto::TDataStatistics& writerStatistics,
     const IHunkChunkReaderStatisticsPtr& hunkChunkReaderStatistics,
     const NChunkClient::NProto::TDataStatistics& hunkChunkWriterStatistics,
+    i64 hunkChunkWriterDataWeight,
     TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason)
 {
     counters->StoreChunks.InDataWeight.Increment(readerStatistics.unmerged_data_weight());
@@ -403,8 +408,7 @@ void TLsmCounters::DoProfileCompaction(
         counters->HunkChunks.InDataWeight.Increment(hunkChunkReaderStatistics->DataWeight());
         counters->HunkChunks.InStoreCount.Increment(inHunkChunkCount);
     }
-    // TODO(akozhikhov): Rename hunk counter from data weight to data size here?
-    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterStatistics.compressed_data_size());
+    counters->HunkChunks.OutDataWeight.Increment(hunkChunkWriterDataWeight);
     counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
 }
 
@@ -477,14 +481,10 @@ void TWriterProfiler::Update(
     const IHunkChunkWriterStatisticsPtr& hunkChunkWriterStatistics)
 {
     if (hunkChunkWriter) {
-        const auto& dataStatistics = hunkChunkWriter->GetDataStatistics();
+        auto dataStatistics = hunkChunkWriter->GetDataStatistics();
+        // NB: Data weight is not stored in hunk chunk data statistics, so we simply override it here.
+        dataStatistics.set_data_weight(hunkChunkWriter->GetDataWeight());
         HunkChunkDataStatistics_ += dataStatistics;
-        // COMPAT(akozhikhov)
-        if (dataStatistics.data_weight() == 0) {
-            HunkChunkDataStatistics_.set_data_weight(
-                HunkChunkDataStatistics_.data_weight() +
-                dataStatistics.compressed_data_size());
-        }
     }
     HunkChunkWriterStatistics_ = hunkChunkWriterStatistics;
 }
