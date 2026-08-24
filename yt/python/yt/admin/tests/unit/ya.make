@@ -7,6 +7,7 @@ PEERDIR(
 )
 
 TEST_SRCS(
+    test_bundle_controller.py
     test_metrics.py
 )
 

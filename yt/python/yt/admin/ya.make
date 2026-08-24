@@ -11,6 +11,7 @@ PY_SRCS(
 
     __init__.py
     _experimental.py
+    bundle_controller.py
     describe.py
     logs_k8s.py
     remove_master_unrecognized_options.py

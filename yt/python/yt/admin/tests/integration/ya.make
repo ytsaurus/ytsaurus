@@ -1,6 +1,7 @@
 PY3TEST()
 
 TEST_SRCS(
+    test_bundle_controller.py
     test_remove_master_unrecognized_options.py
 )
 

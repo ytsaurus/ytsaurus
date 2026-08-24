@@ -34,6 +34,7 @@ try:
 except ImportError:
     HAS_IDM_CLI_HELPERS = False
 
+from yt.admin.bundle_controller import add_bundle_controller_parser
 from yt.admin.describe import add_describe_parser
 from yt.admin.logs_k8s import add_logs_parser
 from yt.admin.metrics.cli import add_metrics_parser
@@ -2642,6 +2643,9 @@ def add_admin_parser(root_subparsers):
 
     # remove unrecognized master options
     add_remove_master_unrecognized_options_parser(admin_subparsers)
+
+    # bundle controller
+    add_bundle_controller_parser(admin_subparsers)
 
 
 def add_dirtable_parser(root_subparsers):
