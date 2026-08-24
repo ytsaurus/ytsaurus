@@ -6,6 +6,8 @@
 #include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 
+#include <yt/yt/server/node/chaos_node/serialize.h>
+
 #include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/serialize.h>
 
@@ -288,6 +290,23 @@ private:
             .BlockingGet()
             .ThrowOnError();
         SleepForever();
+    }
+
+    void DoPrintCompatibilityInfo() override
+    {
+        if (UseYson_) {
+            NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
+            auto info = NYTree::BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("current_tablet_reign").Value(NTabletNode::GetCurrentReign())
+                    .Item("current_chaos_reign").Value(NChaosNode::GetCurrentReign())
+                .EndMap();
+            NYson::Serialize(info, &writer);
+            Cout << Endl;
+        } else {
+            Cout << "Current Tablet Reign: " << NTabletNode::GetCurrentReign() << Endl;
+            Cout << "Current Chaos Reign: " << NChaosNode::GetCurrentReign() << Endl;
+        }
     }
 
 private:
