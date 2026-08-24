@@ -546,12 +546,21 @@ public:
 
             auto typeSpecificProfiler = sequoiaReplicaModificationProfiler
                 .WithTag("sequoia_transaction_type", Format("%lv", sequoiaTransactionType));
-            profile.Counter = typeSpecificProfiler.Counter("/count");
+            profile.StartedCount = typeSpecificProfiler.Counter("/started_count");
+            profile.StartedReplicaCount = typeSpecificProfiler.Counter("/started_replica_count");
+            profile.SemaphoreWaiting = typeSpecificProfiler.Gauge("/semaphore_waiting_count");
+            profile.SemaphoreWaitingReplicas = typeSpecificProfiler.Gauge("/semaphore_waiting_replica_count");
+            profile.FinishedSuccessfullyCount = typeSpecificProfiler.Counter("/finished_successfully_count");
+            profile.FinishedSuccessfullyReplicaCount = typeSpecificProfiler.Counter("/finished_successfully_replica_count");
+            profile.FinishedWithErrorCount = typeSpecificProfiler.Counter("/finished_with_error_count");
+            profile.FinishedWithErrorReplicaCount = typeSpecificProfiler.Counter("/finished_with_error_replica_count");
 
             for (auto phase : TEnumTraits<ESequoiaReplicaModificationPhase>::GetDomainValues()) {
                 auto typeAndPhaseSpecificProfiler = typeSpecificProfiler
                     .WithTag("phase", Format("%lv", phase));
-                profile.CumulativeTime[phase] = typeAndPhaseSpecificProfiler.TimeCounter("/cumulative_time");
+                profile.PhaseTime[phase] = typeAndPhaseSpecificProfiler.Summary(
+                    "/time_seconds",
+                    ESummaryPolicy::Max | ESummaryPolicy::Avg);
             }
         }
 
@@ -2894,6 +2903,9 @@ private:
     int ReplicasInWaitingSequoiaIncrementalHeartbeatRequests_ = 0;
     TPromise<void> BatchSequoiaIncrementalHeartbeatPromise_;
 
+    const TAsyncSemaphorePtr ModifySequoiaReplicasSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
+    const TAsyncSemaphorePtr ModifySequoiaReplicasPerReplicaSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0, /*enableOverdraft*/ true);
+
     // Unlike chunk replicator and sealer, this is maintained on all
     // peers and is not cleared on epoch change.
     const TConsistentChunkPlacementPtr ConsistentChunkPlacement_;
@@ -4381,6 +4393,41 @@ private:
         replicasModifier->AddRequest(std::move(request));
 
         return replicasModifier->ModifyReplicas();
+    }
+
+    TAsyncSemaphoreGuard AcquireModifySequoiaReplicasSemaphoreGuard(
+        ESequoiaTransactionType transactionType,
+        int replicaCount) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& sequoiaReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (!sequoiaReplicasConfig->ThrottleSequoiaReplicaModifications) {
+            return {};
+        }
+
+        if (transactionType == ESequoiaTransactionType::IncrementalHeartbeat &&
+            !sequoiaReplicasConfig->ThrottleIncrementalHeartbeatSequoiaReplicaModifications)
+        {
+            return {};
+        }
+
+        auto& profile = SequoiaReplicaModificationProfiles_[transactionType];
+        profile.SemaphoreWaiting.Update(++profile.SemaphoreWaitingCount);
+        profile.SemaphoreWaitingReplicaCount += replicaCount;
+        profile.SemaphoreWaitingReplicas.Update(profile.SemaphoreWaitingReplicaCount);
+
+        auto semaphoreFuture = sequoiaReplicasConfig->EnablePerReplicaSequoiaModificationsThrottling
+            ? ModifySequoiaReplicasPerReplicaSemaphore_->AsyncAcquire(replicaCount)
+            : ModifySequoiaReplicasSemaphore_->AsyncAcquire(1);
+
+        auto guardOrError = WaitFor(semaphoreFuture.AsUnique());
+
+        profile.SemaphoreWaiting.Update(--profile.SemaphoreWaitingCount);
+        profile.SemaphoreWaitingReplicaCount -= replicaCount;
+        profile.SemaphoreWaitingReplicas.Update(profile.SemaphoreWaitingReplicaCount);
+
+        return std::move(guardOrError).ValueOrThrow();
     }
 
     void HandleMediumChange(TChunkId chunkId)
@@ -6888,18 +6935,20 @@ private:
                 ->CommitAndLog(Logger()));
         }
 
+        const auto& sequoiaReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
+
         IsFirstSequoiaReplicaRemovalIteration_ = true;
         SequoiaReplicaRemovalExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
             BIND(&TChunkManager::OnSequoiaReplicaRemoval, MakeWeak(this)),
-            GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
+            sequoiaReplicasConfig->RemovalPeriod);
         SequoiaReplicaRemovalExecutor_->Start();
 
         BatchConfirmTransactionCommitPromise_ = NewPromise<void>();
         SequoiaChunkBatchConfirmExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
             BIND(&TChunkManager::OnSequoiaReplicaConfirm, MakeWeak(this)),
-            GetDynamicConfig()->SequoiaChunkReplicas->ConfirmPeriod);
+            sequoiaReplicasConfig->ConfirmPeriod);
         SequoiaChunkBatchConfirmExecutor_->Start();
 
         BatchSequoiaIncrementalHeartbeatPromise_ = NewPromise<void>();
@@ -6909,7 +6958,7 @@ private:
         SequoiaBatchIncrementalHeartbeatExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
             BIND(&TChunkManager::FlushWaitingSequoiaIncrementalHeartbeatRequests, MakeWeak(this)),
-            GetDynamicConfig()->SequoiaChunkReplicas->BatchIncrementalHeartbeatPeriod);
+            sequoiaReplicasConfig->BatchIncrementalHeartbeatPeriod);
         SequoiaBatchIncrementalHeartbeatExecutor_->Start();
     }
 
@@ -8151,6 +8200,11 @@ private:
         if (SequoiaBatchIncrementalHeartbeatExecutor_) {
             SequoiaBatchIncrementalHeartbeatExecutor_->SetPeriod(sequoiaReplicasConfig->BatchIncrementalHeartbeatPeriod);
         }
+
+        ModifySequoiaReplicasSemaphore_->SetTotal(
+            sequoiaReplicasConfig->MaxConcurrentSequoiaReplicaModifications);
+        ModifySequoiaReplicasPerReplicaSemaphore_->SetTotal(
+            sequoiaReplicasConfig->MaxConcurrentReplicasInSequoiaReplicaModifications);
     }
 };
 
