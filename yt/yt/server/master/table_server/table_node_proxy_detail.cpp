@@ -2577,6 +2577,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             ValidateNoRenamedColumns(*newTableSchema);
         }
 
+        if (!config->EnableAggregateStateType) {
+            ValidateNoAggregateStateType(*newTableSchema);
+        }
+
         if (options.Dynamic) {
             if (*options.Dynamic) {
                 tabletManager->ValidateMakeTableDynamic(table);

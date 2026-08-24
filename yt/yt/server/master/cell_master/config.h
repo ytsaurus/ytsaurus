@@ -398,6 +398,8 @@ struct TDynamicClusterConfig
     bool EnableDescendingSortOrder;
     bool EnableDescendingSortOrderDynamic;
 
+    bool EnableAggregateStateType;
+
     // Column renaming and removal.
     bool EnableTableColumnRenaming;
     bool EnableDynamicTableColumnRenaming;

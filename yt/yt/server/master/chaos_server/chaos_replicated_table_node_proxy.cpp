@@ -765,6 +765,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         if (!config->EnableDescendingSortOrder || !config->EnableDescendingSortOrderDynamic) {
             ValidateNoDescendingSortOrder(effectiveSchema->GetSortOrders(), effectiveSchema->GetKeyColumns());
         }
+
+        if (!config->EnableAggregateStateType && effectiveSchema->HasAggregateStateColumns()) {
+            auto heavySchema = tableManager->GetHeavyTableSchemaSync(effectiveSchema);
+            ValidateNoAggregateStateType(*heavySchema);
+        }
     }
 
     if (table->IsTrackedQueueConsumerObject()) {

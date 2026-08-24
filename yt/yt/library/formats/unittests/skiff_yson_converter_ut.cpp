@@ -710,5 +710,27 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYsonSkiffConverterTest, TestAggregateState)
+{
+    auto sumAggregate = AggregateState(EAggregateFunction::Sum, Int32());
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        sumAggregate,
+        CreateSimpleTypeSchema(EWireType::Int64),
+        "42",
+        "2a00000000000000");
+
+    auto avgAggregate = AggregateState(EAggregateFunction::Avg, Int8());
+    CHECK_BIDIRECTIONAL_CONVERSION(
+        avgAggregate,
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::Int64)->SetName("sum"),
+            CreateSimpleTypeSchema(EWireType::Int64)->SetName("count"),
+        }),
+        "[6;3;]",
+        "0600000000000000" "0300000000000000");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NFormats

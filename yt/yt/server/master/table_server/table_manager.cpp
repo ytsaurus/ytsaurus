@@ -881,6 +881,10 @@ public:
             ValidateNoRenamedColumns(*deserializedEffectiveTableSchema);
         }
 
+        if (!dynamicConfig->EnableAggregateStateType) {
+            ValidateNoAggregateStateType(*deserializedEffectiveTableSchema);
+        }
+
         if (type == EObjectType::ReplicationLogTable && !effectiveTableSchema->IsSorted()) {
             THROW_ERROR_EXCEPTION("Could not create unsorted replication log table");
         }
