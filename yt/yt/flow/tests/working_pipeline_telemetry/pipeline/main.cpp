@@ -16,15 +16,12 @@ using namespace NYT::NTableClient;
 struct TReaderParameters
     : public virtual TSwiftOrderedSourceComputation::TParameters
 {
-    std::string FailKey;
     std::string FailComment;
 
     REGISTER_YSON_STRUCT(TReaderParameters);
 
     static void Register(TRegistrar registrar)
     {
-        registrar.Parameter("fail_key", &TThis::FailKey)
-            .Default();
         registrar.Parameter("fail_comment", &TThis::FailComment)
             .Default();
     }
@@ -42,10 +39,11 @@ public:
 
     void DoProcessMessage(const TMessage& message, IOutputCollectorPtr output) override
     {
-        auto key = GetColumnValue<TStringBuf>(message, "key");
-        if (!GetParameters()->FailKey.empty() && key == GetParameters()->FailKey) {
-            THROW_ERROR_EXCEPTION("Got fail key %v. Comment: %v", key, GetParameters()->FailComment);
+        if (!GetParameters()->FailComment.empty()) {
+            THROW_ERROR_EXCEPTION("Failing intentionally with comment %Qv", GetParameters()->FailComment);
         }
+
+        auto key = GetColumnValue<TStringBuf>(message, "key");
 
         auto builder = MakeOutputMessageBuilder(OutputStreamId);
         builder.Payload().SetValue(MakeUnversionedStringValue(key), "key");

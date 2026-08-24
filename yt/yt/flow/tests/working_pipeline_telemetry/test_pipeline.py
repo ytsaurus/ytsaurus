@@ -14,7 +14,6 @@ from yt.yt.flow.library.python.integration_test_base.yt_sync_preset import run_y
 
 PIPELINE_CONFIG_PATH = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline/pipeline.yson")
 
-FAIL_KEY = "42"
 FAIL_COMMENT = "TELEMETRY_TEST_INTENTIONAL_FAIL"
 
 ##################################################################
@@ -26,13 +25,11 @@ class Test(FlowTestBase):
     def setup_method(self, method):
         super(Test, self).setup_method(method)
 
-    def prepare_pipeline_config(self):
+    def prepare_pipeline_config(self, fail_comment=None):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
-        pipeline_config["spec"]["computations"]["reader"]["parameters"].update({
-            "fail_key": FAIL_KEY,
-            "fail_comment": FAIL_COMMENT,
-        })
+        if fail_comment is not None:
+            pipeline_config["spec"]["computations"]["reader"]["parameters"]["fail_comment"] = fail_comment
 
         self.patch_config(pipeline_config)
 
@@ -50,13 +47,6 @@ class Test(FlowTestBase):
             problems=False,
         ):
             self.wait_pipeline_state("working")
-
-            def check_job_fail_error():
-                description = self.client.flow_execute(self.pipeline_path, "describe-pipeline")
-                assert FAIL_COMMENT in str(description["computations"]["reader"]["messages"])
-                return True
-
-            wait(lambda: check_job_fail_error(), timeout=180, ignore_exceptions=True)
 
             def find_job_status(computation_id, filter_func):
                 flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
@@ -86,6 +76,7 @@ class Test(FlowTestBase):
             def get_output_limits_checker(name):
                 def checker(job_status, name=name):
                     return sum(v.get("used", 0) for v in job_status.get("output_limits", {}).get(name, {}).values()) > 0
+
                 return checker
 
             wait(lambda: find_job_status("reader", get_output_limits_checker("output_buffer_bytes")), timeout=180)
@@ -104,3 +95,29 @@ class Test(FlowTestBase):
 
             # TODO: Test computation retryable errors.
             # TODO: Test metrics.
+
+    @pytest.mark.authors(["timoninmaxim"])
+    def test_job_failure(self):
+        run_yt_sync("primary", self.work_yt_path)
+        pipeline_config_path = self.prepare_pipeline_config(fail_comment=FAIL_COMMENT)
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            self.wait_pipeline_state("working")
+
+            def check_job_fail_error():
+                description = self.client.flow_execute(self.pipeline_path, "describe-pipeline")
+                # Only a real job failure counts; the "Spec" message echoes fail_comment unconditionally.
+                job_fail_messages = [
+                    message
+                    for message in description["computations"]["reader"]["messages"]
+                    if str(message.get("text", "")).startswith("Job failed")
+                ]
+                assert any(FAIL_COMMENT in str(message) for message in job_fail_messages)
+                return True
+
+            wait(lambda: check_job_fail_error(), timeout=180, ignore_exceptions=True)
