@@ -53,7 +53,7 @@ def main():
         ],
 
         extras_require={
-            "recommended": ["brotli", "cryptography"],
+            "recommended": ["brotli", "cryptography", "tornado"],
             "admin": ["kubernetes>=31.0.0", "docker>=7.1.0"],
         },
     )
