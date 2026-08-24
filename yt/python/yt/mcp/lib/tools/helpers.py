@@ -37,6 +37,11 @@ class ExternalConfigType(TypedDict):
 
 
 class YTToolBase:
+    # Set to True on tool classes that mutate the cluster (Cypress writes,
+    # write_table, etc.). Used by the server entry point to filter out
+    # mutating tools when --rw-mode is not set (default: read-only).
+    _MUTABLE = False
+
     @dataclass
     class ToolName:
         name: str
@@ -95,6 +100,30 @@ class YTToolBase:
 
     def get_tool_variants(self) -> Optional[List[ToolTemplateType]]:
         pass
+
+    # Forbidden path prefixes for mutating tools. Hardcoded defaults are
+    # system/log roots that no agent should ever modify; the list can be
+    # overridden via env MCP_YT_WRITE_FORBIDDEN_PREFIXES (comma-separated).
+    _DEFAULT_WRITE_FORBIDDEN_PREFIXES = ("//sys", "//logs")
+
+    def helper_check_write_path(self, path):
+        """Reject mutating operations on system/log paths.
+
+        Raises RuntimeError if `path` falls under a forbidden prefix.
+        Called from mutating tools' on_handle_request before any mutation.
+        """
+        if not path:
+            return
+        prefixes_env = os.environ.get("MCP_YT_WRITE_FORBIDDEN_PREFIXES")
+        if prefixes_env is not None:
+            prefixes = tuple(p.strip() for p in prefixes_env.split(",") if p.strip())
+        else:
+            prefixes = self._DEFAULT_WRITE_FORBIDDEN_PREFIXES
+        normalized = str(path).rstrip("/")
+        for prefix in prefixes:
+            prefix_norm = prefix.rstrip("/")
+            if normalized == prefix_norm or normalized.startswith(prefix_norm + "/"):
+                raise RuntimeError(f"Write operations are forbidden under {prefix}")
 
     def helper_process_common_exception(self, ex: Exception, raise_exception=True):
         self.runner._logger.error(type(ex))

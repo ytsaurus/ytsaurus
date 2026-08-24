@@ -8,7 +8,7 @@ from mcp.server.fastmcp.server import Context
 from pydantic_core import PydanticUndefined
 
 from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
-from yt.mcp.lib.server import get_tools_groups
+from yt.mcp.lib.server import get_all_tool_names, get_tools_groups
 
 
 _TYPE_STUBS = {str: "stub", int: 0, float: 0.0, bool: False, list: [], dict: {}}
@@ -115,3 +115,55 @@ def test_configure_server_readonly():
     runner = YTToolRunnerMCP()
     runner.configure_server(rw_mode=False)
     assert runner._rw_mode is False
+
+
+# Identified by Python class name (works without attaching a runner: tools whose
+# get_tool_description() references self.runner.helper_get_public_clusters
+# would otherwise crash on a None runner).
+_MUTATING_CLASSES = ("CreateNode", "CopyNode", "MoveNode", "RemoveNode", "SetAttribute")
+_READONLY_CLASSES = ("ListDir", "Search", "ReadStaticTable")
+
+
+def test_mutating_tools_present_in_contextual_groups():
+    # Mutating tools (Cypress create/copy/move/remove/set) are interleaved
+    # into their contextual groups (currently "common"), not into a separate
+    # "edit" group; the bin filters them out unless --rw-mode is set.
+    groups = get_tools_groups()
+    assert "edit" not in groups
+    common_classes = {type(t).__name__ for t in groups["common"]}
+    for name in _MUTATING_CLASSES:
+        assert name in common_classes, f"{name} must be present in the 'common' group"
+
+
+def test_mutating_tools_marked_as_mutable():
+    # Each mutating tool sets _MUTABLE = True so the bin can filter them out
+    # in read-only mode (the default).
+    groups = get_tools_groups()
+    by_class = {type(t).__name__: t for t in groups["common"]}
+    for name in _MUTATING_CLASSES:
+        assert by_class[name]._MUTABLE is True, f"{name} must have _MUTABLE = True"
+    for name in _READONLY_CLASSES:
+        assert by_class[name]._MUTABLE is False, f"{name} must have _MUTABLE = False"
+
+
+def test_mutating_tools_filtered_in_readonly_mode():
+    # Same filtering logic the bin uses: drop tools where _MUTABLE is True.
+    groups = get_tools_groups()
+    all_tools = list(itertools.chain(*groups.values()))
+    filtered = [t for t in all_tools if not getattr(t, "_MUTABLE", False)]
+    classes = {type(t).__name__ for t in filtered}
+    for name in _MUTATING_CLASSES:
+        assert name not in classes, f"{name} must be filtered out in read-only mode"
+    for name in _READONLY_CLASSES:
+        assert name in classes, f"{name} must survive read-only filtering"
+
+
+def test_get_all_tool_names_matches_readonly_binary():
+    # get_all_tool_names() default must match the read-only server binaries
+    # (mutating tools filtered out); rw_mode=True includes them.
+    readonly_names = get_all_tool_names()
+    for name in _MUTATING_CLASSES:
+        assert name not in readonly_names, f"{name} must not be listed in read-only mode"
+    rw_names = get_all_tool_names(rw_mode=True)
+    for name in _MUTATING_CLASSES:
+        assert name in rw_names, f"{name} must be listed in rw mode"

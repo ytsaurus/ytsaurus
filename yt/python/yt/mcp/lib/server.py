@@ -5,6 +5,7 @@ from yt.mcp.lib.tools.admin import GetProxy
 from yt.mcp.lib.tools.account import CheckPermissions, AccountProperty
 from yt.mcp.lib.tools.common_client import CommonCypress
 from yt.mcp.lib.tools.table import ReadStaticTable
+from yt.mcp.lib.tools.cypress import CreateNode, CopyNode, MoveNode, RemoveNode, SetAttribute
 from yt.mcp.lib.tool_runner_mcp import YTToolRunnerMCP
 from yt.mcp.lib.tools.query_tracker import (
     StartQuery, GetQuery, GetQueryResults
@@ -12,6 +13,9 @@ from yt.mcp.lib.tools.query_tracker import (
 
 
 def get_tools_groups():
+    # Mutating tools (marked with _MUTABLE = True) are interleaved into their
+    # contextual groups (Cypress mutations next to Cypress reads in "common").
+    # Filtering by --rw-mode happens in the server entry point.
     return {
         "common": [
             ListDir(),
@@ -20,6 +24,11 @@ def get_tools_groups():
             CheckIsPathsExists(),
             CommonCypress(),
             ReadStaticTable(),
+            CreateNode(),
+            CopyNode(),
+            MoveNode(),
+            RemoveNode(),
+            SetAttribute(),
         ],
         "query_tracker": [
             StartQuery(),
@@ -36,11 +45,17 @@ def get_tools_groups():
     }
 
 
-def get_all_tool_names():
-    """Return names of all tools that will be registered in MCP server"""
+def get_all_tool_names(rw_mode=False):
+    """Return names of all tools that will be registered in MCP server.
+
+    Default (rw_mode=False) matches the read-only server binaries: mutating
+    tools (marked with _MUTABLE) are filtered out, same as in the entry points.
+    """
     runner = YTToolRunnerMCP()
     tools = []
     for group_tools in get_tools_groups().values():
         tools.extend(group_tools)
+    if not rw_mode:
+        tools = [t for t in tools if not getattr(t, "_MUTABLE", False)]
     runner.attach_tools(tools=tools, variants=None)
     return [tool._get_tool_description()[0].name for tool in runner._tools]
