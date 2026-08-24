@@ -3,6 +3,7 @@
 #include "config.h"
 #include "cypress_object_repository.h"
 #include "host.h"
+#include "storage_yt_materialized_view.h"
 
 #include <yt/chyt/client/query_service_proxy.h>
 
@@ -31,9 +32,11 @@
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <Parsers/ASTCreateQuery.h>
+#include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
+#include <Parsers/ASTTablesInSelectQuery.h>
 
 #include <util/random/random.h>
 
@@ -187,24 +190,53 @@ struct TPartitionInfo
     bool Dynamic = false;
 };
 
-TPartitionInfo FetchPartitionInfo(
+std::vector<TPartitionInfo> FetchPartitionInfos(
     const IClientBasePtr& client,
-    const TYPath& path,
+    EMaterializedViewSourceType sourceType,
+    const TYPath& sourcePath,
     const TMasterReadOptions& masterReadOptions)
 {
-    TGetNodeOptions options;
-    static_cast<TMasterReadOptions&>(options) = masterReadOptions;
-    options.Attributes = {"id", "type", "dynamic", "row_count"};
-    auto node = ConvertToNode(WaitFor(client->GetNode(path + "/@", options)).ValueOrThrow())->AsMap();
-    if (node->GetChildValueOrThrow<EObjectType>("type") != EObjectType::Table) {
-        THROW_ERROR_EXCEPTION("Source is not a table")
-            .With("source_path", path);
+    if (sourceType == EMaterializedViewSourceType::StaticTable) {
+        TGetNodeOptions options;
+        static_cast<TMasterReadOptions&>(options) = masterReadOptions;
+        options.Attributes = {"id", "type", "dynamic", "row_count"};
+        auto node = ConvertToNode(WaitFor(client->GetNode(sourcePath + "/@", options)).ValueOrThrow())->AsMap();
+        if (node->GetChildValueOrThrow<EObjectType>("type") != EObjectType::Table) {
+            THROW_ERROR_EXCEPTION("Source is not a table")
+                .With("source_path", sourcePath);
+        }
+        return {TPartitionInfo{
+            .ObjectId = node->GetChildValueOrThrow<TObjectId>("id"),
+            .RowCount = node->FindChildValue<i64>("row_count"),
+            .Dynamic = node->GetChildValueOrDefault<bool>("dynamic", false),
+        }};
     }
-    return {
-        .ObjectId = node->GetChildValueOrThrow<TObjectId>("id"),
-        .RowCount = node->FindChildValue<i64>("row_count"),
-        .Dynamic = node->GetChildValueOrDefault<bool>("dynamic", false),
-    };
+
+    if (sourceType == EMaterializedViewSourceType::TableRange) {
+        TListNodeOptions options;
+        static_cast<TMasterReadOptions&>(options) = masterReadOptions;
+        options.Attributes = {"id", "type", "dynamic", "row_count"};
+        auto children = ConvertTo<IListNodePtr>(WaitFor(client->ListNode(sourcePath, options))
+            .ValueOrThrow())
+            ->GetChildren();
+
+        std::vector<TPartitionInfo> partitions;
+        for (const auto& child : children) {
+            const auto& attributes = child->Attributes();
+            if (attributes.Get<EObjectType>("type") != EObjectType::Table) {
+                continue;
+            }
+            partitions.push_back({
+                .ObjectId = attributes.Get<TObjectId>("id"),
+                .RowCount = attributes.Find<i64>("row_count"),
+                .Dynamic = attributes.Find<bool>("dynamic").value_or(false),
+            });
+        }
+        std::ranges::sort(partitions, {}, &TPartitionInfo::ObjectId);
+        return partitions;
+    }
+
+    YT_ABORT();
 }
 
 class TMaterializedViewRefreshContext
@@ -333,13 +365,25 @@ private:
 
         ValidateTarget(targetObjectId);
 
-        auto partitionInfos = std::vector{FetchPartitionInfo(
+        auto partitionInfos = FetchPartitionInfos(
             Transaction_,
+            View_.SourceType,
             FromObjectId(sourceObjectId),
-            MasterReadOptions_)};
+            MasterReadOptions_);
         auto persistedProgress = ProgressStore_->GetProgress(Transaction_, View_.ObjectId);
         auto currentProgress = BuildCurrentProgress(persistedProgress, partitionInfos);
         auto tasks = BuildTasks(currentProgress, partitionInfos);
+
+        if (View_.SourceType == EMaterializedViewSourceType::TableRange) {
+            std::vector<TFuture<TLockNodeResult>> lockFutures;
+            lockFutures.reserve(tasks.size());
+            for (const auto& task : tasks) {
+                lockFutures.push_back(
+                    Transaction_->LockNode(FromObjectId(task.ObjectId), ELockMode::Snapshot));
+            }
+            WaitFor(AllSucceeded(std::move(lockFutures)))
+                .ThrowOnError();
+        }
 
         auto results = WaitFor(RunRefreshTasks(targetObjectId, tasks)).ValueOrThrow();
         for (const auto& result : results) {
@@ -480,27 +524,51 @@ private:
         }
     }
 
-    std::string BuildRefreshQuery(TObjectId targetObjectId, const TRefreshTask& task) const
+    DB::ASTPtr BuildTaskSource(const TRefreshTask& task, const std::string& alias) const
     {
-        TRichYPath rangedSourcePath(FromObjectId(task.ObjectId));
-
         TReadLimit lower;
         lower.SetRowIndex(task.LowerRowIndex);
         TReadLimit upper;
         upper.SetRowIndex(task.UpperRowIndex);
+        TRichYPath rangedSourcePath(FromObjectId(task.ObjectId));
         rangedSourcePath.SetRanges({TReadRange(std::move(lower), std::move(upper))});
 
-        const auto& createQuery = View_.CreateQuery->as<const DB::ASTCreateQuery&>();
+        auto table = std::make_shared<DB::ASTTableIdentifier>(ToString(rangedSourcePath));
+        if (!alias.empty()) {
+            table->setAlias(alias);
+        }
+
+        return table;
+    }
+
+    std::vector<std::string> BuildRefreshQueries(
+        TObjectId targetObjectId,
+        const std::vector<TRefreshTask>& tasks) const
+    {
         auto insertQuery = std::make_shared<DB::ASTInsertQuery>();
         insertQuery->table_id.table_name = FromObjectId(targetObjectId);
-        insertQuery->select = createQuery.select->clone();
+        insertQuery->select = View_.CreateQuery->as<const DB::ASTCreateQuery&>().select->clone();
         insertQuery->children.push_back(insertQuery->select);
+
         auto& selectWithUnion = insertQuery->select->as<DB::ASTSelectWithUnionQuery&>();
-        for (auto& select : selectWithUnion.list_of_selects->children) {
-            select->as<DB::ASTSelectQuery&>().replaceDatabaseAndTable(
-                /*databaseName*/ {}, ToString(rangedSourcePath));
+        auto& select = selectWithUnion.list_of_selects->children[0]->as<DB::ASTSelectQuery&>();
+        auto* tableExpression = GetSingleTableExpression(&select);
+        if (!tableExpression) {
+            THROW_ERROR_EXCEPTION("Materialized view SELECT has malformed table expression");
         }
-        return insertQuery->formatWithSecretsOneLine();
+
+        auto alias = tableExpression->table_function
+            ? tableExpression->table_function->tryGetAlias()
+            : tableExpression->database_and_table_name->tryGetAlias();
+        tableExpression->table_function.reset();
+
+        std::vector<std::string> queries;
+        queries.reserve(tasks.size());
+        for (const auto& task : tasks) {
+            tableExpression->database_and_table_name = BuildTaskSource(task, alias);
+            queries.push_back(insertQuery->formatWithSecretsOneLine());
+        }
+        return queries;
     }
 
     TFuture<std::vector<TRefreshResult>> RunRefreshTasks(
@@ -512,8 +580,11 @@ private:
         std::vector<TFuture<void>> taskFutures;
         taskFutures.reserve(tasks.size());
 
-        for (const auto& task : tasks) {
-            taskFutures.push_back(StartRefreshQuery(BuildRefreshQuery(targetObjectId, task)));
+        auto queries = BuildRefreshQueries(targetObjectId, tasks);
+        for (int index = 0; index < std::ssize(tasks); ++index) {
+            taskFutures.push_back(StartRefreshQuery(queries[index]));
+
+            const auto& task = tasks[index];
             results.push_back({
                 .PartitionIndex = task.PartitionIndex,
                 .Result = task.UpperRowIndex,
@@ -608,18 +679,26 @@ public:
     void InitializeProgress(
         const NApi::ITransactionPtr& transaction,
         TObjectId viewId,
+        EMaterializedViewSourceType sourceType,
         TObjectId sourceObjectId)
     {
         ProgressStore_->EnsureReady(transaction);
-        auto sourceInfo = FetchPartitionInfo(transaction, FromObjectId(sourceObjectId), MasterReadOptions_);
 
+        auto now = TInstant::Now();
         auto progress = New<TMaterializedViewProgress>();
-        auto partition = New<TMaterializedViewPartitionProgress>();
-        partition->ObjectId = sourceInfo.ObjectId;
-        partition->NextRowIndex = sourceInfo.RowCount.value_or(0);
-        partition->TotalRowCount = partition->NextRowIndex;
-        partition->LastUpdate = TInstant::Now();
-        progress->Partitions.push_back(std::move(partition));
+        for (const auto& info : FetchPartitionInfos(
+            transaction,
+            sourceType,
+            FromObjectId(sourceObjectId),
+            MasterReadOptions_))
+        {
+            auto partition = New<TMaterializedViewPartitionProgress>();
+            partition->ObjectId = info.ObjectId;
+            partition->NextRowIndex = info.RowCount.value_or(0);
+            partition->TotalRowCount = partition->NextRowIndex;
+            partition->LastUpdate = now;
+            progress->Partitions.push_back(std::move(partition));
+        }
 
         ProgressStore_->CreateProgress(transaction, viewId, std::move(progress));
     }
@@ -709,9 +788,10 @@ void TMaterializedViewCoordinator::Start()
 void TMaterializedViewCoordinator::InitializeProgress(
     const NApi::ITransactionPtr& transaction,
     TObjectId viewId,
+    EMaterializedViewSourceType sourceType,
     TObjectId sourceObjectId)
 {
-    Impl_->InitializeProgress(transaction, viewId, sourceObjectId);
+    Impl_->InitializeProgress(transaction, viewId, sourceType, sourceObjectId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

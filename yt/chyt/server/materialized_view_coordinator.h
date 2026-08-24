@@ -28,6 +28,7 @@ public:
     void InitializeProgress(
         const NApi::ITransactionPtr& transaction,
         NObjectClient::TObjectId viewId,
+        EMaterializedViewSourceType sourceType,
         NObjectClient::TObjectId sourceObjectId);
 
 private:

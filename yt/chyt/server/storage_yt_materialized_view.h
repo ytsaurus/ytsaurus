@@ -5,9 +5,15 @@
 #include <yt/yt/core/ypath/public.h>
 
 #include <Parsers/ASTCreateQuery.h>
+#include <Parsers/ASTSelectQuery.h>
 #include <Storages/IStorage.h>
 
 namespace NYT::NClickHouseServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+const DB::ASTTableExpression* GetSingleTableExpression(const DB::ASTSelectQuery* select);
+DB::ASTTableExpression* GetSingleTableExpression(DB::ASTSelectQuery* select);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +27,7 @@ struct IStorageYtMaterializedView
 struct TMaterializedViewConfiguration
 {
     std::string CreateStatement;
+    EMaterializedViewSourceType SourceType;
     NYPath::TYPath SourcePath;
     NYPath::TYPath TargetPath;
     NObjectClient::TObjectId SourceObjectId;
