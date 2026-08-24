@@ -5825,6 +5825,7 @@ class TestChaosMetaCluster(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 3
     NUM_CHAOS_NODES = 2
+    NUM_TEST_PARTITIONS = 3
 
     DELTA_CHAOS_NODE_CONFIG = {
         "chaos_node": {
