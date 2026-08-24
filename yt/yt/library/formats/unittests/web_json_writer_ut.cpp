@@ -1367,6 +1367,98 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
     CHECK_YQL_TYPE_AND_VALUE(row6, "column_d", secondColumnDType, row6DValue, yqlTypes);
 }
 
+TEST_F(TWriterForWebJson, YqlValueFormat_AggregateState)
+{
+    Config_->ValueFormat = EWebJsonValueFormat::Yql;
+
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"column_sum", AggregateStateLogicalType(
+            EAggregateFunction::Sum,
+            SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+        {"column_min", AggregateStateLogicalType(
+            EAggregateFunction::Min,
+            SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"column_avg", AggregateStateLogicalType(
+            EAggregateFunction::Avg,
+            SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
+
+    CreateStandardWriter(std::vector{schema});
+    {
+        bool written = Writer_->Write({
+            MakeRow(NameTable_, {
+                {"column_sum", 100500},
+                {"column_min", -1},
+                {"column_avg", EValueType::Composite, R"([10; 2])"},
+                {TableIndexColumnName, 0},
+                {RowIndexColumnName, 0},
+            }).Get(),
+            MakeRow(NameTable_, {
+                {"column_sum", 0},
+                {"column_min", nullptr},
+                {"column_avg", EValueType::Composite, R"([0; 0])"},
+                {RowIndexColumnName, 1},
+            }).Get(),
+        });
+        EXPECT_TRUE(written);
+        WaitForFast(Writer_->Close()).ThrowOnError();
+    }
+
+    auto result = ParseJsonToNode(OutputStream_.Str());
+    ASSERT_EQ(result->GetType(), ENodeType::Map);
+
+    auto rows = result->AsMap()->FindChild("rows");
+    ASSERT_TRUE(rows);
+    auto yqlTypeRegistry = result->AsMap()->FindChild("yql_type_registry");
+    ASSERT_TRUE(yqlTypeRegistry);
+
+    ASSERT_EQ(yqlTypeRegistry->GetType(), ENodeType::List);
+    auto yqlTypes = ConvertTo<std::vector<INodePtr>>(yqlTypeRegistry);
+
+    auto avgType = ConvertToNode(TYsonString(TStringBuf(R"([
+        "StructType";
+        [
+            [
+                "sum";
+                ["DataType"; "Int64"]
+            ];
+            [
+                "count";
+                ["DataType"; "Int64"]
+            ]
+        ]
+    ])")));
+
+    ASSERT_EQ(rows->GetType(), ENodeType::List);
+    ASSERT_EQ(rows->AsList()->GetChildCount(), 2);
+
+    auto row1 = rows->AsList()->GetChildOrThrow(0);
+    ASSERT_EQ(row1->GetType(), ENodeType::Map);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_sum", R"(["DataType"; "Int64"])", "100500", yqlTypes);
+    auto row1MinValue = ConvertToNode(TYsonString(TStringBuf(R"(["-1"])")));
+    CHECK_YQL_TYPE_AND_VALUE(
+        row1,
+        "column_min",
+        R"(["OptionalType"; ["DataType"; "Int64"]])",
+        row1MinValue,
+        yqlTypes);
+    auto row1AvgValue = ConvertToNode(TYsonString(TStringBuf(R"(["10"; "2"])")));
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_avg", avgType, row1AvgValue, yqlTypes);
+
+    auto row2 = rows->AsList()->GetChildOrThrow(1);
+    ASSERT_EQ(row2->GetType(), ENodeType::Map);
+    CHECK_YQL_TYPE_AND_VALUE(row2, "column_sum", R"(["DataType"; "Int64"])", "0", yqlTypes);
+    auto row2MinValue = ConvertToNode(TYsonString(TStringBuf(R"(#)")));
+    CHECK_YQL_TYPE_AND_VALUE(
+        row2,
+        "column_min",
+        R"(["OptionalType"; ["DataType"; "Int64"]])",
+        row2MinValue,
+        yqlTypes);
+    auto row2AvgValue = ConvertToNode(TYsonString(TStringBuf(R"(["0"; "0"])")));
+    CHECK_YQL_TYPE_AND_VALUE(row2, "column_avg", avgType, row2AvgValue, yqlTypes);
+}
+
 TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
 {
     Config_->ValueFormat = EWebJsonValueFormat::Yql;

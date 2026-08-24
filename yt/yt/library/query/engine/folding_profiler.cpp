@@ -265,14 +265,22 @@ void TSchemaProfiler::AddLogicalType(const TLogicalType& logicalType, llvm::Fold
             addFields(logicalType.AsVariantStructTypeRef().GetFields());
             break;
 
-        case ELogicalMetatype::Decimal:
-            break;
         case ELogicalMetatype::Simple:
             id->AddInteger(ToUnderlying(logicalType.AsSimpleTypeRef().GetElement()));
             break;
+
         case ELogicalMetatype::Dict:
             AddLogicalType(*logicalType.AsDictTypeRef().GetKey(), id);
             AddLogicalType(*logicalType.AsDictTypeRef().GetValue(), id);
+            break;
+
+        // NB: Physical layout of the aggregate state depends on both the function and the argument type.
+        case ELogicalMetatype::AggregateState:
+            id->AddInteger(ToUnderlying(logicalType.AsAggregateStateTypeRef().GetFunction()));
+            AddLogicalType(*logicalType.AsAggregateStateTypeRef().GetArgumentType(), id);
+            break;
+
+        case ELogicalMetatype::Decimal:
             break;
     }
 }

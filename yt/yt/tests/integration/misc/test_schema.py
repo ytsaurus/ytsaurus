@@ -18,7 +18,7 @@ from decimal_helpers import decode_decimal, encode_decimal, YtNaN, MAX_DECIMAL_P
 from yt_type_helpers import (
     make_schema, normalize_schema, make_sorted_column, make_column, make_deleted_columns,
     optional_type, list_type, dict_type, struct_type, tuple_type, variant_tuple_type, variant_struct_type,
-    decimal_type, tagged_type)
+    decimal_type, tagged_type, aggregate_state_type)
 
 import yt_error_codes
 
@@ -594,6 +594,46 @@ class TestComplexTypes(YTEnvSetup):
 
         table2.check_bad_value("1")
         table2.check_bad_value(3.0)
+
+    @authors("buyval01")
+    def test_aggregate_state(self, optimize_for):
+        # sum(int32): element = int64 (plain accumulator)
+        sum_type = aggregate_state_type("sum", "int32")
+        assert type_v3_to_type_v1(sum_type) == TypeV1("int64", True)
+
+        sum_table = SingleColumnTable(sum_type, optimize_for)
+        sum_table.check_good_value(0)
+        sum_table.check_good_value(42)
+        sum_table.check_good_value(-1)
+        sum_table.check_bad_value("not_an_int")
+
+        # avg(double): element = struct{sum: double, count: int64} (positional)
+        avg_type = aggregate_state_type("avg", "double")
+        assert type_v3_to_type_v1(avg_type) == TypeV1("any", True)
+
+        avg_table = SingleColumnTable(avg_type, optimize_for, path="//tmp/table_avg")
+        avg_table.check_good_value([6.0, 3])
+        avg_table.check_good_value([0.0, 0])
+        avg_table.check_bad_value(None)
+        avg_table.check_bad_value(42)
+
+        # min(int64): element = optional<int64>
+        min_type = aggregate_state_type("min", "int64")
+        assert type_v3_to_type_v1(min_type) == TypeV1("int64", False)
+
+        min_table = SingleColumnTable(min_type, optimize_for, path="//tmp/table_min")
+        min_table.check_good_value(42)
+        min_table.check_good_value(None)
+        min_table.check_bad_value("not_an_int")
+
+        # max(uint32): element = optional<uint32>
+        max_type = aggregate_state_type("max", "uint32")
+        assert type_v3_to_type_v1(max_type) == TypeV1("uint32", False)
+
+        max_table = SingleColumnTable(max_type, optimize_for, path="//tmp/table_max")
+        max_table.check_good_value(yson.YsonUint64(255))
+        max_table.check_good_value(None)
+        max_table.check_bad_value("not_a_uint")
 
     @authors("ermolovd")
     def test_decimal(self, optimize_for):
@@ -1332,6 +1372,27 @@ class TestLogicalType(YTEnvSetup):
                 },
             )
 
+    @authors("buyval01")
+    def test_aggregate_state_type_restrictions(self):
+        def create_table_with_aggregate_state_type(**kwargs):
+            create(
+                "table",
+                "//tmp/test-table",
+                force=True,
+                attributes={
+                    "schema": make_schema(
+                        [make_column("value", aggregate_state_type("sum", "int32"), **kwargs)],
+                        strict=True,
+                    )
+                },
+            )
+
+        with raises_yt_error("Column with AggregateState type cannot be aggregated"):
+            create_table_with_aggregate_state_type(aggregate="sum")
+
+        with raises_yt_error("Key column cannot be of"):
+            create_table_with_aggregate_state_type(sort_order="ascending")
+
 
 class TestRequiredOption(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
@@ -2043,6 +2104,14 @@ class AlterTableSetup(YTEnvSetup):
             return []
         elif type_name == "tagged":
             return self.get_default_value_for_type(type_v3["item"])
+        elif type_name == "aggregate_state":
+            function = type_v3["function"]
+            if function == "sum":
+                return 0
+            elif function == "avg":
+                return {"sum": 0, "count": 0}
+            elif function in ("min", "max"):
+                return None
         raise ValueError("Type {} is not supported".format(type_name))
 
     def get_default_row(self, schema):
@@ -2386,6 +2455,75 @@ class TestAlterTable(AlterTableSetup):
         self.check_both_ways_alter_type(
             tagged_type("qux", optional_type("int8")),
             tagged_type("bar", optional_type(tagged_type("foo", "int8"))),
+            dynamic=dynamic)
+
+    @authors("buyval01")
+    @pytest.mark.parametrize("dynamic", [False, True])
+    def test_alter_aggregate_state_types(self, dynamic):
+        if dynamic:
+            sync_create_cells(1)
+
+        # Same function and argument type: fully compatible in both directions.
+        self.check_both_ways_alter_type(
+            aggregate_state_type("sum", "int32"),
+            aggregate_state_type("sum", "int32"),
+            dynamic=dynamic)
+
+        # Same function with same underlying state.
+        self.check_both_ways_alter_type(
+            aggregate_state_type("avg", "int32"),
+            aggregate_state_type("avg", "int64"),
+            dynamic=dynamic)
+        self.check_both_ways_alter_type(
+            aggregate_state_type("sum", "int32"),
+            aggregate_state_type("sum", "int64"),
+            dynamic=dynamic)
+
+        # Different function: incompatible in both directions.
+        self.check_bad_both_ways_alter_type(
+            aggregate_state_type("sum", "int32"),
+            aggregate_state_type("avg", "int32"),
+            dynamic=dynamic)
+        self.check_bad_both_ways_alter_type(
+            aggregate_state_type("min", "int64"),
+            aggregate_state_type("max", "int64"),
+            dynamic=dynamic)
+
+        # Promoting aggregate_state to its underlying element type is one-way:
+        # the reverse is always incompatible.
+
+        # sum(int32): element = int64.
+        self.check_one_way_alter_type(
+            aggregate_state_type("sum", "int32"),
+            "int64",
+            dynamic=dynamic)
+        self.check_bad_alter_type(
+            "int64",
+            aggregate_state_type("sum", "int32"),
+            dynamic=dynamic)
+        self.check_bad_alter_type(
+            "int64",
+            aggregate_state_type("sum", "int64"),
+            dynamic=dynamic)
+
+        # min(int64): element = optional<int64>.
+        self.check_one_way_alter_type(
+            aggregate_state_type("min", "int32"),
+            optional_type("int64"),
+            dynamic=dynamic)
+        self.check_bad_alter_type(
+            optional_type("int64"),
+            aggregate_state_type("min", "int64"),
+            dynamic=dynamic)
+
+        # avg(int64): element = struct{sum: int64, count: int64}.
+        self.check_one_way_alter_type(
+            aggregate_state_type("avg", "int64"),
+            struct_type([("sum", "int64"), ("count", "int64")]),
+            dynamic=dynamic)
+        self.check_bad_alter_type(
+            struct_type([("sum", "int64"), ("count", "int64")]),
+            aggregate_state_type("avg", "int64"),
             dynamic=dynamic)
 
 
