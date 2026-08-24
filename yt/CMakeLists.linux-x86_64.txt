@@ -15,7 +15,7 @@
 add_subdirectory(chyt)
 add_subdirectory(yt)
 add_subdirectory(yt_proto)
-add_subdirectory(cpp)
 add_subdirectory(examples)
 add_subdirectory(microservices)
+add_subdirectory(cpp)
 add_subdirectory(java)
