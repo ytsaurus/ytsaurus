@@ -68,6 +68,8 @@ struct IJobHost
 
     virtual void SetUserJobMemoryUsage(i64 memoryUsage) = 0;
 
+    virtual bool UpdateOomScoreAdj(pid_t pid, int* mutableExpectedScoreAdj, int desiredScoreAdj) = 0;
+
     virtual void ReleaseNetwork() = 0;
 
     virtual std::string GetAuthenticatedUser() const = 0;

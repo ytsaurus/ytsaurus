@@ -555,6 +555,7 @@ struct TJobProxyInternalConfig
     i64 AdaptiveRowCountUpperBound;
 
     std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+    bool ReadOomScoreAdjBeforeUpdate;
 
     bool UseNewDeliveryFencedConnection;
 
@@ -626,6 +627,7 @@ struct TJobProxyDynamicConfig
     i64 AdaptiveRowCountUpperBound;
 
     std::optional<int> OomScoreAdjOnExceededMemoryReserve;
+    bool ReadOomScoreAdjBeforeUpdate;
 
     bool UseNewDeliveryFencedConnection;
 
