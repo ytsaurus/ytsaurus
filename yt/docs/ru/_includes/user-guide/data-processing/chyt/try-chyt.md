@@ -129,6 +129,10 @@ SQLRowCount returns 10
 10 rows fetched
 ```
 
+### Подключение внешних баз данных через ODBC { #external-odbc }
+
+CHYT также умеет выступать в роли ODBC-клиента и обращаться к внешним базам данных через ClickHouse ODBC bridge. О настройке и ограничениях см. в разделе [Подключение внешних баз данных через ODBC](../../../../user-guide/data-processing/chyt/reference/odbc.md).
+
 ## JDBC-интерфейс { #jdbc }
 
 JDBC-драйвер конфигурируется схожим образом с ODBC-драйвером, смотрите пример ниже. Переменная `YT_TOKEN` обозначает токен доступа к {{product-name}} (`AQAD-qJ…`),  `CHYT_ALIAS` — идентификатор либо алиас клики (`ch_public`), `YT_PROXY` — имя кластера.
