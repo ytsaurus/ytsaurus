@@ -962,7 +962,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
                 response->items_size(),
                 response->incomplete());
             context->Reply();
-        }).Via(GetCurrentInvoker()));
+        }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
