@@ -13,6 +13,7 @@ import yt_error_codes
 import pytest
 import builtins
 import os
+import shutil
 import time
 
 
@@ -656,3 +657,83 @@ class TestCacheLocationOverflow(YTEnvSetup):
         assert len(entries) > 0
         for entry in entries:
             assert 'No space left on device' in str(entry), entry
+
+
+class TestSlotLocationOverflow(YTEnvSetup):
+    USE_PORTO = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    _TMPFS_SIZE = 10 * 1024 * 1024
+    _INODE_LIMIT = 1024
+
+    @classmethod
+    def setup_class(cls):
+        import porto
+        vol = porto.Connection().CreateVolume(
+            backend="tmpfs",
+            space_limit=str(cls._TMPFS_SIZE),
+            inode_limit=str(cls._INODE_LIMIT),
+        )
+        cls.slot_volume_path = vol.path
+        super().setup_class()
+
+    @classmethod
+    def teardown_class(cls):
+        super().teardown_class()
+
+        import porto
+        porto.Connection().UnlinkVolume(cls.slot_volume_path)
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        super().modify_node_config(config, cluster_index)
+        config["exec_node"]["slot_manager"]["locations"][0]["path"] = cls.slot_volume_path
+
+    def teardown_method(self, method):
+        shutil.rmtree(f"{self.slot_volume_path}/filler", ignore_errors=True)
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+        super().teardown_method(method)
+
+    def _fill_inodes(self):
+        filler_dir = f"{self.slot_volume_path}/filler"
+        os.makedirs(filler_dir, exist_ok=True)
+        for i in range(self._INODE_LIMIT):
+            try:
+                with open(f"{filler_dir}/{i}", "wb"):
+                    pass
+            except OSError:
+                break
+        assert os.statvfs(self.slot_volume_path).f_favail == 0
+
+    def _slot_location_alert(self, node):
+        for alert in get(f"//sys/cluster_nodes/{node}/@alerts"):
+            if alert["code"] == yt_error_codes.SlotLocationDisabled:
+                return alert
+        return None
+
+    @authors("dann239")
+    @pytest.mark.parametrize("wipe_only_nested", [True, False])
+    def test_disk_full_is_reported(self, wipe_only_nested):
+        node = ls("//sys/cluster_nodes")[0]
+        assert self._slot_location_alert(node) is None
+
+        slot_path = f"{self.slot_volume_path}/0"
+
+        with Restarter(self.Env, NODES_SERVICE):
+            if wipe_only_nested:
+                assert os.path.exists(slot_path)
+                for name in os.listdir(slot_path):
+                    shutil.rmtree(f"{slot_path}/{name}", ignore_errors=True)
+            else:
+                shutil.rmtree(slot_path, ignore_errors=True)
+            self._fill_inodes()
+
+        wait(lambda: self._slot_location_alert(node) is not None)
+        alert = str(self._slot_location_alert(node))
+
+        assert "Failed to create directory" in alert, alert
+        assert "No space left on device" in alert, alert
