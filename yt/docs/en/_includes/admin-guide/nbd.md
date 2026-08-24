@@ -1,27 +1,27 @@
 # NBD on the {{product-name}} cluster
 
-This document describes how to configure and use NBD (Network Block Device) on the {{product-name}} cluster. NBD lets you mount filesystem images from Cypress as layers of a job’s root filesystem. This speeds up environment setup, reduces disk load, and, under some conditions, network load.
+This document describes how to configure and use NBD (Network Block Device) on the {{product-name}} cluster. NBD lets you mount filesystem images from Cypress as layers of a job’s root filesystem. This speeds up environment setup, reduces disk load, and, under some conditions, lowers network load.
 
 ## How NBD works { #how-it-works }
 
-NBD (Network Block Device) is a Linux kernel mechanism that lets you mount block devices whose data is stored remotely. In {{product-name}}, NBD is used to mount SquashFS filesystem images from Cypress as layers of a job’s root filesystem.
+NBD (Network Block Device) is a Linux kernel mechanism that lets you mount block devices with data stored remotely. In {{product-name}}, NBD is used to mount SquashFS filesystem images from Cypress as layers of a job’s root filesystem.
 
 ### Architecture { #architecture }
 
-An NBD server runs on each exec node. It’s a {{product-name}} component that implements the NBD protocol over a Unix Domain Socket or TCP. Here’s how it works:
+Each exec-node runs an NBD server — a {{product-name}} component that implements the NBD protocol over a Unix Domain Socket or TCP. Here’s how it works:
 
 ```mermaid
 flowchart TB
-    subgraph ExecNode["Exec node"]
+    subgraph ExecNode["Exec-node"]
         Kernel["Linux kernel<br>/dev/nbdX"]
         NBDServer["NBD server (YT)<br>Block cache<br>(compressed data)"]
-        OverlayFS["overlayfs<br>(job rootfs)"]
+        OverlayFS["overlayfs<br>(job’s rootfs)"]
         
         Kernel <-->|"NBD protocol<br>(Unix socket)"| NBDServer
         Kernel -->|"mount"| OverlayFS
     end
     
-    NBDServer -->|"RPC"| DataNodes["Data nodes<br>(image chunks)"]
+    NBDServer -->|"RPC"| DataNodes["Data-nodes<br>(image chunks)"]
     
     style ExecNode fill:#f5f5f5
     style Kernel fill:#e1f5ff
@@ -32,30 +32,30 @@ flowchart TB
 
 Sequence of events when preparing an NBD layer:
 
-- The exec node receives a task with `layer_paths` that includes an NBD layer.
+- The exec-node receives a task with `layer_paths` that includes an NBD layer.
 - YT downloads the image chunk metadata, not the data itself.
 - The NBD server registers an export for the image.
 - The Linux kernel mounts `/dev/nbdX` to the export via a Unix Domain Socket.
 - Porto mounts `/dev/nbdX` as a layer in overlayfs.
-- When the job accesses a file, the kernel reads the needed blocks through `/dev/nbdX` → NBD server → data nodes.
+- When a job accesses a file, the kernel reads the needed blocks through `/dev/nbdX` → NBD server → data-nodes.
 
 ### Block cache { #block-cache }
 
-The NBD server maintains an in-memory LRU block cache to store compressed chunk data. The cache helps avoid repeated requests to data nodes when different jobs read the same blocks. You configure the cache size with the `block_cache_compressed_data_capacity` parameter.
+The NBD server supports an in-memory LRU block cache to store compressed chunk data. The cache helps avoid repeated calls to data-nodes when different jobs read the same blocks. You configure the cache size with the `block_cache_compressed_data_capacity` parameter.
 
 ### Volume cache { #volume-cache }
 
-The exec node caches read-only (RO) NBD volumes, which are mounted images. If multiple jobs use the same NBD layer on one exec node, the system creates the volume once and reuses it. Cache metrics: `exec_node/ronbd_volume_cache/missed_count`, `exec_node/ronbd_volume_cache/hit_count`.
+The exec-node caches read-only (RO) NBD volumes — mounted images. If several jobs use the same NBD layer on one exec-node, the system creates the volume once and reuses it. Cache metrics: `exec_node/ronbd_volume_cache/missed_count`, `exec_node/ronbd_volume_cache/hit_count`.
 
 ### Installing packages { #packages }
 
-Install these packages to work with NBD and SquashFS:
+To work with NBD and SquashFS, install these packages:
 
 ```bash
 sudo apt install nbd-client squashfs-tools
 ```
 
-- `nbd-client` — a utility for manually mounting NBD devices. You use it for diagnostics: the {{product-name}} NBD server is built into the exec node, and in normal operation the kernel connects to it directly.
+- `nbd-client` — a utility for manually mounting NBD devices. It’s used for diagnostics: the {{product-name}} NBD server is built into the exec-node, and in normal operation the kernel connects to it directly.
 - `squashfs-tools` — utilities `mksquashfs` and `unsquashfs` for building and checking SquashFS images.
 
 To convert existing tar layers to SquashFS, also install `squashfs-tools-ng` with the `tar2sqfs` utility:
@@ -64,7 +64,7 @@ To convert existing tar layers to SquashFS, also install `squashfs-tools-ng` wit
 sudo apt install squashfs-tools-ng
 ```
 
-Verify the installation:
+Check the installation:
 
 ```bash
 nbd-client --version
@@ -74,9 +74,9 @@ mksquashfs -version
 # mksquashfs version 4.6.1 (2023/03/25)
 ```
 
-### The nbd kernel module { #kernel-module }
+### NBD kernel module { #kernel-module }
 
-You need to load the `nbd` kernel module for NBD to work. The `nbds_max` parameter defines how many NBD devices the kernel creates when loading the module. You can create and delete NBD devices dynamically.
+To use NBD, you need to load the `nbd` kernel module. The `nbds_max` parameter defines how many NBD devices the kernel creates when loading the module. NBD devices can be created and removed dynamically.
 
 Manually load the module:
 
@@ -84,7 +84,7 @@ Manually load the module:
 modprobe nbd nbds_max=1024
 ```
 
-For automatic loading after reboot, we recommend:
+For automatic loading after reboot (recommended):
 
 Create the `/etc/modules-load.d/nbd.conf` file:
 
@@ -100,7 +100,7 @@ options nbd nbds_max=1024
 
 {% note warning %}
 
-The `nbd` module must load automatically after the host reboots. Without this, the exec node won’t be able to create NBD devices after a reboot.
+The `nbd` module must load automatically after the host reboots. Without this, the exec-node won’t be able to create NBD devices after a reboot.
 
 {% endnote %}
 
@@ -113,11 +113,11 @@ cat /sys/module/nbd/parameters/nbds_max
 # 128
 ```
 
-We recommend setting `nbds_max` to at least the number of job slots on the node multiplied by the maximum number of NBD layers in one job. For example, for 32 slots and 2 NBD layers per job: `nbds_max=128`. Devices can be created dynamically, so the value doesn’t limit operation. But having a pre-created reserve reduces overhead for device creation under load.
+Recommended `nbds_max` value: at least the number of job slots on the node multiplied by the maximum number of NBD layers in one job. For example, for 32 slots and 2 NBD layers per job: `nbds_max=128`. Devices can be created dynamically, so the value doesn’t limit operation, but having a pre-created buffer reduces overhead for device creation under load.
 
-## Configuring NBD { #configuration }
+## NBD configuration { #configuration }
 
-You configure NBD through the exec node’s dynamic config. All parameters are in the `exec_node/nbd` section.
+You configure NBD via the exec-node’s dynamic config. All parameters are in the `exec_node/nbd` section.
 
 ### Enabling NBD { #enable }
 
@@ -129,11 +129,11 @@ exec_node:
 
 {% note info %}
 
-After you enable NBD, the exec node starts the NBD server at boot. Changing `enabled` requires restarting the node.
+After enabling NBD, the exec-node starts the NBD server at boot. Changing `enabled` requires restarting the node.
 
 {% endnote %}
 
-### Full config example { #full-config }
+### Full configuration example { #full-config }
 
 ```yaml
 exec_node:
@@ -150,46 +150,24 @@ exec_node:
         path: /tmp/nbd.sock
 ```
 
-### Config parameters { #config-params }
+### Configuration parameters { #config-params }
 
-#|
-|| **Parameter** | **Type** | **Default** | **Description** ||
-|| `exec_node/nbd/enabled` | `bool` | `false` | Enables or disables NBD on the exec node. When `enabled: true`, the system starts the NBD server at node boot. ||
-|| `exec_node/nbd/block_cache_compressed_data_capacity` | `int64`, bytes | `0` — cache disabled | Size of the compressed data block cache in bytes. The cache is stored in the exec node’s memory, and the system uses it to cache chunk blocks read from data nodes. Recommended value: from 512 MB to 4 GB, depending on available memory and load. ||
-|| `exec_node/nbd/client/io_timeout` | `duration`, ms | `30000` — 30 seconds | Timeout for waiting for a response to an NBD read request. If the timeout is exceeded, the system aborts the job with `abort_reason=NbdError`. ||
-|| `exec_node/nbd/client/reconnect_timeout` | `duration`, ms | `5000` — 5 seconds | Timeout for the NBD client to reconnect to the NBD server after a connection drop. ||
-|| `exec_node/nbd/client/connection_count` | `int` | `1` | Number of connections the NBD client makes to the NBD server per device. ||
-|| `exec_node/nbd/server/thread_count` | `int` | `2` | Number of NBD server threads. We recommend a value of 2–4. ||
-|| `exec_node/nbd/server/unix_domain_socket/path` | `string` | — | Path to the Unix Domain Socket that the Linux kernel uses to connect to the NBD server. This must be unique for each exec node. ||
-|| `exec_node/nbd/server/internet_domain_socket/port` | `int` | — | TCP socket port for the NBD server. The system uses this instead of a Unix Domain Socket if you need network access to the NBD server. ||
-|#
+| Parameter | Type | Default | Description |
+| --- | --- | --- | --- |
+| `exec_node/nbd/enabled` | `bool` | `false` | Enables or disables NBD on the exec-node. When `enabled: true`, the system starts the NBD server at node boot. |
+| `exec_node/nbd/block_cache_compressed_data_capacity` | `int64`, bytes | `0` — cache disabled | Size of the compressed data block cache in bytes. The cache is stored in the exec-node’s memory and is used to cache chunk blocks read from data-nodes. Recommended value: from 512 MB to 4 GB, depending on available memory and load. |
+| `exec_node/nbd/client/io_timeout` | `duration`, ms | `30000` — 30 seconds | Timeout for waiting for a response to an NBD read request. If the timeout is exceeded, the system aborts the job with `abort_reason=NbdError`. |
+| `exec_node/nbd/client/reconnect_timeout` | `duration`, ms | `5000` — 5 seconds | Timeout for the NBD client to reconnect to the NBD server if the connection drops. |
+| `exec_node/nbd/client/connection_count` | `int` | `1` | Number of connections the NBD client makes to the NBD server per device. |
+| `exec_node/nbd/server/thread_count` | `int` | `2` | Number of NBD server threads. Recommended value: 2–4. |
+| `exec_node/nbd/server/unix_domain_socket/path` | `string` | — | Path to the Unix Domain Socket that the Linux kernel uses to connect to the NBD server. Must be unique for each exec-node. |
+| `exec_node/nbd/server/internet_domain_socket/port` | `int` | — | TCP socket port for the NBD server. The system uses this instead of a Unix Domain Socket if you need network access to the NBD server. |
 
-{% if audience == "internal" %}
-
-### Configuring with ytdyncfgen { #ytdyncfgen }
-
-On internal clusters, the exec nodes’ dynamic config is managed with `ytdyncfgen`. To enable NBD, add this to the cluster config:
-
-```yaml
-exec_node:
-  nbd:
-    enabled: true
-    block_cache_compressed_data_capacity: 536870912
-    client:
-      io_timeout: 30000
-    server:
-      thread_count: 2
-      unix_domain_socket:
-        path: /tmp/nbd.sock
-```
-
-{% endif %}
-
-## Checking health { #health-check }
+## Health check { #health-check }
 
 ### Checking node status { #node-state }
 
-After enabling NBD, make sure the exec node is in the `online` state and has no alerts:
+After enabling NBD, make sure the exec-node is in the `online` state and has no alerts:
 
 ```bash
 yt get //sys/exec_nodes/<node-address>/@state
@@ -199,7 +177,7 @@ yt get //sys/exec_nodes/<node-address>/@alerts
 # []
 ```
 
-### Checking with a test operation { #test-operation }
+### Checking via a test operation { #test-operation }
 
 Run a test operation with an NBD layer:
 
@@ -224,7 +202,7 @@ yt.run_map(
 
 ### Checking via logs { #logs }
 
-When the NBD server starts successfully, you’ll see these entries in the exec node logs (`exec-node.info.log`):
+When the NBD server starts successfully, the exec-node logs (`exec-node.info.log`) include these entries:
 
 ```text
 NBD server started (UnixDomainSocket: /tmp/nbd.sock, ThreadCount: 2)
@@ -238,16 +216,6 @@ NBD device created (FilePath: //path/to/layer.squashfs, DeviceName: /dev/nbd0)
 ```
 
 ## Monitoring { #monitoring }
-
-{% if audience == "internal" %}
-
-### Dashboards { #dashboards }
-
-- [General NBD dashboard](https://monitoring.yandex-team.ru/projects/yt/dashboards/all-nbd) — NBD metrics for all clusters.
-- [Dashboard for tasklets](https://monitoring.yandex-team.ru/projects/yt/dashboards/tasklets-nbd) — NBD metrics for tasklets.
-- [Dashboard for self‑driving vehicles](https://monitoring.yandex-team.ru/projects/yt/dashboards/selfdriving-nbd) — NBD metrics for self‑driving vehicles.
-
-{% endif %}
 
 ### Solomon sensors { #sensors }
 
@@ -320,7 +288,7 @@ Cause: a read error from an NBD device during job execution. The job is aborted 
 
 Behavior: the job is automatically aborted and restarted. If errors repeat across several attempts, the operation ends with an error.
 
-Diagnostics: in the exec node logs, look for entries with `NbdError` or `NBD read failed`. Check the availability of data nodes and the network status.
+Diagnostics: in the exec node logs, look for entries with `NbdError` or `NBD read failed`. Check the availability of data nodes and the network state.
 
 {% endcut %}
 
@@ -334,7 +302,7 @@ Cause: an error mounting the layer during the job’s root filesystem preparatio
 - The `nbd` kernel module is not loaded.
 - The kernel failed to prepare the NBD device. For more details, see the section [NBD device access errors](#troubleshooting).
 
-Diagnostics: check the exec node logs and the kernel module status:
+Diagnostics: check the exec node logs and the kernel module state:
 
 ```bash
 lsmod | grep nbd
@@ -347,13 +315,13 @@ dmesg | grep nbd
 
 Cause: an attempt to use an NBD layer on an exec node where NBD is not enabled or the NBD server hasn’t started.
 
-Solution: enable NBD in the dynamic config — `exec_node/nbd/enabled: true` — and ensure the NBD server has started successfully.
+Solution: enable NBD in the dynamic config — `exec_node/nbd/enabled: true` — and make sure the NBD server started successfully.
 
 {% endcut %}
 
 ### Diagnostics via Orchid { #orchid }
 
-You can check the NBD server status via the exec node Orchid:
+You can check the NBD server state via the exec node’s Orchid:
 
 ```bash
 yt get //sys/exec_nodes/<node-address>/orchid/exec_node
@@ -363,11 +331,11 @@ yt get //sys/exec_nodes/<node-address>/orchid/exec_node
 
 {% cut "NBD devices aren’t created after a reboot" %}
 
-Symptom: after rebooting the host, jobs with NBD layers fail with the `RootVolumePreparationFailed` error.
+Symptom: after rebooting the host, jobs with NBD layers end with the `RootVolumePreparationFailed` error.
 
 Cause: the `nbd` kernel module isn’t loaded automatically.
 
-Solution: configure the module to load at startup. For more details, see the section [NBD kernel module](#kernel-module).
+Solution: configure the module to auto‑load. For more details, see the section [NBD kernel module](#kernel-module).
 
 {% endcut %}
 
@@ -394,8 +362,8 @@ Cause: unstable network or overloaded data nodes.
 Solution:
 
 - Increase `io_timeout`.
-- Check the status of data nodes and the network.
-- Ensure layers are stored on SSD with a sufficient `replication_factor`.
+- Check the state of data nodes and the network.
+- Make sure layers are stored on SSD with a sufficient `replication_factor`.
 
 {% endcut %}
 
