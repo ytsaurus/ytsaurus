@@ -24,10 +24,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constinit const auto Logger = TableClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 THashTableChunkIndexMeta::THashTableChunkIndexMeta(const TTableSchemaPtr& schema)
     : IndexedBlockFormatDetail(schema)
 { }
@@ -247,29 +243,21 @@ void TCachedVersionedChunkMeta::ParseSystemBlocksMeta(const NProto::TSystemBlock
             xorFilterMeta.BlockMetas.emplace_back(
                 blockIndex,
                 xorFilterBlockExt);
-        } else if (systemBlockMeta.HasExtension(TMinHashDigestSystemBlockMeta::min_hash_digest_block_meta)) {
-            if (MinHashDigestBlockIndex_) {
-                YT_TLOG_ALERT("There are two blocks with min hash digest")
-                    .With("FirstBlockIndex", *MinHashDigestBlockIndex_)
-                    .With("SecondBlockIndex", blockIndex);
-            }
-
-            MinHashDigestBlockIndex_ = blockIndex;
         }
     }
 
-    if (hashTableChunkIndexBlockMetas.empty()) {
-        return;
+    if (!hashTableChunkIndexBlockMetas.empty()) {
+        HashTableChunkIndexMeta_.emplace(ChunkSchema_);
+        HashTableChunkIndexMeta_->BlockMetas.reserve(hashTableChunkIndexBlockMetas.size());
+        for (const auto& [blockIndex, blockMeta] : hashTableChunkIndexBlockMetas) {
+            HashTableChunkIndexMeta_->BlockMetas.emplace_back(
+                blockIndex,
+                HashTableChunkIndexMeta_->IndexedBlockFormatDetail,
+                blockMeta);
+        }
     }
 
-    HashTableChunkIndexMeta_.emplace(ChunkSchema_);
-    HashTableChunkIndexMeta_->BlockMetas.reserve(hashTableChunkIndexBlockMetas.size());
-    for (const auto& [blockIndex, blockMeta] : hashTableChunkIndexBlockMetas) {
-        HashTableChunkIndexMeta_->BlockMetas.emplace_back(
-            blockIndex,
-            HashTableChunkIndexMeta_->IndexedBlockFormatDetail,
-            blockMeta);
-    }
+    MinHashDigestBlockIndex_ = FindMinHashDigestBlockIndex(*DataBlockMeta(), systemBlockMetaExt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
