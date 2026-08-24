@@ -297,8 +297,10 @@ void TProcessManagerBase::OnProcessStopped(const TError& error, const std::strin
 
     auto exitCode = error.Attributes().Find<int>("exit_code");
 
+    // A companion that drains and exits on its own reports success, and an OK error cannot be attached as
+    // an inner one. The stop is still worth surfacing: the process was supposed to keep running.
     auto stopError = TError("Companion process was stopped")
-        .With(error);
+        .WithIf(!error.IsOK(), error);
     if (exitCode) {
         stopError.Add("exit_code", *exitCode);
     }
