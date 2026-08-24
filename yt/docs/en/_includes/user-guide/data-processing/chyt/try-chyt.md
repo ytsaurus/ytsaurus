@@ -129,6 +129,10 @@ SQLRowCount returns 10
 10 rows fetched
 ```
 
+### Connecting external databases over ODBC { #external-odbc }
+
+CHYT can also act as an ODBC client and query external databases through the ClickHouse ODBC bridge. For configuration details and limitations, see [Connecting external databases over ODBC](../../../../user-guide/data-processing/chyt/reference/odbc.md).
+
 ## JDBC interface { #jdbc }
 
 The JDBC driver is configured in a similar way to the ODBC driver, see the example below. The `YT_TOKEN` variable denotes the {{product-name}} access token (`AQAD-qJ…`), `CHYT_ALIAS` is the ID/alias of the clique (`ch_public`), and `YT_PROXY` is the cluster name.

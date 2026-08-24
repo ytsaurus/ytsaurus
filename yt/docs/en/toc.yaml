@@ -324,6 +324,8 @@ items:
                href: user-guide/data-processing/chyt/reference/settings.md
              - name: Instance configuration
                href: user-guide/data-processing/chyt/reference/configuration.md
+             - name: Connecting external databases over ODBC
+               href: user-guide/data-processing/chyt/reference/odbc.md
              - name: Data types
                href: user-guide/data-processing/chyt/reference/data-types.md
              - name: Functions

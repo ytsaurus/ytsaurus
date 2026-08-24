@@ -113,6 +113,8 @@ Options are roughly grouped into three sections corresponding to the tabs in the
 
     || `query_sticky_group_size` [2] | The size of the group of instances selected deterministically based on the query hash. A coordinator for executing the query will be selected uniformly from among these instances. This is only relevant when `enable_sticky_query_distribution=true` ||
 
+    || `odbc_config` | A dictionary with ODBC settings: drivers, data sources, and extra files. Enables queries to external databases. For more information, see [Connecting external databases over ODBC](../../../../../user-guide/data-processing/chyt/reference/odbc.md) ||
+
     |#
 
 ## Useful links
