@@ -145,8 +145,8 @@ ui64 GetLastExportPeriod(ui64 exportUnixTs, const TQueueStaticExportConfigPtr ex
     auto exportUnixTsCivilSecond = NDatetime::Convert(TInstant::Seconds(exportUnixTs), UTCTimezone);
     if (cronExpression.CronPrev(cronExpression.CronNext(exportUnixTsCivilSecond)) != exportUnixTsCivilSecond) {
         THROW_ERROR_EXCEPTION("Value of exportUnixTs is not a valid export timestamp")
-            .With("exportUnixTs", exportUnixTs)
-            .With("cronExpression", *exportConfig->ExportCronSchedule);
+            .With("export_unix_ts", exportUnixTs)
+            .With("cron_expression", *exportConfig->ExportCronSchedule);
     }
     return exportUnixTs - NDatetime::Convert(cronExpression.CronPrev(exportUnixTsCivilSecond), UTCTimezone).Seconds();
 }
