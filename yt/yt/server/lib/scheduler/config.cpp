@@ -774,6 +774,18 @@ void TStrategyTreeConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
+        // NB: The GPU policy is the tree's primary scheduling policy iff it runs in the allocating mode.
+        // Any other mode leaves the tree without a primary policy, so it must be paired with the classic policy kind.
+        if (config->PolicyKind == EPolicyKind::Gpu &&
+            config->GpuSchedulingPolicy->Mode != EGpuSchedulingPolicyMode::Allocating)
+        {
+            THROW_ERROR_EXCEPTION("GPU policy kind requires GPU scheduling policy to be in %Qlv mode",
+                EGpuSchedulingPolicyMode::Allocating)
+                .With("gpu_scheduling_policy_mode", config->GpuSchedulingPolicy->Mode);
+        }
+    });
+
+    registrar.Postprocessor([&] (TStrategyTreeConfig* config) {
         static const int MaxPerPoolProfilingQuantileCount = 20;
 
         int quantileCount = std::ssize(config->PerPoolSatisfactionProfilingQuantiles);
