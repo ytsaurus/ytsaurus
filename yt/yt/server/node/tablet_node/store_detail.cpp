@@ -32,6 +32,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 
@@ -850,17 +851,30 @@ TMinHashDigestBlockIndex::TMinHashDigestBlockIndex(int blockIndex)
     : BlockIndex_(blockIndex)
 { }
 
-bool TMinHashDigestBlockIndex::IsFetched()
+TMinHashDigestBlockIndex TMinHashDigestBlockIndex::FromChunkMeta(const TChunkMeta& chunkMeta)
+{
+    auto systemBlockMetaExt = FindProtoExtension<NTableClient::NProto::TSystemBlockMetaExt>(chunkMeta.extensions());
+    if (!systemBlockMetaExt) {
+        return NotFound;
+    }
+
+    auto dataBlockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(
+        chunkMeta.extensions());
+
+    return FindMinHashDigestBlockIndex(dataBlockMetaExt, *systemBlockMetaExt).value_or(NotFound);
+}
+
+bool TMinHashDigestBlockIndex::IsFetched() const
 {
     return BlockIndex_ != NotFetched;
 }
 
-bool TMinHashDigestBlockIndex::IsFound()
+bool TMinHashDigestBlockIndex::IsFound() const
 {
     return BlockIndex_ >= 0;
 }
 
-int TMinHashDigestBlockIndex::GetBlockIndex()
+int TMinHashDigestBlockIndex::GetBlockIndex() const
 {
     YT_VERIFY(IsFound());
     return BlockIndex_;
@@ -1197,7 +1211,9 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
 
             const auto& meta = entry->Meta();
 
-            MinHashDigestBlockIndex_.store(meta->GetMinHashDigestBlockIndex().value_or(TMinHashDigestBlockIndex::NotFound));
+            // NB(dave11ar): Optimization, does not affect correctness.
+            SetMinHashDigestBlockIndex(
+                meta->GetMinHashDigestBlockIndex().value_or(TMinHashDigestBlockIndex::NotFound));
 
             return meta;
         })
@@ -1345,6 +1361,12 @@ TInMemoryChunkDataPtr TChunkStoreBase::GetInMemoryChunkData() const
 TMinHashDigestBlockIndex TChunkStoreBase::GetMinHashDigestBlockIndex() const
 {
     return MinHashDigestBlockIndex_.load();
+}
+
+void TChunkStoreBase::SetMinHashDigestBlockIndex(TMinHashDigestBlockIndex blockIndex)
+{
+    YT_VERIFY(blockIndex.IsFetched());
+    MinHashDigestBlockIndex_.store(blockIndex);
 }
 
 IBlockCachePtr TChunkStoreBase::DoGetBlockCache()

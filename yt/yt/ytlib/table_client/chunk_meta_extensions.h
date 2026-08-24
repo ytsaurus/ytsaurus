@@ -83,6 +83,12 @@ bool FindBoundaryKeyBounds(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<int> FindMinHashDigestBlockIndex(
+    const NProto::TDataBlockMetaExt& dataBlockMetaExt,
+    const NProto::TSystemBlockMetaExt& systemBlockMetaExt);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachedBlockMeta
     : public TSyncCacheValueBase<NChunkClient::TChunkId, TCachedBlockMeta>
     , public NTableClient::NProto::TDataBlockMetaExt
