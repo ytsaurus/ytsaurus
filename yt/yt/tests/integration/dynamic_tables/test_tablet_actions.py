@@ -397,6 +397,53 @@ class TestTabletActions(TabletActionsBase):
         wait(lambda: get("//tmp/t/@preload_state") == "complete", timeout=5)
 
     @authors("atalmenev")
+    def test_data_retention_in_memory_shared_chunk(self):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "enable_narrow_chunk_view_compaction": False,
+            },
+            tablet_balancer_config={
+                "enable_auto_reshard": False,
+            },
+            chunk_writer={"block_size": 1},
+            optimize_for="lookup",
+            in_memory_mode="uncompressed")
+
+        rows = [{"key": i, "value": "FF"} for i in range(30)]
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        assert len(get("//tmp/t/@chunk_ids")) == 1
+
+        sync_reshard_table("//tmp/t", [[], [15]])
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 2
+        assert len(builtins.set(chunk_ids)) == 1
+
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+        action = create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "pivot_keys": [[], [10], [20]],
+                "inplace_reshard": True,
+            },
+        )
+        wait(lambda: get(f"#{action}/@state") == "completed")
+
+        assert lookup_rows("//tmp/t", [{"key": i} for i in range(30)]) == rows
+
+    @authors("atalmenev")
     def test_provisional_flush(self):
         sync_create_cells(1)
 
