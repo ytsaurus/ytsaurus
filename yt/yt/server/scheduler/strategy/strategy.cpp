@@ -1286,7 +1286,7 @@ public:
             Host_->SetSchedulerAlert(
                 alertType,
                 TError(TRuntimeFormat(alertMessage))
-                    << std::move(alerts));
+                    .With(std::move(alerts)));
         }
     }
 
@@ -1511,7 +1511,7 @@ public:
 
         if (size(jobResourceLimitsRestrictionsErrors) == size(state->TreeIdToPoolNameMap())) {
             return TError("Job resource demand restriction violated in all pool trees")
-                << GetIths<1>(jobResourceLimitsRestrictionsErrors);
+                .With(GetIths<1>(jobResourceLimitsRestrictionsErrors));
         } else if (!jobResourceLimitsRestrictionsErrors.empty()) {
             *treeIdsToUnregister = GetIths<0>(jobResourceLimitsRestrictionsErrors);
         }

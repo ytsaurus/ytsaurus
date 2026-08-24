@@ -572,7 +572,7 @@ private:
                         NSequoiaClient::EErrorCode::SequoiaRetriableError,
                         "Error communicating with master cell %v",
                         requestInfo.CellTag)
-                        << std::move(response));
+                        .With(std::move(response)));
                 ReplyOnSubrequests(requestInfo.SubrequestIndices, responseMessage);
             } else {
                 HandleMasterResponse(beforeSequoiaResolve, requestInfo.SubrequestIndices, response.Value());

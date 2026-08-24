@@ -426,7 +426,7 @@ public:
         auto errorOrResults = WaitFor(AllSet(initLocationResults));
 
         if (!errorOrResults.IsOK()) {
-            auto wrappedError = TError("Failed to initialize layer locations") << errorOrResults;
+            auto wrappedError = TError("Failed to initialize layer locations").With(errorOrResults);
             YT_LOG_WARNING(wrappedError);
         }
 

@@ -133,7 +133,7 @@ private:
             YT_TLOG_DEBUG("Authentication failed")
                 .With(authTags)
                 .With(result);
-            result <<= errorAttributes;
+            result.Add(errorAttributes);
         } else {
             YT_TLOG_DEBUG("Authentication successful")
                 .With(authTags)
@@ -165,7 +165,7 @@ private:
         // Sanity checks.
         if (!login.IsOK()) {
             return TError("Blackbox returned invalid response")
-                << login;
+                .With(login);
         }
 
         TAuthenticationResult result;

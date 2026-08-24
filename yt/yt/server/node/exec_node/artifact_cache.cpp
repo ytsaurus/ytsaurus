@@ -333,7 +333,7 @@ private:
             }
             return underlying->Cancel().Apply(BIND([location, error] (const TError& inner) {
                 location->ScheduleDisable(error);
-                return inner.IsOK() ? error : error << inner;
+                return inner.IsOK() ? error : error.With(inner);
             }));
         }));
     }

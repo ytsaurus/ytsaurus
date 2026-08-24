@@ -50,7 +50,7 @@ void ValidateColumnSchemaUpdate(
     if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Type mismatch for column %v",
             oldColumn.GetDiagnosticNameString())
-            << compatibility.second;
+            .With(compatibility.second);
     }
 
     if (newColumn.SortOrder().operator bool() && newColumn.SortOrder() != oldColumn.SortOrder()) {

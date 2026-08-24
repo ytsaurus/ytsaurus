@@ -764,7 +764,7 @@ private:
                 ChunkId_,
                 ChunkMetaResults_.size(),
                 ReadQuorum_)
-                << ChunkMetaInnerErrors_);
+                .With(ChunkMetaInnerErrors_));
             return;
         }
 

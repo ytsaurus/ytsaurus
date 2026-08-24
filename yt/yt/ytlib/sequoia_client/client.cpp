@@ -187,7 +187,7 @@ private:
                 groundClient->GetNativeConnection()->IsTerminated())
             {
                 return TError(EErrorCode::SequoiaRetriableError, "Sequoia Ground connection was probably reconfigured")
-                    << TError(result);
+                    .With(result);
             }
 
             return result;
@@ -249,7 +249,7 @@ private:
                     groundClient->GetNativeConnection()->IsTerminated())
                 {
                     return TError(EErrorCode::SequoiaRetriableError, "Sequoia connection was probably reconfigured")
-                        << TError(result);
+                        .With(result);
                 }
 
                 return result;

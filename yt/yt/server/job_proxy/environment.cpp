@@ -357,7 +357,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NJobProxy::EErrorCode::UserJobPortoApiError,
                 "Creation of user job volume failed")
-                << std::move(volumeCreationResult);
+                .With(std::move(volumeCreationResult));
         } else {
             return volumeCreationResult.Value();
         }

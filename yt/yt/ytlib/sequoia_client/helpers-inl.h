@@ -17,7 +17,7 @@ TErrorOr<T> WrapSequoiaRetriableError(
     std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> result)
 {
     return TError(EErrorCode::SequoiaRetriableError, "Sequoia retriable error")
-        << std::forward<decltype(result)>(result);
+        .With(std::forward<decltype(result)>(result));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

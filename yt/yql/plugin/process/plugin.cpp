@@ -334,7 +334,7 @@ public:
             OnQueryFinish(queryId, pluginProcess);
         } catch (const std::exception& ex) {
             appendError(makeCommonFinishError()
-                << TError(ex));
+                .With(TError(ex)));
         } catch (...) {
             appendError(makeCommonFinishError()
                 .With("message", CurrentExceptionMessage()));

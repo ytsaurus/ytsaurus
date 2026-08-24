@@ -312,7 +312,7 @@ private:
         }));
         if (!result.IsOK()) {
             FailedChunkIds_.push_back(reader->GetChunkId());
-            THROW_ERROR_EXCEPTION("Failed to get chunk meta") << result;
+            THROW_ERROR_EXCEPTION("Failed to get chunk meta").With(result);
         }
 
         auto deferredChunkMeta = New<TDeferredChunkMeta>();

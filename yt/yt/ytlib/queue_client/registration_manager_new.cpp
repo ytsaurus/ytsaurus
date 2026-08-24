@@ -474,7 +474,7 @@ private:
                 // Lookup completely failed.
                 mergedResult.push_back(
                     TError("All replica lookups failed")
-                        << std::move(failedKeyResults));
+                        .With(std::move(failedKeyResults)));
             } else {
                 // NB(apachee): We chose random successful result to return,
                 // as current setup does not provide any means to deduce the freshest result.

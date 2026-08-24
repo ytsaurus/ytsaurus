@@ -661,7 +661,7 @@ private:
                 if (results[idx].IsOK()) {
                     LocationAlerts_[idx] = TError();
                 } else {
-                    LocationAlerts_[idx] = TError("Location disabled") << results[idx];
+                    LocationAlerts_[idx] = TError("Location disabled").With(results[idx]);
                 }
             }
 

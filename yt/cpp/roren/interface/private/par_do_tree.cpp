@@ -157,7 +157,7 @@ public:
             try {
                 parDoNode.ParDo->Finish();
             } catch (...) {
-                e = e.IsOK()? MakeErrorFromCurrentException() : e << MakeErrorFromCurrentException();
+                e = e.IsOK()? MakeErrorFromCurrentException() : e.With(MakeErrorFromCurrentException());
             }
         }
         e.ThrowOnError();

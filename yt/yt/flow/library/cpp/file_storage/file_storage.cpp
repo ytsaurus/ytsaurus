@@ -137,18 +137,18 @@ void MakeWritable(const TFsPath& path)
     }
     if (!stat.IsDir()) {
         THROW_ERROR_EXCEPTION_UNLESS(
-                Chmod(path.GetPath().c_str(), stat.Mode | S_IWUSR) == 0,
-                "Failed to make file storage entry writable: %Qv",
-                path.GetPath())
-            << TError::FromSystem();
+            Chmod(path.GetPath().c_str(), stat.Mode | S_IWUSR) == 0,
+            "Failed to make file storage entry writable: %Qv",
+            path.GetPath())
+            .With(TError::FromSystem());
         return;
     }
 
     THROW_ERROR_EXCEPTION_UNLESS(
-            Chmod(path.GetPath().c_str(), stat.Mode | S_IRUSR | S_IWUSR | S_IXUSR) == 0,
-            "Failed to make file storage directory writable: %Qv",
-            path.GetPath())
-        << TError::FromSystem();
+        Chmod(path.GetPath().c_str(), stat.Mode | S_IRUSR | S_IWUSR | S_IXUSR) == 0,
+        "Failed to make file storage directory writable: %Qv",
+        path.GetPath())
+        .With(TError::FromSystem());
     TVector<TFsPath> children;
     path.List(children);
     for (const auto& child : children) {

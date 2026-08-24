@@ -701,7 +701,7 @@ private:
                 "Operation has jobs with duration is less than %v seconds, "
                 "that leads to large overhead costs for scheduling",
                 Config_->ShortJobsAlertMinJobDuration.Seconds())
-                << innerErrors;
+                .With(innerErrors);
         }
 
         Host_->SetOperationAlert(EOperationAlertType::ShortJobsDuration, error);

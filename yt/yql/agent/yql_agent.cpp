@@ -660,7 +660,7 @@ private:
                 queryState.Registered = false;
             } catch (const std::exception& ex) {
                 queryState.CleanupError = makeCommonCleanupError()
-                    << TError(ex);
+                    .With(TError(ex));
             } catch (...) {
                 queryState.CleanupError = makeCommonCleanupError()
                     .With("message", CurrentExceptionMessage());
@@ -1095,8 +1095,8 @@ private:
                 ](const TErrorOr<TYsonString>& valueOrError) -> TFuture<TDiscoveredSecret> {
                     if (!valueOrError.IsOK()) {
                         return MakeFuture<TDiscoveredSecret>(TError("Cannot get provided secret")
-                            << commonErrorAttributes
-                            << std::vector<TError>{valueOrError});
+                            .With(commonErrorAttributes)
+                            .With(std::vector<TError>{valueOrError}));
                     }
 
                     const auto& ysonString = valueOrError.Value();
@@ -1164,8 +1164,8 @@ private:
                             valueOrError = ConvertTo<TString>(ysonString);
                         } catch (const std::exception& exception) {
                             valueOrError = TError(errorMessage, TError::DisableFormat)
-                                << errorAttributes
-                                << std::vector{TError(exception)};
+                                .With(errorAttributes)
+                                .With(std::vector{TError(exception)});
                         }
 
                         return valueOrError;

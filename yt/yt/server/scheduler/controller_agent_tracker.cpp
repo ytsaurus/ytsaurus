@@ -1336,11 +1336,11 @@ private:
                 tagsWithTooFewAgents.insert(tag);
                 errors.push_back(
                     TError{"Too few agents matching tag"}
-                        << TErrorAttribute{"controller_agent_tag", tag}
-                        << TErrorAttribute{"alive_agents", aliveAgentWithCurrentTag}
-                        << TErrorAttribute{"agents", agentsWithTag}
-                        << TErrorAttribute{"min_alive_agent_count", thresholds.Absolute}
-                        << TErrorAttribute{"min_alive_agent_ratio", thresholds.Relative});
+                        .With(TErrorAttribute{"controller_agent_tag", tag})
+                        .With(TErrorAttribute{"alive_agents", aliveAgentWithCurrentTag})
+                        .With(TErrorAttribute{"agents", agentsWithTag})
+                        .With(TErrorAttribute{"min_alive_agent_count", thresholds.Absolute})
+                        .With(TErrorAttribute{"min_alive_agent_ratio", thresholds.Relative}));
             }
         }
 

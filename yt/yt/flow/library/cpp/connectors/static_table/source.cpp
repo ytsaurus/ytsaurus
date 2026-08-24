@@ -934,7 +934,7 @@ bool TSourceController::CheckDistributingTable()
                 CheckDistributingTableErrorState_->SetError(error);
             }
         } else {
-            auto error = TError("Failed to get tables") << TablesFuture_.GetOrCrash();
+            auto error = TError("Failed to get tables").With(TablesFuture_.GetOrCrash());
             YT_TLOG_EVENT(
                 GetContext()->PublicLogger,
                 ELogLevel::Error,

@@ -560,14 +560,14 @@ private:
 
         try {
             if (!allSetResult.IsOK()) {
-                THROW_ERROR_EXCEPTION("Error getting chunks to refresh") << std::move(allSetResult);
+                THROW_ERROR_EXCEPTION("Error getting chunks to refresh").With(std::move(allSetResult));
             }
 
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             // We should have state not older than the state at which chunks were added to refresh queue.
             auto leaderSyncResult = WaitFor(hydraManager->SyncWithLeader());
             if (!leaderSyncResult.IsOK()) {
-                THROW_ERROR_EXCEPTION("Error syncing with leader") << std::move(leaderSyncResult);
+                THROW_ERROR_EXCEPTION("Error syncing with leader").With(std::move(leaderSyncResult));
             }
 
             const auto& results = allSetResult.Value();
@@ -578,7 +578,7 @@ private:
                     THROW_ERROR_EXCEPTION(
                         "Error getting chunks to refresh from shard %v",
                         shardIndex)
-                        << std::move(result);
+                        .With(std::move(result));
                 }
 
                 const auto& refreshRecords = result.Value();
@@ -676,7 +676,7 @@ private:
             }
             auto trimResult = WaitFor(AllSucceeded(trimFutures));
             if (!trimResult.IsOK()) {
-                THROW_ERROR_EXCEPTION("Error trimming Sequoia refresh queue") << std::move(trimResult);
+                THROW_ERROR_EXCEPTION("Error trimming Sequoia refresh queue").With(std::move(trimResult));
             }
 
             UnsuccessfulSequoiaChunkRefreshIterations_ = 0;
@@ -777,7 +777,7 @@ private:
         try {
             if (!allSetResult.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error getting chunks")
-                    << std::move(allSetResult);
+                    .With(std::move(allSetResult));
             }
 
             THashMap<int, std::vector<NRecords::TChunkReplicas>> chunks;
@@ -831,7 +831,7 @@ private:
 
             if (!addToRefreshQueueResult.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to add chunks to refresh queue")
-                    << std::move(addToRefreshQueueResult);
+                    .With(std::move(addToRefreshQueueResult));
             }
 
             YT_LOG_DEBUG("Added chunks to refresh queue during global Sequoia chunk refresh");

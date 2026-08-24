@@ -69,7 +69,7 @@ void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerS
                 *readerColumn.LogicalType(),
                 readerColumn.GetDiagnosticNameString(),
                 ConvertToYsonString(chunkSchema, NYson::EYsonFormat::Text).AsStringBuf())
-                << compatibility.second;
+                .With(compatibility.second);
         }
     }
 }

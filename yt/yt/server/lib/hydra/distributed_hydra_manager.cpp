@@ -468,7 +468,7 @@ public:
                     return MakeFuture<int>(TError(
                         NHydra::EErrorCode::ReadOnlySnapshotBuildFailed,
                         "Failed to become ready to enter read-only mode")
-                        << readyToEnterReadOnlyMode);
+                        .With(readyToEnterReadOnlyMode));
                 }
             }
 
@@ -3132,7 +3132,7 @@ private:
 
                 ScheduleRestart(
                     epochContext,
-                    TError("Heartbeat mutation commit failed") << result);
+                    TError("Heartbeat mutation commit failed").With(result));
             }));
     }
 

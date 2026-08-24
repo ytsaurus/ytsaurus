@@ -1122,7 +1122,7 @@ private:
             case EObjectType::Table: {
                 auto queueExportsProgress = GetQueueExportsProgressOrError();
                 if (!queueExportsProgress.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to get aggregate queue exports progress") << queueExportsProgress;
+                    THROW_ERROR_EXCEPTION("Failed to get aggregate queue exports progress").With(queueExportsProgress);
                 }
                 return AggregateQueueExports(queueExportsProgress.Value());
             }
@@ -1198,7 +1198,7 @@ private:
 
         if (!QueueExports_.IsOK()) {
             return TError("Incorrect queue exports")
-                << QueueExports_;
+                .With(QueueExports_);
         }
 
         const auto& queueExports = QueueExports_.Value();
@@ -1547,7 +1547,7 @@ private:
                 if (!trimmingResult.IsOK()) {
                     Context.Partitions[partitionIndex].SetError(TError(
                         "Error occurred while executing trimming request for partition %v", partitionIndex)
-                        << trimmingResult);
+                        .With(trimmingResult));
                 }
             }
         }

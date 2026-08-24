@@ -25,7 +25,7 @@ THashMap<std::string, int> GetGpuMinorNumbers(TDuration timeout)
 
     if (!nvidiaSmiResult.Status.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to check healthy GPUs: 'nvidia-smi -q' exited with an error")
-            << nvidiaSmiResult.Status;
+            .With(nvidiaSmiResult.Status);
     }
 
     auto output = nvidiaSmiResult.Output.ToStringBuf();

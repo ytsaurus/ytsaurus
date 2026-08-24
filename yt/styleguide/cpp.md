@@ -583,11 +583,11 @@ THROW_ERROR_EXCEPTION(
     EErrorCode::MaxDataWeightPerJobExceeded, "Maximum allowed data weight per sorted job exceeds the limit: %v > %v",
     job->GetDataWeight(),
     JobSizeConstraints_->GetMaxDataWeightPerJob())
-    << TErrorAttribute("lower_key", job->LowerPrimaryKey())
-    << TErrorAttribute("upper_key", job->UpperPrimaryKey());
+    .With("lower_key", job->LowerPrimaryKey())
+    .With("upper_key", job->UpperPrimaryKey());
 
 RequestAttachmentsStream_->Abort(TError("Client request control is finalized")
-    << TErrorAttribute("request_id", GetRequestId()));
+    .With("request_id", GetRequestId()));
 ```
 
 <!--================================================================================-->

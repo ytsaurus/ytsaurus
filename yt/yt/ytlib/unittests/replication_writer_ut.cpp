@@ -337,7 +337,7 @@ public:
                         NChunkClient::EErrorCode::SendBlocksFailed,
                         "Error putting blocks to %v",
                         targetDescriptor.GetDefaultAddress())
-                        << errorOrRsp);
+                        .With(errorOrRsp));
                 }
             }));
     }

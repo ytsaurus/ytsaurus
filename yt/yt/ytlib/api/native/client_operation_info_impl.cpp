@@ -655,7 +655,7 @@ TOperation TClient::DoGetOperationImpl(
                     EErrorCode::RetriableArchiveError,
                     "Operation progress in Cypress is outdated or some attributes "
                     "are archive only while archive request failed")
-                    << archiveResultOrError;
+                    .With(archiveResultOrError);
             } else {
                 THROW_ERROR_EXCEPTION(
                     "Failed to get operation progress from archive")

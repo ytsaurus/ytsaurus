@@ -449,7 +449,7 @@ private:
                     THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
                         type,
                         objectId)
-                    << errorOr;
+                    .With(errorOr);
                 }
 
                 for (int index = 0; index < std::ssize(foundFutures); ++index) {
@@ -606,7 +606,7 @@ private:
     {
         if (!errorOrCellTag.IsOK()) {
             return TError(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v", type, objectId)
-                << std::move(errorOrCellTag);
+                .With(std::move(errorOrCellTag));
         }
 
         const auto& locationResult = errorOrCellTag.Value();

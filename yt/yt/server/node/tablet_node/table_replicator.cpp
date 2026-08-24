@@ -385,7 +385,7 @@ private:
                         "but replicated table is %v and replica table is %v",
                         TableSchema_->IsSorted() ? "sorted": "ordered",
                         replicaTableInfo->IsSorted() ? "sorted" :  "ordered")
-                        << HardErrorAttribute;
+                        .With(HardErrorAttribute);
                     return;
                 }
 
@@ -688,7 +688,7 @@ private:
                         tabletSnapshot->TabletId,
                         currentRowIndex,
                         rowIndex)
-                        << HardErrorAttribute;
+                        .With(HardErrorAttribute);
                 }
 
                 if (*firstBatchTimestamp == NullTimestamp) {

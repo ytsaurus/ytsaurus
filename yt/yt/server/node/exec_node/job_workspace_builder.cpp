@@ -1115,7 +1115,7 @@ private:
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
                         auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
-                            << std::move(result);
+                            .With(std::move(result));
                         THROW_ERROR checkError;
                     }
 
