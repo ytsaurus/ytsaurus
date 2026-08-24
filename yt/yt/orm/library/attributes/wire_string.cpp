@@ -215,8 +215,8 @@ void TUnpackedWireString::FillFieldNumberToFieldMap(
             default:
                 THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::InvalidData,
                     "Unsupported wire type encountered. Data is corrupted or deprecated wire type `GROUP` is used")
-                    .With("wireType", static_cast<int>(wireType))
-                    .With("fieldNumber", static_cast<int>(fieldNumber));
+                    .With("wire_type", static_cast<int>(wireType))
+                    .With("field_number", static_cast<int>(fieldNumber));
         }
 
         map[fieldNumber].emplace_back(stream.Checkpoint());
@@ -925,7 +925,7 @@ std::string ConvertMapKeyToWireString(
 
     THROW_ERROR_EXCEPTION("Encountered map key of forbidden type")
         .With("key", key)
-        .With("fieldType", scalarElement.Type.Underlying());
+        .With("field_type", scalarElement.Type.Underlying());
 }
 
 std::string ConvertScalarToWireString(
@@ -972,8 +972,8 @@ std::string ConvertScalarToWireString(
     }
 
     THROW_ERROR_EXCEPTION("Encountered non-scalar field type for scalar protobuf element")
-        .With("fieldType", scalarElement.Type.Underlying())
-        .With("nodeType", expectedType);
+        .With("field_type", scalarElement.Type.Underlying())
+        .With("node_type", expectedType);
 }
 
 std::vector<std::string> ConvertToWireString(
