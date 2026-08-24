@@ -1,19 +1,19 @@
 # Job file environment: layers and files
 
-This section describes how to work with the job file environment in {{product-name}}. You’ll learn what layers and individual files are, how to define them in the operation specification, how to prepare and upload them to Cypress, and how to speed up layer reads and diagnose issues.
+This section describes how to work with the job file environment in {{product-name}}. You’ll learn what layers and individual files are, how to specify them in the operation specification, how to prepare and upload them to Cypress, and how to speed up layer reads and diagnose issues.
 
 ## What is the file environment { #file-environment }
 
 A job’s file environment is a set of directories and files where the user process runs. The environment is represented as a root file system: a tree of directories and files, similar to any Unix system.
 
-To run code, you need dependencies: interpreters, libraries, binary files, configs, and data. If your code accesses a dependency — a directory or file that isn’t in the environment — an error occurs. That’s why you build the environment for a specific task.
+You need dependencies to run code: interpreters, libraries, binary files, configs, and data. If your code accesses a dependency—a directory or file that isn’t in the environment—an error occurs. That’s why you build the environment for a specific task.
 
 The file environment consists of two parts:
 
-- Root file system — built from layers listed in the [layer_paths](../../../../user-guide/data-processing/layers/layer-paths.md#job_rootfs) parameter. Suitable for a persistent environment that you reuse across operations.
-- Individual files — artifacts in the `/slot/sandbox` subtree, listed in the [file_paths](../../../../user-guide/data-processing/operations/operations-options.md#user_script_options) parameter. Suitable for one‑time delivery of specific files to a job, such as binaries or configs.
+- Root file system—built from layers listed in the [layer_paths](../../../../user-guide/data-processing/layers/layer-paths.md#job_rootfs) parameter. It’s suitable for a persistent environment that you carry over from operation to operation.
+- Individual files—artifacts in the `/slot/sandbox` subtree, listed in the [file_paths](../../../../user-guide/data-processing/operations/operations-options.md#user_script_options) parameter. They’re suitable for one‑time transfers of specific files to a job, such as binaries or configs.
 
-The file environment is formed by the execution environment — the software environment where the job runs. The execution environment provides access to the file system and runs your code in it. For details on the available environments and how they differ, see the [Execution environments](#environments) section.
+The execution environment builds the file environment—the software environment where the job runs. The execution environment provides access to the file system and runs your code in it. For details on the available environments and their differences, see the [Execution environments](#environments) section.
 
 ## Layers { #layers }
 
@@ -21,32 +21,32 @@ The file environment is formed by the execution environment — the software env
 
 A layer is a file that contains a subset of the root file system. The subset is one or more directory subtrees with their nested structure preserved. Physically, a layer is stored as a single file that you upload to {{product-name}}.
 
-The simplest example of a layer is an archive. You prepare the environment on your machine, pack it into an archive, and upload it to {{product-name}}. During operation execution, the system expands the archive and forms the job’s file environment from it.
+The simplest example of a layer is an archive. You prepare the environment on your machine in advance, pack it into an archive, and upload it to {{product-name}}. During operation execution, the system expands the archive and forms the job’s file environment from it.
 
 ### How the environment is built from layers { #rootfs }
 
-You can build the root file system from a single layer or from multiple layers. Layers from `layer_paths` are merged into a single root file system using [overlayfs](https://wiki.archlinux.org/title/Overlay_filesystem) — a Linux kernel mechanism that combines several file systems into one.
+You can build the root file system from a single layer or from multiple layers. Layers from `layer_paths` are merged into a single root file system using [overlayfs](https://wiki.archlinux.org/title/Overlay_filesystem)—a Linux kernel mechanism that combines several file systems into one.
 
-The root file system is built on the exec node during job preparation, before your code starts. Containerization — Porto or CRI — makes the assembled file system the root `/` of the container and runs your code in it. Without containerization, layers aren’t applied as a root file system.
+The root file system is built on the exec node during job preparation, before your code starts. Containerization—Porto or CRI—makes the assembled file system the root `/` of the container and runs your code in it. Without containerization, layers aren’t applied as a root file system.
 
-#### How a layer maps to the tree { #rootfs-tree }
+#### How a layer fits into the tree { #rootfs-tree }
 
-Each layer represents a part of the tree — from the top level down. The top level of a layer includes folders and files that sit directly in it, not nested inside other folders. After assembly, they appear directly at the root `/`.
+Each layer reproduces part of the tree, from the top level down. The top level of a layer is the folders and files that sit directly in it, not nested in other folders. After assembly, they’re placed directly in the root `/`.
 
-Everything nested inside them ends up at lower levels — inside the corresponding root folders.
+Everything nested inside them ends up at lower levels—inside the corresponding root folders.
 
-For example, if the archive’s top level contains the `usr`, `bin`, and `home` folders, they become `/usr`, `/bin`, `/home` after expansion. Their nested contents become `/usr/lib`, `/bin/bash`, and so on.
+For example, if the archive contains the `usr`, `bin`, and `home` folders at the top level, they become `/usr`, `/bin`, and `/home` after expansion. Their nested contents become `/usr/lib`, `/bin/bash`, and so on.
 
 A single layer can contain multiple subtrees at once. For example, one archive can include both `/usr` and `/var`.
 
 #### Base and delta layers { #base-delta }
 
-Most environments are built using the “base layer + delta” scheme. It separates the unchanging foundation from your custom files:
+Most often, you build the environment using a “base layer + delta” scheme. It separates the unchanging foundation from your own files:
 
-- Base layer — a layer with the core part of the environment: system utilities and libraries, such as `/bin/bash` and `libc6`. It’s often a Linux distribution image, for example Ubuntu, with packages and libraries installed.
-- Delta layer — an addition to the base layer with your own libraries or binary artifacts.
+- Base layer—a layer with the main part of the environment: system utilities and libraries, for example `/bin/bash` and `libc6`. It’s usually a Linux distribution image, such as Ubuntu, with packages and libraries installed.
+- Delta layer—an addition to the base layer with your own libraries or binary artifacts.
 
-A common configuration is one base layer and one or more delta layers: you use a ready‑made image as the base and put your custom files in the delta.
+A common configuration is one base layer and one or more delta layers: you use a ready‑made image as the base and put your own files in the delta.
 
 ### Layer formats { #layer-formats }
 
@@ -55,8 +55,8 @@ A common configuration is one base layer and one or more delta layers: you use a
 #|
 ||**Format**|**What it is**|**When to use**||
 ||Tar archive|A classic archive with a subset of the file system|When performance isn’t critical and you want to build a layer as simply as possible||
-||SquashFS|A file system image mounted without unpacking|When performance matters: job preparation is faster, and disk load is reduced||
-||SquashFS over NBD|Reading a SquashFS image over the network, without downloading it to the exec node|When you need the fastest job startup and don’t want to copy large images in full||
+||SquashFS|A file system image mounted without unpacking|When performance matters: it speeds up job preparation and reduces disk load||
+||SquashFS over NBD|Reading a SquashFS image over the network, without downloading it to the exec node|When you need the fastest job start and don’t want to copy large images in full||
 |#
 
 #### Tar archive { #tar-layer }
@@ -65,7 +65,7 @@ A tar archive is a layer in the form of a `.tar`, `.tar.gz`, `.tar.xz`, or `.tar
 
 The archive is convenient for several reasons:
 
-- You can easily create it with the standard `tar` utility.
+- You can easily build it with the standard `tar` utility.
 - You can easily inspect its contents: download the archive and unpack it.
 - It works in any container environment.
 
@@ -73,31 +73,31 @@ During job preparation, the archive is downloaded to the exec node and unpacked 
 
 #### SquashFS { #squashfs-layer }
 
-SquashFS is a file system image that is mounted on the exec node without unpacking. The mount point is then used as a layer in overlayfs. Mounting is much faster than unpacking an archive.
+SquashFS is a file system image that’s mounted on the exec node without unpacking. The mount point is then used as a layer in overlayfs. Mounting is much faster than unpacking an archive.
 
-Compared to a tar archive, a SquashFS layer offers these advantages:
+Compared to a tar archive, a SquashFS layer offers these benefits:
 
-- Speeds up job preparation — you don’t need to unpack the image.
-- Reduces disk load — a valuable resource on clusters.
-- Saves disk space — the image isn’t stored in an unpacked form.
+- It speeds up job preparation—you don’t need to unpack the image.
+- It reduces disk load—a valuable resource on clusters.
+- It saves disk space—the image isn’t stored in an unpacked form.
 
 #### SquashFS over NBD { #nbd-layer }
 
-NBD (Network Block Device) is a way to use a SquashFS image over the network. Image data is read from data nodes as needed, without pre‑downloading to the exec node.
+NBD (Network Block Device) is a way to use a SquashFS image over the network. Image data is read from data nodes as needed, without pre‑downloading it to the exec node.
 
-A local SquashFS layer is first fully downloaded to the exec node. NBD reads only the blocks that the job accesses from the data nodes. This way, NBD avoids the resources required by a local layer:
+A local SquashFS layer is first downloaded in full to the exec node. NBD reads only the blocks that the job accesses from the data nodes. This way, NBD avoids using the resources required by a local layer:
 
-- CPU and Disk I/O for writing the image to disk.
-- Disk space for storing the image.
-- Network I/O for transferring image parts that the job doesn’t read.
+- CPU and Disk I/O to write the image to disk.
+- Disk space to store the image.
+- Network I/O to transfer image parts that the job doesn’t read.
 
-Already‑read blocks are cached at multiple levels: in the kernel’s page cache, in the chunk reader caches, and in the caches on data nodes. Subsequent accesses to the same data are served from the cache without new network reads. This can make NBD layers significantly faster than regular layers.
+Already‑read blocks are cached at multiple levels: in the kernel page cache, in the chunk reader caches, and in the data node caches. Subsequent accesses to the same data are served from the cache without new network reads. This can make NBD layers significantly faster than regular layers.
 
-NBD works on top of a SquashFS image. This format compresses data and is read‑only, which matches the purpose of a layer: the layer doesn’t change while the job runs.
+NBD works on top of a SquashFS image. This format compresses data and is read‑only, which matches the purpose of a layer: a layer doesn’t change while the job runs.
 
 {% note warning %}
 
-NBD works only in a Porto environment.
+NBD works only in the Porto environment.
 
 {% endnote %}
 
@@ -122,24 +122,24 @@ SquashFS and NBD aren’t supported in the `simple` and `cri` environments.
 
 ### What is an individual file { #what-is-file }
 
-An individual file is an artifact from Cypress that is delivered to the job directly, without building a layer. Files are passed via the `file_paths` parameter and end up in the `/slot/sandbox` subtree of the root file system. In effect, the files supplement the root file system’s file environment.
+An individual file is a Cypress artifact delivered directly to the job, without building a layer. Files are passed via the `file_paths` parameter and land in the `/slot/sandbox` subtree of the root file system. In effect, files supplement the root file system’s file environment.
 
-Individual files are suitable for delivering configs, binaries, and models to a job. You place the file yourself and know which path to use in your code to access it.
+Individual files are suitable for transferring configs, binaries, and models to a job. You place the file yourself and know which path to use to access it from your code.
 
 ### Placing files in /slot/sandbox { #sandbox }
 
-Each file from `file_paths` ends up in the `/slot/sandbox` subtree of the root file system. By default, the file is available to the job at `/slot/sandbox/<file name>`, where the file name matches the original name from Cypress.
+Each file from `file_paths` lands in the `/slot/sandbox` subtree of the root file system. By default, the file is available to the job at `/slot/sandbox/<file name>`, where the file name matches the original name from Cypress.
 
-To place a file elsewhere in the root file system — for example, in `/bin` or `/usr/lib` — you must add it via a layer. For more details, see the [Files vs. layers](#files-vs-layers) section.
+To place a file elsewhere in the root file system—for example, in `/bin` or `/usr/lib`—you’ll need to add it via a layer. For more details, see the [Files vs. layers](#files-vs-layers) section.
 
 ### Files vs. layers { #files-vs-layers }
 
 Files and layers solve different tasks:
 
-- Files via `file_paths` are suitable for delivering non‑system configs, models, and binaries. You can’t use files to deliver, for example, shared C/C++ libraries or system configs: files go into the `/slot/sandbox` subtree and can’t be placed anywhere else in the root file system.
-- Layers via `layer_paths` are needed to build a system environment. This includes everything required to run your program: system libraries, the dynamic linker, system configs, and applications. A layer can contain files in any directory of the root file system — `/usr`, `/bin`, `/lib`, and others.
+- Files via `file_paths` are suitable for transferring non‑system configs, models, and binaries. You can’t use files to transfer, for example, shared C/C++ libraries or system configs: files land in the `/slot/sandbox` subtree and can’t be placed anywhere else in the root file system.
+- Layers via `layer_paths` are needed to build a system environment. This includes everything required to run your program: system libraries, the dynamic linker, system configs, and applications. A layer can contain files in any directory of the root file system—`/usr`, `/bin`, `/lib`, and others.
 
-If you need to place a file outside `/slot/sandbox` — for example, a library in `/usr/lib` — build a delta layer and specify it in `layer_paths`. A library often can’t be in an arbitrary location: the system requires it to be at a specific path, or it won’t work.
+If you need to place a file outside `/slot/sandbox`—for example, a library in `/usr/lib`—build a delta layer and specify it in `layer_paths`. A library often can’t reside in an arbitrary location: the system requires it to be at a specific path, or it won’t work.
 
 ## How to set the job’s file environment in the specification { #set-environment }
 
@@ -147,7 +147,7 @@ You set the job’s file environment in the operation specification using two pa
 
 ### The layer_paths parameter { #layer-paths }
 
-You pass layers to the operation via the `layer_paths` parameter—a list of paths to layers in Cypress. Here’s a minimal example with a single-layer environment:
+You pass layers to the operation via the `layer_paths` parameter — a list of paths to layers in Cypress. Here’s a minimal example with a single-layer environment:
 
 ```python
 import yt.wrapper as yt
@@ -165,11 +165,11 @@ yt.run_map(mapper, source_table, destination_table, spec=spec)
 
 #### Layer order { #layer-order }
 
-List the layers in `layer_paths` from top to bottom: delta layers first, the base layer last.
+List layers in `layer_paths` from top to bottom: delta layers first, the base layer last.
 
-Layer order matters only when layers overlap in data—when they contain files or folders at the same path. In case of overlap, the top layer takes priority: the root filesystem uses the file from the top layer.
+Layer order matters only when layers overlap in data — that is, they contain files or folders at the same path. When they overlap, the top layer takes priority: the root filesystem uses the file from the top layer.
 
-That’s why files from the delta override files from the base layer, even if a file with the same path exists in both.
+That’s why files from the delta override those from the base layer, even if a file with the same path exists in both.
 
 If there’s no overlap, the order doesn’t matter. For example, when one layer contains `/usr` and another contains `/var`.
 
@@ -186,11 +186,10 @@ If a file exists at the same path in both layers, the system uses the file from 
 
 The layer format and access method are defined by the file attributes in Cypress:
 
-#|
-||**Attribute**|**Values**|**Description**||
-||`filesystem`|`archive`, `squashfs`|Layer format: `archive` is a tar archive, `squashfs` is a SquashFS filesystem image||
-||`access_method`|`local`, `nbd`|Access method for the image||
-|#
+| Attribute | Values | Description |
+| --- | --- | --- |
+| `filesystem` | `archive`, `squashfs` | Layer format: `archive` is a tar archive, `squashfs` is a SquashFS filesystem image |
+| `access_method` | `local`, `nbd` | Access method for the image |
 
 For a SquashFS layer with NBD access, you can specify `access_method` directly in the layer path:
 
@@ -205,21 +204,16 @@ spec = {
 }
 ```
 
-The `access_method` attribute in the specification is available starting from version 25.1. It’s handy when you need to use the same layer with different access methods or when you don’t have permissions to change the file’s attributes.
+The `access_method` attribute in the specification is available starting from version 25.1. It’s handy when you need to use one layer with different access methods or when you don’t have permission to change the file’s attributes.
 
 #### Default layer { #default-layer }
 
-If you don’t specify `layer_paths`, the cluster’s default image is used. Typically, it’s a minimal base Ubuntu image.
+If you don’t specify `layer_paths`, the system uses the default image configured on the cluster. Typically, this is a minimal base Ubuntu image.
 
-{% if audience == "internal" %}
-
-For example, on the Freud cluster, the default image is Ubuntu Focal 20.04 in SquashFS format with `access_method=nbd`. On other internal {{product-name}} clusters, the default image is Ubuntu Focal.
-
-{% endif %}
 
 ### The file_paths parameter { #file-paths }
 
-You pass files to the operation via the `file_paths` parameter—a list of paths to files in Cypress with attributes. Each file goes into the `/slot/sandbox` subtree.
+You pass files to the operation via the `file_paths` parameter — a list of paths to files in Cypress with attributes. Each file goes into the `/slot/sandbox` subtree.
 
 #### File name conflicts { #file-name-conflicts }
 
@@ -229,15 +223,14 @@ If two files in `file_paths` have the same name and you don’t set the `file_na
 
 You can set attributes for each file in `file_paths`:
 
-#|
-||**Attribute**|**Type**|**Description**||
-||`file_name`|string|File name in the `/slot/sandbox` subtree. By default, it’s the original file name from Cypress. Supports nested paths, for example `nv_tmpfs/sys/static/bundle.tar.gz`||
-||`executable`|bool|Set the executable flag. Default is `false`||
-||`bypass_artifact_cache`|bool|Don’t cache the file in the exec node’s artifact cache. Default is `false`. This can be handy, for example, when you need to copy the file directly to `tmpfs`||
-||`copy_file`|bool|Copy the file instead of creating a hard link. Default is `false`||
-|#
+| Attribute | Type | Description |
+| --- | --- | --- |
+| `file_name` | string | The file name in the `/slot/sandbox` subtree. By default, it’s the original file name from Cypress. Supports nested paths, for example `nv_tmpfs/sys/static/bundle.tar.gz` |
+| `executable` | bool | Set the executable flag. Default is `false` |
+| `bypass_artifact_cache` | bool | Don’t cache the file in the exec node’s artifact cache. Default is `false`. This can be useful, for example, when you need to copy the file directly to `tmpfs` |
+| `copy_file` | bool | Copy the file instead of creating a hard link. Default is `false` |
 
-Two attributes are key. The `$value` attribute specifies the path in Cypress where to get the file from. The `file_name` attribute specifies the path in the job’s file environment where to place it.
+Two attributes are key. The `$value` attribute specifies the path in Cypress where the file comes from. The `file_name` attribute specifies the path in the job’s file environment where to place the file.
 
 Here’s an example specification with file attributes:
 
@@ -269,7 +262,7 @@ spec = {
 }
 ```
 
-In this example, `nirvana-bundle.tar.gz` will be available at `/slot/sandbox/nv_tmpfs/sys/static/nirvana-bundle.tar.gz`. The `job_launcher_native` file will be at `/slot/sandbox/nv_tmpfs/sys/static/job_launcher_native` with execute permission.
+In this example, `nirvana-bundle.tar.gz` is available at `/slot/sandbox/nv_tmpfs/sys/static/nirvana-bundle.tar.gz`. The `job_launcher_native` file is available at `/slot/sandbox/nv_tmpfs/sys/static/job_launcher_native` with execute permission.
 
 #### Default file_paths { #file-paths-default }
 
@@ -277,16 +270,16 @@ If you don’t specify `file_paths`, the `/slot/sandbox` subtree remains without
 
 ### Environment preparation order { #preparation-order }
 
-The job’s environment is built in two steps:
+The job environment is built in two steps:
 
-1. **Prepare the root filesystem.** The system downloads the layers from `layer_paths`, mounts them using overlayfs, and builds the root filesystem.
-2. **Deliver the files.** The system downloads the files from `file_paths` and places them in the `/slot/sandbox` subtree of the root filesystem.
+1. **Prepare the root filesystem.** The system downloads layers from `layer_paths`, mounts them using overlayfs, and builds the root filesystem.
+2. **Deliver files.** The system downloads files from `file_paths` and places them in the `/slot/sandbox` subtree of the root filesystem.
 
-Your custom code runs only after both steps are complete.
+Your custom code runs only after both steps complete.
 
 ### Specification examples { #spec-examples }
 
-You can combine layers and files in a single specification. For example, use a base tar layer in `layer_paths` and additional artifacts in `file_paths`:
+You can combine layers and files in one specification. For example, use a base tar layer in `layer_paths` and additional artifacts in `file_paths`:
 
 ```python
 spec = {
@@ -314,7 +307,7 @@ spec = {
 }
 ```
 
-The files will be available at `/slot/sandbox/executor-config.yaml` and `/slot/sandbox/my_binary`.
+The files are available at `/slot/sandbox/executor-config.yaml` and `/slot/sandbox/my_binary`.
 
 ## Prepare and upload layers and files to Cypress { #prepare-upload }
 
@@ -322,7 +315,7 @@ The files will be available at `/slot/sandbox/executor-config.yaml` and `/slot/s
 
 #### Create a tar archive { #create-tar }
 
-You build the archive, for example, with the `tar` command:
+You build the archive, for example, by using the `tar` command:
 
 ```bash
 tar czf delta_layer.tar.gz configs data bins
@@ -330,9 +323,9 @@ tar czf delta_layer.tar.gz configs data bins
 
 #### Create a SquashFS image { #create-squashfs }
 
-There is no separate “NBD image”: the same SquashFS image is used for NBD access. The layer format and access method are defined not by the file extension, but by the attributes when you upload to Cypress. For more details, see the section [Upload layers to Cypress](#upload-layers).
+There is no separate “NBD image”: the same SquashFS image is used for NBD access. The layer format and access method are determined not by the file extension, but by the attributes when you upload to Cypress. For more details, see the section [Upload layers to Cypress](#upload-layers).
 
-Build the image from a folder with `mksquashfs`:
+Build the image from a folder by using `mksquashfs`:
 
 ```bash
 sudo apt install squashfs-tools
@@ -341,7 +334,7 @@ mkdir ~/mnt
 mksquashfs ~/mnt /tmp/my_layer.squashfs
 ```
 
-If you already have a tar layer, you can convert it to SquashFS with `tar2sqfs`:
+If you already have a tar layer, you can convert it to SquashFS by using `tar2sqfs`:
 
 ```bash
 sudo apt install squashfs-tools-ng
@@ -356,24 +349,6 @@ When you convert tar layers to SquashFS, make sure there are no errors transferr
 
 {% endnote %}
 
-{% if audience == "internal" %}
-
-### The layers.yandex-team.ru service { #layers-service }
-
-On internal clusters, you can build layers via the web service [layers.yandex-team.ru](https://layers.yandex-team.ru/). It removes the need for manual image building and uploading and can:
-
-- Build layers interactively: upload files via drag-and-drop and use the visual layer structure editor.
-- Convert existing layers to SquashFS format using the `+locations` button.
-- Distribute images to all supported clusters.
-- Import Docker images from Docker Hub.
-- Offer ready-made templates for typical environments: Python, C++, Java, and a base layer.
-- Upload layers to Cypress while setting the `primary_medium` and `replication_factor` attributes.
-- Manage versions: view build history, compare versions, and roll back to the previous working configuration.
-- Delegate access rights: read, edit, and administer.
-- Generate a ready-to-use layer path for insertion into `layer_paths`.
-
-{% endif %}
-
 ### Upload layers to Cypress { #upload-layers }
 
 For both tar layers and SquashFS images, you can set the storage medium `ssd_blobs` and the number of replicas — this speeds up layer downloading to exec nodes. For more details, see the section [How to speed up layer reads](#performance).
@@ -384,7 +359,7 @@ For both tar layers and SquashFS images, you can set the storage medium `ssd_blo
 yt write-file //path/to/layer.tar.gz < ~/layer.tar.gz
 ```
 
-If the filesystem format isn’t specified, the layer is treated as a tar archive.
+If the filesystem format is not specified, the layer is treated as a tar archive.
 
 #### Upload a SquashFS image { #upload-squashfs }
 
@@ -434,10 +409,10 @@ At any given time, the image is used in only one mode: `local` or `nbd`.
 
 Before you upload files to Cypress, prepare them on your local machine:
 
-- Gather the required files: scripts, binaries, configs, and models.
-- Check file integrity: compare hashes or checksums if the files were downloaded from external sources.
+- Collect the required files: scripts, binaries, configs, and models.
+- Check file integrity: compare hashes or checksums if you downloaded the files from external sources.
 - Check access rights: files that you plan to run must be executable.
-- Organize the files into a logical directory structure, for example `/scripts`, `/configs`, `/models`.
+- Organize files into a logical directory structure, for example `/scripts`, `/configs`, `/models`.
 
 ### Upload files to Cypress { #upload-files }
 
@@ -445,7 +420,7 @@ Files for `file_paths` are uploaded to Cypress in the same way as layers. You ca
 
 #### Choose a medium { #file-medium }
 
-You can increase file download speed by using the appropriate medium and setting the `primary_medium` attribute. Store frequently used files on SSD and rarely used files on HDD:
+You can increase the file download speed by using the appropriate medium and setting the `primary_medium` attribute. Store frequently used files on SSD, and rarely used files on HDD:
 
 ```bash
 yt create --type file \
@@ -463,7 +438,7 @@ yt set //path/to/my_file/@account sys
 
 #### Number of replicas { #file-replication }
 
-You can increase file download speed by setting the number of replicas with the `replication_factor` attribute. The default is 3, and the maximum is 20:
+You can increase the file download speed by using the number of replicas and setting the `replication_factor` attribute. The default is 3, and the maximum is 20:
 
 ```bash
 yt create --type file \
@@ -563,19 +538,19 @@ Files in the delta layer override files in the base layer when the paths match.
 
 ### Job environment preparation stages { #preparation-stages }
 
-Preparing a job's environment involves several stages. Each stage takes time and consumes resources. You can find preparation metrics in the {{product-name}} web interface:
+Preparing a job’s environment involves several stages. Each stage takes time and consumes resources. You can view preparation metrics in the {{product-name}} web interface:
 
-- On the operation page: go to the **Jobs** tab → **Statistics** column.
-- On the job page: open the **Job statistics** section → **Prepare** stage.
+- On the operation page — go to the **Jobs** tab → check the **Statistics** column.
+- On the job page — open the **Job statistics** section → look at the **Prepare** stage.
 
 Key job environment preparation stages:
 
 #|
-||**Stage**|**What happens**|**What to optimize**||
+||**Stage**|**What happens**|**How to optimize**||
 ||Downloading artifacts|Downloading layers and files from Cypress to the exec node|[Store on SSD](#ssd-storage), [increase the number of replicas](#replication-factor)||
 ||Preparing artifacts|Preparing downloaded artifacts: unpacking tar, checking integrity|Switch from tar to [SquashFS](#squashfs-layer)||
-||Preparing root volume|Mounting layers and assembling the root file system via overlayfs|Switch to [SquashFS over NBD](#nbd-layer)||
-||Preparing tmpfs volumes|Preparing tmpfs volumes for the job|Depends on the tmpfs size; configure it on the cluster||
+||Preparing root volume|Mounting layers and building the root filesystem via overlayfs|Switch to [SquashFS over NBD](#nbd-layer)||
+||Preparing tmpfs volumes|Preparing tmpfs volumes for the job|Depends on the tmpfs size; configured at the cluster level||
 |#
 
 ### Stage analysis { #bottleneck-analysis }
@@ -585,58 +560,58 @@ To find the bottleneck, compare the time spent on each stage and analyze outlier
 - Open the operation page and go to the **Jobs** tab.
 - Find jobs with the longest preparation time — sort by the **Prepare time** column.
 - Open the job and check the stage breakdown in the **Job statistics** section.
-- Compare the stage times: the stage with the maximum time is the bottleneck.
+- Compare the stage times: the stage with the longest time is the bottleneck.
 - Apply the optimization methods from the table above to the identified stage.
 
 ### Methods to optimize job environment preparation stages { #stage-optimization }
 
-If the **Preparing root volume** stage takes the most time, switching from tar to SquashFS over NBD gives the biggest performance gain. If it's **Downloading artifacts**, increase the number of replicas and check that the layer is stored on SSD. If it's **Preparing artifacts**, switch from tar to SquashFS to avoid unpacking.
+If the **Preparing root volume** stage takes the most time, switching from tar to SquashFS over NBD gives the biggest performance gain. If it’s **Downloading artifacts**, increase the number of replicas and verify that the layer is stored on SSD. If it’s **Preparing artifacts**, switch from tar to SquashFS to avoid unpacking.
 
 ### Troubleshooting { #troubleshooting }
 
 #### RootVolumePreparationFailed { #root-volume-error }
 
-This error occurs when mounting a layer fails during root file system preparation. Possible causes:
+This error occurs when mounting a layer fails during root filesystem preparation. Possible causes:
 
 - The layer image is corrupted.
-- The file system format is incorrect — `@filesystem`.
+- The filesystem format is incorrect — `@filesystem`.
 - The NBD server is unavailable or not configured on the cluster.
 
 NBD‑specific causes are listed in the [Common NBD errors](#nbd-common-errors) section.
 
 #### NbdError { #nbd-error }
 
-This error occurs when reading from an NBD device fails during job execution, for example, due to a connection drop with the data node. The job is automatically aborted and restarted. If errors keep recurring, the operation ends with an error.
+This error occurs when reading from an NBD device fails during job execution, for example, due to a lost connection with the data node. The job is automatically aborted and restarted. If the errors keep happening, the operation ends with an error.
 
 #### NBD volume creation error { #nbd-volume-error }
 
 This error occurs when creating an NBD volume on the exec node fails. Possible causes:
 
-- The NBD server isn't running or is unavailable on the exec node.
+- The NBD server isn’t running or isn’t reachable on the exec node.
 - The limit for NBD devices on the exec node is exceeded.
-- There aren't enough resources to create the volume.
+- There aren’t enough resources to create the volume.
 
 Contact your cluster administrator for diagnostics.
 
 #### File permission error { #file-permission-error }
 
-If a file ends up in `/slot/sandbox` but your user code can't run it, check the `executable` attribute. By default, it's set to `false`. Set `executable: true` for executable files.
+If a file ends up in `/slot/sandbox` but your user code can’t run it, check the `executable` attribute. By default, it’s set to `false`. Set `executable: true` for executable files.
 
 #### File name conflict in /slot/sandbox { #file-name-conflict-error }
 
-If two files in `file_paths` have the same name and the `file_name` attribute isn't set, the last file overwrites the previous one. Set a unique `file_name` for each file.
+If two files in `file_paths` have the same name and the `file_name` attribute isn’t set, the last file overwrites the previous one. Set a unique `file_name` for each file.
 
 #### Disk space shortage { #disk-space-error }
 
-Unpacked tar layers take up space on the exec node disk. Switch to SquashFS: the image is mounted without unpacking and isn't stored in an unpacked form.
+Unpacked tar layers take up space on the exec node disk. Switch to SquashFS: the image is mounted without unpacking and isn’t stored in an unpacked form.
 
 #### Artifact download timeout { #download-timeout }
 
-If the **Downloading artifacts** stage takes too long, increase `replication_factor` and check that the layer is stored on SSD. More replicas let you read data in parallel from different data nodes.
+If the **Downloading artifacts** stage takes too long, increase `replication_factor` and verify that the layer is stored on SSD. More replicas let you read data in parallel from different data nodes.
 
 #### Quota and resource issues { #quota-error }
 
-If a job ends with a resource shortage error — CPU, memory, or disk — check the limits in the operation specification. Increase the `cpu_limit`, `memory_limit`, or `disk_request` parameters if needed. Also check that unpacked tar layers aren't taking up too much space: switch to SquashFS to avoid storing the image in an unpacked form.
+If the job ends with a resource shortage error — CPU, memory, or disk — check the limits in the operation specification. Increase `cpu_limit`, `memory_limit`, or `disk_request` if needed. Also, check that unpacked tar layers aren’t taking up too much space: switch to SquashFS so you don’t store the image in an unpacked form.
 
 ## How to speed up layer reads { #performance }
 
@@ -660,7 +635,7 @@ The migration to SSD happens in the background and may take time.
 
 ### Increase the number of replicas { #replication-factor }
 
-For NBD, three replicas can become a bottleneck when many jobs use the same layer simultaneously. More replicas let you read data in parallel from different data nodes. You pay for more replicas with extra storage space.
+For NBD, three replicas can become a bottleneck when many jobs use the same layer at the same time. More replicas let you read data in parallel from different data nodes. You pay for more replicas with extra storage space.
 
 ```bash
 # When creating a file
@@ -677,7 +652,7 @@ By default, `replication_factor=3`; the maximum is 20.
 
 ### Use the chunk cache { #chunk-cache }
 
-For tar and local SquashFS layers with `access_method=local`, the exec node caches downloaded layers in the chunk cache. When you rerun jobs with the same layers, they're taken from the cache without downloading from data nodes.
+For tar and local SquashFS layers with `access_method=local`, the exec node caches downloaded layers in the chunk cache. When you rerun jobs with the same layers, they’re taken from the cache without downloading from data nodes.
 
 Two factors affect cache efficiency:
 
@@ -690,7 +665,7 @@ Two factors affect cache efficiency:
 
 #### SquashFS block size { #squashfs-block-size }
 
-The SquashFS file system works with blocks. By default, the block size is 128 KB. The larger the block, the more data the kernel reads at once and the fewer NBD requests are sent to data nodes.
+The SquashFS filesystem works with blocks. By default, the block size is 128 KB. The larger the block, the more data the kernel reads at once and the fewer NBD requests are sent to data nodes.
 
 Set the block size when building the image:
 
@@ -702,15 +677,15 @@ For example, for self‑driving systems, switching from a 128 KB block to a 1 MB
 
 {% note info %}
 
-A block that's too large increases the read volume when accessing small files: you have to read "almost empty" blocks. Also, in the current Linux implementation of SquashFS, increasing the block size raises RAM consumption when mounting the image. The optimal size depends on the file access pattern in the layer.
+A block that’s too large increases the read volume when accessing small files: you have to read “almost empty” blocks. Also, in the current Linux implementation of SquashFS, increasing the block size raises RAM consumption when mounting the image. The optimal size depends on the file access pattern in the layer.
 
 {% endnote %}
 
 #### Chunk block size { #chunk-block-size }
 
-Don't confuse the SquashFS block size with the chunk block size. A file in Cypress consists of chunks, and a chunk is read from data nodes in blocks. By default, the chunk block size is 16 MB.
+Don’t confuse the SquashFS block size with the chunk block size. A file in Cypress consists of chunks, and a chunk is read from data nodes in blocks. By default, the chunk block size is 16 MB.
 
-The kernel reads data from NBD devices in small chunks, usually no more than 8 KB. So, with NBD access, a smaller chunk block size — `512K`, `1M`, or `2M` — reduces the volume of unnecessary reads.
+The kernel reads data from NBD devices in small chunks, usually no more than 8 KB. So, with NBD access, a smaller chunk block size — `512K`, `1M`, or `2M` — reduces unnecessary reads.
 
 Set the block size when uploading the file:
 
@@ -728,17 +703,7 @@ For example, for tasklets, reducing the chunk block size from 16 MB to 2 MB noti
 
 {% endnote %}
 
-### NBD monitoring and diagnostics { #nbd-monitoring }
-
-{% if audience == "internal" %}
-
-#### Dashboards { #dashboards }
-
-- [General NBD dashboard](https://monitoring.yandex-team.ru/projects/yt/dashboards/all-nbd) — NBD metrics for all clusters.
-- [Tasklets NBD dashboard](https://monitoring.yandex-team.ru/projects/yt/dashboards/tasklets-nbd) — NBD metrics for tasklets.
-- [Self‑driving NBD dashboard](https://monitoring.yandex-team.ru/projects/yt/dashboards/selfdriving-nbd) — NBD metrics for self‑driving systems.
-
-{% endif %}
+### Monitoring and diagnosing NBD { #nbd-monitoring }
 
 #### Solomon sensors { #sensors }
 
@@ -790,11 +755,11 @@ Below are errors specific to NBD. General job environment preparation errors `Ro
 
 #### NBD server is not present { #nbd-server-missing }
 
-This error occurs when you try to use NBD on a cluster where it isn't enabled, or in an environment other than the porto environment. Contact your cluster administrator to enable NBD.
+This error occurs when you try to use NBD on a cluster where it isn’t enabled, or in an environment other than the porto environment. Contact your cluster administrator to enable NBD.
 
 #### Incorrect layer attributes { #nbd-wrong-attributes }
 
-To access a layer over NBD, it must have the `@filesystem=squashfs` and `@access_method=nbd` attributes set. If the file system format is specified incorrectly, mounting the layer will fail with the `RootVolumePreparationFailed` error.
+To access a layer via NBD, it must have the `@filesystem=squashfs` and `@access_method=nbd` attributes set. If the filesystem format is specified incorrectly, mounting the layer will fail with the `RootVolumePreparationFailed` error.
 
 <style>
 .dc-mini-toc__section_child {
