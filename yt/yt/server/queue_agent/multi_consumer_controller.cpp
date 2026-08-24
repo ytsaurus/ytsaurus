@@ -22,6 +22,7 @@
 #include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -41,6 +42,7 @@ using namespace NAlertManager;
 using namespace NQueryClient;
 using namespace NQueueClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NLogging;
 using namespace NConcurrency;
 using namespace NApi;
@@ -54,6 +56,81 @@ using namespace std::placeholders;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int MaxSelectConsumerNamesIterations = 10'000;
+
+//! Fetches the set of distinct consumer names from a multi consumer user table.
+THashSet<std::string> SelectConsumerNamesFromUserTable(
+    const IClientPtr& client,
+    const TYPath& path,
+    i64 batchSize,
+    const TLogger& Logger)
+{
+    YT_VERIFY(batchSize > 0);
+
+    THashSet<std::string> consumerNames;
+    std::optional<std::string> lastName;
+    auto timestamp = WaitFor(client->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+
+    for (int iteration = 0; iteration < MaxSelectConsumerNamesIterations; ++iteration) {
+        TSelectRowsOptions options;
+        options.Timestamp = timestamp;
+        TStringBuf where;
+        if (lastName) {
+            where = "WHERE queue_consumer_name > {last_name}";
+            options.PlaceholderValues = BuildYsonStringFluently()
+                .BeginMap()
+                    .Item("last_name").Value(*lastName)
+                .EndMap();
+        }
+
+        // NB: queue_consumer_name is the first key column, so WHERE is a PK prefix and not a full scan.
+        auto query = Format(
+            "queue_consumer_name FROM [%v] %v ORDER BY queue_consumer_name LIMIT %v",
+            path,
+            where,
+            batchSize);
+
+        auto selectResult = WaitFor(client->SelectRows(query, options))
+            .ValueOrThrow();
+        auto rows = selectResult.Rowset->GetRows();
+
+        // NB: A truncated result would look like missing names and cause spurious deletes from state.
+        if (selectResult.Statistics.IncompleteInput || selectResult.Statistics.IncompleteOutput) {
+            auto error = TError("Incomplete result while selecting consumer names from user table")
+                << TErrorAttribute("path", path)
+                << TErrorAttribute("batch_size", batchSize);
+            YT_LOG_ALERT_AND_THROW(error);
+        }
+
+        for (const auto& row : rows) {
+            THROW_ERROR_EXCEPTION_IF(row.GetCount() != 1, "Expected 1 value in row while selecting \"queue_consumer_name\"");
+            consumerNames.insert(FromUnversionedValue<std::string>(row[0]));
+        }
+
+        if (std::ssize(rows) < batchSize) {
+            return consumerNames;
+        }
+
+        auto newLastName = FromUnversionedValue<std::string>(rows.Back()[0]);
+        YT_VERIFY(!lastName || newLastName > *lastName);
+        lastName = std::move(newLastName);
+    }
+
+    auto error = TError("Exceeded maximum number of iterations while selecting consumer names from user table")
+        << TErrorAttribute("path", path)
+        << TErrorAttribute("batch_size", batchSize)
+        << TErrorAttribute("max_iterations", MaxSelectConsumerNamesIterations)
+        << TErrorAttribute("consumer_name_count", consumerNames.size())
+        << TErrorAttribute("last_name", lastName);
+
+    YT_LOG_ALERT_AND_THROW(error);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TMultiConsumerController
     : public IObjectController
@@ -350,7 +427,15 @@ private:
             return MakeFuture(snapshot);
         }
 
-        return SelectConsumerNamesFromUserTable(snapshot)
+        auto clientContext = ClientDirectory_->GetDataReadContext(*snapshot->Row, snapshot->ReplicatedTableMappingRow, /*onlyDataReplicas*/ true);
+        return BIND(
+            &SelectConsumerNamesFromUserTable,
+            clientContext.Client,
+            clientContext.Path,
+            DynamicConfig_.Acquire()->MultiConsumerSelectBatchSize,
+            Logger)
+            .AsyncVia(Invoker_)
+            .Run()
             .Apply(BIND([snapshot] (const TErrorOr<THashSet<std::string>>& consumerNamesOrError) {
                 if (consumerNamesOrError.IsOK()) {
                     snapshot->QueueConsumerNames = consumerNamesOrError.Value();
@@ -359,24 +444,6 @@ private:
                         .With(consumerNamesOrError);
                 }
                 return snapshot;
-            }));
-    }
-
-    TFuture<THashSet<std::string>> SelectConsumerNamesFromUserTable(const TMultiConsumerSnapshotPtr& snapshot) const
-    {
-        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-
-        // TODO(YT-28372): This might work incorrectly if there are a too many rows in the table. We might need to add pagination here.
-        auto clientContext = ClientDirectory_->GetDataReadContext(*snapshot->Row, snapshot->ReplicatedTableMappingRow, /*onlyDataReplicas*/ true);
-        auto query = Format("queue_consumer_name FROM [%v] GROUP BY queue_consumer_name", clientContext.Path);
-        return clientContext.Client->SelectRows(query)
-            .Apply(BIND([] (const TSelectRowsResult& selectResult) {
-                return selectResult.Rowset->GetRows()
-                    | std::views::transform([] (const auto& row) {
-                        THROW_ERROR_EXCEPTION_IF(row.GetCount() != 1, "Expected 1 value in row while selecting \"queue_consumer_name\"");
-                        return FromUnversionedValue<std::string>(row[0]);
-                    })
-                    | RangeTo<THashSet<std::string>>();
             }));
     }
 

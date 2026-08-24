@@ -213,6 +213,10 @@ struct TQueueControllerDynamicConfig
     bool EnableVerboseLogging;
     std::vector<NYPath::TRichYPath> VerboseLoggingObjects;
 
+    //! Maximum number of rows read from a multi consumer user table per select query while
+    //! paginating over consumer names.
+    i64 MultiConsumerSelectBatchSize;
+
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
