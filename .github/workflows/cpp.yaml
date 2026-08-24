@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       build_types:
-        description: 'JSON array: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
+        description: 'JSON array containing both "release" and "relwithdebinfo"'
         required: false
-        default: '["relwithdebinfo"]'
+        default: '["relwithdebinfo","release"]'
         type: string
   push:
     branches:
@@ -14,6 +14,7 @@ on:
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
+      - members/ilyaibraev/yt-28839-cpp-profile-release-workflow
 
 
 env:
@@ -75,6 +76,8 @@ jobs:
     steps:
       - name: Calculate docker tag
         id: tag
+        env:
+          REQUESTED_BUILD_TYPES: ${{ github.event.inputs.build_types }}
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             IMAGE_TAG=dev-test
@@ -102,10 +105,15 @@ jobs:
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
-          else
-            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+            if ! jq -e \
+              'type == "array" and length == 2 and sort == ["release", "relwithdebinfo"]' \
+              <<< "$REQUESTED_BUILD_TYPES" > /dev/null;
+            then
+              echo 'build_types must contain exactly "release" and "relwithdebinfo"' >&2
+              exit 1
+            fi
           fi
+          echo 'BUILD_TYPES=["relwithdebinfo","release"]' >> "$GITHUB_OUTPUT"
 
           # Compute VERSION_PATCH as YYMMDDnnn (date of last commit + commit index within that day).
           LAST_COMMIT_DATE=$(git -C ytsaurus log -n 1 --format="%cd" --date=format:"%y%m%d")
@@ -128,15 +136,15 @@ jobs:
       build-python: true
       build-chyt: true
       update-remote-cache: true
-      build-types: ${{ needs.tag.outputs.build-types }}
+      build-types: '["relwithdebinfo"]'
       version-patch: ${{ needs.tag.outputs.version-patch }}
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  docker-ya-make:
-    name: Docker images with ya-make
+  docker-ya-make-relwithdebinfo:
+    name: Docker profile images with ya-make
     needs:
       - start-vm
       - tag
@@ -144,13 +152,13 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
-      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
+      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-      build-types: ${{ needs.tag.outputs.build-types }}
+      build-types: '["relwithdebinfo"]'
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
@@ -163,7 +171,7 @@ jobs:
           || startsWith(github.ref_name, 'chyt/') }}
     needs:
       - tag
-      - docker-ya-make
+      - docker-ya-make-release
     uses: ./.github/workflows/ytsaurus-ci-runner.yaml
     with:
       scenario: release-tests
@@ -177,7 +185,7 @@ jobs:
     name: Check
     needs:
       - start-vm
-      - build-ya-make
+      - docker-ya-make-relwithdebinfo
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-dir: build_ya-make_relwithdebinfo
@@ -188,12 +196,104 @@ jobs:
       run-odin-tests: true
     uses: ./.github/workflows/check-jobs.yaml
 
+  prepare-release:
+    name: Prepare release artifacts
+    needs:
+      - start-vm
+      - check
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 120
+    steps:
+      - name: Clear local caches
+        run: |
+          set -euxo pipefail
+
+          df -h
+          ./ytsaurus/ya gc cache \
+            --cache-size=0GiB \
+            --tools-cache-size=0GiB \
+            --symlinks-ttl=0h
+          docker buildx prune --all --force
+          docker system prune --all --force --volumes
+          df -h
+
+      - name: Strip profile artifacts
+        run: |
+          set -euxo pipefail
+
+          for prefix in build_ya-make build_yql_ya-make; do
+            profile_dir="../${prefix}_relwithdebinfo"
+            release_dir="../${prefix}_release"
+            test -d "$profile_dir"
+            test ! -e "$release_dir"
+            mv "$profile_dir" "$release_dir"
+          done
+
+          ytsaurus_build_path=../build_ya-make_release
+          yql_build_path=../build_yql_ya-make_release
+          artifacts=(
+            "$ytsaurus_build_path/yt/yt/server/all/ytserver-all"
+            "$ytsaurus_build_path/yt/chyt/server/bin/ytserver-clickhouse"
+            "$ytsaurus_build_path/yt/chyt/trampoline/clickhouse-trampoline"
+            "$ytsaurus_build_path/yt/python/yt/environment/bin/init_operations_archive/init-operations-archive"
+            "$ytsaurus_build_path/yt/python/yt/environment/bin/init_queue_agent_state/init_queue_agent_state"
+            "$ytsaurus_build_path/yt/python/yt/environment/bin/init_query_tracker_state/init_query_tracker_state"
+            "$yql_build_path/yt/yql/agent/bin/ytserver-yql-agent"
+            "$yql_build_path/yt/yql/tools/mrjob/mrjob"
+            "$yql_build_path/yt/yql/dq_vanilla_job/dq_vanilla_job"
+            "$yql_build_path/yt/yql/dq_vanilla_job.lite/dq_vanilla_job.lite"
+          )
+
+          shopt -s nullglob
+          yql_libraries=("$yql_build_path/yql_shared_libraries/yql/"*.so)
+          if [ "${#yql_libraries[@]}" -eq 0 ]; then
+            echo "No YQL shared libraries found" >&2
+            exit 1
+          fi
+          artifacts+=("${yql_libraries[@]}")
+
+          strip_tool=$(command -v strip)
+          for artifact in "${artifacts[@]}"; do
+            test -f "$artifact"
+            "$strip_tool" --strip-unneeded "$artifact"
+            artifact_type=$(file "$artifact")
+            echo "$artifact_type"
+            if [[ "$artifact_type" != *stripped* ]]; then
+              echo "Artifact was not stripped: $artifact" >&2
+              exit 1
+            fi
+          done
+
+  docker-ya-make-release:
+    name: Docker release images with ya-make
+    needs:
+      - start-vm
+      - tag
+      - prepare-release
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
+      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
+      build-types: '["release"]'
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      GH_USERNAME: ${{ secrets.GH_USERNAME }}
+    uses: ./.github/workflows/docker-jobs.yaml
+
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
+      - build-ya-make
+      - docker-ya-make-relwithdebinfo
       - check
-      - docker-ya-make
+      - prepare-release
+      - docker-ya-make-release
     runs-on: trampoline
     if: ${{ always() }}
     steps:
@@ -211,7 +311,9 @@ jobs:
     needs:
       - check
       - build-ya-make
-      - docker-ya-make
+      - docker-ya-make-relwithdebinfo
+      - prepare-release
+      - docker-ya-make-release
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
     with:
