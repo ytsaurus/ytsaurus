@@ -31,6 +31,7 @@ NoSuchUser = 910
 PrerequisiteCheckFailed = 1000
 InactiveObjectLifeStage = 1001
 InvalidObjectType = 1006
+SlotLocationDisabled = 1109
 VolumeSizeLimitExceeded = 1124
 JobProxyUnavailable = 1127
 UserJobProducedCoreFiles = 1206
