@@ -610,6 +610,14 @@ struct TDynamicSequoiaChunkReplicasConfig
     bool GhostValidationHeartbeats;
     bool GhostEmptyValidationHeartbeats;
 
+    bool ThrottleSequoiaReplicaModifications;
+    bool EnablePerReplicaSequoiaModificationsThrottling;
+    bool ThrottleIncrementalHeartbeatSequoiaReplicaModifications;
+    int MaxConcurrentSequoiaReplicaModifications;
+    int MaxConcurrentReplicasInSequoiaReplicaModifications;
+
+    std::optional<TDuration> SleepDurationBeforeSequoiaReplicaModifications;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);

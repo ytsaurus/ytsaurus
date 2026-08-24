@@ -1,12 +1,14 @@
 #include "sequoia_replicas_modifier.h"
 
+#include "chunk_manager.h"
 #include "chunk_replica.h"
 #include "config.h"
 #include "helpers.h"
 
-#include <yt/yt/server/master/node_tracker_server/node.h>
-
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
+
+#include <yt/yt/server/master/node_tracker_server/node.h>
 
 #include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/client.h>
@@ -20,6 +22,8 @@
 #include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -70,6 +74,7 @@ public:
             YT_LOG_ALERT_AND_THROW("Sequoia replicas modifier can not have both replace and modify requests");
         }
         IsIncrementalHeartbeat_ &= request->is_incremental_heartbeat();
+        ReplicaCount_ += request->added_chunks_size() + request->removed_chunks_size();
         Requests_.push_back(std::move(request));
     }
 
@@ -79,6 +84,7 @@ public:
         if (!Requests_.empty()) {
             YT_LOG_ALERT_AND_THROW("Replace location request must be unique in sequoia replicas modifier");
         }
+        ReplicaCount_ += request->chunks_size();
         ReplaceLocationRequest_ = std::move(request);
         IsIncrementalHeartbeat_ = false;
         IsValidationHeartbeat_ = true;
@@ -86,14 +92,9 @@ public:
 
     TFuture<void> ModifyReplicas() override
     {
-        auto result = Bootstrap_
-            ->GetSequoiaConnection()
-            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
-            ->StartTransaction(
-                TransactionType_,
-                {.CellTag = Bootstrap_->GetCellTag()})
-            .Apply(BIND(&TSequoiaReplicasModifier::DoModifyReplicas, MakeStrong(this))
-                .AsyncVia(TDispatcher::Get()->GetHeavyInvoker()));
+        auto result = BIND(&TSequoiaReplicasModifier::DoModifyReplicas, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager))
+            .Run();
 
         if (Config_->EnableInGhostMode) {
             YT_VERIFY(!Config_->Enable);
@@ -117,6 +118,8 @@ private:
     std::vector<std::unique_ptr<TReqModifyReplicas>> Requests_;
     std::unique_ptr<TReqReplaceLocationReplicas> ReplaceLocationRequest_;
 
+    int ReplicaCount_ = 0;
+
     struct TReplicaList
     {
         std::vector<TChunkReplicaWithLocationIndexAndState> AddedReplicas;
@@ -131,7 +134,55 @@ private:
 
     static constexpr size_t ChunkSampleSizeOnValidationFail = 10;
 
-    void DoModifyReplicas(const ISequoiaTransactionPtr& transaction)
+    void ProfileTime(ESequoiaReplicaModificationPhase phase)
+    {
+        Profile_.PhaseTime[phase].Record(
+            Timer_.GetElapsedTime().SecondsFloat());
+        Timer_.Restart();
+    }
+
+    void DoModifyReplicas()
+    {
+        VerifyPersistentStateRead();
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto guard = chunkManager->AcquireModifySequoiaReplicasSemaphoreGuard(TransactionType_, ReplicaCount_);
+
+        ProfileTime(ESequoiaReplicaModificationPhase::SemaphoreWait);
+
+        if (Config_->SleepDurationBeforeSequoiaReplicaModifications) {
+            TDelayedExecutor::WaitForDuration(*Config_->SleepDurationBeforeSequoiaReplicaModifications);
+        }
+
+        Timer_.Restart();
+        Profile_.StartedCount.Increment(1);
+        Profile_.StartedReplicaCount.Increment(ReplicaCount_);
+
+        auto result = WaitFor(Bootstrap_
+            ->GetSequoiaConnection()
+            ->CreateClient(NRpc::GetRootAuthenticationIdentity())
+            ->StartTransaction(
+                TransactionType_,
+                {.CellTag = Bootstrap_->GetCellTag()})
+            .Apply(BIND(&TSequoiaReplicasModifier::ExecuteModifyReplicas, MakeStrong(this))
+                .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())));
+
+        if (result.IsOK()) {
+            Profile_.FinishedSuccessfullyCount.Increment(1);
+            Profile_.FinishedSuccessfullyReplicaCount.Increment(ReplicaCount_);
+        } else {
+            Profile_.FinishedWithErrorCount.Increment(1);
+            Profile_.FinishedWithErrorReplicaCount.Increment(ReplicaCount_);
+            YT_LOG_TRACE(
+                result,
+                "Sequoia replica modification finished with error (TransactionType: %v, ReplicaCount: %v)",
+                TransactionType_,
+                ReplicaCount_);
+            result.ThrowOnError();
+        }
+    }
+
+    void ExecuteModifyReplicas(const ISequoiaTransactionPtr& transaction)
     {
         Start(transaction);
 
@@ -173,8 +224,7 @@ private:
     {
         Transaction_ = transaction;
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::StartTransaction].Add(Timer_.GetElapsedTime());
-        Timer_.Restart();
+        ProfileTime(ESequoiaReplicaModificationPhase::StartTransaction);
     }
 
     template <typename TChunkInfo>
@@ -265,8 +315,7 @@ private:
             }
         }
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::GatherModifiedAddedReplicas].Add(Timer_.GetElapsedTime());
-        Timer_.Restart();
+        ProfileTime(ESequoiaReplicaModificationPhase::GatherModifiedAddedReplicas);
     }
 
     std::vector<NRecords::TLocationReplicasKey> CollectRemovedReplicasKeys()
@@ -313,8 +362,7 @@ private:
             }
         }
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::ParseRemovedReplicas].Add(Timer_.GetElapsedTime());
-        Timer_.Restart();
+        ProfileTime(ESequoiaReplicaModificationPhase::ParseRemovedReplicas);
 
         return removedReplicasKeys;
     }
@@ -324,8 +372,7 @@ private:
         auto replicasFuture = Transaction_->LookupRows(CollectRemovedReplicasKeys());
         auto removedReplicasOrError = WaitFor(replicasFuture);
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::LookupRemovedLocationReplicas].Add(Timer_.GetElapsedTime());
-        Timer_.Restart();
+        ProfileTime(ESequoiaReplicaModificationPhase::LookupRemovedLocationReplicas);
 
         ThrowOnSequoiaReplicasError(removedReplicasOrError, Config_->RetriableErrorCodes);
 
@@ -367,8 +414,7 @@ private:
             }
         }
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::GatherModifiedRemovedReplicas].Add(Timer_.GetElapsedTime());
-        Timer_.Restart();
+        ProfileTime(ESequoiaReplicaModificationPhase::GatherModifiedRemovedReplicas);
     }
 
     std::vector<NRecords::TLocationReplicas> LookupExistingReplicasInReplacedLocation()
@@ -382,8 +428,7 @@ private:
 
         auto existingReplicasInReplacedLocationOrError = WaitFor(replacedLocationReplicasFuture);
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::LookupExistingReplicasInReplacedLocation].Add(Timer_.GetElapsedTime());
-        Timer_.Restart();
+        ProfileTime(ESequoiaReplicaModificationPhase::LookupExistingReplicasInReplacedLocation);
 
         ThrowOnSequoiaReplicasError(existingReplicasInReplacedLocationOrError, Config_->RetriableErrorCodes);
 
@@ -468,8 +513,7 @@ private:
             modifyReplicasRequest->removed_chunks_size(),
             changedReplicas);
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::GatherReplacedLocationReplicasDifference].Add(Timer_.GetElapsedTime());
-        Timer_.Restart();
+        ProfileTime(ESequoiaReplicaModificationPhase::GatherReplacedLocationReplicasDifference);
     }
 
     bool CheckIfRequestShouldBeAborted()
@@ -636,8 +680,7 @@ private:
         }
 
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::WriteRowsAndAddTransactionActions].Add(Timer_.GetElapsedTime());
-        Timer_.Restart();
+        ProfileTime(ESequoiaReplicaModificationPhase::WriteRowsAndAddTransactionActions);
     }
 
     void Finish()
@@ -656,7 +699,7 @@ private:
 
         auto result = WaitFor(Transaction_->Commit(std::move(commitOptions)));
 
-        Profile_.CumulativeTime[ESequoiaReplicaModificationPhase::CommitTransaction].Add(Timer_.GetElapsedTime());
+        ProfileTime(ESequoiaReplicaModificationPhase::CommitTransaction);
 
         ThrowOnSequoiaReplicasError(result, Config_->RetriableErrorCodes);
     }

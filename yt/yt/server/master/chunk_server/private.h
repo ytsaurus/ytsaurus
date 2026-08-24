@@ -84,6 +84,7 @@ DEFINE_ENUM(ESequoiaReplicaModificationPhase,
     (CommitTransaction)
     (LookupExistingReplicasInReplacedLocation)
     (GatherReplacedLocationReplicasDifference)
+    (SemaphoreWait)
 );
 
 // Only used for producing text representation of table chunk formats in
