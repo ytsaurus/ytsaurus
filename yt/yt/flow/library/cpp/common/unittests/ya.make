@@ -32,6 +32,7 @@ SRCS(
     traverse_ut.cpp
     visit_ut.cpp
     yson_message_ut.cpp
+    yt_connector_ut.cpp
 )
 
 PEERDIR(

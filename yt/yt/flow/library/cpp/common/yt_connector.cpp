@@ -39,6 +39,47 @@ DEFINE_REFCOUNTED_TYPE(ICommonYTConnector);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnsureSameTabletCellBundle(const std::vector<TInternalTableInfo>& tables)
+{
+    THashSet<std::string_view> bundleNames;
+    for (const auto& table : tables) {
+        bundleNames.insert(table.TabletCellBundle);
+    }
+    THROW_ERROR_EXCEPTION_IF(bundleNames.empty(),
+        "No internal flow tables found to determine the bundle");
+    THROW_ERROR_EXCEPTION_UNLESS(bundleNames.size() == 1,
+        "All internal flow tables must be in the same bundle")
+        .With("bundle_names", bundleNames);
+}
+
+void EnsureSameTableType(const std::vector<TInternalTableInfo>& tables)
+{
+    THashSet<NObjectClient::EObjectType> tableTypes;
+    for (const auto& table : tables) {
+        tableTypes.insert(table.Type);
+    }
+    THROW_ERROR_EXCEPTION_IF(tableTypes.empty(),
+        "No internal flow tables found to determine the type");
+    THROW_ERROR_EXCEPTION_UNLESS(tableTypes.size() == 1,
+        "All internal flow tables must be the same type")
+        .With("table_types", tableTypes);
+}
+
+// All tables on a chaos installation's master cluster are chaos-replicated.
+bool IsChaosTableLayout(const std::vector<TInternalTableInfo>& tables)
+{
+    EnsureSameTableType(tables);
+    return tables[0].Type == NObjectClient::EObjectType::ChaosReplicatedTable;
+}
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCommonYTConnector
     : public ICommonYTConnector
 {
@@ -98,14 +139,13 @@ public:
             return MakeFuture(*cached);
         }
 
-        // Fetch the tablet_cell_bundle attribute of every internal flow table in parallel.
         // Some tables may be absent on pipelines whose layout predates them; such tables are
         // skipped, mirroring GetFlowTablesCellTag in node.cpp.
         std::vector<TFuture<TYsonString>> tableFutures;
         tableFutures.reserve(InternalFlowTables.size());
         for (const auto& tableName : InternalFlowTables) {
             auto tablePath = YPathJoin(PipelinePath_.GetPath(), tableName);
-            tableFutures.push_back(Client_->GetNode(tablePath, {.Attributes = {"tablet_cell_bundle"}}));
+            tableFutures.push_back(Client_->GetNode(tablePath, {.Attributes = {"type", "tablet_cell_bundle"}}));
         }
 
         auto client = Client_;
@@ -113,7 +153,8 @@ public:
         // table (ResolveError) can be skipped instead of failing the whole resolution.
         return AllSet(std::move(tableFutures))
             .Apply(BIND([client] (const std::vector<TErrorOr<TYsonString>>& tableResults) {
-                THashSet<std::string> bundleNames;
+                std::vector<NDetail::TInternalTableInfo> tables;
+                tables.reserve(tableResults.size());
                 for (const auto& tableResult : tableResults) {
                     if (tableResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
                         // The table is absent on this pipeline; all internal tables share one
@@ -121,16 +162,34 @@ public:
                         continue;
                     }
                     auto tableNode = ConvertTo<INodePtr>(tableResult.ValueOrThrow());
-                    bundleNames.insert(tableNode->Attributes().Get<std::string>("tablet_cell_bundle"));
+                    const auto& attributes = tableNode->Attributes();
+                    tables.push_back(NDetail::TInternalTableInfo{
+                        .Type = attributes.Get<NObjectClient::EObjectType>("type"),
+                        .TabletCellBundle = attributes.Get<std::string>("tablet_cell_bundle"),
+                    });
                 }
 
-                THROW_ERROR_EXCEPTION_IF(bundleNames.empty(), "No internal flow tables found to determine the bundle");
-                THROW_ERROR_EXCEPTION_UNLESS(bundleNames.size() == 1, "All internal flow tables must be in the same bundle");
-                auto bundleName = *bundleNames.begin();
+                THROW_ERROR_EXCEPTION_IF(tables.empty(), "No internal flow tables found");
+                EnsureSameTabletCellBundle(tables);
 
+                auto bundleName = tables[0].TabletCellBundle;
+
+                if (IsChaosTableLayout(tables)) {
+                    // Chaos cell bundles use the master cluster's primary cell tag as their clock cluster tag.
+                    return client->GetNode("//sys/@primary_cell_tag")
+                        .Apply(BIND([bundleName = std::move(bundleName)] (const TYsonString& cellTagYson) mutable {
+                            return TFlowTablesBundleInfo{
+                                .Bundle = std::move(bundleName),
+                                .ClockClusterTag = NObjectClient::TCellTag(ConvertTo<ui16>(cellTagYson)),
+                            };
+                        }));
+                }
+
+                // A pipeline living on a single cluster may deliberately be pinned to a clock
+                // other than its own, so keep taking its tag from the bundle.
                 auto bundlePath = Format("//sys/tablet_cell_bundles/%v", ToYPathLiteral(bundleName));
                 return client->GetNode(bundlePath, {.Attributes = {"options"}})
-                    .Apply(BIND([bundleName = std::move(bundleName)] (const TYsonString& bundleYson) {
+                    .Apply(BIND([bundleName = std::move(bundleName)] (const TYsonString& bundleYson) mutable {
                         auto bundleNode = ConvertTo<INodePtr>(bundleYson);
                         std::optional<NObjectClient::TCellTag> clockClusterTag;
                         if (auto bundleOptions = bundleNode->Attributes().Find<IMapNodePtr>("options")) {
@@ -139,7 +198,7 @@ public:
                             }
                         }
                         return TFlowTablesBundleInfo{
-                            .Bundle = bundleName,
+                            .Bundle = std::move(bundleName),
                             .ClockClusterTag = clockClusterTag,
                         };
                     }));

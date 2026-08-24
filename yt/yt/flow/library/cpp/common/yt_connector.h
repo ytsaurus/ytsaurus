@@ -41,6 +41,30 @@ struct ICommonYTConnector
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInternalTableInfo
+{
+    NObjectClient::EObjectType Type;
+    std::string TabletCellBundle;
+};
+
+//! Throws unless the pipeline has internal tables and all of them share one tablet cell bundle.
+void EnsureSameTabletCellBundle(const std::vector<TInternalTableInfo>& tables);
+
+//! Throws unless the pipeline has internal tables and all of them are of one object type.
+void EnsureSameTableType(const std::vector<TInternalTableInfo>& tables);
+
+//! Returns whether the pipeline uses chaos-replicated internal tables; throws if the list is
+//! empty or contains different object types.
+bool IsChaosTableLayout(const std::vector<TInternalTableInfo>& tables);
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
 ICommonYTConnectorPtr CreateCommonYTConnector(
     NClient::NCache::IClientsCachePtr clientsCache,
     NYPath::TRichYPath pipelinePath);
