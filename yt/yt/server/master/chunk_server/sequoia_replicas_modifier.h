@@ -14,8 +14,20 @@ namespace NYT::NChunkServer {
 
 struct TSequoiaReplicaModificationProfile
 {
-    TEnumIndexedArray<ESequoiaReplicaModificationPhase, NProfiling::TTimeCounter> CumulativeTime;
-    NProfiling::TCounter Counter;
+    TEnumIndexedArray<ESequoiaReplicaModificationPhase, NProfiling::TSummary> PhaseTime;
+
+    NProfiling::TCounter StartedCount;
+    NProfiling::TCounter StartedReplicaCount;
+
+    NProfiling::TGauge SemaphoreWaiting;
+    int SemaphoreWaitingCount = 0;
+    NProfiling::TGauge SemaphoreWaitingReplicas;
+    int SemaphoreWaitingReplicaCount = 0;
+
+    NProfiling::TCounter FinishedSuccessfullyCount;
+    NProfiling::TCounter FinishedSuccessfullyReplicaCount;
+    NProfiling::TCounter FinishedWithErrorCount;
+    NProfiling::TCounter FinishedWithErrorReplicaCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

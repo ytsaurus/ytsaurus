@@ -56,7 +56,7 @@ class TestSequoiaReplicas(YTEnvSetup):
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 0
     NUM_NODES = 9
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
     NUM_MASTERS = 5
 
     TABLE_MEDIUM_1 = "table_medium_1"
@@ -988,10 +988,92 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         remove("//tmp/t")
 
+    @authors("grphil")
+    def test_sequoia_replica_modifications_throttling(self):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/blob_chunk_replicas/store_in_sequoia", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
+        set("//sys/@config/chunk_manager/data_node_tracker/validate_sequoia_replicas", False)
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"a": "b"}])
+        chunk_id = get_singular_chunk_id("//tmp/t1")
+
+        wait(lambda: len(get(f"#{chunk_id}/@stored_sequoia_replicas")) == 3)
+
+        def get_node_count(state):
+            node_count = 0
+            for node in ls("//sys/data_nodes", attributes=["state"]):
+                if node.attributes["state"] == state:
+                    node_count += 1
+            return node_count
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_sequoia_replica_modifications", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 0)
+
+        self.Env.kill_nodes(wait_offline=False)
+        time.sleep(2)
+        assert get_node_count("offline") < self.NUM_NODES
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 1)
+        wait(lambda: get_node_count("offline") == self.NUM_NODES)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 1000)
+        self.Env.start_nodes(sync=False)
+
+        time.sleep(3)
+        assert get_node_count("online") < self.NUM_NODES
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 0)
+        wait(lambda: get_node_count("online") == self.NUM_NODES)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 0)
+        create("table", "//tmp/t2")
+        write_table("//tmp/t2", [{"a": "b"}])
+        chunk_id = get_singular_chunk_id("//tmp/t2")
+
+        time.sleep(3)
+        assert len(get(f"#{chunk_id}/@stored_sequoia_replicas")) < 3
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 1)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_sequoia_replicas")) == 3)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_incremental_heartbeat_sequoia_replica_modifications", False)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_sequoia_replica_modifications", 0)
+
+        create("table", "//tmp/t3")
+        write_table("//tmp/t3", [{"a": "b"}])
+
+        create("table", "//tmp/t4")
+        write_table("//tmp/t4", [{"a": "b"}])
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_sequoia_replica_modifications", False)
+
+        self.Env.kill_nodes(wait_offline=True)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_sequoia_replica_modifications", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_per_replica_sequoia_modifications_throttling", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/max_concurrent_replicas_in_sequoia_replica_modifications", 1)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 1000)
+
+        self.Env.start_nodes(sync=False)
+
+        time.sleep(3)
+        assert get_node_count("online") < self.NUM_NODES
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/sleep_duration_before_sequoia_replica_modifications", 0)
+        wait(lambda: get_node_count("online") == self.NUM_NODES)
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/throttle_sequoia_replica_modifications", False)
+
+        remove("//tmp/t1")
+        remove("//tmp/t2")
+        remove("//tmp/t3")
+        remove("//tmp/t4")
+
 
 class TestSequoiaReplicasNonBatchHeartbeats(TestSequoiaReplicas):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 6
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "sequoia_manager": {
@@ -1019,7 +1101,7 @@ class TestSequoiaReplicasNonBatchHeartbeats(TestSequoiaReplicas):
 
 class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 8
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "sequoia_manager": {
