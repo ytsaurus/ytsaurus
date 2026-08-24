@@ -1,6 +1,7 @@
 import yt.logger as logger
 import yt.yson as yson
 from yt.admin._experimental import warn_experimental, EXPERIMENTAL_HELP_SUFFIX
+from yt.admin.helpers import confirm
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -350,9 +351,8 @@ class LogDownloader:
             logger.info("No logs matched criteria.")
             return
 
-        if not cfg.yes:
-            if input("Download? [y/N]: ").lower() not in ("y", "yes"):
-                return
+        if not confirm("Download?", assume_yes=cfg.yes):
+            return
         self._download_logs(files_map, cfg.output, cfg.exec_slot_index, cfg.grep)
 
     def _log_statistics(self, pod_name: str, pod_log_size: int, filtered_log_files: List[RemoteFile]) -> None:

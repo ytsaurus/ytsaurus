@@ -1,5 +1,6 @@
 import yt.logger as logger
 import yt.packages.requests as requests
+from yt.admin.helpers import confirm
 from yt.admin.metrics.config import MetricsDumpConfig
 from yt.admin.metrics.openmetrics import OpenMetricsWriter
 from yt.admin.metrics.prometheus import PrometheusClient
@@ -14,13 +15,6 @@ import os
 import sys
 import time
 import zipfile
-
-
-def _confirm(prompt: str) -> bool:
-    try:
-        return input(prompt).strip().lower() in ("y", "yes")
-    except EOFError:
-        return False
 
 
 def _selectors_from_extra_targets(targets: Optional[List[str]]) -> List[str]:
@@ -57,10 +51,9 @@ class MetricsDumper:
         step_ms = cfg.step_ms if cfg.step_ms is not None else spec.step_ms
         self._validate_step(start, end, step_ms, cfg.max_points_per_series)
 
-        if os.path.exists(cfg.output) and not cfg.force:
-            if not _confirm(f"{cfg.output} exists, overwrite? [y/N] "):
-                logger.info("Aborted")
-                return
+        if os.path.exists(cfg.output) and not confirm(f"{cfg.output} exists, overwrite?", assume_yes=cfg.force):
+            logger.info("Aborted")
+            return
 
         estimate_at = min(end, time.time())
         if not self._confirm_volume(selectors, estimate_at, cfg.max_series, cfg.force):
@@ -106,8 +99,8 @@ class MetricsDumper:
             marker = "?" if cnt < 0 else str(cnt)
             logger.info(f"  series={marker:>10s}  {sel}")
         logger.info(f"Total series at to_ts: {total}")
-        if total > max_series and not force:
-            return _confirm(f"Total series {total} > --max-series {max_series}. Continue? [y/N]: ")
+        if total > max_series:
+            return confirm(f"Total series {total} > --max-series {max_series}. Continue?", assume_yes=force)
         return True
 
     def _stream_archive(
