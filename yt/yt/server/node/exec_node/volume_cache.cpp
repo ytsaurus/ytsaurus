@@ -505,7 +505,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateNbdVolume(
             ] (const TErrorOr<TVolumeMeta>& errorOrVolumeMeta) mutable {
                 if (!errorOrVolumeMeta.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to create NBD volume")
-                        << errorOrVolumeMeta;
+                        .With(errorOrVolumeMeta);
                 }
 
                 YT_LOG_DEBUG("Created NBD volume");
@@ -551,7 +551,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareNbdVolume(
             ] (const TErrorOr<IBlockDevicePtr>& errorOrDevice) {
                 if (!errorOrDevice.IsOK()) {
                     THROW_ERROR_EXCEPTION("Failed to prepare NBD volume")
-                        << errorOrDevice;
+                        .With(errorOrDevice);
                 }
 
                 const auto& device = errorOrDevice.Value();
@@ -584,7 +584,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareNbdVolume(
                     }
 
                     THROW_ERROR_EXCEPTION("Failed to prepare NBD volume")
-                        << errorOrVolume;
+                        .With(errorOrVolume);
                 }
 
                 YT_LOG_DEBUG("Prepared NBD volume");

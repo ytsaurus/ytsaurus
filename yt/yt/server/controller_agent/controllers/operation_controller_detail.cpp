@@ -3647,8 +3647,8 @@ bool TOperationControllerBase::OnJobFailed(
         failureKindError.Add("job_id", jobId);
         if (IsFailingByTimeout()) {
             return GetTimeLimitError()
-                << std::move(failureKindError)
-                << error;
+                .With(std::move(failureKindError))
+                .With(error);
         }
         return std::move(failureKindError).With(error);
     };
@@ -11291,7 +11291,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
                             NTableClient::EErrorCode::IncompatibleSchemas,
                             "Cannot infer output schema from input in strong schema mode "
                             "since tables have incompatible schemas")
-                            << ex;
+                            .With(ex);
                     }
                     canonizedResultSchema = resultSchema
                         ->ToStrippedColumnAttributes()

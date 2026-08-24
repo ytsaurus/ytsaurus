@@ -1086,7 +1086,7 @@ TVolumeMeta TLayerLocation::DoCreateVolume(
                     "Invalid filesystem of %Qlv volume %v",
                     volumeType,
                     volumeId)
-                    << ex;
+                    .With(ex);
 
             case EPortoErrorCode::NbdProtoError:
             case EPortoErrorCode::NbdSocketError:

@@ -1499,7 +1499,7 @@ TErrorOr<double> TStoreLocation::EvaluateIOWeight(const NOrm::NQuery::IExpressio
     if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
         return value.Value().Data.Double;
     } else {
-        return TError("Failure in evaluation of IO weight formula") << value;
+        return TError("Failure in evaluation of IO weight formula").With(value);
     }
 }
 

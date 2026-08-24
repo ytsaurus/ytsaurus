@@ -63,7 +63,7 @@ bool ValidatePredicateApplicability(
                     "and ACE has %v=%lv",
                     TSerializableAccessControlEntry::InapplicableRowAccessPredicateModeKey,
                     EInapplicableRowAccessPredicateMode::Fail)
-                    << ex;
+                    .With(ex);
 
                 THROW_ERROR std::move(error);
             }

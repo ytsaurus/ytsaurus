@@ -502,18 +502,18 @@ void ReduceErrors(TError& base, TError incoming, NAttributes::EErrorCode mismatc
     if (base.IsOK()) {
         YT_VERIFY(!incoming.IsOK());
         base = TError(mismatchErrorCode, "Some messages have errors")
-            << std::move(incoming);
+            .With(std::move(incoming));
     } else if (incoming.IsOK()) {
         base = TError(mismatchErrorCode, "Some messages have errors")
-            << std::move(base);
+            .With(std::move(base));
     } else if (base.GetCode() == mismatchErrorCode) {
         base.Add(std::move(incoming));
     } else if (base.GetCode() == incoming.GetCode()) {
         base.Add(std::move(incoming));
     } else {
         base = TError(mismatchErrorCode, "Some messages have errors")
-            << std::move(base)
-            << std::move(incoming);
+            .With(std::move(base))
+            .With(std::move(incoming));
     }
 }
 

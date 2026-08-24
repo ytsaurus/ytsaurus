@@ -872,7 +872,7 @@ public:
         TError parseResult = poolsConfigParser.TryParse(poolsNode);
         if (!parseResult.IsOK()) {
             auto wrappedError = TError("Found pool configuration issues in tree %Qv; update skipped", TreeId_)
-                << parseResult;
+                .With(parseResult);
             LastPoolsNodeUpdateError_ = wrappedError;
             return {wrappedError, false};
         }

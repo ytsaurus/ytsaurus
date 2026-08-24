@@ -886,7 +886,7 @@ TMaintenanceTargetInfo GetCellTagForMaintenanceComponent(
             "Maintenance request for %v proxies requires \"%v\" to exist somewhere",
             component == EMaintenanceComponent::RpcProxy ? "RPC" : "HTTP",
             path)
-            << response;
+            .With(response);
     }
 
     return {PrimaryMasterCellTagSentinel};

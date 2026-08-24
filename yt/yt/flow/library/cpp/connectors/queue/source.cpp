@@ -380,7 +380,7 @@ auto TQueueSourceImpl::DoReadNextBatch(
                         ReadErrorState_->ClearError();
                         return future;
                     } else {
-                        auto error = TError("Failed to read from partition") << future.GetOrCrash();
+                        auto error = TError("Failed to read from partition").With(future.GetOrCrash());
                         ReadErrorState_->SetError(error);
                     }
                 }

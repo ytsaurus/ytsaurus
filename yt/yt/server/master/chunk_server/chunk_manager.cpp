@@ -5537,7 +5537,7 @@ private:
                 try {
                     (this->*handler)(&subrequest, subresponse);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(TError(errorMessage) << ex);
+                    YT_LOG_DEBUG(TError(errorMessage).With(ex));
                     if (subresponse) {
                         ToProto(subresponse->mutable_error(), TError(ex));
                     }

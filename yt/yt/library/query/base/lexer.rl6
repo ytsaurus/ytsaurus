@@ -286,7 +286,7 @@ TParser::token_type TBaseLexer::GetNextToken(
 
     if (type == TToken::End && location->first != location->second) {
         THROW_ERROR_EXCEPTION("Unexpected end of query text")
-            << TErrorAttribute("end", TStringBuf(s + location->first, s + location->second));
+            .With("end", TStringBuf(s + location->first, s + location->second));
     }
 
     if (cs == %%{ write error; }%%) {
@@ -340,7 +340,7 @@ void TLexer::SetPlaceholder(
         const auto it = PlaceholderValues_.find(placeholderName);
         if (it == PlaceholderValues_.end()) {
             THROW_ERROR_EXCEPTION("Placeholder was not found")
-                << TErrorAttribute("name", placeholderName);
+                .With("name", placeholderName);
         }
 
         placeholderValue = &it->second;

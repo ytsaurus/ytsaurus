@@ -142,7 +142,7 @@ private:
             return parsedTicket.TvmId;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::InvalidCredentials, "Failed to parse service ticket")
-                << ex;
+                .With(ex);
             YT_TLOG_DEBUG("Parsing service ticket failed")
                 .With("ServiceTicketHash", ticketHash)
                 .With(error);
@@ -219,7 +219,7 @@ private:
         // Sanity checks.
         if (!login.IsOK()) {
             return TError("Blackbox returned invalid response")
-                << login;
+                .With(login);
         }
 
         TAuthenticationResult result;

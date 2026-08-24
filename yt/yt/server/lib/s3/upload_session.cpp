@@ -286,7 +286,7 @@ TUploadPartResponse TS3MultiPartUploadSession::OnPartUploadCompleted(const TErro
         return response.Value();
     }
 
-    auto error = TError("Error uploading part %v", partIndex) << response;
+    auto error = TError("Error uploading part %v", partIndex).With(response);
     YT_TLOG_ERROR("Error uploading part")
         .With(error);
 
