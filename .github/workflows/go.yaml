@@ -26,10 +26,33 @@ jobs:
           echo "COPY . /home/ytsaurus/ " >> Dockerfile
           echo "ENTRYPOINT [\"tail\", \"-f\", \"/dev/null\"]" >> Dockerfile
 
+      - name: Setup retry function
+        shell: bash
+        run: |
+          cat << 'EOF' > docker-build-retry.sh
+          function retry {
+              local retries=30
+              local count=0
+              until "$@"; do
+                  exit_code=$?
+                  count=$(($count + 1))
+                  if [ $count -lt $retries ]; then
+                      echo "Attempt $count failed with exit code $exit_code. Retrying..."
+                      sleep 5
+                  else
+                      echo "Attempt $count failed with exit code $exit_code. No more retries."
+                      return $exit_code
+                  fi
+              done
+              return 0
+          }
+          EOF
+
       - name: Build Docker image
         shell: bash
         run: |
-          docker build -t test-image .
+          source docker-build-retry.sh
+          retry docker build -t test-image .
 
       - name: Run Docker container
         working-directory: ${{ matrix.module }}
