@@ -1044,11 +1044,11 @@ private:
     int AggregatedOnlineNodeCount_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeStatisticsLock_);
-    TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
+    TInstant NodeStatisticsUpdateDeadline_ = {};
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     using TFlavoredNodeStatistics = TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics>;
     TFlavoredNodeStatistics FlavoredNodeStatistics_;
-    TCpuInstant LocalStateToNodeCountUpdateDeadline_ = 0;
+    TInstant LocalStateToNodeCountUpdateDeadline_ = {};
     using TLocalStateToNodeCount = TEnumIndexedArray<ENodeState, int>;
     TLocalStateToNodeCount LocalStateToNodeCount_;
     THashMap<const TDataCenter*, TAggregatedNodeStatistics> DataCenterNodeStatistics_;
@@ -2824,7 +2824,7 @@ private:
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->OnProfiling(&buffer);
 
-        const auto& localStateToNodeCount = GetLocalStateToNodeCount();
+        auto localStateToNodeCount = GetLocalStateToNodeCount();
         for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
             TWithTagGuard tagGuard(&buffer, "state", FormatEnum(state));
             buffer.AddGauge("/node_count", localStateToNodeCount[state]);
@@ -3077,7 +3077,7 @@ private:
     {
         auto guard = ReaderGuard(NodeStatisticsLock_);
 
-        auto now = GetCpuInstant();
+        auto now = TInstant::Now();
         if (now > NodeStatisticsUpdateDeadline_) {
             guard.Release();
             RebuildAggregatedNodeStatistics();
@@ -3147,9 +3147,7 @@ private:
             updateStatistics(&DataCenterNodeStatistics_[node->GetDataCenter()]);
         }
 
-        NodeStatisticsUpdateDeadline_ =
-            GetCpuInstant() +
-            DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
+        NodeStatisticsUpdateDeadline_ = TInstant::Now() + GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod;
     }
 
     const TLocalStateToNodeCount& GetLocalStateToNodeCount()
@@ -3161,7 +3159,7 @@ private:
 
     void MaybeRebuildLocalStateToNodeCount()
     {
-        auto now = GetCpuInstant();
+        auto now = TInstant::Now();
         if (now > LocalStateToNodeCountUpdateDeadline_) {
             BuildLocalStateToNodeCount();
         }
@@ -3178,13 +3176,10 @@ private:
                 continue;
             }
 
-            auto state = node->GetLocalState();
-            ++LocalStateToNodeCount_[state];
+            ++LocalStateToNodeCount_[node->GetLocalState()];
         }
 
-        LocalStateToNodeCountUpdateDeadline_ =
-            GetCpuInstant() +
-            DurationToCpuDuration(GetDynamicConfig()->LocalStateToNodeCountUpdatePeriod);
+        LocalStateToNodeCountUpdateDeadline_ = TInstant::Now() + GetDynamicConfig()->LocalStateToNodeCountUpdatePeriod;
     }
 
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
