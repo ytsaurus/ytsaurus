@@ -56,6 +56,7 @@ target_link_options(unittester-library-numeric PRIVATE
 )
 
 target_sources(unittester-library-numeric PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/algorithm_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/binary_search_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/double_array_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/piecewise_linear_function_ut.cpp
