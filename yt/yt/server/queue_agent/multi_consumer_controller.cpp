@@ -101,8 +101,8 @@ THashSet<std::string> SelectConsumerNamesFromUserTable(
         // NB: A truncated result would look like missing names and cause spurious deletes from state.
         if (selectResult.Statistics.IncompleteInput || selectResult.Statistics.IncompleteOutput) {
             auto error = TError("Incomplete result while selecting consumer names from user table")
-                << TErrorAttribute("path", path)
-                << TErrorAttribute("batch_size", batchSize);
+                .With("path", path)
+                .With("batch_size", batchSize);
             YT_LOG_ALERT_AND_THROW(error);
         }
 
@@ -121,11 +121,11 @@ THashSet<std::string> SelectConsumerNamesFromUserTable(
     }
 
     auto error = TError("Exceeded maximum number of iterations while selecting consumer names from user table")
-        << TErrorAttribute("path", path)
-        << TErrorAttribute("batch_size", batchSize)
-        << TErrorAttribute("max_iterations", MaxSelectConsumerNamesIterations)
-        << TErrorAttribute("consumer_name_count", consumerNames.size())
-        << TErrorAttribute("last_name", lastName);
+        .With("path", path)
+        .With("batch_size", batchSize)
+        .With("max_iterations", MaxSelectConsumerNamesIterations)
+        .With("consumer_name_count", consumerNames.size())
+        .With("last_name", lastName);
 
     YT_LOG_ALERT_AND_THROW(error);
 }
