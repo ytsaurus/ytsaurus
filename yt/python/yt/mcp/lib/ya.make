@@ -22,6 +22,7 @@ PY_SRCS(
     tools/common_client.py
     tools/query_tracker.py
     tools/table.py
+    tools/cypress.py
 )
 
 PEERDIR(

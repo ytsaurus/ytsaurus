@@ -19,7 +19,12 @@ def get_app_args():
 
     parser.add_argument(
         "--rw-mode", action="store_true", default=False,
-        help="Enable write query operations. WARNING: allows data mutations.",
+        help=(
+            "Enable write query operations and mutating tools (marked with _MUTABLE). "
+            "WARNING: allows data mutations - default: read-only. "
+            "Forbidden write paths are configurable via env MCP_YT_WRITE_FORBIDDEN_PREFIXES "
+            "(default: //sys,//logs)."
+        ),
     )
     parser.add_argument("--show-tools", action="store_true", default=False, help="Show tools and exit")
     parser.add_argument("--tools-common", action="store_const", const="common", default=None, help="Enable common tools")
@@ -59,6 +64,10 @@ def main():
     if not tools:
         for group in _DEFAULT_GROUPS:
             tools.extend(tools_groups[group])
+
+    # Filter out mutating tools unless --rw-mode is set (default = read-only).
+    if not app_args.rw_mode:
+        tools = [t for t in tools if not getattr(t, "_MUTABLE", False)]
 
     mcp_runner.attach_tools(tools)
 
