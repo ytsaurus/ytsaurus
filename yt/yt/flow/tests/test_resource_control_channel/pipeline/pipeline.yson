@@ -50,10 +50,12 @@
             "Reader" = {
                 "source_streams" = {
                     "random" = {
-                        "partition_count" = 1;
-                        "message_size_mean" = 100;
-                        "message_count_mean" = 10;
-                        "message_key_range" = 1000;
+                        "parameters" = {
+                            "partition_count" = 1;
+                            "message_size_mean" = 100;
+                            "message_count_mean" = 10;
+                            "message_key_range" = 1000;
+                        };
                     };
                 };
             };
