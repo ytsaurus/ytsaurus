@@ -55,6 +55,7 @@ public:
     struct TMaterializedView
     {
         DB::ASTPtr CreateQuery;
+        EMaterializedViewSourceType SourceType;
         NYPath::TYPath SourcePath;
         NYPath::TYPath TargetPath;
         std::string Creator;

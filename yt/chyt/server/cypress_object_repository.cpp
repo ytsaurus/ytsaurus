@@ -47,6 +47,7 @@ struct TPersistedMaterializedViewConfiguration
     : public TYsonStruct
 {
     std::string CreateStatement;
+    EMaterializedViewSourceType SourceType;
     TYPath SourcePath;
     TYPath TargetPath;
     std::string Creator;
@@ -57,6 +58,7 @@ struct TPersistedMaterializedViewConfiguration
     static void Register(TRegistrar registrar)
     {
         registrar.Parameter("create_statement", &TThis::CreateStatement);
+        registrar.Parameter("source_type", &TThis::SourceType);
         registrar.Parameter("source_path", &TThis::SourcePath);
         registrar.Parameter("target_path", &TThis::TargetPath);
         registrar.Parameter("creator", &TThis::Creator);
@@ -157,6 +159,7 @@ struct TCypressObjectRepository::TObjectSnapshot
 
         return {
             .CreateQuery = ParseMaterializedViewStatement(config->CreateStatement),
+            .SourceType = config->SourceType,
             .SourcePath = config->SourcePath,
             .TargetPath = config->TargetPath,
             .Creator = config->Creator,
@@ -368,6 +371,7 @@ void TCypressObjectRepository::WriteMaterializedView(
 
     auto persistedConfig = New<TPersistedMaterializedViewConfiguration>();
     persistedConfig->CreateStatement = config.CreateStatement;
+    persistedConfig->SourceType = config.SourceType;
     persistedConfig->SourcePath = config.SourcePath;
     persistedConfig->TargetPath = config.TargetPath;
     persistedConfig->Creator = context->getClientInfo().initial_user;
@@ -393,6 +397,7 @@ void TCypressObjectRepository::WriteMaterializedView(
         host->GetMaterializedViewCoordinator()->InitializeProgress(
             transaction,
             resultOrError.Value(),
+            config.SourceType,
             config.SourceObjectId);
         WaitFor(transaction->Commit()).ThrowOnError();
     } catch (const std::exception&) {

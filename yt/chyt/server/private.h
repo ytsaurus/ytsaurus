@@ -270,6 +270,11 @@ DEFINE_ENUM(EStorageConflictResolveMode,
     ((YT)       (2) ("yt"))
 );
 
+DEFINE_ENUM(EMaterializedViewSourceType,
+    (StaticTable)
+    (TableRange)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EPreliminaryCheckPermissionResult,
