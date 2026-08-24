@@ -131,9 +131,10 @@ message TRole {
     }
 
     enum EKind {
+        reserved 2;
+        reserved "CLUSTER_ADMIN";
         UNKNOWN_KIND = 0;
         CLUSTER_USE  = 1;
-        CLUSTER_ADMIN = 2;
         CLUSTER_OWNER = 3;
     }
 
