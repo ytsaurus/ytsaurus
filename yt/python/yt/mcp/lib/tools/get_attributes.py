@@ -7,8 +7,9 @@ _ATTRIBUTES_MAIN = _ATTRIBUTES_COMMON + ("replication_factor", "erasure_codec", 
 
 _ATTRIBUTES_BUNDLE = _ATTRIBUTES_COMMON + ("resource_limits", "resource_quota")
 
-_ATTRIBUTES_POOL = ("strong_guarantee_resources", "integral_guaranties", "max_operation_count", "max_running_operation_count", "running_operation_count",
-                    "scheduling_status", "starvation_status", "resource_usage")
+_ATTRIBUTES_POOL = ("strong_guarantee_resources", "integral_guarantee_type", "specified_burst_guarantee_resources", "specified_resource_flow",
+                    "max_operation_count", "max_running_operation_count", "running_operation_count", "scheduling_status", "starvation_status",
+                    "resource_usage", "mode", "parent")
 
 _ATTRIBUTES_ACCOUNT = _ATTRIBUTES_COMMON + ("abc", "resource_limits", "resource_usage")
 
@@ -201,7 +202,7 @@ Use 'resource_usage' attribute to get current pull load (cpu, gpu, user_memory, 
             if pool:
                 # TODO: move to GetPoolAttributes
                 all_attrs = yt_client.get(f"{path}")
-                attrs = dict((k, all_attrs[k]) for k in attributes)
+                attrs = dict((k, all_attrs.get(k)) for k in attributes)
             else:
                 attrs = yt_client.get(f"{path}/@", attributes=attributes)
             return self.runner.return_structured(attrs)
