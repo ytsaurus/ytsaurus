@@ -572,6 +572,7 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
 @authors("alexelexa")
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
 
     @classmethod
     def modify_tablet_balancer_config(cls, config, multidaemon_config):
