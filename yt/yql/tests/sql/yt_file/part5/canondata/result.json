@@ -1201,6 +1201,75 @@
             "uri": "https://{canondata_backend}/1942278/86da6f628e90c2f85b1dcf5b9624915b3cd922c4/resource.tar.gz#test.test_order_by-literal_with_assume_desc--Results_/Output.yqlrun.txt.attr"
         }
     ],
+    "test.test[order_by-native_optional_old_without_native_desc_sort--Debug]": [
+        {
+            "checksum": "448491ee7148bf175e96eeb4566a33f3",
+            "size": 2011,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-native_optional_old_without_native_desc_sort--Debug_/opt.yql"
+        }
+    ],
+    "test.test[order_by-native_optional_old_without_native_desc_sort--Plan]": [
+        {
+            "checksum": "b145b974de52a129379bffe016417ad0",
+            "size": 5822,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-native_optional_old_without_native_desc_sort--Plan_/plan.txt"
+        }
+    ],
+    "test.test[order_by-native_optional_old_without_native_desc_sort--Results]": [
+        {
+            "checksum": "483beac9bc95aea342f80a4c57e64c53",
+            "size": 1573,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-native_optional_old_without_native_desc_sort--Results_/results.txt"
+        },
+        {
+            "uri": "file://test.test_order_by-native_optional_old_without_native_desc_sort--Results_/extracted"
+        }
+    ],
+    "test.test[order_by-old_optional_native_with_native_desc_sort--Debug]": [
+        {
+            "checksum": "b4178db9bc54b225f12f1a44990fe7f0",
+            "size": 2356,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-old_optional_native_with_native_desc_sort--Debug_/opt.yql"
+        }
+    ],
+    "test.test[order_by-old_optional_native_with_native_desc_sort--Plan]": [
+        {
+            "checksum": "65dc1a1d2103e0aa44a86c3a478398d7",
+            "size": 6268,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-old_optional_native_with_native_desc_sort--Plan_/plan.txt"
+        }
+    ],
+    "test.test[order_by-old_optional_native_with_native_desc_sort--Results]": [
+        {
+            "checksum": "6c302a6059c63cfdba6bc4fa67d052b7",
+            "size": 1573,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-old_optional_native_with_native_desc_sort--Results_/results.txt"
+        }
+    ],
+    "test.test[order_by-old_optional_native_without_native_desc_sort--Debug]": [
+        {
+            "checksum": "c8c541834687aab193ea75929d7fe634",
+            "size": 2023,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-old_optional_native_without_native_desc_sort--Debug_/opt.yql"
+        }
+    ],
+    "test.test[order_by-old_optional_native_without_native_desc_sort--Plan]": [
+        {
+            "checksum": "42cc0a667a0cbb277e682d088d8036b1",
+            "size": 5892,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-old_optional_native_without_native_desc_sort--Plan_/plan.txt"
+        }
+    ],
+    "test.test[order_by-old_optional_native_without_native_desc_sort--Results]": [
+        {
+            "checksum": "483beac9bc95aea342f80a4c57e64c53",
+            "size": 1573,
+            "uri": "https://{canondata_backend}/1942100/d83b73731390f3bb1f0fd7226e2cbed6dbd95703/resource.tar.gz#test.test_order_by-old_optional_native_without_native_desc_sort--Results_/results.txt"
+        },
+        {
+            "uri": "file://test.test_order_by-old_optional_native_without_native_desc_sort--Results_/extracted"
+        }
+    ],
     "test.test[order_by-order_by_expr--Debug]": [
         {
             "checksum": "2607cddeab5e79ed398f9dc1f38dfd09",
