@@ -569,6 +569,18 @@ items:
              href: admin-guide/install-monitoring.md
            - name: Task-proxy
              href: admin-guide/install-task-proxy.md
+       - name: Updating cluster
+         items:
+          - name: Upgrade strategies
+            href: admin-guide/update/update_strategy.md
+          - name: YTsaurus
+            href: admin-guide/update/update-ytsaurus.md
+          - name: CHYT
+            href: admin-guide/update/update-chyt.md
+          - name: SPYT
+            href: admin-guide/update/update-spyt.md
+          - name: Updating volumes
+            href: admin-guide/update/update-volumes.md
        - name: Getting the YTsaurus specification ready
          items:
           - name: Description
@@ -588,10 +600,6 @@ items:
          when: audience == "public"
        - name: Monitoring
          href: admin-guide/monitoring.md
-       - name: Updating YTsaurus server components
-         href: admin-guide/update-ytsaurus.md
-       - name: Updating volumes
-         href: admin-guide/update-volumes.md
        - name: Cluster operation
          href: admin-guide/cluster-operations.md
        - name: CLI admin commands

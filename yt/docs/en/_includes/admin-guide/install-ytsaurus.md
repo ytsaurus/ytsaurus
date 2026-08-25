@@ -29,7 +29,7 @@ NAME                                                      READY   STATUS     RES
 ytsaurus-ytop-chart-controller-manager-7478f9b6cb-qr8wd   2/2     Running   0           1m
 ```
 
-You can read about updating the operator in [that section](../../admin-guide/update-ytsaurus.md#operator).
+You can read about updating the operator in the [updating the operator section](../../admin-guide/update/update-ytsaurus.md#update-operator).
 
 ## Starting cluster {{product-name}} {#starting-cluster}
 
@@ -111,7 +111,7 @@ yt-client-init-job-user-jtl8p                           0/1     Completed   0   
 yt-master-init-job-default-vtkzw                        0/1     Completed   1          50s
 yt-ui-init-job-default-2rsfz                            0/1     Completed   0          20s
 ytsaurus-ui-deployment-7b5d4776df-w42mj                 1/1     Running     0          5s
-ytsaurus-ytop-chart-controller-manager-fbbffc97-6stk8   2/2     Running     0          3m35s
+ytsaurus-ytop-chart-controller-manager-fbbffc97-6stk8   2/2     Running             0          3m35s
 
 $ kubectl get ytsaurus -n <namespace>
 NAME         CLUSTERSTATE   UPDATESTATE   UPDATINGCOMPONENTS
@@ -127,7 +127,10 @@ NAME         CLUSTERSTATE   UPDATESTATE   UPDATINGCOMPONENTS
 minisaurus   Running        None
 ```
 
+To update the cluster, see [this article](../../admin-guide/update/update-ytsaurus.md). It explains in detail how to prepare the cluster for an update, update the operator, and verify the result.
+
 ### Diagnosing problems during initialization
+
 
 If the cluster is stuck in the `Initializing` state, start debugging by checking `Ytsaurus sync status` messages in the operator logs, which list the components that didn't start properly. To view the logs, use the command `kubectl logs deployment.apps/ytsaurus-ytop-chart-controller-manager`.
 
@@ -148,6 +151,7 @@ kubectl logs deployment.apps/ytsaurus-ytop-chart-controller-manager
 2023-09-10T11:43:59.212Z        INFO    Ytsaurus sync status    {"controller": "ytsaurus", "controllerGroup": "cluster.ytsaurus.tech", "controllerKind": "Ytsaurus", "ytsaurus": {"name":"minisaurus","namespace":"default"}, "namespace": "default", "name": "minisaurus", "reconcileID": "4bf01d74-affe-4173-ac9e-b697b9c356de", "notReadyComponents": [], "readyComponents": ["Discovery", "Master", "YtsaurusClient", "DataNode", "HttpProxy", "HttpProxy-control", "UI", "RpcProxy", "RpcProxy-heavy", "ExecNode", "Scheduler", "ControllerAgent"], "updateState": "None", "clusterState": "Running"}
 ```
 {% endcut %}
+
 
 To find out why a component isn't running, check the `Conditions` field in the `Ytsaurus` resource status. You can view the status by executing the command `kubectl describe ytsaurus -n <namespace>`.
 
@@ -290,7 +294,6 @@ Events:
 
 Another possible reason is that pods cannot be scheduled due to an insufficient number of k8s nodes. If your k8s cluster has fewer nodes than the number of {{product-name}} master servers, they will not be able to start because of antiaffinity constraints. To disable this restriction, set the option `ephemeralCluster: true`.
 
-
 ## Installing {{product-name}} UI helm chart
 
 ### Using with [ytop-chart](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart)
@@ -308,7 +311,7 @@ helm upgrade --install ytsaurus-ui ytsaurus-ui/packages/ui-helm-chart/
 
 The instructions below describe how to start the {{product-name}} UI from the helm chart. You are supposed to have already:
 
-* configured the `kubectl` cli-tool (for example, use [minikube](https://minikube.sigs.k8s.io/docs/start/)),
+* configured the `kubectl` cli-tool (for example, use [minikube](https://minikube.sigs.k8s.io/docs/start/),
 * started your {{product-name}} cluster and know the hostname of `http_proxy`,
 * prepared a special robot-user for the {{product-name}} UI and ready to provide its token (see the [Token management](../../user-guide/storage/auth.md#token-management) section).
 

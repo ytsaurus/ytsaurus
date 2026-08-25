@@ -52,3 +52,5 @@ mychyt   Finished
 Once all jobs are successfully completed, you can run the `CHYT` clique. For more information about cliques, see [this section](../../user-guide/data-processing/chyt/cliques/overview.md).
 
 If the `makeDefault` flag has been set in the `Chyt` specification, and the `strawberry controller` is running on the cluster, the default clique `ch_public` will also be created.
+
+For detailed instructions on updating CHYT, see the article [Updating CHYT](../../admin-guide/update/update-chyt.md).
