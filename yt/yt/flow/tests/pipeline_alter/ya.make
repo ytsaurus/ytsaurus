@@ -2,6 +2,7 @@ PY3TEST()
 
 TEST_SRCS(
     test_alter.py
+    test_backlog_skip.py
     yt_sync.py
 )
 

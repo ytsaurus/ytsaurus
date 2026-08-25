@@ -123,6 +123,15 @@ TFlowEphemeralStatePtr ComputeInitialEphemeralState(
     return ephemeralState;
 }
 
+//! Revokes every partition's dynamic partition spec, so no job starts until a traverse
+//! reissues it — the same gate a fresh #ComputeInitialEphemeralState arms after a restart.
+void ResetDynamicPartitionSpecs(const TFlowEphemeralStatePtr& ephemeralState)
+{
+    for (const auto& [partitionId, partitionState] : ephemeralState->Partitions) {
+        partitionState->DynamicPartitionSpec = New<TDynamicPartitionSpec>();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerLeader
@@ -508,7 +517,7 @@ public:
         flowState->CurrentTimestamp = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ true))
             .ValueOrThrow();
 
-        if (!UpdateSpecs(flowState, spec, dynamicSpec)) {
+        if (!UpdateSpecs(flowView, spec, dynamicSpec)) {
             YT_TLOG_WARNING("No job manager, fast stop");
             auto context = New<TJobManagerContext>();
             context->ClientsCache = Connector_->GetClientsCache();
@@ -738,10 +747,14 @@ private:
 
     bool FlowCoreTargetMatched_ = true;
 
-    bool UpdateSpecs(const TFlowStatePtr& flowState, const TVersionedPipelineSpecPtr& spec, const TVersionedDynamicPipelineSpecPtr& dynamicSpec)
+    bool UpdateSpecs(const TFlowViewPtr& flowView, const TVersionedPipelineSpecPtr& spec, const TVersionedDynamicPipelineSpecPtr& dynamicSpec)
     {
-        const auto& executionSpec = flowState->ExecutionSpec;
-        if (executionSpec->PipelineSpec->GetVersion() != spec->GetVersion() || !JobManager_) {
+        const auto& executionSpec = flowView->State->ExecutionSpec;
+        const bool specVersionChanged = executionSpec->PipelineSpec->GetVersion() != spec->GetVersion();
+        if (specVersionChanged) {
+            ResetDynamicPartitionSpecs(flowView->EphemeralState);
+        }
+        if (specVersionChanged || !JobManager_) {
             executionSpec->PipelineSpec = spec;
             executionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(executionSpec->PipelineSpec->GetValue()), VersionProvider_);
             UpdateStreamSpecStorageState(executionSpec->StreamSpecStorageState, *spec->GetValue(), TimeProvider_, VersionProvider_);
@@ -754,7 +767,7 @@ private:
                 context->TimeProvider = TimeProvider_;
                 context->VersionProvider = VersionProvider_;
                 context->StatusProfiler = StatusProfiler_->WithPrefix("/job_manager");
-                JobManager_ = CreateJobManager(std::move(context), executionSpec->PipelineSpec->GetValue(), executionSpec->DynamicPipelineSpec->GetValue(), flowState->JobManagerState, PipelineAuthenticator_);
+                JobManager_ = CreateJobManager(std::move(context), executionSpec->PipelineSpec->GetValue(), executionSpec->DynamicPipelineSpec->GetValue(), flowView->State->JobManagerState, PipelineAuthenticator_);
             } catch (const std::exception& ex) {
                 YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Error, "Failed to create job manager")
                     .With(ex);
