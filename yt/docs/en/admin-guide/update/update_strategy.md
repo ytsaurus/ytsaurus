@@ -1,9 +1,9 @@
 ---
 metadata:
     - property: 'og:title'
-      content: 'Upgrade strategies {{product-name}}'
+      content: '{{product-name}} Update Strategies'
     - property: 'og:description'
-      content: 'This document describes cluster upgrade strategies {{product-name}}.'
+      content: 'This document describes the strategies for updating the {{product-name}} cluster.'
     - property: 'og:type'
       content: 'article'
     - property: 'og:url'
@@ -15,4 +15,4 @@ metadata:
     - property: 'article:author'
       content: 'Zakhar Telukh'
 ---
-{% include [Update strategy](../../_includes/admin-guide/update/update_strategy.md) %}
+{% include [Update Strategy](../../_includes/admin-guide/update/update_strategy.md) %}

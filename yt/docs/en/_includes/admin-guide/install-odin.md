@@ -297,3 +297,5 @@ curl -sS -H "Authorization: OAuth $YT_TOKEN" http://http-proxies.default.svc.clu
 
 * Follow the principle of least privilege when assigning rights to `robot-odin`; create dedicated ACLs for target paths when necessary;
 * Rotate tokens according to your internal policies and update secrets promptly (via `kubectl apply -f` or `kubectl create secret ... --dry-run=client -o yaml | kubectl apply -f -`).
+
+For detailed instructions on updating Odin, see the [Updating Odin](../../admin-guide/update/update-odin.md) article.

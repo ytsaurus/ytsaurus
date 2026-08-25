@@ -6,9 +6,9 @@ This document outlines how to update SPYT using the Kubernetes operator.
 
 During a SPYT update:
 
-* The YTsaurus cluster continues operating normally.
-* YTsaurus server components aren’t restarted.
-* Data access via the YTsaurus API remains available.
+* The {{product-name}} cluster continues operating normally.
+* {{product-name}} server components aren’t restarted.
+* Data access via the {{product-name}} API remains available.
 * The update installs the new version alongside the current one without replacing it ([Multiple SPYT Versions](#multiple-versions)).
 
 **Before updating:**
@@ -153,7 +153,7 @@ kubectl get spyt -n <namespace> -w
 
 ### Multiple SPYT Versions on a Single Cluster {#multiple-versions}
 
-The update process adds a new SPYT version as a separate resource, allowing multiple versions to coexist on the same YTsaurus cluster. Different teams can use different versions simultaneously.
+The update process adds a new SPYT version as a separate resource, allowing multiple versions to coexist on the same {{product-name}} cluster. Different teams can use different versions simultaneously.
 
 SPYT and Spark artifacts are stored in Cypress at the path `//home/spark/`. The operator doesn’t delete old artifacts, so versions don’t interfere with each other.
 

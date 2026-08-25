@@ -1,9 +1,9 @@
 ---
 metadata:
     - property: 'og:title'
-      content: 'Updating server components {{product-name}}'
+      content: 'Updating {{product-name}} server components'
     - property: 'og:description'
-      content: 'This document describes how to update the cluster {{product-name}}.'
+      content: 'This document describes how to update a {{product-name}} cluster.'
     - property: 'og:type'
       content: 'article'
     - property: 'og:url'
@@ -15,4 +15,4 @@ metadata:
     - property: 'article:author'
       content: 'Zakhar Telukh'
 ---
-{% include [Update server components](../../_includes/admin-guide/update/update-ytsaurus.md) %}
+{% include [Updating server components](../../_includes/admin-guide/update/update-ytsaurus.md) %}
