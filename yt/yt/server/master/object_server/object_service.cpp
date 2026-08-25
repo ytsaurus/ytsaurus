@@ -945,10 +945,10 @@ private:
                 FromProto<TDuration>(cachingRequestHeaderExt.success_staleness_bound()),
                 FromProto<NHydra::TRevision>(refreshRevision));
 
-            YT_LOG_DEBUG("Serving subrequest from cache (SubrequestIndex: %v, Key: %v, CookieActive: %v)",
-                subrequestIndex,
-                key,
-                cookie.IsActive());
+            YT_TLOG_DEBUG("Serving subrequest from cache")
+                .With("SubrequestIndex", subrequestIndex)
+                .With("Key", key)
+                .With("CookieActive", cookie.IsActive());
 
             if (cookie.IsActive()) {
                 subrequest.ActiveCacheCookie = std::move(cookie);
@@ -1254,13 +1254,11 @@ private:
                 .With("unresolved_suffix", resolveResult.UnresolvedPathSuffix)
                 .With("rootstock_node_id", resolveResult.RootstockNodeId)
                 .With("rootstock_path", resolveResult.RootstockPath)));
-        YT_LOG_DEBUG(
-            "Request redirected to Sequoia (SubrequestIndex: %v, TargetPath: %v, "
-            "RootstockNodeId: %v, RootstockPath: %v)",
-            subrequest->Index,
-            subrequest->YPathExt->target_path(),
-            resolveResult.RootstockNodeId,
-            resolveResult.RootstockPath);
+        YT_TLOG_DEBUG("Request redirected to Sequoia")
+            .With("SubrequestIndex", subrequest->Index)
+            .With("TargetPath", subrequest->YPathExt->target_path())
+            .With("RootstockNodeId", resolveResult.RootstockNodeId)
+            .With("RootstockPath", resolveResult.RootstockPath);
     }
 
     void DecideSubrequestType(TSubrequest* subrequest)
@@ -1676,14 +1674,13 @@ private:
             auto* batchOrError = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
 
             if (!batchOrError->IsOK()) {
-                YT_LOG_DEBUG(
-                    *batchOrError,
-                    "Error forwarding subrequest (SubrequestIndex: %v, CellTag: %v, PeerKind: %v, Mutating: %v, Method: %v)",
-                    subrequestIndex,
-                    subrequest.ForwardedCellTag,
-                    peerKind,
-                    subrequest.YPathExt->mutating(),
-                    requestHeader.method());
+                YT_TLOG_DEBUG("Error forwarding subrequest")
+                    .With("SubrequestIndex", subrequestIndex)
+                    .With("CellTag", subrequest.ForwardedCellTag)
+                    .With("PeerKind", peerKind)
+                    .With("Mutating", subrequest.YPathExt->mutating())
+                    .With("Method", requestHeader.method())
+                    .With(*batchOrError);
                 OnCompletedSubresponse(&subrequest, CreateErrorResponseMessage(*batchOrError));
                 continue;
             }
@@ -1743,9 +1740,9 @@ private:
                     const auto& Logger = this_->Logger;
 
                     if (batchRspOrError.IsOK()) {
-                        YT_LOG_DEBUG("Forwarded request succeeded (ForwardedRequestId: %v, SubrequestIndexes: %v)",
-                            batch.BatchReq->GetRequestId(),
-                            batch.Indexes);
+                        YT_TLOG_DEBUG("Forwarded request succeeded")
+                            .With("ForwardedRequestId", batch.BatchReq->GetRequestId())
+                            .With("SubrequestIndexes", batch.Indexes);
 
                         const auto& batchRsp = batchRspOrError.Value();
                         for (auto index : batchRsp->GetUncertainRequestIndexes()) {
@@ -1767,20 +1764,23 @@ private:
                     } else {
                         const auto& forwardingError = batchRspOrError;
 
-                        YT_LOG_DEBUG(forwardingError, "Forwarded request failed (ForwardedRequestId: %v, SubrequestIndexes: %v)",
-                            batch.BatchReq->GetRequestId(),
-                            batch.Indexes);
+                        YT_TLOG_DEBUG("Forwarded request failed")
+                            .With("ForwardedRequestId", batch.BatchReq->GetRequestId())
+                            .With("SubrequestIndexes", batch.Indexes)
+                            .With(forwardingError);
 
                         if (!IsRetriableError(forwardingError) || forwardingError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                            YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndexes: %v)",
-                                batch.Indexes);
+                            YT_TLOG_DEBUG("Failing request due to non-retryable forwarding error")
+                                .With("SubrequestIndexes", batch.Indexes)
+                                .With(forwardingError);
                             this_->Reply(TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
                                 .With(forwardingError));
                             return;
                         }
 
-                        YT_LOG_DEBUG(forwardingError, "Omitting subresponses due to retryable forwarding error (SubrequestIndexes: %v)",
-                            batch.Indexes);
+                        YT_TLOG_DEBUG("Omitting subresponses due to retryable forwarding error")
+                            .With("SubrequestIndexes", batch.Indexes)
+                            .With(forwardingError);
 
                         for (auto index : batch.Indexes) {
                             this_->MarkSubrequestAsUncertain(index);
@@ -1883,10 +1883,8 @@ private:
             }
         }
 
-        YT_LOG_ALERT_IF(
-            User_->GetPendingRemoval(),
-            "User pending for removal has accessed object service (User: %v)",
-            User_->GetName());
+        YT_TLOG_ALERT_IF(User_->GetPendingRemoval(), "User pending for removal has accessed object service")
+            .With("User", User_->GetName());
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
@@ -1945,11 +1943,11 @@ private:
             }
 
             if (!WaitForAndContinue<WorkloadType>(throttlerFuture)) {
-                YT_LOG_DEBUG("Throttling subrequest (User: %v, SubrequestIndex: %v, SubrequestType: %v, WorkloadType: %v)",
-                    User_->GetName(),
-                    subrequestIndex,
-                    SubrequestType,
-                    WorkloadType);
+                YT_TLOG_DEBUG("Throttling subrequest")
+                    .With("User", User_->GetName())
+                    .With("SubrequestIndex", subrequestIndex)
+                    .With("SubrequestType", SubrequestType)
+                    .With("WorkloadType", WorkloadType);
                 return false;
             }
         }
@@ -2036,7 +2034,7 @@ private:
             }
 
             if (GetCpuInstant() > batchDeadlineTime) {
-                YT_LOG_DEBUG("Yielding thread");
+                YT_TLOG_DEBUG("Yielding thread");
                 doReschedule(this);
                 break;
             }
@@ -2075,9 +2073,9 @@ private:
             case EExecutionSessionSubrequestType::Cache:
             case EExecutionSessionSubrequestType::Sequoia:
             case EExecutionSessionSubrequestType::Undefined:
-                YT_LOG_ALERT("Attempted to execute a subrequest of unexpected type (SubrequestIndex: %v, SubrequestType: %v)",
-                    subrequest->Index,
-                    subrequest->Type);
+                YT_TLOG_ALERT("Attempted to execute a subrequest of unexpected type")
+                    .With("SubrequestIndex", subrequest->Index)
+                    .With("SubrequestType", subrequest->Type);
                 break;
         }
     }
@@ -2136,7 +2134,7 @@ private:
 
     void ForwardSubrequestToLeader(TSubrequest* subrequest)
     {
-        YT_LOG_DEBUG("Performing leader fallback");
+        YT_TLOG_DEBUG("Performing leader fallback");
 
         subrequest->ProfilingCounters->LeaderFallbackRequestCounter.Increment();
 
@@ -2437,14 +2435,16 @@ private:
 
                 const auto& forwardingError = wrapperError.InnerErrors()[0];
                 if (!IsRetriableError(forwardingError) || forwardingError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                    YT_LOG_DEBUG(forwardingError, "Failing request due to non-retryable forwarding error (SubrequestIndex: %v)",
-                        index);
+                    YT_TLOG_DEBUG("Failing request due to non-retryable forwarding error")
+                        .With("SubrequestIndex", index)
+                        .With(forwardingError);
                     RpcContext_->Reply(wrapperError);
                     return;
                 }
 
-                YT_LOG_DEBUG(forwardingError, "Omitting subresponse due to retryable forwarding error (SubrequestIndex: %v)",
-                    index);
+                YT_TLOG_DEBUG("Omitting subresponse due to retryable forwarding error")
+                    .With("SubrequestIndex", index)
+                    .With(forwardingError);
 
                 uncertainIndexes.push_back(index);
             } else {
@@ -2470,7 +2470,7 @@ private:
         ToProto(response.mutable_uncertain_subrequest_indexes(), uncertainIndexes);
 
         if (response.subresponses_size() == 0) {
-            YT_LOG_DEBUG("Dropping request since no subresponses are available");
+            YT_TLOG_DEBUG("Dropping request since no subresponses are available");
             return;
         }
 
@@ -2479,8 +2479,8 @@ private:
             response.uncertain_subrequest_indexes());
 
         if (groundUpdateQueueSequenceNumber != -1) {
-            YT_LOG_DEBUG("Synchronizing with ground update queue before replying (GroundUpdateQueueSequenceNumber: %v)",
-                groundUpdateQueueSequenceNumber);
+            YT_TLOG_DEBUG("Synchronizing with ground update queue before replying")
+                .With("GroundUpdateQueueSequenceNumber", groundUpdateQueueSequenceNumber);
 
             const auto& groundUpdateQueueManager = Bootstrap_->GetGroundUpdateQueueManager();
             BIND(&IGroundUpdateQueueManager::Sync,
@@ -2525,7 +2525,7 @@ private:
 
         if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
             if (!LocalExecutionInterrupted_.exchange(true)) {
-                YT_LOG_DEBUG("Request interrupted due to cancellation");
+                YT_TLOG_DEBUG("Request interrupted due to cancellation");
             }
             return true;
         } else {
@@ -2558,13 +2558,12 @@ private:
         if (premature) [[unlikely]] {
             // Premature backoff alarm is only triggered from Automaton or LocalRead threads,
             // so it's safe to read subrequest indices here.
-            YT_LOG_DEBUG("Backoff alarm triggered prematurely "
-                "(CurrentAutomatonSubrequestIndex: %v, CurrentLocalReadSubrequestIndex: %v, TotalSubrequestCount: %v)",
-                CurrentAutomatonSubrequestIndex_,
-                CurrentLocalReadSubrequestIndex_,
-                TotalSubrequestCount_);
+            YT_TLOG_DEBUG("Backoff alarm triggered prematurely")
+                .With("CurrentAutomatonSubrequestIndex", CurrentAutomatonSubrequestIndex_)
+                .With("CurrentLocalReadSubrequestIndex", CurrentLocalReadSubrequestIndex_)
+                .With("TotalSubrequestCount", TotalSubrequestCount_);
         } else {
-            YT_LOG_DEBUG("Backoff alarm triggered");
+            YT_TLOG_DEBUG("Backoff alarm triggered");
         }
 
         BackoffAlarmTriggered_.store(true);
@@ -2578,8 +2577,8 @@ private:
 
         int result = --ReplyLockCount_;
         YT_VERIFY(result >= 0);
-        YT_LOG_TRACE("Reply lock released (LockCount: %v)",
-            result);
+        YT_TLOG_TRACE("Reply lock released")
+            .With("LockCount", result);
         return ScheduleReplyIfNeeded();
     }
 
@@ -2598,7 +2597,7 @@ private:
 
         if (BackoffAlarmTriggered_ && SomeSubrequestCompleted_) {
             if (!LocalExecutionInterrupted_.exchange(true)) {
-                YT_LOG_DEBUG("Local execution interrupted due to backoff alarm");
+                YT_TLOG_DEBUG("Local execution interrupted due to backoff alarm");
             }
             Reply();
             return true;
@@ -2827,7 +2826,7 @@ std::conditional_t<ShouldThrow, void, TError> TObjectService::RequireLeaderImpl(
     if (HasMutationContext()) {
         // Just a precaution, not really expected to happen.
         auto error = TError("Request can only be served at leaders");
-        YT_LOG_ALERT("RequireLeader() called in mutation");
+        YT_TLOG_ALERT("RequireLeader() called in mutation");
         if constexpr (ShouldThrow) {
             THROW_ERROR error;
         } else {

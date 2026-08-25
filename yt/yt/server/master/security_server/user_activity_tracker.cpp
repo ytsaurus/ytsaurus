@@ -110,8 +110,8 @@ private:
         }
 
         if (UserToActivityStatistics_.size() > 0) {
-            YT_LOG_DEBUG("Starting user activity statistics commit (UserCount: %v)",
-                UserToActivityStatistics_.size());
+            YT_TLOG_DEBUG("Starting user activity statistics commit")
+                .With("UserCount", UserToActivityStatistics_.size());
 
             NProto::TReqUpdateUserActivityStatistics request;
             for (const auto& [userId, statisticsUpdate] : UserToActivityStatistics_) {

@@ -1100,7 +1100,8 @@ private:
                         THashSet<EChunkScanKind> seenScanKinds;
                         for (const auto& rspOrError : rspOrErrors) {
                             if (!rspOrError.IsOK()) {
-                                YT_LOG_DEBUG(rspOrError, "Failed to request chunk scan flags from peer");
+                                YT_TLOG_DEBUG("Failed to request chunk scan flags from peer")
+                                    .With(rspOrError);
                                 continue;
                             }
 
@@ -1121,7 +1122,8 @@ private:
                         auto builder = BuildYsonStringFluently().BeginList();
                         for (const auto& rspOrError : rspOrErrors) {
                             if (!rspOrError.IsOK()) {
-                                YT_LOG_DEBUG(rspOrError, "Failed to request chunk jobs from peer");
+                                YT_TLOG_DEBUG("Failed to request chunk jobs from peer")
+                                    .With(rspOrError);
                                 continue;
                             }
 

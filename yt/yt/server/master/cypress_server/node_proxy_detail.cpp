@@ -1081,13 +1081,10 @@ void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(c
     auto transactionType = TypeFromId(Transaction_->GetId());
     auto it = typeToWhitelist.find(transactionType);
     if (it != typeToWhitelist.end() && !it->second.contains(method)) {
-        YT_LOG_ALERT_IF(
-            transactionManagerConfig->AlertTransactionIsNotCompatibleWithMethod,
-            "Attempted to call a method not supported by type "
-            "(Method: %v, Type: %v, TransactionId: %v)",
-            method,
-            transactionType,
-            TypeFromId(Transaction_->GetId()));
+        YT_TLOG_ALERT_IF(transactionManagerConfig->AlertTransactionIsNotCompatibleWithMethod, "Attempted to call a method not supported by type")
+            .With("Method", method)
+            .With("Type", transactionType)
+            .With("TransactionId", TypeFromId(Transaction_->GetId()));
 
         THROW_ERROR_EXCEPTION("Method %Qv is not supported for type %Qlv",
             method,
@@ -1454,9 +1451,8 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     if (Object_->IsSequoia()) {
         if (!SequoiaNodeEffectiveAcl_) {
-            YT_LOG_ALERT(
-                "Missing effective ACL on permission validation for Sequoia node (NodeId: %v)",
-                TrunkNode_->GetId());
+            YT_TLOG_ALERT("Missing effective ACL on permission validation for Sequoia node")
+                .With("NodeId", TrunkNode_->GetId());
             THROW_ERROR_EXCEPTION(
                 "Permission validation through this API is not supported for Sequoia nodes");
         }
@@ -1472,11 +1468,9 @@ TPermissionCheckResponse TNontemplateCypressNodeProxyBase::DoCheckPermission(
                 /*ignorePendingRemovalSubjects*/ false);
             SequoiaNodeDeserializedEffectiveAcl_ = std::move(result.Acl);
 
-            YT_LOG_DEBUG_IF(!result.MissingSubjects.empty(),
-                "Missing subjects mentioned in effective ACL for Sequoia node "
-                "(NodeId: %v, MissingSubjects: %v)",
-                TrunkNode_->GetId(),
-                result.MissingSubjects);
+            YT_TLOG_DEBUG_IF(!result.MissingSubjects.empty(), "Missing subjects mentioned in effective ACL for Sequoia node")
+                .With("NodeId", TrunkNode_->GetId())
+                .With("MissingSubjects", result.MissingSubjects);
         }
 
         if (permission == EPermission::FullRead) {
@@ -1608,8 +1602,8 @@ void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
         for (const auto& entry : replication) {
             auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
             if (!IsObjectAlive(medium)) {
-                YT_LOG_ALERT("Non-alive medium found in replication (MediumIndex: %v)",
-                    entry.GetMediumIndex());
+                YT_TLOG_ALERT("Non-alive medium found in replication")
+                    .With("MediumIndex", entry.GetMediumIndex());
                 continue;
             }
 
@@ -1950,13 +1944,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
             IsSystemTransactionType(TypeFromId(transactionId)) &&
             type != EObjectType::ChaosReplicatedTable)
         {
-            YT_LOG_ALERT_IF(
+            YT_TLOG_ALERT_IF(
                 transactionManagerConfig->AlertTransactionIsNotCompatibleWithMethod,
-                "Attempted to create an object of type not supported by type "
-                "(ObjectType: %v, Type: %v, TransactionId: %v)",
-                type,
-                TypeFromId(transactionId),
-                transactionId);
+                "Attempted to create an object of type not supported by type")
+                .With("ObjectType", type)
+                .With("Type", TypeFromId(transactionId))
+                .With("TransactionId", transactionId);
             THROW_ERROR_EXCEPTION("Cannot create type %Qlv using system transaction", type)
                 .With("transaction_id", transactionId);
         }
@@ -2298,11 +2291,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
 
     auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
     if (!inplace) {
-        YT_LOG_ALERT_AND_THROW_UNLESS(
-            IsCompositeNodeType(parentNode->GetType()),
-            "Attempt to copy to a non-composite node was made (ParentNodeId: %v, ParentNodeType: %v)",
-            parentNode->GetVersionedId(),
-            parentNode->GetType());
+        YT_TLOG_ALERT_AND_THROW_UNLESS(IsCompositeNodeType(parentNode->GetType()), "Attempt to copy to a non-composite node was made")
+            .With("ParentNodeId", parentNode->GetVersionedId())
+            .With("ParentNodeType", parentNode->GetType());
 
         // All attributes CAN be recalculated upon copy now, but this doesn't mean that we HAVE TO.
         GatherInheritableAttributes(
@@ -2457,10 +2448,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
     // the node has been locked under current transaction in LockCopySource.
     auto* node = GetThisImpl();
 
-    YT_LOG_ALERT_AND_THROW_UNLESS(node->GetTransaction() == Transaction_,
-        "Inconsistent locking during copy detected (NodeId: %v, ExpectedTransactionId: %v)",
-        node->GetVersionedId(),
-        GetObjectId(Transaction_));
+    YT_TLOG_ALERT_AND_THROW_UNLESS(node->GetTransaction() == Transaction_, "Inconsistent locking during copy detected")
+        .With("NodeId", node->GetVersionedId())
+        .With("ExpectedTransactionId", GetObjectId(Transaction_));
 
     auto iterateOverAttributeDeltaDuringInheritance = [] (
         const TConstInheritedAttributeDictionaryPtr& inheritedAttributes,
@@ -2652,8 +2642,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
 
 DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, EndCopy)
 {
-    YT_LOG_ALERT("Received EndCopy request (Version: %v)",
-        request->version());
+    YT_TLOG_ALERT("Received EndCopy request")
+        .With("Version", request->version());
 
     THROW_ERROR_EXCEPTION("EndCopy verb is deprecated");
 }
@@ -2809,11 +2799,9 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
     if (!inplace) {
-        YT_LOG_ALERT_AND_THROW_UNLESS(
-            IsCompositeNodeType(parentNode->GetType()),
-            "Attempt to copy to a non-composite node was made (ParentNodeId: %v, ParentNodeType: %v)",
-            parentNode->GetVersionedId(),
-            parentNode->GetType());
+        YT_TLOG_ALERT_AND_THROW_UNLESS(IsCompositeNodeType(parentNode->GetType()), "Attempt to copy to a non-composite node was made")
+            .With("ParentNodeId", parentNode->GetVersionedId())
+            .With("ParentNodeType", parentNode->GetType());
 
         GatherInheritableAttributes(
             parentNode,
@@ -2842,8 +2830,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetReachableSubtreeNodes(clonedTrunkNode, /*transaction*/ nullptr, /*includeRoot*/ false);
     } else {
-        YT_LOG_WARNING("Copy inplace target node is unreachable (NodeId: %v)",
-            clonedTrunkNode->GetVersionedId());
+        YT_TLOG_WARNING("Copy inplace target node is unreachable")
+            .With("NodeId", clonedTrunkNode->GetVersionedId());
     }
 
     factory->Commit();
@@ -3779,8 +3767,8 @@ bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
                     .Value(mapNode->ImmutableSequoiaProperties()->Path);
                 return true;
             }
-            YT_LOG_ALERT("Sequoia node is lacking required attribute \"path\" (NodeId: %v)",
-                mapNode->GetId());
+            YT_TLOG_ALERT("Sequoia node is lacking required attribute \"path\"")
+                .With("NodeId", mapNode->GetId());
             return false;
         case EInternedAttributeKey::Key:
             if (mapNode->ImmutableSequoiaProperties()) {
@@ -3788,8 +3776,8 @@ bool TSequoiaMapNodeProxy::GetBuiltinAttribute(
                     .Value(mapNode->ImmutableSequoiaProperties()->Key);
                 return true;
             }
-            YT_LOG_ALERT("Sequoia node is lacking required attribute \"key\" (NodeId: %v)",
-                mapNode->GetId());
+            YT_TLOG_ALERT("Sequoia node is lacking required attribute \"key\"")
+                .With("NodeId", mapNode->GetId());
             return false;
         case EInternedAttributeKey::Children: {
             if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {

@@ -103,8 +103,8 @@ TFuture<void> TMultiPhaseCellSyncSession::Sync(const TCellTagList& cellTags, std
         return OKFuture;
     }
 
-    YT_LOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with other cells (CellTags: %v)",
-        syncCellTags);
+    YT_TLOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with other cells")
+        .With("CellTags", syncCellTags);
 
     return AllSucceeded(std::move(syncFutures));
 }

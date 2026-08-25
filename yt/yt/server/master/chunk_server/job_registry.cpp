@@ -74,10 +74,10 @@ public:
 
         JobThrottler_->Acquire(1);
 
-        YT_LOG_TRACE("Job registered (JobId: %v, JobType: %v, Address: %v)",
-            job->GetJobId(),
-            job->GetType(),
-            job->NodeAddress());
+        YT_TLOG_TRACE("Job registered")
+            .With("JobId", job->GetJobId())
+            .With("JobType", job->GetType())
+            .With("Address", job->NodeAddress());
     }
 
     void OnJobFinished(TJobPtr job) override
@@ -124,10 +124,10 @@ public:
             chunkManager->ScheduleChunkRefresh(chunk);
         }
 
-        YT_LOG_TRACE("Job unregistered (JobId: %v, JobType: %v, Address: %v)",
-            job->GetJobId(),
-            job->GetType(),
-            job->NodeAddress());
+        YT_TLOG_TRACE("Job unregistered")
+            .With("JobId", job->GetJobId())
+            .With("JobType", job->GetType())
+            .With("Address", job->NodeAddress());
     }
 
     TJobPtr FindJob(TJobId jobId) override
@@ -175,8 +175,8 @@ public:
         auto epoch = NextEpoch_++;
         InsertOrCrash(ActiveEpochs_, epoch);
 
-        YT_LOG_INFO("Job epoch started (Epoch: %v)",
-            epoch);
+        YT_TLOG_INFO("Job epoch started")
+            .With("Epoch", epoch);
 
         return epoch;
     }
@@ -195,8 +195,8 @@ public:
             EpochToJobs_.erase(epoch);
         }
 
-        YT_LOG_INFO("Job epoch finished (Epoch: %v)",
-            epoch);
+        YT_TLOG_INFO("Job epoch finished")
+            .With("Epoch", epoch);
     }
 
     bool IsOverdraft() const override

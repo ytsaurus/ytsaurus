@@ -98,12 +98,12 @@ public:
             RegisterPrelock(lockingTransaction, nodeId, lockRequest);
         }
 
-        YT_LOG_DEBUG("Prelock acquired (OwningTransaction: %v, LockingTransaction: %v, NodeId: %v, LockRequest: %v, PrelockCount: %v)",
-            owningTransaction->GetId(),
-            GetObjectId(lockingTransaction),
-            nodeId,
-            lockRequest,
-            prelockCount);
+        YT_TLOG_DEBUG("Prelock acquired")
+            .With("OwningTransaction", owningTransaction->GetId())
+            .With("LockingTransaction", GetObjectId(lockingTransaction))
+            .With("NodeId", nodeId)
+            .With("LockRequest", lockRequest)
+            .With("PrelockCount", prelockCount);
     }
 
     TError CheckLock(
@@ -293,12 +293,12 @@ private:
             for (const auto& [versionedNodeId, lockRequest] : TRange(&prelocks[i], j - i)) {
                 auto prelockIt = GetIteratorOrCrash(prelockCounts, std::pair(versionedNodeId.ObjectId, lockRequest));
                 auto prelockCount = --prelockIt->second;
-                YT_LOG_DEBUG("Prelock released (OwningTransaction: %v, LockingTransaction: %v, NodeId: %v, LockRequest: %v, PrelockCount: %v)",
-                    owningTransaction->GetId(),
-                    lockingTransactionId,
-                    versionedNodeId.ObjectId,
-                    lockRequest,
-                    prelockCount);
+                YT_TLOG_DEBUG("Prelock released")
+                    .With("OwningTransaction", owningTransaction->GetId())
+                    .With("LockingTransaction", lockingTransactionId)
+                    .With("NodeId", versionedNodeId.ObjectId)
+                    .With("LockRequest", lockRequest)
+                    .With("PrelockCount", prelockCount);
                 if (prelockCount == 0) {
                     UnregisterPrelock(lockingTransaction, versionedNodeId.ObjectId, lockRequest);
                     prelockCounts.erase(prelockIt);
@@ -372,10 +372,10 @@ private:
             UnregisterNonSnapshotPrebranches(lockingTransaction, nodeId, lockRequest.Mode);
         }
 
-        YT_LOG_DEBUG("Prelock unregistered (NodeId: %v, LockingTransactionId: %v, LockRequest: %v)",
-            nodeId,
-            lockingTransactionId,
-            lockRequest);
+        YT_TLOG_DEBUG("Prelock unregistered")
+            .With("NodeId", nodeId)
+            .With("LockingTransactionId", lockingTransactionId)
+            .With("LockRequest", lockRequest);
     }
 
     void RegisterPrelock(TTransaction* lockingTransaction, TNodeId nodeId, const TLockRequest& lockRequest)
@@ -401,10 +401,10 @@ private:
             RegisterNonSnapshotPrebranches(lockingTransaction, nodeId, lockRequest.Mode);
         }
 
-        YT_LOG_DEBUG("Prelock registered (NodeId: %v, LockingTransactionId: %v, LockRequest: %v)",
-            nodeId,
-            lockingTransactionId,
-            lockRequest);
+        YT_TLOG_DEBUG("Prelock registered")
+            .With("NodeId", nodeId)
+            .With("LockingTransactionId", lockingTransactionId)
+            .With("LockRequest", lockRequest);
     }
 
     void RegisterNonSnapshotPrebranches(TTransaction* lockingTransaction, TNodeId nodeId, ELockMode lockMode)

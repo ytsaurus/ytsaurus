@@ -207,7 +207,7 @@ void TImmutableMountConfigAttributeDictionary::SetYson(TKeyView /*key*/, const N
 
 bool TImmutableMountConfigAttributeDictionary::Remove(TKeyView /*key*/)
 {
-    YT_LOG_ALERT("Attempt to remove an item from an immutable mount config attribute dictionary");
+    YT_TLOG_ALERT("Attempt to remove an item from an immutable mount config attribute dictionary");
     return false;
 }
 

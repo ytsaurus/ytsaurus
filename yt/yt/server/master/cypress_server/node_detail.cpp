@@ -387,9 +387,9 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
         if (auto sequoiaRevision = GetCurrentSequoiaRevision()) {
             Visit(*sequoiaRevision,
                 [&] (const TSequoiaRevisionPrepare& prepareRevision) {
-                    YT_LOG_ALERT("Merging Sequoia node during Sequoia transaction prepare (OriginatingNodeId: %v, BranchedNodeId: %v)",
-                        originatingNode->GetVersionedId(),
-                        branchedNode->GetVersionedId());
+                    YT_TLOG_ALERT("Merging Sequoia node during Sequoia transaction prepare")
+                        .With("OriginatingNodeId", originatingNode->GetVersionedId())
+                        .With("BranchedNodeId", branchedNode->GetVersionedId());
                     // NB: it's better set wrong revision than crash master server.
                     currentRevision = prepareRevision.NonMonotonicRevision;
                 },
@@ -398,10 +398,9 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
                 },
                 [] (TSequoiaRevisionDisabled /*disabled*/) { });
         } else {
-            YT_LOG_ALERT(
-                "Merging Sequoia node outside of Sequoia revision context (OriginatingNodeId: %v, BranchedNodeId: %v)",
-                originatingNode->GetVersionedId(),
-                branchedNode->GetVersionedId());
+            YT_TLOG_ALERT("Merging Sequoia node outside of Sequoia revision context")
+                .With("OriginatingNodeId", originatingNode->GetVersionedId())
+                .With("BranchedNodeId", branchedNode->GetVersionedId());
         }
     }
 
@@ -415,10 +414,10 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
         if (branchedNode->GetNativeContentRevision() <= nativeContentRevision) {
             originatingNode->SetNativeContentRevision(nativeContentRevision);
         } else {
-            YT_LOG_ALERT("Received non-monotonic native content revision update; ignored (NodeId: %v, OldNativeContentRevision: %x, NewNativeContentRevision: %x)",
-                branchedNode->GetVersionedId(),
-                branchedNode->GetNativeContentRevision(),
-                nativeContentRevision);
+            YT_TLOG_ALERT("Received non-monotonic native content revision update; ignored")
+                .With("NodeId", branchedNode->GetVersionedId())
+                .WithFormat("OldNativeContentRevision", "%x", branchedNode->GetNativeContentRevision())
+                .WithFormat("NewNativeContentRevision", "%x", nativeContentRevision);
         }
     }
 

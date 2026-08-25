@@ -63,9 +63,9 @@ std::vector<int> TShardedIncumbentBase::ListActiveShardIndices() const
 void TShardedIncumbentBase::OnIncumbencyStarted(int shardIndex)
 {
     if (ActiveShardIndices_[shardIndex]) {
-        YT_LOG_ALERT("Attempt to re-start incumbency (IncumbentType: %v, ShardIndex: %v)",
-            GetType(),
-            shardIndex);
+        YT_TLOG_ALERT("Attempt to re-start incumbency")
+            .With("IncumbentType", GetType())
+            .With("ShardIndex", shardIndex);
         return;
     }
 

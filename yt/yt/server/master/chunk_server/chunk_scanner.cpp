@@ -42,8 +42,8 @@ void TGlobalChunkScanner::Start(TGlobalChunkScanDescriptor descriptor)
     ScheduleGlobalScan(descriptor);
 
     GlobalScanStarted_ = GetCpuInstant();
-    YT_LOG_INFO("Chunk scanner started for shard (ShardIndex: %v)",
-        descriptor.ShardIndex);
+    YT_TLOG_INFO("Chunk scanner started for shard")
+        .With("ShardIndex", descriptor.ShardIndex);
 }
 
 void TGlobalChunkScanner::ScheduleGlobalScan(TGlobalChunkScanDescriptor descriptor)
@@ -63,9 +63,9 @@ void TGlobalChunkScanner::ScheduleGlobalScan(TGlobalChunkScanDescriptor descript
         YT_VERIFY(chunk->IsJournal() == Journal_);
         ActiveGlobalChunkScanIndex_ = descriptor.ShardIndex;
 
-        YT_LOG_INFO("Global chunk scan started (ShardIndex: %v, ChunkCount: %v)",
-            descriptor.ShardIndex,
-            globalScanShard.ChunkCount);
+        YT_TLOG_INFO("Global chunk scan started")
+            .With("ShardIndex", descriptor.ShardIndex)
+            .With("ChunkCount", globalScanShard.ChunkCount);
     }
 }
 
@@ -76,8 +76,8 @@ void TGlobalChunkScanner::Stop(int shardIndex)
     }
     ActiveShardIndices_.reset(shardIndex);
 
-    YT_LOG_DEBUG("Chunk scanner stopped for shard (ShardIndex: %v)",
-        shardIndex);
+    YT_TLOG_DEBUG("Chunk scanner stopped for shard")
+        .With("ShardIndex", shardIndex);
 
     // Clear global chunk scan state.
     GlobalChunkScanShards_[shardIndex] = {};
@@ -149,9 +149,9 @@ void TGlobalChunkScanner::AdvanceGlobalIterator(int shardIndex)
         // NB: Some chunks could vanish during the scan so this is not
         // necessarily zero.
         YT_VERIFY(chunkCount >= 0);
-        YT_LOG_INFO("Global chunk scan finished (ShardIndex: %v, VanishedChunkCount: %v)",
-            shardIndex,
-            chunkCount);
+        YT_TLOG_INFO("Global chunk scan finished")
+            .With("ShardIndex", shardIndex)
+            .With("VanishedChunkCount", chunkCount);
         chunkCount = 0;
 
         if (ActiveGlobalChunkScanIndex_ == shardIndex) {
@@ -220,23 +220,17 @@ bool TChunkScanQueueBase::GetScanFlag(TChunk* chunk) const
 
 void TChunkScanQueueBase::ClearScanFlag(TChunk* chunk)
 {
-    YT_LOG_EVENT(
-        ChunkServerLogger(),
-        GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()),
-        "Scan flag is cleared for chunk (ChunkId: %v, Kind: %v)",
-        chunk->GetId(),
-        Kind_);
+    YT_TLOG_EVENT(ChunkServerLogger(), GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()), "Scan flag is cleared for chunk")
+        .With("ChunkId", chunk->GetId())
+        .With("Kind", Kind_);
     chunk->ClearScanFlag(Kind_);
 }
 
 void TChunkScanQueueBase::SetScanFlag(TChunk* chunk)
 {
-    YT_LOG_EVENT(
-        ChunkServerLogger(),
-        GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()),
-        "Scan flag is set for chunk (ChunkId: %v, Kind: %v)",
-        chunk->GetId(),
-        Kind_);
+    YT_TLOG_EVENT(ChunkServerLogger(), GetChunkLogLevel(chunk, Bootstrap_->GetChunkManager()), "Scan flag is set for chunk")
+        .With("ChunkId", chunk->GetId())
+        .With("Kind", Kind_);
     chunk->SetScanFlag(Kind_);
 }
 

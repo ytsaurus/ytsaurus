@@ -119,19 +119,17 @@ public:
         YT_VERIFY(HasMutationContext());
 
         if (RootstockNodes_.erase(rootstockNode->GetId()) != 1) {
-            YT_LOG_DEBUG(
-                "Unknown rootstock destroyed, ignored (RootstockNodeId: %v, ScionNodeId: %v)",
-                rootstockNode->GetId(),
-                rootstockNode->GetScionId());
+            YT_TLOG_DEBUG("Unknown rootstock destroyed, ignored")
+                .With("RootstockNodeId", rootstockNode->GetId())
+                .With("ScionNodeId", rootstockNode->GetScionId());
             return;
         }
 
         auto scionNodeId = rootstockNode->GetScionId();
 
-        YT_LOG_DEBUG(
-            "Rootstock unregistered (RootstockNodeId: %v, ScionNodeId: %v)",
-            rootstockNode->GetId(),
-            scionNodeId);
+        YT_TLOG_DEBUG("Rootstock unregistered")
+            .With("RootstockNodeId", rootstockNode->GetId())
+            .With("ScionNodeId", scionNodeId);
     }
 
     void OnScionDestroyed(TScionNode* scionNode) override
@@ -140,10 +138,9 @@ public:
         YT_VERIFY(HasMutationContext());
 
         if (ScionNodes_.erase(scionNode->GetId()) != 1) {
-            YT_LOG_DEBUG(
-                "Unknown scion destroyed, ignored (ScionNodeId: %v, RootstockNodeId: %v)",
-                scionNode->GetId(),
-                scionNode->GetRootstockId());
+            YT_TLOG_DEBUG("Unknown scion destroyed, ignored")
+                .With("ScionNodeId", scionNode->GetId())
+                .With("RootstockNodeId", scionNode->GetRootstockId());
             return;
         }
 
@@ -151,10 +148,9 @@ public:
         auto rootstockCellTag = CellTagFromId(rootstockNodeId);
         YT_VERIFY(rootstockCellTag == Bootstrap_->GetPrimaryCellTag());
 
-        YT_LOG_DEBUG(
-            "Scion unregistered (ScionNodeId: %v, RootstockNodeId: %v)",
-            scionNode->GetId(),
-            scionNode->GetRootstockId());
+        YT_TLOG_DEBUG("Scion unregistered")
+            .With("ScionNodeId", scionNode->GetId())
+            .With("RootstockNodeId", scionNode->GetRootstockId());
     }
 
     const TRootstockNodeMap& RootstockNodes() override
@@ -283,8 +279,8 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* owner = securityManager->FindSubjectByNameOrAlias(ownerName, /*activeLifeStageOnly*/ false);
         if (!owner) {
-            YT_LOG_ALERT("Serialized subject is missing (SubjectNameOrAlias: %v)",
-                ownerName);
+            YT_TLOG_ALERT("Serialized subject is missing")
+                .With("SubjectNameOrAlias", ownerName);
         }
 
         return owner;
@@ -300,8 +296,8 @@ private:
             auto nodeId = FromProto<TObjectId>(scionInfo.node_id());
             auto it = ScionNodes_.find(nodeId);
             if (it == ScionNodes_.end()) {
-                YT_LOG_ERROR("Skipping unknown scion synchronization (NodeId: %v)",
-                    nodeId);
+                YT_TLOG_ERROR("Skipping unknown scion synchronization")
+                    .With("NodeId", nodeId);
                 continue;
             }
 
@@ -361,15 +357,16 @@ private:
 
                 ++synchronizedScionCount;
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Scion synchronization failed (ScionId: %v)",
-                    nodeId);
+                YT_TLOG_ERROR("Scion synchronization failed")
+                    .With("ScionId", nodeId)
+                    .With(ex);
                 continue;
             }
         }
 
-        YT_LOG_DEBUG("Scions were synchronized (SuccessCount: %v, FailureCount: %v)",
-            synchronizedScionCount,
-            request->scion_infos().size() - synchronizedScionCount);;
+        YT_TLOG_DEBUG("Scions were synchronized")
+            .With("SuccessCount", synchronizedScionCount)
+            .With("FailureCount", request->scion_infos().size() - synchronizedScionCount);
     }
 
     void HydraCreateRootstock(
@@ -401,10 +398,9 @@ private:
             ->As<TRootstockNode>();
         YT_VERIFY(rootstockNode->GetId() == rootstockNodeId);
 
-        YT_LOG_DEBUG(
-            "Rootstock created (RootstockId: %v, ScionId: %v)",
-            rootstockNode->GetId(),
-            rootstockNode->GetScionId());
+        YT_TLOG_DEBUG("Rootstock created")
+            .With("RootstockId", rootstockNode->GetId())
+            .With("ScionId", rootstockNode->GetScionId());
     }
 
     // NB: This function should not throw since rootstock is already created.
@@ -465,7 +461,7 @@ private:
                 if (auto* prepareRevision = std::get_if<TSequoiaRevisionPrepare>(&*sequoiaRevision)) {
                     request.set_sequoia_revision(prepareRevision->NonMonotonicRevision.Underlying());
                 } else {
-                    YT_LOG_ALERT_UNLESS(
+                    YT_TLOG_ALERT_UNLESS(
                         std::holds_alternative<TSequoiaRevisionDisabled>(*sequoiaRevision),
                         "Unexpected Sequoia revision kind during rootstock creation");
                 }
@@ -586,9 +582,9 @@ private:
                 if (auto* owner = securityManager->FindSubjectByNameOrAlias(*ownerName, /*activeLifeStageOnly*/ true)) {
                     acd->SetOwner(owner);
                 } else {
-                    YT_LOG_ALERT("Scion owner subject is missing (ScionNodeId: %v, SubjectName: %v)",
-                        scionNode->GetId(),
-                        ownerName);
+                    YT_TLOG_ALERT("Scion owner subject is missing")
+                        .With("ScionNodeId", scionNode->GetId())
+                        .With("SubjectName", ownerName);
                 }
             }
         }
@@ -600,10 +596,10 @@ private:
         try {
             typeHandler->FillAttributes(scionNode, inheritedAttributes.Get(), explicitAttributes.Get());
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to set scion attributes during creation "
-                "(RootstockNodeId: %v, ScionNodeId: %v)",
-                rootstockNodeId,
-                scionNodeId);
+            YT_TLOG_ALERT("Failed to set scion attributes during creation")
+                .With("RootstockNodeId", rootstockNodeId)
+                .With("ScionNodeId", scionNodeId)
+                .With(ex);
         }
 
         if (effectiveAnnotation) {
@@ -619,18 +615,17 @@ private:
 
         typeHandler->SetReachable(scionNode);
 
-        YT_LOG_DEBUG("Creating scion (ScionId: %v, RefCounter: %v)",
-            scionNode->GetId(),
-            scionNode->GetObjectRefCounter());
+        YT_TLOG_DEBUG("Creating scion")
+            .With("ScionId", scionNode->GetId())
+            .With("RefCounter", scionNode->GetObjectRefCounter());
 
         YT_VERIFY(scionNode->GetObjectRefCounter() > 1);
 
         objectManager->UnrefObject(scionNode);
 
-        YT_LOG_DEBUG("Scion created "
-            "(RootstockNodeId: %v, ScionNodeId: %v)",
-            rootstockNodeId,
-            scionNodeId);
+        YT_TLOG_DEBUG("Scion created")
+            .With("RootstockNodeId", rootstockNodeId)
+            .With("ScionNodeId", scionNodeId);
     }
 };
 

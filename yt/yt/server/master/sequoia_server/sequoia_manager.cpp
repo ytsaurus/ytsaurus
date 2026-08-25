@@ -85,9 +85,9 @@ public:
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto barrierTags = FromProto<std::vector<std::string>>(request->barrier_tags());
 
-            YT_LOG_DEBUG("Received barrier tags (TransactionId: %v, BarrierTags: %v)",
-                FromProto<TTransactionId>(request->id()),
-                barrierTags);
+            YT_TLOG_DEBUG("Received barrier tags")
+                .With("TransactionId", FromProto<TTransactionId>(request->id()))
+                .With("BarrierTags", barrierTags);
 
             WaitForFast(transactionManager->WaitUntilPreparedTransactionsFinished(std::move(barrierTags)))
                 .ThrowOnError();
@@ -128,15 +128,16 @@ public:
         if (config->EnableAsyncSequoiaTransactionStart) {
             auto failureProbability = config->Testing->SequoiaTransactionStartFailureProbability;
             if (Y_UNLIKELY(failureProbability && RandomNumber<double>() < *failureProbability)) {
-                YT_LOG_DEBUG("Sequoia transaction start failed for testing purposes (TransactionId: %v)",
-                    transactionId);
+                YT_TLOG_DEBUG("Sequoia transaction start failed for testing purposes")
+                    .With("TransactionId", transactionId);
             } else {
                 mutation
                     ->Commit()
                     .Subscribe(BIND([transactionId] (const TErrorOr<TMutationResponse>& rsp) {
                         if (!rsp.IsOK()) {
-                            YT_LOG_ERROR(TError(rsp), "Failed to start Sequoia transaction (TransactionId: %v)",
-                                transactionId);
+                            YT_TLOG_ERROR("Failed to start Sequoia transaction")
+                                .With("TransactionId", transactionId)
+                                .With(TError(rsp));
                         }
                     }));
             }
@@ -227,13 +228,11 @@ private:
             title = "Sequoia transaction";
         }
 
-        YT_LOG_DEBUG(
-            "Starting Sequoia transaction "
-            "(TransactionId: %v, Timeout: %v, Title: %v, LeasesToIssue: %v)",
-            transactionId,
-            timeout,
-            title,
-            prerequisiteTransactionIds);
+        YT_TLOG_DEBUG("Starting Sequoia transaction")
+            .With("TransactionId", transactionId)
+            .With("Timeout", timeout)
+            .With("Title", title)
+            .With("LeasesToIssue", prerequisiteTransactionIds);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         if (transactionManager->FindTransaction(transactionId)) {
@@ -250,7 +249,9 @@ private:
                 *attributes,
                 barrierTags);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to start Sequoia transaction (TransactionId: %v)", transactionId);
+            YT_TLOG_ALERT("Failed to start Sequoia transaction")
+                .With("TransactionId", transactionId)
+                .With(ex);
             throw;
         }
 
@@ -261,9 +262,9 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             auto& action = transaction->Actions().emplace_back(std::move(data));
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
-                transactionId,
-                action.Type);
+            YT_TLOG_DEBUG("Transaction action registered")
+                .With("TransactionId", transactionId)
+                .With("ActionType", action.Type);
         }
 
         transaction->SetAuthenticationIdentity(std::move(identity));

@@ -211,12 +211,12 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader()) {
-            YT_LOG_INFO("Master is not leading anymore, ignore world initialization schedule request");
+            YT_TLOG_INFO("Master is not leading anymore, ignore world initialization schedule request");
             return;
         }
 
-        YT_LOG_DEBUG("Schedule world initialization (Delay: %v)",
-            delay);
+        YT_TLOG_DEBUG("Schedule world initialization")
+            .With("Delay", delay);
         TDelayedExecutor::Submit(
             BIND(&TWorldInitializer::Initialize, MakeStrong(this))
                 .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic)),
@@ -228,12 +228,12 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader()) {
-            YT_LOG_INFO("Master is not leading anymore, ignore annotations update schedule request");
+            YT_TLOG_INFO("Master is not leading anymore, ignore annotations update schedule request");
             return;
         }
 
-        YT_LOG_DEBUG("Schedule annotations update (Delay: %v)",
-            delay);
+        YT_TLOG_DEBUG("Schedule annotations update")
+            .With("Delay", delay);
         TDelayedExecutor::Submit(
             BIND(&TWorldInitializer::UpdateAnnotations, MakeStrong(this))
                 .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic)),
@@ -249,9 +249,9 @@ private:
         NTracing::TTraceContextGuard contextGuard(traceContext);
 
         if (IsInitializedUncached()) {
-            YT_LOG_INFO("World update started");
+            YT_TLOG_INFO("World update started");
         } else {
-            YT_LOG_INFO("World initialization started");
+            YT_TLOG_INFO("World initialization started");
         }
 
         TTransactionId transactionId;
@@ -1104,8 +1104,10 @@ private:
                     }
                 }
             } else {
-                YT_LOG_WARNING(listResult, "Failed to list secondary masters");
-                YT_LOG_ALERT_UNLESS(listResult.FindMatching(NYTree::EErrorCode::ResolveError),
+                YT_TLOG_WARNING("Failed to list secondary masters")
+                    .With(listResult);
+                YT_TLOG_ALERT_UNLESS(
+                    listResult.FindMatching(NYTree::EErrorCode::ResolveError),
                     "Unexpected error occurred while listing secondary masters");
             }
 
@@ -1173,16 +1175,18 @@ private:
                         .EndMap()));
             }
 
-            YT_LOG_INFO("World initialization completed");
+            YT_TLOG_INFO("World initialization completed");
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "World initialization failed");
+            YT_TLOG_WARNING("World initialization failed")
+                .With(ex);
             AbandonScheduled();
             if (transactionId) {
                 try {
                     AbortTransaction(transactionId);
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to abort world initialization transaction (TransactionId: %v)",
-                        transactionId);
+                    YT_TLOG_WARNING("Failed to abort world initialization transaction")
+                        .With("TransactionId", transactionId)
+                        .With(ex);
                 }
             }
         }
@@ -1197,7 +1201,7 @@ private:
 
     void UpdateAnnotations()
     {
-        YT_LOG_DEBUG("Updating annotations");
+        YT_TLOG_DEBUG("Updating annotations");
 
         auto orchidAddresses = OrchidAddresses_.Load();
         THashMap<TYPath, TYsonString> orchidAddressToAnnotations;
@@ -1207,20 +1211,22 @@ private:
                 auto annotations = GetNode(orchidAddress + "/orchid/config/cypress_annotations");
                 YT_VERIFY(orchidAddressToAnnotations.emplace(orchidAddress, annotations).second);
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to get annotations (OrchidAddress: %v)", orchidAddress);
+                YT_TLOG_DEBUG("Failed to get annotations")
+                    .With("OrchidAddress", orchidAddress)
+                    .With(ex);
             }
         }
 
         OrchidAddressToAnnotations_.Store(std::move(orchidAddressToAnnotations));
 
-        YT_LOG_DEBUG("Annotations updated");
+        YT_TLOG_DEBUG("Annotations updated");
 
         ScheduleUpdateAnnotations(Config_->WorldInitializer->UpdatePeriod);
     }
 
     TTransactionId StartTransaction()
     {
-        YT_LOG_INFO("Starting world initialization transaction");
+        YT_TLOG_INFO("Starting world initialization transaction");
 
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
@@ -1231,16 +1237,16 @@ private:
             .ValueOrThrow();
         auto transactionId = FromProto<TTransactionId>(rsp->id());
 
-        YT_LOG_INFO("World initialization transaction started (TransactionId: %v)",
-            transactionId);
+        YT_TLOG_INFO("World initialization transaction started")
+            .With("TransactionId", transactionId);
 
         return transactionId;
     }
 
     void AbortTransaction(TTransactionId transactionId)
     {
-        YT_LOG_INFO("Aborting world initialization transaction (TransactionId: %v)",
-            transactionId);
+        YT_TLOG_INFO("Aborting world initialization transaction")
+            .With("TransactionId", transactionId);
 
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.AbortTransaction();
@@ -1248,13 +1254,13 @@ private:
         WaitFor(req->Invoke())
             .ThrowOnError();
 
-        YT_LOG_INFO("World initialization transaction aborted");
+        YT_TLOG_INFO("World initialization transaction aborted");
     }
 
     void CommitTransaction(TTransactionId transactionId)
     {
-        YT_LOG_INFO("Committing world initialization transaction (TransactionId: %v)",
-            transactionId);
+        YT_TLOG_INFO("Committing world initialization transaction")
+            .With("TransactionId", transactionId);
 
         NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.CommitTransaction();
@@ -1262,7 +1268,7 @@ private:
         WaitFor(req->Invoke())
             .ThrowOnError();
 
-        YT_LOG_INFO("World initialization transaction committed");
+        YT_TLOG_INFO("World initialization transaction committed");
     }
 
     template <class TTypedRequest>
@@ -1284,8 +1290,8 @@ private:
         const TYsonString& attributes = TYsonString(TStringBuf("{}")),
         bool force = false)
     {
-        YT_LOG_DEBUG("Scheduling node creation (Path: %v)",
-            path);
+        YT_TLOG_DEBUG("Scheduling node creation")
+            .With("Path", path);
 
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Create(path);
@@ -1307,8 +1313,8 @@ private:
         TTransactionId transactionId,
         bool force = false)
     {
-        YT_LOG_DEBUG("Scheduling node removal (Path: %v)",
-            path);
+        YT_TLOG_DEBUG("Scheduling node removal")
+            .With("Path", path);
 
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Remove(path);
@@ -1324,8 +1330,8 @@ private:
         EObjectType type,
         const IAttributeDictionaryPtr& attributesPtr)
     {
-        YT_LOG_DEBUG("Scheduling object creation (Type: %v)",
-            type);
+        YT_TLOG_DEBUG("Scheduling object creation")
+            .With("Type", type);
 
         auto attributes = attributesPtr ? attributesPtr->Clone() : EmptyAttributes().Clone();
         // For some reasons TObjectServiceProxy::FromDirectMasterChannel cannot
@@ -1352,8 +1358,8 @@ private:
         TTransactionId transactionId,
         const TYsonString& value)
     {
-        YT_LOG_DEBUG("Scheduling node set (Path: %v)",
-            path);
+        YT_TLOG_DEBUG("Scheduling node set")
+            .With("Path", path);
 
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Set(path);
@@ -1385,14 +1391,14 @@ private:
 
     void FlushScheduled()
     {
-        YT_LOG_INFO("Flushing scheduled mutations (Count: %v)",
-            ScheduledMutations_.size());
+        YT_TLOG_INFO("Flushing scheduled mutations")
+            .With("Count", ScheduledMutations_.size());
 
         auto scheduledMutations = std::exchange(ScheduledMutations_, {});
         WaitFor(AllSucceeded(scheduledMutations))
             .ThrowOnError();
 
-        YT_LOG_INFO("Scheduled mutations flushed");
+        YT_TLOG_INFO("Scheduled mutations flushed");
     }
 
     void AbandonScheduled()

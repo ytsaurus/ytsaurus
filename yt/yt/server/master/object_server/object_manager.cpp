@@ -150,10 +150,10 @@ TPathResolver::TResolveResult ResolvePath(
     if (result.CanCacheResolve) {
         options.PopulateResolveCache = true;
         auto populateResult = resolver.Resolve(options);
-        YT_LOG_DEBUG("Resolve cache populated (Path: %v, UnresolvedPathSuffix: %v, Payload: %v)",
-            path,
-            populateResult.UnresolvedPathSuffix,
-            populateResult.Payload);
+        YT_TLOG_DEBUG("Resolve cache populated")
+            .With("Path", path)
+            .With("UnresolvedPathSuffix", populateResult.UnresolvedPathSuffix)
+            .With("Payload", populateResult.Payload);
     }
     return result;
 }
@@ -646,9 +646,9 @@ public:
                 const auto& responseKeeper = bootstrap->GetHydraFacade()->GetResponseKeeper();
 
                 if (!batchRspOrError.IsOK()) {
-                    YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v)",
-                        context->GetRequestId(),
-                        forwardedRequestId);
+                    YT_TLOG_DEBUG("Forwarded request failed")
+                        .WithFormat("RequestId", "%v -> %v", context->GetRequestId(), forwardedRequestId)
+                        .With(batchRspOrError);
                     auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
                         .With(batchRspOrError);
                     context->Reply(error);
@@ -660,9 +660,8 @@ public:
                     return;
                 }
 
-                YT_LOG_DEBUG("Forwarded request succeeded (RequestId: %v -> %v)",
-                    context->GetRequestId(),
-                    forwardedRequestId);
+                YT_TLOG_DEBUG("Forwarded request succeeded")
+                    .WithFormat("RequestId", "%v -> %v", context->GetRequestId(), forwardedRequestId);
 
                 const auto& batchRsp = batchRspOrError.Value();
                 const auto& responseMessage = batchRsp->GetResponseMessage(0);
@@ -681,9 +680,9 @@ public:
         const TAttributeFilter& /*attributeFilter*/,
         bool /*stable*/) override
     {
-        YT_LOG_ALERT("TObjectManager::TRemoteProxy::DoWriteAttributesFragment called (ObjectId: %v, ForwardedCellTag: %v)",
-            ObjectId_,
-            ForwardedCellTag_);
+        YT_TLOG_ALERT("TObjectManager::TRemoteProxy::DoWriteAttributesFragment called")
+            .With("ObjectId", ObjectId_)
+            .With("ForwardedCellTag", ForwardedCellTag_);
 
         THROW_ERROR_EXCEPTION("Unexpected error: TRemoteProxy::DoWriteAttributesFragment called, please report this")
             .With("object_id", ObjectId_)
@@ -785,9 +784,9 @@ private:
                         patchedRequestHeader->CopyFrom(context->GetRequestHeader());
                         SetTransactionId(patchedRequestHeader.get(), targetPayload.Transaction->GetId());
                         context->SetRequestHeader(std::move(patchedRequestHeader));
-                        YT_LOG_DEBUG("Request transaction compat applied (OriginalTransactionId: %v, EffectiveTransactionId: %v)",
-                            originalTransactionId,
-                            effectiveTransactionId);
+                        YT_TLOG_DEBUG("Request transaction compat applied")
+                            .With("OriginalTransactionId", originalTransactionId)
+                            .With("EffectiveTransactionId", effectiveTransactionId);
                     }
                 }
 
@@ -950,12 +949,14 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     EmplaceOrCrash(RegisteredTypes_, type);
 
     auto flags = entry.Handler->GetFlags();
-    YT_LOG_ALERT_IF(Any(flags & ETypeFlags::TwoPhaseCreation) && !Any(flags & ETypeFlags::ReplicateCreate),
-        "Two-phase creation is enabled for an object type that has creation replication disabled (ObjectType: %v)",
-        type);
-    YT_LOG_ALERT_IF(Any(flags & ETypeFlags::TwoPhaseRemoval) && !Any(flags & ETypeFlags::ReplicateDestroy),
-        "Two-phase removal is enabled for an object that has destruction replication disabled (ObjectType: %v)",
-        type);
+    YT_TLOG_ALERT_IF(
+        Any(flags & ETypeFlags::TwoPhaseCreation) && !Any(flags & ETypeFlags::ReplicateCreate),
+        "Two-phase creation is enabled for an object type that has creation replication disabled")
+        .With("ObjectType", type);
+    YT_TLOG_ALERT_IF(
+        Any(flags & ETypeFlags::TwoPhaseRemoval) && !Any(flags & ETypeFlags::ReplicateDestroy),
+        "Two-phase removal is enabled for an object that has destruction replication disabled")
+        .With("ObjectType", type);
 
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
@@ -964,12 +965,12 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         auto schemaObjectId = MakeSchemaObjectId(type, primaryCellTag);
 
-        YT_LOG_INFO("Type registered (Type: %v, SchemaObjectId: %v)",
-            type,
-            schemaObjectId);
+        YT_TLOG_INFO("Type registered")
+            .With("Type", type)
+            .With("SchemaObjectId", schemaObjectId);
     } else {
-        YT_LOG_INFO("Type registered (Type: %v)",
-            type);
+        YT_TLOG_INFO("Type registered")
+            .With("Type", type);
     }
 }
 
@@ -1024,12 +1025,10 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
     ++CreatedObjects_;
 
     if (hintId) {
-        YT_LOG_ALERT_UNLESS(
-            type == TypeFromId(hintId),
-            "Provided object id does not match the provided type (Type: %v, TypeFromId: %v, Id: %v)",
-            type,
-            TypeFromId(hintId),
-            hintId);
+        YT_TLOG_ALERT_UNLESS(type == TypeFromId(hintId), "Provided object id does not match the provided type")
+            .With("Type", type)
+            .With("TypeFromId", TypeFromId(hintId))
+            .With("Id", hintId);
 
         return hintId;
     }
@@ -1064,16 +1063,16 @@ int TObjectManager::RefObject(TObject* object)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    YT_LOG_DEBUG("Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
-        object->GetId(),
-        refCounter,
-        object->GetObjectEphemeralRefCounter(),
-        object->GetObjectWeakRefCounter());
+    YT_TLOG_DEBUG("Object referenced")
+        .With("Id", object->GetId())
+        .With("RefCounter", refCounter)
+        .With("EphemeralRefCounter", object->GetObjectEphemeralRefCounter())
+        .With("WeakRefCounter", object->GetObjectWeakRefCounter());
 
     if (object->GetLifeStage() >= EObjectLifeStage::RemovalPreCommitted) {
-        YT_LOG_ALERT("Object referenced after its removal has been pre-committed (ObjectId: %v, LifeStage: %v)",
-            object->GetId(),
-            object->GetLifeStage());
+        YT_TLOG_ALERT("Object referenced after its removal has been pre-committed")
+            .With("ObjectId", object->GetId())
+            .With("LifeStage", object->GetLifeStage());
     }
 
     if (refCounter == 1) {
@@ -1090,11 +1089,11 @@ int TObjectManager::UnrefObject(TObject* object, int count)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
-    YT_LOG_DEBUG("Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
-        object->GetId(),
-        refCounter,
-        object->GetObjectEphemeralRefCounter(),
-        object->GetObjectWeakRefCounter());
+    YT_TLOG_DEBUG("Object unreferenced")
+        .With("Id", object->GetId())
+        .With("RefCounter", refCounter)
+        .With("EphemeralRefCounter", object->GetObjectEphemeralRefCounter())
+        .With("WeakRefCounter", object->GetObjectWeakRefCounter());
 
     if (refCounter == 0) {
         const auto& handler = GetHandler(object);
@@ -1198,8 +1197,8 @@ void TObjectManager::OnAfterSnapshotLoaded()
 
             auto refCounter = schema->GetObjectRefCounter(/*flushUnrefs*/ true);
             if (refCounter != 1) {
-                YT_LOG_ALERT("List node schema object is in use (RefCounter: %v)",
-                    refCounter);
+                YT_TLOG_ALERT("List node schema object is in use")
+                    .With("RefCounter", refCounter);
             }
 
             schema->SetLifeStage(EObjectLifeStage::RemovalCommitted);
@@ -1406,9 +1405,9 @@ void TObjectManager::RemoveObject(TObject* object)
     if (object->IsNative() &&
         Any(flags & ETypeFlags::TwoPhaseRemoval))
     {
-        YT_LOG_DEBUG("Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
-            object->GetId(),
-            objectRefCounter);
+        YT_TLOG_DEBUG("Two-phase object removal started")
+            .With("ObjectId", object->GetId())
+            .With("RefCounter", objectRefCounter);
 
         object->SetLifeStage(EObjectLifeStage::RemovalStarted);
         object->ResetLifeStageVoteCount();
@@ -1566,12 +1565,12 @@ TObject* TObjectManager::CreateObject(
 
     if (hintId.operator bool() != IsHiveMutation()) {
         if (hintId) {
-            YT_LOG_ALERT("Hint ID specified while creating object not via Hive (HintId: %v, ObjectType: %v)",
-                hintId,
-                type);
+            YT_TLOG_ALERT("Hint ID specified while creating object not via Hive")
+                .With("HintId", hintId)
+                .With("ObjectType", type);
         } else {
-            YT_LOG_ALERT("Hint ID was not specified while creating object via Hive (ObjectType: %v)",
-                type);
+            YT_TLOG_ALERT("Hint ID was not specified while creating object via Hive")
+                .With("ObjectType", type);
         }
     }
 
@@ -1627,8 +1626,8 @@ TObject* TObjectManager::CreateObject(
         object->SetLifeStage(EObjectLifeStage::CreationStarted);
         object->ResetLifeStageVoteCount();
         YT_VERIFY(object->IncrementLifeStageVoteCount() == 1);
-        YT_LOG_DEBUG("Two-phase object creation started (ObjectId: %v)",
-            object->GetId());
+        YT_TLOG_DEBUG("Two-phase object creation started")
+            .With("ObjectId", object->GetId());
     } else {
         object->SetLifeStage(EObjectLifeStage::CreationCommitted);
     }
@@ -1643,8 +1642,9 @@ TObject* TObjectManager::CreateObject(
     try {
         FillAttributes(object, *attributes);
     } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Failed to fill object attributes (ObjectId: %v)",
-            object->GetId());
+        YT_TLOG_DEBUG("Failed to fill object attributes")
+            .With("ObjectId", object->GetId())
+            .With(ex);
         // TODO(babenko): think of better way
         UnrefObject(object);
         throw;
@@ -1676,11 +1676,10 @@ TObject* TObjectManager::CreateObject(
 
             case EObjectLifeStage::RemovalAwaitingCellsSync: {
                 if (auto refCounter = object->GetObjectRefCounter(/*flushUnrefs*/ true); refCounter != 1) {
-                    YT_LOG_ALERT("Forcibly advanced life stage of an object with an unexpected reference counter "
-                        "(ObjectId: %v, RefCounter: %v, LifeStage: %v)",
-                        GetObjectId(object),
-                        refCounter,
-                        object->GetLifeStage());
+                    YT_TLOG_ALERT("Forcibly advanced life stage of an object with an unexpected reference counter")
+                        .With("ObjectId", GetObjectId(object))
+                        .With("RefCounter", refCounter)
+                        .With("LifeStage", object->GetLifeStage());
                 }
                 object->SetLifeStage(EObjectLifeStage::RemovalPreCommitted);
                 break;
@@ -1707,8 +1706,8 @@ std::optional<TObject*> TObjectManager::FindObjectByAttributes(
 void TObjectManager::ConfirmObjectLifeStageToNativeMasterCell(TObject* object)
 {
     if (!object->IsForeign()) {
-        YT_LOG_ALERT("Detected an attempt to send object life stage confirmation from non-foreign cell (ObjectId: %v)",
-            object->GetId());
+        YT_TLOG_ALERT("Detected an attempt to send object life stage confirmation from non-foreign cell")
+            .With("ObjectId", object->GetId());
         return;
     }
 
@@ -1719,9 +1718,9 @@ void TObjectManager::ConfirmObjectLifeStageToNativeMasterCell(TObject* object)
         return;
     }
 
-    YT_LOG_DEBUG("Confirming object life stage to native master cell (ObjectId: %v, LifeStage: %v)",
-        object->GetId(),
-        lifeStage);
+    YT_TLOG_DEBUG("Confirming object life stage to native master cell")
+        .With("ObjectId", object->GetId())
+        .With("LifeStage", lifeStage);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     NProto::TReqConfirmObjectLifeStage request;
@@ -1732,17 +1731,16 @@ void TObjectManager::ConfirmObjectLifeStageToNativeMasterCell(TObject* object)
 
 void TObjectManager::AdvanceObjectLifeStageAtForeignMasterCells(TObject* object)
 {
-    YT_LOG_ALERT_UNLESS(object->IsNative(),
-        "Object life stage advancement initiated on non-native cell (ObjectId: %v)",
-        object->GetId());
+    YT_TLOG_ALERT_UNLESS(object->IsNative(), "Object life stage advancement initiated on non-native cell")
+        .With("ObjectId", object->GetId());
 
     const auto& handler = GetHandler(object);
     auto replicationCellTags = handler->GetReplicationCellTags(object);
 
-    YT_LOG_DEBUG("Advancing object life stage at foreign master cells (ObjectId: %v, LifeStage: %v, CellTags: %v)",
-        object->GetId(),
-        object->GetLifeStage(),
-        replicationCellTags);
+    YT_TLOG_DEBUG("Advancing object life stage at foreign master cells")
+        .With("ObjectId", object->GetId())
+        .With("LifeStage", object->GetLifeStage())
+        .With("CellTags", replicationCellTags);
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     NProto::TReqAdvanceObjectLifeStage advanceRequest;
@@ -2049,16 +2047,16 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         if (!batchRspOrError.IsOK()) {
-            YT_LOG_DEBUG(batchRspOrError, "Forwarded request failed (RequestId: %v -> %v)",
-                requestId,
-                batchReq->GetRequestId());
+            YT_TLOG_DEBUG("Forwarded request failed")
+                .WithFormat("RequestId", "%v -> %v", requestId, batchReq->GetRequestId())
+                .With(batchRspOrError);
             auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
                 .With(batchRspOrError);
             return CreateErrorResponseMessage(requestId, batchRspOrError);
         }
 
-        YT_LOG_DEBUG("Object request forwarding succeeded (RequestId: %v)",
-            requestId);
+        YT_TLOG_DEBUG("Object request forwarding succeeded")
+            .With("RequestId", requestId);
 
         const auto& batchRsp = batchRspOrError.Value();
         return batchRsp->GetResponseMessage(0);
@@ -2074,19 +2072,19 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
     }
 
     const auto& handler = GetHandler(object);
-    YT_LOG_ALERT_UNLESS(Any(handler->GetFlags() & ETypeFlags::ReplicateCreate),
-        "Detected an attempt to replicate creation of an object that has creation replication disabled (ObjectId: %v)",
-        object->GetId());
+    YT_TLOG_ALERT_UNLESS(
+        Any(handler->GetFlags() & ETypeFlags::ReplicateCreate),
+        "Detected an attempt to replicate creation of an object that has creation replication disabled")
+        .With("ObjectId", object->GetId());
 
     auto replicationCellTags = handler->GetReplicationCellTags(object);
     auto shouldReplicate = replicationCellTags.contains(cellTag);
     if (object->IsBuiltin()) {
         if (!shouldReplicate) {
-            YT_LOG_DEBUG("Skipped replicating builtin object mandatory attributes since destination cell is absent from replication cells "
-                "(ObjectId: %v, CellTag: %v, ReplicationCellTags: %v)",
-                object->GetId(),
-                cellTag,
-                replicationCellTags);
+            YT_TLOG_DEBUG("Skipped replicating builtin object mandatory attributes since destination cell is absent from replication cells")
+                .With("ObjectId", object->GetId())
+                .With("CellTag", cellTag)
+                .With("ReplicationCellTags", replicationCellTags);
             return;
         }
 
@@ -2095,11 +2093,10 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
         DoReplicateObjectAttributesToSecondaryMaster(object, cellTag, /*mandatory*/ true);
     } else {
         if (!shouldReplicate) {
-            YT_LOG_DEBUG("Skipped replicating object creation since destination cell is absent from replication cells "
-                "(ObjectId: %v, CellTag: %v, ReplicationCellTags: %v)",
-                object->GetId(),
-                cellTag,
-                replicationCellTags);
+            YT_TLOG_DEBUG("Skipped replicating object creation since destination cell is absent from replication cells")
+                .With("ObjectId", object->GetId())
+                .With("CellTag", cellTag)
+                .With("ReplicationCellTags", replicationCellTags);
             return;
         }
 
@@ -2123,17 +2120,17 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     }
 
     const auto& handler = GetHandler(object);
-    YT_LOG_ALERT_UNLESS(Any(handler->GetFlags() & ETypeFlags::ReplicateAttributes),
-        "Detected an attempt to replicate attributes of an object that has attribute replication disabled (ObjectId: %v)",
-        object->GetId());
+    YT_TLOG_ALERT_UNLESS(
+        Any(handler->GetFlags() & ETypeFlags::ReplicateAttributes),
+        "Detected an attempt to replicate attributes of an object that has attribute replication disabled")
+        .With("ObjectId", object->GetId());
 
     auto replicationCellTags = handler->GetReplicationCellTags(object);
     if (!replicationCellTags.contains(cellTag)) {
-        YT_LOG_DEBUG("Skipped replicating object attributes since destination cell is absent from replication cells "
-            "(ObjectId: %v, CellTag: %v, ReplicationCellTags: %v)",
-            object->GetId(),
-            cellTag,
-            replicationCellTags);
+        YT_TLOG_DEBUG("Skipped replicating object attributes since destination cell is absent from replication cells")
+            .With("ObjectId", object->GetId())
+            .With("CellTag", cellTag)
+            .With("ReplicationCellTags", replicationCellTags);
         return;
     }
 
@@ -2209,8 +2206,8 @@ void TObjectManager::HydraExecuteLeader(
             setResponseKeeperPromise();
         }
 
-        YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
-            mutationId);
+        YT_TLOG_WARNING("Duplicate mutation application skipped")
+            .With("MutationId", mutationId);
 
         return;
     }
@@ -2408,16 +2405,16 @@ void TObjectManager::DoDestroyObjects(NProto::TReqDestroyObjects* request) noexc
         GarbageCollector_->DestroyZombie(object);
         ++DestroyedObjects_;
 
-        YT_LOG_DEBUG("Object destroyed (Type: %v, Id: %v)",
-            type,
-            id);
+        YT_TLOG_DEBUG("Object destroyed")
+            .With("Type", type)
+            .With("Id", id);
     }
 
     for (const auto& [cellTag, perCellRequest] : crossCellRequestMap) {
         multicellManager->PostToMaster(perCellRequest, cellTag);
-        YT_LOG_DEBUG("Requesting to unreference imported objects (CellTag: %v, Count: %v)",
-            cellTag,
-            perCellRequest.entries_size());
+        YT_TLOG_DEBUG("Requesting to unreference imported objects")
+            .With("CellTag", cellTag)
+            .With("Count", perCellRequest.entries_size());
     }
 
     GarbageCollector_->CheckEmpty();
@@ -2442,9 +2439,9 @@ void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* r
         type,
         attributes.Get());
 
-    YT_LOG_DEBUG("Foreign object created (Id: %v, Type: %v)",
-        objectId,
-        type);
+    YT_TLOG_DEBUG("Foreign object created")
+        .With("Id", objectId)
+        .With("Type", type);
 }
 
 void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* request) noexcept
@@ -2453,22 +2450,21 @@ void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* r
 
     auto* object = FindObject(objectId);
     if (!IsObjectAlive(object)) {
-        YT_LOG_DEBUG("Attempt to remove a non-existing foreign object (ObjectId: %v)",
-            objectId);
+        YT_TLOG_DEBUG("Attempt to remove a non-existing foreign object")
+            .With("ObjectId", objectId);
         return;
     }
 
     if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
-        YT_LOG_ALERT(
-            "Requested to remove a foreign object with inappropriate life stage (ObjectId: %v, LifeStage: %v)",
-            objectId,
-            object->GetLifeStage());
+        YT_TLOG_ALERT("Requested to remove a foreign object with inappropriate life stage")
+            .With("ObjectId", objectId)
+            .With("LifeStage", object->GetLifeStage());
         return;
     }
 
-    YT_LOG_DEBUG("Removing foreign object (ObjectId: %v, RefCounter: %v)",
-        objectId,
-        object->GetObjectRefCounter());
+    YT_TLOG_DEBUG("Removing foreign object")
+        .With("ObjectId", objectId)
+        .With("RefCounter", object->GetObjectRefCounter());
 
     const auto& handler = GetHandler(object);
     if (Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval)) {
@@ -2491,11 +2487,10 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
         auto* object = FindObject(objectId);
 
         if (!IsObjectAlive(object)) {
-            YT_LOG_ALERT(
-                "Requested to unexport non-existing object (ObjectId: %v, ImportRefCounter: %v, CellTag: %v)",
-                objectId,
-                importRefCounter,
-                cellTag);
+            YT_TLOG_ALERT("Requested to unexport non-existing object")
+                .With("ObjectId", objectId)
+                .With("ImportRefCounter", importRefCounter)
+                .With("CellTag", cellTag);
             continue;
         }
 
@@ -2505,9 +2500,9 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
         handler->UnexportObject(object, cellTag, importRefCounter);
     }
 
-    YT_LOG_DEBUG("Exported objects unreferenced (CellTag: %v, Count: %v)",
-        cellTag,
-        request->entries_size());
+    YT_TLOG_DEBUG("Exported objects unreferenced")
+        .With("CellTag", cellTag)
+        .With("Count", request->entries_size());
 }
 
 void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* confirmRequest) noexcept
@@ -2515,21 +2510,19 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
     auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
-        YT_LOG_DEBUG("A non-existing object creation confirmed by foreign cell (ObjectId: %v)",
-            objectId);
+        YT_TLOG_DEBUG("A non-existing object creation confirmed by foreign cell")
+            .With("ObjectId", objectId);
         return;
     }
 
-    YT_LOG_ALERT_UNLESS(object->IsNative(),
-        "A non-native object creation confirmed by foreign cell (ObjectId: %v)",
-        objectId);
+    YT_TLOG_ALERT_UNLESS(object->IsNative(), "A non-native object creation confirmed by foreign cell")
+        .With("ObjectId", objectId);
 
     auto voteCount = object->IncrementLifeStageVoteCount();
-    YT_LOG_DEBUG(
-        "Object life stage confirmed by foreign cell (ObjectId: %v, CellTag: %v, VoteCount: %v)",
-        objectId,
-        confirmRequest->cell_tag(),
-        voteCount);
+    YT_TLOG_DEBUG("Object life stage confirmed by foreign cell")
+        .With("ObjectId", objectId)
+        .With("CellTag", confirmRequest->cell_tag())
+        .With("VoteCount", voteCount);
 
     CheckObjectLifeStageVoteCount(object);
 }
@@ -2539,16 +2532,14 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
     auto objectId = FromProto<TObjectId>(request->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
-        YT_LOG_DEBUG(
-            "Life stage advancement for a non-existing object requested by native cell (ObjectId: %v)",
-            objectId);
+        YT_TLOG_DEBUG("Life stage advancement for a non-existing object requested by native cell")
+            .With("ObjectId", objectId);
         return;
     }
 
     if (object->IsNative()) {
-        YT_LOG_ALERT(
-            "Life stage advancement for a non-foreign object requested by native cell (ObjectId: %v)",
-            objectId);
+        YT_TLOG_ALERT("Life stage advancement for a non-foreign object requested by native cell")
+            .With("ObjectId", objectId);
         return;
     }
 
@@ -2556,11 +2547,9 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
     auto newLifeStage = FromProto<EObjectLifeStage>(request->new_life_stage());
     object->SetLifeStage(newLifeStage);
 
-    YT_LOG_DEBUG(
-        "Foreign object life stage advanced as requested by native cell (ObjectId: %v, LifeStage: %v -> %v)",
-        objectId,
-        oldLifeStage,
-        newLifeStage);
+    YT_TLOG_DEBUG("Foreign object life stage advanced as requested by native cell")
+        .With("ObjectId", objectId)
+        .WithFormat("LifeStage", "%v -> %v", oldLifeStage, newLifeStage);
 
     ConfirmObjectLifeStageToNativeMasterCell(object);
 
@@ -2575,33 +2564,28 @@ void TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqCon
     for (auto objectId : objectIds) {
         auto* object = FindObject(objectId);
         if (!object) {
-            YT_LOG_ALERT(
-                "Cells sync confirmed for a non-existing object (ObjectId: %v)",
-                objectId);
+            YT_TLOG_ALERT("Cells sync confirmed for a non-existing object")
+                .With("ObjectId", objectId);
             continue;
         }
 
-        YT_LOG_ALERT_UNLESS(object->IsNative(),
-            "Cells sync confirmed for a non-native object (ObjectId: %v)",
-            objectId);
+        YT_TLOG_ALERT_UNLESS(object->IsNative(), "Cells sync confirmed for a non-native object")
+            .With("ObjectId", objectId);
 
         auto oldLifeStage = object->GetLifeStage();
         if (oldLifeStage != EObjectLifeStage::RemovalAwaitingCellsSync) {
-            YT_LOG_ALERT(
-                "Cells sync confirmed for an object with invalid life stage (ObjectId: %v, LifeStage: %v)",
-                objectId,
-                oldLifeStage);
+            YT_TLOG_ALERT("Cells sync confirmed for an object with invalid life stage")
+                .With("ObjectId", objectId)
+                .With("LifeStage", oldLifeStage);
             continue;
         }
 
         auto newLifeStage = EObjectLifeStage::RemovalCommitted;
         object->SetLifeStage(newLifeStage);
 
-        YT_LOG_DEBUG(
-            "Object life stage advanced after cells sync (ObjectId: %v, LifeStage: %v -> %v)",
-            objectId,
-            oldLifeStage,
-            newLifeStage);
+        YT_TLOG_DEBUG("Object life stage advanced after cells sync")
+            .With("ObjectId", objectId)
+            .WithFormat("LifeStage", "%v -> %v", oldLifeStage, newLifeStage);
 
         AdvanceObjectLifeStageAtForeignMasterCells(object);
         GarbageCollector_->UnregisterRemovalAwaitingCellsSyncObject(object);
@@ -2616,14 +2600,13 @@ void TObjectManager::HydraRemoveExpiredRecentlyAppliedMutationIds(NProto::TReqRe
 
 void TObjectManager::DoRemoveObject(TObject* object)
 {
-    YT_LOG_DEBUG("Object removed (ObjectId: %v)",
-        object->GetId());
+    YT_TLOG_DEBUG("Object removed")
+        .With("ObjectId", object->GetId());
     FlushObjectUnrefs();
     if (auto refCounter = UnrefObject(object); refCounter != 0) {
-        YT_LOG_ALERT(
-            "Non-zero reference counter after object removal (ObjectId: %v, RefCounter: %v)",
-            object->GetId(),
-            refCounter);
+        YT_TLOG_ALERT("Non-zero reference counter after object removal")
+            .With("ObjectId", object->GetId())
+            .With("RefCounter", refCounter);
     }
 }
 
@@ -2639,10 +2622,9 @@ void TObjectManager::CheckRemovingObjectRefCounter(TObject* object)
 
     object->SetLifeStage(newLifeStage);
 
-    YT_LOG_DEBUG("Object references released (ObjectId: %v, LifeStage: %v -> %v)",
-        object->GetId(),
-        oldLifeStage,
-        newLifeStage);
+    YT_TLOG_DEBUG("Object references released")
+        .With("ObjectId", object->GetId())
+        .WithFormat("LifeStage", "%v -> %v", oldLifeStage, newLifeStage);
 
     if (object->IsNative()) {
         object->IncrementLifeStageVoteCount();
@@ -2683,24 +2665,22 @@ void TObjectManager::CheckObjectLifeStageVoteCount(TObject* object)
                 newLifeStage = EObjectLifeStage::RemovalAwaitingCellsSync;
                 break;
             default:
-                YT_LOG_ALERT("Unexpected object life stage (ObjectId: %v, LifeStage: %v)",
-                    object->GetId(),
-                    oldLifeStage);
+                YT_TLOG_ALERT("Unexpected object life stage")
+                    .With("ObjectId", object->GetId())
+                    .With("LifeStage", oldLifeStage);
                 return;
         }
 
         object->SetLifeStage(newLifeStage);
         object->ResetLifeStageVoteCount();
 
-        YT_LOG_DEBUG("Object life stage votes collected; advancing life stage (ObjectId: %v, LifeStage: %v -> %v)",
-            object->GetId(),
-            oldLifeStage,
-            newLifeStage);
+        YT_TLOG_DEBUG("Object life stage votes collected; advancing life stage")
+            .With("ObjectId", object->GetId())
+            .WithFormat("LifeStage", "%v -> %v", oldLifeStage, newLifeStage);
 
         if (newLifeStage == EObjectLifeStage::RemovalAwaitingCellsSync) {
-            YT_LOG_ALERT_UNLESS(object->IsNative(),
-                "Detected removal awaiting cells sync for non-native object (ObjectId: %v)",
-                object->GetId());
+            YT_TLOG_ALERT_UNLESS(object->IsNative(), "Detected removal awaiting cells sync for non-native object")
+                .With("ObjectId", object->GetId());
             GarbageCollector_->RegisterRemovalAwaitingCellsSyncObject(object, replicationCellTags);
         } else {
             AdvanceObjectLifeStageAtForeignMasterCells(object);

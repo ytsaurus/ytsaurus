@@ -253,9 +253,9 @@ private:
         auto implHolder = TBase::DoCreate(id, context);
         implHolder->SetTargetPath(originalTargetPath);
 
-        YT_LOG_DEBUG("Link created (LinkId: %v, TargetPath: %v)",
-            id,
-            originalTargetPath);
+        YT_TLOG_DEBUG("Link created")
+            .With("LinkId", id)
+            .With("TargetPath", originalTargetPath);
 
         return implHolder;
     }
@@ -288,8 +288,8 @@ private:
             node->GetTransaction(),
             &pathRootType);
         if (pathRootType == EPathRootType::Other) [[unlikely]] {
-            YT_LOG_ALERT("Attempted to set a dangling link node reachable (NodeId: %v)",
-                node->GetVersionedId());
+            YT_TLOG_ALERT("Attempted to set a dangling link node reachable")
+                .With("NodeId", node->GetVersionedId());
             return;
         }
 
@@ -316,9 +316,9 @@ private:
 
         UpdateGroundUpdateQueueManagerSequenceNumber(node);
 
-        YT_LOG_DEBUG("Link is reachable (LinkId: %v, LinkPath: %v)",
-            node->GetVersionedId(),
-            linkPath);
+        YT_TLOG_DEBUG("Link is reachable")
+            .With("LinkId", node->GetVersionedId())
+            .With("LinkPath", linkPath);
     }
 
     void DoSetUnreachable(TLinkNode* node) override
@@ -344,9 +344,9 @@ private:
 
         UpdateGroundUpdateQueueManagerSequenceNumber(node);
 
-        YT_LOG_DEBUG("Link is unreachable (LinkId: %v, LinkPath: %v)",
-            node->GetVersionedId(),
-            path);
+        YT_TLOG_DEBUG("Link is unreachable")
+            .With("LinkId", node->GetVersionedId())
+            .With("LinkPath", path);
     }
 };
 
@@ -371,9 +371,9 @@ private:
         auto originalTargetPath = context.ExplicitAttributes->GetAndRemove<NYPath::TYPath>("target_path");
         implHolder->SetTargetPath(originalTargetPath);
 
-        YT_LOG_DEBUG("Sequoia link created (LinkId: %v, TargetPath: %v)",
-            id,
-            originalTargetPath);
+        YT_TLOG_DEBUG("Sequoia link created")
+            .With("LinkId", id)
+            .With("TargetPath", originalTargetPath);
 
         return implHolder;
     }

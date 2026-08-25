@@ -363,8 +363,8 @@ public:
 
         auto [it, emplaced] = LocalMasterIssuedLeaseIds_.emplace(cellTag, THashSet<TTransactionId>{});
         if (emplaced) {
-            YT_LOG_INFO("Created entry for local leases issued for master (CellTag: %v)",
-                cellTag);
+            YT_TLOG_INFO("Created entry for local leases issued for master")
+                .With("CellTag", cellTag);
         }
         return &it->second;
     }
@@ -374,7 +374,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (cellRole == EMasterCellRole::Unknown) [[unlikely]] {
-            YT_LOG_ALERT("Unknown cell role specified while selecting master cells by role");
+            YT_TLOG_ALERT("Unknown cell role specified while selecting master cells by role");
             return {};
         }
 
@@ -388,7 +388,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (cellRole == EMasterCellRole::Unknown) {
-            YT_LOG_ALERT("Unknown cell role specified while counting master cells by role");
+            YT_TLOG_ALERT("Unknown cell role specified while counting master cells by role");
             return 0;
         }
 
@@ -641,34 +641,24 @@ private:
             auto cellTag = *it;
             if (!IsKnownCellTag(cellTag)) {
                 auto chunkCount = multicellNodeStatistics.GetChunkCount(cellTag);
-                YT_LOG_FATAL_UNLESS(
-                    dynamicConfig->Testing->AllowMasterCellRemoval,
-                    "Unknown master cell tag in saved master entry (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_FATAL_UNLESS(dynamicConfig->Testing->AllowMasterCellRemoval, "Unknown master cell tag in saved master entry")
+                    .With("CellTag", cellTag);
 
-                YT_LOG_FATAL_UNLESS(
-                    GetCurrentSnapshotLoadContext()->ReadOnly,
-                    "Master cell was removed without readonly mode (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_FATAL_UNLESS(GetCurrentSnapshotLoadContext()->ReadOnly, "Master cell was removed without readonly mode")
+                    .With("CellTag", cellTag);
 
                 // It is allowed to remove suffix of master cells.
-                YT_LOG_FATAL_IF(
-                    !lastMasterCellSuffixRemoved,
-                    "Master cell from the middle of master entry map was removed (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_FATAL_IF(!lastMasterCellSuffixRemoved, "Master cell from the middle of master entry map was removed")
+                    .With("CellTag", cellTag);
 
-                YT_LOG_FATAL_IF(
-                    chunkCount > 0,
-                    "Master cell with chunks was removed (CellTag: %v, ChunkCount: %v)",
-                    cellTag,
-                    chunkCount);
+                YT_TLOG_FATAL_IF(chunkCount > 0, "Master cell with chunks was removed")
+                    .With("CellTag", cellTag)
+                    .With("ChunkCount", chunkCount);
 
                 auto cellRoles = ComputeMasterCellRolesFromConfig(cellTag, dynamicConfig);
-                YT_LOG_FATAL_UNLESS(
-                    cellRoles == EMasterCellRoles::None,
-                    "Master cell with roles was removed (CellTag: %v, Roles: %v)",
-                    cellTag,
-                    cellRoles);
+                YT_TLOG_FATAL_UNLESS(cellRoles == EMasterCellRoles::None, "Master cell with roles was removed")
+                    .With("CellTag", cellTag)
+                    .With("Roles", cellRoles);
 
                 InsertOrCrash(removedMasterCellTags, cellTag);
             } else {
@@ -684,8 +674,8 @@ private:
             RegisteredMasterCellTags_.erase(cellTag);
             DynamicallyPropagatedMasterCellTags_.erase(cellTag);
 
-            YT_LOG_INFO("Master cell removed (CellTag: %v)",
-                cellTag);
+            YT_TLOG_INFO("Master cell removed")
+                .With("CellTag", cellTag);
         }
 
         for (auto cellTag : RegisteredMasterCellTags_) {
@@ -696,8 +686,8 @@ private:
                 PrimaryMasterMailbox_ = mailbox;
             }
 
-            YT_LOG_INFO("Master cell registered (CellTag: %v)",
-                cellTag);
+            YT_TLOG_INFO("Master cell registered")
+                .With("CellTag", cellTag);
         }
 
         auto selfCellTag = GetCellTag();
@@ -719,15 +709,13 @@ private:
             }
 
             if (!IsRegisteredMasterCell(cellTag) && DynamicallyPropagatedMasterCellTags_.insert(cellTag).second) {
-                YT_LOG_ALERT_UNLESS(
-                    GetCurrentSnapshotLoadContext()->ReadOnly,
-                    "New master cell is found in static config without readonly mode (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_ALERT_UNLESS(GetCurrentSnapshotLoadContext()->ReadOnly, "New master cell is found in static config without readonly mode")
+                    .With("CellTag", cellTag);
 
                 if (IsDynamicallyPropagatedMasterCell(selfCellTag)) {
-                    YT_LOG_ALERT("There is a change in dynamically propogated master list for a dynamically propogated master (SelfCellTag: %v, NewDynamicallyPropogatedCellTag: %v)",
-                        selfCellTag,
-                        cellTag);
+                    YT_TLOG_ALERT("There is a change in dynamically propogated master list for a dynamically propogated master")
+                        .With("SelfCellTag", selfCellTag)
+                        .With("NewDynamicallyPropogatedCellTag", cellTag);
                 }
             }
         }
@@ -887,8 +875,8 @@ private:
 
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
         if (!IsKnownSecondaryCellTag(cellTag)) {
-            YT_LOG_ALERT("Received registration request from an unknown secondary cell, ignored (CellTag: %v)",
-                cellTag);
+            YT_TLOG_ALERT("Received registration request from an unknown secondary cell, ignored")
+                .With("CellTag", cellTag);
             return;
         }
 
@@ -896,8 +884,9 @@ private:
 
         if (IsRegisteredMasterCell(cellTag))  {
             TError registrationError("Attempted to re-register secondary master %v", cellTag);
-            YT_LOG_WARNING(registrationError, "Error registering secondary master (CellTag: %v)",
-                cellTag);
+            YT_TLOG_WARNING("Error registering secondary master")
+                .With("CellTag", cellTag)
+                .With(registrationError);
 
             NProto::TRspRegisterSecondaryMasterAtPrimary response;
             ToProto(response.mutable_error(), registrationError);
@@ -954,7 +943,7 @@ private:
         YT_VERIFY(IsSecondaryMaster());
 
         if (RegisterState_ == EPrimaryRegisterState::Registered) {
-            YT_LOG_ALERT("Received a dynamically propagated masters cell tag list for a registered cell");
+            YT_TLOG_ALERT("Received a dynamically propagated masters cell tag list for a registered cell");
             return;
         }
 
@@ -965,20 +954,18 @@ private:
             InsertOrCrash(DynamicallyPropagatedMasterCellTags_, FromProto<TCellTag>(cellTag));
         }
 
-        YT_LOG_INFO("Dynamically propagated masters cell tags updated (DynamicallyPropagatedMasterCellTags: %v)",
-            DynamicallyPropagatedMasterCellTags_);
+        YT_TLOG_INFO("Dynamically propagated masters cell tags updated")
+            .With("DynamicallyPropagatedMasterCellTags", DynamicallyPropagatedMasterCellTags_);
 
         if (!oldDynamicallyPropagatedMasterCellTags.empty()) {
-            YT_LOG_ALERT("Received a dynamically propagated masters cell tag when there are already some cells "
-                "(OldDynamicallyPropagatedMastersCellTags: %v, NewDynamicallyPropagatedMasterCellTags: %v)",
-                oldDynamicallyPropagatedMasterCellTags,
-                DynamicallyPropagatedMasterCellTags_);
+            YT_TLOG_ALERT("Received a dynamically propagated masters cell tag when there are already some cells")
+                .With("OldDynamicallyPropagatedMastersCellTags", oldDynamicallyPropagatedMasterCellTags)
+                .With("NewDynamicallyPropagatedMasterCellTags", DynamicallyPropagatedMasterCellTags_);
 
             for (auto cellTag : oldDynamicallyPropagatedMasterCellTags) {
                 if (!DynamicallyPropagatedMasterCellTags_.find(cellTag)) {
-                    YT_LOG_FATAL("New dynamically propagated master cell tags does not contain cettTag that "
-                        "was previously there (CellTag: %v)",
-                        cellTag);
+                    YT_TLOG_FATAL("New dynamically propagated master cell tags does not contain cettTag that was previously there")
+                        .With("CellTag", cellTag);
                 }
             }
         }
@@ -991,14 +978,15 @@ private:
 
         auto error = FromProto<TError>(response->error());
         if (!error.IsOK()) {
-            YT_LOG_ERROR(error, "Error registering at primary master, will retry");
+            YT_TLOG_ERROR("Error registering at primary master, will retry")
+                .With(error);
             RegisterState_ = EPrimaryRegisterState::None;
             return;
         }
 
         RegisterState_ = EPrimaryRegisterState::Registered;
 
-        YT_LOG_INFO("Successfully registered at primary master");
+        YT_TLOG_INFO("Successfully registered at primary master");
     }
 
     void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request) noexcept
@@ -1008,14 +996,14 @@ private:
 
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
         if (!IsKnownSecondaryCellTag(cellTag)) {
-            YT_LOG_ALERT("Received registration request for an unknown secondary cell, ignored (CellTag: %v)",
-                cellTag);
+            YT_TLOG_ALERT("Received registration request for an unknown secondary cell, ignored")
+                .With("CellTag", cellTag);
             return;
         }
 
         if (IsRegisteredMasterCell(cellTag))  {
-            YT_LOG_ALERT("Attempted to re-register secondary master, ignored (CellTag: %v)",
-                cellTag);
+            YT_TLOG_ALERT("Attempted to re-register secondary master, ignored")
+                .With("CellTag", cellTag);
             return;
         }
 
@@ -1032,7 +1020,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Registering at primary master");
+        YT_TLOG_INFO("Registering at primary master");
 
         RegisterState_ = EPrimaryRegisterState::Registering;
         RegisterMasterMailbox(GetPrimaryCellTag());
@@ -1064,7 +1052,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        YT_LOG_INFO("Resetting dynamically propagated master cells");
+        YT_TLOG_INFO("Resetting dynamically propagated master cells");
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         if (IsPrimaryMaster()) {
@@ -1141,7 +1129,8 @@ private:
         RecomputeMasterCellRoles();
         RecomputeMasterCellNames();
 
-        YT_LOG_INFO("Master cell registered (CellTag: %v)", cellTag);
+        YT_TLOG_INFO("Master cell registered")
+            .With("CellTag", cellTag);
     }
 
     TMailboxHandle FindMasterMailbox(TCellTag cellTag)
@@ -1210,7 +1199,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(IsSecondaryMaster());
 
-        YT_LOG_DEBUG("Synchronizing with upstream");
+        YT_TLOG_DEBUG("Synchronizing with upstream");
 
         NProfiling::TWallTimer timer;
 
@@ -1238,7 +1227,7 @@ private:
             NRpc::EErrorCode::Unavailable,
             "Error synchronizing with upstream");
 
-        YT_LOG_DEBUG("Upstream synchronization complete");
+        YT_TLOG_DEBUG("Upstream synchronization complete");
         UpstreamSyncTimer_.Record(timer.GetElapsedTime());
     }
 
@@ -1458,8 +1447,9 @@ private:
 
                 if (Any(roles & EMasterCellRoles(role))) {
                     auto [_, inserted] = RoleMasterCells_[role].insert(cellTag);
-                    YT_LOG_ALERT_UNLESS(inserted,
-                        "Duplicate master cell role has been set (CellTag: %v, Role: %v)", cellTag, role);
+                    YT_TLOG_ALERT_UNLESS(inserted, "Duplicate master cell role has been set")
+                        .With("CellTag", cellTag)
+                        .With("Role", role);
                 }
             }
         };
