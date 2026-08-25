@@ -29,10 +29,13 @@ namespace NYT::NFlow::NDistributedThrottler {
 //! (smaller == higher priority on the server queue).
 //!
 //! |statusProfiler| is optional and receives RPC-health reports.
+//! |quotaClassProvider| returns the quota class for each RequestQuota; an
+//! empty result means the reserved default class.
 NConcurrency::IThroughputThrottlerPtr CreateDistributedThrottler(
     TDistributedThrottlerClientConfigPtr config,
     std::function<NRpc::IChannelPtr()> channelProvider,
     std::function<TPriority()> priorityProvider,
+    std::function<TQuotaClassId()> quotaClassProvider,
     IStatusProfilerPtr statusProfiler,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler);

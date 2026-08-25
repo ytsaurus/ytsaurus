@@ -12,12 +12,27 @@ namespace NYT::NFlow::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDistributedThrottlerBucketConfig
+    : public NYTree::TYsonStruct
+{
+    NConcurrency::TThroughputThrottlerConfigPtr Throttler;
+    THashMap<TQuotaClassId, double> ClassWeights;
+    std::optional<i64> MaxGrantAmount;
+
+    REGISTER_YSON_STRUCT(TDistributedThrottlerBucketConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDistributedThrottlerBucketConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDistributedThrottlerServiceConfig
     : public NYTree::TYsonStruct
 {
-    //! Named throttlers: name -> token bucket config.
-    //! If config has Limit = null, the throttler is unlimited.
-    THashMap<TThrottlerId, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+    //! Named throttlers: name -> token bucket and quota-class config.
+    THashMap<TThrottlerId, TDistributedThrottlerBucketConfigPtr> Throttlers;
 
     //! Timeout for requests waiting in the priority queue.
     TDuration QueueTimeout;

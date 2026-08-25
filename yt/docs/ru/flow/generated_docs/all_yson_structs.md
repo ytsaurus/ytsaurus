@@ -160,6 +160,8 @@
 
 {% include [_](./NYT_NFlow_TDynamicTableRequestSpec.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicThrottlerClassSpec.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicThrottlerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicTimerStoreSpec.md) %}

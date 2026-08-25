@@ -29,5 +29,10 @@ Retry parameters for requests to the throttler service. The defaults are designe
 || `rpc_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `30s`
 Timeout for a single `RequestQuota` request. ||
+|| `classes` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerClassSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerClassSpec)`>>`
+**Default value**: `{}`
+Named weighted quota classes. Backlogged classes share bandwidth in proportion to their weights and idle shares are redistributed. ||
+|| `max_grant_amount` | **Type**: `std::optional<long>`
+Maximum server scheduling chunk in absolute quota units. It bounds the delay before active classes are reconsidered. If unset, a single request is granted whole, so it holds the token bucket for its entire prefetch window and delays every other class by that long. ||
 |#
 

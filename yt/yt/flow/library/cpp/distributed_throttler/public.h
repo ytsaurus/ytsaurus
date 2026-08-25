@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/flow/library/cpp/common/public.h>
+
 #include <library/cpp/yt/memory/ref_counted.h>
 
 #include <util/generic/fwd.h>
@@ -12,6 +14,11 @@ namespace NYT::NFlow::NDistributedThrottler {
 //! string so the module stays independent of flow-side strong typedefs.
 using TThrottlerId = std::string;
 
+//! Scheduling class for a quota request.
+using TQuotaClassId = std::string;
+
+inline const TQuotaClassId DefaultQuotaClassId = NFlow::DefaultQuotaClassName;
+
 //! Priority key for RequestQuota RPCs. Smaller value == higher priority on
 //! the server's bucket queue. Opaque to the factory and client — callers
 //! decide the scale (e.g. plug in an event timestamp).
@@ -23,6 +30,7 @@ DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerFactory);
 DECLARE_REFCOUNTED_CLASS(TRemoteThrottler);
 
 DECLARE_REFCOUNTED_STRUCT(TDistributedThrottlerServiceConfig);
+DECLARE_REFCOUNTED_STRUCT(TDistributedThrottlerBucketConfig);
 DECLARE_REFCOUNTED_STRUCT(TDistributedThrottlerClientConfig);
 
 ////////////////////////////////////////////////////////////////////////////////

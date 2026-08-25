@@ -37,6 +37,12 @@ struct IDistributedThrottlerFactory
     //! Smaller value == higher priority on the server's queue.
     virtual void SetPriority(TPriority priority) = 0;
 
+    //! Quota classes attached to subsequent RequestQuota RPCs, keyed by
+    //! throttler id. Every handle for a given id shares the class, so a
+    //! throttler missing from the map sends no class and is served from the
+    //! reserved default class.
+    virtual void SetQuotaClasses(THashMap<TThrottlerId, TQuotaClassId> quotaClassIds) = 0;
+
     //! Replaces the throttler configs. Handles whose spec is unchanged keep
     //! their prefetch state; changed ones get a freshly-built underlying
     //! client swapped in atomically. Handles for names dropped from the new

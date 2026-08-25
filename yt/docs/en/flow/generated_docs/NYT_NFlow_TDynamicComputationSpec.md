@@ -85,6 +85,10 @@ Averaging window for the share of time the job spent blocked on each limit (`blo
 Throttler ID for limiting the message processing rate. If set, before each iteration the `Computation` waits for a quota equal to the number of messages in the input batch. The ID must be present in `dynamic_spec/throttlers`. For more information, see [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `input_bytes_throttler_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>>`
 Similar to `input_rows_throttler_id`, but quotas the total `byte_size` of messages in the batch &mdash; the system size of their serialized representation. ||
+|| `input_rows_throttler_class_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>>`
+Quota class for the `input_rows_throttler_id` throttler. The class must be declared by that throttler; `default` selects the reserved class with weight `1.0`. Requires `input_rows_throttler_id` to be set. ||
+|| `input_bytes_throttler_class_id` | **Type**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>>`
+Quota class for the `input_bytes_throttler_id` throttler. The class must be declared by that throttler; `default` selects the reserved class with weight `1.0`. Requires `input_bytes_throttler_id` to be set. ||
 || `skip_if_expression` | **Type**: `std::optional<std::string>`
 YTQL predicate for filtering (skipping) input messages before `Computation` processing. A message is skipped (dropped) if the predicate evaluates to boolean `true`.
 

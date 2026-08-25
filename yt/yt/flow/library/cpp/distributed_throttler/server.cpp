@@ -34,7 +34,7 @@ public:
         : TServiceBase(
             invoker,
             TDistributedThrottlerServiceProxy::GetDescriptor(),
-            logger ? std::move(logger) : DefaultLogger)
+            logger ? logger : DefaultLogger)
         , Invoker_(std::move(invoker))
         , Profiler_(std::move(profiler))
         , ResponseKeeper_(CreateResponseKeeper(
@@ -43,22 +43,26 @@ public:
             TServiceBase::Logger,
             Profiler_.WithPrefix("/response_keeper")))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestQuota));
+        // Cancelable so that an RPC timeout or a client cancellation reaches the
+        // handler: ReplyFrom then forwards it to the bucket, which refunds the
+        // request instead of granting quota nobody is waiting for any more.
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequestQuota)
+                .SetCancelable(true));
 
         ResponseKeeper_->Start();
 
-        for (const auto& [name, throttlerConfig] : config->Throttlers) {
-            EmplaceOrCrash(Buckets_, name, CreateBucket(name, throttlerConfig, config->DrainPeriod));
+        for (const auto& [name, bucketConfig] : config->Throttlers) {
+            EmplaceOrCrash(Buckets_, name, CreateBucket(name, bucketConfig, config->DrainPeriod));
         }
     }
 
     TDistributedThrottlerBucketPtr CreateBucket(
         const std::string& name,
-        const NConcurrency::TThroughputThrottlerConfigPtr& throttlerConfig,
+        const TDistributedThrottlerBucketConfigPtr& bucketConfig,
         TDuration drainPeriod)
     {
         auto bucket = New<TDistributedThrottlerBucket>(
-            throttlerConfig,
+            bucketConfig,
             drainPeriod,
             NConcurrency::CreateSerializedInvoker(Invoker_),
             TServiceBase::Logger.WithTag("Throttler", name),
@@ -67,7 +71,7 @@ public:
         return bucket;
     }
 
-    ~TDistributedThrottlerService()
+    ~TDistributedThrottlerService() override
     {
         auto guard = WriterGuard(BucketsLock_);
         for (const auto& [_, bucket] : Buckets_) {
@@ -87,13 +91,13 @@ public:
         {
             auto guard = WriterGuard(BucketsLock_);
 
-            for (const auto& [name, throttlerConfig] : config->Throttlers) {
+            for (const auto& [name, bucketConfig] : config->Throttlers) {
                 auto it = Buckets_.find(name);
                 if (it != Buckets_.end()) {
-                    it->second->Reconfigure(throttlerConfig);
+                    it->second->Reconfigure(bucketConfig);
                     it->second->SetDrainPeriod(config->DrainPeriod);
                 } else {
-                    EmplaceOrCrash(Buckets_, name, CreateBucket(name, throttlerConfig, config->DrainPeriod));
+                    EmplaceOrCrash(Buckets_, name, CreateBucket(name, bucketConfig, config->DrainPeriod));
                 }
             }
 
@@ -139,13 +143,24 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedThrottlerService, RequestQuota)
     const auto& clientId = request->client_id();
     auto amount = request->amount();
     auto timestamp = request->timestamp();
+    // Kept raw (possibly empty): the bucket resolves it to "default" and
+    // separately counts classless requests on buckets with weighted classes.
+    const auto& quotaClassId = request->quota_class_id();
 
     context->SetRequestInfo(
-        "ThrottlerId: %v, ClientId: %v, Amount: %v, Timestamp: %v",
+        "ThrottlerId: %v, ClientId: %v, Amount: %v, Timestamp: %v, QuotaClassId: %v",
         throttlerId,
         clientId,
         amount,
-        timestamp);
+        timestamp,
+        quotaClassId.empty() ? DefaultQuotaClassId : quotaClassId);
+
+    // The token bucket YT_VERIFYs non-negative amounts; a malformed client
+    // request must not abort the controller.
+    THROW_ERROR_EXCEPTION_IF(
+        amount < 0,
+        "Quota amount must be non-negative, got %v",
+        amount);
 
     // RPC-retry dedup by mutation id: the bucket sees each logical call once.
     if (ResponseKeeper_->TryReplyFrom(context)) {
@@ -158,15 +173,13 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedThrottlerService, RequestQuota)
         return;
     }
 
-    auto future = bucket->RequestQuota(clientId, amount, timestamp);
+    auto future = bucket->RequestQuota(clientId, quotaClassId, amount, timestamp);
 
-    future.Subscribe(BIND([context] (const TError& error) {
-        if (error.IsOK()) {
-            context->Reply();
-        } else {
-            context->Reply(error);
-        }
-    }));
+    // ReplyFrom also propagates context cancellation into the future. A plain
+    // Subscribe would not: on an RPC timeout or a client cancellation the
+    // request would stay queued, still consume its quota, and the client's
+    // next prefetch would consume it a second time.
+    context->ReplyFrom(std::move(future));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

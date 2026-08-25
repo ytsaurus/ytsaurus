@@ -160,6 +160,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TDynamicTableRequestSpec.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicThrottlerClassSpec.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicThrottlerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicTimerStoreSpec.md) %}

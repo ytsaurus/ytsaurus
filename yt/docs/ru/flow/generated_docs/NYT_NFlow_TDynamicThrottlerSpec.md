@@ -29,5 +29,10 @@
 || `rpc_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `30s`
 Таймаут одного запроса `RequestQuota`. ||
+|| `classes` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerClassSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerClassSpec)`>>`
+**Значение по умолчанию**: `{}`
+Именованные взвешенные классы квоты. Активные классы делят полосу пропорционально весам, а свободная доля перераспределяется. ||
+|| `max_grant_amount` | **Тип**: `std::optional<long>`
+Максимальный размер одного серверного чанка в абсолютных единицах квоты. Ограничивает задержку пересмотра активных классов. Если не задан, запрос выдаётся целиком и удерживает token bucket всё своё prefetch-окно, задерживая остальные классы ровно на это время. ||
 |#
 

@@ -1,6 +1,35 @@
 #include "config.h"
 
+#include <yt/yt/flow/library/cpp/common/spec.h>
+
 namespace NYT::NFlow::NDistributedThrottler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDistributedThrottlerBucketConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("throttler", &TThis::Throttler)
+        .DefaultNew();
+    registrar.Parameter("class_weights", &TThis::ClassWeights)
+        .Default();
+    registrar.Parameter("max_grant_amount", &TThis::MaxGrantAmount)
+        .Default()
+        .GreaterThan(0);
+
+    // Configs built directly (bypassing the pipeline spec) must uphold the
+    // same invariants as TDynamicThrottlerSpec; both call the shared helpers.
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& [classId, weight] : config->ClassWeights) {
+            try {
+                ValidateQuotaClassName(classId);
+                ValidateQuotaClassWeight(weight);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Invalid quota class %Qv", classId)
+                    .With(ex);
+            }
+        }
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

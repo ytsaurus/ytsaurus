@@ -44,6 +44,9 @@ public:
     void SetPriority(NDistributedThrottler::TPriority /*priority*/) override
     { }
 
+    void SetQuotaClasses(THashMap<NDistributedThrottler::TThrottlerId, NDistributedThrottler::TQuotaClassId> /*quotaClassIds*/) override
+    { }
+
     void Reconfigure(THashMap<NDistributedThrottler::TThrottlerId, TDynamicThrottlerSpecPtr> /*throttlers*/) override
     { }
 };

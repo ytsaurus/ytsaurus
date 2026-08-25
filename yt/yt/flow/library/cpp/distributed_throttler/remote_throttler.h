@@ -30,6 +30,7 @@ public:
         std::string clientId,
         TDuration rpcTimeout,
         std::function<TPriority()> priorityProvider,
+        std::function<TQuotaClassId()> quotaClassProvider,
         IStatusErrorStatePtr errorState,
         NLogging::TLogger logger);
 
@@ -51,6 +52,7 @@ private:
     const std::string ClientId_;
     const TDuration RpcTimeout_;
     const std::function<TPriority()> PriorityProvider_;
+    const std::function<TQuotaClassId()> QuotaClassProvider_;
     const IStatusErrorStatePtr ErrorState_;
     const NLogging::TLogger Logger_;
 };

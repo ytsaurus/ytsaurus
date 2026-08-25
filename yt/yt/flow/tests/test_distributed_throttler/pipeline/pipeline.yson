@@ -3,10 +3,38 @@
     "path" = "//<to_be_overridden>";
     "spec" = {
         "computations" = {
-            "Reader" = {
+            "ReaderVip" = {
                 "computation_class_name" = "NExample::TReader";
                 "input_stream_ids" = [];
-                "output_stream_ids" = ["data"];
+                "output_stream_ids" = ["data_vip"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                            "consumer_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+            };
+            "ReaderRegular" = {
+                "computation_class_name" = "NExample::TReader";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["data_regular"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "//<to_be_overridden>";
+                            "consumer_path" = "//<to_be_overridden>";
+                        };
+                    };
+                };
+            };
+            "ReaderBulk" = {
+                "computation_class_name" = "NExample::TReader";
+                "input_stream_ids" = [];
+                "output_stream_ids" = ["data_bulk"];
                 "source_streams" = {
                     "queue" = {
                         "source_class_name" = "NYT::NFlow::TQueueSource";
@@ -19,11 +47,13 @@
             };
             "Throttled" = {
                 "computation_class_name" = "NExample::TThrottledPassthrough";
-                "input_stream_ids" = ["data"];
+                "input_stream_ids" = ["data_vip"; "data_regular"; "data_bulk"];
                 "output_stream_ids" = ["out"];
                 "group_by_schema" = [
                     {"name" = "hash"; "expression" = "farm_hash(value)"; "type" = "uint64"; required = %true;};
                     {"name" = "value"; "type" = "int64";};
+                    {"name" = "source"; "type" = "string";};
+                    {"name" = "event_time"; "type" = "int64";};
                 ];
                 "sinks" = {
                     "queue" = {
@@ -37,23 +67,58 @@
             };
         };
         "streams" = {
-            "data" = {
+            "data_vip" = {
                 "schema" = [
                     {"name" = "value"; "type" = "int64";};
+                    {"name" = "source"; "type" = "string";};
+                    {"name" = "event_time"; "type" = "int64";};
+                ];
+            };
+            "data_regular" = {
+                "schema" = [
+                    {"name" = "value"; "type" = "int64";};
+                    {"name" = "source"; "type" = "string";};
+                    {"name" = "event_time"; "type" = "int64";};
+                ];
+            };
+            "data_bulk" = {
+                "schema" = [
+                    {"name" = "value"; "type" = "int64";};
+                    {"name" = "source"; "type" = "string";};
+                    {"name" = "event_time"; "type" = "int64";};
                 ];
             };
             "out" = {
                 "schema" = [
                     {"name" = "value"; "type" = "int64";};
+                    {"name" = "source"; "type" = "string";};
+                    {"name" = "event_time"; "type" = "int64";};
                 ];
             };
         };
     };
     "dynamic_spec" = {
         "computations" = {
-            "Reader" = {
+            "ReaderVip" = {
                 "batch_duration" = 100;
                 "max_rows_per_batch" = 10;
+                "empty_batch_backoff" = 50;
+                "input_rows_throttler_id" = "output_quota";
+                "input_rows_throttler_class_id" = "vip";
+            };
+            "ReaderRegular" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 10;
+                "empty_batch_backoff" = 50;
+                "input_rows_throttler_id" = "output_quota";
+                "input_rows_throttler_class_id" = "regular";
+            };
+            "ReaderBulk" = {
+                "batch_duration" = 100;
+                "max_rows_per_batch" = 10;
+                "empty_batch_backoff" = 50;
+                "input_rows_throttler_id" = "output_quota";
+                "input_rows_throttler_class_id" = "bulk";
             };
             "Throttled" = {
                 "parameters" = {"desired_partition_count" = 2;};
@@ -63,6 +128,17 @@
             "api" = {
                 "limit" = 50.0;
                 "period" = 1000;
+            };
+            "output_quota" = {
+                "limit" = 50.0;
+                "period" = 1000;
+                "request_period" = 200;
+                "max_grant_amount" = 1;
+                "classes" = {
+                    "vip" = {"weight" = 5.0;};
+                    "regular" = {"weight" = 3.0;};
+                    "bulk" = {"weight" = 1.0;};
+                };
             };
         };
     };

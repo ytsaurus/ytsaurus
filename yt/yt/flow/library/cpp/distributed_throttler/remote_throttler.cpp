@@ -16,6 +16,7 @@ TRemoteThrottler::TRemoteThrottler(
     std::string clientId,
     TDuration rpcTimeout,
     std::function<TPriority()> priorityProvider,
+    std::function<TQuotaClassId()> quotaClassProvider,
     IStatusErrorStatePtr errorState,
     NLogging::TLogger logger)
     : ChannelProvider_(std::move(channelProvider))
@@ -23,6 +24,7 @@ TRemoteThrottler::TRemoteThrottler(
     , ClientId_(std::move(clientId))
     , RpcTimeout_(rpcTimeout)
     , PriorityProvider_(std::move(priorityProvider))
+    , QuotaClassProvider_(std::move(quotaClassProvider))
     , ErrorState_(std::move(errorState))
     , Logger_(std::move(logger))
 { }
@@ -41,6 +43,12 @@ TFuture<void> TRemoteThrottler::Throttle(i64 amount)
     req->set_client_id(ClientId_);
     req->set_amount(amount);
     req->set_timestamp(PriorityProvider_ ? PriorityProvider_() : 0);
+    if (QuotaClassProvider_) {
+        auto quotaClassId = QuotaClassProvider_();
+        if (!quotaClassId.empty()) {
+            req->set_quota_class_id(std::move(quotaClassId));
+        }
+    }
 
     auto future = req->Invoke().AsVoid();
 

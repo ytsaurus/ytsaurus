@@ -834,6 +834,10 @@ void TDynamicComputationSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("input_bytes_throttler_id", &TThis::InputBytesThrottlerId)
         .Default();
+    registrar.Parameter("input_rows_throttler_class_id", &TThis::InputRowsThrottlerClassId)
+        .Default();
+    registrar.Parameter("input_bytes_throttler_class_id", &TThis::InputBytesThrottlerClassId)
+        .Default();
 
     registrar.Parameter("skip_if_expression", &TThis::SkipIfExpression)
         .Default();
@@ -874,6 +878,15 @@ void TDynamicResourceSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicThrottlerClassSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("weight", &TThis::Weight)
+        .Default(1.0)
+        .CheckThat(&ValidateQuotaClassWeight);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicThrottlerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("limit", &TThis::Limit)
@@ -895,6 +908,17 @@ void TDynamicThrottlerSpec::Register(TRegistrar registrar)
         });
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
         .Default(TDuration::Seconds(30));
+    registrar.Parameter("classes", &TThis::Classes)
+        .Default();
+    registrar.Parameter("max_grant_amount", &TThis::MaxGrantAmount)
+        .Default()
+        .GreaterThan(0);
+
+    registrar.Postprocessor([] (TThis* spec) {
+        for (const auto& [classId, _] : spec->Classes) {
+            ValidateQuotaClassName(classId.Underlying());
+        }
+    });
 }
 
 NConcurrency::TThroughputThrottlerConfigPtr TDynamicThrottlerSpec::BuildThroughputConfig() const
@@ -911,8 +935,9 @@ NConcurrency::TPrefetchingThrottlerConfigPtr TDynamicThrottlerSpec::BuildPrefetc
     config->TargetRps = 1.0 / RequestPeriod.SecondsFloat();
     config->MinPrefetchAmount = 1;
     if (Limit) {
-        double tokensPerSecond = *Limit / Period.SecondsFloat();
-        auto maxPrefetch = static_cast<i64>(std::ceil(tokensPerSecond * RequestPeriod.SecondsFloat()));
+        // |Limit| is already a per-second rate, and |Period| is only the leaky
+        // bucket's refill granularity, so it must not divide the rate here.
+        auto maxPrefetch = static_cast<i64>(std::ceil(*Limit * RequestPeriod.SecondsFloat()));
         config->MaxPrefetchAmount = std::max<i64>(maxPrefetch, 1);
     } else {
         // Unlimited: no meaningful upper bound; pick a large batch so the
@@ -921,6 +946,23 @@ NConcurrency::TPrefetchingThrottlerConfigPtr TDynamicThrottlerSpec::BuildPrefetc
     }
     config->Window = std::max(RequestPeriod * 10, TDuration::Seconds(1));
     return config;
+}
+
+THashMap<std::string, double> TDynamicThrottlerSpec::BuildClassWeights() const
+{
+    THashMap<std::string, double> result;
+    result.reserve(Classes.size());
+    for (const auto& [classId, classSpec] : Classes) {
+        result.emplace(classId.Underlying(), classSpec->Weight);
+    }
+    return result;
+}
+
+bool TDynamicThrottlerSpec::ClientConfigEquals(const TDynamicThrottlerSpec& other) const
+{
+    return *BuildPrefetchingConfig() == *other.BuildPrefetchingConfig() &&
+        *RetryingChannel == *other.RetryingChannel &&
+        RpcTimeout == other.RpcTimeout;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1822,19 +1864,97 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
     ValidateIsDirectedAcyclicGraph(BuildStreamGraph(spec, /*addReadDelayEdges*/ true));
 }
 
+void ValidateQuotaClassName(TStringBuf className)
+{
+    THROW_ERROR_EXCEPTION_IF(
+        className.empty(),
+        "Throttler class id must not be empty");
+    THROW_ERROR_EXCEPTION_IF(
+        className == DefaultQuotaClassName,
+        "Throttler class id %Qv is reserved",
+        DefaultQuotaClassName);
+}
+
+void ValidateQuotaClassWeight(double weight)
+{
+    THROW_ERROR_EXCEPTION_IF(
+        !std::isfinite(weight) || weight <= 0,
+        "Throttler class weight must be finite and positive, got %v",
+        weight);
+    // The scheduler advances virtual time by amount/weight, so a denormal
+    // weight overflows it to infinity and the subsequent renormalization
+    // turns every class's virtual time into NaN, silently disabling weighted
+    // scheduling for the rest of the process's life.
+    THROW_ERROR_EXCEPTION_IF(
+        weight < MinQuotaClassWeight || weight > MaxQuotaClassWeight,
+        "Throttler class weight must be within [%v, %v], got %v",
+        MinQuotaClassWeight,
+        MaxQuotaClassWeight,
+        weight);
+}
+
 void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& dynamicSpec)
 {
     for (const auto& [computationId, computationSpec] : dynamicSpec->Computations) {
-        auto checkThrottlerId = [&] (const std::optional<TThrottlerId>& throttlerId, TStringBuf field) {
-            if (throttlerId && !dynamicSpec->Throttlers.contains(*throttlerId)) {
+        auto checkThrottlerId = [&] (
+            const std::optional<TThrottlerId>& throttlerId,
+            const std::optional<TQuotaClassId>& classId,
+            TStringBuf field,
+            TStringBuf classField) {
+            if (!throttlerId) {
+                THROW_ERROR_EXCEPTION_IF(
+                    classId.has_value(),
+                    "%v is set but %v is not",
+                    classField,
+                    field);
+                return;
+            }
+            if (!dynamicSpec->Throttlers.contains(*throttlerId)) {
                 THROW_ERROR_EXCEPTION("Throttler %Qv referenced in %v is not declared in dynamic_spec/throttlers",
                     *throttlerId,
                     field)
                     .With("computation_id", computationId);
             }
+            if (!classId || classId->Underlying() == DefaultQuotaClassName) {
+                return;
+            }
+            const auto& throttlerSpec = GetOrCrash(dynamicSpec->Throttlers, *throttlerId);
+            if (!throttlerSpec->Classes.contains(*classId)) {
+                THROW_ERROR_EXCEPTION(
+                    "Throttler class %Qv referenced in %v is not declared for throttler %Qv",
+                    *classId,
+                    classField,
+                    *throttlerId)
+                    .With("computation_id", computationId)
+                    .With("throttler_field", field);
+            }
         };
-        checkThrottlerId(computationSpec->InputRowsThrottlerId, "input_rows_throttler_id");
-        checkThrottlerId(computationSpec->InputBytesThrottlerId, "input_bytes_throttler_id");
+        checkThrottlerId(
+            computationSpec->InputRowsThrottlerId,
+            computationSpec->InputRowsThrottlerClassId,
+            "input_rows_throttler_id",
+            "input_rows_throttler_class_id");
+        checkThrottlerId(
+            computationSpec->InputBytesThrottlerId,
+            computationSpec->InputBytesThrottlerClassId,
+            "input_bytes_throttler_id",
+            "input_bytes_throttler_class_id");
+
+        // The two fields meter different things: one charges a message count,
+        // the other a byte size. Pointing them at one throttler sums counts and
+        // bytes in a single token bucket, so its limit stops meaning anything —
+        // and since byte sizes dwarf counts, the row limit silently stops
+        // applying. Always a configuration error.
+        if (computationSpec->InputRowsThrottlerId &&
+            computationSpec->InputRowsThrottlerId == computationSpec->InputBytesThrottlerId)
+        {
+            THROW_ERROR_EXCEPTION(
+                "Throttler %Qv is referenced by both input_rows_throttler_id and "
+                "input_bytes_throttler_id; a throttler meters either message count "
+                "or byte size, not both",
+                *computationSpec->InputRowsThrottlerId)
+                .With("computation_id", computationId);
+        }
 
         auto validateStateKey = [&] (TStringBuf field, const std::string& name) {
             try {
