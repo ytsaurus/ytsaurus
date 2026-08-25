@@ -390,7 +390,8 @@ Removes unrecognized options from the master dynamic config (`//sys/@config`).
 
 The command reads `//sys/@master_alerts`, finds the alert `Found unrecognized options in dynamic cluster config`, and removes from `//sys/@config` all options listed in it. After removing nested options, empty intermediate nodes (`{}`) are also removed. If no such alert exists, the command does nothing.
 
-This is most often needed [after updating a cluster](../../admin-guide/update-ytsaurus.md#operator): in a new version of {{product-name}}, some config fields may become obsolete and remain in `//sys/@config` as unrecognized.
+This is most often needed [after updating a cluster](../../admin-guide/update/update-ytsaurus.md#operator): in a new version of {{product-name}}, some config fields may become obsolete and remain in `//sys/@config` as unrecognized.
+
 
 ```bash
 yt admin remove-master-unrecognized-options [--dry] [--do-not-print-config]
