@@ -24,7 +24,15 @@ TDistributedThrottlerServiceConfigPtr BuildServiceConfig(
 {
     auto config = New<TDistributedThrottlerServiceConfig>();
     for (const auto& [name, throttlerSpec] : dynamicSpec->Throttlers) {
-        config->Throttlers.emplace(name.Underlying(), throttlerSpec->BuildThroughputConfig());
+        auto bucketConfig = New<TDistributedThrottlerBucketConfig>();
+        bucketConfig->Throttler = throttlerSpec->BuildThroughputConfig();
+        bucketConfig->ClassWeights = throttlerSpec->BuildClassWeights();
+        bucketConfig->MaxGrantAmount = throttlerSpec->MaxGrantAmount;
+        // The config is assembled field by field, so its registered
+        // postprocessor — which deserialization would have run — has to be
+        // invoked explicitly for the class invariants to hold here too.
+        bucketConfig->Postprocess();
+        config->Throttlers.emplace(name.Underlying(), std::move(bucketConfig));
     }
     return config;
 }

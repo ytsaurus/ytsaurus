@@ -44,5 +44,6 @@ target_sources(library-cpp-distributed_throttler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/distributed_throttler/metrics_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/distributed_throttler/remote_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/distributed_throttler/server.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/distributed_throttler/weighted_fair_queue_scheduler.cpp
 )
 

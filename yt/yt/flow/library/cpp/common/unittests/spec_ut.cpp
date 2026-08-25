@@ -1710,6 +1710,285 @@ TEST(TDynamicSpecTest, UnknownInputBytesThrottlerId)
         "Throttler \"missing\" referenced in input_bytes_throttler_id is not declared in dynamic_spec/throttlers");
 }
 
+TEST(TDynamicSpecTest, ThrottlerClassesAndChunkRoundTrip)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                shared = {
+                    limit = 100.0;
+                    max_grant_amount = 17;
+                    classes = {
+                        vip = {weight = 5.0;};
+                        regular = {};
+                    };
+                };
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "shared";
+                    input_rows_throttler_class_id = "vip";
+                };
+            };
+        }
+    )""""));
+
+    ValidateDynamicPipelineSpec(dynamicSpec);
+    const auto& throttler = dynamicSpec->Throttlers.at(TThrottlerId("shared"));
+    EXPECT_EQ(throttler->MaxGrantAmount, 17);
+    EXPECT_EQ(throttler->Classes.at(TQuotaClassId("vip"))->Weight, 5.0);
+    EXPECT_EQ(throttler->Classes.at(TQuotaClassId("regular"))->Weight, 1.0);
+}
+
+TEST(TDynamicSpecTest, RejectsInvalidThrottlerClasses)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+            "{classes={default={weight=1.0;};};}")),
+        "reserved");
+    for (auto invalidSpec : {
+            "{classes={\"\"={weight=1.0;};};}",
+            "{classes={invalid={weight=0.0;};};}",
+            "{classes={invalid={weight=-1.0;};};}",
+            "{classes={invalid={weight=%nan;};};}",
+            "{classes={invalid={weight=%inf;};};}",
+            "{max_grant_amount=0;}",
+            "{max_grant_amount=-1;}",
+         })
+    {
+        EXPECT_THROW(
+                ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(invalidSpec)),
+                std::exception)
+            << invalidSpec;
+    }
+}
+
+TEST(TDynamicSpecTest, UnknownThrottlerClass)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                rows = {classes = {known = {};};};
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "missing";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidateDynamicPipelineSpec(dynamicSpec); },
+        "Throttler class \"missing\"");
+}
+
+TEST(TDynamicSpecTest, ExplicitDefaultThrottlerClassIsAccepted)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {rows = {};};
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "default";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicSpec));
+}
+
+TEST(TDynamicSpecTest, PerThrottlerClassesAreIndependent)
+{
+    // Classes on the row throttler only; the byte throttler declares none and
+    // is therefore served from the default class.
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                rows = {classes = {vip = {};};};
+                bytes = {limit = 100.0;};
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "vip";
+                    input_bytes_throttler_id = "bytes";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicSpec));
+}
+
+TEST(TDynamicSpecTest, ClassIsValidatedAgainstItsOwnThrottler)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                rows = {classes = {vip = {};};};
+                bytes = {classes = {bulk = {};};};
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "vip";
+                    input_bytes_throttler_id = "bytes";
+                    input_bytes_throttler_class_id = "vip";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidateDynamicPipelineSpec(dynamicSpec); },
+        "input_bytes_throttler_class_id");
+}
+
+TEST(TDynamicSpecTest, ClassWithoutItsThrottlerIsRejected)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {rows = {classes = {vip = {};};};};
+            computations = {
+                c = {
+                    input_rows_throttler_class_id = "vip";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidateDynamicPipelineSpec(dynamicSpec); },
+        "input_rows_throttler_class_id is set but input_rows_throttler_id is not");
+}
+
+TEST(TDynamicSpecTest, SharedThrottlerForRowsAndBytesIsRejected)
+{
+    // One throttler cannot meter both a message count and a byte size, so the
+    // two fields must never name it together — whatever the classes say.
+    auto makeSpec = [] (TStringBuf classes) {
+        auto specYson = Format(R""""(
+            {
+                throttlers = {shared = {classes = {vip = {}; bulk = {};};};};
+                computations = {
+                    c = {
+                        input_rows_throttler_id = "shared";
+                        input_bytes_throttler_id = "shared";
+                        %v
+                    };
+                };
+            }
+            )"""",
+            classes);
+        return ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(specYson));
+    };
+
+    for (auto classes : {
+            TStringBuf(""),
+            TStringBuf(R"(input_rows_throttler_class_id="vip";input_bytes_throttler_class_id="vip";)"),
+            TStringBuf(R"(input_rows_throttler_class_id="vip";input_bytes_throttler_class_id="bulk";)"),
+         })
+    {
+        auto dynamicSpec = makeSpec(classes);
+        EXPECT_THROW_WITH_SUBSTRING(
+            { ValidateDynamicPipelineSpec(dynamicSpec); },
+            "not both");
+    }
+}
+
+TEST(TDynamicSpecTest, SeparateThrottlersForRowsAndBytesAreAccepted)
+{
+    auto dynamicSpec = ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(R""""(
+        {
+            throttlers = {
+                rows = {classes = {vip = {};};};
+                bytes = {limit = 100.0;};
+            };
+            computations = {
+                c = {
+                    input_rows_throttler_id = "rows";
+                    input_rows_throttler_class_id = "vip";
+                    input_bytes_throttler_id = "bytes";
+                };
+            };
+        }
+    )""""));
+
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicSpec));
+}
+
+TEST(TDynamicSpecTest, PrefetchAmountUsesPerSecondLimit)
+{
+    // |limit| is a per-second rate, so the prefetch window is limit *
+    // request_period and |period| must not scale it.
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{limit=1000.0; period=10000; request_period=5000;}"));
+    EXPECT_EQ(spec->BuildPrefetchingConfig()->MaxPrefetchAmount, 5000);
+
+    auto shortPeriod = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{limit=1000.0; period=100; request_period=5000;}"));
+    EXPECT_EQ(
+        shortPeriod->BuildPrefetchingConfig()->MaxPrefetchAmount,
+        spec->BuildPrefetchingConfig()->MaxPrefetchAmount);
+}
+
+TEST(TDynamicSpecTest, RejectsOutOfRangeThrottlerClassWeights)
+{
+    for (auto invalidSpec : {
+            "{classes={extreme={weight=1e-305;};};}",
+            "{classes={extreme={weight=1e305;};};}",
+         })
+    {
+        EXPECT_THROW_WITH_SUBSTRING(
+            ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(invalidSpec)),
+            "must be within");
+    }
+}
+
+TEST(TDynamicSpecTest, ClientConfigEqualityIgnoresServerOnlyFields)
+{
+    auto lhs = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(R""""(
+        {
+            limit = 100.0;
+            period = 1000;
+            request_period = 100;
+            classes = {vip = {weight = 5.0;};};
+            max_grant_amount = 10;
+        }
+    )""""));
+    auto rhs = CloneYsonStruct(lhs);
+    rhs->Classes.at(TQuotaClassId("vip"))->Weight = 1.0;
+    rhs->MaxGrantAmount = 100;
+    // |period| only sets the granularity of the server's leaky bucket; |limit|
+    // is already a per-second rate, so the client's prefetch sizing does not
+    // depend on it and a client need not be rebuilt when it changes.
+    rhs->Period = TDuration::Seconds(2);
+
+    EXPECT_TRUE(lhs->ClientConfigEquals(*rhs));
+
+    auto expectClientConfigDifference = [&] (auto change) {
+        auto changed = CloneYsonStruct(lhs);
+        change(changed);
+        EXPECT_FALSE(lhs->ClientConfigEquals(*changed));
+    };
+    expectClientConfigDifference([] (const auto& spec) {
+        spec->Limit = 200.0;
+    });
+    expectClientConfigDifference([] (const auto& spec) {
+        spec->RequestPeriod = TDuration::MilliSeconds(200);
+    });
+    expectClientConfigDifference([] (const auto& spec) {
+        ++spec->RetryingChannel->RetryAttempts;
+    });
+    expectClientConfigDifference([] (const auto& spec) {
+        spec->RpcTimeout = TDuration::Seconds(1);
+    });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TResolveUseCompactInputMessagesTest, DefaultUintKeyEnablesCompact)

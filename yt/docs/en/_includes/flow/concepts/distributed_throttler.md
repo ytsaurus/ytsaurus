@@ -14,9 +14,55 @@ Typical use cases:
 
 Each Job attaches its timestamp to the quota request — the same timestamp that determines lag in the input buffer. The server takes the minimum value across all `stabilized_event_timestamp + stream_delay` from [input streams](../../../flow/concepts/glossary.md#stream) and `read_alignment_timestamp` from [source streams](../../../flow/concepts/glossary.md#source). The server ranks requests by this timestamp in ascending order: it grants quota first to those that are lagging more. If there’s a load imbalance across [partitions](../../../flow/concepts/glossary.md#partition) of a single [`Computation`](../../../flow/concepts/computation.md), the lagging ones automatically get more quota, while the leading ones slow down.
 
+## Weighted quota classes {#quota-classes}
+
+A named throttler can declare classes with weights. Quota is distributed among the classes that have pending requests in proportion to their weights, and in a work-conserving way. If a class goes idle, its share is immediately redistributed among the active classes. A weight sets the long-run share of the bandwidth, not a strict priority.
+
+Priority by lag keeps working inside each class. An idle class banks no credit, but once a request appears it gets a chance to be served before the next long pass over another class's continuous backlog.
+
+If `classes` is absent, the previous single-queue behavior and the previous token bucket semantics are preserved. The reserved `default` class always has weight `1.0`. A missing, empty, or unknown `quota_class_id` falls into `default` on the server; that is how a throttler with no class configured is served. The class covers every request the Computation makes to that throttler: if the same id is also obtained manually via `GetThrottlerOrThrow`, those requests carry the same class rather than `default`. The class is set per automatic throttler — `input_rows_throttler_class_id` and `input_bytes_throttler_class_id` — and each is checked against the classes its own throttler declares: an unknown class is rejected by validation before the pipeline starts.
+
+```yson
+"dynamic_spec" = {
+    "throttlers" = {
+        "output_quota" = {
+            "limit" = 1000.0;
+            "period" = "1s";
+            "request_period" = "500ms";
+            "max_grant_amount" = 50;
+            "classes" = {
+                "vip" = {"weight" = 5.0;};
+                "regular" = {"weight" = 3.0;};
+                "bulk" = {"weight" = 1.0;};
+            };
+        };
+    };
+    "computations" = {
+        "ReaderVip" = {
+            "input_rows_throttler_id" = "output_quota";
+            "input_rows_throttler_class_id" = "vip";
+        };
+    };
+}
+```
+
+### Class switching latency
+
+The scheduler reconsiders the active classes after the current server chunk completes. `max_grant_amount` sets the maximum chunk size in absolute quota units; leaving it unset lets a single request hold the token bucket for as long as its whole prefetch window takes, which delays every other class by that much. The observed latency also includes `drain_period`, the RPC, the local prefetch, the source's `empty_batch_backoff`, and the Flow commit.
+
+### Weights and reader throughput
+
+Observed shares match the configured weights only while every measured class stays backlogged **and** each reader can actually consume its entitlement. A reader iteration carries a fixed overhead independent of the granted rate, so with a small `max_rows_per_batch` a high-weight class can hit its own throughput ceiling before it reaches its share; work conservation then hands the surplus to the lower-weight classes and the observed split drifts toward equality. Scale `max_rows_per_batch` together with `limit` so the per-iteration overhead stays a small fraction of the time each class spends waiting for quota.
+
 ## Live reconfiguration {#reconfigure}
 
-All throttler parameters (`limit`, `period`, `request_period`, `retrying_channel`, `rpc_timeout`) are applied without restarting the pipeline — just update `dynamic_spec`. The `IThroughputThrottlerPtr` cached in your user code remains valid after the config change.
+All throttler parameters (`limit`, `period`, `request_period`, `retrying_channel`, `rpc_timeout`, `classes`, `max_grant_amount`) are applied without restarting the pipeline — just update `dynamic_spec`. The `IThroughputThrottlerPtr` cached in your user code remains valid after the config change.
+
+Weights and the server chunk size change without rebuilding the prefetch client. Changing `input_rows_throttler_class_id` or `input_bytes_throttler_class_id` affects subsequent RPCs; quota already fetched locally or still in flight stays accounted to the previous class.
+
+## Quota classes and watermark alignment {#watermark-alignment}
+
+Quota availability does not override watermark alignment: reading is allowed only when the output limits, the alignment, and the read window restriction are all satisfied at once. So a heavier class will not speed reading up while alignment is holding the source back — weight distributes quota only. Configuring alignment itself is covered in [watermark strategy](../../../flow/concepts/watermarks.md).
 
 ## What happens if the Controller is unavailable {#controller-unavailable}
 
@@ -64,7 +110,7 @@ You have two options — automatic and manual. They don’t conflict: you can us
 
 The wait is recorded as a separate `Input.Throttle` span in the Computation’s tracing (visible in Jaeger and in the “Epoch parts time” charts in the UI).
 
-The ID must be declared in `dynamic_spec/throttlers`.
+The ID must be declared in `dynamic_spec/throttlers`. Both fields may be set at once — the iteration then waits for both quotas — but they must name **different** throttlers: a throttler meters either a message count or a byte size, and a shared token bucket would be summing counts with bytes. Such a spec is rejected by validation.
 
 ### Manual: `GetThrottlerOrThrow(id)` from user code {#manual}
 

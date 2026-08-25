@@ -21,6 +21,7 @@ IThroughputThrottlerPtr CreateDistributedThrottler(
     TDistributedThrottlerClientConfigPtr config,
     std::function<NRpc::IChannelPtr()> channelProvider,
     std::function<TPriority()> priorityProvider,
+    std::function<TQuotaClassId()> quotaClassProvider,
     IStatusProfilerPtr statusProfiler,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler)
@@ -55,6 +56,7 @@ IThroughputThrottlerPtr CreateDistributedThrottler(
         config->ClientId,
         config->RpcTimeout,
         std::move(priorityProvider),
+        std::move(quotaClassProvider),
         std::move(errorState),
         logger);
 

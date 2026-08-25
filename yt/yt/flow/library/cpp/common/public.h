@@ -38,6 +38,17 @@ YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TResourceId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TComputationId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TSinkId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TThrottlerId);
+YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TQuotaClassId);
+
+//! Reserved quota class: requests without a declared class fall into it;
+//! its weight is fixed at 1.0. Shared between spec validation and the
+//! distributed throttler runtime.
+inline const std::string DefaultQuotaClassName = "default";
+
+//! Bounds for a throttler class weight. The weighted scheduler advances virtual
+//! time by amount/weight, so weights outside this range can overflow it.
+inline constexpr double MinQuotaClassWeight = 1e-6;
+inline constexpr double MaxQuotaClassWeight = 1e6;
 
 using TLeaseId = NTransactionClient::TTransactionId;
 constexpr TLeaseId NullLeaseId = NTransactionClient::NullTransactionId;
@@ -254,6 +265,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionTracerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicThrottlerSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicThrottlerClassSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicJobBalancerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicJobManagerGroupSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicJobManagerSpec);

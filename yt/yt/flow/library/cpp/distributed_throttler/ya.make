@@ -10,6 +10,7 @@ SRCS(
     metrics_throttler.cpp
     remote_throttler.cpp
     server.cpp
+    weighted_fair_queue_scheduler.cpp
 )
 
 PEERDIR(

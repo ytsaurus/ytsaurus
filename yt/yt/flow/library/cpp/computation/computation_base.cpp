@@ -85,6 +85,23 @@ THashMap<NDistributedThrottler::TThrottlerId, TDynamicThrottlerSpecPtr> ToFactor
     return result;
 }
 
+THashMap<NDistributedThrottler::TThrottlerId, NDistributedThrottler::TQuotaClassId> ToFactoryQuotaClasses(
+    const TDynamicComputationSpecPtr& dynamicSpec)
+{
+    THashMap<NDistributedThrottler::TThrottlerId, NDistributedThrottler::TQuotaClassId> result;
+    auto add = [&] (
+        const std::optional<TThrottlerId>& throttlerId,
+        const std::optional<TQuotaClassId>& quotaClassId) {
+        if (throttlerId && quotaClassId) {
+            result[NDistributedThrottler::TThrottlerId(throttlerId->Underlying())] =
+                std::string(quotaClassId->Underlying());
+        }
+    };
+    add(dynamicSpec->InputRowsThrottlerId, dynamicSpec->InputRowsThrottlerClassId);
+    add(dynamicSpec->InputBytesThrottlerId, dynamicSpec->InputBytesThrottlerClassId);
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TComputationBase::TComputationBase(
@@ -119,6 +136,7 @@ TComputationBase::TComputationBase(
     // TODO(mikari): move dynamic spec to ctor.
     RetryableClient_->Reconfigure(GetDynamicSpec()->RetryableRequest);
     TransactionManager_->Reconfigure(GetDynamicSpec()->RetryableRequest);
+    ThrottlerFactory_->SetQuotaClasses(ToFactoryQuotaClasses(GetDynamicSpec()));
 
     // Subscribe to reconfigure to update CurrentDynamic* fields and call ReconfigureCallbacks_.
     SubscribeOnReconfigure(BIND(
@@ -126,6 +144,7 @@ TComputationBase::TComputationBase(
             // RetryableClient and TransactionManager reconfiguration.
             RetryableClient_->Reconfigure(GetDynamicSpec()->RetryableRequest);
             TransactionManager_->Reconfigure(GetDynamicSpec()->RetryableRequest);
+            ThrottlerFactory_->SetQuotaClasses(ToFactoryQuotaClasses(GetDynamicSpec()));
             // Cheap when specs haven't changed — the factory diffs them.
             ThrottlerFactory_->Reconfigure(ToFactoryThrottlers(GetDynamicContext()->Throttlers));
         }),

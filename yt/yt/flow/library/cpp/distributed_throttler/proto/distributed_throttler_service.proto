@@ -8,6 +8,7 @@ message TReqRequestQuota
     required string client_id = 2;
     required int64 amount = 3;
     required uint64 timestamp = 4;
+    optional string quota_class_id = 5;
 }
 
 message TRspRequestQuota

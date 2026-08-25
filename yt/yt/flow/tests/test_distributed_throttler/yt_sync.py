@@ -4,11 +4,13 @@ from yt.yt_sync.core.constants import QUEUE_META_COLUMNS
 
 def run_yt_sync(cluster, folder):
     queues = {
-        "input_queue": {
+        "input_vip_queue": {
             "default": {
                 "$merge_presets": ["builtin:table_preset"],
                 "schema": [
                     {"name": "value", "type": "int64"},
+                    {"name": "source", "type": "string"},
+                    {"name": "event_time", "type": "int64"},
                     *QUEUE_META_COLUMNS,
                 ],
                 "clusters": {
@@ -21,11 +23,41 @@ def run_yt_sync(cluster, folder):
                 },
             },
         },
+        "input_regular_queue": {
+            "default": {
+                "$merge_presets": ["builtin:table_preset"],
+                "schema": [
+                    {"name": "value", "type": "int64"},
+                    {"name": "source", "type": "string"},
+                    {"name": "event_time", "type": "int64"},
+                    *QUEUE_META_COLUMNS,
+                ],
+                "clusters": {
+                    "_all_data_clusters": {"attributes": {"tablet_count": 1, "commit_ordering": "strong"}},
+                },
+            },
+        },
+        "input_bulk_queue": {
+            "default": {
+                "$merge_presets": ["builtin:table_preset"],
+                "schema": [
+                    {"name": "value", "type": "int64"},
+                    {"name": "source", "type": "string"},
+                    {"name": "event_time", "type": "int64"},
+                    *QUEUE_META_COLUMNS,
+                ],
+                "clusters": {
+                    "_all_data_clusters": {"attributes": {"tablet_count": 1, "commit_ordering": "strong"}},
+                },
+            },
+        },
         "output_queue": {
             "default": {
                 "$merge_presets": ["builtin:table_preset"],
                 "schema": [
                     {"name": "value", "type": "int64"},
+                    {"name": "source", "type": "string"},
+                    {"name": "event_time", "type": "int64"},
                     *QUEUE_META_COLUMNS,
                 ],
                 "clusters": {
@@ -41,10 +73,22 @@ def run_yt_sync(cluster, folder):
     }
 
     consumers = {
-        "consumer": {
+        "consumer_vip": {
             "default": {
                 "$merge_presets": ["builtin:consumer_preset"],
-                "in_stage_queues": {"input_queue": {"vital": True}},
+                "in_stage_queues": {"input_vip_queue": {"vital": True}},
+            },
+        },
+        "consumer_regular": {
+            "default": {
+                "$merge_presets": ["builtin:consumer_preset"],
+                "in_stage_queues": {"input_regular_queue": {"vital": True}},
+            },
+        },
+        "consumer_bulk": {
+            "default": {
+                "$merge_presets": ["builtin:consumer_preset"],
+                "in_stage_queues": {"input_bulk_queue": {"vital": True}},
             },
         },
     }

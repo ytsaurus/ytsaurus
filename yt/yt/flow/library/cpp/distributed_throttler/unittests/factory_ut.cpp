@@ -42,9 +42,9 @@ protected:
     {
         auto config = New<TDistributedThrottlerServiceConfig>();
         for (const auto& [name, limit] : throttlers) {
-            auto tc = New<TThroughputThrottlerConfig>();
-            tc->Limit = limit;
-            config->Throttlers[name] = tc;
+            auto bucketConfig = New<TDistributedThrottlerBucketConfig>();
+            bucketConfig->Throttler->Limit = limit;
+            config->Throttlers[name] = bucketConfig;
         }
         Service_ = CreateDistributedThrottlerService(
             std::move(config),
@@ -114,6 +114,72 @@ TEST_F(TDistributedThrottlerFactoryTest, TryGetClientReturnsNullForUnknownName)
     EXPECT_FALSE(factory->TryGetClient(TThrottlerId("nonexistent")));
 }
 
+TEST_F(TDistributedThrottlerFactoryTest, SetQuotaClassesKeepsHandleStable)
+{
+    StartServer({{"api", 1000}});
+    auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
+
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
+    factory->SetQuotaClasses({{TThrottlerId("api"), "vip"}});
+
+    EXPECT_EQ(handle.Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
+    EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, EmptyQuotaClassesUseDefault)
+{
+    StartServer({{"api", 1000}});
+    auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
+    factory->SetQuotaClasses({});
+
+    EXPECT_TRUE(WaitFor(factory->GetClientOrThrow(TThrottlerId("api"))->Throttle(1)).IsOK());
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, ClassedThrottlerHasOneHandlePerId)
+{
+    // Automatic input throttling and user code both reach a throttler through
+    // GetClientOrThrow, so a configured class covers every request to that id;
+    // there is no separate class-free handle for manual use.
+    StartServer({{"api", 1000}});
+    auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
+    factory->SetQuotaClasses({{TThrottlerId("api"), "vip"}});
+
+    auto first = factory->GetClientOrThrow(TThrottlerId("api"));
+    auto second = factory->GetClientOrThrow(TThrottlerId("api"));
+    EXPECT_EQ(first.Get(), second.Get());
+    EXPECT_TRUE(WaitFor(second->Throttle(1)).IsOK());
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, QuotaClassAppliesOnlyToItsThrottler)
+{
+    // A throttler absent from the map must not inherit another's class: that
+    // was the whole point of scoping classes per throttler.
+    StartServer({{"classed", 1000}, {"plain", 1000}});
+    auto factory = MakeFactory({
+        {TThrottlerId("classed"), MakeSpec(1000.0)},
+        {TThrottlerId("plain"), MakeSpec(1000.0)},
+    });
+    factory->SetQuotaClasses({{TThrottlerId("classed"), "vip"}});
+
+    EXPECT_TRUE(WaitFor(factory->GetClientOrThrow(TThrottlerId("classed"))->Throttle(1)).IsOK());
+    EXPECT_TRUE(WaitFor(factory->GetClientOrThrow(TThrottlerId("plain"))->Throttle(1)).IsOK());
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, QuotaClassSurvivesReconfigure)
+{
+    // The class holder outlives client rebuilds, so a class set before a
+    // Reconfigure still reaches the freshly built client.
+    StartServer({{"api", 1000}});
+    auto factory = MakeFactory({{TThrottlerId("api"), MakeSpec(1000.0)}});
+    factory->SetQuotaClasses({{TThrottlerId("api"), "vip"}});
+
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
+    factory->Reconfigure({{TThrottlerId("api"), MakeSpec(500.0, TDuration::Seconds(2))}});
+
+    EXPECT_EQ(handle.Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
+    EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
+}
+
 TEST_F(TDistributedThrottlerFactoryTest, GetClientOrThrowThrowsForUnknownName)
 {
     StartServer({{"api", 1000}});
@@ -150,6 +216,27 @@ TEST_F(TDistributedThrottlerFactoryTest, HandleSurvivesReconfigureWithUnchangedS
     // New shared pointer carrying an equal spec — handle and underlying must
     // both stay (no rebuild).
     factory->Reconfigure({{TThrottlerId("api"), MakeSpec(1000.0)}});
+
+    EXPECT_EQ(handle.Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
+    EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
+}
+
+TEST_F(TDistributedThrottlerFactoryTest, ServerOnlySpecChangeKeepsHandleWorking)
+{
+    StartServer({{"api", 1000}});
+    auto initialSpec = MakeSpec(1000.0);
+    initialSpec->Classes[NYT::NFlow::TQuotaClassId("vip")] = New<TDynamicThrottlerClassSpec>();
+    initialSpec->Classes.at(NYT::NFlow::TQuotaClassId("vip"))->Weight = 5.0;
+    initialSpec->MaxGrantAmount = 10;
+    auto factory = MakeFactory({{TThrottlerId("api"), initialSpec}});
+
+    auto handle = factory->GetClientOrThrow(TThrottlerId("api"));
+    EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());
+
+    auto updatedSpec = CloneYsonStruct(initialSpec);
+    updatedSpec->Classes.at(NYT::NFlow::TQuotaClassId("vip"))->Weight = 1.0;
+    updatedSpec->MaxGrantAmount = 1;
+    factory->Reconfigure({{TThrottlerId("api"), updatedSpec}});
 
     EXPECT_EQ(handle.Get(), factory->GetClientOrThrow(TThrottlerId("api")).Get());
     EXPECT_TRUE(WaitFor(handle->Throttle(1)).IsOK());

@@ -85,6 +85,10 @@
 Id троттлера для ограничения скорости обработки сообщений. Если задан, перед каждой итерацией `Computation` ждёт квоту, равную числу сообщений во входном батче. Id должен присутствовать в `dynamic_spec/throttlers`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `input_bytes_throttler_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>>`
 Аналогично `input_rows_throttler_id`, но квотируется суммарный `byte_size` сообщений батча &mdash; системный размер их сериализованного представления. ||
+|| `input_rows_throttler_class_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>>`
+Класс квоты для троттлера из `input_rows_throttler_id`. Класс должен быть объявлен в этом троттлере; `default` выбирает зарезервированный класс с весом `1.0`. Требует заданного `input_rows_throttler_id`. ||
+|| `input_bytes_throttler_class_id` | **Тип**: `std::optional<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TQuotaClassIdTag>>`
+Класс квоты для троттлера из `input_bytes_throttler_id`. Класс должен быть объявлен в этом троттлере; `default` выбирает зарезервированный класс с весом `1.0`. Требует заданного `input_bytes_throttler_id`. ||
 || `skip_if_expression` | **Тип**: `std::optional<std::string>`
 YTQL-предикат, по которому входные сообщения отфильтровываются (пропускаются) ещё до обработки `Computation`. Сообщение пропускается (дропается), если предикат вычисляется в булево `true`.
 

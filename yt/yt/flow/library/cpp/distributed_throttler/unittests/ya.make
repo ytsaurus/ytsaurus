@@ -6,6 +6,7 @@ SRCS(
     bucket_ut.cpp
     client_server_ut.cpp
     factory_ut.cpp
+    weighted_fair_queue_scheduler_ut.cpp
 )
 
 PEERDIR(
