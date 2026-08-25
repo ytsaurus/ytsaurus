@@ -6,7 +6,37 @@
 #|
 || **Параметр** | **Описание** ||
 || `logging` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NLogging::TLogManagerConfig](./all_yson_structs#NYT_NLogging_TLogManagerConfig)`>`
-**Значение по умолчанию**: `{'high_backlog_watermark': 100000, 'low_backlog_watermark': 100000, 'min_disk_space': 0, 'rules': [{'exclude_categories': [], 'max_level': 'maximum', 'min_level': 'info', 'writers': ['Stderr']}], 'writers': {'Stderr': {'common_fields': {}, 'enable_host_field': false, 'enable_native_tags': false, 'enable_source_location': false, 'enable_system_fields': true, 'format': 'plain_text', 'type': 'stderr', 'yson_format': 'text'}}}`
+**Значение по умолчанию**:
+
+```yson
+{
+    "high_backlog_watermark" = 100000;
+    "low_backlog_watermark" = 100000;
+    "min_disk_space" = 0;
+    "rules" = [
+        {
+            "exclude_categories" = [];
+            "max_level" = "maximum";
+            "min_level" = "info";
+            "writers" = [
+                "Stderr";
+            ];
+        };
+    ];
+    "writers" = {
+        "Stderr" = {
+            "common_fields" = {};
+            "enable_host_field" = %false;
+            "enable_native_tags" = %false;
+            "enable_source_location" = %false;
+            "enable_system_fields" = %true;
+            "format" = "plain_text";
+            "type" = "stderr";
+            "yson_format" = "text";
+        };
+    };
+}
+```
 Настройки логирования. ||
 || `jaeger` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NTracing::TJaegerTracerConfig](./all_yson_structs#NYT_NTracing_TJaegerTracerConfig)`>`
 **Значение по умолчанию**: `{}`

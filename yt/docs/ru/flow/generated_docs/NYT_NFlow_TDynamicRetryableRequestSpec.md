@@ -12,7 +12,17 @@
 **Значение по умолчанию**: `5m`
  ||
 || `backoff` | **Тип**: `NYT::TExponentialBackoffOptions`
-**Значение по умолчанию**: `{'backoff_jitter': 0.1, 'backoff_multiplier': 2.0, 'invocation_count': 30, 'max_backoff': 60000, 'min_backoff': 1000}`
+**Значение по умолчанию**:
+
+```yson
+{
+    "backoff_jitter" = 0.1;
+    "backoff_multiplier" = 2.;
+    "invocation_count" = 30;
+    "max_backoff" = 60000;
+    "min_backoff" = 1000;
+}
+```
  ||
 || `lease_check_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1m`

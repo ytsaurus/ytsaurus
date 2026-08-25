@@ -36,7 +36,17 @@ Source: [yt/yt/client/chaos_client/config.h]({{source-root}}/yt/yt/client/chaos_
 **Default value**: `false`
  ||
 || `retry_backoff` | **Type**: `NYT::TExponentialBackoffOptions`
-**Default value**: `{'backoff_jitter': 0.1, 'backoff_multiplier': 1.5, 'invocation_count': 10, 'max_backoff': 5000, 'min_backoff': 1000}`
+**Default value**:
+
+```yson
+{
+    "backoff_jitter" = 0.1;
+    "backoff_multiplier" = 1.5;
+    "invocation_count" = 10;
+    "max_backoff" = 5000;
+    "min_backoff" = 1000;
+}
+```
  ||
 || `retry_timeout` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||

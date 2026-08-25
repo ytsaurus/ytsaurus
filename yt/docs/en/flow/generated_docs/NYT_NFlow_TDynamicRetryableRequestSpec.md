@@ -12,7 +12,17 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 **Default value**: `5m`
  ||
 || `backoff` | **Type**: `NYT::TExponentialBackoffOptions`
-**Default value**: `{'backoff_jitter': 0.1, 'backoff_multiplier': 2.0, 'invocation_count': 30, 'max_backoff': 60000, 'min_backoff': 1000}`
+**Default value**:
+
+```yson
+{
+    "backoff_jitter" = 0.1;
+    "backoff_multiplier" = 2.;
+    "invocation_count" = 30;
+    "max_backoff" = 60000;
+    "min_backoff" = 1000;
+}
+```
  ||
 || `lease_check_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1m`
