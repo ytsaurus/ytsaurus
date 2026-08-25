@@ -108,7 +108,7 @@ bool TOperationControllerImpl::RevokeAgent()
     IncarnationId_ = {};
     Agent_.Reset();
 
-    YT_LOG_INFO("Agent revoked for operation");
+    YT_TLOG_INFO("Agent revoked for operation");
 
     return true;
 }
@@ -354,10 +354,10 @@ TFuture<void> TOperationControllerImpl::Terminate(EOperationState finalState)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_INFO("Terminating operation controller");
+    YT_TLOG_INFO("Terminating operation controller");
 
     if (!IncarnationId_) {
-        YT_LOG_INFO("Operation has no agent assigned; terminate request ignored");
+        YT_TLOG_INFO("Operation has no agent assigned; terminate request ignored");
         return OKFuture;
     }
 
@@ -392,9 +392,9 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
     // Called synchronously just after assigning agent.
     YT_VERIFY(agent);
 
-    YT_LOG_DEBUG("Registering operation at agent (AgentId: %v, OperationId: %v)",
-        agent->GetId(),
-        operation->GetId());
+    YT_TLOG_DEBUG("Registering operation at agent")
+        .With("AgentId", agent->GetId())
+        .With("OperationId", operation->GetId());
 
     TControllerAgentServiceProxy proxy(agent->GetChannel());
     auto req = proxy.RegisterOperation();
@@ -427,11 +427,11 @@ TFuture<TOperationControllerUnregisterResult> TOperationControllerImpl::Unregist
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!IncarnationId_) {
-        YT_LOG_INFO("Operation has no agent assigned; unregister request ignored");
+        YT_TLOG_INFO("Operation has no agent assigned; unregister request ignored");
         return MakeFuture<TOperationControllerUnregisterResult>({});
     }
 
-    YT_LOG_INFO("Unregistering operation controller");
+    YT_TLOG_INFO("Unregistering operation controller");
 
     auto req = ControllerAgentTrackerProxy_->UnregisterOperation();
     ToProto(req->mutable_operation_id(), OperationId_);
@@ -501,7 +501,7 @@ void TOperationControllerImpl::Suspend()
         return;
     }
 
-    YT_LOG_DEBUG("Suspend operation event enqueued");
+    YT_TLOG_DEBUG("Suspend operation event enqueued");
 
     EnqueueOperationEvent({
         .EventType = ESchedulerToAgentOperationEventType::SuspendOperation,
@@ -517,7 +517,7 @@ void TOperationControllerImpl::Resume()
         return;
     }
 
-    YT_LOG_DEBUG("Resume operation event enqueued");
+    YT_TLOG_DEBUG("Resume operation event enqueued");
 
     EnqueueOperationEvent({
         .EventType = ESchedulerToAgentOperationEventType::ResumeOperation,
@@ -604,9 +604,10 @@ void TOperationControllerImpl::OnInitializationFinished(const TErrorOr<TOperatio
     YT_VERIFY(PendingInitializeResult_);
 
     if (resultOrError.IsOK()) {
-        YT_LOG_DEBUG("Successful initialization result received");
+        YT_TLOG_DEBUG("Successful initialization result received");
     } else {
-        YT_LOG_DEBUG(resultOrError, "Unsuccessful initialization result received");
+        YT_TLOG_DEBUG("Unsuccessful initialization result received")
+            .With(resultOrError);
         ProcessControllerAgentError(resultOrError);
     }
 
@@ -618,9 +619,10 @@ void TOperationControllerImpl::OnPreparationFinished(const TErrorOr<TOperationCo
     YT_VERIFY(PendingPrepareResult_);
 
     if (resultOrError.IsOK()) {
-        YT_LOG_DEBUG("Successful preparation result received");
+        YT_TLOG_DEBUG("Successful preparation result received");
     } else {
-        YT_LOG_DEBUG(resultOrError, "Unsuccessful preparation result received");
+        YT_TLOG_DEBUG("Unsuccessful preparation result received")
+            .With(resultOrError);
         ProcessControllerAgentError(resultOrError);
     }
 
@@ -638,14 +640,13 @@ void TOperationControllerImpl::OnMaterializationFinished(const TErrorOr<TOperati
         ControllerRuntimeData_->GroupedNeededResources() = result.InitialGroupedNeededResources;
         InitialGroupedNeededResources_ = result.InitialGroupedNeededResources;
 
-        YT_LOG_DEBUG(
-            "Successful materialization result received "
-            "(Suspend: %v, InitialNeededResources: %v, InitialGroupedNeededResources: %v)",
-            result.Suspend,
-            FormatResources(result.InitialNeededResources),
-            InitialGroupedNeededResources_);
+        YT_TLOG_DEBUG("Successful materialization result received")
+            .With("Suspend", result.Suspend)
+            .With("InitialNeededResources", FormatResources(result.InitialNeededResources))
+            .With("InitialGroupedNeededResources", InitialGroupedNeededResources_);
     } else {
-        YT_LOG_DEBUG(resultOrError, "Unsuccessful materialization result received");
+        YT_TLOG_DEBUG("Unsuccessful materialization result received")
+            .With(resultOrError);
         ProcessControllerAgentError(resultOrError);
     }
 
@@ -663,17 +664,15 @@ void TOperationControllerImpl::OnRevivalFinished(const TErrorOr<TOperationContro
         ControllerRuntimeData_->GroupedNeededResources() = result.GroupedNeededResources;
         InitialGroupedNeededResources_ = result.InitialGroupedNeededResources;
 
-        YT_LOG_DEBUG(
-            "Successful revival result received "
-            "(RevivedFromSnapshot: %v, RevivedAllocationCount: %v, RevivedBannedTreeIds: %v, "
-            "NeededResources: %v, InitialGroupedNeededResources: %v)",
-            result.RevivedFromSnapshot,
-            result.RevivedAllocations.size(),
-            result.RevivedBannedTreeIds,
-            FormatResources(result.NeededResources),
-            InitialGroupedNeededResources_);
+        YT_TLOG_DEBUG("Successful revival result received")
+            .With("RevivedFromSnapshot", result.RevivedFromSnapshot)
+            .With("RevivedAllocationCount", result.RevivedAllocations.size())
+            .With("RevivedBannedTreeIds", result.RevivedBannedTreeIds)
+            .With("NeededResources", FormatResources(result.NeededResources))
+            .With("InitialGroupedNeededResources", InitialGroupedNeededResources_);
     } else {
-        YT_LOG_DEBUG(resultOrError, "Unsuccessful revival result received");
+        YT_TLOG_DEBUG("Unsuccessful revival result received")
+            .With(resultOrError);
         ProcessControllerAgentError(resultOrError);
     }
 
@@ -685,9 +684,10 @@ void TOperationControllerImpl::OnCommitFinished(const TErrorOr<TOperationControl
     YT_VERIFY(PendingCommitResult_);
 
     if (resultOrError.IsOK()) {
-        YT_LOG_DEBUG("Successful commit result received");
+        YT_TLOG_DEBUG("Successful commit result received");
     } else {
-        YT_LOG_DEBUG(resultOrError, "Unsuccessful commit result received");
+        YT_TLOG_DEBUG("Unsuccessful commit result received")
+            .With(resultOrError);
         ProcessControllerAgentError(resultOrError);
     }
 
@@ -730,9 +730,8 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const auto& nodeShard = nodeManager->GetNodeShards()[shardId];
 
     if (!nodeShard->IsOperationRegistered(OperationId_)) {
-        YT_LOG_DEBUG(
-            "Allocation schedule request cannot be served since operation is not registered at node shard (AllocationId: %v)",
-            allocationId);
+        YT_TLOG_DEBUG("Allocation schedule request cannot be served since operation is not registered at node shard")
+            .With("AllocationId", allocationId);
 
         auto result = New<TControllerScheduleAllocationResult>();
         result->RecordFail(NControllerAgent::EScheduleFailReason::OperationNotRunning);
@@ -740,9 +739,8 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     }
 
     if (nodeShard->AreNewAllocationsForbiddenForOperation(OperationId_)) {
-        YT_LOG_DEBUG(
-            "Allocation schedule request cannot be served since new allocations are forbidden for operation (AllocationId: %v)",
-            allocationId);
+        YT_TLOG_DEBUG("Allocation schedule request cannot be served since new allocations are forbidden for operation")
+            .With("AllocationId", allocationId);
 
         auto result = New<TControllerScheduleAllocationResult>();
         result->RecordFail(NControllerAgent::EScheduleFailReason::NewJobsForbidden);
@@ -767,9 +765,8 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
         if (!IncarnationId_) {
             guard.Release();
 
-            YT_LOG_DEBUG(
-                "Allocation schedule request cannot be served since no agent is assigned (AllocationId: %v)",
-                allocationId);
+            YT_TLOG_DEBUG("Allocation schedule request cannot be served since no agent is assigned")
+                .With("AllocationId", allocationId);
 
             auto result = New<TControllerScheduleAllocationResult>();
             result->RecordFail(EScheduleFailReason::NoAgentAssigned);
@@ -781,10 +778,9 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
         ScheduleAllocationRequestsOutbox_->Enqueue(std::move(request));
     }
 
-    YT_LOG_TRACE(
-        "Allocation schedule request enqueued (AllocationId: %v, NodeAddress: %v)",
-        allocationId,
-        NNodeTrackerClient::GetDefaultAddress(context->GetNodeDescriptor()->Addresses));
+    YT_TLOG_TRACE("Allocation schedule request enqueued")
+        .With("AllocationId", allocationId)
+        .With("NodeAddress", NNodeTrackerClient::GetDefaultAddress(context->GetNodeDescriptor()->Addresses));
 
     return nodeShard->BeginScheduleAllocation(incarnationId, OperationId_, allocationId);
 }
@@ -798,7 +794,7 @@ void TOperationControllerImpl::UpdateGroupedNeededResources()
         .OperationId = OperationId_,
     });
 
-    YT_LOG_DEBUG("Grouped needed resources update request enqueued");
+    YT_TLOG_DEBUG("Grouped needed resources update request enqueued");
 }
 
 TCompositeNeededResources TOperationControllerImpl::GetNeededResources() const
@@ -833,11 +829,10 @@ bool TOperationControllerImpl::ShouldSkipAllocationAbortEvent(
 {
     auto currentEpoch = Epoch_.load();
     if (allocationEpoch != currentEpoch) {
-        YT_LOG_DEBUG(
-            "Allocation abort notification skipped since controller epoch mismatch (AllocationId: %v, AllocationEpoch: %v, CurrentEpoch: %v)",
-            allocationId,
-            allocationEpoch,
-            currentEpoch);
+        YT_TLOG_DEBUG("Allocation abort notification skipped since controller epoch mismatch")
+            .With("AllocationId", allocationId)
+            .With("AllocationEpoch", allocationEpoch)
+            .With("CurrentEpoch", currentEpoch);
         return true;
     }
     return false;
@@ -890,11 +885,11 @@ TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
     }
     auto method = request->GetMethod();
 
-    YT_LOG_DEBUG("Sending request to agent (AgentId: %v, IncarnationId: %v, OperationId: %v, Method: %v)",
-        agent->GetId(),
-        agent->GetIncarnationId(),
-        OperationId_,
-        method);
+    YT_TLOG_DEBUG("Sending request to agent")
+        .With("AgentId", agent->GetId())
+        .With("IncarnationId", agent->GetIncarnationId())
+        .With("OperationId", OperationId_)
+        .With("Method", method);
 
     ToProto(request->mutable_incarnation_id(), agent->GetIncarnationId());
 
@@ -905,10 +900,11 @@ TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
         Logger=Logger,
         agentTracker=Bootstrap_->GetControllerAgentTracker()
     ] (const TErrorOr<TIntrusivePtr<TResponse>>& rspOrError) {
-        YT_LOG_DEBUG(rspOrError, "Agent response received (AgentId: %v, OperationId: %v, Method: %v)",
-            agent->GetId(),
-            operationId,
-            method);
+        YT_TLOG_DEBUG("Agent response received")
+            .With("AgentId", agent->GetId())
+            .With("OperationId", operationId)
+            .With("Method", method)
+            .With(rspOrError);
         if (IsAgentFailureError(rspOrError) || IsAgentDisconnectionError(rspOrError)) {
             agentTracker->HandleAgentFailure(agent, rspOrError);
             // Unregistration should happen before actions that subscribed on this result.

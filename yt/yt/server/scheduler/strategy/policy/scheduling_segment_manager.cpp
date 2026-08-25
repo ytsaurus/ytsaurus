@@ -196,17 +196,14 @@ TError TSchedulingSegmentManager::InitOrUpdateOperationSchedulingSegment(
     }();
 
     if (operationState->SchedulingSegment != segment) {
-        YT_LOG_INFO(
-            "Setting new scheduling segment for operation ("
-            "Segment: %v, Mode: %v, AllowOnlyGangOperationsInLargeSegment: %v, IsGang: %v, "
-            "InitialMinNeededResources: %v, SpecifiedSegment: %v, OperationId: %v)",
-            segment,
-            Config_->Mode,
-            Config_->AllowOnlyGangOperationsInLargeSegment,
-            operationState->IsGang,
-            operationState->AggregatedInitialMinNeededResources,
-            operationState->Spec->SchedulingSegment,
-            operationId);
+        YT_TLOG_INFO("Setting new scheduling segment for operation")
+            .With("Segment", segment)
+            .With("Mode", Config_->Mode)
+            .With("AllowOnlyGangOperationsInLargeSegment", Config_->AllowOnlyGangOperationsInLargeSegment)
+            .With("IsGang", operationState->IsGang)
+            .With("InitialMinNeededResources", operationState->AggregatedInitialMinNeededResources)
+            .With("SpecifiedSegment", operationState->Spec->SchedulingSegment)
+            .With("OperationId", operationId);
 
         operationState->SchedulingSegment = segment;
         operationState->SpecifiedSchedulingSegmentModules = operationState->Spec->SchedulingModules;
@@ -298,16 +295,11 @@ void TSchedulingSegmentManager::PreemptNonPriorityOperationsFromModuleForOperati
 
         ResetOperationModule(operationElement, context);
 
-        YT_LOG_DEBUG(
-            "Operation preempted from module "
-            "(OperationId: %v, "
-            "Module: %v, "
-            "RemainingCapacityPerModule: %v, "
-            "PriorityOperationId: %v)",
-            operationElement->GetOperationId(),
-            module,
-            context->RemainingCapacityPerModule,
-            priorityOperationId);
+        YT_TLOG_DEBUG("Operation preempted from module")
+            .With("OperationId", operationElement->GetOperationId())
+            .With("Module", module)
+            .With("RemainingCapacityPerModule", context->RemainingCapacityPerModule)
+            .With("PriorityOperationId", priorityOperationId);
     }
 }
 
@@ -411,20 +403,16 @@ std::optional<TSchedulingSegmentManager::TOperationsToPreempt> TSchedulingSegmen
     }
 
     if (!bestOperationsToPreempt) {
-        YT_LOG_INFO(
-            "Failed to find a suitable operation set in any module to preempt for a priority operation "
-            "(OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Failed to find a suitable operation set in any module to preempt for a priority operation")
+            .With("OperationId", operationId);
 
         return {};
     }
 
-    YT_LOG_INFO(
-        "Found operations to preempt for a priority operation "
-        "(OperationId: %v, BestOperationsToPreemptSize: %v, TotalPenalty: %v)",
-        operationId,
-        bestOperationsToPreempt->Operations.size(),
-        bestOperationsToPreempt->TotalPenalty);
+    YT_TLOG_INFO("Found operations to preempt for a priority operation")
+        .With("OperationId", operationId)
+        .With("BestOperationsToPreemptSize", bestOperationsToPreempt->Operations.size())
+        .With("TotalPenalty", bestOperationsToPreempt->TotalPenalty);
 
     return bestOperationsToPreempt;
 }
@@ -495,13 +483,12 @@ void TSchedulingSegmentManager::CollectCurrentResourceAmountPerSegment(TUpdateSc
     context->RemainingCapacityPerModule = context->TotalCapacityPerModule;
     auto snapshotTotalKeyResourceLimit = GetResource(context->TreeSnapshot->ResourceLimits(), keyResource);
 
-    YT_LOG_WARNING_IF(context->NodesTotalKeyResourceLimit != snapshotTotalKeyResourceLimit,
-        "Total key resource limit from node states differs from the tree snapshot, "
-        "operation scheduling segments distribution might be unfair "
-        "(NodesTotalKeyResourceLimit: %v, SnapshotTotalKeyResourceLimit: %v, KeyResource: %v)",
-        context->NodesTotalKeyResourceLimit,
-        snapshotTotalKeyResourceLimit,
-        keyResource);
+    YT_TLOG_WARNING_IF(
+        context->NodesTotalKeyResourceLimit != snapshotTotalKeyResourceLimit,
+        "Total key resource limit from node states differs from the tree snapshot, operation scheduling segments distribution might be unfair")
+        .With("NodesTotalKeyResourceLimit", context->NodesTotalKeyResourceLimit)
+        .With("SnapshotTotalKeyResourceLimit", snapshotTotalKeyResourceLimit)
+        .With("KeyResource", keyResource);
 }
 
 void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const
@@ -594,17 +581,14 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
             }
 
             if (*failingToScheduleAtModuleSince + Config_->ModuleReconsiderationTimeout < context->Now) {
-                YT_LOG_INFO(
-                    "Operation has failed to schedule all allocations for too long, revoking its module assignment "
-                    "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v, "
-                    "InitializationDeadline: %v)",
-                    operationId,
-                    segment,
-                    schedulingSegmentModule,
-                    element->ResourceUsageAtUpdate(),
-                    element->ResourceDemand(),
-                    Config_->ModuleReconsiderationTimeout,
-                    InitializationDeadline_);
+                YT_TLOG_INFO("Operation has failed to schedule all allocations for too long, revoking its module assignment")
+                    .With("OperationId", operationId)
+                    .With("SchedulingSegment", segment)
+                    .With("PreviousModule", schedulingSegmentModule)
+                    .With("ResourceUsage", element->ResourceUsageAtUpdate())
+                    .With("ResourceDemand", element->ResourceDemand())
+                    .With("Timeout", Config_->ModuleReconsiderationTimeout)
+                    .With("InitializationDeadline", InitializationDeadline_);
 
                 ResetOperationModule(element, context);
                 continue;
@@ -616,16 +600,13 @@ void TSchedulingSegmentManager::ResetOperationModuleAssignments(TUpdateSchedulin
         bool hasZeroUsageAndFairShare = (element->ResourceUsageAtUpdate() == TJobResources()) &&
             Dominates(TResourceVector::Epsilon(), element->Attributes().FairShare.Total);
         if (hasZeroUsageAndFairShare && Config_->EnableModuleResetOnZeroFairShareAndUsage) {
-            YT_LOG_DEBUG(
-                "Revoking operation module assignment because it has zero fair share and usage "
-                "(OperationId: %v, SchedulingSegment: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, "
-                "InitializationDeadline: %v)",
-                operationId,
-                segment,
-                schedulingSegmentModule,
-                element->ResourceUsageAtUpdate(),
-                element->ResourceDemand(),
-                InitializationDeadline_);
+            YT_TLOG_DEBUG("Revoking operation module assignment because it has zero fair share and usage")
+                .With("OperationId", operationId)
+                .With("SchedulingSegment", segment)
+                .With("PreviousModule", schedulingSegmentModule)
+                .With("ResourceUsage", element->ResourceUsageAtUpdate())
+                .With("ResourceDemand", element->ResourceDemand())
+                .With("InitializationDeadline", InitializationDeadline_);
 
             ResetOperationModule(element, context);
         }
@@ -752,16 +733,13 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
                 .Item("remaining_capacity_per_module").Value(context->RemainingCapacityPerModule)
                 .Item("total_capacity_per_module").Value(context->TotalCapacityPerModule);
 
-            YT_LOG_INFO(
-                "Failed to find a suitable module for operation "
-                "(AvailableModules: %v, SpecifiedModules: %v, OperationDemand: %v, "
-                "RemainingCapacityPerModule: %v, TotalCapacityPerModule: %v, OperationId: %v)",
-                Config_->GetModules(),
-                operation->SpecifiedSchedulingSegmentModules,
-                operationDemand,
-                context->RemainingCapacityPerModule,
-                context->TotalCapacityPerModule,
-                operationId);
+            YT_TLOG_INFO("Failed to find a suitable module for operation")
+                .With("AvailableModules", Config_->GetModules())
+                .With("SpecifiedModules", operation->SpecifiedSchedulingSegmentModules)
+                .With("OperationDemand", operationDemand)
+                .With("RemainingCapacityPerModule", context->RemainingCapacityPerModule)
+                .With("TotalCapacityPerModule", context->TotalCapacityPerModule)
+                .With("OperationId", operationId);
 
             if (!operation->FailingToAssignToModuleSince) {
                 operation->FailingToAssignToModuleSince = context->Now;
@@ -788,19 +766,15 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
             .Item("total_capacity_per_module").Value(context->TotalCapacityPerModule)
             .Item("network_priority").Value(operation->NetworkPriority);
 
-        YT_LOG_INFO(
-            "Assigned operation to a new scheduling segment module "
-            "(SchedulingSegment: %v, Module: %v, SpecifiedModules: %v, "
-            "OperationDemand: %v, RemainingCapacityPerModule: %v, TotalCapacityPerModule: %v, "
-            "OperationNetworkPriority: %v, OperationId: %v)",
-            segment,
-            operation->SchedulingSegmentModule,
-            operation->SpecifiedSchedulingSegmentModules,
-            operationDemand,
-            context->RemainingCapacityPerModule,
-            context->TotalCapacityPerModule,
-            operation->NetworkPriority,
-            operationId);
+        YT_TLOG_INFO("Assigned operation to a new scheduling segment module")
+            .With("SchedulingSegment", segment)
+            .With("Module", operation->SchedulingSegmentModule)
+            .With("SpecifiedModules", operation->SpecifiedSchedulingSegmentModules)
+            .With("OperationDemand", operationDemand)
+            .With("RemainingCapacityPerModule", context->RemainingCapacityPerModule)
+            .With("TotalCapacityPerModule", context->TotalCapacityPerModule)
+            .With("OperationNetworkPriority", operation->NetworkPriority)
+            .With("OperationId", operationId);
     }
 }
 
@@ -883,14 +857,12 @@ void TSchedulingSegmentManager::CheckAndRebalanceSegments(TUpdateSchedulingSegme
             ImbalancedSince_ = context->Now;
         }
 
-        YT_LOG_DEBUG(
-            "Found scheduling segments imbalance in tree "
-            "(SegmentUnsatisfied: %v, SegmentOversatisfied: %v, ImbalancedFor: %v, Timeout: %v, InitializationDeadline: %v)",
-            segmentUnsatisfied,
-            segmentOversatisfied,
-            context->Now - *ImbalancedSince_,
-            Config_->UnsatisfiedSegmentsRebalancingTimeout,
-            InitializationDeadline_);
+        YT_TLOG_DEBUG("Found scheduling segments imbalance in tree")
+            .With("SegmentUnsatisfied", segmentUnsatisfied)
+            .With("SegmentOversatisfied", segmentOversatisfied)
+            .With("ImbalancedFor", context->Now - *ImbalancedSince_)
+            .With("Timeout", Config_->UnsatisfiedSegmentsRebalancingTimeout)
+            .With("InitializationDeadline", InitializationDeadline_);
 
         auto deadline = std::max(
             *ImbalancedSince_ + Config_->UnsatisfiedSegmentsRebalancingTimeout,
@@ -942,7 +914,7 @@ bool TSchedulingSegmentManager::CheckSegmentBalance(
 
 void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsContext* context) const
 {
-    YT_LOG_DEBUG("Rebalancing node scheduling segments in tree");
+    YT_TLOG_DEBUG("Rebalancing node scheduling segments in tree");
 
     auto keyResource = GetSegmentBalancingKeyResource(Config_->Mode);
 
@@ -968,12 +940,12 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
             auto resourceAmountOnNode = GetNodeResourceLimit(nextAvailableNode, keyResource);
             auto oldSegment = nextAvailableNode->SchedulingSegment;
 
-            YT_LOG_DEBUG("Moving node to a new scheduling segment (Address: %v, OldSegment: %v, NewSegment: %v, Module: %v, Penalty: %v)",
-                NNodeTrackerClient::GetDefaultAddress(nextAvailableNode->Descriptor->Addresses),
-                nextAvailableNode->SchedulingSegment,
-                newSegment,
-                GetNodeModule(nextAvailableNode),
-                nextAvailableNodeMovePenalty);
+            YT_TLOG_DEBUG("Moving node to a new scheduling segment")
+                .With("Address", NNodeTrackerClient::GetDefaultAddress(nextAvailableNode->Descriptor->Addresses))
+                .With("OldSegment", nextAvailableNode->SchedulingSegment)
+                .With("NewSegment", newSegment)
+                .With("Module", GetNodeModule(nextAvailableNode))
+                .With("Penalty", nextAvailableNodeMovePenalty);
 
             SetNodeSegment(nextAvailableNode, newSegment, context);
             movedNodes.emplace_back(
@@ -1083,15 +1055,12 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
         segmentUnsatisfied,
         segmentOversatisfied);
 
-    YT_LOG_DEBUG(
-        "Finished node scheduling segments rebalancing "
-        "(TotalMovedNodeCount: %v, AddedNodeCountPerSegment: %v, RemovedNodeCountPerSegment: %v, "
-        "NewResourceAmountPerSegment: %v, TotalPenalty: %v)",
-        movedNodes.size(),
-        addedNodeCountPerSegment,
-        removedNodeCountPerSegment,
-        context->CurrentResourceAmountPerSegment,
-        totalPenalty);
+    YT_TLOG_DEBUG("Finished node scheduling segments rebalancing")
+        .With("TotalMovedNodeCount", movedNodes.size())
+        .With("AddedNodeCountPerSegment", addedNodeCountPerSegment)
+        .With("RemovedNodeCountPerSegment", removedNodeCountPerSegment)
+        .With("NewResourceAmountPerSegment", context->CurrentResourceAmountPerSegment)
+        .With("TotalPenalty", totalPenalty);
 }
 
 void TSchedulingSegmentManager::GetMovableNodes(
@@ -1217,22 +1186,18 @@ void TSchedulingSegmentManager::GetMovableNodes(
         for (auto nodeId : sortedNodeIds) {
             const auto& node = GetOrCrash(context->NodeStates, nodeId);
 
-            YT_LOG_DEBUG(
-                "Considering node for scheduling segment rebalancing "
-                "(NodeId: %v, Address: %v, Segment: %v, SpecifiedSegment: %v, Module: %v, MovePenalty: %v, "
-                "RunningAllocationIds: %v, RunningAllocationStatistics: %v, LastRunningAllocationStatisticsUpdateTime: %v, "
-                "MovableNodeIndex: %v, AggressivelyMovableNodeIndex: %v)",
-                nodeId,
-                NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses),
-                node->SchedulingSegment,
-                node->SpecifiedSchedulingSegment,
-                GetNodeModule(node),
-                GetMovePenaltyForNode(node, Config_->Mode),
-                GetKeys(node->RunningAllocations),
-                node->RunningAllocationStatistics,
-                CpuInstantToInstant(node->LastRunningAllocationStatisticsUpdateTime.value_or(0)),
-                getNodeMovableIndex(nodeId),
-                getNodeAggressivelyMovableIndex(nodeId));
+            YT_TLOG_DEBUG("Considering node for scheduling segment rebalancing")
+                .With("NodeId", nodeId)
+                .With("Address", NNodeTrackerClient::GetDefaultAddress(node->Descriptor->Addresses))
+                .With("Segment", node->SchedulingSegment)
+                .With("SpecifiedSegment", node->SpecifiedSchedulingSegment)
+                .With("Module", GetNodeModule(node))
+                .With("MovePenalty", GetMovePenaltyForNode(node, Config_->Mode))
+                .With("RunningAllocationIds", GetKeys(node->RunningAllocations))
+                .With("RunningAllocationStatistics", node->RunningAllocationStatistics)
+                .With("LastRunningAllocationStatisticsUpdateTime", CpuInstantToInstant(node->LastRunningAllocationStatisticsUpdateTime.value_or(0)))
+                .With("MovableNodeIndex", getNodeMovableIndex(nodeId))
+                .With("AggressivelyMovableNodeIndex", getNodeAggressivelyMovableIndex(nodeId));
         }
     }
 }
@@ -1267,26 +1232,22 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
     auto mode = Config_->Mode;
     bool segmentedSchedulingEnabled = mode != ESegmentedSchedulingMode::Disabled;
     if (segmentedSchedulingEnabled) {
-        YT_LOG_DEBUG(
-            "Scheduling segments state in tree "
-            "(Mode: %v, Modules: %v, KeyResource: %v, FairSharePerSegment: %v, TotalKeyResourceLimit: %v, "
-            "TotalCapacityPerModule: %v, RemainingCapacityPerModule: %v, "
-            "FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
-            mode,
-            Config_->GetModules(),
-            GetSegmentBalancingKeyResource(mode),
-            context->FairSharePerSegment,
-            context->NodesTotalKeyResourceLimit,
-            context->TotalCapacityPerModule,
-            context->RemainingCapacityPerModule,
-            context->FairResourceAmountPerSegment,
-            context->CurrentResourceAmountPerSegment);
+        YT_TLOG_DEBUG("Scheduling segments state in tree")
+            .With("Mode", mode)
+            .With("Modules", Config_->GetModules())
+            .With("KeyResource", GetSegmentBalancingKeyResource(mode))
+            .With("FairSharePerSegment", context->FairSharePerSegment)
+            .With("TotalKeyResourceLimit", context->NodesTotalKeyResourceLimit)
+            .With("TotalCapacityPerModule", context->TotalCapacityPerModule)
+            .With("RemainingCapacityPerModule", context->RemainingCapacityPerModule)
+            .With("FairResourceAmountPerSegment", context->FairResourceAmountPerSegment)
+            .With("CurrentResourceAmountPerSegment", context->CurrentResourceAmountPerSegment);
 
         YT_VERIFY(context->SerializedSchedulingSegmentsInfo);
         LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::SchedulingSegmentsInfo)
             .Items(context->SerializedSchedulingSegmentsInfo);
     } else {
-        YT_LOG_DEBUG("Segmented scheduling is disabled in tree, skipping");
+        YT_TLOG_DEBUG("Segmented scheduling is disabled in tree, skipping");
     }
 
     TSensorBuffer sensorBuffer;

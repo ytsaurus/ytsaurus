@@ -169,7 +169,7 @@ TGpuAllocationAssignmentPlanUpdateExecutor::TGpuAllocationAssignmentPlanUpdateEx
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::Run()
 {
-    YT_LOG_INFO("Starting GPU allocation assignment plan update");
+    YT_TLOG_INFO("Starting GPU allocation assignment plan update");
 
     TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -294,7 +294,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
     }
 
     // Logging.
-    YT_LOG_INFO("Initialized module states (ModuleStates: %v)", ModuleStates_);
+    YT_TLOG_INFO("Initialized module states")
+        .With("ModuleStates", ModuleStates_);
 
     // TODO(eshcherbin): (!) Add alerts.
     if (!nodesWithUnknownModule.empty()) {
@@ -302,35 +303,38 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
 
         static constexpr int MaxNodeWithUnknownModuleSampleSize = 10;
         nodesWithUnknownModule.resize(std::min(nodesWithUnknownModuleCount, MaxNodeWithUnknownModuleSampleSize));
-        YT_LOG_INFO("Found nodes with unknown module (Count: %v, Sample: %v)",
-            nodesWithUnknownModuleCount,
-            nodesWithUnknownModule);
+        YT_TLOG_INFO("Found nodes with unknown module")
+            .With("Count", nodesWithUnknownModuleCount)
+            .With("Sample", nodesWithUnknownModule);
     }
     if (!operationsWithUnknownModule.empty()) {
         int operationsWithUnknownModuleCount = std::ssize(operationsWithUnknownModule);
 
         static constexpr int MaxOperationWithUnknownModuleSampleSize = 10;
         nodesWithUnknownModule.resize(std::min(operationsWithUnknownModuleCount, MaxOperationWithUnknownModuleSampleSize));
-        YT_LOG_WARNING("Found operations with unknown module (Count: %v, Sample: %v)",
-            operationsWithUnknownModuleCount,
-            nodesWithUnknownModule);
+        YT_TLOG_WARNING("Found operations with unknown module")
+            .With("Count", operationsWithUnknownModuleCount)
+            .With("Sample", nodesWithUnknownModule);
     }
     // TODO(severovv): add sample when assignment ids are added
     if (!assignmentsWithUnknownModule.empty()) {
         int assignmentsWithUnknownModuleCount = std::ssize(assignmentsWithUnknownModule);
-        YT_LOG_WARNING("Found assignments with unknown module (Count: %v)", assignmentsWithUnknownModuleCount);
+        YT_TLOG_WARNING("Found assignments with unknown module")
+            .With("Count", assignmentsWithUnknownModuleCount);
     }
     if (!assignmentsOnNodeWithoutModule.empty()) {
         int assignmentsOnNodeWithoutModuleCount = std::ssize(assignmentsOnNodeWithoutModule);
 
         static constexpr int MaxAssignmentOnNodeWithoutModuleSampleSize = 10;
         assignmentsOnNodeWithoutModule.resize(std::min(assignmentsOnNodeWithoutModuleCount, MaxAssignmentOnNodeWithoutModuleSampleSize));
-        YT_LOG_WARNING("Found assignments on nodes without module (Count: %v, Sample: %v)",
-            assignmentsOnNodeWithoutModuleCount,
-            MakeFormattableView(assignmentsOnNodeWithoutModule, [] (TStringBuilderBase* builder, const auto& assignmentWithNodeAddress) {
-                const auto& [assignment, nodeAddress] = assignmentWithNodeAddress;
-                builder->AppendFormat("{OperationId: %v, NodeAddress: %v}", assignment->OperationId, nodeAddress);
-            }));
+        YT_TLOG_WARNING("Found assignments on nodes without module")
+            .With("Count", assignmentsOnNodeWithoutModuleCount)
+            .With("Sample", MakeFormattableView(
+                assignmentsOnNodeWithoutModule,
+                [] (TStringBuilderBase* builder, const auto& assignmentWithNodeAddress) {
+                    const auto& [assignment, nodeAddress] = assignmentWithNodeAddress;
+                    builder->AppendFormat("{OperationId: %v, NodeAddress: %v}", assignment->OperationId, nodeAddress);
+                }));
     }
 }
 
@@ -344,7 +348,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostModuleBoundOpera
         }
     }
 
-    YT_LOG_DEBUG("Collected full-host module-bound operations (Count: %v)", std::ssize(fullHostModuleBoundOperations));
+    YT_TLOG_DEBUG("Collected full-host module-bound operations")
+        .With("Count", std::ssize(fullHostModuleBoundOperations));
 
     // 2. Process priority full-host module-bound operations.
     std::vector<TOperationPtr> priorityOperationsToPlan;
@@ -385,9 +390,9 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
         return;
     }
 
-    YT_LOG_DEBUG("Planning full-host module-bound operations (Count: %v, PriorityModuleBinding: %v)",
-        std::ssize(operationsToPlan),
-        priorityModuleBinding);
+    YT_TLOG_DEBUG("Planning full-host module-bound operations")
+        .With("Count", std::ssize(operationsToPlan))
+        .With("PriorityModuleBinding", priorityModuleBinding);
 
     SortFullHostModuleBoundOperations(operationsToPlan);
 
@@ -407,14 +412,11 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
             operation->WaitingForAssignmentsSince() = Now_;
         }
 
-        YT_LOG_DEBUG(
-            "Planning full-host module-bound operation "
-            "(Module: %v, ReadyToAssignGroupedNeededResources: %v, "
-            "WaitingForAssignmentsSince: %v, OperationId: %v)",
-            operation->SchedulingModule(),
-            operation->ReadyToAssignGroupedNeededResources(),
-            operation->WaitingForAssignmentsSince(),
-            operation->GetId());
+        YT_TLOG_DEBUG("Planning full-host module-bound operation")
+            .With("Module", operation->SchedulingModule())
+            .With("ReadyToAssignGroupedNeededResources", operation->ReadyToAssignGroupedNeededResources())
+            .With("WaitingForAssignmentsSince", operation->WaitingForAssignmentsSince())
+            .With("OperationId", operation->GetId());
 
         YT_VERIFY(operation->SchedulingModule());
 
@@ -506,8 +508,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostNonGangOperation
         return;
     }
 
-    YT_LOG_DEBUG("Planning full-host non-gang operations (Count: %v)",
-        std::ssize(operationsToPlan));
+    YT_TLOG_DEBUG("Planning full-host non-gang operations")
+        .With("Count", std::ssize(operationsToPlan));
 
     // 2. Sort operations.
     std::ranges::sort(
@@ -531,13 +533,11 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessFullHostNonGangOperation
         // NB(severovv): Here we get allocationGroupResources by value, therefore allocationCount needs to be decreased manually.
         for (auto [allocationGroupName, allocationGroupResources] : operation->ReadyToAssignGroupedNeededResources()) {
             for (const auto& [module, assignmentCount] : DistributeAssignmentCountBetweenModules(allocationGroupResources)) {
-                YT_LOG_DEBUG(
-                    "Planning full-host non-gang assignments for module "
-                    "(OperationId: %v, AllocationGroupName: %v, Module: %v, AssignmentCount: %v)",
-                    operation->GetId(),
-                    allocationGroupName,
-                    module,
-                    assignmentCount);
+                YT_TLOG_DEBUG("Planning full-host non-gang assignments for module")
+                    .With("OperationId", operation->GetId())
+                    .With("AllocationGroupName", allocationGroupName)
+                    .With("Module", module)
+                    .With("AssignmentCount", assignmentCount);
 
                 auto& moduleState = GetOrCrash(ModuleStates_, module);
                 allocationGroupResources.AllocationCount = assignmentCount;
@@ -693,36 +693,34 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
 
     auto operationUsedModule = operation->GetUsedSchedulingModule();
 
-    YT_LOG_DEBUG(
-        "Trying to bind a full-host operation to a module "
-        "(AllModules: %v, SpecifiedModules: %v, FeasibleModules: %v, OperationUsedModule: %v, AllocationCount: %v, "
-        "WaitingForModuleBindingSince: %v, PriorityModuleBinding: %v, PriorityModuleBindingDeadline: %v, OperationId: %v)",
-        GetKeys(ModuleStates_),
-        operation->SpecifiedSchedulingModules(),
-        feasibleModules,
-        operationUsedModule,
-        allocationCount,
-        operation->WaitingForModuleBindingSince(),
-        priorityModuleBinding,
-        priorityModuleBinding
+    YT_TLOG_DEBUG("Trying to bind a full-host operation to a module")
+        .With("AllModules", GetKeys(ModuleStates_))
+        .With("SpecifiedModules", operation->SpecifiedSchedulingModules())
+        .With("FeasibleModules", feasibleModules)
+        .With("OperationUsedModule", operationUsedModule)
+        .With("AllocationCount", allocationCount)
+        .With("WaitingForModuleBindingSince", operation->WaitingForModuleBindingSince())
+        .With("PriorityModuleBinding", priorityModuleBinding)
+        .With("PriorityModuleBindingDeadline", priorityModuleBinding
             ? std::optional{Now_ + Config_->PriorityModuleBindingTimeout}
-            : std::nullopt,
-        operation->GetId());
+            : std::nullopt)
+        .With("OperationId", operation->GetId());
 
     std::vector<std::pair<NDetail::TOperationModuleBindingOutcome, std::string>> possibleModuleBindings;
     for (const auto& module : feasibleModules) {
         if (auto outcome = ConsiderModuleForFullHostOperation(operation, module, priorityModuleBinding)) {
-            YT_LOG_DEBUG("Possible module binding outcome (Module: %v, Outcome: %v, OperationId: %v)",
-                module,
-                *outcome,
-                operation->GetId());
+            YT_TLOG_DEBUG("Possible module binding outcome")
+                .With("Module", module)
+                .With("Outcome", *outcome)
+                .With("OperationId", operation->GetId());
 
             possibleModuleBindings.emplace_back(std::move(*outcome), module);
         }
     }
 
     if (possibleModuleBindings.empty()) {
-        YT_LOG_DEBUG("Failed to choose a suitable module for operation (OperationId: %v)", operation->GetId());
+        YT_TLOG_DEBUG("Failed to choose a suitable module for operation")
+            .With("OperationId", operation->GetId());
 
         if (!operation->WaitingForModuleBindingSince()) {
             operation->WaitingForModuleBindingSince() = Now_;
@@ -737,14 +735,14 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
         .Item("operation_id").Value(operation->GetId())
         .Item("module").Value(bestModule);
 
-    YT_LOG_DEBUG("Binding full-host operation to module (Module: %v, OperationId: %v)",
-        bestModule,
-        operation->GetId());
+    YT_TLOG_DEBUG("Binding full-host operation to module")
+        .With("Module", bestModule)
+        .With("OperationId", operation->GetId());
 
     if (operationUsedModule && (*operationUsedModule != bestModule)) {
-        YT_LOG_DEBUG("Preempting all operation's assignments in other module (OperationUsedModule: %v, OperationId: %v)",
-            operationUsedModule,
-            operation->GetId());
+        YT_TLOG_DEBUG("Preempting all operation's assignments in other module")
+            .With("OperationUsedModule", operationUsedModule)
+            .With("OperationId", operation->GetId());
 
         // NB(eshcherbin): This operation will not have the full ready to assign allocation count on this iteration,
         // so it will not be fully assigned. However, on the next iteration everything will be alright.
@@ -755,10 +753,10 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
     }
 
     for (const auto& evictedReservation : bestModuleBindingOutcome.ReservationsToEvict) {
-        YT_LOG_DEBUG("Evicting reservation from module in favour of a priority operation (Module: %v, Reservation: %v, PriorityOperationId: %v)",
-            bestModule,
-            *evictedReservation,
-            operation->GetId());
+        YT_TLOG_DEBUG("Evicting reservation from module in favour of a priority operation")
+            .With("Module", bestModule)
+            .With("Reservation", *evictedReservation)
+            .With("PriorityOperationId", operation->GetId());
 
         EvictReservation(
             evictedReservation,
@@ -804,12 +802,11 @@ std::optional<NDetail::TOperationModuleBindingOutcome> TGpuAllocationAssignmentP
     const auto& moduleState = GetOrCrash(ModuleStates_, module);
     const int allocationCount = operation->GetInitialNeededAllocationCount();
 
-    YT_LOG_DEBUG(
-        "Considering module for full-host operation (Module: %v, ModuleState: %v, AllocationCount: %v, OperationId: %v)",
-        module,
-        moduleState,
-        allocationCount,
-        operation->GetId());
+    YT_TLOG_DEBUG("Considering module for full-host operation")
+        .With("Module", module)
+        .With("ModuleState", moduleState)
+        .With("AllocationCount", allocationCount)
+        .With("OperationId", operation->GetId());
 
     // NB(eshcherbin): If operation already has assignments in some other module, we will need to preempt them.
     // Thus, we increase eviction penalty to choose this module if possible.
@@ -921,8 +918,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperations()
         return;
     }
 
-    YT_LOG_DEBUG("Planning non full-host operations (Count: %v)",
-        std::ssize(operationsToPlan));
+    YT_TLOG_DEBUG("Planning non full-host operations")
+        .With("Count", std::ssize(operationsToPlan));
 
     // 2. Sort operations.
     std::ranges::sort(
@@ -987,8 +984,8 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::ProcessRegularOperationsWithExt
         return;
     }
 
-    YT_LOG_DEBUG("Planning non gang operations with extra resources (Count: %v)",
-        std::ssize(operationsToPlan));
+    YT_TLOG_DEBUG("Planning non gang operations with extra resources")
+        .With("Count", std::ssize(operationsToPlan));
 
     // 2. Sort operations.
     // TODO(yaishenka): YT-26812 schedule jobs with extra resources (above fair share) more evenly.
@@ -1049,10 +1046,9 @@ std::vector<TAssignmentPtr> TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllo
         return {};
     }
 
-    YT_LOG_DEBUG("Planning allocation group for operation (AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
-        allocationGroupName,
-        allocationGroupResources,
-        operation->GetId());
+    YT_TLOG_DEBUG("Planning allocation group for operation")
+        .WithFormat("AllocationGroup", "{Name: %v, Resources: %v}", allocationGroupName, allocationGroupResources)
+        .With("OperationId", operation->GetId());
 
     TAllocationGroupPlanner planner(
         operation,
@@ -1065,11 +1061,10 @@ std::vector<TAssignmentPtr> TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllo
 
     Context_->GetStatistics()->PlannedAssignmentsByStage[stage] += planner.GetPlannedAssignmentCount();
 
-    YT_LOG_DEBUG("Finished planning allocation group for operation (PlannedAssignmentCount: %v, AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
-        planner.GetPlannedAssignmentCount(),
-        allocationGroupName,
-        allocationGroupResources,
-        operation->GetId());
+    YT_TLOG_DEBUG("Finished planning allocation group for operation")
+        .With("PlannedAssignmentCount", planner.GetPlannedAssignmentCount())
+        .WithFormat("AllocationGroup", "{Name: %v, Resources: %v}", allocationGroupName, allocationGroupResources)
+        .With("OperationId", operation->GetId());
 
     return planner.PlannedAssignments();
 }
@@ -1086,13 +1081,10 @@ std::vector<TAssignmentPtr> TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllo
         return {};
     }
 
-    YT_LOG_DEBUG(
-        "Planning allocation group for operation with preemption "
-        "(AllocationGroup: {Name: %v, Resources: %v}, UseFullHostAggressivePreemption: %v, OperationId: %v)",
-        allocationGroupName,
-        allocationGroupResources,
-        useFullHostAggressivePreemption,
-        operation->GetId());
+    YT_TLOG_DEBUG("Planning allocation group for operation with preemption")
+        .WithFormat("AllocationGroup", "{Name: %v, Resources: %v}", allocationGroupName, allocationGroupResources)
+        .With("UseFullHostAggressivePreemption", useFullHostAggressivePreemption)
+        .With("OperationId", operation->GetId());
 
     TPreemptiveAllocationGroupPlanner planner(
         operation,
@@ -1109,15 +1101,11 @@ std::vector<TAssignmentPtr> TGpuAllocationAssignmentPlanUpdateExecutor::PlanAllo
     Context_->GetStatistics()->PlannedAssignmentsByStage[stage] += planner.GetPlannedAssignmentCount();
     Context_->GetStatistics()->PreemptedAssignmentsByStage[stage] += planner.GetPreemptedAssignmentCount();
 
-    YT_LOG_DEBUG(
-        "Finished planning allocation group for operation with preemption "
-        "(PlannedAssignmentCount: %v, PreemptedAssignmentCount: %v, "
-        "AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
-        planner.GetPlannedAssignmentCount(),
-        planner.GetPreemptedAssignmentCount(),
-        allocationGroupName,
-        allocationGroupResources,
-        operation->GetId());
+    YT_TLOG_DEBUG("Finished planning allocation group for operation with preemption")
+        .With("PlannedAssignmentCount", planner.GetPlannedAssignmentCount())
+        .With("PreemptedAssignmentCount", planner.GetPreemptedAssignmentCount())
+        .WithFormat("AllocationGroup", "{Name: %v, Resources: %v}", allocationGroupName, allocationGroupResources)
+        .With("OperationId", operation->GetId());
 
     return planner.PlannedAssignments();
 }
@@ -1141,14 +1129,11 @@ int TGpuAllocationAssignmentPlanUpdateExecutor::GetLimitedAllocationCount(
         limitedAllocationCount = std::min(limitedAllocationCount, static_cast<int>(maxAvailableAllocationCount));
     }
     if (limitedAllocationCount != allocationGroupResources.AllocationCount) {
-        YT_LOG_DEBUG(
-            "Preemptible allocation group count decreased to satisfy limits "
-            "(AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v, NonLimitedAllocationCount: %v, LimitedAllocationCount: %v)",
-            allocationGroupName,
-            allocationGroupResources,
-            operation->GetId(),
-            allocationGroupResources.AllocationCount,
-            limitedAllocationCount);
+        YT_TLOG_DEBUG("Preemptible allocation group count decreased to satisfy limits")
+            .WithFormat("AllocationGroup", "{Name: %v, Resources: %v}", allocationGroupName, allocationGroupResources)
+            .With("OperationId", operation->GetId())
+            .With("NonLimitedAllocationCount", allocationGroupResources.AllocationCount)
+            .With("LimitedAllocationCount", limitedAllocationCount);
     }
     return limitedAllocationCount;
 }
@@ -1166,10 +1151,9 @@ std::vector<TAssignmentPtr> TGpuAllocationAssignmentPlanUpdateExecutor::PlanPree
         return {};
     }
 
-    YT_LOG_DEBUG("Planning preemptible allocation group for operation (AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
-        allocationGroupName,
-        allocationGroupResources,
-        operation->GetId());
+    YT_TLOG_DEBUG("Planning preemptible allocation group for operation")
+        .WithFormat("AllocationGroup", "{Name: %v, Resources: %v}", allocationGroupName, allocationGroupResources)
+        .With("OperationId", operation->GetId());
 
     TAllocationGroupPlanner planner(
         operation,
@@ -1183,11 +1167,10 @@ std::vector<TAssignmentPtr> TGpuAllocationAssignmentPlanUpdateExecutor::PlanPree
 
     Context_->GetStatistics()->PlannedAssignmentsByStage[stage] += planner.GetPlannedAssignmentCount();
 
-    YT_LOG_DEBUG("Finished planning preemptible allocation group for operation (PlannedAssignmentCount: %v, AllocationGroup: {Name: %v, Resources: %v}, OperationId: %v)",
-        planner.GetPlannedAssignmentCount(),
-        allocationGroupName,
-        allocationGroupResources,
-        operation->GetId());
+    YT_TLOG_DEBUG("Finished planning preemptible allocation group for operation")
+        .With("PlannedAssignmentCount", planner.GetPlannedAssignmentCount())
+        .WithFormat("AllocationGroup", "{Name: %v, Resources: %v}", allocationGroupName, allocationGroupResources)
+        .With("OperationId", operation->GetId());
 
     return planner.PlannedAssignments();
 }

@@ -1003,10 +1003,10 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
         for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
             const auto& element = operationElements[opIndex];
 
-            YT_LOG_INFO("Checking operation index (ExpectedIndex: %v, ActualIndex: %v, Weight: %v)",
-                expectedOperationIndices[opIndex],
-                GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex,
-                element->GetWeight());
+            YT_TLOG_INFO("Checking operation index")
+                .With("ExpectedIndex", expectedOperationIndices[opIndex])
+                .With("ActualIndex", GetPoolTreeSnapshotState(treeSnapshot)->StaticAttributesList().AttributesOf(element.Get()).SchedulingIndex)
+                .With("Weight", element->GetWeight());
 
             EXPECT_EQ(
                 expectedOperationIndices[opIndex],
@@ -1040,11 +1040,11 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
             for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
                 const auto& element = operationElements[opIndex];
 
-                YT_LOG_INFO("Checking operation index (ExpectedIndex: %v, ActualIndex: %v, Weight: %v, Satisfaction: %v)",
-                    expectedOperationIndices[opIndex],
-                    operationToIndex[element.Get()],
-                    element->GetWeight(),
-                    context->DynamicAttributesOf(element.Get()).LocalSatisfactionRatio);
+                YT_TLOG_INFO("Checking operation index")
+                    .With("ExpectedIndex", expectedOperationIndices[opIndex])
+                    .With("ActualIndex", operationToIndex[element.Get()])
+                    .With("Weight", element->GetWeight())
+                    .With("Satisfaction", context->DynamicAttributesOf(element.Get()).LocalSatisfactionRatio);
 
                 EXPECT_EQ(expectedOperationIndices[opIndex], operationToIndex[element.Get()]);
             }
@@ -1052,7 +1052,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
 
         // Second, we check the order given by getting the best leaf descendant and deactivating it
         // until no active operation remains.
-        YT_LOG_INFO("Best leaf descendant");
+        YT_TLOG_INFO("Best leaf descendant");
 
         doCheckOrderDuringSchedulingStage([] (const TDynamicAttributes& attributes) {
             return attributes.BestLeafDescendant;
@@ -1060,7 +1060,7 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
 
         // Third, we check the order inside schedulable children set.
         if (consideredOperations) {
-            YT_LOG_INFO("Schedulable children set");
+            YT_TLOG_INFO("Schedulable children set");
 
             doCheckOrderDuringSchedulingStage([] (const TDynamicAttributes& attributes) {
                 auto& childSet = attributes.SchedulableChildSet;
@@ -1080,12 +1080,10 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableOperationsOrder)
             TreeConfig_->MinChildHeapSize = minChildHeapSize;
 
             for (const auto& consideredOperations : {{}, std::optional(nonOwningOperationElements)}) {
-                YT_LOG_INFO(
-                    "Testing schedulable operations order "
-                    "(PoolMode: %v, MinChildHeapSize: %v, UseConsideredOperations: %v)",
-                    pool->GetConfig()->Mode,
-                    TreeConfig_->MinChildHeapSize,
-                    consideredOperations.has_value());
+                YT_TLOG_INFO("Testing schedulable operations order")
+                    .With("PoolMode", pool->GetConfig()->Mode)
+                    .With("MinChildHeapSize", TreeConfig_->MinChildHeapSize)
+                    .With("UseConsideredOperations", consideredOperations.has_value());
 
                 checkOrder(consideredOperations, ExpectedOperationIndices);
             }
@@ -1509,10 +1507,10 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
         context->PrescheduleAllocation(consideredOperationsList);
 
         for (auto* element : treeElements) {
-            YT_LOG_INFO("Testing element activeness (ElementId: %v, ExpectedActive: %v, ActualActive: %v)",
-                element->GetId(),
-                expectedActiveElements.contains(element),
-                context->DynamicAttributesOf(element).Active);
+            YT_TLOG_INFO("Testing element activeness")
+                .With("ElementId", element->GetId())
+                .With("ExpectedActive", expectedActiveElements.contains(element))
+                .With("ActualActive", context->DynamicAttributesOf(element).Active);
 
             EXPECT_EQ(expectedActiveElements.contains(element), context->DynamicAttributesOf(element).Active);
 
@@ -1540,7 +1538,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
         }
     };
 
-    YT_LOG_INFO("All operations");
+    YT_TLOG_INFO("All operations");
     doTestCase(
         /*consideredOperations*/ {
             operationElementRoot.Get(),
@@ -1557,7 +1555,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBY.Get(),
         });
 
-    YT_LOG_INFO("== Root operation");
+    YT_TLOG_INFO("== Root operation");
     doTestCase(
         /*consideredOperations*/ {
             operationElementRoot.Get(),
@@ -1566,7 +1564,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             rootElement.Get(),
         });
 
-    YT_LOG_INFO("== Operation A");
+    YT_TLOG_INFO("== Operation A");
     doTestCase(
         /*consideredOperations*/ {
             operationElementA.Get(),
@@ -1576,7 +1574,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolA.Get(),
         });
 
-    YT_LOG_INFO("== OperationB");
+    YT_TLOG_INFO("== OperationB");
     doTestCase(
         /*consideredOperations*/ {
             operationElementB.Get(),
@@ -1586,7 +1584,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolB.Get(),
         });
 
-    YT_LOG_INFO("== OperationBX");
+    YT_TLOG_INFO("== OperationBX");
     doTestCase(
         /*consideredOperations*/ {
             operationElementBX.Get(),
@@ -1597,7 +1595,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBX.Get(),
         });
 
-    YT_LOG_INFO("== Operations A, B");
+    YT_TLOG_INFO("== Operations A, B");
     doTestCase(
         /*consideredOperations*/ {
             operationElementA.Get(),
@@ -1609,7 +1607,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolB.Get(),
         });
 
-    YT_LOG_INFO("== Operations A, BX");
+    YT_TLOG_INFO("== Operations A, BX");
     doTestCase(
         /*consideredOperations*/ {
             operationElementA.Get(),
@@ -1622,7 +1620,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBX.Get(),
         });
 
-    YT_LOG_INFO("== Operations BX, BY");
+    YT_TLOG_INFO("== Operations BX, BY");
     doTestCase(
         /*consideredOperations*/ {
             operationElementBX.Get(),
@@ -1635,7 +1633,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBY.Get(),
         });
 
-    YT_LOG_INFO("== Operations B, BY");
+    YT_TLOG_INFO("== Operations B, BY");
     doTestCase(
         /*consideredOperations*/ {
             operationElementB.Get(),
@@ -1647,7 +1645,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             poolBY.Get(),
         });
 
-    YT_LOG_INFO("== Operations A, B, BY");
+    YT_TLOG_INFO("== Operations A, B, BY");
     doTestCase(
         /*consideredOperations*/ {
             operationElementA.Get(),
@@ -1663,7 +1661,7 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
 
     // Corner cases.
     {
-        YT_LOG_INFO("== No operations");
+        YT_TLOG_INFO("== No operations");
 
         auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), rootElement);
         auto scheduleAllocationsContextWithDependencies = PrepareScheduleAllocationsContext(strategyHost.Get(), treeSnapshot, execNode);
