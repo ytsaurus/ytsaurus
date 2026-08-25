@@ -5,7 +5,7 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_pool.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
 
 #include <yt/yt/ytlib/push_based_shuffle_client/public.h>
 

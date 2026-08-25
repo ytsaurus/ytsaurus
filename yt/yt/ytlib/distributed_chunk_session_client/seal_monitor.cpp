@@ -1,4 +1,4 @@
-#include "distributed_chunk_session_seal_monitor.h"
+#include "seal_monitor.h"
 
 #include "config.h"
 

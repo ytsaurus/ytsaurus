@@ -1,6 +1,6 @@
-#include "distributed_chunk_session_manager.h"
+#include "session_manager.h"
 
-#include "distributed_chunk_session_sequencer.h"
+#include "sequencer.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/lease_manager.h>

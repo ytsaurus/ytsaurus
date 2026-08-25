@@ -1,4 +1,4 @@
-#include "distributed_chunk_session_seal_summary_fetcher.h"
+#include "seal_summary_fetcher.h"
 
 #include <yt/yt/ytlib/chunk_client/throttler_manager.h>
 

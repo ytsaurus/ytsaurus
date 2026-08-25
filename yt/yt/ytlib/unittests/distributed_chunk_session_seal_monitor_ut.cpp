@@ -1,5 +1,5 @@
 #include <yt/yt/ytlib/distributed_chunk_session_client/config.h>
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_seal_monitor.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/seal_monitor.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

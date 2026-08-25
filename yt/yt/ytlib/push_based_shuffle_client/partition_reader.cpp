@@ -4,7 +4,7 @@
 #include "public.h"
 #include "record_format.h"
 
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_reader.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_reader.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 

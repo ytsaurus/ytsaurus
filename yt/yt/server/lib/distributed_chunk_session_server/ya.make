@@ -3,9 +3,9 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
-    distributed_chunk_session_sequencer.cpp
-    distributed_chunk_session_manager.cpp
-    distributed_chunk_session_service.cpp
+    sequencer.cpp
+    session_manager.cpp
+    session_service.cpp
 )
 
 PEERDIR(

@@ -30,7 +30,7 @@
 
 #include <yt/yt/server/node/tablet_node/config.h>
 
-#include <yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_service.h>
+#include <yt/yt/server/lib/distributed_chunk_session_server/session_service.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 

@@ -1,6 +1,6 @@
 #include <yt/yt/ytlib/distributed_chunk_session_client/config.h>
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_controller.h>
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_pool.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_controller.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/private.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>

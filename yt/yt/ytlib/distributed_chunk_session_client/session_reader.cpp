@@ -1,4 +1,4 @@
-#include "distributed_chunk_session_reader.h"
+#include "session_reader.h"
 
 #include "config.h"
 

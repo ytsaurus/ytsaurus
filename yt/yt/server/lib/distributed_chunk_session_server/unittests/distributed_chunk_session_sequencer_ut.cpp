@@ -1,4 +1,4 @@
-#include <yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_sequencer.h>
+#include <yt/yt/server/lib/distributed_chunk_session_server/sequencer.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
