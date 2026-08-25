@@ -1,9 +1,9 @@
 ---
 metadata:
     - property: 'og:title'
-      content: 'SPYT Update'
+      content: 'Updating SPYT'
     - property: 'og:description'
-      content: 'The document describes how to update CHYT.'
+      content: 'This document describes how to update SPYT.'
     - property: 'og:type'
       content: 'article'
     - property: 'og:url'
@@ -15,4 +15,4 @@ metadata:
     - property: 'article:author'
       content: 'Zakhar Telukh'
 ---
-{% include [SPYT Update](../../_includes/admin-guide/update/update-spyt.md) %}
+{% include [Updating SPYT](../../_includes/admin-guide/update/update-spyt.md) %}

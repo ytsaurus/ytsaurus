@@ -268,3 +268,4 @@ helm upgrade --install ytsaurus-cron oci://ghcr.io/ytsaurus/cron-chart \
 | `failedJobsHistoryLimit`       | Number of failed job records to keep                |
 | `ttlSecondsAfterFinished`      | How long job objects will be stored in Kubernetes   |
 
+You can find detailed instructions for updating Cron in the [Update Cron](../../admin-guide/update/update-cron.md) article.

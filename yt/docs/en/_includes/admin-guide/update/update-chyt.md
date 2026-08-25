@@ -6,9 +6,9 @@ This document outlines how to update CHYT using the Kubernetes operator.
 
 During a CHYT update:
 
-* The YTsaurus cluster continues operating normally.
-* YTsaurus server components aren’t restarted.
-* Data access via the YTsaurus API remains available.
+* The {{product-name}} cluster continues operating normally.
+* {{product-name}} server components aren’t restarted.
+* Data access via the {{product-name}} API remains available.
 * CHYT clusters are temporarily unavailable.
 * The update installs the new version alongside the current one without replacing it ([Multiple CHYT Versions](#multiple-versions)).
 * Cliques automatically use the latest created resource with `makeDefault: true` as the default version.
@@ -172,7 +172,7 @@ kubectl get chyt -n <namespace> -w
 
 ### Multiple CHYT Versions on a Single Cluster {#multiple-versions}
 
-The update process adds a new CHYT version as a separate resource, allowing multiple versions to coexist on the same YTsaurus cluster.
+The update process adds a new CHYT version as a separate resource, allowing multiple versions to coexist on the same {{product-name}} cluster.
 
 * Each version has its own image.
 * Cliques use the latest resource with `makeDefault: true` as the default.

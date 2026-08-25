@@ -45,7 +45,7 @@ Before changing the `Ytsaurus` specification, check the current state of the clu
 1. Find out the current cluster version:
 
    ```bash
-   $ kubectl get ytsaurus <cluster_name> -n <namespace> -o jsonpath='{.spec.coreImage}'
+   $ kubectl get {{product-name}} <cluster_name> -n <namespace> -o jsonpath='{.spec.coreImage}'
    
    ghcr.io/ytsaurus/ytsaurus:stable-25.1.0-relwithdebinfo
    ```
@@ -53,10 +53,10 @@ Before changing the `Ytsaurus` specification, check the current state of the clu
 1. Check the cluster state:
 
    ```bash
-   $ kubectl get ytsaurus <cluster_name> -n <namespace>
+   $ kubectl get {{product-name}} <cluster_name> -n <namespace>
    
    NAME       CLUSTERSTATE   UPDATESTATE   UPDATINGCOMPONENTS   BLOCKEDCOMPONENTS
-   ytsaurus   Running
+   {{product-name}}   Running
    ```
 
    Before the update, the cluster must be in the `Running` state. If the cluster is in another state, fix the issues first — see the [Troubleshooting](#troubleshooting) section.
@@ -71,7 +71,7 @@ Before changing the `Ytsaurus` specification, check the current state of the clu
    kubectl get deployments -n <namespace>
    ```
 
-   This is an important step: the operator must not be busy with pending actions. Proceed to the next step only when the logs contain the message `INFO Ytsaurus is running and happy`. This means the operator considers the cluster consistent and is not performing any pending actions.
+   This is an important step: the operator must not be busy with pending actions. Proceed to the next step only when the logs contain the message `INFO {{product-name}} is running and happy`. This means the operator considers the cluster consistent and is not performing any pending actions.
 
    {% note warning "Important" %}
    
@@ -84,7 +84,7 @@ Before changing the `Ytsaurus` specification, check the current state of the clu
    The file is required to enable rollback before passing the point of no return:
 
    ```bash
-   kubectl get ytsaurus <cluster_name> -n <namespace> -o yaml > ytsaurus-spec-backup.yaml
+   kubectl get {{product-name}} <cluster_name> -n <namespace> -o yaml > ytsaurus-spec-backup.yaml
    ```
 
    After the master servers exit the `read‑only` mode and apply irreversible changes, rollback to the previous version is not supported.
@@ -114,7 +114,7 @@ See the list of releases and compatible versions on the [releases page](../../..
 Update the operator:
 
 ```bash
-helm upgrade ytsaurus --install oci://ghcr.io/ytsaurus/ytop-chart --version <new_version>
+helm upgrade {{product-name}} --install oci://ghcr.io/ytsaurus/ytop-chart --version <new_version>
 ```
 
 Verify that the operator has been updated:
@@ -151,7 +151,7 @@ Save the current specification to a file for editing:
 
 
 ```bash
-kubectl get ytsaurus <cluster_name> -n <namespace> -o yaml > ytsaurus-spec-new.yaml
+kubectl get {{product-name}} <cluster_name> -n <namespace> -o yaml > ytsaurus-spec-new.yaml
 ```
 
 {% note warning "Warning" %}
@@ -206,7 +206,7 @@ Monitor the status in the `UPDATESTATE` field of the `Ytsaurus` resource:
 
 
 ```bash
-kubectl get ytsaurus <cluster_name> -n <namespace>
+kubectl get {{product-name}} <cluster_name> -n <namespace>
 ```
 
 During the update, the output may look like this:
@@ -254,7 +254,7 @@ The update is complete when the following conditions are met:
 Check the final cluster state:
 
 ```bash
-kubectl get ytsaurus <cluster_name> -n <namespace>
+kubectl get {{product-name}} <cluster_name> -n <namespace>
 ```
 
 Expected output:
@@ -291,7 +291,7 @@ tnd-0                                     1/1     Running    0          10m
 Verify that the new version is specified in the specification:
 
 ```bash
-kubectl get ytsaurus <cluster_name> -n <namespace> -o jsonpath='{.spec.coreImage}'
+kubectl get {{product-name}} <cluster_name> -n <namespace> -o jsonpath='{.spec.coreImage}'
 ```
 
 Expected output:
@@ -356,7 +356,7 @@ This means another process has modified the specification. Save the current vers
 
 
 ```bash
-kubectl get ytsaurus <cluster_name> -n <namespace> -o yaml > ytsaurus-spec-new.yaml
+kubectl get {{product-name}} <cluster_name> -n <namespace> -o yaml > ytsaurus-spec-new.yaml
 ```
 
 {% endcut %}
@@ -414,7 +414,7 @@ During an update, this may be a temporary state. The job might start before the 
 First, check the overall cluster status:
 
 ```bash
-kubectl get ytsaurus <cluster_name> -n <namespace>
+kubectl get {{product-name}} <cluster_name> -n <namespace>
 ```
 
 If the cluster is still updating, wait for the process to complete and check the job status again. If the cluster isn’t updating or the job doesn’t converge after a long time, check the job logs to identify the cause of the problem.
@@ -448,7 +448,7 @@ The Kubernetes operator may stop the update if it considers it unsafe. For examp
 Check the resource status:
 
 ```bash
-kubectl get ytsaurus -n <namespace>
+kubectl get {{product-name}} -n <namespace>
 ```
 
 Example output:
@@ -461,7 +461,7 @@ minisaurus   Updating       ImpossibleToStart
 To find the reason, run the command:
 
 ```bash
-kubectl describe ytsaurus -n <namespace>
+kubectl describe {{product-name}} -n <namespace>
 ```
 
 And check the `Conditions` block in `UpdateStatus`.
@@ -470,7 +470,7 @@ And check the `Conditions` block in `UpdateStatus`.
 {% cut "Example of why an update can’t start" %}
 
 ```bash
-kubectl describe ytsaurus -n <namespace>
+kubectl describe {{product-name}} -n <namespace>
 ...
   Update Status:
     Conditions:
