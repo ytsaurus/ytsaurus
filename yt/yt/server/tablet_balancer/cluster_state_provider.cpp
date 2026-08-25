@@ -173,7 +173,7 @@ TFuture<IListNodePtr> TClusterStateProvider::GetBundles()
 
     if (!BundlesFuture_) {
         readerGuard.Release();
-        YT_LOG_DEBUG("Fetching bundles out-of-band due to a direct request");
+        YT_TLOG_DEBUG("Fetching bundles out-of-band due to a direct request");
         auto writerGuard = WriterGuard(Lock_);
         if (!BundlesFuture_) {
             BundlesFuture_ = BIND(&TClusterStateProvider::FetchBundles, MakeStrong(this))
@@ -196,7 +196,7 @@ TFuture<IListNodePtr> TClusterStateProvider::GetNodes()
 
     if (!NodesFuture_) {
         readerGuard.Release();
-        YT_LOG_DEBUG("Planning to fetch node statistics due to a direct request");
+        YT_TLOG_DEBUG("Planning to fetch node statistics due to a direct request");
         auto writerGuard = WriterGuard(Lock_);
         if (!NodesFuture_) {
             NodesFuture_ = BIND(&TClusterStateProvider::FetchNodes, MakeStrong(this))
@@ -219,7 +219,7 @@ TFuture<THashMap<std::string, std::vector<std::string>>> TClusterStateProvider::
 
     if (!UnhealthyBundlesFuture_) {
         readerGuard.Release();
-        YT_LOG_DEBUG("Planning to fetch unhealthy bundles due to a direct request");
+        YT_TLOG_DEBUG("Planning to fetch unhealthy bundles due to a direct request");
         auto writerGuard = WriterGuard(Lock_);
         if (!UnhealthyBundlesFuture_) {
             UnhealthyBundlesFuture_ = BIND(&TClusterStateProvider::TryFetchUnhealthyBundles, MakeStrong(this))
@@ -247,7 +247,7 @@ TFuture<THashSet<std::string>> TClusterStateProvider::GetBannedReplicasFromMetaC
 
     if (!BannedReplicasFuture_) {
         readerGuard.Release();
-        YT_LOG_DEBUG("Planning to fetch banned replica clusters due to a direct request");
+        YT_TLOG_DEBUG("Planning to fetch banned replica clusters due to a direct request");
         auto writerGuard = WriterGuard(Lock_);
         if (!BannedReplicasFuture_) {
             BannedReplicasFuture_ = BIND(
@@ -272,17 +272,14 @@ void TClusterStateProvider::FetchState()
     auto writerGuard = WriterGuard(Lock_);
     auto now = Now();
 
-    YT_LOG_DEBUG("Started to plan cluster state provider fetches (Config: %v, "
-        "LastBundlesSuccessfulFetchTime: %v, LastNodesSuccessfulFetchTime: %v, "
-        "LastUnhealthyBundlesSuccessfulFetchTime: %v, HasBundleFuture: %v, "
-        "HasNodeFuture: %v, HasUnhealthyBundlesFuture: %v)",
-        ConvertToYsonString(config, NYson::EYsonFormat::Text),
-        LastBundlesSuccessfulFetchTime_,
-        LastNodesSuccessfulFetchTime_,
-        LastUnhealthyBundlesSuccessfulFetchTime_,
-        static_cast<bool>(BundlesFuture_),
-        static_cast<bool>(NodesFuture_),
-        static_cast<bool>(UnhealthyBundlesFuture_));
+    YT_TLOG_DEBUG("Started to plan cluster state provider fetches")
+        .With("Config", ConvertToYsonString(config, NYson::EYsonFormat::Text))
+        .With("LastBundlesSuccessfulFetchTime", LastBundlesSuccessfulFetchTime_)
+        .With("LastNodesSuccessfulFetchTime", LastNodesSuccessfulFetchTime_)
+        .With("LastUnhealthyBundlesSuccessfulFetchTime", LastUnhealthyBundlesSuccessfulFetchTime_)
+        .With("HasBundleFuture", static_cast<bool>(BundlesFuture_))
+        .With("HasNodeFuture", static_cast<bool>(NodesFuture_))
+        .With("HasUnhealthyBundlesFuture", static_cast<bool>(UnhealthyBundlesFuture_));
 
     if (LastBundlesSuccessfulFetchTime_ + config->BundlesFetchPeriod < now && !BundlesFuture_) {
         BundlesFuture_ = BIND(&TClusterStateProvider::FetchBundles, MakeStrong(this))
@@ -329,14 +326,15 @@ IListNodePtr TClusterStateProvider::FetchBundles()
     TListNodeOptions options;
     options.Attributes = attributeKeys;
 
-    YT_LOG_DEBUG("Started fetching bundle list");
+    YT_TLOG_DEBUG("Started fetching bundle list");
 
     auto bundleOrError = WaitFor(Bootstrap_
         ->GetClient()
         ->ListNode(TabletCellBundlesPath, options));
 
     if (!bundleOrError.IsOK()) {
-        YT_LOG_ERROR(bundleOrError, "Failed to fetch bundle list");
+        YT_TLOG_ERROR("Failed to fetch bundle list")
+            .With(bundleOrError);
         auto guard = WriterGuard(Lock_);
         BundlesFuture_.Reset();
         bundleOrError.ThrowOnError();
@@ -352,7 +350,7 @@ IListNodePtr TClusterStateProvider::FetchBundles()
 
     BundlesFuture_.Reset();
 
-    YT_LOG_DEBUG("Finished fetching bundle list");
+    YT_TLOG_DEBUG("Finished fetching bundle list");
     return Bundles_;
 }
 
@@ -363,14 +361,15 @@ IListNodePtr TClusterStateProvider::FetchNodes()
 
     static const NYPath::TYPath TabletNodesPath = "//sys/tablet_nodes";
 
-    YT_LOG_DEBUG("Started fetching node statistics");
+    YT_TLOG_DEBUG("Started fetching node statistics");
 
     auto nodesOrError = WaitFor(Bootstrap_
         ->GetClient()
         ->ListNode(TabletNodesPath, options));
 
     if (!nodesOrError.IsOK()) {
-        YT_LOG_ERROR(nodesOrError, "Failed to fetch node statistics");
+        YT_TLOG_ERROR("Failed to fetch node statistics")
+            .With(nodesOrError);
         auto guard = WriterGuard(Lock_);
         NodesFuture_.Reset();
         nodesOrError.ThrowOnError();
@@ -386,14 +385,14 @@ IListNodePtr TClusterStateProvider::FetchNodes()
 
     NodesFuture_.Reset();
 
-    YT_LOG_DEBUG("Finished fetching node statistics");
+    YT_TLOG_DEBUG("Finished fetching node statistics");
     return Nodes_;
 }
 
 THashMap<std::string, std::vector<std::string>> TClusterStateProvider::TryFetchUnhealthyBundles()
 {
     try {
-        YT_LOG_DEBUG("Started fetching unhealthy bundles");
+        YT_TLOG_DEBUG("Started fetching unhealthy bundles");
         auto unhealthyBundles = FetchUnhealthyBundles();
 
         auto now = Now();
@@ -405,10 +404,11 @@ THashMap<std::string, std::vector<std::string>> TClusterStateProvider::TryFetchU
 
         UnhealthyBundlesFuture_.Reset();
 
-        YT_LOG_DEBUG("Finished fetching unhealthy bundles");
+        YT_TLOG_DEBUG("Finished fetching unhealthy bundles");
         return UnhealthyBundles_;
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to fetch unhealthy bundles");
+        YT_TLOG_ERROR("Failed to fetch unhealthy bundles")
+            .With(ex);
         auto guard = WriterGuard(Lock_);
         UnhealthyBundlesFuture_.Reset();
         throw;
@@ -423,10 +423,8 @@ THashMap<std::string, std::vector<std::string>> TClusterStateProvider::FetchUnhe
     }
 
     auto bannedReplicaClusters = GetBannedReplicaClusters(Bootstrap_->GetClient());
-    YT_LOG_DEBUG_IF(
-        !bannedReplicaClusters.empty(),
-        "Fetched banned replica clusters (Clusters: %v)",
-        bannedReplicaClusters);
+    YT_TLOG_DEBUG_IF(!bannedReplicaClusters.empty(), "Fetched banned replica clusters")
+        .With("Clusters", bannedReplicaClusters);
 
     TListNodeOptions options{.Attributes = {"health"}};
     const auto& clientDirectory = Bootstrap_->GetClientDirectory();
@@ -461,17 +459,15 @@ THashSet<std::string> TClusterStateProvider::FetchBannedReplicasFromMetaCluster(
 {
     try {
         THashSet<std::string> bannedReplicaClusters;
-        YT_LOG_DEBUG("Started fetching banned replica clusters");
+        YT_TLOG_DEBUG("Started fetching banned replica clusters");
 
         if (!cluster.empty()) {
             const auto& clientDirectory = Bootstrap_->GetClientDirectory();
             auto client = clientDirectory->GetClientOrThrow(cluster);
             bannedReplicaClusters = GetBannedReplicaClusters(client);
-            YT_LOG_DEBUG_IF(
-                !bannedReplicaClusters.empty(),
-                "Fetched banned replica clusters (Clusters: %v, MetaCluster: %v)",
-                bannedReplicaClusters,
-                cluster);
+            YT_TLOG_DEBUG_IF(!bannedReplicaClusters.empty(), "Fetched banned replica clusters")
+                .With("Clusters", bannedReplicaClusters)
+                .With("MetaCluster", cluster);
         }
 
         auto now = Now();
@@ -483,11 +479,12 @@ THashSet<std::string> TClusterStateProvider::FetchBannedReplicasFromMetaCluster(
 
         BannedReplicasFuture_.Reset();
 
-        YT_LOG_DEBUG("Finished fetching banned replica clusters");
+        YT_TLOG_DEBUG("Finished fetching banned replica clusters");
         return BannedReplicasFromMetaCluster_;
 
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to fetch banned replica clusters");
+        YT_TLOG_ERROR("Failed to fetch banned replica clusters")
+            .With(ex);
         auto guard = WriterGuard(Lock_);
         BannedReplicasFuture_.Reset();
         throw;
