@@ -112,16 +112,20 @@ TFuture<void> TTmpfsLayerCache::Initialize()
     auto path = CombinePaths(NFs::CurrentWorkingDirectory(), Format("%v_tmpfs_layers", CacheName_));
 
     {
-        YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
+        YT_TLOG_DEBUG("Cleanup tmpfs layer cache volume")
+            .With("Path", path);
         auto error = WaitFor(PortoExecutor_->UnlinkVolume(path, "self"));
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Failed to unlink volume (Path: %v)", path);
+            YT_TLOG_DEBUG("Failed to unlink volume")
+                .With("Path", path)
+                .With(error);
         }
     }
 
     TFuture<void> result;
     try {
-        YT_LOG_DEBUG("Create tmpfs layer cache volume (Path: %v)", path);
+        YT_TLOG_DEBUG("Create tmpfs layer cache volume")
+            .With("Path", path);
 
         MakeDirRecursive(path, 0777);
 
@@ -178,7 +182,8 @@ TFuture<void> TTmpfsLayerCache::Disable(const TError& error, bool persistentDisa
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_WARNING("Disable tmpfs layer cache (Path: %v)", CacheName_);
+    YT_TLOG_WARNING("Disable tmpfs layer cache")
+        .With("Path", CacheName_);
 
     if (TmpfsLocation_) {
         MemoryUsageTracker_->Release(Config_->Capacity);
@@ -231,10 +236,13 @@ void TTmpfsLayerCache::SetAlert(const TError& error)
 {
     auto guard = Guard(AlertSpinLock_);
     if (error.IsOK() && !Alert_.IsOK()) {
-        YT_LOG_INFO("Tmpfs layer cache alert reset (CacheName: %v)", CacheName_);
+        YT_TLOG_INFO("Tmpfs layer cache alert reset")
+            .With("CacheName", CacheName_);
         UpdateFailedCounter_.Update(0);
     } else if (!error.IsOK()) {
-        YT_LOG_WARNING(error, "Tmpfs layer cache alert set (CacheName: %v)", CacheName_);
+        YT_TLOG_WARNING("Tmpfs layer cache alert set")
+            .With("CacheName", CacheName_)
+            .With(error);
         UpdateFailedCounter_.Update(1);
     }
 
@@ -249,7 +257,7 @@ void TTmpfsLayerCache::UpdateLayers()
     auto Logger = ExecNodeLogger()
         .WithTag("Tag", tag);
 
-    YT_LOG_INFO("Started updating tmpfs layers");
+    YT_TLOG_INFO("Started updating tmpfs layers");
 
     TListNodeOptions listNodeOptions;
     listNodeOptions.ReadFrom = EMasterChannelKind::Cache;
@@ -286,10 +294,9 @@ void TTmpfsLayerCache::UpdateLayers()
         return;
     }
 
-    YT_LOG_INFO(
-        "Listed tmpfs layers (CacheName: %v, Count: %v)",
-        CacheName_,
-        paths.size());
+    YT_TLOG_INFO("Listed tmpfs layers")
+        .With("CacheName", CacheName_)
+        .With("Count", paths.size());
 
     {
         THashMap<NYPath::TYPath, TFetchedArtifactKey> cachedLayerDescriptors;
@@ -341,7 +348,8 @@ void TTmpfsLayerCache::UpdateLayers()
         newArtifacts.insert(*fetchedKey.ArtifactKey);
     }
 
-    YT_LOG_DEBUG("Listed unique tmpfs layers (Count: %v)", newArtifacts.size());
+    YT_TLOG_DEBUG("Listed unique tmpfs layers")
+        .With("Count", newArtifacts.size());
 
     {
         std::vector<TArtifactKey> artifactsToRemove;
@@ -362,10 +370,8 @@ void TTmpfsLayerCache::UpdateLayers()
 
         guard.Release();
 
-        YT_LOG_INFO_IF(
-            !artifactsToRemove.empty(),
-            "Released cached tmpfs layers (Count: %v)",
-            artifactsToRemove.size());
+        YT_TLOG_INFO_IF(!artifactsToRemove.empty(), "Released cached tmpfs layers")
+            .With("Count", artifactsToRemove.size());
     }
 
     std::vector<TFuture<TLayerPtr>> newLayerFutures;
@@ -400,11 +406,10 @@ void TTmpfsLayerCache::UpdateLayers()
         }
 
         const auto& layer = newLayerOrError.Value();
-        YT_LOG_INFO(
-            "Successfully imported new tmpfs layer (LayerId: %v, ArtifactPath: %v, CacheName: %v)",
-            layer->GetMeta().Id,
-            layer->GetMeta().artifact_key().data_source().path(),
-            CacheName_);
+        YT_TLOG_INFO("Successfully imported new tmpfs layer")
+            .With("LayerId", layer->GetMeta().Id)
+            .With("ArtifactPath", layer->GetMeta().artifact_key().data_source().path())
+            .With("CacheName", CacheName_);
         hasImportedLayer = true;
 
         TArtifactKey key;
@@ -425,7 +430,7 @@ void TTmpfsLayerCache::UpdateLayers()
         Initialized_.TrySet();
     }
 
-    YT_LOG_INFO("Finished updating tmpfs layers");
+    YT_TLOG_INFO("Finished updating tmpfs layers");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

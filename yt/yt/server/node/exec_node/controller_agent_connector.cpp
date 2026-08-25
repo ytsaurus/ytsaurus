@@ -66,17 +66,15 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
 {
     if (ControllerAgentConnectorPool_->MasterConnected_) {
         HeartbeatExecutor_->Start();
-        YT_LOG_INFO(
-            "Controller agent connector created, starting heartbeats (AgentAddress: %v, IncarnationId: %v, HeartbeatOptions: %v)",
-            ControllerAgentDescriptor_.Address,
-            ControllerAgentDescriptor_.IncarnationId,
-            *GetConfig());
+        YT_TLOG_INFO("Controller agent connector created, starting heartbeats")
+            .With("AgentAddress", ControllerAgentDescriptor_.Address)
+            .With("IncarnationId", ControllerAgentDescriptor_.IncarnationId)
+            .With("HeartbeatOptions", *GetConfig());
     } else {
-        YT_LOG_INFO(
-            "Controller agent connector created, waiting for connecting to master (AgentAddress: %v, IncarnationId: %v, HeartbeatOptions: %v)",
-            ControllerAgentDescriptor_.Address,
-            ControllerAgentDescriptor_.IncarnationId,
-            *GetConfig());
+        YT_TLOG_INFO("Controller agent connector created, waiting for connecting to master")
+            .With("AgentAddress", ControllerAgentDescriptor_.Address)
+            .With("IncarnationId", ControllerAgentDescriptor_.IncarnationId)
+            .With("HeartbeatOptions", *GetConfig());
     }
 }
 
@@ -133,12 +131,11 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJob(
 
     jobTrackerServiceProxy.SetDefaultTimeout(settleJobsTimeout);
 
-    YT_LOG_DEBUG(
-        "Add settle job request (AgentDescriptor: %v, AllocationId: %v, OperationId: %v, LastJobId: %v)",
-        ControllerAgentDescriptor_,
-        allocationId,
-        operationId,
-        lastJobId);
+    YT_TLOG_DEBUG("Add settle job request")
+        .With("AgentDescriptor", ControllerAgentDescriptor_)
+        .With("AllocationId", allocationId)
+        .With("OperationId", operationId)
+        .With("LastJobId", lastJobId);
 
     auto settleJobRequest = jobTrackerServiceProxy.SettleJob();
 
@@ -164,34 +161,31 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJob(
             operationId
         ] (TErrorOr<TIntrusivePtr<TTypedClientResponse<TRspSettleJob>>>&& rspOrError) -> TJobStartInfo {
             if (!rspOrError.IsOK()) {
-                YT_LOG_DEBUG(
-                    rspOrError,
-                    "Failed to settle job (ControllerAgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
-                    ControllerAgentDescriptor_,
-                    allocationId,
-                    operationId);
+                YT_TLOG_DEBUG("Failed to settle job")
+                    .With("ControllerAgentDescriptor", ControllerAgentDescriptor_)
+                    .With("AllocationId", allocationId)
+                    .With("OperationId", operationId)
+                    .With(rspOrError);
 
                 THROW_ERROR rspOrError;
             }
 
             auto rsp = std::move(rspOrError.Value());
 
-            YT_LOG_DEBUG(
-                "Settle job response received (ControllerAgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
-                ControllerAgentDescriptor_,
-                allocationId,
-                operationId);
+            YT_TLOG_DEBUG("Settle job response received")
+                .With("ControllerAgentDescriptor", ControllerAgentDescriptor_)
+                .With("AllocationId", allocationId)
+                .With("OperationId", operationId);
 
             switch (rsp->job_info_or_error_case()) {
                 case TRspSettleJob::JobInfoOrErrorCase::kError: {
                     auto error = FromProto<TError>(rsp->error());
 
-                    YT_LOG_DEBUG(
-                        error,
-                        "No job is available for allocation (ControllerAgentDescriptor: %v, OperationId: %v, AllocationId: %v)",
-                        ControllerAgentDescriptor_,
-                        operationId,
-                        allocationId);
+                    YT_TLOG_DEBUG("No job is available for allocation")
+                        .With("ControllerAgentDescriptor", ControllerAgentDescriptor_)
+                        .With("OperationId", operationId)
+                        .With("AllocationId", allocationId)
+                        .With(error);
 
                     YT_VERIFY(!error.IsOK());
 
@@ -212,12 +206,11 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJob(
                 }
 
                 default:
-                    YT_LOG_FATAL(
-                        "Unexpected value in job_info_or_error (ControllerAgentDescriptor: %v, OperationId: %v, AllocationId: %v, Value: %v)",
-                        ControllerAgentDescriptor_,
-                        operationId,
-                        allocationId,
-                        static_cast<int>(rsp->job_info_or_error_case()));
+                    YT_TLOG_FATAL("Unexpected value in job_info_or_error")
+                        .With("ControllerAgentDescriptor", ControllerAgentDescriptor_)
+                        .With("OperationId", operationId)
+                        .With("AllocationId", allocationId)
+                        .With("Value", static_cast<int>(rsp->job_info_or_error_case()));
             }
         })
         .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
@@ -228,9 +221,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
 {
     YT_ASSERT_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    YT_LOG_DEBUG(
-        "Set new controller agent heartbeat options (NewHeartbeatOptions: %v)",
-        *newConfig);
+    YT_TLOG_DEBUG("Set new controller agent heartbeat options")
+        .With("NewHeartbeatOptions", *newConfig);
 
     HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutor);
     StatisticsThrottler_->Reconfigure(newConfig->StatisticsThrottler);
@@ -238,9 +230,9 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnConfigUpdated(
 
 TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConnector()
 {
-    YT_LOG_DEBUG("Controller agent connector destroyed (AgentAddress: %v, IncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
-        ControllerAgentDescriptor_.IncarnationId);
+    YT_TLOG_DEBUG("Controller agent connector destroyed")
+        .With("AgentAddress", ControllerAgentDescriptor_.Address)
+        .With("IncarnationId", ControllerAgentDescriptor_.IncarnationId);
 
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 }
@@ -291,10 +283,9 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
 
     PrepareHeartbeatRequest(nodeId, nodeDescriptor, request, context);
 
-    YT_LOG_INFO(
-        "Heartbeat sent to agent (AgentAddress: %v, IncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
-        ControllerAgentDescriptor_.IncarnationId);
+    YT_TLOG_INFO("Heartbeat sent to agent")
+        .With("AgentAddress", ControllerAgentDescriptor_.Address)
+        .With("IncarnationId", ControllerAgentDescriptor_.IncarnationId);
 
     {
         request->set_sequence_number(SequenceNumber_);
@@ -303,12 +294,10 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
     auto responseOrError = WaitFor(std::move(request->Invoke()));
     if (!responseOrError.IsOK()) {
         auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
-        YT_LOG_ERROR(
-            responseOrError,
-            "Error reporting heartbeat to agent (AgentAddress: %v, BackoffTime: [%v, %v])",
-            ControllerAgentDescriptor_.Address,
-            minBackoff,
-            maxBackoff);
+        YT_TLOG_ERROR("Error reporting heartbeat to agent")
+            .With("AgentAddress", ControllerAgentDescriptor_.Address)
+            .WithFormat("BackoffTime", "[%v, %v]", minBackoff, maxBackoff)
+            .With(responseOrError);
 
         if (responseOrError.GetCode() == NControllerAgent::EErrorCode::IncarnationMismatch) {
             ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker()->Invoke(BIND(
@@ -321,10 +310,9 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
     auto& response = responseOrError.Value();
     ProcessHeartbeatResponse(response, context);
 
-    YT_LOG_INFO(
-        "Successfully reported heartbeat to agent (AgentAddress: %v, IncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
-        ControllerAgentDescriptor_.IncarnationId);
+    YT_TLOG_INFO("Successfully reported heartbeat to agent")
+        .With("AgentAddress", ControllerAgentDescriptor_.Address)
+        .With("IncarnationId", ControllerAgentDescriptor_.IncarnationId);
 
     return TError();
 }
@@ -376,10 +364,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatR
         .AsyncVia(bootstrap->GetJobInvoker())
         .Run());
 
-    YT_LOG_FATAL_IF(
-        !error.IsOK(),
-        error,
-        "Failed to prepare agent heartbeat request");
+    YT_TLOG_FATAL_IF(!error.IsOK(), "Failed to prepare agent heartbeat request")
+        .With(error);
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::ProcessHeartbeatResponse(
@@ -396,10 +382,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::ProcessHeartbeatR
         .AsyncVia(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker())
         .Run());
 
-    YT_LOG_FATAL_IF(
-        !error.IsOK(),
-        error,
-        "Failed to process agent heartbeat response");
+    YT_TLOG_FATAL_IF(!error.IsOK(), "Failed to process agent heartbeat response")
+        .With(error);
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::DoPrepareHeartbeatRequest(
@@ -439,9 +423,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnMasterConnected
 {
     YT_ASSERT_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    YT_LOG_INFO(
-        "Starting heartbeats to controller agent (AgentDescriptor: %v)",
-        ControllerAgentDescriptor_);
+    YT_TLOG_INFO("Starting heartbeats to controller agent")
+        .With("AgentDescriptor", ControllerAgentDescriptor_);
 
     HeartbeatExecutor_->Start();
 }
@@ -450,9 +433,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnMasterDisconnec
 {
     YT_ASSERT_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    YT_LOG_INFO(
-        "Stopping heartbeats to controller agent (AgentDescriptor: %v)",
-        ControllerAgentDescriptor_);
+    YT_TLOG_INFO("Stopping heartbeats to controller agent")
+        .With("AgentDescriptor", ControllerAgentDescriptor_);
 
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 }
@@ -461,9 +443,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
 {
     YT_ASSERT_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    YT_LOG_DEBUG(
-        "Controller agent incarnation is outdated, stop connector (ControllerAgentDescriptor: %v)",
-        ControllerAgentDescriptor_);
+    YT_TLOG_DEBUG("Controller agent incarnation is outdated, stop connector")
+        .With("ControllerAgentDescriptor", ControllerAgentDescriptor_);
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
     jobController->OnAgentIncarnationOutdated(ControllerAgentDescriptor_);
@@ -473,15 +454,13 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 
     if (ControllerAgentConnectorPool_->ControllerAgentConnectors_.erase(ControllerAgentDescriptor_)) {
-        YT_LOG_DEBUG(
-            "Remove controller agent connector since incarnation is outdated (ControllerAgentDescriptor: %v)",
-            ControllerAgentDescriptor_);
+        YT_TLOG_DEBUG("Remove controller agent connector since incarnation is outdated")
+            .With("ControllerAgentDescriptor", ControllerAgentDescriptor_);
 
         ControllerAgentConnectorPool_->IncrementEpoch();
     } else {
-        YT_LOG_DEBUG(
-            "Controller agent connector is already removed (ControllerAgentDescriptor: %v)",
-            ControllerAgentDescriptor_);
+        YT_TLOG_DEBUG("Controller agent connector is already removed")
+            .With("ControllerAgentDescriptor", ControllerAgentDescriptor_);
     }
 }
 
@@ -546,16 +525,14 @@ void TControllerAgentConnectorPool::OnRegisteredAgentSetReceived(
 {
     YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
-    YT_LOG_DEBUG(
-        "Received registered controller agents (ControllerAgentCount: %v)",
-        std::size(controllerAgentDescriptors));
+    YT_TLOG_DEBUG("Received registered controller agents")
+        .With("ControllerAgentCount", std::size(controllerAgentDescriptors));
 
     THashSet<TControllerAgentConnectorPtr> outdatedControllerAgentConnectors;
     for (const auto& [descriptor, connector] : ControllerAgentConnectors_) {
         if (!controllerAgentDescriptors.contains(descriptor)) {
-            YT_LOG_DEBUG(
-                "Found outdated controller agent connector, remove it (ControllerAgentDescriptor: %v)",
-                descriptor);
+            YT_TLOG_DEBUG("Found outdated controller agent connector, remove it")
+                .With("ControllerAgentDescriptor", descriptor);
 
             EmplaceOrCrash(outdatedControllerAgentConnectors, connector);
         } else {
@@ -568,7 +545,8 @@ void TControllerAgentConnectorPool::OnRegisteredAgentSetReceived(
     }
 
     for (auto& descriptor : controllerAgentDescriptors) {
-        YT_LOG_DEBUG("Add new controller agent connector (ControllerAgentDescriptor: %v)", descriptor);
+        YT_TLOG_DEBUG("Add new controller agent connector")
+            .With("ControllerAgentDescriptor", descriptor);
         AddControllerAgentConnector(std::move(descriptor));
     }
 }
@@ -663,10 +641,9 @@ void TControllerAgentConnectorPool::OnJobFinished(const TJobPtr& job)
     if (auto controllerAgentConnector = job->GetControllerAgentConnector()) {
         controllerAgentConnector->EnqueueFinishedJob(job);
 
-        YT_LOG_DEBUG(
-            "Job finished, send out of band heartbeat to controller agent (JobId: %v, ControllerAgentDescriptor: %v)",
-            job->GetId(),
-            controllerAgentConnector->GetDescriptor());
+        YT_TLOG_DEBUG("Job finished, send out of band heartbeat to controller agent")
+            .With("JobId", job->GetId())
+            .With("ControllerAgentDescriptor", controllerAgentConnector->GetDescriptor());
 
         controllerAgentConnector->SendOutOfBandHeartbeatIfNeeded();
     }
