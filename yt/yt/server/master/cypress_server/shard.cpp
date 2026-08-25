@@ -155,12 +155,10 @@ NYPath::TYPath TCypressShard::MaybeRewritePath(const NYPath::TYPath& path, bool 
         return path;
     }
 
-    YT_LOG_ALERT_UNLESS(pathTokenType == ETokenType::Slash,
-        "Unexpected token sequence encountered when attempting to rewrite path "
-        "(ExpectedTokenType: %v, ActualTokenType: %v, Token: %v)",
-        ETokenType::Slash,
-        pathTokenType,
-        pathTokenizer.GetToken());
+    YT_TLOG_ALERT_UNLESS(pathTokenType == ETokenType::Slash, "Unexpected token sequence encountered when attempting to rewrite path")
+        .With("ExpectedTokenType", ETokenType::Slash)
+        .With("ActualTokenType", pathTokenType)
+        .With("Token", pathTokenizer.GetToken());
 
     return FromObjectId(exitNode->GetId()) + pathTokenizer.GetInput();
 }

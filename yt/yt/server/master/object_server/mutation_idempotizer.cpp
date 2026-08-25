@@ -112,7 +112,7 @@ void TMutationIdempotizer::SetMutationApplied(TMutationId id)
 
 void TMutationIdempotizer::RemoveExpiredMutations()
 {
-    YT_LOG_DEBUG("Started removing expired recently applied mutation IDs");
+    YT_TLOG_DEBUG("Started removing expired recently applied mutation IDs");
 
     const auto* mutationContext = GetCurrentMutationContext();
     YT_VERIFY(mutationContext);
@@ -133,8 +133,8 @@ void TMutationIdempotizer::RemoveExpiredMutations()
 
     FinishedMutationsByTime_.erase(FinishedMutationsByTime_.begin(), it);
 
-    YT_LOG_DEBUG("Finished removing expired recently applied mutation IDs (MutationsRemoved: %v)",
-        mutationsRemoved);
+    YT_TLOG_DEBUG("Finished removing expired recently applied mutation IDs")
+        .With("MutationsRemoved", mutationsRemoved);
 }
 
 i64 TMutationIdempotizer::RecentlyFinishedMutationCount() const

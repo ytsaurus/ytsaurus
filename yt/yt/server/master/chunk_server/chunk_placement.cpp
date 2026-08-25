@@ -157,10 +157,8 @@ TNodeId TChunkPlacement::TAllocationSession::PickRandomNode()
         WeightedRandomNodeChooser_->GetWeight(resultingPickNodeId));
     auto isInserted = false;
     for (auto removedNodeIt = RemovedNodes_.begin(); removedNodeIt != RemovedNodes_.end(); ++removedNodeIt) {
-        YT_LOG_ALERT_IF(
-            resultingPickNodeDescription == *removedNodeIt,
-            "Picked a node that was already chosen previously (NodeId: %v)",
-            resultingPickNodeId);
+        YT_TLOG_ALERT_IF(resultingPickNodeDescription == *removedNodeIt, "Picked a node that was already chosen previously")
+            .With("NodeId", resultingPickNodeId);
 
         if (resultingPickNodeDescription.LeftBound < removedNodeIt->LeftBound) {
             RemovedNodes_.insert(removedNodeIt, resultingPickNodeDescription);
@@ -511,15 +509,14 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& dataNodeStatistics = nodeTracker->GetFlavoredNodeStatistics(NNodeTrackerClient::ENodeFlavor::Data);
         if (desiredCount > dataNodeStatistics.OnlineNodeCount) {
-            YT_LOG_WARNING("Requested to allocate too many consistently placed chunk replica targets "
-                "(ChunkId: %v, ReplicaIndexes: %v, MediumIndex: %v, MinReplicaCount: %v, DesiredReplicaCount: %v, ConsistentPlacementReplicaCount: %v, OnlineDataNodeCount: %v)",
-                chunk->GetId(),
-                replicaIndexes,
-                mediumIndex,
-                minCount,
-                desiredCount,
-                std::ssize(result),
-                dataNodeStatistics.OnlineNodeCount);
+            YT_TLOG_WARNING("Requested to allocate too many consistently placed chunk replica targets")
+                .With("ChunkId", chunk->GetId())
+                .With("ReplicaIndexes", replicaIndexes)
+                .With("MediumIndex", mediumIndex)
+                .With("MinReplicaCount", minCount)
+                .With("DesiredReplicaCount", desiredCount)
+                .With("ConsistentPlacementReplicaCount", std::ssize(result))
+                .With("OnlineDataNodeCount", dataNodeStatistics.OnlineNodeCount);
         }
         return std::nullopt;
     }
@@ -532,12 +529,11 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
             return replicaIndex >= std::ssize(result);
         })!= replicaIndexes.end())
     {
-        YT_LOG_ALERT("Target nodes dictated by consistent chunk placement are fewer than the specified replica index "
-            "(ChunkId: %v, MediumIndex: %v, ConsistentPlacementTargetNodeCount: %v, ReplicaIndexes: %v)",
-            chunk->GetId(),
-            mediumIndex,
-            std::ssize(result),
-            replicaIndexes);
+        YT_TLOG_ALERT("Target nodes dictated by consistent chunk placement are fewer than the specified replica index")
+            .With("ChunkId", chunk->GetId())
+            .With("MediumIndex", mediumIndex)
+            .With("ConsistentPlacementTargetNodeCount", std::ssize(result))
+            .With("ReplicaIndexes", replicaIndexes);
         return std::nullopt;
     }
 
@@ -678,12 +674,10 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
     for (auto replica : replicas) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
-            YT_LOG_ALERT(
-                "Non-chunk location stored replica was found during processing removal targets for chunk, ignored "
-                "(ChunkId: %v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
-                chunk->GetId(),
-                replica.GetEffectiveMediumIndex(),
-                replica.GetReplicaIndex());
+            YT_TLOG_ALERT("Non-chunk location stored replica was found during processing removal targets for chunk, ignored")
+                .With("ChunkId", chunk->GetId())
+                .With("ReplicaMediumIndex", replica.GetEffectiveMediumIndex())
+                .With("ReplicaIndex", replica.GetReplicaIndex());
             continue;
         }
         if (replica.GetEffectiveMediumIndex() != mediumIndex) {

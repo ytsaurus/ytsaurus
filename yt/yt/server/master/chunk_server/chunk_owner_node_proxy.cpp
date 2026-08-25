@@ -1292,10 +1292,10 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             securityTags.Validate();
 
             // TODO(babenko): audit
-            YT_LOG_DEBUG("Updating node security tags (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v)",
-                node->GetVersionedId(),
-                node->ComputeSecurityTags().Items,
-                securityTags.Items);
+            YT_TLOG_DEBUG("Updating node security tags")
+                .With("NodeId", node->GetVersionedId())
+                .With("OldSecurityTags", node->ComputeSecurityTags().Items)
+                .With("NewSecurityTags", securityTags.Items);
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
@@ -1544,10 +1544,10 @@ void TChunkOwnerNodeProxy::RemoveHunkPrimaryMedium()
     auto* hunkPrimaryMedium = chunkManager->GetMediumByIndex(*hunkPrimaryMediumIndex);
     auto* primaryMedium = chunkManager->GetMediumByIndex(node->GetPrimaryMediumIndex());
 
-    YT_LOG_DEBUG("Chunk owner hunk primary medium removed, falling back to main primary medium (NodeId: %v, HunkPrimaryMedium: %v, MainPrimaryMedium: %v)",
-        node->GetId(),
-        hunkPrimaryMedium->GetName(),
-        primaryMedium->GetName());
+    YT_TLOG_DEBUG("Chunk owner hunk primary medium removed, falling back to main primary medium")
+        .With("NodeId", node->GetId())
+        .With("HunkPrimaryMedium", hunkPrimaryMedium->GetName())
+        .With("MainPrimaryMedium", primaryMedium->GetName());
 }
 
 void TChunkOwnerNodeProxy::ValidateResourceUsageIncreaseOnPrimaryMediumChange(TMedium* newPrimaryMedium, const TChunkReplication& newReplication)
@@ -1895,18 +1895,19 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     const auto& tableManager = Bootstrap_->GetTableManager();
 
-    YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
-        "Received a schema or schema ID while beginning upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
-        node->GetId(),
-        tableManager->GetHeavyTableSchemaSync(tableSchema),
-        tableSchemaId);
+    YT_TLOG_ALERT_IF(
+        !IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
+        "Received a schema or schema ID while beginning upload into a non-schemaful node")
+        .With("NodeId", node->GetId())
+        .With("Schema", tableManager->GetHeavyTableSchemaSync(tableSchema))
+        .With("SchemaId", tableSchemaId);
 
-    YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (chunkSchema || chunkSchemaId),
-        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node "
-        "(NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
-        node->GetId(),
-        tableManager->GetHeavyTableSchemaSync(chunkSchema),
-        chunkSchemaId);
+    YT_TLOG_ALERT_IF(
+        !IsSchemafulType(node->GetType()) && (chunkSchema || chunkSchemaId),
+        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node")
+        .With("NodeId", node->GetId())
+        .With("ChunkSchema", tableManager->GetHeavyTableSchemaSync(chunkSchema))
+        .With("ChunkSchemaId", chunkSchemaId);
 
     std::vector<TTransactionRawPtr> prerequisiteTransactions;
     prerequisiteTransactions.reserve(request->upload_prerequisite_transaction_ids_size());

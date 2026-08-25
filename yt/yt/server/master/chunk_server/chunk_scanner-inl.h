@@ -121,11 +121,9 @@ void TChunkScanQueueWithPayload<TPayload>::RequeueDelayedChunks(NProfiling::TCpu
         Queue_.push(std::move(queueEntry));
     }
     if (!DelayedQueue_.empty()) {
-        YT_LOG_TRACE(
-            "First chunk in delayed queue "
-            "(ChunkId: %v, Deadline: %v)",
-            DelayedQueue_.top().QueueEntry.Chunk->GetId(),
-            CpuInstantToInstant(DelayedQueue_.top().Deadline));
+        YT_TLOG_TRACE("First chunk in delayed queue")
+            .With("ChunkId", DelayedQueue_.top().QueueEntry.Chunk->GetId())
+            .With("Deadline", CpuInstantToInstant(DelayedQueue_.top().Deadline));
     }
 }
 
@@ -138,11 +136,9 @@ bool TChunkScanQueueWithPayload<TPayload>::HasUnscannedChunk(NProfiling::TCpuIns
         if (Queue_.front().Instant < deadline) {
             return true;
         } else {
-            YT_LOG_TRACE(
-            "First chunk in queue "
-                "(ChunkId: %v, Instant: %v)",
-                Queue_.front().Chunk->GetId(),
-                CpuInstantToInstant(Queue_.front().Instant));
+            YT_TLOG_TRACE("First chunk in queue")
+                .With("ChunkId", Queue_.front().Chunk->GetId())
+                .With("Instant", CpuInstantToInstant(Queue_.front().Instant));
         }
     }
 

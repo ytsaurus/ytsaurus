@@ -235,7 +235,7 @@ void TTableNode::ValidateBeginUpload(const TBeginUploadContext& context)
 {
     // COMPAT(h0pless): This check protects from requests from pre-24.2 clients.
     // It is safe to remove once we become brave enough.
-    YT_LOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
+    YT_TLOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
 
     const auto& config = context.Bootstrap->GetConfigManager()->GetConfig();
     if (config->TableManager->ValidateNoDescendingSortOrder) {
@@ -265,14 +265,13 @@ void TTableNode::BeginUpload(const TBeginUploadContext &context)
         if ((SchemaMode_ != contextMode) ||
             (contextSchema && *GetSchema()->AsCompactTableSchema() != *contextSchema->AsCompactTableSchema()))
         {
-            YT_LOG_ALERT("Schema of a dynamic table changed during upload (TableId: %v, TransactionId: %v, "
-                "OriginalSchemaMode: %v, NewSchemaMode: %v, OriginalSchema: %v, NewSchema: %v)",
-                GetId(),
-                GetTransaction()->GetId(),
-                SchemaMode_,
-                context.SchemaMode,
-                tableManager->GetHeavyTableSchemaSync(GetSchema()),
-                tableManager->GetHeavyTableSchemaSync(context.TableSchema));
+            YT_TLOG_ALERT("Schema of a dynamic table changed during upload")
+                .With("TableId", GetId())
+                .With("TransactionId", GetTransaction()->GetId())
+                .With("OriginalSchemaMode", SchemaMode_)
+                .With("NewSchemaMode", context.SchemaMode)
+                .With("OriginalSchema", tableManager->GetHeavyTableSchemaSync(GetSchema()))
+                .With("NewSchema", tableManager->GetHeavyTableSchemaSync(context.TableSchema));
         }
     }
 

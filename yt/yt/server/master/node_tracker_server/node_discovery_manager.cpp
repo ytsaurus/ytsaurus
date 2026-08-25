@@ -122,8 +122,8 @@ void TNodeDiscoveryManager::UpdateNodeList()
 {
     auto nodes = Bootstrap_->GetNodeTracker()->GetNodesForRole(NodeRole_);
 
-    YT_LOG_INFO("Started updating nodes (OldNodes: %v)",
-        MakeFormattableView(nodes, TNodePtrAddressFormatter()));
+    YT_TLOG_INFO("Started updating nodes")
+        .With("OldNodes", MakeFormattableView(nodes, TNodePtrAddressFormatter()));
 
     THashSet<TNode*> selectedNodeSet(nodes.begin(), nodes.end());
     THashMap<TRack*, int> nodeCountPerRack;
@@ -153,9 +153,10 @@ void TNodeDiscoveryManager::UpdateNodeList()
 
     int nodesToReplaceCount = Config_->PeerCount - std::ssize(selectedNodeSet);
     if (nodesToReplaceCount == 0) {
-        YT_LOG_INFO("No new nodes needed");
+        YT_TLOG_INFO("No new nodes needed");
     } else {
-        YT_LOG_INFO("New nodes needed (NodesToReplaceCount: %v)", nodesToReplaceCount);
+        YT_TLOG_INFO("New nodes needed")
+            .With("NodesToReplaceCount", nodesToReplaceCount);
     }
 
     auto updateSelectedNodeSet = [&] (int maxPeersPerRack) {
@@ -180,21 +181,21 @@ void TNodeDiscoveryManager::UpdateNodeList()
 
     int rackCount = std::ssize(nodeCountPerRack);
     if (nodesToReplaceCount > 0 && rackCount > 0) {
-        YT_LOG_WARNING("There is not enough alive nodes satisfying rack awareness (MaxPeersPerRack: %v, NewNodesCount: %v, NeededNodesCount: %v)",
-            Config_->MaxPeersPerRack,
-            selectedNodeSet.size(),
-            nodesToReplaceCount);
+        YT_TLOG_WARNING("There is not enough alive nodes satisfying rack awareness")
+            .With("MaxPeersPerRack", Config_->MaxPeersPerRack)
+            .With("NewNodesCount", selectedNodeSet.size())
+            .With("NeededNodesCount", nodesToReplaceCount);
         auto nodeCount = (nodesToReplaceCount + rackCount - 1) / rackCount;
         updateSelectedNodeSet(nodeCount);
         updateSelectedNodeSet(Config_->PeerCount);
     }
 
     if (std::ssize(selectedNodeSet) < Config_->PeerCount) {
-        YT_LOG_WARNING("Failed to find enough alive nodes satisfying node tag filter (Filter: %v)",
-            Config_->NodeTagFilter.GetFormula());
+        YT_TLOG_WARNING("Failed to find enough alive nodes satisfying node tag filter")
+            .With("Filter", Config_->NodeTagFilter.GetFormula());
     }
-    YT_LOG_INFO("Node list updated (NewNodeList: %v)",
-        MakeFormattableView(selectedNodeSet, TNodePtrAddressFormatter()));
+    YT_TLOG_INFO("Node list updated")
+        .With("NewNodeList", MakeFormattableView(selectedNodeSet, TNodePtrAddressFormatter()));
 
     CommitNewNodes(selectedNodeSet);
 }

@@ -109,16 +109,16 @@ private:
         auto* table = tableManager->FindTableNode(secondaryIndex->GetTableId());
         auto* indexTable = tableManager->FindTableNode(secondaryIndex->GetIndexTableId());
         if (table) {
-            YT_LOG_DEBUG("Drop index links from table due to index removal (IndexId: %v, TableId: %v)",
-                secondaryIndex->GetId(),
-                secondaryIndex->GetTableId());
+            YT_TLOG_DEBUG("Drop index links from table due to index removal")
+                .With("IndexId", secondaryIndex->GetId())
+                .With("TableId", secondaryIndex->GetTableId());
             EraseOrCrash(table->MutableSecondaryIndices(), secondaryIndex);
             secondaryIndex->SetTableId({});
         }
         if (indexTable) {
-            YT_LOG_DEBUG("Drop index links from index table due to index removal (IndexId: %v, TableId: %v)",
-                secondaryIndex->GetId(),
-                secondaryIndex->GetIndexTableId());
+            YT_TLOG_DEBUG("Drop index links from index table due to index removal")
+                .With("IndexId", secondaryIndex->GetId())
+                .With("TableId", secondaryIndex->GetIndexTableId());
             indexTable->SetIndexTo(nullptr);
             secondaryIndex->SetIndexTableId({});
         }

@@ -138,12 +138,13 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Syncing alien cells (AlienClusters: %v)",
-            clusterNames);
+        YT_TLOG_DEBUG("Syncing alien cells")
+            .With("AlienClusters", clusterNames);
 
         auto alienClusterInfosOrError = WaitFor(AllSet(std::move(asyncAlienClusterInfos)));
         if (!alienClusterInfosOrError.IsOK()) {
-            YT_LOG_DEBUG(alienClusterInfosOrError, "Error synchronizing alien cells");
+            YT_TLOG_DEBUG("Error synchronizing alien cells")
+                .With(alienClusterInfosOrError);
             return;
         }
 
@@ -156,8 +157,9 @@ private:
             const auto& alienClusterInfoOrError = alienClusterInfos[index];
             const auto& alienClusterIndex = clusterIndexes[index];
             if (!alienClusterInfoOrError.IsOK()) {
-                YT_LOG_DEBUG(alienClusterInfoOrError, "Error synchronizing alien cells (Cluster: %v)",
-                    GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex));
+                YT_TLOG_DEBUG("Error synchronizing alien cells")
+                    .With("Cluster", GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex))
+                    .With(alienClusterInfoOrError);
                 continue;
             }
 
@@ -199,10 +201,10 @@ private:
 
             for (const auto& [alienClusterIndex, configVersion] : cell->As<TChaosCell>()->AlienConfigVersions()) {
                 result[alienClusterIndex].push_back({cell->GetId(), configVersion});
-                YT_LOG_DEBUG("Alien peers found (ChaosCellId: %v, AlienCluster: %v, AlienConfigVersion: %v)",
-                    cell->GetId(),
-                    GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex),
-                    configVersion);
+                YT_TLOG_DEBUG("Alien peers found")
+                    .With("ChaosCellId", cell->GetId())
+                    .With("AlienCluster", GetAlienClusterRegistry()->GetAlienClusterName(alienClusterIndex))
+                    .With("AlienConfigVersion", configVersion);
             }
         }
 
@@ -227,8 +229,8 @@ private:
     {
         auto connection = NNative::FindRemoteConnection(Bootstrap_->GetClusterConnection(), clusterName);
         if (!connection) {
-            YT_LOG_WARNING("Could not find native connection config to alien cluster (ClusterName: %v)",
-                clusterName);
+            YT_TLOG_WARNING("Could not find native connection config to alien cluster")
+                .With("ClusterName", clusterName);
             return {};
         }
 

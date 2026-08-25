@@ -248,7 +248,7 @@ public:
         YT_ASSERT(!AutomatonBlocked_);
         AutomatonBlocked_ = true;
 
-        YT_LOG_TRACE("Automaton thread blocked");
+        YT_TLOG_TRACE("Automaton thread blocked");
     }
 
     void UnblockAutomaton() override
@@ -258,7 +258,7 @@ public:
         YT_ASSERT(AutomatonBlocked_);
         AutomatonBlocked_ = false;
 
-        YT_LOG_TRACE("Automaton thread unblocked");
+        YT_TLOG_TRACE("Automaton thread unblocked");
     }
 
     bool IsAutomatonLocked() override

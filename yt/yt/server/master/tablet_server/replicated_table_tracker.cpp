@@ -398,11 +398,11 @@ private:
 
         TFuture<void> SetMode(TBootstrap* const bootstrap, ETableReplicaMode mode)
         {
-            YT_LOG_DEBUG("Switching table replica mode (Path: %v, ReplicaId: %v, ClusterName: %v, Mode: %v)",
-                Path_,
-                Id_,
-                ClusterName_,
-                mode);
+            YT_TLOG_DEBUG("Switching table replica mode")
+                .With("Path", Path_)
+                .With("ReplicaId", Id_)
+                .With("ClusterName", ClusterName_)
+                .With("Mode", mode);
 
             auto automatonInvoker = bootstrap
                 ->GetHydraFacade()
@@ -422,17 +422,18 @@ private:
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TTableReplicaYPathProxy::TRspAlterPtr>& rspOrError) {
                     if (rspOrError.IsOK()) {
                         Mode_ = mode;
-                        YT_LOG_DEBUG("Table replica mode switched (Path: %v, ReplicaId: %v, ClusterName: %v, Mode: %v)",
-                            Path_,
-                            Id_,
-                            ClusterName_,
-                            mode);
+                        YT_TLOG_DEBUG("Table replica mode switched")
+                            .With("Path", Path_)
+                            .With("ReplicaId", Id_)
+                            .With("ClusterName", ClusterName_)
+                            .With("Mode", mode);
                     } else {
-                        YT_LOG_DEBUG(rspOrError, "Error switching table replica mode (Path: %v, ReplicaId: %v, ClusterName: %v, Mode: %v)",
-                            Path_,
-                            Id_,
-                            ClusterName_,
-                            mode);
+                        YT_TLOG_DEBUG("Error switching table replica mode")
+                            .With("Path", Path_)
+                            .With("ReplicaId", Id_)
+                            .With("ClusterName", ClusterName_)
+                            .With("Mode", mode)
+                            .With(rspOrError);
                     }
                 })
                 .Via(CheckerInvoker_));
@@ -722,12 +723,12 @@ private:
                         goodAsyncReplicas.reserve(asyncReplicas.size());
 
                         auto logLivenessCheckResult = [&] (const TError& error, const TReplicaPtr& replica) {
-                            YT_LOG_DEBUG_IF(!error.IsOK(), error, "Replica liveness check failed (ReplicatedTableId: %v, ReplicaId: %v, "
-                                "ReplicaTablePath: %v, ReplicaClusterName: %v)",
-                                id,
-                                replica->GetId(),
-                                replica->GetPath(),
-                                replica->GetClusterName());
+                            YT_TLOG_DEBUG_IF(!error.IsOK(), "Replica liveness check failed")
+                                .With("ReplicatedTableId", id)
+                                .With("ReplicaId", replica->GetId())
+                                .With("ReplicaTablePath", replica->GetPath())
+                                .With("ReplicaClusterName", replica->GetClusterName())
+                                .With(error);
                         };
 
                         {
@@ -900,12 +901,12 @@ private:
         const auto& dynamicConfig = GetDynamicConfig();
 
         if (!dynamicConfig->EnableReplicatedTableTracker) {
-            YT_LOG_INFO("Replicated table tracker is disabled, see //sys/@config");
+            YT_TLOG_INFO("Replicated table tracker is disabled, see //sys/@config");
             return;
         }
 
         if (dynamicConfig->UseNewReplicatedTableTracker) {
-            YT_LOG_DEBUG("Old replicated table tracker is disabled");
+            YT_TLOG_DEBUG("Old replicated table tracker is disabled");
             return;
         }
 
@@ -922,8 +923,8 @@ private:
             .Client = client,
         };
 
-        YT_LOG_DEBUG("Created new client in replicated table tracker (ClusterName: %v)",
-            clusterName);
+        YT_TLOG_DEBUG("Created new client in replicated table tracker")
+            .With("ClusterName", clusterName);
 
         return client;
     }
@@ -977,8 +978,8 @@ private:
         for (const auto& [id, table] : capturedTables) {
             auto* object = Bootstrap_->GetObjectManager()->FindObject(id);
             if (!IsObjectAlive(object)) {
-                YT_LOG_DEBUG("Table no longer exists (TableId: %v)",
-                    id);
+                YT_TLOG_DEBUG("Table no longer exists")
+                    .With("TableId", id);
                 {
                     auto guard = Guard(Lock_);
                     Tables_.erase(id);
@@ -1003,8 +1004,8 @@ private:
 
             for (const auto& [id, table] : Tables_) {
                 if (!table->IsEnabled()) {
-                    YT_LOG_DEBUG("Replicated Table Tracker is disabled (TableId: %v)",
-                        id);
+                    YT_TLOG_DEBUG("Replicated Table Tracker is disabled")
+                        .With("TableId", id);
                     continue;
                 }
 
@@ -1016,9 +1017,9 @@ private:
                 if (collocationId != NullObjectId) {
                     auto it = collocationIdToLeaderFuture.find(collocationId);
                     if (it == collocationIdToLeaderFuture.end()) {
-                        YT_LOG_DEBUG("Picked replication collocation leader (CollocationId: %v, LeaderTableId: %v)",
-                            collocationId,
-                            id);
+                        YT_TLOG_DEBUG("Picked replication collocation leader")
+                            .With("CollocationId", collocationId)
+                            .With("LeaderTableId", id);
                         future = table->Check(
                             Bootstrap_,
                             /*referenceReplicaClusters*/ std::nullopt);
@@ -1045,8 +1046,9 @@ private:
                 }
 
                 future.Subscribe(BIND([id = id, switchCounter] (const TErrorOr<TTable::TCheckResult>& result) {
-                    YT_LOG_DEBUG_UNLESS(result.IsOK(), result, "Error checking table (TableId: %v)",
-                        id);
+                    YT_TLOG_DEBUG_UNLESS(result.IsOK(), "Error checking table")
+                        .With("TableId", id)
+                        .With(result);
 
                     if (result.IsOK()) {
                         switchCounter.Increment(result.Value().SwitchCount);
@@ -1072,7 +1074,8 @@ private:
         try {
             UpdateTables();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Cannot update tables");
+            YT_TLOG_WARNING("Cannot update tables")
+                .With(ex);
         }
     }
 
@@ -1087,7 +1090,8 @@ private:
         try {
             CheckTables();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Cannot check tables");
+            YT_TLOG_WARNING("Cannot check tables")
+                .With(ex);
         }
     }
 
@@ -1209,10 +1213,10 @@ private:
 
             auto client = GetOrCreateClusterClient(replica->GetClusterName());
             if (!client) {
-                YT_LOG_WARNING("Unknown replica cluster (ClusterName: %v, ReplicaId: %v, TableId: %v)",
-                    replica->GetClusterName(),
-                    replica->GetId(),
-                    table->GetId());
+                YT_TLOG_WARNING("Unknown replica cluster")
+                    .With("ClusterName", replica->GetClusterName())
+                    .With("ReplicaId", replica->GetId())
+                    .With("TableId", table->GetId());
             }
 
             replicas.push_back(New<TReplica>(
@@ -1399,7 +1403,7 @@ public:
                 ActionQueue_.clear();
                 guard.Release();
 
-                YT_LOG_DEBUG("RTT state provider started loading snapshot");
+                YT_TLOG_DEBUG("RTT state provider started loading snapshot");
 
                 auto [revision, snapshot] = WaitFor(GetSnapshotFuture())
                     .ValueOrThrow();
@@ -1420,8 +1424,8 @@ public:
                     }
                 }
 
-                YT_LOG_DEBUG("RTT state provider finished loading snapshot (ClientRevision: %v)",
-                    ClientRevision_);
+                YT_TLOG_DEBUG("RTT state provider finished loading snapshot")
+                    .With("ClientRevision", ClientRevision_);
 
                 result->clear_update_actions();
                 break;
@@ -1435,11 +1439,10 @@ public:
             ActionQueue_.pop_front();
             guard.Release();
 
-            YT_LOG_DEBUG("RTT state provider dequeued an action (Revision: %v)",
-                action.revision());
+            YT_TLOG_DEBUG("RTT state provider dequeued an action")
+                .With("Revision", action.revision());
 
-            YT_LOG_ALERT_IF(action.revision() <= ClientRevision_,
-                "RTT state provider encountered oudated action upon queue drain");
+            YT_TLOG_ALERT_IF(action.revision() <= ClientRevision_, "RTT state provider encountered oudated action upon queue drain");
 
             ClientRevision_ = action.revision();
             *result->add_update_actions() = std::move(action);
@@ -1612,8 +1615,7 @@ private:
 
         TUpdateAction action;
         ToProto(action.mutable_created_collocation_data(), collocationData);
-        YT_LOG_ALERT_UNLESS(collocationData.Options,
-            "Null collocation options detected upon replication collocation creation");
+        YT_TLOG_ALERT_UNLESS(collocationData.Options, "Null collocation options detected upon replication collocation creation");
         EnqueueAction(std::move(action), "ReplicationCollocationCreated");
     }
 
@@ -1639,9 +1641,9 @@ private:
             LoadingFromSnapshotRequested_.store(true);
             ActionQueue_.clear();
             guard.Release();
-            YT_LOG_WARNING("Action queue is reset due to overflow (MaxActionQueueSize: %v, LastAction: %v)",
-                MaxActionQueueSize_.load(),
-                actionString);
+            YT_TLOG_WARNING("Action queue is reset due to overflow")
+                .With("MaxActionQueueSize", MaxActionQueueSize_.load())
+                .With("LastAction", actionString);
             return;
         }
 
@@ -1649,9 +1651,9 @@ private:
 
         guard.Release();
 
-        YT_LOG_DEBUG("RTT state provider enqueued new action (ActionRevision: %v, Action: %v)",
-            revision,
-            actionString);
+        YT_TLOG_DEBUG("RTT state provider enqueued new action")
+            .With("ActionRevision", revision)
+            .With("Action", actionString);
     }
 
     void OnConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
@@ -1664,7 +1666,7 @@ private:
     TFuture<std::pair<TTrackerStateRevision, TReplicatedTableTrackerSnapshot>> GetSnapshotFuture()
     {
         return BIND([bootstrap = Bootstrap_, this_ = MakeStrong(this), this] {
-            YT_LOG_DEBUG("Started building replicated table tracker snapshot");
+            YT_TLOG_DEBUG("Started building replicated table tracker snapshot");
 
             TReplicatedTableTrackerSnapshot snapshot;
 
@@ -1718,7 +1720,7 @@ private:
                 }
             }
 
-            YT_LOG_DEBUG("Finished building replicated table tracker snapshot");
+            YT_TLOG_DEBUG("Finished building replicated table tracker snapshot");
 
             return std::pair(++Revision_, std::move(snapshot));
         })

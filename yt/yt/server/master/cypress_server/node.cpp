@@ -309,10 +309,10 @@ void TCypressNode::SetNativeContentRevision(NHydra::TRevision revision)
 {
     YT_VERIFY(IsForeign());
 
-    YT_LOG_DEBUG("Setting native content revision (NodeId: %v, OldRevision: %v, NewRevision: %v)",
-        GetVersionedId(),
-        NativeContentRevision_,
-        revision);
+    YT_TLOG_DEBUG("Setting native content revision")
+        .With("NodeId", GetVersionedId())
+        .With("OldRevision", NativeContentRevision_)
+        .With("NewRevision", revision);
 
     NativeContentRevision_ = revision;
 }
@@ -339,35 +339,35 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
         Transaction_ &&
         IsCypressTransactionType(Transaction_->GetType()))
     {
-        YT_LOG_ALERT("External node is branched by a non-externalized Cypress Transaction (NodeId: %v)",
-            GetVersionedId());
+        YT_TLOG_ALERT("External node is branched by a non-externalized Cypress Transaction")
+            .With("NodeId", GetVersionedId());
     }
 
     // NB: Half-constructed nodes may be abandonded as zombies and violate these invariants.
     if (IsObjectAlive(this)) {
         if (IsSequoia() && IsNative()) {
             if (!MutableSequoiaProperties()) {
-                YT_LOG_ALERT("Sequoia node lacks mutable Sequoia properties (NodeId: %v)",
-                    GetVersionedId());
+                YT_TLOG_ALERT("Sequoia node lacks mutable Sequoia properties")
+                    .With("NodeId", GetVersionedId());
             }
 
             if (MutableSequoiaProperties() &&
                !MutableSequoiaProperties()->BeingCreated &&
                !ImmutableSequoiaProperties())
             {
-                YT_LOG_ALERT("Sequoia node is not being created and lacks immmutable Sequoia properties (NodeId: %v)",
-                    GetVersionedId());
+                YT_TLOG_ALERT("Sequoia node is not being created and lacks immmutable Sequoia properties")
+                    .With("NodeId", GetVersionedId());
             }
         } else {
             if (MutableSequoiaProperties()) {
-                YT_LOG_ALERT("Non-sequoia node has mutable Sequoia properties (NodeId: %v)",
-                    GetVersionedId());
+                YT_TLOG_ALERT("Non-sequoia node has mutable Sequoia properties")
+                    .With("NodeId", GetVersionedId());
             }
 
             // TODO(aleksandra-zh): links should not be a special case here
             if (ImmutableSequoiaProperties() && GetType() != EObjectType::Link) {
-                YT_LOG_ALERT("Non-sequoia node has immutable Sequoia properties (NodeId: %v)",
-                    GetVersionedId());
+                YT_TLOG_ALERT("Non-sequoia node has immutable Sequoia properties")
+                    .With("NodeId", GetVersionedId());
             }
         }
     }

@@ -213,7 +213,7 @@ public:
 
         YT_VERIFY(!std::exchange(Running_, true));
 
-        YT_LOG_INFO("Chunk sealer started");
+        YT_TLOG_INFO("Chunk sealer started");
     }
 
     void Stop() override
@@ -231,7 +231,7 @@ public:
 
         YT_VERIFY(std::exchange(Running_, false));
 
-        YT_LOG_INFO("Chunk sealer stopped");
+        YT_TLOG_INFO("Chunk sealer stopped");
     }
 
     bool IsEnabled() override
@@ -364,22 +364,20 @@ public:
                 if (auto it = queue.find(scheduleJobContext.ChunkIdWithIndex); it != queue.end()) {
                     ++it->second;
                     if (it->second > GetDynamicConfig()->MaxUnsuccessfulScheduleSealJobAttemptsPerChunkReplica) {
-                        YT_LOG_ALERT(
-                            "Too many unsuccessful attempts to schedule seal job for chunk replica (ChunkId: %v, ReplicaIndex: %v, FailedSealAttempts: %v)",
-                            scheduleJobContext.Chunk->GetId(),
-                            scheduleJobContext.ChunkIdWithIndex.ReplicaIndex,
-                            it->second);
+                        YT_TLOG_ALERT("Too many unsuccessful attempts to schedule seal job for chunk replica")
+                            .With("ChunkId", scheduleJobContext.Chunk->GetId())
+                            .With("ReplicaIndex", scheduleJobContext.ChunkIdWithIndex.ReplicaIndex)
+                            .With("FailedSealAttempts", it->second);
                     }
                 }
             };
 
             const auto& replicasOrError = GetOrCrash(replicas, scheduleJobContext.Chunk->GetId());
             if (!replicasOrError.IsOK()) {
-                YT_LOG_DEBUG(
-                    replicasOrError,
-                    "Failed to schedule chunk seal job, failed to fetch replicas (ChunkId: %v, ReplicaIndex: %v)",
-                    scheduleJobContext.Chunk->GetId(),
-                    scheduleJobContext.ChunkIdWithIndex.ReplicaIndex);
+                YT_TLOG_DEBUG("Failed to schedule chunk seal job, failed to fetch replicas")
+                    .With("ChunkId", scheduleJobContext.Chunk->GetId())
+                    .With("ReplicaIndex", scheduleJobContext.ChunkIdWithIndex.ReplicaIndex)
+                    .With(replicasOrError);
 
                 onSealFailed();
                 continue;
@@ -407,12 +405,12 @@ public:
     void OnJobRunning(const TJobPtr& job, IJobControllerCallbacks* callbacks) override
     {
         if (TInstant::Now() - job->GetStartTime() > GetDynamicConfig()->JobTimeout) {
-            YT_LOG_WARNING("Job timed out, aborting (JobId: %v, JobType: %v, Address: %v, Duration: %v, ChunkId: %v)",
-                job->GetJobId(),
-                job->GetType(),
-                job->NodeAddress(),
-                TInstant::Now() - job->GetStartTime(),
-                job->GetChunkIdWithIndexes());
+            YT_TLOG_WARNING("Job timed out, aborting")
+                .With("JobId", job->GetJobId())
+                .With("JobType", job->GetType())
+                .With("Address", job->NodeAddress())
+                .With("Duration", TInstant::Now() - job->GetStartTime())
+                .With("ChunkId", job->GetChunkIdWithIndexes());
 
             callbacks->AbortJob(job);
         }
@@ -541,9 +539,9 @@ private:
         }
 
         if (sealContext->RescheduleCount >= GetDynamicConfig()->MaxUnsuccessfulSealAttempts) {
-            YT_LOG_ALERT("Too many unsuccessful seal attempts for chunk (ChunkId: %v, AttemptsCount: %v)",
-                sealContext->Chunk->GetId(),
-                sealContext->RescheduleCount);
+            YT_TLOG_ALERT("Too many unsuccessful seal attempts for chunk")
+                .With("ChunkId", sealContext->Chunk->GetId())
+                .With("AttemptsCount", sealContext->RescheduleCount);
         }
 
         EnqueueChunk(
@@ -562,8 +560,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Chunk added to seal queue (ChunkId: %v)",
-            chunk->GetId());
+        YT_TLOG_DEBUG("Chunk added to seal queue")
+            .With("ChunkId", chunk->GetId());
     }
 
     void OnRefresh()
@@ -607,8 +605,9 @@ private:
             }
             const auto& replicasOrError = GetOrCrash(replicas, chunk->GetId());
             if (!replicasOrError.IsOK()) {
-                YT_LOG_DEBUG(replicasOrError, "Error fetching replicas to seal chunk (ChunkId: %v)",
-                    chunk->GetId());
+                YT_TLOG_DEBUG("Error fetching replicas to seal chunk")
+                    .With("ChunkId", chunk->GetId())
+                    .With(replicasOrError);
 
                 // We do not increase unsuccessful seal counter here, as it will be counted in unsuccessful replica fetching counters.
                 RescheduleSeal(sealContext, /*delayed*/ true);
@@ -631,13 +630,13 @@ private:
         auto enabledInConfig = GetDynamicConfig()->EnableChunkSealer;
 
         if (!enabledInConfig && Enabled_) {
-            YT_LOG_INFO("Chunk sealer disabled");
+            YT_TLOG_INFO("Chunk sealer disabled");
             Enabled_ = false;
             return;
         }
 
         if (enabledInConfig && !Enabled_) {
-            YT_LOG_INFO("Chunk sealer enabled");
+            YT_TLOG_INFO("Chunk sealer enabled");
             Enabled_ = true;
             return;
         }
@@ -658,8 +657,9 @@ private:
             auto totalSealTime = GetCpuInstant() - sealContext->EnqueueTime;
             SuccessfulSealTime_.Add(CpuDurationToDuration(totalSealTime));
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error sealing journal chunk; backing off (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_DEBUG("Error sealing journal chunk; backing off")
+                .With("ChunkId", chunkId)
+                .With(ex);
 
             UnsuccessfulSealCounter_.Increment();
 
@@ -686,10 +686,10 @@ private:
                 chunkId);
         }
 
-        YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v, Overlayed: %v, StartRowIndex: %v)",
-            chunkId,
-            overlayed,
-            maybeStartRowIndex);
+        YT_TLOG_DEBUG("Sealing journal chunk")
+            .With("ChunkId", chunkId)
+            .With("Overlayed", overlayed)
+            .With("StartRowIndex", maybeStartRowIndex);
 
         std::vector<TChunkReplicaDescriptor> abortedReplicas;
         {
@@ -742,38 +742,38 @@ private:
             !GetDynamicConfig()->Testing->ForceUnreliableSeal)
         {
             // Fast path: sealed row count can be reliably evaluated.
-            YT_LOG_DEBUG("Sealed row count evaluated (ChunkId: %v, SealedRowCount: %v)",
-                chunkId,
-                sealedRowCount);
+            YT_TLOG_DEBUG("Sealed row count evaluated")
+                .With("ChunkId", chunkId)
+                .With("SealedRowCount", sealedRowCount);
         } else {
             // Sealed row count cannot be reliably evaluated. We try to autotomize chunk, if possible,
             // otherwise just seal chunk unreliably and hope for the best.
-            YT_LOG_DEBUG("Sealed row count computed unreliably (ChunkId: %v, SealedRowCount: %v, RowCountConfirmedReplicaCount: %v, WriteQuorum: %v)",
-                chunkId,
-                sealedRowCount,
-                quorumInfo.RowCountConfirmedReplicaCount,
-                writeQuorum);
+            YT_TLOG_DEBUG("Sealed row count computed unreliably")
+                .With("ChunkId", chunkId)
+                .With("SealedRowCount", sealedRowCount)
+                .With("RowCountConfirmedReplicaCount", quorumInfo.RowCountConfirmedReplicaCount)
+                .With("WriteQuorum", writeQuorum);
 
             if (!dynamicConfig->EnableChunkAutotomizer) {
-                YT_LOG_DEBUG("Chunk automotizer is disabled; sealing chunk unreliably (ChunkId: %v)",
-                    chunkId);
+                YT_TLOG_DEBUG("Chunk automotizer is disabled; sealing chunk unreliably")
+                    .With("ChunkId", chunkId);
             } else if (!overlayed) {
-                YT_LOG_DEBUG("Cannot automotize chunk since it is not overlayed; sealing chunk unreliably (ChunkId: %v)",
-                    chunkId);
+                YT_TLOG_DEBUG("Cannot automotize chunk since it is not overlayed; sealing chunk unreliably")
+                    .With("ChunkId", chunkId);
             } else {
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
                 const auto& chunkAutotomizer = chunkManager->GetChunkAutotomizer();
                 if (chunkAutotomizer->IsChunkRegistered(chunkId)) {
                     // Fast path: if chunk is already registered in autotomizer, do not create useless mutation.
-                    YT_LOG_DEBUG("Chunk is already registered in autotomizer, skipping (ChunkId: %v)",
-                        chunkId);
+                    YT_TLOG_DEBUG("Chunk is already registered in autotomizer, skipping")
+                        .With("ChunkId", chunkId);
                 } else {
                     auto guaranteedQuorumRowCount = std::max<i64>(sealedRowCount - replicaLagLimit, 0);
                     chunkSealInfo.set_row_count(guaranteedQuorumRowCount);
 
-                    YT_LOG_DEBUG("Autotomizing chunk (ChunkId: %v, GuaranteedQuorumRowCount: %v)",
-                        chunkId,
-                        guaranteedQuorumRowCount);
+                    YT_TLOG_DEBUG("Autotomizing chunk")
+                        .With("ChunkId", chunkId)
+                        .With("GuaranteedQuorumRowCount", guaranteedQuorumRowCount);
 
                     NProto::TReqAutotomizeChunk request;
                     ToProto(request.mutable_chunk_id(), chunkId);
@@ -793,8 +793,8 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Requesting chunk seal (ChunkId: %v)",
-            chunkId);
+        YT_TLOG_DEBUG("Requesting chunk seal")
+            .With("ChunkId", chunkId);
 
         {
             TChunkServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
@@ -853,12 +853,11 @@ private:
             chunkWithIndexes);
         context->ScheduleJob(job);
 
-        YT_LOG_DEBUG("Seal job scheduled "
-            "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v)",
-            job->GetJobId(),
-            job->GetJobEpoch(),
-            job->NodeAddress(),
-            chunkWithIndexes);
+        YT_TLOG_DEBUG("Seal job scheduled")
+            .With("JobId", job->GetJobId())
+            .With("JobEpoch", job->GetJobEpoch())
+            .With("Address", job->NodeAddress())
+            .With("ChunkId", chunkWithIndexes);
 
         return true;
     }

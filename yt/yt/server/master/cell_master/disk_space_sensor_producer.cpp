@@ -32,7 +32,8 @@ public:
             writer->AddGauge("/snapshots/free_space", snapshotsStorageDiskSpaceStatistics.FreeSpace);
             writer->AddGauge("/snapshots/available_space", snapshotsStorageDiskSpaceStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to profile snapshots storage disk space");
+            YT_TLOG_DEBUG("Failed to profile snapshots storage disk space")
+                .With(ex);
         }
 
         try {
@@ -40,7 +41,8 @@ public:
             writer->AddGauge("/changelogs/free_space", changelogsStorageDiskSpaceStatistics.FreeSpace);
             writer->AddGauge("/changelogs/available_space", changelogsStorageDiskSpaceStatistics.AvailableSpace);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to profile changelogs storage disk space");
+            YT_TLOG_DEBUG("Failed to profile changelogs storage disk space")
+                .With(ex);
         }
     }
 

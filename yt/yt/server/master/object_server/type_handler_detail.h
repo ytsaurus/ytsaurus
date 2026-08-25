@@ -49,15 +49,14 @@ public:
     {
         const auto& Logger = ObjectServerLogger;
 
-        YT_LOG_ALERT_IF(object->IsForeign(),
-            "GetReplicationCellTags called for non-native object (ObjectId: %v)",
-            GetObjectId(object));
+        YT_TLOG_ALERT_IF(object->IsForeign(), "GetReplicationCellTags called for non-native object")
+            .With("ObjectId", GetObjectId(object));
 
         auto result = DoGetReplicationCellTags(object->As<TImpl>());
 
         if (result.contains(object->GetNativeCellTag())) [[unlikely]] {
-            YT_LOG_ALERT("Replication cell tags of an object contain its native cell tag, omitting (ObjectId: %v)",
-                GetObjectId(object));
+            YT_TLOG_ALERT("Replication cell tags of an object contain its native cell tag, omitting")
+                .With("ObjectId", GetObjectId(object));
             result.erase(object->GetNativeCellTag());
         }
 

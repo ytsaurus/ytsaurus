@@ -100,15 +100,13 @@ private:
         auto alerts = FromProto<std::vector<TError>>(request->alerts());
 
         if (cellTag == multicellManager->GetCellTag()) {
-            YT_LOG_DEBUG(
-                "Updating primary master alerts (CellTag: %v, AlertCount: %v)",
-                cellTag,
-                request->alerts_size());
+            YT_TLOG_DEBUG("Updating primary master alerts")
+                .With("CellTag", cellTag)
+                .With("AlertCount", request->alerts_size());
         } else {
-            YT_LOG_DEBUG(
-                "Received alerts from secondary master (CellTag: %v, AlertCount: %v)",
-                cellTag,
-                request->alerts_size());
+            YT_TLOG_DEBUG("Received alerts from secondary master")
+                .With("CellTag", cellTag)
+                .With("AlertCount", request->alerts_size());
         }
 
         CellTagToAlerts_[cellTag] = std::move(alerts);
@@ -163,7 +161,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_DEBUG("Updating master alerts");
+        YT_TLOG_DEBUG("Updating master alerts");
 
         auto isPrefixOf = [] (const std::string& message, const std::vector<std::string>& prefixes) {
             for (const auto& prefix : prefixes) {
@@ -188,7 +186,8 @@ private:
 
         for (const auto& alert : localAlerts) {
             YT_VERIFY(!alert.IsOK());
-            YT_LOG_WARNING(alert, "Registered master alert");
+            YT_TLOG_WARNING("Registered master alert")
+                .With(alert);
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();

@@ -79,18 +79,16 @@ EObjectType TransactionTypeToObjectType(ETransactionType transactionType, bool n
             break;
 
         case ETransactionType::Sequoia: {
-            YT_LOG_FATAL_IF(
-                nested,
-                "Sequoia transactions cannot be nested (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_FATAL_IF(nested, "Sequoia transactions cannot be nested")
+                .With("TransactionId", transactionId);
 
             transactionObjectType = EObjectType::AtomicTabletTransaction;
             break;
         }
 
         case ETransactionType::Unknown:
-            YT_LOG_ALERT("Attempting to deduce object type of an unknown transaction type (HintId: %v)",
-                transactionId);
+            YT_TLOG_ALERT("Attempting to deduce object type of an unknown transaction type")
+                .With("HintId", transactionId);
             break;
     }
 
@@ -115,14 +113,11 @@ bool CheckTransactionTypeCoherency(ETransactionType transactionType, TTransactio
         ok = true;
     }
 
-    YT_LOG_ALERT_UNLESS(
-        ok,
-        "Transaction type differs from a transaction type deduced from its ID "
-        "(ExpectedType: %v, DeducedType: %v, TransactionId: %v, ObjectType: %v)",
-        transactionType,
-        ObjectTypeToTransactionType(typeFromId),
-        transactionId,
-        typeFromId);
+    YT_TLOG_ALERT_UNLESS(ok, "Transaction type differs from a transaction type deduced from its ID")
+        .With("ExpectedType", transactionType)
+        .With("DeducedType", ObjectTypeToTransactionType(typeFromId))
+        .With("TransactionId", transactionId)
+        .With("ObjectType", typeFromId);
 
     return ok;
 }

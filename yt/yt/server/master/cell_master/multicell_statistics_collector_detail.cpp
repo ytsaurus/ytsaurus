@@ -15,7 +15,8 @@ constexpr auto& Logger = CellMasterLogger;
 
 void NDetail::LogGetLocalCellUpdateError(const TError& error)
 {
-    YT_LOG_ERROR(error, "Error collecting statistics update from local cell");
+    YT_TLOG_ERROR("Error collecting statistics update from local cell")
+        .With(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

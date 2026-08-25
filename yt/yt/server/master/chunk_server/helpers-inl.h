@@ -74,10 +74,9 @@ void VisitHunkTreeAncestors(TChunk* hunkChunk, F&& functor)
     const auto& Logger = ChunkServerLogger;
 
     if (hunkChunk->IsConfirmed() && !IsHunkChunkFormat(hunkChunk->GetChunkFormat())) {
-        YT_LOG_ALERT("Unexpectedely encountered a non-hunk chunk when visiting its ancestors; skipping it "
-            "(ChunkId: %v, ChunkFormat: %v)",
-                hunkChunk->GetId(),
-                hunkChunk->GetChunkFormat());
+        YT_TLOG_ALERT("Unexpectedely encountered a non-hunk chunk when visiting its ancestors; skipping it")
+            .With("ChunkId", hunkChunk->GetId())
+            .With("ChunkFormat", hunkChunk->GetChunkFormat());
         return;
     }
 
@@ -96,19 +95,17 @@ void VisitHunkTreeAncestors(TChunk* hunkChunk, F&& functor)
         if (chunkList->GetKind() != EChunkListKind::Hunk &&
             chunkList->GetKind() != EChunkListKind::HunkTablet)
         {
-            YT_LOG_ALERT("Parent chunk list of unexpected kind was encountered upon visiting hunk tree ancestors "
-                "(HunkChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
-                hunkChunk->GetId(),
-                chunkParent->GetId(),
-                chunkList->GetKind());
+            YT_TLOG_ALERT("Parent chunk list of unexpected kind was encountered upon visiting hunk tree ancestors")
+                .With("HunkChunkId", hunkChunk->GetId())
+                .With("ParentId", chunkParent->GetId())
+                .With("ParentChunkListKind", chunkList->GetKind());
             continue;
         }
 
         if (!tabletChunkListIds.emplace(chunkList->GetId()).second) {
-            YT_LOG_ALERT("Tablet chunk list encountered multiple times upon visiting hunk tree ancestors "
-                "(HunkChunkId: %v, ParentId: %v)",
-                hunkChunk->GetId(),
-                chunkParent->GetId());
+            YT_TLOG_ALERT("Tablet chunk list encountered multiple times upon visiting hunk tree ancestors")
+                .With("HunkChunkId", hunkChunk->GetId())
+                .With("ParentId", chunkParent->GetId());
             continue;
         }
 
@@ -118,21 +115,20 @@ void VisitHunkTreeAncestors(TChunk* hunkChunk, F&& functor)
             const auto& rootChunkList = chunkListParent->AsChunkList();
 
             if (!rootChunkList->IsHunkRoot()) {
-                YT_LOG_ALERT("Root chunk list of unexpected kind was encountered upon visiting hunk tree ancestors "
-                    "(ChunkId: %v, ParentId: %v, ParentChunkListKind: %v)",
-                    hunkChunk->GetId(),
-                    chunkListParent->GetId(),
-                    rootChunkList->GetKind());
+                YT_TLOG_ALERT("Root chunk list of unexpected kind was encountered upon visiting hunk tree ancestors")
+                    .With("ChunkId", hunkChunk->GetId())
+                    .With("ParentId", chunkListParent->GetId())
+                    .With("ParentChunkListKind", rootChunkList->GetKind());
                 continue;
             }
 
             if (rootChunkList->GetKind() == EChunkListKind::HunkStorageRoot) {
-                YT_LOG_ALERT_IF(hunkStorageRootChunkListId,
-                    "Multiple ancestor hunk storage roots were encountered upon visiting hunk tree ancestors "
-                    "(ChunkId: %v, FirstParentId: %v, SecondParentId: %v)",
-                    hunkChunk->GetId(),
+                YT_TLOG_ALERT_IF(
                     hunkStorageRootChunkListId,
-                    rootChunkList->GetId());
+                    "Multiple ancestor hunk storage roots were encountered upon visiting hunk tree ancestors")
+                    .With("ChunkId", hunkChunk->GetId())
+                    .With("FirstParentId", hunkStorageRootChunkListId)
+                    .With("SecondParentId", rootChunkList->GetId());
 
                 hunkStorageRootChunkListId = rootChunkList->GetId();
             }

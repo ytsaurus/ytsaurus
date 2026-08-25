@@ -44,11 +44,9 @@ void TTabletCellBundle::IncreaseActiveTabletActionCount()
 
 void TTabletCellBundle::DecreaseActiveTabletActionCount()
 {
-    YT_LOG_ERROR_UNLESS(ActiveTabletActionCount_ > 0,
-        "Attempting to decrease non-positive ActiveTabletActionCount "
-        "(ActiveTabletActionCount: %v, Bundle: %v)",
-        ActiveTabletActionCount_,
-        GetName());
+    YT_TLOG_ERROR_UNLESS(ActiveTabletActionCount_ > 0, "Attempting to decrease non-positive ActiveTabletActionCount")
+        .With("ActiveTabletActionCount", ActiveTabletActionCount_)
+        .With("Bundle", GetName());
     --ActiveTabletActionCount_;
 }
 

@@ -100,10 +100,10 @@ bool TTabletOwnerProxyBase::DoGetBuiltinAttribute(
             return;
         }
 
-        YT_LOG_ALERT("Tablet statistics mismatch (TableId: %v, OldStatistics: %v, NewStatistics: %v)",
-            trunkTable->GetId(),
-            ToString(oldFashionedStatistics, chunkManager),
-            ToString(ultraModernStatistics, chunkManager));
+        YT_TLOG_ALERT("Tablet statistics mismatch")
+            .With("TableId", trunkTable->GetId())
+            .With("OldStatistics", ToString(oldFashionedStatistics, chunkManager))
+            .With("NewStatistics", ToString(ultraModernStatistics, chunkManager));
     };
 
     if (showTabletAttributes && !isExternal && config->TabletManager->EnableAggressiveTabletStatisticsValidation) {

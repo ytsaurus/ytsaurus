@@ -520,11 +520,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
             secondaryIndex->SetIndexTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
-            YT_LOG_ALERT_IF(refCounter > 0,
-                "Failed to drop secondary index upon index table removal (IndexTableId: %v, IndexId: %v, IndexRefCounter: %v)",
-                table->GetId(),
-                secondaryIndex->GetId(),
-                refCounter);
+            YT_TLOG_ALERT_IF(refCounter > 0, "Failed to drop secondary index upon index table removal")
+                .With("IndexTableId", table->GetId())
+                .With("IndexId", secondaryIndex->GetId())
+                .With("IndexRefCounter", refCounter);
 
             table->SetIndexTo(nullptr);
         }
@@ -533,11 +532,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
             secondaryIndex->SetTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
-            YT_LOG_ALERT_IF(refCounter > 0,
-                "Failed to drop secondary index upon table removal (TableId: %v, IndexId: %v, IndexRefCounter: %v)",
-                table->GetId(),
-                secondaryIndex->GetId(),
-                refCounter);
+            YT_TLOG_ALERT_IF(refCounter > 0, "Failed to drop secondary index upon table removal")
+                .With("TableId", table->GetId())
+                .With("IndexId", secondaryIndex->GetId())
+                .With("IndexRefCounter", refCounter);
         }
 
         if (!table->SecondaryIndices().empty()) {

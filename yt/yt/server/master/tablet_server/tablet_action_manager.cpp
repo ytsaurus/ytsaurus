@@ -405,9 +405,9 @@ public:
             action->SetTabletCellBundle(nullptr);
         }
 
-        YT_LOG_DEBUG("Tablet action zombified (ActionId: %v, TabletBalancerCorrelationId: %v)",
-            action->GetId(),
-            action->GetCorrelationId());
+        YT_TLOG_DEBUG("Tablet action zombified")
+            .With("ActionId", action->GetId())
+            .With("TabletBalancerCorrelationId", action->GetCorrelationId());
     }
 
     void TouchAffectedTabletActions(
@@ -678,14 +678,14 @@ private:
                 tabletCount,
                 options);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(TError(ex), "Error creating tablet action (Kind: %v, "
-                "Tablets: %v, TabletCells: %v, PivotKeys: %v, TabletCount: %v, TabletBalancerCorrelationId: %v)",
-                kind,
-                tablets,
-                cells,
-                pivotKeys,
-                tabletCount,
-                options.CorrelationId);
+            YT_TLOG_DEBUG("Error creating tablet action")
+                .With("Kind", kind)
+                .With("Tablets", tablets)
+                .With("TabletCells", cells)
+                .With("PivotKeys", pivotKeys)
+                .With("TabletCount", tabletCount)
+                .With("TabletBalancerCorrelationId", options.CorrelationId)
+                .With(TError(ex));
         }
     }
 
@@ -712,7 +712,7 @@ private:
 
     void RunCleanup()
     {
-        YT_LOG_DEBUG("Periodic tablet action cleanup started");
+        YT_TLOG_DEBUG("Periodic tablet action cleanup started");
 
         const auto now = TInstant::Now();
 
@@ -724,8 +724,8 @@ private:
         }
 
         if (!actionIdsPendingRemoval.empty()) {
-            YT_LOG_DEBUG("Destroying expired tablet actions (TabletActionIds: %v)",
-                actionIdsPendingRemoval);
+            YT_TLOG_DEBUG("Destroying expired tablet actions")
+                .With("TabletActionIds", actionIdsPendingRemoval);
 
             TReqDestroyTabletActions request;
             ToProto(request.mutable_tablet_action_ids(), actionIdsPendingRemoval);
@@ -828,14 +828,13 @@ private:
         auto tableId = action->Tablets().empty()
             ? TTableId{}
             : action->Tablets()[0]->GetOwner()->GetId();
-        YT_LOG_DEBUG("Change tablet action state (ActionId: %v, State: %v, Error: %v,"
-            "TableId: %v, Bundle: %v, TabletBalancerCorrelationId: %v)",
-            action->GetId(),
-            state,
-            action->Error(),
-            tableId,
-            action->GetTabletCellBundle()->GetName(),
-            action->GetCorrelationId());
+        YT_TLOG_DEBUG("Change tablet action state")
+            .With("ActionId", action->GetId())
+            .With("State", state)
+            .With("Error", action->Error())
+            .With("TableId", tableId)
+            .With("Bundle", action->GetTabletCellBundle()->GetName())
+            .With("TabletBalancerCorrelationId", action->GetCorrelationId());
         if (recursive) {
             OnTabletActionStateChanged(action);
         }
@@ -858,11 +857,11 @@ private:
                     try {
                         tableSettings = Host_->GetTableSettings(tablet->GetTable());
                     } catch (const std::exception& ex) {
-                        YT_LOG_DEBUG(ex, "Failed to mount auxiliary servant "
-                            "(TableId: %v, TabletId: %v, AuxiliaryCellId: %v)",
-                            tablet->GetTable()->GetId(),
-                            tablet->GetId(),
-                            cell->GetId());
+                        YT_TLOG_DEBUG("Failed to mount auxiliary servant")
+                            .With("TableId", tablet->GetTable()->GetId())
+                            .With("TabletId", tablet->GetId())
+                            .With("AuxiliaryCellId", cell->GetId())
+                            .With(ex);
                         throw;
                     }
 
@@ -1007,14 +1006,14 @@ private:
                         }
                         for (auto tablet : oldTablets) {
                             if (tablet->GetExpectedState() != expectedState) {
-                                YT_LOG_ALERT_IF(tablet->GetExpectedState() != expectedState,
-                                    "Unexpected tablet expected state, try fixing with unmount plus mount "
-                                    "(TableId: %v, TabletId: %v, ActionId: %v, ActionExpected: %v, TabletExpected: %v)",
-                                    tablet->GetOwner()->GetId(),
-                                    tablet->GetId(),
-                                    action->GetId(),
-                                    expectedState,
-                                    tablet->GetExpectedState());
+                                YT_TLOG_ALERT_IF(
+                                    tablet->GetExpectedState() != expectedState,
+                                    "Unexpected tablet expected state, try fixing with unmount plus mount")
+                                    .With("TableId", tablet->GetOwner()->GetId())
+                                    .With("TabletId", tablet->GetId())
+                                    .With("ActionId", action->GetId())
+                                    .With("ActionExpected", expectedState)
+                                    .With("TabletExpected", tablet->GetExpectedState());
                                 THROW_ERROR_EXCEPTION("Tablet action canceled due to a bug");
                             }
                         }
@@ -1080,10 +1079,10 @@ private:
                         YT_ABORT();
                     }
                 } catch (const std::exception& ex) {
-                    YT_LOG_ALERT(ex, "Tablet action failed to mount tablets because "
-                        "of table mount settings validation error (ActionId: %v, TableId: %v)",
-                        action->GetId(),
-                        table->GetId());
+                    YT_TLOG_ALERT("Tablet action failed to mount tablets because of table mount settings validation error")
+                        .With("ActionId", action->GetId())
+                        .With("TableId", table->GetId())
+                        .With(ex);
 
                     THROW_ERROR_EXCEPTION("Failed to validate table mount settings")
                         .With("table_id", table->GetId())
@@ -1150,9 +1149,10 @@ private:
             }
 
             case ETabletActionState::Failing: {
-                YT_LOG_DEBUG(action->Error(), "Tablet action failed (ActionId: %v, TabletBalancerCorrelationId: %v)",
-                    action->GetId(),
-                    action->GetCorrelationId());
+                YT_TLOG_DEBUG("Tablet action failed")
+                    .With("ActionId", action->GetId())
+                    .With("TabletBalancerCorrelationId", action->GetCorrelationId())
+                    .With(action->Error());
 
                 MountMissedInActionTablets(action);
                 UnbindTabletAction(action);
@@ -1225,9 +1225,10 @@ private:
                 tablet->SetAction(nullptr);
                 action->Tablets().clear();
 
-                YT_LOG_DEBUG(action->Error(), "Smooth movement aborted (ActionId: %v, TabletId: %v)",
-                    action->GetId(),
-                    tablet->GetId());
+                YT_TLOG_DEBUG("Smooth movement aborted")
+                    .With("ActionId", action->GetId())
+                    .With("TabletId", tablet->GetId())
+                    .With(action->Error());
 
                 ChangeTabletActionState(action, ETabletActionState::Failed);
                 break;
@@ -1270,13 +1271,13 @@ private:
                             tablet->GetState());
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Error mounting missed in action tablet "
-                    "(TabletId: %v, TableId: %v, Bundle: %v, ActionId: %v, TabletBalancerCorrelationId: %v)",
-                    tablet->GetId(),
-                    tablet->GetOwner()->GetId(),
-                    action->GetTabletCellBundle()->GetName(),
-                    action->GetId(),
-                    action->GetCorrelationId());
+                YT_TLOG_ERROR("Error mounting missed in action tablet")
+                    .With("TabletId", tablet->GetId())
+                    .With("TableId", tablet->GetOwner()->GetId())
+                    .With("Bundle", action->GetTabletCellBundle()->GetName())
+                    .With("ActionId", action->GetId())
+                    .With("TabletBalancerCorrelationId", action->GetCorrelationId())
+                    .With(ex);
             }
         }
     }

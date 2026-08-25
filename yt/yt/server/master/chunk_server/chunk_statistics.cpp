@@ -50,12 +50,10 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeChunkStatistics(
                 offshoreReplicas.push_back(replica);
             }
         }
-        YT_LOG_ALERT_UNLESS(
-            offshoreReplicas.empty(),
-            "Erasure chunk has offshore replicas (ChunkId: %v, Replicas: %v, OffshoreReplicas: %v)",
-            chunk->GetId(),
-            replicas,
-            offshoreReplicas);
+        YT_TLOG_ALERT_UNLESS(offshoreReplicas.empty(), "Erasure chunk has offshore replicas")
+            .With("ChunkId", chunk->GetId())
+            .With("Replicas", replicas)
+            .With("OffshoreReplicas", offshoreReplicas);
     }
 
     auto result = chunk->IsErasure()
@@ -108,11 +106,10 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
     for (auto replica : replicas) {
         auto* locationReplica = replica.As<EStoredReplicaType::ChunkLocation>();
         if (!locationReplica) {
-            YT_LOG_ALERT("Non-chunk location stored replica encountered during computation statistics for erasure chunk "
-                "(ChunkId: %v, ReplicaMediumIndex: %v, ReplicaIndex: %v)",
-                chunk->GetId(),
-                replica.GetEffectiveMediumIndex(),
-                replica.GetReplicaIndex());
+            YT_TLOG_ALERT("Non-chunk location stored replica encountered during computation statistics for erasure chunk")
+                .With("ChunkId", chunk->GetId())
+                .With("ReplicaMediumIndex", replica.GetEffectiveMediumIndex())
+                .With("ReplicaIndex", replica.GetReplicaIndex());
             continue;
         }
         auto* chunkLocation = locationReplica->AsChunkLocationPtr();
@@ -149,13 +146,10 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
         if (Callbacks_->GetDynamicConfig()->UseHostAwareReplicator && host) {
             auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
             if (!inserted) {
-                YT_LOG_EVENT(
-                    Logger(),
-                    Callbacks_->GetChunkLogLevel(chunk),
-                    "Chunk has multiple replicas on the same host (ChunkId: %v, Host: %v, UnsafelyPlacedReplicaNodeAddress: %v)",
-                    chunk->GetId(),
-                    host->GetName(),
-                    chunkLocation->GetNode()->GetDefaultAddress());
+                YT_TLOG_EVENT(Logger(), Callbacks_->GetChunkLogLevel(chunk), "Chunk has multiple replicas on the same host")
+                    .With("ChunkId", chunk->GetId())
+                    .With("Host", host->GetName())
+                    .With("UnsafelyPlacedReplicaNodeAddress", chunkLocation->GetNode()->GetDefaultAddress());
                 unsafelyPlacedSealedReplicas[mediumIndex] = replica;
             }
         }
@@ -236,23 +230,17 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
             mediumToErasedIndexes[mediumIndex],
             totallySealed);
 
-        YT_LOG_EVENT(
-            Logger(),
-            Callbacks_->GetChunkLogLevel(chunk),
-            "Computed erasure chunk statistics for medium "
-            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, DataPartsOnly: %v, Status: %v, "
-            "ReplicationFactor: %v, ReplicaCount: %v, MaxReplicasPerRack: %v, "
-            "DecommissionedReplicaCount: %v, TemporarilyUnavailableReplicaCount: %v)",
-            chunk->GetId(),
-            mediumIndex,
-            medium->GetName(),
-            dataPartsOnly,
-            mediumStatistics.Status,
-            mediumReplicationFactor,
-            replicaCount[mediumIndex],
-            maxReplicasPerRack,
-            decommissionedReplicaCount[mediumIndex],
-            temporarilyUnavailableReplicaCount[mediumIndex]);
+        YT_TLOG_EVENT(Logger(), Callbacks_->GetChunkLogLevel(chunk), "Computed erasure chunk statistics for medium")
+            .With("ChunkId", chunk->GetId())
+            .With("MediumIndex", mediumIndex)
+            .With("MediumName", medium->GetName())
+            .With("DataPartsOnly", dataPartsOnly)
+            .With("Status", mediumStatistics.Status)
+            .With("ReplicationFactor", mediumReplicationFactor)
+            .With("ReplicaCount", replicaCount[mediumIndex])
+            .With("MaxReplicasPerRack", maxReplicasPerRack)
+            .With("DecommissionedReplicaCount", decommissionedReplicaCount[mediumIndex])
+            .With("TemporarilyUnavailableReplicaCount", temporarilyUnavailableReplicaCount[mediumIndex]);
     }
 
     ComputeErasureChunkStatisticsCrossMedia(
@@ -643,13 +631,10 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeRegularChunkStatistics(
         if (Callbacks_->GetDynamicConfig()->UseHostAwareReplicator && host) {
             auto [it, inserted] = replicasHosts[mediumIndex].insert(host);
             if (!inserted) {
-                YT_LOG_EVENT(
-                    Logger(),
-                    Callbacks_->GetChunkLogLevel(chunk),
-                    "Chunk has multiple replicas on the same host (ChunkId: %v, Host: %v, UnsafelyPlacedReplicaNodeAddress: %v)",
-                    chunk->GetId(),
-                    host->GetName(),
-                    chunkLocation->GetNode()->GetDefaultAddress());
+                YT_TLOG_EVENT(Logger(), Callbacks_->GetChunkLogLevel(chunk), "Chunk has multiple replicas on the same host")
+                    .With("ChunkId", chunk->GetId())
+                    .With("Host", host->GetName())
+                    .With("UnsafelyPlacedReplicaNodeAddress", chunkLocation->GetNode()->GetDefaultAddress());
                 unsafelyPlacedReplicas[mediumIndex] = replica;
             }
         }
@@ -761,22 +746,16 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeRegularChunkStatistics(
             precarious = precarious && mediumTransient;
         }
 
-        YT_LOG_EVENT(
-            Logger(),
-            Callbacks_->GetChunkLogLevel(chunk),
-            "Computed regular chunk statistics for medium "
-            "(ChunkId: %v, MediumIndex: %v, MediumName: %v, Status: %v, ReplicationFactor: %v, "
-            "ReplicaCount: %v, MaxReplicasPerRack: %v, DecommissionedReplicas: %v, "
-            "TemporarilyUnavailableReplicas: %v)",
-            chunk->GetId(),
-            mediumIndex,
-            medium->GetName(),
-            mediumStatistics.Status,
-            mediumReplicationPolicy.GetReplicationFactor(),
-            mediumReplicaCount,
-            maxReplicasPerRack,
-            MakeFormattableView(decommissionedReplicas[mediumIndex], TDefaultFormatter{}),
-            MakeFormattableView(temporarilyUnavailableReplicas[mediumIndex], TDefaultFormatter{}));
+        YT_TLOG_EVENT(Logger(), Callbacks_->GetChunkLogLevel(chunk), "Computed regular chunk statistics for medium")
+            .With("ChunkId", chunk->GetId())
+            .With("MediumIndex", mediumIndex)
+            .With("MediumName", medium->GetName())
+            .With("Status", mediumStatistics.Status)
+            .With("ReplicationFactor", mediumReplicationPolicy.GetReplicationFactor())
+            .With("ReplicaCount", mediumReplicaCount)
+            .With("MaxReplicasPerRack", maxReplicasPerRack)
+            .With("DecommissionedReplicas", MakeFormattableView(decommissionedReplicas[mediumIndex], TDefaultFormatter{}))
+            .With("TemporarilyUnavailableReplicas", MakeFormattableView(temporarilyUnavailableReplicas[mediumIndex], TDefaultFormatter{}));
     }
 
     ComputeRegularChunkStatisticsCrossMedia(

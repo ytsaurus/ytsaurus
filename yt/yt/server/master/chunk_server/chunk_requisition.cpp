@@ -500,10 +500,9 @@ void TChunkRequisition::CorrectReplicationFactor(const IChunkManagerPtr& chunkMa
         if (isErasureChunk || medium->IsOffshore()) {
             auto& replicationPolicy = entry.ReplicationPolicy;
             if (!replicationPolicy) {
-                YT_LOG_ALERT(
-                    "Medium is disabled for requisition entry, ignore replication factor set (Requisition: %v, RequisitionEntry: %v)",
-                    *this,
-                    entry);
+                YT_TLOG_ALERT("Medium is disabled for requisition entry, ignore replication factor set")
+                    .With("Requisition", *this)
+                    .With("RequisitionEntry", entry);
                 continue;
             }
             replicationPolicy.SetReplicationFactor(1);
@@ -892,9 +891,9 @@ TChunkRequisitionIndex TChunkRequisitionRegistry::Insert(
         }
     }
 
-    YT_LOG_DEBUG("Requisition created (RequisitionIndex: %v, Requisition: %v)",
-        index,
-        requisition);
+    YT_TLOG_DEBUG("Requisition created")
+        .With("RequisitionIndex", index)
+        .With("Requisition", requisition);
 
     return index;
 }
@@ -908,9 +907,9 @@ void TChunkRequisitionRegistry::Erase(
     // accounts to hash requisitions when erasing them.
     auto requisition = it->second.Requisition;
 
-    YT_LOG_DEBUG("Requisition removed (RequisitionIndex: %v, Requisition: %v)",
-        index,
-        requisition);
+    YT_TLOG_DEBUG("Requisition removed")
+        .With("RequisitionIndex", index)
+        .With("Requisition", requisition);
 
     YT_VERIFY(RequisitionToIndex_.erase(requisition) == 1);
     IndexToItem_.erase(it);
@@ -924,9 +923,9 @@ void TChunkRequisitionRegistry::Ref(TChunkRequisitionIndex index)
 {
     auto& item = GetOrCrash(IndexToItem_, index);
     ++item.RefCount;
-    YT_LOG_TRACE("Requisition referenced (RequisitionIndex: %v, RefCount: %v)",
-        index,
-        item.RefCount);
+    YT_TLOG_TRACE("Requisition referenced")
+        .With("RequisitionIndex", index)
+        .With("RefCount", item.RefCount);
 }
 
 void TChunkRequisitionRegistry::Unref(
@@ -937,9 +936,9 @@ void TChunkRequisitionRegistry::Unref(
     YT_VERIFY(item.RefCount != 0);
     --item.RefCount;
 
-    YT_LOG_TRACE("Requisition unreferenced (RequisitionIndex: %v, RefCount: %v)",
-        index,
-        item.RefCount);
+    YT_TLOG_TRACE("Requisition unreferenced")
+        .With("RequisitionIndex", index)
+        .With("RefCount", item.RefCount);
 
     if (item.RefCount == 0) {
         Erase(index, objectManager);

@@ -55,11 +55,9 @@ private:
             YT_APPLY_PROTO_OPTIONAL(*request, heartbeat_period, FromProto<TDuration>));
 
         if (!Bootstrap_->IsPrimaryMaster()) {
-            YT_LOG_ALERT(
-                "Attempt to register Cypress proxy at secondary master "
-                "(Address: %v, SequoiaReign: %v)",
-                request->address(),
-                sequoiaReign);
+            YT_TLOG_ALERT("Attempt to register Cypress proxy at secondary master")
+                .With("Address", request->address())
+                .With("SequoiaReign", sequoiaReign);
             context->Reply(TError("Cypress proxy cannot be registered at secondary master"));
             return;
         }

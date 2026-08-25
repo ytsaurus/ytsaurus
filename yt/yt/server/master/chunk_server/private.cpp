@@ -44,8 +44,8 @@ TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
         case EChunkFormat::Unknown:
             return TStringBuf("unknown");
         default:
-            YT_LOG_ALERT("Unexpected chunk format encountered while formatting as table chunk format (ChunkFormat: %v)",
-                chunkFormat);
+            YT_TLOG_ALERT("Unexpected chunk format encountered while formatting as table chunk format")
+                .With("ChunkFormat", chunkFormat);
             return TStringBuf("unexpected");
     }
 }

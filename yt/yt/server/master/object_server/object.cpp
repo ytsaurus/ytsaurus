@@ -128,8 +128,8 @@ void ValidateCreatedObjectsRefs(TThreadState* threadState)
             !garbageCollector->IsRegisteredZombie(object) &&
             !garbageCollector->IsEphemeralGhost(object))
         {
-            YT_LOG_ALERT("Object leak detected (ObjectId: %v)",
-                object->GetId());
+            YT_TLOG_ALERT("Object leak detected")
+                .With("ObjectId", object->GetId());
         }
     }
 }
@@ -192,9 +192,8 @@ bool IsObjectActive(const TObject* object)
 
 void ValidateObjectActive(const TObject* object)
 {
-    YT_LOG_ALERT_AND_THROW_UNLESS(IsObjectAlive(object),
-        "Object is not alive while validating its life stage (ObjectId: %v)",
-        GetObjectId(object));
+    YT_TLOG_ALERT_AND_THROW_UNLESS(IsObjectAlive(object), "Object is not alive while validating its life stage")
+        .With("ObjectId", GetObjectId(object));
 
     if (!IsObjectActive(object)) {
         THROW_ERROR_EXCEPTION(
@@ -277,21 +276,19 @@ TRevision TObject::GetContentRevision() const
 
 void TObject::SetAttributeRevision(TRevision revision)
 {
-    YT_LOG_ALERT_IF(AttributeRevision_ > revision,
-        "Trying to set stale attribute revision (NodeId: %v, ObjectAttributeRevision: %v, NewRevision: %v)",
-        Id_,
-        AttributeRevision_,
-        revision);
+    YT_TLOG_ALERT_IF(AttributeRevision_ > revision, "Trying to set stale attribute revision")
+        .With("NodeId", Id_)
+        .With("ObjectAttributeRevision", AttributeRevision_)
+        .With("NewRevision", revision);
     AttributeRevision_ = revision;
 }
 
 void TObject::SetContentRevision(TRevision revision)
 {
-    YT_LOG_ALERT_IF(ContentRevision_ > revision,
-        "Trying to set stale content revision (NodeId: %v, ObjectContentRevision: %v, NewRevision: %v)",
-        Id_,
-        ContentRevision_,
-        revision);
+    YT_TLOG_ALERT_IF(ContentRevision_ > revision, "Trying to set stale content revision")
+        .With("NodeId", Id_)
+        .With("ObjectContentRevision", ContentRevision_)
+        .With("NewRevision", revision);
     ContentRevision_ = revision;
 }
 
@@ -403,13 +400,15 @@ void TObject::SetModified(EModificationType modificationType)
                 return;
             }
         } else {
-            YT_LOG_ALERT(
-                "Changing revision of Sequoia node outside of Sequoia revision context (NodeId: %v)",
-                As<TCypressNode>()->GetVersionedId());
+            YT_TLOG_ALERT("Changing revision of Sequoia node outside of Sequoia revision context")
+                .With("NodeId", As<TCypressNode>()->GetVersionedId());
         }
     }
 
-    YT_LOG_TRACE("Setting revision (NodeId: %v, Revision: %v, Type: %v)", Id_, currentRevision, modificationType);
+    YT_TLOG_TRACE("Setting revision")
+        .With("NodeId", Id_)
+        .With("Revision", currentRevision)
+        .With("Type", modificationType);
 
     switch (modificationType) {
         case EModificationType::Attributes:

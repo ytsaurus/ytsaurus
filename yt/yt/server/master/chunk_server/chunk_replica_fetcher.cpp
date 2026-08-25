@@ -144,9 +144,9 @@ public:
                 auto mediumIndex = replica.MediumIndex;
                 auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
                 if (!IsObjectAlive(medium)) {
-                    YT_LOG_DEBUG("Found offshore chunk replica with a non-alive medium (ChunkId: %v, MediumIndex: %v)",
-                        chunkId,
-                        mediumIndex);
+                    YT_TLOG_DEBUG("Found offshore chunk replica with a non-alive medium")
+                        .With("ChunkId", chunkId)
+                        .With("MediumIndex", mediumIndex);
                     continue;
                 }
                 aliveReplicas.emplace_back(TAugmentedStoredChunkReplicaPtr(medium, replica.ReplicaIndex, replica.ReplicaState));
@@ -156,24 +156,24 @@ public:
             auto locationIndex = replica.LocationIndex;
             auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
             if (!IsObjectAlive(location)) {
-                YT_LOG_DEBUG("Found Sequoia chunk replica with a non-existent location (ChunkId: %v, LocationIndex: %v)",
-                    chunkId,
-                    locationIndex);
+                YT_TLOG_DEBUG("Found Sequoia chunk replica with a non-existent location")
+                    .With("ChunkId", chunkId)
+                    .With("LocationIndex", locationIndex);
                 continue;
             }
             auto node = location->GetNode();
             if (!IsObjectAlive(node)) {
-                YT_LOG_ERROR("Found Sequoia chunk replica with a location not bound to any node (ChunkId: %v, LocationIndex: %v)",
-                    chunkId,
-                    locationIndex);
+                YT_TLOG_ERROR("Found Sequoia chunk replica with a location not bound to any node")
+                    .With("ChunkId", chunkId)
+                    .With("LocationIndex", locationIndex);
                 continue;
             }
 
             if (!includeNonOnlineReplicas && !location->IsRegisteredOrOnline()) {
-                YT_LOG_TRACE("Found Sequoia chunk replica on non-online node, ignoring replica (ChunkId: %v, NodeAddress: %v, NodeState: %v)",
-                    chunkId,
-                    node->GetDefaultAddress(),
-                    node->GetLocalState());
+                YT_TLOG_TRACE("Found Sequoia chunk replica on non-online node, ignoring replica")
+                    .With("ChunkId", chunkId)
+                    .With("NodeAddress", node->GetDefaultAddress())
+                    .With("NodeState", node->GetLocalState());
                 continue;
             }
             aliveReplicas.emplace_back(TAugmentedStoredChunkReplicaPtr(location, replica.ReplicaIndex, replica.ReplicaState));
@@ -254,9 +254,9 @@ public:
 
         if (isErasure && std::ssize(replicas) < ::NErasure::MaxTotalPartCount) {
             if (!replicas.empty()) {
-                YT_LOG_ALERT("Last seen replicas count stored on master is weird (ChunkId: %v, ReplicaCount: %v)",
-                    chunkId,
-                    std::ssize(replicas));
+                YT_TLOG_ALERT("Last seen replicas count stored on master is weird")
+                    .With("ChunkId", chunkId)
+                    .With("ReplicaCount", std::ssize(replicas));
             }
             replicas.resize(::NErasure::MaxTotalPartCount);
         }
@@ -627,9 +627,9 @@ private:
                 replicas.push_back(convertToSequoiaReplica(masterReplica));
             }
 
-            YT_LOG_TRACE("Fetched master replicas for chunk (ChunkId: %v, Replicas: %v)",
-                chunk->GetId(),
-                replicas);
+            YT_TLOG_TRACE("Fetched master replicas for chunk")
+                .With("ChunkId", chunk->GetId())
+                .With("Replicas", replicas);
 
             auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunk->GetId(), GetDynamicConfig());
             if (chunkSequoiaConfig.ValidateSequoiaReplicasFetch) {
@@ -646,9 +646,9 @@ private:
                     approvedReplicas.push_back(convertToSequoiaReplica(masterReplica));
                 }
 
-                YT_LOG_TRACE("Fetched approved master replicas for chunk pending Sequoia fetch and validation (ChunkId: %v, ApprovedMasterReplicas: %v)",
-                    chunk->GetId(),
-                    approvedReplicas);
+                YT_TLOG_TRACE("Fetched approved master replicas for chunk pending Sequoia fetch and validation")
+                    .With("ChunkId", chunk->GetId())
+                    .With("ApprovedMasterReplicas", approvedReplicas);
             }
         }
     }
@@ -753,10 +753,10 @@ private:
             }
 
             auto replicasIt = result.find(chunkId);
-            YT_LOG_ALERT_AND_THROW_IF(
+            YT_TLOG_ALERT_AND_THROW_IF(
                 replicasIt == result.end(),
-                "Master replicas were not fetched for chunk during combined master and Sequoia replica fetch (ChunkId: %v)",
-                chunkId);
+                "Master replicas were not fetched for chunk during combined master and Sequoia replica fetch")
+                .With("ChunkId", chunkId);
 
             auto& replicas = replicasIt->second.Value();
             replicas.insert(replicas.end(), sequoiaReplicas.begin(), sequoiaReplicas.end());
@@ -774,33 +774,31 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (CellTagFromId(chunkId) != state->CellTag) {
-            YT_LOG_TRACE("Skipping foreign chunk during Sequoia replica validation (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_TRACE("Skipping foreign chunk during Sequoia replica validation")
+                .With("ChunkId", chunkId);
             return;
         }
 
-        YT_LOG_ALERT_AND_THROW_IF(
-            !state->ConfigForValidation,
-            "No Sequoia replicas config is found during Sequoia replica fetch validation");
+        YT_TLOG_ALERT_AND_THROW_IF(!state->ConfigForValidation, "No Sequoia replicas config is found during Sequoia replica fetch validation");
 
         auto chunkSequoiaConfig = GetChunkSequoiaConfig(chunkId, state->ConfigForValidation);
 
         SortUnique(sequoiaReplicas);
         SortUnique(masterReplicas);
 
-        YT_LOG_TRACE("Validating chunk replicas (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
-            chunkId,
-            masterReplicas,
-            sequoiaReplicas,
-            state->Timestamp);
+        YT_TLOG_TRACE("Validating chunk replicas")
+            .With("ChunkId", chunkId)
+            .With("MasterReplicas", masterReplicas)
+            .With("SequoiaReplicas", sequoiaReplicas)
+            .With("CommitTimestamp", state->Timestamp);
 
         if (masterReplicas != sequoiaReplicas) {
             if (!chunkSequoiaConfig.AllowExtraMasterReplicasDuringValidation) {
-                YT_LOG_ALERT("Master and Sequoia replicas differ (ChunkId: %v, MasterReplicas: %v, SequoiaReplicas: %v, CommitTimestamp: %v)",
-                    chunkId,
-                    masterReplicas,
-                    sequoiaReplicas,
-                    state->Timestamp);
+                YT_TLOG_ALERT("Master and Sequoia replicas differ")
+                    .With("ChunkId", chunkId)
+                    .With("MasterReplicas", masterReplicas)
+                    .With("SequoiaReplicas", sequoiaReplicas)
+                    .With("CommitTimestamp", state->Timestamp);
             } else {
                 for (auto sequoiaReplica : sequoiaReplicas) {
                     if (std::find(masterReplicas.begin(), masterReplicas.end(), sequoiaReplica) == masterReplicas.end()) {

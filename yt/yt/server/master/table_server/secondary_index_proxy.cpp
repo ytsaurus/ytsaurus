@@ -145,9 +145,9 @@ private:
 
                 auto* table = tableManager->FindTableNode(secondaryIndex->GetTableId());
 
-                YT_LOG_ALERT_IF(!IsObjectAlive(table), "Failed to find indexed table of secondary index (TableId: %v, IndexId: %v)",
-                    secondaryIndex->GetTableId(),
-                    secondaryIndex->GetId());
+                YT_TLOG_ALERT_IF(!IsObjectAlive(table), "Failed to find indexed table of secondary index")
+                    .With("TableId", secondaryIndex->GetTableId())
+                    .With("IndexId", secondaryIndex->GetId());
 
                 THROW_ERROR_EXCEPTION_IF(!IsObjectAlive(table), "Failed to find table %v of secondary index %v",
                     secondaryIndex->GetTableId(),

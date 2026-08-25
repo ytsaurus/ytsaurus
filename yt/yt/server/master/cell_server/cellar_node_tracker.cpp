@@ -91,14 +91,14 @@ public:
             auto& statistics = *cellarInfo.mutable_statistics();
 
             if (!seenCellarTypes.insert(cellarType).second) {
-                YT_LOG_ALERT("Duplicate cellar type in heartbeat (CellarType: %v)",
-                    cellarType);
+                YT_TLOG_ALERT("Duplicate cellar type in heartbeat")
+                    .With("CellarType", cellarType);
                 continue;
             }
 
-            YT_LOG_DEBUG("Processing cellar heartbeat (CellarType: %v, Statistics: %v)",
-                cellarType,
-                statistics);
+            YT_TLOG_DEBUG("Processing cellar heartbeat")
+                .With("CellarType", cellarType)
+                .With("Statistics", statistics);
 
             node->SetCellarNodeStatistics(cellarType, std::move(statistics));
         }
@@ -133,11 +133,11 @@ private:
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/cell_server/cellar_node_heartbeat_time") {
-            YT_LOG_DEBUG("Processing cellar node heartbeat (NodeId: %v, Address: %v, State: %v, ReportedCellarNodeHeartbeat: %v)",
-                nodeId,
-                node->GetDefaultAddress(),
-                node->GetLocalState(),
-                node->ReportedCellarNodeHeartbeat());
+            YT_TLOG_DEBUG("Processing cellar node heartbeat")
+                .With("NodeId", nodeId)
+                .With("Address", node->GetDefaultAddress())
+                .With("State", node->GetLocalState())
+                .With("ReportedCellarNodeHeartbeat", node->ReportedCellarNodeHeartbeat());
 
             nodeTracker->UpdateLastSeenTime(node);
 
