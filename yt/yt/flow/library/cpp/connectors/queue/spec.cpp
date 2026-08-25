@@ -13,6 +13,9 @@ void TQueueInfoSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("update_partition_count_period", &TThis::UpdatePartitionCountPeriod)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("update_partition_count_retry_min_backoff", &TThis::UpdatePartitionCountRetryMinBackoff)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

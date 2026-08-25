@@ -29,11 +29,13 @@
 || `max_idle_connections` | **Тип**: `int`
 **Значение по умолчанию**: `0`
  ||
-|| `dialer` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NNet::TDialerConfig](./all_yson_structs#NYT_NNet_TDialerConfig)`>`
-**Значение по умолчанию**: `{}`
+|| `dns_resolve_options` | **Тип**: `std::optional<NYT::NDns::TDnsResolveOptions>`
  ||
 || `omit_question_mark_for_empty_query` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
+ ||
+|| `dialer` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NNet::TDialerConfig](./all_yson_structs#NYT_NNet_TDialerConfig)`>`
+**Значение по умолчанию**: `{}`
  ||
 || `credentials` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NHttps::TClientCredentialsConfig](./all_yson_structs#NYT_NHttps_TClientCredentialsConfig)`>`
  ||

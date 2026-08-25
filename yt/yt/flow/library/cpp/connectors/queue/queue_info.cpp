@@ -4,7 +4,10 @@
 
 #include <yt/yt/client/api/client.h>
 
-#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/retrying_periodic_executor.h>
+
+#include <algorithm>
+#include <limits>
 
 namespace NYT::NFlow {
 
@@ -42,10 +45,18 @@ TQueueInfoController::TQueueInfoController(
 void TQueueInfoController::Init(IInitContextPtr initContext)
 {
     initContext->InitClient<TQueueInfoControllerState>(State_, "v0");
-    Executor_ = New<NConcurrency::TPeriodicExecutor>(
+    Executor_ = New<NConcurrency::TRetryingPeriodicExecutor>(
         Invoker_,
-        BIND(&TQueueInfoController::TryUpdatePartitionCount, MakeWeak(this)),
-        NConcurrency::TPeriodicExecutorOptions::WithJitter(Spec_->UpdatePartitionCountPeriod));
+        BIND([weakThis = MakeWeak(this)] {
+            auto this_ = weakThis.Lock();
+            return this_ ? this_->TryUpdatePartitionCount() : TError();
+        }),
+        NConcurrency::TPeriodicExecutorOptions::WithJitter(Spec_->UpdatePartitionCountPeriod),
+        TExponentialBackoffOptions{
+            .InvocationCount = std::numeric_limits<int>::max(),
+            .MinBackoff = std::min(Spec_->UpdatePartitionCountRetryMinBackoff, Spec_->UpdatePartitionCountPeriod),
+            .MaxBackoff = Spec_->UpdatePartitionCountPeriod,
+        });
     Executor_->Start();
     Executor_->ScheduleOutOfBand();
 }
@@ -56,7 +67,7 @@ void TQueueInfoController::Sync()
 void TQueueInfoController::Commit()
 { }
 
-void TQueueInfoController::TryUpdatePartitionCount()
+TError TQueueInfoController::TryUpdatePartitionCount()
 {
     try {
         TGetNodeOptions options;
@@ -68,9 +79,11 @@ void TQueueInfoController::TryUpdatePartitionCount()
         YT_TLOG_INFO("Queue topic partition count was updated")
             .With("CurrentPartitionCount", State_->CachedPartitionCount);
         ErrorState_->ClearError();
+        return {};
     } catch (const std::exception& ex) {
         auto error = TError("Failed to update partition count").With(ex);
         ErrorState_->SetError(error);
+        return error;
     }
 }
 
