@@ -42,6 +42,10 @@ struct TChunkTreeStatistics
     //! Total data weight of referenced hunk values.
     i64 HunkDataWeight = 0;
 
+    //! Total data weight of referenced hunk values of all historical chunks in the tree.
+    //! Can be larger than #HunkDataWeight if some initial prefix of the rowset was trimmed.
+    i64 LogicalHunkDataWeight = 0;
+
     //! Total data size of referenced hunk values.
     i64 HunkDataSize = 0;
 

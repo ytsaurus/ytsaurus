@@ -3390,8 +3390,11 @@ private:
             auto* mountHint = req.mutable_mount_hint();
             ToProto(mountHint->mutable_eden_store_ids(), tablet->EdenStoreIds());
 
-            // TODO(akozhikhov): Fix cumulative data weight for hunk chunk tree.
-            i64 cumulativeDataWeight = tablet->GetChunkList()->Statistics().LogicalDataWeight;
+            // NB: Hunk values are stored as references within the stores, so their data weight
+            // is accounted for separately.
+            i64 cumulativeDataWeight =
+                chunkListStatistics.LogicalDataWeight +
+                chunkListStatistics.LogicalHunkDataWeight;
             reqReplicatable.set_cumulative_data_weight(cumulativeDataWeight);
 
             YT_LOG_DEBUG("Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "

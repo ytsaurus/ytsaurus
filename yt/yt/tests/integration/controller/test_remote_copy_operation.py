@@ -2248,7 +2248,7 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         statistics = get(f"#{root_chunk_list_id}/@statistics")
         assert statistics["row_count"] == 8
         assert statistics["chunk_count"] == 6
-        assert statistics["data_weight"] == 232
+        assert statistics["data_weight"] == 192
         assert statistics["hunk_data_weight"] == 160
         statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
         assert statistics["chunk_count"] == 8
@@ -2257,7 +2257,7 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         snapshot_statistics = get("//tmp/t2/@snapshot_statistics")
         assert snapshot_statistics["row_count"] == 8
         assert snapshot_statistics["chunk_count"] == 14
-        assert snapshot_statistics["data_weight"] == 392
+        assert snapshot_statistics["data_weight"] == 352
 
     @authors("alexelexa", "akozhikhov")
     @pytest.mark.parametrize("max_inline_hunk_size", [15, 1000000000])
