@@ -66,6 +66,7 @@ target_sources(yt-flow-library-cpp-companion-unittest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/job_removal_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/jvm_options_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/process_manager_base_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/registry_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittest/transform_ordered_source_companion_computation_ut.cpp
 )
 
