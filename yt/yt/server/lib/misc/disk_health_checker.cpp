@@ -193,7 +193,7 @@ void TDiskHealthChecker::DoRunCheck()
                 TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
                 file.Write(writeData.data(), testSize);
             } catch (const TSystemError& ex) {
-                if (ex.Status() == ENOSPC) {
+                if (NFS::IsOutOfDiskSpaceError(ex)) {
                     YT_TLOG_WARNING("Disk health check ignored")
                         .With(ex);
                     return;
