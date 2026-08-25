@@ -196,7 +196,7 @@ def check_hierarchical_accounts():
         and get("//sys/accounts/b2/@recursive_resource_usage/chunk_count") > 0
         and get("//sys/accounts/b2/@recursive_resource_usage/chunk_host_cell_master_memory") > 0
     )
-    with raises_yt_error("Cannot remove account .* because its usage is not zero"):
+    with raises_yt_error("Cannot remove .* account .* because its usage is not zero"):
         remove_account("b2", sync=False)
 
     # XXX(kiselyovp) this might be flaky
@@ -779,7 +779,6 @@ MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST = deepcopy(MASTER_SNAPSHOT_CHECKER_LI
 # COMPAT(theevilbird): Remove after 25.4.
 # Validating account removal instead of set Removal Pre-committed stage is a feature from 26.1.
 MASTER_SNAPSHOT_CHECKER_LIST.remove(check_hierarchical_accounts_25_4)
-MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_hierarchical_accounts)
 
 # Master memory is a volatile currency, so we do not run compat tests for it.
 MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_master_memory)
