@@ -1,6 +1,6 @@
 #pragma once
 
-#include "distributed_chunk_session_seal_summary_fetcher.h"
+#include "seal_summary_fetcher.h"
 #include "public.h"
 
 #include <yt/yt/core/actions/callback.h>

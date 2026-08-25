@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/ytlib/distributed_chunk_session_client/proto/distributed_chunk_session_service.pb.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/proto/session_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

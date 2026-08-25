@@ -1,7 +1,7 @@
-#include "distributed_chunk_writer.h"
+#include "session_writer.h"
 
 #include "config.h"
-#include "distributed_chunk_session_service_proxy.h"
+#include "service_proxy.h"
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 

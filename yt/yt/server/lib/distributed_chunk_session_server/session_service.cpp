@@ -1,10 +1,10 @@
-#include "distributed_chunk_session_service.h"
+#include "session_service.h"
 
-#include "distributed_chunk_session_manager.h"
-#include "distributed_chunk_session_sequencer.h"
+#include "session_manager.h"
+#include "sequencer.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_service_proxy.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/service_proxy.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
