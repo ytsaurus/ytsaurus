@@ -432,7 +432,7 @@ namespace NPyBind {
 
         void CompleteImpl() {
             ReloadAttrsFromBases<typename TPyClassConfigTraits::TParentPyClasses>();
-            TSelectedTraits::Instance().Register(M.M, GetContext().ClassShortName);
+            TSelectedTraits::Instance().Register(TPyModuleDefinition::GetModule().M, GetContext().ClassShortName);
         }
 
         static TContext& GetContext() {
@@ -460,8 +460,8 @@ namespace NPyBind {
         };
     public:
         TPyClass(const TString& name, const TString& descr = "", const Detail::TParentClassResolver& parentResolver = &Detail::DefaultParentResolver)
-            : M(TPyModuleDefinition::GetModule())
         {
+            TPyModuleDefinition& M = TPyModuleDefinition::GetModule();
             Detail::UpdateClassNamesInModule<TPyClassConfigTraits::InitEnabled>(M, name, TSelectedTraits::GetType());
             Detail::UpdateGetContextInModule<TPyClassConfigTraits::InitEnabled>(M, name, &TContextHolder::GetContextHolder());
 
@@ -557,7 +557,6 @@ namespace NPyBind {
         }
 
     private:
-        TPyModuleDefinition& M;
         bool Completed = false;
     };
 
