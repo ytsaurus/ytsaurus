@@ -357,7 +357,7 @@ TJob::TJob(
     , AbortJobIfAccountLimitExceeded_(JobSpecExt_.abort_job_if_account_limit_exceeded())
     , RestrictPortoPlace_(UserJobSpec_ ? UserJobSpec_->restrict_porto_place() : false)
     , HasUserJobSpec_(UserJobSpec_ != nullptr)
-    , TmpfsVolumeInfos_(ParseTmpfsVolumeInfos(UserJobSpec_))
+    , TmpfsVolumeSpecs_(ParseTmpfsVolumeSpecs(UserJobSpec_))
     , IsGpuRequested_(Allocation_->GetRequestedGpu() > 0)
     , TraceContext_(TTraceContext::NewRoot("Job"))
     , FinishGuard_(TraceContext_)
@@ -2524,7 +2524,7 @@ void TJob::PrepareWorkspace()
 
     auto binds = GetRootFSBinds();
 
-    if (FSSecretary_->GetVirtualSandboxData()) {
+    if (FSSecretary_->GetVirtualSandboxOptions()) {
         BuildVirtualSandbox();
     }
 
@@ -3625,8 +3625,8 @@ NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
 
 void TJob::BuildVirtualSandbox()
 {
-    auto& virtualSandboxData = GetOrCrash(FSSecretary_->GetVirtualSandboxData());
-    const auto& nbdDeviceId = virtualSandboxData.NbdDeviceId;
+    auto& virtualSandboxOptions = GetOrCrash(FSSecretary_->GetVirtualSandboxOptions());
+    const auto& nbdDeviceId = virtualSandboxOptions.NbdDeviceId;
 
     auto nbdServer = Bootstrap_->GetNbdServer();
     if (!nbdServer) {
@@ -3692,7 +3692,7 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     options.DiskSpaceLimit = FSSecretary_->GetRootVolumeDiskSpace();
     options.InodeLimit = FSSecretary_->GetRootVolumeInodeLimit();
 
-    options.VirtualSandboxData = FSSecretary_->GetVirtualSandboxData();
+    options.VirtualSandboxOptions = FSSecretary_->GetVirtualSandboxOptions();
 
     return options;
 }
@@ -4642,11 +4642,11 @@ bool TJob::UpdateJobProxyHearbeatEpoch(i64 epoch)
     return true;
 }
 
-const std::vector<NScheduler::TTmpfsVolumeConfigPtr>& TJob::GetTmpfsVolumeInfos() const noexcept
+const std::vector<TTmpfsVolumeSpec>& TJob::GetTmpfsVolumeSpecs() const noexcept
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return TmpfsVolumeInfos_;
+    return TmpfsVolumeSpecs_;
 }
 
 bool TJob::HasUserJobSpec() const noexcept
@@ -4656,7 +4656,7 @@ bool TJob::HasUserJobSpec() const noexcept
     return HasUserJobSpec_;
 }
 
-std::vector<NScheduler::TTmpfsVolumeConfigPtr> TJob::ParseTmpfsVolumeInfos(
+std::vector<TTmpfsVolumeSpec> TJob::ParseTmpfsVolumeSpecs(
     const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -4665,14 +4665,14 @@ std::vector<NScheduler::TTmpfsVolumeConfigPtr> TJob::ParseTmpfsVolumeInfos(
         return {};
     }
 
-    std::vector<TTmpfsVolumeConfigPtr> result;
-    using std::size;
-    result.reserve(size(maybeUserJobSpec->tmpfs_volumes()));
+    std::vector<TTmpfsVolumeSpec> result;
+    result.reserve(maybeUserJobSpec->tmpfs_volumes().size());
 
     for (const auto& volume : maybeUserJobSpec->tmpfs_volumes()) {
-        result.push_back(New<TTmpfsVolumeConfig>());
-
-        FromProto(result.back().Get(), volume);
+        result.push_back({
+            .Size = volume.size(),
+            .Path = volume.path(),
+        });
     }
 
     return result;

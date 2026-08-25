@@ -51,6 +51,15 @@ DEFINE_ENUM(EGpuCheckType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Tmpfs volume as requested by the job spec.
+struct TTmpfsVolumeSpec
+{
+    i64 Size = 0;
+    std::string Path;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJob
     : public TRefCounted
 {
@@ -268,7 +277,7 @@ public:
     i64 GetJobProxyHeartbeatEpoch() const;
     bool UpdateJobProxyHearbeatEpoch(i64 epoch);
 
-    const std::vector<NScheduler::TTmpfsVolumeConfigPtr>& GetTmpfsVolumeInfos() const noexcept;
+    const std::vector<TTmpfsVolumeSpec>& GetTmpfsVolumeSpecs() const noexcept;
 
     bool HasUserJobSpec() const noexcept;
 
@@ -313,7 +322,7 @@ private:
 
     const bool HasUserJobSpec_;
 
-    const std::vector<NScheduler::TTmpfsVolumeConfigPtr> TmpfsVolumeInfos_;
+    const std::vector<TTmpfsVolumeSpec> TmpfsVolumeSpecs_;
 
     THashSet<std::string> RequestedMonitoringSensors_;
 
@@ -640,7 +649,7 @@ private:
 
     void DeduceAndSetFinishedJobState();
 
-    static std::vector<NScheduler::TTmpfsVolumeConfigPtr> ParseTmpfsVolumeInfos(
+    static std::vector<TTmpfsVolumeSpec> ParseTmpfsVolumeSpecs(
         const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec);
 };
 

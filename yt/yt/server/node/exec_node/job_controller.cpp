@@ -852,8 +852,8 @@ private:
                 continue;
             }
 
-            for (const auto& tmpfsVolume : job->GetTmpfsVolumeInfos()) {
-                tmpfsLimit += tmpfsVolume->Size;
+            for (const auto& tmpfsVolume : job->GetTmpfsVolumeSpecs()) {
+                tmpfsLimit += tmpfsVolume.Size;
             }
 
             userToRpcProxyCount[job->GetAuthenticatedUser()] += job->HasRpcProxyInJobProxy();

@@ -966,34 +966,6 @@ void ToProto(
     }
 }
 
-void FromProto(TVolume* volume, const NControllerAgent::NProto::TVolume& volumeProto)
-{
-    using TProtoMessage = NControllerAgent::NProto::TVolume::DiskRequestCase;
-    switch (volumeProto.disk_request_case()) {
-        case TProtoMessage::kLocalDiskRequest:
-            volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
-            FromProto(
-                &(*volume->DiskRequest->GetConcrete<TLocalDiskRequest>()),
-                volumeProto.local_disk_request());
-            break;
-        case TProtoMessage::kNbdDiskRequest:
-            volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
-            FromProto(
-                &(*volume->DiskRequest->GetConcrete<TNbdDiskRequest>()),
-                volumeProto.nbd_disk_request());
-            break;
-        case TProtoMessage::kTmpfsStorageRequest:
-            volume->DiskRequest = TStorageRequestConfig(NExecNode::EVolumeType::Tmpfs);
-            FromProto(
-                &(*volume->DiskRequest->GetConcrete<TTmpfsStorageRequest>()),
-                volumeProto.tmpfs_storage_request());
-            break;
-        case TProtoMessage::DISK_REQUEST_NOT_SET:
-            YT_ABORT();
-    }
-    volume->AllowReusing = volumeProto.allow_reusing();
-}
-
 void FromProto(
     TVolumeMount* volumeMount,
     const NControllerAgent::NProto::TVolumeMount& volumeMountProto)
@@ -1012,96 +984,31 @@ void ToProto(
     volumeMountProto->set_read_only(volumeMount.ReadOnly);
 }
 
-void FromProto(
-    TTmpfsVolumeConfig* tmpfsVolumeConfig,
-    const NControllerAgent::NProto::TTmpfsVolume& protoTmpfsVolume)
-{
-    tmpfsVolumeConfig->Size = protoTmpfsVolume.size();
-    tmpfsVolumeConfig->Path = protoTmpfsVolume.path();
-}
-
-void ToProto(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
+void BuildTmpfsVolumeSpec(NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig)
 {
     protoTmpfsVolume->set_size(tmpfsVolumeConfig.Size);
     protoTmpfsVolume->set_path(tmpfsVolumeConfig.Path);
 }
 
-void FromProto(TStorageRequestConfig* diskRequestConfig, const NProto::TDeprecatedDiskRequest& protoDiskRequestConfig)
-{
-    switch (static_cast<NExecNode::EVolumeType>(protoDiskRequestConfig.type())) {
-        case NExecNode::EVolumeType::Nbd:
-            *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::Nbd);
-            FromProto(&(*diskRequestConfig->GetConcrete<TNbdDiskRequest>()), protoDiskRequestConfig);
-            break;
-        case NExecNode::EVolumeType::LocalDisk:
-            *diskRequestConfig = TStorageRequestConfig(NExecNode::EVolumeType::LocalDisk);
-            FromProto(&(*diskRequestConfig->GetConcrete<TLocalDiskRequest>()), protoDiskRequestConfig);
-            break;
-        case NExecNode::EVolumeType::Tmpfs:
-            break;
-    }
-}
-
-void ToProto(NProto::TDeprecatedDiskRequest* protoDiskRequest, const TStorageRequestConfig& diskRequestConfig)
-{
-    if (auto nbdDiskRequest = diskRequestConfig.TryGetConcrete<TNbdDiskRequest>()) {
-        protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Nbd));
-        ToProto(protoDiskRequest, *nbdDiskRequest);
-    } else if (auto localDiskRequest = diskRequestConfig.TryGetConcrete<TLocalDiskRequest>()) {
-        protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::LocalDisk));
-        ToProto(protoDiskRequest, *localDiskRequest);
-    } else if (auto tmpfsDiskRequest = diskRequestConfig.TryGetConcrete<TTmpfsStorageRequest>()) {
-        protoDiskRequest->set_type(static_cast<int>(NExecNode::EVolumeType::Tmpfs));
-        ToProto(protoDiskRequest, *tmpfsDiskRequest);
-    } else {
-        YT_ABORT();
-    }
-
-}
-
-void FromProto(TNbdDiskConfig* nbdDiskConfig, const NProto::TNbdDisk& protoNbdDisk)
-{
-    if (protoNbdDisk.has_data_node_address()) {
-        nbdDiskConfig->DataNodeAddress = protoNbdDisk.data_node_address();
-    }
-
-    nbdDiskConfig->DataNodeRpcTimeout = FromProto<TDuration>(protoNbdDisk.data_node_rpc_timeout());
-    nbdDiskConfig->MasterRpcTimeout = FromProto<TDuration>(protoNbdDisk.master_rpc_timeout());
-    nbdDiskConfig->DataNodeNbdServiceRpcTimeout = FromProto<TDuration>(protoNbdDisk.data_node_nbd_service_rpc_timeout());
-    nbdDiskConfig->DataNodeNbdServiceMakeTimeout = FromProto<TDuration>(protoNbdDisk.data_node_nbd_service_make_timeout());
-    nbdDiskConfig->MinDataNodeCount = protoNbdDisk.min_data_node_count();
-    nbdDiskConfig->MaxDataNodeCount = protoNbdDisk.max_data_node_count();
-    nbdDiskConfig->MultiplexingParallelism = protoNbdDisk.multiplexing_parallelism();
-}
-
-void ToProto(NProto::TNbdDisk* protoNbdDisk, const TNbdDiskConfig& nbdDiskConfig)
+void BuildChunkNbdDiskSpec(NProto::TChunkNbdDisk* protoChunkNbdDisk, const TNbdDiskConfig& nbdDiskConfig)
 {
     if (nbdDiskConfig.DataNodeAddress) {
-        protoNbdDisk->set_data_node_address(*nbdDiskConfig.DataNodeAddress);
+        protoChunkNbdDisk->set_data_node_address(*nbdDiskConfig.DataNodeAddress);
     }
-    protoNbdDisk->set_data_node_rpc_timeout(ToProto(nbdDiskConfig.DataNodeRpcTimeout));
-    protoNbdDisk->set_master_rpc_timeout(ToProto(nbdDiskConfig.MasterRpcTimeout));
-    protoNbdDisk->set_min_data_node_count(nbdDiskConfig.MinDataNodeCount);
-    protoNbdDisk->set_max_data_node_count(nbdDiskConfig.MaxDataNodeCount);
-    protoNbdDisk->set_data_node_nbd_service_rpc_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceRpcTimeout));
-    protoNbdDisk->set_data_node_nbd_service_make_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceMakeTimeout));
-    protoNbdDisk->set_multiplexing_parallelism(nbdDiskConfig.MultiplexingParallelism);
+    protoChunkNbdDisk->set_data_node_rpc_timeout(ToProto(nbdDiskConfig.DataNodeRpcTimeout));
+    protoChunkNbdDisk->set_master_rpc_timeout(ToProto(nbdDiskConfig.MasterRpcTimeout));
+    protoChunkNbdDisk->set_min_data_node_count(nbdDiskConfig.MinDataNodeCount);
+    protoChunkNbdDisk->set_max_data_node_count(nbdDiskConfig.MaxDataNodeCount);
+    protoChunkNbdDisk->set_data_node_nbd_service_rpc_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceRpcTimeout));
+    protoChunkNbdDisk->set_data_node_nbd_service_make_timeout(ToProto(nbdDiskConfig.DataNodeNbdServiceMakeTimeout));
+    protoChunkNbdDisk->set_multiplexing_parallelism(nbdDiskConfig.MultiplexingParallelism);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromProto(TTmpfsStorageRequest* diskRequestConfig, const NProto::TTmpfsStorageRequest& protoDiskRequestConfig)
+void BuildTmpfsStorageRequestSpec(NProto::TTmpfsStorageRequest* protoDiskRequestConfig, const TTmpfsStorageRequest& diskRequestConfig)
 {
-    FromProto(static_cast<TStorageRequestBase*>(diskRequestConfig), protoDiskRequestConfig.storage_request_common_parameters());
-
-    // COMPAT(krasovav): remove after YT-26820.
-    YT_VERIFY(protoDiskRequestConfig.has_tmpfs_index());
-    diskRequestConfig->TmpfsIndex = protoDiskRequestConfig.tmpfs_index();
-}
-
-void ToProto(NProto::TTmpfsStorageRequest* protoDiskRequestConfig, const TTmpfsStorageRequest& diskRequestConfig)
-{
-    ToProto(protoDiskRequestConfig->mutable_storage_request_common_parameters(), static_cast<const TStorageRequestBase&>(diskRequestConfig));
+    BuildCommonStorageRequestSpec(protoDiskRequestConfig->mutable_storage_request_common_parameters(), static_cast<const TStorageRequestBase&>(diskRequestConfig));
 
     // COMPAT(krasovav): remove after YT-26820.
     YT_VERIFY(diskRequestConfig.TmpfsIndex);

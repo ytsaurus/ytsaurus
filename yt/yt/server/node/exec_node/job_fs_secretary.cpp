@@ -217,9 +217,9 @@ TError CheckSidecarsVolumeMounts(
     return {};
 }
 
-TError CheckSandboxNbdRootVolumeData(
-    const std::optional<TSandboxNbdRootVolumeData>& baseline,
-    const std::optional<TSandboxNbdRootVolumeData>& current)
+TError CheckSandboxNbdRootVolumeSpec(
+    const std::optional<TSandboxNbdRootVolumeSpec>& baseline,
+    const std::optional<TSandboxNbdRootVolumeSpec>& current)
 {
     if (baseline.has_value() != current.has_value()) {
         return TError("Job spec sandbox NBD root volume data presence differs from the first job in this allocation")
@@ -331,7 +331,7 @@ void TJobFSSecretary::VerifyDescriptionMatchesApplied(const TJobFSDescriptionPtr
     crashIfFailed(CheckNonRootVolumeParams(Description_->NonRootVolumeParams, current->NonRootVolumeParams));
     crashIfFailed(CheckJobVolumeMounts(Description_->JobVolumeMounts, current->JobVolumeMounts));
     crashIfFailed(CheckSidecarsVolumeMounts(Description_->SidecarsVolumeMounts, current->SidecarsVolumeMounts));
-    crashIfFailed(CheckSandboxNbdRootVolumeData(Description_->SandboxNbdRootVolumeData, current->SandboxNbdRootVolumeData));
+    crashIfFailed(CheckSandboxNbdRootVolumeSpec(Description_->SandboxNbdRootVolumeSpec, current->SandboxNbdRootVolumeSpec));
 }
 
 void TJobFSSecretary::ApplyDescription(TJobFSDescriptionPtr&& description)
@@ -341,7 +341,7 @@ void TJobFSSecretary::ApplyDescription(TJobFSDescriptionPtr&& description)
 
 void TJobFSSecretary::CheckConfiguration(bool hasNbdServer) const
 {
-    if (Description_->SandboxNbdRootVolumeData && !hasNbdServer) {
+    if (Description_->SandboxNbdRootVolumeSpec && !hasNbdServer) {
         THROW_ERROR_EXCEPTION(
             NExecNode::EErrorCode::NbdServerDisabledOnNode,
             "NBD server disabled on this node but job requested nbd volume");
@@ -482,19 +482,19 @@ void TJobFSSecretary::ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> descr
         virtualArtifactKey.set_nbd_device_id(deviceId);
         ++nbdDeviceCount;
 
-        VirtualSandboxData_ = TVirtualSandboxData{
+        VirtualSandboxOptions_ = TVirtualSandboxOptions{
             .NbdDeviceId = deviceId,
             .ArtifactKey = std::move(virtualArtifactKey),
         };
     }
 
     // Create NBD device id for NBD root volume.
-    if (description->SandboxNbdRootVolumeData) {
+    if (description->SandboxNbdRootVolumeSpec) {
         auto deviceId = MakeNbdDeviceId(JobId_, nbdDeviceCount);
         EmplaceOrCrash(NbdDeviceIds_, deviceId);
         ++nbdDeviceCount;
 
-        description->SandboxNbdRootVolumeData->DeviceId = std::move(deviceId);
+        description->SandboxNbdRootVolumeSpec->DeviceId = std::move(deviceId);
     }
 }
 
@@ -622,9 +622,9 @@ void TJobFSSecretary::ConfigureVolumes(TNonNullPtr<TJobFSDescription> descriptio
                 break;
             }
             case TProtoMessage::kNbdDiskRequest: {
-                TSandboxNbdRootVolumeData sandboxNbdData;
-                NExecNode::FromProto(&sandboxNbdData, protoVolume.nbd_disk_request());
-                description->SandboxNbdRootVolumeData = std::move(sandboxNbdData);
+                TSandboxNbdRootVolumeSpec sandboxNbdRootVolumeSpec;
+                NExecNode::FromProto(&sandboxNbdRootVolumeSpec, protoVolume.nbd_disk_request());
+                description->SandboxNbdRootVolumeSpec = std::move(sandboxNbdRootVolumeSpec);
 
                 for (const auto& layerKey : protoVolume.layers()) {
                     description->RootVolumeLayerArtifactKeys.emplace_back(layerKey);
@@ -786,9 +786,9 @@ THashSet<std::string> TJobFSSecretary::ReleaseNbdDeviceIds()
     return std::move(NbdDeviceIds_);
 }
 
-const std::optional<TSandboxNbdRootVolumeData>& TJobFSSecretary::GetSandboxNbdRootVolumeData() const
+const std::optional<TSandboxNbdRootVolumeSpec>& TJobFSSecretary::GetSandboxNbdRootVolumeSpec() const
 {
-    return Description_->SandboxNbdRootVolumeData;
+    return Description_->SandboxNbdRootVolumeSpec;
 }
 
 const THashMap<std::string, TVolumeResultPtr>& TJobFSSecretary::GetNonRootVolumes() const
@@ -857,15 +857,15 @@ size_t TJobFSSecretary::GetTmpfsVolumeCount() const
     return tmpfsVolumeCount;
 }
 
-const std::optional<TVirtualSandboxData>& TJobFSSecretary::GetVirtualSandboxData() const
+const std::optional<TVirtualSandboxOptions>& TJobFSSecretary::GetVirtualSandboxOptions() const
 {
-    return VirtualSandboxData_;
+    return VirtualSandboxOptions_;
 }
 
 void TJobFSSecretary::SetVirtualSandboxReader(NNbd::NImage::IImageReaderPtr reader)
 {
-    YT_VERIFY(VirtualSandboxData_);
-    VirtualSandboxData_->Reader = std::move(reader);
+    YT_VERIFY(VirtualSandboxOptions_);
+    VirtualSandboxOptions_->Reader = std::move(reader);
 }
 
 const std::optional<i64>& TJobFSSecretary::GetRootVolumeDiskSpace() const
@@ -991,10 +991,10 @@ bool TJobFSSecretary::HasPreparedLayer(const TArtifactKey& key) const
 std::vector<TOverlayData> TJobFSSecretary::GetPreparedRootVolumeOverlayData() const
 {
     auto overlayDataArray = GetPreparedOverlayData(MergedRootVolumeLayerArtifactKeys_);
-    if (VirtualSandboxData_) {
+    if (VirtualSandboxOptions_) {
         overlayDataArray.push_back(GetOrCrash(
             PreparedLayers_.ArtifactKeyToOverlayData,
-            VirtualSandboxData_->ArtifactKey));
+            VirtualSandboxOptions_->ArtifactKey));
     }
     return overlayDataArray;
 }
@@ -1059,7 +1059,7 @@ void TJobFSSecretary::OnNewJobStarted(TJobId jobId)
         YT_VERIFY(paramsIt != Description_->NonRootVolumeParams.end() && (*paramsIt)->AllowReusing);
     }
 
-    VirtualSandboxData_.reset();
+    VirtualSandboxOptions_.reset();
     HasVirtualSandboxArtifacts_ = false;
 }
 

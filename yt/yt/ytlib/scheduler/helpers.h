@@ -273,10 +273,6 @@ void ToProto(
     const TSidecarJobSpec& sidecarJobSpec);
 
 void FromProto(
-    TVolume* volume,
-    const NControllerAgent::NProto::TVolume& volumeProto);
-
-void FromProto(
     TVolumeMount* volumeMount,
     const NControllerAgent::NProto::TVolumeMount& volumeMountProto);
 
@@ -284,79 +280,35 @@ void ToProto(
     NControllerAgent::NProto::TVolumeMount* volumeMountProto,
     const TVolumeMount& volumeMount);
 
-void FromProto(
-    TTmpfsVolumeConfig* tmpfsVolumeConfig,
-    const NControllerAgent::NProto::TTmpfsVolume& protoTmpfsVolume);
-
-void ToProto(
+void BuildTmpfsVolumeSpec(
     NControllerAgent::NProto::TTmpfsVolume* protoTmpfsVolume,
     const TTmpfsVolumeConfig& tmpfsVolumeConfig);
 
-void ToProto(
-    NProto::TNbdDisk* protoNbdDisk,
+void BuildChunkNbdDiskSpec(
+    NProto::TChunkNbdDisk* protoChunkNbdDisk,
     const TNbdDiskConfig& nbdDiskConfig);
 
-void FromProto(
-    TNbdDiskConfig* nbdDiskConfig,
-    const NProto::TNbdDisk& protoNbdDisk);
-
-void FromProto(
-    TStorageRequestConfig* diskRequestConfig,
-    const NProto::TDiskRequest& protoDiskRequest);
-
-void ToProto(
-    NProto::TDiskRequest* protoDiskRequest,
-    const TStorageRequestConfig& diskRequestConfig);
-
 template <class TProtoDiskRequest>
-void FromProto(
-    TNbdDiskRequest* diskRequestConfig,
-    const TProtoDiskRequest& protoDiskRequestConfig);
-
-template <class TProtoDiskRequest>
-void ToProto(
+void BuildNbdDiskRequestSpec(
     TProtoDiskRequest* protoDiskRequestConfig,
     const TNbdDiskRequest& diskRequestConfig);
 
 template <class TProtoDiskRequest>
-void FromProto(
-    TLocalDiskRequest* diskRequestConfig,
-    const TProtoDiskRequest& protoDiskRequestConfig);
-
-template <class TProtoDiskRequest>
-void ToProto(
+void BuildLocalDiskRequestSpec(
     TProtoDiskRequest* protoDiskRequestConfig,
     const TLocalDiskRequest& diskRequestConfig);
 
 template <class TProtoDiskRequest>
-void FromProto(
-    TDiskRequestConfig* diskRequestConfig,
-    const TProtoDiskRequest& protoDiskRequestConfig);
-
-template <class TProtoDiskRequest>
-void ToProto(
+void BuildCommonDiskRequestSpec(
     TProtoDiskRequest* protoDiskRequestConfig,
     const TDiskRequestConfig& diskRequestConfig);
 
-void FromProto(
-    TTmpfsStorageRequest* diskRequestConfig,
-    const NProto::TTmpfsStorageRequest& protoDiskRequestConfig);
-
-void ToProto(
+void BuildTmpfsStorageRequestSpec(
     NProto::TTmpfsStorageRequest* protoDiskRequestConfig,
     const TTmpfsStorageRequest& diskRequestConfig);
 
-void FromProto(
-    TStorageRequestConfig* diskRequestConfig,
-    const NProto::TDeprecatedDiskRequest& protoDiskRequestConfig);
-
 template <class TProtoDiskRequest>
-void FromProto(
-    TStorageRequestBase* diskRequestConfig,
-    const TProtoDiskRequest& protoDiskRequestConfig);
-
-template <class TProtoDiskRequest>
-void ToProto(
+void BuildCommonStorageRequestSpec(
     TProtoDiskRequest* protoDiskRequestConfig,
     const TStorageRequestBase& diskRequestConfig);
 
