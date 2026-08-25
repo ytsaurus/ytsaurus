@@ -4,6 +4,7 @@ RECURSE(
     at_most_once_sink
     companion
     computation_cycles_and_buffers
+    conflict_horizon
     diagnostic_tools
     epoch_seqno_sync
     external_joiner
