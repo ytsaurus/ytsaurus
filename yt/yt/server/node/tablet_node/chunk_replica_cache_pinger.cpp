@@ -30,9 +30,9 @@ public:
     {
         Logger = TabletNodeLogger().WithTag("CellId", slot->GetCellId());
 
-        YT_LOG_DEBUG("Chunk replica cache pinger scans slot");
+        YT_TLOG_DEBUG("Chunk replica cache pinger scans slot");
         chunkReplicaCache->PingChunks(CollectChunks(slot));
-        YT_LOG_DEBUG("Chunk replica cache pinger slot scanning finished");
+        YT_TLOG_DEBUG("Chunk replica cache pinger slot scanning finished");
     }
 
 private:

@@ -133,9 +133,9 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
 
                 if (!descriptorsOrError.IsOK()) {
                     if (ActiveStore_ == store) {
-                        YT_LOG_DEBUG(descriptorsOrError, "Failed to write hunks, rotating active store "
-                            "(StoreId: %v)",
-                            store->GetId());
+                        YT_TLOG_DEBUG("Failed to write hunks, rotating active store")
+                            .With("StoreId", store->GetId())
+                            .With(descriptorsOrError);
 
                         RotateActiveStore();
                         Profiler_->GetHunkTabletScannerCounters()->StoreRotationCount.Increment(1);
@@ -143,8 +143,8 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
                         host->ScheduleScanTablet(GetId());
                     }
                 } else {
-                    YT_LOG_DEBUG("Hunks are written to hunk store (DescriptorCount: %v)",
-                        descriptorsOrError.Value().size());
+                    YT_TLOG_DEBUG("Hunks are written to hunk store")
+                        .With("DescriptorCount", descriptorsOrError.Value().size());
 
                     auto* counters = Profiler_->GetWriteCounters(GetCurrentProfilingUser());
                     counters->SuccessfulRowCount.Increment(rowCount);
@@ -226,10 +226,9 @@ void THunkTablet::AddStore(THunkStorePtr store)
     counters->StoreCount.Update(IdToStore_.size());
     counters->PassiveStoreCount.Update(PassiveStores_.size());
 
-    YT_LOG_DEBUG(
-        "Store added (StoreId: %v, StoreState: %v)",
-        store->GetId(),
-        store->GetState());
+    YT_TLOG_DEBUG("Store added")
+        .With("StoreId", store->GetId())
+        .With("StoreState", store->GetState());
 }
 
 void THunkTablet::RemoveStore(const THunkStorePtr& store)
@@ -249,10 +248,9 @@ void THunkTablet::RemoveStore(const THunkStorePtr& store)
     counters->StoreCount.Update(IdToStore_.size());
     counters->PassiveStoreCount.Update(PassiveStores_.size());
 
-    YT_LOG_DEBUG(
-        "Store removed (StoreId: %v, StoreState: %v)",
-        storeId,
-        storeState);
+    YT_TLOG_DEBUG("Store removed")
+        .With("StoreId", storeId)
+        .With("StoreState", storeState);
 }
 
 bool THunkTablet::IsReadyToUnmount() const
@@ -345,10 +343,8 @@ void THunkTablet::RotateActiveStore()
         newActiveStoreId = newActiveStore->GetId();
     }
 
-    YT_LOG_DEBUG(
-        "Active store rotated (ActiveStoreId: %v -> %v)",
-        oldActiveStoreId,
-        newActiveStoreId);
+    YT_TLOG_DEBUG("Active store rotated")
+        .WithFormat("ActiveStoreId", "%v -> %v", oldActiveStoreId, newActiveStoreId);
 }
 
 void THunkTablet::OnStoreAllocationFailed(const TError& error)
@@ -367,8 +363,8 @@ void THunkTablet::LockTransactionOrThrow(TTransactionId transactionId)
 
     LockTransactionId_ = transactionId;
 
-    YT_LOG_DEBUG("Hunk tablet locked by transaction (TransactionId: %v)",
-        transactionId);
+    YT_TLOG_DEBUG("Hunk tablet locked by transaction")
+        .With("TransactionId", transactionId);
 }
 
 bool THunkTablet::TryUnlockTransaction(TTransactionId transactionId)
@@ -379,8 +375,8 @@ bool THunkTablet::TryUnlockTransaction(TTransactionId transactionId)
     }
     LockTransactionId_ = {};
 
-    YT_LOG_DEBUG("Hunk tablet unlocked by transaction (TransactionId: %v)",
-        transactionId);
+    YT_TLOG_DEBUG("Hunk tablet unlocked by transaction")
+        .With("TransactionId", transactionId);
 
     return true;
 }
@@ -393,7 +389,7 @@ TTransactionId THunkTablet::GetLockTransactionId() const
 bool THunkTablet::TryLockScan()
 {
     auto wasUnlocked = !std::exchange(LockedByScan_, true);
-    YT_LOG_DEBUG_IF(wasUnlocked, "Hunk tablet locked by scanner");
+    YT_TLOG_DEBUG_IF(wasUnlocked, "Hunk tablet locked by scanner");
     return wasUnlocked;
 }
 
@@ -402,7 +398,7 @@ void THunkTablet::UnlockScan()
     YT_VERIFY(LockedByScan_);
     LockedByScan_ = false;
 
-    YT_LOG_DEBUG("Hunk tablet unlocked by scanner");
+    YT_TLOG_DEBUG("Hunk tablet unlocked by scanner");
 }
 
 bool THunkTablet::IsLockedScan() const

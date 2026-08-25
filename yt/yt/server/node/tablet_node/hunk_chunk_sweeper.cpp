@@ -141,12 +141,12 @@ private:
             .WithTags(tablet->GetLoggingTags());
 
         try {
-            YT_LOG_INFO("Sweeping tablet hunk chunks (ChunkIds: %v)",
-                MakeFormattableView(hunkChunks, THunkChunkIdFormatter()));
+            YT_TLOG_INFO("Sweeping tablet hunk chunks")
+                .With("ChunkIds", MakeFormattableView(hunkChunks, THunkChunkIdFormatter()));
 
             NNative::ITransactionPtr transaction;
             {
-                YT_LOG_INFO("Creating tablet hunk chunks sweep transaction");
+                YT_TLOG_INFO("Creating tablet hunk chunks sweep transaction");
 
                 auto transactionAttributes = CreateEphemeralAttributes();
                 transactionAttributes->Set("title", Format("Tablet hunk chunks sweep: table %v, tablet %v",
@@ -165,8 +165,8 @@ private:
                 transaction = WaitFor(asyncTransaction)
                     .ValueOrThrow();
 
-                YT_LOG_INFO("Tablet hunk chunks sweep transaction created (TransactionId: %v)",
-                    transaction->GetId());
+                YT_TLOG_INFO("Tablet hunk chunks sweep transaction created")
+                    .With("TransactionId", transaction->GetId());
 
                 Logger.AddTag("TransactionId", transaction->GetId());
             }
@@ -198,7 +198,8 @@ private:
 
             SweptHunkChunkCounter_.Increment(hunkChunks.size());
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error sweeping tablet hunk chunks");
+            YT_TLOG_ERROR("Error sweeping tablet hunk chunks")
+                .With(ex);
 
             for (const auto& hunkChunk : hunkChunks) {
                 BackoffHunkChunkSweep(hunkChunk);

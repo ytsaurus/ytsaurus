@@ -367,10 +367,9 @@ private:
         }));
 
         if (auto delay = tabletSnapshot->Settings.MountConfig->Testing.WriteResponseDelay) {
-            YT_LOG_DEBUG("Response for TabletService.Write will be delayed for testing purposes "
-                "(%v, Delay: %v)",
-                tabletSnapshot->LoggingTags,
-                delay);
+            YT_TLOG_DEBUG("Response for TabletService.Write will be delayed for testing purposes")
+                .With(tabletSnapshot->LoggingTags)
+                .With("Delay", delay);
             TDelayedExecutor::WaitForDuration(delay);
         }
 

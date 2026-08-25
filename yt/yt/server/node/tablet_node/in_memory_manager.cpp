@@ -101,9 +101,9 @@ void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const IN
         totalSize += block.Data.Size();
     }
 
-    YT_LOG_DEBUG("Collocating memory blocks (BlockCount: %v, TotalByteCount: %v)",
-        blocks.size(),
-        totalSize);
+    YT_TLOG_DEBUG("Collocating memory blocks")
+        .With("BlockCount", blocks.size())
+        .With("TotalByteCount", totalSize);
 
     auto buffer = TSharedMutableRef::Allocate<TPreloadedBlockTag>(totalSize, {.InitializeStorage = false});
     auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, MarkUndumpable(buffer));
@@ -242,9 +242,9 @@ public:
         auto chunkData = std::move(it->second);
         ChunkIdToData_.erase(it);
 
-        YT_LOG_INFO("Intercepted chunk data evicted (ChunkId: %v, Mode: %v)",
-            chunkId,
-            chunkData->InMemoryMode);
+        YT_TLOG_INFO("Intercepted chunk data evicted")
+            .With("ChunkId", chunkId)
+            .With("Mode", chunkData->InMemoryMode);
 
         return chunkData;
     }
@@ -260,9 +260,9 @@ public:
         guard.Release();
 
         if (chunkData) {
-            YT_LOG_DEBUG("Intercepted chunk data retrieved (ChunkId: %v, Mode: %v)",
-                chunkId,
-                chunkData->InMemoryMode);
+            YT_TLOG_DEBUG("Intercepted chunk data retrieved")
+                .With("ChunkId", chunkId)
+                .With("Mode", chunkData->InMemoryMode);
         }
 
         return chunkData;
@@ -377,13 +377,13 @@ private:
         auto traceContext = TTraceContext::NewRoot("InMemoryManager");
         TTraceContextGuard traceContextGuard(traceContext);
 
-        YT_LOG_INFO("Preloading in-memory store");
+        YT_TLOG_INFO("Preloading in-memory store");
 
         YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
 
         if (mode == EInMemoryMode::None) {
             // Mode has been changed while current action was waiting in action queue
-            YT_LOG_INFO("In-memory mode has been changed");
+            YT_TLOG_INFO("In-memory mode has been changed");
 
             store->SetPreloadState(EStorePreloadState::None);
             tablet->GetStructuredLogger()->OnStorePreloadStateChanged(store);
@@ -394,7 +394,7 @@ private:
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {
-            YT_LOG_INFO("Tablet snapshot is missing");
+            YT_TLOG_INFO("Tablet snapshot is missing");
 
             store->UpdatePreloadAttempt(/*isBackoff*/ false);
             storeManager->BackoffStorePreload(store);
@@ -438,7 +438,8 @@ private:
             // Do not back off if fiber cancellation exception was thrown.
             // SetInMemoryMode with other mode was called during current action execution.
 
-            YT_LOG_ERROR(ex, "Error preloading tablet store, backing off");
+            YT_TLOG_ERROR("Error preloading tablet store, backing off")
+                .With(ex);
             store->UpdatePreloadAttempt(/*isBackoff*/ true);
             storeManager->BackoffStorePreload(store);
 
@@ -452,10 +453,10 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Preload].Store(std::move(error));
         } catch (const TFiberCanceledException&) {
-            YT_LOG_DEBUG("Preload cancelled");
+            YT_TLOG_DEBUG("Preload cancelled");
             throw;
         } catch (...) {
-            YT_LOG_DEBUG("Unknown exception in preload");
+            YT_TLOG_DEBUG("Unknown exception in preload");
             throw;
         }
 
@@ -521,7 +522,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         .WithTag("Mode", mode)
         .WithTag("ReadSessionId", readSessionId);
 
-    YT_LOG_INFO("Store preload started");
+    YT_TLOG_INFO("Store preload started");
 
     IChunkReader::TReadBlocksOptions readBlocksOptions{
         .ClientOptions = TClientChunkReadOptions{
@@ -664,17 +665,17 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         endBlockIndex - startBlockIndex);
 
     if (preThrottledBytes) {
-        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload (Blocks: %v, Bytes: %v)",
-            FormatBlocks(startBlockIndex, endBlockIndex),
-            preThrottledBytes);
+        YT_TLOG_DEBUG("Preliminary throttling of network bandwidth for preload")
+            .With("Blocks", FormatBlocks(startBlockIndex, endBlockIndex))
+            .With("Bytes", preThrottledBytes);
 
         WaitFor(networkThrottler->Throttle(*preThrottledBytes))
             .ThrowOnError();
     }
 
     for (int blockIndex = startBlockIndex; blockIndex < endBlockIndex;) {
-        YT_LOG_DEBUG("Started reading chunk blocks (FirstBlock: %v)",
-            blockIndex);
+        YT_TLOG_DEBUG("Started reading chunk blocks")
+            .With("FirstBlock", blockIndex);
 
         YT_VERIFY(blockIndex < dataBlockCount);
         auto compressedBlocks = WaitFor(reader->ReadBlocks(
@@ -684,8 +685,8 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             .ValueOrThrow();
 
         int readBlockCount = compressedBlocks.size();
-        YT_LOG_DEBUG("Finished reading chunk blocks (Blocks: %v)",
-            FormatBlocks(blockIndex, blockIndex + readBlockCount - 1));
+        YT_TLOG_DEBUG("Finished reading chunk blocks")
+            .With("Blocks", FormatBlocks(blockIndex, blockIndex + readBlockCount - 1));
 
         for (const auto& compressedBlock : compressedBlocks) {
             compressedDataSize += compressedBlock.Size();
@@ -703,9 +704,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             }
 
             case EInMemoryMode::Uncompressed: {
-                YT_LOG_DEBUG("Decompressing chunk blocks (Blocks: %v, Codec: %v)",
-                    FormatBlocks(blockIndex, blockIndex + readBlockCount - 1),
-                    compressionCodec->GetId());
+                YT_TLOG_DEBUG("Decompressing chunk blocks")
+                    .With("Blocks", FormatBlocks(blockIndex, blockIndex + readBlockCount - 1))
+                    .With("Codec", compressionCodec->GetId());
 
                 std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;
                 asyncUncompressedBlocks.reserve(compressedBlocks.size());
@@ -771,11 +772,10 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         memoryUsageTracker,
         memoryTracker->WithCategory(EMemoryCategory::TabletStatic));
 
-    YT_LOG_INFO(
-        "Store preload completed (MemoryUsage: %v, PreallocatedMemory: %v, LookupHashTable: %v)",
-        allocatedMemory,
-        preallocatedMemory,
-        static_cast<bool>(chunkData->LookupHashTable));
+    YT_TLOG_INFO("Store preload completed")
+        .With("MemoryUsage", allocatedMemory)
+        .With("PreallocatedMemory", preallocatedMemory)
+        .With("LookupHashTable", static_cast<bool>(chunkData->LookupHashTable));
 
     return chunkData;
 }
@@ -807,9 +807,9 @@ struct TNode
 
     void SendPing()
     {
-        YT_LOG_DEBUG("Sending ping (Address: %v, SessionId: %v)",
-            Descriptor.GetDefaultAddress(),
-            SessionId);
+        YT_TLOG_DEBUG("Sending ping")
+            .With("Address", Descriptor.GetDefaultAddress())
+            .With("SessionId", SessionId);
 
         auto req = Proxy.PingSession();
         req->SetTimeout(ControlRpcTimeout);
@@ -817,9 +817,10 @@ struct TNode
         req->Invoke().Subscribe(
             BIND([=, this, this_ = MakeStrong(this)] (const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError) {
                 if (!rspOrError.IsOK()) {
-                    YT_LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
-                        Descriptor.GetDefaultAddress(),
-                        SessionId);
+                    YT_TLOG_WARNING("Ping failed")
+                        .With("Address", Descriptor.GetDefaultAddress())
+                        .With("SessionId", SessionId)
+                        .With(rspOrError);
                 }
             }));
     }
@@ -986,11 +987,11 @@ private:
             ToProto(req->mutable_session_id(), node->SessionId);
 
             for (const auto& block : blocks) {
-                YT_LOG_DEBUG("Sending in-memory block (ChunkId: %v, Block: %v, SessionId: %v, Address: %v)",
-                    block.first.ChunkId,
-                    block.first.BlockIndex,
-                    node->SessionId,
-                    node->Descriptor.GetDefaultAddress());
+                YT_TLOG_DEBUG("Sending in-memory block")
+                    .With("ChunkId", block.first.ChunkId)
+                    .With("Block", block.first.BlockIndex)
+                    .With("SessionId", node->SessionId)
+                    .With("Address", node->Descriptor.GetDefaultAddress());
 
                 ToProto(req->add_block_ids(), block.first);
                 req->Attachments().push_back(block.second);
@@ -1014,18 +1015,18 @@ private:
         std::vector<TNodePtr> activeNodes;
         for (size_t index = 0; index < results.size(); ++index) {
             if (!results[index].IsOK()) {
-                YT_LOG_WARNING("Error sending batch (SessionId: %v, Address: %v)",
-                    Nodes_[index]->SessionId,
-                    Nodes_[index]->Descriptor.GetDefaultAddress());
+                YT_TLOG_WARNING("Error sending batch")
+                    .With("SessionId", Nodes_[index]->SessionId)
+                    .With("Address", Nodes_[index]->Descriptor.GetDefaultAddress());
                 continue;
             }
 
             auto result = results[index].Value();
 
             if (result->dropped()) {
-                YT_LOG_WARNING("Dropped in-memory session (SessionId: %v, Address: %v)",
-                    Nodes_[index]->SessionId,
-                    Nodes_[index]->Descriptor.GetDefaultAddress());
+                YT_TLOG_WARNING("Dropped in-memory session")
+                    .With("SessionId", Nodes_[index]->SessionId)
+                    .With("Address", Nodes_[index]->Descriptor.GetDefaultAddress());
                 continue;
             }
 
@@ -1037,10 +1038,12 @@ private:
 
     TFuture<void> DoFinish(const std::vector<TChunkInfo>& chunkInfos)
     {
-        YT_LOG_DEBUG("Finishing in-memory sessions (SessionIds: %v)",
-            MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodePtr& node) {
-                FormatValue(builder, node->SessionId, TStringBuf());
-            }));
+        YT_TLOG_DEBUG("Finishing in-memory sessions")
+            .With(
+                "SessionIds",
+                MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodePtr& node) {
+                    FormatValue(builder, node->SessionId, TStringBuf());
+                }));
 
         std::vector<TFuture<void>> asyncResults;
         for (const auto& node : Nodes_) {
@@ -1143,8 +1146,8 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
             ? CreateLocalChannel(localRpcServer)
             : client->GetChannelFactory()->CreateChannel(target);
 
-        YT_LOG_DEBUG("Starting in-memory session (Address: %v)",
-            address);
+        YT_TLOG_DEBUG("Starting in-memory session")
+            .With("Address", address);
 
         TInMemoryServiceProxy proxy(channel);
 
@@ -1162,9 +1165,9 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
         const auto& rsp = rspOrError.Value();
         auto sessionId = FromProto<TInMemorySessionId>(rsp->session_id());
 
-        YT_LOG_DEBUG("In-memory session started (Address: %v, SessionId: %v)",
-            address,
-            sessionId);
+        YT_TLOG_DEBUG("In-memory session started")
+            .With("Address", address)
+            .With("SessionId", sessionId);
 
         auto node = New<TNode>(
             target,

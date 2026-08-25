@@ -125,8 +125,8 @@ private:
         const ITabletSlotPtr& slot,
         const NLsm::TLsmActionBatch& batch) override
     {
-        YT_LOG_DEBUG("Partition balancer started processing action batch (CellId: %v)",
-            slot->GetCellId());
+        YT_TLOG_DEBUG("Partition balancer started processing action batch")
+            .With("CellId", slot->GetCellId());
 
         TEventTimerGuard guard(ScanTime_);
 
@@ -151,8 +151,8 @@ private:
             ProcessMergeRequest(slot, request);
         }
 
-        YT_LOG_DEBUG("Partition balancer finished processing action batch (CellId: %v)",
-            slot->GetCellId());
+        YT_TLOG_DEBUG("Partition balancer finished processing action batch")
+            .With("CellId", slot->GetCellId());
     }
 
     static bool CheckPartitionIdMatch(
@@ -275,11 +275,11 @@ private:
         }
 
         if (pivotKeys[0] != partition->GetPivotKey()) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not perform immediate partition split: first proposed pivot key "
-                "does not match partition pivot key (PartitionPivotKey: %v, ProposedPivotKey: %v)",
-                partition->GetPivotKey(),
-                pivotKeys[0]);
+            YT_TLOG_DEBUG_IF(
+                mountConfig->EnableLsmVerboseLogging,
+                "Will not perform immediate partition split: first proposed pivot key does not match partition pivot key")
+                .With("PartitionPivotKey", partition->GetPivotKey())
+                .With("ProposedPivotKey", pivotKeys[0]);
 
             partition->PivotKeysForImmediateSplit().clear();
             return false;
@@ -287,8 +287,7 @@ private:
 
         for (int index = 1; index < ssize(pivotKeys); ++index) {
             if (pivotKeys[index] <= pivotKeys[index - 1]) {
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Will not perform immediate partition split: proposed pivots are not sorted");
+                YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Will not perform immediate partition split: proposed pivots are not sorted");
 
                 partition->PivotKeysForImmediateSplit().clear();
                 return false;
@@ -296,19 +295,18 @@ private:
         }
 
         if (pivotKeys.back() >= partition->GetNextPivotKey()) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not perform immediate partition split: last proposed pivot key "
-                "is not less than partition next pivot key (NextPivotKey: %v, ProposedPivotKey: %v)",
-                partition->GetNextPivotKey(),
-                pivotKeys.back());
+            YT_TLOG_DEBUG_IF(
+                mountConfig->EnableLsmVerboseLogging,
+                "Will not perform immediate partition split: last proposed pivot key is not less than partition next pivot key")
+                .With("NextPivotKey", partition->GetNextPivotKey())
+                .With("ProposedPivotKey", pivotKeys.back());
 
             partition->PivotKeysForImmediateSplit().clear();
             return false;
         }
 
         if (pivotKeys.size() <= 1) {
-            YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                "Will not perform immediate partition split: too few pivot keys");
+            YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Will not perform immediate partition split: too few pivot keys");
 
             partition->PivotKeysForImmediateSplit().clear();
             return false;
@@ -326,15 +324,15 @@ private:
     {
         TTraceContextGuard TTraceContextGuard(TTraceContext::NewRoot("PartitionBalancer"));
 
-        YT_LOG_DEBUG("Splitting partition");
+        YT_TLOG_DEBUG("Splitting partition");
 
         YT_VERIFY(tablet == partition->GetTablet());
         const auto& hydraManager = slot->GetHydraManager();
         const auto& structuredLogger = tablet->GetStructuredLogger();
         auto config = Config_.Acquire();
 
-        YT_LOG_INFO("Partition is eligible for split (SplitFactor: %v)",
-            splitFactor);
+        YT_TLOG_INFO("Partition is eligible for split")
+            .With("SplitFactor", splitFactor);
 
         try {
             auto rowBuffer = New<TRowBuffer>(TPartitionSamplesTag());
@@ -385,7 +383,8 @@ private:
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger));
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Partition splitting aborted");
+            YT_TLOG_ERROR("Partition splitting aborted")
+                .With(ex);
             structuredLogger->LogEvent("backoff_partition_split")
                 .Item("partition_id").Value(partition->GetId());
             partition->CheckedSetState(EPartitionState::Splitting, EPartitionState::Normal);
@@ -398,8 +397,8 @@ private:
         TPartition* partition,
         NLogging::TLogger Logger)
     {
-        YT_LOG_DEBUG("Splitting partition with provided pivot keys (SplitFactor: %v)",
-            partition->PivotKeysForImmediateSplit().size());
+        YT_TLOG_DEBUG("Splitting partition with provided pivot keys")
+            .With("SplitFactor", partition->PivotKeysForImmediateSplit().size());
 
         auto* tablet = partition->GetTablet();
 
@@ -433,14 +432,12 @@ private:
         const auto& mountConfig = tablet->GetSettings().MountConfig;
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             if (tablet->PartitionList()[index]->GetState() != EPartitionState::Normal) {
-                YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-                    "Will not merge partitions due to improper partition state "
-                    "(%v, InitialPartitionId: %v, PartitionId: %v, PartitionIndex: %v, PartitionState: %v)",
-                    tablet->GetLoggingTags(),
-                    partition->GetId(),
-                    tablet->PartitionList()[index]->GetId(),
-                    index,
-                    tablet->PartitionList()[index]->GetState());
+                YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Will not merge partitions due to improper partition state")
+                    .With(tablet->GetLoggingTags())
+                    .With("InitialPartitionId", partition->GetId())
+                    .With("PartitionId", tablet->PartitionList()[index]->GetId())
+                    .With("PartitionIndex", index)
+                    .With("PartitionState", tablet->PartitionList()[index]->GetState());
                 return false;
             }
         }
@@ -460,7 +457,7 @@ private:
                     tablet->PartitionList().data() + lastPartitionIndex + 1),
                 TPartitionIdFormatter()));
 
-        YT_LOG_INFO("Partitions are eligible for merge");
+        YT_TLOG_INFO("Partitions are eligible for merge");
 
         tablet->GetStructuredLogger()->LogEvent("request_partitions_merge")
             .Item("initial_partition_id").Value(partition->GetId())
@@ -496,7 +493,7 @@ private:
 
         auto Logger = BuildLogger(slot, partition);
 
-        YT_LOG_DEBUG("Partition is scheduled for sampling");
+        YT_TLOG_DEBUG("Partition is scheduled for sampling");
 
         auto future = BIND(&TPartitionBalancer::DoRunSample, MakeStrong(this), Passed(std::move(guard)))
             .AsyncVia(partition->GetTablet()->GetEpochAutomatonInvoker())
@@ -520,7 +517,7 @@ private:
     {
         TTraceContextGuard TTraceContextGuard(TTraceContext::NewRoot("PartitionBalancer"));
 
-        YT_LOG_DEBUG("Sampling partition");
+        YT_TLOG_DEBUG("Sampling partition");
 
         YT_VERIFY(tablet == partition->GetTablet());
         const auto& mountConfig = tablet->GetSettings().MountConfig;
@@ -536,7 +533,8 @@ private:
             auto uncompressedDataSize = partition->GetUncompressedDataSize();
             auto scaledSamples = static_cast<int>(
                 mountConfig->SamplesPerPartition * std::max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
-            YT_LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
+            YT_TLOG_INFO("Sampling partition")
+                .With("DesiredSampleCount", scaledSamples);
 
             auto rowBuffer = New<TRowBuffer>(TPartitionSamplesTag());
             auto samples = GetPartitionSamples(rowBuffer, slot, partition, scaledSamples);
@@ -556,7 +554,8 @@ private:
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
                 ->CommitAndLog(Logger));
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Partition sampling aborted");
+            YT_TLOG_ERROR("Partition sampling aborted")
+                .With(ex);
         }
 
         partition->CheckedSetState(EPartitionState::Sampling, EPartitionState::Normal);
@@ -652,8 +651,8 @@ private:
                 return std::vector<TLegacyKey>();
             }
 
-            YT_LOG_INFO("Locating partition chunks (ChunkCount: %v)",
-                chunkIds.size());
+            YT_TLOG_INFO("Locating partition chunks")
+                .With("ChunkCount", chunkIds.size());
 
             replicasFutures = chunkReplicaCache->GetReplicas(chunkIds);
 
@@ -662,7 +661,7 @@ private:
             const auto& replicasList = replicasListOrError.Value();
             YT_VERIFY(replicasList.size() == chunkIds.size());
 
-            YT_LOG_INFO("Partition chunks located");
+            YT_TLOG_INFO("Partition chunks located");
 
             for (int index = 0; index < std::ssize(chunkIds); ++index) {
                 auto chunkId = chunkIds[index];
@@ -695,7 +694,7 @@ private:
             throw;
         }
 
-        YT_LOG_DEBUG("Samples fetched");
+        YT_TLOG_DEBUG("Samples fetched");
 
         std::vector<TLegacyKey> samples;
         for (const auto& sample : samplesFetcher->GetSamples()) {

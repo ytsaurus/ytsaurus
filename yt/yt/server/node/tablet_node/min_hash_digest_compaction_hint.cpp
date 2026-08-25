@@ -132,17 +132,17 @@ private:
             minHashDigest->Initialize(decompressedBlockData);
         });
 
-        YT_LOG_DEBUG("Put min hash digest block in block cache (StoreId: %v, ChunkId: %v)",
-            Store_->GetId(),
-            Store_->GetChunkId());
+        YT_TLOG_DEBUG("Put min hash digest block in block cache")
+            .With("StoreId", Store_->GetId())
+            .With("ChunkId", Store_->GetChunkId());
         Store_->GetBlockCache()->PutBlock(
             NChunkClient::TBlockId(Store_->GetChunkId(), Store_->GetMinHashDigestBlockIndex().GetBlockIndex()),
             EBlockType::MinHashDigest,
             TBlock(decompressedBlockData));
 
-        YT_LOG_DEBUG("Put min hash digest in deserialized cache (StoreId: %v, ChunkId: %v)",
-            Store_->GetId(),
-            Store_->GetChunkId());
+        YT_TLOG_DEBUG("Put min hash digest in deserialized cache")
+            .With("StoreId", Store_->GetId())
+            .With("ChunkId", Store_->GetChunkId());
         Store_->GetTablet()->GetMinHashDigestCache()->Insert(
             Store_->GetChunkId(),
             minHashDigest,

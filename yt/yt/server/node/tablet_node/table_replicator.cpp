@@ -159,7 +159,7 @@ public:
             });
         ReplicationExecutor_->Start();
 
-        YT_LOG_INFO("Table replicator enabled");
+        YT_TLOG_INFO("Table replicator enabled");
     }
 
     void Disable()
@@ -169,7 +169,7 @@ public:
         }
         HasActiveReplicationIteration_.store(false);
 
-        YT_LOG_INFO("Table replicator disabled");
+        YT_TLOG_INFO("Table replicator disabled");
     }
 
     bool HasActiveReplicationIteration()
@@ -263,10 +263,10 @@ private:
                     throttleFuture.GetOrCrash().ThrowOnError();
                 } else {
                     TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
-                    YT_LOG_DEBUG("Started waiting for replication throttling");
+                    YT_TLOG_DEBUG("Started waiting for replication throttling");
                     WaitFor(throttleFuture)
                         .ThrowOnError();
-                    YT_LOG_DEBUG("Finished waiting for replication throttling");
+                    YT_TLOG_DEBUG("Finished waiting for replication throttling");
                     throttleTime = timerGuard.GetElapsedTime();
                 }
             }
@@ -277,12 +277,12 @@ private:
                     throttleFuture.GetOrCrash().ThrowOnError();
                 } else {
                     TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
-                    YT_LOG_DEBUG("Started waiting for relative replication throttling");
+                    YT_TLOG_DEBUG("Started waiting for relative replication throttling");
                     WaitFor(throttleFuture)
                         .ThrowOnError();
                     relativeThrottleTime = timerGuard.GetElapsedTime();
-                    YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
-                        relativeThrottleTime);
+                    YT_TLOG_DEBUG("Finished waiting for relative replication throttling")
+                        .With("ElapsedTime", relativeThrottleTime);
                 }
             }
 
@@ -329,8 +329,8 @@ private:
 
             auto isReplicaClusterBanned = [&] {
                 bool isBanned = HintManager_->IsReplicaClusterBanned(ClusterName_);
-                YT_LOG_DEBUG_IF(isBanned, "Skipping table replication iteration due to ban of replica cluster (ClusterName: %v)",
-                    ClusterName_);
+                YT_TLOG_DEBUG_IF(isBanned, "Skipping table replication iteration due to ban of replica cluster")
+                    .With("ClusterName", ClusterName_);
                 return isBanned;
             };
 
@@ -363,14 +363,14 @@ private:
             {
                 TEventTimerGuard timerGuard(counters.ReplicationTransactionStartTime);
 
-                YT_LOG_DEBUG("Starting replication transactions");
+                YT_TLOG_DEBUG("Starting replication transactions");
 
                 auto localClient = LocalConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
                 localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
                     .ValueOrThrow();
 
                 if (backupCheckpointTimestamp && localTransaction->GetStartTimestamp() >= backupCheckpointTimestamp) {
-                    YT_LOG_DEBUG("Skipping table replication iteration since tablet has passed backup checkpoint");
+                    YT_TLOG_DEBUG("Skipping table replication iteration since tablet has passed backup checkpoint");
                     return;
                 }
 
@@ -398,8 +398,8 @@ private:
                 alienTransaction = WaitFor(StartAlienTransaction(localTransaction, alienClient, transactionStartOptions))
                     .ValueOrThrow();
 
-                YT_LOG_DEBUG("Replication transactions started (TransactionId: %v)",
-                    localTransaction->GetId());
+                YT_TLOG_DEBUG("Replication transactions started")
+                    .With("TransactionId", localTransaction->GetId());
                 transactionStartTime = timerGuard.GetElapsedTime();
             }
 
@@ -504,7 +504,7 @@ private:
 
             {
                 TEventTimerGuard timerGuard(counters.ReplicationTransactionCommitTime);
-                YT_LOG_DEBUG("Started committing replication transaction");
+                YT_TLOG_DEBUG("Started committing replication transaction");
 
                 TTransactionCommitOptions commitOptions;
                 commitOptions.CoordinatorCellId = Slot_->GetCellId();
@@ -517,14 +517,13 @@ private:
                 WaitFor(localTransaction->Commit(commitOptions))
                     .ThrowOnError();
 
-                YT_LOG_DEBUG("Finished committing replication transaction");
+                YT_TLOG_DEBUG("Finished committing replication transaction");
                 transactionCommitTime = timerGuard.GetElapsedTime();
             }
 
             if (lastReplicationTimestamp > newReplicationTimestamp) {
-                YT_LOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored (LastReplicationTimestamp: %v -> %v)",
-                    lastReplicationTimestamp,
-                    newReplicationTimestamp);
+                YT_TLOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored")
+                    .WithFormat("LastReplicationTimestamp", "%v -> %v", lastReplicationTimestamp, newReplicationTimestamp);
             } else {
                 replicaRuntimeData->LastReplicationTimestamp.store(newReplicationTimestamp);
             }
@@ -535,16 +534,15 @@ private:
             counters.ReplicationRowCount.Increment(batchRowCount);
             counters.ReplicationDataWeight.Increment(batchDataWeight);
 
-            YT_LOG_DEBUG("Rows replicated (RowCount: %v, DataWeight: %v, ThrottleTime: %v, RelativeThrottleTime: %v, "
-                "TransactionStartTime: %v, RowsReadTime: %v, RowsWriteTime: %v, TransactionCommitTime: %v)",
-                batchRowCount,
-                batchDataWeight,
-                throttleTime,
-                relativeThrottleTime,
-                transactionStartTime,
-                rowsReadTime,
-                rowsWriteTime,
-                transactionCommitTime);
+            YT_TLOG_DEBUG("Rows replicated")
+                .With("RowCount", batchRowCount)
+                .With("DataWeight", batchDataWeight)
+                .With("ThrottleTime", throttleTime)
+                .With("RelativeThrottleTime", relativeThrottleTime)
+                .With("TransactionStartTime", transactionStartTime)
+                .With("RowsReadTime", rowsReadTime)
+                .With("RowsWriteTime", rowsWriteTime)
+                .With("TransactionCommitTime", transactionCommitTime);
 
             SoftErrorBackoff_.Restart();
         } catch (const std::exception& ex) {
@@ -586,9 +584,9 @@ private:
         bool isVersioned)
     {
         auto sessionId = TReadSessionId::Create();
-        YT_LOG_DEBUG("Started building replication batch (StartRowIndex: %v, ReadSessionId: %v)",
-            startRowIndex,
-            sessionId);
+        YT_TLOG_DEBUG("Started building replication batch")
+            .With("StartRowIndex", startRowIndex)
+            .With("ReadSessionId", sessionId);
 
         auto reader = CreateSchemafulRangeTabletReader(
             tabletSnapshot,
@@ -631,8 +629,8 @@ private:
             if (!Throttler_->IsOverdraft()) {
                 return false;
             }
-            YT_LOG_DEBUG("Bandwidth limit reached; interrupting batch (QueueTotalCount: %v)",
-                Throttler_->GetQueueTotalAmount());
+            YT_TLOG_DEBUG("Bandwidth limit reached; interrupting batch")
+                .With("QueueTotalCount", Throttler_->GetQueueTotalAmount());
             return true;
         };
 
@@ -645,8 +643,8 @@ private:
             }
 
             if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
-                    currentRowIndex);
+                YT_TLOG_DEBUG("Waiting for replicated rows from tablet reader")
+                    .With("StartRowIndex", currentRowIndex);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
@@ -654,9 +652,9 @@ private:
 
             auto readerRows = batch->MaterializeRows();
 
-            YT_LOG_DEBUG("Got replicated rows from tablet reader (StartRowIndex: %v, RowCount: %v)",
-                currentRowIndex,
-                readerRows.size());
+            YT_TLOG_DEBUG("Got replicated rows from tablet reader")
+                .With("StartRowIndex", currentRowIndex)
+                .With("RowCount", readerRows.size());
 
             for (auto row : readerRows) {
                 TTypeErasedRow replicationRow;
@@ -676,10 +674,9 @@ private:
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YT_VERIFY(row.GetHeader() == readerRows[0].GetHeader());
-                    YT_LOG_INFO("Replication log row violates timestamp bound "
-                        "(StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
-                        replicaSnapshot->StartReplicationTimestamp,
-                        timestamp);
+                    YT_TLOG_INFO("Replication log row violates timestamp bound")
+                        .With("StartReplicationTimestamp", replicaSnapshot->StartReplicationTimestamp)
+                        .With("LogRecordTimestamp", timestamp);
                     return EReaderTerminationReason::TimestampBoundViolation;
                 }
 
@@ -704,15 +701,15 @@ private:
                         TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second >
                             mountConfig->MaxReplicationBatchSpan)
                     {
-                        YT_LOG_INFO("Replication batch saturated (Rows: %v/%v, DataWeight: %v/%v, TimestampCount: %v/%v, BatchSpan: %v/%v)",
-                            rowCount,
-                            mountConfig->MaxRowsPerReplicationCommit,
-                            dataWeight,
-                            mountConfig->MaxDataWeightPerReplicationCommit,
-                            timestampCount,
-                            mountConfig->MaxTimestampsPerReplicationCommit,
-                            TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second,
-                            mountConfig->MaxReplicationBatchSpan);
+                        YT_TLOG_INFO("Replication batch saturated")
+                            .WithFormat("Rows", "%v/%v", rowCount, mountConfig->MaxRowsPerReplicationCommit)
+                            .WithFormat("DataWeight", "%v/%v", dataWeight, mountConfig->MaxDataWeightPerReplicationCommit)
+                            .WithFormat("TimestampCount", "%v/%v", timestampCount, mountConfig->MaxTimestampsPerReplicationCommit)
+                            .WithFormat(
+                                "BatchSpan",
+                                "%v/%v",
+                                TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second,
+                                mountConfig->MaxReplicationBatchSpan);
 
                         result = EReaderTerminationReason::SaturatedBatch;
                         break;
@@ -761,14 +758,13 @@ private:
         *batchRowCount = rowCount;
         *batchDataWeight = dataWeight;
 
-        YT_LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
-            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v, ReaderTerminationReason: %v)",
-            startRowIndex,
-            rowCount,
-            dataWeight,
-            *newReplicationRowIndex,
-            *newReplicationTimestamp,
-            result);
+        YT_TLOG_DEBUG("Finished building replication batch")
+            .With("StartRowIndex", startRowIndex)
+            .With("RowCount", rowCount)
+            .With("DataWeight", dataWeight)
+            .With("NewReplicationRowIndex", *newReplicationRowIndex)
+            .With("NewReplicationTimestamp", *newReplicationTimestamp)
+            .With("ReaderTerminationReason", result);
 
         return result;
     }
@@ -778,15 +774,17 @@ private:
     {
         SoftErrorBackoff_.Next();
         auto backoffTime = SoftErrorBackoff_.GetBackoff();
-        YT_LOG_INFO(error, "Doing soft backoff (BackoffTime: %v)",
-            backoffTime);
+        YT_TLOG_INFO("Doing soft backoff")
+            .With("BackoffTime", backoffTime)
+            .With(error);
         TDelayedExecutor::WaitForDuration(backoffTime);
     }
 
     void DoHardBackoff(const TError& error)
     {
-        YT_LOG_INFO(error, "Doing hard backoff (BackoffTime: %v)",
-            Config_->ReplicatorHardBackoffTime);
+        YT_TLOG_INFO("Doing hard backoff")
+            .With("BackoffTime", Config_->ReplicatorHardBackoffTime)
+            .With(error);
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }
 

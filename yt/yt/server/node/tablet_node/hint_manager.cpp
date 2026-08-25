@@ -107,8 +107,8 @@ private:
             BannedReplicaClusters_ = {newConfig->BannedReplicaClusters.begin(), newConfig->BannedReplicaClusters.end()};
         }
 
-        YT_LOG_DEBUG("Updated list of banned replica clusters (BannedReplicaClusters: %v)",
-            newConfig->BannedReplicaClusters);
+        YT_TLOG_DEBUG("Updated list of banned replica clusters")
+            .With("BannedReplicaClusters", newConfig->BannedReplicaClusters);
     }
 
     IYPathServicePtr CreateOrchidService()

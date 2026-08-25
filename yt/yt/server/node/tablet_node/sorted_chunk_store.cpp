@@ -373,11 +373,10 @@ void TSortedChunkStore::Initialize()
         int prefixLength = std::min(MinKey_.GetCount(), UpperBoundKey_.GetCount());
 
         auto onFailure = [&] {
-            YT_LOG_ALERT("Sorted chunk store has invalid key bounds "
-                "(ChunkId: %v, MinKey: %v, UpperBoundKey: %v)",
-                GetChunkId(),
-                MinKey_,
-                UpperBoundKey_);
+            YT_TLOG_ALERT("Sorted chunk store has invalid key bounds")
+                .With("ChunkId", GetChunkId())
+                .With("MinKey", MinKey_)
+                .With("UpperBoundKey", UpperBoundKey_);
         };
 
         if (!upperBoundIsExclusive) {
@@ -1698,12 +1697,11 @@ TSharedRange<TRowRange> TSortedChunkStore::MaybePerformXorRangeFiltering(
             }
         }
 
-        YT_LOG_DEBUG("Performed range filtering "
-            "(InitialRangeCount: %v, FilteredRangeCount: %v, ChunkId: %v, ReadSessionId: %v)",
-            ranges.Size(),
-            filteredRanges.size(),
-            ChunkId_,
-            chunkReadOptions.ReadSessionId);
+        YT_TLOG_DEBUG("Performed range filtering")
+            .With("InitialRangeCount", ranges.Size())
+            .With("FilteredRangeCount", filteredRanges.size())
+            .With("ChunkId", ChunkId_)
+            .With("ReadSessionId", chunkReadOptions.ReadSessionId);
 
         if (const auto& keyFilterStatistics = chunkReadOptions.KeyFilterStatistics) {
             keyFilterStatistics->InputEntryCount.fetch_add(ssize(ranges), std::memory_order::relaxed);

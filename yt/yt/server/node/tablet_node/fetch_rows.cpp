@@ -159,16 +159,15 @@ public:
         const IOrderedStorePtr& store,
         int tabletIndex)
     {
-        YT_LOG_DEBUG("Fetching rows from ordered store (TabletId: %v, Store: %v, StartingRowIndex: %v, RowIndex: %v, "
-            "MaxRowCount: %v, MaxDataWeight: %v, MaxResponseDataWeight: %v, HasHunkColumns: %v)",
-            TabletSnapshot_->TabletId,
-            store->GetId(),
-            store->GetStartingRowIndex(),
-            RowIndex_,
-            LeftRowCount_,
-            LeftDataWeight_,
-            MaxPullQueueResponseDataWeight_,
-            TabletSnapshot_->PhysicalSchema->HasHunkColumns());
+        YT_TLOG_DEBUG("Fetching rows from ordered store")
+            .With("TabletId", TabletSnapshot_->TabletId)
+            .With("Store", store->GetId())
+            .With("StartingRowIndex", store->GetStartingRowIndex())
+            .With("RowIndex", RowIndex_)
+            .With("MaxRowCount", LeftRowCount_)
+            .With("MaxDataWeight", LeftDataWeight_)
+            .With("MaxResponseDataWeight", MaxPullQueueResponseDataWeight_)
+            .With("HasHunkColumns", TabletSnapshot_->PhysicalSchema->HasHunkColumns());
 
         Reader_ = store->CreateReader(
             TabletSnapshot_,
@@ -232,8 +231,9 @@ private:
         }
 
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Failed to fetch rows from ordered store (TabletId: %v)",
-                TabletSnapshot_->TabletId);
+            YT_TLOG_DEBUG("Failed to fetch rows from ordered store")
+                .With("TabletId", TabletSnapshot_->TabletId)
+                .With(error);
             ResultPromise_.TrySet(error);
             return;
         }
@@ -241,9 +241,9 @@ private:
         try {
             while (auto batch = Reader_->Read(ReadOptions_)) {
                 if (batch->IsEmpty()) {
-                    YT_LOG_DEBUG("Waiting for rows from ordered store (TabletId: %v, RowIndex: %v)",
-                        TabletSnapshot_->TabletId,
-                        RowIndex_ + ReadRowCount_);
+                    YT_TLOG_DEBUG("Waiting for rows from ordered store")
+                        .With("TabletId", TabletSnapshot_->TabletId)
+                        .With("RowIndex", RowIndex_ + ReadRowCount_);
 
                     Reader_->GetReadyEvent().Subscribe(BIND(
                         &TFetchRowsSession::DoRun,
@@ -295,8 +295,9 @@ private:
         auto counters = TabletSnapshot_->TableProfiler->GetFetchTableRowsCounters(ProfilingUser_);
 
         if (!resultOrError.IsOK()) {
-            YT_LOG_DEBUG(resultOrError, "Failed to finalize fetching rows from ordered store (TabletId: %v)",
-                TabletSnapshot_->TabletId);
+            YT_TLOG_DEBUG("Failed to finalize fetching rows from ordered store")
+                .With("TabletId", TabletSnapshot_->TabletId)
+                .With(resultOrError);
 
             counters->ChunkReaderStatisticsCounters.Increment(
                 ChunkReadOptions_.ChunkReaderStatistics,
@@ -309,11 +310,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Fetched rows from ordered store (TabletId: %v, RowCount: %v, DataWeight: %v)",
-            TabletSnapshot_->TabletId,
-            ReadRowCount_,
-            ReadDataWeight_);
+        YT_TLOG_DEBUG("Fetched rows from ordered store")
+            .With("TabletId", TabletSnapshot_->TabletId)
+            .With("RowCount", ReadRowCount_)
+            .With("DataWeight", ReadDataWeight_);
 
         counters->RowCount.Increment(ReadRowCount_);
         counters->DataWeight.Increment(ReadDataWeight_);

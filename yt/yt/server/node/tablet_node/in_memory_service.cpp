@@ -76,9 +76,9 @@ public:
                 return guardOrError;
             }
 
-            YT_LOG_INFO("Intercepted chunk data created (ChunkId: %v, Mode: %v)",
-                chunkId,
-                Mode_);
+            YT_TLOG_INFO("Intercepted chunk data created")
+                .With("ChunkId", chunkId)
+                .With("Mode", Mode_);
 
             // Replace the old data, if any, by a new one.
             ChunkIdToData_[chunkId] = data;
@@ -187,7 +187,8 @@ private:
 
         auto session = New<TInMemorySession>(inMemoryMode, Bootstrap_, std::move(lease));
 
-        YT_LOG_DEBUG("In-memory session started (SessionId: %v)", sessionId);
+        YT_TLOG_DEBUG("In-memory session started")
+            .With("SessionId", sessionId);
 
         {
             // Register session.
@@ -238,12 +239,11 @@ private:
                 }
 
                 if (!tabletSnapshot) {
-                    YT_LOG_DEBUG("Tablet snapshot not found (SessionId: %v, TabletId: %v, "
-                        "MountRevision: %v, TargetServantMountRevision: %v)",
-                        sessionId,
-                        tabletId,
-                        mountRevision,
-                        targetServantMountRevision);
+                    YT_TLOG_DEBUG("Tablet snapshot not found")
+                        .With("SessionId", sessionId)
+                        .With("TabletId", tabletId)
+                        .With("MountRevision", mountRevision)
+                        .With("TargetServantMountRevision", targetServantMountRevision);
 
                     continue;
                 }
@@ -252,9 +252,9 @@ private:
                 auto chunkData = session->ExtractChunkData(chunkId);
 
                 if (!chunkData) {
-                    YT_LOG_WARNING("Chunk data does not exist, dropping in-memory session (SessionId: %v, ChunkId: %v)",
-                        sessionId,
-                        chunkId);
+                    YT_TLOG_WARNING("Chunk data does not exist, dropping in-memory session")
+                        .With("SessionId", sessionId)
+                        .With("ChunkId", chunkId);
 
                     dropSession = true;
                     break;
@@ -296,10 +296,12 @@ private:
             }
 
             if (!dropSession) {
-                YT_LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
+                YT_TLOG_DEBUG("In-memory session finished")
+                    .With("SessionId", sessionId);
             }
         } else {
-            YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
+            YT_TLOG_DEBUG("In-memory session does not exist")
+                .With("SessionId", sessionId);
         }
 
         context->Reply();
@@ -331,9 +333,9 @@ private:
                     if (SessionMap_.erase(sessionId) == 1) {
                         guard.Release();
 
-                        YT_LOG_WARNING("In-memory session is dropped due to memory pressure (SessionId: %v, ChunkId: %v)",
-                            sessionId,
-                            blockId.ChunkId);
+                        YT_TLOG_WARNING("In-memory session is dropped due to memory pressure")
+                            .With("SessionId", sessionId)
+                            .With("ChunkId", blockId.ChunkId);
                     }
 
                     dropped = true;
@@ -343,8 +345,8 @@ private:
 
             response->set_dropped(dropped);
         } else {
-            YT_LOG_DEBUG("In-memory session does not exist, blocks dropped (SessionId: %v)",
-                sessionId);
+            YT_TLOG_DEBUG("In-memory session does not exist, blocks dropped")
+                .With("SessionId", sessionId);
             response->set_dropped(true);
         }
 
@@ -374,8 +376,8 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Session lease expired (SessionId: %v)",
-            sessionId);
+        YT_TLOG_INFO("Session lease expired")
+            .With("SessionId", sessionId);
 
         YT_VERIFY(SessionMap_.erase(sessionId) == 1);
     }
