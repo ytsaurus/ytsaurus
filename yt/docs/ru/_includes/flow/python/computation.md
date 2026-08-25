@@ -15,6 +15,8 @@
 | `Swift`| Код преобразования детерминирован, при необходимости будет вызываться повторно | Stateless преобразования |
 | `Transform` | Результат работы обязательно сохраняется в YT, поэтому нет требований на какую-либо детерминированность преобразований | Stateful преобразования [Подробнее](../../../flow/concepts/stateful.md) |
 
+Что именно означает детерминированность и что ломается при её нарушении — в разделе [Требование детерминированности](../../../flow/concepts/swift.md#determinism).
+
 При использовании [компаньона](../../../flow/concepts/glossary.md#companion) выбор `Swift` или `Transform` осуществляется через указание `computation_class_name` в статической [спеке](../../../flow/concepts/glossary.md#spec-and-dynamic-spec):
 - `NYT::NFlow::NCompanion::TTransformCompanionComputation` — для `Transform`.
 - `NYT::NFlow::NCompanion::TSwiftMapCompanionComputation` — для `Swift`.
@@ -130,6 +132,32 @@ class X2Mapper(RowFunction):
 
 - `on_messages(messages, output, ctx)` — вызывается для батча сообщений.
 - `on_timers(timers, output, ctx)` — вызывается для батча таймеров (опционально).
+
+{% note warning %}
+
+Батч соответствует одному запросу воркера и может содержать сообщения с **разными [ключами](../../../flow/concepts/glossary.md#key)** (см. [Companion](../../../flow/concepts/companion.md#schema)). По умолчанию родителями каждого выходного сообщения становятся все сообщения батча.
+
+`output.set_parent_ids(ids)` заменяет этот дефолт: метод принимает `message_id` (строку или список строк) входных сообщений текущего батча и возвращает новый коллектор — родителями всего вывода, добавленного через него, станут именно эти сообщения. Указывайте `message_id` тех входных сообщений, из которых фактически получен данный вывод. Когда вызов обязателен (см. [Когда задавать lineage явно](../../../flow/concepts/lineage.md#explicit-lineage)):
+
+- **Swift**: обязателен при батче из более чем одного сообщения — у каждого выходного сообщения должен быть ровно один родитель (`out = output.set_parent_ids(message.message_id)`), иначе обработка завершится ошибкой. Несколько родителей допустимы только при [`allow_batching_with_relaxed_guarantees`](../../../flow/concepts/guarantees.md#swift-allow-batching-with-relaxed-guarantees).
+- **Transform**: необязателен, но с дефолтом «весь батч» event timestamp каждого выходного сообщения равен минимальному по всему батчу.
+- В `RowFunction` вызывать `set_parent_ids` не нужно: родителем SDK автоматически назначает текущее входное сообщение.
+
+Если нужна обработка по ключам (в Transform или в Swift с `allow_batching_with_relaxed_guarantees`), сгруппируйте батч в пользовательском коде и задайте родителей каждой группы:
+
+```python
+def on_messages(self, messages, output, ctx):
+    groups = {}
+    for message in messages:
+        groups.setdefault(message.key["user_id"], []).append(message)
+    for key, group in groups.items():
+        out = output.set_parent_ids([m.message_id for m in group])
+        ...  # Обработка группы, вывод через out.
+```
+
+В Swift-компьютейшене группировка и назначение родителей обязаны быть детерминированными, включая порядок групп. `dict` в Python сохраняет порядок вставки, поэтому пример выше воспроизводим; неупорядоченные структуры (например, `set`) использовать нельзя. Подробнее — [Требование детерминированности](../../../flow/concepts/swift.md#determinism).
+
+{% endnote %}
 
 #### Пример batch-функции
 

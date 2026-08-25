@@ -30,6 +30,8 @@ So, exactly-once is ensured not by storing the output but by the **idempotency**
 
 The transformation function in a Swift computation must be **deterministic**: for the same input data, it must return the same output, including the order of messages.
 
+The requirement also covers the binding of output messages to their parents (`set_parent_ids`): on recomputation, each output group must get the same parents in the same order. A typical mistake is iterating over an unordered structure (such as a hash table or a set) when grouping the batch by keys: the order of groups changes from run to run, and the recomputation produces a different output. Note that by default every output message of a Swift computation must have exactly one parent; multiple parents are allowed only with [`allow_batching_with_relaxed_guarantees`](../../../flow/concepts/guarantees.md#swift-allow-batching-with-relaxed-guarantees) — see [When to set lineage explicitly](../../../flow/concepts/lineage.md#explicit-lineage) for details.
+
 {% note warning %}
 
 Breaking determinism when updating a pipeline without a [drain](../../../flow/concepts/glossary.md#start-stop-pause-pipeline) can lead to duplicates or loss of intermediate messages: different parts of the system might process different versions of the output.

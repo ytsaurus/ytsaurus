@@ -239,6 +239,8 @@ func (*urlDownloadFunction) OnTimer(
 
 `flow.BatchFunction` получает весь батч сообщений, пришедших от [воркера](../../flow/concepts/glossary.md#worker), одним вызовом метода `OnMessages`. Таймеры и визиты обрабатываются интерфейсами `flow.BatchTimerFunction` (`OnTimers`) и `flow.BatchVisitFunction` (`OnVisits`).
 
+Батч соответствует одному запросу воркера и может содержать сообщения с разными [ключами](../../flow/concepts/glossary.md#key); группировка по ключам при необходимости выполняется в коде функции (см. [Companion](../../flow/concepts/companion.md#schema)).
+
 #### Пример batch-функции {#batch-example}
 
 ```go

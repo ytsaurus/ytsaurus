@@ -21,7 +21,14 @@ In most cases, you don’t need to manage lineage explicitly—the framework aut
 
 ## When to set lineage explicitly {#explicit-lineage}
 
-By default, the entire current batch is considered the parent of the output message. Setting lineage explicitly lets you narrow this set to a specific subset of input objects. This makes the computation of `EventTimestamp` and `AlignmentTimestamp` more precise.
+The parents to specify are the input messages of the **current call** of the batch function that the given output was actually derived from (in companion SDKs, their `message_id`); messages from other batches cannot be parents.
+
+Whether this is mandatory depends on the computation type:
+
+- **Swift**: every output message must have **exactly one parent**, so in a batch function with more than one message in the batch setting lineage is **mandatory** — narrow the parents down to a single input message. With the "whole batch" default, processing fails with the error `Message should have exactly one parent message`. Multiple parents per output message are allowed only with the [`allow_batching_with_relaxed_guarantees`](../../../flow/concepts/guarantees.md#swift-allow-batching-with-relaxed-guarantees) parameter enabled.
+- **Transform**: setting lineage is optional, but with the "whole batch" default the `EventTimestamp` of every output message (unless set explicitly when building it) equals the minimum over the whole batch, which skews event time and [watermarks](../../../flow/concepts/watermarks.md). Narrow the parents if your pipeline relies on event time.
+
+In row functions (`RowFunction` / `DoProcessMessage`) explicit lineage is not needed: the framework sets the current input message as the parent automatically.
 
 ## API {#api}
 
