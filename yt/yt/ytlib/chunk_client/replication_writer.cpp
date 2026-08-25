@@ -1062,7 +1062,6 @@ private:
         SetRequestWorkloadDescriptor(req, Config_->WorkloadDescriptor);
         ToProto(req->mutable_session_id(), SessionId_);
         req->set_sync_on_close(Config_->SyncOnClose);
-        req->set_enable_direct_io(Config_->EnableDirectIO);
         req->set_disable_send_blocks(disableSendBlocks);
         req->set_use_probe_put_blocks(isOffshore ? false : Config_->UseProbePutBlocks);
         req->set_preallocate_disk_space(isOffshore ? false : Config_->PreallocateDiskSpace);
