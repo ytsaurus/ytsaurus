@@ -198,7 +198,7 @@ void ValidateAndEnrichVolumeSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(
+void BuildVolumeSpec(
     NControllerAgent::NProto::TVolume* volumeProto,
     const NScheduler::TVolume& volume,
     const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile);

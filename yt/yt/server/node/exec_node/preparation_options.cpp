@@ -4,26 +4,32 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& data, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TChunkNbdVolumeSpec& volumeSpec, TStringBuf /*spec*/)
 {
     Format(
         builder,
-        "{Size: %v, MediumIndex: %v, FsType: %v, DataNodeAddress: %v, "
-        "MinDataNodeCount: %v, MaxDataNodeCount: %v, "
+        "{Kind: Chunk, MediumIndex: %v, DataNodeAddress: %v, MinDataNodeCount: %v, MaxDataNodeCount: %v, "
         "DataNodeRpcTimeout: %v, DataNodeNbdServiceRpcTimeout: %v, "
-        "DataNodeNbdServiceMakeTimeout: %v, MasterRpcTimeout: %v, "
-        "MultiplexingParallelism: %v}",
-        data.Size,
-        data.MediumIndex,
-        data.FsType,
-        data.DataNodeAddress,
-        data.MinDataNodeCount,
-        data.MaxDataNodeCount,
-        data.DataNodeRpcTimeout,
-        data.DataNodeNbdServiceRpcTimeout,
-        data.DataNodeNbdServiceMakeTimeout,
-        data.MasterRpcTimeout,
-        data.MultiplexingParallelism);
+        "DataNodeNbdServiceMakeTimeout: %v, MasterRpcTimeout: %v, MultiplexingParallelism: %v}",
+        volumeSpec.MediumIndex,
+        volumeSpec.DataNodeAddress,
+        volumeSpec.MinDataNodeCount,
+        volumeSpec.MaxDataNodeCount,
+        volumeSpec.DataNodeRpcTimeout,
+        volumeSpec.DataNodeNbdServiceRpcTimeout,
+        volumeSpec.DataNodeNbdServiceMakeTimeout,
+        volumeSpec.MasterRpcTimeout,
+        volumeSpec.MultiplexingParallelism);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeSpec& volumeSpec, TStringBuf /*spec*/)
+{
+    Format(
+        builder,
+        "{DeviceSize: %v, FilesystemType: %v, BackendSpec: %v}",
+        volumeSpec.DeviceSize,
+        volumeSpec.FilesystemType,
+        volumeSpec.BackendSpec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

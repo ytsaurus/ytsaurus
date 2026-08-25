@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
+#include <yt/yt/server/lib/nbd/block_device.h>
+
 #include <yt/yt/server/lib/nbd/chunk/chunk_block_device.h>
 #include <yt/yt/server/lib/nbd/chunk/chunk_handler.h>
 #include <yt/yt/server/lib/nbd/chunk/config.h>
@@ -36,6 +38,8 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -340,7 +344,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
     // NB. RW NBD volumes are not cached.
     YT_LOG_DEBUG("Creating RW NBD volume");
 
-    return PrepareNbdSession(options)
+    auto volumeFuture = PrepareRWChunkNbdSession(options)
         .Apply(BIND(
             [
                 tag,
@@ -351,27 +355,31 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
             ] (const TErrorOr<std::optional<std::tuple<NRpc::IChannelPtr, TSessionId>>>& rspOrError) mutable {
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
+                auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
+
                 const auto& response = rspOrError.Value();
                 if (!response) {
                     THROW_ERROR_EXCEPTION("Could not find suitable data node to host NBD disk")
-                        .With("medium_index", options.MediumIndex)
-                        .With("size", options.Size)
-                        .With("fs_type", options.Filesystem);
+                        .With("medium_index", chunkOptions.Spec.MediumIndex)
+                        .With("size", options.DeviceSize)
+                        .With("filesystem_type", options.FilesystemType);
                 }
 
                 const auto& [channel, sessionId] = *response;
-                options.DataNodeChannel = channel;
-                options.SessionId = sessionId;
+                chunkOptions.DataNodeChannel = channel;
+                chunkOptions.SessionId = sessionId;
 
                 YT_LOG_DEBUG(
-                    "Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v)",
+                    "Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FilesystemType: %v)",
                     sessionId,
-                    options.MediumIndex,
-                    options.Size,
-                    options.Filesystem);
+                    chunkOptions.Spec.MediumIndex,
+                    options.DeviceSize,
+                    options.FilesystemType);
 
-                return PrepareRWNbdVolume(tag, options);
-            }))
+                return PrepareRWChunkNbdVolume(tag, options);
+            })).As<IVolumePtr>();
+
+    return volumeFuture
         .Apply(BIND(
             [options] (const TErrorOr<IVolumePtr>& errorOrVolume) {
                 if (!errorOrVolume.IsOK()) {
@@ -382,8 +390,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateVolume(
                 }
 
                 return errorOrVolume.Value();
-            })
-        ).As<IVolumePtr>();
+            }));
 }
 
 void TNbdVolumeFactory::ValidatePrepareRONbdVolumeOptions(const TPrepareRONbdVolumeOptions& options)
@@ -480,7 +487,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::CreateNbdVolume(
         .WithTag("JobId", options.JobId)
         .WithTag("DeviceId", options.DeviceId)
         .WithTag("IsReadOnly", options.IsReadOnly)
-        .WithTag("Filesystem", options.Filesystem);
+        .WithTag("FilesystemType", options.FilesystemType);
 
     YT_LOG_DEBUG("Creating NBD volume");
 
@@ -687,7 +694,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
         TCreateNbdVolumeOptions{
             .JobId = jobId,
             .DeviceId = artifactKey.nbd_device_id(),
-            .Filesystem = ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())),
+            .FilesystemType = ToString(FromProto<ELayerFilesystem>(artifactKey.filesystem())),
             .IsReadOnly = true,
         },
         MakeVolumeFactory<TRONbdVolume>());
@@ -695,37 +702,39 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRONbdVolume(
 
 // RW NBD volumes.
 
-TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
+TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWChunkNbdDevice(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
 {
+    auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
+
     auto Logger = ExecNodeLogger()
         .WithTag("Tag", tag)
         .WithTag("JobId", options.JobId)
         .WithTag("DeviceId", options.DeviceId)
         .WithTag("Type", "RW")
-        .WithTag("DiskSize", options.Size)
-        .WithTag("DiskMediumIndex", options.MediumIndex)
-        .WithTag("DiskFilesystem", options.Filesystem);
+        .WithTag("DiskSize", options.DeviceSize)
+        .WithTag("DiskMediumIndex", chunkOptions.Spec.MediumIndex)
+        .WithTag("DiskFilesystemType", options.FilesystemType);
 
     auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
     if (!nbdConfig || !nbdConfig->Enabled || !nbdConfig->ReadWriteEnabled) {
         auto error = TError("RW NBD disks are disabled")
             .With("device_id", options.DeviceId)
             .With("job_id", options.JobId)
-            .With("size", options.Size);
+            .With("size", options.DeviceSize);
 
         YT_LOG_ERROR(error, "Failed to create RW NBD volume");
         return MakeFuture<IBlockDevicePtr>(std::move(error));
     }
 
     auto config = New<TChunkBlockDeviceConfig>();
-    config->Size = options.Size;
-    config->MediumIndex = options.MediumIndex;
-    config->FsType = options.Filesystem;
-    config->DataNodeNbdServiceRpcTimeout = options.DataNodeNbdServiceRpcTimeout;
-    config->DataNodeNbdServiceMakeTimeout = options.DataNodeNbdServiceMakeTimeout;
-    config->MultiplexingParallelism = options.MultiplexingParallelism;
+    config->Size = options.DeviceSize;
+    config->MediumIndex = chunkOptions.Spec.MediumIndex;
+    config->FsType = options.FilesystemType;
+    config->DataNodeNbdServiceRpcTimeout = chunkOptions.Spec.DataNodeNbdServiceRpcTimeout;
+    config->DataNodeNbdServiceMakeTimeout = chunkOptions.Spec.DataNodeNbdServiceMakeTimeout;
+    config->MultiplexingParallelism = chunkOptions.Spec.MultiplexingParallelism;
 
     YT_LOG_DEBUG("Creating NBD device");
 
@@ -735,8 +744,8 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
         Bootstrap_->GetDefaultInThrottler(),
         Bootstrap_->GetDefaultOutThrottler(),
         Bootstrap_->GetNbdServer()->GetInvoker(),
-        std::move(options.DataNodeChannel),
-        std::move(options.SessionId),
+        std::move(chunkOptions.DataNodeChannel),
+        std::move(chunkOptions.SessionId),
         Bootstrap_->GetNbdServer()->GetLogger());
 
     YT_LOG_DEBUG("Created NBD device");
@@ -744,26 +753,27 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWNbdDevice(
     return InitializeNbdDevice(device, Logger);
 }
 
-TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
+TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWChunkNbdVolume(
     TGuid tag,
     TPrepareRWNbdVolumeOptions options)
 {
     const auto jobId = options.JobId;
     const auto deviceId = options.DeviceId;
-    const auto filesystem = options.Filesystem;
+    const auto filesystemType = options.FilesystemType;
+    const auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
 
     auto Logger = ExecNodeLogger()
         .WithTag("Tag", tag)
         .WithTag("JobId", options.JobId)
         .WithTag("DeviceId", options.DeviceId)
         .WithTag("Type", "RW")
-        .WithTag("VolumeSize", options.Size)
-        .WithTag("VolumeMediumIndex", options.MediumIndex)
-        .WithTag("VolumeFilesystem", options.Filesystem);
+        .WithTag("VolumeSize", options.DeviceSize)
+        .WithTag("VolumeMediumIndex", chunkOptions.Spec.MediumIndex)
+        .WithTag("VolumeFilesystemType", options.FilesystemType);
 
     auto tagSet = TTagSet({{"type", "nbd"}});
 
-    auto deviceFuture = CreateRWNbdDevice(tag, std::move(options));
+    auto deviceFuture = CreateRWChunkNbdDevice(tag, std::move(options));
 
     return PrepareNbdVolume(
         Logger,
@@ -773,7 +783,7 @@ TFuture<IVolumePtr> TNbdVolumeFactory::PrepareRWNbdVolume(
         TCreateNbdVolumeOptions{
             .JobId = jobId,
             .DeviceId = deviceId,
-            .Filesystem = ToString(filesystem),
+            .FilesystemType = ToString(filesystemType),
             .IsReadOnly = false,
         },
         MakeVolumeFactory<TRWNbdVolume>());
@@ -783,8 +793,9 @@ TFuture<std::vector<std::string>> TNbdVolumeFactory::FindDataNodesWithMedium(
     const TSessionId& sessionId,
     const TPrepareRWNbdVolumeOptions& options)
 {
-    if (options.DataNodeAddress) {
-        return MakeFuture<std::vector<std::string>>({*options.DataNodeAddress});
+    const auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
+    if (chunkOptions.Spec.DataNodeAddress) {
+        return MakeFuture<std::vector<std::string>>({*chunkOptions.Spec.DataNodeAddress});
     }
 
     // Create AllocateWriteTargets request.
@@ -792,15 +803,15 @@ TFuture<std::vector<std::string>> TNbdVolumeFactory::FindDataNodesWithMedium(
     auto channel = Bootstrap_->GetMasterChannel(std::move(cellTag));
     TChunkServiceProxy proxy(channel);
     auto req = proxy.AllocateWriteTargets();
-    req->SetTimeout(options.MasterRpcTimeout);
+    req->SetTimeout(chunkOptions.Spec.MasterRpcTimeout);
     auto* subrequest = req->add_subrequests();
     ToProto(subrequest->mutable_session_id(), sessionId);
-    subrequest->set_min_target_count(options.MinDataNodeCount);
-    subrequest->set_desired_target_count(options.MaxDataNodeCount);
+    subrequest->set_min_target_count(chunkOptions.Spec.MinDataNodeCount);
+    subrequest->set_desired_target_count(chunkOptions.Spec.MaxDataNodeCount);
     subrequest->set_is_nbd_chunk(true);
 
     // Invoke AllocateWriteTargets request and process response.
-    return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this), mediumIndex = options.MediumIndex] (const TErrorOr<TChunkServiceProxy::TRspAllocateWriteTargetsPtr>& rspOrError) {
+    return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this), mediumIndex = chunkOptions.Spec.MediumIndex] (const TErrorOr<TChunkServiceProxy::TRspAllocateWriteTargetsPtr>& rspOrError) {
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to find suitable data nodes")
                 .With("medium_index", mediumIndex)
@@ -838,14 +849,16 @@ std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>> TNbd
     std::vector<std::string> addresses,
     TPrepareRWNbdVolumeOptions options)
 {
+    const auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
+
     YT_LOG_DEBUG(
-        "Trying to open NBD session on any suitable data node (SessionId: %v, DataNodeAddresses: %v, MediumIndex: %v, Size: %v, FsType: %v, DataNodeRpcTimeout: %v)",
+        "Trying to open NBD session on any suitable data node (SessionId: %v, DataNodeAddresses: %v, MediumIndex: %v, Size: %v, FilesystemType: %v, DataNodeRpcTimeout: %v)",
         sessionId,
         addresses,
-        options.MediumIndex,
-        options.Size,
-        options.Filesystem,
-        options.DataNodeRpcTimeout);
+        chunkOptions.Spec.MediumIndex,
+        options.DeviceSize,
+        options.FilesystemType,
+        chunkOptions.Spec.DataNodeRpcTimeout);
 
     for (const auto& address : addresses) {
         auto channel = Bootstrap_->GetConnection()->GetChannelFactory()->CreateChannel(address);
@@ -858,10 +871,10 @@ std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>> TNbd
 
         NChunkClient::TDataNodeNbdServiceProxy proxy(channel);
         auto req = proxy.OpenSession();
-        req->SetTimeout(options.DataNodeRpcTimeout);
+        req->SetTimeout(chunkOptions.Spec.DataNodeRpcTimeout);
         ToProto(req->mutable_session_id(), sessionId);
-        req->set_size(options.Size);
-        req->set_fs_type(ToProto(options.Filesystem));
+        req->set_size(options.DeviceSize);
+        req->set_fs_type(ToProto(options.FilesystemType));
 
         auto rspOrError = WaitFor(req->Invoke());
 
@@ -874,12 +887,12 @@ std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>> TNbd
         }
 
         YT_LOG_INFO(
-            "Opened NBD session (SessionId: %v, DataNodeAddress: %v, MediumIndex: %v, Size: %v, FsType: %v)",
+            "Opened NBD session (SessionId: %v, DataNodeAddress: %v, MediumIndex: %v, Size: %v, FilesystemType: %v)",
             sessionId,
             address,
-            options.MediumIndex,
-            options.Size,
-            options.Filesystem);
+            chunkOptions.Spec.MediumIndex,
+            options.DeviceSize,
+            options.FilesystemType);
 
         return std::make_tuple(std::move(channel), sessionId);
     }
@@ -887,17 +900,19 @@ std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>> TNbd
     return std::nullopt;
 }
 
-TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>>> TNbdVolumeFactory::PrepareNbdSession(
+TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>>> TNbdVolumeFactory::PrepareRWChunkNbdSession(
     const TPrepareRWNbdVolumeOptions& options)
 {
-    auto sessionId = GenerateSessionId(options.MediumIndex);
+    const auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
+
+    auto sessionId = GenerateSessionId(chunkOptions.Spec.MediumIndex);
 
     YT_LOG_DEBUG(
-        "Prepare NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, DeviceId: %v)",
+        "Prepare NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FilesystemType: %v, DeviceId: %v)",
         sessionId,
-        options.MediumIndex,
-        options.Size,
-        options.Filesystem,
+        chunkOptions.Spec.MediumIndex,
+        options.DeviceSize,
+        options.FilesystemType,
         options.DeviceId);
 
     return FindDataNodesWithMedium(sessionId, options)
@@ -912,10 +927,11 @@ TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionI
 
                 auto dataNodeAddresses = rspOrError.Value();
                 if (dataNodeAddresses.empty()) {
+                    const auto& chunkOptions = GetOrCrash<TChunkNbdVolumeOptions>(options.BackendOptions);
                     THROW_ERROR_EXCEPTION("No data node address suitable for NBD disk has been found")
-                        .With("medium_index", options.MediumIndex)
-                        .With("size", options.Size)
-                        .With("fs_type", options.Filesystem);
+                        .With("medium_index", chunkOptions.Spec.MediumIndex)
+                        .With("size", options.DeviceSize)
+                        .With("filesystem_type", options.FilesystemType);
                 }
 
                 return BIND(

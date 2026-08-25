@@ -10679,7 +10679,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         if (!tmpfsDiskRequest) {
             break;
         }
-        ToProto(jobSpec->add_tmpfs_volumes(), *tmpfsDiskRequest);
+        BuildTmpfsVolumeSpec(jobSpec->add_tmpfs_volumes(), *tmpfsDiskRequest);
     }
 
     // COMPAT(krasovav)
@@ -10693,9 +10693,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
 
         if (auto nbdDiskRequest = volume->DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            ToProto(jobSpec->mutable_disk_request(), *nbdDiskRequest);
+            BuildNbdDiskRequestSpec(jobSpec->mutable_disk_request(), *nbdDiskRequest);
         } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            ToProto(jobSpec->mutable_disk_request(), *localDiskRequest);
+            BuildLocalDiskRequestSpec(jobSpec->mutable_disk_request(), *localDiskRequest);
         } else {
             YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetType());
         }
@@ -10715,7 +10715,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         auto* protoVolumes = jobSpec->mutable_volumes();
         for (const auto& [name, volume]: jobSpecConfig->Volumes) {
             auto& protoVolume = (*protoVolumes)[name];
-            ToProto(&protoVolume, *volume, layerPathToUserFile);
+            BuildVolumeSpec(&protoVolume, *volume, layerPathToUserFile);
         }
 
         // COMPAT(krasovav)

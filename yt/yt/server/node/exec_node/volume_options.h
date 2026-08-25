@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <variant>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +27,7 @@ struct TCreateNbdVolumeOptions
     TJobId JobId;
 
     std::string DeviceId;
-    std::string Filesystem;
+    std::string FilesystemType;
 
     bool IsReadOnly = true;
 
@@ -46,32 +48,32 @@ struct TPrepareRONbdVolumeOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Chunk-backed device: the request params plus the data node session opened for it.
+struct TChunkNbdVolumeOptions
+{
+    TChunkNbdVolumeSpec Spec;
+
+    //! Filled in once a suitable data node is found.
+    NRpc::IChannelPtr DataNodeChannel;
+    NChunkClient::TSessionId SessionId;
+};
+
+using TRWNbdVolumeBackendOptions = std::variant<TChunkNbdVolumeOptions>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPrepareRWNbdVolumeOptions
 {
     TJobId JobId;
 
-    i64 Size = 0;
-    int MediumIndex = 0;
-    NNbd::EFilesystemType Filesystem = NNbd::EFilesystemType::Unknown;
+    //! Identifier of NBD disk within NBD server.
     std::string DeviceId;
-    NRpc::IChannelPtr DataNodeChannel;
-    NChunkClient::TSessionId SessionId;
 
-    //! Params to connect to chosen data nodes.
-    TDuration DataNodeRpcTimeout;
-    std::optional<std::string> DataNodeAddress;
+    //! Volume params.
+    i64 DeviceSize = 0;
+    NNbd::EFilesystemType FilesystemType = NNbd::EFilesystemType::Unknown;
 
-    //! Params for NBD requests to data nodes.
-    TDuration DataNodeNbdServiceRpcTimeout;
-    TDuration DataNodeNbdServiceMakeTimeout;
-
-    //! Params to get suitable data nodes from master.
-    TDuration MasterRpcTimeout;
-    int MinDataNodeCount = 0;
-    int MaxDataNodeCount = 0;
-
-    //! Number of TCP connections to use for NBD RPC requests.
-    int MultiplexingParallelism = DefaultNbdMultiplexingParallelism;
+    TRWNbdVolumeBackendOptions BackendOptions;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

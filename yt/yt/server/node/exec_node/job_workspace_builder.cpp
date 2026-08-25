@@ -599,23 +599,23 @@ private:
             }
         }
 
-        const TVirtualSandboxData* virtualSandboxData = nullptr;
+        const TVirtualSandboxOptions* virtualSandboxOptions = nullptr;
         if (!fsSecretary->GetRootVolume()) {
-            if (const auto& data = fsSecretary->GetVirtualSandboxData();
+            if (const auto& data = fsSecretary->GetVirtualSandboxOptions();
                 data && !fsSecretary->HasPreparedLayer(data->ArtifactKey))
             {
-                virtualSandboxData = &*data;
+                virtualSandboxOptions = &*data;
             }
         }
 
-        if (uniqueLayers.empty() && !virtualSandboxData) {
+        if (uniqueLayers.empty() && !virtualSandboxOptions) {
             YT_LOG_DEBUG("Layer preparation is not needed");
             return OKFuture;
         }
 
         SetNowTime(TimePoints_.PrepareLayersStartTime);
 
-        auto totalLayerCount = uniqueLayers.size() + (virtualSandboxData ? 1 : 0);
+        auto totalLayerCount = uniqueLayers.size() + (virtualSandboxOptions ? 1 : 0);
         YT_LOG_INFO("Preparing layers (LayerCount: %v)", totalLayerCount);
 
         std::vector<TOverlayLayerPreparationOptions> layerOptions;
@@ -629,10 +629,10 @@ private:
                 .ArtifactKey = key,
             });
         }
-        if (virtualSandboxData) {
+        if (virtualSandboxOptions) {
             layerOptions.push_back(TOverlayLayerPreparationOptions{
-                .ArtifactKey = virtualSandboxData->ArtifactKey,
-                .ImageReader = virtualSandboxData->Reader,
+                .ArtifactKey = virtualSandboxOptions->ArtifactKey,
+                .ImageReader = virtualSandboxOptions->Reader,
             });
         }
 
@@ -709,13 +709,13 @@ private:
             YT_LOG_INFO(
                 "Preparing root volume (LayerCount: %v, HasVirtualSandbox: %v)",
                 layerArtifactKeys.size(),
-                Context_.UserSandboxOptions.VirtualSandboxData.has_value());
+                Context_.UserSandboxOptions.VirtualSandboxOptions.has_value());
 
             TVolumePreparationOptions options;
             options.JobId = Context_.Job->GetId();
             options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
             options.UserSandboxOptions = Context_.UserSandboxOptions;
-            options.SandboxNbdRootVolumeData = Context_.FSSecretary->GetSandboxNbdRootVolumeData();
+            options.SandboxNbdRootVolumeSpec = Context_.FSSecretary->GetSandboxNbdRootVolumeSpec();
 
             return slot->PrepareRootVolume(
                 Context_.FSSecretary->GetPreparedRootVolumeOverlayData(),

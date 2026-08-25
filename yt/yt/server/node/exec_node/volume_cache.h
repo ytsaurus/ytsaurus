@@ -204,7 +204,7 @@ private:
 
     // RW volumes start here.
 
-    TFuture<NNbd::IBlockDevicePtr> CreateRWNbdDevice(
+    TFuture<NNbd::IBlockDevicePtr> CreateRWChunkNbdDevice(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 
@@ -212,7 +212,7 @@ private:
     //! 1. Create RW NBD device.
     //! 2. Register RW NBD device with NBD server.
     //! 3. Create RW NBD porto volume connected to RW NBD device.
-    TFuture<IVolumePtr> PrepareRWNbdVolume(
+    TFuture<IVolumePtr> PrepareRWChunkNbdVolume(
         TGuid tag,
         TPrepareRWNbdVolumeOptions options);
 
@@ -227,7 +227,7 @@ private:
         TPrepareRWNbdVolumeOptions options);
 
     //! Find data node suitable to host NBD disk and open NBD session.
-    TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>>> PrepareNbdSession(
+    TFuture<std::optional<std::tuple<NRpc::IChannelPtr, NYT::NChunkClient::TSessionId>>> PrepareRWChunkNbdSession(
         const TPrepareRWNbdVolumeOptions& options);
 };
 

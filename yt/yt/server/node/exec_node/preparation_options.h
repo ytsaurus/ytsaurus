@@ -16,11 +16,13 @@
 
 #include <util/system/types.h>
 
+#include <variant>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TVirtualSandboxData
+struct TVirtualSandboxOptions
 {
     std::string NbdDeviceId;
     TArtifactKey ArtifactKey;
@@ -37,16 +39,9 @@ struct TOverlayLayerPreparationOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Data necessary to create NBD root volume.
-struct TSandboxNbdRootVolumeData
+struct TChunkNbdVolumeSpec
 {
-    //! Identifier of NBD disk within NBD server.
-    std::string DeviceId;
-
-    //! Volume params.
-    i64 Size = 0;
     int MediumIndex = 0;
-    NNbd::EFilesystemType FsType = NNbd::EFilesystemType::Ext4;
 
     //! Params to connect to chosen data nodes.
     TDuration DataNodeRpcTimeout;
@@ -58,16 +53,37 @@ struct TSandboxNbdRootVolumeData
 
     //! Params to get suitable data nodes from master.
     TDuration MasterRpcTimeout;
-    int MinDataNodeCount;
-    int MaxDataNodeCount;
+    int MinDataNodeCount = 0;
+    int MaxDataNodeCount = 0;
 
     //! Number of TCP connections to use for NBD RPC requests.
     int MultiplexingParallelism = DefaultNbdMultiplexingParallelism;
 
-    bool operator==(const TSandboxNbdRootVolumeData&) const = default;
+    bool operator==(const TChunkNbdVolumeSpec&) const = default;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeData& data, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TChunkNbdVolumeSpec& volumeSpec, TStringBuf spec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TRWNbdVolumeBackendSpec = std::variant<TChunkNbdVolumeSpec>;
+
+//! Sandbox NBD root volume as requested by the job spec.
+struct TSandboxNbdRootVolumeSpec
+{
+    //! Identifier of NBD disk within NBD server.
+    std::string DeviceId;
+
+    //! Volume params.
+    i64 DeviceSize = 0;
+    NNbd::EFilesystemType FilesystemType = NNbd::EFilesystemType::Ext4;
+
+    TRWNbdVolumeBackendSpec BackendSpec;
+
+    bool operator==(const TSandboxNbdRootVolumeSpec&) const = default;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeSpec& volumeSpec, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +98,7 @@ struct TUserSandboxOptions
     bool DisableRbindRootVolume = false;
     bool EnableDiskQuota = true;
     int UserId = 0;
-    std::optional<TVirtualSandboxData> VirtualSandboxData;
+    std::optional<TVirtualSandboxOptions> VirtualSandboxOptions;
     std::string SlotPath;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
@@ -95,7 +111,7 @@ struct TVolumePreparationOptions
     TJobId JobId;
     TUserSandboxOptions UserSandboxOptions;
     TArtifactDownloadOptions ArtifactDownloadOptions;
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
+    std::optional<TSandboxNbdRootVolumeSpec> SandboxNbdRootVolumeSpec;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

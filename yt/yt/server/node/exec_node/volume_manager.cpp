@@ -34,6 +34,7 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
@@ -562,29 +563,21 @@ public:
         }
 
         auto jobId = options.JobId;
-        const auto& sandboxNbdRootVolumeData = options.SandboxNbdRootVolumeData;
+        const auto& sandboxNbdRootVolumeSpec = options.SandboxNbdRootVolumeSpec;
 
-        if (sandboxNbdRootVolumeData) {
+        if (sandboxNbdRootVolumeSpec) {
             // Create NBD root volume separately and use it as the upper layer,
             // the same way tmpfs/disk upper layers are handled in PrepareNonRootVolumes().
             return CreateRWNbdVolume(
                 tag,
                 TPrepareRWNbdVolumeOptions{
                     .JobId = jobId,
-                    .Size = sandboxNbdRootVolumeData->Size,
-                    .MediumIndex = sandboxNbdRootVolumeData->MediumIndex,
-                    .Filesystem = sandboxNbdRootVolumeData->FsType,
-                    .DeviceId = sandboxNbdRootVolumeData->DeviceId,
-                    .DataNodeChannel = {/*Channel will be filled later on.*/},
-                    .SessionId = {/*SessionId will be filled later on.*/},
-                    .DataNodeRpcTimeout = sandboxNbdRootVolumeData->DataNodeRpcTimeout,
-                    .DataNodeAddress = sandboxNbdRootVolumeData->DataNodeAddress,
-                    .DataNodeNbdServiceRpcTimeout = sandboxNbdRootVolumeData->DataNodeNbdServiceRpcTimeout,
-                    .DataNodeNbdServiceMakeTimeout = sandboxNbdRootVolumeData->DataNodeNbdServiceMakeTimeout,
-                    .MasterRpcTimeout = sandboxNbdRootVolumeData->MasterRpcTimeout,
-                    .MinDataNodeCount = sandboxNbdRootVolumeData->MinDataNodeCount,
-                    .MaxDataNodeCount = sandboxNbdRootVolumeData->MaxDataNodeCount,
-                    .MultiplexingParallelism = sandboxNbdRootVolumeData->MultiplexingParallelism,
+                    .DeviceId = sandboxNbdRootVolumeSpec->DeviceId,
+                    .DeviceSize = sandboxNbdRootVolumeSpec->DeviceSize,
+                    .FilesystemType = sandboxNbdRootVolumeSpec->FilesystemType,
+                    .BackendOptions = TChunkNbdVolumeOptions{
+                        .Spec = GetOrCrash<TChunkNbdVolumeSpec>(sandboxNbdRootVolumeSpec->BackendSpec),
+                    },
                 })
                 .AsUnique()
                 .Apply(BIND(

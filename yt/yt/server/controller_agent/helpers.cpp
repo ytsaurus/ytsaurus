@@ -1030,6 +1030,8 @@ void ValidateAndEnrichVolumeSpec(TNonNullPtr<TUserJobSpec> spec)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateAndEnrichVolumeSpec(
     const TControllerAgentConfigPtr& config,
     const TOperationSpecBasePtr& operationSpec,
@@ -1044,20 +1046,18 @@ void ValidateAndEnrichVolumeSpec(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(
+void BuildVolumeSpec(
     NControllerAgent::NProto::TVolume* volumeProto,
     const NScheduler::TVolume& volume,
     const THashMap<TStringBuf, const NControllerAgent::TUserFile*>& layerPathToUserFile)
 {
     if (volume.DiskRequest) {
         if (auto nbdDiskRequest = volume.DiskRequest->TryGetConcrete<TNbdDiskRequest>()) {
-            auto protoDiskRequest = volumeProto->mutable_nbd_disk_request();
-            ToProto(protoDiskRequest, *nbdDiskRequest);
+            BuildNbdDiskRequestSpec(volumeProto->mutable_nbd_disk_request(), *nbdDiskRequest);
         } else if (auto localDiskRequest = volume.DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
-            auto protoDiskRequest = volumeProto->mutable_local_disk_request();
-            ToProto(protoDiskRequest, *localDiskRequest);
+            BuildLocalDiskRequestSpec(volumeProto->mutable_local_disk_request(), *localDiskRequest);
         } else if (auto tmpfsDiskRequest = volume.DiskRequest->TryGetConcrete<TTmpfsStorageRequest>()) {
-            ToProto(volumeProto->mutable_tmpfs_storage_request(), *tmpfsDiskRequest);
+            BuildTmpfsStorageRequestSpec(volumeProto->mutable_tmpfs_storage_request(), *tmpfsDiskRequest);
         } else {
             YT_ABORT();
         }
@@ -1065,10 +1065,11 @@ void ToProto(
 
     volumeProto->set_allow_reusing(volume.AllowReusing);
     for (const auto& layer : volume.Layers) {
-        auto* file = GetOrCrash(layerPathToUserFile, layer->Path.GetPath());
-
-        auto* descriptor = volumeProto->add_layers();
-        BuildFileSpec(descriptor, *file, /*copyFiles*/ false, /*enableBypassArtifactCache*/ false);
+        BuildFileSpec(
+            volumeProto->add_layers(),
+            *GetOrCrash(layerPathToUserFile, layer->Path.GetPath()),
+            /*copyFiles*/ false,
+            /*enableBypassArtifactCache*/ false);
     }
 }
 

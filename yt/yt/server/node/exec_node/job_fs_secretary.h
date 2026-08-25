@@ -39,7 +39,7 @@ struct TJobFSDescription
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams;
     std::vector<TVolumeMountPtr> JobVolumeMounts;
     THashMap<std::string, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts;
-    std::optional<TSandboxNbdRootVolumeData> SandboxNbdRootVolumeData;
+    std::optional<TSandboxNbdRootVolumeSpec> SandboxNbdRootVolumeSpec;
 };
 DEFINE_REFCOUNTED_TYPE(TJobFSDescription)
 
@@ -89,7 +89,7 @@ public:
     const THashSet<std::string>& GetNbdDeviceIds() const;
     THashSet<std::string> ReleaseNbdDeviceIds();
 
-    const std::optional<TSandboxNbdRootVolumeData>& GetSandboxNbdRootVolumeData() const;
+    const std::optional<TSandboxNbdRootVolumeSpec>& GetSandboxNbdRootVolumeSpec() const;
 
     const THashMap<std::string, TVolumeResultPtr>& GetNonRootVolumes() const;
     THashMap<std::string, TVolumeResultPtr> ReleaseNonReusableNonRootVolumes();
@@ -100,7 +100,7 @@ public:
 
     size_t GetTmpfsVolumeCount() const;
 
-    const std::optional<TVirtualSandboxData>& GetVirtualSandboxData() const;
+    const std::optional<TVirtualSandboxOptions>& GetVirtualSandboxOptions() const;
     void SetVirtualSandboxReader(NNbd::NImage::IImageReaderPtr reader);
 
     const std::optional<i64>& GetRootVolumeDiskSpace() const;
@@ -156,7 +156,7 @@ private:
     std::vector<TArtifactKey> MergedGpuCheckVolumeLayerArtifactKeys_;
     THashSet<std::string> NbdDeviceIds_;
     THashMap<std::string, TVolumeResultPtr> NonRootVolumes_;
-    std::optional<TVirtualSandboxData> VirtualSandboxData_;
+    std::optional<TVirtualSandboxOptions> VirtualSandboxOptions_;
     THashMap<std::string, TArtifactPtr> NameToPreparedArtifacts_;
     bool HasVirtualSandboxArtifacts_ = false;
     bool ArtifactsCached_ = false;
