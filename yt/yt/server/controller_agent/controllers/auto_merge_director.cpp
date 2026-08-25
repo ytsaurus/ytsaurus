@@ -18,36 +18,32 @@ TAutoMergeDirector::TAutoMergeDirector(
 bool TAutoMergeDirector::CanScheduleTaskJob(int intermediateChunkCount) const
 {
     if (intermediateChunkCount + CurrentIntermediateChunkCount_ <= MaxIntermediateChunkCount_) {
-        YT_LOG_DEBUG("Allowing scheduling of task job "
-            "(IntermediateChunkCountEstimate: %v, CurrentIntermediateChunkCount: %v, MaxIntermediateChunkCount: %v)",
-            intermediateChunkCount,
-            CurrentIntermediateChunkCount_,
-            MaxIntermediateChunkCount_);
+        YT_TLOG_DEBUG("Allowing scheduling of task job")
+            .With("IntermediateChunkCountEstimate", intermediateChunkCount)
+            .With("CurrentIntermediateChunkCount", CurrentIntermediateChunkCount_)
+            .With("MaxIntermediateChunkCount", MaxIntermediateChunkCount_);
         return true;
     } else {
         // First, check for marginal case. If the job produces more than `MaxIntermediateChunkCount_`
         // chunks itself, there is no way we can stay under limit, so just let it go.
         if (intermediateChunkCount > MaxIntermediateChunkCount_) {
-            YT_LOG_DEBUG("Allowing scheduling of a marginally large task job "
-                "(IntermediateChunkCountEstimate: %v, MaxIntermediateChunkCount: %v)",
-                intermediateChunkCount,
-                MaxIntermediateChunkCount_);
+            YT_TLOG_DEBUG("Allowing scheduling of a marginally large task job")
+                .With("IntermediateChunkCountEstimate", intermediateChunkCount)
+                .With("MaxIntermediateChunkCount", MaxIntermediateChunkCount_);
             return true;
         }
 
-        YT_LOG_DEBUG("Disallowing scheduling of a task job "
-            "(IntermediateChunkCountEstimate: %v, CurrentIntermediateChunkCount: %v, MaxIntermediateChunkCount: %v, "
-            "RunningTaskJobCount: %v, RunningMergeJobCount: %v)",
-            intermediateChunkCount,
-            CurrentIntermediateChunkCount_,
-            MaxIntermediateChunkCount_,
-            RunningTaskJobCount_,
-            RunningMergeJobCount_);
+        YT_TLOG_DEBUG("Disallowing scheduling of a task job")
+            .With("IntermediateChunkCountEstimate", intermediateChunkCount)
+            .With("CurrentIntermediateChunkCount", CurrentIntermediateChunkCount_)
+            .With("MaxIntermediateChunkCount", MaxIntermediateChunkCount_)
+            .With("RunningTaskJobCount", RunningTaskJobCount_)
+            .With("RunningMergeJobCount", RunningMergeJobCount_);
 
         // If there are already some auto-merge jobs running, we should just wait for them.
         // Otherwise, we enable force-flush mode.
         if (RunningMergeJobCount_ == 0 && RunningTaskJobCount_ == 0 && !ForceScheduleMergeJob_) {
-            YT_LOG_DEBUG("Force flush mode enabled");
+            YT_TLOG_DEBUG("Force flush mode enabled");
             ForceScheduleMergeJob_ = true;
             StateChanged_.Fire();
         }
@@ -85,7 +81,7 @@ void TAutoMergeDirector::OnMergeJobStarted()
     ++RunningMergeJobCount_;
 
     if (ForceScheduleMergeJob_) {
-        YT_LOG_DEBUG("Force flush mode disabled");
+        YT_TLOG_DEBUG("Force flush mode disabled");
         ForceScheduleMergeJob_ = false;
     }
 

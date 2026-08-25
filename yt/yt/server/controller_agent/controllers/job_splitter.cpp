@@ -43,7 +43,8 @@ public:
         , Logger(logger)
     {
         YT_VERIFY(Config_);
-        YT_LOG_DEBUG("Job splitter initialized (Config: %v)", ConvertToYsonString(Config_, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Job splitter initialized")
+            .With("Config", ConvertToYsonString(Config_, EYsonFormat::Text));
     }
 
     EJobSplitterVerdict ExamineJob(TJobId jobId) override
@@ -59,7 +60,8 @@ public:
 
         auto now = GetInstant();
         if (CanLaunchSpeculativeJobs_ && job.GetSplitDeadline() && now >= job.GetSplitDeadline().value()) {
-            YT_LOG_DEBUG("Split timeout expired, requesting speculative launch (JobId: %v)", jobId);
+            YT_TLOG_DEBUG("Split timeout expired, requesting speculative launch")
+                .With("JobId", jobId);
             return EJobSplitterVerdict::LaunchSpeculative;
         }
 
@@ -68,7 +70,8 @@ public:
                 job.GetRemainingDuration() > minJobExecTime &&
                 isLongAmongRunning)
             {
-                YT_LOG_DEBUG("Job splitter detected long job among running (JobId: %v)", jobId);
+                YT_TLOG_DEBUG("Job splitter detected long job among running")
+                    .With("JobId", jobId);
                 if (CanSplitJobs_ && job.IsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
                     job.OnSplitRequested(Config_->SplitTimeoutBeforeSpeculate);
                     return EJobSplitterVerdict::Split;
@@ -81,7 +84,8 @@ public:
                 job.GetRemainingDuration() > minJobExecTime &&
                 isResidual)
             {
-                YT_LOG_DEBUG("Job splitter detected residual job (JobId: %v)", jobId);
+                YT_TLOG_DEBUG("Job splitter detected residual job")
+                    .With("JobId", jobId);
                 if (CanSplitJobs_ && job.IsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
                     job.OnSplitRequested(Config_->SplitTimeoutBeforeSpeculate);
                     return EJobSplitterVerdict::Split;
@@ -100,7 +104,8 @@ public:
             isResidual &&
             noProgressJobTimeLimit > TDuration::Zero())
         {
-            YT_LOG_DEBUG("Job splitter detected long job without any progress (JobId: %v)", jobId);
+            YT_TLOG_DEBUG("Job splitter detected long job without any progress")
+                .With("JobId", jobId);
             return EJobSplitterVerdict::LaunchSpeculative;
         }
 
@@ -110,24 +115,21 @@ public:
 
         if (job.GetNextLoggingTime() < now) {
             job.SetNextLoggingTime(now + Config_->JobLoggingPeriod);
-            YT_LOG_DEBUG(
-                "Job splitter detailed information (JobId: %v, PrepareDuration: %v, PrepareWithoutCachingDuration: %v, "
-                "ExecDuration: %v, RemainingDuration: %v, TotalDataWeight: %v, RowCount: %v, IsLongAmongRunning: %v, "
-                "IsResidual: %v, IsInterruptible: %v, IsSplittable: %v, SplitDeadline: %v, SuccessJobPrepareDurationSum: %v, SuccessJobCount: %v)",
-                jobId,
-                job.GetPrepareDuration(),
-                job.GetPrepareWithoutCachingDuration(),
-                job.GetExecDuration(),
-                job.GetRemainingDuration(),
-                job.GetTotalDataWeight(),
-                job.GetRowCount(),
-                isLongAmongRunning,
-                isResidual,
-                job.GetIsInterruptible(),
-                job.IsSplittable(),
-                job.GetSplitDeadline(),
-                SuccessJobPrepareDurationSum_,
-                SuccessJobCount_);
+            YT_TLOG_DEBUG("Job splitter detailed information")
+                .With("JobId", jobId)
+                .With("PrepareDuration", job.GetPrepareDuration())
+                .With("PrepareWithoutCachingDuration", job.GetPrepareWithoutCachingDuration())
+                .With("ExecDuration", job.GetExecDuration())
+                .With("RemainingDuration", job.GetRemainingDuration())
+                .With("TotalDataWeight", job.GetTotalDataWeight())
+                .With("RowCount", job.GetRowCount())
+                .With("IsLongAmongRunning", isLongAmongRunning)
+                .With("IsResidual", isResidual)
+                .With("IsInterruptible", job.GetIsInterruptible())
+                .With("IsSplittable", job.IsSplittable())
+                .With("SplitDeadline", job.GetSplitDeadline())
+                .With("SuccessJobPrepareDurationSum", SuccessJobPrepareDurationSum_)
+                .With("SuccessJobCount", SuccessJobCount_);
         }
 
         return EJobSplitterVerdict::DoNothing;
@@ -211,21 +213,17 @@ public:
             1,
             Config_->MaxJobsPerSplit);
 
-        YT_LOG_DEBUG(
-            "Estimated optimal job count for unread data slices "
-            "(JobCount: %v, JobId: %v, PrepareDuration: %.6g, ExecDuration: %.6g, "
-            "ProcessedRowCount: %v, MedianCompletionDuration: %.6g, MinJobTime: %v, "
-            "ExecToPrepareTimeRatio: %v, UnreadRowCount: %v, ExpectedExecDuration: %.6g)",
-            jobCount,
-            summary.Id,
-            prepareDuration,
-            execDuration,
-            processedRowCount,
-            medianCompletionDuration,
-            Config_->MinJobTime.SecondsFloat(),
-            Config_->ExecToPrepareTimeRatio,
-            unreadRowCount,
-            expectedExecDuration);
+        YT_TLOG_DEBUG("Estimated optimal job count for unread data slices")
+            .With("JobCount", jobCount)
+            .With("JobId", summary.Id)
+            .WithFormat("PrepareDuration", "%.6g", prepareDuration)
+            .WithFormat("ExecDuration", "%.6g", execDuration)
+            .With("ProcessedRowCount", processedRowCount)
+            .WithFormat("MedianCompletionDuration", "%.6g", medianCompletionDuration)
+            .With("MinJobTime", Config_->MinJobTime.SecondsFloat())
+            .With("ExecToPrepareTimeRatio", Config_->ExecToPrepareTimeRatio)
+            .With("UnreadRowCount", unreadRowCount)
+            .WithFormat("ExpectedExecDuration", "%.6g", expectedExecDuration);
         return jobCount;
     }
 

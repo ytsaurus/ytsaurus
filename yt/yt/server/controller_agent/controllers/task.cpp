@@ -410,7 +410,7 @@ void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
 
 void TTask::FinishInput()
 {
-    YT_LOG_DEBUG("Task input finished");
+    YT_TLOG_DEBUG("Task input finished");
 
     // GetChunkPoolInput() may return nullptr on tasks that do not require input, such as for vanilla operation.
     if (const auto& chunkPoolInput = GetChunkPoolInput()) {
@@ -493,7 +493,7 @@ void TTask::CheckCompleted()
 void TTask::ForceComplete()
 {
     if (!CompletedFired_) {
-        YT_LOG_DEBUG("Task is forcefully completed");
+        YT_TLOG_DEBUG("Task is forcefully completed");
         CompletedFired_ = true;
         OnTaskCompleted();
     }
@@ -562,7 +562,7 @@ void TTask::CheckAndProcessOperationCompletedInScheduleJob()
 {
     if (TaskHost_->IsCompleted()) {
         TaskHost_->OnOperationCompleted(/*interrupted*/ false);
-        YT_LOG_DEBUG("Completed operation while trying to schedule a job");
+        YT_TLOG_DEBUG("Completed operation while trying to schedule a job");
     }
 }
 
@@ -593,7 +593,7 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
         result.CompetitionType = std::nullopt;
         result.OutputCookie = ExtractCookieForAllocation(allocation);
         if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
-            YT_LOG_DEBUG("Job input is empty");
+            YT_TLOG_DEBUG("Job input is empty");
 
             CheckAndProcessOperationCompletedInScheduleJob();
 
@@ -641,7 +641,7 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
             result.CompetitionType = std::nullopt;
             result.OutputCookie = ExtractCookieForAllocation(allocation);
             if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
-                YT_LOG_DEBUG("Job input is empty");
+                YT_TLOG_DEBUG("Job input is empty");
 
                 if (!previousJobCompetitionType) {
                     CheckAndProcessOperationCompletedInScheduleJob();
@@ -754,9 +754,8 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     const auto& jobSpecSliceThrottler = TaskHost_->GetJobSpecSliceThrottler();
     if (sliceCount > TaskHost_->GetConfig()->HeavyJobSpecSliceCountThreshold) {
         if (!jobSpecSliceThrottler->TryAcquire(sliceCount)) {
-            YT_LOG_DEBUG(
-                "Job spec throttling is active (SliceCount: %v)",
-                sliceCount);
+            YT_TLOG_DEBUG("Job spec throttling is active")
+                .With("SliceCount", sliceCount);
             abortJob(EAbortReason::SchedulingJobSpecThrottling);
             return std::unexpected(EScheduleFailReason::JobSpecThrottling);
         }
@@ -810,11 +809,10 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         auto originalNeededResources = neededResources;
         neededResources.SetCpu(neededResources.GetCpu() * *cpuLimitMultiplier);
 
-        YT_LOG_DEBUG(
-            "Adjusted schedule allocation CPU for testing (CpuLimitMultiplier: %v, OriginalNeededResources: %v, AdjustedNeededResources: %v)",
-            *cpuLimitMultiplier,
-            FormatResources(originalNeededResources),
-            FormatResources(neededResources));
+        YT_TLOG_DEBUG("Adjusted schedule allocation CPU for testing")
+            .With("CpuLimitMultiplier", *cpuLimitMultiplier)
+            .With("OriginalNeededResources", FormatResources(originalNeededResources))
+            .With("AdjustedNeededResources", FormatResources(neededResources));
     }
 
     joblet->ResourceLimits = neededResources.ToJobResources();
@@ -861,10 +859,9 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     // Check the usage against the limits. This is the last chance to give up.
     if (!context.CanSatisfyDemand(neededResources))
     {
-        YT_LOG_DEBUG(
-            "Actual resource demand is not met (AvailableResources: %v, NeededResources: %v)",
-            context.GetResourcesString(TaskHost_->GetMediumDirectory()),
-            FormatResources(neededResources));
+        YT_TLOG_DEBUG("Actual resource demand is not met")
+            .With("AvailableResources", context.GetResourcesString(TaskHost_->GetMediumDirectory()))
+            .With("NeededResources", FormatResources(neededResources));
         CheckResourceDemandSanity(neededResources);
         abortJob(EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
@@ -922,32 +919,27 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         media.insert(streamDescriptor->TableWriterOptions->MediumName);
     }
 
-    YT_LOG_DEBUG(
-        "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, StripeListStatistics: %v, "
-        "Approximate: %v, FilteringPartitionTags: %v, OutputChunkPoolIndex: %v, Restarted: %v, EstimatedResourceUsage: %v, "
-        "JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, "
-        "JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v, CollectiveInfo: %v)",
-        joblet->JobId,
-        joblet->JobType,
-        GetDefaultAddress(context.GetNodeDescriptor().Addresses),
-        joblet->JobIndex,
-        joblet->OutputCookie,
-        joblet->InputStripeList->GetAggregateStatistics(),
-        joblet->InputStripeList->IsApproximate(),
-        joblet->InputStripeList->GetFilteringPartitionTags(),
-        joblet->InputStripeList->GetOutputChunkPoolIndex(),
-        restarted,
-        FormatResources(estimatedResourceUsage),
-        joblet->JobProxyMemoryReserveFactor,
-        joblet->UserJobMemoryReserveFactor,
-        FormatResources(neededResources),
-        joblet->CompetitionType,
-        joblet->JobSpeculationTimeout,
-        media,
-        lostIntermediateChunkIsKnown ? lostIntermediateChunk->second : NullChunkId,
-        joblet->JobInterruptible,
-        joblet->CollectiveInfo
-    );
+    YT_TLOG_DEBUG("Job scheduled")
+        .With("JobId", joblet->JobId)
+        .With("JobType", joblet->JobType)
+        .With("Address", GetDefaultAddress(context.GetNodeDescriptor().Addresses))
+        .With("JobIndex", joblet->JobIndex)
+        .With("OutputCookie", joblet->OutputCookie)
+        .With("StripeListStatistics", joblet->InputStripeList->GetAggregateStatistics())
+        .With("Approximate", joblet->InputStripeList->IsApproximate())
+        .With("FilteringPartitionTags", joblet->InputStripeList->GetFilteringPartitionTags())
+        .With("OutputChunkPoolIndex", joblet->InputStripeList->GetOutputChunkPoolIndex())
+        .With("Restarted", restarted)
+        .With("EstimatedResourceUsage", FormatResources(estimatedResourceUsage))
+        .With("JobProxyMemoryReserveFactor", joblet->JobProxyMemoryReserveFactor)
+        .With("UserJobMemoryReserveFactor", joblet->UserJobMemoryReserveFactor)
+        .With("ResourceLimits", FormatResources(neededResources))
+        .With("CompetitionType", joblet->CompetitionType)
+        .With("JobSpeculationTimeout", joblet->JobSpeculationTimeout)
+        .With("Media", media)
+        .With("RestartedForLostChunk", lostIntermediateChunkIsKnown ? lostIntermediateChunk->second : NullChunkId)
+        .With("Interruptible", joblet->JobInterruptible)
+        .With("CollectiveInfo", joblet->CollectiveInfo);
 
     SetStreamDescriptors(joblet);
 
@@ -996,15 +988,13 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         Logger = Logger
     ] {
         if (auto taskHost = weakTaskHost.Lock()) {
-            YT_LOG_DEBUG(
-                "Started building job spec (JobId: %v)",
-                joblet->JobId);
+            YT_TLOG_DEBUG("Started building job spec")
+                .With("JobId", joblet->JobId);
             TWallTimer timer;
             auto jobSpecProto = taskHost->BuildJobSpecProto(joblet, scheduleAllocationSpec);
-            YT_LOG_DEBUG(
-                "Job spec built (JobId: %v, TimeElapsed: %v)",
-                joblet->JobId,
-                timer.GetElapsedTime());
+            YT_TLOG_DEBUG("Job spec built")
+                .With("JobId", joblet->JobId)
+                .With("TimeElapsed", timer.GetElapsedTime());
             return jobSpecProto;
         } else {
             THROW_ERROR_EXCEPTION("Operation controller was destroyed");
@@ -1370,11 +1360,12 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         const auto& totalOutputStatistics = *jobSummary.TotalOutputDataStatistics;
         // It's impossible to check row count preservation on interrupted job.
         if (TaskHost_->IsRowCountPreserved() && jobSummary.InterruptionReason == EInterruptionReason::None) {
-            YT_LOG_ERROR_IF(totalInputStatistics.row_count() != totalOutputStatistics.row_count(),
-                "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
-                totalInputStatistics.row_count(),
-                totalOutputStatistics.row_count(),
-                GetTitle());
+            YT_TLOG_ERROR_IF(
+                totalInputStatistics.row_count() != totalOutputStatistics.row_count(),
+                "Input/output row count mismatch in completed job")
+                .With("Input", totalInputStatistics.row_count())
+                .With("Output", totalOutputStatistics.row_count())
+                .With("Task", GetTitle());
             YT_VERIFY(totalInputStatistics.row_count() == totalOutputStatistics.row_count());
         }
 
@@ -1397,14 +1388,13 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     if (jobSummary.InterruptionReason != EInterruptionReason::None) {
         auto isSplittable = GetChunkPoolOutput()->IsSplittable(joblet->OutputCookie);
         jobSummary.SplitJobCount = isSplittable ? EstimateSplitJobCount(jobSummary, joblet) : 1;
-        YT_LOG_DEBUG(
-            "Deciding job splitting (JobId: %v, OutputCookie: %v, InterruptionReason: %v, UnreadDataSliceCount: %v, IsSplittable: %v, SplitJobCount: %v)",
-            jobSummary.Id,
-            joblet->OutputCookie,
-            jobSummary.InterruptionReason,
-            jobSummary.UnreadInputDataSlices.size(),
-            isSplittable,
-            jobSummary.SplitJobCount);
+        YT_TLOG_DEBUG("Deciding job splitting")
+            .With("JobId", jobSummary.Id)
+            .With("OutputCookie", joblet->OutputCookie)
+            .With("InterruptionReason", jobSummary.InterruptionReason)
+            .With("UnreadDataSliceCount", jobSummary.UnreadInputDataSlices.size())
+            .With("IsSplittable", isSplittable)
+            .With("SplitJobCount", jobSummary.SplitJobCount);
     }
     JobSplitter_->OnJobCompleted(jobSummary);
 
@@ -1548,7 +1538,8 @@ void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary
     if (joblet->JobSpeculationTimeout &&
         jobSummary.TimeStatistics.PrepareDuration.value_or(TDuration()) + jobSummary.TimeStatistics.ExecDuration.value_or(TDuration()) >= joblet->JobSpeculationTimeout)
     {
-        YT_LOG_DEBUG("Speculation timeout expired; trying to launch speculative job (ExpiredJobId: %v)", jobId);
+        YT_TLOG_DEBUG("Speculation timeout expired; trying to launch speculative job")
+            .With("ExpiredJobId", jobId);
         if (TryRegisterSpeculativeJob(joblet)) {
             UpdateTask();
         }
@@ -1559,10 +1550,12 @@ void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary
         if (HasNoPendingJobs()) {
             auto verdict = JobSplitter_->ExamineJob(jobId);
             if (verdict == EJobSplitterVerdict::Split) {
-                YT_LOG_DEBUG("Job is going to be split (JobId: %v)", jobId);
+                YT_TLOG_DEBUG("Job is going to be split")
+                    .With("JobId", jobId);
                 TaskHost_->InterruptJob(jobId, EInterruptionReason::JobSplit);
             } else if (verdict == EJobSplitterVerdict::LaunchSpeculative) {
-                YT_LOG_DEBUG("Job can be speculated (JobId: %v)", jobId);
+                YT_TLOG_DEBUG("Job can be speculated")
+                    .With("JobId", jobId);
                 if (TryRegisterSpeculativeJob(joblet)) {
                     UpdateTask();
                 }
@@ -1603,7 +1596,7 @@ void TTask::OnTaskCompleted()
 
     ExperimentJobManager_.GenerateAlertIfNeeded(TaskHost_, GetVertexDescriptor());
 
-    YT_LOG_DEBUG("Task completed");
+    YT_TLOG_DEBUG("Task completed");
 }
 
 void TTask::StopTiming()
@@ -1761,10 +1754,9 @@ void TTask::AddChunksToInputSpec(
         inputSpec->add_virtual_row_index_per_data_slice(dataSlice->VirtualRowIndex.value_or(-1));
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto* newChunkSpec = inputSpec->add_chunk_specs();
-            YT_LOG_TRACE(
-                "Serializing chunk slice (LowerLimit: %v, UpperLimit: %v)",
-                chunkSlice->LowerLimit().KeyBound,
-                chunkSlice->UpperLimit().KeyBound);
+            YT_TLOG_TRACE("Serializing chunk slice")
+                .With("LowerLimit", chunkSlice->LowerLimit().KeyBound)
+                .With("UpperLimit", chunkSlice->UpperLimit().KeyBound);
 
             // This is a dirty hack. Comparator is needed in ToProto to overcome YT-14023.
             // Issue happens only for (operation) input data slices in sorted controller.
@@ -1874,9 +1866,9 @@ void TTask::AddOutputTableSpecs(
         }
     }
 
-    YT_LOG_DEBUG("Adding input stream schemas (Task: %v, Count: %v)",
-        joblet->Task->GetTitle(),
-        joblet->InputStreamDescriptors.size());
+    YT_TLOG_DEBUG("Adding input stream schemas")
+        .With("Task", joblet->Task->GetTitle())
+        .With("Count", joblet->InputStreamDescriptors.size());
     const auto& inputStreamDescriptors = joblet->InputStreamDescriptors;
     for (int index = 0; index < std::ssize(inputStreamDescriptors); ++index) {
         const auto& streamDescriptor = inputStreamDescriptors[index];
@@ -1909,10 +1901,10 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft
             // values we introduce additional factor.
             actualFactor = std::max(actualFactor, *joblet->UserJobMemoryReserveFactor * TaskHost_->GetConfig()->MemoryDigestResourceOverdraftFactor);
         }
-        YT_LOG_DEBUG("Adding sample to the user job memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
-            actualFactor,
-            joblet->JobId,
-            resourceOverdraft);
+        YT_TLOG_DEBUG("Adding sample to the user job memory digest")
+            .With("Sample", actualFactor)
+            .With("JobId", joblet->JobId)
+            .With("ResourceOverdraft", resourceOverdraft);
         digest->AddSample(actualFactor);
     }
 
@@ -1924,10 +1916,10 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft
         if (resourceOverdraft && actualFactor >= 1.0) {
             actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * TaskHost_->GetConfig()->MemoryDigestResourceOverdraftFactor);
         }
-        YT_LOG_DEBUG("Adding sample to the job proxy memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
-            actualFactor,
-            joblet->JobId,
-            resourceOverdraft);
+        YT_TLOG_DEBUG("Adding sample to the job proxy memory digest")
+            .With("Sample", actualFactor)
+            .With("JobId", joblet->JobId)
+            .With("ResourceOverdraft", resourceOverdraft);
         digest->AddSample(actualFactor);
     }
 }
@@ -1997,14 +1989,11 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
     // NB: In case of outdated statistics we suppose that memory overdraft happened
     // for the process with smallest gap between max memory and reserved memory.
     if (!hasJobProxyMemoryOverdraft && !hasUserJobMemoryOverdraft) {
-        YT_LOG_DEBUG(
-            "Job was aborted with resource overdraft, but user job and job proxy memory does not exceed the limit; "
-            "choose overdrafted process by free memory gap "
-            "(JobProxyMaxMemory: %v, JobProxyDedicatedMemory: %v, UserJobMaxMemory: %v, UserJobMemoryReserve: %v)",
-            jobProxyMaxMemory,
-            jobProxyDedicatedMemory,
-            userJobSpec ? std::make_optional(userJobMaxMemory) : std::nullopt,
-            userJobSpec ? std::make_optional(joblet->UserJobMemoryReserve) : std::nullopt);
+        YT_TLOG_DEBUG("Job was aborted with resource overdraft, but user job and job proxy memory does not exceed the limit; choose overdrafted process by free memory gap")
+            .With("JobProxyMaxMemory", jobProxyMaxMemory)
+            .With("JobProxyDedicatedMemory", jobProxyDedicatedMemory)
+            .With("UserJobMaxMemory", userJobSpec ? std::make_optional(userJobMaxMemory) : std::nullopt)
+            .With("UserJobMemoryReserve", userJobSpec ? std::make_optional(joblet->UserJobMemoryReserve) : std::nullopt);
         auto jobProxyMemoryGap = jobProxyDedicatedMemory - jobProxyMaxMemory;
         auto userJobMemoryGap = joblet->UserJobMemoryReserve - userJobMaxMemory;
         if (userJobSpec && userJobMemoryGap < jobProxyMemoryGap) {
@@ -2038,22 +2027,18 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
         }
     }
 
-    YT_LOG_DEBUG(
-        "Job was aborted with resource overdraft "
-        "(HasUserJobMemoryOverdraft: %v, HasJobProxyMemoryOverdraft: %v, UserJobOverdraftStatus: %v, JobProxyOverdraftStatus: %v, "
-        "DedicatedUserJobMemoryReserveFactor: %v, DedicatedJobProxyMemoryReserveFactor: %v, UserJobMemoryMultiplier: %v, JobProxyMemoryMultiplier: %v, "
-        "JobProxyMaxMemory: %v, JobProxyDedicatedMemory: %v, UserJobMaxMemory: %v)",
-        hasUserJobMemoryOverdraft,
-        hasJobProxyMemoryOverdraft,
-        state.UserJobStatus,
-        state.JobProxyStatus,
-        state.DedicatedUserJobMemoryReserveFactor,
-        state.DedicatedJobProxyMemoryReserveFactor,
-        UserJobMemoryMultiplier_,
-        JobProxyMemoryMultiplier_,
-        jobProxyMaxMemory,
-        jobProxyDedicatedMemory,
-        userJobMaxMemory);
+    YT_TLOG_DEBUG("Job was aborted with resource overdraft")
+        .With("HasUserJobMemoryOverdraft", hasUserJobMemoryOverdraft)
+        .With("HasJobProxyMemoryOverdraft", hasJobProxyMemoryOverdraft)
+        .With("UserJobOverdraftStatus", state.UserJobStatus)
+        .With("JobProxyOverdraftStatus", state.JobProxyStatus)
+        .With("DedicatedUserJobMemoryReserveFactor", state.DedicatedUserJobMemoryReserveFactor)
+        .With("DedicatedJobProxyMemoryReserveFactor", state.DedicatedJobProxyMemoryReserveFactor)
+        .With("UserJobMemoryMultiplier", UserJobMemoryMultiplier_)
+        .With("JobProxyMemoryMultiplier", JobProxyMemoryMultiplier_)
+        .With("JobProxyMaxMemory", jobProxyMaxMemory)
+        .With("JobProxyDedicatedMemory", jobProxyDedicatedMemory)
+        .With("UserJobMaxMemory", userJobMaxMemory);
 }
 
 void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
@@ -2270,7 +2255,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
         GetJobProxyMemoryReserveFactor(),
         GetUserJobMemoryReserveFactor());
     if (result.GetUserSlots() > 0 && result.GetMemory() == 0) {
-        YT_LOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
+        YT_TLOG_WARNING("Found min needed resources of task with non-zero user slots and zero memory");
     }
     auto resultWithQuota = TJobResourcesWithQuota(result);
     if (auto userJobSpec = GetUserJobSpec()) {
@@ -2315,10 +2300,10 @@ void TTask::RegisterStripe(
         const auto& chunkMapping = streamDescriptor->ChunkMapping;
         YT_VERIFY(chunkMapping);
 
-        YT_LOG_DEBUG("Registering stripe in a direction that requires recovery info (JobId: %v, Restarted: %v, JobType: %v)",
-            joblet->JobId,
-            joblet->Restarted,
-            joblet->JobType);
+        YT_TLOG_DEBUG("Registering stripe in a direction that requires recovery info")
+            .With("JobId", joblet->JobId)
+            .With("Restarted", joblet->Restarted)
+            .With("JobType", joblet->JobType);
 
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
         TCookieAndPool outputCookie{joblet->OutputCookie, streamDescriptor->DestinationPool};
@@ -2340,10 +2325,10 @@ void TTask::RegisterStripe(
             YT_VERIFY(inputCookie != IChunkPoolInput::NullCookie);
             try {
                 chunkMapping->OnStripeRegenerated(inputCookie, stripe);
-                YT_LOG_DEBUG("Successfully registered recovered stripe in chunk mapping (JobId: %v, JobType: %v, InputCookie: %v)",
-                    joblet->JobId,
-                    joblet->JobType,
-                    inputCookie);
+                YT_TLOG_DEBUG("Successfully registered recovered stripe in chunk mapping")
+                    .With("JobId", joblet->JobId)
+                    .With("JobType", joblet->JobType)
+                    .With("InputCookie", inputCookie);
             } catch (const std::exception& ex) {
                 auto error = TError("Failure while registering result stripe of a restarted job in a chunk mapping")
                     .With(ex)
@@ -2402,17 +2387,15 @@ void TTask::ValidateAndUpdateJobRowsDigest(
 
     auto [previousDigest, firstJobId] = digestIt->second;
     if (previousDigest == *rowsDigest) {
-        YT_LOG_DEBUG(
-            "Received the same rows output digest for restarted job (RestartedJobId: %v, FirstJobId: %v)",
-            jobId,
-            firstJobId);
+        YT_TLOG_DEBUG("Received the same rows output digest for restarted job")
+            .With("RestartedJobId", jobId)
+            .With("FirstJobId", firstJobId);
         return;
     }
 
-    YT_LOG_DEBUG(
-        "Received dissimilar rows output digest for restarted job (RestartedJobId: %v, FirstJobId: %v)",
-        jobId,
-        firstJobId);
+    YT_TLOG_DEBUG("Received dissimilar rows output digest for restarted job")
+        .With("RestartedJobId", jobId)
+        .With("FirstJobId", firstJobId);
     TaskHost_->SetOperationAlert(EOperationAlertType::JobIsNotDeterministic,
         TError("Restarted job produced dissimilar output; "
                "this may lead to inconsistent operation results; "
@@ -2551,7 +2534,9 @@ int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const T
 
     if (unreadRowCount <= 0) {
         // This is almost impossible, still we don't want to fail operation in this case.
-        YT_LOG_WARNING("Estimated unread row count is negative (JobId: %v, UnreadRowCount: %v)", jobSummary.Id, unreadRowCount);
+        YT_TLOG_WARNING("Estimated unread row count is negative")
+            .With("JobId", jobSummary.Id)
+            .With("UnreadRowCount", unreadRowCount);
         unreadRowCount = 1;
     }
 
@@ -2729,8 +2714,8 @@ bool TTask::IsNetworkBandwidthToClustersAvailable() const
 
 void TTask::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(const TClusterName& clusterName)
 {
-    YT_LOG_DEBUG("Subscribe task to remote cluster network bandwidth availability updates (ClusterName: %v)",
-        clusterName);
+    YT_TLOG_DEBUG("Subscribe task to remote cluster network bandwidth availability updates")
+        .With("ClusterName", clusterName);
 
     TaskHost_->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         clusterName,
@@ -2739,8 +2724,8 @@ void TTask::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(const TCluster
 
 void TTask::UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(const TClusterName& clusterName)
 {
-    YT_LOG_DEBUG("Unsubscribe task from remote cluster network bandwidth availability updates (ClusterName: %v)",
-        clusterName);
+    YT_TLOG_DEBUG("Unsubscribe task from remote cluster network bandwidth availability updates")
+        .With("ClusterName", clusterName);
 
     TaskHost_->UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         clusterName,
@@ -2760,7 +2745,7 @@ void TTask::FinalizeSubscriptions()
 
 void TTask::UpdateNetworkAndTask()
 {
-    YT_LOG_DEBUG("Update network bandwidth availability and task");
+    YT_TLOG_DEBUG("Update network bandwidth availability and task");
 
     // Update network bandwidth availability first.
     UpdateClusterToNetworkBandwidthAvailability();
@@ -2839,9 +2824,9 @@ void TTask::UpdateNeededResourcesParams()
     }
 
     if (unavailableClusterName) {
-        YT_LOG_DEBUG("Network bandwidth to remote cluster is not available so zero out maximum runnable jobs (Cluster: %v, OldMaxRunnableJobCount: %v)",
-            *unavailableClusterName,
-            CurrentMaxRunnableJobCount_);
+        YT_TLOG_DEBUG("Network bandwidth to remote cluster is not available so zero out maximum runnable jobs")
+            .With("Cluster", *unavailableClusterName)
+            .With("OldMaxRunnableJobCount", CurrentMaxRunnableJobCount_);
 
         UnavailableNetworkBandwidthToClustersStartTime_ = TInstant::Now();
         // Zero out maximum runnable jobs. It will be coming back once bandwidth becomes available.
@@ -2856,10 +2841,9 @@ void TTask::UpdateNeededResourcesParams()
     CurrentMaxRunnableJobCount_ = std::clamp(2 * CurrentMaxRunnableJobCount_, static_cast<i64>(1), MaxRunnableJobCount);
 
     if (oldCurrentMaxRunnableJobCount != CurrentMaxRunnableJobCount_) {
-        YT_LOG_DEBUG("Network bandwidth to all remote clusters is available, increase needed resources if necessary "
-            "(OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
-            oldCurrentMaxRunnableJobCount,
-            CurrentMaxRunnableJobCount_);
+        YT_TLOG_DEBUG("Network bandwidth to all remote clusters is available, increase needed resources if necessary")
+            .With("OldMaxRunnableJobCount", oldCurrentMaxRunnableJobCount)
+            .With("NewMaxRunnableJobCount", CurrentMaxRunnableJobCount_);
     }
 }
 

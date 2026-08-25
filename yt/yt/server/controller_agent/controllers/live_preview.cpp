@@ -92,13 +92,11 @@ void TLivePreview::ValidateChunks()
 
     for (auto chunk : chunks) {
         auto error = TryInsertChunk(chunk);
-        YT_LOG_ALERT_UNLESS(
-            error.IsOK(),
-            error,
-            "Error validating a chunk in a live preview (ChunkId: %v, Name: %v, Path: %v)",
-            chunk->GetChunkId(),
-            Name_,
-            Path_);
+        YT_TLOG_ALERT_UNLESS(error.IsOK(), "Error validating a chunk in a live preview")
+            .With("ChunkId", chunk->GetChunkId())
+            .With("Name", Name_)
+            .With("Path", Path_)
+            .With(error);
     }
 }
 
