@@ -120,6 +120,7 @@ namespace NActors {
             TEventQueue Events;
             std::deque<TRcBuf> SystemRequests;
             TEventHeader EventHeader;
+            size_t SerializedBytesPending = 0;
             size_t EventHeaderOffset = 0;
             TIntrusivePtr<TEventSerializedData> Buffer;
             TRope::TConstIterator Iter;
@@ -146,19 +147,19 @@ namespace NActors {
             TIntrusivePtr<TEventSerializedData> Buffer;
             std::unique_ptr<IEventBase> Event;
             TRcBuf Scratch;
-            ui64 EventReceivedTimestamp;
+            size_t ScratchBytesUsed = 0;
+            ui64 EventReceivedTimestamp = 0;
+            std::vector<y_absl::Cord> Cords; // keeping ownership of the following cords referring the data
         };
         std::deque<TRefcountItem> RefcountItems;
+        size_t NumBytesInScratchBuffers = 0;
         ui64 CumulativeProduced = 0; // total bytes ever produced into the output stream
         ui64 CumulativeCommitted = 0; // total bytes ever reported as sent via CommitProducedBytes
 
-        ui64 Timestamp;
-        ui64 SerializeBufferTime = 0;
+        ui64 Timestamp = 0;
         ui64 SerializeEventTime = 0;
         ui64 BytesCopied = 0;
         ui64 BytesAliased = 0;
-
-        const double Freq = 1e9 * NHPTimer::GetSeconds(1);
 
     public:
         TEventSerializer(bool checksumming);
@@ -174,19 +175,21 @@ namespace NActors {
         size_t ProduceOutputStream(TRcBuf& buffer, std::deque<TContiguousSpan> *out, size_t maxBytesToProduce = Max<size_t>());
 
         // notification issued when N produced bytes have been sent to the other party
-        void CommitProducedBytes(size_t numBytes, std::vector<ui64> *eventToWireTime = nullptr);
+        void CommitProducedBytes(size_t numBytes, std::vector<ui64> *eventToWireTime = nullptr,
+            std::vector<std::unique_ptr<IEventBase>> *events = nullptr,
+            std::vector<TIntrusivePtr<TEventSerializedData>> *buffers = nullptr);
 
         void ResetCounters() {
-            SerializeBufferTime = 0;
             SerializeEventTime = 0;
             BytesCopied = 0;
             BytesAliased = 0;
         }
 
-        ui64 GetSerializeBufferTime() const { return SerializeBufferTime; }
         ui64 GetSerializeEventTime() const { return SerializeEventTime; }
         ui64 GetBytesCopied() const { return BytesCopied; }
         ui64 GetBytesAliased() const { return BytesAliased; }
+
+        size_t GetNumBytesInScratchBuffers() const { return NumBytesInScratchBuffers; }
 
     private:
         TPerChannelQueue& GetQueue(ui16 channel) {
