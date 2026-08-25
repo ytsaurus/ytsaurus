@@ -201,6 +201,8 @@ jobs:
     needs:
       - start-vm
       - check
+      - docker-ya-make-relwithdebinfo
+    if: ${{ always() && needs.start-vm.result == 'success' && needs.docker-ya-make-relwithdebinfo.result == 'success' && !cancelled() }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 120
     steps:
