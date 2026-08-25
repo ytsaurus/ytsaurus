@@ -124,6 +124,32 @@ Let’s go line by line:
 - `on_messages(messages, output, ctx)` — called for a batch of messages.
 - `on_timers(timers, output, ctx)` — called for a batch of timers (optional).
 
+{% note warning %}
+
+A batch corresponds to one worker request and may contain messages with **different [keys](../../../flow/concepts/glossary.md#key)** (see [Companion](../../../flow/concepts/companion.md#schema)). By default, all messages of the batch become the parents of every output message.
+
+`output.set_parent_ids(ids)` replaces this default: the method takes the `message_id` (a string or a list of strings) of input messages of the current batch and returns a new collector — all output added through it gets exactly these messages as parents. Pass the `message_id` of the input messages the given output was actually derived from. When the call is mandatory (see [When to set lineage explicitly](../../../flow/concepts/lineage.md#explicit-lineage)):
+
+- **Swift**: mandatory when the batch has more than one message — every output message must have exactly one parent (`out = output.set_parent_ids(message.message_id)`), otherwise processing fails with an error. Multiple parents are allowed only with [`allow_batching_with_relaxed_guarantees`](../../../flow/concepts/guarantees.md#swift-allow-batching-with-relaxed-guarantees).
+- **Transform**: optional, but with the "whole batch" default the event timestamp of every output message equals the minimum over the whole batch.
+- In `RowFunction` there is no need to call `set_parent_ids`: the SDK automatically sets the current input message as the parent.
+
+If you need per-key processing (in Transform, or in Swift with `allow_batching_with_relaxed_guarantees`), group the batch in user code and set the parents of each group:
+
+```python
+def on_messages(self, messages, output, ctx):
+    groups = {}
+    for message in messages:
+        groups.setdefault(message.key["user_id"], []).append(message)
+    for key, group in groups.items():
+        out = output.set_parent_ids([m.message_id for m in group])
+        ...  # Process the group, emit via out.
+```
+
+In a Swift computation the grouping and the parent assignment must be deterministic, including the order of groups. A Python `dict` preserves insertion order, so the example above is reproducible; unordered structures (such as `set`) must not be used. For details, see [Determinism requirement](../../../flow/concepts/swift.md#determinism).
+
+{% endnote %}
+
 #### Example of a batch function
 
 ```python

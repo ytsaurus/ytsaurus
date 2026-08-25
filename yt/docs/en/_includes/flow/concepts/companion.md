@@ -23,6 +23,8 @@ You develop all business logic in the chosen programming language on the compani
 
 The Computation on the Worker side collects a batch of messages, enriches it with all the information needed for processing (states, parameters, watermark values, and so on), and sends it to the companion via gRPC locally, within a single host.
 
+The batch is formed without regard to [keys](../../../flow/concepts/glossary.md#key): one request may contain messages with different keys. This is how the worker collects batches for all computations — it is not a companion peculiarity. The SDK batch functions (`onMessages` in Java, `on_messages` in Python, `OnMessages` in Go) receive such a batch as a whole — like `IBatchProcessFunction` in C++ — and by default all its messages become the parents of every output message. The difference from the C++ API is that there per-key grouping can be delegated to the host (`IKeyedBatchProcessFunction`), while the companion SDKs have no such option: if the business logic needs per-key processing, the grouping is done in user code — see the [Python](../../../flow/python/computation.md#batch-function) example. For when the output parents must be set explicitly (mandatory in a Swift computation) and what exactly to pass, see [When to set lineage explicitly](../../../flow/concepts/lineage.md#explicit-lineage).
+
 In the future, you’ll also be able to use Unix sockets.
 
 ![](../../../flow/images/companion_v1.svg)

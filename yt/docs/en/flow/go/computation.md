@@ -239,6 +239,8 @@ For complete examples, see [URL Downloader](examples/url_downloader.md) and [Wai
 
 `flow.BatchFunction` receives the whole batch of messages that arrived from the [worker](../../flow/concepts/glossary.md#worker) in a single call of the `OnMessages` method. Timers and visits are handled by the `flow.BatchTimerFunction` (`OnTimers`) and `flow.BatchVisitFunction` (`OnVisits`) interfaces.
 
+A batch corresponds to one worker request and may contain messages with different [keys](../../flow/concepts/glossary.md#key); per-key grouping, if needed, is done in the function code (see [Companion](../../flow/concepts/companion.md#schema)).
+
 #### Batch function example {#batch-example}
 
 ```go

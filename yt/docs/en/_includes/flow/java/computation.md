@@ -182,6 +182,8 @@ Let’s walk through the code line by line:
 - `onMessages(List<ExtendedMessage> messages, OutputCollector output, RuntimeContext ctx)` — called for a batch of messages.
 - `onTimers(List<Timer> timers, OutputCollector output, RuntimeContext ctx)` — called for a batch of timers.
 
+A batch corresponds to one worker request and may contain messages with different [keys](../../../flow/concepts/glossary.md#key); per-key grouping, if needed, is done in the function code (see [Companion](../../../flow/concepts/companion.md#schema)).
+
 #### Example of a batch function
 
 {% list tabs group=lang %}

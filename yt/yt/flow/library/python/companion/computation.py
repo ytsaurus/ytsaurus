@@ -37,7 +37,20 @@ class RowFunction(ABC):
 
 
 class BatchFunction(ABC):
-    """Batch processing function."""
+    """Batch processing function.
+
+    The batch is one worker request and may mix messages with different keys;
+    by default the whole batch becomes the parent set of every output message.
+    output.set_parent_ids(ids) narrows the parents of subsequent output to the
+    given message ids of the current batch. In a Swift computation an output
+    message must have exactly one parent (several are allowed only with
+    allow_batching_with_relaxed_guarantees), so with more than one message in
+    the batch set_parent_ids is mandatory; in a Transform computation it is
+    optional and only keeps event timestamps accurate. For per-key semantics
+    group by message.key in on_messages and scope parents per group; in Swift
+    computations the grouping must be deterministic, including the order of
+    groups.
+    """
 
     @abstractmethod
     def on_messages(self, messages: List[ExtendedMessage], output: "OutputCollector", ctx: Any): ...
