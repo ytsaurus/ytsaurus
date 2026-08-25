@@ -202,7 +202,7 @@ jobs:
       - start-vm
       - check
       - docker-ya-make-relwithdebinfo
-    if: ${{ always() && needs.start-vm.result == 'success' && needs.docker-ya-make-relwithdebinfo.result == 'success' && !cancelled() }}
+    if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.docker-ya-make-relwithdebinfo.result == 'success' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 120
     steps:
@@ -272,6 +272,7 @@ jobs:
       - start-vm
       - tag
       - prepare-release
+    if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.tag.result == 'success' && needs.prepare-release.result == 'success' }}
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
