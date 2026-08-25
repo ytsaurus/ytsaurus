@@ -50,18 +50,24 @@ def build_tablet_balancer():
     tb = Master("yt.tablet_server.tablet_balancer.{}.rate")
     stb = TabletBalancer("yt.tablet_balancer.tablet_balancer.{}.rate")
     return (Rowset()
-        .all("#HB", "container")
         .stack(False)
         .row()
             .cell("Tablet balancer moves", MultiSensor(
-                    tb("*_memory_moves"),
-                    stb("*moves").aggr("group", "table_path")
+                    MonitoringExpr(tb("in_memory_moves").aggr("#H")).alias("in-memory tablet moves"),
+                    MonitoringExpr(tb("ext_memory_moves").aggr("#H")).alias("ordinary tablet moves"),
+                    MonitoringExpr(stb("in_memory_moves").all("container").aggr("group", "table_path"))
+                        .alias("in-memory tablet moves {{container}}"),
+                    MonitoringExpr(stb("ordinary_moves").all("container").aggr("group", "table_path"))
+                        .alias("ordinary tablet moves {{container}}")
                 ))
             .cell("Tablet balancer reshards", MultiSensor(
-                tb("tablet_merges"),
-                stb("non_trivial_reshards").aggr("group", "table_path"),
-                stb("tablet_merges").aggr("group", "table_path"),
-                stb("tablet_splits").aggr("group", "table_path")
+                MonitoringExpr(tb("tablet_merges").aggr("#H")).alias("tablet merges"),
+                MonitoringExpr(stb("non_trivial_reshards").all("container").aggr("group", "table_path"))
+                    .alias("non-trivial reshards {{container}}"),
+                MonitoringExpr(stb("tablet_merges").all("container").aggr("group", "table_path"))
+                    .alias("tablet merges {{container}}"),
+                MonitoringExpr(stb("tablet_splits").all("container").aggr("group", "table_path"))
+                    .alias("tablet splits {{container}}")
             ))
         ).owner
 
