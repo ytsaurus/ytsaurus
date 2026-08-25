@@ -357,7 +357,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         insert_rows(table_sorted, [{"key": 0, "value": "a" * 100}])
         sync_flush_table(table_sorted)
-        wait_sorted(data_weight=29,
+        wait_sorted(data_weight=24,
                     uncompressed_data_size=277,
                     row_count=1,
                     chunk_count=1,
@@ -367,7 +367,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         insert_rows(table_sorted, [{"key": 2, "value": "c" * 100}, {"key": 3, "value": "b" * 100}])
         sync_flush_table(table_sorted)
-        wait_sorted(data_weight=87,
+        wait_sorted(data_weight=72,
                     uncompressed_data_size=567,
                     row_count=3,
                     chunk_count=2,

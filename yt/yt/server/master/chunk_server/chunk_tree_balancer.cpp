@@ -103,6 +103,7 @@ TChunkTreeBalancer::TRebalanceStatistics TChunkTreeBalancer::Rebalance(TChunkLis
     YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
     YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
     YT_VERIFY(newStatistics.HunkDataWeight == oldStatistics.HunkDataWeight);
+    YT_VERIFY(newStatistics.LogicalHunkDataWeight == oldStatistics.LogicalHunkDataWeight);
     YT_VERIFY(newStatistics.HunkDataSize == oldStatistics.HunkDataSize);
     YT_VERIFY(newStatistics.HunkRegularDiskSpace == oldStatistics.HunkRegularDiskSpace);
     // NB: We do not compare HunkErasureDiskSpace field because it is unreliable

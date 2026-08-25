@@ -491,6 +491,17 @@ size_t ComputeSchemafulRowsDataWeightAfterHunkDecoding(
     TRange<TUnversionedRow> rows,
     const TTableSchemaPtr& schema);
 
+//! Single-row counterparts of #ComputeSchemafulRowsDataWeightAfterHunkDecoding.
+//! Unlike plain #GetDataWeight, this accounts for the actual (decoded) length of hunk values
+//! that were replaced with a compact ref (e.g. #ReplaceHunks) instead of the ref's own length.
+i64 GetDataWeightAfterHunkDecoding(TUnversionedRow row, const TTableSchemaPtr& schema);
+i64 GetDataWeightAfterHunkDecoding(TVersionedRow row, const TTableSchemaPtr& schema);
+
+//! Unlike plain #GetDataWeight, this excludes the hunk encoding overhead (e.g. hunk refs),
+//! so that chunk writers can report the correct data weight of the chunk.
+i64 GetDataWeightWithoutHunkEncoding(const TUnversionedValue& value);
+i64 GetDataWeightWithoutHunkEncoding(TVersionedRow row);
+
 void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value);
 
 std::vector<TRef> ExtractHunks(

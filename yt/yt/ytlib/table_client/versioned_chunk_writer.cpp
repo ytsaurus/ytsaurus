@@ -4,6 +4,7 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "helpers.h"
+#include "hunks.h"
 #include "versioned_block_writer.h"
 #include "versioned_row_digest.h"
 #include "key_filter.h"
@@ -619,7 +620,10 @@ private:
         TUnversionedValueRange prevKey)
     {
         EmitSampleRandomly(row);
-        auto rowWeight = NTableClient::GetDataWeight(row);
+
+        // NB: Hunk encoding overhead is excluded from the data weight of the chunk so that
+        // the latter matches the data weight of the original rows.
+        auto rowWeight = GetDataWeightWithoutHunkEncoding(row);
 
         ValidateRow(row, rowWeight, prevKey);
 
@@ -834,7 +838,9 @@ private:
             int rowIndex = startRowIndex;
             for (; rowIndex < std::ssize(rows) && weight < DataToBlockFlush_; ++rowIndex) {
                 auto row = rows[rowIndex];
-                auto rowWeight = NTableClient::GetDataWeight(row);
+                // NB: Hunk encoding overhead is excluded from the data weight of the chunk so that
+                // the latter matches the data weight of the original rows.
+                auto rowWeight = GetDataWeightWithoutHunkEncoding(row);
                 if (rowIndex == 0) {
                     ValidateRow(row, rowWeight, LastKey_.Elements());
                 } else {

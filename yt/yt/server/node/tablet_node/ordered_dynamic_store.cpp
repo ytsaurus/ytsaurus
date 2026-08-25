@@ -14,6 +14,7 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/performance_counters.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
@@ -143,7 +144,7 @@ public:
         {
             auto row = CaptureRow(Store_->GetRow(CurrentRowIndex_));
             rows.push_back(row);
-            dataWeight += NTableClient::GetDataWeight(row);
+            dataWeight += NTableClient::GetDataWeightAfterHunkDecoding(row, Store_->Schema_);
             ++CurrentRowIndex_;
         }
         if (rows.empty()) {
@@ -380,7 +381,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 
     // NB: Includes the weight of the $timestamp column if it exists.
     // NB: Be sure to place writes of all additional columns before this line.
-    auto dataWeight = static_cast<i64>(NTableClient::GetDataWeight(dynamicRow));
+    auto dataWeight = NTableClient::GetDataWeightAfterHunkDecoding(dynamicRow, Schema_);
     if (CumulativeDataWeightColumnId_) {
         if (dynamicRow[*CumulativeDataWeightColumnId_].Type == EValueType::Null) {
             // Account for the $cumulative_data_weight column we are adding.

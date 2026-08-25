@@ -3,6 +3,7 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "helpers.h"
+#include "hunks.h"
 #include "partitioner.h"
 #include "rows_digest.h"
 #include "schemaless_block_writer.h"
@@ -448,18 +449,19 @@ protected:
         ValidateKeyWeight(weight, Config_, Options_);
 
         for (int index = keyColumnCount; index < static_cast<int>(row.GetCount()); ++index) {
-            auto valueWeight = NTableClient::GetDataWeight(row[index]);
+            const auto& value = row[index];
+            auto valueWeight = GetDataWeightWithoutHunkEncoding(value);
             if (valueWeight > MaxStringValueLength) {
                 IsCompatibleWithDynamicTableConstraints_ = false;
             }
             weight += valueWeight;
         }
+        ValidateRowWeight(weight, Config_, Options_);
 
         if (weight > MaxClientVersionedRowDataWeight) {
             IsCompatibleWithDynamicTableConstraints_ = false;
         }
 
-        ValidateRowWeight(weight, Config_, Options_);
         DataWeight_.fetch_add(weight, std::memory_order::relaxed);
         DataWeightSinceLastBlockFlush_ += weight;
 

@@ -1793,6 +1793,7 @@ public:
             // Restoring statistics.
             newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;
             newChunkList->Statistics().LogicalDataWeight = chunkList->Statistics().LogicalDataWeight;
+            newChunkList->Statistics().LogicalHunkDataWeight = chunkList->Statistics().LogicalHunkDataWeight;
             newChunkList->CumulativeStatistics() = chunkList->CumulativeStatistics();
             newChunkList->CumulativeStatistics().TrimFront(chunkList->GetTrimmedChildCount());
         } else if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
@@ -6380,6 +6381,7 @@ private:
                     hunkChunk->AccumulateNewlyReferencedHunkStatistics(hunkDataWeight, hunkDataSize);
 
                     statisticsDelta.HunkDataWeight += hunkDataWeight;
+                    statisticsDelta.LogicalHunkDataWeight += hunkDataWeight;
                     statisticsDelta.HunkDataSize += hunkDataSize;
                     codecToDataSize[FromProto<NErasure::ECodec>(protoRef.erasure_codec())] += hunkDataSize;
                 }
