@@ -177,6 +177,16 @@ class ExprFuncSerializer:
         return f"(sgn({query_parts}))", other_tags
 
     @staticmethod
+    def drop_below(serializer, expression):
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
+        return f"({query_parts} >= {expression.args[2]})", other_tags
+
+    @staticmethod
+    def drop_above(serializer, expression):
+        query_parts, other_tags = serializer._prepare_expr_query(expression.args[1])
+        return f"({query_parts} <= {expression.args[2]})", other_tags
+
+    @staticmethod
     def series_avg(serializer, expression):
         return ExprFuncSerializer._series_func(serializer, expression, "avg")
 
@@ -261,6 +271,8 @@ class GrafanaSerializerBase(SerializerBase):
             "moving_avg": lambda expression: ExprFuncSerializer.moving_avg(self, expression),
             "derivative": lambda expression: ExprFuncSerializer.derivative(self, expression),
             "sign": lambda expression: ExprFuncSerializer.sign(self, expression),
+            "drop_below": lambda expression: ExprFuncSerializer.drop_below(self, expression),
+            "drop_above": lambda expression: ExprFuncSerializer.drop_above(self, expression),
             "series_avg": lambda expression: ExprFuncSerializer.series_avg(self, expression),
             "series_max": lambda expression: ExprFuncSerializer.series_max(self, expression),
             "series_min": lambda expression: ExprFuncSerializer.series_min(self, expression),

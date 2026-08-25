@@ -31,7 +31,10 @@ anon_memory_limit = MonitoringExpr(TabNodePorto("yt.porto.memory.anon_limit")
     .value("container_category", "pod"))
 anon_memory_usage = MonitoringExpr(TabNodePorto("yt.porto.memory.anon_usage")
     .value("container_category", "pod"))
-oom_tracker_threshold = MonitoringExpr(TabNodeMemory("yt.memory.tcmalloc.desired_usage_limit_bytes"))
+OOM_THRESHOLD_NOT_SET_BOUND = 10 ** 12
+oom_tracker_threshold = MonitoringExpr(
+    TabNodeMemory("yt.memory.tcmalloc.desired_usage_limit_bytes")
+).drop_above(OOM_THRESHOLD_NOT_SET_BOUND)
 
 
 def disk_statistics(row, medium_name=None):

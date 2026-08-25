@@ -175,7 +175,7 @@
                 },
                 {
                     "datasource": null,
-                    "expr": "min by() ({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_memory_tcmalloc_desired_usage_limit_bytes\", proxy_role=~\"$proxy_role\"})",
+                    "expr": "min by() (({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_memory_tcmalloc_desired_usage_limit_bytes\", proxy_role=~\"$proxy_role\"} <= 1000000000000))",
                     "legendFormat": "\"OOM tracker threshold\"",
                     "refId": "C"
                 },

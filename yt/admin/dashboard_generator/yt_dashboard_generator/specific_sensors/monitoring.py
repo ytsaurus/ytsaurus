@@ -91,6 +91,9 @@ class MonitoringExpr(Taggable):
     def drop_below(self, value):
         return self.func("drop_below", self, value)
 
+    def drop_above(self, value):
+        return self.func("drop_above", self, value)
+
     def drop_label(self, label):
         return self.func("drop_label", self, f'"{label}"')
 
