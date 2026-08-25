@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     adapter_test_context.cpp
     process_function_ut.cpp
+    registry_ut.cpp
     source_adapter_ut.cpp
     transform_ordered_source_adapter_ut.cpp
 )

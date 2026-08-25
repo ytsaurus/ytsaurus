@@ -1,8 +1,12 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/flow/library/cpp/common/message_migration.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NFlow {
@@ -46,6 +50,26 @@ TEST(TRegistryTest, Create)
         }
     };
     EXPECT_THROW(createWithMistake(), TErrorException);
+}
+
+TEST(TRegistryTest, DefaultPayloadMigrationIsRegisteredAndCallable)
+{
+    auto schema = ConvertTo<NTableClient::TTableSchemaPtr>(TYsonString(TStringBuf(R"""(
+        [
+            {"name" = "value"; "type" = "string";};
+        ]
+    )""")));
+    TPayloadBuilder builder(schema);
+    builder.SetValue(NTableClient::MakeUnversionedStringValue("test"), 0);
+    auto payload = builder.Finish();
+    TPayloadMigrationOptions options{
+        .PayloadSchema = schema,
+        .TargetSchema = schema,
+    };
+    auto expected = DefaultMigrationFunction(payload, options);
+
+    auto migration = TRegistry::Get()->GetPayloadMigrationFunction("NYT::NFlow::DefaultMigrationFunction");
+    EXPECT_EQ(expected, migration(payload, options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

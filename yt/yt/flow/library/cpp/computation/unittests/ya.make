@@ -17,6 +17,7 @@ SRCS(
     late_data_partitions_ut.cpp
     message_filter_ut.cpp
     meta_setter_ut.cpp
+    registry_ut.cpp
     resource_ut.cpp
     state_client_ut.cpp
     state_providers_ut.cpp
