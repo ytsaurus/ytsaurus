@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     queue_info_ut.cpp
+    registry_ut.cpp
     tablet_index_evaluator_ut.cpp
 )
 

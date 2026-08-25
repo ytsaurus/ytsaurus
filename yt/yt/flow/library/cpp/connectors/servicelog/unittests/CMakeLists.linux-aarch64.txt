@@ -64,6 +64,7 @@ target_link_options(yt-flow-library-cpp-connectors-servicelog-unittests PRIVATE
 target_sources(yt-flow-library-cpp-connectors-servicelog-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/servicelog/unittests/fetcher_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/servicelog/unittests/joiner_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/servicelog/unittests/registry_ut.cpp
 )
 
 

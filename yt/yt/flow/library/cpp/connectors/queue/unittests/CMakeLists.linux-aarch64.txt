@@ -61,6 +61,7 @@ target_link_options(yt-flow-library-cpp-connectors-queue-unittests PRIVATE
 
 target_sources(yt-flow-library-cpp-connectors-queue-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/queue/unittests/queue_info_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/queue/unittests/registry_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/queue/unittests/tablet_index_evaluator_ut.cpp
 )
 

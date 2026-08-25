@@ -14,14 +14,14 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(yt-flow-library-cpp-connectors-queue-unittests)
+add_executable(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests)
 
 
-set_property(TARGET yt-flow-library-cpp-connectors-queue-unittests PROPERTY OUTPUT_NAME
-  yt-yt-flow-library-cpp-connectors-queue-unittests
+set_property(TARGET yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests PROPERTY OUTPUT_NAME
+  sorted_dynamic_table-unittests
 )
 
-target_compile_options(yt-flow-library-cpp-connectors-queue-unittests PRIVATE
+target_compile_options(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -31,7 +31,7 @@ target_compile_options(yt-flow-library-cpp-connectors-queue-unittests PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-flow-library-cpp-connectors-queue-unittests PUBLIC
+target_link_libraries(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -39,18 +39,15 @@ target_link_libraries(yt-flow-library-cpp-connectors-queue-unittests PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
-  client-unittests-mock
-  common-unittests-mock
-  cpp-connectors-queue
-  library-query-engine
+  cpp-connectors-sorted_dynamic_table
 )
 
-target_allocator(yt-flow-library-cpp-connectors-queue-unittests
+target_allocator(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(yt-flow-library-cpp-connectors-queue-unittests PRIVATE
+target_link_options(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -61,40 +58,38 @@ target_link_options(yt-flow-library-cpp-connectors-queue-unittests PRIVATE
   -lutil
 )
 
-target_sources(yt-flow-library-cpp-connectors-queue-unittests PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/queue/unittests/queue_info_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/queue/unittests/registry_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/queue/unittests/tablet_index_evaluator_ut.cpp
+target_sources(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/sorted_dynamic_table/unittests/registry_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-flow-library-cpp-connectors-queue-unittests
+  sorted_dynamic_table-unittests
   COMMAND
-  yt-yt-flow-library-cpp-connectors-queue-unittests
+  sorted_dynamic_table-unittests
 )
 
 set_property(
   TEST
-  yt-yt-flow-library-cpp-connectors-queue-unittests
+  sorted_dynamic_table-unittests
   PROPERTY
   LABELS
-  MEDIUM
+  SMALL
 )
 
 set_property(
   TEST
-  yt-yt-flow-library-cpp-connectors-queue-unittests
+  sorted_dynamic_table-unittests
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-flow-library-cpp-connectors-queue-unittests)
+vcs_info(yt-flow-library-cpp-connectors-sorted_dynamic_table-unittests)
 
 set_property(
   TEST
-  yt-yt-flow-library-cpp-connectors-queue-unittests
+  sorted_dynamic_table-unittests
   PROPERTY
   PROCESSORS
   1
