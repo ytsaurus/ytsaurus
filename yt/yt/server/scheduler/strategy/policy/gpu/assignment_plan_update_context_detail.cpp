@@ -41,12 +41,12 @@ TAssignmentPtr TAssignmentHandler::AddPlannedAssignment(
         .Item("node_address").Value(node->Address())
         .Item("assignment").Value(assignment);
 
-    YT_LOG_DEBUG("Added assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v, Preemptible: %v, OperationId: %v)",
-        assignment->AllocationGroupName,
-        assignment->ResourceUsage,
-        assignment->Node->Address(),
-        assignment->Preemptible,
-        assignment->Operation->GetId());
+    YT_TLOG_DEBUG("Added assignment")
+        .With("AllocationGroupName", assignment->AllocationGroupName)
+        .With("ResourceUsage", assignment->ResourceUsage)
+        .With("NodeAddress", assignment->Node->Address())
+        .With("Preemptible", assignment->Preemptible)
+        .With("OperationId", assignment->Operation->GetId());
 
     return assignment;
 }
@@ -69,32 +69,26 @@ void TAssignmentHandler::PreemptAssignment(
         .Item("reason").Value(preemptionReason)
         .Item("description").Value(preemptionDescription);
 
-    YT_LOG_DEBUG(
-        "Preempted assignment "
-        "(Reason: %v, Description: %v, PreemptedFor: %v, AllocationGroupName: %v, "
-        "ResourceUsage: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v)",
-        preemptionReason,
-        preemptionDescription,
-        preemptedForOperationId,
-        assignment->AllocationGroupName,
-        assignment->ResourceUsage,
-        assignment->Node->Address(),
-        assignment->Operation->GetId(),
-        assignment->AllocationId,
-        assignment->PreemptibleProgressStartTime);
+    YT_TLOG_DEBUG("Preempted assignment")
+        .With("Reason", preemptionReason)
+        .With("Description", preemptionDescription)
+        .With("PreemptedFor", preemptedForOperationId)
+        .With("AllocationGroupName", assignment->AllocationGroupName)
+        .With("ResourceUsage", assignment->ResourceUsage)
+        .With("NodeAddress", assignment->Node->Address())
+        .With("OperationId", assignment->Operation->GetId())
+        .With("AllocationId", assignment->AllocationId)
+        .With("PreemptibleProgressStartTime", assignment->PreemptibleProgressStartTime);
 }
 
 void TAssignmentHandler::RemoveAssignment(const TAssignmentPtr& assignment, bool strict) const
 {
-    YT_LOG_DEBUG(
-        "Removing assignment "
-        "(ResourceUsage: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, "
-        "Strict: %v)",
-        assignment->ResourceUsage,
-        assignment->Node->Address(),
-        assignment->Operation->GetId(),
-        assignment->AllocationId,
-        strict);
+    YT_TLOG_DEBUG("Removing assignment")
+        .With("ResourceUsage", assignment->ResourceUsage)
+        .With("NodeAddress", assignment->Node->Address())
+        .With("OperationId", assignment->Operation->GetId())
+        .With("AllocationId", assignment->AllocationId)
+        .With("Strict", strict);
 
     if (strict) {
         YT_VERIFY(assignment->Node->Assignments().contains(assignment));
@@ -232,9 +226,9 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatuses() const
 
         const auto* operationElement = FindOperationElement(operation);
         if (!operationElement) {
-            YT_LOG_DEBUG("Operation is not present in the tree snapshot (OperationId: %v, TreeSnapshotId: %v)",
-                operation->GetId(),
-                TreeSnapshot_->GetId());
+            YT_TLOG_DEBUG("Operation is not present in the tree snapshot")
+                .With("OperationId", operation->GetId())
+                .With("TreeSnapshotId", TreeSnapshot_->GetId());
 
             ResetOperationResources(operation);
             continue;
@@ -308,7 +302,9 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
 
     // Preemptible FHMB operations do not deserve resources.
     if (operation->IsFullHostModuleBound() && operation->IsPreemptible()) {
-        YT_LOG_DEBUG("Skipping FHMB operation because it is preemptible (OperationId: %v, FairShare: %v)", operation->GetId(), fairShare);
+        YT_TLOG_DEBUG("Skipping FHMB operation because it is preemptible")
+            .With("OperationId", operation->GetId())
+            .With("FairShare", fairShare);
         return;
     }
 
@@ -331,17 +327,14 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
         const auto allocationUsageShare = convertToShare(neededAllocationGroupResources.MinNeededResources);
         const auto emptyAssignmentCount = GetOrDefault(operation->EmptyAssignmentCountPerGroup(), neededAllocationGroupName);
 
-        YT_LOG_DEBUG(
-            "Updating operation resources for allocation group "
-            "(OperationId: %v, AllocationGroup: %v, NeededAllocationCount: %v, MinNeededResources: %v, "
-            "EmptyAssignmentCount: %v, FairShare: %v, AllocationUsageShare: %v)",
-            operation->GetId(),
-            neededAllocationGroupName,
-            neededAllocationGroupResources.AllocationCount,
-            neededAllocationGroupResources.MinNeededResources,
-            emptyAssignmentCount,
-            fairShare,
-            allocationUsageShare);
+        YT_TLOG_DEBUG("Updating operation resources for allocation group")
+            .With("OperationId", operation->GetId())
+            .With("AllocationGroup", neededAllocationGroupName)
+            .With("NeededAllocationCount", neededAllocationGroupResources.AllocationCount)
+            .With("MinNeededResources", neededAllocationGroupResources.MinNeededResources)
+            .With("EmptyAssignmentCount", emptyAssignmentCount)
+            .With("FairShare", fairShare)
+            .With("AllocationUsageShare", allocationUsageShare);
 
         while (emptyAssignmentCount + readyToAssignResources.AllocationCount + extraResources.AllocationCount < neededAllocationGroupResources.AllocationCount) {
             auto sumOfUsageShare = assignedUsageShare + readyToAssignShare + extraShare + allocationUsageShare;
@@ -360,22 +353,17 @@ void TAssignmentPlanUpdateContext::UpdateOperationResources(const TOperationPtr&
             }
         }
 
-        YT_LOG_DEBUG(
-            "Finished updating operation resources for allocation group "
-            "(OperationId: %v, AllocationGroup: %v, AssignedUsageShare: %v, "
-            "ReadyToAssignShare: %v, ExtraShare: %v, FairShare: %v, "
-            "ReadyToAssignAllocationCount: %v, ExtraAllocationCount: %v, EmptyAssignmentCount: %v, "
-            "NeededAllocationCount: %v)",
-            operation->GetId(),
-            neededAllocationGroupName,
-            assignedUsageShare,
-            readyToAssignShare,
-            extraShare,
-            fairShare,
-            readyToAssignResources.AllocationCount,
-            extraResources.AllocationCount,
-            emptyAssignmentCount,
-            neededAllocationGroupResources.AllocationCount);
+        YT_TLOG_DEBUG("Finished updating operation resources for allocation group")
+            .With("OperationId", operation->GetId())
+            .With("AllocationGroup", neededAllocationGroupName)
+            .With("AssignedUsageShare", assignedUsageShare)
+            .With("ReadyToAssignShare", readyToAssignShare)
+            .With("ExtraShare", extraShare)
+            .With("FairShare", fairShare)
+            .With("ReadyToAssignAllocationCount", readyToAssignResources.AllocationCount)
+            .With("ExtraAllocationCount", extraResources.AllocationCount)
+            .With("EmptyAssignmentCount", emptyAssignmentCount)
+            .With("NeededAllocationCount", neededAllocationGroupResources.AllocationCount);
     }
 }
 
@@ -416,7 +404,8 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatus(const TOperationPtr& o
 {
     operation->SetStarving(operationElement->GetStarvationStatus() != EStarvationStatus::NonStarving);
     if (operation->IsStarving()) {
-        YT_LOG_DEBUG("Operation is starving (OperationId: %v)", operation->GetId());
+        YT_TLOG_DEBUG("Operation is starving")
+            .With("OperationId", operation->GetId());
     }
 
     auto convertToShare = [&] (const TJobResources& allocationResources) -> TResourceVector {
@@ -453,11 +442,11 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatus(const TOperationPtr& o
                 !Dominates(fairShare + TResourceVector::Epsilon(), usageShare));
 
             if (previousStatus != assignment->Preemptible) {
-                YT_LOG_DEBUG("Changed assignment preemptible status (OperationId: %v, Preemptible: %v, FairShare: %v, UsageShare: %v)",
-                    operation->GetId(),
-                    assignment->Preemptible,
-                    fairShare,
-                    usageShare);
+                YT_TLOG_DEBUG("Changed assignment preemptible status")
+                    .With("OperationId", operation->GetId())
+                    .With("Preemptible", assignment->Preemptible)
+                    .With("FairShare", fairShare)
+                    .With("UsageShare", usageShare);
             }
         }
     }

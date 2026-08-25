@@ -190,7 +190,7 @@ public:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        YT_LOG_INFO("Starting min needed allocation resources update");
+        YT_TLOG_INFO("Starting min needed allocation resources update");
 
         for (const auto& [operationId, state] : OperationIdToOperationState_) {
             auto maybeUnschedulableReason = state->GetHost()->CheckUnschedulable();
@@ -199,7 +199,7 @@ public:
             }
         }
 
-        YT_LOG_INFO("Min needed allocation resources successfully updated");
+        YT_TLOG_INFO("Min needed allocation resources successfully updated");
     }
 
     void OnFairShareLogging()
@@ -306,7 +306,9 @@ public:
 
         EraseOrCrash(state->TreeIdToPoolNameMap(), treeId);
 
-        YT_LOG_INFO("Operation removed from a tree (OperationId: %v, TreeId: %v)", operationId, treeId);
+        YT_TLOG_INFO("Operation removed from a tree")
+            .With("OperationId", operationId)
+            .With("TreeId", treeId);
     }
 
     void DoUnregisterOperationFromTree(const TStrategyOperationStatePtr& operationState, const std::string& treeId)
@@ -337,7 +339,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (poolTreesYson == LastPoolTreesYson_ && ConvertToYsonString(Config_->TemplatePoolTreeConfigMap) == LastTemplatePoolTreeConfigMapYson_) {
-            YT_LOG_INFO("Pool trees and pools are not changed, skipping update");
+            YT_TLOG_INFO("Pool trees and pools are not changed, skipping update");
             return;
         }
 
@@ -369,7 +371,7 @@ public:
             // No context switches allowed during pool trees update.
             TForbidContextSwitchGuard contextSwitchGuard;
 
-            YT_LOG_INFO("Updating pool trees");
+            YT_TLOG_INFO("Updating pool trees");
 
             if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
                 THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
@@ -388,10 +390,10 @@ public:
             THashMap<std::string, TSchedulingTagFilter> treeIdToFilter;
             CollectTreeChanges(poolsMap, &treeIdsToAdd, &treeIdsToRemove, &treeIdsWithChangedFilter, &treeIdToFilter);
 
-            YT_LOG_INFO("Pool trees collected to update (TreeIdsToAdd: %v, TreeIdsToRemove: %v, TreeIdsWithChangedFilter: %v)",
-                treeIdsToAdd,
-                treeIdsToRemove,
-                treeIdsWithChangedFilter);
+            YT_TLOG_INFO("Pool trees collected to update")
+                .With("TreeIdsToAdd", treeIdsToAdd)
+                .With("TreeIdsToRemove", treeIdsToRemove)
+                .With("TreeIdsWithChangedFilter", treeIdsWithChangedFilter);
 
             // Populate trees map. New trees are not added to global map yet.
             auto idToTree = ConstructUpdatedTreeMap(
@@ -454,7 +456,7 @@ public:
                                 .Item(treeId).Do(BIND(&IPoolTree::BuildStaticPoolsInformation, tree));
                         });
                 }
-                YT_LOG_INFO("Pool trees updated");
+                YT_TLOG_INFO("Pool trees updated");
             }
         }
 
@@ -682,29 +684,30 @@ public:
                 continue;
             }
             if (!spec->SchedulingTagFilter.IsEmpty()) {
-                YT_LOG_DEBUG("Ignoring offloading since operation has scheduling tag filter (SchedulingTagFilter: %v, OperationId: %v)",
-                    spec->SchedulingTagFilter.GetFormula(),
-                    operationId);
+                YT_TLOG_DEBUG("Ignoring offloading since operation has scheduling tag filter")
+                    .With("SchedulingTagFilter", spec->SchedulingTagFilter.GetFormula())
+                    .With("OperationId", operationId);
                 continue;
             }
             if (!spec->AllowOffloading) {
-                YT_LOG_DEBUG("Ignoring offloading since it is disabled in operation spec (OperationId: %v)", operationId);
+                YT_TLOG_DEBUG("Ignoring offloading since it is disabled in operation spec")
+                    .With("OperationId", operationId);
                 continue;
             }
 
             for (const auto& [offloadingPoolTreeName, offloadingPoolSettings] : offloadingSettings) {
                 if (runtimeParameters->SchedulingOptionsPerPoolTree.contains(offloadingPoolTreeName)) {
-                    YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used (OffloadingTreeId: %v, OffloadingPool: %v, OperationId: %v)",
-                        offloadingPoolTreeName,
-                        offloadingPoolSettings->Pool,
-                        operationId);
+                    YT_TLOG_DEBUG("Ignoring offloading pool since offloading pool tree is already used")
+                        .With("OffloadingTreeId", offloadingPoolTreeName)
+                        .With("OffloadingPool", offloadingPoolSettings->Pool)
+                        .With("OperationId", operationId);
                 } else {
                     auto tree = FindTree(offloadingPoolTreeName);
                     if (!tree) {
-                        YT_LOG_DEBUG("Ignoring offloading pool since offloading pool tree does not exist (OffloadingTreeId: %v, OffloadingPool: %v, OperationId: %v)",
-                            offloadingPoolTreeName,
-                            offloadingPoolSettings->Pool,
-                            operationId);
+                        YT_TLOG_DEBUG("Ignoring offloading pool since offloading pool tree does not exist")
+                            .With("OffloadingTreeId", offloadingPoolTreeName)
+                            .With("OffloadingPool", offloadingPoolSettings->Pool)
+                            .With("OperationId", operationId);
                     } else {
                         auto treeParams = New<TOperationPoolTreeRuntimeParameters>();
                         treeParams->Weight = offloadingPoolSettings->Weight;
@@ -928,7 +931,7 @@ public:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        YT_LOG_INFO("Starting fair share update");
+        YT_TLOG_INFO("Starting fair share update");
 
         std::vector<std::pair<std::string, IPoolTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
         std::sort(
@@ -993,7 +996,7 @@ public:
                 TreeSetTopologyVersion_);
             TreeSetSnapshot_.Store(treeSetSnapshot);
 
-            YT_LOG_DEBUG("Stored updated pool tree snapshots");
+            YT_TLOG_DEBUG("Stored updated pool tree snapshots");
         }
 
         if (!errors.empty()) {
@@ -1007,7 +1010,7 @@ public:
         // TODO(eshcherbin): Decouple storing persistent state from fair share update?
         Host_->InvokeStoringStrategyState(BuildPersistentState());
 
-        YT_LOG_INFO("Fair share successfully updated");
+        YT_TLOG_INFO("Fair share successfully updated");
     }
 
     void OnFairShareEssentialLoggingAt(TInstant now) override
@@ -1062,9 +1065,8 @@ public:
         YT_VERIFY(allocationsToPostpone->empty());
         YT_VERIFY(allocationsToAbort->empty());
 
-        YT_LOG_DEBUG(
-            "Processing allocation updates in strategy (UpdateCount: %v)",
-            allocationUpdates.size());
+        YT_TLOG_DEBUG("Processing allocation updates in strategy")
+            .With("UpdateCount", allocationUpdates.size());
 
         THashMap<std::string, std::vector<TAllocationUpdate>> allocationUpdatesPerTree;
         for (const auto& allocationUpdate : allocationUpdates) {
@@ -1094,10 +1096,9 @@ public:
                     for (const auto& allocationUpdate : treeAllocationUpdates) {
                         if (allocationUpdate.Finished) {
                             // Allocation is finished but tree does not exist, nothing to do.
-                            YT_LOG_DEBUG(
-                                "Dropping allocation update since pool tree is missing (OperationId: %v, AllocationId: %v)",
-                                allocationUpdate.OperationId,
-                                allocationUpdate.AllocationId);
+                            YT_TLOG_DEBUG("Dropping allocation update since pool tree is missing")
+                                .With("OperationId", allocationUpdate.OperationId)
+                                .With("AllocationId", allocationUpdate.AllocationId);
                         } else {
                             // Allocation is orphaned (does not belong to any tree), aborting it.
                             EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, EAbortReason::NonexistentPoolTree);
@@ -1123,25 +1124,21 @@ public:
                 const auto& updateResult = updateResults[index];
 
                 if (updateResult.NeedToAbort) {
-                    YT_LOG_DEBUG(
-                        "Aborting allocation update "
-                        "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, AbortReason: %v)",
-                        allocationUpdate.OperationId,
-                        allocationUpdate.AllocationId,
-                        updateResult.Status,
-                        updateResult.AbortReason);
+                    YT_TLOG_DEBUG("Aborting allocation update")
+                        .With("OperationId", allocationUpdate.OperationId)
+                        .With("AllocationId", allocationUpdate.AllocationId)
+                        .With("UpdateStatus", updateResult.Status)
+                        .With("AbortReason", updateResult.AbortReason);
                     YT_VERIFY(updateResult.AbortReason.has_value());
                     EmplaceOrCrash(*allocationsToAbort, allocationUpdate.AllocationId, *updateResult.AbortReason);
                 }
 
                 if (updateResult.NeedToPostpone) {
-                    YT_LOG_DEBUG(
-                        "Postpone allocation update since operation is disabled or missing in snapshot "
-                        "(OperationId: %v, AllocationId: %v, UpdateStatus: %v, NeedToAbort: %v)",
-                        allocationUpdate.OperationId,
-                        allocationUpdate.AllocationId,
-                        updateResult.Status,
-                        updateResult.NeedToAbort);
+                    YT_TLOG_DEBUG("Postpone allocation update since operation is disabled or missing in snapshot")
+                        .With("OperationId", allocationUpdate.OperationId)
+                        .With("AllocationId", allocationUpdate.AllocationId)
+                        .With("UpdateStatus", updateResult.Status)
+                        .With("NeedToAbort", updateResult.NeedToAbort);
                     allocationsToPostpone->insert(allocationUpdate.AllocationId);
                 }
             }
@@ -1163,10 +1160,9 @@ public:
             if (tree && tree->HasOperation(operationId)) {
                 tree->RegisterAllocationsFromRevivedOperation(operationId, std::move(allocations));
             } else {
-                YT_LOG_INFO(
-                    "Allocations are not registered in tree since operation is missing (OperationId: %v, TreeId: %v)",
-                    operationId,
-                    treeId);
+                YT_TLOG_INFO("Allocations are not registered in tree since operation is missing")
+                    .With("OperationId", operationId)
+                    .With("TreeId", treeId);
             }
         }
     }
@@ -1211,7 +1207,8 @@ public:
                 // then its id can be missing in the map.
                 auto it = NodeIdToDescriptor_.find(nodeId);
                 if (it == NodeIdToDescriptor_.end()) {
-                    YT_LOG_WARNING("Node is not registered at strategy (Address: %v)", nodeAddress);
+                    YT_TLOG_WARNING("Node is not registered at strategy")
+                        .With("Address", nodeAddress);
 
                     return;
                 }
@@ -1227,7 +1224,9 @@ public:
                 EraseOrCrash(NodeAddresses_, nodeAddress);
                 NodeIdToDescriptor_.erase(it);
 
-                YT_LOG_INFO("Node was unregistered from strategy (Address: %v, TreeId: %v)", nodeAddress, treeId);
+                YT_TLOG_INFO("Node was unregistered from strategy")
+                    .With("Address", nodeAddress)
+                    .With("TreeId", treeId);
             }));
     }
 
@@ -1362,24 +1361,19 @@ public:
             ITERATE_JOB_RESOURCES(XX)
             #undef XX
 
-            YT_LOG_DEBUG(
-                "Considering candidate single tree for operation "
-                "(Pending: %v, Empty: %v, ZeroGuarantee: %v, "
-                "NewDemandShare: %.6g, CurrentDemandShare: %.6g, ModelDemandShare: %.6g, "
-                "EstimatedGuaranteeShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v, TotalResourceLimits: %v, "
-                "TreeId: %v, OperationId: %v)",
-                pending,
-                empty,
-                zeroGuarantee,
-                newDemandShare,
-                currentDemandShare,
-                modelDemandShare,
-                estimatedGuaranteeShare,
-                reserveShare,
-                currentReserveRatio,
-                FormatResources(totalResourceLimits),
-                treeId,
-                operationId);
+            YT_TLOG_DEBUG("Considering candidate single tree for operation")
+                .With("Pending", pending)
+                .With("Empty", empty)
+                .With("ZeroGuarantee", zeroGuarantee)
+                .WithFormat("NewDemandShare", "%.6g", newDemandShare)
+                .WithFormat("CurrentDemandShare", "%.6g", currentDemandShare)
+                .WithFormat("ModelDemandShare", "%.6g", modelDemandShare)
+                .WithFormat("EstimatedGuaranteeShare", "%.6g", estimatedGuaranteeShare)
+                .WithFormat("ReserveShare", "%.6g", reserveShare)
+                .With("CurrentReserveRatio", currentReserveRatio)
+                .With("TotalResourceLimits", FormatResources(totalResourceLimits))
+                .With("TreeId", treeId)
+                .With("OperationId", operationId);
 
             singleTreeOptions.push_back(TSingleTreeOption{
                 .TreeId = treeId,
@@ -1408,9 +1402,9 @@ public:
                 .With("tree_options", serializedTreeOptions);
         }
 
-        YT_LOG_DEBUG("Best tree selected for operation (BestTree: %v, OperationId: %v)",
-            bestTree.TreeId,
-            operationId);
+        YT_TLOG_DEBUG("Best tree selected for operation")
+            .With("BestTree", bestTree.TreeId)
+            .With("OperationId", operationId);
 
         return bestTree.TreeId;
     }
@@ -1450,11 +1444,9 @@ public:
             }
 
             if (!treeIdsToUnregister.empty()) {
-                YT_LOG_DEBUG(
-                    "Unregistering operation from trees due to job resource limits restrictions violations "
-                    "(OperationId: %v, Trees: %v)",
-                    operationId,
-                    treeIdsToUnregister);
+                YT_TLOG_DEBUG("Unregistering operation from trees due to job resource limits restrictions violations")
+                    .With("OperationId", operationId)
+                    .With("Trees", treeIdsToUnregister);
 
                 unregisterFromTrees(std::move(treeIdsToUnregister));
             }
@@ -1782,11 +1774,11 @@ private:
 
         if (treeIndex == InvalidTreeIndex) {
             if (hasMultipleMatchingTrees) {
-                YT_LOG_INFO("Node belongs to multiple fair-share trees (Address: %v)",
-                    nodeAddress);
+                YT_TLOG_INFO("Node belongs to multiple fair-share trees")
+                    .With("Address", nodeAddress);
             } else {
-                YT_LOG_INFO("Node does not belong to any fair-share tree (Address: %v)",
-                    nodeAddress);
+                YT_TLOG_INFO("Node does not belong to any fair-share tree")
+                    .With("Address", nodeAddress);
             }
         }
         return treeIndex;
@@ -2158,9 +2150,9 @@ private:
             }
 
             if (!treeIdsToErase.empty()) {
-                YT_LOG_INFO("Removing operation from deleted trees (OperationId: %v, TreeIds: %v)",
-                    operationId,
-                    treeIdsToErase);
+                YT_TLOG_INFO("Removing operation from deleted trees")
+                    .With("OperationId", operationId)
+                    .With("TreeIds", treeIdsToErase);
 
                 state->GetHost()->EraseTrees(treeIdsToErase);
                 operationsToFlush->push_back(operationId);
@@ -2238,11 +2230,11 @@ private:
                 RegisterNodeInTree(tree, nodeId, nodeAddress);
             }
 
-            YT_LOG_INFO("Node was registered at strategy (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
-                nodeId,
-                nodeAddress,
-                tags,
-                treeId);
+            YT_TLOG_INFO("Node was registered at strategy")
+                .With("NodeId", nodeId)
+                .With("Address", nodeAddress)
+                .With("Tags", tags)
+                .With("TreeId", treeId);
         } else {
             auto& currentDescriptor = it->second;
             if (treeId != currentDescriptor.TreeId) {
@@ -2252,11 +2244,11 @@ private:
             currentDescriptor.Tags = tags;
             currentDescriptor.Address = nodeAddress;
 
-            YT_LOG_INFO("Node was updated at scheduler (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
-                nodeId,
-                nodeAddress,
-                tags,
-                treeId);
+            YT_TLOG_INFO("Node was updated at scheduler")
+                .With("NodeId", nodeId)
+                .With("Address", nodeAddress)
+                .With("Tags", tags)
+                .With("TreeId", treeId);
         }
 
         ProcessNodesWithoutPoolTreeAlert();
@@ -2319,11 +2311,11 @@ private:
         auto& currentDescriptor = it->second;
         YT_VERIFY(newTreeId != currentDescriptor.TreeId);
 
-        YT_LOG_INFO("Node has changed pool tree (NodeId: %v, Address: %v, OldTreeId: %v, NewTreeId: %v)",
-            nodeId,
-            currentDescriptor.Address,
-            currentDescriptor.TreeId,
-            newTreeId);
+        YT_TLOG_INFO("Node has changed pool tree")
+            .With("NodeId", nodeId)
+            .With("Address", currentDescriptor.Address)
+            .With("OldTreeId", currentDescriptor.TreeId)
+            .With("NewTreeId", newTreeId);
 
         if (auto oldTreeId = currentDescriptor.TreeId) {
             const auto& oldTree = GetOrCrash(IdToTree_, *oldTreeId);
@@ -2444,7 +2436,8 @@ private:
             WaitFor(Host_->UpdateLastMeteringLogTime(now))
                 .ThrowOnError();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to update last metering log time");
+            YT_TLOG_WARNING("Failed to update last metering log time")
+                .With(ex);
         }
     }
 
@@ -2465,10 +2458,9 @@ private:
         }
 
         for (const auto& [treeId, treeState] : persistentStrategyState->TreeStates) {
-            YT_LOG_INFO_UNLESS(IdToTree_.contains(treeId),
-                "Unknown pool tree, skipping its persistent state (TreeId: %v, PersistentState: %v)",
-                treeId,
-                ConvertToYsonString(treeState, EYsonFormat::Text));
+            YT_TLOG_INFO_UNLESS(IdToTree_.contains(treeId), "Unknown pool tree, skipping its persistent state")
+                .With("TreeId", treeId)
+                .With("PersistentState", ConvertToYsonString(treeState, EYsonFormat::Text));
         }
 
         Initialized_ = true;

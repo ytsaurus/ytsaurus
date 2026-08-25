@@ -27,8 +27,7 @@ ISchedulingPolicyPtr CreateGpuSchedulingPolicy(
         return New<TNoopSchedulingPolicy>(treeId);
     }
 
-    YT_LOG_WARNING_UNLESS(IsGpuPoolTree(config),
-        "GPU scheduling policy configured for a non-GPU pool tree");
+    YT_TLOG_WARNING_UNLESS(IsGpuPoolTree(config), "GPU scheduling policy configured for a non-GPU pool tree");
 
     return New<TSchedulingPolicy>(
         std::move(host),

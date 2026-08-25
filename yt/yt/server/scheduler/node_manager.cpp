@@ -558,10 +558,8 @@ void TNodeManager::RegisterAgentAtNodeShards(
     });
 
     auto error = WaitFor(AllSucceeded(std::move(futures)));
-    YT_LOG_FATAL_IF(
-        !error.IsOK(),
-        error,
-        "Failed to register agent at node shards");
+    YT_TLOG_FATAL_IF(!error.IsOK(), "Failed to register agent at node shards")
+        .With(error);
 }
 
 void TNodeManager::UnregisterAgentFromNodeShards(const TAgentId& id)
@@ -573,10 +571,8 @@ void TNodeManager::UnregisterAgentFromNodeShards(const TAgentId& id)
     });
 
     auto error = WaitFor(AllSucceeded(std::move(futures)));
-    YT_LOG_FATAL_IF(
-        !error.IsOK(),
-        error,
-        "Failed to unregister agents from node shards");
+    YT_TLOG_FATAL_IF(!error.IsOK(), "Failed to unregister agents from node shards")
+        .With(error);
 }
 
 const TNodeShardPtr& TNodeManager::GetNodeShard(NNodeTrackerClient::TNodeId nodeId) const
