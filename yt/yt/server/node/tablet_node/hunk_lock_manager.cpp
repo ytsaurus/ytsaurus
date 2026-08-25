@@ -138,11 +138,10 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        YT_LOG_DEBUG(
-            "Hunk store added (HunkStoreId: %v, HunkCellId: %v, HunkTabletId: %v)",
-            hunkStoreId,
-            hunkCellId,
-            hunkTabletId);
+        YT_TLOG_DEBUG("Hunk store added")
+            .With("HunkStoreId", hunkStoreId)
+            .With("HunkCellId", hunkCellId)
+            .With("HunkTabletId", hunkTabletId);
 
         THunkStoreLockingState lockingState{
             .HunkCellId = hunkCellId,
@@ -151,14 +150,14 @@ public:
             .LastChangeTime = TInstant::Now(),
         };
         if (!HunkStoreIdToLockingState_.emplace(hunkStoreId, lockingState).second) {
-            YT_LOG_ALERT("Trying to register hunk lock that is already registered (HunkStoreId: %v)",
-                hunkStoreId);
+            YT_TLOG_ALERT("Trying to register hunk lock that is already registered")
+                .With("HunkStoreId", hunkStoreId);
         }
         if (Context_->GetAutomatonState() == EPeerState::Leading &&
             !HunkStoreIdsBeingLockedToPromise_.contains(hunkStoreId))
         {
-            YT_LOG_ALERT("Hunk store locking promise is lost during commit (HunkStoreId: %v)",
-                hunkStoreId);
+            YT_TLOG_ALERT("Hunk store locking promise is lost during commit")
+                .With("HunkStoreId", hunkStoreId);
         }
         SetHunkStoreLockingFuture(hunkStoreId, {});
     }
@@ -172,9 +171,8 @@ public:
         YT_VERIFY(it != HunkStoreIdToLockingState_.end());
         YT_VERIFY(it->second.PersistentLockCount + it->second.TransientLockCount == 0);
 
-        YT_LOG_DEBUG(
-            "Hunk store removed (HunkStoreId: %v)",
-            hunkStoreId);
+        YT_TLOG_DEBUG("Hunk store removed")
+            .With("HunkStoreId", hunkStoreId);
 
         HunkStoreIdToLockingState_.erase(it);
     }
@@ -188,11 +186,10 @@ public:
         lockingState.PersistentLockCount += count;
         YT_VERIFY(lockingState.PersistentLockCount >= 0);
 
-        YT_LOG_DEBUG(
-            "Hunk store locked persistently (HunkStoreId: %v, LockingState: %v, Delta: %v)",
-            hunkStoreId,
-            lockingState,
-            count);
+        YT_TLOG_DEBUG("Hunk store locked persistently")
+            .With("HunkStoreId", hunkStoreId)
+            .With("LockingState", lockingState)
+            .With("Delta", count);
 
         Touch(lockingState);
     }
@@ -216,10 +213,10 @@ public:
         lockingState.TransientLockCount += count;
         YT_VERIFY(lockingState.TransientLockCount >= 0);
 
-        YT_LOG_DEBUG("Hunk store locked transiently (HunkStoreId: %v, LockingState: %v, Delta: %v)",
-            hunkStoreId,
-            lockingState,
-            count);
+        YT_TLOG_DEBUG("Hunk store locked transiently")
+            .With("HunkStoreId", hunkStoreId)
+            .With("LockingState", lockingState)
+            .With("Delta", count);
 
         Touch(lockingState);
     }
@@ -278,10 +275,10 @@ public:
         }
 
         for (auto hunkStoreId : hunkStoreIdsToLock) {
-            YT_LOG_DEBUG("Locking hunk store (HunkStoreId: %v, HunkCellId: %v, HunkTabletId: %v)",
-                hunkStoreId,
-                hunkChunksInfo.CellId,
-                hunkChunksInfo.HunkTabletId);
+            YT_TLOG_DEBUG("Locking hunk store")
+                .With("HunkStoreId", hunkStoreId)
+                .With("HunkCellId", hunkChunksInfo.CellId)
+                .With("HunkTabletId", hunkChunksInfo.HunkTabletId);
 
             auto promise = NewPromise<void>();
             EmplaceOrCrash(HunkStoreIdsBeingLockedToPromise_, hunkStoreId, promise);
@@ -307,15 +304,15 @@ public:
                 if (HunkStoreIdsBeingLockedToPromise_.contains(hunkStoreId)) {
                     return;
                 }
-                YT_LOG_ALERT("Hunk store is not marked as being locked (HunkStoreId: %v)",
-                    hunkStoreId);
+                YT_TLOG_ALERT("Hunk store is not marked as being locked")
+                    .With("HunkStoreId", hunkStoreId);
             } else {
                 auto& lockingState = GetOrCrash(HunkStoreIdToLockingState_, hunkStoreId);
                 if (lockingState.IsBeingUnlocked) {
                     return;
                 }
-                YT_LOG_ALERT("Hunk store is not marked as being unlocked (HunkStoreId: %v)",
-                    hunkStoreId);
+                YT_TLOG_ALERT("Hunk store is not marked as being unlocked")
+                    .With("HunkStoreId", hunkStoreId);
             }
         }
 
@@ -336,17 +333,16 @@ public:
         if (Context_->GetAutomatonState() == EPeerState::Leading) {
             if (lock) {
                 if (!HunkStoreIdsBeingLockedToPromise_.contains(hunkStoreId)) {
-                    YT_LOG_ALERT("Hunk store locking promise is lost during abort (HunkStoreId: %v)",
-                        hunkStoreId);
+                    YT_TLOG_ALERT("Hunk store locking promise is lost during abort")
+                        .With("HunkStoreId", hunkStoreId);
                 }
             } else {
                 if (auto it = HunkStoreIdToLockingState_.find(hunkStoreId);
                     it != HunkStoreIdToLockingState_.end() &&
                     !it->second.IsBeingUnlocked)
                 {
-                    YT_LOG_ALERT("Hunk store was not marked as being unlocked during abort "
-                        "(HunkStoreId: %v)",
-                        hunkStoreId);
+                    YT_TLOG_ALERT("Hunk store was not marked as being unlocked during abort")
+                        .With("HunkStoreId", hunkStoreId);
                 }
             }
 
@@ -443,9 +439,8 @@ private:
         } else {
             auto it = HunkStoreIdToLockingState_.find(hunkStoreId);
             if (it == HunkStoreIdToLockingState_.end()) {
-                YT_LOG_ALERT(
-                    "Hunk store is lost during abort (HunkStoreId: %v)",
-                    hunkStoreId);
+                YT_TLOG_ALERT("Hunk store is lost during abort")
+                    .With("HunkStoreId", hunkStoreId);
                 return;
             }
 
@@ -514,7 +509,7 @@ private:
 
     void UnlockStaleHunkStores()
     {
-        YT_LOG_DEBUG("Starting unlock check");
+        YT_TLOG_DEBUG("Starting unlock check");
 
         auto now = TInstant::Now();
         const auto& config = GetDynamicConfig();
@@ -529,10 +524,10 @@ private:
                 (now - lockingState.LastChangeTime >= config->HunkStoreExtraLifeTime ||
                 Tablet_->GetState() != ETabletState::Mounted))
             {
-                YT_LOG_DEBUG("Unlocking hunk store (HunkStoreId: %v, HunkCellId: %v, HunkTabletId: %v)",
-                    hunkStoreId,
-                    lockingState.HunkCellId,
-                    lockingState.HunkTabletId);
+                YT_TLOG_DEBUG("Unlocking hunk store")
+                    .With("HunkStoreId", hunkStoreId)
+                    .With("HunkCellId", lockingState.HunkCellId)
+                    .With("HunkTabletId", lockingState.HunkTabletId);
 
                 lockingState.IsBeingUnlocked = true;
                 ToggleLock(
@@ -542,10 +537,10 @@ private:
                     lockingState.HunkMountRevision,
                     /*lock*/ false);
             } else {
-                YT_LOG_DEBUG("Not unlocking hunk store (HunkStoreId: %v, HunkCellId: %v, HunkTabletId: %v)",
-                    hunkStoreId,
-                    lockingState.HunkCellId,
-                    lockingState.HunkTabletId);
+                YT_TLOG_DEBUG("Not unlocking hunk store")
+                    .With("HunkStoreId", hunkStoreId)
+                    .With("HunkCellId", lockingState.HunkCellId)
+                    .With("HunkTabletId", lockingState.HunkTabletId);
             }
         }
     }

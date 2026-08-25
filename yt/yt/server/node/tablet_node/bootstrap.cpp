@@ -134,7 +134,7 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing tablet node");
+        YT_TLOG_INFO("Initializing tablet node");
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
@@ -317,7 +317,7 @@ public:
         }
 
         if (!GetConfig()->TabletNode->AllowReignChange) {
-            YT_LOG_DEBUG("Tablet cell reign change is forbidden by config");
+            YT_TLOG_DEBUG("Tablet cell reign change is forbidden by config");
             SetReignChangeAllowed(false);
         }
     }

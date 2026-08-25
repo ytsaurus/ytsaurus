@@ -774,20 +774,18 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
         upperBound = partitionBounds.Back().Bounds.back().second;
     }
 
-    YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, "
-        "WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v, "
-        "Timestamp: %v, BoundCount: %v, LowerBound: %kv, UpperBound: %kv, MergeVersionedRows: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(stores, TStoreIdFormatter()),
-        MakeFormattableView(stores, TStoreRangeFormatter()),
-        timestamp,
-        std::ssize(partitionBounds),
-        lowerBound,
-        upperBound,
-        mergeVersionedRows);
+    YT_TLOG_DEBUG("Creating schemaful sorted tablet reader")
+        .With("TabletId", tabletSnapshot->TabletId)
+        .With("CellId", tabletSnapshot->CellId)
+        .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
+        .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .With("StoreIds", MakeFormattableView(stores, TStoreIdFormatter()))
+        .With("StoreRanges", MakeFormattableView(stores, TStoreRangeFormatter()))
+        .With("Timestamp", timestamp)
+        .With("BoundCount", std::ssize(partitionBounds))
+        .WithFormat("LowerBound", "%kv", lowerBound)
+        .WithFormat("UpperBound", "%kv", upperBound)
+        .With("MergeVersionedRows", mergeVersionedRows);
 
     return DoCreateScanReader(
         tabletSnapshot,
@@ -873,20 +871,18 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             .With("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
-    YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
-        "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, "
-        "StoreRanges: %v, BoundCount: %v, MergeVersionedRows: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        timestamp,
-        lowerBound,
-        upperBound,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(stores, TStoreIdFormatter()),
-        MakeFormattableView(stores, TStoreRangeFormatter()),
-        bounds.Size(),
-        mergeVersionedRows);
+    YT_TLOG_DEBUG("Creating schemaful sorted tablet reader")
+        .With("TabletId", tabletSnapshot->TabletId)
+        .With("CellId", tabletSnapshot->CellId)
+        .With("Timestamp", timestamp)
+        .With("LowerBound", lowerBound)
+        .With("UpperBound", upperBound)
+        .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
+        .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .With("StoreIds", MakeFormattableView(stores, TStoreIdFormatter()))
+        .With("StoreRanges", MakeFormattableView(stores, TStoreRangeFormatter()))
+        .With("BoundCount", bounds.Size())
+        .With("MergeVersionedRows", mergeVersionedRows);
 
     std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(stores.size());
@@ -1085,17 +1081,18 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
         }
     }
 
-    YT_LOG_DEBUG("Creating schemaful ordered tablet reader (TabletId: %v, CellId: %v, "
-        "LowerRowIndex: %v, UpperRowIndex: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        lowerRowIndex,
-        upperRowIndex,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(storeIndices, [&] (auto* builder, int storeIndex) {
-            FormatValue(builder, allStores[storeIndex]->GetId(), TStringBuf());
-        }));
+    YT_TLOG_DEBUG("Creating schemaful ordered tablet reader")
+        .With("TabletId", tabletSnapshot->TabletId)
+        .With("CellId", tabletSnapshot->CellId)
+        .With("LowerRowIndex", lowerRowIndex)
+        .With("UpperRowIndex", upperRowIndex)
+        .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
+        .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .With(
+            "StoreIds",
+            MakeFormattableView(storeIndices, [&] (auto* builder, int storeIndex) {
+                FormatValue(builder, allStores[storeIndex]->GetId(), TStringBuf());
+            }));
 
     std::vector<std::function<ISchemafulUnversionedReaderPtr()>> readers;
     for (int storeIndex : storeIndices) {
@@ -1198,25 +1195,23 @@ IVersionedReaderPtr CreateCompactionTabletReader(
     if (asyncResult.IsSet()) {
         asyncResult.GetOrCrash().ThrowOnError();
     } else {
-        YT_LOG_DEBUG("Started waiting for compaction inbound throughput throttler");
+        YT_TLOG_DEBUG("Started waiting for compaction inbound throughput throttler");
         WaitFor(asyncResult)
             .ThrowOnError();
-        YT_LOG_DEBUG("Finished waiting for compaction inbound throughput throttler");
+        YT_TLOG_DEBUG("Finished waiting for compaction inbound throughput throttler");
     }
 
-    YT_LOG_DEBUG(
-        "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
-        "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
-        tabletSnapshot->TabletId,
-        tabletSnapshot->CellId,
-        lowerBound,
-        upperBound,
-        currentTimestamp,
-        majorTimestamp,
-        chunkReadOptions.WorkloadDescriptor,
-        chunkReadOptions.ReadSessionId,
-        MakeFormattableView(stores, TStoreIdFormatter()),
-        MakeFormattableView(stores, TStoreRangeFormatter()));
+    YT_TLOG_DEBUG("Creating versioned tablet reader")
+        .With("TabletId", tabletSnapshot->TabletId)
+        .With("CellId", tabletSnapshot->CellId)
+        .With("LowerBound", lowerBound)
+        .With("UpperBound", upperBound)
+        .With("CurrentTimestamp", currentTimestamp)
+        .With("MajorTimestamp", majorTimestamp)
+        .With("WorkloadDescriptor", chunkReadOptions.WorkloadDescriptor)
+        .With("ReadSessionId", chunkReadOptions.ReadSessionId)
+        .With("StoreIds", MakeFormattableView(stores, TStoreIdFormatter()))
+        .With("StoreRanges", MakeFormattableView(stores, TStoreRangeFormatter()));
 
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 

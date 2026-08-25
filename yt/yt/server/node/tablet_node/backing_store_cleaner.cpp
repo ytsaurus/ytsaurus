@@ -193,12 +193,11 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Backing memory limit exceeded "
-                "(TabletCellBundle: %v, MemoryLimit: %v, MemoryUsage: %v, Overcommit: %v)",
-                bundleName,
-                bundleData.MemoryLimit,
-                bundleData.MemoryUsage,
-                memoryOvercommit);
+            YT_TLOG_DEBUG("Backing memory limit exceeded")
+                .With("TabletCellBundle", bundleName)
+                .With("MemoryLimit", bundleData.MemoryLimit)
+                .With("MemoryUsage", bundleData.MemoryUsage)
+                .With("Overcommit", memoryOvercommit);
 
             int storeIndex = 0;
             for (; storeIndex < std::ssize(stores); ++storeIndex) {

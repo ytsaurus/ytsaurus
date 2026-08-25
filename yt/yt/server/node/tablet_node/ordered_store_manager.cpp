@@ -208,17 +208,15 @@ void TOrderedStoreManager::CreateActiveStore(TDynamicStoreId hintId)
         Tablet_->GetState() == ETabletState::FreezeFlushing)
     {
         ActiveStore_->SetStoreState(EStoreState::PassiveDynamic);
-        YT_LOG_INFO(
-            "Rotation request received while tablet is in flushing state, "
-            "active store created as passive (StoreId: %v, StartingRowIndex: %v, TabletState: %v)",
-            storeId,
-            startingRowIndex,
-            Tablet_->GetState());
+        YT_TLOG_INFO("Rotation request received while tablet is in flushing state, active store created as passive")
+            .With("StoreId", storeId)
+            .With("StartingRowIndex", startingRowIndex)
+            .With("TabletState", Tablet_->GetState());
 
     } else {
-        YT_LOG_INFO("Active store created (StoreId: %v, StartingRowIndex: %v)",
-            storeId,
-            startingRowIndex);
+        YT_TLOG_INFO("Active store created")
+            .With("StoreId", storeId)
+            .With("StartingRowIndex", startingRowIndex);
     }
 }
 
@@ -400,11 +398,10 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                         New<TRefCountedChunkMeta>(*finalizedMeta));
                 }
 
-                YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization "
-                    "(Success: %v, ChunkId: %v, Activity: %v)",
-                    result,
-                    tableWriter->GetChunkId(),
-                    ETabletBackgroundActivity::Flush);
+                YT_TLOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization")
+                    .With("Success", result)
+                    .With("ChunkId", tableWriter->GetChunkId())
+                    .With("Activity", ETabletBackgroundActivity::Flush);
             }));
         }
 
@@ -419,8 +416,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         i64 rowCount = 0;
 
-        YT_LOG_DEBUG("Ordered store flush started (StoreId: %v)",
-            store->GetId());
+        YT_TLOG_DEBUG("Ordered store flush started")
+            .With("StoreId", store->GetId());
 
         while (auto batch = reader->Read()) {
             auto rows = batch->MaterializeRows();
@@ -440,8 +437,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         }
 
         if (rowCount == 0) {
-            YT_LOG_DEBUG("Ordered store is empty, nothing to flush (StoreId: %v)",
-                store->GetId());
+            YT_TLOG_DEBUG("Ordered store is empty, nothing to flush")
+                .With("StoreId", store->GetId());
             return TStoreFlushResult();
         }
 
@@ -477,19 +474,21 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             TabletContext_->GetDynamicConfig(),
             tabletSnapshot);
 
-        YT_LOG_DEBUG("Throttling blobs media write in ordered store flush (DiskSpace: %v)",
-            diskSpace);
+        YT_TLOG_DEBUG("Throttling blobs media write in ordered store flush")
+            .With("DiskSpace", diskSpace);
 
         WaitFor(mediumThrottler->Throttle(diskSpace))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Ordered store flushed (StoreId: %v, ChunkId: %v, DiskSpace: %v, HunkChunkIds: %v)",
-            store->GetId(),
-            chunkWriter->GetChunkId(),
-            diskSpace,
-            MakeFormattableView(hunkStoreRefs, [] (auto* builder, const auto& hunkStoreRef) {
-                FormatValue(builder, hunkStoreRef.ChunkId, TStringBuf());
-            }));
+        YT_TLOG_DEBUG("Ordered store flushed")
+            .With("StoreId", store->GetId())
+            .With("ChunkId", chunkWriter->GetChunkId())
+            .With("DiskSpace", diskSpace)
+            .With(
+                "HunkChunkIds",
+                MakeFormattableView(hunkStoreRefs, [] (auto* builder, const auto& hunkStoreRef) {
+                    FormatValue(builder, hunkStoreRef.ChunkId, TStringBuf());
+                }));
 
         TStoreFlushResult result;
         {

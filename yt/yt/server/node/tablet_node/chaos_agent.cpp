@@ -96,24 +96,24 @@ public:
             });
         ReplicationProgressExecutor_->Start();
 
-        YT_LOG_INFO("Chaos agent enabled (ReplicationTickPeriod: %v, ReplicationProgressUpdateTickPeriod: %v)",
-            MountConfig_->ReplicationTickPeriod,
-            MountConfig_->ReplicationProgressUpdateTickPeriod);
+        YT_TLOG_INFO("Chaos agent enabled")
+            .With("ReplicationTickPeriod", MountConfig_->ReplicationTickPeriod)
+            .With("ReplicationProgressUpdateTickPeriod", MountConfig_->ReplicationProgressUpdateTickPeriod);
     }
 
     void Disable() override
     {
         if (auto executor = std::exchange(UpdateReplicationCardExecutor_, nullptr)) {
             YT_UNUSED_FUTURE(executor->Stop());
-            YT_LOG_INFO("Chaos agent fiber stopped");
+            YT_TLOG_INFO("Chaos agent fiber stopped");
         }
         if (auto executor = std::exchange(ReplicationProgressExecutor_, nullptr)) {
             YT_UNUSED_FUTURE(executor->Stop());
-            YT_LOG_INFO("Chaos agent progress reporter fiber stopped");
+            YT_TLOG_INFO("Chaos agent progress reporter fiber stopped");
         }
         SelfInvoker_.Store(nullptr);
 
-        YT_LOG_INFO("Chaos agent disabled");
+        YT_TLOG_INFO("Chaos agent disabled");
     }
 
     TAsyncSemaphoreGuard TryGetConfigLockGuard() override
@@ -202,17 +202,18 @@ private:
                 auto error = TError(ex)
                     .With("tablet_id", Tablet_->GetId())
                     .With("table_path", Tablet_->GetTablePath());
-                YT_LOG_ERROR(error, "Failed to reconfigure tablet write mode");
+                YT_TLOG_ERROR("Failed to reconfigure tablet write mode")
+                    .With(error);
             }
         } else {
-            YT_LOG_DEBUG("Skipping reconfiguration because configuration lock is held");
+            YT_TLOG_DEBUG("Skipping reconfiguration because configuration lock is held");
         }
     }
 
     void UpdateReplicationCard(TReplicationEra newEra = InvalidReplicationEra)
     {
         try {
-            YT_LOG_DEBUG("Updating tablet replication card");
+            YT_TLOG_DEBUG("Updating tablet replication card");
 
             const auto& replicationCardCache = LocalClient_->GetNativeConnection()->GetReplicationCardCache();
 
@@ -233,7 +234,7 @@ private:
 
             auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
             if (snapshotEra == InvalidReplicationEra) {
-                YT_LOG_DEBUG("Getting replication card synchronously");
+                YT_TLOG_DEBUG("Getting replication card synchronously");
 
                 replicationCard = NNative::GetSyncReplicationCard(
                     LocalClient_->GetNativeConnection(),
@@ -254,13 +255,11 @@ private:
 
                 if (replicationCard->Era < maxEra) {
                     key.RefreshEra = maxEra;
-                    YT_LOG_DEBUG(
-                        "Forcing cached replication card update due to outdated copy obtained "
-                        "(FetchedEra: %v, SnapshotEra: %v, WatchedEra: %v, NewEra: %v)",
-                        replicationCard->Era,
-                        snapshotEra,
-                        watchedReplicationCard->Era,
-                        newEra);
+                    YT_TLOG_DEBUG("Forcing cached replication card update due to outdated copy obtained")
+                        .With("FetchedEra", replicationCard->Era)
+                        .With("SnapshotEra", snapshotEra)
+                        .With("WatchedEra", watchedReplicationCard->Era)
+                        .With("NewEra", newEra);
 
                     const auto& config = LocalClient_->GetNativeConnection()->GetStaticConfig();
                     int retriesCount = config->TableMountCache->OnErrorRetryCount;
@@ -269,9 +268,9 @@ private:
                         auto replicationCardOrError = WaitFor(replicationCardCache->GetReplicationCard(key));
 
                         if (!replicationCardOrError.IsOK()) {
-                            YT_LOG_DEBUG(replicationCardOrError,
-                                "Failed to get replication card (Attempt: %v)",
-                                retryCount);
+                            YT_TLOG_DEBUG("Failed to get replication card")
+                                .With("Attempt", retryCount)
+                                .With(replicationCardOrError);
 
                             continue;
                         }
@@ -282,22 +281,19 @@ private:
                         }
 
                         // Some other thread might be updating cache to the previous era, so it can happen.
-                        YT_LOG_DEBUG(
-                            "Replication card era is outdated after forced refresh "
-                            "(FetchedEra: %v, SnapshotEra: %v, WatchedEra: %v, NewEra: %v, Attempt: %v)",
-                            replicationCard->Era,
-                            snapshotEra,
-                            watchedReplicationCard->Era,
-                            newEra,
-                            retryCount);
+                        YT_TLOG_DEBUG("Replication card era is outdated after forced refresh")
+                            .With("FetchedEra", replicationCard->Era)
+                            .With("SnapshotEra", snapshotEra)
+                            .With("WatchedEra", watchedReplicationCard->Era)
+                            .With("NewEra", newEra)
+                            .With("Attempt", retryCount);
                     }
                 }
 
                 if (replicationCard->Era < snapshotEra) {
-                    YT_LOG_DEBUG(
-                        "Replication card era is outdated after retries, skipping update (FetchedEra: %v, SnapshotEra: %v)",
-                        replicationCard->Era,
-                        snapshotEra);
+                    YT_TLOG_DEBUG("Replication card era is outdated after retries, skipping update")
+                        .With("FetchedEra", replicationCard->Era)
+                        .With("SnapshotEra", snapshotEra);
                     return;
                 }
             }
@@ -310,11 +306,12 @@ private:
                 ReplicationCardReconfigured_ = false;
             }
 
-            YT_LOG_DEBUG("Tablet replication card updated (ReplicationCard: %v, ReplicationCardReconfigured: %v)",
-                ToString(*ReplicationCard_, {{Tablet_->GetPivotKey(), Tablet_->GetNextPivotKey()}}),
-                ReplicationCardReconfigured_);
+            YT_TLOG_DEBUG("Tablet replication card updated")
+                .With("ReplicationCard", ToString(*ReplicationCard_, {{Tablet_->GetPivotKey(), Tablet_->GetNextPivotKey()}}))
+                .With("ReplicationCardReconfigured", ReplicationCardReconfigured_);
         } catch (std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to update tablet replication card");
+            YT_TLOG_DEBUG("Failed to update tablet replication card")
+                .With(ex);
         }
     }
 
@@ -322,8 +319,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Refreshing replication card era (NewEra: %v)",
-            newEra);
+        YT_TLOG_DEBUG("Refreshing replication card era")
+            .With("NewEra", newEra);
 
         auto future = RefreshEraFuture_.Load();
         if (!future || future.IsSet()) {
@@ -344,8 +341,8 @@ private:
         WaitFor(std::move(future))
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Finished refreshing replication card era (NewEra: %v)",
-            newEra);
+        YT_TLOG_DEBUG("Finished refreshing replication card era")
+            .With("NewEra", newEra);
     }
 
     void TryAdvanceReplicationEra(TReplicationEra newEra)
@@ -359,9 +356,9 @@ private:
         ToProto(req.mutable_tablet_id(), Tablet_->GetId());
         req.set_new_replication_era(newEra);
 
-        YT_LOG_DEBUG("Committing replication era advance (NewReplicationEra: %v, OldReplicationEra: %v)",
-            newEra,
-            snapshotEra);
+        YT_TLOG_DEBUG("Committing replication era advance")
+            .With("NewReplicationEra", newEra)
+            .With("OldReplicationEra", snapshotEra);
 
         auto mutation = CreateMutation(Slot_->GetSimpleHydraManager(), req);
         WaitFor(mutation->Commit())
@@ -374,8 +371,8 @@ private:
             });
         }
 
-        YT_LOG_DEBUG("Replication era advance finished (NewReplicationEra: %v)",
-            newEra);
+        YT_TLOG_DEBUG("Replication era advance finished")
+            .With("NewReplicationEra", newEra);
     }
 
     void ReconfigureTabletWriteMode()
@@ -386,29 +383,29 @@ private:
 
         auto replicationCard = ReplicationCard_;
         if (!replicationCard) {
-            YT_LOG_DEBUG("Replication card is not available");
+            YT_TLOG_DEBUG("Replication card is not available");
             return;
         }
 
         auto* selfReplica = [&] () -> TReplicaInfo* {
             auto* selfReplica = replicationCard->FindReplica(Tablet_->GetUpstreamReplicaId());
             if (!selfReplica) {
-                YT_LOG_DEBUG("Could not find self replica in replication card");
+                YT_TLOG_DEBUG("Could not find self replica in replication card");
                 return nullptr;
             }
             if (selfReplica->History.empty()) {
                 YT_VERIFY(!IsReplicaEnabled(selfReplica->State));
-                YT_LOG_DEBUG("Replica history list is empty");
+                YT_TLOG_DEBUG("Replica history list is empty");
                 return nullptr;
             }
 
             const auto& localClusterName = LocalClient_->GetNativeConnection()->GetClusterName().value();
             if (!IsReplicaLocationValid(selfReplica, Tablet_->GetTablePath(), localClusterName)) {
-                YT_LOG_DEBUG("Upstream replica id corresponds to another table (TablePath: %v, ExpectedPath: %v, TableCluster: %v, ExpectedCluster: %v)",
-                    Tablet_->GetTablePath(),
-                    selfReplica->ReplicaPath,
-                    localClusterName,
-                    selfReplica->ClusterName);
+                YT_TLOG_DEBUG("Upstream replica id corresponds to another table")
+                    .With("TablePath", Tablet_->GetTablePath())
+                    .With("ExpectedPath", selfReplica->ReplicaPath)
+                    .With("TableCluster", localClusterName)
+                    .With("ExpectedCluster", selfReplica->ClusterName);
                 return nullptr;
             }
             return selfReplica;
@@ -427,10 +424,10 @@ private:
         bool isProgressGreaterThanTimestamp =
             IsReplicationProgressGreaterOrEqual(*progress, lastHistoryItem.Timestamp);
 
-        YT_LOG_DEBUG("Checking self write mode (ReplicationProgress: %v, LastHistoryItemTimestamp: %v, IsProgressGreaterThanTimestamp: %v)",
-            static_cast<TReplicationProgress>(*progress),
-            lastHistoryItem.Timestamp,
-            isProgressGreaterThanTimestamp);
+        YT_TLOG_DEBUG("Checking self write mode")
+            .With("ReplicationProgress", static_cast<TReplicationProgress>(*progress))
+            .With("LastHistoryItemTimestamp", lastHistoryItem.Timestamp)
+            .With("IsProgressGreaterThanTimestamp", isProgressGreaterThanTimestamp);
 
         // Mode can be switched from AsyncToSync to SyncToAsync without adding a history record. So while in
         // SyncToAsync mode check that previous mode was actually Sync before changing write mode to Direct
@@ -448,9 +445,9 @@ private:
         // ReplicationCard_ might change during this call so we are using a local reference.
         TryAdvanceReplicationEra(replicationCard->Era);
 
-        YT_LOG_DEBUG("Updated tablet write mode (WriteMode: %v, ReplicationEra: %v)",
-            writeMode,
-            replicationCard->Era);
+        YT_TLOG_DEBUG("Updated tablet write mode")
+            .With("WriteMode", writeMode)
+            .With("ReplicationEra", replicationCard->Era);
 
         if (IsReplicaDisabled(selfReplica->State)) {
             return;
@@ -476,8 +473,8 @@ private:
                     Tablet_,
                     std::move(newProgress));
 
-                YT_LOG_DEBUG("Advanced replication progress to replication card current timestamp (CurrentTimestamp: %v)",
-                    currentTimestamp);
+                YT_TLOG_DEBUG("Advanced replication progress to replication card current timestamp")
+                    .With("CurrentTimestamp", currentTimestamp);
             }
         }
     }
@@ -511,14 +508,15 @@ private:
             auto resultOrError = WaitFor(future);
 
             if (resultOrError.IsOK()) {
-                YT_LOG_DEBUG("Replication progress updated successfully (ReplicationProgress: %v)",
-                    options.Progress);
+                YT_TLOG_DEBUG("Replication progress updated successfully")
+                    .With("ReplicationProgress", options.Progress);
             } else {
-                YT_LOG_ERROR(resultOrError, "Failed to update replication progress");
+                YT_TLOG_ERROR("Failed to update replication progress")
+                    .With(resultOrError);
             }
         } else {
-            YT_LOG_DEBUG("Updating replication progress with batching (ReplicationProgressUpdate: %v)",
-                *progress);
+            YT_TLOG_DEBUG("Updating replication progress with batching")
+                .With("ReplicationProgressUpdate", *progress);
 
             auto future = ReplicationCardUpdatesBatcher_->AddTabletProgressUpdate(
                 Tablet_->GetReplicationCardId(),
@@ -527,10 +525,11 @@ private:
 
             auto resultOrError = WaitFor(std::move(future));
             if (resultOrError.IsOK()) {
-                YT_LOG_DEBUG("Replication progress updated successfully (ReplicationProgress: %v)",
-                    *progress);
+                YT_TLOG_DEBUG("Replication progress updated successfully")
+                    .With("ReplicationProgress", *progress);
             } else {
-                YT_LOG_ERROR(resultOrError, "Failed to update replication progress");
+                YT_TLOG_ERROR("Failed to update replication progress")
+                    .With(resultOrError);
             }
         }
     }
@@ -595,10 +594,10 @@ bool AdvanceTabletReplicationProgress(
         localTransaction->AddAction(tabletCellId, MakeTransactionActionData(req));
     }
 
-    YT_LOG_DEBUG("Committing replication progress advance transaction (TransactionId: %v, ReplicationProgress: %v, ReplicationRound: %v)",
-        localTransaction->GetId(),
-        progress,
-        replicationRound);
+    YT_TLOG_DEBUG("Committing replication progress advance transaction")
+        .With("TransactionId", localTransaction->GetId())
+        .With("ReplicationProgress", progress)
+        .With("ReplicationRound", replicationRound);
 
     // TODO(savrus) Discard 2PC.
     TTransactionCommitOptions commitOptions;
@@ -607,9 +606,10 @@ bool AdvanceTabletReplicationProgress(
     commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
     auto result = WaitFor(localTransaction->Commit(commitOptions));
 
-    YT_LOG_DEBUG(result, "Replication progress advance transaction finished (TransactionId: %v, ReplicationProgress: %v)",
-        localTransaction->GetId(),
-        progress);
+    YT_TLOG_DEBUG("Replication progress advance transaction finished")
+        .With("TransactionId", localTransaction->GetId())
+        .With("ReplicationProgress", progress)
+        .With(result);
 
     return result.IsOK();
 }

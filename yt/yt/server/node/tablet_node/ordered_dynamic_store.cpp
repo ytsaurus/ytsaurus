@@ -111,7 +111,7 @@ public:
             case EState::Created:
                 if (BarrierFuture_) {
                     State_ = EState::WaitingForBarrier;
-                    YT_LOG_DEBUG("Started waiting for prepared transactions to commit");
+                    YT_TLOG_DEBUG("Started waiting for prepared transactions to commit");
                     return CreateEmptyUnversionedRowBatch();
                 }
                 State_ = EState::Reading;
@@ -120,8 +120,8 @@ public:
             case EState::WaitingForBarrier:
                 YT_VERIFY(BarrierFuture_.GetOrCrash().IsOK());
                 AdjustUpperRowIndex();
-                YT_LOG_DEBUG("Finished waiting for prepared transactions to commit (UpperRowIndex: %v)",
-                    UpperRowIndex_);
+                YT_TLOG_DEBUG("Finished waiting for prepared transactions to commit")
+                    .With("UpperRowIndex", UpperRowIndex_);
                 BarrierFuture_.Reset();
                 State_ = EState::Reading;
                 break;
@@ -243,10 +243,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Will wait for prepared transactions to commit (LowerRowIndex: %v, UpperRowIndex: %v, MaxUpperRowIndex: %v)",
-            LowerRowIndex_,
-            UpperRowIndex_,
-            maxUpperRowIndex);
+        YT_TLOG_DEBUG("Will wait for prepared transactions to commit")
+            .With("LowerRowIndex", LowerRowIndex_)
+            .With("UpperRowIndex", UpperRowIndex_)
+            .With("MaxUpperRowIndex", maxUpperRowIndex);
 
         auto tableProfiler = Store_->GetTablet()->GetTableProfiler();
         auto start = GetCpuInstant();
@@ -328,7 +328,7 @@ TOrderedDynamicStore::TOrderedDynamicStore(
 {
     AllocateCurrentSegment(InitialOrderedDynamicSegmentIndex);
 
-    YT_LOG_DEBUG("Ordered dynamic store created");
+    YT_TLOG_DEBUG("Ordered dynamic store created");
 }
 
 ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateFlushReader()
@@ -411,9 +411,9 @@ void TOrderedDynamicStore::LockHunkStores(const THunkChunksInfo& hunkChunksInfo)
 {
     const auto& hunkLockManager = Tablet_->GetHunkLockManager();
     for (const auto& [hunkStoreId, hunkStoreRef] : hunkChunksInfo.HunkChunkRefs) {
-        YT_LOG_DEBUG("Referencing hunk store during write row (HunkStoreId: %v, RefCount: %v)",
-            hunkStoreId,
-            hunkStoreRef.HunkCount);
+        YT_TLOG_DEBUG("Referencing hunk store during write row")
+            .With("HunkStoreId", hunkStoreId)
+            .With("RefCount", hunkStoreRef.HunkCount);
         YT_VERIFY(hunkLockManager->GetPersistentLockCount(hunkStoreId) > 0);
         auto [it, inserted] = HunkStoreRefs_.emplace(hunkStoreId, hunkStoreRef);
         if (!inserted) {
@@ -514,7 +514,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
     auto nodeMemoryUsageTracker = Tablet_->TryGetNodeMemoryUsageTracker();
 
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
-        YT_LOG_DEBUG("Store snapshot serialization started");
+        YT_TLOG_DEBUG("Store snapshot serialization started");
 
         auto chunkWriter = New<TMemoryWriter>();
 
@@ -542,12 +542,12 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             /*writeBlocksOptions*/ {},
             /*dataSink*/ std::nullopt);
 
-        YT_LOG_DEBUG("Serializing store snapshot");
+        YT_TLOG_DEBUG("Serializing store snapshot");
 
         i64 rowCount = 0;
         while (auto batch = tableReader->Read()) {
             if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for table reader");
+                YT_TLOG_DEBUG("Waiting for table reader");
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
@@ -556,7 +556,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             auto rows = batch->MaterializeRows();
             rowCount += rows.size();
             if (!tableWriter->Write(rows)) {
-                YT_LOG_DEBUG("Waiting for table writer");
+                YT_TLOG_DEBUG("Waiting for table writer");
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -571,20 +571,20 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         Save(context, true);
 
         // NB: This also closes chunkWriter.
-        YT_LOG_DEBUG("Closing table writer");
+        YT_TLOG_DEBUG("Closing table writer");
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
         Save(context, *chunkWriter->GetChunkMeta());
 
         auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
-        YT_LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
-            rowCount,
-            blocks.size());
+        YT_TLOG_DEBUG("Writing store blocks")
+            .With("RowCount", rowCount)
+            .With("BlockCount", blocks.size());
 
         Save(context, blocks);
 
-        YT_LOG_DEBUG("Store snapshot serialization complete");
+        YT_TLOG_DEBUG("Store snapshot serialization complete");
     });
 }
 
@@ -694,12 +694,10 @@ void TOrderedDynamicStore::OnSetRemoved()
     for (const auto& [hunkStoreId, hunkStoreRef] : HunkStoreRefs_) {
         hunkLockManager->IncrementPersistentLockCount(hunkStoreId, -1);
 
-        YT_LOG_DEBUG(
-            "Unreferencing hunk store before death "
-            "(HunkStoreId: %v, PersistentLockCount: %v, TotalLockCount: %v)",
-            hunkStoreId,
-            hunkLockManager->GetPersistentLockCount(hunkStoreId),
-            hunkLockManager->GetTotalLockCount(hunkStoreId));
+        YT_TLOG_DEBUG("Unreferencing hunk store before death")
+            .With("HunkStoreId", hunkStoreId)
+            .With("PersistentLockCount", hunkLockManager->GetPersistentLockCount(hunkStoreId))
+            .With("TotalLockCount", hunkLockManager->GetTotalLockCount(hunkStoreId));
     }
 
     HunkStoreRefs_.clear();
