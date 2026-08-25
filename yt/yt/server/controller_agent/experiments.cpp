@@ -155,8 +155,9 @@ TPatchPaths ComputePatchPaths(const IMapNodePtr& spec, EOperationType type)
         case EOperationType::Vanilla: {
             auto tasks = GetNodeByYPath(spec, "/tasks");
             for (const auto& key : tasks->AsMap()->GetKeys()) {
-                userJobPaths.push_back("/tasks/" + key);
-                jobIOPaths.push_back("/tasks/" + key + "/job_io");
+                auto escapedKey = ToYPathLiteral(key);
+                userJobPaths.push_back("/tasks/" + escapedKey);
+                jobIOPaths.push_back("/tasks/" + escapedKey + "/job_io");
             }
             break;
         }
