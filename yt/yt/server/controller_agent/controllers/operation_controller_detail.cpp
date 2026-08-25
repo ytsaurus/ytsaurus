@@ -399,14 +399,14 @@ TOperationControllerBase::TOperationControllerBase(
     SuitableExecNodeDescriptors_ = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ false);
     OnlineSuitableExecNodeDescriptors_ = Host_->GetExecNodeDescriptors(FinalSchedulingTagFilter_, /*onlineOnly*/ true);
 
-    YT_LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
-        OperationType_,
-        static_cast<void*>(this));
+    YT_TLOG_INFO("Operation controller instantiated")
+        .With("OperationType", OperationType_)
+        .With("Address", static_cast<void*>(this));
 
-    YT_LOG_DEBUG("Set fast intermediate medium limit (ConfigLimit: %v, SpecLimit: %v, EffectiveLimit: %v)",
-        Config_->FastIntermediateMediumLimit,
-        Spec_->FastIntermediateMediumLimit,
-        GetFastIntermediateMediumLimit());
+    YT_TLOG_DEBUG("Set fast intermediate medium limit")
+        .With("ConfigLimit", Config_->FastIntermediateMediumLimit)
+        .With("SpecLimit", Spec_->FastIntermediateMediumLimit)
+        .With("EffectiveLimit", GetFastIntermediateMediumLimit());
 }
 
 void TOperationControllerBase::BuildMemoryUsageYson(TFluentAny fluent) const
@@ -531,8 +531,8 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
         Logger = Logger
     ] {
         i64 size = TestingAllocationSize_.fetch_add(AllocationPartSize);
-        YT_LOG_DEBUG("Testing allocation size was incremented (Size: %v)",
-            size + AllocationPartSize);
+        YT_TLOG_DEBUG("Testing allocation size was incremented")
+            .With("Size", size + AllocationPartSize);
     };
 
     std::function decrementer = [
@@ -541,8 +541,8 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
         Logger = Logger
     ] {
         i64 size = TestingAllocationSize_.fetch_sub(AllocationPartSize);
-        YT_LOG_DEBUG("Testing allocation size was decremented (Size: %v)",
-            size - AllocationPartSize);
+        YT_TLOG_DEBUG("Testing allocation size was decremented")
+            .With("Size", size - AllocationPartSize);
     };
 
     while (TestingAllocationSize_ > 0) {
@@ -554,8 +554,8 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
             GetInvoker());
     }
 
-    YT_LOG_DEBUG("Test heap allocation is finished (MemoryUsage: %v)",
-        GetMemoryUsage());
+    YT_TLOG_DEBUG("Test heap allocation is finished")
+        .With("MemoryUsage", GetMemoryUsage());
     return testHeap;
 }
 
@@ -642,7 +642,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     const TControllerTransactionIds& transactions,
     INodePtr cumulativeSpecPatch)
 {
-    YT_LOG_INFO("Initializing operation for revive");
+    YT_TLOG_INFO("Initializing operation for revive");
 
     InitializeClients();
     InitializeClusterResolver();
@@ -658,9 +658,10 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         try {
             return AttachTransaction(transactionId, client, ping);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error attaching operation transaction (OperationId: %v, TransactionId: %v)",
-                OperationId_,
-                transactionId);
+            YT_TLOG_WARNING("Error attaching operation transaction")
+                .With("OperationId", OperationId_)
+                .With("TransactionId", transactionId)
+                .With(ex);
             return nullptr;
         }
     };
@@ -675,9 +676,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     auto inputReviveResult = WaitFor(InputTransactions_->Revive(transactions));
     if (!inputReviveResult.IsOK()) {
         CleanStart_ = true;
-        YT_LOG_INFO(
-            inputReviveResult,
-            "Could not reuse input transactions, will use clean start");
+        YT_TLOG_INFO("Could not reuse input transactions, will use clean start")
+            .With(inputReviveResult);
     }
 
     // Check transactions.
@@ -692,10 +692,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         {
             if (!transaction) {
                 CleanStart_ = true;
-                YT_LOG_INFO("Operation transaction is missing, will use clean start "
-                    "(TransactionType: %v, TransactionId: %v)",
-                    transactionType,
-                    transactionId);
+                YT_TLOG_INFO("Operation transaction is missing, will use clean start")
+                    .With("TransactionType", transactionType)
+                    .With("TransactionId", transactionId);
                 return;
             }
 
@@ -716,9 +715,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             auto error = WaitFor(asyncCheckResult);
             if (!error.IsOK()) {
                 CleanStart_ = true;
-                YT_LOG_INFO(error,
-                    "Error renewing operation transaction, will use clean start (TransactionId: %v)",
-                    transaction->GetId());
+                YT_TLOG_INFO("Error renewing operation transaction, will use clean start")
+                    .With("TransactionId", transaction->GetId())
+                    .With(error);
             }
         }
     }
@@ -727,13 +726,14 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     if (!CleanStart_) {
         auto snapshotOrError = WaitFor(Host_->DownloadSnapshot());
         if (!snapshotOrError.IsOK()) {
-            YT_LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
+            YT_TLOG_INFO("Failed to download snapshot, will use clean start")
+                .With(snapshotOrError);
             CleanStart_ = true;
         } else {
-            YT_LOG_INFO("Snapshot successfully downloaded");
+            YT_TLOG_INFO("Snapshot successfully downloaded");
             Snapshot_ = snapshotOrError.Value();
             if (Snapshot_.Blocks.empty()) {
-                YT_LOG_WARNING("Snapshot is empty, will use clean start");
+                YT_TLOG_WARNING("Snapshot is empty, will use clean start");
                 CleanStart_ = true;
             }
         }
@@ -756,13 +756,13 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         scheduleAbort(debugCompletionTransaction, Client_);
 
         if (CleanStart_) {
-            YT_LOG_INFO("Aborting operation transactions");
+            YT_TLOG_INFO("Aborting operation transactions");
             // NB: Don't touch user transaction.
             scheduleAbort(outputTransaction, OutputClient_);
             scheduleAbort(debugTransaction, Client_);
             asyncResults.push_back(AbortInputTransactions());
         } else {
-            YT_LOG_INFO("Reusing operation transactions");
+            YT_TLOG_INFO("Reusing operation transactions");
             DebugTransaction_ = debugTransaction;
             {
                 auto guard = Guard(OutputTransactionLock_);
@@ -784,7 +784,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
                 .With("reason", EFailOnJobRestartReason::RevivalWithCleanStart);
         }
 
-        YT_LOG_INFO("Using clean start instead of revive");
+        YT_TLOG_INFO("Using clean start instead of revive");
 
         Snapshot_ = TOperationSnapshot();
         Y_UNUSED(WaitFor(Host_->RemoveSnapshot()));
@@ -802,7 +802,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
     SleepInInitialize();
 
-    YT_LOG_INFO("Operation initialized");
+    YT_TLOG_INFO("Operation initialized");
 
     TOperationControllerInitializeResult result;
     FillInitializeResult(&result);
@@ -827,7 +827,8 @@ void TOperationControllerBase::ValidateSecureVault() const
         return;
     }
     i64 length = ConvertToYsonString(SecureVault_, EYsonFormat::Text).AsStringBuf().size();
-    YT_LOG_DEBUG("Operation secure vault size detected (Size: %v)", length);
+    YT_TLOG_DEBUG("Operation secure vault size detected")
+        .With("Size", length);
     if (length > Config_->SecureVaultLengthLimit) {
         THROW_ERROR_EXCEPTION("Secure vault YSON text representation is too long")
             .With("length", length)
@@ -852,8 +853,8 @@ void TOperationControllerBase::ValidateOutputTablePaths() const
 
 TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 {
-    YT_LOG_INFO("Initializing operation for clean start (Title: %v)",
-        Spec_->Title);
+    YT_TLOG_INFO("Initializing operation for clean start")
+        .With("Title", Spec_->Title);
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] {
         ValidateCollectiveOptions();
@@ -883,7 +884,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
     WaitFor(Host_->UpdateInitializedOperationNode(/*isCleanOperationStart*/ true))
         .ThrowOnError();
 
-    YT_LOG_INFO("Operation initialized");
+    YT_TLOG_INFO("Operation initialized");
 
     TOperationControllerInitializeResult result;
     FillInitializeResult(&result);
@@ -1092,7 +1093,7 @@ void TOperationControllerBase::InitUpdatingTables()
 
 void TOperationControllerBase::InitializeOrchid()
 {
-    YT_LOG_DEBUG("Initializing orchid");
+    YT_TLOG_DEBUG("Initializing orchid");
 
     using TLivePreviewMapService = NYTree::TCollectionBoundMapService<TLivePreviewMap>;
     LivePreviewService_ = New<TLivePreviewMapService>(std::weak_ptr<TLivePreviewMap>(LivePreviews_));
@@ -1110,9 +1111,8 @@ void TOperationControllerBase::InitializeOrchid()
                     THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
                 }
 
-                YT_LOG_DEBUG(
-                    "Handling orchid request in controller (Key: %v)",
-                    key);
+                YT_TLOG_DEBUG("Handling orchid request in controller")
+                    .With("Key", key);
 
                 BuildYsonFluently(consumer)
                     .Do(fluentMethod);
@@ -1183,7 +1183,7 @@ void TOperationControllerBase::InitializeOrchid()
     Orchid_.Store(service
         ->Via(InvokerPool_->GetInvoker(EOperationControllerQueue::Default)));
 
-    YT_LOG_DEBUG("Orchid initialized");
+    YT_TLOG_DEBUG("Orchid initialized");
 }
 
 void TOperationControllerBase::DoInitialize()
@@ -1248,10 +1248,9 @@ void TOperationControllerBase::CreateOutputTables(
         batchReq->AddRequest(req);
     }
 
-    YT_LOG_DEBUG(
-        "Creating output tables (TableCount: %v, OutputTableType: %v)",
-        batchReq->GetSize(),
-        outputTableType);
+    YT_TLOG_DEBUG("Creating output tables")
+        .With("TableCount", batchReq->GetSize())
+        .With("OutputTableType", outputTableType);
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error creating output tables");
@@ -1283,7 +1282,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     if (HasUserJobFilesOrLayers()) {
         GetUserFilesAttributes();
     } else {
-        YT_LOG_INFO("Operation has no input files");
+        YT_TLOG_INFO("Operation has no input files");
     }
 
     // Process output and stderr tables.
@@ -1302,7 +1301,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
             Logger,
             EPermission::Write);
     } else {
-        YT_LOG_INFO("Operation has no output tables");
+        YT_TLOG_INFO("Operation has no output tables");
     }
 
     if (StderrTable_) {
@@ -1319,7 +1318,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
             Logger,
             EPermission::Write);
     } else {
-        YT_LOG_INFO("Operation has no stderr table");
+        YT_TLOG_INFO("Operation has no stderr table");
     }
 
     if (CoreTable_) {
@@ -1336,7 +1335,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
             Logger,
             EPermission::Write);
     } else {
-        YT_LOG_INFO("Operation has no core table");
+        YT_TLOG_INFO("Operation has no core table");
     }
 
     {
@@ -1387,7 +1386,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     InferInputRanges();
     InitInputStreamDirectory();
 
-    YT_LOG_INFO("Operation prepared");
+    YT_TLOG_INFO("Operation prepared");
 
     TOperationControllerPrepareResult result;
     FillPrepareResult(&result);
@@ -1408,16 +1407,15 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         PickIntermediateDataCells();
         InitChunkListPools();
 
-        YT_LOG_INFO(
-            "Started fetching input tables (TableCount: %v)",
-            InputManager_->GetInputTables().size());
+        YT_TLOG_INFO("Started fetching input tables")
+            .With("TableCount", InputManager_->GetInputTables().size());
 
         auto fetchInputTablesStatistics = InputManager_->FetchInputTables();
 
-        YT_LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v, MemoryUsage: %v)",
-            fetchInputTablesStatistics.ChunkCount,
-            fetchInputTablesStatistics.ExtensionSize,
-            GetMemoryUsage());
+        YT_TLOG_INFO("Finished fetching input tables")
+            .With("TotalChunkCount", fetchInputTablesStatistics.ChunkCount)
+            .With("TotalExtensionSize", fetchInputTablesStatistics.ExtensionSize)
+            .With("MemoryUsage", GetMemoryUsage());
 
         FetchUserFiles();
         ValidateUserFileSizes();
@@ -1451,14 +1449,15 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         InitializeSecurityTags();
 
-        YT_LOG_INFO("Tasks prepared (RowBufferCapacity: %v)", RowBuffer_->GetCapacity());
+        YT_TLOG_INFO("Tasks prepared")
+            .With("RowBufferCapacity", RowBuffer_->GetCapacity());
 
         if (IsCompleted()) {
             // Possible reasons:
             // - All input chunks are unavailable && Strategy == Skip
             // - Merge decided to teleport all input chunks
             // - Anything else?
-            YT_LOG_INFO("No jobs needed");
+            YT_TLOG_INFO("No jobs needed");
             OnOperationCompleted(/*interrupted*/ false);
             return result;
         }
@@ -1520,7 +1519,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     result.InitialNeededResources = GetNeededResources();
     result.InitialGroupedNeededResources = InitialGroupedNeededResources_;
 
-    YT_LOG_INFO("Materialization finished");
+    YT_TLOG_INFO("Materialization finished");
 
     OnOperationReady(/*suspended*/ false);
 
@@ -1674,7 +1673,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
     SpecManager_->SetConfigurator(ConfigureUpdate());
     SpecManager_->ApplySpecPatchReviving();
 
-    YT_LOG_INFO("Operation revived");
+    YT_TLOG_INFO("Operation revived");
 
     State_ = EControllerState::Running;
 
@@ -1687,7 +1686,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive(bool suspended
 
 void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool honestly)
 {
-    YT_LOG_DEBUG("Aborting all joblets (AbortReason: %v)", abortReason);
+    YT_TLOG_DEBUG("Aborting all joblets")
+        .With("AbortReason", abortReason);
 
     std::vector<TJobToRelease> jobsToRelease;
     jobsToRelease.reserve(std::size(AllocationMap_));
@@ -1731,9 +1731,8 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
     CachedRunningJobs_.Flush();
 
     if (!std::empty(jobsToRelease)) {
-        YT_LOG_DEBUG(
-            "Releasing aborted jobs (JobCount: %v)",
-            std::size(jobsToRelease));
+        YT_TLOG_DEBUG("Releasing aborted jobs")
+            .With("JobCount", std::size(jobsToRelease));
 
         Host_->ReleaseJobs(std::move(jobsToRelease));
     }
@@ -1813,7 +1812,8 @@ void TOperationControllerBase::InitInputStreamDirectory()
     }
     InputStreamDirectory_ = TInputStreamDirectory(std::move(inputStreams));
 
-    YT_LOG_INFO("Input stream directory prepared (InputStreamCount: %v)", InputStreamDirectory_.GetDescriptorCount());
+    YT_TLOG_INFO("Input stream directory prepared")
+        .With("InputStreamCount", InputStreamDirectory_.GetDescriptorCount());
 }
 
 const TInputStreamDirectory& TOperationControllerBase::GetInputStreamDirectory() const
@@ -1849,7 +1849,8 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
     TTransactionId parentTransactionId)
 {
     if (!IsTransactionNeeded(type)) {
-        YT_LOG_INFO("Skipping transaction as it is not needed (Type: %v)", type);
+        YT_TLOG_INFO("Skipping transaction as it is not needed")
+            .With("Type", type);
         return MakeFuture(NNative::ITransactionPtr());
     }
 
@@ -1900,10 +1901,10 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
 
     SortUnique(replicateToCellTags);
 
-    YT_LOG_INFO("Starting transaction (Type: %v, ParentId: %v, ReplicateToCellTags: %v)",
-        type,
-        parentTransactionId,
-        replicateToCellTags);
+    YT_TLOG_INFO("Starting transaction")
+        .With("Type", type)
+        .With("ParentId", parentTransactionId)
+        .With("ReplicateToCellTags", replicateToCellTags);
 
     TTransactionStartOptions options;
     options.AutoAbort = false;
@@ -1926,9 +1927,9 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
 
         auto transaction = transactionOrError.Value();
 
-        YT_LOG_INFO("Transaction started (Type: %v, TransactionId: %v)",
-            type,
-            transaction->GetId());
+        YT_TLOG_INFO("Transaction started")
+            .With("Type", type)
+            .With("TransactionId", transaction->GetId());
 
         return transaction;
     }));
@@ -1974,8 +1975,8 @@ void TOperationControllerBase::PickIntermediateDataCells()
         IntermediateOutputCellTagList_.end());
     IntermediateOutputCellTagList_.resize(intermediateDataCellCount);
 
-    YT_LOG_DEBUG("Intermediate data cells picked (CellTags: %v)",
-        IntermediateOutputCellTagList_);
+    YT_TLOG_DEBUG("Intermediate data cells picked")
+        .With("CellTags", IntermediateOutputCellTagList_);
 }
 
 void TOperationControllerBase::InitChunkListPools()
@@ -2034,7 +2035,7 @@ void TOperationControllerBase::InitChunkListPools()
         ++CellTagToRequiredDebugChunkListCount_[CoreTable_->ExternalCellTag];
     }
 
-    YT_LOG_DEBUG("Preallocating chunk lists");
+    YT_TLOG_DEBUG("Preallocating chunk lists");
     for (const auto& [cellTag, count] : CellTagToRequiredOutputChunkListCount_) {
         Y_UNUSED(OutputChunkListPool_->HasEnough(cellTag, count));
     }
@@ -2121,7 +2122,8 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
     // because wrong statistics are currently used when checking row count.
     for (const auto& [index, table] : SEnumerate(OutputTables_)) {
         if (table->Path.GetRowCountLimit()) {
-            YT_LOG_INFO("Output table has row count limit, force disabling auto merge (TableIndex: %v)", index);
+            YT_TLOG_INFO("Output table has row count limit, force disabling auto merge")
+                .With("TableIndex", index);
             auto error = TError("Output table has row count limit, force disabling auto merge")
                 .With("table_index", index);
             SetOperationAlert(EOperationAlertType::AutoMergeDisabled, error);
@@ -2129,18 +2131,16 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
         }
     }
 
-    YT_LOG_INFO("Auto merge parameters calculated ("
-        "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, "
-        "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v, MaxChunkDataWeight: %v, IntermediateChunkUnstageMode: %v)",
-        mode,
-        outputChunkCountEstimate,
-        maxIntermediateChunkCount,
-        chunkCountPerMergeJob,
-        autoMergeSpec->ChunkSizeThreshold,
-        desiredChunkSize,
-        desiredChunkDataWeight,
-        maxChunkDataWeight,
-        GetIntermediateChunkUnstageMode());
+    YT_TLOG_INFO("Auto merge parameters calculated")
+        .With("Mode", mode)
+        .With("OutputChunkCountEstimate", outputChunkCountEstimate)
+        .With("MaxIntermediateChunkCount", maxIntermediateChunkCount)
+        .With("ChunkCountPerMergeJob", chunkCountPerMergeJob)
+        .With("ChunkSizeThreshold", autoMergeSpec->ChunkSizeThreshold)
+        .With("DesiredChunkSize", desiredChunkSize)
+        .With("DesiredChunkDataWeight", desiredChunkDataWeight)
+        .With("MaxChunkDataWeight", maxChunkDataWeight)
+        .With("IntermediateChunkUnstageMode", GetIntermediateChunkUnstageMode());
 
     AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
         maxIntermediateChunkCount,
@@ -2302,10 +2302,10 @@ void TOperationControllerBase::ReinstallLivePreview()
 
 void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot)
 {
-    YT_LOG_INFO("Started loading snapshot (Size: %v, BlockCount: %v, Version: %v)",
-        GetByteSize(snapshot.Blocks),
-        snapshot.Blocks.size(),
-        snapshot.Version);
+    YT_TLOG_INFO("Started loading snapshot")
+        .With("Size", GetByteSize(snapshot.Blocks))
+        .With("BlockCount", snapshot.Blocks.size())
+        .With("Version", snapshot.Version);
 
     // Deserialization errors must be fatal.
     TCrashOnDeserializationErrorGuard crashOnDeserializationErrorGuard;
@@ -2313,8 +2313,8 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
     // Snapshot loading must be synchronous.
     TOneShotContextSwitchGuard oneShotContextSwitchGuard(
         BIND([this, this_ = MakeStrong(this)] {
-            YT_LOG_WARNING("Context switch while loading snapshot (StackTrace: %v)",
-                DumpBacktrace());
+            YT_TLOG_WARNING("Context switch while loading snapshot")
+                .With("StackTrace", DumpBacktrace());
         }));
 
     TChunkedInputStream input(snapshot.Blocks);
@@ -2340,7 +2340,7 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
     }
     InitializeOrchid();
 
-    YT_LOG_INFO("Finished loading snapshot");
+    YT_TLOG_INFO("Finished loading snapshot");
 }
 
 void TOperationControllerBase::StartOutputCompletionTransaction()
@@ -2374,8 +2374,8 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         ? OutputCompletionTransaction_->GetId()
         : NullTransactionId;
 
-    YT_LOG_INFO("Committing output completion transaction and setting committed attribute (TransactionId: %v)",
-        outputCompletionTransactionId);
+    YT_TLOG_INFO("Committing output completion transaction and setting committed attribute")
+        .With("TransactionId", outputCompletionTransactionId);
 
     auto fetchAttributeAsObjectId = [&, this] (
         const TYPath& path,
@@ -2438,20 +2438,18 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 
     CommitFinished_ = true;
 
-    YT_LOG_INFO("Output completion transaction committed and committed attribute set (TransactionId: %v)",
-        outputCompletionTransactionId);
+    YT_TLOG_INFO("Output completion transaction committed and committed attribute set")
+        .With("TransactionId", outputCompletionTransactionId);
 }
 
 void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
     NCypressClient::TNodeId nodeId,
     TTransactionId transactionId)
 {
-    YT_LOG_DEBUG(
-        "Trying to merge operation Cypress node manually to reduce transaction lock count "
-        "(CypressNodeId: %v, TransactionId: %v, OperationId: %v)",
-        nodeId,
-        transactionId,
-        OperationId_);
+    YT_TLOG_DEBUG("Trying to merge operation Cypress node manually to reduce transaction lock count")
+        .With("CypressNodeId", nodeId)
+        .With("TransactionId", transactionId)
+        .With("OperationId", OperationId_);
 
     try {
         auto targetCellTag = CellTagFromId(nodeId);
@@ -2506,11 +2504,11 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         WaitFor(helperTransaction->Commit(options))
             .ThrowOnError();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex,
-            "Failed to manually merge branched operation Cypress node (CypressNodeId: %v, TransactionId: %v, OperationId: %v)",
-            nodeId,
-            transactionId,
-            OperationId_);
+        YT_TLOG_ERROR("Failed to manually merge branched operation Cypress node")
+            .With("CypressNodeId", nodeId)
+            .With("TransactionId", transactionId)
+            .With("OperationId", OperationId_)
+            .With(ex);
     }
 }
 
@@ -2546,8 +2544,8 @@ void TOperationControllerBase::CommitDebugCompletionTransaction()
 
     auto debugCompletionTransactionId = DebugCompletionTransaction_->GetId();
 
-    YT_LOG_INFO("Committing debug completion transaction (TransactionId: %v)",
-        debugCompletionTransactionId);
+    YT_TLOG_INFO("Committing debug completion transaction")
+        .With("TransactionId", debugCompletionTransactionId);
 
     TTransactionCommitOptions options;
     options.PrerequisiteTransactionIds.push_back(IncarnationIdToTransactionId(Host_->GetIncarnationId()));
@@ -2555,8 +2553,8 @@ void TOperationControllerBase::CommitDebugCompletionTransaction()
         .ThrowOnError();
     DebugCompletionTransaction_.Reset();
 
-    YT_LOG_INFO("Debug completion transaction committed (TransactionId: %v)",
-        debugCompletionTransactionId);
+    YT_TLOG_INFO("Debug completion transaction committed")
+        .With("TransactionId", debugCompletionTransactionId);
 }
 
 void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitStage desiredStage)
@@ -2666,7 +2664,7 @@ void TOperationControllerBase::SafeCommit()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    YT_LOG_INFO("Committing results");
+    YT_TLOG_INFO("Committing results");
 
     SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
 
@@ -2720,7 +2718,7 @@ void TOperationControllerBase::SafeCommit()
 
     CancelableContext_->Cancel(TError("Operation committed"));
 
-    YT_LOG_INFO("Results committed");
+    YT_TLOG_INFO("Results committed");
 }
 
 void TOperationControllerBase::RegisterLockableDynamicTables(
@@ -2749,7 +2747,7 @@ void TOperationControllerBase::RegisterLockableDynamicTables(
 
 void TOperationControllerBase::CommitTransactions()
 {
-    YT_LOG_INFO("Committing scheduler transactions");
+    YT_TLOG_INFO("Committing scheduler transactions");
 
     std::vector<TFuture<TTransactionCommitResult>> commitFutures;
 
@@ -2766,7 +2764,7 @@ void TOperationControllerBase::CommitTransactions()
     WaitFor(AllSucceeded(commitFutures))
         .ThrowOnError();
 
-    YT_LOG_INFO("Scheduler transactions committed");
+    YT_TLOG_INFO("Scheduler transactions committed");
 
     THashSet<ITransactionPtr> abortedTransactions;
     auto abortTransaction = [&] (const ITransactionPtr& transaction) {
@@ -2807,9 +2805,9 @@ void TOperationControllerBase::TeleportOutputChunks()
 void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
 {
     const auto& path = table->Path.GetPath();
-    YT_LOG_DEBUG("Sorting output chunk tree ids by boundary keys (ChunkTreeCount: %v, Table: %v)",
-        table->OutputChunkTreeIds.size(),
-        path);
+    YT_TLOG_DEBUG("Sorting output chunk tree ids by boundary keys")
+        .With("ChunkTreeCount", table->OutputChunkTreeIds.size())
+        .With("Table", path);
 
     YT_VERIFY(table->TableUploadOptions.TableSchema->IsSorted());
     const auto& comparator = table->TableUploadOptions.TableSchema->ToComparator();
@@ -2833,11 +2831,10 @@ void TOperationControllerBase::VerifySortedOutput(const TOutputTablePtr& table)
     {
         const auto& outputMinKey = table->OutputChunkTreeIds.front().first.AsBoundaryKeys().MinKey;
 
-        YT_LOG_DEBUG(
-            "Comparing table last key against first chunk min key (LastKey: %v, MinKey: %v, Comparator: %v)",
-            table->LastKey,
-            outputMinKey,
-            comparator);
+        YT_TLOG_DEBUG("Comparing table last key against first chunk min key")
+            .With("LastKey", table->LastKey)
+            .With("MinKey", outputMinKey)
+            .With("Comparator", comparator);
 
         int cmp = comparator.CompareKeys(outputMinKey, table->LastKey);
 
@@ -2898,8 +2895,8 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
     for (const auto& table : tableList) {
         const auto& path = table->GetPath();
 
-        YT_LOG_INFO("Attaching output chunks (Path: %v)",
-            path);
+        YT_TLOG_INFO("Attaching output chunks")
+            .With("Path", path);
 
         auto channel = OutputClient_->GetMasterChannelOrThrow(
             EMasterChannelKind::Leader,
@@ -3074,16 +3071,17 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 }
             }
         } else if (IsOrderedOutputRequired()) {
-            YT_LOG_DEBUG("Sorting output chunk tree ids according to a given output order (ChunkTreeCount: %v, Table: %v)",
-                table->OutputChunkTreeIds.size(),
-                path);
+            YT_TLOG_DEBUG("Sorting output chunk tree ids according to a given output order")
+                .With("ChunkTreeCount", table->OutputChunkTreeIds.size())
+                .With("Table", path);
 
             for (const auto& chunkTreeId : GetOutputChunkTreesInOrder(table)) {
                 addChunkTree(chunkTreeId);
             }
         } else {
-            YT_LOG_DEBUG("Output chunks do not need to be sorted (ChunkTreeCount: %v, Table: %v)",
-                table->OutputChunkTreeIds.size(), path);
+            YT_TLOG_DEBUG("Output chunks do not need to be sorted")
+                .With("ChunkTreeCount", table->OutputChunkTreeIds.size())
+                .With("Table", path);
             for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
                 YT_VERIFY(!key);
                 addChunkTree(chunkTreeId);
@@ -3093,9 +3091,9 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
         // NB: Don't forget to ask for the statistics in the last request.
         flushRequest(true);
 
-        YT_LOG_INFO("Output chunks attached (Path: %v, Statistics: %v)",
-            path,
-            table->DataStatistics);
+        YT_TLOG_INFO("Output chunks attached")
+            .With("Path", path)
+            .With("Statistics", table->DataStatistics);
     }
 }
 
@@ -3108,9 +3106,9 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
     for (const auto& table : tables) {
         nativeCellTagToTables[CellTagFromId(table->ObjectId)].push_back(table);
 
-        YT_LOG_INFO("Finishing upload to output table (Path: %v, Schema: %v)",
-            table->GetPath(),
-            *table->TableUploadOptions.TableSchema);
+        YT_TLOG_INFO("Finishing upload to output table")
+            .With("Path", table->GetPath())
+            .With("Schema", *table->TableUploadOptions.TableSchema);
     }
 
     {
@@ -3165,9 +3163,9 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                 if (table->IsDebugTable()) {
                     debugTables.push_back(table);
 
-                    YT_LOG_INFO("Setting custom attributes for debug output table (Path: %v, OutputType: %v)",
-                        table->GetPath(),
-                        table->OutputType);
+                    YT_TLOG_INFO("Setting custom attributes for debug output table")
+                        .With("Path", table->GetPath())
+                        .With("OutputType", table->OutputType);
                 }
             }
 
@@ -3207,7 +3205,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         }
     }
 
-    YT_LOG_INFO("Upload to output tables finished");
+    YT_TLOG_INFO("Upload to output tables finished");
 }
 
 void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
@@ -3215,11 +3213,13 @@ void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
     YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool_);
 
     if (State_ != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale job started, ignored (JobId: %v)", joblet->JobId);
+        YT_TLOG_DEBUG("Stale job started, ignored")
+            .With("JobId", joblet->JobId);
         return;
     }
 
-    YT_LOG_DEBUG("Job started (JobId: %v)", joblet->JobId);
+    YT_TLOG_DEBUG("Job started")
+        .With("JobId", joblet->JobId);
 
     joblet->LastActivityTime = TInstant::Now();
     joblet->TaskName = joblet->Task->GetVertexDescriptor();
@@ -3321,15 +3321,15 @@ void TOperationControllerBase::InitializeSecurityTags()
     for (const auto& table : OutputTables_) {
         if (auto explicitSecurityTags = table->Path.GetSecurityTags()) {
             // TODO(babenko): audit
-            YT_LOG_INFO("Output table is assigned explicit security tags (Path: %v, InferredSecurityTags: %v, ExplicitSecurityTags: %v)",
-                table->GetPath(),
-                inferredSecurityTags,
-                explicitSecurityTags);
+            YT_TLOG_INFO("Output table is assigned explicit security tags")
+                .With("Path", table->GetPath())
+                .With("InferredSecurityTags", inferredSecurityTags)
+                .With("ExplicitSecurityTags", explicitSecurityTags);
             table->TableUploadOptions.SecurityTags = *explicitSecurityTags;
         } else {
-            YT_LOG_INFO("Output table is assigned automatically-inferred security tags (Path: %v, SecurityTags: %v)",
-                table->GetPath(),
-                inferredSecurityTags);
+            YT_TLOG_INFO("Output table is assigned automatically-inferred security tags")
+                .With("Path", table->GetPath())
+                .With("SecurityTags", inferredSecurityTags);
             table->TableUploadOptions.SecurityTags = inferredSecurityTags;
         }
     }
@@ -3358,19 +3358,19 @@ bool TOperationControllerBase::OnJobCompleted(
     const auto abandoned = jobSummary->Abandoned;
 
     if (!ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
+        YT_TLOG_DEBUG("Stale job completed, ignored")
+            .With("JobId", jobId);
         return false;
     }
 
     JobAbortsUntilOperationFailure_.clear();
 
-    YT_LOG_DEBUG(
-        "Job completed (JobId: %v, ResultSize: %v, Abandoned: %v, InterruptionReason: %v, Interruptible: %v)",
-        jobId,
-        jobSummary->Result ? std::make_optional(jobSummary->GetJobResult().ByteSizeLong()) : std::nullopt,
-        jobSummary->Abandoned,
-        jobSummary->InterruptionReason,
-        joblet->JobInterruptible);
+    YT_TLOG_DEBUG("Job completed")
+        .With("JobId", jobId)
+        .With("ResultSize", jobSummary->Result ? std::make_optional(jobSummary->GetJobResult().ByteSizeLong()) : std::nullopt)
+        .With("Abandoned", jobSummary->Abandoned)
+        .With("InterruptionReason", jobSummary->InterruptionReason)
+        .With("Interruptible", joblet->JobInterruptible);
 
     // Testing purpose code.
     if (Config_->EnableControllerFailureSpecOption &&
@@ -3397,19 +3397,18 @@ bool TOperationControllerBase::OnJobCompleted(
                 // NB: We lose the original interrupt reason during the revival,
                 // so we set it to Unknown.
                 jobSummary->InterruptionReason = EInterruptionReason::Unknown;
-                YT_LOG_DEBUG(
-                    "Overriding job interrupt reason due to revival (JobId: %v, InterruptionReason: %v)",
-                    jobId,
-                    jobSummary->InterruptionReason);
+                YT_TLOG_DEBUG("Overriding job interrupt reason due to revival")
+                    .With("JobId", jobId)
+                    .With("InterruptionReason", jobSummary->InterruptionReason);
             } else {
-                YT_LOG_DEBUG("Job restart is needed (JobId: %v)", jobId);
+                YT_TLOG_DEBUG("Job restart is needed")
+                    .With("JobId", jobId);
             }
         } else if (jobSummary->InterruptionReason != EInterruptionReason::None) {
             jobSummary->InterruptionReason = EInterruptionReason::None;
-            YT_LOG_DEBUG(
-                "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptionReason: %v)",
-                jobId,
-                jobSummary->InterruptionReason);
+            YT_TLOG_DEBUG("Overriding job interrupt reason due to unneeded restart")
+                .With("JobId", jobId)
+                .With("InterruptionReason", jobSummary->InterruptionReason);
         }
 
         YT_VERIFY(
@@ -3429,7 +3428,8 @@ bool TOperationControllerBase::OnJobCompleted(
 
     // Controller should abort job if its competitor has already completed.
     if (auto maybeAbortReason = joblet->Task->ShouldAbortCompletingJob(joblet)) {
-        YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
+        YT_TLOG_DEBUG("Job is considered aborted since its competitor has already completed")
+            .With("JobId", jobId);
         return OnJobAborted(std::move(joblet), CreateAbortedJobSummary(*jobSummary, *maybeAbortReason));
     }
 
@@ -3450,12 +3450,11 @@ bool TOperationControllerBase::OnJobCompleted(
 
         if (jobSummary->InterruptionReason != EInterruptionReason::None) {
             ExtractInterruptDescriptor(*jobSummary, joblet);
-            YT_LOG_DEBUG(
-                "Job interrupted (JobId: %v, InterruptionReason: %v, UnreadDataSliceCount: %v, ReadDataSliceCount: %v)",
-                jobId,
-                jobSummary->InterruptionReason,
-                jobSummary->UnreadInputDataSlices.size(),
-                jobSummary->ReadInputDataSlices.size());
+            YT_TLOG_DEBUG("Job interrupted")
+                .With("JobId", jobId)
+                .With("InterruptionReason", jobSummary->InterruptionReason)
+                .With("UnreadDataSliceCount", jobSummary->UnreadInputDataSlices.size())
+                .With("ReadDataSliceCount", jobSummary->ReadInputDataSlices.size());
         }
 
         UpdateJobletFromSummary(*jobSummary, joblet);
@@ -3545,19 +3544,20 @@ bool TOperationControllerBase::OnJobFailed(
     auto jobId = jobSummary->Id;
 
     if (!ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG("Stale job failed, ignored (JobId: %v)", jobId);
+        YT_TLOG_DEBUG("Stale job failed, ignored")
+            .With("JobId", jobId);
         return false;
     }
 
-    YT_LOG_DEBUG("Job failed (JobId: %v)", jobId);
+    YT_TLOG_DEBUG("Job failed")
+        .With("JobId", jobId);
 
     JobAbortsUntilOperationFailure_.clear();
 
     if (Spec_->IgnoreJobFailuresAtBannedNodes && BannedNodeIds_.find(joblet->NodeDescriptor.Id) != BannedNodeIds_.end()) {
-        YT_LOG_DEBUG("Job is considered aborted since it has failed at a banned node "
-            "(JobId: %v, Address: %v)",
-            jobId,
-            NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses));
+        YT_TLOG_DEBUG("Job is considered aborted since it has failed at a banned node")
+            .With("JobId", jobId)
+            .With("Address", NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses));
         auto abortedJobSummary = CreateAbortedJobSummary(
             *jobSummary,
             EAbortReason::NodeBanned,
@@ -3566,9 +3566,8 @@ bool TOperationControllerBase::OnJobFailed(
     }
 
     if (joblet->CompetitionType == EJobCompetitionType::Experiment) {
-        YT_LOG_DEBUG("Failed layer probing job is considered aborted "
-            "(JobId: %v)",
-            jobId);
+        YT_TLOG_DEBUG("Failed layer probing job is considered aborted")
+            .With("JobId", jobId);
         auto abortedJobSummary = CreateAbortedJobSummary(
             *jobSummary,
             EAbortReason::JobTreatmentFailed,
@@ -3673,10 +3672,10 @@ bool TOperationControllerBase::OnJobFailed(
 
     if (Spec_->BanNodesWithFailedJobs) {
         if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
-            YT_LOG_DEBUG("Node banned due to failed job (JobId: %v, NodeId: %v, Address: %v)",
-                jobId,
-                joblet->NodeDescriptor.Id,
-                NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses));
+            YT_TLOG_DEBUG("Node banned due to failed job")
+                .With("JobId", jobId)
+                .With("NodeId", joblet->NodeDescriptor.Id)
+                .With("Address", NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses));
         }
     }
 
@@ -3706,20 +3705,21 @@ bool TOperationControllerBase::OnJobAborted(
     auto abortReason = jobSummary->AbortReason;
 
     if (!ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
+        YT_TLOG_DEBUG("Stale job aborted, ignored")
+            .With("JobId", jobId);
         return false;
     }
 
-    YT_LOG_DEBUG(
-        "Job aborted (JobId: %v, AbortReason: %v, JobType: %v)",
-        jobId,
-        abortReason,
-        joblet->JobType);
+    YT_TLOG_DEBUG("Job aborted")
+        .With("JobId", jobId)
+        .With("AbortReason", abortReason)
+        .With("JobType", joblet->JobType);
 
     auto error = jobSummary->Error;
 
     if (!error) {
-        YT_LOG_ERROR("No job error provided for aborted job (JobId: %v)", jobId);
+        YT_TLOG_ERROR("No job error provided for aborted job")
+            .With("JobId", jobId);
     }
 
     if (joblet->JobSpecProtoFuture) {
@@ -3759,10 +3759,9 @@ bool TOperationControllerBase::OnJobAborted(
         if (abortReason == EAbortReason::FailedChunks) {
             const auto& jobResultExt = jobSummary->GetJobResultExt();
             failedChunkIds = FromProto<std::vector<TChunkId>>(jobResultExt.failed_chunk_ids());
-            YT_LOG_DEBUG(
-                "Job aborted because of failed chunks (JobId: %v, SampleFailedChunkIds: %v)",
-                jobId,
-                MakeShrunkFormattableView(failedChunkIds, TDefaultFormatter(), SampleChunkIdCount));
+            YT_TLOG_DEBUG("Job aborted because of failed chunks")
+                .With("JobId", jobId)
+                .With("SampleFailedChunkIds", MakeShrunkFormattableView(failedChunkIds, TDefaultFormatter(), SampleChunkIdCount));
         }
         taskJobResult = joblet->Task->OnJobAborted(joblet, *jobSummary);
 
@@ -3963,7 +3962,7 @@ void TOperationControllerBase::OnJobRunning(
         }
 
         if (canCrashControllerAgent) {
-            YT_LOG_ERROR("Crashing controller agent");
+            YT_TLOG_ERROR("Crashing controller agent");
             YT_VERIFY(false && "Crashed intentionally by spec option");
         } else {
             auto error = TError(
@@ -3976,17 +3975,17 @@ void TOperationControllerBase::OnJobRunning(
     }
 
     if (State_ != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale job running event ignored because controller is not running (JobId: %v, State: %v)", jobId, State_.load());
+        YT_TLOG_DEBUG("Stale job running event ignored because controller is not running")
+            .With("JobId", jobId)
+            .With("State", State_.load());
         return;
     }
 
     if (jobSummary->StatusTimestamp <= joblet->LastUpdateTime) {
-        YT_LOG_DEBUG(
-            "Stale job running event ignored because its timestamp is older than joblet last update time "
-            "(JobId: %v, JobletLastUpdateTime: %v, StatusTimestamp: %v)",
-            jobSummary->Id,
-            joblet->LastUpdateTime,
-            jobSummary->StatusTimestamp);
+        YT_TLOG_DEBUG("Stale job running event ignored because its timestamp is older than joblet last update time")
+            .With("JobId", jobSummary->Id)
+            .With("JobletLastUpdateTime", joblet->LastUpdateTime)
+            .With("StatusTimestamp", jobSummary->StatusTimestamp);
         return;
     }
 
@@ -4024,7 +4023,8 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
-    YT_LOG_DEBUG("Abandon job (JobId: %v)", jobId);
+    YT_TLOG_DEBUG("Abandon job")
+        .With("JobId", jobId);
 
     if (State_ != EControllerState::Running) {
         THROW_ERROR_EXCEPTION(
@@ -4068,10 +4068,9 @@ void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDura
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
-    YT_LOG_DEBUG(
-        "Interrupting job (JobId: %v, Timeout: %v)",
-        jobId,
-        timeout);
+    YT_TLOG_DEBUG("Interrupting job")
+        .With("JobId", jobId)
+        .With("Timeout", timeout);
 
     if (State_ != EControllerState::Running) {
         THROW_ERROR_EXCEPTION(
@@ -4098,7 +4097,7 @@ void TOperationControllerBase::BuildJobAttributes(
     i64 stderrSize,
     TFluentMap fluent) const
 {
-    YT_LOG_DEBUG("Building job attributes");
+    YT_TLOG_DEBUG("Building job attributes");
     fluent
         .Item("job_type").Value(joblet->JobType)
         .Item("state").Value(state)
@@ -4236,7 +4235,7 @@ const NLogging::TLogger* TOperationControllerBase::GetEventLogger()
 void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
 {
     if (chunkId == NullChunkId) {
-        YT_LOG_WARNING("Incompatible unavailable chunk found; deprecated node version");
+        YT_TLOG_WARNING("Incompatible unavailable chunk found; deprecated node version");
         return;
     }
 
@@ -4247,7 +4246,9 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
 
     TForbidContextSwitchGuard guard;
     if (!InputManager_->OnInputChunkFailed(chunkId, jobId)) {
-        YT_LOG_DEBUG("Intermediate chunk has failed (ChunkId: %v, JobId: %v)", chunkId, jobId);
+        YT_TLOG_DEBUG("Intermediate chunk has failed")
+            .With("ChunkId", chunkId)
+            .With("JobId", jobId);
         IntermediateChunkScraper_->OnChunkBecameUnavailable(chunkId);
         if (!OnIntermediateChunkUnavailable(chunkId)) {
             return;
@@ -4282,23 +4283,21 @@ void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
         }
     }
 
-    YT_LOG_DEBUG(
-        "Intermediate chunk batch has located (ChunkBatchSize: %v, AvailableCount: %v, UnavailableCount: %v)",
-        chunkBatch.size(),
-        availableCount,
-        unavailableCount);
+    YT_TLOG_DEBUG("Intermediate chunk batch has located")
+        .With("ChunkBatchSize", chunkBatch.size())
+        .With("AvailableCount", availableCount)
+        .With("UnavailableCount", unavailableCount);
 }
 
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
     auto& completedJob = GetOrCrash(ChunkOriginMap_, chunkId);
 
-    YT_LOG_DEBUG(
-        "Intermediate chunk is lost (ChunkId: %v, JobId: %v, Restartable: %v, Suspended: %v)",
-        chunkId,
-        completedJob->JobId,
-        completedJob->Restartable,
-        completedJob->Suspended);
+    YT_TLOG_DEBUG("Intermediate chunk is lost")
+        .With("ChunkId", chunkId)
+        .With("JobId", completedJob->JobId)
+        .With("Restartable", completedJob->Restartable)
+        .With("Suspended", completedJob->Suspended);
 
     // If completedJob->Restartable == false, that means that source pool/task don't support lost jobs
     // and we have to use scraper to find new replicas of intermediate chunks.
@@ -4322,17 +4321,15 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
         return false;
     }
 
-    YT_LOG_DEBUG(
-        "Job is lost (Address: %v, JobId: %v, SourceTask: %v, OutputCookie: %v, InputCookie: %v, "
-        "Restartable: %v, ChunkId: %v, UnavailableIntermediateChunkCount: %v)",
-        NNodeTrackerClient::GetDefaultAddress(completedJob->NodeDescriptor.Addresses),
-        completedJob->JobId,
-        completedJob->SourceTask->GetTitle(),
-        completedJob->OutputCookie,
-        completedJob->InputCookie,
-        completedJob->Restartable,
-        chunkId,
-        UnavailableIntermediateChunkCount_);
+    YT_TLOG_DEBUG("Job is lost")
+        .With("Address", NNodeTrackerClient::GetDefaultAddress(completedJob->NodeDescriptor.Addresses))
+        .With("JobId", completedJob->JobId)
+        .With("SourceTask", completedJob->SourceTask->GetTitle())
+        .With("OutputCookie", completedJob->OutputCookie)
+        .With("InputCookie", completedJob->InputCookie)
+        .With("Restartable", completedJob->Restartable)
+        .With("ChunkId", chunkId)
+        .With("UnavailableIntermediateChunkCount", UnavailableIntermediateChunkCount_);
 
     completedJob->Suspended = true;
     completedJob->DestinationPool->Suspend(completedJob->InputCookie);
@@ -4362,12 +4359,11 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
     if (completedJob->UnavailableChunks.erase(chunkId) == 1) {
         --UnavailableIntermediateChunkCount_;
 
-        YT_LOG_DEBUG(
-            "Unavailable intermediate chunk was found (JobId: %v, InputCookie: %v, ChunkId: %v, UnavailableIntermediateChunkCount: %v)",
-            completedJob->JobId,
-            completedJob->InputCookie,
-            chunkId,
-            UnavailableIntermediateChunkCount_);
+        YT_TLOG_DEBUG("Unavailable intermediate chunk was found")
+            .With("JobId", completedJob->JobId)
+            .With("InputCookie", completedJob->InputCookie)
+            .With("ChunkId", chunkId)
+            .With("UnavailableIntermediateChunkCount", UnavailableIntermediateChunkCount_);
 
         for (auto& dataSlice : completedJob->InputStripe->DataSlices()) {
             // Intermediate chunks are always unversioned.
@@ -4381,11 +4377,10 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
             UnavailableIntermediateChunkCount_ > 0 ||
             (UnavailableIntermediateChunkCount_ == 0 && completedJob->UnavailableChunks.empty()));
         if (completedJob->UnavailableChunks.empty()) {
-            YT_LOG_DEBUG(
-                "Found all unavailable chunks for job, job result is resumed (JobId: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
-                completedJob->JobId,
-                completedJob->InputCookie,
-                UnavailableIntermediateChunkCount_);
+            YT_TLOG_DEBUG("Found all unavailable chunks for job, job result is resumed")
+                .With("JobId", completedJob->JobId)
+                .With("InputCookie", completedJob->InputCookie)
+                .With("UnavailableIntermediateChunkCount", UnavailableIntermediateChunkCount_);
 
             completedJob->Suspended = false;
             completedJob->DestinationPool->Resume(completedJob->InputCookie);
@@ -4496,7 +4491,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    YT_LOG_INFO("Terminating operation controller");
+    YT_TLOG_INFO("Terminating operation controller");
 
     RemoveRemainingJobsOnOperationFinished();
 
@@ -4516,14 +4511,16 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
         try {
             FinalizeSubscriptions();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to finalize subscriptions");
+            YT_TLOG_ERROR("Failed to finalize subscriptions")
+                .With(ex);
         }
 
         try {
             FinalizeFeatures();
             CommitFeatures();
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to finalize and commit features");
+            YT_TLOG_ERROR("Failed to finalize and commit features")
+                .With(ex);
         }
 
         std::vector<TOutputTablePtr> tables;
@@ -4553,7 +4550,8 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
             } catch (const std::exception& ex) {
                 // Bad luck we can't commit transaction.
                 // Such a pity can happen for example if somebody aborted our transaction manually.
-                YT_LOG_ERROR(ex, "Failed to commit debug transaction");
+                YT_TLOG_ERROR("Failed to commit debug transaction")
+                    .With(ex);
                 // Intentionally do not wait for abort.
                 // Transaction object may be in incorrect state, we need to abort using only transaction id.
                 YT_UNUSED_FUTURE(AttachTransaction(DebugTransaction_->GetId(), Client_)->Abort());
@@ -4604,7 +4602,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
     LogProgress(/*force*/ true);
 
-    YT_LOG_INFO("Operation controller terminated");
+    YT_TLOG_INFO("Operation controller terminated");
 }
 
 void TOperationControllerBase::SafeComplete()
@@ -4756,8 +4754,8 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         return;
     }
 
-    YT_LOG_DEBUG("Available exec nodes check succeeded (ObservedNodeAddress: %v)",
-        observedExecNodeAddress);
+    YT_TLOG_DEBUG("Available exec nodes check succeeded")
+        .With("ObservedNodeAddress", observedExecNodeAddress);
 }
 
 void TOperationControllerBase::CheckMinNeededResourcesSanity()
@@ -4795,7 +4793,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
     MaybeDelay(Spec_->TestingOperationOptions->ScheduleAllocationDelay);
 
     if (State_ != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale schedule allocation attempt");
+        YT_TLOG_DEBUG("Stale schedule allocation attempt");
         return nullptr;
     }
 
@@ -4833,12 +4831,11 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
     if (now > ScheduleAllocationStatisticsLogDeadline_) {
         AccountExternalScheduleAllocationFailures();
 
-        YT_LOG_DEBUG(
-            "Schedule allocation statistics (Count: %v, TotalDuration: %v, SuccessfulDurationEstimate: %v, FailureReasons: %v)",
-            ScheduleAllocationStatistics_->GetCount(),
-            ScheduleAllocationStatistics_->GetTotalDuration(),
-            ScheduleAllocationStatistics_->SuccessfulDurationMovingAverage().GetAverage(),
-            ScheduleAllocationStatistics_->Failed());
+        YT_TLOG_DEBUG("Schedule allocation statistics")
+            .With("Count", ScheduleAllocationStatistics_->GetCount())
+            .With("TotalDuration", ScheduleAllocationStatistics_->GetTotalDuration())
+            .With("SuccessfulDurationEstimate", ScheduleAllocationStatistics_->SuccessfulDurationMovingAverage().GetAverage())
+            .With("FailureReasons", ScheduleAllocationStatistics_->Failed());
 
         ScheduleAllocationStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config_->ScheduleAllocationStatisticsLogBackoff);
     }
@@ -4880,15 +4877,13 @@ bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexc
         }
 
         if (jobSpecThrottlingActive || forceLogging) {
-            YT_LOG_DEBUG(
-                "Throttling status for building job specs (JobSpecCount: %v, JobSpecCountLimit: %v, TotalJobSpecSliceCount: %v, "
-                "TotalJobSpecSliceCountLimit: %v, AvgJobSpecSliceCount: %v, JobSpecThrottlingActive: %v)",
-                buildingJobSpecCount,
-                Options_->ControllerBuildingJobSpecCountLimit,
-                totalBuildingJobSpecSliceCount,
-                Options_->ControllerTotalBuildingJobSpecSliceCountLimit,
-                avgSliceCount,
-                jobSpecThrottlingActive);
+            YT_TLOG_DEBUG("Throttling status for building job specs")
+                .With("JobSpecCount", buildingJobSpecCount)
+                .With("JobSpecCountLimit", Options_->ControllerBuildingJobSpecCountLimit)
+                .With("TotalJobSpecSliceCount", totalBuildingJobSpecSliceCount)
+                .With("TotalJobSpecSliceCountLimit", Options_->ControllerTotalBuildingJobSpecSliceCountLimit)
+                .With("AvgJobSpecSliceCount", avgSliceCount)
+                .With("JobSpecThrottlingActive", jobSpecThrottlingActive);
         }
     }
 
@@ -4900,12 +4895,10 @@ bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexc
         bool waitTimeThrottlingActive = scheduleAllocationWaitTime > Config_->ScheduleAllocationThrottling.ScheduleAllocationTotalTimeThreshold;
 
         if (waitTimeThrottlingActive || forceLogging) {
-            YT_LOG_DEBUG(
-                "Throttling status for schedule allocation wait time "
-                "(ScheduleAllocationWaitTime: %v, Threshold: %v, WaitTimeThrottlingActive: %v)",
-                scheduleAllocationWaitTime,
-                Config_->ScheduleAllocationThrottling.ScheduleAllocationTotalTimeThreshold,
-                waitTimeThrottlingActive);
+            YT_TLOG_DEBUG("Throttling status for schedule allocation wait time")
+                .With("ScheduleAllocationWaitTime", scheduleAllocationWaitTime)
+                .With("Threshold", Config_->ScheduleAllocationThrottling.ScheduleAllocationTotalTimeThreshold)
+                .With("WaitTimeThrottlingActive", waitTimeThrottlingActive);
         }
     }
 
@@ -4916,12 +4909,10 @@ bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexc
         bool waitTimeThrottlingActive = jobEventsWaitTime > Config_->ScheduleAllocationThrottling.JobEventsTotalTimeThreshold;
 
         if (waitTimeThrottlingActive || forceLogging) {
-            YT_LOG_DEBUG(
-                "Throttling status for job events wait time "
-                "(JobEventsWaitTime: %v, Threshold: %v, WaitTimeThrottlingActive: %v)",
-                jobEventsWaitTime,
-                Config_->ScheduleAllocationThrottling.JobEventsTotalTimeThreshold,
-                waitTimeThrottlingActive);
+            YT_TLOG_DEBUG("Throttling status for job events wait time")
+                .With("JobEventsWaitTime", jobEventsWaitTime)
+                .With("Threshold", Config_->ScheduleAllocationThrottling.JobEventsTotalTimeThreshold)
+                .With("WaitTimeThrottlingActive", waitTimeThrottlingActive);
         }
     }
 
@@ -4947,12 +4938,10 @@ bool TOperationControllerBase::ShouldSkipRunningJobEvents() const noexcept
         waitTimeThrottlingActive = jobEventsWaitTime > Config_->JobEventsTotalTimeThreshold;
 
         if (waitTimeThrottlingActive || forceLogging) {
-            YT_LOG_DEBUG(
-                "Throttling status for job events wait time "
-                "(JobEventsWaitTime: %v, Threshold: %v, WaitTimeThrottlingActive: %v)",
-                jobEventsWaitTime,
-                Config_->JobEventsTotalTimeThreshold,
-                waitTimeThrottlingActive);
+            YT_TLOG_DEBUG("Throttling status for job events wait time")
+                .With("JobEventsWaitTime", jobEventsWaitTime)
+                .With("Threshold", Config_->JobEventsTotalTimeThreshold)
+                .With("WaitTimeThrottlingActive", waitTimeThrottlingActive);
         }
     }
 
@@ -5079,15 +5068,11 @@ void TOperationControllerBase::UpdateTask(TTask* task)
     UpdateNeededResources();
 
     // TODO(max42): move this logging into pools.
-    YT_LOG_DEBUG_IF(
-        newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount,
-        "Task updated (Task: %v, PendingJobCount: %v -> %v, TotalJobCount: %v -> %v, NeededResources: %v)",
-        task->GetTitle(),
-        oldPendingJobCount,
-        newPendingJobCount,
-        oldTotalJobCount,
-        newTotalJobCount,
-        CachedNeededResources_);
+    YT_TLOG_DEBUG_IF(newPendingJobCount != oldPendingJobCount || newTotalJobCount != oldTotalJobCount, "Task updated")
+        .With("Task", task->GetTitle())
+        .WithFormat("PendingJobCount", "%v -> %v", oldPendingJobCount, newPendingJobCount)
+        .WithFormat("TotalJobCount", "%v -> %v", oldTotalJobCount, newTotalJobCount)
+        .With("NeededResources", CachedNeededResources_);
 
     task->CheckCompleted();
 }
@@ -5111,7 +5096,7 @@ void TOperationControllerBase::UpdateAllTasksIfNeeded()
 
 void TOperationControllerBase::ResetTaskLocalityDelays()
 {
-    YT_LOG_DEBUG("Task locality delays are reset");
+    YT_TLOG_DEBUG("Task locality delays are reset");
     for (const auto& task : Tasks_) {
         task->SetDelayedTime(std::nullopt);
     }
@@ -5126,7 +5111,7 @@ void TOperationControllerBase::DoScheduleAllocation(
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue));
 
     if (!IsRunning()) {
-        YT_LOG_TRACE("Operation is not running, scheduling request ignored");
+        YT_TLOG_TRACE("Operation is not running, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::OperationNotRunning);
         GetScheduleJobProfiler()->ProfileScheduleJobFailure(
             allocation.TreeId,
@@ -5135,7 +5120,7 @@ void TOperationControllerBase::DoScheduleAllocation(
     }
 
     if (GetPendingJobCount().GetJobCountFor(treeId) == 0) {
-        YT_LOG_TRACE("No pending jobs left, scheduling request ignored");
+        YT_TLOG_TRACE("No pending jobs left, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::NoPendingJobs);
         GetScheduleJobProfiler()->ProfileScheduleJobFailure(
             allocation.TreeId,
@@ -5144,7 +5129,7 @@ void TOperationControllerBase::DoScheduleAllocation(
     }
 
     if (BannedNodeIds_.find(context.GetNodeDescriptor().Id) != BannedNodeIds_.end()) {
-        YT_LOG_TRACE("Node is banned, scheduling request ignored");
+        YT_TLOG_TRACE("Node is banned, scheduling request ignored");
         scheduleAllocationResult->RecordFail(EScheduleFailReason::NodeBanned);
         GetScheduleJobProfiler()->ProfileScheduleJobFailure(
             allocation.TreeId,
@@ -5244,10 +5229,9 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
             /*isJobFirst*/ false);
 
         auto logSettlementFailed = [&] (EScheduleFailReason reason) {
-            YT_LOG_INFO(
-                "Failed to settle new job in allocation (AllocationId: %v, FailReason: %v)",
-                allocation.Id,
-                reason);
+            YT_TLOG_INFO("Failed to settle new job in allocation")
+                .With("AllocationId", allocation.Id)
+                .With("FailReason", reason);
         };
 
         if (*failReason == EScheduleFailReason::NotEnoughChunkLists) {
@@ -5310,10 +5294,9 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleJob(
 
         auto deadline = *task.GetDelayedTime() + task.GetLocalityTimeout();
         if (deadline > now) {
-            YT_LOG_DEBUG(
-                "Task delayed (Task: %v, Deadline: %v)",
-                task.GetTitle(),
-                deadline);
+            YT_TLOG_DEBUG("Task delayed")
+                .With("Task", task.GetTitle())
+                .With("Deadline", deadline);
             return EScheduleFailReason::TaskDelayed;
         }
     }
@@ -5341,7 +5324,7 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleJob(
         }));
 
     if (!HasEnoughChunkLists(task.IsStderrTableEnabled(), task.IsCoreTableEnabled())) {
-        YT_LOG_DEBUG("Job chunk list demand is not met");
+        YT_TLOG_DEBUG("Job chunk list demand is not met");
         return EScheduleFailReason::NotEnoughChunkLists;
     }
 
@@ -5452,7 +5435,7 @@ void TOperationControllerBase::Cancel()
 
     CancelableContext_->Cancel(TError("Operation controller canceled"));
 
-    YT_LOG_INFO("Operation controller canceled");
+    YT_TLOG_INFO("Operation controller canceled");
 }
 
 TCompositePendingJobCount TOperationControllerBase::GetPendingJobCount() const
@@ -5522,10 +5505,10 @@ void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::opti
 
     auto& info = GetOrCrash(AccountResourceUsageLeaseMap_, *account);
 
-    YT_LOG_DEBUG("Increasing account resource usage lease (Account: %v, CurrentDiskQuota: %v, Delta: %v)",
-        account,
-        info.DiskQuota,
-        delta);
+    YT_TLOG_DEBUG("Increasing account resource usage lease")
+        .With("Account", account)
+        .With("CurrentDiskQuota", info.DiskQuota)
+        .With("Delta", delta);
 
     info.DiskQuota += delta;
     YT_VERIFY(!info.DiskQuota.DiskSpaceWithoutMedium.has_value());
@@ -5570,10 +5553,10 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
             }
             return;
         }
-        YT_LOG_DEBUG("Account resource usage lease updated (Account: %v, LeaseId: %v, DiskQuota: %v)",
-            account,
-            info.LeaseId,
-            info.DiskQuota);
+        YT_TLOG_DEBUG("Account resource usage lease updated")
+            .With("Account", account)
+            .With("LeaseId", info.LeaseId)
+            .With("DiskQuota", info.DiskQuota);
     }
 }
 
@@ -5623,10 +5606,9 @@ void TOperationControllerBase::SafeUpdateGroupedNeededResources()
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Updated allocation group needed resources (Task: %v, AllocationGroupResources: %v)",
-            taskName,
-            allocationGroupResources);
+        YT_TLOG_DEBUG("Updated allocation group needed resources")
+            .With("Task", taskName)
+            .With("AllocationGroupResources", allocationGroupResources);
 
         EmplaceOrCrash(groupedNeededResources, taskName, std::move(allocationGroupResources));
     }
@@ -5641,7 +5623,7 @@ TControllerEpoch TOperationControllerBase::GetControllerEpoch() const
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
 {
-    YT_LOG_DEBUG("Flushing operation node");
+    YT_TLOG_DEBUG("Flushing operation node");
     // Some statistics are reported only on operation end so
     // we need to synchronously check everything and set
     // appropriate alerts before flushing operation node.
@@ -5654,7 +5636,7 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
         DoFailOperation(flushResult, /*flush*/ false);
     }
 
-    YT_LOG_DEBUG("Operation node flushed");
+    YT_TLOG_DEBUG("Operation node flushed");
 }
 
 void TOperationControllerBase::OnOperationCompleted(bool interrupted)
@@ -5720,7 +5702,8 @@ void TOperationControllerBase::OnOperationCompleted(bool interrupted)
                 Host_->OnOperationCompleted();
             } catch (const std::exception& ex) {
                 // NB(coteeq): Nothing we can do about it. Agent should've been disconnected from master.
-                YT_LOG_WARNING(ex, "Failed to complete operation");
+                YT_TLOG_WARNING("Failed to complete operation")
+                    .With(ex);
             }
         }));
 }
@@ -5741,7 +5724,9 @@ void TOperationControllerBase::DoFailOperation(const TError& error, bool flush, 
     }
 
     WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
-        YT_LOG_DEBUG(error, "Operation controller failed (Flush: %v)", flush);
+        YT_TLOG_DEBUG("Operation controller failed")
+            .With("Flush", flush)
+            .With(error);
 
         // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
         if (IsFinished()) {
@@ -5768,9 +5753,9 @@ void TOperationControllerBase::DoFailOperation(const TError& error, bool flush, 
 
         Error_ = error;
 
-        YT_LOG_DEBUG("Notifying host about operation controller failure");
+        YT_TLOG_DEBUG("Notifying host about operation controller failure");
         Host_->OnOperationFailed(error);
-        YT_LOG_DEBUG("Host notified about operation controller failure");
+        YT_TLOG_DEBUG("Host notified about operation controller failure");
     })
         .AsyncVia(GetInvoker())
         .Run()
@@ -5812,15 +5797,14 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (State_ != EControllerState::Running) {
-        YT_LOG_DEBUG(
-            "Attempt to report time limit expiration of an operation which is not running (State: %v)",
-            State_.load());
+        YT_TLOG_DEBUG("Attempt to report time limit expiration of an operation which is not running")
+            .With("State", State_.load());
         return;
     }
 
     OperationTimedOut_ = true;
 
-    YT_LOG_DEBUG("Operation timed out");
+    YT_TLOG_DEBUG("Operation timed out");
 
     GracefullyFailOperation(GetTimeLimitError());
 }
@@ -5848,16 +5832,15 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
     YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool_);
 
     if (State_ != EControllerState::Running) {
-        YT_LOG_DEBUG(
-            "Attempt to gracefully fail operation which is not running (State: %v)",
-            State_.load());
+        YT_TLOG_DEBUG("Attempt to gracefully fail operation which is not running")
+            .With("State", State_.load());
 
         return;
     }
 
     State_ = EControllerState::Failing;
 
-    YT_LOG_INFO("Operation gracefully failing");
+    YT_TLOG_INFO("Operation gracefully failing");
 
     bool hasJobsToFail = false;
 
@@ -5896,7 +5879,7 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
     }
 
     if (hasJobsToFail) {
-        YT_LOG_DEBUG("Postpone operation failure to handle failed jobs");
+        YT_TLOG_DEBUG("Postpone operation failure to handle failed jobs");
         OperationFailError_ = error;
         GracefulAbortTimeoutFailureCookie_ = TDelayedExecutor::Submit(
             BIND(
@@ -5966,10 +5949,10 @@ void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputCh
                 chunk);
         }
         chunkIds.push_back(chunk->GetChunkId());
-        YT_LOG_DEBUG("Releasing intermediate chunk (ChunkId: %v, VertexDescriptor: %v, LivePreviewIndex: %v)",
-            chunk->GetChunkId(),
-            livePreviewDescriptor.VertexDescriptor,
-            livePreviewDescriptor.LivePreviewIndex);
+        YT_TLOG_DEBUG("Releasing intermediate chunk")
+            .With("ChunkId", chunk->GetChunkId())
+            .With("VertexDescriptor", livePreviewDescriptor.VertexDescriptor)
+            .With("LivePreviewIndex", livePreviewDescriptor.LivePreviewIndex);
         LivePreviewChunks_.erase(it);
     }
     Host_->AddChunkTreesToUnstageList(chunkIds, /*recursive*/ false);
@@ -6199,19 +6182,17 @@ std::expected<TJobId, EScheduleFailReason> TOperationControllerBase::GenerateJob
         currentJobCount >= Config_->AllocationJobCountLimit.value_or(
             std::numeric_limits<decltype(Config_->AllocationJobCountLimit)::value_type>::max()))
     {
-        YT_LOG_DEBUG(
-            "Allocation job count reached limit (JobCount: %v, AllocationId: %v, PreviousJobId: %v)",
-            currentJobCount,
-            allocationId,
-            previousJobId);
+        YT_TLOG_DEBUG("Allocation job count reached limit")
+            .With("JobCount", currentJobCount)
+            .With("AllocationId", allocationId)
+            .With("PreviousJobId", previousJobId);
         return std::unexpected(EScheduleFailReason::AllocationJobCountReachedLimit);
     }
 
-    YT_LOG_DEBUG(
-        "Generating new job id (JobId: %v, AllocationId: %v, PreviousJobId: %v)",
-        jobIdGuid,
-        allocationId,
-        previousJobId);
+    YT_TLOG_DEBUG("Generating new job id")
+        .With("JobId", jobIdGuid)
+        .With("AllocationId", allocationId)
+        .With("PreviousJobId", previousJobId);
 
     return TJobId(jobIdGuid);
 }
@@ -6380,15 +6361,15 @@ void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReas
     auto joblet = FindJoblet(jobId);
 
     if (!joblet) {
-        YT_LOG_DEBUG(
-            "Ignore stale job abort request from job tracker (JobId: %v, AbortReason: %v)",
-            jobId,
-            abortReason);
+        YT_TLOG_DEBUG("Ignore stale job abort request from job tracker")
+            .With("JobId", jobId)
+            .With("AbortReason", abortReason);
 
         return;
     }
 
-    YT_LOG_DEBUG("Aborting job by job tracker request (JobId: %v)", jobId);
+    YT_TLOG_DEBUG("Aborting job by job tracker request")
+        .With("JobId", jobId);
 
     DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ false, /*force*/ false);
 }
@@ -6398,7 +6379,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     if (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::NotSupported &&
         GetLegacyIntermediateLivePreviewMode() == ELegacyLivePreviewMode::NotSupported)
     {
-        YT_LOG_INFO("Legacy live preview is not supported for this operation");
+        YT_TLOG_INFO("Legacy live preview is not supported for this operation");
         return;
     }
 
@@ -6464,10 +6445,11 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
             .With(suppressionErrors)
             .With("output_live_preview_mode", GetLegacyOutputLivePreviewMode())
             .With("intermediate_live_preview_mode", GetLegacyIntermediateLivePreviewMode());
-        YT_LOG_INFO("Suppressing live preview due to some reasons (CombinedError: %v)", combinedSuppressionError);
+        YT_TLOG_INFO("Suppressing live preview due to some reasons")
+            .With("CombinedError", combinedSuppressionError);
         SetOperationAlert(EOperationAlertType::LegacyLivePreviewSuppressed, combinedSuppressionError);
     } else {
-        YT_LOG_INFO("Legacy live preview is not suppressed");
+        YT_TLOG_INFO("Legacy live preview is not suppressed");
     }
 }
 
@@ -6498,7 +6480,8 @@ void TOperationControllerBase::CreateLivePreviewTables()
         const TTableSchemaPtr& schema)
     {
         if (!AsyncTransaction_) {
-            YT_LOG_INFO("Creating transaction required for the legacy live preview (Type: %v)", ETransactionType::Async);
+            YT_TLOG_INFO("Creating transaction required for the legacy live preview")
+                .With("Type", ETransactionType::Async);
             AsyncTransaction_ = WaitFor(StartTransaction(ETransactionType::Async, Client_))
                 .ValueOrThrow();
         }
@@ -6539,7 +6522,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     };
 
     if (IsLegacyOutputLivePreviewSupported()) {
-        YT_LOG_INFO("Creating live preview for output tables");
+        YT_TLOG_INFO("Creating live preview for output tables");
 
         for (const auto& [index, table] : SEnumerate(OutputTables_)) {
             auto path = GetOperationPath(OperationId_) + "/output_" + ToString(index);
@@ -6560,7 +6543,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     }
 
     if (StderrTable_) {
-        YT_LOG_INFO("Creating live preview for stderr table");
+        YT_TLOG_INFO("Creating live preview for stderr table");
 
         auto name = "stderr";
         auto path = GetOperationPath(OperationId_) + "/" + name;
@@ -6594,7 +6577,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     }
 
     if (isLegacyIntermediateLivePreviewSupported) {
-        YT_LOG_INFO("Creating live preview for intermediate table");
+        YT_TLOG_INFO("Creating live preview for intermediate table");
 
         auto path = GetOperationPath(OperationId_) + "/intermediate";
 
@@ -6634,21 +6617,21 @@ void TOperationControllerBase::CreateLivePreviewTables()
             handleResponse(*table, rspOrError.Value());
         }
 
-        YT_LOG_INFO("Live preview for output tables created");
+        YT_TLOG_INFO("Live preview for output tables created");
     }
 
     if (StderrTable_) {
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_stderr");
         handleResponse(*StderrTable_, rsp.Value());
 
-        YT_LOG_INFO("Live preview for stderr table created");
+        YT_TLOG_INFO("Live preview for stderr table created");
     }
 
     if (IsLegacyIntermediateLivePreviewSupported()) {
         auto rsp = batchRsp->GetResponse<TCypressYPathProxy::TRspCreate>("create_intermediate");
         handleResponse(*IntermediateTable_, rsp.Value());
 
-        YT_LOG_INFO("Live preview for intermediate table created");
+        YT_TLOG_INFO("Live preview for intermediate table created");
     }
 }
 
@@ -6658,30 +6641,26 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
 
     auto jobId = jobSummary->Id;
 
-    YT_LOG_DEBUG(
-        "Job info received from node (JobId: %v, JobState: %v, HasStatistics: %v, FinishTime: %v)",
-        jobId,
-        jobSummary->State,
-        static_cast<bool>(jobSummary->Statistics),
-        jobSummary->FinishTime);
+    YT_TLOG_DEBUG("Job info received from node")
+        .With("JobId", jobId)
+        .With("JobState", jobSummary->State)
+        .With("HasStatistics", static_cast<bool>(jobSummary->Statistics))
+        .With("FinishTime", jobSummary->FinishTime);
 
     auto joblet = FindJoblet(jobId);
 
     if (!joblet) {
-        YT_LOG_DEBUG(
-            "Received job info for unknown job (JobId: %v)",
-            jobId);
+        YT_TLOG_DEBUG("Received job info for unknown job")
+            .With("JobId", jobId);
         return;
     }
 
     if (!joblet->IsStarted()) {
         YT_VERIFY(joblet->Revived);
 
-        YT_LOG_DEBUG(
-            "Received revived job info for job that is not marked started in snapshot; processing job start "
-            "(JobId: %v, JobState: %v)",
-            jobId,
-            jobSummary->State);
+        YT_TLOG_DEBUG("Received revived job info for job that is not marked started in snapshot; processing job start")
+            .With("JobId", jobId)
+            .With("JobState", jobSummary->State);
 
         OnJobStarted(joblet);
     }
@@ -6749,7 +6728,7 @@ void TOperationControllerBase::ForEachLockableDynamicTable(const std::function<v
 {
     if (auto explicitOption = Spec_->LockOutputDynamicTables) {
         if (!*explicitOption) {
-            YT_LOG_DEBUG("Will not lock output dynamic tables since locking is disabled in spec");
+            YT_TLOG_DEBUG("Will not lock output dynamic tables since locking is disabled in spec");
             return;
         }
     } else {
@@ -6760,7 +6739,7 @@ void TOperationControllerBase::ForEachLockableDynamicTable(const std::function<v
     }
 
     if (OperationType_ == EOperationType::RemoteCopy) {
-        YT_LOG_DEBUG("Will not lock output tables since operation is remote copy");
+        YT_TLOG_DEBUG("Will not lock output tables since operation is remote copy");
         return;
     }
 
@@ -6790,7 +6769,7 @@ void TOperationControllerBase::ValidateOutputDynamicTablesAllowed() const
 
 void TOperationControllerBase::GetOutputTablesSchema()
 {
-    YT_LOG_INFO("Getting output tables schema");
+    YT_TLOG_INFO("Getting output tables schema");
 
     auto proxy = CreateObjectServiceReadProxy(OutputClient_, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
@@ -6804,7 +6783,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
             });
     }();
 
-    YT_LOG_DEBUG("Fetching output tables schema information from primary cell");
+    YT_TLOG_DEBUG("Fetching output tables schema information from primary cell");
 
     for (const auto& table : UpdatingTables_) {
         auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
@@ -6828,7 +6807,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
         tableAttributes.emplace(std::move(table), std::move(attributes));
     }
 
-    YT_LOG_DEBUG("Finished fetching output tables schema information from primary cell");
+    YT_TLOG_DEBUG("Finished fetching output tables schema information from primary cell");
 
     bool needFetchSchemas = !UpdatingTables_.empty() && !UpdatingTables_[0]->IsFile();
     if (needFetchSchemas) {
@@ -6904,12 +6883,12 @@ void TOperationControllerBase::GetOutputTablesSchema()
 
         table->TableWriterOptions->VersionedWriteOptions = table->TableUploadOptions.VersionedWriteOptions;
 
-        YT_LOG_DEBUG("Received output table schema (Path: %v, Schema: %v, SchemaId: %v, SchemaMode: %v, LockMode: %v)",
-            path,
-            *table->TableUploadOptions.TableSchema,
-            table->TableUploadOptions.SchemaId,
-            table->TableUploadOptions.SchemaMode,
-            table->TableUploadOptions.LockMode);
+        YT_TLOG_DEBUG("Received output table schema")
+            .With("Path", path)
+            .With("Schema", *table->TableUploadOptions.TableSchema)
+            .With("SchemaId", table->TableUploadOptions.SchemaId)
+            .With("SchemaMode", table->TableUploadOptions.SchemaMode)
+            .With("LockMode", table->TableUploadOptions.LockMode);
     }
 
     if (StderrTable_) {
@@ -6983,7 +6962,7 @@ void TOperationControllerBase::PrepareOutputTables()
 
 void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 {
-    YT_LOG_INFO("Locking output tables");
+    YT_TLOG_INFO("Locking output tables");
 
     {
         auto proxy = CreateObjectServiceWriteProxy(OutputClient_);
@@ -7013,18 +6992,18 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 ? FromProto<TTransactionId>(rsp->external_transaction_id())
                 : GetTransactionForOutputTable(table)->GetId();
 
-            YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, Schema: %v, ExternalTransactionId: %v, Revision: %x)",
-                table->GetPath(),
-                objectId,
-                *table->TableUploadOptions.TableSchema,
-                table->ExternalTransactionId,
-                table->Revision);
+            YT_TLOG_INFO("Output table locked")
+                .With("Path", table->GetPath())
+                .With("ObjectId", objectId)
+                .With("Schema", *table->TableUploadOptions.TableSchema)
+                .With("ExternalTransactionId", table->ExternalTransactionId)
+                .WithFormat("Revision", "%x", table->Revision);
 
             InputManager_->ValidateOutputTableLockedCorrectly(table);
         }
     }
 
-    YT_LOG_INFO("Getting output tables attributes");
+    YT_TLOG_INFO("Getting output tables attributes");
 
     {
         THashMap<TCellTag, TVector<TOutputTablePtr>> perCellUpdatingTables;
@@ -7037,9 +7016,9 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             auto proxy = CreateObjectServiceReadProxy(OutputClient_, EMasterChannelKind::Follower, externalCellTag);
             auto batchReq = proxy.ExecuteBatch();
 
-            YT_LOG_DEBUG("Fetching attributes of output tables from external cell (CellTag: %v, NodeCount: %v)",
-                externalCellTag,
-                tables.size());
+            YT_TLOG_DEBUG("Fetching attributes of output tables from external cell")
+                .With("CellTag", externalCellTag)
+                .With("NodeCount", tables.size());
 
             for (const auto& table : tables) {
                 auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
@@ -7083,7 +7062,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             }
         }
 
-        YT_LOG_DEBUG("Finished fetching output tables schema from external cells");
+        YT_TLOG_DEBUG("Finished fetching output tables schema from external cells");
 
         for (const auto& [table, attributes] : tableAttributes) {
             if (table->IsFile()) {
@@ -7104,7 +7083,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
         auto proxy = CreateObjectServiceReadProxy(OutputClient_, EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();
 
-        YT_LOG_DEBUG("Fetching attributes of output tables from native cell");
+        YT_TLOG_DEBUG("Fetching attributes of output tables from native cell");
 
         for (const auto& table : UpdatingTables_) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
@@ -7138,9 +7117,9 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             it->second->MergeFrom(*attributes.Get());
         }
 
-        YT_LOG_DEBUG("Finished fetching output tables schema from native cell");
+        YT_TLOG_DEBUG("Finished fetching output tables schema from native cell");
 
-        YT_LOG_DEBUG("Fetching max heavy columns from master");
+        YT_TLOG_DEBUG("Fetching max heavy columns from master");
 
         TGetNodeOptions options;
         options.ReadFrom = EMasterChannelKind::Cache;
@@ -7150,7 +7129,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
         auto maxHeavyColumns = ConvertTo<int>(maxHeavyColumnsRspOrError.Value());
 
-        YT_LOG_DEBUG("Finished fetching max heavy columns (MaxHeavyColumns: %v)", maxHeavyColumns);
+        YT_TLOG_DEBUG("Finished fetching max heavy columns")
+            .With("MaxHeavyColumns", maxHeavyColumns);
 
         for (const auto& [table, attributes] : tableAttributes) {
             const auto& path = table->GetPath();
@@ -7264,10 +7244,10 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->EffectiveAcl = attributes->GetYson("effective_acl");
             table->WriterConfig = attributes->FindYson("chunk_writer");
 
-            YT_LOG_INFO("Output table attributes fetched (Path: %v, Options: %v, UploadTransactionId: %v)",
-                path,
-                ConvertToYsonString(table->TableWriterOptions, EYsonFormat::Text).ToString(),
-                table->UploadTransactionId);
+            YT_TLOG_INFO("Output table attributes fetched")
+                .With("Path", path)
+                .With("Options", ConvertToYsonString(table->TableWriterOptions, EYsonFormat::Text).ToString())
+                .With("UploadTransactionId", table->UploadTransactionId);
         }
     }
 }
@@ -7285,7 +7265,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
     }
 
     {
-        YT_LOG_INFO("Starting upload for output tables");
+        YT_TLOG_INFO("Starting upload for output tables");
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         for (const auto& [nativeCellTag, tables] : nativeCellTagToTables) {
@@ -7304,14 +7284,14 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                     // between being fetched from master while preparing output tables
                     // and sent to master during begin upload.
                     if (table->TableUploadOptions.TableSchema.GetRevision() == 1) {
-                        YT_LOG_INFO("Sending schema id (SchemaId: %v)",
-                            table->TableUploadOptions.SchemaId);
+                        YT_TLOG_INFO("Sending schema id")
+                            .With("SchemaId", table->TableUploadOptions.SchemaId);
                         YT_VERIFY(table->TableUploadOptions.SchemaId);
                         ToProto(req->mutable_table_schema_id(), table->TableUploadOptions.SchemaId);
                     } else {
                         // Sending schema, since in this case it might be not registered on master yet.
-                        YT_LOG_DEBUG("Sending full table schema to master during begin upload (TableSchemaRevision: %v)",
-                            table->TableUploadOptions.TableSchema.GetRevision());
+                        YT_TLOG_DEBUG("Sending full table schema to master during begin upload")
+                            .With("TableSchemaRevision", table->TableUploadOptions.TableSchema.GetRevision());
                         ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema.Get());
                     }
 
@@ -7348,7 +7328,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
     }
 
     {
-        YT_LOG_INFO("Getting output tables upload parameters");
+        YT_TLOG_INFO("Getting output tables upload parameters");
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
@@ -7401,25 +7381,22 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                         FromProto(&row, rsp->last_key());
                         auto fixedRow = LegacyKeyToKeyFriendlyOwningRow(row, schema->GetKeyColumnCount());
                         if (row != fixedRow) {
-                            YT_LOG_DEBUG(
-                                "Table last key fixed (Path: %v, LastKey: %v -> %v)",
-                                table->GetPath(),
-                                row,
-                                fixedRow);
+                            YT_TLOG_DEBUG("Table last key fixed")
+                                .With("Path", table->GetPath())
+                                .WithFormat("LastKey", "%v -> %v", row, fixedRow);
                             row = fixedRow;
                         }
                         auto capturedRow = RowBuffer_->CaptureRow(row);
                         table->LastKey = TKey::FromRowUnchecked(capturedRow, schema->GetKeyColumnCount());
-                        YT_LOG_DEBUG(
-                            "Writing to table in sorted append mode (Path: %v, LastKey: %v)",
-                            table->GetPath(),
-                            table->LastKey);
+                        YT_TLOG_DEBUG("Writing to table in sorted append mode")
+                            .With("Path", table->GetPath())
+                            .With("LastKey", table->LastKey);
                     }
                 }
 
-                YT_LOG_INFO("Upload parameters of output table received (Path: %v, ChunkListId: %v)",
-                    table->GetPath(),
-                    table->OutputChunkListId);
+                YT_TLOG_INFO("Upload parameters of output table received")
+                    .With("Path", table->GetPath())
+                    .With("ChunkListId", table->OutputChunkListId);
             }
         }
     }
@@ -7496,33 +7473,33 @@ void TOperationControllerBase::FetchUserFiles()
 
     for (auto& [userJobSpec, files] : UserJobFiles_) {
         for (auto& file : files) {
-            YT_LOG_INFO("Adding user file for fetch (Path: %v, TaskTitle: %v)",
-                file.Path,
-                userJobSpec->TaskTitle);
+            YT_TLOG_INFO("Adding user file for fetch")
+                .With("Path", file.Path)
+                .With("TaskTitle", userJobSpec->TaskTitle);
 
             addFileForFetching(file);
         }
     }
 
     if (BaseLayer_) {
-        YT_LOG_INFO("Adding base layer for fetch (Path: %v)",
-            BaseLayer_->Path);
+        YT_TLOG_INFO("Adding base layer for fetch")
+            .With("Path", BaseLayer_->Path);
 
         addFileForFetching(*BaseLayer_);
     }
 
     if (!chunkSpecFetcher) {
-        YT_LOG_INFO("No user files to fetch");
+        YT_TLOG_INFO("No user files to fetch");
         return;
     }
 
-    YT_LOG_INFO("Fetching user files");
+    YT_TLOG_INFO("Fetching user files");
 
     WaitFor(chunkSpecFetcher->Fetch())
         .ThrowOnError();
 
-    YT_LOG_INFO("User files fetched (ChunkCount: %v)",
-        chunkSpecFetcher->ChunkSpecs().size());
+    YT_TLOG_INFO("User files fetched")
+        .With("ChunkCount", chunkSpecFetcher->ChunkSpecs().size());
 
     for (auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -7547,7 +7524,7 @@ void TOperationControllerBase::FetchUserFiles()
 
 void TOperationControllerBase::ValidateUserFileSizes()
 {
-    YT_LOG_INFO("Validating user file sizes");
+    YT_TLOG_INFO("Validating user file sizes");
     bool hasFiles = false;
     for (const auto& [_, files] : UserJobFiles_) {
         for (const auto& file : files) {
@@ -7557,7 +7534,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
     }
 
     if (!hasFiles) {
-        YT_LOG_INFO("No user files");
+        YT_TLOG_INFO("No user files");
         return;
     }
 
@@ -7593,8 +7570,8 @@ void TOperationControllerBase::ValidateUserFileSizes()
     }
 
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
-        YT_LOG_INFO("Fetching columnar statistics for table files with column selectors (ChunkCount: %v)",
-            columnarStatisticsFetcher->GetChunkCount());
+        YT_TLOG_INFO("Fetching columnar statistics for table files with column selectors")
+            .With("ChunkCount", columnarStatisticsFetcher->GetChunkCount());
         WaitFor(columnarStatisticsFetcher->Fetch())
             .ThrowOnError();
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
@@ -7635,11 +7612,11 @@ void TOperationControllerBase::ValidateUserFileSizes()
     userFileLimits->MaxChunkCount = userFileLimitsPatch->MaxChunkCount.value();
 
     auto validateFile = [&userFileLimits, this] (const TUserFile& file) {
-        YT_LOG_DEBUG("Validating user file (FileName: %v, Path: %v, Type: %v, HasColumns: %v)",
-            file.FileName,
-            file.Path,
-            file.Type,
-            file.Path.GetColumns().has_value());
+        YT_TLOG_DEBUG("Validating user file")
+            .With("FileName", file.FileName)
+            .With("Path", file.Path)
+            .With("Type", file.Type)
+            .With("HasColumns", file.Path.GetColumns().has_value());
         i64 chunkCount = file.Type == NObjectClient::EObjectType::File ? file.ChunkCount : std::ssize(file.Chunks);
         if (chunkCount > userFileLimits->MaxChunkCount) {
             THROW_ERROR_EXCEPTION(
@@ -7690,7 +7667,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
 
 void TOperationControllerBase::LockUserFiles()
 {
-    YT_LOG_INFO("Locking user files");
+    YT_TLOG_INFO("Locking user files");
 
     auto proxy = CreateObjectServiceWriteProxy(OutputClient_);
     auto batchReq = proxy.ExecuteBatch();
@@ -7733,7 +7710,7 @@ void TOperationControllerBase::LockUserFiles()
 void TOperationControllerBase::GetUserFilesAttributes()
 {
     // XXX(babenko): refactor; in particular, request attributes from external cells
-    YT_LOG_INFO("Getting user files attributes");
+    YT_TLOG_INFO("Getting user files attributes");
     for (const auto& [_, files] : UserJobFiles_) {
         for (const auto& file : files) {
             if (file.Path.GetCluster().has_value()) {
@@ -7928,14 +7905,12 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                 file.RowLevelAcl,
                                 Logger().WithTag("Path", file.GetPath()));
 
-                            YT_LOG_INFO_IF(
-                                file.RlsReadSpec,
-                                "User file has non-trivial RLS read spec (Path: %v, RlsReadSpec: %v)",
-                                file.GetPath(),
-                                file.RlsReadSpec);
+                            YT_TLOG_INFO_IF(file.RlsReadSpec, "User file has non-trivial RLS read spec")
+                                .With("Path", file.GetPath())
+                                .With("RlsReadSpec", file.RlsReadSpec);
 
                             if (auto renameDescriptors = file.Path.GetColumnRenameDescriptors()) {
-                                YT_LOG_DEBUG("Start renaming columns of user file");
+                                YT_TLOG_DEBUG("Start renaming columns of user file");
                                 auto description = Format("user file %v", file.GetPath());
                                 file.Schema = RenameColumnsInSchema(
                                     description,
@@ -7943,12 +7918,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
                                     file.Dynamic,
                                     *renameDescriptors,
                                     /*changeStableName*/ !Config_->EnableTableColumnRenaming);
-                                YT_LOG_DEBUG(
-                                    "Columns of user file are renamed "
-                                    "(Path: %v, NewSchema: %v, RenamedOmmittedInaccessibleColumns: %v)",
-                                    file.GetPath(),
-                                    *file.Schema,
-                                    file.OmittedInaccessibleColumns);
+                                YT_TLOG_DEBUG("Columns of user file are renamed")
+                                    .With("Path", file.GetPath())
+                                    .With("NewSchema", *file.Schema)
+                                    .With("RenamedOmmittedInaccessibleColumns", file.OmittedInaccessibleColumns);
                             }
                             file.Format = attributes.FindYson("format");
                             if (!file.Format) {
@@ -7976,12 +7949,12 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     file.ChunkCount = attributes.Get<i64>("chunk_count");
                     file.ContentRevision = attributes.Get<NHydra::TRevision>("content_revision");
 
-                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %x)",
-                        path,
-                        userJobSpec->TaskTitle,
-                        file.FileName,
-                        file.SecurityTags,
-                        file.ContentRevision);
+                    YT_TLOG_INFO("User file locked")
+                        .With("Path", path)
+                        .With("TaskTitle", userJobSpec->TaskTitle)
+                        .With("FileName", file.FileName)
+                        .With("SecurityTags", file.SecurityTags)
+                        .WithFormat("ContentRevision", "%x", file.ContentRevision);
                 }
 
                 if (!file.Layer) {
@@ -8193,8 +8166,8 @@ void TOperationControllerBase::CollectTotals()
                             chunkId);
 
                     case EUnavailableChunkAction::Skip:
-                        YT_LOG_TRACE("Skipping unavailable chunk (ChunkId: %v)",
-                            chunkId);
+                        YT_TLOG_TRACE("Skipping unavailable chunk")
+                            .With("ChunkId", chunkId);
                         continue;
 
                     case EUnavailableChunkAction::Wait:
@@ -8233,16 +8206,16 @@ void TOperationControllerBase::CollectTotals()
 void TOperationControllerBase::UpdateEstimatedInputStatistics(const TInputStatistics& newStatisticsEstimate)
 {
     if (!EstimatedInputStatistics_.has_value()) {
-        YT_LOG_INFO("Estimated input totals collected (EstimatedInputStatistics: %v)", newStatisticsEstimate);
+        YT_TLOG_INFO("Estimated input totals collected")
+            .With("EstimatedInputStatistics", newStatisticsEstimate);
         EstimatedInputStatistics_ = newStatisticsEstimate;
         return;
     }
 
     if (newStatisticsEstimate != *EstimatedInputStatistics_) {
-        YT_LOG_INFO(
-            "Estimated input statistics updated (NewEstimatedInputStatistics: %v, OldEstimatedInputStatistics: %v)",
-            newStatisticsEstimate,
-            EstimatedInputStatistics_);
+        YT_TLOG_INFO("Estimated input statistics updated")
+            .With("NewEstimatedInputStatistics", newStatisticsEstimate)
+            .With("OldEstimatedInputStatistics", EstimatedInputStatistics_);
         EstimatedInputStatistics_ = newStatisticsEstimate;
     }
 }
@@ -8366,7 +8339,7 @@ void TOperationControllerBase::InferInputRanges()
         return;
     }
 
-    YT_LOG_INFO("Inferring ranges for input tables");
+    YT_TLOG_INFO("Inferring ranges for input tables");
 
     TQueryOptions queryOptions;
     queryOptions.VerboseLogging = true;
@@ -8452,10 +8425,10 @@ void TOperationControllerBase::InferInputRanges()
         }
         table->Path.SetRanges(resultRanges);
 
-        YT_LOG_DEBUG("Input table ranges inferred (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
-            table->GetPath(),
-            ranges.size(),
-            resultRanges.size());
+        YT_TLOG_DEBUG("Input table ranges inferred")
+            .With("Path", table->GetPath())
+            .With("RangeCount", ranges.size())
+            .With("InferredRangeCount", resultRanges.size());
     }
 }
 
@@ -8534,7 +8507,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
         }
     }
 
-    YT_LOG_INFO("Collecting primary versioned data slices");
+    YT_TLOG_INFO("Collecting primary versioned data slices");
 
     WaitFor(AllSucceeded(asyncResults))
         .ThrowOnError();
@@ -8549,11 +8522,10 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
         }
         auto dataSlices = CombineVersionedChunkSlices(fetcher->GetChunkSlices(), comparator);
         for (auto& dataSlice : dataSlices) {
-            YT_LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
-                InputManager_->GetInputTables()[dataSlice->GetTableIndex()]->GetPath(),
-                dataSlice->LowerLimit(),
-                dataSlice->UpperLimit(),
-                dataSlice->ChunkSlices);
+            YT_TLOG_TRACE("Added dynamic table slice")
+                .With("TablePath", InputManager_->GetInputTables()[dataSlice->GetTableIndex()]->GetPath())
+                .WithFormat("Range", "%v..%v", dataSlice->LowerLimit(), dataSlice->UpperLimit())
+                .With("ChunkIds", dataSlice->ChunkSlices);
 
             dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
             totalDataWeightAfter += dataSlice->GetDataWeight();
@@ -8566,11 +8538,9 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
         VerifyEventualExpiration(std::move(fetcher), Logger);
     }
 
-    YT_LOG_INFO(
-        "Collected versioned data slices (Count: %v, DataWeight: %v -> %v)",
-        totalDataSliceCount,
-        totalDataWeightBefore,
-        totalDataWeightAfter);
+    YT_TLOG_INFO("Collected versioned data slices")
+        .With("Count", totalDataSliceCount)
+        .WithFormat("DataWeight", "%v -> %v", totalDataWeightBefore, totalDataWeightAfter);
 
     if (Spec_->AdjustDynamicTableDataSlices) {
         double scaleFactor = totalDataWeightBefore / std::max<double>(1.0, totalDataWeightAfter);
@@ -8581,7 +8551,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
             }
             totalDataWeightAdjusted += dataSlice->GetDataWeight();
         }
-        YT_LOG_INFO("Adjusted dynamic table data slices (AdjutedDataWeight: %v)", totalDataWeightAdjusted);
+        YT_TLOG_INFO("Adjusted dynamic table data slices")
+            .With("AdjutedDataWeight", totalDataWeightAdjusted);
     }
 
     DataSliceFetcherChunkScrapers_.clear();
@@ -8618,10 +8589,9 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
         periodicYielder.TryYield();
     }
 
-    YT_LOG_INFO(
-        "Primary input data slices collected (UnversionedSliceCount: %v, VersionedSliceCount: %v)",
-        unversionedSliceCount,
-        versionedSliceCount);
+    YT_TLOG_INFO("Primary input data slices collected")
+        .With("UnversionedSliceCount", unversionedSliceCount)
+        .With("VersionedSliceCount", versionedSliceCount);
 
     std::vector<TLegacyDataSlicePtr> dataSlices;
     std::ranges::move(dataSlicesByTableIndex | std::views::join, std::back_inserter(dataSlices));
@@ -9027,10 +8997,10 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     }
     auto key = BuildBoundaryKeysFromOutputResult(stderrResult, StderrTable_->GetStreamDescriptorTemplate(), RowBuffer_);
     if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
-        YT_LOG_DEBUG("Dropping empty stderr chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
-            joblet->JobId,
-            NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
-            chunkListId);
+        YT_TLOG_DEBUG("Dropping empty stderr chunk tree")
+            .With("JobId", joblet->JobId)
+            .With("NodeAddress", NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
+            .With("ChunkListId", chunkListId);
         return;
     }
 
@@ -9048,11 +9018,11 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
 
     StderrTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 
-    YT_LOG_DEBUG("Stderr chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v, ChunkCount: %v)",
-        joblet->JobId,
-        NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
-        chunkListId,
-        stderrResult.chunk_specs().size());
+    YT_TLOG_DEBUG("Stderr chunk tree registered")
+        .With("JobId", joblet->JobId)
+        .With("NodeAddress", NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
+        .With("ChunkListId", chunkListId)
+        .With("ChunkCount", stderrResult.chunk_specs().size());
 }
 
 void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJobSummary& jobSummary)
@@ -9071,13 +9041,13 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     }
 
     for (const auto& coreInfo : jobResultExt->core_infos()) {
-        YT_LOG_DEBUG("Core file (JobId: %v, ProcessId: %v, ExecutableName: %v, Size: %v, Error: %v, Cuda: %v)",
-            joblet->JobId,
-            coreInfo.process_id(),
-            coreInfo.executable_name(),
-            coreInfo.size(),
-            coreInfo.has_error() ? FromProto<TError>(coreInfo.error()) : TError(),
-            coreInfo.cuda());
+        YT_TLOG_DEBUG("Core file")
+            .With("JobId", joblet->JobId)
+            .With("ProcessId", coreInfo.process_id())
+            .With("ExecutableName", coreInfo.executable_name())
+            .With("Size", coreInfo.size())
+            .With("Error", coreInfo.has_error() ? FromProto<TError>(coreInfo.error()) : TError())
+            .With("Cuda", coreInfo.cuda());
     }
 
     if (!jobResultExt->has_core_result()) {
@@ -9089,10 +9059,10 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     }
     auto key = BuildBoundaryKeysFromOutputResult(coreResult, CoreTable_->GetStreamDescriptorTemplate(), RowBuffer_);
     if (!key.MinKey || key.MinKey.GetLength() == 0 || !key.MaxKey || key.MaxKey.GetLength() == 0) {
-        YT_LOG_DEBUG("Dropping empty core chunk tree (JobId: %v, NodeAddress: %v, ChunkListId: %v)",
-            joblet->JobId,
-            NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
-            chunkListId);
+        YT_TLOG_DEBUG("Dropping empty core chunk tree")
+            .With("JobId", joblet->JobId)
+            .With("NodeAddress", NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
+            .With("ChunkListId", chunkListId);
         return;
     }
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
@@ -9109,11 +9079,11 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
         RegisterLivePreviewChunk(TDataFlowGraph::CoreDescriptor, /*index*/ 0, chunk);
     }
 
-    YT_LOG_DEBUG("Core chunk tree registered (JobId: %v, NodeAddress: %v, ChunkListId: %v, ChunkCount: %v)",
-        joblet->JobId,
-        NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses),
-        chunkListId,
-        coreResult.chunk_specs().size());
+    YT_TLOG_DEBUG("Core chunk tree registered")
+        .With("JobId", joblet->JobId)
+        .With("NodeAddress", NNodeTrackerClient::GetDefaultAddress(joblet->NodeDescriptor.Addresses))
+        .With("ChunkListId", chunkListId)
+        .With("ChunkCount", coreResult.chunk_specs().size());
 }
 
 ITransactionPtr TOperationControllerBase::GetTransactionForOutputTable(const TOutputTablePtr& table) const
@@ -9174,10 +9144,10 @@ void TOperationControllerBase::RegisterTeleportChunk(
 
     TeleportedOutputRowCount_ += chunk->GetRowCount();
 
-    YT_LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
-        tableIndex,
-        chunk->GetChunkId(),
-        key);
+    YT_TLOG_DEBUG("Teleport chunk registered")
+        .With("Table", tableIndex)
+        .With("ChunkId", chunk->GetChunkId())
+        .With("Key", key);
 }
 
 void TOperationControllerBase::RegisterRecoveryInfo(
@@ -9204,20 +9174,19 @@ TSnapshotCookie TOperationControllerBase::OnSnapshotStarted()
 
     int snapshotIndex = SnapshotIndex_++;
     if (RecentSnapshotIndex_) {
-        YT_LOG_WARNING("Starting next snapshot without completing previous one (SnapshotIndex: %v)",
-            snapshotIndex);
+        YT_TLOG_WARNING("Starting next snapshot without completing previous one")
+            .With("SnapshotIndex", snapshotIndex);
     }
     RecentSnapshotIndex_ = snapshotIndex;
 
     CompletedJobIdsSnapshotCookie_ = CompletedJobIdsReleaseQueue_.Checkpoint();
     IntermediateStripeListSnapshotCookie_ = IntermediateStripeListReleaseQueue_.Checkpoint();
     ChunkTreeSnapshotCookie_ = ChunkTreeReleaseQueue_.Checkpoint();
-    YT_LOG_INFO("Storing snapshot cookies (CompletedJobIdsSnapshotCookie: %v, StripeListSnapshotCookie: %v, "
-        "ChunkTreeSnapshotCookie: %v, SnapshotIndex: %v)",
-        CompletedJobIdsSnapshotCookie_,
-        IntermediateStripeListSnapshotCookie_,
-        ChunkTreeSnapshotCookie_,
-        *RecentSnapshotIndex_);
+    YT_TLOG_INFO("Storing snapshot cookies")
+        .With("CompletedJobIdsSnapshotCookie", CompletedJobIdsSnapshotCookie_)
+        .With("StripeListSnapshotCookie", IntermediateStripeListSnapshotCookie_)
+        .With("ChunkTreeSnapshotCookie", ChunkTreeSnapshotCookie_)
+        .With("SnapshotIndex", *RecentSnapshotIndex_);
 
     TSnapshotCookie result;
     result.SnapshotIndex = *RecentSnapshotIndex_;
@@ -9236,11 +9205,11 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
     {
         auto headCookie = CompletedJobIdsReleaseQueue_.GetHeadCookie();
         auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release(CompletedJobIdsSnapshotCookie_);
-        YT_LOG_INFO("Releasing jobs on snapshot completion (SnapshotCookie: %v, HeadCookie: %v, JobCount: %v, SnapshotIndex: %v)",
-            CompletedJobIdsSnapshotCookie_,
-            headCookie,
-            jobIdsToRelease.size(),
-            cookie.SnapshotIndex);
+        YT_TLOG_INFO("Releasing jobs on snapshot completion")
+            .With("SnapshotCookie", CompletedJobIdsSnapshotCookie_)
+            .With("HeadCookie", headCookie)
+            .With("JobCount", jobIdsToRelease.size())
+            .With("SnapshotIndex", cookie.SnapshotIndex);
         ReleaseJobs(jobIdsToRelease);
     }
 
@@ -9248,11 +9217,11 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
     {
         auto headCookie = IntermediateStripeListReleaseQueue_.GetHeadCookie();
         auto stripeListsToRelease = IntermediateStripeListReleaseQueue_.Release(IntermediateStripeListSnapshotCookie_);
-        YT_LOG_INFO("Releasing stripe lists (SnapshotCookie: %v, HeadCookie: %v, StripeListCount: %v, SnapshotIndex: %v)",
-            IntermediateStripeListSnapshotCookie_,
-            headCookie,
-            stripeListsToRelease.size(),
-            cookie.SnapshotIndex);
+        YT_TLOG_INFO("Releasing stripe lists")
+            .With("SnapshotCookie", IntermediateStripeListSnapshotCookie_)
+            .With("HeadCookie", headCookie)
+            .With("StripeListCount", stripeListsToRelease.size())
+            .With("SnapshotIndex", cookie.SnapshotIndex);
 
         for (const auto& stripeList : stripeListsToRelease) {
             auto chunks = GetStripeListChunks(stripeList);
@@ -9265,11 +9234,11 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
     {
         auto headCookie = ChunkTreeReleaseQueue_.GetHeadCookie();
         auto chunkTreeIdsToRelease = ChunkTreeReleaseQueue_.Release(ChunkTreeSnapshotCookie_);
-        YT_LOG_INFO("Releasing chunk trees (SnapshotCookie: %v, HeadCookie: %v, ChunkTreeCount: %v, SnapshotIndex: %v)",
-            ChunkTreeSnapshotCookie_,
-            headCookie,
-            chunkTreeIdsToRelease.size(),
-            cookie.SnapshotIndex);
+        YT_TLOG_INFO("Releasing chunk trees")
+            .With("SnapshotCookie", ChunkTreeSnapshotCookie_)
+            .With("HeadCookie", headCookie)
+            .With("ChunkTreeCount", chunkTreeIdsToRelease.size())
+            .With("SnapshotIndex", cookie.SnapshotIndex);
 
         Host_->AddChunkTreesToUnstageList(chunkTreeIdsToRelease, /*recursive*/ true);
     }
@@ -9321,10 +9290,9 @@ void TOperationControllerBase::Dispose()
             }
         }
 
-        YT_LOG_DEBUG(
-            "Adding total time per tree to residual job metrics on controller disposal (FinalState: %v, TotalTimePerTree: %v)",
-            State_.load(),
-            TotalTimePerTree_);
+        YT_TLOG_DEBUG("Adding total time per tree to residual job metrics on controller disposal")
+            .With("FinalState", State_.load())
+            .With("TotalTimePerTree", TotalTimePerTree_);
     }
 }
 
@@ -9393,9 +9361,8 @@ void TOperationControllerBase::PatchSpec(INodePtr newCumulativeSpecPatch, bool d
             case EControllerState::Completed:
             case EControllerState::Failed:
             case EControllerState::Aborted: {
-                YT_LOG_WARNING(
-                    "Controller changed state before applying spec patch (ControllerState: %v)",
-                    State_.load());
+                YT_TLOG_WARNING("Controller changed state before applying spec patch")
+                    .With("ControllerState", State_.load());
                 return;
             }
         }
@@ -9430,7 +9397,7 @@ TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
     }
     LastJobMetricsDeltaReportTime_ = now;
 
-    YT_LOG_DEBUG_UNLESS(result.empty(), "Non-zero job metrics reported");
+    YT_TLOG_DEBUG_UNLESS(result.empty(), "Non-zero job metrics reported");
 
     return result;
 }
@@ -9632,23 +9599,22 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::AcquireMonitor
     const TJobletPtr& joblet,
     const TAllocation& /*allocation*/)
 {
-    YT_LOG_DEBUG(
-        "Trying to assign monitoring descriptor to job (JobId: %v)",
-        joblet->JobId);
+    YT_TLOG_DEBUG("Trying to assign monitoring descriptor to job")
+        .With("JobId", joblet->JobId);
 
     auto descriptor = MonitoringDescriptorPool_.empty()
         ? RegisterNewMonitoringDescriptor(joblet)
         : TryAcquireMonitoringDescriptorFromPool(joblet);
 
     if (descriptor) {
-        YT_LOG_DEBUG(
-            "Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
-            joblet->JobId,
-            descriptor);
+        YT_TLOG_DEBUG("Monitoring descriptor assigned to job")
+            .With("JobId", joblet->JobId)
+            .With("MonitoringDescriptor", descriptor);
 
         ++MonitoredUserJobCount_;
     } else {
-        YT_LOG_DEBUG("Failed to assign monitoring descriptor to job (JobId: %v)", joblet->JobId);
+        YT_TLOG_DEBUG("Failed to assign monitoring descriptor to job")
+            .With("JobId", joblet->JobId);
     }
     return descriptor;
 }
@@ -9681,10 +9647,9 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
         !GetOrDefault(Config_->UserJobMonitoring->EnableExtendedMaxMonitoredUserJobsPerOperation, OperationType_))
     {
         // NB(omgronny): It's OK to reach default max monitored jobs, so we don't set alert here.
-        YT_LOG_DEBUG("Limit of monitored user jobs per operation reached "
-            "(OperationType: %v, LimitPerOperation: %v)",
-            OperationType_,
-            Config_->UserJobMonitoring->DefaultMaxMonitoredUserJobsPerOperation);
+        YT_TLOG_DEBUG("Limit of monitored user jobs per operation reached")
+            .With("OperationType", OperationType_)
+            .With("LimitPerOperation", Config_->UserJobMonitoring->DefaultMaxMonitoredUserJobsPerOperation);
         return {};
     }
 
@@ -9916,7 +9881,7 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
 
 void TOperationControllerBase::SafeBuildAndSaveProgress()
 {
-    YT_LOG_DEBUG("Building and saving progress");
+    YT_TLOG_DEBUG("Building and saving progress");
 
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
@@ -9948,12 +9913,12 @@ void TOperationControllerBase::SafeBuildAndSaveProgress()
             !BriefProgressString_ || BriefProgressString_ != briefProgressString)
         {
             ShouldUpdateProgressAttributesInCypress_ = true;
-            YT_LOG_DEBUG("New progress is different from previous one, should update progress");
+            YT_TLOG_DEBUG("New progress is different from previous one, should update progress");
         }
         ProgressString_ = progressString;
         BriefProgressString_ = briefProgressString;
     }
-    YT_LOG_DEBUG("Progress built and saved");
+    YT_TLOG_DEBUG("Progress built and saved");
 }
 
 TYsonString TOperationControllerBase::GetProgress() const
@@ -10069,10 +10034,8 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
 
     auto* maybeAllocation = FindAllocation(allocationId);
     if (!maybeAllocation) {
-        YT_LOG_DEBUG(
-            "Stale settle job request, no such allocation; send error instead of spec "
-            "(AllocationId: %v)",
-            allocationId);
+        YT_TLOG_DEBUG("Stale settle job request, no such allocation; send error instead of spec")
+            .With("AllocationId", allocationId);
         THROW_ERROR_EXCEPTION(
             NScheduler::EErrorCode::NoSuchAllocation,
             "No such allocation %v",
@@ -10118,7 +10081,9 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
     auto joblet = allocation.Joblet;
 
     if (!joblet->JobSpecProtoFuture) {
-        YT_LOG_WARNING("Job spec future is missing (AllocationId: %v, JobId: %v)", allocationId, joblet->JobId);
+        YT_TLOG_WARNING("Job spec future is missing")
+            .With("AllocationId", allocationId)
+            .With("JobId", joblet->JobId);
         THROW_ERROR_EXCEPTION("Job for allocation %v is missing (request looks stale)", allocationId);
     }
 
@@ -10127,11 +10092,9 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
 
     auto operationState = State_.load();
     if (operationState != EControllerState::Running) {
-        YT_LOG_DEBUG(
-            "Stale settle job request, operation is already not running; send error instead of spec "
-            "(AllocationId: %v, OperationState: %v)",
-            allocationId,
-            operationState);
+        YT_TLOG_DEBUG("Stale settle job request, operation is already not running; send error instead of spec")
+            .With("AllocationId", allocationId)
+            .With("OperationState", operationState);
         THROW_ERROR_EXCEPTION("Operation is not running");
     }
 
@@ -10139,10 +10102,8 @@ TJobStartInfo TOperationControllerBase::SafeSettleJob(TAllocationId allocationId
     //! can unregister joblet without changing the operation state yet.
     //! In such cases we might start job which was already finished.
     if (!FindJoblet(joblet->JobId)) {
-        YT_LOG_DEBUG(
-            "Stale settle job request, job is already finished; send error instead of spec "
-            "(AllocationId: %v)",
-            allocationId);
+        YT_TLOG_DEBUG("Stale settle job request, job is already finished; send error instead of spec")
+            .With("AllocationId", allocationId);
         THROW_ERROR_EXCEPTION("Job is already finished");
     }
 
@@ -10211,10 +10172,9 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 {
     auto statisticsLimit = Options_->CustomStatisticsCountLimit;
 
-    YT_LOG_DEBUG(
-        "Updating aggregated running job statistics (StatisticsLimit: %v, RunningJobCount: %v)",
-        statisticsLimit,
-        RunningJobCount_);
+    YT_TLOG_DEBUG("Updating aggregated running job statistics")
+        .With("StatisticsLimit", statisticsLimit)
+        .With("RunningJobCount", RunningJobCount_);
 
     // A lightweight structure that represents a snapshot of a joblet that is safe to be used
     // in a separate invoker. Note that job statistics and controller statistics are const-qualified,
@@ -10243,7 +10203,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
         TAggregatedJobStatistics runningJobStatistics;
         bool isLimitExceeded = false;
 
-        YT_LOG_DEBUG("Starting aggregated job statistics update heavy routine");
+        YT_TLOG_DEBUG("Starting aggregated job statistics update heavy routine");
 
         static const auto AggregationYieldPeriod = TDuration::MilliSeconds(10);
 
@@ -10261,12 +10221,12 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
             yielder.TryYield();
         }
 
-        YT_LOG_DEBUG("Aggregated job statistics update heavy routine finished");
+        YT_TLOG_DEBUG("Aggregated job statistics update heavy routine finished");
 
         return std::pair(std::move(runningJobStatistics), isLimitExceeded);
     };
 
-    YT_LOG_DEBUG("Scheduling aggregated job statistics update heavy routine");
+    YT_TLOG_DEBUG("Scheduling aggregated job statistics update heavy routine");
 
     NProfiling::TWallTimer wallTimer;
     auto [runningJobStatistics, isLimitExceeded] = WaitFor(
@@ -10275,7 +10235,8 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
             .Run())
         .Value();
 
-    YT_LOG_DEBUG("New aggregated job statistics are ready (HeavyWallTime: %v)", wallTimer.GetElapsedTime());
+    YT_TLOG_DEBUG("New aggregated job statistics are ready")
+        .With("HeavyWallTime", wallTimer.GetElapsedTime());
 
     if (isLimitExceeded) {
         SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
@@ -10291,9 +10252,8 @@ void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool_);
 
-    YT_LOG_DEBUG(
-        "Releasing jobs (JobCount: %v)",
-        std::size(jobIds));
+    YT_TLOG_DEBUG("Releasing jobs")
+        .With("JobCount", std::size(jobIds));
 
     if (std::empty(jobIds)) {
         return;
@@ -10323,10 +10283,9 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
             // when readers and writers are not built yet. After we successfully built
             // brief statistics once, we shouldn't fail anymore.
 
-            YT_LOG_WARNING(
-                briefStatisticsOrError,
-                "Failed to build brief job statistics (JobId: %v)",
-                joblet->JobId);
+            YT_TLOG_WARNING("Failed to build brief job statistics")
+                .With("JobId", joblet->JobId)
+                .With(briefStatisticsOrError);
         }
 
         return;
@@ -10347,14 +10306,13 @@ void TOperationControllerBase::AnalyzeBriefStatistics(
         (briefStatistics->Timestamp - joblet->LastActivityTime > options->InactivityTimeout) &&
         !shouldIgnore;
     if (!wasSuspicious && joblet->Suspicious) {
-        YT_LOG_DEBUG("Found a suspicious job (JobId: %v, JobType: %v, LastActivityTime: %v, SuspiciousInactivityTimeout: %v, "
-            "OldBriefStatistics: %v, NewBriefStatistics: %v)",
-            joblet->JobId,
-            joblet->JobType,
-            joblet->LastActivityTime,
-            options->InactivityTimeout,
-            joblet->BriefStatistics,
-            briefStatistics);
+        YT_TLOG_DEBUG("Found a suspicious job")
+            .With("JobId", joblet->JobId)
+            .With("JobType", joblet->JobType)
+            .With("LastActivityTime", joblet->LastActivityTime)
+            .With("SuspiciousInactivityTimeout", options->InactivityTimeout)
+            .With("OldBriefStatistics", joblet->BriefStatistics)
+            .With("NewBriefStatistics", briefStatistics);
     }
 
     joblet->BriefStatistics = briefStatistics;
@@ -10421,7 +10379,9 @@ void TOperationControllerBase::UpdateHighThreadCountJob(
     try {
         threadLimit = Config_->MaxJobThreadCountFormula.Eval({{"cpu", cpuLimit}});
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to evaluate max_job_thread_count_formula (TaskName: %v)", taskName);
+        YT_TLOG_WARNING("Failed to evaluate max_job_thread_count_formula")
+            .With("TaskName", taskName)
+            .With(ex);
         return;
     }
 
@@ -10436,7 +10396,8 @@ void TOperationControllerBase::UpdateHighThreadCountJob(
 
 void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const TJobSummary& jobSummary, bool isJobFinished)
 {
-    YT_LOG_TRACE("Updating job metrics (JobId: %v)", joblet->JobId);
+    YT_TLOG_TRACE("Updating job metrics")
+        .With("JobId", joblet->JobId);
 
     auto delta = joblet->UpdateJobMetrics(jobSummary, isJobFinished);
     {
@@ -10464,7 +10425,8 @@ void TOperationControllerBase::LogProgress(bool force)
     auto now = GetCpuInstant();
     if (force || now > NextLogProgressDeadline_) {
         NextLogProgressDeadline_ = now + LogProgressBackoff_;
-        YT_LOG_DEBUG("Operation progress (Progress: %v)", GetLoggingProgress());
+        YT_TLOG_DEBUG("Operation progress")
+            .With("Progress", GetLoggingProgress());
     }
 }
 
@@ -11206,10 +11168,10 @@ void TOperationControllerBase::UpdateExecNodes()
 
             OnExecNodesUpdated();
 
-            YT_LOG_DEBUG("Exec nodes information updated (OnlineSuitableExecNodeCount: %v, SuitableExecNodeCount: %v, OnlineExecNodeCount: %v)",
-                OnlineSuitableExecNodeDescriptors_->size(),
-                SuitableExecNodeDescriptors_->size(),
-                AvailableExecNodeCount_);
+            YT_TLOG_DEBUG("Exec nodes information updated")
+                .With("OnlineSuitableExecNodeCount", OnlineSuitableExecNodeDescriptors_->size())
+                .With("SuitableExecNodeCount", SuitableExecNodeDescriptors_->size())
+                .With("OnlineExecNodeCount", AvailableExecNodeCount_);
         }));
 }
 
@@ -11232,7 +11194,7 @@ bool TOperationControllerBase::ShouldSkipSanityCheck()
     }
 
     if (GetSuitableExecNodeDescriptors().empty() && !Config_->FailOperationsInEmptyTrees) {
-        YT_LOG_DEBUG("Skipping sanity check because no suitable nodes are available");
+        YT_TLOG_DEBUG("Skipping sanity check because no suitable nodes are available");
         return true;
     }
 
@@ -11658,14 +11620,13 @@ TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescri
             descriptor->TableWriterOptions->ErasureCodec = tableWriterConfig->ErasureCodec;
             descriptor->TableWriterOptions->EnableStripedErasure = false; // TODO(galtsev): use tableWriterConfig->EnableStripedErasure when the striped erasure reader is implemented, see YT-24207
         }
-        YT_LOG_INFO("Fast intermediate medium enabled (FastMedium: %v, SlowMedium: %v, FastMediumLimit: %v, "
-            "ReplicationFactor: %v, ErasureCodec: %v, EnableStripedErasure: %v)",
-            descriptor->TableWriterOptions->MediumName,
-            descriptor->SlowMedium,
-            GetFastIntermediateMediumLimit(),
-            descriptor->TableWriterOptions->ReplicationFactor,
-            descriptor->TableWriterOptions->ErasureCodec,
-            descriptor->TableWriterOptions->EnableStripedErasure);
+        YT_TLOG_INFO("Fast intermediate medium enabled")
+            .With("FastMedium", descriptor->TableWriterOptions->MediumName)
+            .With("SlowMedium", descriptor->SlowMedium)
+            .With("FastMediumLimit", GetFastIntermediateMediumLimit())
+            .With("ReplicationFactor", descriptor->TableWriterOptions->ReplicationFactor)
+            .With("ErasureCodec", descriptor->TableWriterOptions->ErasureCodec)
+            .With("EnableStripedErasure", descriptor->TableWriterOptions->EnableStripedErasure);
     }
 
     descriptor->TableWriterConfig = MakeIntermediateTableWriterConfig(Spec_, fastIntermediateMediumEnabled);
@@ -11764,14 +11725,16 @@ void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, 
 
     auto& existingAlert = Alerts_[alertType];
     if (alert.IsOK() && !existingAlert.IsOK()) {
-        YT_LOG_DEBUG("Alert reset (Type: %v)",
-            alertType);
+        YT_TLOG_DEBUG("Alert reset")
+            .With("Type", alertType);
     } else if (!alert.IsOK() && existingAlert.IsOK()) {
-        YT_LOG_DEBUG(alert, "Alert set (Type: %v)",
-            alertType);
+        YT_TLOG_DEBUG("Alert set")
+            .With("Type", alertType)
+            .With(alert);
     } else if (!alert.IsOK() && !existingAlert.IsOK()) {
-        YT_LOG_DEBUG(alert, "Alert updated (Type: %v)",
-            alertType);
+        YT_TLOG_DEBUG("Alert updated")
+            .With("Type", alertType)
+            .With(alert);
     }
 
     existingAlert = alert;
@@ -11864,10 +11827,9 @@ void TOperationControllerBase::DoAbortJob(
     auto jobId = joblet->JobId;
 
     if (!force && !ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG(
-            "Job events processing disabled, abort skipped (JobId: %v, OperationState: %v)",
-            joblet->JobId,
-            State_.load());
+        YT_TLOG_DEBUG("Job events processing disabled, abort skipped")
+            .With("JobId", joblet->JobId)
+            .With("OperationState", State_.load());
         return;
     }
 
@@ -11882,18 +11844,16 @@ void TOperationControllerBase::AbortJob(TJobId jobId, EAbortReason abortReason)
 {
     auto joblet = FindJoblet(jobId);
     if (!joblet) {
-        YT_LOG_DEBUG(
-            "Ignore stale job abort request (JobId: %v, AbortReason: %v)",
-            jobId,
-            abortReason);
+        YT_TLOG_DEBUG("Ignore stale job abort request")
+            .With("JobId", jobId)
+            .With("AbortReason", abortReason);
 
         return;
     }
 
-    YT_LOG_DEBUG(
-        "Aborting job by controller request (JobId: %v, AbortReason: %v)",
-        jobId,
-        abortReason);
+    YT_TLOG_DEBUG("Aborting job by controller request")
+        .With("JobId", jobId)
+        .With("AbortReason", abortReason);
 
     DoAbortJob(std::move(joblet), abortReason, /*requestJobTrackerJobAbortion*/ true, /*force*/ false);
 }
@@ -11988,14 +11948,16 @@ void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
     if (Spec_->TestingOperationOptions->CancelationStage &&
         cancelationStage == *Spec_->TestingOperationOptions->CancelationStage)
     {
-        YT_LOG_INFO("Making test operation failure (CancelationStage: %v)", cancelationStage);
+        YT_TLOG_INFO("Making test operation failure")
+            .With("CancelationStage", cancelationStage);
         GetInvoker()->Invoke(BIND(
             &TOperationControllerBase::DoFailOperation,
             MakeWeak(this),
             TError("Test operation failure"),
             /*flush*/ false,
             /*abortAllJoblets*/ false));
-        YT_LOG_INFO("Making test cancelation (CancelationStage: %v)", cancelationStage);
+        YT_TLOG_INFO("Making test cancelation")
+            .With("CancelationStage", cancelationStage);
         Cancel();
     }
 }
@@ -12197,11 +12159,12 @@ void TOperationControllerBase::SendRunningAllocationTimeStatisticsUpdates()
     }
 
     if (std::empty(runningAllocationTimeStatisticsUpdates)) {
-        YT_LOG_DEBUG("No running allocation statistics received since last sending");
+        YT_TLOG_DEBUG("No running allocation statistics received since last sending");
         return;
     }
 
-    YT_LOG_DEBUG("Send running allocation statistics updates (UpdateCount: %v)", std::size(runningAllocationTimeStatisticsUpdates));
+    YT_TLOG_DEBUG("Send running allocation statistics updates")
+        .With("UpdateCount", std::size(runningAllocationTimeStatisticsUpdates));
 
     Host_->UpdateRunningAllocationsStatistics(std::move(runningAllocationTimeStatisticsUpdates));
     RunningAllocationPreemptibleProgressStartTimes_.clear();
@@ -12222,9 +12185,8 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
             case EControllerState::Failed:
                 return EAbortReason::OperationFailed;
             default:
-                YT_LOG_DEBUG(
-                    "Operation controller is not in finished state (State: %v)",
-                    operationControllerState);
+                YT_TLOG_DEBUG("Operation controller is not in finished state")
+                    .With("State", operationControllerState);
                 return EAbortReason::OperationFailed;
         }
     }();
@@ -12234,9 +12196,8 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
     AbortAllJoblets(jobAbortReason, /*honestly*/ false);
 
     auto headCookie = CompletedJobIdsReleaseQueue_.Checkpoint();
-    YT_LOG_INFO(
-        "Releasing jobs on controller finish (HeadCookie: %v)",
-        headCookie);
+    YT_TLOG_INFO("Releasing jobs on controller finish")
+        .With("HeadCookie", headCookie);
     auto jobIdsToRelease = CompletedJobIdsReleaseQueue_.Release();
     ReleaseJobs(jobIdsToRelease);
 }
@@ -12267,7 +12228,8 @@ void TOperationControllerBase::OnOperationReady(bool suspended)
         revivedAllocations.push_back(std::move(revivedAllocationInfo));
     }
 
-    YT_LOG_DEBUG("Registering revived allocations and jobs in job tracker (AllocationCount: %v)", std::size(revivedAllocations));
+    YT_TLOG_DEBUG("Registering revived allocations and jobs in job tracker")
+        .With("AllocationCount", std::size(revivedAllocations));
 
     Host_->Revive(std::move(revivedAllocations), suspended);
 }
@@ -12331,10 +12293,9 @@ std::unique_ptr<TAbortedJobSummary> TOperationControllerBase::RegisterOutputChun
 
         const auto* descriptor = globalNodeDirectory->FindDescriptor(nodeId);
         if (!descriptor) {
-            YT_LOG_DEBUG("Job is considered aborted since its output contains unresolved node id "
-                "(JobId: %v, NodeId: %v)",
-                jobSummary.Id,
-                nodeId);
+            YT_TLOG_DEBUG("Job is considered aborted since its output contains unresolved node id")
+                .With("JobId", jobSummary.Id)
+                .With("NodeId", nodeId);
             return CreateAbortedJobSummary(
                 jobSummary,
                 EAbortReason::UnresolvedNodeId,

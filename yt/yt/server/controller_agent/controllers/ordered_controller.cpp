@@ -355,16 +355,16 @@ protected:
                 YT_ABORT();
         }
 
-        YT_LOG_INFO("Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
-            JobSizeConstraints_->GetJobCount(),
-            JobSizeConstraints_->GetMaxDataWeightPerJob(),
-            JobSizeConstraints_->GetInputSliceDataWeight());
+        YT_TLOG_INFO("Calculated operation parameters")
+            .With("JobCount", JobSizeConstraints_->GetJobCount())
+            .With("MaxDataWeightPerJob", JobSizeConstraints_->GetMaxDataWeightPerJob())
+            .With("InputSliceDataWeight", JobSizeConstraints_->GetInputSliceDataWeight());
     }
 
     void ProcessInputs()
     {
         YT_PROFILE_TIMING("/operations/ordered/input_processing_time") {
-            YT_LOG_INFO("Processing inputs");
+            YT_TLOG_INFO("Processing inputs");
 
             OrderedTask_->SetIsInput(true);
 
@@ -377,7 +377,8 @@ protected:
                 yielder.TryYield();
             }
 
-            YT_LOG_INFO("Processed inputs (Slices: %v)", sliceCount);
+            YT_TLOG_INFO("Processed inputs")
+                .With("Slices", sliceCount);
         }
     }
 
@@ -701,10 +702,11 @@ private:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != OrderedTask_->GetTotalOutputRowCount(),
-                    "Input/output row count mismatch in ordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                    EstimatedInputStatistics_->RowCount,
-                    OrderedTask_->GetTotalOutputRowCount());
+                YT_TLOG_ERROR_IF(
+                    EstimatedInputStatistics_->RowCount != OrderedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in ordered merge operation")
+                    .With("TotalEstimatedInputRowCount", EstimatedInputStatistics_->RowCount)
+                    .With("TotalOutputRowCount", OrderedTask_->GetTotalOutputRowCount());
                 YT_VERIFY(EstimatedInputStatistics_->RowCount == OrderedTask_->GetTotalOutputRowCount());
             }
         }

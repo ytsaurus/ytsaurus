@@ -37,12 +37,12 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
     table->ChunkCount += statistics.ChunkCount;
 
     const auto& Logger = Controller_->Logger;
-    YT_LOG_DEBUG("Output stripe registered (Table: %v, ChunkListId: %v, Key: %v, ChunkCount: %v, RowCount: %v)",
-        OutputTableIndex_,
-        chunkListId,
-        key,
-        statistics.ChunkCount,
-        statistics.RowCount);
+    YT_TLOG_DEBUG("Output stripe registered")
+        .With("Table", OutputTableIndex_)
+        .With("ChunkListId", chunkListId)
+        .With("Key", key)
+        .With("ChunkCount", statistics.ChunkCount)
+        .With("RowCount", statistics.RowCount);
 
     bool isHunk = false;
     if (table->Dynamic) {

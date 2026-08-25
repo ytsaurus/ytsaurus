@@ -285,7 +285,10 @@ std::vector<TPartitionKey> BuildPartitionKeysFromSamples(
 
     auto sampleRowBuffer = New<TRowBuffer>(TSampleBufferTag());
 
-    YT_LOG_INFO("Building partition keys by samples (SampleCount: %v, PartitionCount: %v, Comparator: %v)", samples.size(), partitionCount, comparator);
+    YT_TLOG_INFO("Building partition keys by samples")
+        .With("SampleCount", samples.size())
+        .With("PartitionCount", partitionCount)
+        .With("Comparator", comparator);
 
     struct TComparableSample
     {

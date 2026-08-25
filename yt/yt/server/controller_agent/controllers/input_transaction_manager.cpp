@@ -113,7 +113,8 @@ TFuture<void> TInputTransactionManager::Start(
     std::vector<TFuture<void>> transactionFutures;
 
     for (const auto& [parentTransaction, _] : ParentToTransaction_) {
-        YT_LOG_INFO("Starting input transaction (Parent: %v)", parentTransaction);
+        YT_TLOG_INFO("Starting input transaction")
+            .With("Parent", parentTransaction);
 
         TTransactionStartOptions options;
         options.AutoAbort = false;
@@ -138,8 +139,8 @@ TFuture<void> TInputTransactionManager::Start(
 
                         auto transaction = transactionOrError.Value();
 
-                        YT_LOG_INFO("Input transaction started (TransactionId: %v)",
-                            transaction->GetId());
+                        YT_TLOG_INFO("Input transaction started")
+                            .With("TransactionId", transaction->GetId());
 
                         YT_VERIFY(ParentToTransaction_.contains(parentTransaction));
                         // NB: Assignments are not racy, because invoker of this "Apply" is serialized.
@@ -178,8 +179,9 @@ TFuture<void> TInputTransactionManager::Revive(TControllerTransactionIds transac
             YT_VERIFY(ParentToTransaction_.contains(parent) && !ParentToTransaction_[parent]);
             ParentToTransaction_[parent] = transaction;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error attaching operation transaction (TransactionId: %v)",
-                transactionId.Id);
+            YT_TLOG_WARNING("Error attaching operation transaction")
+                .With("TransactionId", transactionId.Id)
+                .With(ex);
         }
         transactions.push_back(transaction);
     }
@@ -189,10 +191,8 @@ TFuture<void> TInputTransactionManager::Revive(TControllerTransactionIds transac
     for (int i = 0; i < std::ssize(transactions); ++i) {
         auto transaction = transactions[i];
         if (!transaction) {
-            YT_LOG_INFO(
-                "Input transaction is missing, will use clean start "
-                "(TransactionId: %v)",
-                transactionIds.InputIds[i].Id);
+            YT_TLOG_INFO("Input transaction is missing, will use clean start")
+                .With("TransactionId", transactionIds.InputIds[i].Id);
             pingFutures.push_back(
                 MakeFuture(
                     TError("Failed to attach transaction")
@@ -265,8 +265,9 @@ TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
                     auto error = TError(
                         "Failed to create scheduler client for cluster %Qv",
                         parent.Cluster);
-                    YT_LOG_WARNING(error, "Failed to abort input transaction (TransactionId: %v)",
-                        transaction->GetId());
+                    YT_TLOG_WARNING("Failed to abort input transaction")
+                        .With("TransactionId", transaction->GetId())
+                        .With(error);
                     abortFutures.push_back(MakeFuture(error));
                     continue;
                 }
@@ -278,10 +279,9 @@ TFuture<void> TInputTransactionManager::Abort(IClientPtr schedulerClient)
                         ->AttachTransaction(transaction->GetId())
                         ->Abort());
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(
-                    ex,
-                    "Error attaching operation transaction for abort (TransactionId: %v)",
-                    transaction->GetId());
+                YT_TLOG_WARNING("Error attaching operation transaction for abort")
+                    .With("TransactionId", transaction->GetId())
+                    .With(ex);
             }
 
         }

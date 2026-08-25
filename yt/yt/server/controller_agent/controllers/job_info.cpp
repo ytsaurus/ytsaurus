@@ -122,9 +122,9 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
     bool monotonicityViolated = !Dominates(newJobMetrics, JobMetrics);
     if (monotonicityViolated) {
         if (!HasLoggedJobMetricsMonotonicityViolation) {
-            YT_LOG_WARNING("Job metrics monotonicity violated (Previous: %v, Current: %v)",
-                ConvertToYsonString(JobMetrics, EYsonFormat::Text),
-                ConvertToYsonString(newJobMetrics, EYsonFormat::Text));
+            YT_TLOG_WARNING("Job metrics monotonicity violated")
+                .With("Previous", ConvertToYsonString(JobMetrics, EYsonFormat::Text))
+                .With("Current", ConvertToYsonString(newJobMetrics, EYsonFormat::Text));
 
             HasLoggedJobMetricsMonotonicityViolation = true;
         }

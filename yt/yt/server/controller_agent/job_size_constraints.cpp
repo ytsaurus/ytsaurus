@@ -78,25 +78,20 @@ public:
     {
         YT_VERIFY(ForeignInputDataWeight_ >= 0);
 
-        YT_LOG_DEBUG(
-            "Base job size constraints initialized (InputDataWeight: %v, InputCompressedDataSize: %v, "
-            "PrimaryInputDataWeight: %v, PrimaryInputCompressedDataSize: %v, InputRowCount: %v, "
-            "InputChunkCount: %v, MergeInputTableCount: %v, MergePrimaryInputTableCount: %v, "
-            "SamplingRate: %v, MaxDataWeightPerJob: %v, MaxCompressedDataSizePerJob: %v, "
-            "MaxPrimaryDataWeightPerJob: %v, MaxPrimaryCompressedDataSizePerJob: %v)",
-            InputDataWeight_,
-            InputCompressedDataSize_,
-            PrimaryInputDataWeight_,
-            PrimaryInputCompressedDataSize_,
-            InputRowCount_,
-            InputChunkCount_,
-            MergeInputTableCount_,
-            MergePrimaryInputTableCount_,
-            GetSamplingRate(),
-            GetMaxDataWeightPerJob(),
-            GetMaxCompressedDataSizePerJob(),
-            GetMaxPrimaryDataWeightPerJob(),
-            GetMaxPrimaryCompressedDataSizePerJob());
+        YT_TLOG_DEBUG("Base job size constraints initialized")
+            .With("InputDataWeight", InputDataWeight_)
+            .With("InputCompressedDataSize", InputCompressedDataSize_)
+            .With("PrimaryInputDataWeight", PrimaryInputDataWeight_)
+            .With("PrimaryInputCompressedDataSize", PrimaryInputCompressedDataSize_)
+            .With("InputRowCount", InputRowCount_)
+            .With("InputChunkCount", InputChunkCount_)
+            .With("MergeInputTableCount", MergeInputTableCount_)
+            .With("MergePrimaryInputTableCount", MergePrimaryInputTableCount_)
+            .With("SamplingRate", GetSamplingRate())
+            .With("MaxDataWeightPerJob", GetMaxDataWeightPerJob())
+            .With("MaxCompressedDataSizePerJob", GetMaxCompressedDataSizePerJob())
+            .With("MaxPrimaryDataWeightPerJob", GetMaxPrimaryDataWeightPerJob())
+            .With("MaxPrimaryCompressedDataSizePerJob", GetMaxPrimaryCompressedDataSizePerJob());
 
         if (GetSamplingRate()) {
             InitializeSampling();
@@ -217,34 +212,33 @@ public:
     // TODO(apollo1321): Apply sampling when updating initial parameters.
     void UpdateInputDataWeight(i64 inputDataWeight) override
     {
-        YT_LOG_DEBUG("Job size constraints input data weight updated (OldInputDataWeight: %v, NewInputDataWeight: %v)",
-            InputDataWeight_,
-            inputDataWeight);
+        YT_TLOG_DEBUG("Job size constraints input data weight updated")
+            .With("OldInputDataWeight", InputDataWeight_)
+            .With("NewInputDataWeight", inputDataWeight);
         InputDataWeight_ = inputDataWeight;
     }
 
     void UpdatePrimaryInputDataWeight(i64 primaryInputDataWeight) override
     {
-        YT_LOG_DEBUG("Job size constraints primary input data weight updated (OldPrimaryInputDataWeight: %v, NewPrimaryInputDataWeight: %v)",
-            PrimaryInputDataWeight_,
-            primaryInputDataWeight);
+        YT_TLOG_DEBUG("Job size constraints primary input data weight updated")
+            .With("OldPrimaryInputDataWeight", PrimaryInputDataWeight_)
+            .With("NewPrimaryInputDataWeight", primaryInputDataWeight);
         PrimaryInputDataWeight_ = primaryInputDataWeight;
     }
 
     void UpdateInputCompressedDataSize(i64 inputCompressedDataSize) override
     {
-        YT_LOG_DEBUG("Job size constraints input compressed data size updated (OldInputCompressedDataSize: %v, NewInputCompressedDataSize: %v)",
-            InputCompressedDataSize_,
-            inputCompressedDataSize);
+        YT_TLOG_DEBUG("Job size constraints input compressed data size updated")
+            .With("OldInputCompressedDataSize", InputCompressedDataSize_)
+            .With("NewInputCompressedDataSize", inputCompressedDataSize);
         InputCompressedDataSize_ = inputCompressedDataSize;
     }
 
     void UpdateInputPrimaryCompressedDataSize(i64 primaryInputCompressedDataSize) override
     {
-        YT_LOG_DEBUG(
-            "Job size constraints primary input compressed data size updated (OldPrimaryInputCompressedDataSize: %v, NewPrimaryInputCompressedDataSize: %v)",
-            PrimaryInputCompressedDataSize_,
-            primaryInputCompressedDataSize);
+        YT_TLOG_DEBUG("Job size constraints primary input compressed data size updated")
+            .With("OldPrimaryInputCompressedDataSize", PrimaryInputCompressedDataSize_)
+            .With("NewPrimaryInputCompressedDataSize", primaryInputCompressedDataSize);
         PrimaryInputCompressedDataSize_ = primaryInputCompressedDataSize;
     }
 
@@ -294,21 +288,17 @@ private:
         i64 minSamplingJobPrimaryDataWeightForSliceCountFit = InitialPrimaryInputDataWeight_ / maxJobCountForSliceCountFit;
         SamplingDataWeightPerJob_ = std::max<i64>({1, minSamplingJobDataWeightForIOEfficiency, minSamplingJobDataWeightForSliceCountFit});
         SamplingPrimaryDataWeightPerJob_ = std::max<i64>({1, minSamplingJobPrimaryDataWeightForIOEfficiency, minSamplingJobPrimaryDataWeightForSliceCountFit});
-        YT_LOG_INFO(
-            "Sampling parameters calculated (InitialInputDataWeight: %v, SamplingRate: %v, InputDataWeight: %v, "
-            "PrimaryInputDataWeight: %v, MinSamplingJobDataWeightForIOEfficiency: %v, "
-            "MinSamplingJobPrimaryDataWeightForIOEfficiency: %v, MaxJobCountForSliceCountFit: %v, "
-            "MinSamplingJobDataWeightForSliceCountFit: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
-            InitialInputDataWeight_,
-            SamplingConfig_->SamplingRate,
-            InputDataWeight_,
-            PrimaryInputDataWeight_,
-            minSamplingJobDataWeightForIOEfficiency,
-            minSamplingJobPrimaryDataWeightForIOEfficiency,
-            maxJobCountForSliceCountFit,
-            minSamplingJobDataWeightForSliceCountFit,
-            SamplingDataWeightPerJob_,
-            SamplingPrimaryDataWeightPerJob_);
+        YT_TLOG_INFO("Sampling parameters calculated")
+            .With("InitialInputDataWeight", InitialInputDataWeight_)
+            .With("SamplingRate", SamplingConfig_->SamplingRate)
+            .With("InputDataWeight", InputDataWeight_)
+            .With("PrimaryInputDataWeight", PrimaryInputDataWeight_)
+            .With("MinSamplingJobDataWeightForIOEfficiency", minSamplingJobDataWeightForIOEfficiency)
+            .With("MinSamplingJobPrimaryDataWeightForIOEfficiency", minSamplingJobPrimaryDataWeightForIOEfficiency)
+            .With("MaxJobCountForSliceCountFit", maxJobCountForSliceCountFit)
+            .With("MinSamplingJobDataWeightForSliceCountFit", minSamplingJobDataWeightForSliceCountFit)
+            .With("SamplingDataWeightPerJob", SamplingDataWeightPerJob_)
+            .With("SamplingPrimaryDataWeightPerJob", SamplingPrimaryDataWeightPerJob_);
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSizeConstraintsBase, 0x1272e58a);
@@ -410,24 +400,20 @@ public:
             InputCompressedDataSize_,
             outputTableCount);
 
-        YT_LOG_DEBUG(
-            "User job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
-            "DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v, CompressedDataSizePerJob: %v, PrimaryCompressedDataSizePerJob: %v, "
-            "InitialDataWeightPerJob: %v, DataWeightPerJobFromSpec: %v, CompressedDataSizePerJobFromSpec: %v, DataWeightPerJobFromOptions: %v, "
-            "MaxDataWeightPerJob: %v, MaxCompressedDataSizePerJob: %v, DataWeightRatio: %v)",
-            JobCountByDataWeight_,
-            JobCountByCompressedDataSize_,
-            GetDataWeightPerJob(),
-            GetPrimaryDataWeightPerJob(),
-            GetCompressedDataSizePerJob(),
-            GetPrimaryCompressedDataSizePerJob(),
-            initialDataWeightPerJob,
-            Spec_->DataWeightPerJob,
-            Spec_->CompressedDataSizePerJob,
-            Options_->DataWeightPerJob,
-            Spec_->MaxDataWeightPerJob,
-            Spec_->MaxCompressedDataSizePerJob,
-            dataWeightRatio);
+        YT_TLOG_DEBUG("User job size constraints initialized")
+            .With("JobCountByDataWeight", JobCountByDataWeight_)
+            .With("JobCountByCompressedDataSize", JobCountByCompressedDataSize_)
+            .With("DataWeightPerJob", GetDataWeightPerJob())
+            .With("PrimaryDataWeightPerJob", GetPrimaryDataWeightPerJob())
+            .With("CompressedDataSizePerJob", GetCompressedDataSizePerJob())
+            .With("PrimaryCompressedDataSizePerJob", GetPrimaryCompressedDataSizePerJob())
+            .With("InitialDataWeightPerJob", initialDataWeightPerJob)
+            .With("DataWeightPerJobFromSpec", Spec_->DataWeightPerJob)
+            .With("CompressedDataSizePerJobFromSpec", Spec_->CompressedDataSizePerJob)
+            .With("DataWeightPerJobFromOptions", Options_->DataWeightPerJob)
+            .With("MaxDataWeightPerJob", Spec_->MaxDataWeightPerJob)
+            .With("MaxCompressedDataSizePerJob", Spec_->MaxCompressedDataSizePerJob)
+            .With("DataWeightRatio", dataWeightRatio);
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -631,22 +617,18 @@ public:
         i64 initialCompressedDataSizePerJob = Spec_->CompressedDataSizePerJob.value_or(Spec_->MaxCompressedDataSizePerJob);
         JobCountByCompressedDataSize_ = ComputeJobCount(initialCompressedDataSizePerJob, InputCompressedDataSize_);
 
-        YT_LOG_DEBUG(
-            "Merge job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
-            "DataWeightPerJob: %v, CompressedDataSizePerJob: %v, InitialDataWeightPerJob: %v, DataWeightPerJobFromSpec: %v, "
-            "CompressedDataSizePerJobFromSpec: %v, DataWeightPerJobFromOptions: %v, MaxDataWeightPerJob: %v, "
-            "MaxCompressedDataSizePerJob: %v, DataWeightRatio: %v)",
-            JobCountByDataWeight_,
-            JobCountByCompressedDataSize_,
-            GetDataWeightPerJob(),
-            GetCompressedDataSizePerJob(),
-            initialDataWeightPerJob,
-            Spec_->DataWeightPerJob,
-            Spec_->CompressedDataSizePerJob,
-            Options_->DataWeightPerJob,
-            Spec_->MaxDataWeightPerJob,
-            Spec_->MaxCompressedDataSizePerJob,
-            dataWeightRatio);
+        YT_TLOG_DEBUG("Merge job size constraints initialized")
+            .With("JobCountByDataWeight", JobCountByDataWeight_)
+            .With("JobCountByCompressedDataSize", JobCountByCompressedDataSize_)
+            .With("DataWeightPerJob", GetDataWeightPerJob())
+            .With("CompressedDataSizePerJob", GetCompressedDataSizePerJob())
+            .With("InitialDataWeightPerJob", initialDataWeightPerJob)
+            .With("DataWeightPerJobFromSpec", Spec_->DataWeightPerJob)
+            .With("CompressedDataSizePerJobFromSpec", Spec_->CompressedDataSizePerJob)
+            .With("DataWeightPerJobFromOptions", Options_->DataWeightPerJob)
+            .With("MaxDataWeightPerJob", Spec_->MaxDataWeightPerJob)
+            .With("MaxCompressedDataSizePerJob", Spec_->MaxCompressedDataSizePerJob)
+            .With("DataWeightRatio", dataWeightRatio);
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -818,16 +800,13 @@ public:
 
         JobCountByCompressedDataSize_ = 0;
 
-        YT_LOG_DEBUG(
-            "Simple sort job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
-            "DataWeightPerJob: %v, CompressedDataSizePerJob: %v, DataWeightPerShuffleJobFromSpec: %v, "
-            "MaxDataSlicesPerJob: %v)",
-            JobCountByDataWeight_,
-            JobCountByCompressedDataSize_,
-            GetDataWeightPerJob(),
-            GetCompressedDataSizePerJob(),
-            Spec_->DataWeightPerShuffleJob,
-            GetMaxDataSlicesPerJob());
+        YT_TLOG_DEBUG("Simple sort job size constraints initialized")
+            .With("JobCountByDataWeight", JobCountByDataWeight_)
+            .With("JobCountByCompressedDataSize", JobCountByCompressedDataSize_)
+            .With("DataWeightPerJob", GetDataWeightPerJob())
+            .With("CompressedDataSizePerJob", GetCompressedDataSizePerJob())
+            .With("DataWeightPerShuffleJobFromSpec", Spec_->DataWeightPerShuffleJob)
+            .With("MaxDataSlicesPerJob", GetMaxDataSlicesPerJob());
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -986,20 +965,17 @@ public:
         JobCountByDataWeight_ = validateAndAdjustJobCount(JobCountByDataWeight_, InputDataWeight_, Spec_->MaxDataWeightPerJob);
         JobCountByCompressedDataSize_ = validateAndAdjustJobCount(JobCountByCompressedDataSize_, InputCompressedDataSize_, Spec_->MaxCompressedDataSizePerJob);
 
-        YT_LOG_DEBUG(
-            "Partition job size constraints initialized (JobCountByDataWeight: %v, JobCountByCompressedDataSize: %v, "
-            "DataWeightPerJob: %v, CompressedDataSizePerJob: %v, PartitionJobCountFromSpec: %v, DataWeightPerPartitionJobFromSpec: %v, "
-            "CompressedDataSizePerPartitionJobFromSpec: %v, CompressedBlockSize: %v, TableWriterBlockSize: %v, CompressionRatio: %v)",
-            JobCountByDataWeight_,
-            JobCountByCompressedDataSize_,
-            GetDataWeightPerJob(),
-            GetCompressedDataSizePerJob(),
-            Spec_->PartitionJobCount,
-            Spec_->DataWeightPerPartitionJob,
-            Spec_->CompressedDataSizePerPartitionJob,
-            Options_->CompressedBlockSize,
-            Spec_->PartitionJobIO->TableWriter->BlockSize,
-            compressionRatio);
+        YT_TLOG_DEBUG("Partition job size constraints initialized")
+            .With("JobCountByDataWeight", JobCountByDataWeight_)
+            .With("JobCountByCompressedDataSize", JobCountByCompressedDataSize_)
+            .With("DataWeightPerJob", GetDataWeightPerJob())
+            .With("CompressedDataSizePerJob", GetCompressedDataSizePerJob())
+            .With("PartitionJobCountFromSpec", Spec_->PartitionJobCount)
+            .With("DataWeightPerPartitionJobFromSpec", Spec_->DataWeightPerPartitionJob)
+            .With("CompressedDataSizePerPartitionJobFromSpec", Spec_->CompressedDataSizePerPartitionJob)
+            .With("CompressedBlockSize", Options_->CompressedBlockSize)
+            .With("TableWriterBlockSize", Spec_->PartitionJobIO->TableWriter->BlockSize)
+            .With("CompressionRatio", compressionRatio);
     }
 
     bool CanAdjustDataWeightPerJob() const override

@@ -235,10 +235,9 @@ void TInputCluster::InitializeClient(IClientPtr localClient)
 void TInputCluster::ReportIfHasUnavailableChunks() const
 {
     if (!UnavailableInputChunkIds_.empty()) {
-        YT_LOG_INFO(
-            "Have pending unavailable input chunks (Cluster: %v, SampleChunkIds: %v)",
-            Name_,
-            MakeShrunkFormattableView(UnavailableInputChunkIds_, TDefaultFormatter(), SampleChunkIdCount));
+        YT_TLOG_INFO("Have pending unavailable input chunks")
+            .With("Cluster", Name_)
+            .With("SampleChunkIds", MakeShrunkFormattableView(UnavailableInputChunkIds_, TDefaultFormatter(), SampleChunkIdCount));
     }
 }
 
@@ -310,7 +309,7 @@ void TInputManager::InitializeStructures(
 void TInputCluster::LockTables()
 {
     //! TODO(ignat): Merge in with lock input files method.
-    YT_LOG_INFO("Locking input tables");
+    YT_TLOG_INFO("Locking input tables");
 
     auto proxy = CreateObjectServiceWriteProxy(Client_);
     auto batchReq = proxy.ExecuteBatchWithRetries(Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
@@ -489,15 +488,14 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(
                 .With("table_path", table->Path);
         }
 
-        YT_LOG_DEBUG("Adding input table for fetch (Path: %v, Id: %v, Dynamic: %v, ChunkCount: %v, RangeCount: %v, "
-            "HasColumnSelectors: %v, EnableDynamicStoreRead: %v)",
-            table->GetPath(),
-            table->ObjectId,
-            table->Dynamic,
-            table->ChunkCount,
-            ranges.size(),
-            hasColumnSelectors,
-            Host_->GetSpec()->EnableDynamicStoreRead);
+        YT_TLOG_DEBUG("Adding input table for fetch")
+            .With("Path", table->GetPath())
+            .With("Id", table->ObjectId)
+            .With("Dynamic", table->Dynamic)
+            .With("ChunkCount", table->ChunkCount)
+            .With("RangeCount", ranges.size())
+            .With("HasColumnSelectors", hasColumnSelectors)
+            .With("EnableDynamicStoreRead", Host_->GetSpec()->EnableDynamicStoreRead);
 
         chunkSpecFetcher->Add(
             table->ObjectId,
@@ -550,7 +548,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         }
     }
 
-    YT_LOG_INFO("Fetching input tables");
+    YT_TLOG_INFO("Fetching input tables");
 
     THashMap<TClusterName, TMasterChunkSpecFetcherPtr> chunkSpecFetchers;
     std::vector<TFuture<void>> fetchChunkSpecFutures;
@@ -584,7 +582,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
     WaitFor(AllSucceeded(fetchChunkSpecFutures))
         .ThrowOnError();
 
-    YT_LOG_INFO("Input tables fetched");
+    YT_TLOG_INFO("Input tables fetched");
 
     auto processHunkChunk = [&] (const NChunkClient::NProto::TChunkSpec& chunkSpec) {
         yielder.TryYield();
@@ -618,10 +616,9 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
         if (inputChunk->IsDynamicStore() && !table->Schema->IsSorted()) {
             if (!InputHasOrderedDynamicStores_) {
-                YT_LOG_DEBUG("Operation input has ordered dynamic stores, job interrupts "
-                    "are disabled (TableId: %v, TablePath: %v)",
-                    table->ObjectId,
-                    table->GetPath());
+                YT_TLOG_DEBUG("Operation input has ordered dynamic stores, job interrupts are disabled")
+                    .With("TableId", table->ObjectId)
+                    .With("TablePath", table->GetPath());
                 InputHasOrderedDynamicStores_ = true;
             }
         }
@@ -709,14 +706,14 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
     std::vector<TFuture<void>> statisticsFutures;
     for (const auto& [clusterName, fetcher] : columnarStatisticsFetchers) {
         if (fetcher->GetChunkCount() > 0) {
-            YT_LOG_INFO("Fetching chunk columnar statistics for tables with column selectors (Cluster: %v, ChunkCount: %v)",
-                clusterName,
-                fetcher->GetChunkCount());
+            YT_TLOG_INFO("Fetching chunk columnar statistics for tables with column selectors")
+                .With("Cluster", clusterName)
+                .With("ChunkCount", fetcher->GetChunkCount());
             Host_->MaybeCancel(ECancelationStage::ColumnarStatisticsFetch);
 
             auto applySelectivityFactors =
                 BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
-                    YT_LOG_INFO("Columnar statistics fetched");
+                    YT_TLOG_INFO("Columnar statistics fetched");
                     fetcher->ApplyColumnSelectivityFactors();
                 })
                     .AsyncVia(GetCurrentInvoker());
@@ -728,13 +725,13 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
     for (const auto& [clusterName, fetcher] : chunkSliceSizeFetchers) {
         if (fetcher && fetcher->GetChunkCount() > 0) {
-            YT_LOG_INFO("Fetching input chunk slice statistics for input tables (Cluster: %v, ChunkCount: %v)",
-                clusterName,
-                fetcher->GetChunkCount());
+            YT_TLOG_INFO("Fetching input chunk slice statistics for input tables")
+                .With("Cluster", clusterName)
+                .With("ChunkCount", fetcher->GetChunkCount());
 
             auto applySelectivityFactors =
                 BIND([fetcher, Logger = GetClusterOrCrash(clusterName)->GetLogger()] {
-                    YT_LOG_INFO("Input chunk slice statistics fetched");
+                    YT_TLOG_INFO("Input chunk slice statistics fetched");
                     fetcher->ApplyBlockSelectivityFactors();
                 })
                     .AsyncVia(GetCurrentInvoker());
@@ -754,12 +751,12 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         VerifyEventualExpiration(std::move(fetcher), Logger);
     }
 
-    YT_LOG_INFO("All statistics fetched from nodes");
+    YT_TLOG_INFO("All statistics fetched from nodes");
 
     // TODO(galtsev): remove after YT-20281 is fixed
     if (AnyOf(InputTables_, IsStaticTableWithHunks)) {
         InputHasStaticTableWithHunks_ = true;
-        YT_LOG_INFO("Static tables with hunks found, disabling job splitting");
+        YT_TLOG_INFO("Static tables with hunks found, disabling job splitting");
     }
 
     return fetchStatistics;
@@ -789,13 +786,13 @@ void TInputManager::Prepare()
             }
         }
     } else {
-        YT_LOG_INFO("Operation has no input tables");
+        YT_TLOG_INFO("Operation has no input tables");
     }
 }
 
 void TInputManager::FetchInputTablesAttributes()
 {
-    YT_LOG_INFO("Getting input tables attributes");
+    YT_TLOG_INFO("Getting input tables attributes");
 
     // NB(coteeq): Transaction id may still be NullTransactionId.
     YT_VERIFY(
@@ -962,12 +959,10 @@ void TInputManager::FetchInputTablesAttributes()
             table->Schema,
             table->RowLevelAcl,
             Logger().WithTag("TableIndex", index));
-        YT_LOG_INFO_IF(
-            table->RlsReadSpec,
-            "Input table has non-trivial RLS read spec (Path: %v, TableIndex: %v, RlsReadSpec: %v)",
-            table->GetPath(),
-            index,
-            table->RlsReadSpec);
+        YT_TLOG_INFO_IF(table->RlsReadSpec, "Input table has non-trivial RLS read spec")
+            .With("Path", table->GetPath())
+            .With("TableIndex", index)
+            .With("RlsReadSpec", table->RlsReadSpec);
     }
 
     bool haveTablesWithEnabledDynamicStoreRead = false;
@@ -998,16 +993,15 @@ void TInputManager::FetchInputTablesAttributes()
             *attributes,
             !Host_->GetSpec()->EnableDynamicStoreRead.value_or(true));
 
-        YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, "
-            "Revision: %x, ContentRevision: %x)",
-            table->GetPath(),
-            table->ObjectId,
-            *table->Schema,
-            table->Dynamic,
-            table->ChunkCount,
-            table->SecurityTags,
-            table->Revision,
-            table->ContentRevision);
+        YT_TLOG_INFO("Input table locked")
+            .With("Path", table->GetPath())
+            .With("ObjectId", table->ObjectId)
+            .With("Schema", *table->Schema)
+            .With("Dynamic", table->Dynamic)
+            .With("ChunkCount", table->ChunkCount)
+            .With("SecurityTags", table->SecurityTags)
+            .WithFormat("Revision", "%x", table->Revision)
+            .WithFormat("ContentRevision", "%x", table->ContentRevision);
 
         // NB(coteeq): This MUST happen after creation of table->RlsReadSpec.
         // Otherwise we will mess up column names for RLS.
@@ -1016,7 +1010,7 @@ void TInputManager::FetchInputTablesAttributes()
                 THROW_ERROR_EXCEPTION("Cannot rename columns in table with teleport")
                     .With("table_path", table->Path);
             }
-            YT_LOG_DEBUG("Start renaming columns of input table");
+            YT_TLOG_DEBUG("Start renaming columns of input table");
             auto description = Format("input table %v", table->GetPath());
             table->Schema = RenameColumnsInSchema(
                 description,
@@ -1024,12 +1018,10 @@ void TInputManager::FetchInputTablesAttributes()
                 table->Dynamic,
                 table->ColumnRenameDescriptors,
                 /*changeStableName*/ !Host_->GetConfig()->EnableTableColumnRenaming);
-            YT_LOG_DEBUG(
-                "Columns of input table are renamed "
-                "(Path: %v, NewSchema: %v, RenamedOmittedInaccessibleColumns: %v)",
-                table->GetPath(),
-                *table->Schema,
-                table->OmittedInaccessibleColumns);
+            YT_TLOG_DEBUG("Columns of input table are renamed")
+                .With("Path", table->GetPath())
+                .With("NewSchema", *table->Schema)
+                .With("RenamedOmittedInaccessibleColumns", table->OmittedInaccessibleColumns);
         }
 
         if (Host_->GetOperationType() == EOperationType::RemoteCopy) {
@@ -1127,11 +1119,10 @@ void TInputManager::InitInputChunkScrapers()
             cluster->ChunkScraper()->OnChunkBecameUnavailable(chunkId);
         }
         if (!cluster->UnavailableInputChunkIds().empty()) {
-            YT_LOG_INFO(
-                "Waiting for unavailable input chunks (Cluster: %v, Count: %v, SampleIds: %v)",
-                clusterName,
-                cluster->UnavailableInputChunkIds().size(),
-                MakeShrunkFormattableView(cluster->UnavailableInputChunkIds(), TDefaultFormatter(), SampleChunkIdCount));
+            YT_TLOG_INFO("Waiting for unavailable input chunks")
+                .With("Cluster", clusterName)
+                .With("Count", cluster->UnavailableInputChunkIds().size())
+                .With("SampleIds", MakeShrunkFormattableView(cluster->UnavailableInputChunkIds(), TDefaultFormatter(), SampleChunkIdCount));
             cluster->ChunkScraper()->Start();
         }
     }
@@ -1234,9 +1225,8 @@ void TInputManager::OnInputChunkBatchLocated(
         }
     }
 
-    YT_LOG_DEBUG(
-        "Located another batch of chunks (Count: %v)",
-        size(chunkBatch));
+    YT_TLOG_DEBUG("Located another batch of chunks")
+        .With("Count", size(chunkBatch));
 
     for (const auto& [_, cluster] : Clusters_) {
         cluster->ReportIfHasUnavailableChunks();
@@ -1369,7 +1359,8 @@ void TInputManager::RegisterUnavailableInputChunk(TChunkId chunkId)
     auto& cluster = GetClusterOrCrash(chunkId);
     InsertOrCrash(cluster->UnavailableInputChunkIds(), chunkId);
 
-    YT_LOG_TRACE("Input chunk is unavailable (ChunkId: %v)", chunkId);
+    YT_TLOG_TRACE("Input chunk is unavailable")
+        .With("ChunkId", chunkId);
 }
 
 void TInputManager::UnregisterUnavailableInputChunk(TChunkId chunkId)
@@ -1377,7 +1368,8 @@ void TInputManager::UnregisterUnavailableInputChunk(TChunkId chunkId)
     auto& cluster = GetClusterOrCrash(chunkId);
     EraseOrCrash(cluster->UnavailableInputChunkIds(), chunkId);
 
-    YT_LOG_TRACE("Input chunk is no longer unavailable (ChunkId: %v)", chunkId);
+    YT_TLOG_TRACE("Input chunk is no longer unavailable")
+        .With("ChunkId", chunkId);
 }
 
 const TInputClusterPtr& TInputManager::GetClusterOrCrash(const TClusterName& clusterName) const
@@ -1421,7 +1413,9 @@ bool TInputManager::OnInputChunkFailed(TChunkId chunkId, TJobId jobId)
 {
     auto it = InputChunkMap_.find(chunkId);
     if (it != InputChunkMap_.end()) {
-        YT_LOG_DEBUG("Input chunk has failed (ChunkId: %v, JobId: %v)", chunkId, jobId);
+        YT_TLOG_DEBUG("Input chunk has failed")
+            .With("ChunkId", chunkId)
+            .With("JobId", jobId);
         auto* descriptor = &it->second;
         if (Host_->GetSpec()->UnavailableChunkTactics == EUnavailableChunkAction::Wait) {
             // Scrap unavailable chunk only if we need it.
