@@ -21,3 +21,8 @@ main:
   constraints:
     strawberry: ">=0.0.16"
     ytsaurus: ">=25.2"
+2.19.0:
+  source: stable
+  constraints:
+    strawberry: ">=0.0.16"
+    ytsaurus: ">=25.2"
