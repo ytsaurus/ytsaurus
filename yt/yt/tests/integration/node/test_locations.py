@@ -550,7 +550,7 @@ class TestAsyncTrashLoad(YTEnvSetup):
         wait(lambda: wait_sensor_change('location/trash_chunk_count', trash_chunk_count))
 
 
-class TestCacheLocationOverflow(YTEnvSetup):
+class CacheLocationOverflowBase(YTEnvSetup):
     USE_PORTO = True
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -558,12 +558,15 @@ class TestCacheLocationOverflow(YTEnvSetup):
     NUM_CONTROLLER_AGENTS = 1
     STORE_LOCATION_COUNT = 1
 
-    _TMPFS_SIZE = 10 * 1024 * 1024
+    _VOLUME_SIZE = 10 * 1024 * 1024
+
+    _BACKEND = None
+    _EXPECTED_ERROR = None
 
     @classmethod
     def setup_class(cls):
         import porto
-        vol = porto.Connection().CreateVolume(backend="tmpfs", space_limit=str(cls._TMPFS_SIZE))
+        vol = porto.Connection().CreateVolume(backend=cls._BACKEND, space_limit=str(cls._VOLUME_SIZE))
         cls.cache_volume_path = vol.path
         super().setup_class()
 
@@ -599,7 +602,7 @@ class TestCacheLocationOverflow(YTEnvSetup):
             }
         })
 
-        artifact_size = self._TMPFS_SIZE + 2 * 1024 * 1024
+        artifact_size = self._VOLUME_SIZE + 2 * 1024 * 1024
 
         create("file", "//tmp/big_file")
         write_file(
@@ -608,7 +611,7 @@ class TestCacheLocationOverflow(YTEnvSetup):
             file_writer={
                 "upload_replication_factor": 1,
                 "desired_chunk_size":
-                    self._TMPFS_SIZE // 4
+                    self._VOLUME_SIZE // 4
                     if multi_chunk
                     else artifact_size * 2
             },
@@ -656,7 +659,17 @@ class TestCacheLocationOverflow(YTEnvSetup):
         )
         assert len(entries) > 0
         for entry in entries:
-            assert 'No space left on device' in str(entry), entry
+            assert self._EXPECTED_ERROR in str(entry), entry
+
+
+class TestCacheLocationOverflow(CacheLocationOverflowBase):
+    _BACKEND = "tmpfs"
+    _EXPECTED_ERROR = "No space left on device"
+
+
+class TestCacheLocationQuotaOverflow(CacheLocationOverflowBase):
+    _BACKEND = "native"
+    _EXPECTED_ERROR = "Disk quota exceeded"
 
 
 class TestSlotLocationOverflow(YTEnvSetup):
