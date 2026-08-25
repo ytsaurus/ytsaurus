@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     fetcher_ut.cpp
     joiner_ut.cpp
+    registry_ut.cpp
 )
 
 PEERDIR(
