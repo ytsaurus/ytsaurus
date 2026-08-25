@@ -19,14 +19,7 @@
                 "x": 6,
                 "y": 0
             },
-            "targets": [
-                {
-                    "datasource": null,
-                    "expr": "min by() ({cluster=~\"$cluster\", service=~\"yt-rpc-proxy.*\", __name__=~\"yt_memory_tcmalloc_desired_usage_limit_bytes\", proxy_role=~\"$proxy_role\", pod=~\"$pod\"})",
-                    "legendFormat": "\"OOM tracker threshold\"",
-                    "refId": "A"
-                }
-            ],
+            "targets": [],
             "title": "Memory Total",
             "type": "timeseries"
         },
