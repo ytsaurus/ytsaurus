@@ -219,7 +219,7 @@ TAllocation::TAllocation(
 
 TAllocation::~TAllocation()
 {
-    YT_LOG_DEBUG("Allocation destroyed");
+    YT_TLOG_DEBUG("Allocation destroyed");
 }
 
 TAllocationId TAllocation::GetId() const noexcept
@@ -303,7 +303,8 @@ TJobPtr TAllocation::EvictJob() noexcept
 
     YT_VERIFY(Job_);
 
-    YT_LOG_DEBUG("Job evicted from allocation (JobId: %v)", Job_->GetId());
+    YT_TLOG_DEBUG("Job evicted from allocation")
+        .With("JobId", Job_->GetId());
 
     Job_->OnEvictedFromAllocation();
 
@@ -329,11 +330,9 @@ void TAllocation::UpdateControllerAgentDescriptor(TControllerAgentDescriptor des
         return;
     }
 
-    YT_LOG_DEBUG(
-        "Update controller agent for allocation (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
-        ControllerAgentInfo_.GetDescriptor().Address,
-        descriptor.Address,
-        descriptor.IncarnationId);
+    YT_TLOG_DEBUG("Update controller agent for allocation")
+        .WithFormat("ControllerAgentAddress", "%v -> %v", ControllerAgentInfo_.GetDescriptor().Address, descriptor.Address)
+        .With("ControllerAgentIncarnationId", descriptor.IncarnationId);
 
     ControllerAgentInfo_.SetDescriptor(std::move(descriptor));
 
@@ -369,11 +368,12 @@ void TAllocation::Abort(TError error)
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (std::exchange(State_, EAllocationState::Finished) != EAllocationState::Finished) {
-        YT_LOG_INFO(error, "Aborting allocation (CurrentState: %v)", State_);
+        YT_TLOG_INFO("Aborting allocation")
+            .With("CurrentState", State_)
+            .With(error);
     } else {
-        YT_LOG_DEBUG(
-            "Skip allocation abortion request since allocation is already finished (AbortionError: %v)",
-            error);
+        YT_TLOG_DEBUG("Skip allocation abortion request since allocation is already finished")
+            .With("AbortionError", error);
         return;
     }
 
@@ -385,7 +385,7 @@ void TAllocation::Abort(TError error)
         lastJob = EvictJob();
         lastJob->Abort(FinishError_);
     } else {
-        YT_LOG_DEBUG("Empty allocation aborted");
+        YT_TLOG_DEBUG("Empty allocation aborted");
     }
 
     OnAllocationFinished(EAllocationFinishReason::Aborted, std::move(lastJob));
@@ -396,9 +396,9 @@ void TAllocation::Complete(EAllocationFinishReason finishReason)
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (std::exchange(State_, EAllocationState::Finished) != EAllocationState::Finished) {
-        YT_LOG_INFO("Completing allocation");
+        YT_TLOG_INFO("Completing allocation");
     } else {
-        YT_LOG_DEBUG("Skip allocation completion request since allocation is already finished");
+        YT_TLOG_DEBUG("Skip allocation completion request since allocation is already finished");
         return;
     }
 
@@ -409,7 +409,7 @@ void TAllocation::Complete(EAllocationFinishReason finishReason)
         TransferResourcesToJob();
         lastJob = EvictJob();
     } else {
-        YT_LOG_DEBUG("Empty allocation completed");
+        YT_TLOG_DEBUG("Empty allocation completed");
     }
 
     OnAllocationFinished(finishReason, std::move(lastJob));
@@ -423,20 +423,19 @@ void TAllocation::Preempt(
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (State_ == EAllocationState::Finished) {
-        YT_LOG_DEBUG("Ignore allocation preemption request since allocation is already finished");
+        YT_TLOG_DEBUG("Ignore allocation preemption request since allocation is already finished");
         return;
     } else {
-        YT_LOG_INFO(
-            "Preempting allocation (PreemptionReason: %v, PreemptedFor: %v, Timeout: %v)",
-            preemptionReason,
-            preemptedFor,
-            timeout);
+        YT_TLOG_INFO("Preempting allocation")
+            .With("PreemptionReason", preemptionReason)
+            .With("PreemptedFor", preemptedFor)
+            .With("Timeout", timeout);
     }
 
     Preempted_ = true;
 
     if (!Job_) {
-        YT_LOG_DEBUG("Allocation is empty; aborting it");
+        YT_TLOG_DEBUG("Allocation is empty; aborting it");
 
         auto error = TError("Allocation preempted")
             .With("preemption_reason", preemptionReason)
@@ -479,11 +478,10 @@ void TAllocation::SettleJob(bool isJobFirst)
     YT_VERIFY(!Job_);
 
     auto controllerAgentConnector = ControllerAgentConnector_.Lock();
-    YT_LOG_FATAL_UNLESS(controllerAgentConnector, "Job owned by outdated controller agent");
+    YT_TLOG_FATAL_UNLESS(controllerAgentConnector, "Job owned by outdated controller agent");
 
-    YT_LOG_INFO(
-        "Requesting controller agent to settle new job (ControllerAgentDescriptor: %v)",
-        ControllerAgentInfo_.GetDescriptor());
+    YT_TLOG_INFO("Requesting controller agent to settle new job")
+        .With("ControllerAgentDescriptor", ControllerAgentInfo_.GetDescriptor());
 
     TWallTimer timer;
 
@@ -506,11 +504,10 @@ void TAllocation::OnSettledJobReceived(
         AllocationProfiler->OnSettleJobFinished(timer.GetElapsedTime(), maybeFailReason, isJobFirst);
 
         if (maybeFailReason) {
-            YT_LOG_INFO(
-                jobInfoOrError,
-                "Job was not settled in allocation; completing allocation (ScheduleJobFailReason: %v, IsJobFirst: %v)",
-                *maybeFailReason,
-                isJobFirst);
+            YT_TLOG_INFO("Job was not settled in allocation; completing allocation")
+                .With("ScheduleJobFailReason", *maybeFailReason)
+                .With("IsJobFirst", isJobFirst)
+                .With(jobInfoOrError);
 
             Complete(EAllocationFinishReason::NoNewJobSettled);
             return;
@@ -520,7 +517,8 @@ void TAllocation::OnSettledJobReceived(
         auto error = TError("Failed to get job spec")
             .With(jobInfoOrError);
 
-        YT_LOG_INFO(error, "Failed to settle job in allocation; aborting allocation");
+        YT_TLOG_INFO("Failed to settle job in allocation; aborting allocation")
+            .With(error);
 
         error.Add("abort_reason", EAbortReason::GetSpecFailed);
 
@@ -535,16 +533,16 @@ void TAllocation::OnSettledJobReceived(
     if (State_ == EAllocationState::Finished) {
         // Job will be aborted by controller agent in this case.
 
-        YT_LOG_INFO(
-            "Received settled job for aborted allocation; ignore it (JobId: %v, IsJobFirst: %v)",
-            jobInfo.JobId,
-            isJobFirst);
+        YT_TLOG_INFO("Received settled job for aborted allocation; ignore it")
+            .With("JobId", jobInfo.JobId)
+            .With("IsJobFirst", isJobFirst);
         return;
     }
 
     YT_VERIFY(State_ == EAllocationState::Running || State_ == EAllocationState::Waiting);
 
-    YT_LOG_DEBUG("Creating and settling job (JobId: %v)", jobInfo.JobId);
+    YT_TLOG_DEBUG("Creating and settling job")
+        .With("JobId", jobInfo.JobId);
 
     auto resourceLimits = YT_OPTIONAL_FROM_PROTO(jobInfo.JobSpec, resource_limits);
     auto jobNumber = TotalJobCount_;
@@ -553,18 +551,16 @@ void TAllocation::OnSettledJobReceived(
         CreateAndSettleJob(jobInfo.JobId, std::move(jobInfo.JobSpec));
     } catch (const std::exception& ex) {
         TError error(ex);
-        YT_LOG_WARNING(
-            error,
-            "Failed to create job (JobId: %v, OperationId: %v)",
-            jobInfo.JobId,
-            OperationId_);
+        YT_TLOG_WARNING("Failed to create job")
+            .With("JobId", jobInfo.JobId)
+            .With("OperationId", OperationId_)
+            .With(error);
 
         Abort(TError("Failed to create job").With(error));
     } catch (...) {
-        YT_LOG_FATAL(
-            "Unexpected failure during job creation (JobId: %v, OperationId: %v)",
-            jobInfo.JobId,
-            OperationId_);
+        YT_TLOG_FATAL("Unexpected failure during job creation")
+            .With("JobId", jobInfo.JobId)
+            .With("OperationId", OperationId_);
     }
 
     YT_VERIFY(ResourceHolder_);
@@ -577,12 +573,12 @@ void TAllocation::OnSettledJobReceived(
         if (resourceLimits) {
             auto newDemand = FromNodeResources(*resourceLimits);
             RecalculateCpu(GetPtr(newDemand), Bootstrap_->GetJobResourceManager()->GetCpuToVCpuFactor());
-            YT_LOG_INFO("Got new demand for allocation, setting it (ResourceLimits: %v)", newDemand);
+            YT_TLOG_INFO("Got new demand for allocation, setting it")
+                .With("ResourceLimits", newDemand);
             if (!ResourceHolder_->TrySetBaseResourceUsage(newDemand)) {
-                YT_LOG_DEBUG(
-                    "Failed to set new job resources to allocation; Aborting allocation (PreviousResourceUsage: %v, NewResourceUsage: %v)",
-                    ResourceHolder_->GetResourceUsage(),
-                    newDemand);
+                YT_TLOG_DEBUG("Failed to set new job resources to allocation; Aborting allocation")
+                    .With("PreviousResourceUsage", ResourceHolder_->GetResourceUsage())
+                    .With("NewResourceUsage", newDemand);
                 Abort(TError("Failed to set new job resources to allocation")
                     .With("new_job_resources", newDemand)
                     .With("previous_job_resources", ResourceHolder_->GetResourceUsage())
@@ -590,14 +586,14 @@ void TAllocation::OnSettledJobReceived(
                 return;
             }
         } else {
-            YT_LOG_INFO(
-                "No new demand received in spec, restoring resources to initial demand (InitialDemand: %v)",
-                InitialResourceDemand_);
+            YT_TLOG_INFO("No new demand received in spec, restoring resources to initial demand")
+                .With("InitialDemand", InitialResourceDemand_);
             ResourceHolder_->RestoreResources();
         }
     }
 
-    YT_LOG_DEBUG("Resources reset; starting job (JobId: %v)", jobInfo.JobId);
+    YT_TLOG_DEBUG("Resources reset; starting job")
+        .With("JobId", jobInfo.JobId);
     if (State_ == EAllocationState::Running) {
         Job_->Start();
     }
@@ -641,17 +637,16 @@ void TAllocation::CreateAndSettleJob(
 
     JobSettled_.Fire(Job_);
 
-    YT_LOG_INFO(
-        "Job created (JobId: %v, OperationId: %v)",
-        jobId,
-        OperationId_);
+    YT_TLOG_INFO("Job created")
+        .With("JobId", jobId)
+        .With("OperationId", OperationId_);
 }
 
 void TAllocation::OnResourcesAcquired() noexcept
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO("Resources acquired; starting job");
+    YT_TLOG_INFO("Resources acquired; starting job");
 
     State_ = EAllocationState::Running;
 
@@ -735,7 +730,7 @@ void TAllocation::AbortJob(TError error, bool graceful, bool requestNewJob)
 
     Job_->Abort(std::move(error), graceful);
     if (requestNewJob) {
-        YT_LOG_DEBUG("Requested to abort job and settle new one");
+        YT_TLOG_DEBUG("Requested to abort job and settle new one");
         SettlementNewJobOnAbortRequested_.Fire();
     }
 }
@@ -792,11 +787,9 @@ void TAllocation::OnAllocationFinished(
                 }
 
                 auto removeResult = WaitFor(volume->Remove());
-                YT_LOG_ERROR_IF(
-                    !removeResult.IsOK(),
-                    removeResult,
-                    "Volume remove failed (VolumePath: %v)",
-                    volume->GetPath());
+                YT_TLOG_ERROR_IF(!removeResult.IsOK(), "Volume remove failed")
+                    .With("VolumePath", volume->GetPath())
+                    .With(removeResult);
             }
 
             fsSecretary->ReleasePreparedLayers();
@@ -806,7 +799,8 @@ void TAllocation::OnAllocationFinished(
                 try {
                     userSlot->CleanPortoPlace();
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to clean porto place");
+                    YT_TLOG_ERROR("Failed to clean porto place")
+                        .With(ex);
                 }
             }
         };
@@ -838,17 +832,15 @@ void TAllocation::OnJobFinished(TJobPtr job)
 
     auto settleNewJob = [&] {
         if (Preempted_) {
-            YT_LOG_INFO(
-                "Job finished and allocation is preempted, completing allocation (JobId: %v)",
-                job->GetId());
+            YT_TLOG_INFO("Job finished and allocation is preempted, completing allocation")
+                .With("JobId", job->GetId());
             finishReason = EAllocationFinishReason::Preempted;
             return false;
         }
 
         if (Bootstrap_->GetJobController()->AreJobsDisabled()) {
-            YT_LOG_INFO(
-                "Jobs disabled on node, completing allocation without settling new job (JobId: %v)",
-                job->GetId());
+            YT_TLOG_INFO("Jobs disabled on node, completing allocation without settling new job")
+                .With("JobId", job->GetId());
             finishReason = EAllocationFinishReason::JobsDisabledOnNode;
             return false;
         }
@@ -856,22 +848,19 @@ void TAllocation::OnJobFinished(TJobPtr job)
         bool enableMultipleJobs = GetConfig()->EnableMultipleJobs && Attributes_.EnableMultipleJobs;
 
         if (enableMultipleJobs && job->GetState() == EJobState::Completed) {
-            YT_LOG_INFO(
-                "Job completed and multiple jobs in allocation enabled, waiting for storing and cleanup job to settle new one (JobId: %v)",
-                job->GetId());
+            YT_TLOG_INFO("Job completed and multiple jobs in allocation enabled, waiting for storing and cleanup job to settle new one")
+                .With("JobId", job->GetId());
             return true;
         }
 
         if (settlementNewJobOnJobAbortRequested && job->GetState() == EJobState::Aborted) {
-            YT_LOG_INFO(
-                "Job aborted and new job settlement requested, waiting for storing and cleanup job to settle new one (JobId: %v)",
-                job->GetId());
+            YT_TLOG_INFO("Job aborted and new job settlement requested, waiting for storing and cleanup job to settle new one")
+                .With("JobId", job->GetId());
             return true;
         }
 
-        YT_LOG_INFO(
-            "Job finished, new job settlement disabled; completing allocation (JobId: %v)",
-            job->GetId());
+        YT_TLOG_INFO("Job finished, new job settlement disabled; completing allocation")
+            .With("JobId", job->GetId());
 
         if (!enableMultipleJobs) {
             finishReason = EAllocationFinishReason::MultipleJobsDisabled;
@@ -892,23 +881,19 @@ void TAllocation::OnJobFinished(TJobPtr job)
                 this_ = MakeStrong(this)
             ] (const TError& error) {
                 TForbidContextSwitchGuard guard;
-                YT_LOG_FATAL_UNLESS(
-                    error.IsOK(),
-                    error,
-                    "Failed to store or cleanup job (JobId: %v)",
-                    jobId);
+                YT_TLOG_FATAL_UNLESS(error.IsOK(), "Failed to store or cleanup job")
+                    .With("JobId", jobId)
+                    .With(error);
 
                 if (State_ == EAllocationState::Finished) {
-                    YT_LOG_INFO(
-                        "Controller agent requested to settle job but allocation is already finished, settling job skipped (JobId: %v)",
-                        jobId);
+                    YT_TLOG_INFO("Controller agent requested to settle job but allocation is already finished, settling job skipped")
+                        .With("JobId", jobId);
                     return;
                 }
 
                 if (Preempted_) {
-                    YT_LOG_INFO(
-                        "Controller agent requested to settle job but allocation is preempted, settling job skipped (JobId: %v)",
-                        jobId);
+                    YT_TLOG_INFO("Controller agent requested to settle job but allocation is preempted, settling job skipped")
+                        .With("JobId", jobId);
 
                     Complete(EAllocationFinishReason::Preempted);
 
@@ -916,9 +901,8 @@ void TAllocation::OnJobFinished(TJobPtr job)
                 }
 
                 if (!ControllerAgentInfo_.GetDescriptor()) {
-                    YT_LOG_INFO(
-                        "Allocation is not assigned to controller agent, skip new job settlement (JobId: %v)",
-                        jobId);
+                    YT_TLOG_INFO("Allocation is not assigned to controller agent, skip new job settlement")
+                        .With("JobId", jobId);
 
                     Complete(EAllocationFinishReason::AgentDisconnected);
 
@@ -929,9 +913,9 @@ void TAllocation::OnJobFinished(TJobPtr job)
                     try {
                         slot->ValidateEnabled();
                     } catch (const std::exception& ex) {
-                        YT_LOG_INFO(ex,
-                            "User slot is disabled, skip new job settlement (JobId: %v)",
-                            jobId);
+                        YT_TLOG_INFO("User slot is disabled, skip new job settlement")
+                            .With("JobId", jobId)
+                            .With(ex);
 
                         Complete(EAllocationFinishReason::UserSlotDisabled);
                         return;
@@ -939,18 +923,16 @@ void TAllocation::OnJobFinished(TJobPtr job)
                 }
 
                 if (Bootstrap_->GetJobController()->AreJobsDisabled()) {
-                    YT_LOG_INFO(
-                        "Jobs disabled on node, skip new job settlement (JobId: %v)",
-                        jobId);
+                    YT_TLOG_INFO("Jobs disabled on node, skip new job settlement")
+                        .With("JobId", jobId);
 
                     Complete(EAllocationFinishReason::JobsDisabledOnNode);
 
                     return;
                 }
 
-                YT_LOG_INFO(
-                    "Job cleanup finished and job stored; evicting previous and settling new job (PreviousJobId: %v)",
-                    jobId);
+                YT_TLOG_INFO("Job cleanup finished and job stored; evicting previous and settling new job")
+                    .With("PreviousJobId", jobId);
 
                 EvictJob();
                 SettleJob(/*isJobFirst*/ false);

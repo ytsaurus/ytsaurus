@@ -53,11 +53,10 @@ TFuture<void> TPortoVolumeBase::Link(
 
             const auto& Logger = ExecNodeLogger();
 
-            YT_LOG_DEBUG(
-                "Starting linking volume (Tag: %v, Target: %v, VolumePath: %v)",
-                tag,
-                target,
-                GetPath());
+            YT_TLOG_DEBUG("Starting linking volume")
+                .With("Tag", tag)
+                .With("Target", target)
+                .With("VolumePath", GetPath());
 
             Targets_.push_back(target);
 
@@ -79,10 +78,9 @@ TFuture<void> TPortoVolumeBase::Unlink()
 
             const auto& Logger = ExecNodeLogger();
 
-            YT_LOG_DEBUG(
-                "Starting unlinking volume (Targets: %v, VolumePath: %v)",
-                Targets_,
-                GetPath());
+            YT_TLOG_DEBUG("Starting unlinking volume")
+                .With("Targets", Targets_)
+                .With("VolumePath", GetPath());
 
             auto targets = std::move(Targets_);
             Targets_.clear();
@@ -105,15 +103,15 @@ TFuture<void> TPortoVolumeBase::Remove()
                 auto Logger = ExecNodeLogger()
                     .WithTag("VolumePath", volumePath);
 
-                YT_LOG_FATAL_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire lock");
+                YT_TLOG_FATAL_UNLESS(guardOrError.IsOK(), "Failed to acquire lock")
+                    .With(guardOrError);
 
                 auto guard = std::move(guardOrError.Value());
                 auto removeFuture = removalCallback(targets).Apply(BIND(
                     [guard = std::move(guard), Logger] (const TError& error) {
                         if (!error.IsOK()) {
-                            YT_LOG_ERROR(
-                                error,
-                                "Failed to remove volume");
+                            YT_TLOG_ERROR("Failed to remove volume")
+                                .With(error);
                         }
                         return error;
                     }));
@@ -148,7 +146,7 @@ TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
         .WithTag("VolumePath", volumePath)
         .WithTag("PortoPlacePath", volumeMeta.PortoPlacePath);
 
-    YT_LOG_DEBUG("Removing volume");
+    YT_TLOG_DEBUG("Removing volume");
 
     return location->RemoveVolume(tagSet, volumeId, std::move(volumeMeta.PortoPlacePath))
         .Apply(BIND(
@@ -158,9 +156,10 @@ TFuture<void> TPortoVolumeBase::DoRemoveVolumeCommon(
                 volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)
             ] (const TError& error) {
                 if (!error.IsOK()) {
-                    YT_LOG_WARNING(error, "Failed to remove volume");
+                    YT_TLOG_WARNING("Failed to remove volume")
+                        .With(error);
                 } else {
-                    YT_LOG_DEBUG("Removed volume");
+                    YT_TLOG_DEBUG("Removed volume");
                 }
 
                 // Perform post-removal cleanup if provided (e.g., device finalization, overlay cleanup)
@@ -187,9 +186,10 @@ void TPortoVolumeBase::SetRemoveCallback(TCallback<TFuture<void>()> callback)
                         .WithTag("VolumePath", volumePath);
 
                     if (!error.IsOK()) {
-                        YT_LOG_WARNING(error, "Failed to unlink targets");
+                        YT_TLOG_WARNING("Failed to unlink targets")
+                            .With(error);
                     } else {
-                        YT_LOG_DEBUG("Unlinked targets");
+                        YT_TLOG_DEBUG("Unlinked targets");
                     }
                     // Now remove the actual volume.
                     return callback();
@@ -202,8 +202,8 @@ TFuture<void> TPortoVolumeBase::UnlinkTargets(TLayerLocationPtr location, std::s
     auto Logger = ExecNodeLogger()
         .WithTag("VolumePath", source);
 
-    YT_LOG_DEBUG("Unlinking targets (Targets: %v)",
-        targets);
+    YT_TLOG_DEBUG("Unlinking targets")
+        .With("Targets", targets);
 
     if (targets.empty()) {
         return OKFuture;
@@ -310,10 +310,10 @@ TFuture<void> TRWNbdVolume::DoRemove(
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
-                YT_LOG_DEBUG("Finalizing RW NBD device");
+                YT_TLOG_DEBUG("Finalizing RW NBD device");
                 return device->Finalize();
             } else {
-                YT_LOG_WARNING("Failed to finalize device; unknown device");
+                YT_TLOG_WARNING("Failed to finalize device; unknown device");
                 return OKFuture;
             }
         })
@@ -383,10 +383,10 @@ TFuture<void> TRONbdVolume::DoRemove(
     auto postRemovalCleanup = BIND_NO_PROPAGATE(
         [device = std::move(device)] (const TLogger& Logger) -> TFuture<void> {
             if (device) {
-                YT_LOG_DEBUG("Finalizing RO NBD device");
+                YT_TLOG_DEBUG("Finalizing RO NBD device");
                 return device->Finalize();
             } else {
-                YT_LOG_WARNING("Failed to finalize device; unknown device");
+                YT_TLOG_WARNING("Failed to finalize device; unknown device");
                 return OKFuture;
             }
         })

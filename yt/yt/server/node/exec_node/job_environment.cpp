@@ -173,14 +173,13 @@ public:
                 process->AddEnvVar(variable);
             }
 
-            YT_LOG_INFO(
-                "Spawn job proxy (SlotType: %v, SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
-                slotType,
-                slotIndex,
-                jobId,
-                operationId,
-                workingDirectory,
-                stderrPath);
+            YT_TLOG_INFO("Spawn job proxy")
+                .With("SlotType", slotType)
+                .With("SlotIndex", slotIndex)
+                .With("JobId", jobId)
+                .With("OperationId", operationId)
+                .With("WorkingDirectory", workingDirectory)
+                .With("StderrPath", stderrPath);
 
             TJobProxyProcess jobProxyProcess;
             jobProxyProcess.Process = process;
@@ -321,7 +320,9 @@ protected:
 
             // Ensure that job proxy process finished.
             auto error = WaitFor(it->second.Result);
-            YT_LOG_INFO(error, "Job proxy process finished (SlotIndex: %v)", slotIndex);
+            YT_TLOG_INFO("Job proxy process finished")
+                .With("SlotIndex", slotIndex)
+                .With(error);
             // Drop reference to a process.
             JobProxyProcesses_.erase(it);
         }
@@ -372,7 +373,8 @@ public:
 
         ValidateEnabled();
 
-        YT_LOG_DEBUG("Start clean processes (SlotIndex: %v)", slotIndex);
+        YT_TLOG_DEBUG("Start clean processes")
+            .With("SlotIndex", slotIndex);
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
@@ -385,7 +387,8 @@ public:
             THROW_ERROR error;
         }
 
-        YT_LOG_DEBUG("Finish clean processes (SlotIndex: %v)", slotIndex);
+        YT_TLOG_DEBUG("Finish clean processes")
+            .With("SlotIndex", slotIndex);
     }
 
     int GetUserId(int /*slotIndex*/) const override
@@ -550,24 +553,23 @@ public:
 
         ValidateEnabled();
 
-        YT_LOG_DEBUG("Start clean processes (SlotIndex: %v)", slotIndex);
+        YT_TLOG_DEBUG("Start clean processes")
+            .With("SlotIndex", slotIndex);
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
 
             auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
 
-            YT_LOG_DEBUG(
-                "Destroy job subcontainers for slot (SlotContainer: %v, SlotIndex: %v)",
-                slotContainer,
-                slotIndex);
+            YT_TLOG_DEBUG("Destroy job subcontainers for slot")
+                .With("SlotContainer", slotContainer)
+                .With("SlotIndex", slotIndex);
 
             DestroyAllSubcontainers(slotContainer);
 
-            YT_LOG_DEBUG(
-                "Reset CPU limit and guarantee (SlotContainer: %v, SlotIndex: %v)",
-                slotContainer,
-                slotIndex);
+            YT_TLOG_DEBUG("Reset CPU limit and guarantee")
+                .With("SlotContainer", slotContainer)
+                .With("SlotIndex", slotIndex);
 
             // Reset CPU guarantee.
             WaitFor(PortoExecutor_->SetContainerProperty(
@@ -583,10 +585,9 @@ public:
                 "0"))
                 .ThrowOnError();
 
-            YT_LOG_DEBUG(
-                "Drop reference to a job proxy process (SlotContainer: %v, SlotIndex: %v)",
-                slotContainer,
-                slotIndex);
+            YT_TLOG_DEBUG("Drop reference to a job proxy process")
+                .With("SlotContainer", slotContainer)
+                .With("SlotIndex", slotIndex);
 
             // Drop reference to a process if there were any.
             JobProxyProcesses_.erase(slotIndex);
@@ -636,13 +637,12 @@ public:
 
             for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
-                YT_LOG_DEBUG(
-                    "Running command (JobId: %v, Path: %v, Args: %v, User: %v, Devices: %v)",
-                    jobId,
-                    command->Path,
-                    command->Args,
-                    user,
-                    devices);
+                YT_TLOG_DEBUG("Running command")
+                    .With("JobId", jobId)
+                    .With("Path", command->Path)
+                    .With("Args", command->Args)
+                    .With("User", user)
+                    .With("Devices", devices);
 
                 auto launcher = CreatePortoInstanceLauncher(
                     Format("%v_%v_%v",
@@ -662,8 +662,9 @@ public:
                 }
 
                 auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, command->EnvironmentVariables));
-                YT_LOG_WARNING_IF(!instanceOrError.IsOK(), instanceOrError, "Failed to launch command (JobId: %v)",
-                    jobId);
+                YT_TLOG_WARNING_IF(!instanceOrError.IsOK(), "Failed to launch command")
+                    .With("JobId", jobId)
+                    .With(instanceOrError);
                 const auto& instance = instanceOrError.ValueOrThrow();
 
                 auto error = WaitFor(instance->Wait());
@@ -692,12 +693,11 @@ public:
 
                 outputs.push_back(instanceResult);
 
-                YT_LOG_DEBUG(
-                    "Command finished (JobId: %v, Path: %v, Args: %v, EnvironmentVariables: %v)",
-                    jobId,
-                    command->Path,
-                    command->Args,
-                    command->EnvironmentVariables);
+                YT_TLOG_DEBUG("Command finished")
+                    .With("JobId", jobId)
+                    .With("Path", command->Path)
+                    .With("Args", command->Args)
+                    .With("EnvironmentVariables", command->EnvironmentVariables);
             }
 
             return outputs;
@@ -740,23 +740,24 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG(
-            "Start destroy subcontainers (RootContainer: %v)",
-            rootContainer);
+        YT_TLOG_DEBUG("Start destroy subcontainers")
+            .With("RootContainer", rootContainer);
 
         NProfiling::TWallTimer timer;
 
         // Retry destruction until success.
         bool destroyed = false;
         while (!destroyed) {
-            YT_LOG_DEBUG("Start container destruction attempt (RootContainer: %v)", rootContainer);
+            YT_TLOG_DEBUG("Start container destruction attempt")
+                .With("RootContainer", rootContainer);
 
             auto containers = WaitFor(PortoDestroyExecutor_->ListSubcontainers(rootContainer, false))
                 .ValueOrThrow();
 
             std::vector<TFuture<void>> futures;
             for (const auto& container : containers) {
-                YT_LOG_DEBUG("Destroy subcontainer (Container: %v)", container);
+                YT_TLOG_DEBUG("Destroy subcontainer")
+                    .With("Container", container);
                 futures.push_back(PortoDestroyExecutor_->DestroyContainer(container));
             }
 
@@ -768,17 +769,15 @@ private:
                         !error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
                     {
                         destroyed = false;
-                        YT_LOG_WARNING(
-                            error,
-                            "Failed to destroy subcontainers (Container: %v)",
-                            rootContainer);
+                        YT_TLOG_WARNING("Failed to destroy subcontainers")
+                            .With("Container", rootContainer)
+                            .With(error);
                     }
                 }
             } else {
-                YT_LOG_WARNING(
-                    result,
-                    "Failed to destroy subcontainers (Container: %v)",
-                    rootContainer);
+                YT_TLOG_WARNING("Failed to destroy subcontainers")
+                    .With("Container", rootContainer)
+                    .With(result);
             }
 
             if (!destroyed) {
@@ -787,10 +786,9 @@ private:
             }
         }
 
-        YT_LOG_DEBUG(
-            "Finish destroy subcontainers (RootContainer: %v, TimeElapsed: %v)",
-            rootContainer,
-            timer.GetElapsedTime());
+        YT_TLOG_DEBUG("Finish destroy subcontainers")
+            .With("RootContainer", rootContainer)
+            .With("TimeElapsed", timer.GetElapsedTime());
     }
 
     void DoInit(int slotCount, double cpuLimit, double idleCpuFraction) override
@@ -929,12 +927,11 @@ private:
     {
         auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
 
-        YT_LOG_DEBUG(
-            "Start update slot cpu_set (SlotType: %v, SlotIndex: %v, CpuSet: %v, SlotContainer: %v)",
-            slotType,
-            slotIndex,
-            cpuSet,
-            slotContainer);
+        YT_TLOG_DEBUG("Start update slot cpu_set")
+            .With("SlotType", slotType)
+            .With("SlotIndex", slotIndex)
+            .With("CpuSet", cpuSet)
+            .With("SlotContainer", slotContainer);
 
         WaitFor(PortoExecutor_->SetContainerProperty(
             slotContainer,
@@ -942,12 +939,11 @@ private:
             std::string{cpuSet}))
         .ThrowOnError();
 
-        YT_LOG_DEBUG(
-            "Finish update slot cpu_set (SlotType: %v, SlotIndex: %v, CpuSet: %v, SlotContainer: %v)",
-            slotType,
-            slotIndex,
-            cpuSet,
-            slotContainer);
+        YT_TLOG_DEBUG("Finish update slot cpu_set")
+            .With("SlotType", slotType)
+            .With("SlotIndex", slotIndex)
+            .With("CpuSet", cpuSet)
+            .With("SlotContainer", slotContainer);
     }
 
     TProcessBasePtr CreateJobProxyProcess(
@@ -1395,9 +1391,8 @@ private:
             }
 
             if (!gpuContainerConfig->InfinibandDevices.empty()) {
-                YT_LOG_DEBUG(
-                    "Binding InfiniBand devices to job container (Devices: %v)",
-                    gpuContainerConfig->InfinibandDevices);
+                YT_TLOG_DEBUG("Binding InfiniBand devices to job container")
+                    .With("Devices", gpuContainerConfig->InfinibandDevices);
 
                 // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
                 // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
@@ -1510,10 +1505,9 @@ private:
         // Let's live with it during testing and then refactor.
         SlotCpusetCpus_[slotIndex] = cpuSet;
 
-        YT_LOG_DEBUG(
-            "Updated slot cpuset (SlotIndex: %v, CpuSet: %v)",
-            slotIndex,
-            cpuSet);
+        YT_TLOG_DEBUG("Updated slot cpuset")
+            .With("SlotIndex", slotIndex)
+            .With("CpuSet", cpuSet);
     }
 };
 

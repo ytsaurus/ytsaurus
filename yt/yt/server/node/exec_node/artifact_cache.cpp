@@ -374,7 +374,7 @@ public:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        YT_LOG_INFO("Initializing artifact cache");
+        YT_TLOG_INFO("Initializing artifact cache");
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeBeforeConfigChanged(
             BIND_NO_PROPAGATE(&TArtifactCache::TImpl::OnDynamicConfigChanged, MakeWeak(this)));
@@ -404,9 +404,8 @@ public:
 
         ValidateLocations();
 
-        YT_LOG_INFO(
-            "Artifact cache initialized (ArtifactCount: %v)",
-            GetSize());
+        YT_TLOG_INFO("Artifact cache initialized")
+            .With("ArtifactCount", GetSize());
 
         RunBackgroundValidation();
     }
@@ -464,9 +463,8 @@ public:
         // NB: Artifact key is being formatted as prototext and is pretty verbose.
         // We avoid annotating each relevant line with the full key and log the key
         // only once. Other lines are tagged read session id, which seems sufficient.
-        YT_LOG_INFO(
-            "Downloading artifact (ArtifactKey: %v)",
-            key);
+        YT_TLOG_INFO("Downloading artifact")
+            .With("ArtifactKey", key);
 
         auto cookie = BeginInsert(key);
         auto cookieValue = cookie.GetValue();
@@ -488,8 +486,7 @@ public:
                 }
             }
         } else {
-            YT_LOG_INFO(
-                "Artifact is either found in cache or is being downloaded");
+            YT_TLOG_INFO("Artifact is either found in cache or is being downloaded");
             if (fetchedFromCache) {
                 *fetchedFromCache = true;
             }
@@ -651,12 +648,12 @@ private:
             // Delay start of background validation to populate chunk cache with useful artifacts.
             TDelayedExecutor::WaitForDuration(Config_->BackgroundArtifactValidationDelay);
 
-            YT_LOG_INFO("Background artifacts validation started");
+            YT_TLOG_INFO("Background artifacts validation started");
 
             while (true) {
                 auto guard = Guard(RegisteredChunkMapLock_);
                 if (RegisteredChunkMap_.empty()) {
-                    YT_LOG_INFO("Background artifacts validation finished");
+                    YT_TLOG_INFO("Background artifacts validation finished");
                     return;
                 }
 
@@ -666,7 +663,9 @@ private:
                 TArtifactDownloadOptions options;
                 auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, options));
                 if (!errorOrChunk.IsOK()) {
-                    YT_LOG_WARNING(errorOrChunk, "Background artifact validation failed (ArtifactKey: %v)", artifactKey);
+                    YT_TLOG_WARNING("Background artifact validation failed")
+                        .With("ArtifactKey", artifactKey)
+                        .With(errorOrChunk);
                 }
 
                 TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
@@ -709,7 +708,7 @@ private:
 
         Logger.AddTag("LocationId", location->GetId());
 
-        YT_LOG_INFO("Loading artifact into cache");
+        YT_TLOG_INFO("Loading artifact into cache");
 
         decltype(&TImpl::DownloadChunk) downloader;
         if (canPrepareSingleChunk) {
@@ -762,13 +761,13 @@ private:
             .AddTag("LocationId", location->GetId());
 
         if (!CanPrepareSingleChunk(key)) {
-            YT_LOG_INFO("Skipping validation for multi-chunk artifact");
+            YT_TLOG_INFO("Skipping validation for multi-chunk artifact");
             auto artifact = CreateArtifact(location, key, descriptor.Descriptor);
             EndInsertIfEnabled(cookie, std::move(artifact), location);
             return;
         }
 
-        YT_LOG_INFO("Scheduling cached chunk validation");
+        YT_TLOG_INFO("Scheduling cached chunk validation");
         location->GetAuxPoolInvoker()->Invoke(BIND(
             &TImpl::DoValidateChunk,
             MakeStrong(this),
@@ -796,7 +795,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
-            YT_LOG_INFO("Chunk validation started");
+            YT_TLOG_INFO("Chunk validation started");
 
             auto dataFileName = location->GetChunkPath(chunkId);
 
@@ -824,12 +823,13 @@ private:
                     .With(ex);
             }
 
-            YT_LOG_INFO("Chunk validation completed");
+            YT_TLOG_INFO("Chunk validation completed");
 
             auto chunk = CreateArtifact(location, key, descriptor.Descriptor);
             EndInsertIfEnabled(cookie, std::move(chunk), location);
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Chunk is corrupted");
+            YT_TLOG_INFO("Chunk is corrupted")
+                .With(ex);
 
             location->RemoveChunkFiles(chunkId, true);
 
@@ -848,10 +848,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG(
-            "Cached chunk object created (ChunkId: %v, LocationId: %v)",
-            descriptor.Id,
-            location->GetId());
+        YT_TLOG_DEBUG("Cached chunk object created")
+            .With("ChunkId", descriptor.Id)
+            .With("LocationId", location->GetId());
 
         location->UpdateChunkCount(+1);
         location->UpdateUsedSpace(+descriptor.DiskSpace);
@@ -863,10 +862,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG(
-            "Cached chunk object destroyed (ChunkId: %v, LocationId: %v)",
-            descriptor.Id,
-            location->GetId());
+        YT_TLOG_DEBUG("Cached chunk object destroyed")
+            .With("ChunkId", descriptor.Id)
+            .With("LocationId", location->GetId());
 
         location->UpdateChunkCount(-1);
         location->UpdateUsedSpace(-descriptor.DiskSpace);
@@ -953,18 +951,16 @@ private:
         }
 
         if (!inserted) {
-            YT_LOG_WARNING(
-                "Removing duplicate cached chunk (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_WARNING("Removing duplicate cached chunk")
+                .With("ChunkId", chunkId);
             location->RemoveChunkFiles(chunkId, true);
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Cached chunk registered (ChunkId: %v, LocationId: %v, DiskSpace: %v)",
-            chunkId,
-            location->GetId(),
-            descriptor.DiskSpace);
+        YT_TLOG_DEBUG("Cached chunk registered")
+            .With("ChunkId", chunkId)
+            .With("LocationId", location->GetId())
+            .With("DiskSpace", descriptor.DiskSpace);
     }
 
 
@@ -979,10 +975,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG(
-            "Chunk object added to cache (ChunkId: %v, LocationId: %v)",
-            artifact->GetId(),
-            artifact->GetLocation()->GetId());
+        YT_TLOG_DEBUG("Chunk object added to cache")
+            .With("ChunkId", artifact->GetId())
+            .With("LocationId", artifact->GetLocation()->GetId());
 
         TAsyncSlruCacheBase::OnAdded(artifact);
     }
@@ -991,10 +986,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG(
-            "Chunk object removed from cache (ChunkId: %v, LocationId: %v)",
-            artifact->GetId(),
-            artifact->GetLocation()->GetId());
+        YT_TLOG_DEBUG("Chunk object removed from cache")
+            .With("ChunkId", artifact->GetId())
+            .With("LocationId", artifact->GetLocation()->GetId());
 
         TAsyncSlruCacheBase::OnRemoved(artifact);
     }
@@ -1157,12 +1151,12 @@ private:
 
             IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
 
-            YT_LOG_DEBUG("Opening chunk writer");
+            YT_TLOG_DEBUG("Opening chunk writer");
 
             WaitFor(checkedChunkWriter->Open())
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Getting chunk meta");
+            YT_TLOG_DEBUG("Getting chunk meta");
 
             auto chunkMeta = WaitFor(chunkReader->GetMeta(IChunkReader::TGetMetaOptions{
                 .ClientOptions = chunkReadOptions,
@@ -1205,16 +1199,14 @@ private:
             blockFetcher->Start();
 
             for (int index = 0; index < blockCount; ++index) {
-                YT_LOG_DEBUG(
-                    "Downloading block (Block: %v)",
-                    index);
+                YT_TLOG_DEBUG("Downloading block")
+                    .With("Block", index);
 
                 auto block = WaitFor(blockFetcher->FetchBlock(index))
                     .ValueOrThrow();
 
-                YT_LOG_DEBUG(
-                    "Writing block (Block: %v)",
-                    index);
+                YT_TLOG_DEBUG("Writing block")
+                    .With("Block", index);
 
                 if (!checkedChunkWriter->WriteBlock(writeBlocksOptions, chunkReadOptions.WorkloadDescriptor, block)) {
                     WaitFor(checkedChunkWriter->GetReadyEvent())
@@ -1225,7 +1217,7 @@ private:
                     .ThrowOnError();
             }
 
-            YT_LOG_DEBUG("Closing chunk");
+            YT_TLOG_DEBUG("Closing chunk");
 
             auto deferredChunkMeta = New<TDeferredChunkMeta>();
             deferredChunkMeta->CopyFrom(*chunkMeta);
@@ -1253,7 +1245,7 @@ private:
                     });
             }
 
-            YT_LOG_INFO("Chunk is downloaded into cache");
+            YT_TLOG_INFO("Chunk is downloaded into cache");
 
             TChunkDescriptor descriptor(chunkId, checkedChunkWriter->GetChunkInfo().disk_space());
             auto chunk = CreateArtifact(location,  key, descriptor, std::move(chunkMeta), std::move(lockedChunkGuard));
@@ -1544,7 +1536,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
-        YT_LOG_INFO("Producing artifact file");
+        YT_TLOG_INFO("Producing artifact file");
 
         auto dataFileName = location->GetChunkPath(chunkId);
         auto metaFileName = dataFileName + ArtifactMetaSuffix;
@@ -1565,7 +1557,9 @@ private:
                         NFS::Remove(path);
                     }
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to cleanup a temporary file (Path: %v)", path);
+                    YT_TLOG_ERROR("Failed to cleanup a temporary file")
+                        .With("Path", path)
+                        .With(ex);
                 }
             }
         };
