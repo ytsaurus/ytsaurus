@@ -156,7 +156,7 @@ void TChunkStore::Initialize()
 {
     YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_INFO("Initializing chunk store");
+    YT_TLOG_INFO("Initializing chunk store");
 
     std::vector<TFuture<void>> futures;
     for (int index = 0; index < std::ssize(Config_->StoreLocations); ++index) {
@@ -178,8 +178,8 @@ void TChunkStore::Initialize()
     WaitFor(AllSucceeded(std::move(futures)))
         .ThrowOnError();
 
-    YT_LOG_INFO("Chunk store initialized (ChunkCount: %v)",
-        GetChunkCount());
+    YT_TLOG_INFO("Chunk store initialized")
+        .With("ChunkCount", GetChunkCount());
 
     ProfilingExecutor_->Start();
 }
@@ -440,11 +440,9 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
     {
         auto lockedChunkGuard = chunk->GetLocation()->TryLockChunk(chunk->GetId());
 
-        YT_LOG_FATAL_IF(
-            !lockedChunkGuard,
-            "Location lock chunk failed (LocationId: %v, ChunkId: %v)",
-            chunk->GetLocation()->GetId(),
-            chunk->GetId());
+        YT_TLOG_FATAL_IF(!lockedChunkGuard, "Location lock chunk failed")
+            .With("LocationId", chunk->GetLocation()->GetId())
+            .With("ChunkId", chunk->GetId());
 
         std::move(lockedChunkGuard).Release();
     }
@@ -573,24 +571,24 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
     switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            YT_LOG_DEBUG("Blob chunk registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, DiskSpace: %v)",
-                chunk->GetId(),
-                location->GetId(),
-                location->GetUuid(),
-                location->GetIndex(),
-                diskSpace);
+            YT_TLOG_DEBUG("Blob chunk registered")
+                .With("ChunkId", chunk->GetId())
+                .With("LocationId", location->GetId())
+                .With("LocationUuid", location->GetUuid())
+                .With("LocationIndex", location->GetIndex())
+                .With("DiskSpace", diskSpace);
             break;
 
         case EObjectType::JournalChunk:
         case EObjectType::ErasureJournalChunk:
-            YT_LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, Version: %v, Sealed: %v, Active: %v)",
-                chunk->GetId(),
-                location->GetId(),
-                location->GetUuid(),
-                location->GetIndex(),
-                chunk->GetVersion(),
-                chunk->GetInfo().sealed(),
-                chunk->IsActive());
+            YT_TLOG_DEBUG("Journal chunk registered")
+                .With("ChunkId", chunk->GetId())
+                .With("LocationId", location->GetId())
+                .With("LocationUuid", location->GetUuid())
+                .With("LocationIndex", location->GetIndex())
+                .With("Version", chunk->GetVersion())
+                .With("Sealed", chunk->GetInfo().sealed())
+                .With("Active", chunk->IsActive());
             break;
 
         default:
@@ -621,12 +619,11 @@ void TChunkStore::UpdateExistingChunk(
 
     oldChunkEntry = DoFindExistingChunk(chunk);
     if (!oldChunkEntry.Chunk) {
-        YT_LOG_DEBUG(
-            "Journal chunk no longer exists and will not be updated (ChunkId: %v, Version: %v, JournalChunkSealed: %v, JournalChunkActive: %v)",
-            journalChunk->GetId(),
-            version,
-            journalChunk->IsSealed(),
-            journalChunk->IsActive());
+        YT_TLOG_DEBUG("Journal chunk no longer exists and will not be updated")
+            .With("ChunkId", journalChunk->GetId())
+            .With("Version", version)
+            .With("JournalChunkSealed", journalChunk->IsSealed())
+            .With("JournalChunkActive", journalChunk->IsActive());
         return;
     }
 
@@ -666,11 +663,11 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
         ChunkRemoved_.Fire(chunk);
     }
 
-    YT_LOG_DEBUG("Chunk unregistered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-        chunk->GetId(),
-        location->GetId(),
-        location->GetUuid(),
-        location->GetIndex());
+    YT_TLOG_DEBUG("Chunk unregistered")
+        .With("ChunkId", chunk->GetId())
+        .With("LocationId", location->GetId())
+        .With("LocationUuid", location->GetUuid())
+        .With("LocationIndex", location->GetIndex());
 
     ChunkStoreHost_->RemoveChunkFromCache(chunk->GetId());
 }
@@ -696,15 +693,20 @@ void TChunkStore::SetChunkLocationIndexes(const NChunkClient::NProto::TLocationI
 
         if (location) {
             location->SetIndex(index);
-            YT_LOG_INFO("Setting index for location (LocationUuid: %v, LocationIndex: %v)", uuid, index);
+            YT_TLOG_INFO("Setting index for location")
+                .With("LocationUuid", uuid)
+                .With("LocationIndex", index);
         } else {
-            YT_LOG_ALERT("Trying to set index for unknown location (LocationUuid: %v, LocationIndex: %v)", uuid, index);
+            YT_TLOG_ALERT("Trying to set index for unknown location")
+                .With("LocationUuid", uuid)
+                .With("LocationIndex", index);
         }
     }
 
     for (const auto& location : Locations_) {
         if (location->GetIndex() == NNodeTrackerClient::InvalidChunkLocationIndex) {
-            YT_LOG_ALERT("Location has no index set (LocationUuid: %v)", location->GetUuid());
+            YT_TLOG_ALERT("Location has no index set")
+                .With("LocationUuid", location->GetUuid());
         }
     }
 }
@@ -713,20 +715,20 @@ void TChunkStore::RemoveNonexistentChunk(TChunkId chunkId, TChunkLocationUuid lo
 {
     auto location = GetChunkLocationByUuid(locationUuid);
     if (!location) {
-        YT_LOG_ERROR("Chunk location is missing during nonexistent chunk removal (ChunkId: %v, LocationUuid: %v)",
-            chunkId,
-            locationUuid);
+        YT_TLOG_ERROR("Chunk location is missing during nonexistent chunk removal")
+            .With("ChunkId", chunkId)
+            .With("LocationUuid", locationUuid);
         return;
     }
 
     TChunkDescriptor descriptor(chunkId);
     auto chunk = CreateFromDescriptor(location, descriptor);
 
-    YT_LOG_DEBUG("Nonexistent chunk unregistered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-        chunkId,
-        location->GetId(),
-        location->GetUuid(),
-        location->GetIndex());
+    YT_TLOG_DEBUG("Nonexistent chunk unregistered")
+        .With("ChunkId", chunkId)
+        .With("LocationId", location->GetId())
+        .With("LocationUuid", location->GetUuid())
+        .With("LocationIndex", location->GetIndex());
 
     {
         auto guard = ReaderGuard(ChunkMapLock_);
@@ -865,14 +867,14 @@ void TChunkStore::CheckAllChunksHaveValidCellTags(const THashSet<NObjectClient::
     int totalInvalidChunkCount = 0;
     for (auto [cellTag, count] : invalidCellTagToChunkCount) {
         totalInvalidChunkCount += count;
-        YT_LOG_ALERT("Invalid master cell tag found for chunks (CellTag: %v, InvalidChunkCount: %v)",
-            cellTag,
-            count);
+        YT_TLOG_ALERT("Invalid master cell tag found for chunks")
+            .With("CellTag", cellTag)
+            .With("InvalidChunkCount", count);
     }
 
-    YT_LOG_INFO("Chunks cell tags are checked (InvalidCells: %v, InvalidChunkCount: %v)",
-        invalidCellTagToChunkCount.size(),
-        totalInvalidChunkCount);
+    YT_TLOG_INFO("Chunks cell tags are checked")
+        .With("InvalidCells", invalidCellTagToChunkCount.size())
+        .With("InvalidChunkCount", totalInvalidChunkCount);
 }
 
 TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay)
@@ -1037,22 +1039,21 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             }
         } while (std::find(candidateIndices.begin(), candidateIndices.end(), currentIndex) == candidateIndices.end());
         location = Locations_[currentIndex];
-        YT_LOG_DEBUG("Next round-robin location is chosen for chunk (PlacementId: %v, ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-            options.PlacementId,
-            sessionId,
-            location->GetId(),
-            location->GetUuid(),
-            location->GetIndex());
+        YT_TLOG_DEBUG("Next round-robin location is chosen for chunk")
+            .With("PlacementId", options.PlacementId)
+            .With("ChunkId", sessionId)
+            .With("LocationId", location->GetId())
+            .With("LocationUuid", location->GetUuid())
+            .With("LocationIndex", location->GetIndex());
     } else {
         location = Locations_[candidateIndices[RandomNumber(candidateIndices.size())]];
-        YT_LOG_DEBUG("Random location is chosen for chunk "
-            "(ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, MediumIndex: %v, MediumName: %v)",
-            sessionId,
-            location->GetId(),
-            location->GetUuid(),
-            location->GetIndex(),
-            location->GetMediumIndex(),
-            location->GetMediumName());
+        YT_TLOG_DEBUG("Random location is chosen for chunk")
+            .With("ChunkId", sessionId)
+            .With("LocationId", location->GetId())
+            .With("LocationUuid", location->GetUuid())
+            .With("LocationIndex", location->GetIndex())
+            .With("MediumIndex", location->GetMediumIndex())
+            .With("MediumName", location->GetMediumName());
     }
 
     auto lockedChunkGuard = location->TryLockChunk(sessionId.ChunkId);
@@ -1104,8 +1105,8 @@ TChunkStore::TPlacementInfo* TChunkStore::GetOrCreatePlacementInfo(TPlacementId 
         auto pair = PlacementIdToInfo_.emplace(placementId, placementInfo);
         YT_VERIFY(pair.second);
         it = pair.first;
-        YT_LOG_DEBUG("Placement info registered (PlacementId: %v)",
-            placementId);
+        YT_TLOG_DEBUG("Placement info registered")
+            .With("PlacementId", placementId);
     } else {
         DeadlineToPlacementId_.erase(it->second.DeadlineIterator);
     }
@@ -1125,8 +1126,8 @@ void TChunkStore::ExpirePlacementInfos()
             break;
         }
         const auto& placementId = it->second;
-        YT_LOG_DEBUG("Placement info unregistered (PlacementId: %v)",
-            placementId);
+        YT_TLOG_DEBUG("Placement info unregistered")
+            .With("PlacementId", placementId);
         YT_VERIFY(PlacementIdToInfo_.erase(placementId) == 1);
         DeadlineToPlacementId_.erase(it);
     }

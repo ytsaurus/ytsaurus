@@ -135,9 +135,9 @@ void TChunkBase::AcquireReadLock()
         lockCount = ++ReadLockCounter_;
     }
 
-    YT_LOG_TRACE("Chunk read lock acquired (ChunkId: %v, LockCount: %v)",
-        Id_,
-        lockCount);
+    YT_TLOG_TRACE("Chunk read lock acquired")
+        .With("ChunkId", Id_)
+        .With("LockCount", lockCount);
 }
 
 void TChunkBase::ReleaseReadLock()
@@ -159,9 +159,9 @@ void TChunkBase::ReleaseReadLock()
         }
     }
 
-    YT_LOG_TRACE("Chunk read lock released (ChunkId: %v, LockCount: %v)",
-        Id_,
-        lockCount);
+    YT_TLOG_TRACE("Chunk read lock released")
+        .With("ChunkId", Id_)
+        .With("LockCount", lockCount);
 
     if (scheduleReaderSweep) {
         Context_->ChunkReaderSweeper->ScheduleChunkReaderSweep(this);
@@ -193,8 +193,8 @@ void TChunkBase::AcquireUpdateLock()
         YT_VERIFY(++UpdateLockCounter_ == 1);
     }
 
-    YT_LOG_DEBUG("Chunk update lock acquired (ChunkId: %v)",
-        Id_);
+    YT_TLOG_DEBUG("Chunk update lock acquired")
+        .With("ChunkId", Id_);
 }
 
 i64 TChunkBase::GetReadLockCounter() const
@@ -215,8 +215,8 @@ void TChunkBase::ReleaseUpdateLock()
         }
     }
 
-    YT_LOG_DEBUG("Chunk update lock released (ChunkId: %v)",
-        Id_);
+    YT_TLOG_DEBUG("Chunk update lock released")
+        .With("ChunkId", Id_);
 
     if (removeNow) {
         StartAsyncRemove();
@@ -227,8 +227,8 @@ TFuture<void> TChunkBase::ScheduleRemove()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Chunk remove scheduled (ChunkId: %v)",
-        Id_);
+    YT_TLOG_DEBUG("Chunk remove scheduled")
+        .With("ChunkId", Id_);
 
     bool removeNow = false;
     {

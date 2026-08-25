@@ -170,9 +170,9 @@ ISessionPtr TSessionManager::StartSession(
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         auto masterCellTags = clusterNodeMasterConnector->GetMasterCellTags();
         if (Find(masterCellTags, chunkCellTag) == masterCellTags.end()) {
-            YT_LOG_ALERT("Attempt to start a write session with an unknown master cell tag (SessionId: %v, CellTag: %v)",
-                sessionId,
-                chunkCellTag);
+            YT_TLOG_ALERT("Attempt to start a write session with an unknown master cell tag")
+                .With("SessionId", sessionId)
+                .With("CellTag", chunkCellTag);
             THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
                 chunkCellTag);
         }
@@ -291,8 +291,8 @@ void TSessionManager::OnSessionLeaseExpired(TChunkId chunkId)
         return;
     }
 
-    YT_LOG_DEBUG("Session lease expired (ChunkId: %v)",
-        chunkId);
+    YT_TLOG_DEBUG("Session lease expired")
+        .With("ChunkId", chunkId);
 
     session->Cancel(TError("Session lease expired"));
 }
@@ -306,8 +306,8 @@ void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& weakSession, c
         return;
     }
 
-    YT_LOG_DEBUG("Session finished (ChunkId: %v)",
-        session->GetChunkId());
+    YT_TLOG_DEBUG("Session finished")
+        .With("ChunkId", session->GetChunkId());
 
     {
         auto guard = WriterGuard(SessionMapLock_);

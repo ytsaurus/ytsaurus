@@ -111,7 +111,7 @@ public:
             BlockCache_,
             Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache());
 
-        YT_LOG_DEBUG("Local chunk reader is created for offloaded chunk read session");
+        YT_TLOG_DEBUG("Local chunk reader is created for offloaded chunk read session");
     }
 
     TFuture<TSharedRef> Lookup(const std::vector<TSharedRef>& keyRefs) override
@@ -301,8 +301,8 @@ private:
     {
         auto keyCount = keys.Size();
 
-        YT_LOG_DEBUG("Creating local chunk index read session (KeyCount: %v)",
-            keyCount);
+        YT_TLOG_DEBUG("Creating local chunk index read session")
+            .With("KeyCount", keyCount);
 
         auto controller = CreateChunkIndexReadController(
             Chunk_->GetId(),
@@ -327,7 +327,7 @@ private:
         }
 
         if (auto future = chunkFragmentReader->PrepareToReadChunkFragments(Options_)) {
-            YT_LOG_DEBUG("Will wait for chunk reader to become prepared");
+            YT_TLOG_DEBUG("Will wait for chunk reader to become prepared");
 
             return future.Apply(BIND([
                 =,
@@ -429,14 +429,13 @@ std::tuple<TTableSchemaPtr, bool> FindTableSchemaForOffloadedReadSession(
     if (!schemaData.has_schema()) {
         bool isSchemaRequested = tableSchemaWrapper->TryRequestSchema();
 
-        YT_LOG_DEBUG("Schema for lookup request is missing "
-            "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %x, SchemaSize: %v, IsSchemaRequested: %v)",
-            chunkId,
-            readSessionId,
-            tableId,
-            revision,
-            schemaSize,
-            isSchemaRequested);
+        YT_TLOG_DEBUG("Schema for lookup request is missing")
+            .With("ChunkId", chunkId)
+            .With("ReadSessionId", readSessionId)
+            .With("TableId", tableId)
+            .WithFormat("Revision", "%x", revision)
+            .With("SchemaSize", schemaSize)
+            .With("IsSchemaRequested", isSchemaRequested);
 
         return {nullptr, isSchemaRequested};
     }
@@ -444,13 +443,12 @@ std::tuple<TTableSchemaPtr, bool> FindTableSchemaForOffloadedReadSession(
     auto tableSchema = FromProto<TTableSchemaPtr>(schemaData.schema());
     tableSchemaWrapper->SetValue(tableSchema);
 
-    YT_LOG_DEBUG("Inserted schema to schema cache for lookup request "
-        "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %x, SchemaSize: %v)",
-        chunkId,
-        readSessionId,
-        tableId,
-        revision,
-        schemaSize);
+    YT_TLOG_DEBUG("Inserted schema to schema cache for lookup request")
+        .With("ChunkId", chunkId)
+        .With("ReadSessionId", readSessionId)
+        .With("TableId", tableId)
+        .WithFormat("Revision", "%x", revision)
+        .With("SchemaSize", schemaSize);
 
     return {tableSchema, false};
 }

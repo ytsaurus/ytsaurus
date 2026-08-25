@@ -102,7 +102,7 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing data node");
+        YT_TLOG_INFO("Initializing data node");
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()

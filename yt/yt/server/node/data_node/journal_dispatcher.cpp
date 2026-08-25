@@ -138,11 +138,11 @@ public:
 
     ~TCachedChangelog()
     {
-        YT_LOG_DEBUG("Cached changelog destroyed (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
-            Location_->GetId(),
-            Location_->GetUuid(),
-            Location_->GetIndex(),
-            ChunkId_);
+        YT_TLOG_DEBUG("Cached changelog destroyed")
+            .With("LocationId", Location_->GetId())
+            .With("LocationUuid", Location_->GetUuid())
+            .With("LocationIndex", Location_->GetIndex())
+            .With("ChunkId", ChunkId_);
     }
 
     int GetId() const override
@@ -376,11 +376,11 @@ void TJournalDispatcher::OnAdded(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnAdded(changelog);
 
     auto key = changelog->GetKey();
-    YT_LOG_DEBUG("Changelog added to cache (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
-        key.Location->GetId(),
-        key.Location->GetUuid(),
-        key.Location->GetIndex(),
-        key.ChunkId);
+    YT_TLOG_DEBUG("Changelog added to cache")
+        .With("LocationId", key.Location->GetId())
+        .With("LocationUuid", key.Location->GetUuid())
+        .With("LocationIndex", key.Location->GetIndex())
+        .With("ChunkId", key.ChunkId);
 }
 
 void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
@@ -390,11 +390,11 @@ void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnRemoved(changelog);
 
     auto key = changelog->GetKey();
-    YT_LOG_DEBUG("Changelog removed from cache (LocationId: %v, LocationUuid: %v, LocationIndex: %v, ChunkId: %v)",
-        key.Location->GetId(),
-        key.Location->GetUuid(),
-        key.Location->GetIndex(),
-        key.ChunkId);
+    YT_TLOG_DEBUG("Changelog removed from cache")
+        .With("LocationId", key.Location->GetId())
+        .With("LocationUuid", key.Location->GetUuid())
+        .With("LocationIndex", key.Location->GetIndex())
+        .With("ChunkId", key.ChunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

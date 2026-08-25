@@ -152,28 +152,22 @@ public:
 
                 // NB: Keep logging out of the critical section.
                 if (revision > knownRevision) {
-                    YT_LOG_DEBUG_UNLESS(onFullHeartbeat,
-                        "Received announcement request for chunk (ChunkId: %v, "
-                        "Revision: %x, ReplicaCount: %v, Delay: %v, Lazy: %v, "
-                        "ConfirmationNeeded: %v)",
-                        chunkId,
-                        revision,
-                        replicas.size(),
-                        delay,
-                        request->lazy(),
-                        request->confirmation_needed());
+                    YT_TLOG_DEBUG_UNLESS(onFullHeartbeat, "Received announcement request for chunk")
+                        .With("ChunkId", chunkId)
+                        .WithFormat("Revision", "%x", revision)
+                        .With("ReplicaCount", replicas.size())
+                        .With("Delay", delay)
+                        .With("Lazy", request->lazy())
+                        .With("ConfirmationNeeded", request->confirmation_needed());
                 } else {
-                    YT_LOG_DEBUG_UNLESS(onFullHeartbeat,
-                        "Received outdated announcement request for chunk (ChunkId: %v, "
-                        "Revision: %x, KnownRevision: %x, ReplicaCount: %v, Delay: %v, "
-                        "Lazy: %v, ConfirmationNeeded: %v)",
-                        chunkId,
-                        revision,
-                        knownRevision,
-                        replicas.size(),
-                        delay,
-                        request->lazy(),
-                        request->confirmation_needed());
+                    YT_TLOG_DEBUG_UNLESS(onFullHeartbeat, "Received outdated announcement request for chunk")
+                        .With("ChunkId", chunkId)
+                        .WithFormat("Revision", "%x", revision)
+                        .WithFormat("KnownRevision", "%x", knownRevision)
+                        .With("ReplicaCount", replicas.size())
+                        .With("Delay", delay)
+                        .With("Lazy", request->lazy())
+                        .With("ConfirmationNeeded", request->confirmation_needed());
                     continue;
                 }
             }
@@ -242,11 +236,10 @@ public:
             auto announcement = FromProto<TChunkReplicaAnnouncement>(*protoAnnouncement);
             // Do not remember replicas for chunks not stored at the node.
             if (!isChunkStored(announcement.ChunkId, announcement.Replicas)) {
-                YT_LOG_DEBUG("Received ally replica announcement for unknown chunk, ignored "
-                    "(ChunkId: %v, Revision: %x, SourceNode: %v)",
-                    announcement.ChunkId,
-                    announcement.Revision,
-                    sourceNodeAddress);
+                YT_TLOG_DEBUG("Received ally replica announcement for unknown chunk, ignored")
+                    .With("ChunkId", announcement.ChunkId)
+                    .WithFormat("Revision", "%x", announcement.Revision)
+                    .With("SourceNode", sourceNodeAddress);
                 continue;
             }
 
@@ -270,21 +263,18 @@ public:
 
             // NB: Keep logging out of the critical section.
             if (announcement.Revision > knownRevision) {
-                YT_LOG_DEBUG("Received ally replica announcement for chunk "
-                    "(ChunkId: %v, Revision: %x, ReplicaCount: %v, SourceNode: %v)",
-                    announcement.ChunkId,
-                    announcement.Revision,
-                    announcement.Replicas.size(),
-                    sourceNodeAddress);
+                YT_TLOG_DEBUG("Received ally replica announcement for chunk")
+                    .With("ChunkId", announcement.ChunkId)
+                    .WithFormat("Revision", "%x", announcement.Revision)
+                    .With("ReplicaCount", announcement.Replicas.size())
+                    .With("SourceNode", sourceNodeAddress);
             } else {
-                YT_LOG_DEBUG("Received outdated ally replica announcement for chunk "
-                    "(ChunkId: %v, Revision: %x, KnownRevision: %x, ReplicaCount: %v, "
-                    "SourceNode: %v)",
-                    announcement.ChunkId,
-                    announcement.Revision,
-                    knownRevision,
-                    announcement.Replicas.size(),
-                    sourceNodeAddress);
+                YT_TLOG_DEBUG("Received outdated ally replica announcement for chunk")
+                    .With("ChunkId", announcement.ChunkId)
+                    .WithFormat("Revision", "%x", announcement.Revision)
+                    .WithFormat("KnownRevision", "%x", knownRevision)
+                    .With("ReplicaCount", announcement.Replicas.size())
+                    .With("SourceNode", sourceNodeAddress);
             }
         }
 
@@ -533,10 +523,10 @@ private:
         LazyAnnouncementsPromoted_.Increment(lazyPromotedCount);
 
         if (lazyPromotedCount + delayedPromotedCount > 0) {
-            YT_LOG_DEBUG("Promoted ally replica announcements (NodeId: %v, LazyCount: %v, DelayedCount: %v)",
-                nodeId,
-                lazyPromotedCount,
-                delayedPromotedCount);
+            YT_TLOG_DEBUG("Promoted ally replica announcements")
+                .With("NodeId", nodeId)
+                .With("LazyCount", lazyPromotedCount)
+                .With("DelayedCount", delayedPromotedCount);
         }
     }
 
@@ -627,9 +617,8 @@ private:
 
                 auto* nodeDescriptor = nodeDirectory->FindDescriptor(nodeId);
                 if (!nodeDescriptor) {
-                    YT_LOG_WARNING("Found node id not present in node directory, will not "
-                        "announce replicas (NodeId: %v)",
-                        nodeId);
+                    YT_TLOG_WARNING("Found node id not present in node directory, will not announce replicas")
+                        .With("NodeId", nodeId);
                     return true;
                 }
 
@@ -645,8 +634,9 @@ private:
                     const auto& address = nodeDescriptor->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
                     channel = channelFactory->CreateChannel(address);
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to create channel to node (Address: %v)",
-                        nodeDescriptor->GetDefaultAddress());
+                    YT_TLOG_WARNING("Failed to create channel to node")
+                        .With("Address", nodeDescriptor->GetDefaultAddress())
+                        .With(ex);
                     return true;
                 }
 
@@ -668,9 +658,9 @@ private:
                 processedNodes.push_back(nodeState);
                 announcementsSent += parcel.Size();
 
-                YT_LOG_DEBUG("Sent chunk replica announcement request (Address: %v, AnnouncementCount: %v)",
-                    nodeDescriptor->GetDefaultAddress(),
-                    parcel.Size());
+                YT_TLOG_DEBUG("Sent chunk replica announcement request")
+                    .With("Address", nodeDescriptor->GetDefaultAddress())
+                    .With("AnnouncementCount", parcel.Size());
 
                 return true;
             });
@@ -690,10 +680,9 @@ private:
             auto guard = Guard(state->SpinLock);
 
             if (rspOrError.IsOK()) {
-                YT_LOG_DEBUG("Successfully reported replica announcements to node "
-                    "(Address: %v, AnnouncementCount: %v)",
-                    nodeDescriptor.GetDefaultAddress(),
-                    state->InFlightAnnouncementCount);
+                YT_TLOG_DEBUG("Successfully reported replica announcements to node")
+                    .With("Address", nodeDescriptor.GetDefaultAddress())
+                    .With("AnnouncementCount", state->InFlightAnnouncementCount);
 
                 state->ImmediateAnnouncements.erase(
                     state->ImmediateAnnouncements.begin(),
@@ -703,8 +692,9 @@ private:
                     state->ImmediateAnnouncements.shrink_to_fit();
                 }
             } else {
-                YT_LOG_DEBUG(rspOrError, "Failed to report replica announcements to node (Address: %v)",
-                    nodeDescriptor.GetDefaultAddress());
+                YT_TLOG_DEBUG("Failed to report replica announcements to node")
+                    .With("Address", nodeDescriptor.GetDefaultAddress())
+                    .With(rspOrError);
             }
 
             state->InFlightAnnouncementCount = 0;

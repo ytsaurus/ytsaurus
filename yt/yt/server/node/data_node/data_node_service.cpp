@@ -360,8 +360,8 @@ private:
             : sessionManager->GetSessionOrThrow(chunkId);
         if (!session) {
             YT_VERIFY(ignoreMissingSession);
-            YT_LOG_DEBUG("Session is missing (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_DEBUG("Session is missing")
+                .With("ChunkId", chunkId);
             context->Reply();
             return;
         }
@@ -424,8 +424,8 @@ private:
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->FindSession(sessionId.ChunkId);
         if (!session) {
-            YT_LOG_DEBUG("Session is missing (ChunkId: %v)",
-                sessionId.ChunkId);
+            YT_TLOG_DEBUG("Session is missing")
+                .With("ChunkId", sessionId.ChunkId);
             context->Reply();
             return;
         }
@@ -827,11 +827,10 @@ private:
             auto allyReplicasRevision = FromProto<NHydra::TRevision>(request->ally_replicas_revision());
             if (allyReplicas.Revision > allyReplicasRevision) {
                 ToProto(response->mutable_ally_replicas(), allyReplicas);
-                YT_LOG_DEBUG("Ally replicas suggested "
-                    "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
-                    chunkId,
-                    allyReplicas,
-                    allyReplicasRevision);
+                YT_TLOG_DEBUG("Ally replicas suggested")
+                    .With("ChunkId", chunkId)
+                    .With("AllyReplicas", allyReplicas)
+                    .With("ClientAllyReplicasRevision", allyReplicasRevision);
             }
         }
     }
@@ -850,9 +849,9 @@ private:
             auto barrierFuture = p2pBlockCache->WaitSessionIteration(sessionId, barrier.iteration());
 
             if (!barrierFuture.IsSet()) {
-                YT_LOG_DEBUG("Waiting for P2P barrier (SessionId: %v, Iteration: %v)",
-                    sessionId,
-                    barrier.iteration());
+                YT_TLOG_DEBUG("Waiting for P2P barrier")
+                    .With("SessionId", sessionId)
+                    .With("Iteration", barrier.iteration());
                 barrierFutures.push_back(barrierFuture);
             }
         }
@@ -944,11 +943,10 @@ private:
                         : std::make_optional(FromProto<NHydra::TRevision>(request->ally_replicas_revisions(chunkIndex)));
 
                     ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
-                    YT_LOG_DEBUG("Ally replicas suggested "
-                        "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
-                        chunkId,
-                        allyReplicas,
-                        clientAllyReplicasRevision);
+                    YT_TLOG_DEBUG("Ally replicas suggested")
+                        .With("ChunkId", chunkId)
+                        .With("AllyReplicas", allyReplicas)
+                        .With("ClientAllyReplicasRevision", clientAllyReplicasRevision);
                 }
             }
         }
@@ -1014,8 +1012,8 @@ private:
             workloadDescriptor,
             /*incrementCounter*/ false);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
-            YT_LOG_WARNING("Simulating network throttling for ProbeBlockSet (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_WARNING("Simulating network throttling for ProbeBlockSet")
+                .With("ChunkId", chunkId);
             netThrottling.Enabled = true;
         }
         response->set_net_throttling(netThrottling.Enabled);
@@ -1334,8 +1332,8 @@ private:
 
         auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
-            YT_LOG_WARNING("Simulating network throttling for GetBlockSet (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_WARNING("Simulating network throttling for GetBlockSet")
+                .With("ChunkId", chunkId);
             netThrottling.Enabled = true;
         }
         response->set_net_queue_size(netThrottling.QueueSize);
@@ -1607,10 +1605,10 @@ private:
             futures.push_back(chunkWithBlockRequests.Chunk->ReadBlockSet(blockIndexes, options));
         }
 
-        YT_LOG_DEBUG("Will fetch blocks to extract fragments (ReadSessionId: %v, ChunkCount: %v, BlockCount: %v)",
-            readSessionId,
-            requestedChunkCount,
-            requestedBlockCount);
+        YT_TLOG_DEBUG("Will fetch blocks to extract fragments")
+            .With("ReadSessionId", readSessionId)
+            .With("ChunkCount", requestedChunkCount)
+            .With("BlockCount", requestedBlockCount);
 
         context->ReplyFrom(AllSucceeded(std::move(futures)).Apply(BIND([
             =,
@@ -1784,11 +1782,10 @@ private:
                 auto allyReplicasRevision = FromProto<NHydra::TRevision>(subrequest.ally_replicas_revision());
                 if (allyReplicas.Revision > allyReplicasRevision) {
                     ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
-                    YT_LOG_DEBUG("Ally replicas suggested "
-                        "(ChunkId: %v, AllyReplicas: %v, ClientAllyReplicasRevision: %v)",
-                        chunkId,
-                        allyReplicas,
-                        allyReplicasRevision);
+                    YT_TLOG_DEBUG("Ally replicas suggested")
+                        .With("ChunkId", chunkId)
+                        .With("AllyReplicas", allyReplicas)
+                        .With("ClientAllyReplicasRevision", allyReplicasRevision);
                 }
             }
 
@@ -1827,8 +1824,8 @@ private:
                     };
 
                     if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
-                        YT_LOG_DEBUG("Will wait for chunk reader to become prepared (ChunkId: %v)",
-                            guard.GetChunk()->GetId());
+                        YT_TLOG_DEBUG("Will wait for chunk reader to become prepared")
+                            .With("ChunkId", guard.GetChunk()->GetId());
                         prepareReaderFutures.push_back(std::move(future));
                     }
                     chunkRequestInfos.push_back({
@@ -1933,11 +1930,11 @@ private:
                 for (int index = 0; index < std::ssize(requestedLocations); ++index) {
                     auto [location, locationRequestCount] = requestedLocations[index];
                     YT_VERIFY(locationRequestCount == std::ssize(locationRequests[index]));
-                    YT_LOG_DEBUG("Reading block fragments (LocationId: %v, LocationUuid: %v, LocationIndex: %v, FragmentCount: %v)",
-                        location->GetId(),
-                        location->GetUuid(),
-                        location->GetIndex(),
-                        locationRequestCount);
+                    YT_TLOG_DEBUG("Reading block fragments")
+                        .With("LocationId", location->GetId())
+                        .With("LocationUuid", location->GetUuid())
+                        .With("LocationIndex", location->GetIndex())
+                        .With("FragmentCount", locationRequestCount);
                     const auto& ioEngine = location->GetIOEngine();
 
                     struct TChunkFragmentBuffer
@@ -2370,8 +2367,9 @@ private:
             weightedChunkResponse->set_data_weight(dataWeight);
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            YT_LOG_WARNING(error, "Error building chunk slices (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_WARNING("Error building chunk slices")
+                .With("ChunkId", chunkId)
+                .With(error);
             ToProto(weightedChunkResponse->mutable_error(), error);
         }
     }
@@ -2455,8 +2453,9 @@ private:
             }
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            YT_LOG_WARNING(error, "Error building chunk slices (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_WARNING("Error building chunk slices")
+                .With("ChunkId", chunkId)
+                .With(error);
             ToProto(sliceResponse->mutable_error(), error);
         }
     }
@@ -2547,8 +2546,9 @@ private:
 
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            YT_LOG_WARNING(error, "Error building chunk samples (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_WARNING("Error building chunk samples")
+                .With("ChunkId", chunkId)
+                .With(error);
             ToProto(sampleResponse->mutable_error(), error);
         }
     }
@@ -2665,8 +2665,9 @@ private:
             }
         } catch (const std::exception& ex) {
             auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
-            YT_LOG_WARNING(ex, "Failed to gather chunk samples (ChunkId: %v)",
-                chunkId);
+            YT_TLOG_WARNING("Failed to gather chunk samples")
+                .With("ChunkId", chunkId)
+                .With(ex);
 
             // We failed to deserialize name table, so we don't return any samples.
             return;
@@ -2784,7 +2785,8 @@ private:
                 chunkMetaFuture = chunkMetaFuture
                     .Apply(BIND([=, Logger = Logger, config = Config_] (const TRefCountedColumnarStatisticsSubresponsePtr& result) {
                         auto delay = index * *optionalDelay / request->subrequests_size();
-                        YT_LOG_DEBUG("Injected a random delay after a chunk meta fetch (Delay: %v)", delay);
+                        YT_TLOG_DEBUG("Injected a random delay after a chunk meta fetch")
+                            .With("Delay", delay);
                         TDelayedExecutor::WaitForDuration(delay);
                         return result;
                     })
@@ -2794,11 +2796,11 @@ private:
             subresponseIndices.push_back(index);
         }
 
-        YT_LOG_DEBUG("Awaiting asynchronous part of columnar statistics fetching");
+        YT_TLOG_DEBUG("Awaiting asynchronous part of columnar statistics fetching");
 
         auto combinedResult = (earlyFinishTimeout ? AllSetWithTimeout(futures, *earlyFinishTimeout) : AllSet(futures));
         context->SubscribeCanceled(BIND([Logger = Logger, combinedResult = combinedResult] (const TError& error) {
-            YT_LOG_DEBUG("Columnar statistics fetch cancelled, propagating cancellation to chunk meta reading");
+            YT_TLOG_DEBUG("Columnar statistics fetch cancelled, propagating cancellation to chunk meta reading");
             combinedResult.Cancel(error);
         }));
         context->ReplyFrom(combinedResult.Apply(BIND(
@@ -2863,7 +2865,8 @@ private:
         const std::vector<int>& subresponseIndices,
         const std::vector<TErrorOr<TRefCountedColumnarStatisticsSubresponsePtr>>& subresponsesOrErrors)
     {
-        YT_LOG_DEBUG("Combining columnar statistics subresponses (SubresponseCount: %v)", subresponsesOrErrors.size());
+        YT_TLOG_DEBUG("Combining columnar statistics subresponses")
+            .With("SubresponseCount", subresponsesOrErrors.size());
 
         int successCount = 0;
         int timeoutCount = 0;
@@ -2931,7 +2934,8 @@ private:
         bool enableReadSizeEstimation,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
-        YT_LOG_DEBUG("Extracting columnar statistics from chunk meta (ChunkId: %v)", chunkId);
+        YT_TLOG_DEBUG("Extracting columnar statistics from chunk meta")
+            .With("ChunkId", chunkId);
 
         auto subresponse = New<TRefCountedColumnarStatisticsSubresponse>();
         try {
@@ -2966,7 +2970,8 @@ private:
 
             FillColumnarStatisticsFromChunkMeta(subresponse.get(), columnStableNames, nameTable, meta);
 
-            YT_LOG_DEBUG("Columnar statistics extracted from chunk meta (ChunkId: %v)", chunkId);
+            YT_TLOG_DEBUG("Columnar statistics extracted from chunk meta")
+                .With("ChunkId", chunkId);
         } catch (const std::exception& ex) {
             auto error = TError("Error fetching columnar statistics for chunk %v", chunkId).With(ex);
             YT_LOG_WARNING(error);
