@@ -244,6 +244,16 @@ void TTableNode::ValidateBeginUpload(const TBeginUploadContext& context)
             ValidateNoDescendingSortOrder(compactTableSchema->GetSortOrders(), compactTableSchema->GetKeyColumns());
         }
     }
+
+    // NB: Heavy schema is materialized only when there is something to complain about,
+    // since upload is a hot path.
+    if (!config->EnableAggregateStateType &&
+        context.TableSchema->AsCompactTableSchema()->HasAggregateStateColumns())
+    {
+        const auto& tableManager = context.Bootstrap->GetTableManager();
+        auto tableSchema = tableManager->GetHeavyTableSchemaSync(context.TableSchema);
+        ValidateNoAggregateStateType(*tableSchema);
+    }
 }
 
 void TTableNode::BeginUpload(const TBeginUploadContext &context)

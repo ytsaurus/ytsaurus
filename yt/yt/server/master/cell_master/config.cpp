@@ -424,6 +424,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_descending_sort_order_dynamic", &TThis::EnableDescendingSortOrderDynamic)
         .Default(false);
+    registrar.Parameter("enable_aggregate_state_type", &TThis::EnableAggregateStateType)
+        .Default(false);
 
     // Column renaming and removal.
     registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)

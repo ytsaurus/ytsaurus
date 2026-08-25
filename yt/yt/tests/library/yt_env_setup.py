@@ -2278,6 +2278,8 @@ class YTEnvSetup(object):
         config["enable_descending_sort_order"] = True
         config["enable_descending_sort_order_dynamic"] = True
 
+        config["enable_aggregate_state_type"] = True
+
         # Table column renaming and removal.
         config["enable_table_column_renaming"] = True
         config["enable_dynamic_table_column_renaming"] = cls.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
