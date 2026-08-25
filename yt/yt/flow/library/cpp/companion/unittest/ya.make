@@ -15,6 +15,7 @@ SRCS(
     job_removal_ut.cpp
     jvm_options_ut.cpp
     process_manager_base_ut.cpp
+    registry_ut.cpp
     transform_ordered_source_companion_computation_ut.cpp
 )
 
