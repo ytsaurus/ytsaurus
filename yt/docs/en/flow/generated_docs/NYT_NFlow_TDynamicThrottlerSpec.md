@@ -16,7 +16,15 @@ Averaging period for the average rate in the [token bucket](https://en.wikipedia
 **Default value**: `5s`
 Target interval between client requests to the controller (the prefetch size adjusts to this interval). ||
 || `retrying_channel` | **Type**: `NYT::TIntrusivePtr<`[NYT::NRpc::TRetryingChannelConfig](./all_yson_structs#NYT_NRpc_TRetryingChannelConfig)`>`
-**Default value**: `{'enable_exponential_retry_backoffs': true, 'retry_attempts': 100, 'retry_timeout': 600000}`
+**Default value**:
+
+```yson
+{
+    "enable_exponential_retry_backoffs" = %true;
+    "retry_attempts" = 100;
+    "retry_timeout" = 600000;
+}
+```
 Retry parameters for requests to the throttler service. The defaults are designed to survive a controller leader change even if it takes a long time. ||
 || `rpc_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `30s`

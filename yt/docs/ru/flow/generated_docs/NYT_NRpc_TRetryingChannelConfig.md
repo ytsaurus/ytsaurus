@@ -15,7 +15,17 @@
 **Значение по умолчанию**: `false`
  ||
 || `retry_backoff` | **Тип**: `NYT::TExponentialBackoffOptions`
-**Значение по умолчанию**: `{'backoff_jitter': 0.1, 'backoff_multiplier': 1.5, 'invocation_count': 10, 'max_backoff': 5000, 'min_backoff': 1000}`
+**Значение по умолчанию**:
+
+```yson
+{
+    "backoff_jitter" = 0.1;
+    "backoff_multiplier" = 1.5;
+    "invocation_count" = 10;
+    "max_backoff" = 5000;
+    "min_backoff" = 1000;
+}
+```
  ||
 || `retry_timeout` | **Тип**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
  ||

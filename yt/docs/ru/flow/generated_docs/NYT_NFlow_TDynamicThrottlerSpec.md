@@ -16,7 +16,15 @@
 **Значение по умолчанию**: `5s`
 Целевой интервал между походами клиента на контроллер (размер prefetch подстраивается под него). ||
 || `retrying_channel` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NRpc::TRetryingChannelConfig](./all_yson_structs#NYT_NRpc_TRetryingChannelConfig)`>`
-**Значение по умолчанию**: `{'enable_exponential_retry_backoffs': true, 'retry_attempts': 100, 'retry_timeout': 600000}`
+**Значение по умолчанию**:
+
+```yson
+{
+    "enable_exponential_retry_backoffs" = %true;
+    "retry_attempts" = 100;
+    "retry_timeout" = 600000;
+}
+```
 Параметры ретраев запросов к сервису троттлера. Дефолт рассчитан на то, чтобы пережить смену контроллера-лидера даже если она затянется. ||
 || `rpc_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `30s`
