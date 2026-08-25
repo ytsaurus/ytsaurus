@@ -29,11 +29,13 @@ Source: [yt/yt/core/https/config.h]({{source-root}}/yt/yt/core/https/config.h)
 || `max_idle_connections` | **Type**: `int`
 **Default value**: `0`
  ||
-|| `dialer` | **Type**: `NYT::TIntrusivePtr<`[NYT::NNet::TDialerConfig](./all_yson_structs#NYT_NNet_TDialerConfig)`>`
-**Default value**: `{}`
+|| `dns_resolve_options` | **Type**: `std::optional<NYT::NDns::TDnsResolveOptions>`
  ||
 || `omit_question_mark_for_empty_query` | **Type**: `bool`
 **Default value**: `false`
+ ||
+|| `dialer` | **Type**: `NYT::TIntrusivePtr<`[NYT::NNet::TDialerConfig](./all_yson_structs#NYT_NNet_TDialerConfig)`>`
+**Default value**: `{}`
  ||
 || `credentials` | **Type**: `NYT::TIntrusivePtr<`[NYT::NHttps::TClientCredentialsConfig](./all_yson_structs#NYT_NHttps_TClientCredentialsConfig)`>`
  ||

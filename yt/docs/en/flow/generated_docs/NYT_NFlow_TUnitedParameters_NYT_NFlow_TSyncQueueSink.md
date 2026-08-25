@@ -34,6 +34,9 @@ Which columns from the message to write to the queue (default &mdash; all). ||
 || `update_partition_count_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1m`
 How often the controller should update the partition count in the queue (the controller changes the computation partition count according to the queue partition count). ||
+|| `update_partition_count_retry_min_backoff` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `1s`
+Initial delay before retrying a failed partition count update, subject to jitter. The value is capped by `update_partition_count_period`; subsequent delays increase exponentially. ||
 |#
 
 

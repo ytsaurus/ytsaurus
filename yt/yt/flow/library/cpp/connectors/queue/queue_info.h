@@ -50,7 +50,7 @@ public:
     std::optional<int> GetPartitionCount();
 
 private:
-    void TryUpdatePartitionCount();
+    TError TryUpdatePartitionCount();
 
 protected:
     const NLogging::TLogger Logger;
@@ -62,7 +62,7 @@ private:
     const IStatusErrorStatePtr ErrorState_;
     TMutableStateClient<TQueueInfoControllerState> State_;
 
-    NConcurrency::TPeriodicExecutorPtr Executor_;
+    NConcurrency::TRetryingPeriodicExecutorPtr Executor_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueInfoController);

@@ -21,6 +21,7 @@ struct TQueueInfoSpec
 {
     NYPath::TRichYPath QueuePath;
     TDuration UpdatePartitionCountPeriod;
+    TDuration UpdatePartitionCountRetryMinBackoff;
 
     REGISTER_YSON_STRUCT(TQueueInfoSpec);
 
