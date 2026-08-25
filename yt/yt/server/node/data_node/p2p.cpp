@@ -351,7 +351,8 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
                 blockIsHot = true;
 
                 if (!chunk->Hot.exchange(true)) {
-                    YT_LOG_DEBUG("Chunk is hot (ChunkId: %v)", chunk->GetKey());
+                    YT_TLOG_DEBUG("Chunk is hot")
+                        .With("ChunkId", chunk->GetKey());
 
                     auto guard = Guard(ChunkLock_);
                     HotChunks_.insert(chunk);
@@ -367,7 +368,9 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
             ThrottledBytes_.Increment((*blocks)[i].Size());
             ThrottledLargeBlockBytes_.Increment((*blocks)[i].Size());
             (*blocks)[i] = {};
-            YT_LOG_DEBUG("Skipping hot large block (ChunkId: %v, BlockIndex: %v)", chunkId, blockIndices[i]);
+            YT_TLOG_DEBUG("Skipping hot large block")
+                .With("ChunkId", chunkId)
+                .With("BlockIndex", blockIndices[i]);
 
             if (throttledLargeBlock) {
                 *throttledLargeBlock = true;
@@ -384,7 +387,9 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
             if (blockCounter.DistributedAt != 0 &&
                 currentTick - blockCounter.DistributedAt >= config->BlockRedistributionTicks) {
                 if (chunk->PeersAllocatedAt == blockCounter.DistributedAt) {
-                    YT_LOG_DEBUG("Resetting chunk peers (ChunkId: %v, Reason: Period)", chunk->GetKey());
+                    YT_TLOG_DEBUG("Resetting chunk peers")
+                        .With("ChunkId", chunk->GetKey())
+                        .With("Reason", "Period");
                     chunk->Peers = {};
                     chunk->DistributedSize = 0;
                 }
@@ -407,7 +412,9 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
                         chunk->Peers = {};
                         chunk->DistributedSize = 0;
 
-                        YT_LOG_DEBUG("Resetting chunk peers by size (ChunkId: %v, Reason: Size)", chunk->GetKey());
+                        YT_TLOG_DEBUG("Resetting chunk peers by size")
+                            .With("ChunkId", chunk->GetKey())
+                            .With("Reason", "Size");
                     }
 
                     if (chunk->Peers.empty()) {
@@ -435,13 +442,17 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
             }
 
             if (blockPeers.empty()) {
-                YT_LOG_DEBUG("Failed to allocate block peers (ChunkId: %v, Block: %v)", chunk->GetKey(), blockIndex);
+                YT_TLOG_DEBUG("Failed to allocate block peers")
+                    .With("ChunkId", chunk->GetKey())
+                    .With("Block", blockIndex);
                 continue;
             }
 
             ThrottledBytes_.Increment((*blocks)[i].Size());
             (*blocks)[i] = {};
-            YT_LOG_DEBUG("Skipping hot block (ChunkId: %v, BlockIndex: %v)", chunkId, blockIndices[i]);
+            YT_TLOG_DEBUG("Skipping hot block")
+                .With("ChunkId", chunkId)
+                .With("BlockIndex", blockIndices[i]);
         }
 
         if (!blockPeers.empty()) {
@@ -637,9 +648,9 @@ void TP2PDistributor::DistributeBlocks()
         return;
     }
 
-    YT_LOG_DEBUG("Started block distribution (Iteration: %v, HotBlockCount: %v)",
-        currentTick,
-        blocks.size());
+    YT_TLOG_DEBUG("Started block distribution")
+        .With("Iteration", currentTick)
+        .With("HotBlockCount", blocks.size());
 
     THashMap<TNodeId, THashMap<TChunkId, std::vector<TP2PSnooper::TQueuedBlock>>> peerHotBlocks;
     for (const auto& block : blocks) {
@@ -699,16 +710,12 @@ void TP2PDistributor::DistributeBlocks()
                     req->add_block_indexes(block.BlockIndex);
                 }
 
-                YT_LOG_DEBUG("Sending blocks ("
-                    "ChunkId: %v, "
-                    "Blocks: %v, "
-                    "BlockCount: %v, "
-                    "Size: %v, Destination: %v)",
-                    chunkId,
-                    MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
-                    blockIndexes.size(),
-                    blockSize,
-                    destinationAddress);
+                YT_TLOG_DEBUG("Sending blocks")
+                    .With("ChunkId", chunkId)
+                    .With("Blocks", MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3))
+                    .With("BlockCount", blockIndexes.size())
+                    .With("Size", blockSize)
+                    .With("Destination", destinationAddress);
             }
 
             SetRpcAttachedBlocks(req, rawBlocks);
@@ -720,7 +727,8 @@ void TP2PDistributor::DistributeBlocks()
         future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
             if (!error.IsOK()) {
                 DistributionErrorsCounter_.Increment();
-                YT_LOG_DEBUG(error, "Failed to distribute blocks");
+                YT_TLOG_DEBUG("Failed to distribute blocks")
+                    .With(error);
             }
         }));
 
@@ -729,7 +737,8 @@ void TP2PDistributor::DistributeBlocks()
 
     Y_UNUSED(WaitFor(AllSet(std::move(futures))));
 
-    YT_LOG_DEBUG("Finished block distribution (Iteration: %v)", currentTick);
+    YT_TLOG_DEBUG("Finished block distribution")
+        .With("Iteration", currentTick);
 }
 
 void TP2PDistributor::AllocateNodes()
@@ -757,7 +766,8 @@ void TP2PDistributor::AllocateNodes()
         eligiblePeerIds.push_back(nodeId);
     }
 
-    YT_LOG_DEBUG("Updated peer list (Size: %v)", eligiblePeerIds.size());
+    YT_TLOG_DEBUG("Updated peer list")
+        .With("Size", eligiblePeerIds.size());
     Snooper_->SetEligiblePeers(eligiblePeerIds);
 }
 
@@ -769,7 +779,8 @@ void TP2PDistributor::CoolHotChunks()
         if (CpuInstantToInstant(chunk->LastAccessTime) < cutoff) {
             Snooper_->CoolChunk(chunk);
 
-            YT_LOG_DEBUG("Chunk is cool (ChunkId: %v)", chunk->GetKey());
+            YT_TLOG_DEBUG("Chunk is cool")
+                .With("ChunkId", chunk->GetKey());
         }
     }
 }

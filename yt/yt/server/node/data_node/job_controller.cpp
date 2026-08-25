@@ -256,12 +256,15 @@ private:
             }
 
             auto jobId = job->GetId();
-            YT_LOG_DEBUG("Trying to start job (JobId: %v)", jobId);
+            YT_TLOG_DEBUG("Trying to start job")
+                .With("JobId", jobId);
 
             if (!resourceAcquiringContext.TryAcquireResourcesFor(job->GetResourceHolder())) {
-                YT_LOG_DEBUG("Job was not started (JobId: %v)", jobId);
+                YT_TLOG_DEBUG("Job was not started")
+                    .With("JobId", jobId);
             } else {
-                YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
+                YT_TLOG_DEBUG("Job started")
+                    .With("JobId", jobId);
 
                 job->Start();
             }
@@ -279,11 +282,11 @@ private:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobType = FromProto<EJobType>(jobSpec.type());
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             jobType < FirstMasterJobType || jobType > LastMasterJobType,
-            "Trying to create job with unexpected type (JobId: %v, JobType: %v)",
-            jobId,
-            jobType);
+            "Trying to create job with unexpected type")
+            .With("JobId", jobId)
+            .With("JobType", jobType);
 
         auto job = NDataNode::CreateJob(
             jobId,
@@ -293,11 +296,10 @@ private:
             Bootstrap_->GetDataNodeBootstrap(),
             MasterJobSensors_);
 
-        YT_LOG_INFO(
-            "Master job created (JobId: %v, JobType: %v, JobTrackerAddress: %v)",
-            jobId,
-            jobType,
-            jobTrackerAddress);
+        YT_TLOG_INFO("Master job created")
+            .With("JobId", jobId)
+            .With("JobType", jobType)
+            .With("JobTrackerAddress", jobTrackerAddress);
 
         auto waitingJobTimeout = DynamicConfig_.Acquire()->WaitingJobsTimeout;
 
@@ -353,9 +355,9 @@ private:
         }
 
         if (job->IsUrgent()) {
-            YT_LOG_DEBUG("Urgent job has finished, scheduling out-of-order job heartbeat (JobId: %v, JobType: %v)",
-                job->GetId(),
-                job->GetType());
+            YT_TLOG_DEBUG("Urgent job has finished, scheduling out-of-order job heartbeat")
+                .With("JobId", job->GetId())
+                .With("JobType", job->GetType());
             ScheduleHeartbeat(job);
         }
 
@@ -461,8 +463,8 @@ private:
             if (auto job = FindJob(jobTrackerAddress, jobId)) {
                 RemoveJob(std::move(job));
             } else {
-                YT_LOG_WARNING("Requested to remove a non-existent job (JobId: %v)",
-                    jobId);
+                YT_TLOG_WARNING("Requested to remove a non-existent job")
+                    .With("JobId", jobId);
             }
         }
 
@@ -472,8 +474,8 @@ private:
             if (auto job = FindJob(jobTrackerAddress, jobToAbort.JobId)) {
                 AbortJob(job);
             } else {
-                YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v)",
-                    jobToAbort.JobId);
+                YT_TLOG_WARNING("Requested to abort a non-existent job")
+                    .With("JobId", jobToAbort.JobId);
             }
         }
 
@@ -482,9 +484,9 @@ private:
         int attachmentIndex = 0;
         for (const auto& startInfo : response->jobs_to_start()) {
             auto jobId = FromProto<NChunkServer::TJobId>(startInfo.job_id());
-            YT_LOG_DEBUG("Job spec received (JobId: %v, JobTrackerAddress: %v)",
-                jobId,
-                jobTrackerAddress);
+            YT_TLOG_DEBUG("Job spec received")
+                .With("JobId", jobId)
+                .With("JobTrackerAddress", jobTrackerAddress);
 
             const auto& attachment = response->Attachments()[attachmentIndex];
 
@@ -515,8 +517,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Aborting job (JobId: %v)",
-            job->GetId());
+        YT_TLOG_INFO("Aborting job")
+            .With("JobId", job->GetId());
 
         TError error("Job aborted by master request");
 
@@ -527,11 +529,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_FATAL_UNLESS(
-            IsJobFinished(job->GetState()),
-            "Removing job in unexpected state (State: %v, JobId: %v)",
-            job->GetState(),
-            job->GetId());
+        YT_TLOG_FATAL_UNLESS(IsJobFinished(job->GetState()), "Removing job in unexpected state")
+            .With("State", job->GetState())
+            .With("JobId", job->GetId());
 
         auto& jobMap = JobMaps_[job->GetJobTrackerAddress()];
 
@@ -543,7 +543,8 @@ private:
             EraseOrCrash(JobMaps_, job->GetJobTrackerAddress());
         }
 
-        YT_LOG_INFO("Job removed (JobId: %v)", job->GetId());
+        YT_TLOG_INFO("Job removed")
+            .With("JobId", job->GetId());
     }
 
     void OnProfiling()

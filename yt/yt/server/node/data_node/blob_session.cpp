@@ -203,7 +203,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
-        YT_LOG_DEBUG("Started opening blob chunk writer");
+        YT_TLOG_DEBUG("Started opening blob chunk writer");
 
         TWallTimer timer;
 
@@ -211,8 +211,8 @@ private:
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
-                YT_LOG_DEBUG("Finished opening blob chunk writer (Time: %v)",
-                    time);
+                YT_TLOG_DEBUG("Finished opening blob chunk writer")
+                    .With("Time", time);
 
                 auto& performanceCounters = Location_->GetPerformanceCounters();
                 performanceCounters.BlobChunkWriterOpenTime.Record(time);
@@ -236,9 +236,9 @@ private:
         auto blockCount = std::ssize(blocks);
         auto totalSize = GetByteSize(blocks);
 
-        YT_LOG_DEBUG("Started writing blocks (Blocks: %v, TotalSize: %v)",
-            FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
-            totalSize);
+        YT_TLOG_DEBUG("Started writing blocks")
+            .With("Blocks", FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1))
+            .With("TotalSize", totalSize);
 
         TWallTimer timer;
 
@@ -254,9 +254,9 @@ private:
             BIND([=, fairShareQueueSlot = std::move(fairShareQueueSlot), this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
-                YT_LOG_DEBUG("Finished writing blocks (Blocks: %v, Time: %v)",
-                    FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
-                    time);
+                YT_TLOG_DEBUG("Finished writing blocks")
+                    .With("Blocks", FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1))
+                    .With("Time", time);
 
                 auto& performanceCounters = Location_->GetPerformanceCounters();
                 performanceCounters.BlobBlockWriteSize.Record(totalSize);
@@ -275,8 +275,8 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
-        YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
-            Writer_->GetDataSize());
+        YT_TLOG_DEBUG("Started closing chunk writer")
+            .With("ChunkSize", Writer_->GetDataSize());
 
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
         deferredChunkMeta->MergeFrom(*chunkMeta);
@@ -292,8 +292,8 @@ private:
             .Apply(BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
-                YT_LOG_DEBUG("Finished closing chunk writer (Time: %v)",
-                    time);
+                YT_TLOG_DEBUG("Finished closing chunk writer")
+                    .With("Time", time);
 
                 auto& performanceCounters = Location_->GetPerformanceCounters();
                 performanceCounters.BlobChunkWriterCloseTime.Record(time);
@@ -304,7 +304,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
-        YT_LOG_DEBUG("Started aborting chunk writer");
+        YT_TLOG_DEBUG("Started aborting chunk writer");
 
         TWallTimer timer;
 
@@ -312,8 +312,8 @@ private:
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
-                YT_LOG_DEBUG("Finished aborting chunk writer (Time: %v)",
-                    time);
+                YT_TLOG_DEBUG("Finished aborting chunk writer")
+                    .With("Time", time);
 
                 auto& performanceCounters = Location_->GetPerformanceCounters();
                 performanceCounters.BlobChunkWriterAbortTime.Record(time);
@@ -518,7 +518,8 @@ ISession::TFinishResult TBlobSession::OnFinished(
             const auto& chunkStore = Bootstrap_->GetChunkStore();
             chunkStore->RegisterNewChunk(chunk, /*session*/ this, std::move(LockedChunkGuard_));
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to finish session");
+            YT_TLOG_DEBUG("Failed to finish session")
+                .With(ex);
             Error_ = TError(ex);
         }
     }
@@ -671,7 +672,8 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                 if (error.IsOK()) {
                     DoPerformPutBlocks(std::move(fairShareQueueSlot), fairShareState);
                 } else {
-                    YT_LOG_ALERT(error, "Error in allPrecedingBlocksReceivedFuture with fully async blocks writing, session will be canceled");
+                    YT_TLOG_ALERT("Error in allPrecedingBlocksReceivedFuture with fully async blocks writing, session will be canceled")
+                        .With(error);
                     Cancel(error);
                 }
             }).Via(SessionInvoker_));
@@ -716,12 +718,14 @@ void TBlobSession::PreparePutBlocks(
         auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Empty) {
             if (slot.State == ESlotState::Released) {
-                YT_LOG_WARNING("Skipped already flushed block (Block: %v)", blockIndex);
+                YT_TLOG_WARNING("Skipped already flushed block")
+                    .With("Block", blockIndex);
                 continue;
             }
 
             if (TRef::AreBitwiseEqual(slot.Block.Data, block.Data)) {
-                YT_LOG_WARNING("Skipped duplicate block (Block: %v)", blockIndex);
+                YT_TLOG_WARNING("Skipped duplicate block")
+                    .With("Block", blockIndex);
                 continue;
             }
 
@@ -745,17 +749,15 @@ void TBlobSession::PreparePutBlocks(
                     if (PendingBlockLocationMemoryGuard_.GetSize() >= blockSize) {
                         PendingBlockLocationMemoryGuard_.DecreaseSize(blockSize);
                     } else {
-                        YT_LOG_ALERT(
-                            "Location memory guard is smaller than the size of the incoming block (ChunkId: %v)",
-                            GetChunkId());
+                        YT_TLOG_ALERT("Location memory guard is smaller than the size of the incoming block")
+                            .With("ChunkId", GetChunkId());
                     }
 
                     if (PendingBlockMemoryGuard_.GetSize() >= blockSize) {
                         PendingBlockMemoryGuard_.DecreaseSize(blockSize);
                     } else {
-                        YT_LOG_ALERT(
-                            "Memory guard is smaller than the size of the incoming block (ChunkId: %v)",
-                            GetChunkId());
+                        YT_TLOG_ALERT("Memory guard is smaller than the size of the incoming block")
+                            .With("ChunkId", GetChunkId());
                     }
                 }
 
@@ -797,13 +799,14 @@ void TBlobSession::PreparePutBlocks(
 
     TotalByteSize_.fetch_add(totalSize);
 
-    YT_LOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received (Blocks: %v, TotalSize: %v)",
-        MakeCompactIntervalView(receivedBlockIndexes),
-        totalSize);
+    YT_TLOG_DEBUG_UNLESS(receivedBlockIndexes.empty(), "Blocks received")
+        .With("Blocks", MakeCompactIntervalView(receivedBlockIndexes))
+        .With("TotalSize", totalSize);
 
     if (auto delay =
         Bootstrap_->GetDataNodeBootstrap()->GetDynamicConfigManager()->GetConfig()->DataNode->TestingOptions->DelayBeforePerformPutBlocks) {
-            YT_LOG_DEBUG("Sleeping before performing put blocks (SleepDuration: %v)", delay.value());
+            YT_TLOG_DEBUG("Sleeping before performing put blocks")
+                .With("SleepDuration", delay.value());
             TDelayedExecutor::WaitForDuration(delay.value());
     }
 }
@@ -986,8 +989,8 @@ TFuture<ISession::TFlushBlocksResult> TBlobSession::DoFlushBlocks(int blockIndex
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!IsInWindow(blockIndex)) {
-        YT_LOG_DEBUG("Blocks are already flushed (Block: %v)",
-            blockIndex);
+        YT_TLOG_DEBUG("Blocks are already flushed")
+            .With("Block", blockIndex);
         return MakeFuture(TFlushBlocksResult {
             .IOCounters = {},
             .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
@@ -1093,7 +1096,9 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
 
         if (slot.State == ESlotState::Written) {
             if (delayBeforeFree) {
-                YT_LOG_DEBUG("Simulate delay before blob write session block free (BlockSize: %v, Delay: %v)", slot.Block.Size(), *delayBeforeFree);
+                YT_TLOG_DEBUG("Simulate delay before blob write session block free")
+                    .With("BlockSize", slot.Block.Size())
+                    .With("Delay", *delayBeforeFree);
 
                 YT_UNUSED_FUTURE(BIND([=] (TBlock block) {
                     TDelayedExecutor::WaitForDuration(*delayBeforeFree);
@@ -1113,8 +1118,8 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         ++WindowStartBlockIndex_;
     }
 
-    YT_LOG_DEBUG("Released blocks (WindowStart: %v)",
-        WindowStartBlockIndex_);
+    YT_TLOG_DEBUG("Released blocks")
+        .With("WindowStart", WindowStartBlockIndex_);
 }
 
 bool TBlobSession::IsInWindow(int blockIndex)
@@ -1180,7 +1185,8 @@ TBlock TBlobSession::GetBlock(int blockIndex)
             TBlockId(GetChunkId(), blockIndex));
     }
 
-    YT_LOG_DEBUG("Block retrieved (Block: %v)", blockIndex);
+    YT_TLOG_DEBUG("Block retrieved")
+        .With("Block", blockIndex);
 
     return slot.Block;
 }
@@ -1218,8 +1224,9 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
     Error_ = TError("Blob session failed")
         .With("fatal", fatal)
         .With(error);
-    YT_LOG_WARNING(error, "Blob session failed (Fatal: %v)",
-        fatal);
+    YT_TLOG_WARNING("Blob session failed")
+        .With("Fatal", fatal)
+        .With(error);
 
     MarkAllSlotsFailed(error);
 

@@ -149,9 +149,9 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
 
     int duplicateBlockCount = std::min<int>(recordCount - startBlockIndex, std::ssize(blocks));
     if (duplicateBlockCount > 0) {
-        YT_LOG_DEBUG("Skipped duplicate blocks (ChunkId: %v, Blocks: %v)",
-            SessionId_.ChunkId,
-            FormatBlocks(startBlockIndex, startBlockIndex + duplicateBlockCount - 1));
+        YT_TLOG_DEBUG("Skipped duplicate blocks")
+            .With("ChunkId", SessionId_.ChunkId)
+            .With("Blocks", FormatBlocks(startBlockIndex, startBlockIndex + duplicateBlockCount - 1));
     }
 
     i64 payloadSize = 0;
