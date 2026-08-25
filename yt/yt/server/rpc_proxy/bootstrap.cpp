@@ -31,6 +31,7 @@
 
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -323,6 +324,10 @@ void TBootstrap::DoStart()
             orchidRoot,
             "/cluster_connection",
             CreateVirtualNode(Connection_->GetOrchidService()));
+        SetNodeByYPath(
+            orchidRoot,
+            "/cluster_directory",
+            CreateVirtualNode(Connection_->GetClusterDirectory()->GetOrchidService()));
     }
     if (auto hotswapManager = ServiceLocator_->FindService<NDiskManager::IHotswapManagerPtr>()) {
         SetNodeByYPath(
