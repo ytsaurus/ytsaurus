@@ -1537,9 +1537,9 @@
     ],
     "test.test[optimizers-fuse_map_mapreduce_late--Debug]": [
         {
-            "checksum": "90a6a75a98a3da91c3c2c597c3a9044b",
-            "size": 2537,
-            "uri": "https://{canondata_backend}/1031349/55d238a244f3a0983368ea5e21207e3376525d7f/resource.tar.gz#test.test_optimizers-fuse_map_mapreduce_late--Debug_/opt.yql"
+            "checksum": "c44e0cbde19e622b52af6e98b7c7d871",
+            "size": 2565,
+            "uri": "https://{canondata_backend}/1781765/947faf45d1ba1d08bf2a1557ed91aafac064b26b/resource.tar.gz#test.test_optimizers-fuse_map_mapreduce_late--Debug_/opt.yql"
         }
     ],
     "test.test[optimizers-fuse_map_mapreduce_late--Plan]": [

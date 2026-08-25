@@ -1716,9 +1716,9 @@
     ],
     "test.test[optimizers-drop_unessential_map-default.txt-Debug]": [
         {
-            "checksum": "f4f99d1a3778297594e231502a7ece23",
-            "size": 4386,
-            "uri": "https://{canondata_backend}/1689644/a839e82823d20f6915b5b9d5f80937a4cfaae2d9/resource.tar.gz#test.test_optimizers-drop_unessential_map-default.txt-Debug_/opt.yql"
+            "checksum": "43769f0e6a7378b2d521caffe70a2fa1",
+            "size": 4414,
+            "uri": "https://{canondata_backend}/1871182/153b3a02e3b01152e27151cfed70378a0c5d4873/resource.tar.gz#test.test_optimizers-drop_unessential_map-default.txt-Debug_/opt.yql"
         }
     ],
     "test.test[optimizers-drop_unessential_map-default.txt-Plan]": [
