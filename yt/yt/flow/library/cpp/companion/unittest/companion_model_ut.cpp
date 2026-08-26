@@ -58,6 +58,13 @@ TEST(TCompanionModelTest, CreateLocalStreamSpecs)
     auto eventStreamSpec = localStreamSpecs->GetSpec(eventStreamSpecId);
     // Compare YsonString representation for the sake of test simplicity.
     EXPECT_EQ(ConvertToYsonString(eventStreamSpec->Schema), ConvertToYsonString(eventSchema));
+
+    EXPECT_TRUE(localStreamSpecs->HasStream(TStreamId("queue_1")));
+    EXPECT_TRUE(localStreamSpecs->HasStream(TStreamId("event_1")));
+    EXPECT_FALSE(localStreamSpecs->HasStream(TStreamId("queue_2")));
+    EXPECT_THROW_WITH_SUBSTRING(
+        localStreamSpecs->GetLastSpecId(TStreamId("queue_2")),
+        "Unregistered stream id");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

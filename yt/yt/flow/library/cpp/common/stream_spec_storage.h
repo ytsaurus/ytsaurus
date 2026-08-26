@@ -45,6 +45,8 @@ public:
 
     TStreamSpecId GetLastSpecId(const TStreamId& streamId) const;
 
+    bool HasStream(const TStreamId& streamId) const;
+
     TStreamSpecId GetStreamSpecId(const NTableClient::TTableSchemaPtr& schema) const;
 
     const TStreamId& GetStreamId(TStreamSpecId specId) const;

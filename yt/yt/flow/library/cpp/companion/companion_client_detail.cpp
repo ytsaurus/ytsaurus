@@ -184,10 +184,16 @@ TCompanionResponsePtr TCompanionClient::DoProcessWithCompanionSync(
             request,
             companionRequest->OverrideStreamSpecs,
             inputOutputStreams);
+        std::vector<TStreamId> batchPresentSourceStreams;
+        for (const auto& streamId : GetKeys(companionRequest->ComputationSpec->SourceStreams)) {
+            if (companionRequest->OverrideStreamSpecs->HasStream(streamId)) {
+                batchPresentSourceStreams.push_back(streamId);
+            }
+        }
         AddStreamsToRequest(
             request,
             companionRequest->OverrideStreamSpecs,
-            GetKeys(companionRequest->ComputationSpec->SourceStreams));
+            batchPresentSourceStreams);
         YT_TLOG_DEBUG("Streams added to process batch request")
             .With("Size", request->streams_size());
     }

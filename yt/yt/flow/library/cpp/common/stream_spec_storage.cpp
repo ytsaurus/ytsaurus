@@ -86,6 +86,11 @@ TStreamSpecId TStreamSpecs::GetLastSpecId(const TStreamId& streamId) const
     return GetOrThrow(LastStreamSpecIds_, streamId, "Unregistered stream id", "StreamId");
 }
 
+bool TStreamSpecs::HasStream(const TStreamId& streamId) const
+{
+    return LastStreamSpecIds_.contains(streamId);
+}
+
 TStreamSpecId TStreamSpecs::GetStreamSpecId(const TTableSchemaPtr& schema) const
 {
     return GetOrThrow(
