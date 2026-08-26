@@ -15,9 +15,13 @@ In Flow, there are two types of `Computation`: [`Swift`](../../../flow/concepts/
 | `Swift` | The transformation code is deterministic and will be called again if needed | Stateless transformations |
 | `Transform` | The result is always stored in YT, so no determinism requirements apply to the transformations | Stateful transformations [Learn more](../../../flow/concepts/stateful.md) |
 
+What determinism means and what breaks if you violate it is explained in the [Determinism requirement](../../../flow/concepts/swift.md#determinism) section.
+
 When using a [companion](../../../flow/concepts/glossary.md#companion), you select `Swift` or `Transform` by specifying `computation_class_name` in the static [spec](../../../flow/concepts/glossary.md#spec-and-dynamic-spec):
 - `NYT::NFlow::NCompanion::TTransformCompanionComputation` — for `Transform`.
 - `NYT::NFlow::NCompanion::TSwiftMapCompanionComputation` — for `Swift`.
+- `NYT::NFlow::NCompanion::TTransformOrderedSourceCompanionComputation` — for a `Transform` source.
+- `NYT::NFlow::NCompanion::TSwiftOrderedSourceCompanionComputation` — for a `Swift` source.
 
 ## Creating a Computation {#computation}
 
@@ -56,7 +60,7 @@ For more on specs, see the [Spec, DynamicSpec, and Config](../../../flow/concept
 
 ## SourceComputation {#sourcecomputation}
 
-`SourceComputation` is the top node in the [pipeline](../../../flow/concepts/glossary.md#pipeline) graph that reads data from external sources. Learn more about [Source Computation](../../../flow/concepts/computation.md#tswiftorderedsourcecomputation).
+`SourceComputation` is the top node in the [pipeline](../../../flow/concepts/glossary.md#pipeline) graph that reads data from external sources. On the worker side, it corresponds to [TSwiftOrderedSourceComputation](../../../flow/concepts/computation.md#tswiftorderedsourcecomputation) or [TTransformOrderedSourceComputation](../../../flow/concepts/computation.md#ttransformorderedsourcecomputation).
 
 In Python, you create a `SourceComputation` by passing `source=True` to `Pipeline.add()`. You filter [messages](../../../flow/concepts/glossary.md#message) inside the Process Function using the [distribute](../../../flow/python/distribute.md) flag.
 
@@ -77,7 +81,7 @@ For a passthrough Source, don’t use Python. Instead, specify `NYT::NFlow::TSwi
 
 ### Interaction with Worker {#companion-info}
 
-When initializing, the [Worker](../../../flow/concepts/glossary.md#worker) requests information about registered `Computation` and `SourceComputation` objects from the Python companion. Each input message from `TSwiftOrderedSourceCompanionComputation` is sent to the Python companion, which applies the `ProcessFunction` and returns the result. The Worker makes one request to the companion per message.
+When initializing, the [Worker](../../../flow/concepts/glossary.md#worker) requests information about registered `Computation` and `SourceComputation` objects from the Python companion. The source computation on the worker side sends input messages to the Python companion, which applies the `ProcessFunction` and returns the result.
 
 ## Process Function {#process-function}
 
@@ -153,7 +157,7 @@ In a Swift computation the grouping and the parent assignment must be determinis
 #### Example of a batch function
 
 ```python
-from yt.yt.flow.library.python.companion.computation import BatchFunction
+from yt.yt.flow.library/python/companion.computation import BatchFunction
 
 
 class X2BatchMapper(BatchFunction):
