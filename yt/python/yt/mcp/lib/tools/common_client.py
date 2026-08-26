@@ -175,7 +175,7 @@ A tool for common cypress method.
                     {
                         "name": "job_state",
                         "field_type": Optional[str],
-                        "description": "Filter jobs by state. State one of 'faild', 'aborted', 'completed'",
+                        "description": "Filter jobs by state. State one of 'failed', 'aborted', 'completed'",
                     },
                     {
                         "name": "limit",
