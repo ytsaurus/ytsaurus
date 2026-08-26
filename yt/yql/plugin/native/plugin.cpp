@@ -817,7 +817,6 @@ public:
             .Progress = progress,
             .TaskInfo = MaybeToOptional(program->GetTasksInfo()),
             .Ast = MaybeToOptional(program->GetQueryAst()),
-            .YsonError = program->Issues().Empty() ? std::nullopt : std::make_optional(IssuesToYtErrorYson(program->Issues())),
         };
     }
 
