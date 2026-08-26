@@ -1556,11 +1556,11 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
         if not skip_cypress_synchronizer:
             leading_cypress_synchronizer_orchid.wait_fresh_pass()
 
-        if cls._is_multi_consumer_supported():
-            wait(lambda: len(MultiConsumerNamesGarbageCollectorOrchid.get_leaders(instances=instances)) == 1)
-            leading_multi_consumer_names_garbage_collector_orchid = \
-                MultiConsumerNamesGarbageCollectorOrchid.leader_orchid(instances=instances)
-            leading_multi_consumer_names_garbage_collector_orchid.wait_fresh_pass()
+            if cls._is_multi_consumer_supported():
+                wait(lambda: len(MultiConsumerNamesGarbageCollectorOrchid.get_leaders(instances=instances)) == 1)
+                leading_multi_consumer_names_garbage_collector_orchid = \
+                    MultiConsumerNamesGarbageCollectorOrchid.leader_orchid(instances=instances)
+                leading_multi_consumer_names_garbage_collector_orchid.wait_fresh_pass()
 
         cls._wait_for_discovery(instances=instances)
         leading_queue_agent_sharding_manager.wait_fresh_pass()

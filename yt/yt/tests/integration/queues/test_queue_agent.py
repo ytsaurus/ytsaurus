@@ -575,6 +575,55 @@ class TestQueueController(TestQueueAgentBase):
         assert len(partitions) == 2
         assert partitions[0]["next_row_index"] == 0
 
+    @authors("panesher")
+    @pytest.mark.parametrize("multi_consumer", [True, False])
+    @pytest.mark.parametrize("meta", [
+        {"foo": "bar"},
+        YsonEntity(),
+        1,
+        "hello world",
+    ])
+    def test_consumer_with_strange_meta(self, multi_consumer: bool, meta):
+        consumer_path = self.create_consumer_path()
+        self._create_consumer(consumer_path, multi_consumer=multi_consumer)
+        queue_path = self.create_queue_path()
+        self._create_queue(queue_path, partition_count=3)
+        insert_rows(queue_path, [{
+            "$tablet_index": 0,
+            "data": f"hello world {insert_index}",
+        } for insert_index in range(3)])
+        if multi_consumer:
+            consumer_ref = GenericObjectPath(consumer_path, "primary", "my_1")
+        else:
+            consumer_ref = GenericObjectPath(consumer_path, "primary")
+
+        queue_ref = GenericObjectPath(queue_path, "primary")
+        register_queue_consumer(queue_ref, consumer_ref, vital=False)
+        insert_rows(consumer_path, [{
+            "queue_cluster": "primary",
+            "queue_path": queue_path,
+            "partition_index": 0,
+            "offset": 1,
+            "meta": meta,
+        } | ({"queue_consumer_name": "my_1"} if multi_consumer else {})])
+
+        self._wait_for_component_passes()
+
+        orchid = QueueAgentOrchid()
+        consumer_orchid = orchid.get_consumer_orchid(consumer_ref)
+        queue_orchid = orchid.get_queue_orchid(queue_ref)
+        consumer_orchid.wait_fresh_pass()
+        queue_orchid.wait_fresh_pass()
+
+        consumer_status = consumer_orchid.get_status()
+        assert f"primary:{queue_path}" in consumer_status["queues"]
+        assert "error" not in consumer_status
+
+        queue_status = queue_orchid.get_status()
+        assert "error" not in queue_status
+        assert queue_status["alerts"] == {}
+        assert consumer_path in str(queue_status["registrations"][0]["consumer"])
+
 
 class TestRates(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
