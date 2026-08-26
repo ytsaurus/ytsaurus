@@ -1785,7 +1785,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         statistics = get(f"#{root_chunk_list_id}/@statistics")
         assert statistics["row_count"] == 7
         assert statistics["uncompressed_data_size"] == 508
-        assert statistics["data_weight"] == 202
+        assert statistics["data_weight"] == 174
         assert statistics["regular_disk_space"] > 2000
         assert statistics["regular_disk_space"] < 3000
         assert statistics["hunk_data_weight"] == 650
@@ -1842,7 +1842,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert chunk_format_statistics["hunk_default"]["data_weight"] == 0
         assert chunk_format_statistics["table_versioned_simple"]["chunk_count"] == 5
         assert chunk_format_statistics["table_versioned_simple"]["uncompressed_data_size"] == 508
-        assert chunk_format_statistics["table_versioned_simple"]["data_weight"] == 202
+        assert chunk_format_statistics["table_versioned_simple"]["data_weight"] == 174
         assert chunk_format_statistics["table_versioned_simple"]["hunk_data_size"] == 690
         assert chunk_format_statistics["table_versioned_simple"]["hunk_data_weight"] == 650
 
@@ -1853,11 +1853,11 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert get("//tmp/t/@unmerged_row_count") == 7
         assert get("//tmp/t/@chunk_count") == 10
         assert get("//tmp/t/@uncompressed_data_size") == 1198
-        assert get("//tmp/t/@data_weight") == 852
+        assert get("//tmp/t/@data_weight") == 824
 
         erasure_statistics = get("//tmp/t/@erasure_statistics")
         assert erasure_statistics["none"]["chunk_count"] == 5
-        assert erasure_statistics["none"]["data_weight"] == 202
+        assert erasure_statistics["none"]["data_weight"] == 174
         assert erasure_statistics["isa_reed_solomon_6_3"]["chunk_count"] == 5
         assert erasure_statistics["isa_reed_solomon_6_3"]["data_weight"] == 0
 
@@ -1865,11 +1865,11 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert compression_statistics["none"]["chunk_count"] == 5
         assert compression_statistics["none"]["data_weight"] == 0
         assert compression_statistics["lz4"]["chunk_count"] == 5
-        assert compression_statistics["lz4"]["data_weight"] == 202
+        assert compression_statistics["lz4"]["data_weight"] == 174
 
         chunk_media_statistics = get("//tmp/t/@chunk_media_statistics")
         assert chunk_media_statistics["default"]["chunk_count"] == 10
-        assert chunk_media_statistics["default"]["data_weight"] == 202
+        assert chunk_media_statistics["default"]["data_weight"] == 174
         assert chunk_media_statistics["default"]["hunk_data_size"] == 690
 
         tablet_statistics = get("//tmp/t/@tablet_statistics")
@@ -1907,7 +1907,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert delta_statistics["chunk_count"] == 0
         snapshot_statistics = get("//tmp/t/@snapshot_statistics")
         assert snapshot_statistics["chunk_count"] == 10
-        assert snapshot_statistics["data_weight"] == 852
+        assert snapshot_statistics["data_weight"] == 824
         assert snapshot_statistics["uncompressed_data_size"] == 1198
 
     @authors("akozhikhov")
@@ -2467,6 +2467,152 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             err[0].contains_text("table contains unsealed hunk chunk")
 
     @authors("akozhikhov")
+    def test_cumulative_data_weight_with_hunks(self):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string"},
+            {"name": "$cumulative_data_weight", "type": "int64"},
+        ]
+        self._create_table(schema=schema)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        def _expect_cumulative_data_weights(weights, check_on_master=False):
+            rows = select_rows("[$cumulative_data_weight] from [//tmp/t]")
+            assert [row["$cumulative_data_weight"] for row in rows] == weights
+            if check_on_master:
+                cumulative_data_weight = get("//tmp/t/@cumulative_data_weight")
+                assert cumulative_data_weight == rows[-1]["$cumulative_data_weight"]
+
+        self._insert_rows_with_hunk_storage("//tmp/t", [{"key": 0, "value": "a" * 5}])
+        _expect_cumulative_data_weights([22])
+
+        self._insert_rows_with_hunk_storage("//tmp/t", [{"key": 1, "value": "b" * 50}])
+        _expect_cumulative_data_weights([22, 89])
+
+        sync_flush_table("//tmp/t")
+        _expect_cumulative_data_weights([22, 89], check_on_master=True)
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        _expect_cumulative_data_weights([22, 89], check_on_master=True)
+
+        self._insert_rows_with_hunk_storage("//tmp/t", [{"key": 2, "value": "c" * 30}])
+        _expect_cumulative_data_weights([22, 89, 136])
+
+        trim_rows("//tmp/t", 0, 2)
+        _expect_cumulative_data_weights([136])
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        _expect_cumulative_data_weights([136], check_on_master=True)
+
+    @authors("akozhikhov")
+    def test_trimmed_hunk_data_weight_statistics(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "scan_backoff_period": 1000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        def _get_data_weights():
+            root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+            tablet_chunk_list_id = get("#{}/@child_ids/0".format(root_chunk_list_id))
+            statistics = get("#{}/@statistics".format(tablet_chunk_list_id))
+            return {
+                key: statistics[key]
+                for key in [
+                    "data_weight",
+                    "logical_data_weight",
+                    "trimmed_data_weight",
+                    "hunk_data_weight",
+                    "logical_hunk_data_weight",
+                    "trimmed_hunk_data_weight",
+                ]
+            }
+
+        def _expect_data_weights(data_weight, hunk_data_weight, trimmed_data_weight, trimmed_hunk_data_weight):
+            expected = {
+                "data_weight": data_weight,
+                "logical_data_weight": data_weight + trimmed_data_weight,
+                "trimmed_data_weight": trimmed_data_weight,
+                "hunk_data_weight": hunk_data_weight,
+                "logical_hunk_data_weight": hunk_data_weight + trimmed_hunk_data_weight,
+                "trimmed_hunk_data_weight": trimmed_hunk_data_weight,
+            }
+            # NB: Trimming is asynchronous.
+            wait(lambda: _get_data_weights() == expected)
+
+        # NB: Data weight of a row consists of the row's own weight, the weight of its int64 key
+        # and the weight of its value. The latter is accounted for in hunk data weight instead
+        # if the value is large enough to be moved to a hunk chunk.
+        hunk_row_weight = 1 + 8
+        inline_row_weight = 1 + 8 + 5
+
+        self._insert_rows_with_hunk_storage("//tmp/t", [
+            {"key": 0, "value": "a" * 20},
+            {"key": 1, "value": "b" * 5},
+        ])
+        sync_flush_table("//tmp/t")
+        _expect_data_weights(
+            data_weight=hunk_row_weight + inline_row_weight,
+            hunk_data_weight=20,
+            trimmed_data_weight=0,
+            trimmed_hunk_data_weight=0)
+
+        self._insert_rows_with_hunk_storage("//tmp/t", [{"key": 2, "value": "c" * 30}])
+        sync_flush_table("//tmp/t")
+        _expect_data_weights(
+            data_weight=2 * hunk_row_weight + inline_row_weight,
+            hunk_data_weight=20 + 30,
+            trimmed_data_weight=0,
+            trimmed_hunk_data_weight=0)
+
+        # Trim the first store away.
+        trim_rows("//tmp/t", 0, 2)
+        _expect_data_weights(
+            data_weight=hunk_row_weight,
+            hunk_data_weight=30,
+            trimmed_data_weight=hunk_row_weight + inline_row_weight,
+            trimmed_hunk_data_weight=20)
+
+        self._insert_rows_with_hunk_storage("//tmp/t", [{"key": 3, "value": "d" * 40}])
+        sync_flush_table("//tmp/t")
+        _expect_data_weights(
+            data_weight=2 * hunk_row_weight,
+            hunk_data_weight=30 + 40,
+            trimmed_data_weight=hunk_row_weight + inline_row_weight,
+            trimmed_hunk_data_weight=20)
+
+        # Trimmed data weights survive unmount-mount.
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        _expect_data_weights(
+            data_weight=2 * hunk_row_weight,
+            hunk_data_weight=30 + 40,
+            trimmed_data_weight=hunk_row_weight + inline_row_weight,
+            trimmed_hunk_data_weight=20)
+
+        # Trim the second store away.
+        trim_rows("//tmp/t", 0, 3)
+        _expect_data_weights(
+            data_weight=hunk_row_weight,
+            hunk_data_weight=40,
+            trimmed_data_weight=2 * hunk_row_weight + inline_row_weight,
+            trimmed_hunk_data_weight=20 + 30)
+
+    @authors("akozhikhov")
     def test_reshard_ordered_table_with_hunks(self):
         sync_create_cells(1)
         self._create_table()
@@ -2698,7 +2844,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert rows[:2] == pull_queue("//tmp/t", offset=0, partition_index=0, max_row_count=2)
         assert rows[1:3] == pull_queue("//tmp/t", offset=1, partition_index=0, max_row_count=2)
 
-        assert rows[:5] == pull_queue("//tmp/t", offset=0, partition_index=0, max_data_weight=200)
+        assert rows[:2] == pull_queue("//tmp/t", offset=0, partition_index=0, max_data_weight=200)
 
     @authors("akozhikhov")
     def test_seal_after_queue_copy(self):
@@ -5633,7 +5779,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         hunk_root_chunk_list_id = get("//tmp/t/@hunk_chunk_list_id")
         statistics = get(f"#{root_chunk_list_id}/@statistics")
         assert statistics["chunk_count"] == 2
-        assert statistics["data_weight"] == 327
+        assert statistics["data_weight"] == 121
         assert statistics["hunk_data_weight"] == 260
         statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
         assert statistics["chunk_count"] == 1
@@ -5644,7 +5790,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         assert snapshot_statistics["chunk_count"] == 3
         assert snapshot_statistics["regular_disk_space"] > 5000
         assert snapshot_statistics["regular_disk_space"] < 6000
-        assert snapshot_statistics["data_weight"] == 587
+        assert snapshot_statistics["data_weight"] == 381
 
         new_rows_2 = [{"key": 12, "value": str(12) + "a" * 20}]
         self._insert_rows_with_hunk_storage("//tmp/t", new_rows_2)
@@ -5658,7 +5804,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         statistics = get(f"#{root_chunk_list_id}/@statistics")
         assert statistics["row_count"] == 12
         assert statistics["chunk_count"] == 3
-        assert statistics["data_weight"] == 356
+        assert statistics["data_weight"] == 130
         assert statistics["hunk_data_weight"] == 282
         statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
         assert statistics["chunk_count"] == 2
@@ -5667,7 +5813,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         assert statistics["regular_disk_space"] < 9000
         snapshot_statistics = get("//tmp/t/@snapshot_statistics")
         assert snapshot_statistics["chunk_count"] == 5
-        assert snapshot_statistics["data_weight"] == 638
+        assert snapshot_statistics["data_weight"] == 412
 
         alter_table("//tmp/t", dynamic=True)
         sync_mount_table("//tmp/t")
@@ -5683,7 +5829,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         statistics = get(f"#{root_chunk_list_id}/@statistics")
         assert statistics["row_count"] == 2
         assert statistics["chunk_count"] == 2
-        assert statistics["data_weight"] == 60
+        assert statistics["data_weight"] == 40
         assert statistics["hunk_data_weight"] == 22
         statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
         assert statistics["chunk_count"] == 1
@@ -5692,7 +5838,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         assert statistics["regular_disk_space"] < 5000
         snapshot_statistics = get("//tmp/t/@snapshot_statistics")
         assert snapshot_statistics["chunk_count"] == 3
-        assert snapshot_statistics["data_weight"] == 82
+        assert snapshot_statistics["data_weight"] == 62
 
     @authors("babenko")
     def test_static_hunks_has_hunk_chunk_list(self):

@@ -2648,6 +2648,98 @@ size_t ComputeSchemafulRowsDataWeightAfterHunkDecoding(
     return result;
 }
 
+i64 GetDataWeightAfterHunkDecoding(TUnversionedRow row, const TTableSchemaPtr& schema)
+{
+    if (!row || !schema->HasHunkColumns()) {
+        return GetDataWeight(row);
+    }
+
+    i64 result = 1;
+    for (const auto& value : row) {
+        result += Any(value.Flags & EValueFlags::Hunk)
+            ? static_cast<i64>(ComputeDataWeightAfterHunkDecoding(ReadHunkValue(GetValueRef(value))))
+            : GetDataWeight(value);
+    }
+
+    return result;
+}
+
+i64 GetDataWeightAfterHunkDecoding(TVersionedRow row, const TTableSchemaPtr& schema)
+{
+    if (!row || !schema->HasHunkColumns()) {
+        return GetDataWeight(row);
+    }
+
+    i64 result = 0;
+    result += std::accumulate(
+        row.BeginValues(),
+        row.EndValues(),
+        0ll,
+        [] (size_t x, const TVersionedValue& value) {
+            return (Any(value.Flags & EValueFlags::Hunk)
+                ? static_cast<i64>(ComputeDataWeightAfterHunkDecoding(ReadHunkValue(GetValueRef(value)))) + sizeof(TTimestamp)
+                : GetDataWeight(value))
+                + x;
+        });
+
+    result += std::accumulate(
+        row.BeginKeys(),
+        row.EndKeys(),
+        0ll,
+        [] (size_t x, const TUnversionedValue& value) {
+            return GetDataWeight(value) + x;
+        });
+
+    result += row.GetWriteTimestampCount() * sizeof(TTimestamp);
+    result += row.GetDeleteTimestampCount() * sizeof(TTimestamp);
+
+    return result;
+}
+
+i64 GetDataWeightWithoutHunkEncoding(const TUnversionedValue& value)
+{
+    if (!IsStringLikeType(value.Type) || None(value.Flags & EValueFlags::Hunk)) {
+        return GetDataWeight(value);
+    }
+
+    // Everything but the payload that is stored inline is an encoding overhead;
+    // in particular, the whole value is such for a reference.
+    return Visit(
+        ReadHunkValue(GetValueRef(value)),
+        [] (const TInlineHunkValue& inlineHunkValue) {
+            return std::ssize(inlineHunkValue.Payload);
+        },
+        [] (const TCompressedInlineRefHunkValue& compressedInlineRefHunkValue) {
+            auto* codec = NCompression::GetDictionaryCompressionCodec();
+            return static_cast<i64>(codec->GetFrameInfo(compressedInlineRefHunkValue.Payload).ContentSize);
+        },
+        [] (const TLocalRefHunkValue& /*localRefHunkValue*/) { return i64(0); },
+        [] (const TGlobalRefHunkValue& /*globalRefHunkValue*/) { return i64(0); });
+}
+
+i64 GetDataWeightWithoutHunkEncoding(TVersionedRow row)
+{
+    if (!row) {
+        return 0;
+    }
+
+    i64 result = 0;
+
+    // NB: Key columns cannot be hunk ones.
+    for (const auto& value : row.Keys()) {
+        result += GetDataWeight(value);
+    }
+
+    for (const auto& value : row.Values()) {
+        result += GetDataWeightWithoutHunkEncoding(static_cast<TUnversionedValue>(value)) + sizeof(TTimestamp);
+    }
+
+    result += row.GetWriteTimestampCount() * sizeof(TTimestamp);
+    result += row.GetDeleteTimestampCount() * sizeof(TTimestamp);
+
+    return result;
+}
+
 void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value)
 {
     if (Any(value->Flags & EValueFlags::Hunk)) {

@@ -120,6 +120,7 @@ TChunkTreeStatistics TChunk::GetStatistics(bool includeReferencedHunkData) const
                 TEnumIndexedArray<NErasure::ECodec, int> codecToDataSize;
                 for (const auto& protoRef : hunkChunkRefsExt->refs()) {
                     result.HunkDataWeight += protoRef.total_hunk_length();
+                    result.LogicalHunkDataWeight += protoRef.total_hunk_length();
                     auto hunkDataSize = NTableClient::ComputeHunkDataSize(protoRef);
                     result.HunkDataSize += hunkDataSize;
                     codecToDataSize[FromProto<NErasure::ECodec>(protoRef.erasure_codec())] += hunkDataSize;

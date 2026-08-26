@@ -19,6 +19,7 @@
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/performance_counters.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
@@ -737,7 +738,7 @@ public:
             auto row = ProduceRow(Iterator_.GetCurrent());
             if (row) {
                 rows.push_back(row);
-                DataWeight_ += NTableClient::GetDataWeight(row);
+                DataWeight_ += NTableClient::GetDataWeightAfterHunkDecoding(row, Store_->Schema_);
             }
 
             Iterator_.MoveNext();
@@ -896,7 +897,7 @@ public:
             rows.push_back(row);
             ++RowCount_;
             ExistingRowCount_ += static_cast<bool>(row);
-            DataWeight_ += NTableClient::GetDataWeight(row);
+            DataWeight_ += NTableClient::GetDataWeightAfterHunkDecoding(row, Store_->Schema_);
         }
 
         if (rows.empty()) {
@@ -1191,7 +1192,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
 
     OnDynamicMemoryUsageUpdated();
 
-    auto dataWeight = NTableClient::GetDataWeight(row);
+    auto dataWeight = NTableClient::GetDataWeightAfterHunkDecoding(row, Schema_);
     if (isDelete) {
         PerformanceCounters_->DynamicRowDelete.Counter.fetch_add(1, std::memory_order::relaxed);
     } else {
@@ -1271,7 +1272,7 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
 
     OnDynamicMemoryUsageUpdated();
 
-    auto dataWeight = NTableClient::GetDataWeight(row);
+    auto dataWeight = NTableClient::GetDataWeightAfterHunkDecoding(row, Schema_);
     PerformanceCounters_->DynamicRowWrite.Counter.fetch_add(1, std::memory_order::relaxed);
     PerformanceCounters_->DynamicRowWriteDataWeight.Counter.fetch_add(dataWeight, std::memory_order::relaxed);
     ++context->RowCount;

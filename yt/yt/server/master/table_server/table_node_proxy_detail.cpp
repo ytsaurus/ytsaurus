@@ -226,6 +226,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     // TODO(savrus) remove "unmerged_row_count" in 20.0
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UnmergedRowCount)
         .SetPresent(isDynamic && isSorted));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CumulativeDataWeight)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic && !isSorted));
     descriptors->push_back(EInternedAttributeKey::Sorted);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::KeyColumns)
         .SetReplicated(true));
@@ -525,6 +528,21 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             BuildYsonFluently(consumer)
                 .Value(statistics.RowCount);
             return true;
+
+        case EInternedAttributeKey::CumulativeDataWeight: {
+            if (!isDynamic || isSorted || isExternal) {
+                break;
+            }
+
+            const auto* table = GetThisImpl();
+            const auto* chunkList = table->GetChunkList();
+            const auto& chunkListStatistics = chunkList->Statistics();
+
+            BuildYsonFluently(consumer)
+                .Value(chunkListStatistics.LogicalDataWeight + chunkListStatistics.LogicalHunkDataWeight);
+
+            return true;
+        }
 
         case EInternedAttributeKey::Sorted:
             BuildYsonFluently(consumer)

@@ -98,18 +98,19 @@ public:
     TUnversifyingReader(
         IVersionedReaderPtr versionedReader,
         TRowBufferPtr rowBuffer,
-        TTableSchema* schema,
+        TTableSchemaPtr schema,
         const TColumnFilter& columnFilter,
         TNestedColumnsSchema nestedColumnsSchema = {})
         : VersionedReader_(std::move(versionedReader))
         , RowBuffer_(std::move(rowBuffer))
-        , ColumnIds_(GetColumnIdsFromFilter(columnFilter, schema->GetColumnCount()))
+        , Schema_(std::move(schema))
+        , ColumnIds_(GetColumnIdsFromFilter(columnFilter, Schema_->GetColumnCount()))
         , NestedColumnsSchema_(FilterNestedColumnsSchema(nestedColumnsSchema, ColumnIds_))
     {
         YT_UNUSED_FUTURE(VersionedReader_->Open());
 
-        ColumnIdToIndex_.assign(static_cast<size_t>(schema->GetColumnCount()), -1);
-        NestedIdToIndex_.assign(static_cast<size_t>(schema->GetColumnCount()), -1);
+        ColumnIdToIndex_.assign(static_cast<size_t>(Schema_->GetColumnCount()), -1);
+        NestedIdToIndex_.assign(static_cast<size_t>(Schema_->GetColumnCount()), -1);
 
         AggregateFunctions_.assign(ColumnIds_.size(), nullptr);
 
@@ -128,7 +129,7 @@ public:
             auto columnId = ColumnIds_[columnIndex];
             ColumnIdToIndex_[columnId] = columnIndex;
 
-            if (columnId < schema->GetKeyColumnCount()) {
+            if (columnId < Schema_->GetKeyColumnCount()) {
                 continue;
             }
 
@@ -143,13 +144,13 @@ public:
                 continue;
             }
 
-            const auto& maybeAggregate = schema->Columns()[columnId].Aggregate();
+            const auto& maybeAggregate = Schema_->Columns()[columnId].Aggregate();
 
             if (!maybeAggregate) {
                 THROW_ERROR_EXCEPTION("Reading without merge is supported for aggregating schemas only");
             }
 
-            auto wireType = GetWireType(schema->Columns()[columnId].LogicalType());
+            auto wireType = GetWireType(Schema_->Columns()[columnId].LogicalType());
 
             AggregateFunctions_[columnIndex] = GetSimpleAggregateFunction(*maybeAggregate, wireType);
         }
@@ -306,7 +307,7 @@ public:
         for (auto versionedRow : rowsRange) {
             Rows_.push_back(BuildMergedRow(versionedRow));
 
-            DataWeight_ += GetDataWeight(Rows_.back());
+            DataWeight_ += GetDataWeightAfterHunkDecoding(Rows_.back(), Schema_);
         }
 
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(Rows_), MakeStrong(this)));
@@ -346,6 +347,7 @@ public:
 private:
     const IVersionedReaderPtr VersionedReader_;
     const TRowBufferPtr RowBuffer_;
+    const TTableSchemaPtr Schema_;
     const std::vector<int> ColumnIds_;
     const TNestedColumnsSchema NestedColumnsSchema_;
 
@@ -695,7 +697,7 @@ ISchemafulUnversionedReaderPtr DoCreateScanReader(
             return New<TUnversifyingReader>(
                 std::move(underlyingReader),
                 New<TRowBuffer>(TTabletReaderPoolTag()),
-                tabletSnapshot->QuerySchema.get(),
+                tabletSnapshot->QuerySchema,
                 columnFilter,
                 GetNestedColumnsSchema(*tabletSnapshot->QuerySchema));
         };
@@ -980,7 +982,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             return New<TUnversifyingReader>(
                 std::move(underlyingReader),
                 New<TRowBuffer>(TTabletReaderPoolTag()),
-                tabletSnapshot->QuerySchema.get(),
+                tabletSnapshot->QuerySchema,
                 columnFilter,
                 GetNestedColumnsSchema(*tabletSnapshot->QuerySchema));
         };

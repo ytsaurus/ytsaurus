@@ -25,6 +25,7 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     RegularDiskSpace += other.RegularDiskSpace;
     ErasureDiskSpace += other.ErasureDiskSpace;
     HunkDataWeight += other.HunkDataWeight;
+    LogicalHunkDataWeight += other.LogicalHunkDataWeight;
     HunkDataSize += other.HunkDataSize;
     HunkRegularDiskSpace += other.HunkRegularDiskSpace;
     HunkErasureDiskSpace += other.HunkErasureDiskSpace;
@@ -53,6 +54,7 @@ void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
     RegularDiskSpace -= other.RegularDiskSpace;
     ErasureDiskSpace -= other.ErasureDiskSpace;
     HunkDataWeight -= other.HunkDataWeight;
+    LogicalHunkDataWeight -= other.LogicalHunkDataWeight;
     HunkDataSize -= other.HunkDataSize;
     HunkRegularDiskSpace -= other.HunkRegularDiskSpace;
     HunkErasureDiskSpace -= other.HunkErasureDiskSpace;
@@ -113,6 +115,13 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
         Persist(context, HunkRegularDiskSpace);
         Persist(context, HunkErasureDiskSpace);
     }
+    if (context.GetVersion() >= NCellMaster::EMasterReign::LogicalHunkDataWeight) {
+        Persist(context, LogicalHunkDataWeight);
+    } else if (context.IsLoad()) {
+        // COMPAT(akozhikhov): Best effort estimate: hunk data weight of the rows that were
+        // trimmed before the update is irrecoverable.
+        LogicalHunkDataWeight = HunkDataWeight;
+    }
     Persist(context, ChunkCount);
     Persist(context, ChunkListCount);
     Persist(context, Rank);
@@ -130,6 +139,7 @@ bool TChunkTreeStatistics::operator==(const TChunkTreeStatistics& other) const
         RegularDiskSpace == other.RegularDiskSpace &&
         ErasureDiskSpace == other.ErasureDiskSpace &&
         HunkDataWeight == other.HunkDataWeight &&
+        LogicalHunkDataWeight == other.LogicalHunkDataWeight &&
         HunkDataSize == other.HunkDataSize &&
         HunkRegularDiskSpace == other.HunkRegularDiskSpace &&
         ChunkCount == other.ChunkCount &&
@@ -158,6 +168,8 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
             .Item("regular_disk_space").Value(statistics.RegularDiskSpace)
             .Item("erasure_disk_space").Value(statistics.ErasureDiskSpace)
             .Item("hunk_data_weight").Value(statistics.HunkDataWeight)
+            .Item("logical_hunk_data_weight").Value(statistics.LogicalHunkDataWeight)
+            .Item("trimmed_hunk_data_weight").Value(statistics.LogicalHunkDataWeight - statistics.HunkDataWeight)
             .Item("hunk_data_size").Value(statistics.HunkDataSize)
             .Item("hunk_regular_disk_space").Value(statistics.HunkRegularDiskSpace)
             .Item("hunk_erasure_disk_space").Value(statistics.HunkErasureDiskSpace)

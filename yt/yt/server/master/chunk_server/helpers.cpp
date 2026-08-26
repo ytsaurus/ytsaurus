@@ -528,9 +528,10 @@ void DetachFromChunkList(
                 chunkList->SetTrimmedChildCount(newTrimmedChildCount);
             }
 
-            // NB: Do not change logical row count and data weight.
+            // NB: Do not change logical row count and (hunk) data weight.
             statisticsDelta->LogicalRowCount = 0;
             statisticsDelta->LogicalDataWeight = 0;
+            statisticsDelta->LogicalHunkDataWeight = 0;
             break;
         }
 
