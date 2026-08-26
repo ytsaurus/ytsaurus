@@ -408,8 +408,8 @@ void TRootDirectoryBuilderTool::operator()(const TDirectoryBuilderConfigPtr& arg
                 NFS::RemoveRecursive(directory->Path);
             }
 
-            NFs::MakeDirectory(
-                TString(directory->Path),
+            NFS::MakeDirRecursive(
+                directory->Path,
                 NFs::EFilePermission::FP_SECRET_FILE);
         }
 
