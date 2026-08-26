@@ -93,6 +93,9 @@ struct IAssignmentPlanUpdateContext
     virtual const TNodeMap& Nodes() const = 0;
     virtual const TGpuPlanUpdateStatisticsPtr& GetStatistics() const = 0;
 
+    //! Whether preemption of the assignment is allowed during the current plan update.
+    virtual bool IsAssignmentPreemptionAllowed(const TAssignmentPtr& assignment) const = 0;
+
     virtual TAssignmentPtr AddPlannedAssignment(
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
