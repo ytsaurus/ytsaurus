@@ -295,6 +295,7 @@ struct TCustomTableMountConfig
     double AutoCompactionPeriodSplayRatio;
     EPeriodicCompactionMode PeriodicCompactionMode;
     TCompactionHintsConfigPtr CompactionHints;
+    bool DisablePeriodicCompactionOnlyIfDigestsAllowed;
 
     bool EnableLookupHashTable;
 

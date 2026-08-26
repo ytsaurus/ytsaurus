@@ -359,6 +359,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("compaction_hints", &TThis::CompactionHints)
         .DefaultNew();
+    registrar.Parameter("disable_periodic_compaction_only_if_digests_allowed", &TThis::DisablePeriodicCompactionOnlyIfDigestsAllowed)
+        .Default(false);
 
     registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)
         .Default(false);
