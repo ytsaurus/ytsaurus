@@ -7,12 +7,16 @@
 #include <yt/yt/ytlib/auth/native_authenticator.h>
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 #include <yt/yt/ytlib/security_client/user_attribute_cache.h>
+
+#include <yt/yt/client/table_client/config.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -29,12 +33,14 @@ const auto& Logger = NativeConnectionLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NAuth;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NScheduler;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYPath;
 using namespace NYTree;
@@ -350,6 +356,23 @@ TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& 
             YT_VERIFY(attributes);
             return attributes->Banned;
         }));
+}
+
+TClientChunkReadOptions MakeChunkReadOptions(
+    TReadSessionId readSessionId,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    const TTableReaderConfigPtr& tableReaderConfig,
+    const TYPath& yPath)
+{
+    auto chunkReadOptions = TClientChunkReadOptions{
+        .WorkloadDescriptor = tableReaderConfig->WorkloadDescriptor,
+        .ReadSessionId = readSessionId,
+        .MemoryUsageTracker = std::move(memoryUsageTracker),
+    };
+    if (!yPath.empty()) {
+        chunkReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", yPath));
+    }
+    return chunkReadOptions;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
