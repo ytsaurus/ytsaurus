@@ -12,16 +12,24 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(proto)
+
 add_library(essentials-core-histogram)
 
 
 target_link_libraries(essentials-core-histogram PUBLIC
   contrib-libs-cxxsupp
   yutil
+  core-histogram-proto
+  yql-essentials-utils
 )
 
 target_sources(essentials-core-histogram PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/histogram/eq_width_histogram.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/histogram/eq_height_histogram.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/histogram/eq_height_histogram_reader.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/histogram/eq_width_histogram.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/histogram/eq_height_histogram.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/histogram/eq_height_histogram_reader.h
 )
 
