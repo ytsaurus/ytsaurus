@@ -1146,7 +1146,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
     bool destinationInsideNonRootVolume = destinationPath && IsInsideNonRootVolume(slotIndex, *destinationPath);
 
     bool brokenPipe = static_cast<bool>(error.FindMatching(ELinuxErrorCode::PIPE));
-    bool noSpace = static_cast<bool>(error.FindMatching({ELinuxErrorCode::NOSPC, ELinuxErrorCode::DQUOT}));
+    bool noSpace = NFS::IsOutOfDiskSpaceError(error);
     bool isReaderError = static_cast<bool>(error.FindMatching(NExecNode::EErrorCode::ArtifactFetchFailed));
 
     // NB: Broken pipe error usually means that job proxy exited abnormally during artifact preparation.
