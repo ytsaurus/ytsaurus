@@ -113,52 +113,47 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardCache
-    : public IReplicationCardCache
-    , public TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>
+class TReplicationCardFetcher
+    : public TRefCounted
 {
 public:
-    TReplicationCardCache(
+    TReplicationCardFetcher(
         TReplicationCardCacheConfigPtr config,
         IConnectionPtr connection,
-        const NLogging::TLogger& logger);
-    TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardCacheKey& key) override;
-    TFuture<TReplicationCardPtr> DoGet(const TReplicationCardCacheKey& key, bool isPeriodicUpdate) noexcept override;
-    void ForceRefresh(const TReplicationCardCacheKey& key, const TReplicationCardPtr& replicationCard) override;
-    void Clear() override;
+        NLogging::TLogger logger);
 
-    void Reconfigure(const TReplicationCardCacheConfigPtr& config) override;
+    TFuture<TReplicationCardPtr> Fetch(
+        const TReplicationCardCacheKey& key,
+        TAsyncExpiringCacheConfigPtr cacheConfig);
 
-protected:
-    class TGetSession;
-
-    const TReplicationCardCacheConfigPtr Config_;
-    const TWeakPtr<NNative::IConnection> Connection_;
-    const IChannelPtr ChaosCacheChannel_;
-    const IReplicationCardsWatcherClientPtr WatcherClient_;
-    const NLogging::TLogger Logger;
-
-    void OnRemoved(const TReplicationCardCacheKey& key) noexcept override;
+    const IChannelPtr& GetChaosCacheChannel() const;
 
 private:
-    std::atomic<bool> EnableWatching_ = false;
+    class TGetSession;
 
+    const TWeakPtr<NNative::IConnection> Connection_;
+    const IChannelPtr ChaosCacheChannel_;
+    const NLogging::TLogger Logger;
 };
+
+using TReplicationCardFetcherPtr = TIntrusivePtr<TReplicationCardFetcher>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardCache::TGetSession
+class TReplicationCardFetcher::TGetSession
     : public TRefCounted
 {
 public:
     TGetSession(
-        TReplicationCardCache* owner,
+        TReplicationCardFetcher* owner,
         const TReplicationCardCacheKey& key,
+        TAsyncExpiringCacheConfigPtr cacheConfig,
         const NLogging::TLogger& logger,
         TGuid sessionId,
         TDuration timeout)
         : Owner_(owner)
-        , Key_ (key)
+        , Key_(key)
+        , CacheConfig_(std::move(cacheConfig))
         , Timeout_(timeout)
         , Logger(logger
             .WithTag("ReplicationCardId", Key_.CardId)
@@ -168,7 +163,7 @@ public:
     TReplicationCardPtr Run()
     {
         auto channel = Owner_->ChaosCacheChannel_;
-        auto proxy = TChaosNodeServiceProxy(channel);
+        auto proxy = TChaosNodeServiceProxy(std::move(channel));
 
         auto req = proxy.GetReplicationCard();
         req->SetTimeout(Timeout_);
@@ -181,10 +176,10 @@ public:
         SetChaosCacheStickyGroupBalancingHint(Key_.CardId,
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
-        auto refreshTime = Owner_->Config_->RefreshTime.value_or(TDuration::Max());
+        auto refreshTime = CacheConfig_->RefreshTime.value_or(TDuration::Max());
         SetChaosCacheCachingHeader(
-            std::min(Owner_->Config_->ExpireAfterSuccessfulUpdateTime, refreshTime),
-            std::min(Owner_->Config_->ExpireAfterFailedUpdateTime, refreshTime),
+            std::min(CacheConfig_->ExpireAfterSuccessfulUpdateTime, refreshTime),
+            std::min(CacheConfig_->ExpireAfterFailedUpdateTime, refreshTime),
             Key_.RefreshEra,
             req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext));
 
@@ -228,8 +223,9 @@ public:
     }
 
 private:
-    const TIntrusivePtr<TReplicationCardCache> Owner_;
+    const TReplicationCardFetcherPtr Owner_;
     const TReplicationCardCacheKey Key_;
+    const TAsyncExpiringCacheConfigPtr CacheConfig_;
     const TDuration Timeout_;
 
     const NLogging::TLogger Logger;
@@ -237,57 +233,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(osidorkin) Use better cache that is aware of era.
-TReplicationCardCache::TReplicationCardCache(
+TReplicationCardFetcher::TReplicationCardFetcher(
     TReplicationCardCacheConfigPtr config,
     NNative::IConnectionPtr connection,
-    const NLogging::TLogger& logger)
-    : TAsyncExpiringCache(config, NRpc::TDispatcher::Get()->GetHeavyInvoker())
-    , Config_(std::move(config))
-    , Connection_(connection)
-    , ChaosCacheChannel_(CreateChaosCacheChannel(std::move(connection), Config_))
-    , WatcherClient_(CreateReplicationCardsWatcherClient(
-        std::make_unique<TReplicationCacheCallbacks>(
-            MakeWeak(this),
-            logger),
-        ChaosCacheChannel_,
-        Connection_))
-    , Logger(logger)
-    , EnableWatching_(Config_->EnableWatching)
+    NLogging::TLogger logger)
+    : Connection_(connection)
+    , ChaosCacheChannel_(CreateChaosCacheChannel(std::move(connection), std::move(config)))
+    , Logger(std::move(logger))
 { }
 
-TFuture<TReplicationCardPtr> TReplicationCardCache::GetReplicationCard(const TReplicationCardCacheKey& key)
-{
-    bool shouldWatch = EnableWatching_.load() && MinimalFetchOptions.Contains(key.FetchOptions);
-    TFuture<TReplicationCardPtr> future;
-
-    if (!shouldWatch || key.FetchOptions == MinimalFetchOptions) {
-        future = TAsyncExpiringCache::Get(key);
-    } else {
-        auto newKey = TReplicationCardCacheKey{
-            .CardId = key.CardId,
-            .FetchOptions = MinimalFetchOptions,
-            .RefreshEra = key.RefreshEra,
-        };
-
-        future = TAsyncExpiringCache::Get(newKey);
-    }
-
-    if (shouldWatch) {
-        YT_TLOG_DEBUG("Will watch replication card")
-            .With("ReplicationCardId", key.CardId);
-
-        future.Subscribe(BIND([this_ = MakeStrong(this), id = key.CardId] (const TErrorOr<TReplicationCardPtr>& card) {
-            if (card.IsOK()) {
-                this_->WatcherClient_->WatchReplicationCard(id);
-            }
-        }));
-    }
-
-    return future;
-}
-
-TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCardCacheKey& key, bool /*isPeriodicUpdate*/) noexcept
+TFuture<TReplicationCardPtr> TReplicationCardFetcher::Fetch(
+    const TReplicationCardCacheKey& key,
+    TAsyncExpiringCacheConfigPtr cacheConfig)
 {
     auto connection = Connection_.Lock();
     if (!connection) {
@@ -299,7 +256,7 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCard
     auto timeout = connection->GetConfig()->DefaultChaosNodeServiceTimeout;
     auto invoker = connection->GetInvoker();
     auto sessionId = TGuid::Create();
-    auto session = New<TGetSession>(this, key, Logger, sessionId, timeout);
+    auto session = New<TGetSession>(this, key, std::move(cacheConfig), Logger, sessionId, timeout);
 
     YT_TLOG_DEBUG("Requesting replication card")
         .With("ReplicationCardId", key.CardId)
@@ -310,29 +267,222 @@ TFuture<TReplicationCardPtr> TReplicationCardCache::DoGet(const TReplicationCard
         .Run();
 }
 
-void TReplicationCardCache::ForceRefresh(const TReplicationCardCacheKey& key, const TReplicationCardPtr& replicationCard)
+const IChannelPtr& TReplicationCardFetcher::GetChaosCacheChannel() const
 {
-    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::ForceRefresh(key, replicationCard);
+    return ChaosCacheChannel_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFetchingReplicationCardCache
+    : public TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>
+{
+public:
+    TFetchingReplicationCardCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TReplicationCardFetcherPtr fetcher)
+        : TAsyncExpiringCache(
+            std::move(config),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        , Fetcher_(std::move(fetcher))
+    { }
+
+protected:
+    TFuture<TReplicationCardPtr> DoGet(
+        const TReplicationCardCacheKey& key,
+        bool /*isPeriodicUpdate*/) noexcept override
+    {
+        return Fetcher_->Fetch(key, GetConfig());
+    }
+
+private:
+    const TReplicationCardFetcherPtr Fetcher_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+TReplicationCardCacheKey GetWatchedCacheKey(const TReplicationCardCacheKey& key)
+{
+    return TReplicationCardCacheKey{
+        .CardId = key.CardId,
+        .FetchOptions = MinimalFetchOptions,
+        .RefreshEra = key.RefreshEra,
+    };
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWatchedReplicationCardCache
+    : public TFetchingReplicationCardCache
+{
+public:
+    TWatchedReplicationCardCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TReplicationCardFetcherPtr fetcher,
+        NLogging::TLogger logger)
+        : TFetchingReplicationCardCache(std::move(config), std::move(fetcher))
+        , Logger(std::move(logger))
+    { }
+
+    TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardCacheKey& key)
+    {
+        auto future = Get(GetWatchedCacheKey(key));
+
+        YT_TLOG_DEBUG("Will watch replication card")
+            .With("ReplicationCardId", key.CardId);
+
+        future.Subscribe(BIND([watcherClient = WatcherClient_, id = key.CardId] (const TErrorOr<TReplicationCardPtr>& card) {
+            if (card.IsOK()) {
+                watcherClient->WatchReplicationCard(id);
+            }
+        }));
+
+        return future;
+    }
+
+    void ForceRefresh(
+        const TReplicationCardCacheKey& key,
+        const TReplicationCardPtr& replicationCard)
+    {
+        TFetchingReplicationCardCache::ForceRefresh(GetWatchedCacheKey(key), replicationCard);
+    }
+
+    void SetWatcherClient(IReplicationCardsWatcherClientPtr watcherClient)
+    {
+        YT_VERIFY(!WatcherClient_);
+        WatcherClient_ = std::move(watcherClient);
+    }
+
+protected:
+    void OnRemoved(const TReplicationCardCacheKey& key) noexcept override
+    {
+        TFetchingReplicationCardCache::OnRemoved(key);
+        if (WatcherClient_) {
+            WatcherClient_->StopWatchingReplicationCard(key.CardId);
+        }
+    }
+
+private:
+    IReplicationCardsWatcherClientPtr WatcherClient_;
+    const NLogging::TLogger Logger;
+};
+
+using TWatchedReplicationCardCachePtr = TIntrusivePtr<TWatchedReplicationCardCache>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationCardProgressCache
+    : public TFetchingReplicationCardCache
+{
+public:
+    using TFetchingReplicationCardCache::TFetchingReplicationCardCache;
+
+    TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardCacheKey& key)
+    {
+        return Get(key);
+    }
+};
+
+using TReplicationCardProgressCachePtr = TIntrusivePtr<TReplicationCardProgressCache>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationCardCache
+    : public IReplicationCardCache
+{
+public:
+    TReplicationCardCache(
+        TReplicationCardCacheConfigPtr config,
+        IConnectionPtr connection,
+        const NLogging::TLogger& logger);
+
+    TFuture<TReplicationCardPtr> GetReplicationCard(const TReplicationCardCacheKey& key) override;
+    void ForceRefresh(
+        const TReplicationCardCacheKey& key,
+        const TReplicationCardPtr& replicationCard) override;
+    void Clear() override;
+    void Reconfigure(const TReplicationCardCacheConfigPtr& config) override;
+
+private:
+    const TReplicationCardFetcherPtr Fetcher_;
+    const TWatchedReplicationCardCachePtr WatchedCache_;
+    const TReplicationCardProgressCachePtr ProgressCache_;
+
+    std::atomic<bool> EnableWatching_ = false;
+
+    bool ShouldWatch(const TReplicationCardCacheKey& key) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(osidorkin) Use better cache that is aware of era.
+TReplicationCardCache::TReplicationCardCache(
+    TReplicationCardCacheConfigPtr config,
+    NNative::IConnectionPtr connection,
+    const NLogging::TLogger& logger)
+    : Fetcher_(New<TReplicationCardFetcher>(config, connection, logger))
+    , WatchedCache_(New<TWatchedReplicationCardCache>(
+        config->WatchedCacheConfig,
+        Fetcher_,
+        logger))
+    , ProgressCache_(New<TReplicationCardProgressCache>(
+        config,
+        Fetcher_))
+    , EnableWatching_(config->EnableWatching)
+{
+    WatchedCache_->SetWatcherClient(CreateReplicationCardsWatcherClient(
+        std::make_unique<TReplicationCacheCallbacks>(
+            MakeWeak(WatchedCache_),
+            logger),
+        Fetcher_->GetChaosCacheChannel(),
+        connection));
+}
+
+bool TReplicationCardCache::ShouldWatch(const TReplicationCardCacheKey& key) const
+{
+    return EnableWatching_.load() && MinimalFetchOptions.Contains(key.FetchOptions);
+}
+
+TFuture<TReplicationCardPtr> TReplicationCardCache::GetReplicationCard(
+    const TReplicationCardCacheKey& key)
+{
+    if (!ShouldWatch(key)) {
+        return ProgressCache_->GetReplicationCard(key);
+    }
+
+    return WatchedCache_->GetReplicationCard(key);
+}
+
+void TReplicationCardCache::ForceRefresh(
+    const TReplicationCardCacheKey& key,
+    const TReplicationCardPtr& replicationCard)
+{
+    if (ShouldWatch(key)) {
+        WatchedCache_->ForceRefresh(key, replicationCard);
+    } else {
+        ProgressCache_->ForceRefresh(key, replicationCard);
+    }
 }
 
 void TReplicationCardCache::Clear()
 {
-    TAsyncExpiringCache::Clear();
-}
-
-void TReplicationCardCache::OnRemoved(const TReplicationCardCacheKey& key) noexcept
-{
-    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::OnRemoved(key);
-    if (key.FetchOptions == MinimalFetchOptions) {
-        WatcherClient_->StopWatchingReplicationCard(key.CardId);
-    }
+    WatchedCache_->Clear();
+    ProgressCache_->Clear();
 }
 
 void TReplicationCardCache::Reconfigure(const TReplicationCardCacheConfigPtr& config)
 {
-    EnableWatching_.store(config->EnableWatching);
+    bool wasWatchingEnabled = EnableWatching_.exchange(config->EnableWatching);
+    if (wasWatchingEnabled && !config->EnableWatching) {
+        WatchedCache_->Clear();
+    }
 
-    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::Reconfigure(config);
+    WatchedCache_->Reconfigure(config->WatchedCacheConfig);
+    ProgressCache_->Reconfigure(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

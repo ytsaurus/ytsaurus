@@ -82,6 +82,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/journal_chunk_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/memory_usage_tracker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/multi_reader_manager/multi_reader_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/native_replication_card_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/object_service_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/parallel_reader_memory_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/partitioner_ut.cpp
