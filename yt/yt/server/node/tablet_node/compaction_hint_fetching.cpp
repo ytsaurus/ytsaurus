@@ -7,12 +7,15 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NYTree;
 using namespace NLogging;
 using namespace NProfiling;
 using namespace NConcurrency;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,6 +34,8 @@ void TCompactionHintFetchPipeline::Enqueue()
 void TCompactionHintFetchPipeline::Fetch()
 {
     YT_VERIFY(std::holds_alternative<std::monostate>(Payload_));
+
+    TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("CompactionHintFetcher"));
 
     const auto& Logger = GetFetcher()->Context().Logger;
 
