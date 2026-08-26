@@ -9,6 +9,7 @@ In Flow, you can run user code in a separate process. This process is called a c
 
 ### Planned
 
+- Isolating user C++ code from the Flow core to improve error handling, enable compilation with different flags (for example, for CUDA), and so on.
 - Hot updating user code without stopping the [pipeline](../../../flow/concepts/glossary.md#pipeline).
 
 ## Workflow {#schema}
