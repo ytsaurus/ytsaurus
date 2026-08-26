@@ -17,10 +17,10 @@ Treat the source as finite: remember the number of messages in it on startup and
 #|
 || `update_info_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `15s`
- ||
+Period for refreshing the source's auxiliary partition information. A connector may use this tick for status requests and read-session liveness checks. ||
 || `byte_size_alpha` | **Type**: `double`
 **Default value**: `0.05`
- ||
+Exponential smoothing coefficient for the average byte total and message count per offset: larger values make the estimate react to new data faster. ||
 |#
 
 
