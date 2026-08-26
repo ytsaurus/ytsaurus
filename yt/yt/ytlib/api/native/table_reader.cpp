@@ -1,6 +1,7 @@
 #include "table_reader.h"
 
 #include "client.h"
+#include "helpers.h"
 
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 
@@ -198,11 +199,11 @@ private:
             .ChunkAvailabilityPolicy = tableReaderConfig->ChunkAvailabilityPolicy,
         };
 
-        TClientChunkReadOptions chunkReadOptions;
-        chunkReadOptions.MemoryUsageTracker = MemoryUsageTracker_;
-        chunkReadOptions.WorkloadDescriptor = tableReaderConfig->WorkloadDescriptor;
-        chunkReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
-        chunkReadOptions.ReadSessionId = readSessionId;
+        auto chunkReadOptions = MakeChunkReadOptions(
+            readSessionId,
+            MemoryUsageTracker_,
+            tableReaderConfig,
+            RichPath_.GetPath());
 
         auto tableReadSpec = FetchSingleTableReadSpec(fetchTableReadSpecOptions);
         YT_VERIFY(tableReadSpec.DataSourceDirectory->DataSources().size() == 1);

@@ -2,9 +2,15 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+
+#include <yt/yt/client/table_client/public.h>
+
+#include <yt/yt/client/ypath/public.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -120,6 +126,15 @@ auto CallAndRetryIfMetadataCacheIsInconsistent(
     const TDetailedProfilingInfoPtr& profilingInfo,
     const NLogging::TLogger& logger,
     TCallback&& callback) -> decltype(callback());
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Keeps |TClientChunkReadOptions| construction in sync across call sites.
+NChunkClient::TClientChunkReadOptions MakeChunkReadOptions(
+    NChunkClient::TReadSessionId readSessionId,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    const NTableClient::TTableReaderConfigPtr& tableReaderConfig,
+    const NYPath::TYPath& yPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
