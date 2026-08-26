@@ -73,7 +73,9 @@ func (a HTTPHealthMonitoring) HandleCoreMonitor(w http.ResponseWriter, r *http.R
 	}
 
 	if coresErr := a.healthChecker.CheckCores(); coresErr != nil {
-		a.Reply(w, http.StatusServiceUnavailable, coresErr)
+		a.Reply(w, http.StatusServiceUnavailable, map[string]any{
+			"error": yterrors.FromError(coresErr),
+		})
 		return
 	}
 
