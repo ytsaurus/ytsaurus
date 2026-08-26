@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <string>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -10,7 +12,9 @@ void RegisterTableDictionarySource(THost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(DB::DictionarySourcePtr source);
+std::optional<NYPath::TYPath> TryGetTableDictionarySourcePath(
+    const DBPoco::Util::AbstractConfiguration& config,
+    const std::string& configPrefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
