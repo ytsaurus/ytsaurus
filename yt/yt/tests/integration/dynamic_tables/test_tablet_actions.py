@@ -440,6 +440,7 @@ class TestTabletActions(TabletActionsBase):
             },
         )
         wait(lambda: get(f"#{action}/@state") == "completed")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
 
         assert lookup_rows("//tmp/t", [{"key": i} for i in range(30)]) == rows
 
