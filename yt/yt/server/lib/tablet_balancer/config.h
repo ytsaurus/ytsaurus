@@ -65,6 +65,7 @@ struct TParameterizedBalancingConfig
     std::optional<double> NodeDeviationThreshold;
     std::optional<double> CellDeviationThreshold;
     std::optional<double> MinRelativeMetricImprovement;
+    std::optional<int> MinTabletsPerMoveRecomputationWorker;
     std::vector<TClusterName> ReplicaClusters;
     TComponentFactorConfigPtr Factors;
 

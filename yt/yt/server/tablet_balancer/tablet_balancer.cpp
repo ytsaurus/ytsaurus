@@ -252,9 +252,9 @@ private:
     const TStandaloneTabletBalancerConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
     const TPeriodicExecutorPtr PollExecutor_;
-    IThreadPoolPtr FetcherPool_;
-    IThreadPoolPtr WorkerPool_;
-    IThreadPoolPtr PivotPickerPool_;
+    const IThreadPoolPtr FetcherPool_;
+    const IThreadPoolPtr WorkerPool_;
+    const IThreadPoolPtr PivotPickerPool_;
 
     std::atomic<bool> IsActive_ = false;
 
@@ -1602,7 +1602,8 @@ void TTabletBalancer::BalanceViaMoveParameterized(
         bundleSnapshot,
         GetParameterizedMetricTracker({bundleSnapshot->Bundle->Name, groupName}),
         groupConfig,
-        DynamicConfig_.Acquire()));
+        DynamicConfig_.Acquire(),
+        WorkerPool_));
 }
 
 void TTabletBalancer::BalanceReplicasViaReshard(
@@ -1629,6 +1630,7 @@ void TTabletBalancer::BalanceReplicasViaMoveParameterized(
         GetParameterizedMetricTracker({bundleSnapshot->Bundle->Name, groupName}),
         groupConfig,
         DynamicConfig_.Acquire(),
+        WorkerPool_,
         Bootstrap_->GetClusterName()));
 }
 

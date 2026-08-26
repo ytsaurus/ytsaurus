@@ -91,6 +91,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,
+    const NConcurrency::IThreadPoolPtr& workerPool,
     const NLogging::TLogger& logger = {});
 
 std::vector<TMoveDescriptor> ReassignTabletsReplica(
@@ -99,6 +100,7 @@ std::vector<TMoveDescriptor> ReassignTabletsReplica(
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,
+    const NConcurrency::IThreadPoolPtr& workerPool,
     const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -79,7 +79,8 @@ struct TParameterizedReassignSolverConfig
     double NodeDeviationThreshold = 0;
     double CellDeviationThreshold = 0;
     double MinRelativeMetricImprovement = 0;
-    TString Metric;
+    int MinTabletsPerMoveRecomputationWorker = 128;
+    std::string Metric;
     TComponentFactorConfigPtr Factors = TComponentFactorConfig::MakeDefaultIdentity();
 
     TParameterizedReassignSolverConfig MergeWith(
@@ -106,6 +107,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TParameterizedReassignSolverConfig config,
     TString groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
+    NConcurrency::IThreadPoolPtr workerPool,
     const NLogging::TLogger& logger);
 
 // Major tables are the tables on this cluster. Minor tables are their sibling replicas.
@@ -117,6 +119,7 @@ IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
+    NConcurrency::IThreadPoolPtr workerPool,
     const NLogging::TLogger& logger);
 
 IParameterizedResharderPtr CreateParameterizedResharder(

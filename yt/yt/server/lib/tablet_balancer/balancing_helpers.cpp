@@ -24,6 +24,7 @@
 namespace NYT::NTabletBalancer {
 
 using namespace NLogging;
+using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NQueryClient;
 using namespace NTabletClient;
@@ -909,6 +910,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,
+    const IThreadPoolPtr& workerPool,
     const TLogger& logger)
 {
     auto solver = CreateParameterizedReassignSolver(
@@ -917,6 +919,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
         config,
         groupName,
         metricTracker,
+        workerPool,
         logger);
 
     return solver->BuildActionDescriptors();
@@ -928,6 +931,7 @@ std::vector<TMoveDescriptor> ReassignTabletsReplica(
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,
+    const IThreadPoolPtr& workerPool,
     const TLogger& logger)
 {
     auto solver = CreateReplicaReassignSolver(
@@ -936,6 +940,7 @@ std::vector<TMoveDescriptor> ReassignTabletsReplica(
         config,
         groupName,
         metricTracker,
+        workerPool,
         logger);
 
     return solver->BuildActionDescriptors();
