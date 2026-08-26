@@ -3347,6 +3347,52 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         op.abort()
         wait_operation_unregistered(op.id)
 
+    @authors("severovv")
+    def test_enabled_operation_missing_from_snapshot_after_revive(self):
+        node = ls("//sys/cluster_nodes")[0]
+
+        reviving_operation = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            spec={
+                "scheduling_tag_filter": node,
+                "testing": {
+                    "delay_inside_register_allocations_from_revived_operation": 5000,
+                },
+            },
+        )
+
+        wait(lambda: len(reviving_operation.get_running_jobs()) == 1)
+        reviving_operation.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            wait(lambda: not get_operation_from_gpu_policy_orchid(reviving_operation)["enabled"])
+
+        # we have 5 seconds to give contender fs and then freeze it
+
+        contender = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            spec={"scheduling_tag_filter": node},
+        )
+
+        contender_fair_share_path = (
+            scheduler_orchid_operation_path(contender.id, "gpu")
+            + "/detailed_dominant_fair_share/total"
+        )
+        wait(lambda: not are_almost_equal(get(contender_fair_share_path, default=0), 0))
+
+        update_scheduler_config("fair_share_update_period", 60000)
+
+        # wait for the last snapshot update
+        time.sleep(0.2)
+
+        # wait for revive, it enables op, but snapshot is stale
+        assert not get_operation_from_gpu_policy_orchid(reviving_operation)["enabled"]
+        wait(lambda: get_operation_from_gpu_policy_orchid(reviving_operation)["enabled"])
+
+        # nothing has to be preempted
+        assert len(get_operation_gpu_assignments_from_gpu_policy_orchid(reviving_operation)) == 1
+        assert len(get_operation_gpu_assignments_from_gpu_policy_orchid(contender)) == 0
+
 ##################################################################
 
 
