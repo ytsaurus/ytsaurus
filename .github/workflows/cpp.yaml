@@ -14,6 +14,7 @@ on:
       - stable/[0-9]+\.[0-9]+
       - query-tracker/[0-9]+\.[0-9]+
       - chyt/[0-9]+\.[0-9]+
+      - members/ilyaibraev/yt-28839-cpp-profile-release-workflow
 
 
 env:
@@ -104,9 +105,15 @@ jobs:
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            if ! jq -e \
-              'type == "array" and length == 2 and sort == ["release", "relwithdebinfo"]' \
-              <<< "$REQUESTED_BUILD_TYPES" > /dev/null;
+            if ! python3 -c '
+              import json
+              import os
+              import sys
+
+              build_types = json.loads(os.environ["REQUESTED_BUILD_TYPES"])
+              valid = isinstance(build_types, list) and sorted(build_types) == ["release", "relwithdebinfo"]
+              sys.exit(0 if valid else 1)
+            ';
             then
               echo 'build_types must contain exactly "release" and "relwithdebinfo"' >&2
               exit 1
@@ -151,10 +158,10 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
-      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
+      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
       build-types: '["relwithdebinfo"]'
@@ -167,7 +174,8 @@ jobs:
     name: Make task for YTsaurus CI
     if: ${{ startsWith(github.ref_name, 'stable/')
           || startsWith(github.ref_name, 'query-tracker/')
-          || startsWith(github.ref_name, 'chyt/') }}
+          || startsWith(github.ref_name, 'chyt/')
+          || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
     needs:
       - tag
       - docker-ya-make-relwithdebinfo
@@ -275,10 +283,10 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') }}
-      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') }}
-      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') }}
+      publish-query-tracker: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'query-tracker/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-ytsaurus: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-local: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'stable/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
+      publish-chyt: ${{ github.ref_name == 'main' || startsWith(github.ref_name, 'chyt/') || github.ref_name == 'members/ilyaibraev/yt-28839-cpp-profile-release-workflow' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
       build-types: '["release"]'
