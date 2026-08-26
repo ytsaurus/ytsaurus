@@ -1318,21 +1318,6 @@ class TestMultipleAgents(TestQueueAgentBase):
 
     NUM_QUEUE_AGENTS_PRIMARY = 5
 
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "election_manager": {
-            "transaction_timeout": 5000,
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-            "leader_cache_update_period": 100,
-        },
-        "multi_consumer_names_garbage_collector_election_manager": {
-            "transaction_timeout": 5000,
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-            "leader_cache_update_period": 100,
-        },
-    }
-
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "pass_period": 75,
@@ -1735,19 +1720,6 @@ class TestOrchid(TestMultipleAgents):
 
 
 class TestMasterIntegration(TestQueueAgentBase):
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "election_manager": {
-            "transaction_timeout": 5000,
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-        },
-        "multi_consumer_names_garbage_collector_election_manager": {
-            "transaction_timeout": 5000,
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-        },
-    }
-
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "polling",
@@ -3262,14 +3234,7 @@ class TestDynamicConfig(TestQueueAgentBase):
 
 class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
     NUM_SECONDARY_MASTER_CELLS = 2
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "multi_consumer_names_garbage_collector_election_manager": {
-            "transaction_timeout": 5000,
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-            "leader_cache_update_period": 100,
-        },
-    }
+
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
@@ -3501,21 +3466,6 @@ class TestQueueStaticExportUser(TestQueueStaticExportBase):
 
     NUM_SECONDARY_MASTER_CELLS = 0
     MASTER_CELL_DESCRIPTORS = {}
-
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "election_manager": {
-            "transaction_timeout": 5000,
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-            "leader_cache_update_period": 100,
-        },
-        "multi_consumer_names_garbage_collector_election_manager": {
-            "transaction_timeout": 5000,
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-            "leader_cache_update_period": 100,
-        },
-    }
 
     QUEUE_AGENT_CUSTOM_USER = "queue_agent_custom"
     EXPORT_USER = "queue_export_custom"

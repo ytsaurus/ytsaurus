@@ -1103,6 +1103,21 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
     USE_OLD_QUEUE_EXPORTER_IMPL = False
 
+    BASE_QUEUE_AGENT_CONFIG = {
+        "election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
+        "multi_consumer_names_garbage_collector_election_manager": {
+            "transaction_timeout": 5000,
+            "transaction_ping_period": 100,
+            "lock_acquisition_period": 100,
+            "leader_cache_update_period": 100,
+        },
+    }
+
     BASE_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent_sharding_manager": {
             "pass_period": 100,
@@ -1179,6 +1194,8 @@ class TestQueueAgentBase(QueueConsumerRegistrationManagerBase, YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
+        cls.DELTA_QUEUE_AGENT_CONFIG = update(cls.BASE_QUEUE_AGENT_CONFIG, cls.DELTA_QUEUE_AGENT_CONFIG)
+
         super(TestQueueAgentBase, cls).setup_class()
 
         queue_agent_config = cls.Env._cluster_configuration["queue_agent"][0]
