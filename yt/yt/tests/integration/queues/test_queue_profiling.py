@@ -530,17 +530,6 @@ class TestBasicPassesMultiHosts(TestQueueAgentBase):
         },
     }
 
-    DELTA_QUEUE_AGENT_CONFIG = {
-        "election_manager": {
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-        },
-        "multi_consumer_names_garbage_collector_election_manager": {
-            "transaction_ping_period": 100,
-            "lock_acquisition_period": 100,
-        },
-    }
-
     NUM_QUEUE_AGENTS_PRIMARY = 3
 
     @authors("panesher")
