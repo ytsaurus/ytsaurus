@@ -71,6 +71,7 @@ private:
 
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         std::vector<TAlienCellDescriptor> responseDescriptors;
+        responseDescriptors.reserve(requestDescriptors.size());
 
         for (auto [cellId, configVersion] : requestDescriptors) {
             auto cell = chaosManager->FindChaosCellById(cellId);
@@ -85,7 +86,9 @@ private:
             descriptor.CellId = cellId;
             descriptor.ConfigVersion = cell->GetConfigVersion();
 
-            for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+            int peerCount = std::ssize(cell->Peers());
+            descriptor.AlienPeers.reserve(peerCount);
+            for (int peerId = 0; peerId < peerCount; ++peerId) {
                 if (!cell->IsAlienPeer(peerId)) {
                     descriptor.AlienPeers.push_back({
                         .PeerId = peerId,
