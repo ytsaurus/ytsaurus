@@ -1756,6 +1756,54 @@ TEST_F(TDistributedChunkSessionTest, PrefetchAdvancesWithoutRead)
     EXPECT_GT(stats->ReadBlocksCount.load(), readCountAfterFirstRead);
 }
 
+TEST_F(TDistributedChunkSessionTest, RecoveryCancellationDoesNotTerminate)
+{
+    // The single window covers the phantom record past the end of the chunk, so its read
+    // returns empty and the window enters recovery. The minute-long backoff parks the
+    // recovery fiber in TDelayedExecutor::WaitForDuration; the non-graceful shutdown then
+    // cancels it there, which used to hit RecoverWindow's noexcept and terminate.
+    constexpr int WrittenCount = 1;
+    constexpr int PhantomCount = 2;
+    auto chunkInfo = WriteRecordsAndSealChunk(WrittenCount);
+
+    auto config = MakePrefetchReaderConfig(
+        /*windowCount*/ 1,
+        /*sequentialReadSize*/ 100,
+        /*depth*/ 1);
+    config->MaxReadAttempts = 2;
+    config->ErrorBackoff = TExponentialBackoffOptions{
+        .InvocationCount = std::numeric_limits<int>::max(),
+        .MinBackoff = TDuration::Minutes(1),
+        .MaxBackoff = TDuration::Minutes(1),
+        .BackoffMultiplier = 1.0,
+        .BackoffJitter = 0.0,
+    };
+
+    auto readerActionQueue = CreateSuspendableActionQueue("ReaderRecoveryTest");
+    auto reader = CreateDistributedChunkSessionReader(
+        config,
+        NativeClient_,
+        New<TChunkReaderHost>(NativeClient_),
+        chunkInfo.ChunkId,
+        chunkInfo.Replicas,
+        chunkInfo.ReadQuorum,
+        /*startRecordIndex*/ WrittenCount,
+        /*rangeEndRecordIndex*/ std::nullopt,
+        readerActionQueue->GetInvoker());
+    reader->SetAllWritersFinished(PhantomCount, chunkInfo.CompressedDataSize);
+
+    Y_UNUSED(reader->Read());
+    auto statistics = reader->GetStatistics();
+    WaitUntil(
+        [&] {
+            return statistics->PrefetchRetryCount.load() > 0 &&
+                statistics->MasterRefreshCount.load() > 0;
+        },
+        "Reader recovery did not enter backoff");
+
+    readerActionQueue->Shutdown(/*graceful*/ false);
+}
+
 TEST_F(TDistributedChunkSessionTest, Phase2PerWindowBudgetTerminatesUnreadableWindow)
 {
     // Tell the reader the sealed chunk holds more records than were actually written. The
