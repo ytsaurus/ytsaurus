@@ -24,14 +24,17 @@ target_link_libraries(essentials-utils-meta PUBLIC
 target_sources(essentials-utils-meta PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/ensure.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/function.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/hash.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/maybe.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/out.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/preprocessor.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/reflection.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/small_string.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/struct.cpp
-  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/maybe.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/ensure.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/function.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/hash.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/maybe.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/out.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/preprocessor.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/meta/reflection.h
