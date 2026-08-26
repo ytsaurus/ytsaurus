@@ -834,7 +834,7 @@ private:
     // the prefetch step. The retry budget is per window, independent of the Phase-1 budget
     // (which DoRead resets on every call) and of sibling windows, so a window that keeps
     // failing still terminates the prefetch.
-    void RecoverWindow(int windowIndex, TError readError) noexcept
+    void RecoverWindow(int windowIndex, TError readError)
     {
         auto& window = Windows_[windowIndex];
 
