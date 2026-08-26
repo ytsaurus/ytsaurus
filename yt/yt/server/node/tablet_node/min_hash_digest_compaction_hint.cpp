@@ -127,7 +127,10 @@ private:
         YT_LOG_DEBUG("Put min hash digest in deserialized cache (StoreId: %v, ChunkId: %v)",
             Store_->GetId(),
             Store_->GetChunkId());
-        Store_->GetTablet()->GetMinHashDigestCache()->Insert(Store_->GetChunkId(), minHashDigest);
+        Store_->GetTablet()->GetMinHashDigestCache()->Insert(
+            Store_->GetChunkId(),
+            minHashDigest,
+            minHashDigest->GetWeight());
 
         FinishFetch(std::move(minHashDigest));
     }
