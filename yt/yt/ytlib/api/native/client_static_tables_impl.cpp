@@ -2,6 +2,7 @@
 #include "config.h"
 #include "connection.h"
 #include "encoded_row_stream.h"
+#include "helpers.h"
 #include "table_reader.h"
 #include "partition_tables.h"
 #include "skynet.h"
@@ -270,7 +271,13 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
             auto columnFilter = TColumnFilter{};
             auto tableReaderOptions = ToInternalTableReaderOptions(options);
             auto tableReaderConfig = options.Config ? options.Config : New<TTableReaderConfig>();
-            TClientChunkReadOptions chunkReadOptions;
+
+            auto readSessionId = TReadSessionId::Create();
+            auto chunkReadOptions = MakeChunkReadOptions(
+                readSessionId,
+                HeavyRequestMemoryUsageTracker_,
+                tableReaderConfig,
+                /*yPath*/ {});
 
             bool isParallel = false;
             if (cookieProto.has_partition_mode()) {

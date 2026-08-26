@@ -2,9 +2,13 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/client/ypath/public.h>
 
@@ -137,6 +141,15 @@ TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const std::string& u
 
 //! Uses user attribute cache to check if the user is banned.
 TFuture<bool> IsUserBanned(const IConnectionPtr& connection, const std::string& user);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Keeps |TClientChunkReadOptions| construction in sync across call sites.
+NChunkClient::TClientChunkReadOptions MakeChunkReadOptions(
+    NChunkClient::TReadSessionId readSessionId,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    const NTableClient::TTableReaderConfigPtr& tableReaderConfig,
+    const NYPath::TYPath& yPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
