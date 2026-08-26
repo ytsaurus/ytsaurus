@@ -2,7 +2,7 @@ import yt_queries
 
 from yt_env_setup import YTEnvSetup, get_sanitizer_type
 
-from yt_commands import (create, get, set, write_file)
+from yt_commands import (create, get, set, wait, write_file)
 
 from yt.environment.helpers import wait_for_dynamic_config_update
 
@@ -55,6 +55,25 @@ def merge_old_dynconfig_into_new_static(config, override):
             merge_old_dynconfig_into_new_static(getattr(config, field.name), value)
         else:
             setattr(config, field.name, value)
+
+
+def wait_for_proto_dynamic_config_update(client, expected_modification_times):
+    instances = client.list("//sys/yql_agent/instances")
+
+    if not instances:
+        return
+
+    def check():
+        for instance in instances:
+            modification_times = client.get(
+                "//sys/yql_agent/instances/{0}/orchid/yql_agent/proto_configs_modification_time".format(instance))
+            for flavor, expected_modification_time in expected_modification_times.items():
+                if modification_times.get(flavor) != expected_modification_time:
+                    return False
+
+        return True
+
+    wait(check, error_message="Proto dynamic config didn't become as expected in time", ignore_exceptions=True)
 
 
 class TestQueriesYqlBase(YTEnvSetup):
@@ -197,11 +216,16 @@ class TestUpdateYqlAgentDynamicConfigMixin:
 
 class TestUpdateYqlAgentQtWorkerDynamicConfigMixin(TestUpdateYqlAgentDynamicConfigMixin):
     def _update_dyn_config(self, yql_agent, dyn_config):
+        modification_time = None
         if "gateways" in dyn_config:
             config = yql_agent.render_gateways_conf(yql_agent.yql_agent.env)
             merge_old_dynconfig_into_new_static(config, dyn_config["gateways"])
             filename = "//sys/yql_agent/proto_gateways/default.conf"
             create("file", filename, recursive=True, force=True)
             write_file(filename, MessageToString(config).encode('utf-8'))
+            modification_time = get(filename + "/@modification_time")
 
         super()._update_dyn_config(yql_agent, dyn_config)
+
+        if modification_time:
+            wait_for_proto_dynamic_config_update(yql_agent.yql_agent.client, {"default": modification_time})

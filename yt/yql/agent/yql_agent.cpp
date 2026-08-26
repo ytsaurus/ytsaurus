@@ -276,10 +276,11 @@ public:
         , ControlInvoker_(std::move(controlInvoker))
         , AgentId_(std::move(agentId))
         , Client_(bootstrap->GetClient())
+        , DynamicConfig_(std::move(dynamicConfig))
         , ProtoConfigsUpdater_(New<TPeriodicExecutor>(
             ControlInvoker_,
-            BIND(&TYqlAgent::UpdateProtoDynamicConfigs, MakeWeak(this))))
-        , DynamicConfig_(std::move(dynamicConfig))
+            BIND(&TYqlAgent::UpdateProtoDynamicConfigs, MakeWeak(this)),
+            DynamicConfig_->ProtoConfigsUpdatePeriod))
         , UdfMetaManager_(New<TUdfMetaManager>(Config_->UdfMetaPath, Client_, ControlInvoker_))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
@@ -416,7 +417,8 @@ public:
     NYTree::IYPathServicePtr CreateOrchidService() const override
     {
         auto producer = BIND_NO_PROPAGATE(&TYqlAgent::BuildOrchid, MakeStrong(this));
-        return IYPathService::FromProducer(producer);
+        return IYPathService::FromProducer(producer)
+            ->Via(ControlInvoker_);
     }
 
     void UpdateProtoDynamicConfigs()
@@ -487,7 +489,7 @@ public:
                         .With("Path", path);
                     continue;
                 }
-                auto modificationTime = modificationTimeOrError.ValueOrThrow().ToString();
+                auto modificationTime = ConvertTo<TString>(modificationTimeOrError.ValueOrThrow());
                 if (ProtoConfigsModificationTime_.contains(flavor) && ProtoConfigsModificationTime_[flavor] == modificationTime) {
                     continue;
                 }
@@ -623,6 +625,8 @@ private:
     const TString AgentId_;
     const NApi::NNative::IClientPtr Client_;
 
+    TYqlAgentDynamicConfigPtr DynamicConfig_;
+
     const TPeriodicExecutorPtr ProtoConfigsUpdater_;
 
     THashMap<TString, TString> ProtoConfigsModificationTime_;
@@ -632,7 +636,6 @@ private:
     std::string MaxSupportedYqlVersionStr_;
     std::string DefaultYqlUILangVersionStr_;
 
-    TYqlAgentDynamicConfigPtr DynamicConfig_;
     const TUdfMetaManagerPtr UdfMetaManager_;
 
     std::unique_ptr<IYqlPlugin> YqlPlugin_;
@@ -1020,6 +1023,7 @@ private:
             .BeginMap()
                 .Item("yql_plugin").Value(YqlPlugin_->GetOrchidNode())
                 .Item("udf_meta").Value(UdfMetaManager_->GetConfigNode())
+                .Item("proto_configs_modification_time").Value(ProtoConfigsModificationTime_)
             .EndMap();
     }
 
