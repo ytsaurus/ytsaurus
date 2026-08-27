@@ -25,6 +25,10 @@ func doInitCluster() error {
 	loadConfig(flagConfigPath, &config)
 	config.StrawberryRoot = getStrawberryRoot(config.StrawberryRoot)
 
+	if !slices.Contains(config.Families, "chyt") {
+		config.Families = append(config.Families, "chyt")
+	}
+
 	familyToInitializerFactory := map[string]strawberry.ClusterInitializerFactory{
 		"chyt": chyt.NewClusterInitializer,
 	}
