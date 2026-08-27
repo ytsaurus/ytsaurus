@@ -5306,22 +5306,20 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleJob(
         return EScheduleFailReason::NoPendingJobs;
     }
 
-    YT_LOG_DEBUG(
-        "Attempting to schedule job (AllocationId: %v, Kind: %v, Task: %v, Context: %v, Locality: %v, "
-        "PendingDataWeight: %v, PendingJobCount: %v, %v)",
-        allocation.Id,
-        scheduleLocalJob ? "Local" : "NonLocal",
-        task.GetTitle(),
-        context.ToString(GetMediumDirectory()),
-        locality,
-        task.GetPendingDataWeight(),
-        task.GetPendingJobCount(),
-        MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
-            if (previousJobId) {
-                YT_VERIFY(allocation.LastJobInfo);
-                builder->AppendFormat("CompetitionType: %v", allocation.LastJobInfo->CompetitionType);
-            }
-        }));
+    YT_VERIFY(!previousJobId || allocation.LastJobInfo);
+
+    YT_TLOG_DEBUG("Attempting to schedule job")
+        .With("AllocationId", allocation.Id)
+        .With("Kind", scheduleLocalJob ? "Local" : "NonLocal")
+        .With("Task", task.GetTitle())
+        .With("Context", context.ToString(GetMediumDirectory()))
+        .With("Locality", locality)
+        .With("PendingDataWeight", task.GetPendingDataWeight())
+        .With("PendingJobCount", task.GetPendingJobCount())
+        .WithIf(
+            static_cast<bool>(previousJobId),
+            "CompetitionType",
+            allocation.LastJobInfo ? allocation.LastJobInfo->CompetitionType : std::nullopt);
 
     if (!HasEnoughChunkLists(task.IsStderrTableEnabled(), task.IsCoreTableEnabled())) {
         YT_TLOG_DEBUG("Job chunk list demand is not met");
