@@ -4723,7 +4723,8 @@ private:
 
     void ValidateMirroredTransactionFinish(TTransactionId transactionId, bool commit)
     {
-        if (IsCypressTransactionMirroredToSequoia(transactionId) &&
+        if (CellTagFromId(transactionId) == Bootstrap_->GetCellTag() &&
+            IsCypressTransactionMirroredToSequoia(transactionId) &&
             IsMirroringToSequoiaEnabled() &&
             !GetSequoiaContext())
         {
