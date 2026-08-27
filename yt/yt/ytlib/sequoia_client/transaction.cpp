@@ -967,12 +967,14 @@ private:
         futures.reserve(MasterCellCommitSessions_.size());
 
         const auto& connection = AuthenticatedLocalClient_->GetNativeConnection();
-        const auto& cellDirectory = connection->GetMasterCellDirectory();
 
         for (const auto& [cellTag, session] : MasterCellCommitSessions_) {
-            auto channel = SequoiaTransactionOptions_.RetrySequoiaRetriableErrors
-                ? connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag)
-                : cellDirectory->GetNonRetryingMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+            // XXX(kvk1920): disable retries after all retriable erros will be
+            // wrapped to SequoiaRetriableError.
+            // auto channel = SequoiaTransactionOptions_.RetrySequoiaRetriableErrors
+            //     ? connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag)
+            //     : cellDirectory->GetNonRetryingMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+            auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
             TSequoiaTransactionServiceProxy proxy(std::move(channel));
             auto req = proxy.StartTransaction();
             ToProto(req->mutable_id(), Transaction_->GetId());
