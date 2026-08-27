@@ -26,9 +26,9 @@ A flag that allows ignoring symlinks inside the table folder. ||
 || `skip_non_table_nodes` | **Type**: `bool`
 **Default value**: `false`
  ||
-|| `watermark_delay` | **Type**: [TDuration](./all_yson_structs#TDuration)
-**Default value**: `1h`
-The delay for moving the watermark along the source stream. ||
+|| `idle_watermark_delay` | **Type**: `std::optional<`[TDuration](./all_yson_structs#TDuration)`>`
+**Default value**: `3600000`
+The delay for advancing the watermark from the current time while the source is not reading a table. A table immediately advances the watermark to its event timestamp without subtracting this delay. Set this field to `#` to disable clock-based advancement; new tables still advance the watermark. ||
 |#
 
 

@@ -328,6 +328,60 @@ TEST(TStaticTableSourceTest, DoDistributingSimple)
     EXPECT_EQ(distributingTable->DistributedRows, 12000);
 }
 
+TEST(TStaticTableSourceTest, ActiveTableAdvancesEventWatermarkWithoutDelay)
+{
+    EXPECT_EQ(
+        TSourceController::CalculateEventWatermark(
+            TSystemTimestamp(100),
+            TSystemTimestamp(1000),
+            /*isIdle*/ false,
+            TDuration::Seconds(10)),
+        TSystemTimestamp(100));
+}
+
+TEST(TStaticTableSourceTest, IdleEventWatermarkUsesClockDelay)
+{
+    EXPECT_EQ(
+        TSourceController::CalculateEventWatermark(
+            TSystemTimestamp(100),
+            TSystemTimestamp(1000),
+            /*isIdle*/ true,
+            TDuration::Seconds(10)),
+        TSystemTimestamp(990));
+    EXPECT_EQ(
+        TSourceController::CalculateEventWatermark(
+            TSystemTimestamp(995),
+            TSystemTimestamp(1000),
+            /*isIdle*/ true,
+            TDuration::Seconds(10)),
+        TSystemTimestamp(995));
+}
+
+TEST(TStaticTableSourceTest, IdleEventWatermarkClampsUnderflowToTableTimestamp)
+{
+    auto distributingTable = New<TSourceControllerTable>();
+    distributingTable->EventTimestamp = TSystemTimestamp(3);
+
+    EXPECT_EQ(
+        TSourceController::CalculateEventWatermark(
+            distributingTable->EventTimestamp,
+            TSystemTimestamp(5),
+            /*isIdle*/ true,
+            TDuration::Seconds(10)),
+        distributingTable->EventTimestamp);
+}
+
+TEST(TStaticTableSourceTest, DisabledIdleDelayKeepsTableEventWatermark)
+{
+    EXPECT_EQ(
+        TSourceController::CalculateEventWatermark(
+            TSystemTimestamp(100),
+            TSystemTimestamp(1000),
+            /*isIdle*/ true,
+            std::nullopt),
+        TSystemTimestamp(100));
+}
+
 TEST(TStaticTableSourceTest, DoDistributingMaxPartitionCount)
 {
     auto distributingTable = New<TSourceControllerTable>();

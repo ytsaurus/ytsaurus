@@ -56,10 +56,9 @@ struct TTableSourceParameters
     // Skip non-table nodes (e.g. map nodes) instead of throwing an error.
     bool SkipNonTableNodes = false;
 
-    // Event time watermark is delayed until LatestNotProcessedTable.CreateTimestamp - WatermarkDelay
-    // if there are some not processed tables.
-    // Or until now - IdleWatermarkDelay if there is no not processed tables.
-    TDuration WatermarkDelay;
+    // Delay for clock-based event watermark advancement while there are no unprocessed tables.
+    // Unset disables clock-based advancement.
+    std::optional<TDuration> IdleWatermarkDelay;
 
     REGISTER_YSON_STRUCT(TTableSourceParameters);
 

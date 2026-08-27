@@ -286,6 +286,11 @@ public:
 
     std::optional<TStreamTraverseDataPtr> GetFutureKeysStreamTraverseData() override;
 
+    static TSystemTimestamp CalculateEventWatermark(
+        TSystemTimestamp tableEventTimestamp,
+        TSystemTimestamp now,
+        bool isIdle,
+        const std::optional<TDuration>& idleWatermarkDelay);
 
     static double GetDesiredRowsPerSecond(
         const TDynamicTableSourceParametersPtr& dynamicParameters,
