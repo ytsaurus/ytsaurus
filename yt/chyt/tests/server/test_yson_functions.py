@@ -272,6 +272,15 @@ class TestYsonFunctions(ClickHouseTestBase):
                 {"a": yson.dumps(row["v"], row["fmt"]).decode()} for row in read_table("//tmp/t[#1:#5]")
             ]
 
+    @authors("iharbychyk")
+    def test_yson_extract_keys(self):
+        with Clique(1) as clique:
+            assert clique.make_query("select YSONExtractKeys('{a=hello;b=[-100;200.0;300]}') as res") == [{"res": ["a", "b"]}]
+            assert clique.make_query("select YSONExtractKeys('{x={a=1;b=2};y={z={c=3}}}', 'y', 'z') as res") == [{"res": ["c"]}]
+            assert clique.make_query("select YSONExtractKeys('{a=1;b=2}', 'c') as res") == [{"res": []}]
+            assert clique.make_query("select YSONExtractKeys('[1;2;3]') as res") == [{"res": []}]
+            assert clique.make_query("select YSONExtractKeys('{a=1,b=2}') as res") == [{"res": []}]
+
     @authors("a-dyu")
     def test_yson_to_json(self):
         obj = {

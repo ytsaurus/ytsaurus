@@ -128,7 +128,7 @@ The function arguments and their returned values are described in the [{{clickho
 
 The currently supported YSON function equivalents are as follows:
 
-`YSONHas`, `YSONLength`, `YSONKey`, `YSONType`, `YSONExtractInt`, `YSONExtractUInt`, `YSONExtractFloat`, `YSONExtractBool`, `YSONExtractString`, `YSONExtract`, `YSONExtractKeysAndValues`, `YSONExtractRaw`, `YSONExtractArrayRaw`, `YSONExtractKeysAndValuesRaw`.
+`YSONHas`, `YSONLength`, `YSONKey`, `YSONType`, `YSONExtractInt`, `YSONExtractUInt`, `YSONExtractFloat`, `YSONExtractBool`, `YSONExtractString`, `YSONExtract`, `YSONExtractKeysAndValues`, `YSONExtractRaw`, `YSONExtractArrayRaw`, `YSONExtractKeysAndValuesRaw`, `YsonExtractKeys`.
 
 {% note info "Note" %}
 

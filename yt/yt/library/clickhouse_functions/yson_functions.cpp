@@ -774,6 +774,41 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TYsonExtractKeysImpl
+{
+public:
+    static DataTypePtr getReturnType(const char*, const ColumnsWithTypeAndName&)
+    {
+        return std::make_shared<DataTypeArray>(std::make_shared<DataTypeString>());
+    }
+
+    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName& arguments)
+    {
+        return arguments.size() - 1;
+    }
+
+    static bool InsertResultToColumn(IColumn& dest, const YsonElement& element, const std::string_view&, const FormatSettings&)
+    {
+        if (!element.isObject()) {
+            return false;
+        }
+
+        auto object = element.getObject();
+
+        auto& colArr = assert_cast<ColumnArray&>(dest);
+        auto& colStr = assert_cast<ColumnString&>(colArr.getData());
+
+        for (const auto& [key, value] : object) {
+            colStr.insertData(key.data(), key.size());
+        }
+
+        colArr.getOffsets().push_back(colArr.getOffsets().back() + object.size());
+        return true;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TNameYsonHas { static constexpr auto name{"YSONHas"}; };
 struct TNameYsonLength { static constexpr auto name{"YSONLength"}; };
 struct TNameYsonKey { static constexpr auto name{"YSONKey"}; };
@@ -788,6 +823,7 @@ struct TNameYsonExtractKeysAndValues { static constexpr auto name{"YSONExtractKe
 struct TNameYsonExtractRaw { static constexpr auto name{"YSONExtractRaw"}; };
 struct TNameYsonExtractArrayRaw { static constexpr auto name{"YSONExtractArrayRaw"}; };
 struct TNameYsonExtractKeysAndValuesRaw { static constexpr auto name{"YSONExtractKeysAndValuesRaw"}; };
+struct TNameYsonExtractKeys { static constexpr auto name{"YSONExtractKeys"}; };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -807,6 +843,7 @@ REGISTER_FUNCTION(CHYT_Yson)
     factory.registerFunction<TFunctionYson<TNameYsonExtractRaw, TYsonExtractRawImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractArrayRaw, TYsonExtractArrayRawImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractKeysAndValuesRaw, TYsonExtractKeysAndValuesRawImpl>>();
+    factory.registerFunction<TFunctionYson<TNameYsonExtractKeys, TYsonExtractKeysImpl>>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
