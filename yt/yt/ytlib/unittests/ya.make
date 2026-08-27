@@ -19,6 +19,7 @@ SRCS(
     journal_chunk_writer_ut.cpp
     memory_usage_tracker_ut.cpp
     multi_reader_manager/multi_reader_manager_ut.cpp
+    native_replication_card_cache_ut.cpp
     object_service_cache_ut.cpp
     parallel_reader_memory_manager_ut.cpp
     partitioner_ut.cpp
