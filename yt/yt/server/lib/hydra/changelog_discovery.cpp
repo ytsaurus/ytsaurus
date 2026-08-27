@@ -158,7 +158,7 @@ public:
         YT_VERIFY(CellManager_);
 
         YT_VERIFY(CellManager_->GetSelfConfig()->Voting);
-        RegisterSuccess(localChangelogId, localTerm);
+        RegisterSuccess(CellManager_->GetSelfPeerId(), localChangelogId, localTerm);
     }
 
     TFuture<std::pair<int, int>> Run()
@@ -178,14 +178,14 @@ private:
 
     int ChangelogId_ = 0;
     int Term_ = 0;
-    int SuccessCount_ = 0;
+    int SuccessWeight_ = 0;
 
     std::vector<TError> InnerErrors_;
 
 
-    void RegisterSuccess(int changelogId, int term)
+    void RegisterSuccess(int peerId, int changelogId, int term)
     {
-        ++SuccessCount_;
+        SuccessWeight_ += CellManager_->GetPeerWeight(peerId);
         ChangelogId_ = std::max(ChangelogId_, changelogId);
         Term_ = std::max(Term_, term);
     }
@@ -239,7 +239,7 @@ private:
             const auto& rsp = rspOrError.Value();
             int changelogId = rsp->changelog_id();
             int term = rsp->term();
-            RegisterSuccess(changelogId, term);
+            RegisterSuccess(peerId, changelogId, term);
 
             YT_TLOG_DEBUG("Changelog id received")
                 .With("PeerId", peerId)
@@ -256,11 +256,11 @@ private:
 
     void OnComplete(const TError&)
     {
-        int quorum = CellManager_->GetQuorumPeerCount();
-        if (SuccessCount_ < quorum) {
-            Promise_.TrySet(TError("Not enough answers to compute quorum changelog id: %v out of %v",
-                SuccessCount_,
-                quorum));
+        auto quorumWeight = CellManager_->GetQuorumWeight();
+        if (SuccessWeight_ < quorumWeight) {
+            Promise_.TrySet(TError("Not enough answers to compute quorum changelog id: weight %v out of %v",
+                SuccessWeight_,
+                quorumWeight));
             return;
         }
 

@@ -55,7 +55,7 @@ private:
     const std::optional<TPeerPriority> Priority_;
     const NLogging::TLogger Logger;
 
-    int SuccessCount_ = 0;
+    int SuccessWeight_ = 0;
     bool LocalSucceeded_ = false;
 
     const TPromise<IChangelogPtr> NewChangelogPromise_ = NewPromise<IChangelogPtr>();
@@ -155,7 +155,7 @@ private:
             .With("ChangelogId", ChangelogId_);
 
         if (voting) {
-            ++SuccessCount_;
+            SuccessWeight_ += EpochContext_->CellManager->GetPeerWeight(id);
             CheckQuorum();
         }
     }
@@ -170,7 +170,8 @@ private:
         YT_TLOG_INFO("Local changelog acquired")
             .With("ChangelogId", ChangelogId_);
 
-        ++SuccessCount_;
+        const auto& cellManager = EpochContext_->CellManager;
+        SuccessWeight_ += cellManager->GetPeerWeight(cellManager->GetSelfPeerId());
         LocalSucceeded_ = true;
         CheckQuorum();
     }
@@ -181,7 +182,7 @@ private:
             return;
         }
 
-        if (SuccessCount_ < EpochContext_->CellManager->GetQuorumPeerCount()) {
+        if (SuccessWeight_ < EpochContext_->CellManager->GetQuorumWeight()) {
             return;
         }
 
@@ -195,8 +196,8 @@ private:
     void OnFailed(const TError& /*error*/)
     {
         NewChangelogPromise_.TrySet(TError("Not enough successful replies: %v out of %v",
-            SuccessCount_,
-            EpochContext_->CellManager->GetTotalPeerCount())
+            SuccessWeight_,
+            EpochContext_->CellManager->GetQuorumWeight())
             .With("local_changelog_acquisition_succeeded", LocalSucceeded_));
     }
 };
