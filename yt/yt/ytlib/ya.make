@@ -260,14 +260,14 @@ SRCS(
 
     distributed_chunk_session_client/config.cpp
     distributed_chunk_session_client/helpers.cpp
-    distributed_chunk_session_client/distributed_chunk_session_seal_summary_fetcher.cpp
-    distributed_chunk_session_client/distributed_chunk_session_seal_monitor.cpp
-    distributed_chunk_session_client/distributed_chunk_session_pool.cpp
-    distributed_chunk_session_client/distributed_chunk_writer.cpp
-    distributed_chunk_session_client/distributed_chunk_session_controller.cpp
-    distributed_chunk_session_client/distributed_chunk_session_reader.cpp
+    distributed_chunk_session_client/seal_summary_fetcher.cpp
+    distributed_chunk_session_client/seal_monitor.cpp
+    distributed_chunk_session_client/session_pool.cpp
+    distributed_chunk_session_client/session_writer.cpp
+    distributed_chunk_session_client/session_controller.cpp
+    distributed_chunk_session_client/session_reader.cpp
 
-    distributed_chunk_session_client/proto/distributed_chunk_session_service.proto
+    distributed_chunk_session_client/proto/session_service.proto
 
     driver/config.cpp
 

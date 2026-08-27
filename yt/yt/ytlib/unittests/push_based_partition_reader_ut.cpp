@@ -1,5 +1,5 @@
 #include <yt/yt/ytlib/distributed_chunk_session_client/config.h>
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_reader.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_reader.h>
 
 #include <yt/yt/ytlib/push_based_shuffle_client/config.h>
 #include <yt/yt/ytlib/push_based_shuffle_client/partition_reader.h>
@@ -985,7 +985,7 @@ TEST_F(TPartitionReaderTest, EmptyTerminalChunkSessionResultUnblocksReadAfterSea
 {
     // Chunk session can legitimately return {Records=[], Finished=true}
     // when the cursor is already at the effective end (see
-    // distributed_chunk_session_reader.cpp:210-220). An empty terminal
+    // session_reader.cpp:210-220). An empty terminal
     // must still mark the chunk finished; otherwise a sealed partition
     // with a pending Read would hang.
     auto mock = New<TMockChunkSessionReader>();

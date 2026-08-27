@@ -4,8 +4,8 @@
 #include "record_format.h"
 #include "session_provider.h"
 
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_session_pool.h>
-#include <yt/yt/ytlib/distributed_chunk_session_client/distributed_chunk_writer.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_writer.h>
 
 #include <yt/yt/ytlib/table_client/partitioner.h>
 

@@ -1,7 +1,7 @@
-#include "distributed_chunk_session_controller.h"
+#include "session_controller.h"
 
 #include "config.h"
-#include "distributed_chunk_session_service_proxy.h"
+#include "service_proxy.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>

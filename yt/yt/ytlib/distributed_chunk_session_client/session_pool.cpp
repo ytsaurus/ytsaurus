@@ -1,7 +1,7 @@
-#include "distributed_chunk_session_pool.h"
+#include "session_pool.h"
 
 #include "config.h"
-#include "distributed_chunk_session_controller.h"
+#include "session_controller.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
