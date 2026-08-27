@@ -491,6 +491,27 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert all(row["type"] == "ExceptionWhileProcessing" for row in rows)
 
 
+class TestQueriesChytWithRowLimit(ClickHouseTestBase):
+    QUERY_TRACKER_DYNAMIC_CONFIG = {
+        "chyt_engine": {
+            "row_count_limit": 100,
+        },
+    }
+
+    @authors("ulya-sidorina")
+    def test_result_truncation(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+
+            query = start_query("chyt", "select number from numbers(100)", settings=settings)
+            query.track()
+            assert not query.get_result(0)["is_truncated"]
+
+            query = start_query("chyt", "select number from numbers(101)", settings=settings)
+            query.track()
+            assert query.get_result(0)["is_truncated"]
+
+
 class TestChytEngineProgress(ClickHouseTestBase):
     def setup_method(self, method):
         super().setup_method(method)

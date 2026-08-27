@@ -424,9 +424,13 @@ private:
 
         std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;
         wireRowsetOrErrors.reserve(rsp->Attachments().size());
-        for (const auto& ref : rsp->Attachments()) {
+        for (int index = 0; index < std::ssize(rsp->Attachments()); ++index) {
+            const auto& ref = rsp->Attachments()[index];
             if (!ref.Empty()) {
-                wireRowsetOrErrors.emplace_back(TWireRowset{.Rowset = ref});
+                wireRowsetOrErrors.emplace_back(TWireRowset{
+                    .Rowset = ref,
+                    .IsTruncated = index < rsp->incomplete_size() && rsp->incomplete(index),
+                });
             }
         }
         OnQueryCompletedWire(wireRowsetOrErrors);
