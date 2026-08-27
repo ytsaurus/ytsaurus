@@ -1861,6 +1861,27 @@
             "uri": "https://{canondata_backend}/1937027/4c53324ecca5e76cff00fb59e6a5dbdb35a313b7/resource.tar.gz#test.test_select-two_selects_with_diff_fields-default.txt-Results_/results.txt"
         }
     ],
+    "test.test[select_yql-from_table_func_like-default.txt-Debug]": [
+        {
+            "checksum": "d458cd3b0d5564b5b5fa3d4ecc093472",
+            "size": 1429,
+            "uri": "https://{canondata_backend}/1031349/440f14a70ebef5fc76bad232c740fbad0f969238/resource.tar.gz#test.test_select_yql-from_table_func_like-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[select_yql-from_table_func_like-default.txt-Plan]": [
+        {
+            "checksum": "a3025fed56ceae6884c25becf56b3a67",
+            "size": 3278,
+            "uri": "https://{canondata_backend}/1031349/440f14a70ebef5fc76bad232c740fbad0f969238/resource.tar.gz#test.test_select_yql-from_table_func_like-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[select_yql-from_table_func_like-default.txt-Results]": [
+        {
+            "checksum": "55f745301af89a1fec0bced6ae5f839c",
+            "size": 2768,
+            "uri": "https://{canondata_backend}/1031349/440f14a70ebef5fc76bad232c740fbad0f969238/resource.tar.gz#test.test_select_yql-from_table_func_like-default.txt-Results_/results.txt"
+        }
+    ],
     "test.test[subselect-inline_subquery_named_node_scalar_join-default.txt-Debug]": [
         {
             "checksum": "f03e7a006b880d8d3d070bcfa50a50b5",

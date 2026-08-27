@@ -2434,6 +2434,27 @@
             "uri": "https://{canondata_backend}/1931696/c98ce37ef9c4fc3357cbd9168801c2867d211090/resource.tar.gz#test.test_select-uncorrelated_subqueries--Results_/results.txt"
         }
     ],
+    "test.test[select_yql-from_table_func_concat_named_node-default.txt-Debug]": [
+        {
+            "checksum": "62fb441677e1f3bb990d57c61bac3251",
+            "size": 1230,
+            "uri": "https://{canondata_backend}/1925821/065d846c255cdb7a4d671a509969530f35147465/resource.tar.gz#test.test_select_yql-from_table_func_concat_named_node-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[select_yql-from_table_func_concat_named_node-default.txt-Plan]": [
+        {
+            "checksum": "6716f9037452e082c4fa482780110d46",
+            "size": 2806,
+            "uri": "https://{canondata_backend}/1925821/065d846c255cdb7a4d671a509969530f35147465/resource.tar.gz#test.test_select_yql-from_table_func_concat_named_node-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[select_yql-from_table_func_concat_named_node-default.txt-Results]": [
+        {
+            "checksum": "5e492d81685e43ed747902356b4f7a05",
+            "size": 2226,
+            "uri": "https://{canondata_backend}/1925821/065d846c255cdb7a4d671a509969530f35147465/resource.tar.gz#test.test_select_yql-from_table_func_concat_named_node-default.txt-Results_/results.txt"
+        }
+    ],
     "test.test[select_yql-table_path_prefix-default.txt-Debug]": [
         {
             "checksum": "c5268759520852428a33d0f6918a5b25",
