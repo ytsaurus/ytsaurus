@@ -7,6 +7,24 @@
 || **Параметр** | **Описание** ||
 || `parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Значение по умолчанию**: `{}`
- ||
+Динамические параметры пользовательского класса ресурса. ||
+|| `file_sources` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TFileSourceIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicFileSourceSpec](./all_yson_structs#NYT_NFlow_TDynamicFileSourceSpec)`>>`
+**Значение по умолчанию**: `{}`
+Динамические параметры именованных источников файлов ресурса. Изменение параметров немедленно запускает discovery соответствующего источника. ||
+|| `file_source_discover_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `30s`
+Период discovery всех именованных источников файлов ресурса. ||
+|| `file_source_update_retry_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `1m`
+Период повторной попытки скачивания, инициализации или проверки файлового snapshot. ||
+|| `file_snapshot_min_creation_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `5m`
+Минимальный период между созданием новых полных файловых snapshot. Более частые обновления источников накапливаются до следующего разрешённого snapshot. ||
+|| `file_snapshot_catalog_max_entries` | **Тип**: `long`
+**Значение по умолчанию**: `1024`
+Максимальное число файловых snapshot в состоянии контроллера. Текущие Active и Preparing snapshot никогда не вытесняются. ||
+|| `file_snapshot_rollout_warning_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `15m`
+Время после публикации Active файлового snapshot, через которое незавершённый rollout на worker-ах появляется в статусе ресурса. ||
 |#
 

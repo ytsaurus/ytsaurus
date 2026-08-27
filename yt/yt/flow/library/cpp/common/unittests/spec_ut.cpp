@@ -1269,6 +1269,39 @@ TEST(TSpecValidateParseabilityTest, Simple)
         "unrecognized_field_4");
 }
 
+TEST(TSpecValidateParseabilityTest, StaticResourceParametersStayOpaque)
+{
+    auto spec = ConvertTo<IMapNodePtr>(TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                resource = {
+                    resource_class_name = "NYT::NFlow::TNullResource";
+                    parameters = {
+                        implementation_specific = 42;
+                    };
+                };
+            };
+        }
+    )"""")));
+
+    EXPECT_TRUE(TRegistry::Get()->ValidatePipelineSpecParseability(spec).empty());
+}
+
+TEST(TSpecValidateParseabilityTest, StaticResourceClassesStayOpaque)
+{
+    auto spec = ConvertTo<IMapNodePtr>(TYsonString(TStringBuf(R""""(
+        {
+            resources = {
+                resource = {
+                    resource_class_name = "application-specific-resource";
+                };
+            };
+        }
+    )"""")));
+
+    EXPECT_TRUE(TRegistry::Get()->ValidatePipelineSpecParseability(spec).empty());
+}
+
 TEST(TSpecValidateParseabilityTest, DynamicSpecWithUnknownComputation)
 {
     auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(

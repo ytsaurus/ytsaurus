@@ -4,6 +4,8 @@
 
 #include "spec_validation.h"
 
+#include <yt/yt/flow/library/cpp/misc/reconfigurable.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/client/cache/public.h>
@@ -20,6 +22,10 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateFileSourceName(TStringBuf name);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TFileSourceSpec
     : public NYTree::TYsonStruct
 {
@@ -33,6 +39,21 @@ struct TFileSourceSpec
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileSourceSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDynamicFileSourceSpec
+    : public NYTree::TYsonStruct
+{
+    // Source-specific parameters used to select future revisions during discovery.
+    NYTree::IMapNodePtr Parameters;
+
+    REGISTER_YSON_STRUCT(TDynamicFileSourceSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicFileSourceSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,15 +94,28 @@ DEFINE_REFCOUNTED_TYPE(TFileSourceContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicFileSourceContext
+    : public TRefCounted
+{
+    TDynamicFileSourceSpecPtr DynamicFileSourceSpec;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicFileSourceContext);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IFileSource
     : public virtual TRefCounted
+    , public virtual TReconfigurable<TDynamicFileSourceContext>
 {
     YT_FLOW_REGISTER_PARAMETERS(NYTree::TYsonStruct);
+    YT_FLOW_REGISTER_DYNAMIC_PARAMETERS(NYTree::TYsonStruct);
 
     using TValidator = TNoopSpecValidator;
 
     virtual TFuture<TFileSourceRevisionPtr> Discover() = 0;
 
+    // Materializes exactly |revision|; current dynamic parameters must not reselect its version.
     virtual TFuture<void> Download(
         const TFileSourceRevisionPtr& revision,
         const std::string& stagingDirectory) = 0;

@@ -2,13 +2,26 @@
 
 The example binary defines a text-backed `TFileResourceBase<TTextData>` and a materialized
 transform that joins every input message with the current text snapshot. A separate Swift reader
-only forwards queue rows and does not access the mutable resource. The transform keeps `Lock()`
-only long enough to copy the text, so a rollout does not retain an old cached object for the rest
-of message processing.
+only forwards queue rows and does not access the mutable resource. The transform is a batch process
+function: it calls `Lock()` once for the whole epoch input and releases the accessor when the batch
+returns. Do not retain an accessor across run iterations; it keeps the old snapshot alive and
+blocks activation until it is released. After `file_snapshot_rollout_warning_period`, the worker
+reports this condition as `/file_snapshot_activation` without forcibly revoking the accessor.
 
 A mutable file resource must not be read from Swift user logic: replay after a restart could use a
 different file revision and violate Swift's determinism requirement. Use a materialized transform,
 as this example does, or use a source whose object identity is immutable for the whole deployment.
+
+The resource spec declares the source as `file_sources.file`, alongside the resource's ordinary
+`parameters`. The controller discovers an exact revision for every declared name and delivers one
+target snapshot; workers materialize that target rather than discovering "latest" again. A
+multi-file resource can override `Initialize(TMaterializedFileSourceSnapshotPtr)` and read each
+named root with `GetFileSource(name)`. Initialization, validation, and publication cover the whole
+snapshot atomically.
+
+Named files are materialized only on workers. Every computation requirement that can reach this
+resource must set `controller = %false`; the pipeline controller rejects a file-source-backed
+resource in its own resource-loading graph.
 
 Build the binary:
 
@@ -48,12 +61,19 @@ echo first | yt write-file //path/to/config-file
 ```
 
 `TYTFileSource` derives an immutable storage object id from the cluster, YT object id, node
-revision, and file name. An in-place overwrite publishes a new revision after `discover_period`;
+revision, and file name. An in-place overwrite publishes a new revision after
+`file_source_discover_period`;
 workers keep serving the prior snapshot until they have streamed and validated the new bytes:
 
 ```bash
 echo second | yt write-file //path/to/config-file
 ```
+
+File-source implementations can also expose typed dynamic parameters under
+`dynamic_spec.resources.<resource>.file_sources.<name>.parameters`. For example,
+`TYTDirectoryLastFileSource` accepts `pinned_file_name` to select one exact direct child instead
+of the lexicographically greatest file. Changing a pin triggers discovery immediately; workers
+still materialize the exact revision delivered in the resource target snapshot.
 
 Configuration snippets for all built-in file sources and the persistent-cache policy are in the
 Flow file-resource documentation.

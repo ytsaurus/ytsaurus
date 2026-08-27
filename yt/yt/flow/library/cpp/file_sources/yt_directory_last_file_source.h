@@ -18,6 +18,22 @@ struct TYTDirectoryLastFileSourceParameters
 
 DEFINE_REFCOUNTED_TYPE(TYTDirectoryLastFileSourceParameters);
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TYTDirectoryLastFileSourceDynamicParameters
+    : public virtual NYTree::TYsonStruct
+{
+    std::optional<std::string> PinnedFileName;
+
+    REGISTER_YSON_STRUCT(TYTDirectoryLastFileSourceDynamicParameters);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYTDirectoryLastFileSourceDynamicParameters);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TYTDirectoryLastFileSource);
 
 class TYTDirectoryLastFileSource
@@ -25,6 +41,7 @@ class TYTDirectoryLastFileSource
 {
 public:
     YT_FLOW_EXTEND_PARAMETERS(TYTDirectoryLastFileSourceParameters, TFileSourceBase);
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TYTDirectoryLastFileSourceDynamicParameters, TFileSourceBase);
 
     using TFileSourceBase::TFileSourceBase;
 

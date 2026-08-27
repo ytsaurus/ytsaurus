@@ -6,22 +6,28 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateFileSourceBasename(TStringBuf basename);
-
 class TFileSourceBase
     : public IFileSource
 {
 public:
-    explicit TFileSourceBase(TFileSourceContextPtr context);
+    TFileSourceBase(
+        TFileSourceContextPtr context,
+        TDynamicFileSourceContextPtr dynamicContext);
 
     TFileSourceContextPtr GetContext() const;
+    TDynamicFileSourceContextPtr GetDynamicContext() const;
+    TFileSourceSpecPtr GetSpec() const;
+    TDynamicFileSourceSpecPtr GetDynamicSpec() const;
 
 protected:
     NYTree::TYsonStructPtr GetParametersBase() const final;
+    NYTree::TYsonStructPtr GetDynamicParametersBase() const final;
 
 private:
     const TFileSourceContextPtr Context_;
     const NYTree::TYsonStructPtr Parameters_;
+    TAtomicIntrusivePtr<TDynamicFileSourceContext> DynamicContext_;
+    TAtomicIntrusivePtr<NYTree::TYsonStruct> DynamicParameters_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFileSourceBase);

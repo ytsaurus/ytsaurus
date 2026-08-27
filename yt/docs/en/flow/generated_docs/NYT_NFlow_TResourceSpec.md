@@ -13,6 +13,9 @@ Must be registered using the `YT_FLOW_DEFINE_RESOURCE` macro. ||
 || `parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Default value**: `{}`
 Arbitrary parameters for the corresponding class. ||
+|| `file_sources` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TFileSourceIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TFileSourceSpec](./all_yson_structs#NYT_NFlow_TFileSourceSpec)`>>`
+**Default value**: `{}`
+Named file sources of the resource. The controller attaches a file snapshot to a target revision only after discovering every name; a controller-specific target spec may be published independently. Workers materialize the exact revisions from that target. Such resources are worker-only and must have `controller = %false` on every `required_resource_ids` path that can reach them. ||
 || `dependencies` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
 **Default value**: `{}`
 Resources that this resource depends on. Mirrors the structure of `required_resource_ids` from `Computation`. ||

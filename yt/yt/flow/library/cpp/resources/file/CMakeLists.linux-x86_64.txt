@@ -32,6 +32,7 @@ target_link_libraries(cpp-resources-file PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-common
+  library-cpp-file_sources
   library-cpp-resources
   yt-client-cache
   library-cpp-file_storage
@@ -41,39 +42,5 @@ target_link_libraries(cpp-resources-file PUBLIC
 
 target_sources(cpp-resources-file PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/file/file_resource.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/file/file_source_base.cpp
-)
-
-
-add_global_library_for(cpp-resources-file.global
-  cpp-resources-file)
-
-
-target_compile_options(cpp-resources-file.global PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(cpp-resources-file.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-common
-  library-cpp-resources
-  yt-client-cache
-  library-cpp-file_storage
-  cpp-yt-memory
-  cpp-yt-threading
-)
-
-target_sources(cpp-resources-file.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/file/local_file_source.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/file/yt_directory_last_file_source.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/resources/file/yt_file_source.cpp
 )
 

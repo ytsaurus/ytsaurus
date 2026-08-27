@@ -10,6 +10,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/ema_counter.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <library/cpp/yt/memory/new.h>
 
@@ -232,7 +233,8 @@ public:
                 if (auto it = dynamicSpecs.find(resourceId); it != dynamicSpecs.end()) {
                     const auto& newDynamicSpec = it->second;
                     auto oldDynamicSpec = GetOrDefault(DynamicResourceSpecs_, resourceId);
-                    if (!oldDynamicSpec || !AreNodesEqual(oldDynamicSpec->Parameters, newDynamicSpec->Parameters)) {
+                    if (!oldDynamicSpec || !AreNodesEqual(NYTree::ConvertToNode(oldDynamicSpec), NYTree::ConvertToNode(newDynamicSpec)))
+                    {
                         DynamicResourceSpecs_[resourceId] = newDynamicSpec;
                         changed = true;
                     }
@@ -292,7 +294,11 @@ public:
         // Revision states are queried outside the lock: GetRevisionState is overridable.
         for (const auto& [resourceId, resource] : scheduledResources) {
             auto revisionState = resource->GetRevisionState();
-            if (!revisionState.AppliedRevisionId && !revisionState.TargetRevisionId && !revisionState.UpdateState) {
+            if (!revisionState.AppliedRevisionId &&
+                !revisionState.TargetRevisionId &&
+                !revisionState.ActiveFileSnapshotId &&
+                !revisionState.PreparingFileSnapshot)
+            {
                 continue;
             }
             auto& status = result[resourceId];
@@ -301,7 +307,11 @@ public:
             }
             status->AppliedRevisionId = revisionState.AppliedRevisionId;
             status->TargetRevisionId = revisionState.TargetRevisionId;
-            status->UpdateState = revisionState.UpdateState;
+            status->ResourceInstanceId = revisionState.ResourceInstanceId;
+            status->ResourceIncarnationGeneration = revisionState.ResourceIncarnationGeneration;
+            status->ActiveFileSnapshotId = revisionState.ActiveFileSnapshotId;
+            status->PreparingFileSnapshot = revisionState.PreparingFileSnapshot;
+            status->LiveAccessorCounts = std::move(revisionState.LiveAccessorCounts);
         }
 
         return result;

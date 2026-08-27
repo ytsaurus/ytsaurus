@@ -313,8 +313,10 @@ class TRevisionAwareResource
     : public IResource
 {
 public:
-    TRevisionAwareResource(TResourceContextPtr /*context*/, TDynamicResourceContextPtr dynamicContext)
-        : DynamicContext_(std::move(dynamicContext))
+    TRevisionAwareResource(TResourceContextPtr context, TDynamicResourceContextPtr dynamicContext)
+        : ResourceInstanceId_(context->ResourceInstanceId)
+        , ResourceIncarnationGeneration_(context->ResourceIncarnationGeneration)
+        , DynamicContext_(std::move(dynamicContext))
     { }
 
     TFuture<void> Load(const THashMap<TResourceId, IResourcePtr>& /*dependencies*/) override
@@ -337,6 +339,8 @@ public:
         return {
             .AppliedRevisionId = ReportedRevisionId_ ? ReportedRevisionId_ : targetRevisionId,
             .TargetRevisionId = targetRevisionId,
+            .ResourceInstanceId = ResourceInstanceId_,
+            .ResourceIncarnationGeneration = ResourceIncarnationGeneration_,
         };
     }
 
@@ -366,6 +370,8 @@ public:
     }
 
 private:
+    const TResourceInstanceId ResourceInstanceId_;
+    const ui64 ResourceIncarnationGeneration_;
     TDynamicResourceContextPtr DynamicContext_;
     std::optional<i64> ReportedRevisionId_;
     int ReconfigureCount_ = 0;
@@ -620,6 +626,30 @@ TEST_F(TResourceManagerTest, ReconfigureSkipsUnchangedSpec)
     resourceManager->Reconfigure(sameDynamicSpecs, /*targetRevisions*/ {});
 
     ASSERT_EQ(resource->GetReconfigureCount(), 1);
+}
+
+TEST_F(TResourceManagerTest, ReconfigureObservesDirectDynamicResourceFields)
+{
+    THashMap<TResourceId, TResourceSpecPtr> resources;
+    resources["res"] = BuildReconfigurableResourceSpec();
+    auto resourceManager = CreateManager(resources);
+
+    WaitFor(resourceManager->Load("res")).ThrowOnError();
+    auto resource = resourceManager->Get("res")->As<TReconfigurableResource>();
+
+    auto initial = BuildDynamicResourceSpec("value1");
+    resourceManager->Reconfigure({{"res", initial}}, /*targetRevisions*/ {});
+    ASSERT_EQ(resource->GetReconfigureCount(), 1);
+
+    auto changedDirectField = BuildDynamicResourceSpec("value1");
+    changedDirectField->FileSourceDiscoverPeriod = TDuration::Seconds(47);
+    resourceManager->Reconfigure({{"res", changedDirectField}}, /*targetRevisions*/ {});
+    ASSERT_EQ(resource->GetReconfigureCount(), 2);
+
+    auto unchanged = BuildDynamicResourceSpec("value1");
+    unchanged->FileSourceDiscoverPeriod = TDuration::Seconds(47);
+    resourceManager->Reconfigure({{"res", unchanged}}, /*targetRevisions*/ {});
+    ASSERT_EQ(resource->GetReconfigureCount(), 2);
 }
 
 TEST_F(TResourceManagerTest, ReconfigureSkipsUnknownResource)
@@ -1511,6 +1541,10 @@ TEST_F(TResourceManagerTest, AppliedRevisionReportedByResource)
     ASSERT_TRUE(statuses.contains("res"));
     EXPECT_EQ(statuses["res"]->AppliedRevisionId, std::optional<i64>(2));
     EXPECT_EQ(statuses["res"]->TargetRevisionId, std::optional<i64>(3));
+    EXPECT_EQ(statuses["res"]->ResourceInstanceId, resource->GetRevisionState().ResourceInstanceId);
+    EXPECT_EQ(
+        statuses["res"]->ResourceIncarnationGeneration,
+        resource->GetRevisionState().ResourceIncarnationGeneration);
 }
 
 TEST_F(TResourceManagerTest, AppliedRevisionNotReportedForUnloadedResource)

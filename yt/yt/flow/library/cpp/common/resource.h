@@ -1,5 +1,6 @@
 #pragma once
 
+#include "file_source.h"
 #include "public.h"
 #include "resource_controller.h"
 #include "spec_validation.h"
@@ -15,12 +16,30 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A revision of a resource: what the worker-side instances of the resource should be serving.
+//! An immutable complete set of exact named file-source revisions.
+struct TFileSnapshot
+    : public NYTree::TYsonStruct
+{
+    TFileSnapshotId Id;
+    THashMap<TFileSourceId, TFileSourceRevisionPtr> FileSources;
+
+    REGISTER_YSON_STRUCT(TFileSnapshot);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TFileSnapshot);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A revision of the resource control target delivered to worker-side instances.
 struct TResourceRevision
     : public NYTree::TYsonStruct
 {
     i64 RevisionId{};
     NYTree::INodePtr Spec;
+    TFileSnapshotPtr ActiveFileSnapshot;
+    TFileSnapshotPtr PreparingFileSnapshot;
 
     REGISTER_YSON_STRUCT(TResourceRevision);
 
@@ -38,7 +57,15 @@ struct TResourceRevisionState
     std::optional<i64> AppliedRevisionId;
     //! Id of the delivered target revision the instance is switching to.
     std::optional<i64> TargetRevisionId;
-    std::optional<EFileResourceUpdateState> UpdateState;
+
+    //! Last fully active file snapshot on this instance.
+    std::optional<TFileSnapshotId> ActiveFileSnapshotId;
+    //! File snapshot currently being prepared or activated.
+    TFileSnapshotStatusPtr PreparingFileSnapshot;
+    //! Number of live accessor leases by file snapshot.
+    THashMap<TFileSnapshotId, i64> LiveAccessorCounts;
+    std::optional<TResourceInstanceId> ResourceInstanceId;
+    std::optional<ui64> ResourceIncarnationGeneration;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

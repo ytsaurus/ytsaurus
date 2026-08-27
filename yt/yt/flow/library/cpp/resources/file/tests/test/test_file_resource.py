@@ -1,7 +1,6 @@
 import io
 import os
 import tarfile
-import time
 
 import requests
 import pytest
@@ -29,6 +28,9 @@ class TestFileResourceLifecycle(FlowTestBase):
         run_yt_sync("primary", self.work_yt_path)
 
     def prepare_pipeline(self, source_class_name, source_path):
+        return self.prepare_named_pipeline({"file": (source_class_name, source_path)})
+
+    def prepare_named_pipeline(self, file_sources):
         source = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline.yson")
         config = get_yson_config(source)
         computation = config["spec"]["computations"]["enricher"]
@@ -39,9 +41,13 @@ class TestFileResourceLifecycle(FlowTestBase):
             }
         )
         computation["sinks"]["queue"]["parameters"]["queue_path"] = f"<cluster=primary>{self.output_queue}"
-        source_spec = config["spec"]["resources"]["text"]["parameters"]["file_source"]
-        source_spec["file_source_class_name"] = source_class_name
-        source_spec["parameters"] = {"path": source_path}
+        config["spec"]["resources"]["text"]["file_sources"] = {
+            name: {
+                "file_source_class_name": source_class_name,
+                "parameters": {"path": source_path},
+            }
+            for name, (source_class_name, source_path) in file_sources.items()
+        }
         self.patch_config(config)
         return self.dump_config_to_log_dir(config, "pipeline.yson")
 
@@ -61,6 +67,7 @@ class TestFileResourceLifecycle(FlowTestBase):
         worker_overrides = [{"worker": {"file_storage": {"path": path}}} for path in cache_paths]
         return (
             {
+                "enable_porto_resource_tracker": False,
                 "worker": {
                     "file_storage": {
                         "path": base_cache_path,
@@ -68,7 +75,7 @@ class TestFileResourceLifecycle(FlowTestBase):
                         "hard_size_limit": hard_size_limit,
                         "cleanup_period": 100,
                     }
-                }
+                },
             },
             cache_paths,
             worker_overrides,
@@ -82,7 +89,9 @@ class TestFileResourceLifecycle(FlowTestBase):
         )
 
     def find_output(self, input_value, file_text):
-        rows = self.client.select_rows(f"input, file_text, resource_revision from [{self.output_queue}]")
+        rows = self.client.select_rows(
+            f"input, file_text, resource_revision, file_snapshot_id from [{self.output_queue}]"
+        )
         return next(
             (row for row in rows if row["input"] == input_value and row["file_text"] == file_text),
             None,
@@ -102,17 +111,21 @@ class TestFileResourceLifecycle(FlowTestBase):
     def wait_for_updated_output(self, prefix, file_text):
         result = None
         counter = 0
+        pending_value = None
 
         def probe():
-            nonlocal counter, result
-            value = f"{prefix}-{counter}"
-            counter += 1
-            self.write_input(value)
-            time.sleep(0.2)
-            result = self.find_output(value, file_text)
-            return result is not None
+            nonlocal counter, pending_value, result
+            if pending_value is not None:
+                result = self.find_output(pending_value, file_text)
+                if result is not None:
+                    return True
 
-        wait(probe, timeout=120, ignore_exceptions=True)
+            pending_value = f"{prefix}-{counter}"
+            counter += 1
+            self.write_input(pending_value)
+            return False
+
+        wait(probe, timeout=120, ignore_exceptions=True, sleep_backoff=0.2)
         return result
 
     def resource_view(self):
@@ -131,34 +144,40 @@ class TestFileResourceLifecycle(FlowTestBase):
         )
 
     @staticmethod
-    def revision_metric_values(process, revision):
+    def snapshot_metric_value(process, snapshot_id, state):
         response = requests.get(
             f"http://localhost:{process.monitoring_port}/solomon_proxy/sensors",
             timeout=10,
         )
         response.raise_for_status()
         sensors = response.json()["sensors"]
-        result = {}
         for sensor in sensors:
             labels = sensor.get("labels", {})
-            if labels.get("sensor", "").endswith("revision_instance_count") and str(labels.get("revision_id")) == str(
-                revision
+            if (
+                labels.get("sensor", "").endswith("file_snapshot_instance_count")
+                and str(labels.get("file_snapshot_id")) == str(snapshot_id)
+                and labels.get("state") == state
+                and labels.get("resource") == "text"
             ):
-                if labels.get("resource") != "text" or labels.get("kind") not in ("applied", "target"):
-                    continue
-                result[labels.get("kind")] = sensor["value"]
-        return result
+                return sensor["value"]
+        return None
 
-    def revision_is_fully_applied(self, revision):
-        counts = self.resource_view().get("revision_instance_counts", {})
-        return counts.get(f"{revision}/applied") == 1 and counts.get(f"{revision}/target") == 1
+    def active_snapshot_id(self, excluded_id=None):
+        counts = self.snapshot_state_counts("active")
+        active_ids = [snapshot_id for snapshot_id, count in counts.items() if count == 1]
+        return next((snapshot_id for snapshot_id in active_ids if snapshot_id != excluded_id), None)
+
+    def snapshot_state_counts(self, state):
+        counts = self.resource_view().get("file_sources", {}).get("file_snapshot_state_counts", {})
+        suffix = f"/{state}"
+        return {int(key.split("/", 1)[0]): count for key, count in counts.items() if key.endswith(suffix)}
 
     @staticmethod
     def count_cached_objects(cache_path):
         return sum(1 for root, _, files in os.walk(cache_path) if "manifest.yson" in files and os.path.basename(root))
 
     @pytest.mark.authors(["mikari"])
-    def test_yt_file_update_and_revision_metrics(self):
+    def test_yt_file_update_and_snapshot_metrics(self):
         file_path = f"{self.work_yt_path}/file"
         self.client.create("file", file_path)
         self.client.write_file(file_path, b"first")
@@ -173,13 +192,18 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.write_input("before")
             first = self.wait_output("before", "first")
             wait(
-                lambda: self.revision_is_fully_applied(first["resource_revision"]),
+                lambda: self.active_snapshot_id() is not None,
                 timeout=120,
                 ignore_exceptions=True,
             )
+            first_snapshot_id = self.active_snapshot_id()
             wait(
-                lambda: self.revision_metric_values(federation.controllers[0], first["resource_revision"])
-                == {"applied": 1, "target": 1},
+                lambda: self.snapshot_metric_value(
+                    federation.controllers[0],
+                    first_snapshot_id,
+                    "active",
+                )
+                == 1,
                 timeout=120,
                 ignore_exceptions=True,
             )
@@ -188,16 +212,124 @@ class TestFileResourceLifecycle(FlowTestBase):
             second = self.wait_for_updated_output("updated", "second")
             assert second["resource_revision"] > first["resource_revision"]
             wait(
-                lambda: self.revision_is_fully_applied(second["resource_revision"]),
+                lambda: self.active_snapshot_id(first_snapshot_id) is not None,
                 timeout=120,
                 ignore_exceptions=True,
             )
+            second_snapshot_id = self.active_snapshot_id(first_snapshot_id)
             wait(
-                lambda: self.revision_metric_values(federation.controllers[0], second["resource_revision"])
-                == {"applied": 1, "target": 1},
+                lambda: self.snapshot_metric_value(
+                    federation.controllers[0],
+                    second_snapshot_id,
+                    "active",
+                )
+                == 1,
                 timeout=120,
                 ignore_exceptions=True,
             )
+
+    @pytest.mark.authors(["mikari"])
+    def test_two_workers_report_independent_cache_and_rollout_state(self):
+        file_path = f"{self.work_yt_path}/file"
+        self.client.create("file", file_path)
+        self.client.write_file(file_path, b"ok")
+        self.client.unmount_table(self.input_queue, sync=True)
+        self.client.reshard_table(self.input_queue, tablet_count=2, sync=True)
+        self.client.mount_table(self.input_queue, sync=True)
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        node_config, cache_paths, worker_overrides = self.make_node_config(workers_count=2)
+        worker_overrides[1]["worker"]["file_storage"].update(
+            {
+                "soft_size_limit": 2,
+                "hard_size_limit": 4,
+            }
+        )
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            workers_count=2,
+            pipeline_binary_args={"--config": pipeline},
+            worker_node_config_overrides=worker_overrides,
+        ) as federation:
+            wait(
+                lambda: list(self.snapshot_state_counts("active").values()) == [2],
+                timeout=120,
+                ignore_exceptions=True,
+            )
+            first_snapshot_id = next(iter(self.snapshot_state_counts("active")))
+            assert cache_paths[0] != cache_paths[1]
+            for cache_path in cache_paths:
+                wait(
+                    lambda path=cache_path: self.count_cached_objects(path) == 1,
+                    timeout=120,
+                    ignore_exceptions=True,
+                )
+            wait(
+                lambda: self.snapshot_metric_value(
+                    federation.controllers[0],
+                    first_snapshot_id,
+                    "active",
+                )
+                == 2,
+                timeout=120,
+                ignore_exceptions=True,
+            )
+
+            self.client.write_file(file_path, b"too-large")
+            self.wait_for_pipeline_error("File storage hard size limit exceeded")
+
+            def rollout_is_split():
+                counts = self.snapshot_state_counts("active")
+                return counts.get(first_snapshot_id) == 1 and any(
+                    snapshot_id != first_snapshot_id and count == 1 for snapshot_id, count in counts.items()
+                )
+
+            wait(rollout_is_split, timeout=120, ignore_exceptions=True)
+            active_counts = self.snapshot_state_counts("active")
+            second_snapshot_id = next(snapshot_id for snapshot_id in active_counts if snapshot_id != first_snapshot_id)
+            wait(
+                lambda: self.snapshot_metric_value(
+                    federation.controllers[0],
+                    first_snapshot_id,
+                    "active",
+                )
+                == 1
+                and self.snapshot_metric_value(
+                    federation.controllers[0],
+                    second_snapshot_id,
+                    "active",
+                )
+                == 1,
+                timeout=120,
+                ignore_exceptions=True,
+            )
+
+    @pytest.mark.authors(["mikari"])
+    def test_two_named_yt_files_form_one_resource_snapshot(self):
+        left_path = f"{self.work_yt_path}/left"
+        right_path = f"{self.work_yt_path}/right"
+        for path, value in ((left_path, b"left-v1"), (right_path, b"right-v1")):
+            self.client.create("file", path)
+            self.client.write_file(path, value)
+        pipeline = self.prepare_named_pipeline(
+            {
+                "left": ("NYT::NFlow::TYTFileSource", f"<cluster=primary>{left_path}"),
+                "right": ("NYT::NFlow::TYTFileSource", f"<cluster=primary>{right_path}"),
+            }
+        )
+        node_config, _, worker_overrides = self.make_node_config()
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            pipeline_binary_args={"--config": pipeline},
+            worker_node_config_overrides=worker_overrides,
+        ):
+            self.write_input("before")
+            first = self.wait_output("before", "left-v1|right-v1")
+
+            self.client.write_file(right_path, b"right-v2")
+            second = self.wait_for_updated_output("updated", "left-v1|right-v2")
+            assert second["resource_revision"] > first["resource_revision"]
 
     @pytest.mark.authors(["mikari"])
     def test_large_yt_file_is_streamed_into_the_cache(self):
@@ -244,6 +376,13 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.client.create("file", f"{directory}/002")
             self.client.write_file(f"{directory}/002", b"second")
             self.wait_for_updated_output("updated", "second")
+
+            self.client.set_pipeline_dynamic_spec(
+                self.pipeline_path,
+                {"file": {"parameters": {"pinned_file_name": "001"}}},
+                spec_path="/resources/text/file_sources",
+            )
+            self.wait_for_updated_output("pinned", "first")
 
     @pytest.mark.authors(["mikari"])
     def test_yt_file_cache_survives_restart_and_cleans_old_revision(self):
@@ -314,11 +453,12 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.wait_for_pipeline_error("Test file resource rejected corrupt payload")
             self.write_input("during-corruption")
             still_valid = self.wait_output("during-corruption", "valid")
-            assert still_valid["resource_revision"] == valid["resource_revision"]
+            assert still_valid["file_snapshot_id"] == valid["file_snapshot_id"]
 
             self.client.write_file(file_path, b"recovered")
             recovered = self.wait_for_updated_output("recovered", "recovered")
             assert recovered["resource_revision"] > valid["resource_revision"]
+            assert recovered["file_snapshot_id"] != valid["file_snapshot_id"]
 
     @pytest.mark.authors(["mikari"])
     def test_capacity_error_keeps_previous_revision(self):
@@ -340,7 +480,7 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.wait_for_pipeline_error("File storage hard size limit exceeded")
             self.write_input("after")
             preserved = self.wait_output("after", "ok")
-            assert preserved["resource_revision"] == valid["resource_revision"]
+            assert preserved["file_snapshot_id"] == valid["file_snapshot_id"]
 
     @pytest.mark.authors(["mikari"])
     def test_archive_with_two_files(self):

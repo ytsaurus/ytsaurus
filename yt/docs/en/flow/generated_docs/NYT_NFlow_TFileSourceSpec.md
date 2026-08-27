@@ -7,9 +7,9 @@ Source: [yt/yt/flow/library/cpp/common/file_source.h]({{source-root}}/yt/yt/flow
 || **Parameter** | **Description** ||
 || `file_source_class_name` | **Type**: `std::string`
 **Required parameter**
- ||
+Name of an `IFileSource` implementation registered with `YT_FLOW_DEFINE_FILE_SOURCE`. ||
 || `parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Default value**: `{}`
- ||
+Parameters of the registered file-source implementation. ||
 |#
 

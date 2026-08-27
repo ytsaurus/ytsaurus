@@ -19,6 +19,7 @@
 #include <yt/yt/flow/library/cpp/client/public.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/iterator/concatenate.h>
 
@@ -134,6 +135,7 @@ public:
             resourceControllerContext->ClientsCache = Context_->ClientsCache;
             resourceControllerContext->PipelinePath = Context_->PipelinePath;
             resourceControllerContext->Invoker = Context_->MainCycleInvoker;
+            resourceControllerContext->TimeProvider = Context_->TimeProvider;
             resourceControllerContext->Logger = Logger().WithTag("ResourceController", resourceId);
             resourceControllerContext->Profiler = WithPipelineRelatedTags(
                 ControllerProfiler()
@@ -153,7 +155,9 @@ public:
                     dynamicResourceControllerContext);
                 YT_VERIFY(resourceController);
                 resourceController->Init(StateManager_->CreateResourceContext(resourceId));
-                EmplaceOrCrash(ResourceControllers_, resourceId, TResourceControllerEntry{.Controller = std::move(resourceController)});
+                EmplaceOrCrash(ResourceControllers_, resourceId, TResourceControllerEntry{
+                        .Controller = std::move(resourceController),
+                                                                 });
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create resource controller")
                     .With("resource_id", resourceId)
@@ -189,6 +193,7 @@ public:
 
     void Reconfigure(TDynamicPipelineSpecPtr dynamicSpec) override
     {
+        auto previousDynamicSpec = DynamicSpec_;
         DynamicSpec_ = std::move(dynamicSpec);
 
         ActualizeBalancing();
@@ -204,10 +209,28 @@ public:
             controller->Reconfigure(dynamicContext);
         }
 
-        for (const auto& [resourceId, entry] : ResourceControllers_) {
+        for (auto& [resourceId, entry] : ResourceControllers_) {
+            auto previousDynamicResourceSpec = GetOrDefault(
+                previousDynamicSpec->Resources,
+                resourceId,
+                New<TDynamicResourceSpec>());
+            auto dynamicResourceSpec = GetOrDefault(
+                DynamicSpec_->Resources,
+                resourceId,
+                New<TDynamicResourceSpec>());
+            if (NYTree::AreNodesEqual(
+                NYTree::ConvertToNode(previousDynamicResourceSpec),
+                NYTree::ConvertToNode(dynamicResourceSpec)))
+            {
+                continue;
+            }
+
             auto dynamicContext = New<TDynamicResourceControllerContext>();
-            dynamicContext->DynamicResourceSpec = GetOrDefault(DynamicSpec_->Resources, resourceId, New<TDynamicResourceSpec>());
+            dynamicContext->DynamicResourceSpec = std::move(dynamicResourceSpec);
             entry.Controller->Reconfigure(dynamicContext);
+            if (entry.PublishedTarget->GetValue()) {
+                entry.PublishedTarget->Bump(Context_->VersionProvider);
+            }
         }
 
         // Reconfigure resources.
@@ -447,26 +470,37 @@ public:
         // With no resource controllers the maps below come out empty, wiping anything a
         // previously configured pipeline spec might have published.
 
+        RestorePublishedTargets(flowView);
+
         const auto& workerStatuses = flowView->Feedback->WorkerStatuses;
+        THashMap<std::string, TWorkerStatusPtr> currentWorkerStatuses;
+        for (const auto& [workerAddress, workerStatus] : workerStatuses) {
+            const auto worker = GetOrDefault(flowView->State->Workers, workerAddress, nullptr);
+            if (workerStatus &&
+                workerStatus->WorkerIncarnationId &&
+                worker &&
+                *workerStatus->WorkerIncarnationId == worker->IncarnationId)
+            {
+                currentWorkerStatuses.emplace(workerAddress, workerStatus);
+            }
+        }
         auto controllerStatuses = ResourceManager_->CollectResourceStatuses();
         for (const auto& [resourceId, entry] : ResourceControllers_) {
-            THashMap<std::string, TWorkerResourceStatusPtr> statuses;
-            for (const auto& [workerAddress, workerStatus] : workerStatuses) {
-                if (!workerStatus) {
-                    continue;
-                }
-                if (auto it = workerStatus->ResourceStatuses.find(resourceId); it != workerStatus->ResourceStatuses.end()) {
-                    statuses.emplace(workerAddress, it->second);
-                }
+            std::optional<i64> publishedRevisionId;
+            if (entry.PublishedTarget->GetValue()) {
+                publishedRevisionId = entry.PublishedTarget->GetVersion().Underlying();
             }
-            entry.Controller->CollectStatuses(statuses, GetOrDefault(controllerStatuses, resourceId));
+            entry.Controller->CollectStatuses(
+                currentWorkerStatuses,
+                GetOrDefault(controllerStatuses, resourceId),
+                publishedRevisionId);
         }
 
         for (auto& [resourceId, entry] : ResourceControllers_) {
-            if (entry.PublishedSpec->TrySetValue(entry.Controller->BuildTargetRevisionSpec(), Context_->VersionProvider)) {
+            if (entry.PublishedTarget->TrySetValue(BuildTargetRevisionCandidate(entry), Context_->VersionProvider)) {
                 YT_TLOG_INFO("Publishing resource target revision")
                     .With("ResourceId", resourceId)
-                    .With("RevisionId", entry.PublishedSpec->GetVersion().Underlying());
+                    .With("RevisionId", entry.PublishedTarget->GetVersion().Underlying());
             }
         }
 
@@ -476,7 +510,8 @@ public:
 
         THashMap<TResourceId, NYTree::IMapNodePtr> views;
         for (const auto& [resourceId, entry] : ResourceControllers_) {
-            if (auto view = entry.Controller->GetView()) {
+            auto view = entry.Controller->GetView();
+            if (view) {
                 views.emplace(resourceId, std::move(view));
             }
         }
@@ -1071,23 +1106,62 @@ private:
         IResourceControllerPtr Controller;
         //! SetValue dedups by content and the value's version is the published revision id.
         //! A null value means nothing is published.
-        TIntrusivePtr<TVersionedValue<NYTree::INodePtr>> PublishedSpec =
+        TIntrusivePtr<TVersionedValue<NYTree::INodePtr>> PublishedTarget =
             New<TVersionedValue<NYTree::INodePtr>>();
     };
 
     THashMap<TResourceId, TResourceControllerEntry> ResourceControllers_;
+    bool PublishedTargetsRestored_ = false;
+
+    void RestorePublishedTargets(const TFlowViewPtr& flowView)
+    {
+        if (PublishedTargetsRestored_) {
+            return;
+        }
+        PublishedTargetsRestored_ = true;
+
+        const auto& restoredTargets = flowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue();
+        for (const auto& [resourceId, restoredTarget] : restoredTargets) {
+            auto entryIt = ResourceControllers_.find(resourceId);
+            if (entryIt == ResourceControllers_.end() ||
+                entryIt->second.PublishedTarget->GetVersion() != TVersion(0) ||
+                !restoredTarget ||
+                restoredTarget->RevisionId <= 0)
+            {
+                continue;
+            }
+
+            auto target = CloneYsonStruct(restoredTarget);
+            auto revisionId = target->RevisionId;
+            target->RevisionId = 0;
+            entryIt->second.PublishedTarget = NYTree::ConvertTo<
+                TIntrusivePtr<TVersionedValue<NYTree::INodePtr>>>(
+                NYTree::BuildYsonNodeFluently()
+                    .BeginMap()
+                    .Item("version")
+                    .Value(revisionId)
+                    .Item("value")
+                    .Value(target)
+                    .EndMap());
+        }
+    }
+
+    NYTree::INodePtr BuildTargetRevisionCandidate(const TResourceControllerEntry& entry) const
+    {
+        auto revision = entry.Controller->BuildTargetRevision();
+        return revision ? NYTree::ConvertToNode(revision) : nullptr;
+    }
 
     THashMap<TResourceId, TResourceRevisionPtr> BuildTargetRevisions() const
     {
         THashMap<TResourceId, TResourceRevisionPtr> result;
         for (const auto& [resourceId, entry] : ResourceControllers_) {
-            const auto& publishedSpec = entry.PublishedSpec->GetValue();
-            if (!publishedSpec) {
+            const auto& publishedTarget = entry.PublishedTarget->GetValue();
+            if (!publishedTarget) {
                 continue;
             }
-            auto revision = New<TResourceRevision>();
-            revision->RevisionId = entry.PublishedSpec->GetVersion().Underlying();
-            revision->Spec = publishedSpec;
+            auto revision = NYTree::ConvertTo<TResourceRevisionPtr>(publishedTarget);
+            revision->RevisionId = entry.PublishedTarget->GetVersion().Underlying();
             result[resourceId] = std::move(revision);
         }
         return result;

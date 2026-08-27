@@ -60,7 +60,7 @@ TFileSourceRevisionPtr MakeYTFileSourceRevision(
     i64 size,
     const std::string& basename)
 {
-    ValidateFileSourceBasename(basename);
+    ValidateFileSourceName(basename);
     THROW_ERROR_EXCEPTION_UNLESS(
         size >= 0,
         "YT file source size must be nonnegative");
@@ -88,7 +88,7 @@ TFuture<void> DownloadYTFile(
     const std::string& stagingDirectory)
 {
     auto locator = ConvertTo<TYTFileSourceLocatorPtr>(revision->Locator);
-    ValidateFileSourceBasename(locator->Basename);
+    ValidateFileSourceName(locator->Basename);
     auto client = context->ClientsCache->GetClient(locator->Cluster);
     auto reader = WaitFor(client->CreateFileReader(locator->ObjectPath)).ValueOrThrow();
     THROW_ERROR_EXCEPTION_UNLESS(

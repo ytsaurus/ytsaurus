@@ -47,7 +47,7 @@ TFuture<TFileSourceRevisionPtr> TLocalFileSource::Discover()
 {
     const auto& path = GetParameters()->Path;
     auto basename = std::string(TFsPath(path).Basename());
-    ValidateFileSourceBasename(basename);
+    ValidateFileSourceName(basename);
 
     auto locator = New<TLocalFileSourceLocator>();
     locator->Path = path;
@@ -67,7 +67,7 @@ TFuture<void> TLocalFileSource::Download(
     const std::string& stagingDirectory)
 {
     auto locator = ConvertTo<TLocalFileSourceLocatorPtr>(revision->Locator);
-    ValidateFileSourceBasename(locator->Basename);
+    ValidateFileSourceName(locator->Basename);
     auto source = TFsPath(locator->Path);
     THROW_ERROR_EXCEPTION_UNLESS(
         source.IsFile() && !source.IsSymlink(),

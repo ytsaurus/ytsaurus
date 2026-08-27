@@ -118,6 +118,8 @@ This file contains descriptions of all specs and configs used for {{product-name
 
 {% include [_](./NYT_NFlow_TDynamicExternalStateManagerSpec.md) %}
 
+{% include [_](./NYT_NFlow_TDynamicFileSourceSpec.md) %}
+
 {% include [_](./NYT_NFlow_TDynamicInputStoreSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicJobManagerGroupSpec.md) %}
@@ -205,10 +207,6 @@ This file contains descriptions of all specs and configs used for {{product-name
 {% include [_](./NYT_NFlow_TExternalStateManagerSpec.md) %}
 
 {% include [_](./NYT_NFlow_TFetcherInJoinerSpec.md) %}
-
-{% include [_](./NYT_NFlow_TFileResourceDynamicParameters.md) %}
-
-{% include [_](./NYT_NFlow_TFileResourceParameters.md) %}
 
 {% include [_](./NYT_NFlow_TFileSourceSpec.md) %}
 

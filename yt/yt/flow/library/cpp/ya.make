@@ -12,6 +12,7 @@ RECURSE(
     connectors
     controller
     controller/describe
+    file_sources
     file_storage
     misc
     multiplexer

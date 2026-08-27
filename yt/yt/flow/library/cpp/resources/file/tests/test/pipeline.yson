@@ -35,8 +35,8 @@
         "resources" = {
             "text" = {
                 "resource_class_name" = "NYT::NFlow::NFileResourceTest::TTestFileResource";
-                "parameters" = {
-                    "file_source" = {
+                "file_sources" = {
+                    "file" = {
                         "file_source_class_name" = "NYT::NFlow::TYTFileSource";
                         "parameters" = {
                             "path" = "<cluster=primary>//path/to/file";
@@ -57,10 +57,9 @@
         };
         "resources" = {
             "text" = {
-                "parameters" = {
-                    "discover_period" = 100;
-                    "update_retry_period" = 100;
-                };
+                "file_source_discover_period" = 100;
+                "file_source_update_retry_period" = 100;
+                "file_snapshot_min_creation_period" = 100;
             };
         };
     };

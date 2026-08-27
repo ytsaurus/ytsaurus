@@ -86,6 +86,26 @@ struct TDynamicUnitedParameters<T>
     { }
 };
 
+template <std::derived_from<IFileSource> T>
+struct TFileSourceUnitedParameters
+    : public T::TParameters
+{
+    REGISTER_YSON_STRUCT(TFileSourceUnitedParameters);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+};
+
+template <std::derived_from<IFileSource> T>
+struct TDynamicFileSourceUnitedParameters
+    : public T::TDynamicParameters
+{
+    REGISTER_YSON_STRUCT(TDynamicFileSourceUnitedParameters);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TParameters, class TParametersPtr>
@@ -264,6 +284,7 @@ void TRegistry::RegisterResource()
             .ValidateSpec = [] (const TResourceSpec& spec) {
                 T::TValidator::Validate(spec);
             },
+            .SupportsFileSourceDiscovery = T::TController::SupportsFileSourceDiscovery,
         });
 }
 
@@ -272,13 +293,14 @@ void TRegistry::RegisterFileSource()
 {
     static_assert(std::is_base_of_v<IFileSource, T>);
 
-    ValidateParametersType<typename T::TParameters, typename T::TParametersPtr>();
+    ValidateParametersTypes<T>();
 
     EmplaceDescriptorOrCrash<T>(
         TypeNameToFileSourceDescriptor_,
         TFileSourceDescriptor{
-            .Factory = &New<T, const TFileSourceContextPtr&>,
-            .ParametersFactory = &New<typename T::TParameters>,
+            .Factory = &New<T, const TFileSourceContextPtr&, const TDynamicFileSourceContextPtr&>,
+            .ParametersFactory = &New<TFileSourceUnitedParameters<T>>,
+            .DynamicParametersFactory = &New<TDynamicFileSourceUnitedParameters<T>>,
             .ValidateSpec = [] (const TFileSourceSpec& spec) {
                 T::TValidator::Validate(spec);
             },

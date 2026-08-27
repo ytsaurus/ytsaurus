@@ -44,17 +44,17 @@ public:
 
     using TResourceControllerBase::TResourceControllerBase;
 
-    INodePtr BuildTargetRevisionSpec() override
+    INodePtr DoBuildTargetRevisionSpec() override
     {
         return nullptr;
     }
 
-    void CollectStatuses(
+    void DoCollectStatuses(
         const THashMap<std::string, TWorkerResourceStatusPtr>& /*workerStatuses*/,
         const TWorkerResourceStatusPtr& /*controllerStatus*/) override
     { }
 
-    IMapNodePtr GetView() override
+    IMapNodePtr DoGetView() override
     {
         return nullptr;
     }
@@ -124,15 +124,15 @@ TDynamicResourceContextPtr MakeDynamicResourceContext()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TResourceControllerRegistryTest, PlainResourceGetsNullController)
+TEST(TResourceControllerRegistryTest, PlainResourceGetsBaseController)
 {
     auto spec = MakeResourceSpec(TypeName<TPlainResource>(), "{}");
     auto controller = TRegistry::Get()->CreateResourceController(
         MakeControllerContext(spec),
         MakeDynamicControllerContext());
     ASSERT_TRUE(controller);
-    EXPECT_TRUE(DynamicPointerCast<TNullResourceController>(controller));
-    EXPECT_FALSE(controller->BuildTargetRevisionSpec());
+    EXPECT_TRUE(DynamicPointerCast<TResourceControllerBase>(controller));
+    EXPECT_FALSE(controller->BuildTargetRevision());
     EXPECT_FALSE(controller->GetView());
 }
 
@@ -152,8 +152,11 @@ TEST(TResourceControllerRegistryTest, ControllableResourceCreatesController)
 TEST(TResourceBaseTest, RevisionStateFollowsDeliveredTarget)
 {
     auto spec = MakeResourceSpec(TypeName<TPlainResource>(), "{}");
+    auto resourceContext = MakeResourceContext(spec);
+    resourceContext->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    resourceContext->ResourceIncarnationGeneration = 5;
     auto resource = TRegistry::Get()->CreateResource(
-        MakeResourceContext(spec),
+        resourceContext,
         MakeDynamicResourceContext());
 
     EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, std::nullopt);
@@ -168,6 +171,8 @@ TEST(TResourceBaseTest, RevisionStateFollowsDeliveredTarget)
     // The base class treats switching as instant: both ids equal the delivered target.
     EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, std::optional<i64>(7));
     EXPECT_EQ(resource->GetRevisionState().TargetRevisionId, std::optional<i64>(7));
+    EXPECT_EQ(resource->GetRevisionState().ResourceInstanceId, resourceContext->ResourceInstanceId);
+    EXPECT_EQ(resource->GetRevisionState().ResourceIncarnationGeneration, 5u);
 
     resource->Reconfigure(MakeDynamicResourceContext());
 

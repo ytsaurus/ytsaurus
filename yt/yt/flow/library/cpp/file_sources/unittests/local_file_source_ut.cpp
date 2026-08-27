@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/resources/file/local_file_source.h>
+#include <yt/yt/flow/library/cpp/file_sources/local_file_source.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -29,7 +29,12 @@ TLocalFileSourcePtr MakeSource(const std::string& path)
 
     auto context = New<TFileSourceContext>();
     context->SourceSpec = std::move(spec);
-    return New<TLocalFileSource>(std::move(context));
+
+    auto dynamicSpec = New<TDynamicFileSourceSpec>();
+    dynamicSpec->Parameters = GetEphemeralNodeFactory()->CreateMap();
+    auto dynamicContext = New<TDynamicFileSourceContext>();
+    dynamicContext->DynamicFileSourceSpec = std::move(dynamicSpec);
+    return New<TLocalFileSource>(std::move(context), std::move(dynamicContext));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

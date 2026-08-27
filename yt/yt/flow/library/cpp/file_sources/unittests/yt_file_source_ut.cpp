@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/resources/file/yt_file_source.h>
+#include <yt/yt/flow/library/cpp/file_sources/yt_file_source.h>
 
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/cache/cache.h>
@@ -103,7 +103,12 @@ TYTFileSourcePtr MakeSource(
     context->ClientsCache = New<TTestClientsCache>(std::string(pipelineCluster), client);
     context->PipelinePath = "//pipeline";
     context->PipelinePath.SetCluster(std::string(pipelineCluster));
-    return New<TYTFileSource>(std::move(context));
+
+    auto dynamicSpec = New<TDynamicFileSourceSpec>();
+    dynamicSpec->Parameters = GetEphemeralNodeFactory()->CreateMap();
+    auto dynamicContext = New<TDynamicFileSourceContext>();
+    dynamicContext->DynamicFileSourceSpec = std::move(dynamicSpec);
+    return New<TYTFileSource>(std::move(context), std::move(dynamicContext));
 }
 
 INodePtr MakeNode(EObjectType type, TObjectId id, TRevision revision, i64 size = 100)
