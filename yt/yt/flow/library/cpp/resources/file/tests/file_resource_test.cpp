@@ -8,6 +8,7 @@
 #include <util/folder/path.h>
 #include <util/folder/tempdir.h>
 #include <util/stream/file.h>
+#include <util/string/join.h>
 #include <util/system/fstat.h>
 #include <util/system/shellcommand.h>
 
@@ -54,29 +55,51 @@ TTextData::TTextData(std::string text)
     : Text(std::move(text))
 { }
 
-TTextDataPtr TTestFileResource::Initialize(const TMaterializedDirectoryPtr& directory)
+TTextDataPtr TTestFileResource::Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources)
 {
-    TVector<TFsPath> entries;
-    TFsPath(directory->GetRootPath()).List(entries);
-    THROW_ERROR_EXCEPTION_UNLESS(
-        entries.size() == 1 && entries.front().IsFile(),
-        "Test file resource expects exactly one regular file in its materialized root");
+    if (fileSources->GetFileSources().size() == 1) {
+        TVector<TFsPath> entries;
+        TFsPath(fileSources->GetOnlyFileSource()->GetRootPath()).List(entries);
+        THROW_ERROR_EXCEPTION_UNLESS(
+            entries.size() == 1 && entries.front().IsFile(),
+            "Test file resource expects exactly one regular file in its materialized root");
 
-    const auto& file = entries.front();
-    auto size = TFileStat(file, /*nofollow*/ true).Size;
-    if (size >= 64_MB) {
-        return New<TTextData>(Format("size:%v", size));
+        const auto& file = entries.front();
+        auto size = TFileStat(file, /*nofollow*/ true).Size;
+        if (size >= 64_MB) {
+            return New<TTextData>(Format("size:%v", size));
+        }
+        if (std::string(file.Basename()).ends_with(".tar")) {
+            return New<TTextData>(ReadArchive(file));
+        }
+        return New<TTextData>(ReadFile(file));
     }
-    if (std::string(file.Basename()).ends_with(".tar")) {
-        return New<TTextData>(ReadArchive(file));
+
+    std::vector<TFileSourceId> ids;
+    ids.reserve(fileSources->GetFileSources().size());
+    for (const auto& [id, _] : fileSources->GetFileSources()) {
+        ids.push_back(id);
     }
-    return New<TTextData>(ReadFile(file));
+    Sort(ids);
+
+    std::vector<std::string> values;
+    values.reserve(ids.size());
+    for (const auto& id : ids) {
+        TVector<TFsPath> entries;
+        TFsPath(fileSources->GetFileSource(id)->GetRootPath()).List(entries);
+        THROW_ERROR_EXCEPTION_UNLESS(
+            entries.size() == 1 && entries.front().IsFile(),
+            "Test file source %Qv expects exactly one regular file in its materialized root",
+            id);
+        values.push_back(ReadFile(entries.front()));
+    }
+    return New<TTextData>(JoinSeq("|", values));
 }
 
 void TTestFileResource::Validate(const TTextDataPtr& data)
 {
     THROW_ERROR_EXCEPTION_IF(
-        data->Text == "corrupt",
+        data->Text.contains("corrupt"),
         "Test file resource rejected corrupt payload");
 }
 
@@ -89,6 +112,8 @@ void TEnrichedMessage::Register(TRegistrar registrar)
     registrar.Parameter("file_text", &TThis::FileText)
         .Default();
     registrar.Parameter("resource_revision", &TThis::ResourceRevision)
+        .Default();
+    registrar.Parameter("file_snapshot_id", &TThis::FileSnapshotId)
         .Default();
 }
 
@@ -107,6 +132,7 @@ void TEnrichWithFileFunction::ProcessMessage(
     enriched->Input = GetColumnValue<std::string>(message, "text");
     enriched->FileText = accessor->Text;
     enriched->ResourceRevision = accessor.GetDeliveryRevisionId();
+    enriched->FileSnapshotId = accessor.GetFileSnapshotId().Underlying();
     output->AddMessage(context->ConvertToMessage(enriched));
 }
 

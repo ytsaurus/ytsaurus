@@ -190,9 +190,11 @@ NYTree::TYsonStructPtr TRegistry::ParseResourceDynamicParameters(
     return dynamicParameters;
 }
 
-IFileSourcePtr TRegistry::CreateFileSource(const TFileSourceContextPtr& context)
+IFileSourcePtr TRegistry::CreateFileSource(
+    const TFileSourceContextPtr& context,
+    const TDynamicFileSourceContextPtr& dynamicContext)
 {
-    return GetFileSourceDescriptor(context->SourceSpec->FileSourceClassName).Factory(context);
+    return GetFileSourceDescriptor(context->SourceSpec->FileSourceClassName).Factory(context, dynamicContext);
 }
 
 NYTree::TYsonStructPtr TRegistry::ParseFileSourceParameters(const TFileSourceSpecPtr& spec)
@@ -200,6 +202,17 @@ NYTree::TYsonStructPtr TRegistry::ParseFileSourceParameters(const TFileSourceSpe
     auto parameters = GetFileSourceDescriptor(spec->FileSourceClassName).ParametersFactory();
     parameters->Load(spec->Parameters);
     return parameters;
+}
+
+NYTree::TYsonStructPtr TRegistry::ParseDynamicFileSourceParameters(
+    const TFileSourceSpecPtr& spec,
+    const TDynamicFileSourceSpecPtr& dynamicSpec)
+{
+    auto dynamicParameters = GetFileSourceDescriptor(spec->FileSourceClassName).DynamicParametersFactory();
+    if (dynamicParameters && dynamicSpec->Parameters) {
+        dynamicParameters->Load(dynamicSpec->Parameters);
+    }
+    return dynamicParameters;
 }
 
 IExternalStateManagerPtr TRegistry::CreateExternalStateManager(
@@ -371,7 +384,15 @@ void TRegistry::ValidateResourceSpec(const TResourceSpecPtr& spec) const
     if (!TypeNameToResourceDescriptor_.contains(typeName)) {
         THROW_ERROR_EXCEPTION("No resource %Qv is registered", typeName);
     }
-    GetResourceDescriptor(typeName).ValidateSpec(*spec);
+    const auto& descriptor = GetResourceDescriptor(typeName);
+    THROW_ERROR_EXCEPTION_UNLESS(
+        spec->FileSources.empty() || descriptor.SupportsFileSourceDiscovery,
+        "Resource %Qv declares file sources, but its controller does not support file source discovery; derive the controller from TResourceControllerBase",
+        typeName);
+    descriptor.ValidateSpec(*spec);
+    for (const auto& [_, fileSourceSpec] : spec->FileSources) {
+        ValidateFileSourceSpec(fileSourceSpec);
+    }
 }
 
 void TRegistry::ValidateFileSourceSpec(const TFileSourceSpecPtr& spec) const
@@ -617,6 +638,23 @@ std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IM
         }
     }
 
+    for (const auto& [resourceId, resourceSpec] : pipelineSpec->Resources) {
+        try {
+            for (const auto& [name, fileSourceSpec] : resourceSpec->FileSources) {
+                ValidateFileSourceSpec(fileSourceSpec);
+                ValidateParameters(
+                    "static_pipeline_spec",
+                    Format("/resources/%v/file_sources/%v/parameters", resourceId, name),
+                    GetFileSourceDescriptor(fileSourceSpec->FileSourceClassName).ParametersFactory,
+                    fileSourceSpec->Parameters,
+                    &errors,
+                    unrecognized);
+            }
+        } catch (const std::exception& exception) {
+            errors.push_back(TError(exception));
+        }
+    }
+
     if (!unrecognized->GetKeys().empty()) {
         errors.push_back(TError("Static spec has unrecognized fields").With("unrecognized_fields", unrecognized));
     }
@@ -759,12 +797,24 @@ std::vector<TError> TRegistry::ValidateDynamicPipelineSpecParseability(const TPi
 
     // Validate that all resources in dynamic spec exist in static spec.
     for (const auto& [resourceId, dynamicResourceSpec] : dynamicPipelineSpec->Resources) {
-        if (!pipelineSpec->Resources.contains(resourceId)) {
+        auto resourceSpecIt = pipelineSpec->Resources.find(resourceId);
+        if (resourceSpecIt == pipelineSpec->Resources.end()) {
             errors.push_back(
                 TError(
                     "Dynamic spec contains resource %Qv that does not exist in static spec. Closest existing names: %v",
                     resourceId,
                     GetClosestNames(resourceId, GetKeys(pipelineSpec->Resources))));
+            continue;
+        }
+        for (const auto& [fileSourceId, _] : dynamicResourceSpec->FileSources) {
+            if (!resourceSpecIt->second->FileSources.contains(fileSourceId)) {
+                errors.push_back(TError(
+                    "Dynamic spec contains file source %Qv in resource %Qv "
+                    "that does not exist in static spec. Closest existing names: %v",
+                    fileSourceId,
+                    resourceId,
+                    GetClosestNames(fileSourceId, GetKeys(resourceSpecIt->second->FileSources))));
+            }
         }
     }
 
@@ -783,6 +833,20 @@ std::vector<TError> TRegistry::ValidateDynamicPipelineSpecParseability(const TPi
                 dynamicResourceSpec->Parameters,
                 &errors,
                 unrecognized);
+
+            for (const auto& [fileSourceId, fileSourceSpec] : resourceSpec->FileSources) {
+                auto dynamicFileSourceSpecIt = dynamicResourceSpec->FileSources.find(fileSourceId);
+                if (dynamicFileSourceSpecIt == dynamicResourceSpec->FileSources.end()) {
+                    continue;
+                }
+                ValidateParameters(
+                    "dynamic_pipeline_spec",
+                    Format("/resources/%v/file_sources/%v/parameters", resourceId, fileSourceId),
+                    GetFileSourceDescriptor(fileSourceSpec->FileSourceClassName).DynamicParametersFactory,
+                    dynamicFileSourceSpecIt->second->Parameters,
+                    &errors,
+                    unrecognized);
+            }
         } catch (const std::exception& exception) {
             errors.push_back(TError(exception));
         }

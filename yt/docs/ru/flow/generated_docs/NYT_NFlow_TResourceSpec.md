@@ -13,6 +13,9 @@
 || `parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Значение по умолчанию**: `{}`
 Произвольные параметры для соответствующего класса. ||
+|| `file_sources` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TFileSourceIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TFileSourceSpec](./all_yson_structs#NYT_NFlow_TFileSourceSpec)`>>`
+**Значение по умолчанию**: `{}`
+Именованные источники файлов ресурса. Контроллер добавляет файловый снимок в целевую ревизию только после обнаружения всех имён; собственная часть целевой спецификации контроллера может публиковаться независимо. Воркеры материализуют точные ревизии из полученной цели. Такие ресурсы поддерживаются только на воркерах и должны иметь `controller = %false` во всех путях `required_resource_ids`, которые могут до них дойти. ||
 || `dependencies` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
 **Значение по умолчанию**: `{}`
 Ресурсы, от которых зависит данный ресурс. Повторяет структуру `required_resource_ids` из `Computation`. ||

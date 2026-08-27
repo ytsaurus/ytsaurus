@@ -9,6 +9,7 @@
 #include "timestamp_statistics.h"
 #include "traverse.h"
 
+#include <yt/yt/flow/library/cpp/file_storage/public.h>
 #include <yt/yt/flow/library/cpp/misc/indexed_yson_string.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -322,6 +323,24 @@ DEFINE_REFCOUNTED_TYPE(TMessageDistributorStatus);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFileSnapshotStatus
+    : public NYTree::TYsonStruct
+{
+    TFileSnapshotId SnapshotId;
+    EFileSnapshotState State = EFileSnapshotState::Preparing;
+    std::optional<EFileSnapshotPreparationStage> PreparationStage;
+    TError Error;
+    std::optional<TInstant> NextRetryAt;
+
+    REGISTER_YSON_STRUCT(TFileSnapshotStatus);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TFileSnapshotStatus);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TWorkerResourceStatus
     : public NYTree::TYsonStruct
 {
@@ -339,7 +358,15 @@ struct TWorkerResourceStatus
     std::optional<i64> AppliedRevisionId;
     //! Id of the delivered target revision the resource is switching to.
     std::optional<i64> TargetRevisionId;
-    std::optional<EFileResourceUpdateState> UpdateState;
+
+    std::optional<TResourceInstanceId> ResourceInstanceId;
+    std::optional<ui64> ResourceIncarnationGeneration;
+    //! Last fully active file snapshot on this instance.
+    std::optional<TFileSnapshotId> ActiveFileSnapshotId;
+    //! File snapshot currently being prepared or activated.
+    TFileSnapshotStatusPtr PreparingFileSnapshot;
+    //! Number of live accessor leases by file snapshot.
+    THashMap<TFileSnapshotId, i64> LiveAccessorCounts;
 
     REGISTER_YSON_STRUCT(TWorkerResourceStatus);
 
@@ -353,6 +380,7 @@ DEFINE_REFCOUNTED_TYPE(TWorkerResourceStatus);
 struct TWorkerStatus
     : public NYTree::TYsonStruct
 {
+    std::optional<TIncarnationId> WorkerIncarnationId;
     TError PreviousCrashError;
     THashMap<std::string, TError> Errors;
     TMessageDistributorStatusPtr MessageDistributorStatus;

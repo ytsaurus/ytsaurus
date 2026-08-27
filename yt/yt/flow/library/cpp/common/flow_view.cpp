@@ -500,6 +500,20 @@ void TMessageDistributorStatus::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFileSnapshotStatus::Register(TRegistrar registrar)
+{
+    registrar.Parameter("snapshot_id", &TThis::SnapshotId);
+    registrar.Parameter("state", &TThis::State);
+    registrar.Parameter("preparation_stage", &TThis::PreparationStage)
+        .Default();
+    registrar.Parameter("error", &TThis::Error)
+        .Default();
+    registrar.Parameter("next_retry_at", &TThis::NextRetryAt)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TWorkerResourceStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("queue_size_30s", &TThis::QueueSize30s)
@@ -522,7 +536,15 @@ void TWorkerResourceStatus::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("target_revision_id", &TThis::TargetRevisionId)
         .Default();
-    registrar.Parameter("update_state", &TThis::UpdateState)
+    registrar.Parameter("resource_instance_id", &TThis::ResourceInstanceId)
+        .Default();
+    registrar.Parameter("resource_incarnation_generation", &TThis::ResourceIncarnationGeneration)
+        .Default();
+    registrar.Parameter("active_file_snapshot_id", &TThis::ActiveFileSnapshotId)
+        .Default();
+    registrar.Parameter("preparing_file_snapshot", &TThis::PreparingFileSnapshot)
+        .Default();
+    registrar.Parameter("live_accessor_counts", &TThis::LiveAccessorCounts)
         .Default();
 }
 
@@ -530,6 +552,8 @@ void TWorkerResourceStatus::Register(TRegistrar registrar)
 
 void TWorkerStatus::Register(TRegistrar registrar)
 {
+    registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)
+        .Default();
     registrar.Parameter("previous_crash_error", &TThis::PreviousCrashError)
         .Default();
     registrar.Parameter("errors", &TThis::Errors)

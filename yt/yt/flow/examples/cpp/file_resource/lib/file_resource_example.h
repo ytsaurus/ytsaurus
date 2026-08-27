@@ -31,7 +31,7 @@ public:
     using TFileResourceBase::TFileResourceBase;
 
 protected:
-    TTextDataPtr Initialize(const TMaterializedDirectoryPtr& directory) override;
+    TTextDataPtr Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTextFileResource);
@@ -50,13 +50,13 @@ struct TEnrichedMessage
 };
 
 class TEnrichWithFileFunction
-    : public IProcessFunction
+    : public IBatchProcessFunction
 {
 public:
     void Init(const IRuntimeInitContextPtr& initContext) override;
 
-    void ProcessMessage(
-        const TInputMessageConstPtr& message,
+    void Process(
+        const IInputContextPtr& input,
         const IOutputCollectorPtr& output,
         const IRuntimeContextPtr& context) override;
 

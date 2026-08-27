@@ -35,6 +35,8 @@ YT_DEFINE_STRONG_TYPEDEF(TWatermarkAlignmentGroup, std::string);
 
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TStreamId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TResourceId);
+YT_DEFINE_STRONG_TYPEDEF(TFileSourceId, std::string);
+YT_DEFINE_STRONG_TYPEDEF(TFileSnapshotId, i64);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TComputationId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TSinkId);
 YT_FLOW_DEFINE_IDENTIFIER_TYPEDEF(TThrottlerId);
@@ -263,6 +265,7 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicRetryableRequestSpec);
 DECLARE_REFCOUNTED_STRUCT(TMessageBatcherSettings);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionTracerSpec);
+DECLARE_REFCOUNTED_STRUCT(TDynamicFileSourceSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicThrottlerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicThrottlerClassSpec);
@@ -351,6 +354,8 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicResourceContext);
 DECLARE_REFCOUNTED_STRUCT(IResource);
 DECLARE_REFCOUNTED_STRUCT(TResourceManagerContext);
 DECLARE_REFCOUNTED_STRUCT(IResourceManager);
+DECLARE_REFCOUNTED_STRUCT(TFileSnapshot);
+DECLARE_REFCOUNTED_STRUCT(TFileSnapshotStatus);
 DECLARE_REFCOUNTED_STRUCT(TResourceRevision);
 DECLARE_REFCOUNTED_STRUCT(TResourceControllerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceControllerContext);
@@ -359,13 +364,21 @@ DECLARE_REFCOUNTED_STRUCT(IResourceController);
 DECLARE_REFCOUNTED_STRUCT(TFileSourceSpec);
 DECLARE_REFCOUNTED_STRUCT(TFileSourceRevision);
 DECLARE_REFCOUNTED_STRUCT(TFileSourceContext);
+DECLARE_REFCOUNTED_STRUCT(TDynamicFileSourceContext);
 DECLARE_REFCOUNTED_STRUCT(IFileSource);
 
-DEFINE_ENUM(EFileResourceUpdateState,
-    ((Downloading)     (0))
-    ((Initializing)    (1))
-    ((Validating)      (2))
-    ((WaitingForRetry) (3))
+DEFINE_ENUM(EFileSnapshotState,
+    ((Preparing) (0))
+    ((Validated) (1))
+    ((Draining)  (2))
+    ((Active)    (3))
+);
+
+DEFINE_ENUM(EFileSnapshotPreparationStage,
+    ((Waiting)       (0))
+    ((Materializing) (1))
+    ((Initializing)  (2))
+    ((Validating)    (3))
 );
 
 using TVersionedResourceTargetRevisions = TVersionedValue<THashMap<TResourceId, TResourceRevisionPtr>>;

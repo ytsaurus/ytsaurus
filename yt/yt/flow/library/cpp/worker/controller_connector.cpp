@@ -510,6 +510,7 @@ private:
         }
 
         auto workerStatus = New<TWorkerStatus>();
+        workerStatus->WorkerIncarnationId = NodeInfo_->IncarnationId;
         if (auto error = GetPreviousCrashError(); TInstant::Now() < error.GetDatetime() + YoungWorkingJobThreshold) {
             workerStatus->PreviousCrashError = error;
         }

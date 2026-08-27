@@ -27,9 +27,21 @@ void TYTDirectoryLastFileSourceParameters::Register(TRegistrar registrar)
     registrar.Parameter("path", &TThis::Path);
 }
 
+void TYTDirectoryLastFileSourceDynamicParameters::Register(TRegistrar registrar)
+{
+    registrar.Parameter("pinned_file_name", &TThis::PinnedFileName)
+        .Default();
+    registrar.Postprocessor([] (TThis* parameters) {
+        if (parameters->PinnedFileName) {
+            ValidateFileSourceName(*parameters->PinnedFileName);
+        }
+    });
+}
+
 TFuture<TFileSourceRevisionPtr> TYTDirectoryLastFileSource::Discover()
 {
     auto directoryPath = GetParameters()->Path;
+    auto pinnedFileName = GetDynamicParameters()->PinnedFileName;
     auto cluster = directoryPath.GetCluster()
         ? directoryPath.GetCluster()
         : GetContext()->PipelinePath.GetCluster();
@@ -42,19 +54,36 @@ TFuture<TFileSourceRevisionPtr> TYTDirectoryLastFileSource::Discover()
     TListNodeOptions options;
     options.Attributes = {"id", "type", "revision", "uncompressed_data_size"};
     return client->ListNode(directoryPath.GetPath(), options)
-        .Apply(BIND([directoryPath = std::move(directoryPath), cluster = *cluster] (const NYson::TYsonString& listYson) {
+        .Apply(BIND([
+            directoryPath = std::move(directoryPath),
+            cluster = *cluster,
+            pinnedFileName = std::move(pinnedFileName)
+        ] (const NYson::TYsonString& listYson) {
             auto list = ConvertToNode(listYson);
 
             std::pair<std::string, INodePtr> selected;
             for (const auto& child : list->AsList()->GetChildren()) {
-                if (child->Attributes().Get<EObjectType>("type") != EObjectType::File) {
-                    continue;
-                }
                 auto name = ConvertTo<std::string>(child);
-                if (!selected.second || name > selected.first) {
+                auto type = child->Attributes().Get<EObjectType>("type");
+                if (pinnedFileName && name == *pinnedFileName) {
+                    THROW_ERROR_EXCEPTION_UNLESS(
+                        type == EObjectType::File,
+                        "Pinned YT directory child %Qv is not a file",
+                        name);
+                    selected = {std::move(name), child};
+                    break;
+                }
+                if (!pinnedFileName &&
+                    type == EObjectType::File &&
+                    (!selected.second || name > selected.first))
+                {
                     selected = {std::move(name), child};
                 }
             }
+            THROW_ERROR_EXCEPTION_IF(
+                pinnedFileName && !selected.second,
+                "Pinned YT directory file %Qv does not exist",
+                *pinnedFileName);
             if (!selected.second) {
                 return TFileSourceRevisionPtr{};
             }

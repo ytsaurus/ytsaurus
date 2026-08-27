@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/resources/file/yt_directory_last_file_source.h>
-#include <yt/yt/flow/library/cpp/resources/file/yt_file_source.h>
+#include <yt/yt/flow/library/cpp/file_sources/yt_directory_last_file_source.h>
+#include <yt/yt/flow/library/cpp/file_sources/yt_file_source.h>
 
 #include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/unittests/mock/client.h>
@@ -41,7 +41,23 @@ private:
     const IClientPtr Client_;
 };
 
-TYTDirectoryLastFileSourcePtr MakeDirectorySource(const IClientPtr& client)
+TDynamicFileSourceContextPtr MakeDirectoryDynamicContext(
+    std::optional<std::string> pinnedFileName = std::nullopt)
+{
+    auto parameters = New<TYTDirectoryLastFileSourceDynamicParameters>();
+    parameters->PinnedFileName = std::move(pinnedFileName);
+
+    auto spec = New<TDynamicFileSourceSpec>();
+    spec->Parameters = ConvertToNode(parameters)->AsMap();
+
+    auto context = New<TDynamicFileSourceContext>();
+    context->DynamicFileSourceSpec = std::move(spec);
+    return context;
+}
+
+TYTDirectoryLastFileSourcePtr MakeDirectorySource(
+    const IClientPtr& client,
+    std::optional<std::string> pinnedFileName = std::nullopt)
 {
     auto parameters = New<TYTDirectoryLastFileSourceParameters>();
     parameters->Path = "//dir";
@@ -55,7 +71,9 @@ TYTDirectoryLastFileSourcePtr MakeDirectorySource(const IClientPtr& client)
     context->ClientsCache = New<TDirectoryTestClientsCache>(client);
     context->PipelinePath = "//pipeline";
     context->PipelinePath.SetCluster("primary");
-    return New<TYTDirectoryLastFileSource>(std::move(context));
+    return New<TYTDirectoryLastFileSource>(
+        std::move(context),
+        MakeDirectoryDynamicContext(std::move(pinnedFileName)));
 }
 
 INodePtr MakeDirectoryListing(const std::vector<std::pair<std::string, EObjectType>>& entries)
@@ -147,6 +165,53 @@ TEST(TYTDirectoryLastFileSourceTest, GreaterInsertionChangesSelection)
     EXPECT_EQ(first->Locator->GetChildValueOrThrow<std::string>("basename"), "001");
     EXPECT_EQ(second->Locator->GetChildValueOrThrow<std::string>("basename"), "002");
     EXPECT_NE(first->ObjectId, second->ObjectId);
+}
+
+TEST(TYTDirectoryLastFileSourceTest, DynamicPinSelectsExactFileAndCanBeCleared)
+{
+    auto client = New<testing::StrictMock<TMockClient>>();
+    auto listing = ConvertToYsonString(MakeDirectoryListing({
+        {"001", EObjectType::File},
+        {"002", EObjectType::File},
+    }));
+    EXPECT_CALL(*client, ListNode(TYPath("//dir"), testing::_))
+        .Times(3)
+        .WillRepeatedly(testing::Return(MakeFuture(listing)));
+    auto source = MakeDirectorySource(client);
+
+    EXPECT_EQ(
+        WaitFor(source->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<std::string>("basename"),
+        "002");
+
+    source->Reconfigure(MakeDirectoryDynamicContext("001"));
+    EXPECT_EQ(
+        WaitFor(source->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<std::string>("basename"),
+        "001");
+
+    source->Reconfigure(MakeDirectoryDynamicContext());
+    EXPECT_EQ(
+        WaitFor(source->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<std::string>("basename"),
+        "002");
+}
+
+TEST(TYTDirectoryLastFileSourceTest, DynamicPinMustNameExistingDirectFile)
+{
+    auto client = New<testing::StrictMock<TMockClient>>();
+    EXPECT_CALL(*client, ListNode(TYPath("//dir"), testing::_))
+        .WillOnce(testing::Return(MakeFuture(ConvertToYsonString(MakeDirectoryListing({
+            {"001", EObjectType::File},
+        })))));
+    auto source = MakeDirectorySource(client, "missing");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(source->Discover()).ValueOrThrow(),
+        "Pinned YT directory file \"missing\" does not exist");
+
+    auto invalidParameters = New<TYTDirectoryLastFileSourceDynamicParameters>();
+    EXPECT_THROW_WITH_SUBSTRING(
+        invalidParameters->Load(ConvertTo<IMapNodePtr>(TYsonString(TStringBuf(
+            R"({pinned_file_name="../bad";})")))),
+        "single normal path component");
 }
 
 TEST(TYTDirectoryLastFileSourceTest, SharesObjectIdFamilyWithYTFileSource)

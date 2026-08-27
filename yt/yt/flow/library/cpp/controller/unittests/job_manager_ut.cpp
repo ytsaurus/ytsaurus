@@ -4,6 +4,7 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/resource.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/computation/controller_base.h>
 #include <yt/yt/flow/library/cpp/computation/transform_computation.h>
 #include <yt/yt/flow/library/cpp/controller/config.h>
@@ -85,6 +86,80 @@ static TResourceSpecPtr MakeSimpleResourceSpec()
 {
     auto spec = New<TResourceSpec>();
     spec->ResourceClassName = TypeName<TSimpleResource>();
+    return spec;
+}
+
+class TCapturingResourceController
+    : public IResourceController
+{
+public:
+    TCapturingResourceController(
+        TResourceControllerContextPtr /*context*/,
+        TDynamicResourceControllerContextPtr /*dynamicContext*/)
+    { }
+
+    void Init(IInitContextPtr /*initContext*/) override
+    { }
+
+    TResourceRevisionPtr BuildTargetRevision() override
+    {
+        auto revision = New<TResourceRevision>();
+        revision->Spec = NYTree::ConvertToNode("target");
+        return revision;
+    }
+
+    void CollectStatuses(
+        const THashMap<std::string, TWorkerStatusPtr>& workerStatuses,
+        const TWorkerResourceStatusPtr& /*controllerStatus*/,
+        std::optional<i64> publishedRevisionId) override
+    {
+        WorkerStatuses = workerStatuses;
+        PublishedRevisionId = publishedRevisionId;
+    }
+
+    NYTree::IMapNodePtr GetView() override
+    {
+        return nullptr;
+    }
+
+    static void Reset()
+    {
+        WorkerStatuses.clear();
+        PublishedRevisionId.reset();
+    }
+
+    static THashMap<std::string, TWorkerStatusPtr> WorkerStatuses;
+    static std::optional<i64> PublishedRevisionId;
+
+protected:
+    TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+THashMap<std::string, TWorkerStatusPtr> TCapturingResourceController::WorkerStatuses;
+std::optional<i64> TCapturingResourceController::PublishedRevisionId;
+
+class TCapturingResource
+    : public TSimpleResource
+{
+public:
+    using TController = TCapturingResourceController;
+    using TSimpleResource::TSimpleResource;
+};
+
+YT_FLOW_DEFINE_RESOURCE(TCapturingResource);
+
+static TResourceSpecPtr MakeCapturingResourceSpec()
+{
+    auto spec = New<TResourceSpec>();
+    spec->ResourceClassName = TypeName<TCapturingResource>();
     return spec;
 }
 
@@ -184,6 +259,7 @@ public:
     TPersistedStateControlPtr<std::string> PersistedControl;
     TFlowViewPtr FlowView;
     IJobManagerPtr JobManager;
+    TJobManagerContextPtr JobManagerContext;
     IStatusProfilerPtr StatusProfiler;
     NConcurrency::IFairShareThreadPoolPtr ThreadPool;
 
@@ -194,14 +270,16 @@ public:
         FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(spec, TestVersionProvider());
         FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(dynamicSpec, TestVersionProvider());
         FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(BuildExtendedPipelineSpec(spec), TestVersionProvider());
-        auto context = New<TJobManagerContext>();
+        JobManagerContext = New<TJobManagerContext>();
         ThreadPool = NConcurrency::CreateFairShareThreadPool(MaxThreads, "Balancer");
-        context->Invoker = ThreadPool->GetInvoker("Balancer");
-        context->MainCycleInvoker = GetCurrentInvoker();
-        context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
+        JobManagerContext->Invoker = ThreadPool->GetInvoker("Balancer");
+        JobManagerContext->MainCycleInvoker = GetCurrentInvoker();
+        JobManagerContext->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
+        JobManagerContext->TimeProvider = New<TFakeTimeProvider>();
+        JobManagerContext->VersionProvider = TestVersionProvider();
         StatusProfiler = CreateSyncStatusProfiler();
-        context->StatusProfiler = StatusProfiler;
-        JobManager = CreateJobManager(context, spec, dynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
+        JobManagerContext->StatusProfiler = StatusProfiler;
+        JobManager = CreateJobManager(JobManagerContext, spec, dynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
     }
 
     void SetUp() override
@@ -263,6 +341,161 @@ TEST_F(TJobManagerTest, ReportsAndClearsInsufficientWorkers)
     distributeJobs();
 
     EXPECT_TRUE(StatusProfiler->GetStatus().Errors.empty());
+}
+
+TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileSources)
+{
+    const TResourceId resourceId("file_resource");
+    auto spec = New<TPipelineSpec>();
+    auto resourceSpec = MakeSimpleResourceSpec();
+    resourceSpec->FileSources[TFileSourceId("file")] = New<TFileSourceSpec>();
+    spec->Resources[resourceId] = resourceSpec;
+
+    auto computationSpec = CreateGenericComputationSpec<TSimpleComputation>();
+    computationSpec->InputStreamIds.clear();
+    computationSpec->RequiredResourceIds[resourceId] = New<TResourceDescription>();
+    spec->Computations[TComputationId("computation")] = computationSpec;
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(spec),
+        "named file sources are worker-only");
+}
+
+TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileSourceDependency)
+{
+    const TResourceId parentId("parent");
+    const TResourceId fileResourceId("file_resource");
+    auto spec = New<TPipelineSpec>();
+    auto parentSpec = MakeSimpleResourceSpec();
+    parentSpec->Dependencies[fileResourceId] = New<TResourceDescription>();
+    spec->Resources[parentId] = parentSpec;
+    auto fileResourceSpec = MakeSimpleResourceSpec();
+    fileResourceSpec->FileSources[TFileSourceId("file")] = New<TFileSourceSpec>();
+    spec->Resources[fileResourceId] = fileResourceSpec;
+
+    auto computationSpec = CreateGenericComputationSpec<TSimpleComputation>();
+    computationSpec->InputStreamIds.clear();
+    computationSpec->RequiredResourceIds[parentId] = New<TResourceDescription>();
+    spec->Computations[TComputationId("computation")] = computationSpec;
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidatePipelineSpec(spec),
+        "named file sources are worker-only");
+}
+
+TEST_F(TJobManagerTest, ResourceControllerFeedbackIsFencedByWorkerIncarnation)
+{
+    const TResourceId resourceId("resource");
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[resourceId] = MakeCapturingResourceSpec();
+    Prepare(spec, New<TDynamicPipelineSpec>());
+
+    const std::string workerAddress = "worker";
+    auto worker = New<NFlow::TWorker>();
+    worker->RpcAddress = workerAddress;
+    worker->IncarnationId = TIncarnationId(TGuid::Create());
+    FlowView->State->Workers[workerAddress] = worker;
+
+    JobManager->UpdateResourceControllers(FlowView);
+    const auto target = GetOrCrash(
+        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
+        resourceId);
+
+    auto resourceStatus = New<TWorkerResourceStatus>();
+    resourceStatus->TargetRevisionId = target->RevisionId;
+    resourceStatus->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
+    auto workerStatus = New<TWorkerStatus>();
+    workerStatus->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    workerStatus->ResourceStatuses[resourceId] = resourceStatus;
+    FlowView->Feedback->WorkerStatuses[workerAddress] = workerStatus;
+
+    TCapturingResourceController::Reset();
+    JobManager->UpdateResourceControllers(FlowView);
+    EXPECT_TRUE(TCapturingResourceController::WorkerStatuses.empty());
+    EXPECT_EQ(TCapturingResourceController::PublishedRevisionId, target->RevisionId);
+
+    workerStatus->WorkerIncarnationId = worker->IncarnationId;
+    JobManager->UpdateResourceControllers(FlowView);
+    ASSERT_EQ(TCapturingResourceController::WorkerStatuses.size(), 1u);
+    EXPECT_TRUE(TCapturingResourceController::WorkerStatuses.contains(workerAddress));
+    const auto& capturedStatus = TCapturingResourceController::WorkerStatuses.at(workerAddress);
+    ASSERT_TRUE(capturedStatus->WorkerIncarnationId);
+    EXPECT_EQ(*capturedStatus->WorkerIncarnationId, worker->IncarnationId);
+    EXPECT_EQ(capturedStatus->ResourceStatuses.at(resourceId), resourceStatus);
+}
+
+TEST_F(TJobManagerTest, OnlyChangedDynamicResourceSpecBumpsPublishedRevision)
+{
+    const TResourceId resourceId("resource");
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[resourceId] = MakeCapturingResourceSpec();
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    Prepare(spec, dynamicSpec);
+
+    JobManager->UpdateResourceControllers(FlowView);
+    const auto firstRevisionId = GetOrCrash(
+        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
+        resourceId)
+        ->RevisionId;
+
+    auto unrelatedDynamicSpec = CloneYsonStruct(dynamicSpec);
+    unrelatedDynamicSpec->JobManager->MinimumWorkerCount = 2;
+    JobManager->Reconfigure(unrelatedDynamicSpec);
+    JobManager->UpdateResourceControllers(FlowView);
+    const auto secondRevisionId = GetOrCrash(
+        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
+        resourceId)
+        ->RevisionId;
+
+    EXPECT_EQ(secondRevisionId, firstRevisionId);
+
+    auto changedDynamicSpec = CloneYsonStruct(unrelatedDynamicSpec);
+    auto dynamicResourceSpec = New<TDynamicResourceSpec>();
+    dynamicResourceSpec->FileSourceDiscoverPeriod = TDuration::Seconds(31);
+    changedDynamicSpec->Resources[resourceId] = std::move(dynamicResourceSpec);
+    JobManager->Reconfigure(changedDynamicSpec);
+    JobManager->UpdateResourceControllers(FlowView);
+    const auto thirdRevisionId = GetOrCrash(
+        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
+        resourceId)
+        ->RevisionId;
+
+    EXPECT_GT(thirdRevisionId, secondRevisionId);
+}
+
+TEST_F(TJobManagerTest, RestoresPublishedResourceRevisionAfterRestartAndEarlyReconfigure)
+{
+    const TResourceId resourceId("resource");
+    auto spec = New<TPipelineSpec>();
+    spec->Resources[resourceId] = MakeCapturingResourceSpec();
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    Prepare(spec, dynamicSpec);
+
+    JobManager->UpdateResourceControllers(FlowView);
+    const auto firstRevisionId = GetOrCrash(
+        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
+        resourceId)
+        ->RevisionId;
+
+    JobManager = CreateJobManager(
+        JobManagerContext,
+        spec,
+        dynamicSpec,
+        FlowView->State->JobManagerState,
+        /*authenticator*/ nullptr);
+
+    auto changedDynamicSpec = CloneYsonStruct(dynamicSpec);
+    auto dynamicResourceSpec = New<TDynamicResourceSpec>();
+    dynamicResourceSpec->FileSourceDiscoverPeriod = TDuration::Seconds(31);
+    changedDynamicSpec->Resources[resourceId] = std::move(dynamicResourceSpec);
+    JobManager->Reconfigure(changedDynamicSpec);
+    JobManager->UpdateResourceControllers(FlowView);
+    const auto secondRevisionId = GetOrCrash(
+        FlowView->State->ExecutionSpec->ResourceTargetRevisions->GetValue(),
+        resourceId)
+        ->RevisionId;
+
+    EXPECT_EQ(secondRevisionId, firstRevisionId);
 }
 
 TEST_F(TJobManagerTest, ReportsEachWorkerGroupMinimum)

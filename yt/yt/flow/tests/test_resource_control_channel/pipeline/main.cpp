@@ -61,7 +61,7 @@ public:
 
     using TResourceControllerBase::TResourceControllerBase;
 
-    INodePtr BuildTargetRevisionSpec() override
+    INodePtr DoBuildTargetRevisionSpec() override
     {
         auto now = TInstant::Now();
         if (Value_ == 0 || now - LastBumpTime_ >= GetParameters()->GenerationPeriod) {
@@ -76,7 +76,7 @@ public:
         // clang-format on
     }
 
-    void CollectStatuses(
+    void DoCollectStatuses(
         const THashMap<std::string, TWorkerResourceStatusPtr>& workerStatuses,
         const TWorkerResourceStatusPtr& controllerStatus) override
     {
@@ -84,7 +84,7 @@ public:
         ControllerStatus_ = controllerStatus;
     }
 
-    IMapNodePtr GetView() override
+    IMapNodePtr DoGetView() override
     {
         THashMap<i64, int> workersPerValue;
         for (const auto& [workerAddress, status] : WorkerStatuses_) {

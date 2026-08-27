@@ -23,6 +23,7 @@ def run_yt_sync(cluster, folder):
                     {"name": "input", "type": "string"},
                     {"name": "file_text", "type": "string"},
                     {"name": "resource_revision", "type": "int64"},
+                    {"name": "file_snapshot_id", "type": "int64"},
                     {"name": "$timestamp", "type": "uint64"},
                     {"name": "$cumulative_data_weight", "type": "int64"},
                 ],

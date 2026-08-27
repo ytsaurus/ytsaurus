@@ -547,6 +547,8 @@ void TResourceSpec::Register(TRegistrar registrar)
             return GetEphemeralNodeFactory()->CreateMap();
         })
         .ResetOnLoad();
+    registrar.Parameter("file_sources", &TThis::FileSources)
+        .Default();
     registrar.Parameter("dependencies", &TThis::Dependencies)
         .Default();
     registrar.Parameter("required_capabilities", &TThis::RequiredCapabilities)
@@ -874,6 +876,23 @@ void TDynamicResourceSpec::Register(TRegistrar registrar)
             return GetEphemeralNodeFactory()->CreateMap();
         })
         .ResetOnLoad();
+    registrar.Parameter("file_sources", &TThis::FileSources)
+        .Default();
+    registrar.Parameter("file_source_discover_period", &TThis::FileSourceDiscoverPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("file_source_update_retry_period", &TThis::FileSourceUpdateRetryPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("file_snapshot_min_creation_period", &TThis::FileSnapshotMinCreationPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Minutes(5));
+    registrar.Parameter("file_snapshot_catalog_max_entries", &TThis::FileSnapshotCatalogMaxEntries)
+        .GreaterThanOrEqual(2)
+        .Default(1024);
+    registrar.Parameter("file_snapshot_rollout_warning_period", &TThis::FileSnapshotRolloutWarningPeriod)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Minutes(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1417,6 +1436,41 @@ void CollectAndValidateYTPaths(const TPipelineSpecPtr& spec)
     }
 }
 
+void ValidateControllerResourceFileSources(const TPipelineSpecPtr& spec)
+{
+    THashSet<TResourceId> visited;
+    std::vector<TResourceId> pending;
+    for (const auto& [_, computationSpec] : spec->Computations) {
+        for (const auto& [resourceId, description] : computationSpec->RequiredResourceIds) {
+            if (description->Controller) {
+                pending.push_back(resourceId);
+            }
+        }
+    }
+
+    while (!pending.empty()) {
+        auto resourceId = pending.back();
+        pending.pop_back();
+        if (!visited.insert(resourceId).second) {
+            continue;
+        }
+
+        auto resourceIt = spec->Resources.find(resourceId);
+        if (resourceIt == spec->Resources.end()) {
+            continue;
+        }
+        const auto& resourceSpec = resourceIt->second;
+        THROW_ERROR_EXCEPTION_IF(
+            !resourceSpec->FileSources.empty(),
+            "File-source-backed resource %Qv cannot be loaded on the controller; "
+            "named file sources are worker-only",
+            resourceId);
+        for (const auto& [dependencyId, _] : resourceSpec->Dependencies) {
+            pending.push_back(dependencyId);
+        }
+    }
+}
+
 } // namespace
 
 std::vector<TYTPathClaim> CollectPipelineYTPaths(const TPipelineSpecPtr& spec)
@@ -1440,6 +1494,8 @@ std::vector<TYTPathClaim> CollectPipelineYTPaths(const TPipelineSpecPtr& spec)
 
 void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
 {
+    ValidateControllerResourceFileSources(spec);
+
     for (const auto& [streamId, streamSpec] : spec->Streams) {
         try {
             ValidateStreamSchema(*streamSpec->Schema);
@@ -1852,6 +1908,9 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
 
     for (const auto& [resourceId, resourceSpec] : spec->Resources) {
         try {
+            for (const auto& [fileSourceId, _] : resourceSpec->FileSources) {
+                ValidateFileSourceName(fileSourceId.Underlying());
+            }
             TRegistry::Get()->ValidateResourceSpec(resourceSpec);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(ex)
@@ -1895,6 +1954,17 @@ void ValidateQuotaClassWeight(double weight)
 
 void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& dynamicSpec)
 {
+    for (const auto& [resourceId, resourceSpec] : dynamicSpec->Resources) {
+        try {
+            for (const auto& [fileSourceId, _] : resourceSpec->FileSources) {
+                ValidateFileSourceName(fileSourceId.Underlying());
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(ex)
+                .With("resource_id", resourceId);
+        }
+    }
+
     for (const auto& [computationId, computationSpec] : dynamicSpec->Computations) {
         auto checkThrottlerId = [&] (
             const std::optional<TThrottlerId>& throttlerId,

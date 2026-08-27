@@ -12,14 +12,15 @@ TNullResourceController::TNullResourceController(
 void TNullResourceController::Init(IInitContextPtr /*initContext*/)
 { }
 
-NYTree::INodePtr TNullResourceController::BuildTargetRevisionSpec()
+TResourceRevisionPtr TNullResourceController::BuildTargetRevision()
 {
     return nullptr;
 }
 
 void TNullResourceController::CollectStatuses(
-    const THashMap<std::string, TWorkerResourceStatusPtr>& /*workerStatuses*/,
-    const TWorkerResourceStatusPtr& /*controllerStatus*/)
+    const THashMap<std::string, TWorkerStatusPtr>& /*workerStatuses*/,
+    const TWorkerResourceStatusPtr& /*controllerStatus*/,
+    std::optional<i64> /*publishedRevisionId*/)
 { }
 
 NYTree::IMapNodePtr TNullResourceController::GetView()

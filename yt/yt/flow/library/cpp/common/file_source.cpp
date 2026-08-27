@@ -1,5 +1,7 @@
 #include "file_source.h"
 
+#include <yt/yt/core/misc/fs.h>
+
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 namespace NYT::NFlow {
@@ -8,10 +10,38 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateFileSourceName(TStringBuf name)
+{
+    const auto path = std::string(name);
+    THROW_ERROR_EXCEPTION_UNLESS(
+        NFS::IsPathRelativeAndInvolvesNoTraversal(path) &&
+            !name.empty() &&
+            name != "." &&
+            name != ".." &&
+            name.find('/') == TStringBuf::npos &&
+            name.find('\\') == TStringBuf::npos &&
+            name.find('\0') == TStringBuf::npos,
+        "File source name %Qv must be a single normal path component",
+        name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TFileSourceSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("file_source_class_name", &TThis::FileSourceClassName)
         .NonEmpty();
+    registrar.Parameter("parameters", &TThis::Parameters)
+        .DefaultCtor([] {
+            return GetEphemeralNodeFactory()->CreateMap();
+        })
+        .ResetOnLoad();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicFileSourceSpec::Register(TRegistrar registrar)
+{
     registrar.Parameter("parameters", &TThis::Parameters)
         .DefaultCtor([] {
             return GetEphemeralNodeFactory()->CreateMap();

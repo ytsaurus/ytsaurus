@@ -1,11 +1,59 @@
 #pragma once
 
 #include "public.h"
+#include "resource_controller_base.h"
 
 #include <yt/yt/flow/library/cpp/common/resource.h>
 #include <yt/yt/flow/library/cpp/misc/reconfigurable.h>
 
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TMaterializedFileSource);
+
+//! One exact file-source revision pinned in local file storage.
+class TMaterializedFileSource
+    : public TRefCounted
+{
+public:
+    TMaterializedFileSource(
+        TFileSourceRevisionPtr revision,
+        NFileStorage::IFileStorageObjectPtr storageObject);
+
+    const TFileSourceRevisionPtr& GetRevision() const;
+    const std::string& GetRootPath() const;
+
+private:
+    const TFileSourceRevisionPtr Revision_;
+    const NFileStorage::IFileStorageObjectPtr StorageObject_;
+    const std::string RootPath_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMaterializedFileSource);
+
+DECLARE_REFCOUNTED_CLASS(TMaterializedFileSourceSnapshot);
+
+//! An immutable file snapshot with its named materialized sources.
+class TMaterializedFileSourceSnapshot
+    : public TRefCounted
+{
+public:
+    TMaterializedFileSourceSnapshot(
+        TFileSnapshotPtr fileSnapshot,
+        THashMap<TFileSourceId, TMaterializedFileSourcePtr> fileSources);
+
+    const TFileSnapshotPtr& GetFileSnapshot() const;
+    const THashMap<TFileSourceId, TMaterializedFileSourcePtr>& GetFileSources() const;
+    const TMaterializedFileSourcePtr& GetFileSource(const TFileSourceId& id) const;
+    const TMaterializedFileSourcePtr& GetOnlyFileSource() const;
+
+private:
+    const TFileSnapshotPtr FileSnapshot_;
+    const THashMap<TFileSourceId, TMaterializedFileSourcePtr> FileSources_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMaterializedFileSourceSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +64,8 @@ class TResourceBase
     , public virtual TReconfigurable<TDynamicResourceContext>
 {
 public:
+    using TController = TResourceControllerBase;
+
     //! Constructor.
     /*!
      *  Resource constructor called at each Controller and Worker instances but loaded only when it is required
@@ -63,6 +113,17 @@ public:
     TResourceRevisionState GetRevisionState() const override;
 
 protected:
+    //! Materializes one exact named file revision from a delivered file snapshot.
+    TFuture<TMaterializedFileSourcePtr> MaterializeFileSource(
+        const TFileSnapshotPtr& fileSnapshot,
+        const TFileSourceId& id) const;
+
+    //! Materializes the requested named revisions as one immutable input snapshot.
+    //! An empty |names| list means every source declared by the resource spec.
+    TFuture<TMaterializedFileSourceSnapshotPtr> MaterializeFileSources(
+        const TFileSnapshotPtr& fileSnapshot,
+        const std::vector<TFileSourceId>& ids = {}) const;
+
     //! Reports queue activity for this resource to the resource manager.
     /*!
      *  \param morePushedToQueue - Number of additional items pushed to the queue since the last call.
@@ -94,6 +155,7 @@ private:
     TAtomicIntrusivePtr<TDynamicResourceContext> DynamicContext_;
     const NYTree::TYsonStructPtr Parameters_;
     TAtomicIntrusivePtr<NYTree::TYsonStruct> DynamicParameters_;
+    THashMap<TFileSourceId, IFileSourcePtr> FileSources_;
 
 protected:
     NLogging::TLogger Logger;

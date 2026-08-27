@@ -28,6 +28,7 @@ struct TResourceControllerContext
     NClient::NCache::IClientsCachePtr ClientsCache;
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr Invoker;
+    ITimeProviderPtr TimeProvider;
 
     // Observability.
     NLogging::TLogger Logger;
@@ -63,6 +64,8 @@ struct IResourceController
     : public TRefCounted
     , public virtual TReconfigurable<TDynamicResourceControllerContext>
 {
+    static constexpr bool SupportsFileSourceDiscovery = false;
+
     // Provide TParameter[Ptr] aliases. It is type of spec `Parameters` field.
     // This type is used in resource registration for future parsing.
     // It may be shadowed by macros YT_FLOW_EXTEND_PARAMETERS in derived types.
@@ -77,21 +80,23 @@ struct IResourceController
     //! job manager state, for controllers that need to survive controller restarts.
     virtual void Init(IInitContextPtr initContext) = 0;
 
-    //! Builds the spec of the target revision to broadcast to the worker-side instances.
+    //! Builds the target revision to broadcast to the worker-side instances.
     /*!
      *  Null means "nothing to publish"; the resource is then absent from the broadcast map.
      *  A result that differs from the previously built one becomes a new revision.
      *
      *  Discover external state in the background; only read its cached result here.
      */
-    virtual NYTree::INodePtr BuildTargetRevisionSpec() = 0;
+    virtual TResourceRevisionPtr BuildTargetRevision() = 0;
 
-    //! Receives the current statuses of this resource: a full snapshot over the alive workers
-    //! (keyed by worker address) plus the status of the controller-side instance (null when it
-    //! has nothing to report).
+    //! Receives the current feedback from alive workers (keyed by worker address) plus the status
+    //! of the controller-side resource instance (null when it has nothing to report).
+    //! |publishedRevisionId| identifies the target currently broadcast to workers and is null
+    //! when there is no published target.
     virtual void CollectStatuses(
-        const THashMap<std::string, TWorkerResourceStatusPtr>& workerStatuses,
-        const TWorkerResourceStatusPtr& controllerStatus) = 0;
+        const THashMap<std::string, TWorkerStatusPtr>& workerStatuses,
+        const TWorkerResourceStatusPtr& controllerStatus,
+        std::optional<i64> publishedRevisionId) = 0;
 
     //! State reflected into the flow view. Null means "nothing to show".
     virtual NYTree::IMapNodePtr GetView() = 0;
@@ -110,11 +115,12 @@ public:
 
     void Init(IInitContextPtr initContext) override;
 
-    NYTree::INodePtr BuildTargetRevisionSpec() override;
+    TResourceRevisionPtr BuildTargetRevision() override;
 
     void CollectStatuses(
-        const THashMap<std::string, TWorkerResourceStatusPtr>& workerStatuses,
-        const TWorkerResourceStatusPtr& controllerStatus) override;
+        const THashMap<std::string, TWorkerStatusPtr>& workerStatuses,
+        const TWorkerResourceStatusPtr& controllerStatus,
+        std::optional<i64> publishedRevisionId) override;
 
     NYTree::IMapNodePtr GetView() override;
 

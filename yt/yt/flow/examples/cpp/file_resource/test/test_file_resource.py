@@ -36,13 +36,12 @@ class TestFileResource(FlowTestBase):
             }
         )
         computation["sinks"]["queue"]["parameters"]["queue_path"] = f"<cluster=primary>{self.output_queue}"
-        resource_parameters = config["spec"]["resources"]["text"]["parameters"]
-        resource_parameters["file_source"]["parameters"]["path"] = source_path
+        resource_spec = config["spec"]["resources"]["text"]
+        resource_spec["file_sources"]["file"]["parameters"]["path"] = source_path
         config.setdefault("dynamic_spec", {}).setdefault("resources", {})["text"] = {
-            "parameters": {
-                "discover_period": 100,
-                "update_retry_period": 100,
-            }
+            "file_source_discover_period": 100,
+            "file_source_update_retry_period": 100,
+            "file_snapshot_min_creation_period": 100,
         }
         self.patch_config(config)
         return self.dump_config_to_log_dir(config, "pipeline-yt-file.yson")
@@ -76,6 +75,7 @@ class TestFileResource(FlowTestBase):
         os.makedirs(worker_cache_path, exist_ok=True)
         return (
             {
+                "enable_porto_resource_tracker": False,
                 "worker": {
                     "file_storage": {
                         "path": base_cache_path,
@@ -83,7 +83,7 @@ class TestFileResource(FlowTestBase):
                         "hard_size_limit": 64 * 1024 * 1024,
                         "cleanup_period": 100,
                     }
-                }
+                },
             },
             [{"worker": {"file_storage": {"path": worker_cache_path}}}],
         )

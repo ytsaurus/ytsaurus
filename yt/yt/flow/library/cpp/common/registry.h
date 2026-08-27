@@ -170,9 +170,15 @@ public:
     template <class T>
     void RegisterFileSource();
 
-    IFileSourcePtr CreateFileSource(const TFileSourceContextPtr& context);
+    IFileSourcePtr CreateFileSource(
+        const TFileSourceContextPtr& context,
+        const TDynamicFileSourceContextPtr& dynamicContext);
 
     NYTree::TYsonStructPtr ParseFileSourceParameters(const TFileSourceSpecPtr& spec);
+
+    NYTree::TYsonStructPtr ParseDynamicFileSourceParameters(
+        const TFileSourceSpecPtr& spec,
+        const TDynamicFileSourceSpecPtr& dynamicSpec);
 
     template <class T>
     void RegisterExternalStateManager();
@@ -311,12 +317,17 @@ private:
         TParametersFactory ParametersFactory;
         TParametersFactory DynamicParametersFactory;
         std::function<void(const TResourceSpec&)> ValidateSpec;
+        bool SupportsFileSourceDiscovery = false;
     };
 
     struct TFileSourceDescriptor
     {
-        std::function<IFileSourcePtr(const TFileSourceContextPtr& context)> Factory;
+        std::function<IFileSourcePtr(
+            const TFileSourceContextPtr& context,
+            const TDynamicFileSourceContextPtr& dynamicContext)>
+            Factory;
         TParametersFactory ParametersFactory;
+        TParametersFactory DynamicParametersFactory;
         std::function<void(const TFileSourceSpec&)> ValidateSpec;
     };
 

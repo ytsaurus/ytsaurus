@@ -7,6 +7,24 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || **Parameter** | **Description** ||
 || `parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
 **Default value**: `{}`
- ||
+Dynamic parameters of the user resource class. ||
+|| `file_sources` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TFileSourceIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicFileSourceSpec](./all_yson_structs#NYT_NFlow_TDynamicFileSourceSpec)`>>`
+**Default value**: `{}`
+Dynamic parameters of the resource's named file sources. Changing the parameters immediately schedules discovery of the corresponding source. ||
+|| `file_source_discover_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `30s`
+Discovery period for all named file sources of the resource. ||
+|| `file_source_update_retry_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `1m`
+Retry period after a file snapshot fails to download, initialize, or validate. ||
+|| `file_snapshot_min_creation_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `5m`
+Minimum period between new complete file snapshots. More frequent source updates are accumulated until the next snapshot is allowed. ||
+|| `file_snapshot_catalog_max_entries` | **Type**: `long`
+**Default value**: `1024`
+Maximum number of file snapshots retained in controller state. The current Active and Preparing snapshots are never evicted. ||
+|| `file_snapshot_rollout_warning_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `15m`
+Time after publishing an Active file snapshot before an incomplete worker rollout is reported in the resource status. ||
 |#
 

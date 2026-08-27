@@ -45,8 +45,8 @@
         "resources" = {
             "text" = {
                 "resource_class_name" = "NYT::NFlow::NExample::TTextFileResource";
-                "parameters" = {
-                    "file_source" = {
+                "file_sources" = {
+                    "file" = {
                         "file_source_class_name" = "NYT::NFlow::TYTFileSource";
                         "parameters" = {
                             "path" = "<cluster=cluster_name>//path/to/config-file";

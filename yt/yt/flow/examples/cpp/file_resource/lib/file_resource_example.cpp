@@ -16,10 +16,10 @@ TTextData::TTextData(std::string text)
     : Text(std::move(text))
 { }
 
-TTextDataPtr TTextFileResource::Initialize(const TMaterializedDirectoryPtr& directory)
+TTextDataPtr TTextFileResource::Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources)
 {
     TVector<TFsPath> entries;
-    TFsPath(directory->GetRootPath()).List(entries);
+    TFsPath(fileSources->GetOnlyFileSource()->GetRootPath()).List(entries);
     THROW_ERROR_EXCEPTION_UNLESS(
         entries.size() == 1 && entries.front().IsFile(),
         "Text file resource expects exactly one regular file in its materialized root");
@@ -42,21 +42,24 @@ void TEnrichWithFileFunction::Init(const IRuntimeInitContextPtr& initContext)
     Resource_ = initContext->GetStaticResource("text")->As<TTextFileResource>();
 }
 
-void TEnrichWithFileFunction::ProcessMessage(
-    const TInputMessageConstPtr& message,
+void TEnrichWithFileFunction::Process(
+    const IInputContextPtr& input,
     const IOutputCollectorPtr& output,
     const IRuntimeContextPtr& context)
 {
-    std::string fileText;
-    {
-        auto accessor = Resource_->Lock();
-        fileText = accessor->Text;
+    if (input->GetMessages().empty()) {
+        return;
     }
 
-    auto enriched = New<TEnrichedMessage>();
-    enriched->Input = GetColumnValue<std::string>(message, "text");
-    enriched->FileText = std::move(fileText);
-    output->AddMessage(context->ConvertToMessage(enriched));
+    auto accessor = Resource_->Lock();
+
+    for (const auto& message : input->GetMessages()) {
+        auto enriched = New<TEnrichedMessage>();
+        enriched->Input = GetColumnValue<std::string>(message, "text");
+        enriched->FileText = accessor->Text;
+        output->SetParents({message}, {}, {})
+            ->AddMessage(context->ConvertToMessage(enriched));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

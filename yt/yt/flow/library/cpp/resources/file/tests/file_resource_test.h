@@ -29,7 +29,7 @@ public:
     using TFileResourceBase::TFileResourceBase;
 
 protected:
-    TTextDataPtr Initialize(const TMaterializedDirectoryPtr& directory) override;
+    TTextDataPtr Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources) override;
     void Validate(const TTextDataPtr& data) override;
 };
 
@@ -41,6 +41,7 @@ struct TEnrichedMessage
     std::string Input;
     std::string FileText;
     i64 ResourceRevision{};
+    i64 FileSnapshotId{};
 
     REGISTER_YSON_STRUCT(TEnrichedMessage);
 
