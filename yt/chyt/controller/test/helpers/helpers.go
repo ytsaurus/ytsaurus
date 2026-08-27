@@ -208,7 +208,21 @@ func CreateAgent(env *Env, stage string) *agent.Agent {
 	return CreateAgentWithMetrics(env, stage, nil)
 }
 
+func createSleepController(env *Env, stage string) strawberry.Controller {
+	l := log.With(env.L.Logger(), log.String("agent_stage", stage))
+	return sleep.NewController(
+		l.WithName("strawberry"),
+		env.YT,
+		env.StrawberryRoot,
+		"test",
+		/*config*/ nil)
+}
+
 func CreateAgentWithMetrics(env *Env, stage string, metrics *agent.AgentMetrics) *agent.Agent {
+	return CreateAgentWithControllerAndMetrics(env, stage, createSleepController(env, stage), metrics)
+}
+
+func CreateAgentWithControllerAndMetrics(env *Env, stage string, controller strawberry.Controller, metrics *agent.AgentMetrics) *agent.Agent {
 	l := log.With(env.L.Logger(), log.String("agent_stage", stage))
 
 	passPeriod := yson.Duration(time.Millisecond * 400)
@@ -220,20 +234,14 @@ func CreateAgentWithMetrics(env *Env, stage string, metrics *agent.AgentMetrics)
 		Stage:                   stage,
 	}
 
-	agent := agent.NewAgent(
+	return agent.NewAgent(
 		"test",
 		"fake-token",
 		env.YT,
 		l,
-		sleep.NewController(l.WithName("strawberry"),
-			env.YT,
-			env.StrawberryRoot,
-			"test",
-			/*config*/ nil),
+		controller,
 		config,
 		metrics)
-
-	return agent
 }
 
 func PrepareAgent(t *testing.T) (*Env, *agent.Agent) {
@@ -268,6 +276,23 @@ func PrepareMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient) {
 }
 
 func PrepareMetricsMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient) {
+	return prepareMetricsMonitoring(t, nil)
+}
+
+type controllerWithMetrics struct {
+	strawberry.Controller
+	getMetrics func(*strawberry.Oplet) []strawberry.Metric
+}
+
+func (c controllerWithMetrics) GetMetrics(oplet *strawberry.Oplet) []strawberry.Metric {
+	return c.getMetrics(oplet)
+}
+
+func PrepareMetricsMonitoringWithControllerMetrics(t *testing.T, getMetrics func(*strawberry.Oplet) []strawberry.Metric) (*Env, *agent.Agent, *RequestClient) {
+	return prepareMetricsMonitoring(t, getMetrics)
+}
+
+func prepareMetricsMonitoring(t *testing.T, getMetrics func(*strawberry.Oplet) []strawberry.Metric) (*Env, *agent.Agent, *RequestClient) {
 	env := PrepareEnv(t, "sleep")
 	proxy := os.Getenv("YT_PROXY")
 
@@ -277,10 +302,18 @@ func PrepareMetricsMonitoring(t *testing.T) (*Env, *agent.Agent, *RequestClient)
 		"stage":   "default",
 		"cluster": proxy,
 	})
-	agent := CreateAgentWithMetrics(env, "default", agent.NewAgentMetrics(subRegistry, &agent.MetricsConfig{}))
+	metrics := agent.NewAgentMetrics(subRegistry, &agent.MetricsConfig{})
+	controller := createSleepController(env, "default")
+	if getMetrics != nil {
+		controller = controllerWithMetrics{
+			Controller: controller,
+			getMetrics: getMetrics,
+		}
+	}
+	a := CreateAgentWithControllerAndMetrics(env, "default", controller, metrics)
 
 	server := monitoring.NewMetricsServer(":0", registry)
-	return env, agent, PrepareClient(t, env, proxy, server)
+	return env, a, PrepareClient(t, env, proxy, server)
 }
 
 func Wait(t *testing.T, predicate func() bool) {

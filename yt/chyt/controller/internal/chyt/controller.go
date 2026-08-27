@@ -689,6 +689,33 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 	return nil, nil
 }
 
+func (c *Controller) GetMetrics(oplet *strawberry.Oplet) []strawberry.Metric {
+	if !oplet.HasYTOperation() {
+		return nil
+	}
+
+	metric, ok := getVersionMetric(oplet.GetBriefInfo().OpletInfo)
+	if !ok {
+		return nil
+	}
+	return []strawberry.Metric{metric}
+}
+
+func getVersionMetric(opletInfo yson.RawValue) (strawberry.Metric, bool) {
+	var info chytOpletInfo
+	if err := yson.Unmarshal(opletInfo, &info); err != nil || info.CHYTRunningVersion == "" {
+		return strawberry.Metric{}, false
+	}
+
+	return strawberry.Metric{
+		Name: "chyt_server_version",
+		Tags: map[string]string{
+			"version": info.CHYTRunningVersion,
+		},
+		Value: 1,
+	}, true
+}
+
 func (c *Controller) GetOpletInfo(ctx context.Context, oplet *strawberry.Oplet) (any, error) {
 	opID := oplet.GetBriefInfo().YTOperation.ID
 	if opID == yt.NullOperationID {
