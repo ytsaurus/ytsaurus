@@ -86,6 +86,11 @@ TEST_F(TBanServiceTest, BanService)
         .ValueOrThrow();
     EXPECT_TRUE(bannedList.empty());
 
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(nativeClient->SetUserBanned("root", true))
+            .ThrowOnError(),
+        R"(User "root" cannot be banned)");
+
     WaitFor(nativeClient->SetUserBanned("user", true))
         .ThrowOnError();
     Sleep(TDuration::Seconds(2));
