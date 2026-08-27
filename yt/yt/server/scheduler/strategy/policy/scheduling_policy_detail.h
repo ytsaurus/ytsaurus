@@ -683,7 +683,8 @@ private:
     // and we start building up-to-date persistent state.
     TInstant SchedulingSegmentsInitializationDeadline_;
     TPersistentStatePtr InitialPersistentState_ = New<TPersistentState>();
-    TPersistentStatePtr PersistentState_;
+    //! Updated once per scheduling segments management cycle and treated as immutable after publication.
+    NYTree::INodePtr CachedPersistentStateNode_;
 
     TPersistentNodeSchedulingSegmentStateMap InitialPersistentSchedulingSegmentNodeStates_;
     TPersistentOperationSchedulingSegmentStateMap InitialPersistentSchedulingSegmentOperationStates_;
