@@ -87,7 +87,7 @@ func specletDiff(oldSpeclet, newSpeclet any) map[string]FieldDiff {
 	}
 	diff := make(map[string]FieldDiff)
 	for _, field := range reflect.VisibleFields(reflect.TypeOf(oldSpeclet)) {
-		if field.Anonymous {
+		if field.Anonymous || !field.IsExported() {
 			continue
 		}
 		if field.Tag.Get("requires_restart") == "false" {
