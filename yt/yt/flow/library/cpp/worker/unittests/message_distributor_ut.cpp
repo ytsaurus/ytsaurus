@@ -383,6 +383,40 @@ TEST(TMessageDistributorTest, SelectTasksToSendPriority)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TMessageDistributorTest, WorkerConnectionLiveDuplicateDies)
+{
+    auto triggerLiveDuplicate = [] {
+        const auto sourceJob = TJobId(TGuid(0, 1));
+        const auto destinationJob = TJobId(TGuid(0, 2));
+        auto actionQueue = New<TActionQueue>("DistDeathTest");
+        auto connection = New<TWorkerConnection>(
+            New<TMessageDistributorState>(New<TFixedJobDirectory>(THashSet<TJobId>{sourceJob, destinationJob})),
+            NRpc::CreateNullChannel("destination-worker"),
+            /*workerAddress*/ "destination-worker",
+            New<TStreamSpecStorage>(/*converterCache*/ nullptr),
+            CreateSerializedInvoker(actionQueue->GetInvoker()),
+            /*poolInvoker*/ actionQueue->GetInvoker(),
+            NProfiling::TSensorsOwner());
+
+        auto firstTask = MakeRoutedTask({.MessageId = TMessageId("dup")}, {DefaultSystemTimestamp, 0});
+        firstTask.DestinationJobId = destinationJob;
+        firstTask.Task.SourceJobId = sourceJob;
+
+        auto duplicateTask = MakeRoutedTask({.MessageId = TMessageId("dup")}, {DefaultSystemTimestamp, 1});
+        duplicateTask.DestinationJobId = destinationJob;
+        duplicateTask.Task.SourceJobId = sourceJob;
+
+        connection->Send(std::move(firstTask));
+        connection->Send(std::move(duplicateTask));
+        WaitFor(connection->StopJob(destinationJob).AsVoid()).ThrowOnError();
+    };
+
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+    EXPECT_DEATH(triggerLiveDuplicate(), "Duplicate message has a surviving copy from a live source job");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Regression for the distributor dedup losing a live successor's callback.
 //
 // When a source job dies and its successor replays the same output, the duplicate reaches the

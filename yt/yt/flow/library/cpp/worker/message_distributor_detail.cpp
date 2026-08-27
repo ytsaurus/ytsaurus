@@ -290,7 +290,14 @@ void TWorkerConnection::DoSend() noexcept
             // fire. Adopt the successor's SourceJobId as well as its OnDistributed: otherwise the task
             // keeps the dead predecessor's SourceJobId and would be dropped on re-route (see
             // DoProcessUnknownTasks' IsJobAlive check), losing the successor's callback.
-            YT_VERIFY(!State_->JobDirectory->GetSnapshot()->IsJobAlive(survivingTask->Task.SourceJobId));
+            YT_TLOG_FATAL_IF(
+                State_->JobDirectory->GetSnapshot()->IsJobAlive(survivingTask->Task.SourceJobId),
+                "Duplicate message has a surviving copy from a live source job")
+                .With("MessageId", task.Task.Message->MessageId)
+                .With("DestinationJobId", task.DestinationJobId)
+                .With("ArrivingSourceJobId", task.Task.SourceJobId)
+                .With("SurvivingSourceJobId", survivingTask->Task.SourceJobId)
+                .With("SourceJobIdsEqual", task.Task.SourceJobId == survivingTask->Task.SourceJobId);
             survivingTask->Task.SourceJobId = task.Task.SourceJobId;
             survivingTask->Task.OnDistributed = std::move(task.Task.OnDistributed);
         }
