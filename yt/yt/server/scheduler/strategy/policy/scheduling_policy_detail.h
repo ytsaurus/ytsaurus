@@ -10,8 +10,6 @@
 #include "scheduling_policy.h"
 #include "attributes_list.h"
 
-#include <yt/yt/server/scheduler/strategy/policy/gpu/public.h>
-
 #include <yt/yt/server/scheduler/strategy/field_filter.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
