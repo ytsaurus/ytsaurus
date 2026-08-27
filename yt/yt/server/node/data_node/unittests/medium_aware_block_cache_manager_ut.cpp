@@ -108,7 +108,7 @@ TEST(TMediumAwareBlockCacheManagerTest, ScalesStaticAndDynamicCapacityWithLocati
 {
     auto tracker = New<TTestNodeMemoryTracker>(1_GB);
 
-    auto managerConfig = CreateManagerConfig({{SsdBlobsMediumName, 4}});
+    auto managerConfig = CreateManagerConfig({{SsdBlobsMediumName, 4 + sizeof(NDetail::TPromiseState<uintptr_t>)}});
     auto blockCacheConfig = GetOrCrash(
         managerConfig->BlockCacheConfigPerMediumPerLocation,
         SsdBlobsMediumName);
@@ -158,7 +158,7 @@ TEST(TMediumAwareBlockCacheManagerTest, ScalesStaticAndDynamicCapacityWithLocati
     // Two dynamic bytes per location and two locations give a four-byte cache that holds one block.
     auto dynamicConfig = New<TMediumAwareBlockCacheManagerDynamicConfig>();
     dynamicConfig->BlockCacheConfigPerMediumPerLocation[SsdBlobsMediumName] =
-        CreateMediumAwareBlockCacheDynamicConfig(/*compressedDataCapacityPerLocation*/ 2);
+        CreateMediumAwareBlockCacheDynamicConfig(/*compressedDataCapacityPerLocation*/ 2 + sizeof(NDetail::TPromiseState<uintptr_t>) / 2);
     manager->Reconfigure(dynamicConfig);
     EXPECT_EQ(mediumCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData).size(), 1u);
 }
@@ -167,7 +167,8 @@ TEST(TMediumAwareBlockCacheManagerTest, ClearsPerMediumCachesWhenDisabled)
 {
     auto tracker = New<TTestNodeMemoryTracker>(1_GB);
 
-    auto managerConfig = CreateManagerConfig({{SsdBlobsMediumName, 100}});
+    constexpr int DefaultShardCount = 16;
+    auto managerConfig = CreateManagerConfig({{SsdBlobsMediumName, DefaultShardCount * (4 + sizeof(NDetail::TPromiseState<uintptr_t>))}});
     auto manager = CreateManager(managerConfig, tracker);
 
     auto mediumCache = manager->GetBlockCacheForMedium(SsdBlobsMediumIndex);
@@ -209,13 +210,16 @@ TEST(TMediumAwareBlockCacheManagerTest, RoutesAndManagesBlocksAcrossPerMediumCac
     auto tracker = New<TTestNodeMemoryTracker>(1_GB);
 
     auto managerConfig = CreateManagerConfig({
-        {SsdBlobsMediumName, 100},
-        {SsdIntermediateMediumName, 100},
+        {SsdBlobsMediumName, 100 + sizeof(NDetail::TPromiseState<uintptr_t>)},
+        {SsdIntermediateMediumName, 100 + sizeof(NDetail::TPromiseState<uintptr_t>)},
     });
     auto manager = CreateManager(
         managerConfig,
         tracker,
-        {{SsdBlobsMediumName, 1}, {SsdIntermediateMediumName, 1}});
+        {
+            {SsdBlobsMediumName, 1 + sizeof(NDetail::TPromiseState<uintptr_t>)},
+            {SsdIntermediateMediumName, 1 + sizeof(NDetail::TPromiseState<uintptr_t>)},
+        });
     auto firstMediumCache = manager->GetBlockCacheForMedium(SsdBlobsMediumIndex);
     auto secondMediumCache = manager->GetBlockCacheForMedium(SsdIntermediateMediumIndex);
     ASSERT_TRUE(firstMediumCache);
