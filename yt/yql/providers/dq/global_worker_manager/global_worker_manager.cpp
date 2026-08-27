@@ -320,6 +320,12 @@ public:
         , Metrics(metricsRegistry->GetSensors()->GetSubgroup("counters", "gwm"))
         , UploaderMetrics(metricsRegistry->GetSensors()->GetSubgroup("counters", "uploader"))
         , LatencyHistogram(Metrics->GetHistogram("LeaderLatency", ExponentialHistogram(10, 2, 1)))
+        , AllocateWorkersWithExeFileCounter(
+            Metrics->GetSubgroup("component", "requests")
+                ->GetCounter("AllocateWorkersWithExeFile", /*derivative=*/true))
+        , AllocateWorkersWithoutExeFileCounter(
+            Metrics->GetSubgroup("component", "requests")
+                ->GetCounter("AllocateWorkersWithoutExeFile", /*derivative=*/true))
         , Workers(Coordinator->GetNodeId(), Metrics, metricsRegistry->GetSensors()->GetSubgroup("counters", "workers"))
         , Scheduler(NDq::IScheduler::Make(schedulerConfig, metricsRegistry))
         , MaxRequestsPerTick(schedulerConfig.GetMaxRequestsPerTick())
@@ -599,6 +605,12 @@ private:
         if (!err.empty()) {
             Send(ev->Sender, new TEvAllocateWorkersResponse(err, NYql::NDqProto::StatusIds::EXTERNAL_ERROR));
             return;
+        }
+
+        if (hasExeFile) {
+            *AllocateWorkersWithExeFileCounter += 1;
+        } else {
+            *AllocateWorkersWithoutExeFileCounter += 1;
         }
 
         if (!hasExeFile && LeaderRevision != Revision) {
@@ -1374,6 +1386,8 @@ private:
     TSensorsGroupPtr Metrics;
     TSensorsGroupPtr UploaderMetrics;
     THistogramPtr LatencyHistogram;
+    const TDynamicCounters::TCounterPtr AllocateWorkersWithExeFileCounter;
+    const TDynamicCounters::TCounterPtr AllocateWorkersWithoutExeFileCounter;
     THashMap<TString,NMonitoring::TDynamicCounters::TCounterPtr> LiteralQueries;
     TWorkersStorage Workers;
 
