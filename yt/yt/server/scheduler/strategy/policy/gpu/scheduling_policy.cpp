@@ -1,95 +1,44 @@
 #include "scheduling_policy.h"
-#include "scheduling_policy_detail.h"
 
-#include "helpers.h"
+#include "noop_scheduling_policy.h"
 
-#include <yt/yt/server/scheduler/strategy/helpers.h>
-
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchedulingPolicyPtr CreateGpuSchedulingPolicy(
-    std::string treeId,
-    NLogging::TLogger Logger,
-    TWeakPtr<ISchedulingPolicyHost> host,
+Y_WEAK ISchedulingPolicyPtr CreateDryRunOrNoopSchedulingPolicy(
+    std::string /*treeId*/,
+    NLogging::TLogger logger,
+    TWeakPtr<ISchedulingPolicyHost> /*host*/,
     IPoolTreeHost* /*treeHost*/,
-    IStrategyHost* strategyHost,
-    TStrategyTreeConfigPtr config,
-    NProfiling::TProfiler profiler)
+    IStrategyHost* /*strategyHost*/,
+    TStrategyTreeConfigPtr /*config*/,
+    NProfiling::TProfiler /*profiler*/)
 {
-    if (config->GpuSchedulingPolicy->Mode == EGpuSchedulingPolicyMode::Noop) {
-        return New<TNoopSchedulingPolicy>(treeId);
-    }
+    return CreateNoopSchedulingPolicy(std::move(logger));
+}
 
-    YT_TLOG_WARNING_UNLESS(IsGpuPoolTree(config), "GPU scheduling policy configured for a non-GPU pool tree");
-
-    return New<TSchedulingPolicy>(
-        std::move(host),
-        strategyHost,
-        treeId,
-        config->GpuSchedulingPolicy,
-        profiler);
+Y_WEAK ISchedulingPolicyPtr CreateAllocatingSchedulingPolicy(
+    std::string /*treeId*/,
+    NLogging::TLogger /*logger*/,
+    TWeakPtr<ISchedulingPolicyHost> /*host*/,
+    IPoolTreeHost* /*treeHost*/,
+    IStrategyHost* /*strategyHost*/,
+    TStrategyTreeConfigPtr /*config*/,
+    NProfiling::TProfiler /*profiler*/)
+{
+    THROW_ERROR_EXCEPTION("GPU scheduling policy is not supported in this build");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISchedulingPolicyPtr CreateDryRunOrNoopSchedulingPolicy(
-    std::string treeId,
-    NLogging::TLogger logger,
-    TWeakPtr<ISchedulingPolicyHost> host,
-    IPoolTreeHost* treeHost,
-    IStrategyHost* strategyHost,
-    TStrategyTreeConfigPtr config,
-    NProfiling::TProfiler profiler)
+Y_WEAK INodePtr ConvertGpuToClassicPersistentState(const INodePtr& /*node*/)
 {
-    if (config->GpuSchedulingPolicy->Mode == EGpuSchedulingPolicyMode::Allocating) {
-        return New<TNoopSchedulingPolicy>(treeId);
-    }
-
-    if (config->GpuSchedulingPolicy->Mode == EGpuSchedulingPolicyMode::DryRun) {
-        YT_VERIFY(config->PolicyKind == EPolicyKind::Classic);
-    }
-
-    return CreateGpuSchedulingPolicy(
-        treeId,
-        std::move(logger),
-        host,
-        treeHost,
-        strategyHost,
-        config,
-        std::move(profiler));
-}
-
-ISchedulingPolicyPtr CreateAllocatingSchedulingPolicy(
-    std::string treeId,
-    NLogging::TLogger logger,
-    TWeakPtr<ISchedulingPolicyHost> host,
-    IPoolTreeHost* treeHost,
-    IStrategyHost* strategyHost,
-    TStrategyTreeConfigPtr config,
-    NProfiling::TProfiler profiler)
-{
-    YT_VERIFY(config->GpuSchedulingPolicy->Mode == EGpuSchedulingPolicyMode::Allocating);
-    YT_VERIFY(config->PolicyKind == EPolicyKind::Gpu);
-
-    return CreateGpuSchedulingPolicy(
-        treeId,
-        std::move(logger),
-        host,
-        treeHost,
-        strategyHost,
-        config,
-        std::move(profiler));
+    THROW_ERROR_EXCEPTION("GPU scheduling policy is not supported in this build");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

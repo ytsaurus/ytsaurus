@@ -2,7 +2,7 @@
 
 #include "helpers.h"
 
-#include <yt/yt/server/scheduler/strategy/policy/gpu/persistent_state.h>
+#include <yt/yt/server/scheduler/strategy/policy/gpu/scheduling_policy.h>
 
 #include <yt/yt/server/scheduler/strategy/helpers.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree.h>
