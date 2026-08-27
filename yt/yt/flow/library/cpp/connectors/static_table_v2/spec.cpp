@@ -44,7 +44,7 @@ void TTableSourceParameters::Register(TRegistrar registrar)
     registrar.Parameter("skip_non_table_nodes", &TThis::SkipNonTableNodes)
         .Default(false);
 
-    registrar.Parameter("watermark_delay", &TThis::WatermarkDelay)
+    registrar.Parameter("idle_watermark_delay", &TThis::IdleWatermarkDelay)
         .Default(TDuration::Hours(1));
 
     registrar.Parameter("failover_delay", &TThis::FailoverDelay)

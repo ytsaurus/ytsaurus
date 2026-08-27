@@ -1072,6 +1072,20 @@ void TSourceController::UpdateMetrics()
     Metrics_.LostTables.Update(State_->LostTables);
 }
 
+TSystemTimestamp TSourceController::CalculateEventWatermark(
+    TSystemTimestamp tableEventTimestamp,
+    TSystemTimestamp now,
+    bool isIdle,
+    const std::optional<TDuration>& idleWatermarkDelay)
+{
+    if (!isIdle || !idleWatermarkDelay) {
+        return tableEventTimestamp;
+    }
+
+    auto idleWatermark = now.Underlying() - std::min(now.Underlying(), idleWatermarkDelay->Seconds());
+    return TSystemTimestamp(std::max(tableEventTimestamp.Underlying(), idleWatermark));
+}
+
 std::optional<THashMap<TKey, IMapNodePtr>> TSourceController::ListKeys()
 {
     if (!CheckDistributingTable()) {
@@ -1110,8 +1124,11 @@ std::optional<TStreamTraverseDataPtr> TSourceController::GetFutureKeysStreamTrav
     auto now = NConcurrency::WaitFor(GetContext()->TimeProvider->GetTimestamp(/*barrier*/ false)).ValueOrThrow();
 
     bool isIdle = (State_->Inited && notDistributedCount == 0);
-    auto eventWatermark = isIdle ? now : distributingTable->EventTimestamp;
-    eventWatermark = TSystemTimestamp(eventWatermark.Underlying() - std::min(eventWatermark.Underlying(), GetParameters()->WatermarkDelay.Seconds()));
+    auto eventWatermark = CalculateEventWatermark(
+        distributingTable->EventTimestamp,
+        now,
+        isIdle,
+        GetParameters()->IdleWatermarkDelay);
 
     auto sourceStream = New<TStreamTraverseData>();
     sourceStream->Epoch = -1; // Will be fixed in universal controller.
