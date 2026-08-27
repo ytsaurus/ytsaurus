@@ -22,6 +22,9 @@ void TCellPeerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("voting", &TThis::Voting)
         .Default(true);
+    registrar.Parameter("weight", &TThis::Weight)
+        .Default(1)
+        .GreaterThan(0);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TCellPeerConfigPtr& config, TStringBuf /*spec*/)
@@ -105,6 +108,18 @@ int TCellConfig::CountVotingPeers() const
     }
 
     return votingPeerCount;
+}
+
+int TCellConfig::CountVotingWeight() const
+{
+    int votingWeight = 0;
+    for (const auto& peer : Peers) {
+        if (peer->Voting) {
+            votingWeight += peer->Weight;
+        }
+    }
+
+    return votingWeight;
 }
 
 int TCellConfig::FindPeerId(const std::string& address) const

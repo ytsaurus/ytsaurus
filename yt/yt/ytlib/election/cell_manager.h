@@ -30,8 +30,10 @@ public:
     THashSet<std::string> GetClusterPeersAddresses() const;
 
     int GetVotingPeerCount() const;
-    int GetQuorumPeerCount() const;
     int GetTotalPeerCount() const;
+
+    int GetPeerWeight(int id) const;
+    int GetQuorumWeight() const;
 
     const TCellPeerConfigPtr& GetPeerConfig(int id) const;
     NRpc::IChannelPtr GetPeerChannel(int id) const;
@@ -45,6 +47,8 @@ private:
     const int VotingPeerCount_;
     const int QuorumPeerCount_;
     const int TotalPeerCount_;
+    const int VotingWeight_;
+    const int QuorumWeight_;
 
     const NLogging::TLogger Logger;
 

@@ -14,6 +14,7 @@ struct TCellPeerConfig
     std::optional<std::string> Address;
     std::optional<std::string> AlienCluster;
     bool Voting;
+    int Weight;
 
     REGISTER_YSON_STRUCT(TCellPeerConfig);
 
@@ -42,6 +43,7 @@ struct TCellConfig
     void ValidateAllPeersPresent();
 
     int CountVotingPeers() const;
+    int CountVotingWeight() const;
 
     int FindPeerId(const std::string& address) const;
     int GetPeerIdOrThrow(const std::string& address) const;
