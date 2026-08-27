@@ -20,6 +20,7 @@ Most of the options are available starting with version 1.23.0, unless otherwis
 | `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` before 1.75.2) | `true` | Reading of tables with a schema in [type_v3](../../../../../user-guide/storage/data-types.md) format instead of `type_v1`. | 1.75.3 |
 | `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Use Spark query filters to selectively read from {{product-name}}. | - |
 | `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Combine all filters into a continuous range for selective reading. | - |
+| `spark.yt.read.keyColumnsFilterPushdown.mergeAdjacent.enabled` | `false` | Merge ranges over consecutive integer key values into a single range. | 2.12.0 |
 | `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit` | `100` | Maximum number of table ranges for selective reading. | - |
 | `spark.yt.transaction.timeout` | `5 minutes` | Write operation transaction timeout. | - |
 | `spark.yt.transaction.pingInterval` | `30 seconds` | Pinging interval of a write operation transaction. | - |
