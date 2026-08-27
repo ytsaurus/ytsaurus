@@ -14,7 +14,7 @@ As with [sorted dynamic tables](../../../user-guide/dynamic-tables/sorted-dynami
 
 Dividing data into tablets is random. Each tablet contains an ordered sequence of table rows. When the rows are written to the tablet, they get to the end of this sequence. That way, orderliness is only guaranteed within the tablet.
 
- An ordered dynamic table initially consists of one tablet. Multiple tablets can be changed using the `reshard_table` command. It enables you to change the structure for a set of consecutive tablets. When [resharding](#reshard) an ordered dynamic table, you need to specify a new number of tablets for replacing the original ones. Specifying `pivot_keys` is not required. Existing data is redistributed between the new tablets in an unspecified way.
+An ordered dynamic table initially consists of one tablet. Multiple tablets can be changed using the `reshard_table` command. It enables you to change the structure for a set of consecutive tablets. When [resharding](#reshard) an ordered dynamic table, you need to specify a new number of tablets for replacing the original ones. Specifying `pivot_keys` is not required. Existing data is redistributed between the new tablets in an unspecified way.
 
 ## Supported operations { #methods }
 
@@ -34,6 +34,16 @@ yt create table //path/to/table --attributes \
 '{dynamic=%true;schema=[{name=first_name;type=string};{name=last_name;type=string}]}; \
 tablet_count=5; \
 trimmed_row_counts=[10;20;30;40;50]}'
+```
+
+Similarly, if the table schema includes the [`$cumulative_data_weight`](#cumulative_data_weight_column) column, you can specify its initial value for each tablet using the `cumulative_data_weights` attribute. The requirements for it are the same as for `trimmed_row_counts`: if you pass it, you also need to specify the `tablet_count` attribute with the same length.
+
+```bash
+yt create table //path/to/table --attributes \
+'{dynamic=%true;schema=[{name=first_name;type=string};{name=last_name;type=string};{name="$cumulative_data_weight";type=int64}]}; \
+tablet_count=5; \
+trimmed_row_counts=[10;20;30;40;50]; \
+cumulative_data_weights=[1000;2000;3000;4000;5000]}'
 ```
 
 ### Writing rows
@@ -66,7 +76,7 @@ Using reshard together with trim is prohibited because this can lead to unpredic
 
 {% endnote %}
 
-In general, data cannot be deleted from an ordered dynamic table. But there is an exception: you can delete the starting row segment in each tablet . To do this, use the `trim_rows` command. The table path and tablet number are transmitted to it as arguments, as well as the `trimmed_row_count` argument showing how many rows in the table will be deleted after the command is executed. The row numbering is retained. For example, when first called with `trimmed_row_count = 10`, rows with numbers from 0 to 9 inclusive will be deleted. Then, when called with `trimmed_row_count = 30` — rows from 10 to 29 inclusive, etc., `trimmed_row_count` does not have a relative sense, but an absolute one and indicates not the number of rows that will be additionally deleted in case of the next call, but which initial rows will be deleted after the call.
+In general, data cannot be deleted from an ordered dynamic table. But there is an exception: you can delete the starting row segment in each tablet. To do this, use the `trim_rows` command. The table path and tablet number are transmitted to it as arguments, as well as the `trimmed_row_count` argument showing how many rows in the table will be deleted after the command is executed. The row numbering is retained. For example, when first called with `trimmed_row_count = 10`, rows with numbers from 0 to 9 inclusive will be deleted. Then, when called with `trimmed_row_count = 30` — rows from 10 to 29 inclusive, etc. `trimmed_row_count` does not have a relative sense, but an absolute one and indicates not the number of rows that will be additionally deleted in case of the next call, but which initial rows will be deleted after the call.
 
 The `trim_rows` command is executed outside of transactions. Once it is complete, the deleted data can no longer be read by the `select_rows` command. As soon as it appears that so many rows were deleted in the tablet that they form an entire initial chunk, the cluster node serving the tablet sends a signal to the master server and the given chunk is deleted as a whole. This is the moment when disk space is freed up.
 
@@ -96,6 +106,12 @@ yt reshard-table //path/to/table --tablet-count 5 --first-tablet-index 1 --last-
 # (old tablet #0) (old tablet #1) (old tablet #2) (old tablet #3) 10 20 (old tablet #4)
 ```
 
+You can also set the initial value of the [`$cumulative_data_weight`](#cumulative_data_weight_column) column for each created tablet using the `cumulative_data_weights` list of the same length.
+
+```bash
+yt reshard-table //path/to/table --tablet-count 5 --first-tablet-index 1 --last-tablet-index 3 --cumulative-data-weights 1000 2000
+```
+
 ### Automatic deletion of old rows (TTL) { #remove_old_data }
 
 The same old data deletion settings apply to ordered tables as to sorted tables. For more information, see [Deleting old data](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#remove_old_data). The significant difference is that a row always has only one version in ordered tables. The cleanup settings can then be interpreted as follows:
@@ -121,9 +137,11 @@ A special `$timestamp` system column of the `uint64` type can be specified in th
 
 ## $cumulative_data_weight column { #cumulative_data_weight_column }
 
-A special `$cumulative_data_weight` system column of the `uint64` type can be specified in the ordered dynamic table schema. The value in this column is generated automatically when you write. It is equal to the total logical weight in bytes of rows in the tablet, counting from the initial row with index zero to the current one, inclusive. The weight of the `$cumulative_data_weight` column itself is also counted in this value.
+A special `$cumulative_data_weight` system column of the `int64` type can be specified in the ordered dynamic table schema. The value in this column is generated automatically when you write. It is equal to the total logical weight in bytes of rows in the tablet, counting from the initial row with index zero to the current one, inclusive. The weight of the `$cumulative_data_weight` column itself is also counted in this value.
 
 When you add this column to the schema of an existing table (via unmounting and the `alter_table` query), the initial value of `$cumulative_data_weight` is taken from the table chunk metadata.
+
+By default, the count in each tablet starts from zero. You can explicitly set the initial value using the `cumulative_data_weights` attribute when [creating](#methods) the table or the `cumulative_data_weights` argument of the [`reshard_table`](#reshard) command. This is useful, for example, when adding a new queue as a [replica] of an already running replicated table.
 
 ## Change visibility, strong/weak commit ordering { #commit_ordering }
 
