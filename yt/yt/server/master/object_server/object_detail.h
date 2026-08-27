@@ -201,6 +201,7 @@ protected:
     bool IsLeader() const;
     bool IsFollower() const;
     void RequireLeader() const;
+    TError RequireLeaderAsync() const;
 
     bool IsPrimaryMaster() const;
     bool IsSecondaryMaster() const;

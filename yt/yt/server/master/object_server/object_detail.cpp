@@ -995,6 +995,11 @@ void TObjectProxyBase::RequireLeader() const
     Bootstrap_->GetObjectService()->RequireLeader();
 }
 
+TError TObjectProxyBase::RequireLeaderAsync() const
+{
+    return Bootstrap_->GetObjectService()->RequireLeaderAsync();
+}
+
 void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 {
     auto* object = GetObject();

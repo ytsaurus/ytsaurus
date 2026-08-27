@@ -246,7 +246,6 @@ class TestHttpProxy(HttpProxyTestBase):
         return rsp
 
     @authors("theevilbird")
-    @pytest.mark.skip("TODO(shakurov): YT-28870")
     @pytest.mark.parametrize("api_queries", [
         {
             "version": "v3",
@@ -345,7 +344,6 @@ class TestHttpProxy(HttpProxyTestBase):
         assert get(f"//sys/transactions/{tx2}/@last_ping_address") != yson.YsonEntity()
 
     @authors("theevilbird")
-    @pytest.mark.skip("TODO(shakurov): YT-28870")
     @pytest.mark.parametrize("api_queries", [
         {
             "version": "v4",

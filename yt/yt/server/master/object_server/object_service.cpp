@@ -109,7 +109,13 @@ using namespace NSequoiaServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_DEFINE_ERROR_ENUM(
+    ((LeaderFallbackRequired) (5200))
+);
+
+// Supposed to be caught by type in sync case, and by EErrorCode::LeaderFallbackRequired in async case.
 class TLeaderFallbackException
+    : public TErrorException
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,17 +276,12 @@ public:
 
     void RequireLeader() override
     {
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        if (!hydraManager->IsLeader()) {
-            if (HasMutationContext()) {
-                // Just a precaution, not really expected to happen.
-                auto error = TError("Request can only be served at leaders");
-                YT_LOG_ALERT(error);
-                THROW_ERROR error;
-            } else {
-                throw TLeaderFallbackException();
-            }
-        }
+        RequireLeaderImpl</*shouldThrow*/ true>();
+    }
+
+    TError RequireLeaderAsync() override
+    {
+        return RequireLeaderImpl</*shouldThrow*/ false>();
     }
 
 private:
@@ -430,6 +431,9 @@ private:
                 /*isAutomatonThread*/ false);
         };
     }
+
+    template <bool ShouldThrow>
+    std::conditional_t<ShouldThrow, void, TError> RequireLeaderImpl();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2320,6 +2324,16 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        NRpc::NProto::TResponseHeader header;
+        YT_VERIFY(TryParseResponseHeader(subresponseMessage, &header));
+
+        if (header.has_error() &&
+            FromProto<TError>(header.error()).FindMatching(EErrorCode::LeaderFallbackRequired))
+        {
+            ForwardSubrequestToLeader(subrequest);
+            return;
+        }
+
         if (subrequest->TraceContext) {
             subrequest->TraceContext->Finish();
         }
@@ -2795,6 +2809,41 @@ void TObjectService::SetStickyUserError(const std::string& userName, const TErro
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     StickyUserErrorCache_.Put(userName, error);
+}
+
+
+template <bool ShouldThrow>
+std::conditional_t<ShouldThrow, void, TError> TObjectService::RequireLeaderImpl()
+{
+    const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+    if (hydraManager->IsLeader()) {
+        if constexpr (!ShouldThrow) {
+            return TError();
+        } else {
+            return;
+        }
+    }
+
+    if (HasMutationContext()) {
+        // Just a precaution, not really expected to happen.
+        auto error = TError("Request can only be served at leaders");
+        YT_LOG_ALERT("RequireLeader() called in mutation");
+        if constexpr (ShouldThrow) {
+            THROW_ERROR error;
+        } else {
+            return error;
+        }
+    }
+
+    auto error = TError(
+        EErrorCode::LeaderFallbackRequired,
+        "Request can only be served at leaders; "
+        "internal signal, not meant to be seen, please report this");
+    if constexpr (ShouldThrow) {
+        throw TLeaderFallbackException() <<= error;
+    } else {
+        return error;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
