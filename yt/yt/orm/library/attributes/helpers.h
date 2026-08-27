@@ -6,6 +6,7 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/core/yson/forwarding_consumer.h>
 #include <yt/yt/core/yson/protobuf_interop.h>
 
 #include <google/protobuf/port.h>
@@ -58,6 +59,30 @@ std::unique_ptr<NYson::IYsonConsumer> CreateAttributesDetectingConsumer(std::fun
 std::unique_ptr<NYson::IYsonConsumer> CreateAttributesRemovingConsumer(
     NYson::IYsonConsumer* underlying,
     std::function<void()> reporter = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIntEnumToStringYsonConsumer
+    : public NYson::TForwardingYsonConsumer
+{
+public:
+    TIntEnumToStringYsonConsumer(
+        NYson::IYsonConsumer* underlying,
+        const NYson::TProtobufEnumType* enumType);
+    TIntEnumToStringYsonConsumer(
+        NYson::IYsonConsumer* underlying,
+        const NYson::TProtobufElement& enumElement);
+
+private:
+    NYson::IYsonConsumer* const Underlying_;
+    const NYson::TProtobufEnumType* const EnumType_;
+
+    void OnMyInt64Scalar(i64 value) override;
+    void OnMyEntity() override;
+    void OnMyBeginList() override;
+    void OnMyListItem() override;
+    void OnMyEndList() override;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
