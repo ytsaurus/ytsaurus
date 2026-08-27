@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/ytree/composite_map.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 using namespace NConcurrency;
@@ -20,6 +22,7 @@ using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -802,6 +805,7 @@ void TSchedulingPolicy::UpdateAssignmentPlan()
     auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&AssignmentPlanUpdateLock_))
         .ValueOrThrow();
 
+    TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("UpdateAssignmentPlan"));
     TForbidContextSwitchGuard contextSwitchGuard;
 
     if (auto now = TInstant::Now(); now <= InitializationFromPersistentStateDeadline_) {
