@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 #include <yt/yt/ytlib/api/native/transaction_helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
@@ -964,10 +965,14 @@ private:
 
         std::vector<TFuture<void>> futures;
         futures.reserve(MasterCellCommitSessions_.size());
+
+        const auto& connection = AuthenticatedLocalClient_->GetNativeConnection();
+        const auto& cellDirectory = connection->GetMasterCellDirectory();
+
         for (const auto& [cellTag, session] : MasterCellCommitSessions_) {
-            auto channel = AuthenticatedLocalClient_->GetNativeConnection()->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader,
-                cellTag);
+            auto channel = SequoiaTransactionOptions_.RetrySequoiaRetriableErrors
+                ? connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag)
+                : cellDirectory->GetNonRetryingMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
             TSequoiaTransactionServiceProxy proxy(std::move(channel));
             auto req = proxy.StartTransaction();
             ToProto(req->mutable_id(), Transaction_->GetId());

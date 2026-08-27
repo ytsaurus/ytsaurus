@@ -1022,6 +1022,9 @@ private:
                     // should be already visible thanks to transaction
                     // sequencer.
                     .SuppressStronglyOrderedTransactionBarrier = true,
+                    // All retries should be done on client's side. server/lib
+                    // is definitely not a client.
+                    .RetrySequoiaRetriableErrors = false,
                     .Features = std::move(features),
                 })
             .AsUnique().Apply(
