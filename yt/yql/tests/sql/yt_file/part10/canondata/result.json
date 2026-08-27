@@ -1988,6 +1988,20 @@
             "uri": "https://{canondata_backend}/1847551/1e33944fee8ec8fc1956ccb223d06f20b74fa24d/resource.tar.gz#test.test_ql_filter-integer_multiple_tables_concat--Results_/results.txt"
         }
     ],
+    "test.test[sampling-bind_with_schema-default.txt-Debug]": [
+        {
+            "checksum": "0556ef3a3514d2593aca17831cf9752f",
+            "size": 1300,
+            "uri": "https://{canondata_backend}/1809005/368a094a9454e3680f1159116a8f6af0d4a379ba/resource.tar.gz#test.test_sampling-bind_with_schema-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[sampling-bind_with_schema-default.txt-Plan]": [
+        {
+            "checksum": "83efe52856b5f682647ca567693104bc",
+            "size": 3654,
+            "uri": "https://{canondata_backend}/1809005/368a094a9454e3680f1159116a8f6af0d4a379ba/resource.tar.gz#test.test_sampling-bind_with_schema-default.txt-Plan_/plan.txt"
+        }
+    ],
     "test.test[sampling-direct_read-dynamic-Debug]": [
         {
             "checksum": "41218f7cbea01d0bd7db286265d5cc5b",
