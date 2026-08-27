@@ -45,12 +45,16 @@ items:
     when: audience == "public"
     expanded: true
     items:
+      - name: Обзор
+        href: user-guide/index.md
       - name: Аутентификация
         when: audience == "public"
         href: user-guide/storage/auth.md
       - name: Хранение данных
         when: audience == "public"
         items:
+          - name: Обзор
+            href: user-guide/storage/index.md
           - name: Дерево метаинформации
             href: user-guide/storage/cypress.md
           - name: Атрибуты
@@ -172,6 +176,8 @@ items:
           href: user-guide/dynamic-tables/hunks-guide.md
         - name: Примеры
           items:
+            - name: Обзор
+              href: user-guide/dynamic-tables/tutorials/index.md
             - name: Создание веб-сервиса
               href: user-guide/dynamic-tables/tutorials/dyn-tables-tutorial.md
             #- name: Предоставление прав на tablet cell bundle
@@ -321,6 +327,8 @@ items:
             href: user-guide/data-processing/chyt/cli-and-api.md
           - name: Справочник
             items:
+            - name: Обзор
+              href: user-guide/data-processing/chyt/reference/index.md
             - name: Выполнение запросов
               href: user-guide/data-processing/chyt/reference/execute.md
             - name: Выбор координатора
@@ -410,6 +418,8 @@ items:
               href: user-guide/data-processing/spyt/shuffle.md
             - name: API
               items:
+                - name: Обзор
+                  href: user-guide/data-processing/spyt/API/index.md
                 - name: SPYT в Python
                   href: user-guide/data-processing/spyt/API/spyt-python.md
                 - name: SPYT в Jupyter
@@ -420,6 +430,8 @@ items:
                   href: user-guide/data-processing/spyt/API/spyt-java.md
             - name: Справочник
               items:
+                - name: Обзор
+                  href: user-guide/data-processing/spyt/thesaurus/index.md
                 - name: Соответствие типов данных
                   href: user-guide/data-processing/spyt/thesaurus/data-types.md
                 - name: Конфигурационные параметры
@@ -452,6 +464,8 @@ items:
         - name: Решение проблем
           when: audience == "public"
           items:
+            - name: Обзор
+              href: user-guide/problems/index.md
             - name: Отладка MapReduce программ
               href: user-guide/problems/mapreduce-debug.md
             - name: Диагностика медленных джобов
@@ -501,11 +515,15 @@ items:
         href: user-guide/jupyt.md
       - name: AI-инструменты
         items:
+          - name: Обзор
+            href: user-guide/ai/index.md
           - name: Работа с MCP-сервером
             href: user-guide/ai/mcp-server.md
   - name: API и справочник
     when: audience == "public"
     items:
+      - name: Обзор
+        href: api/index.md
       - name: Перечень API и клиентских библиотек
         items:
           - name: Работа из командной строки
@@ -560,6 +578,8 @@ items:
         href: api/error-codes.md
   - name: Руководство администратора
     items:
+      - name: Обзор
+        href: admin-guide/index.md
       - name: Компоненты кластера
         href: admin-guide/components.md
       - name: Установка
@@ -680,6 +700,10 @@ items:
     href: faq/index.md
   - name: Как сообщить о проблеме
     href: user-guide/problems/howtoreport.md
-  - name: Выступления на мероприятиях, публикации и семинары
+  - name: Другие материалы
     when: audience == "public"
-    href: other/video-posts.md
+    items:
+      - name: Обзор
+        href: other/index.md
+      - name: Выступления на мероприятиях, публикации и семинары
+        href: other/video-posts.md

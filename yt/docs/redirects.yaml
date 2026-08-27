@@ -1,4 +1,142 @@
 common:
+    # Section landing pages
+    - from: /overview/index.md
+      to: /overview/about.md
+      type: redirect
+
+    - from: /admin-guide/update/index.md
+      to: /admin-guide/update/update_strategy.md
+      type: redirect
+
+    - from: /api/airflow/index.md
+      to: /api/airflow/userdoc.md
+      type: redirect
+
+    - from: /api/cli/index.md
+      to: /api/cli/cli.md
+      type: redirect
+
+    - from: /api/cpp/index.md
+      to: /api/cpp/description.md
+      type: redirect
+
+    - from: /api/java/index.md
+      to: /api/java/examples.md
+      type: redirect
+
+    - from: /api/python/index.md
+      to: /api/python/start.md
+      type: redirect
+
+    - from: /user-guide/data-processing/index.md
+      to: /user-guide/data-processing/overview.md
+      type: redirect
+
+    - from: /user-guide/data-processing/chyt/index.md
+      to: /user-guide/data-processing/chyt/about-chyt.md
+      type: redirect
+
+    - from: /user-guide/data-processing/chyt/cliques/index.md
+      to: /user-guide/data-processing/chyt/cliques/overview.md
+      type: redirect
+
+    - from: /user-guide/data-processing/chyt/how-to-guides/index.md
+      to: /user-guide/data-processing/chyt/how-to-guides/overview.md
+      type: redirect
+
+    - from: /user-guide/data-processing/flyt/index.md
+      to: /user-guide/data-processing/flyt/overview.md
+      type: redirect
+
+    - from: /user-guide/data-processing/layers/index.md
+      to: /user-guide/data-processing/layers/layer-paths.md
+      type: redirect
+
+    - from: /user-guide/data-processing/operations/index.md
+      to: /user-guide/data-processing/operations/overview.md
+      type: redirect
+
+    - from: /user-guide/data-processing/scheduler/index.md
+      to: /user-guide/data-processing/scheduler/scheduler-and-pools.md
+      type: redirect
+
+    - from: /user-guide/data-processing/spyt/index.md
+      to: /user-guide/data-processing/spyt/overview.md
+      type: redirect
+
+    - from: /user-guide/data-processing/spyt/cluster/index.md
+      to: /user-guide/data-processing/spyt/cluster/cluster-desc.md
+      type: redirect
+
+    - from: /user-guide/data-processing/spyt/direct-submit/index.md
+      to: /user-guide/data-processing/spyt/direct-submit/desc.md
+      type: redirect
+
+    - from: /user-guide/locking/index.md
+      to: /user-guide/locking/cypress-as-locking-service.md
+      type: redirect
+
+    - from: /user-guide/proxy/index.md
+      to: /user-guide/proxy/about.md
+      type: redirect
+
+    - from: /user-guide/query-tracker/index.md
+      to: /user-guide/query-tracker/about.md
+      type: redirect
+
+    # Short product aliases. Point directly to final articles to avoid redirect chains.
+    - from: /spyt/index.md
+      to: /user-guide/data-processing/spyt/overview.md
+      type: redirect
+
+    - from: /spyt/API/index.md
+      to: /user-guide/data-processing/spyt/API/index.md
+      type: redirect
+
+    - from: /spyt/cluster/index.md
+      to: /user-guide/data-processing/spyt/cluster/cluster-desc.md
+      type: redirect
+
+    - from: /spyt/direct-submit/index.md
+      to: /user-guide/data-processing/spyt/direct-submit/desc.md
+      type: redirect
+
+    - from: /spyt/structured-streaming/index.md
+      to: /user-guide/data-processing/spyt/structured-streaming/index.md
+      type: redirect
+
+    - from: /spyt/structured-streaming/exactly-once/index.md
+      to: /user-guide/data-processing/spyt/structured-streaming/exactly-once/index.md
+      type: redirect
+
+    - from: /spyt/thesaurus/index.md
+      to: /user-guide/data-processing/spyt/thesaurus/index.md
+      type: redirect
+
+    - from: /chyt/index.md
+      to: /user-guide/data-processing/chyt/about-chyt.md
+      type: redirect
+
+    - from: /chyt/cliques/index.md
+      to: /user-guide/data-processing/chyt/cliques/overview.md
+      type: redirect
+
+    - from: /chyt/how-to-guides/index.md
+      to: /user-guide/data-processing/chyt/how-to-guides/overview.md
+      type: redirect
+
+    - from: /chyt/queries/index.md
+      to: /user-guide/data-processing/chyt/queries/index.md
+      type: redirect
+
+    - from: /chyt/reference/index.md
+      to: /user-guide/data-processing/chyt/reference/index.md
+      type: redirect
+
+    - from: /flyt/index.md
+      to: /user-guide/data-processing/flyt/overview.md
+      type: redirect
+
     - from: /api/c/
       to: /api/cpp/
       type: redirect

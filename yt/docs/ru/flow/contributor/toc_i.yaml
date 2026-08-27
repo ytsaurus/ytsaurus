@@ -1,4 +1,6 @@
 items:
+  - name: Обзор
+    href: index.md
   - name: Style guide
     href: style-guide.md
   - name: Внутренняя аутентификация

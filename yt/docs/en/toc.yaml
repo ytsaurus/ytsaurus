@@ -42,12 +42,16 @@ items:
    - name: User guide
      expanded: true
      items:
+       - name: Overview
+         href: user-guide/index.md
        - name: Authentication
          when: audience == "public"
          href: user-guide/storage/auth.md
        - name: Data storage
          when: audience == "public"
          items:
+           - name: Overview
+             href: user-guide/storage/index.md
            - name: Metadata tree
              href: user-guide/storage/cypress.md
            - name: Attributes
@@ -167,6 +171,8 @@ items:
            href: user-guide/dynamic-tables/hunks-guide.md
          - name: Usage examples
            items:
+             - name: Overview
+               href: user-guide/dynamic-tables/tutorials/index.md
              - name: Creating a web service
                href: user-guide/dynamic-tables/tutorials/dyn-tables-tutorial.md
                 #- name: Предоставление прав на tablet cell bundle
@@ -316,6 +322,8 @@ items:
              href: user-guide/data-processing/chyt/cli-and-api.md
            - name: Reference
              items:
+             - name: Overview
+               href: user-guide/data-processing/chyt/reference/index.md
              - name: Executing queries
                href: user-guide/data-processing/chyt/reference/execute.md
              - name: Selecting a coordinator
@@ -404,6 +412,8 @@ items:
                href: user-guide/data-processing/spyt/shuffle.md
              - name: API
                items:
+                 - name: Overview
+                   href: user-guide/data-processing/spyt/API/index.md
                  - name: SPYT in Python
                    href: user-guide/data-processing/spyt/API/spyt-python.md
                  - name: SPYT in Jupyter
@@ -414,6 +424,8 @@ items:
                    href: user-guide/data-processing/spyt/API/spyt-java.md
              - name: Thesaurus
                items:
+                 - name: Overview
+                   href: user-guide/data-processing/spyt/thesaurus/index.md
                  - name: Data type mapping
                    href: user-guide/data-processing/spyt/thesaurus/data-types.md
                  - name: Configuration parameters
@@ -466,6 +478,8 @@ items:
        - name: Problems
          when: audience == "public"
          items:
+         - name: Overview
+           href: user-guide/problems/index.md
          - name: Debugging MapReduce programs
            href: user-guide/problems/mapreduce-debug.md
          - name: Jobshell and slow jobs
@@ -496,6 +510,8 @@ items:
    - name: API and reference
      when: audience == "public"
      items:
+       - name: Overview
+         href: api/index.md
        - name: Working from the command line
          items:
            - name: Overview
@@ -545,6 +561,8 @@ items:
    - name: Admin guide
      when: audience == "public"
      items:
+       - name: Overview
+         href: admin-guide/index.md
        - name: Cluster components
          href: admin-guide/components.md
        - name: Install
@@ -650,5 +668,9 @@ items:
    - name: How to report
      when: audience == "public"
      href: user-guide/problems/howtoreport.md
-   - name: Event presentations, publications, and workshops
-     href: other/video-posts.md
+   - name: Other materials
+     items:
+       - name: Overview
+         href: other/index.md
+       - name: Event presentations, publications, and workshops
+         href: other/video-posts.md

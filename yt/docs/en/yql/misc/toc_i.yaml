@@ -1,3 +1,5 @@
 items:
+  - name: Overview
+    href: index.md
   - name: Query execution stages
     href: exec_steps.md
