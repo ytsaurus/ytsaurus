@@ -279,19 +279,18 @@ public:
         YT_VERIFY(srcPool);
         YT_VERIFY(dstPool);
 
-        YT_LOG_DEBUG(
-            "Transferring pool resources (SrcPool: %v, DstPool: %v, ResourceDelta: %v)",
-            srcPool->GetName(),
-            dstPool->GetName(),
-            ConvertToYsonString(resourceDelta, EYsonFormat::Text));
+        YT_TLOG_DEBUG("Transferring pool resources")
+            .With("SrcPool", srcPool->GetName())
+            .With("DstPool", dstPool->GetName())
+            .With("ResourceDelta", ConvertToYsonString(resourceDelta, EYsonFormat::Text));
 
         TCommandTransaction transaction;
         try {
             auto* lcaPool = FindMapObjectLCA(srcPool, dstPool);
             if (!lcaPool) {
-                YT_LOG_ALERT("Pools do not have common ancestor (SrcPool: %v, DstPool: %v)",
-                    srcPool->GetName(),
-                    dstPool->GetName());
+                YT_TLOG_ALERT("Pools do not have common ancestor")
+                    .With("SrcPool", srcPool->GetName())
+                    .With("DstPool", dstPool->GetName());
                 THROW_ERROR_EXCEPTION("Pools do not have common ancestor")
                     .With("src_pool", srcPool->GetName())
                     .With("dst_pool", dstPool->GetName());
