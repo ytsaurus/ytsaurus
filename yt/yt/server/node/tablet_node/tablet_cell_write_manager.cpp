@@ -243,12 +243,11 @@ public:
                     // while the second one is trickier. It happens in the case when next generation arrived while our
                     // fiber was waiting on the blocked row. In both cases we are not going to enqueue any more mutations
                     // in order to ensure monotonicity of mutation generations which is an important invariant.
-                    YT_LOG_DEBUG(
-                        "Stopping obsolete generation write (TabletId: %v, TransactionId: %v, Generation: %x, TransientGeneration: %x)",
-                        tabletId,
-                        params.TransactionId,
-                        params.Generation,
-                        transaction->GetTransientGeneration());
+                    YT_TLOG_DEBUG("Stopping obsolete generation write")
+                        .With("TabletId", tabletId)
+                        .With("TransactionId", params.TransactionId)
+                        .WithFormat("Generation", "%x", params.Generation)
+                        .WithFormat("TransientGeneration", "%x", transaction->GetTransientGeneration());
                     // Client already decided to go on with the next generation of rows, so we are ok to even ignore
                     // possible commit errors. Note that the result of this particular write does not affect the outcome of the
                     // transaction any more, so we are safe to lose some of freshly enqueued mutations.
@@ -472,12 +471,11 @@ private:
         IncrementTabletInFlightMutationCount(tablet, replicatorWrite, -1);
 
         if (mountRevision != tablet->GetMountRevision()) {
-            YT_LOG_DEBUG("Mount revision mismatch; write ignored "
-                "(%v, TransactionId: %v, MutationMountRevision: %x, CurrentMountRevision: %x)",
-                tablet->GetLoggingTags(),
-                transactionId,
-                mountRevision,
-                tablet->GetMountRevision());
+            YT_TLOG_DEBUG("Mount revision mismatch; write ignored")
+                .With(tablet->GetLoggingTags())
+                .With("TransactionId", transactionId)
+                .WithFormat("MutationMountRevision", "%x", mountRevision)
+                .WithFormat("CurrentMountRevision", "%x", tablet->GetMountRevision());
             return;
         }
 
@@ -493,11 +491,10 @@ private:
             }
 
             if (!lostHunkStoreIds.empty()) {
-                YT_LOG_ALERT("Hunk store locks are lost; write ignored "
-                    "(%v, TransactionId: %v, HunkStoreIds: %v)",
-                    tablet->GetLoggingTags(),
-                    transactionId,
-                    lostHunkStoreIds);
+                YT_TLOG_ALERT("Hunk store locks are lost; write ignored")
+                    .With(tablet->GetLoggingTags())
+                    .With("TransactionId", transactionId)
+                    .With("HunkStoreIds", lostHunkStoreIds);
                 return;
             }
         }
@@ -510,9 +507,10 @@ private:
                     // NB: May throw if tablet cell is decommissioned or suspended.
                     transaction = transactionManager->MakeTransactionPersistentOrThrow(transactionId);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(ex, "Failed to make transaction persistent (TabletId: %v, TransactionId: %v)",
-                        writeRecord.TabletId,
-                        transactionId);
+                    YT_TLOG_DEBUG("Failed to make transaction persistent")
+                        .With("TabletId", writeRecord.TabletId)
+                        .With("TransactionId", transactionId)
+                        .With(ex);
                     return;
                 }
 
@@ -556,7 +554,7 @@ private:
             case EAtomicity::None: {
                 const auto& transactionManager = Host_->GetTransactionManager();
                 if (transactionManager->GetDecommission()) {
-                    YT_LOG_DEBUG("Tablet cell is decommissioning, skip non-atomic write");
+                    YT_TLOG_DEBUG("Tablet cell is decommissioning, skip non-atomic write");
                     return;
                 }
 
@@ -564,10 +562,9 @@ private:
                 YT_VERIFY(generation == InitialTransactionGeneration);
 
                 if (tablet->GetState() == ETabletState::Orphaned) {
-                    YT_LOG_DEBUG("Tablet is orphaned; non-atomic write ignored "
-                        "(%v, TransactionId: %v)",
-                        tablet->GetLoggingTags(),
-                        transactionId);
+                    YT_TLOG_DEBUG("Tablet is orphaned; non-atomic write ignored")
+                        .With(tablet->GetLoggingTags())
+                        .With("TransactionId", transactionId);
                     return;
                 }
 
@@ -683,9 +680,10 @@ private:
                         false,
                         transactionExternalizationToken);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(ex, "Failed to create transaction (TransactionId: %v, TabletId: %v)",
-                        FormatTransactionId(transactionId, transactionExternalizationToken),
-                        tabletId);
+                    YT_TLOG_DEBUG("Failed to create transaction")
+                        .With("TransactionId", FormatTransactionId(transactionId, transactionExternalizationToken))
+                        .With("TabletId", tabletId)
+                        .With(ex);
                     return;
                 }
 
@@ -697,14 +695,12 @@ private:
                     AddPersistentLeases(transaction, prerequisiteTransactionIds);
                 }
 
-                YT_LOG_DEBUG(
-                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v, "
-                    "BatchGeneration: %x, PersistentGeneration: %x, PrerequisiteTransactionIds: %v)",
-                    tabletId,
-                    FormatTransactionId(transactionId, transactionExternalizationToken),
-                    generation,
-                    transaction->GetPersistentGeneration(),
-                    prerequisiteTransactionIds);
+                YT_TLOG_DEBUG("Performing atomic write as follower")
+                    .With("TabletId", tabletId)
+                    .With("TransactionId", FormatTransactionId(transactionId, transactionExternalizationToken))
+                    .WithFormat("BatchGeneration", "%x", generation)
+                    .WithFormat("PersistentGeneration", "%x", transaction->GetPersistentGeneration())
+                    .With("PrerequisiteTransactionIds", prerequisiteTransactionIds);
 
                 // This invariant holds during recovery.
                 YT_VERIFY(transaction->GetPersistentGeneration() == transaction->GetTransientGeneration());
@@ -738,7 +734,7 @@ private:
             case EAtomicity::None: {
                 const auto& transactionManager = Host_->GetTransactionManager();
                 if (transactionManager->GetDecommission()) {
-                    YT_LOG_DEBUG("Tablet cell is decommissioning, skip non-atomic write");
+                    YT_TLOG_DEBUG("Tablet cell is decommissioning, skip non-atomic write");
                     return;
                 }
 
@@ -767,9 +763,9 @@ private:
         TTransactionId transactionId,
         TReqWriteRows request)
     {
-        YT_LOG_DEBUG("Forwarding writes to sibling servant (%v, TransactionId: %v)",
-            tablet->GetLoggingTags(),
-            transactionId);
+        YT_TLOG_DEBUG("Forwarding writes to sibling servant")
+            .With(tablet->GetLoggingTags())
+            .With("TransactionId", transactionId);
 
         TTransactionExternalizationToken token(tablet->SmoothMovementData().GetSiblingAvenueEndpointId());
         auto atomicity = AtomicityFromTransactionId(transactionId);
@@ -814,23 +810,19 @@ private:
         auto* tablet = Host_->FindTablet(tabletId);
         if (!tablet) {
             // NB: Tablet could be missing if it was, e.g., forcefully removed.
-            YT_LOG_DEBUG(
-                "Received delayed rows for nonexistent tablet; ignored "
-                "(TabletId: %v, TransactionId: %v)",
-                tabletId,
-                transactionId);
+            YT_TLOG_DEBUG("Received delayed rows for nonexistent tablet; ignored")
+                .With("TabletId", tabletId)
+                .With("TransactionId", transactionId);
             return;
         }
 
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
         if (tablet->GetMountRevision() != mountRevision) {
-            YT_LOG_DEBUG(
-                "Received delayed rows with invalid mount revision; ignored "
-                "(TabletId: %v, TransactionId: %v, TabletMountRevision: %x, RequestMountRevision: %x)",
-                tabletId,
-                transactionId,
-                tablet->GetMountRevision(),
-                mountRevision);
+            YT_TLOG_DEBUG("Received delayed rows with invalid mount revision; ignored")
+                .With("TabletId", tabletId)
+                .With("TransactionId", transactionId)
+                .WithFormat("TabletMountRevision", "%x", tablet->GetMountRevision())
+                .WithFormat("RequestMountRevision", "%x", mountRevision);
             return;
         }
 
@@ -870,24 +862,21 @@ private:
         auto* transaction = transactionManager->FindPersistentTransaction(transactionId);
 
         if (!transaction) {
-            YT_LOG_ALERT(
-                "Delayed rows sent for absent transaction, ignored "
-                "(TransactionId: %v, TabletId: %v, RowCount: %v, DataWeight: %v, CommitSignature: %x)",
-                transactionId,
-                tablet->GetId(),
-                rowCount,
-                dataWeight,
-                commitSignature);
+            YT_TLOG_ALERT("Delayed rows sent for absent transaction, ignored")
+                .With("TransactionId", transactionId)
+                .With("TabletId", tablet->GetId())
+                .With("RowCount", rowCount)
+                .With("DataWeight", dataWeight)
+                .WithFormat("CommitSignature", "%x", commitSignature);
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Writing transaction delayed rows (TabletId: %v, TransactionId: %v, RowCount: %v, Lockless: %v, CommitSignature: %x)",
-            tablet->GetId(),
-            transaction->GetId(),
-            writeRecord.RowCount,
-            lockless,
-            commitSignature);
+        YT_TLOG_DEBUG("Writing transaction delayed rows")
+            .With("TabletId", tablet->GetId())
+            .With("TransactionId", transaction->GetId())
+            .With("RowCount", writeRecord.RowCount)
+            .With("Lockless", lockless)
+            .WithFormat("CommitSignature", "%x", commitSignature);
 
         auto tabletWriteManager = tablet->GetTabletWriteManager();
         tabletWriteManager->WriteDelayedRows(transaction, writeRecord, lockless);
@@ -1035,10 +1024,9 @@ private:
         for (auto* tablet : affectedTablets) {
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
             if (tabletWriteManager->HasWriteState(transaction)) {
-                YT_LOG_ALERT("Tablet still has transation write state on transaction finish "
-                    "(%v, TransactionId: %v)",
-                    tablet->GetLoggingTags(),
-                    transaction->GetId());
+                YT_TLOG_ALERT("Tablet still has transation write state on transaction finish")
+                    .With(tablet->GetLoggingTags())
+                    .With("TransactionId", transaction->GetId());
             }
         }
 #endif
@@ -1051,11 +1039,9 @@ private:
     {
         // This method may be called either with or without a mutation context.
 
-        YT_LOG_DEBUG(
-            "Promoting transaction transient generation (TransactionId: %v, TransientGeneration: %x -> %x)",
-            transaction->GetId(),
-            transaction->GetTransientGeneration(),
-            generation);
+        YT_TLOG_DEBUG("Promoting transaction transient generation")
+            .With("TransactionId", transaction->GetId())
+            .WithFormat("TransientGeneration", "%x -> %x", transaction->GetTransientGeneration(), generation);
 
         transaction->SetTransientGeneration(generation);
         transaction->TransientPrepareSignature() = InitialTransactionSignature;
@@ -1077,11 +1063,9 @@ private:
     {
         YT_VERIFY(HasMutationContext());
 
-        YT_LOG_DEBUG(
-            "Promoting transaction persistent generation (TransactionId: %v, PersistentGeneration: %x -> %x)",
-            transaction->GetId(),
-            transaction->GetPersistentGeneration(),
-            generation);
+        YT_TLOG_DEBUG("Promoting transaction persistent generation")
+            .With("TransactionId", transaction->GetId())
+            .WithFormat("PersistentGeneration", "%x -> %x", transaction->GetPersistentGeneration(), generation);
 
         transaction->SetPersistentGeneration(generation);
         transaction->PersistentPrepareSignature() = InitialTransactionSignature;
@@ -1300,11 +1284,10 @@ private:
         auto tabletId = tablet->GetId();
         if (transaction->PersistentAffectedTabletIds().emplace(tabletId).second) {
             auto lockCount = LockTablet(tablet, ETabletLockType::PersistentTransaction);
-            YT_LOG_DEBUG(
-                "Transaction persistently affects tablet (TransactionId: %v, TabletId: %v, LockCount: %v)",
-                transaction->GetId(),
-                tablet->GetId(),
-                lockCount);
+            YT_TLOG_DEBUG("Transaction persistently affects tablet")
+                .With("TransactionId", transaction->GetId())
+                .With("TabletId", tablet->GetId())
+                .With("LockCount", lockCount);
         }
     }
 
