@@ -138,10 +138,9 @@ public:
                 transaction->SetHasSharedWriteLocks(true);
             }
 
-            YT_LOG_DEBUG(
-                "Prelocked rows confirmed (TransactionId: %v, RowCount: %v)",
-                transaction->GetId(),
-                writeRecord.RowCount);
+            YT_TLOG_DEBUG("Prelocked rows confirmed")
+                .With("TransactionId", transaction->GetId())
+                .With("RowCount", writeRecord.RowCount);
         }
 
         EnqueueTransactionWriteRecord(transaction, writeRecord, lockless);
@@ -189,13 +188,11 @@ public:
 
         FinishCommit(/*transaction*/ nullptr, transactionId, context.CommitTimestamp);
 
-        YT_LOG_DEBUG(
-            "Non-atomic rows committed (TransactionId: %v, "
-            "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %v)",
-            transactionId,
-            writeRecord.RowCount,
-            writeRecord.GetByteSize(),
-            context.CommitTimestamp);
+        YT_TLOG_DEBUG("Non-atomic rows committed")
+            .With("TransactionId", transactionId)
+            .With("RowCount", writeRecord.RowCount)
+            .With("WriteRecordSize", writeRecord.GetByteSize())
+            .With("ActualTimestamp", context.CommitTimestamp);
     }
 
     void WriteDelayedRows(
@@ -277,17 +274,15 @@ public:
 
         const auto& mountConfig = Tablet_->GetSettings().MountConfig;
         if (auto delay = mountConfig->Testing.SyncDelayInWriteTransactionCommit) {
-            YT_LOG_DEBUG("Started sleeping in transaction commit "
-                "(%v, TransactionId: %v)",
-                Tablet_->GetLoggingTags(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Started sleeping in transaction commit")
+                .With(Tablet_->GetLoggingTags())
+                .With("TransactionId", transaction->GetId());
 
             Sleep(delay);
 
-            YT_LOG_DEBUG("Finished sleeping in transaction commit "
-                "(%v, TransactionId: %v)",
-                Tablet_->GetLoggingTags(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Finished sleeping in transaction commit")
+                .With(Tablet_->GetLoggingTags())
+                .With("TransactionId", transaction->GetId());
         }
 
         // Fast path.
@@ -336,14 +331,11 @@ public:
                 auto oldCurrentReplicationTimestamp = replicaInfo->GetCurrentReplicationTimestamp();
                 auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, commitTimestamp);
                 replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
-                YT_LOG_DEBUG(
-                    "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %v -> %v, "
-                    "TotalRowCount: %v)",
-                    transaction->GetId(),
-                    replicaInfo->GetId(),
-                    oldCurrentReplicationTimestamp,
-                    newCurrentReplicationTimestamp,
-                    tablet->GetTotalRowCount());
+                YT_TLOG_DEBUG("Sync replicated rows committed")
+                    .With("TransactionId", transaction->GetId())
+                    .With("ReplicaId", replicaInfo->GetId())
+                    .WithFormat("CurrentReplicationTimestamp", "%v -> %v", oldCurrentReplicationTimestamp, newCurrentReplicationTimestamp)
+                    .With("TotalRowCount", tablet->GetTotalRowCount());
             }
 
             if (!syncReplicas.empty()) {
@@ -354,9 +346,8 @@ public:
         }
 
         if (NeedsSerialization(transaction)) {
-            YT_LOG_DEBUG(
-                "Transaction requires serialization in tablet (TransactionId: %v)",
-                transaction->GetId());
+            YT_TLOG_DEBUG("Transaction requires serialization in tablet")
+                .With("TransactionId", transaction->GetId());
 
             if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 YT_VERIFY(Tablet_->IsPhysicallySorted());
@@ -552,22 +543,21 @@ public:
         auto progress = Tablet_->RuntimeData()->ReplicationProgress.Acquire();
         auto maxTimestamp = GetReplicationProgressMaxTimestamp(*progress);
         if (maxTimestamp >= commitTimestamp) {
-            YT_LOG_ALERT("Tablet replication progress is beyond current serialized transaction commit timestamp "
-                "(TabletId: %v, TransactionId: %v, CommitTimestamp: %v, MaxReplicationProgressTimestamp: %v, ReplicationProgress: %v)",
-                Tablet_->GetId(),
-                transaction->GetId(),
-                commitTimestamp,
-                maxTimestamp,
-                static_cast<TReplicationProgress>(*progress));
+            YT_TLOG_ALERT("Tablet replication progress is beyond current serialized transaction commit timestamp")
+                .With("TabletId", Tablet_->GetId())
+                .With("TransactionId", transaction->GetId())
+                .With("CommitTimestamp", commitTimestamp)
+                .With("MaxReplicationProgressTimestamp", maxTimestamp)
+                .With("ReplicationProgress", static_cast<TReplicationProgress>(*progress));
         } else {
             auto newProgress = AdvanceReplicationProgress(*progress, commitTimestamp);
             progress = New<TRefCountedReplicationProgress>(std::move(newProgress));
             Tablet_->RuntimeData()->ReplicationProgress.Store(progress);
 
-            YT_LOG_DEBUG("Replication progress updated (TabletId: %v, TransactionId: %v, ReplicationProgress: %v)",
-                Tablet_->GetId(),
-                transaction->GetId(),
-                static_cast<TReplicationProgress>(*progress));
+            YT_TLOG_DEBUG("Replication progress updated")
+                .With("TabletId", Tablet_->GetId())
+                .With("TransactionId", transaction->GetId())
+                .With("ReplicationProgress", static_cast<TReplicationProgress>(*progress));
         }
     }
 
@@ -789,9 +779,9 @@ public:
                 if (!transaction->PerRowSerializingTabletIds().contains(Tablet_->GetId())) {
                     Y_UNUSED(ETabletReign::PersistPerRowSerializingTabletIds);
 
-                    YT_LOG_ALERT("Per-row serializing transaction is not found in PerRowSerializingTabletIds (TransactionId: %v, TabletId: %v)",
-                        transaction->GetId(),
-                        Tablet_->GetId());
+                    YT_TLOG_ALERT("Per-row serializing transaction is not found in PerRowSerializingTabletIds")
+                        .With("TransactionId", transaction->GetId())
+                        .With("TabletId", Tablet_->GetId());
                     transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
                 }
             }
@@ -1084,13 +1074,10 @@ private:
         auto lockedRowCount = GetWriteLogRowCount(writeLogState->LockedWriteLog);
         auto locklessRowCount = GetWriteLogRowCount(writeLogState->LocklessWriteLog);
 
-        YT_LOG_DEBUG_IF(
-            lockedRowCount > 0 || locklessRowCount > 0,
-            "Dropping transaction write logs "
-            "(TransactionId: %v, LockedRowCount: %v, LocklessRowCount: %v)",
-            transaction->GetId(),
-            lockedRowCount,
-            locklessRowCount);
+        YT_TLOG_DEBUG_IF(lockedRowCount > 0 || locklessRowCount > 0, "Dropping transaction write logs")
+            .With("TransactionId", transaction->GetId())
+            .With("LockedRowCount", lockedRowCount)
+            .With("LocklessRowCount", locklessRowCount);
 
         DropTransactionWriteLog(transaction, &writeLogState->LockedWriteLog);
         DropTransactionWriteLog(transaction, &writeLogState->LocklessWriteLog);
@@ -1183,34 +1170,31 @@ private:
             auto newDelayedLocklessRowCount = oldDelayedLocklessRowCount - committedRowCount;
             Tablet_->SetDelayedLocklessRowCount(newDelayedLocklessRowCount);
             Tablet_->RecomputeReplicaStatuses();
-            YT_LOG_DEBUG(
-                "Delayed lockless rows committed (TransactionId: %v, DelayedLocklessRowCount: %v -> %v)",
-                transaction->GetId(),
-                oldDelayedLocklessRowCount,
-                newDelayedLocklessRowCount);
+            YT_TLOG_DEBUG("Delayed lockless rows committed")
+                .With("TransactionId", transaction->GetId())
+                .WithFormat("DelayedLocklessRowCount", "%v -> %v", oldDelayedLocklessRowCount, newDelayedLocklessRowCount);
 
             for (auto [replicaInfo, rowCount] : replicaToCommittedRowCount) {
                 auto oldCommittedReplicationRowIndex = replicaInfo->GetCommittedReplicationRowIndex();
                 auto newCommittedReplicationRowIndex = oldCommittedReplicationRowIndex + rowCount;
                 replicaInfo->SetCommittedReplicationRowIndex(newCommittedReplicationRowIndex);
 
-                YT_LOG_DEBUG(
-                    "Delayed lockless rows committed "
-                    "(TransactionId: %v, TabletId: %v, ReplicaId: %v, CommittedReplicationRowIndex: %v -> %v, TotalRowCount: %v)",
-                    transaction->GetId(),
-                    Tablet_->GetId(),
-                    replicaInfo->GetId(),
-                    oldCommittedReplicationRowIndex,
-                    newCommittedReplicationRowIndex,
-                    Tablet_->GetTotalRowCount());
+                YT_TLOG_DEBUG("Delayed lockless rows committed")
+                    .With("TransactionId", transaction->GetId())
+                    .With("TabletId", Tablet_->GetId())
+                    .With("ReplicaId", replicaInfo->GetId())
+                    .WithFormat("CommittedReplicationRowIndex", "%v -> %v",
+                        oldCommittedReplicationRowIndex,
+                        newCommittedReplicationRowIndex)
+                    .With("TotalRowCount", Tablet_->GetTotalRowCount());
             }
         }
 
         if (IsReplicatorWrite(transaction)) {
             if (Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId()) == 0) {
-                YT_LOG_ALERT("Unknown replicator transaction committed (%v, TransactionId: %v)",
-                    Tablet_->GetLoggingTags(),
-                    transaction->GetId());
+                YT_TLOG_ALERT("Unknown replicator transaction committed")
+                    .With(Tablet_->GetLoggingTags())
+                    .With("TransactionId", transaction->GetId());
             }
 
             // May be null in tests.
@@ -1251,9 +1235,9 @@ private:
 
         if (IsReplicatorWrite(transaction) && !writeLogState->LocklessWriteLog.Empty()) {
             if (Tablet_->PreparedReplicatorTransactionIds().erase(transaction->GetId()) == 0) {
-                YT_LOG_DEBUG("Unknown replicator transaction aborted (%v, TransactionId: %v)",
-                    Tablet_->GetLoggingTags(),
-                    transaction->GetId());
+                YT_TLOG_DEBUG("Unknown replicator transaction aborted")
+                    .With(Tablet_->GetLoggingTags())
+                    .With("TransactionId", transaction->GetId());
             }
 
             // May be null in tests.
@@ -1385,11 +1369,9 @@ private:
             prepareRow(prelockedRow);
         }
 
-        YT_LOG_DEBUG_IF(
-            std::ssize(prelockedRows) > 0,
-            "Prelocked rows prepared (TransactionId: %v, PrelockedRowCount: %v)",
-            transactionId,
-            prelockedRows.size());
+        YT_TLOG_DEBUG_IF(std::ssize(prelockedRows) > 0, "Prelocked rows prepared")
+            .With("TransactionId", transactionId)
+            .With("PrelockedRowCount", prelockedRows.size());
     }
 
     void UnprepareLockedRows(TTransaction* transaction, TTimestamp transientPrepareTimestamp)
@@ -1412,22 +1394,18 @@ private:
             unprepareRow(lockedRow);
         }
 
-        YT_LOG_DEBUG_IF(
-            std::ssize(lockedRows) > 0,
-            "Locked rows unprepared (TransactionId: %v, LockedRowCount: %v)",
-            transaction->GetId(),
-            lockedRows.size());
+        YT_TLOG_DEBUG_IF(std::ssize(lockedRows) > 0, "Locked rows unprepared")
+            .With("TransactionId", transaction->GetId())
+            .With("LockedRowCount", lockedRows.size());
 
         auto& prelockedRows = lockState->PrelockedRows;
         for (const auto& prelockedRow : TRingQueueIterableWrapper(prelockedRows)) {
             unprepareRow(prelockedRow);
         }
 
-        YT_LOG_DEBUG_IF(
-            std::ssize(prelockedRows) > 0,
-            "Prelocked rows unprepared (TransactionId: %v, PrelockedRowCount: %v)",
-            transactionId,
-            prelockedRows.size());
+        YT_TLOG_DEBUG_IF(std::ssize(prelockedRows) > 0, "Prelocked rows unprepared")
+            .With("TransactionId", transactionId)
+            .With("PrelockedRowCount", prelockedRows.size());
     }
 
     void StartSerializingLockedRows(TTransaction* transaction, bool onAfterSnapshotLoaded)
@@ -1468,10 +1446,9 @@ private:
             Host_->OnTabletRowUnlocked(tablet);
         }
 
-        YT_LOG_DEBUG(
-            "Locked rows started fine serialization (TransactionId: %v, LockedRowCount: %v)",
-            transaction->GetId(),
-            lockedRowCount);
+        YT_TLOG_DEBUG("Locked rows started fine serialization")
+            .With("TransactionId", transaction->GetId())
+            .With("LockedRowCount", lockedRowCount);
     }
 
     void CommitLockedRows(TTransaction* transaction)
@@ -1512,10 +1489,9 @@ private:
         DropTransactionWriteLog(transaction, &writeLog);
         lockedRows.clear();
 
-        YT_LOG_DEBUG(
-            "Locked rows committed (TransactionId: %v, LockedRowCount: %v)",
-            transaction->GetId(),
-            lockedRowCount);
+        YT_TLOG_DEBUG("Locked rows committed")
+            .With("TransactionId", transaction->GetId())
+            .With("LockedRowCount", lockedRowCount);
     }
 
     void AbortPrelockedRows(TTransaction* transaction)
@@ -1535,11 +1511,9 @@ private:
 
         prelockedRows.clear();
 
-        YT_LOG_DEBUG_IF(
-            prelockedRowCount != 0,
-            "Prelocked rows aborted (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            prelockedRowCount);
+        YT_TLOG_DEBUG_IF(prelockedRowCount != 0, "Prelocked rows aborted")
+            .With("TransactionId", transaction->GetId())
+            .With("RowCount", prelockedRowCount);
     }
 
     void AbortLockedRows(TTransaction* transaction)
@@ -1563,10 +1537,9 @@ private:
 
         lockedRows.clear();
 
-        YT_LOG_DEBUG_IF(lockedRowCount > 0,
-            "Locked rows aborted (TransactionId: %v, RowCount: %v)",
-            transaction->GetId(),
-            lockedRowCount);
+        YT_TLOG_DEBUG_IF(lockedRowCount > 0, "Locked rows aborted")
+            .With("TransactionId", transaction->GetId())
+            .With("RowCount", lockedRowCount);
     }
 
     void FinishCommit(
@@ -1587,10 +1560,9 @@ private:
             hydraManager->GetAutomatonState() == EPeerState::Leading)
         {
             auto unflushedTimestamp = Tablet_->GetUnflushedTimestamp();
-            YT_LOG_ALERT_IF(unflushedTimestamp > commitTimestamp,
-                "Inconsistent unflushed timestamp (UnflushedTimestamp: %v, CommitTimestamp: %v)",
-                unflushedTimestamp,
-                commitTimestamp);
+            YT_TLOG_ALERT_IF(unflushedTimestamp > commitTimestamp, "Inconsistent unflushed timestamp")
+                .With("UnflushedTimestamp", unflushedTimestamp)
+                .With("CommitTimestamp", commitTimestamp);
         }
 
         Tablet_->UpdateLastCommitTimestamp(commitTimestamp);
@@ -1666,16 +1638,13 @@ private:
 
     void ValidateReplicaStatus(ETableReplicaStatus expected, const TTableReplicaInfo& replicaInfo) const
     {
-        YT_LOG_ALERT_IF(
-            replicaInfo.GetStatus() != expected,
-            "Table replica status mismatch "
-            "(Expected: %v, Actual: %v, CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v, Mode: %v)",
-            expected,
-            replicaInfo.GetStatus(),
-            replicaInfo.GetCurrentReplicationRowIndex(),
-            Tablet_->GetTotalRowCount(),
-            Tablet_->GetDelayedLocklessRowCount(),
-            replicaInfo.GetMode());
+        YT_TLOG_ALERT_IF(replicaInfo.GetStatus() != expected, "Table replica status mismatch")
+            .With("Expected", expected)
+            .With("Actual", replicaInfo.GetStatus())
+            .With("CurrentReplicationRowIndex", replicaInfo.GetCurrentReplicationRowIndex())
+            .With("TotalRowCount", Tablet_->GetTotalRowCount())
+            .With("DelayedLocklessRowCount", Tablet_->GetDelayedLocklessRowCount())
+            .With("Mode", replicaInfo.GetMode());
     }
 
     void ValidateReplicaWritable(const TTableReplicaInfo& replicaInfo)
@@ -1700,14 +1669,12 @@ private:
                         .With("delayed_lockless_row_count", delayedLocklessRowCount);
                 }
                 if (currentReplicationRowIndex > totalRowCount + delayedLocklessRowCount) {
-                    YT_LOG_ALERT(
-                        "Current replication row index is too high (TabletId: %v, ReplicaId: %v, "
-                        "CurrentReplicationRowIndex: %v, TotalRowCount: %v, DelayedLocklessRowCount: %v)",
-                        Tablet_->GetId(),
-                        replicaInfo.GetId(),
-                        currentReplicationRowIndex,
-                        totalRowCount,
-                        delayedLocklessRowCount);
+                    YT_TLOG_ALERT("Current replication row index is too high")
+                        .With("TabletId", Tablet_->GetId())
+                        .With("ReplicaId", replicaInfo.GetId())
+                        .With("CurrentReplicationRowIndex", currentReplicationRowIndex)
+                        .With("TotalRowCount", totalRowCount)
+                        .With("DelayedLocklessRowCount", delayedLocklessRowCount);
                 }
                 if (replicaInfo.GetState() != ETableReplicaState::Enabled) {
                     ValidateReplicaStatus(ETableReplicaStatus::SyncNotWritable, replicaInfo);
