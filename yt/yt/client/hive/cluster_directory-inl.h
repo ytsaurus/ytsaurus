@@ -10,6 +10,8 @@
 
 #include <yt/yt_proto/yt/client/hive/proto/cluster_directory.pb.h>
 
+#include <yt/yt/core/concurrency/context_switch.h>
+
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
@@ -87,6 +89,11 @@ template <std::derived_from<NApi::IConnection> TConnection>
 void TClusterDirectoryBase<TConnection>::RemoveCluster(const std::string& name)
 {
     TConnectionPtr removedConnection;
+    auto terminateConection = Finally([&] {
+        if (removedConnection) {
+            removedConnection->Terminate();
+        }
+    });
 
     {
         auto guard = Guard(Lock_);
@@ -96,7 +103,7 @@ void TClusterDirectoryBase<TConnection>::RemoveCluster(const std::string& name)
         }
         const auto& cluster = nameIt->second;
         auto cellTags = GetCellTags(cluster);
-        removedConnection = std::move(cluster.Connection);
+        removedConnection = cluster.Connection;
         if (auto tvmId = cluster.Connection->GetTvmId()) {
             auto tvmIdsIt = ClusterTvmIds_.find(*tvmId);
             YT_VERIFY(tvmIdsIt != ClusterTvmIds_.end());
@@ -119,10 +126,6 @@ void TClusterDirectoryBase<TConnection>::RemoveCluster(const std::string& name)
         // NConcurrency::TForbidContextSwitchGuard guard;
         OnClusterUnregistered_.Fire(name);
     }
-
-    if (removedConnection) {
-        removedConnection->Terminate();
-    }
 }
 
 template <std::derived_from<NApi::IConnection> TConnection>
@@ -144,6 +147,11 @@ TError TClusterDirectoryBase<TConnection>::TryUpdateCluster(const std::string& n
         auto Logger = HiveClientLogger;
 
         TConnectionPtr connectionToTerminate;
+        auto terminateConnection = Finally([&] {
+            if (connectionToTerminate) {
+                connectionToTerminate->Terminate();
+            }
+        });
 
         bool fire = false;
         auto addNewCluster = [&] (const TCluster& cluster) {
@@ -201,9 +209,6 @@ TError TClusterDirectoryBase<TConnection>::TryUpdateCluster(const std::string& n
             // because of context switch.
             // NConcurrency::TForbidContextSwitchGuard guard;
             OnClusterUpdated_.Fire(name, connectionConfig);
-        }
-        if (connectionToTerminate) {
-            connectionToTerminate->Terminate();
         }
     } catch (const std::exception& ex) {
         return TError(ex);
