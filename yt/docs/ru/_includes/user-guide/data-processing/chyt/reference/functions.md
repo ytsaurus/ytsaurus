@@ -128,7 +128,7 @@ NULL
 
 Поддержанные аналоги на данный момент:
 
-`YSONHas`, `YSONLength`, `YSONKey`, `YSONType`, `YSONExtractInt`, `YSONExtractUInt`, `YSONExtractFloat`, `YSONExtractBool`, `YSONExtractString`, `YSONExtract`, `YSONExtractKeysAndValues`, `YSONExtractRaw`, `YSONExtractArrayRaw`, `YSONExtractKeysAndValuesRaw`.
+`YSONHas`, `YSONLength`, `YSONKey`, `YSONType`, `YSONExtractInt`, `YSONExtractUInt`, `YSONExtractFloat`, `YSONExtractBool`, `YSONExtractString`, `YSONExtract`, `YSONExtractKeysAndValues`, `YSONExtractRaw`, `YSONExtractArrayRaw`, `YSONExtractKeysAndValuesRaw`, `YsonExtractKeys`.
 
 {% note info "Примечание" %}
 
