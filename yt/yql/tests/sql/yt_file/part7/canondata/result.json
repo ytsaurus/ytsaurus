@@ -2049,6 +2049,27 @@
             "uri": "file://test.test_select-struct_access_without_table_name--Results_/extracted"
         }
     ],
+    "test.test[select_yql-from_table_func_range-default.txt-Debug]": [
+        {
+            "checksum": "62fb441677e1f3bb990d57c61bac3251",
+            "size": 1230,
+            "uri": "https://{canondata_backend}/1784826/96e611973413c5c5c550255f21dc053526b28ce3/resource.tar.gz#test.test_select_yql-from_table_func_range-default.txt-Debug_/opt.yql"
+        }
+    ],
+    "test.test[select_yql-from_table_func_range-default.txt-Plan]": [
+        {
+            "checksum": "6716f9037452e082c4fa482780110d46",
+            "size": 2806,
+            "uri": "https://{canondata_backend}/1784826/96e611973413c5c5c550255f21dc053526b28ce3/resource.tar.gz#test.test_select_yql-from_table_func_range-default.txt-Plan_/plan.txt"
+        }
+    ],
+    "test.test[select_yql-from_table_func_range-default.txt-Results]": [
+        {
+            "checksum": "5e492d81685e43ed747902356b4f7a05",
+            "size": 2226,
+            "uri": "https://{canondata_backend}/1784826/96e611973413c5c5c550255f21dc053526b28ce3/resource.tar.gz#test.test_select_yql-from_table_func_range-default.txt-Results_/results.txt"
+        }
+    ],
     "test.test[select_yql-insert_into_values_minimal-default.txt-Debug]": [
         {
             "checksum": "cb8a8eae7ce74a2924c2c41c3f6e418c",
