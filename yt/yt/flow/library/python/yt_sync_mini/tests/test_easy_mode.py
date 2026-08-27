@@ -323,6 +323,9 @@ class TestEnsureOnLocalYt:
         assert yt_client.get(f"{path}/@pipeline_format_version") == 1
         for name in list(PIPELINE_TABLES) + list(PIPELINE_QUEUES):
             assert yt_client.get(f"{path}/{name}/@tablet_state") == "mounted", name
+            # Erasure needs six data nodes per chunk write; the bootstrap
+            # helper must never enable it on small clusters.
+            assert yt_client.get(f"{path}/{name}/@erasure_codec") == "none", name
 
     def test_rerun_is_idempotent(self, yt_client):
         exit_code = run_yt_sync_easy_mode(

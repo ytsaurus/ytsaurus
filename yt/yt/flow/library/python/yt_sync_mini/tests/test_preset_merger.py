@@ -8,6 +8,8 @@ from yt.yt.flow.library.python.yt_sync_mini.yt_sync_mini import (
     _resolve_attributes,
 )
 from yt.yt.flow.library.python.pipeline_tables import (
+    PIPELINE_QUEUES_PRESET,
+    PIPELINE_SORTED_TABLE_PRESET,
     PIPELINE_TABLES_PRESET,
 )
 
@@ -262,12 +264,13 @@ def test_real_preset_timers_inherits_sorted_base():
     (compression/erasure/optimize_for/mount_config) plus its own
     ``in_memory_mode: none`` and ``mount_config.enable_lookup_hash_table: False``."""
     attrs = _resolved("timers")
-    # From PIPELINE_SORTED_TABLE_PRESET.
+    # From PIPELINE_SORTED_TABLE_PRESET (with erasure stripped by the local
+    # registry).
     assert attrs["dynamic"] is True
     assert attrs["optimize_for"] == "scan"
     assert attrs["chunk_format"] == "table_versioned_columnar"
-    assert attrs["erasure_codec"] == "reed_solomon_3_3"
-    assert attrs["hunk_erasure_codec"] == "reed_solomon_3_3"
+    assert attrs["erasure_codec"] == "none"
+    assert attrs["hunk_erasure_codec"] == "none"
     assert attrs["mount_config"]["min_data_ttl"] == 0
     assert attrs["mount_config"]["merge_rows_on_flush"] is True
     assert attrs["mount_config"]["merge_deletions_on_flush"] is True
@@ -275,3 +278,23 @@ def test_real_preset_timers_inherits_sorted_base():
     # From timers' own overlay.
     assert attrs["in_memory_mode"] == "none"
     assert attrs["mount_config"]["enable_lookup_hash_table"] is False
+
+
+def test_shared_preset_keeps_internal_erasure():
+    """The shared preset dict is re-exported verbatim by yt_sync for
+    Yandex-internal deployments and must keep its erasure setting; only the
+    local registry strips it."""
+    attrs = PIPELINE_SORTED_TABLE_PRESET["clusters"]["_all_data_clusters"]["attributes"]
+    assert attrs["erasure_codec"] == "reed_solomon_3_3"
+    assert attrs["hunk_erasure_codec"] == "reed_solomon_3_3"
+
+
+@pytest.mark.parametrize("name", sorted({**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}))
+def test_mini_bootstrap_sets_no_erasure(name):
+    """No inner table bootstrapped by yt_sync_mini may carry erasure: writing
+    a reed_solomon_3_3 chunk needs six online data nodes, which small
+    opensource clusters do not have."""
+    presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
+    attrs = _resolve_attributes(presets[name], LOCAL_PRESETS)
+    assert attrs.get("erasure_codec", "none") == "none"
+    assert attrs.get("hunk_erasure_codec", "none") == "none"

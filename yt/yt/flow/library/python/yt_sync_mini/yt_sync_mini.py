@@ -99,6 +99,19 @@ RETRY_INTERVAL: float = 3.0
 # Key under which a spec dict lists parent presets to merge in first.
 PRESET_MERGE_KEY = "$merge_presets"
 
+# The shared preset carries ``reed_solomon_3_3`` for Yandex-internal
+# deployments, but writing an erasure chunk needs six online data nodes;
+# on a smaller cluster every tablet flush fails forever and unflushed
+# dynamic stores pile up in tablet-node memory. This bootstrap helper
+# targets small clusters, so it strips erasure; opt back in on a large
+# cluster by setting ``@erasure_codec`` / ``@hunk_erasure_codec`` on the
+# pipeline tables after bootstrap.
+_PIPELINE_SORTED_TABLE_PRESET_NO_ERASURE = copy.deepcopy(PIPELINE_SORTED_TABLE_PRESET)
+_no_erasure_attrs = _PIPELINE_SORTED_TABLE_PRESET_NO_ERASURE["clusters"]["_all_data_clusters"]["attributes"]
+_no_erasure_attrs["erasure_codec"] = "none"
+_no_erasure_attrs["hunk_erasure_codec"] = "none"
+del _no_erasure_attrs
+
 # Local registry consumed by :func:`_resolve_attributes`, and the single
 # list of preset names known to yt_sync_mini (easy_mode validates every
 # referenced preset name against it). Any ``$merge_presets`` name referenced
@@ -111,7 +124,7 @@ LOCAL_PRESETS = {
         "$merge_presets": ["builtin:storage_preset"],
         "clusters": {"_all_clusters": {"attributes": {"dynamic": True}}},
     },
-    "builtin:pipeline_sorted_table_preset": PIPELINE_SORTED_TABLE_PRESET,
+    "builtin:pipeline_sorted_table_preset": _PIPELINE_SORTED_TABLE_PRESET_NO_ERASURE,
     "builtin:pipeline_ordered_table_preset": PIPELINE_ORDERED_TABLE_PRESET,
     "builtin:pipeline_file_preset": PIPELINE_FILE_PRESET,
     "builtin:consumer_preset": {
