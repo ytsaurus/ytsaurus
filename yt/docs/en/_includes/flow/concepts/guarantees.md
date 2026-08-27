@@ -101,20 +101,22 @@ You set the `processing_mode` parameter at the `TTransformComputation` level in 
 
 ### Batching in Swift computations: `allow_batching_with_relaxed_guarantees` {#swift-allow-batching-with-relaxed-guarantees}
 
-You set the `allow_batching_with_relaxed_guarantees` parameter at the `TSwiftMapComputation` level in the spec. The default value is `%false`.
+You set the `allow_batching_with_relaxed_guarantees` parameter in the `parameters` block of a `TSwiftMapComputation` computation. The default value is `%false`.
 
 ```
 "computations" = {
     "MyBatcher" = {
-        "allow_batching_with_relaxed_guarantees" = %true;
+        "parameters" = {
+            "allow_batching_with_relaxed_guarantees" = %true;
+        };
         ...
     };
 };
 ```
 
-**What changes**: a single output message can combine multiple input messages (batching) — for example, to collapse many small messages into one large message and reduce the load on the number of messages per partition downstream. The combined message gets a new `MessageId` (via `UniqueSeqNo`) that isn’t inherited from any of its parents, and an input message is considered processed only after all its children are delivered.
+**What changes**: a single output message can combine multiple input messages (batching) — for example, to collapse many small messages into one large message and reduce the load on the number of messages per partition downstream. The combined message gets a `MessageId` derived deterministically from the set of its parents' `MessageId`s, and an input message is considered processed only after all its children are delivered.
 
-**What this means for guarantees**: on restart, the batch boundaries might differ, so the same parent can end up in several different combined messages — downstream computations must be ready to see each parent’s content more than once (at-least-once). Also, the `MessageId` order within a single key isn’t preserved on the downstream computations’ side: any logic that relies on `MessageId` ordering within a key must be rewritten to account for this.
+**What this means for guarantees**: on restart, the batch boundaries might differ. A replay that reproduces a batch with the same set of parents yields the same `MessageId` and is deduplicated; but if a parent ends up in a batch with a different composition, that batch's `MessageId` is different — downstream computations must be ready to see each parent’s content more than once (at-least-once). Also, the `MessageId` order within a single key isn’t preserved on the downstream computations’ side: any logic that relies on `MessageId` ordering within a key must be rewritten to account for this.
 
 **When to use it**: when you need to aggregate the message stream (batching/collapsing), and the downstream logic is idempotent and doesn’t depend on `MessageId` order within a key. With the flag disabled (default), each output message has exactly one parent and the Swift computation keeps exactly-once guarantees.
 
