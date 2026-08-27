@@ -55,7 +55,8 @@ IMetaSetterPtr CreateDeterministicMetaSetter(
 
 //! Meta setter for swift map batching (allow_batching_with_relaxed_guarantees).
 //! Single-parent outputs inherit the parent's MessageId and timestamps (same as the deterministic setter).
-//! Multi-parent outputs get a fresh MessageId from |uniqueSeqNo|, SystemTimestamp = max over parents,
+//! Multi-parent outputs get a MessageId derived deterministically from the parent MessageIds
+//! (|uniqueSeqNo| is deliberately unused), SystemTimestamp = max over parents,
 //! EventTimestamp = min over parents. Timers are not supported.
 IMetaSetterPtr CreateSwiftMergeMetaSetter(
     TComputationSpecPtr spec,
