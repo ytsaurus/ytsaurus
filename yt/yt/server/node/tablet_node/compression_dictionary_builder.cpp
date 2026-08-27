@@ -129,14 +129,14 @@ public:
         const auto& tabletManager = Slot_->GetTabletManager();
         auto* tablet = tabletManager->FindTablet(TabletId_);
         if (!tablet) {
-            YT_LOG_DEBUG("Tablet is missing, aborting dictionary building");
+            YT_TLOG_DEBUG("Tablet is missing, aborting dictionary building");
             return;
         }
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->FindTabletSnapshot(TabletId_, MountRevision_);
         if (!tabletSnapshot) {
-            YT_LOG_DEBUG("Tablet snapshot is missing, aborting dictionary building");
+            YT_TLOG_DEBUG("Tablet snapshot is missing, aborting dictionary building");
             OnSessionFailed(tablet, /*backoff*/ false);
             return;
         }
@@ -148,8 +148,8 @@ public:
         for (const auto& storeId : StoreIds_) {
             auto store = tablet->FindStore(storeId);
             if (!store) {
-                YT_LOG_DEBUG("Store is missing, aborting dictionary building (StoreId: %v)",
-                    storeId);
+                YT_TLOG_DEBUG("Store is missing, aborting dictionary building")
+                    .With("StoreId", storeId);
                 OnSessionFailed(tablet, /*backoff*/ false);
                 return;
             }
@@ -167,7 +167,7 @@ public:
         try {
             NProfiling::TWallTimer timer;
 
-            YT_LOG_DEBUG("Compression dictionary building started");
+            YT_TLOG_DEBUG("Compression dictionary building started");
 
             auto transaction = StartTransaction(tabletSnapshot->TablePath);
 
@@ -220,11 +220,10 @@ public:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::DictionaryBuilding].Store(TError());
 
-            YT_LOG_DEBUG("Compression dictionary building completed "
-                "(WallTime: %v, DictionaryTrainingTime: %v, AddedHunkChunkId: %v)",
-                timer.GetElapsedTime(),
-                DictionaryTrainingTimer_.GetElapsedTime(),
-                (HunkWriter_->HasHunks() ? HunkWriter_->GetChunkId() : NullChunkId));
+            YT_TLOG_DEBUG("Compression dictionary building completed")
+                .With("WallTime", timer.GetElapsedTime())
+                .With("DictionaryTrainingTime", DictionaryTrainingTimer_.GetElapsedTime())
+                .With("AddedHunkChunkId", (HunkWriter_->HasHunks() ? HunkWriter_->GetChunkId() : NullChunkId));
         } catch (const std::exception& ex) {
             failed = true;
 
@@ -236,7 +235,8 @@ public:
 
             OnSessionFailed(tablet, /*backoff*/ true);
 
-            YT_LOG_ERROR(error, "Compression dictionary building failed");
+            YT_TLOG_ERROR("Compression dictionary building failed")
+                .With(error);
         }
 
         readerProfiler->Update(
@@ -319,8 +319,8 @@ private:
 
         Logger.AddTag("TransactionId", transaction->GetId());
 
-        YT_LOG_DEBUG("Compression dictionary building transaction created (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_DEBUG("Compression dictionary building transaction created")
+            .With("TransactionId", transaction->GetId());
 
         return transaction;
     }
@@ -384,12 +384,10 @@ private:
         const auto& store = stores[storeIndex];
         YT_VERIFY(store->GetId() == StoreIds_[storeIndex]);
 
-        YT_LOG_DEBUG("Compression dictionary builder will fetch samples "
-            "(IterationCount: %v, StoreIndex: %v/%v, StoreId: %v)",
-            SamplerInfo_.ProcessedChunkCount,
-            storeIndex,
-            StoreIds_.size(),
-            StoreIds_[storeIndex]);
+        YT_TLOG_DEBUG("Compression dictionary builder will fetch samples")
+            .With("IterationCount", SamplerInfo_.ProcessedChunkCount)
+            .WithFormat("StoreIndex", "%v/%v", storeIndex, StoreIds_.size())
+            .With("StoreId", StoreIds_[storeIndex]);
 
         auto backendReader = store->GetBackendReaders(WorkloadCategory_);
         auto chunkMeta = WaitFor(store->GetCachedVersionedChunkMeta(
@@ -502,13 +500,11 @@ private:
             .ThrowOnError();
 
         auto processedRowCount = ProcessRows(reader);
-        YT_LOG_ERROR_IF(currentSampleCount != processedRowCount,
-            "Compression dictionary builder processed unexpected amount of rows "
-            "(Actual: %v, Expected: %v, ChunkId: %v, Ranges: [%v])",
-            processedRowCount,
-            currentSampleCount,
-            store->GetId(),
-            MakeFormattableView(
+        YT_TLOG_ERROR_IF(currentSampleCount != processedRowCount, "Compression dictionary builder processed unexpected amount of rows")
+            .With("Actual", processedRowCount)
+            .With("Expected", currentSampleCount)
+            .With("ChunkId", store->GetId())
+            .WithFormat("Ranges", "[%v]", MakeFormattableView(
                 sharedReadRanges,
                 [&] (auto* builder, const auto& readRange) {
                     builder->AppendFormat("(%v : %v);",
@@ -600,12 +596,11 @@ private:
     bool ShouldSampleMore() const
     {
         auto logUponFinishedSampling = [&] (TStringBuf reason) {
-            YT_LOG_DEBUG("Compression dictionary builder finished sampling rows "
-                "(Reason: %v, ChunkCount: %v, FetchedBlocksSize: %v, ColumnStatistics: {%v})",
-                reason,
-                SamplerInfo_.ProcessedChunkCount,
-                SamplerInfo_.FetchedBlocksSize,
-                MakeFormattableView(
+            YT_TLOG_DEBUG("Compression dictionary builder finished sampling rows")
+                .With("Reason", reason)
+                .With("ChunkCount", SamplerInfo_.ProcessedChunkCount)
+                .With("FetchedBlocksSize", SamplerInfo_.FetchedBlocksSize)
+                .WithFormat("ColumnStatistics", "{%v}", MakeFormattableView(
                     SamplerInfo_.ColumnIdToInfo,
                     [&] (auto* builder, const auto& columnInfo) {
                         builder->AppendFormat("%Qv: {", columnInfo.second.StableName);
@@ -683,10 +678,9 @@ private:
                     Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground),
                     std::move(dictionaryOrError.Value()));
             } else {
-                YT_LOG_DEBUG(dictionaryOrError,
-                    "Compression dictionary training error occurred; builder will skip corresponding column "
-                    "(ColumnId: %v)",
-                    columnId);
+                YT_TLOG_DEBUG("Compression dictionary training error occurred; builder will skip corresponding column")
+                    .With("ColumnId", columnId)
+                    .With(dictionaryOrError);
             }
             columnInfo.Samples.clear();
         }
@@ -823,10 +817,9 @@ private:
             chunkReplicaCache->UpdateReplicas(chunkWriter->GetChunkId(), TAllyReplicasInfo::FromChunkWriter(chunkWriter));
         }
 
-        YT_LOG_DEBUG("Compression dictionary builder finished writing dictionary hunk chunk "
-            "(ChunkId: %v, DictionarySizes: %v)",
-            chunkWriter->GetChunkId(),
-            MakeFormattableView(
+        YT_TLOG_DEBUG("Compression dictionary builder finished writing dictionary hunk chunk")
+            .With("ChunkId", chunkWriter->GetChunkId())
+            .With("DictionarySizes", MakeFormattableView(
                 SamplerInfo_.ColumnIdToInfo,
                 [&] (auto* builder, const auto& columnInfoIt) {
                     if (!columnInfoIt.second.Dictionary) {
@@ -919,8 +912,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Compression dictionary builder started scanning slot (CellId: %v)",
-            slot->GetCellId());
+        YT_TLOG_DEBUG("Compression dictionary builder started scanning slot")
+            .With("CellId", slot->GetCellId());
 
         const auto& tabletManager = slot->GetTabletManager();
         std::vector<TBuildCompressionDictionaryRequest> requests;
@@ -932,8 +925,8 @@ private:
                 std::make_move_iterator(tabletRequests.end()));
         }
 
-        YT_LOG_DEBUG("Compression dictionary builder finished scanning slot (CellId: %v)",
-            slot->GetCellId());
+        YT_TLOG_DEBUG("Compression dictionary builder finished scanning slot")
+            .With("CellId", slot->GetCellId());
 
         SortBy(requests, [] (const auto& request) {
             return request.DictionaryRebuildBackoffTime;
@@ -946,11 +939,10 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Compression dictionary builder finished scheduling tasks "
-            "(CellId: %v, FeasibleTaskCount: %v, StartedTaskCount: %v)",
-            slot->GetCellId(),
-            requests.size(),
-            requestIndex);
+        YT_TLOG_DEBUG("Compression dictionary builder finished scheduling tasks")
+            .With("CellId", slot->GetCellId())
+            .With("FeasibleTaskCount", requests.size())
+            .With("StartedTaskCount", requestIndex);
     }
 
     std::vector<TBuildCompressionDictionaryRequest> ScanTablet(TTablet* tablet)
@@ -1086,12 +1078,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Added compression dictionary build request "
-            "(%v, Policy: %v, StoreCount: %v)",
-            tablet->GetLoggingTags(),
-            policy,
-            request.StoreIds.size());
+        YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Added compression dictionary build request")
+            .With(tablet->GetLoggingTags())
+            .With("Policy", policy)
+            .With("StoreCount", request.StoreIds.size());
     }
 
     bool StartTask(
@@ -1122,12 +1112,11 @@ private:
             &TBuildCompressionDictionarySession::Run,
             session));
 
-        YT_LOG_DEBUG("Compression dictionary builder started new task "
-            "(%v, Policy: %v, DictionaryRebuildBackoffTime: %v, StoreCount: %v)",
-            tablet->GetLoggingTags(),
-            request.Policy,
-            request.DictionaryRebuildBackoffTime,
-            request.StoreIds.size());
+        YT_TLOG_DEBUG("Compression dictionary builder started new task")
+            .With(tablet->GetLoggingTags())
+            .With("Policy", request.Policy)
+            .With("DictionaryRebuildBackoffTime", request.DictionaryRebuildBackoffTime)
+            .With("StoreCount", request.StoreIds.size());
 
         StartedTasksCounter_.Increment();
 

@@ -981,8 +981,8 @@ TSortedDynamicStore::TSortedDynamicStore(
         }
     }
 
-    YT_LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",
-        static_cast<bool>(LookupHashTable_));
+    YT_TLOG_DEBUG("Sorted dynamic store created")
+        .With("LookupHashTable", static_cast<bool>(LookupHashTable_));
 }
 
 TSortedDynamicStore::~TSortedDynamicStore() = default;
@@ -2610,9 +2610,9 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
     auto nodeMemoryUsageTracker = Tablet_->TryGetNodeMemoryUsageTracker();
 
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
-        YT_LOG_DEBUG("Store snapshot serialization started");
+        YT_TLOG_DEBUG("Store snapshot serialization started");
 
-        YT_LOG_DEBUG("Opening table reader");
+        YT_TLOG_DEBUG("Opening table reader");
         WaitFor(tableReader->Open())
             .ThrowOnError();
 
@@ -2646,7 +2646,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             .MaxRowsPerRead = SnapshotRowsPerRead
         };
 
-        YT_LOG_DEBUG("Serializing store snapshot");
+        YT_TLOG_DEBUG("Serializing store snapshot");
 
         std::vector<TTimestamp> lastReadLockTimestamps;
         std::vector<TTimestamp> lastExclusiveLockTimestamps;
@@ -2656,7 +2656,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         i64 rowCount = 0;
         while (auto batch = tableReader->Read(options)) {
             if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for table reader");
+                YT_TLOG_DEBUG("Waiting for table reader");
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
@@ -2691,7 +2691,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             }
 
             if (!tableWriter->Write(std::move(rows))) {
-                YT_LOG_DEBUG("Waiting for table writer");
+                YT_TLOG_DEBUG("Waiting for table writer");
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -2715,20 +2715,20 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
         Save(context, lastReadLockTimestamps);
 
         // NB: This also closes chunkWriter.
-        YT_LOG_DEBUG("Closing table writer");
+        YT_TLOG_DEBUG("Closing table writer");
         WaitFor(tableWriter->Close())
             .ThrowOnError();
 
         Save(context, *chunkWriter->GetChunkMeta());
 
         auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
-        YT_LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
-            rowCount,
-            blocks.size());
+        YT_TLOG_DEBUG("Writing store blocks")
+            .With("RowCount", rowCount)
+            .With("BlockCount", blocks.size());
 
         Save(context, blocks);
 
-        YT_LOG_DEBUG("Store snapshot serialization complete");
+        YT_TLOG_DEBUG("Store snapshot serialization complete");
     });
 }
 

@@ -332,11 +332,10 @@ private:
 
         ScheduleScanTablet(tablet->GetId());
 
-        YT_LOG_DEBUG(
-            "Hunk tablet mounted (TabletId: %v, MountRevision: %x, MasterAvenueEndpointId: %v)",
-            tabletId,
-            mountRevision,
-            masterAvenueEndpointId);
+        YT_TLOG_DEBUG("Hunk tablet mounted")
+            .With("TabletId", tabletId)
+            .WithFormat("MountRevision", "%x", mountRevision)
+            .With("MasterAvenueEndpointId", masterAvenueEndpointId);
 
         {
             TRspMountHunkTablet response;
@@ -361,10 +360,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Unmounting hunk tablet (TabletId: %v, Force: %v)",
-            tabletId,
-            force);
+        YT_TLOG_DEBUG("Unmounting hunk tablet")
+            .With("TabletId", tabletId)
+            .With("Force", force);
 
         tablet->OnUnmount();
 
@@ -443,9 +441,8 @@ private:
             YT_VERIFY(store->TryLock(transactionId, EObjectLockMode::Exclusive).IsOK());
         }
 
-        YT_LOG_DEBUG(
-            "Hunk tablet store update transaction prepared (TransactionId: %v)",
-            transactionId);
+        YT_TLOG_DEBUG("Hunk tablet store update transaction prepared")
+            .With("TransactionId", transactionId);
     }
 
     void HydraCommitUpdateHunkTabletStores(
@@ -471,9 +468,9 @@ private:
 
         auto transactionId = transaction->GetId();
         if (!tablet->TryUnlockTransaction(transactionId)) {
-            YT_LOG_ALERT("Failed to unlock hunk tablet (TransactionId: %v, HunkTabletLockTransactionId: %v)",
-                transactionId,
-                tablet->GetLockTransactionId());
+            YT_TLOG_ALERT("Failed to unlock hunk tablet")
+                .With("TransactionId", transactionId)
+                .With("HunkTabletLockTransactionId", tablet->GetLockTransactionId());
         }
 
         for (const auto& storeToAdd : request->stores_to_add()) {
@@ -514,18 +511,15 @@ private:
             store->Unlock(transaction->GetId(), EObjectLockMode::Exclusive);
             store->SetMarkedSealable(true);
 
-            YT_LOG_DEBUG(
-                "Hunk tablet store marked as sealable "
-                "(TransactionId: %v, StoreId: %v)",
-                transactionId,
-                store->GetId());
+            YT_TLOG_DEBUG("Hunk tablet store marked as sealable")
+                .With("TransactionId", transactionId)
+                .With("StoreId", store->GetId());
         }
 
         ScheduleScanTablet(tablet->GetId());
 
-        YT_LOG_DEBUG(
-            "Hunk tablet store update transaction committed (TransactionId: %v)",
-            transactionId);
+        YT_TLOG_DEBUG("Hunk tablet store update transaction committed")
+            .With("TransactionId", transactionId);
 
         // NB: May destroy tablet.
         MaybeUnmountTablet(tablet);
@@ -554,9 +548,9 @@ private:
 
         auto transactionId = transaction->GetId();
         if (!tablet->TryUnlockTransaction(transactionId)) {
-            YT_LOG_ALERT("Failed to unlock hunk tablet during abort (TransactionId: %v, HunkTabletLockTransactionId: %v)",
-                transactionId,
-                tablet->GetLockTransactionId());
+            YT_TLOG_ALERT("Failed to unlock hunk tablet during abort")
+                .With("TransactionId", transactionId)
+                .With("HunkTabletLockTransactionId", tablet->GetLockTransactionId());
         }
 
         for (const auto& storeToRemove : request->stores_to_remove()) {
@@ -575,11 +569,9 @@ private:
 
         ScheduleScanTablet(tabletId);
 
-        YT_LOG_DEBUG(
-            "Hunk tablet store update transaction aborted "
-            "(TransactionId: %v, TabletId: %v)",
-            transactionId,
-            tabletId);
+        YT_TLOG_DEBUG("Hunk tablet store update transaction aborted")
+            .With("TransactionId", transactionId)
+            .With("TabletId", tabletId);
 
         // NB: May destroy tablet.
         MaybeUnmountTablet(tablet);
@@ -623,14 +615,12 @@ private:
                 .With(error);
         }
 
-        YT_LOG_DEBUG(
-            "Hunk tablet store lock toggle prepared "
-            "(TransactionId: %v, TabletId: %v, StoreId: %v, LockerTabletId: %v, Lock: %v)",
-            transaction->GetId(),
-            tabletId,
-            storeId,
-            lockerTabletId,
-            lock);
+        YT_TLOG_DEBUG("Hunk tablet store lock toggle prepared")
+            .With("TransactionId", transaction->GetId())
+            .With("TabletId", tabletId)
+            .With("StoreId", storeId)
+            .With("LockerTabletId", lockerTabletId)
+            .With("Lock", lock);
     }
 
     void HydraCommitToggleHunkTabletStoreLock(
@@ -658,12 +648,10 @@ private:
         auto storeId = FromProto<TStoreId>(request->store_id());
         auto store = tablet->FindStore(storeId);
         if (!store) {
-            YT_LOG_ALERT(
-                "Hunk store is missing during hunk tablet store lock toggle "
-                "(TransactionId: %v, TabletId: %v, StoreId: %v)",
-                transaction->GetId(),
-                tabletId,
-                storeId);
+            YT_TLOG_ALERT("Hunk store is missing during hunk tablet store lock toggle")
+                .With("TransactionId", transaction->GetId())
+                .With("TabletId", tabletId)
+                .With("StoreId", storeId);
             return;
         }
 
@@ -676,12 +664,10 @@ private:
             // However this should not happen if hunk tablets are properly unlocked
             // in regular tablets.
             if (!store->IsLockedByTablet(lockerTabletId)) {
-                YT_LOG_ALERT(
-                    "Hunk store lock is lost during lock toggle "
-                    "(TransactionId: %v, TabletId: %v, StoreId: %v)",
-                    transaction->GetId(),
-                    tabletId,
-                    store->GetId());
+                YT_TLOG_ALERT("Hunk store lock is lost during lock toggle")
+                    .With("TransactionId", transaction->GetId())
+                    .With("TabletId", tabletId)
+                    .With("StoreId", store->GetId());
                 return;
             }
 
@@ -692,14 +678,12 @@ private:
 
         tablet->RecomputeLockingTabletCount();
 
-        YT_LOG_DEBUG(
-            "Hunk tablet store lock toggle committed "
-            "(TransactionId: %v, TabletId: %v, StoreId: %v, LockerTabletId: %v, Lock: %v)",
-            transaction->GetId(),
-            tabletId,
-            storeId,
-            lockerTabletId,
-            lock);
+        YT_TLOG_DEBUG("Hunk tablet store lock toggle committed")
+            .With("TransactionId", transaction->GetId())
+            .With("TabletId", tabletId)
+            .With("StoreId", storeId)
+            .With("LockerTabletId", lockerTabletId)
+            .With("Lock", lock);
     }
 
     void HydraAbortToggleHunkTabletStoreLock(
@@ -732,14 +716,12 @@ private:
 
         store->Unlock(transaction->GetId(), EObjectLockMode::Shared);
 
-        YT_LOG_DEBUG(
-            "Hunk tablet store lock toggle aborted "
-            "(TransactionId: %v, TabletId: %v, StoreId: %v, LockerTabletId: %v, Lock: %v)",
-            transaction->GetId(),
-            tabletId,
-            storeId,
-            lockerTabletId,
-            request->lock());
+        YT_TLOG_DEBUG("Hunk tablet store lock toggle aborted")
+            .With("TransactionId", transaction->GetId())
+            .With("TabletId", tabletId)
+            .With("StoreId", storeId)
+            .With("LockerTabletId", lockerTabletId)
+            .With("Lock", request->lock());
     }
 
     void MaybeUnmountTablet(THunkTablet* tablet)
@@ -768,20 +750,18 @@ private:
         auto tabletHolder = TabletMap_.Release(tabletId);
 
         if (tablet->IsFullyUnlocked(force)) {
-            YT_LOG_DEBUG("Tablet destroyed (TabletId: %v)",
-                tabletId);
+            YT_TLOG_DEBUG("Tablet destroyed")
+                .With("TabletId", tabletId);
 
             tablet->SetState(ETabletState::Unmounted);
         } else {
             YT_VERIFY(force || tablet->IsReadyToUnmount());
 
-            YT_LOG_ALERT_IF(!force && !IsLeader(),
-                "A locked tablet is encountered on a follower within unmount routine "
-                "(TabletId: %v, MountRevision: %v, LockedScan: %v, WriteLockCount: %v)",
-                tabletId,
-                mountRevision,
-                tablet->IsLockedScan(),
-                tablet->GetWriteLockCount());
+            YT_TLOG_ALERT_IF(!force && !IsLeader(), "A locked tablet is encountered on a follower within unmount routine")
+                .With("TabletId", tabletId)
+                .With("MountRevision", mountRevision)
+                .With("LockedScan", tablet->IsLockedScan())
+                .With("WriteLockCount", tablet->GetWriteLockCount());
 
             tablet->SetState(ETabletState::Orphaned);
             EmplaceOrCrash(
@@ -790,10 +770,10 @@ private:
                 std::move(tabletHolder));
         }
 
-        YT_LOG_DEBUG("Tablet unmounted (TabletId: %v, MountRevision: %v, Force: %v)",
-            tabletId,
-            mountRevision,
-            force);
+        YT_TLOG_DEBUG("Tablet unmounted")
+            .With("TabletId", tabletId)
+            .With("MountRevision", mountRevision)
+            .With("Force", force);
 
         // NB: Response is not sent to master in case of force unmount.
         if (force) {
@@ -860,19 +840,18 @@ private:
             YT_VERIFY(mountRevision == it->first.second);
 
             if (tablet->IsFullyUnlocked(/*force*/ true)) {
-                YT_LOG_DEBUG("Unmounted tablet is fully unlocked; destroying (TabletId: %v, MountRevision: %v)",
-                    tabletId,
-                    mountRevision);
+                YT_TLOG_DEBUG("Unmounted tablet is fully unlocked; destroying")
+                    .With("TabletId", tabletId)
+                    .With("MountRevision", mountRevision);
 
                 tablet->SetState(ETabletState::Unmounted);
                 UnmountedTabletMap_.erase(it++);
             } else {
-                YT_LOG_DEBUG("Unmounted tablet is still locked; skipping "
-                    "(TabletId: %v, MountRevision: %v, LockedScan: %v, WriteLockCount: %v)",
-                    tabletId,
-                    mountRevision,
-                    tablet->IsLockedScan(),
-                    tablet->GetWriteLockCount());
+                YT_TLOG_DEBUG("Unmounted tablet is still locked; skipping")
+                    .With("TabletId", tabletId)
+                    .With("MountRevision", mountRevision)
+                    .With("LockedScan", tablet->IsLockedScan())
+                    .With("WriteLockCount", tablet->GetWriteLockCount());
 
                 ++it;
             }
@@ -901,9 +880,9 @@ private:
         try {
             return ConvertTo<THunkStorageMountConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex,
-                "Error deserializing hunk storage mount config (TabletId: %v)",
-                tabletId);
+            YT_TLOG_ERROR("Error deserializing hunk storage mount config")
+                .With("TabletId", tabletId)
+                .With(ex);
             return New<THunkStorageMountConfig>();
         }
     }
@@ -913,9 +892,9 @@ private:
         try {
             return ConvertTo<THunkStoreWriterConfigPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex,
-                "Error deserializing hunk store writer config (TabletId: %v)",
-                tabletId);
+            YT_TLOG_ERROR("Error deserializing hunk store writer config")
+                .With("TabletId", tabletId)
+                .With(ex);
             return New<THunkStoreWriterConfig>();
         }
     }
@@ -925,9 +904,9 @@ private:
         try {
             return ConvertTo<THunkStoreWriterOptionsPtr>(str);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex,
-                "Error deserializing hunk store writer options (TabletId: %v)",
-                tabletId);
+            YT_TLOG_ERROR("Error deserializing hunk store writer options")
+                .With("TabletId", tabletId)
+                .With(ex);
             return New<THunkStoreWriterOptions>();
         }
     }

@@ -197,7 +197,7 @@ public:
             });
         ReplicationExecutor_->Start();
 
-        YT_LOG_INFO("Table puller enabled");
+        YT_TLOG_INFO("Table puller enabled");
     }
 
     void Disable() override
@@ -206,7 +206,7 @@ public:
             YT_UNUSED_FUTURE(executor->Stop());
         }
 
-        YT_LOG_INFO("Table puller disabled");
+        YT_TLOG_INFO("Table puller disabled");
     }
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) override
@@ -313,21 +313,20 @@ private:
 
             auto snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
             if (snapshotEra == InvalidReplicationEra) {
-                YT_LOG_DEBUG("Will not pull rows since replication era is not known yet");
+                YT_TLOG_DEBUG("Will not pull rows since replication era is not known yet");
                 return;
             }
 
             if (replicationCard->Era < snapshotEra) {
                 // This can happen right after snapshot loading when old replication card is fetched from cache.
-                YT_LOG_DEBUG("Will not pull rows since replication card is outdated "
-                    "(ReplicationCardEra: %v, TabletSnapshotReplicationEra: %v)",
-                    replicationCard->Era,
-                    snapshotEra);
+                YT_TLOG_DEBUG("Will not pull rows since replication card is outdated")
+                    .With("ReplicationCardEra", replicationCard->Era)
+                    .With("TabletSnapshotReplicationEra", snapshotEra);
                 return;
             }
 
             if (!tabletSnapshot->TabletRuntimeData->SmoothMovementData.IsActiveServant) {
-                YT_LOG_DEBUG("Will not pull rows since tablet servant is not active");
+                YT_TLOG_DEBUG("Will not pull rows since tablet servant is not active");
                 return;
             }
 
@@ -351,8 +350,8 @@ private:
             }
 
             if (IsReplicaDisabled(selfReplica->State)) {
-                YT_LOG_DEBUG("Will not pull rows since replica is not enabled (ReplicaState: %v)",
-                    selfReplica->State);
+                YT_TLOG_DEBUG("Will not pull rows since replica is not enabled")
+                    .With("ReplicaState", selfReplica->State);
                 return;
             }
 
@@ -360,28 +359,28 @@ private:
             if (auto delayedLocklessRowCount = tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load();
                 delayedLocklessRowCount > 0)
             {
-                YT_LOG_DEBUG("Will not pull rows since some transactions are not serialized yet (DelayedLocklessRowCount: %v)",
-                    delayedLocklessRowCount);
+                YT_TLOG_DEBUG("Will not pull rows since some transactions are not serialized yet")
+                    .With("DelayedLocklessRowCount", delayedLocklessRowCount);
                 return;
             }
 
             auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound.load();
             if (replicationRound < ReplicationRound_) {
-                YT_LOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet (ReplicationRound: %v)",
-                    replicationRound);
+                YT_TLOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet")
+                    .With("ReplicationRound", replicationRound);
                 return;
             }
             ReplicationRound_ = replicationRound;
 
             if (auto pullRowsTransactionId = tabletSnapshot->TabletChaosData->PreparedWritePulledRowsTransactionId.Load()) {
-                YT_LOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet (TransactionId: %v)",
-                    pullRowsTransactionId);
+                YT_TLOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet")
+                    .With("TransactionId", pullRowsTransactionId);
                 return;
             }
 
             if (auto advanceTransactionId = tabletSnapshot->TabletChaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
-                YT_LOG_DEBUG("Will not pull rows since previous advance transaction is not fully serialized yet (TransactionId: %v)",
-                    advanceTransactionId);
+                YT_TLOG_DEBUG("Will not pull rows since previous advance transaction is not fully serialized yet")
+                    .With("TransactionId", advanceTransactionId);
                 return;
             }
 
@@ -390,7 +389,7 @@ private:
             if (writeMode == ETabletWriteMode::Pull) {
                 configGuard = ChaosAgent_->TryGetConfigLockGuard();
                 if (!configGuard) {
-                    YT_LOG_DEBUG("Tablet is being reconfigured right now, skipping replication iteration");
+                    YT_TLOG_DEBUG("Tablet is being reconfigured right now, skipping replication iteration");
                     return;
                 }
 
@@ -401,15 +400,15 @@ private:
             }
 
             if (snapshotEra != tabletSnapshot->TabletRuntimeData->ReplicationEra.load()) {
-                YT_LOG_DEBUG("Skipping pull rows iteration since snapshot era has changed (SnapshotEra: %v, ReplicationEra: %v)",
-                    snapshotEra,
-                    tabletSnapshot->TabletRuntimeData->ReplicationEra.load());
+                YT_TLOG_DEBUG("Skipping pull rows iteration since snapshot era has changed")
+                    .With("SnapshotEra", snapshotEra)
+                    .With("ReplicationEra", tabletSnapshot->TabletRuntimeData->ReplicationEra.load());
                 return;
             }
 
             if (writeMode != ETabletWriteMode::Pull) {
-                YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
-                    writeMode);
+                YT_TLOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling")
+                    .With("WriteMode", writeMode);
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
                 QueueReplicaSelector_.ResetLastPulledFromReplicaId();
                 return;
@@ -418,19 +417,17 @@ private:
             auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Acquire();
 
             if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, LastReplicationProgressAdvance_)) {
-                YT_LOG_DEBUG("Skipping chaos agent iteration because last progress advance is not there yet "
-                    "(TabletReplicationProgress: %v, LastReplicationProgress: %v)",
-                    static_cast<TReplicationProgress>(*replicationProgress),
-                    LastReplicationProgressAdvance_);
+                YT_TLOG_DEBUG("Skipping chaos agent iteration because last progress advance is not there yet")
+                    .With("TabletReplicationProgress", static_cast<TReplicationProgress>(*replicationProgress))
+                    .With("LastReplicationProgress", LastReplicationProgressAdvance_);
                 return;
             }
 
             if (auto newProgress = MaybeAdvanceReplicationProgress(selfReplica, replicationProgress)) {
                 if (!IsReplicationProgressGreaterOrEqual(*newProgress, LastReplicationProgressAdvance_)) {
-                    YT_LOG_ALERT("Trying to advance replication progress behind last attempt "
-                        "(LastReplicationProgress: %v, NewReplicationProgress: %v)",
-                        LastReplicationProgressAdvance_,
-                        newProgress);
+                    YT_TLOG_ALERT("Trying to advance replication progress behind last attempt")
+                        .With("LastReplicationProgress", LastReplicationProgressAdvance_)
+                        .With("NewReplicationProgress", newProgress);
                 }
 
                 bool committed = AdvanceTabletReplicationProgress(
@@ -464,7 +461,8 @@ private:
         } catch (const std::exception& ex) {
             QueueReplicaSelector_.ResetLastPulledFromReplicaId();
             auto error = TError(ex);
-            YT_LOG_ERROR(error, "Error pulling rows, backing off");
+            YT_TLOG_ERROR("Error pulling rows, backing off")
+                .With(error);
             if (tabletSnapshot) {
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, error);
                 ErrorManager_->HandleError(error, "PullRows", tabletSnapshot);
@@ -489,7 +487,7 @@ private:
 
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(replicationProgress);
         if (oldestTimestamp < selfReplica.History.back().Timestamp) {
-            YT_LOG_DEBUG("Skipping replication throttling because replica is not in its last era");
+            YT_TLOG_DEBUG("Skipping replication throttling because replica is not in its last era");
             return throttlingTimes;
         }
 
@@ -498,12 +496,12 @@ private:
             throttleFuture.GetOrCrash().ThrowOnError();
         } else {
             auto timerGuard = TEventTimerGuard(counters.ThrottleTime);
-            YT_LOG_DEBUG("Started waiting for replication throttling");
+            YT_TLOG_DEBUG("Started waiting for replication throttling");
 
             WaitFor(throttleFuture)
                 .ThrowOnError();
 
-            YT_LOG_DEBUG("Finished waiting for replication throttling");
+            YT_TLOG_DEBUG("Finished waiting for replication throttling");
             throttlingTimes.ThrottleTime = timerGuard.GetElapsedTime();
         }
 
@@ -518,19 +516,19 @@ private:
                 // Waiting should be rare because all throttling is done by capping MaxCommitInstant.
                 TEventTimerGuard timerGuard(counters.RelativeThrottlerThrottleTime);
 
-                YT_LOG_DEBUG("Started waiting for relative replication throttling");
+                YT_TLOG_DEBUG("Started waiting for relative replication throttling");
 
                 WaitFor(AnySet(std::vector{throttleFuture, futureReplicationEra}))
                     .ThrowOnError();
                 throttlingTimes.RelativeThrottleTime = timerGuard.GetElapsedTime();
 
-                YT_LOG_DEBUG("Finished waiting for relative replication throttling (ElapsedTime: %v)",
-                    throttlingTimes.RelativeThrottleTime);
+                YT_TLOG_DEBUG("Finished waiting for relative replication throttling")
+                    .With("ElapsedTime", throttlingTimes.RelativeThrottleTime);
             }
         }
 
         if (futureReplicationEra.IsSet()) {
-            YT_LOG_DEBUG("Throttling canceled because replication era changed");
+            YT_TLOG_DEBUG("Throttling canceled because replication era changed");
         }
 
         return throttlingTimes;
@@ -547,8 +545,8 @@ private:
         auto* counters = tableProfiler->GetTablePullerCounters();
 
         if (MemoryTracker_->IsExceeded()) {
-            YT_LOG_DEBUG("Skipping pull rows iteration due to puller memory limit exceeded (MemoryLimit: %v)",
-                MemoryTracker_->GetLimit());
+            YT_TLOG_DEBUG("Skipping pull rows iteration due to puller memory limit exceeded")
+                .With("MemoryLimit", MemoryTracker_->GetLimit());
             THROW_ERROR_EXCEPTION("Skipping pull rows iteration due to puller memory limit exceeded")
                 .With("memory_limit", MemoryTracker_->GetLimit());
         }
@@ -571,7 +569,8 @@ private:
 
         if (!queueReplicaOrError.IsOK()) {
             // This form of logging accepts only string literals.
-            YT_LOG_DEBUG(queueReplicaOrError, "Unable to pick a queue replica to replicate from");
+            YT_TLOG_DEBUG("Unable to pick a queue replica to replicate from")
+                .With(queueReplicaOrError);
             THROW_ERROR_EXCEPTION("Unable to pick a queue replica to replicate from")
                 .With(queueReplicaOrError)
                 .With(PullerErrorKindAttribute, EPullerErrorKind::UnableToPickQueueReplica);
@@ -622,14 +621,13 @@ private:
                 // ReplicationProgressMinTimestamp and now ReplicationProgressMaxTimestamp.
                 options.MaxTransactionCommitInstant = maxTransactionCommitInstant;
 
-                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, "
-                    "ReplicationRowIndexes: %v, UpperTimestamp: %v, MaxTransactionCommitInstant: %v)",
-                    clusterName,
-                    replicaPath,
-                    options.ReplicationProgress,
-                    options.StartReplicationRowIndexes,
-                    upperTimestamp,
-                    maxTransactionCommitInstant);
+                YT_TLOG_DEBUG("Pulling rows")
+                    .With("ClusterName", clusterName)
+                    .With("ReplicaPath", replicaPath)
+                    .With("ReplicationProgress", options.ReplicationProgress)
+                    .With("ReplicationRowIndexes", options.StartReplicationRowIndexes)
+                    .With("UpperTimestamp", upperTimestamp)
+                    .With("MaxTransactionCommitInstant", maxTransactionCommitInstant);
 
                 result = WaitFor(alienClient->PullRows(replicaPath, options))
                     .ValueOrThrow();
@@ -652,16 +650,14 @@ private:
 
             bool updateProgress = !IsReplicationProgressGreaterOrEqual(*replicationProgress, progress);
 
-            YT_LOG_DEBUG("Pulled rows "
-                "(RowCount: %v, DataWeight: %v, NewProgress: %v, UpdateProgress: %v, EndReplicationRowIndexes: %v, "
-                "ThrottleTime: %v, RelativeThrottleTime: %v)",
-                rowCount,
-                dataWeight,
-                progress,
-                updateProgress,
-                endReplicationRowIndexes,
-                throttlingTimes.ThrottleTime,
-                throttlingTimes.RelativeThrottleTime);
+            YT_TLOG_DEBUG("Pulled rows")
+                .With("RowCount", rowCount)
+                .With("DataWeight", dataWeight)
+                .With("NewProgress", progress)
+                .With("UpdateProgress", updateProgress)
+                .With("EndReplicationRowIndexes", endReplicationRowIndexes)
+                .With("ThrottleTime", throttlingTimes.ThrottleTime)
+                .With("RelativeThrottleTime", throttlingTimes.RelativeThrottleTime);
 
             Throttler_->Acquire(dataWeight);
 
@@ -682,12 +678,11 @@ private:
                         : row.DeleteTimestamps()[0];
                     auto progressTimestamp = FindReplicationProgressTimestampForKey(*replicationProgress, row.Keys());
                     if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inappropriate row timestamp in pull rows response "
-                            "(RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
-                            rowTimestamp,
-                            progressTimestamp,
-                            row,
-                            static_cast<TReplicationProgress>(*replicationProgress));
+                        YT_TLOG_ALERT("Received inappropriate row timestamp in pull rows response")
+                            .With("RowTimestamp", rowTimestamp)
+                            .With("ProgressTimestamp", progressTimestamp)
+                            .With("Row", row)
+                            .With("Progress", static_cast<TReplicationProgress>(*replicationProgress));
 
                         THROW_ERROR_EXCEPTION("Inappropriate row timestamp in pull rows response")
                             .With("row_timestamp", rowTimestamp)
@@ -713,10 +708,9 @@ private:
                     if (row[*timestampColumnIndex].Id != *timestampColumnIndex) {
                         counters->FatalErrorCount.Increment();
 
-                        YT_LOG_ALERT("Could not identify timestamp column in pulled row, "
-                            "timestamp validation disabled (Row: %v, TimestampColumnIndex: %v)",
-                            row,
-                            *timestampColumnIndex);
+                        YT_TLOG_ALERT("Could not identify timestamp column in pulled row, timestamp validation disabled")
+                            .With("Row", row)
+                            .With("TimestampColumnIndex", *timestampColumnIndex);
                     }
 
                     auto rowTimestamp = TTimestamp(row[*timestampColumnIndex].Data.Uint64);
@@ -724,12 +718,11 @@ private:
                     if (progressTimestamp >= rowTimestamp || previousTimestamp > rowTimestamp) {
                         counters->FatalErrorCount.Increment();
 
-                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response "
-                            "(RowTimestamp: %v, PreviousTimestamp: %v, Row: %v, Progress: %v)",
-                            rowTimestamp,
-                            previousTimestamp,
-                            row,
-                            static_cast<TReplicationProgress>(*replicationProgress));
+                        YT_TLOG_ALERT("Received inappropriate timestamp in pull rows response")
+                            .With("RowTimestamp", rowTimestamp)
+                            .With("PreviousTimestamp", previousTimestamp)
+                            .With("Row", row)
+                            .With("Progress", static_cast<TReplicationProgress>(*replicationProgress));
 
                         THROW_ERROR_EXCEPTION("Inappropriate row timestamp in pull rows response")
                             .With("row_timestamp", rowTimestamp)
@@ -756,12 +749,10 @@ private:
                     if (currentRowCount + rowCount != endReplicationRowIndex) {
                         counters->FatalErrorCount.Increment();
 
-                        YT_LOG_ALERT(
-                            "Ordered pull row index mismatch "
-                            "(CurrentRowCount: %v, ResultSetRowCount: %v, EndReplicationRowIndex: %v)",
-                            currentRowCount,
-                            rowCount,
-                            endReplicationRowIndex);
+                        YT_TLOG_ALERT("Ordered pull row index mismatch")
+                            .With("CurrentRowCount", currentRowCount)
+                            .With("ResultSetRowCount", rowCount)
+                            .With("EndReplicationRowIndex", endReplicationRowIndex);
 
                         THROW_ERROR_EXCEPTION("Ordered pull row index mismatch")
                             .With("current_row_count", currentRowCount)
@@ -828,9 +819,9 @@ private:
                     localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
                 }
 
-                YT_LOG_DEBUG("Committing pull rows write transaction (TransactionId: %v, ReplicationRound: %v)",
-                    localTransaction->GetId(),
-                    ReplicationRound_);
+                YT_TLOG_DEBUG("Committing pull rows write transaction")
+                    .With("TransactionId", localTransaction->GetId())
+                    .With("ReplicationRound", ReplicationRound_);
 
                 Slot_->GetTabletManager()->ExternalizeTransactionIfNeeded(
                     tabletSnapshot,
@@ -848,9 +839,9 @@ private:
 
                 ++ReplicationRound_;
 
-                YT_LOG_DEBUG("Pull rows write transaction committed (TransactionId: %v, NewReplicationRound: %v)",
-                    localTransaction->GetId(),
-                    ReplicationRound_);
+                YT_TLOG_DEBUG("Pull rows write transaction committed")
+                    .With("TransactionId", localTransaction->GetId())
+                    .With("NewReplicationRound", ReplicationRound_);
             }
 
             counters->RowCount.Increment(rowCount);
@@ -873,30 +864,27 @@ private:
                 PivotKey_.Get(),
                 NextPivotKey_.Get());
 
-            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode "
-                "(ReplicationCardMinProgressTimestamp: %v, HistoryMinTimestamp: %v)",
-                progressTimestamp,
-                historyTimestamp);
+            YT_TLOG_DEBUG("Checking that replica has been added in non-catchup mode")
+                .With("ReplicationCardMinProgressTimestamp", progressTimestamp)
+                .With("HistoryMinTimestamp", historyTimestamp);
 
             if (progressTimestamp == historyTimestamp && progressTimestamp != MinTimestamp) {
-                YT_LOG_DEBUG("Advance replication progress to first history item "
-                    "(ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
-                    static_cast<TReplicationProgress>(*progress),
-                    selfReplica,
-                    historyTimestamp);
+                YT_TLOG_DEBUG("Advance replication progress to first history item")
+                    .With("ReplicationProgress", static_cast<TReplicationProgress>(*progress))
+                    .With("Replica", selfReplica)
+                    .With("Timestamp", historyTimestamp);
 
                 return AdvanceReplicationProgress(
                     *progress,
                     historyTimestamp);
             }
 
-            YT_LOG_DEBUG("Checking that replication card contains further progress "
-                "(ReplicationProgress: %v, Replica: %v)",
-                static_cast<TReplicationProgress>(*progress),
-                selfReplica);
+            YT_TLOG_DEBUG("Checking that replication card contains further progress")
+                .With("ReplicationProgress", static_cast<TReplicationProgress>(*progress))
+                .With("Replica", selfReplica);
 
             if (!IsReplicationProgressGreaterOrEqual(*progress, selfReplica->ReplicationProgress)) {
-                YT_LOG_DEBUG("Advance replication progress to replica progress from replication card");
+                YT_TLOG_DEBUG("Advance replication progress to replica progress from replication card");
                 return ExtractReplicationProgress(
                     selfReplica->ReplicationProgress,
                     PivotKey_.Get(),
@@ -907,32 +895,29 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
         auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
 
-        YT_LOG_DEBUG("Replica is in pulling mode, consider jumping "
-            "(ReplicaMode: %v, OldestTimestamp: %v, HistoryItemIndex: %v)",
-            ETabletWriteMode::Pull,
-            oldestTimestamp,
-            historyItemIndex);
+        YT_TLOG_DEBUG("Replica is in pulling mode, consider jumping")
+            .With("ReplicaMode", ETabletWriteMode::Pull)
+            .With("OldestTimestamp", oldestTimestamp)
+            .With("HistoryItemIndex", historyItemIndex);
 
         if (historyItemIndex == -1) {
-            YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress "
-                "(ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
-                static_cast<TReplicationProgress>(*progress),
-                *selfReplica,
-                oldestTimestamp);
+            YT_TLOG_WARNING("Invalid replication card: replica history does not cover its progress")
+                .With("ReplicationProgress", static_cast<TReplicationProgress>(*progress))
+                .With("Replica", *selfReplica)
+                .With("Timestamp", oldestTimestamp);
         } else {
             if (selfReplica->History[historyItemIndex].IsSync()) {
                 ++historyItemIndex;
                 if (historyItemIndex >= std::ssize(selfReplica->History)) {
-                    YT_LOG_DEBUG("Will not advance replication progress to the next era "
-                        "because current history item is the last one (HistoryItemIndex: %v, Replica: %v)",
-                        historyItemIndex,
-                        *selfReplica);
+                    YT_TLOG_DEBUG("Will not advance replication progress to the next era because current history item is the last one")
+                        .With("HistoryItemIndex", historyItemIndex)
+                        .With("Replica", *selfReplica);
                     return {};
                 }
 
-                YT_LOG_DEBUG("Advance replication progress to next era (Era: %v, Timestamp: %v)",
-                    selfReplica->History[historyItemIndex].Era,
-                    selfReplica->History[historyItemIndex].Timestamp);
+                YT_TLOG_DEBUG("Advance replication progress to next era")
+                    .With("Era", selfReplica->History[historyItemIndex].Era)
+                    .With("Timestamp", selfReplica->History[historyItemIndex].Timestamp);
                 return AdvanceReplicationProgress(
                     *progress,
                     selfReplica->History[historyItemIndex].Timestamp);
@@ -944,13 +929,15 @@ private:
 
     void DoSoftBackoff(const TError& error)
     {
-        YT_LOG_INFO(error, "Doing soft backoff");
+        YT_TLOG_INFO("Doing soft backoff")
+            .With(error);
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorSoftBackoffTime);
     }
 
     void DoHardBackoff(const TError& error)
     {
-        YT_LOG_INFO(error, "Doing hard backoff");
+        YT_TLOG_INFO("Doing hard backoff")
+            .With(error);
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
     }
 };

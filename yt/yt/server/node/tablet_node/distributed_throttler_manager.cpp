@@ -86,20 +86,19 @@ public:
                 try {
                     auto factoryName = MakeFactoryName(tablePath, kind);
 
-                    YT_LOG_DEBUG("Creating distributed throttler factory "
-                        "(TablePath: %v, ThrottlerKind: %v, RpcTimeout: %v, GroupId: %v)",
-                        tablePath,
-                        kind,
-                        rpcTimeout,
-                        factoryName);
+                    YT_TLOG_DEBUG("Creating distributed throttler factory")
+                        .With("TablePath", tablePath)
+                        .With("ThrottlerKind", kind)
+                        .With("RpcTimeout", rpcTimeout)
+                        .With("GroupId", factoryName);
 
                     it->second = DoCreateFactory(factoryName, cellTag, kind, profiler);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Failed to create distributed throttler factory "
-                        "(TablePath: %v, ThrottlerKind: %v, RpcTimeout: %v)",
-                        tablePath,
-                        kind,
-                        rpcTimeout);
+                    YT_TLOG_ERROR("Failed to create distributed throttler factory")
+                        .With("TablePath", tablePath)
+                        .With("ThrottlerKind", kind)
+                        .With("RpcTimeout", rpcTimeout)
+                        .With(ex);
 
                     Factories_.erase(it);
                     return admitUnlimitedThrottler

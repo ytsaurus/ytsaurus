@@ -54,9 +54,9 @@ public:
     {
         if (presetPolicy) {
             ElectedPolicy_ = presetPolicy;
-            YT_LOG_DEBUG("Dictionary compression session elected policy is predefined (Policy: %v, ChunkId: %v)",
-                ElectedPolicy_,
-                RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId);
+            YT_TLOG_DEBUG("Dictionary compression session elected policy is predefined")
+                .With("Policy", ElectedPolicy_)
+                .With("ChunkId", RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId);
         }
     }
 
@@ -212,15 +212,13 @@ private:
             ElectedPolicy_ = TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()[randomIndex];
         }
 
-        YT_LOG_DEBUG("Dictionary compression session elected best policy "
-            "(Policy: %v, ChunkId: %v, ProcessedSampleCount: %v, ProcessedSamplesSize: %v, "
-            "PolicyToCompressedSize: %v, ElectRandomPolicy: %v)",
-            ElectedPolicy_,
-            RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId,
-            ProcessedSampleCount_,
-            ProcessedSamplesSize_,
-            policyToCompressedSize,
-            ElectRandomPolicy_);
+        YT_TLOG_DEBUG("Dictionary compression session elected best policy")
+            .With("Policy", ElectedPolicy_)
+            .With("ChunkId", RowDictionaryCompressors_[*ElectedPolicy_].DictionaryId)
+            .With("ProcessedSampleCount", ProcessedSampleCount_)
+            .With("ProcessedSamplesSize", ProcessedSamplesSize_)
+            .With("PolicyToCompressedSize", policyToCompressedSize)
+            .With("ElectRandomPolicy", ElectRandomPolicy_);
     }
 
     bool IsValueCompressable(const TVersionedValue& value) const

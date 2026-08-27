@@ -41,10 +41,8 @@ void THunkStore::SetState(EHunkStoreState newState)
         Closing_.store(true);
         Writer_->Close().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             Closing_.store(false);
-            YT_LOG_WARNING_UNLESS(
-                error.IsOK(),
-                error,
-                "Failed to close journal hunk chunk writer");
+            YT_TLOG_WARNING_UNLESS(error.IsOK(), "Failed to close journal hunk chunk writer")
+                .With(error);
         }));
     }
 
@@ -95,10 +93,9 @@ void THunkStore::Lock(TTabletId tabletId)
 
     auto newLockCount = ++TabletIdToLockCount_[tabletId];
 
-    YT_LOG_DEBUG(
-        "Hunk store is locked by tablet (LockerTabletId: %v, LockCount: %v)",
-        tabletId,
-        newLockCount);
+    YT_TLOG_DEBUG("Hunk store is locked by tablet")
+        .With("LockerTabletId", tabletId)
+        .With("LockCount", newLockCount);
 }
 
 void THunkStore::Unlock(TTabletId tabletId)
@@ -111,10 +108,9 @@ void THunkStore::Unlock(TTabletId tabletId)
         EraseOrCrash(TabletIdToLockCount_, tabletId);
     }
 
-    YT_LOG_DEBUG(
-        "Hunk store is unlocked by tablet (LockerTabletId: %v, LockCount: %v)",
-        tabletId,
-        newLockCount);
+    YT_TLOG_DEBUG("Hunk store is unlocked by tablet")
+        .With("LockerTabletId", tabletId)
+        .With("LockCount", newLockCount);
 }
 
 bool THunkStore::IsLockedByTablet(TTabletId tabletId) const

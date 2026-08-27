@@ -395,8 +395,8 @@ public:
                 TabletCellHydraTracker,
                 Format("%v.%v", TabletCellHydraTracker, SlotIndex_)));
         } else {
-            YT_LOG_WARNING("Failed to register tablet cell hydra wait time tracker for OverloadController (SlotIndex: %v)",
-                SlotIndex_);
+            YT_TLOG_WARNING("Failed to register tablet cell hydra wait time tracker for OverloadController")
+                .With("SlotIndex", SlotIndex_);
         }
 
         return automation;
@@ -457,7 +457,8 @@ public:
             context = TabletManager_->GetRowCacheControllerContext();
         }
 
-        YT_LOG_DEBUG("Finished GetRowCacheControllerContext (TimeSpent: %v)", elapsedTime);
+        YT_TLOG_DEBUG("Finished GetRowCacheControllerContext")
+            .With("TimeSpent", elapsedTime);
 
         return context;
     }

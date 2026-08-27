@@ -528,12 +528,11 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
 
     for (const auto& store : LockedStores_) {
         if (!store->AsSortedDynamic()->CheckRowLocks(row, lockMask, context)) {
-            YT_LOG_DEBUG("Transaction failed conflict check with locked store "
-                "(TransactionId: %v, TransactionStartTimestamp: %v, StoreId: %v, IsErrorOK: %v)",
-                transaction->GetId(),
-                transaction->GetStartTimestamp(),
-                store->GetId(),
-                context->Error.IsOK());
+            YT_TLOG_DEBUG("Transaction failed conflict check with locked store")
+                .With("TransactionId", transaction->GetId())
+                .With("TransactionStartTimestamp", transaction->GetStartTimestamp())
+                .With("StoreId", store->GetId())
+                .With("IsErrorOK", context->Error.IsOK());
 
             return false;
         }
@@ -542,14 +541,12 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
     if (mountConfig->CheckConflictHorizon &&
         transaction->GetStartTimestamp() < Tablet_->GetTransientConflictHorizonTimestamp())
     {
-        YT_LOG_DEBUG("Transaction failed conflict check with transient conflict horizon timestamp "
-            "(TransactionId: %v, TransactionStartTimestamp: %v, "
-            "TransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v, IsErrorOK: %v)",
-            transaction->GetId(),
-            transaction->GetStartTimestamp(),
-            Tablet_->GetTransientConflictHorizonTimestamp(),
-            Tablet_->GetPersistentConflictHorizonTimestamp(),
-            false);
+        YT_TLOG_DEBUG("Transaction failed conflict check with transient conflict horizon timestamp")
+            .With("TransactionId", transaction->GetId())
+            .With("TransactionStartTimestamp", transaction->GetStartTimestamp())
+            .With("TransientConflictHorizonTimestamp", Tablet_->GetTransientConflictHorizonTimestamp())
+            .With("PersistentConflictHorizonTimestamp", Tablet_->GetPersistentConflictHorizonTimestamp())
+            .With("IsErrorOK", false);
 
         // NB: Reused error code. However, the actions expected from the user are the same.
         context->Error = TError(
@@ -584,12 +581,11 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
         }
 
         if (!store->CheckRowLocks(row, lockMask, context)) {
-            YT_LOG_DEBUG("Transaction failed conflict check with backing, passive or chunk store "
-                "(TransactionId: %v, TransactionStartTimestamp: %v, StoreId: %v, IsErrorOK: %v)",
-                transaction->GetId(),
-                transaction->GetStartTimestamp(),
-                store->GetId(),
-                context->Error.IsOK());
+            YT_TLOG_DEBUG("Transaction failed conflict check with backing, passive or chunk store")
+                .With("TransactionId", transaction->GetId())
+                .With("TransactionStartTimestamp", transaction->GetStartTimestamp())
+                .With("StoreId", store->GetId())
+                .With("IsErrorOK", context->Error.IsOK());
 
             return false;
         }
@@ -616,12 +612,11 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
         }
 
         if (!store->CheckRowLocks(row, lockMask, context)) {
-            YT_LOG_DEBUG("Transaction failed conflict check with unleashed backing store "
-                "(TransactionId: %v, TransactionStartTimestamp: %v, StoreId: %v, IsErrorOK: %v)",
-                transaction->GetId(),
-                transaction->GetStartTimestamp(),
-                store->GetId(),
-                context->Error.IsOK());
+            YT_TLOG_DEBUG("Transaction failed conflict check with unleashed backing store")
+                .With("TransactionId", transaction->GetId())
+                .With("TransactionStartTimestamp", transaction->GetStartTimestamp())
+                .With("StoreId", store->GetId())
+                .With("IsErrorOK", context->Error.IsOK());
 
             return false;
         }
@@ -736,14 +731,14 @@ void TSortedStoreManager::Mount(
 
         const auto& mountConfig = Tablet_->GetSettings().MountConfig;
         if (mountConfig->EnableLsmVerboseLogging) {
-            YT_LOG_DEBUG("Considering store boundaries during table mount (BoundaryCount: %v)",
-                chunkBoundaries.size());
+            YT_TLOG_DEBUG("Considering store boundaries during table mount")
+                .With("BoundaryCount", chunkBoundaries.size());
             for (const auto& boundary : chunkBoundaries) {
-                YT_LOG_DEBUG("Next chunk boundary (Key: %v, Type: %v, DescriptorIndex: %v, DataSize: %v)",
-                    boundary.Key,
-                    boundary.Type,
-                    boundary.DescriptorIndex,
-                    boundary.DataSize);
+                YT_TLOG_DEBUG("Next chunk boundary")
+                    .With("Key", boundary.Key)
+                    .With("Type", boundary.Type)
+                    .With("DescriptorIndex", boundary.DescriptorIndex)
+                    .With("DataSize", boundary.DataSize);
             }
         }
 
@@ -850,10 +845,9 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores)
         }
 
         auto* partition = Tablet_->GetPartition(partitionId);
-        YT_LOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging,
-            "Added stores to partition (PartitionId: %v, StoreCount: %v)",
-            partition->GetId(),
-            addedStores.size());
+        YT_TLOG_DEBUG_IF(mountConfig->EnableLsmVerboseLogging, "Added stores to partition")
+            .With("PartitionId", partition->GetId())
+            .With("StoreCount", addedStores.size());
 
         TrySplitPartitionByAddedStores(partition, std::move(addedStores));
     }
@@ -911,14 +905,12 @@ void TSortedStoreManager::CreateActiveStore(TDynamicStoreId hintId)
         Tablet_->GetState() == ETabletState::FreezeFlushing)
     {
         ActiveStore_->SetStoreState(EStoreState::PassiveDynamic);
-        YT_LOG_INFO(
-            "Rotation request received while tablet is in flushing state, "
-            "active store created as passive (StoreId: %v, TabletState: %v)",
-            storeId,
-            Tablet_->GetState());
+        YT_TLOG_INFO("Rotation request received while tablet is in flushing state, active store created as passive")
+            .With("StoreId", storeId)
+            .With("TabletState", Tablet_->GetState());
     } else {
-        YT_LOG_INFO("Active store created (StoreId: %v)",
-            storeId);
+        YT_TLOG_INFO("Active store created")
+            .With("StoreId", storeId);
     }
 
     Tablet_->AddStore(ActiveStore_, /*onFlush*/ false);
@@ -935,9 +927,9 @@ void TSortedStoreManager::OnActiveStoreRotated()
     auto storeFlushIndex = Tablet_->GetStoreFlushIndex();
     ++storeFlushIndex;
 
-    YT_LOG_INFO("Active sorted store rotated (StoreId: %v, StoreFlushIndex: %v)",
-        ActiveStore_->GetId(),
-        storeFlushIndex);
+    YT_TLOG_INFO("Active sorted store rotated")
+        .With("StoreId", ActiveStore_->GetId())
+        .With("StoreFlushIndex", storeFlushIndex);
 
     Tablet_->SetStoreFlushIndex(storeFlushIndex);
     ActiveStore_->SetFlushIndex(storeFlushIndex);
@@ -1108,11 +1100,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                         New<TRefCountedChunkMeta>(*finalizedMeta));
                 }
 
-                YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization "
-                    "(Success: %v, ChunkId: %v, Activity: %v)",
-                    result,
-                    storeWriter->GetChunkId(),
-                    ETabletBackgroundActivity::Flush);
+                YT_TLOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization")
+                    .With("Success", result)
+                    .With("ChunkId", storeWriter->GetChunkId())
+                    .With("Activity", ETabletBackgroundActivity::Flush);
             }));
         }
 
@@ -1170,20 +1161,18 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             sortedDynamicStore->IsMergeRowsOnFlushAllowed();
 
         if (mountConfig->MergeRowsOnFlush && !sortedDynamicStore->IsMergeRowsOnFlushAllowed()) {
-            YT_LOG_DEBUG("Merge rows on flush is disabled since backup is in progress");
+            YT_TLOG_DEBUG("Merge rows on flush is disabled since backup is in progress");
         }
 
-        YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
-            "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, "
-            "CurrentRetainedTimestamp: %v, NewRetainedTimestamp: %v, StoreFlushIndex: %v)",
-            store->GetId(),
-            mergeRowsOnFlush,
-            mountConfig->MergeDeletionsOnFlush,
-            ConvertTo<TRetentionConfigPtr>(mountConfig),
-            static_cast<bool>(rowCache),
-            tabletSnapshot->RetainedTimestamp,
-            newRetainedTimestamp,
-            storeFlushIndex);
+        YT_TLOG_DEBUG("Sorted store flush started")
+            .With("StoreId", store->GetId())
+            .With("MergeRowsOnFlush", mergeRowsOnFlush)
+            .With("MergeDeletionsOnFlush", mountConfig->MergeDeletionsOnFlush)
+            .With("RetentionConfig", ConvertTo<TRetentionConfigPtr>(mountConfig))
+            .With("HaveRowCache", static_cast<bool>(rowCache))
+            .With("CurrentRetainedTimestamp", tabletSnapshot->RetainedTimestamp)
+            .With("NewRetainedTimestamp", newRetainedTimestamp)
+            .With("StoreFlushIndex", storeFlushIndex);
 
         // If storeFlushIndex is zero then store is passive dynamic store loaded from snapshot.
         if (rowCache && storeFlushIndex > 0) {
@@ -1260,8 +1249,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         }
 
         if (storeWriter->GetRowCount() == 0) {
-            YT_LOG_DEBUG("Sorted store is empty, nothing to flush (StoreId: %v)",
-                store->GetId());
+            YT_TLOG_DEBUG("Sorted store is empty, nothing to flush")
+                .With("StoreId", store->GetId());
             return TStoreFlushResult();
         }
 
@@ -1306,11 +1295,18 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             TabletContext_->GetDynamicConfig(),
             tabletSnapshot);
 
-        YT_LOG_DEBUG("Throttling blobs media write in sorted store flush (DiskSpace: %v)",
-            totalDiskSpace);
+        YT_TLOG_DEBUG("Throttling blobs media write in sorted store flush")
+            .With("DiskSpace", totalDiskSpace);
 
         WaitFor(mediumThrottler->Throttle(totalDiskSpace))
             .ThrowOnError();
+
+        std::optional<TChunkId> hunkChunkId;
+        std::optional<i64> hunkChunkDiskSpace;
+        if (hunkChunkPayloadWriter->HasHunks()) {
+            hunkChunkId = hunkChunkPayloadWriter->GetChunkId();
+            hunkChunkDiskSpace = getDiskSpace(hunkChunkWriter, tabletSnapshot->Settings.HunkWriterOptions);
+        }
 
         YT_LOG_DEBUG("Sorted store flushed (StoreId: %v, StoreChunkId: %v, StoreChunkDiskSpace: %v%v, RowsInStore %v, FoundCacheRows: %v, DiscardedCacheRows: %v, FailedByMemoryCacheRows: %v)",
             store->GetId(),
@@ -1547,9 +1543,9 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
     }
 
     if (proposedPivots.size() > 1) {
-        YT_LOG_DEBUG("Requesting partition split while adding stores (PartitionId: %v, SplitFactor: %v)",
-            partition->GetId(),
-            proposedPivots.size());
+        YT_TLOG_DEBUG("Requesting partition split while adding stores")
+            .With("PartitionId", partition->GetId())
+            .With("SplitFactor", proposedPivots.size());
 
         partition->RequestImmediateSplit(std::move(proposedPivots));
 
@@ -1796,12 +1792,12 @@ TSortedDynamicStore::TRowBlockedWaitingResult TSortedStoreManager::WaitOnBlocked
     }
 
     auto transactionId = transaction->GetId();
-    YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v, ReadTimestamp: %v, Timeout: %v)",
-        RowToKey(*Tablet_->GetPhysicalSchema(), row),
-        conflictInfo.LockIndex,
-        transactionId,
-        conflictInfo.ReadTimestamp,
-        timeout);
+    YT_TLOG_DEBUG("Waiting on blocked row")
+        .With("Key", RowToKey(*Tablet_->GetPhysicalSchema(), row))
+        .With("LockIndex", conflictInfo.LockIndex)
+        .With("TransactionId", transactionId)
+        .With("ReadTimestamp", conflictInfo.ReadTimestamp)
+        .With("Timeout", timeout);
 
     // When waiting for a per-row serializing transaction row can become ready to read
     // even if transaction is not totally finished.
@@ -1854,14 +1850,13 @@ void TSortedStoreManager::AddUnleashedBackingStore(TSortedDynamicStorePtr unleas
         UnleashedBackingStores_,
         std::pair{unleashedBackingStore->GetId(), unleashedBackingStore});
 
-    YT_LOG_DEBUG("Added unleashed backing store (StoreId: %v, UnleashedBackingStoreCount: %v)",
-        unleashedBackingStore->GetId(),
-        UnleashedBackingStores_.size());
+    YT_TLOG_DEBUG("Added unleashed backing store")
+        .With("StoreId", unleashedBackingStore->GetId())
+        .With("UnleashedBackingStoreCount", UnleashedBackingStores_.size());
 
-    YT_LOG_ALERT_IF(UnleashedBackingStores_.size() >= CriticalUnleashedStoreCount,
-        "Too many unleashed backing stores (UnleashedBackingStoreCount: %v, CriticalUnleashedStoreCount: %v)",
-        UnleashedBackingStores_.size(),
-        CriticalUnleashedStoreCount);
+    YT_TLOG_ALERT_IF(UnleashedBackingStores_.size() >= CriticalUnleashedStoreCount, "Too many unleashed backing stores")
+        .With("UnleashedBackingStoreCount", UnleashedBackingStores_.size())
+        .With("CriticalUnleashedStoreCount", CriticalUnleashedStoreCount);
 }
 
 void TSortedStoreManager::ReleaseUnleashedBackingStore(
@@ -1875,9 +1870,9 @@ void TSortedStoreManager::ReleaseUnleashedBackingStore(
         // It is known to be used if while ReleaseUnleashedBackingStoreWeak callback was waiting to execute
         // tablet was unmounted and mounted back to the same cell.
 
-        YT_LOG_DEBUG("Could not find unleashed backing store by its id (StoreId: %v, UnleashedBackingStoreCount: %v)",
-            unleashedBackingStoreId,
-            UnleashedBackingStores_.size());
+        YT_TLOG_DEBUG("Could not find unleashed backing store by its id")
+            .With("StoreId", unleashedBackingStoreId)
+            .With("UnleashedBackingStoreCount", UnleashedBackingStores_.size());
 
         return;
     }
@@ -1886,9 +1881,9 @@ void TSortedStoreManager::ReleaseUnleashedBackingStore(
 
     UnleashedBackingStores_.erase(it);
 
-    YT_LOG_DEBUG("Removed unleashed backing store (StoreId: %v, UnleashedBackingStoreCount: %v)",
-        unleashedBackingStoreId,
-        UnleashedBackingStores_.size());
+    YT_TLOG_DEBUG("Removed unleashed backing store")
+        .With("StoreId", unleashedBackingStoreId)
+        .With("UnleashedBackingStoreCount", UnleashedBackingStores_.size());
 }
 
 TSortedStoreManager::TSerializationStateByLockMap* TSortedStoreManager::FindKeySerializationState(TSortedDynamicRow row)

@@ -167,7 +167,7 @@ public:
 
     void Start() override
     {
-        YT_LOG_DEBUG("Starting tablet statistics reporter");
+        YT_TLOG_DEBUG("Starting tablet statistics reporter");
 
         auto config = Config_.Acquire();
 
@@ -183,7 +183,7 @@ public:
 
     void Reconfigure(const TTabletNodeDynamicConfigPtr& config) override
     {
-        YT_LOG_DEBUG("Reconfiguring tablet statistics reporter");
+        YT_TLOG_DEBUG("Reconfiguring tablet statistics reporter");
 
         const auto& statisticsReporterConfig = config->StatisticsReporter;
 
@@ -228,7 +228,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Processing tablet statistics");
+        YT_TLOG_DEBUG("Processing tablet statistics");
 
         auto tablets = Bootstrap_->GetTabletSnapshotStore()->GetLatestTabletSnapshots();
 
@@ -254,14 +254,14 @@ private:
         }
 
         if (!iterationSuccessful) {
-            YT_LOG_DEBUG("Failed processing tablet statistics, will wait for duration (Duration: %v)",
-                config->ReportBackoffTime);
+            YT_TLOG_DEBUG("Failed processing tablet statistics, will wait for duration")
+                .With("Duration", config->ReportBackoffTime);
             TDelayedExecutor::WaitForDuration(config->ReportBackoffTime);
 
             return;
         }
 
-        YT_LOG_DEBUG("Finished processing tablet statistics");
+        YT_TLOG_DEBUG("Finished processing tablet statistics");
     }
 
     bool RunContextedIteration(
@@ -322,8 +322,8 @@ private:
         const TStatisticsReporterConfigPtr& config,
         TRange<TTabletSnapshotPtr> tablets)
     {
-        YT_LOG_DEBUG("Started reporting tablet statistics batch (TabletCount: %v)",
-            tablets.Size());
+        YT_TLOG_DEBUG("Started reporting tablet statistics batch")
+            .With("TabletCount", tablets.Size());
 
         auto rowBuffer = New<TRowBuffer>(TStatisticsReporterRowsBufferTag());
         auto* rows = rowBuffer->GetPool()->AllocateUninitialized<TUnversionedRow>(tablets.Size());
@@ -343,8 +343,8 @@ private:
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Finished reporting tablet statistics batch (TabletCount: %v)",
-            tablets.Size());
+        YT_TLOG_DEBUG("Finished reporting tablet statistics batch")
+            .With("TabletCount", tablets.Size());
     }
 
     IUnversionedRowsetPtr LookupStatisticsRowset(
@@ -478,8 +478,8 @@ private:
         const TStatisticsReporterConfigPtr& config,
         TRange<TTabletSnapshotPtr> tablets)
     {
-        YT_LOG_DEBUG("Started loading tablet statistics batch (TabletCount: %v)",
-            tablets.size());
+        YT_TLOG_DEBUG("Started loading tablet statistics batch")
+            .With("TabletCount", tablets.size());
 
         auto rowset = LookupStatisticsRowset(config, tablets);
         auto rows = rowset->GetRows();
@@ -521,8 +521,8 @@ private:
             rowIndex += 1 + tablet->OriginatorTablets.size();
         }
 
-        YT_LOG_DEBUG("Finished loading tablet statistics batch (TabletCount: %v)",
-            tablets.size());
+        YT_TLOG_DEBUG("Finished loading tablet statistics batch")
+            .With("TabletCount", tablets.size());
     }
 };
 

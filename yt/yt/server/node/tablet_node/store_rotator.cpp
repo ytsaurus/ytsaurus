@@ -44,36 +44,33 @@ private:
             const auto& lsmTablet = request.Tablet;
             auto* tablet = tabletManager->FindTablet(lsmTablet->GetId());
             if (!tablet) {
-                YT_LOG_DEBUG("Tablet is missing, aborting rotation (TabletId: %v)",
-                    lsmTablet->GetId());
+                YT_TLOG_DEBUG("Tablet is missing, aborting rotation")
+                    .With("TabletId", lsmTablet->GetId());
                 return;
             }
 
             if (tablet->GetMountRevision() != lsmTablet->GetMountRevision()) {
-                YT_LOG_DEBUG("Mount revision mismatch, aborting rotation "
-                    "(ExpectedMountRevision: %v, ActualMountRevision: %v)",
-                    lsmTablet->GetMountRevision(),
-                    tablet->GetMountRevision());
+                YT_TLOG_DEBUG("Mount revision mismatch, aborting rotation")
+                    .With("ExpectedMountRevision", lsmTablet->GetMountRevision())
+                    .With("ActualMountRevision", tablet->GetMountRevision());
                 return;
             }
 
             auto activeStore = tablet->GetActiveStore();
             auto activeStoreId = activeStore ? activeStore->GetId() : TStoreId{};
             if (lsmTablet->FindActiveStore()->GetId() != activeStoreId) {
-                YT_LOG_DEBUG("Active store id mismatch, aborting rotation "
-                    "(ExpectedDynamicStoreId: %v, ActualDynamicStoreId: %v)",
-                    lsmTablet->FindActiveStore()->GetId(),
-                    activeStoreId);
+                YT_TLOG_DEBUG("Active store id mismatch, aborting rotation")
+                    .With("ExpectedDynamicStoreId", lsmTablet->FindActiveStore()->GetId())
+                    .With("ActualDynamicStoreId", activeStoreId);
             }
 
             if (request.Reason == EStoreRotationReason::Periodic) {
                 const auto& storeManager = tablet->GetStoreManager();
                 if (storeManager->GetLastPeriodicRotationTime() != request.ExpectedLastPeriodicRotationTime) {
-                    YT_LOG_DEBUG("Last periodic rotation time mismatch, aborting rotation "
-                        "(%v, ExpectedTime: %v, ActualTime: %v)",
-                        tablet->GetLoggingTags(),
-                        request.ExpectedLastPeriodicRotationTime,
-                        storeManager->GetLastPeriodicRotationTime());
+                    YT_TLOG_DEBUG("Last periodic rotation time mismatch, aborting rotation")
+                        .With(tablet->GetLoggingTags())
+                        .With("ExpectedTime", request.ExpectedLastPeriodicRotationTime)
+                        .With("ActualTime", storeManager->GetLastPeriodicRotationTime());
                     return;
                 }
 
@@ -98,8 +95,8 @@ private:
         for (const auto& [cellId, requests] : requestsByCellId) {
             auto slot = slotManager->FindSlot(cellId);
             if (!slot) {
-                YT_LOG_DEBUG("Tablet cell is missing, aborting rotation (CellId: %v)",
-                    cellId);
+                YT_TLOG_DEBUG("Tablet cell is missing, aborting rotation")
+                    .With("CellId", cellId);
                 continue;
             }
 

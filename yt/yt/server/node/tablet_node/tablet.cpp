@@ -119,8 +119,8 @@ TTabletRedirectionHint BuildRedirectionHint(
     if (auto cellDescriptor = cellDirectory->FindDescriptorByCellId(siblingCellId)) {
         hint.SmoothMovementRedirectionHint.CellDescriptor = ConvertToNode(cellDescriptor);
     } else {
-        YT_LOG_DEBUG("Sibling servant cell descriptor is missing in cell directory (%v)",
-            loggingTags);
+        YT_TLOG_DEBUG("Sibling servant cell descriptor is missing in cell directory")
+            .With(loggingTags);
     }
 
     return hint;
@@ -170,22 +170,22 @@ TError ValidateServantIsActive(
             return error;
         }
 
-        YT_LOG_DEBUG("Started waiting for target servant activation future (%v)",
-            loggingTags);
+        YT_TLOG_DEBUG("Started waiting for target servant activation future")
+            .With(loggingTags);
         if (auto activationError = WaitFor(smoothMovementData.TargetActivationFuture.WithTimeout(timeout));
             !activationError.IsOK())
         {
             return activationError;
         }
-        YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
-            loggingTags);
+        YT_TLOG_DEBUG("Finished waiting for target servant activation future")
+            .With(loggingTags);
 
         // NB: Violation of this condition is not critical and will not cause any
         // anomalies, although it should be examined.
-        YT_LOG_ALERT_UNLESS(
+        YT_TLOG_ALERT_UNLESS(
             smoothMovementData.IsActiveServant.load() || timeout,
-            "Tablet servant is not active after waiting for the servant activation future to complete (%v)",
-                loggingTags);
+            "Tablet servant is not active after waiting for the servant activation future to complete")
+            .With(loggingTags);
     }
 
     if (!smoothMovementData.IsActiveServant.load()) {
@@ -2833,8 +2833,8 @@ void TTablet::UpdateOverlappingStoreCount()
     overlappingStoreCount += edenOverlappingStoreCount;
 
     if (OverlappingStoreCount_ != overlappingStoreCount) {
-        YT_LOG_DEBUG("Overlapping store count updated (OverlappingStoreCount: %v)",
-            overlappingStoreCount);
+        YT_TLOG_DEBUG("Overlapping store count updated")
+            .With("OverlappingStoreCount", overlappingStoreCount);
     }
 
     OverlappingStoreCount_ = overlappingStoreCount;
@@ -2886,15 +2886,13 @@ void TTablet::AdvancePersistentConflictHorizonTimestamp(TTimestamp timestamp)
 void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp, std::optional<TRevision> expectedMountRevision)
 {
     if (expectedMountRevision && *expectedMountRevision != MountRevision_) {
-        YT_LOG_DEBUG("Mount revision mismatch during advancement of the transient conflict horizon timestamp, "
-            "skipping update (%v, ExpectedMountRevision: %v, CurrentMountRevision: %v, "
-            "CurrentPersistentConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, AdvancingTimestamp: %v)",
-            GetLoggingTags(),
-            *expectedMountRevision,
-            MountRevision_,
-            PersistentConflictHorizonTimestamp_,
-            TransientConflictHorizonTimestamp_,
-            timestamp);
+        YT_TLOG_DEBUG("Mount revision mismatch during advancement of the transient conflict horizon timestamp, skipping update")
+            .With(GetLoggingTags())
+            .With("ExpectedMountRevision", *expectedMountRevision)
+            .With("CurrentMountRevision", MountRevision_)
+            .With("CurrentPersistentConflictHorizonTimestamp", PersistentConflictHorizonTimestamp_)
+            .With("CurrentTransientConflictHorizonTimestamp", TransientConflictHorizonTimestamp_)
+            .With("AdvancingTimestamp", timestamp);
 
         return;
     }
@@ -2903,13 +2901,13 @@ void TTablet::AdvanceTransientConflictHorizonTimestamp(TTimestamp timestamp, std
 
     // NB: This verify assumes that store's max timestamp provided to PersistentConflictHorizonTimestamp_
     // in the past by flusher cannot be exceeded until unleashed backing store is released.
-    YT_LOG_FATAL_IF(timestamp > PersistentConflictHorizonTimestamp_,
-        "Advancing TransientConflictHorizonTimestamp would cause it to exceed TransientConflictHorizonTimestamp "
-        "(%v, NextTransientConflictHorizonTimestamp: %v, CurrentTransientConflictHorizonTimestamp: %v, PersistentConflictHorizonTimestamp: %v)",
-        GetLoggingTags(),
-        timestamp,
-        TransientConflictHorizonTimestamp_,
-        PersistentConflictHorizonTimestamp_);
+    YT_TLOG_FATAL_IF(
+        timestamp > PersistentConflictHorizonTimestamp_,
+        "Advancing TransientConflictHorizonTimestamp would cause it to exceed TransientConflictHorizonTimestamp")
+        .With(GetLoggingTags())
+        .With("NextTransientConflictHorizonTimestamp", timestamp)
+        .With("CurrentTransientConflictHorizonTimestamp", TransientConflictHorizonTimestamp_)
+        .With("PersistentConflictHorizonTimestamp", PersistentConflictHorizonTimestamp_);
 
     TransientConflictHorizonTimestamp_ = std::max(TransientConflictHorizonTimestamp_, timestamp);
 }
@@ -2992,8 +2990,8 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
             "replication progress advance prepared by transaction %v",
             GetId(),
             transactionId);
-        YT_LOG_ALERT(error, "Unexpected replication progress transaction encountered "
-            "during smooth movement");
+        YT_TLOG_ALERT("Unexpected replication progress transaction encountered during smooth movement")
+            .With(error);
         THROW_ERROR error;
     }
 
@@ -3002,8 +3000,8 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
             "pulled rows write prepared by transaction %v",
             GetId(),
             transactionId);
-        YT_LOG_ALERT(error, "Unexpected pull rows transaction encountered "
-            "during smooth movement");
+        YT_TLOG_ALERT("Unexpected pull rows transaction encountered during smooth movement")
+            .With(error);
         THROW_ERROR error;
     }
 }
@@ -3075,12 +3073,10 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
         if (TEnumTraits<EDynamicStoreIdReservationReason>::IsKnownValue(reason)) {
             ReservedDynamicStoreIdCount_[reason] = count;
         } else {
-            YT_LOG_ALERT("Replicated content concains nonzero reserved "
-                "dynamic store count with unknown reason "
-                "(%v, Reason: %v, Count: %v)",
-                GetLoggingTags(),
-                reason,
-                count);
+            YT_TLOG_ALERT("Replicated content concains nonzero reserved dynamic store count with unknown reason")
+                .With(GetLoggingTags())
+                .With("Reason", reason)
+                .With("Count", count);
         }
     }
 
@@ -3091,10 +3087,10 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
         auto progress = FromProto<TReplicationProgress>(replicatableContent.replication_progress());
         auto replicationCardId = GetReplicationCardId();
 
-        YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
-            GetLoggingTags(),
-            replicationCardId,
-            progress);
+        YT_TLOG_DEBUG("Tablet bound for chaos replication")
+            .With(GetLoggingTags())
+            .With("ReplicationCardId", replicationCardId)
+            .With("ReplicationProgress", progress);
 
         RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
     }
@@ -3304,8 +3300,8 @@ void TTablet::ThrottleTabletStoresUpdate(
 
     NProfiling::TWallTimer timer;
 
-    YT_LOG_DEBUG("Started waiting for tablet stores update throttler (CellId: %v)",
-        slot->GetCellId());
+    YT_TLOG_DEBUG("Started waiting for tablet stores update throttler")
+        .With("CellId", slot->GetCellId());
 
     auto asyncResult = throttler->Throttle(1);
     auto result = asyncResult.IsSet()
@@ -3314,9 +3310,9 @@ void TTablet::ThrottleTabletStoresUpdate(
     result.ThrowOnError();
 
     auto elapsedTime = timer.GetElapsedTime();
-    YT_LOG_DEBUG("Finished waiting for tablet stores update throttler (ElapsedTime: %v, CellId: %v)",
-        elapsedTime,
-        slot->GetCellId());
+    YT_TLOG_DEBUG("Finished waiting for tablet stores update throttler")
+        .With("ElapsedTime", elapsedTime)
+        .With("CellId", slot->GetCellId());
     TableProfiler_->GetThrottlerTimer(ETabletDistributedThrottlerKind::StoresUpdate)
         ->Record(elapsedTime);
 }
@@ -3369,10 +3365,9 @@ void TTablet::RecomputeCommittedReplicationRowIndices()
 
 void TTablet::CheckedSetBackupStage(EBackupStage previous, EBackupStage next)
 {
-    YT_LOG_DEBUG("Tablet backup stage changed (%v, BackupStage: %v -> %v)",
-        GetLoggingTags(),
-        previous,
-        next);
+    YT_TLOG_DEBUG("Tablet backup stage changed")
+        .With(GetLoggingTags())
+        .WithFormat("BackupStage", "%v -> %v", previous, next);
     YT_VERIFY(GetBackupStage() == previous);
     SetBackupStage(next);
 }
@@ -3885,16 +3880,16 @@ void WaitUntilServantIsWritable(
     auto loggingTags = tablet->GetLoggingTags();
     auto stage = movementData.GetStage();
     if (!movementData.LockBarrierFuture()) {
-        YT_LOG_ALERT("Lock barrier future is not initialized on source servant (%v, Stage: %v)",
-            loggingTags,
-            stage);
+        YT_TLOG_ALERT("Lock barrier future is not initialized on source servant")
+            .With(loggingTags)
+            .With("Stage", stage);
         THROW_ERROR(error);
     }
 
     if (!movementData.LockBarrierFuture().IsSet()) {
-        YT_LOG_DEBUG("Started waiting for source servant lock barrier future (%v, Timeout: %v)",
-            loggingTags,
-            waitForLockBarrierTimeout);
+        YT_TLOG_DEBUG("Started waiting for source servant lock barrier future")
+            .With(loggingTags)
+            .With("Timeout", waitForLockBarrierTimeout);
 
         // To prevent UAF since the tablet may be destroyed during the wait.
         tablet = nullptr;
@@ -3902,15 +3897,15 @@ void WaitUntilServantIsWritable(
         auto stageChangedError = WaitFor(movementData.LockBarrierFuture()
             .WithTimeout(waitForLockBarrierTimeout));
         if (stageChangedError.IsOK()) {
-            YT_LOG_DEBUG("Finished waiting for source servant lock barrier future (%v)",
-                loggingTags);
+            YT_TLOG_DEBUG("Finished waiting for source servant lock barrier future")
+                .With(loggingTags);
             return;
         }
 
-        YT_LOG_DEBUG(stageChangedError,
-            "Failed to wait for source servant lock barrier future (%v, Timeout: %v)",
-            loggingTags,
-            waitForLockBarrierTimeout);
+        YT_TLOG_DEBUG("Failed to wait for source servant lock barrier future")
+            .With(loggingTags)
+            .With("Timeout", waitForLockBarrierTimeout)
+            .With(stageChangedError);
     }
 
     THROW_ERROR(error);

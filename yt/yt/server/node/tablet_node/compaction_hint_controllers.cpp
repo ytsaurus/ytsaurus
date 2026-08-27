@@ -44,8 +44,8 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
             break;
 
         default:
-            YT_LOG_FATAL("Config change of store compaction hint is not supported (StoreCompactionHintKind: %v)",
-                kind);
+            YT_TLOG_FATAL("Config change of store compaction hint is not supported")
+                .With("StoreCompactionHintKind", kind);
     }
 }
 
@@ -68,8 +68,8 @@ TCompactionHintConfigChange::TCompactionHintConfigChange(
             break;
 
         default:
-            YT_LOG_FATAL("Config change of partition compaction hint is not supported (PartitionCompactionHintKind: %v)",
-                kind);
+            YT_TLOG_FATAL("Config change of partition compaction hint is not supported")
+                .With("PartitionCompactionHintKind", kind);
     }
 }
 
@@ -134,8 +134,8 @@ TCompactionHintFetchPipelinePtr BuildFetchPipeline(
             return CreateMinHashDigestFetchPipeline(store);
 
         default:
-            YT_LOG_FATAL("Building fetching pipeline of store compaction hint is not supported (StoreCompactionHintKind: %v)",
-                kind);
+            YT_TLOG_FATAL("Building fetching pipeline of store compaction hint is not supported")
+                .With("StoreCompactionHintKind", kind);
     }
 }
 
@@ -153,8 +153,8 @@ bool DefinitelyHasNoHint(
         }
 
         default:
-            YT_LOG_FATAL("Calling |DefinitelyHasNoHint| of store compaction hint is not supported (StoreCompactionHintKind: %v)",
-                kind);
+            YT_TLOG_FATAL("Calling |DefinitelyHasNoHint| of store compaction hint is not supported")
+                .With("StoreCompactionHintKind", kind);
     }
 }
 
@@ -170,8 +170,8 @@ bool DefinitelyHasNoHint(
             return tableSchema->HasTtlColumn();
 
         default:
-            YT_LOG_FATAL("Calling |DefinitelyHasNoHint| of partition compaction hint is not supported (PartitionCompactionHintKind: %v)",
-                kind);
+            YT_TLOG_FATAL("Calling |DefinitelyHasNoHint| of partition compaction hint is not supported")
+                .With("PartitionCompactionHintKind", kind);
     }
 }
 
@@ -275,12 +275,11 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::OnLsmF
     YT_VERIFY(lsmCompactionHint.IsRelevantLsmResponse());
     LsmCompactionHint_ = std::move(lsmCompactionHint);
 
-    YT_LOG_DEBUG("Got relevant compaction hint feedback from LSM "
-        "(%v, OwnerId: %v, StoreCompactionHintKind: %v, PartitionCompactionHintKind: %v)",
-        owner->GetTablet()->GetLoggingTags(),
-        owner->GetId(),
-        StoreCompactionHintKind_,
-        PartitionCompactionHintKind_);
+    YT_TLOG_DEBUG("Got relevant compaction hint feedback from LSM")
+        .With(owner->GetTablet()->GetLoggingTags())
+        .With("OwnerId", owner->GetId())
+        .With("StoreCompactionHintKind", StoreCompactionHintKind_)
+        .With("PartitionCompactionHintKind", PartitionCompactionHintKind_);
 }
 
 template <class TDerived, class TLsmCompactionHint, class TOwner>
@@ -303,14 +302,12 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::SetPas
     LsmCompactionHint_ = {};
     State_ = state;
 
-    YT_LOG_DEBUG_IF(owner->GetTablet()->GetSettings().MountConfig->EnableLsmVerboseLogging,
-        "Set passive state for compaction hint controller "
-        "(%v, OwnerId: %v, StoreCompactionHintKind: %v, PartitionCompactionHintKind: %v, State: %v)",
-        owner->GetTablet()->GetLoggingTags(),
-        owner->GetId(),
-        StoreCompactionHintKind_,
-        PartitionCompactionHintKind_,
-        State_);
+    YT_TLOG_DEBUG_IF(owner->GetTablet()->GetSettings().MountConfig->EnableLsmVerboseLogging, "Set passive state for compaction hint controller")
+        .With(owner->GetTablet()->GetLoggingTags())
+        .With("OwnerId", owner->GetId())
+        .With("StoreCompactionHintKind", StoreCompactionHintKind_)
+        .With("PartitionCompactionHintKind", PartitionCompactionHintKind_)
+        .With("State", State_);
 }
 
 template <class TDerived, class TLsmCompactionHint, class TOwner>
@@ -327,13 +324,11 @@ void TCompactionHintControllerBase<TDerived, TLsmCompactionHint, TOwner>::SetAct
     UpdateRevision();
     State_ = ECompactionHintState::Active;
 
-    YT_LOG_DEBUG_IF(owner->GetTablet()->GetSettings().MountConfig->EnableLsmVerboseLogging,
-        "Set active state for compaction hint controller "
-        "(%v, OwnerId: %v, StoreCompactionHintKind: %v, PartitionCompactionHintKind: %v)",
-        owner->GetTablet()->GetLoggingTags(),
-        owner->GetId(),
-        StoreCompactionHintKind_,
-        PartitionCompactionHintKind_);
+    YT_TLOG_DEBUG_IF(owner->GetTablet()->GetSettings().MountConfig->EnableLsmVerboseLogging, "Set active state for compaction hint controller")
+        .With(owner->GetTablet()->GetLoggingTags())
+        .With("OwnerId", owner->GetId())
+        .With("StoreCompactionHintKind", StoreCompactionHintKind_)
+        .With("PartitionCompactionHintKind", PartitionCompactionHintKind_);
 }
 
 template <class TDerived, class TLsmCompactionHint, class TOwner>

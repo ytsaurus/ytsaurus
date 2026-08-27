@@ -148,10 +148,10 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG("Smooth movement tracker observes tablet (%v, Role: %v, Stage: %v)",
-            tablet->GetLoggingTags(),
-            movementData.GetRole(),
-            movementData.GetStage());
+        YT_TLOG_DEBUG("Smooth movement tracker observes tablet")
+            .With(tablet->GetLoggingTags())
+            .With("Role", movementData.GetRole())
+            .With("Stage", movementData.GetStage());
 
         if (movementData.GetStageChangeScheduled()) {
             return;
@@ -177,11 +177,10 @@ public:
             }
 
             auto transactionIds = tabletWriteManager->GetAffectingTransactionIds();
-            YT_LOG_ALERT("Tablet has unfinished transactions on smooth movement stage change request "
-                "(%v, Stage: %v, TransactionIds: %v)",
-                tablet->GetLoggingTags(),
-                movementData.GetStage(),
-                transactionIds);
+            YT_TLOG_ALERT("Tablet has unfinished transactions on smooth movement stage change request")
+                .With(tablet->GetLoggingTags())
+                .With("Stage", movementData.GetStage())
+                .With("TransactionIds", transactionIds);
 
             return TError("Invariant check failed: tablet has unfinished transactions on stage change");
         };
@@ -254,11 +253,10 @@ public:
                         if (preloadStatistics.PendingStoreCount > 0 ||
                             preloadStatistics.FailedStoreCount > 0)
                         {
-                            YT_LOG_DEBUG("Target servant is not fully preloaded, will not initiate switch "
-                                "(%v, PendingStoreCount: %v, FailedStoreCount: %v)",
-                                tablet->GetLoggingTags(),
-                                preloadStatistics.PendingStoreCount,
-                                preloadStatistics.FailedStoreCount);
+                            YT_TLOG_DEBUG("Target servant is not fully preloaded, will not initiate switch")
+                                .With(tablet->GetLoggingTags())
+                                .With("PendingStoreCount", preloadStatistics.PendingStoreCount)
+                                .With("FailedStoreCount", preloadStatistics.FailedStoreCount);
 
                             return;
                         }
@@ -297,15 +295,15 @@ public:
             YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger)
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
-                        YT_LOG_WARNING(error, "Failed to commit smooth movement stage change mutation");
+                        YT_TLOG_WARNING("Failed to commit smooth movement stage change mutation")
+                            .With(error);
                     }
                 })));
         } else if (!fatalError.IsOK()) {
-            YT_LOG_DEBUG("Invariant check failed on stage change, aborting smooth movement "
-                "(%v, Role: %v, Stage: %v)",
-                tablet->GetLoggingTags(),
-                movementData.GetRole(),
-                movementData.GetStage());
+            YT_TLOG_DEBUG("Invariant check failed on stage change, aborting smooth movement")
+                .With(tablet->GetLoggingTags())
+                .With("Role", movementData.GetRole())
+                .With("Stage", movementData.GetStage());
 
             movementData.SetStageChangeScheduled(true);
 
@@ -318,7 +316,8 @@ public:
             YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger)
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
                     if (!error.IsOK()) {
-                        YT_LOG_WARNING(error, "Failed to commit smooth movement abort mutation");
+                        YT_TLOG_WARNING("Failed to commit smooth movement abort mutation")
+                            .With(error);
                     }
                 })));
         }
@@ -440,11 +439,10 @@ public:
     void OnReignChanged(TReign previousReign) override
     {
         auto* mutationContext = GetCurrentMutationContext();
-        YT_LOG_DEBUG("Smooth movement tracker detects reign change, aborting all movements "
-            "(PreviousReign: %v, MutationReign: %v, CurrentReign: %v)",
-            previousReign,
-            mutationContext->Request().Reign,
-            GetCurrentReign());
+        YT_TLOG_DEBUG("Smooth movement tracker detects reign change, aborting all movements")
+            .With("PreviousReign", previousReign)
+            .With("MutationReign", mutationContext->Request().Reign)
+            .With("CurrentReign", GetCurrentReign());
 
         TError error("Smooth movement rejected on tablet reign change: %v -> %v",
             previousReign,
@@ -500,19 +498,18 @@ private:
                 reason);
 
             if (auto reservedCount = tablet->ReservedDynamicStoreIdCount()[reason]; reservedCount > 1) {
-                YT_LOG_ALERT("Too many reserved dynamic stores on smooth movement start "
-                    "(%v, Count: %v)",
-                    tablet->GetLoggingTags(),
-                    reservedCount);
+                YT_TLOG_ALERT("Too many reserved dynamic stores on smooth movement start")
+                    .With(tablet->GetLoggingTags())
+                    .With("Count", reservedCount);
                 while (reservedCount-- > 1) {
                     tablet->ReleaseReservedDynamicStoreId(EDynamicStoreIdReservationReason::SmoothMovement);
                 }
             }
         }
 
-        YT_LOG_DEBUG("Smooth tablet movement started (%v, TargetCellId: %v)",
-            tablet->GetLoggingTags(),
-            targetCellId);
+        YT_TLOG_DEBUG("Smooth tablet movement started")
+            .With(tablet->GetLoggingTags())
+            .With("TargetCellId", targetCellId);
 
         CheckTablet(tablet);
     }
@@ -528,11 +525,10 @@ private:
         auto mountRevision = FromProto<TRevision>(request->mount_revision());
         // COMPAT(ifsmirnov): remove check against null revision.
         if (mountRevision && mountRevision != tablet->GetMountRevision()) {
-            YT_LOG_DEBUG("Mount revision mismatch on smooth movement abort request, ignored "
-                "(%v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
-                tablet->GetLoggingTags(),
-                mountRevision,
-                tablet->GetMountRevision());
+            YT_TLOG_DEBUG("Mount revision mismatch on smooth movement abort request, ignored")
+                .With(tablet->GetLoggingTags())
+                .With("ExpectedMountRevision", mountRevision)
+                .With("ActualMountRevision", tablet->GetMountRevision());
             return;
         }
 
@@ -542,8 +538,8 @@ private:
 
         if (movementData.GetRole() == ESmoothMovementRole::None) {
             // This is fine because abort request may come when the movement had already finished.
-            YT_LOG_DEBUG("Attempted to abort smooth movement when it is not in progress (%v)",
-                tablet->GetLoggingTags());
+            YT_TLOG_DEBUG("Attempted to abort smooth movement when it is not in progress")
+                .With(tablet->GetLoggingTags());
             return;
         }
 
@@ -555,13 +551,13 @@ private:
                 ? "sibling servant"
                 : "master";
 
-            YT_LOG_DEBUG("Smooth tablet movement aborted by direct request "
-                "(%v, Initiator: %v)",
-                tablet->GetLoggingTags(),
-                initiator);
+            YT_TLOG_DEBUG("Smooth tablet movement aborted by direct request")
+                .With(tablet->GetLoggingTags())
+                .With("Initiator", initiator);
         } else {
-            YT_LOG_DEBUG(error, "Smooth tablet movement aborted (%v)",
-                tablet->GetLoggingTags());
+            YT_TLOG_DEBUG("Smooth tablet movement aborted")
+                .With(tablet->GetLoggingTags())
+                .With(error);
         }
     }
 
@@ -586,23 +582,21 @@ private:
             auto expectedSenderId = tablet->SmoothMovementData().GetSiblingAvenueEndpointId();
 
             if (senderId != expectedSenderId) {
-                YT_LOG_ALERT("Got smooth movement stage change request from invalid sender, ignored "
-                    "(%v, ExpectedSenderId: %v, ActualSenderId: %v)",
-                    tablet->GetLoggingTags(),
-                    expectedSenderId,
-                    senderId);
+                YT_TLOG_ALERT("Got smooth movement stage change request from invalid sender, ignored")
+                    .With(tablet->GetLoggingTags())
+                    .With("ExpectedSenderId", expectedSenderId)
+                    .With("ActualSenderId", senderId);
                 return;
             }
         }
 
         if (mountRevision != tablet->GetMountRevision()) {
-            YT_LOG_ALERT("Invalid mount revision on smooth movement stage change request, ignored "
-                "(%v, ExpectedMountRevision: %x, ActualMountRevision: %x, ExpectedStage: %v, NewStage: %v)",
-                tablet->GetLoggingTags(),
-                mountRevision,
-                tablet->GetMountRevision(),
-                expectedStage,
-                newStage);
+            YT_TLOG_ALERT("Invalid mount revision on smooth movement stage change request, ignored")
+                .With(tablet->GetLoggingTags())
+                .WithFormat("ExpectedMountRevision", "%x", mountRevision)
+                .WithFormat("ActualMountRevision", "%x", tablet->GetMountRevision())
+                .With("ExpectedStage", expectedStage)
+                .With("NewStage", newStage);
             return;
         }
 
@@ -624,11 +618,10 @@ private:
         // NB: This is probably an overkill check since this mutation is only send as an avenue
         // message to the target servant and the only one communicating with it is the source servant.
         if (mountRevision != tablet->GetMountRevision()) {
-            YT_LOG_ALERT("Invalid mount revision on servant switch request, ignored "
-                "(%v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
-                tablet->GetLoggingTags(),
-                tablet->GetMountRevision(),
-                mountRevision);
+            YT_TLOG_ALERT("Invalid mount revision on servant switch request, ignored")
+                .With(tablet->GetLoggingTags())
+                .With("ExpectedMountRevision", tablet->GetMountRevision())
+                .With("ActualMountRevision", mountRevision);
             return;
         }
 
@@ -643,12 +636,11 @@ private:
             tablet->GetTableProfiler()->GetSmoothMovementCounters()->SwitchTime.Record(inFlightTime);
         }
 
-        YT_LOG_DEBUG("Got servant switch request (%v, MasterAvenueEndpointId: %v, "
-            "FirstOutcomingMessageId: %v, InFlightTime: %v)",
-            tablet->GetLoggingTags(),
-            masterEndpointId,
-            mailboxCookie.FirstOutcomingMessageId,
-            inFlightTime);
+        YT_TLOG_DEBUG("Got servant switch request")
+            .With(tablet->GetLoggingTags())
+            .With("MasterAvenueEndpointId", masterEndpointId)
+            .With("FirstOutcomingMessageId", mailboxCookie.FirstOutcomingMessageId)
+            .With("InFlightTime", inFlightTime);
 
         {
             // NB: This is a possible situation. It may be nice to have explicit logs
@@ -657,12 +649,11 @@ private:
             auto currentReign = static_cast<ETabletReign>(GetCurrentReign());
             auto reignAtStart = tablet->SmoothMovementData().GetReign();
             if (mutationReign != currentReign || reignAtStart != currentReign) {
-                YT_LOG_DEBUG("Servant switch request came from the servant with different reign "
-                    "(%v, TargetReignAtStart: %v, CurrentReign: %v, MutationReign: %v)",
-                    tablet->GetLoggingTags(),
-                    reignAtStart,
-                    currentReign,
-                    mutationReign);
+                YT_TLOG_DEBUG("Servant switch request came from the servant with different reign")
+                    .With(tablet->GetLoggingTags())
+                    .With("TargetReignAtStart", reignAtStart)
+                    .With("CurrentReign", currentReign)
+                    .With("MutationReign", mutationReign);
             }
         }
 
@@ -680,8 +671,8 @@ private:
             ESmoothMovementStage::ServantSwitched);
 
         if (auto& promise = tablet->SmoothMovementData().TargetActivationPromise()) {
-            YT_LOG_DEBUG("Setting target servant activation promise (%v)",
-                tablet->GetLoggingTags());
+            YT_TLOG_DEBUG("Setting target servant activation promise")
+                .With(tablet->GetLoggingTags());
             promise.TrySet();
         }
 
@@ -697,24 +688,21 @@ private:
 
         auto& movementData = tablet->SmoothMovementData();
 
-        auto tags = Format("%v, Role: %v, Change: %v -> %v, CurrentStage: %v",
-            tablet->GetLoggingTags(),
-            movementData.GetRole(),
-            expectedStage,
-            newStage,
-            movementData.GetStage());
+        auto tags = NLogging::TLoggingTagList()
+            .Add(tablet->GetLoggingTags())
+            .With("Role", movementData.GetRole())
+            .WithFormat("Change", "%v -> %v", expectedStage, newStage)
+            .With("CurrentStage", movementData.GetStage());
 
         if (movementData.GetStage() != expectedStage) {
-            YT_LOG_DEBUG("Expected stage mismatch on smooth movement stage change "
-                "request, ignored (%v)",
-                tags);
+            YT_TLOG_DEBUG("Expected stage mismatch on smooth movement stage change request, ignored")
+                .With(tags);
             return;
         }
 
         if (movementData.GetRole() == ESmoothMovementRole::None) {
-            YT_LOG_DEBUG("Smooth movement stage change request received by a tablet "
-                "not participating in smooth movement, ignored (%v)",
-                tags);
+            YT_TLOG_DEBUG("Smooth movement stage change request received by a tablet not participating in smooth movement, ignored")
+                .With(tags);
             return;
         }
 
@@ -725,9 +713,9 @@ private:
                 .Record(timeInStage);
         }
 
-        YT_LOG_DEBUG("Changing smooth movement stage (%v, TimeInStage: %v)",
-            tags,
-            timeInStage);
+        YT_TLOG_DEBUG("Changing smooth movement stage")
+            .With(tags)
+            .With("TimeInStage", timeInStage);
 
         movementData.SetStage(newStage);
         movementData.SetStageChangeScheduled(false);
@@ -782,10 +770,9 @@ private:
         if (newStage == ESmoothMovementStage::WaitingForLocksBeforeActivation ||
             newStage == ESmoothMovementStage::WaitingForLocksBeforeSwitch)
         {
-            YT_LOG_DEBUG("Tablet approaches smooth movement barrier, aborting all "
-                "affecting transactions (%v, Stage: %v)",
-                tablet->GetLoggingTags(),
-                newStage);
+            YT_TLOG_DEBUG("Tablet approaches smooth movement barrier, aborting all affecting transactions")
+                .With(tablet->GetLoggingTags())
+                .With("Stage", newStage);
             Host_->AbortAllTransactions(tablet);
             movementData.InitializeLockBarrierFuture();
         }
@@ -795,13 +782,11 @@ private:
             if (tabletWriteManager->HasUnfinishedPersistentTransactions() ||
                 tabletWriteManager->HasUnfinishedTransientTransactions())
             {
-                YT_LOG_FATAL("Tablet has unfinished transactions on smooth movement stage change "
-                    "(%v, HasTransientTransactions: %v, HasPersistentTransactions: %v, "
-                    "TransactionIds: %v)",
-                    tablet->GetLoggingTags(),
-                    tabletWriteManager->HasUnfinishedTransientTransactions(),
-                    tabletWriteManager->HasUnfinishedPersistentTransactions(),
-                    tabletWriteManager->GetAffectingTransactionIds());
+                YT_TLOG_FATAL("Tablet has unfinished transactions on smooth movement stage change")
+                    .With(tablet->GetLoggingTags())
+                    .With("HasTransientTransactions", tabletWriteManager->HasUnfinishedTransientTransactions())
+                    .With("HasPersistentTransactions", tabletWriteManager->HasUnfinishedPersistentTransactions())
+                    .With("TransactionIds", tabletWriteManager->GetAffectingTransactionIds());
             }
         };
 
@@ -823,11 +808,10 @@ private:
                     if (const auto& store = tablet->GetActiveStore();
                         store->GetLockCount() > 0)
                     {
-                        YT_LOG_ALERT("Active store has locks when smooth movement rotation "
-                            "is requested (%v, StoreId: %v, LockCount: %v)",
-                            tablet->GetLoggingTags(),
-                            store->GetId(),
-                            store->GetLockCount());
+                        YT_TLOG_ALERT("Active store has locks when smooth movement rotation is requested")
+                            .With(tablet->GetLoggingTags())
+                            .With("StoreId", store->GetId())
+                            .With("LockCount", store->GetLockCount());
 
                         // TODO(ifsmirnov): replace with YT_LOG_FATAL since logs may be transient and we cannot safely
                         // reject movement.
@@ -849,9 +833,8 @@ private:
                     if (tablet->GetSettings().MountConfig->EnableDynamicStoreRead &&
                         availableDynamicStoreCount == 0)
                     {
-                        YT_LOG_DEBUG("Cannot rotate store on smooth movement request, "
-                            "no dynamic store was provided and pool is empty (%v)",
-                            tablet->GetLoggingTags());
+                        YT_TLOG_DEBUG("Cannot rotate store on smooth movement request, no dynamic store was provided and pool is empty")
+                            .With(tablet->GetLoggingTags());
                         RejectMovement(
                             tablet,
                             TError("Cannot rotate store, dynamic store id pool is empty"));
@@ -882,9 +865,9 @@ private:
 
                 validateNoUnfinishedTransactions();
 
-                YT_LOG_DEBUG("Posting servant switch message (%v, CellId: %v)",
-                    tablet->GetLoggingTags(),
-                    Host_->GetCellId());
+                YT_TLOG_DEBUG("Posting servant switch message")
+                    .With(tablet->GetLoggingTags())
+                    .With("CellId", Host_->GetCellId());
 
                 // Send message to master.
                 {
@@ -929,10 +912,9 @@ private:
             expectedStage == ESmoothMovementStage::WaitingForLocksBeforeSwitch)
         {
             if (auto& promise = movementData.LockBarrierPromise()) {
-                YT_LOG_DEBUG("Setting source servant lock barrier promise (%v, StageChange: %v -> %v)",
-                    tablet->GetLoggingTags(),
-                    expectedStage,
-                    newStage);
+                YT_TLOG_DEBUG("Setting source servant lock barrier promise")
+                    .With(tablet->GetLoggingTags())
+                    .WithFormat("StageChange", "%v -> %v", expectedStage, newStage);
                 promise.TrySet();
             }
         }
@@ -1009,21 +991,22 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG(error, "Smooth movement rejected (%v, Role: %v, Stage: %v)",
-                tablet->GetLoggingTags(),
-                movementData.GetRole(),
-                movementData.GetStage());
+            YT_TLOG_DEBUG("Smooth movement rejected")
+                .With(tablet->GetLoggingTags())
+                .With("Role", movementData.GetRole())
+                .With("Stage", movementData.GetStage())
+                .With(error);
 
             DoAbortSmoothMovement(tablet, error);
         } else {
             switch (movementData.GetStage()) {
                 case ESmoothMovementStage::TargetAllocated:
                 case ESmoothMovementStage::TargetActivated: {
-                    YT_LOG_DEBUG(error, "Smooth movement rejected, sending abort message to source "
-                        "(%v, Role: %v, Stage: %v)",
-                        tablet->GetLoggingTags(),
-                        movementData.GetRole(),
-                        movementData.GetStage());
+                    YT_TLOG_DEBUG("Smooth movement rejected, sending abort message to source")
+                        .With(tablet->GetLoggingTags())
+                        .With("Role", movementData.GetRole())
+                        .With("Stage", movementData.GetStage())
+                        .With(error);
 
                     TReqAbortSmoothMovement request;
                     ToProto(request.mutable_tablet_id(), tablet->GetId());
@@ -1033,11 +1016,10 @@ private:
                 }
 
                 default:
-                    YT_LOG_DEBUG("Cannot reject smooth movement: too late "
-                        "(%v, Role: %v, Stage: %v)",
-                        tablet->GetLoggingTags(),
-                        movementData.GetRole(),
-                        movementData.GetStage());
+                    YT_TLOG_DEBUG("Cannot reject smooth movement: too late")
+                        .With(tablet->GetLoggingTags())
+                        .With("Role", movementData.GetRole())
+                        .With("Stage", movementData.GetStage());
                     break;
             }
         }
@@ -1050,11 +1032,10 @@ private:
 
             const auto& movementData = tablet->SmoothMovementData();
 
-            YT_LOG_DEBUG("Sending replicate tablet content request "
-                "(%v, StoreCount: %v, UnflushedDynamicStoreIds: %v)",
-                tablet->GetLoggingTags(),
-                request.replicatable_content().stores().size(),
-                movementData.CommonDynamicStoreIds());
+            YT_TLOG_DEBUG("Sending replicate tablet content request")
+                .With(tablet->GetLoggingTags())
+                .With("StoreCount", request.replicatable_content().stores().size())
+                .With("UnflushedDynamicStoreIds", movementData.CommonDynamicStoreIds());
 
             Host_->PostAvenueMessage(movementData.GetSiblingAvenueEndpointId(), request);
         } catch (const std::exception& e) {
@@ -1087,10 +1068,9 @@ private:
 
         int reservedCount = tablet->ReservedDynamicStoreIdCount()[reason];
         if (reservedCount > 1) {
-            YT_LOG_ALERT("Too many reserved dynamic stores for smooth movement "
-                "on releasement attempt (%v, Count: %v)",
-                tablet->GetLoggingTags(),
-                reservedCount);
+            YT_TLOG_ALERT("Too many reserved dynamic stores for smooth movement on releasement attempt")
+                .With(tablet->GetLoggingTags())
+                .With("Count", reservedCount);
 
         }
 
@@ -1124,12 +1104,11 @@ private:
             return false;
         }
 
-        YT_LOG_DEBUG("Smooth movement stage change delayed for testing purposes "
-            "(%v, Role: %v, Stage: %v, RemainingTime: %v)",
-            tablet->GetLoggingTags(),
-            movementData.GetRole(),
-            movementData.GetStage(),
-            allowedTime - now);
+        YT_TLOG_DEBUG("Smooth movement stage change delayed for testing purposes")
+            .With(tablet->GetLoggingTags())
+            .With("Role", movementData.GetRole())
+            .With("Stage", movementData.GetStage())
+            .With("RemainingTime", allowedTime - now);
 
         TDelayedExecutor::Submit(
             BIND([this, this_ = MakeStrong(this), tabletId = tablet->GetId()] {

@@ -242,18 +242,18 @@ public:
                     guard.Release();
                     // This is where deadSnapshot dies. It's also nice to have logging moved outside
                     // of a critical section.
-                    YT_LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
-                        tablet->GetId(),
-                        slot->GetCellId());
+                    YT_TLOG_DEBUG("Tablet snapshot updated")
+                        .With("TabletId", tablet->GetId())
+                        .With("CellId", slot->GetCellId());
                     return;
                 }
             }
             TabletIdToSnapshot_.emplace(tablet->GetId(), newSnapshot);
         }
 
-        YT_LOG_DEBUG("Tablet snapshot registered (TabletId: %v, CellId: %v)",
-            tablet->GetId(),
-            slot->GetCellId());
+        YT_TLOG_DEBUG("Tablet snapshot registered")
+            .With("TabletId", tablet->GetId())
+            .With("CellId", slot->GetCellId());
     }
 
     void UnregisterTabletSnapshot(const ITabletSlotPtr& slot, TTablet* tablet) override
@@ -271,12 +271,11 @@ public:
                     auto evictionTimeout = tablet->GetSnapshotEvictionTimeout().value_or(
                         Config_->TabletSnapshotEvictionTimeout);
 
-                    YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled "
-                        "(%v, MountRevision: %x, CellId: %v, EvictionTimeout: %v)",
-                        snapshot->LoggingTags,
-                        snapshot->MountRevision,
-                        slot->GetCellId(),
-                        evictionTimeout);
+                    YT_TLOG_DEBUG("Tablet snapshot unregistered; eviction scheduled")
+                        .With(snapshot->LoggingTags)
+                        .WithFormat("MountRevision", "%x", snapshot->MountRevision)
+                        .With("CellId", slot->GetCellId())
+                        .With("EvictionTimeout", evictionTimeout);
 
                     TDelayedExecutor::Submit(
                         BIND(&TTabletSnapshotStore::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
@@ -312,9 +311,9 @@ public:
         // This is where deadSnapshots die. It's also nice to have logging moved outside
         // of a critical section.
         for (const auto& snapshot : deadSnapshots) {
-            YT_LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
-                snapshot->TabletId,
-                snapshot->CellId);
+            YT_TLOG_DEBUG("Tablet snapshot unregistered")
+                .With("TabletId", snapshot->TabletId)
+                .With("CellId", snapshot->CellId);
         }
     }
 
@@ -398,9 +397,9 @@ private:
 
                 // This is where snapshot dies. It's also nice to have logging moved outside
                 // of a critical section.
-                YT_LOG_DEBUG("Tablet snapshot evicted (TabletId: %v, CellId: %v)",
-                    tabletId,
-                    snapshot->CellId);
+                YT_TLOG_DEBUG("Tablet snapshot evicted")
+                    .With("TabletId", tabletId)
+                    .With("CellId", snapshot->CellId);
                 break;
             }
         }

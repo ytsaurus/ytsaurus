@@ -168,9 +168,9 @@ public:
             if (now - logNoContextLastTime >= logNoContextInterval &&
                 LogNoContextLastTime_.compare_exchange_strong(logNoContextLastTime, now, std::memory_order::relaxed))
             {
-                YT_LOG_WARNING("No error manager context for error handling (Error: %v, Method: %v)",
-                    error,
-                    method);
+                YT_TLOG_WARNING("No error manager context for error handling")
+                    .With("Error", error)
+                    .With("Method", method);
             }
 
             return;

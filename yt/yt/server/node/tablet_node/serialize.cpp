@@ -60,12 +60,12 @@ bool ValidateSnapshotReign(TReign reign)
 
 NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
-    YT_LOG_FATAL_UNLESS(reign == GetCurrentReign() || (IsReignChangeAllowed() && reign <= GetCurrentReign()),
-        "Attempted to recover tablet cell from invalid reign "
-        "(RecoverReign: %v, CurrentReign: %v, IsReignChangeAllowed: %v)",
-        reign,
-        GetCurrentReign(),
-        IsReignChangeAllowed());
+    YT_TLOG_FATAL_UNLESS(
+        reign == GetCurrentReign() || (IsReignChangeAllowed() && reign <= GetCurrentReign()),
+        "Attempted to recover tablet cell from invalid reign")
+        .With("RecoverReign", reign)
+        .With("CurrentReign", GetCurrentReign())
+        .With("IsReignChangeAllowed", IsReignChangeAllowed());
 
     if (reign < GetCurrentReign()) {
         return EFinalRecoveryAction::BuildSnapshotAndRestart;
@@ -83,10 +83,9 @@ namespace NTesting {
 void SetCurrentReignOverride(NHydra::TReign reign)
 {
     if (ReignOverride != InvalidReign || reign != InvalidReign) {
-        YT_LOG_DEBUG("Overriding tablet reign for testing purposes "
-            "(PreviousReign: %v, NewReign: %v)",
-            GetCurrentReign(),
-            reign);
+        YT_TLOG_DEBUG("Overriding tablet reign for testing purposes")
+            .With("PreviousReign", GetCurrentReign())
+            .With("NewReign", reign);
 
         YT_LOG_FATAL_UNLESS(reign == InvalidReign || reign > ToUnderlying(TEnumTraits<ETabletReign>::GetMaxValue()),
             "Reign override must be either %v or greater than any valid reign",

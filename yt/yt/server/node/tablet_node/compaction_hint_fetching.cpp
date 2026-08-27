@@ -39,9 +39,9 @@ void TCompactionHintFetchPipeline::Fetch()
 
     const auto& Logger = GetFetcher()->Context().Logger;
 
-    YT_LOG_DEBUG("Requesting compaction hint for store (StoreId: %v, ChunkId: %v)",
-        Store_->GetId(),
-        Store_->GetChunkId());
+    YT_TLOG_DEBUG("Requesting compaction hint for store")
+        .With("StoreId", Store_->GetId())
+        .With("ChunkId", Store_->GetChunkId());
 
     DoFetch();
 }
@@ -62,9 +62,9 @@ void TCompactionHintFetchPipeline::OnStoreHasNoHint()
 {
     const auto& Logger = GetFetcher()->Context().Logger;
 
-    YT_LOG_DEBUG("No compaction hint for store (StoreId: %v, ChunkId: %v)",
-        Store_->GetId(),
-        Store_->GetChunkId());
+    YT_TLOG_DEBUG("No compaction hint for store")
+        .With("StoreId", Store_->GetId())
+        .With("ChunkId", Store_->GetChunkId());
 
     auto* partition = Store_->GetPartition();
 
@@ -78,9 +78,9 @@ void TCompactionHintFetchPipeline::FinishFetch(NLsm::TStoreCompactionHint::TPayl
     const auto& context = GetFetcher()->Context();
     const auto& Logger = context.Logger;
 
-    YT_LOG_DEBUG("Finished fetching compaction hint for store (StoreId: %v, ChunkId: %v)",
-        Store_->GetId(),
-        Store_->GetChunkId());
+    YT_TLOG_DEBUG("Finished fetching compaction hint for store")
+        .With("StoreId", Store_->GetId())
+        .With("ChunkId", Store_->GetChunkId());
 
     Payload_ = std::move(payload);
 
@@ -97,9 +97,10 @@ void TCompactionHintFetchPipeline::OnRequestFailed(const TError& error)
     const auto& context = GetFetcher()->Context();
     const auto& Logger = context.Logger;
 
-    YT_LOG_WARNING(error, "Failed to fetch compaction hint for store, retry (StoreId: %v, ChunkId: %v)",
-        Store_->GetId(),
-        Store_->GetChunkId());
+    YT_TLOG_WARNING("Failed to fetch compaction hint for store, retry")
+        .With("StoreId", Store_->GetId())
+        .With("ChunkId", Store_->GetChunkId())
+        .With(error);
 
     context.FailedRequestCount.Increment();
 
@@ -139,7 +140,7 @@ void TCompactionHintFetcher::Start(IInvokerPtr epochAutomatonInvoker, TCompactio
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsStopped());
 
-    YT_LOG_DEBUG("Starting compaction hint fetcher");
+    YT_TLOG_DEBUG("Starting compaction hint fetcher");
 
     Config_ = std::move(config);
 
@@ -161,7 +162,7 @@ void TCompactionHintFetcher::Stop()
         return;
     }
 
-    YT_LOG_DEBUG("Stopping compaction hint fetcher");
+    YT_TLOG_DEBUG("Stopping compaction hint fetcher");
 
     YT_VERIFY(FetchingExecutor_->Stop().IsSet());
     FetchingExecutor_.Reset();
@@ -175,7 +176,7 @@ void TCompactionHintFetcher::Reconfigure(const TCompactionHintFetcherConfigPtr& 
         return;
     }
 
-    YT_LOG_DEBUG("Reconfigure compaction hint fetcher");
+    YT_TLOG_DEBUG("Reconfigure compaction hint fetcher");
 
     Config_ = config;
 

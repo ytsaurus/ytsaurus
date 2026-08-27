@@ -157,9 +157,9 @@ private:
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
         auto update = [&] (const std::string& bundleName, int weight) {
-            YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
-                bundleName,
-                weight);
+            YT_TLOG_DEBUG("Tablet cell bundle memory pool weight updated")
+                .With("Bundle", bundleName)
+                .With("Weight", weight);
             memoryTracker->SetPoolWeight(bundleName, weight);
         };
 
@@ -188,7 +188,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Slot scan started");
+        YT_TLOG_DEBUG("Slot scan started");
 
         Bootstrap_->GetStructuredLogger()->LogEvent("begin_slot_scan");
 
@@ -221,7 +221,7 @@ private:
 
         Bootstrap_->GetStructuredLogger()->LogEvent("end_slot_scan");
 
-        YT_LOG_DEBUG("Slot scan completed");
+        YT_TLOG_DEBUG("Slot scan completed");
     }
 
     const std::vector<ICellarOccupantPtr>& Occupants() const
