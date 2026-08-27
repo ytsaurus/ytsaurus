@@ -65,10 +65,9 @@ TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
         if (*tableConfig->MinTabletSize >= *tableConfig->DesiredTabletSize ||
             *tableConfig->DesiredTabletSize >= *tableConfig->MaxTabletSize)
         {
-            YT_LOG_WARNING("Tablet size inequalities violated in tablet balancer config "
-                "(TableId: %v, Config: %v)",
-                table->GetId(),
-                ConvertToYsonString(tableConfig, NYson::EYsonFormat::Text));
+            YT_TLOG_WARNING("Tablet size inequalities violated in tablet balancer config")
+                .With("TableId", table->GetId())
+                .With("Config", ConvertToYsonString(tableConfig, NYson::EYsonFormat::Text));
             desiredTabletSize = std::max(desiredTabletSize, minTabletSize + 1);
             maxTabletSize = std::max(maxTabletSize, desiredTabletSize + 1);
         }
@@ -94,15 +93,12 @@ TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
             minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
             maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
 
-            YT_LOG_DEBUG_IF(enableVerboseLogging,
-                "Tablet size config overridden by tablet to cell ratio "
-                "(TableId: %v, MaxTabletCount: %v, MinTabletSize: %v, DesiredTabletSize: %v, "
-                "MaxTabletSize: %v)",
-                table->GetId(),
-                maxTabletCount,
-                minTabletSize,
-                desiredTabletSize,
-                maxTabletSize);
+            YT_TLOG_DEBUG_IF(enableVerboseLogging, "Tablet size config overridden by tablet to cell ratio")
+                .With("TableId", table->GetId())
+                .With("MaxTabletCount", maxTabletCount)
+                .With("MinTabletSize", minTabletSize)
+                .With("DesiredTabletSize", desiredTabletSize)
+                .With("MaxTabletSize", maxTabletSize);
         }
     }
 
@@ -113,13 +109,11 @@ TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
             // minTabletSize should be nonzero so desiredTabletSize is bounded with 2.
             desiredTabletSize = std::max<i64>(2, tabletSizeLimit);
             minTabletSize = std::min(minTabletSize, desiredTabletSize - 1);
-            YT_LOG_DEBUG_IF(enableVerboseLogging,
-                "Tablet size config overridden by min tablet count (TableId: %v, "
-                "MinTabletSize: %v, DesiredTabletSize: %v, MaxTabletSize: %v)",
-                table->GetId(),
-                minTabletSize,
-                desiredTabletSize,
-                maxTabletSize);
+            YT_TLOG_DEBUG_IF(enableVerboseLogging, "Tablet size config overridden by min tablet count")
+                .With("TableId", table->GetId())
+                .With("MinTabletSize", minTabletSize)
+                .With("DesiredTabletSize", desiredTabletSize)
+                .With("MaxTabletSize", maxTabletSize);
         }
     }
 
@@ -243,22 +237,21 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
     }
 
     if (endIndex == startIndex && newTabletCount == 1) {
-        YT_LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v, TabletSize: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            size);
+        YT_TLOG_DEBUG("Tablet balancer is unable to reshard tablet")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("TabletSize", size);
         return {};
     }
 
     if (std::ssize(table->Tablets()) + newTabletCount -
         (endIndex - startIndex + 1) >= MaxTabletCount)
     {
-        YT_LOG_DEBUG("Tablet balancer will not split tablets since tablet count "
-            "would exceed the limit (TableId: %v, TabletId: %v, TabletsSize: %v, DesiredCount: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            size,
-            newTabletCount);
+        YT_TLOG_DEBUG("Tablet balancer will not split tablets since tablet count would exceed the limit")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("TabletsSize", size)
+            .With("DesiredCount", newTabletCount);
         return {};
     }
 

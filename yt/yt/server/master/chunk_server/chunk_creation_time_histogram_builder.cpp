@@ -118,11 +118,9 @@ public:
 
         const auto& delta = request.creation_time_histogram().delta();
         if (delta.size() != std::ssize(Bounds_) + 1) {
-            YT_LOG_ALERT(
-                "Chunk creation time histogram bounds were changed during master cell statistics update "
-                "(DeltaSize: %v, BoundsSize: %v)",
-                delta.size(),
-                Bounds_.size());
+            YT_TLOG_ALERT("Chunk creation time histogram bounds were changed during master cell statistics update")
+                .With("DeltaSize", delta.size())
+                .With("BoundsSize", Bounds_.size());
             return;
         }
 

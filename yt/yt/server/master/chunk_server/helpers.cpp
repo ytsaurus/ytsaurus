@@ -488,12 +488,11 @@ void DetachFromChunkList(
             YT_VERIFY(firstChildIndex >= chunkList->GetTrimmedChildCount());
             for (int index = 0; index < childCount; ++index) {
                 if (existingChildren[firstChildIndex + index] != children[index]) {
-                    YT_LOG_ALERT("Attempted to detach children from ordered tablet out of order "
-                        "(ChunkListId: %v, RelativeStoreIndex: %v, DetachedStoreId: %v, ActualStoreId: %v)",
-                        chunkList->GetId(),
-                        index,
-                        children[index]->GetId(),
-                        existingChildren[firstChildIndex + index]->GetId());
+                    YT_TLOG_ALERT("Attempted to detach children from ordered tablet out of order")
+                        .With("ChunkListId", chunkList->GetId())
+                        .With("RelativeStoreIndex", index)
+                        .With("DetachedStoreId", children[index]->GetId())
+                        .With("ActualStoreId", existingChildren[firstChildIndex + index]->GetId());
                 }
             }
 
@@ -870,11 +869,9 @@ void AccumulateHunkStatisticsInUniqueAncestors(
             YT_VERIFY(parent->IsHunkRelated() && !parent->IsHunkRoot());
 
             if (!updateChunkListStatistics) {
-                YT_LOG_ALERT("Appending hunk statistics to a tablet hunk chunk list "
-                    "shall also update its chunk list statistics"
-                    "(TabletChunkListId: %v, ChunkId: %v)",
-                    parent->GetId(),
-                    child->GetId());
+                YT_TLOG_ALERT("Appending hunk statistics to a tablet hunk chunk list shall also update its chunk list statistics")
+                    .With("TabletChunkListId", parent->GetId())
+                    .With("ChunkId", child->GetId());
             }
 
             if (updateChunkListStatistics) {
@@ -911,11 +908,10 @@ void AccumulateHunkStatisticsInUniqueAncestors(
             YT_VERIFY(childChunkList->IsHunkRelated() && !childChunkList->IsHunkRoot());
 
             if (!childChunkList->Children().empty() && updateChunkListStatistics) {
-                YT_LOG_ALERT("Appending hunk statistics to a root hunk chunk list can be costly and shall not "
-                    "be performed in a per-chunk way (RootChunkListId: %v, ChildChunkListId: %v, ChildrenCount: %v)",
-                    parent->GetId(),
-                    childChunkList->GetId(),
-                    childChunkList->Children().size());
+                YT_TLOG_ALERT("Appending hunk statistics to a root hunk chunk list can be costly and shall not be performed in a per-chunk way")
+                    .With("RootChunkListId", parent->GetId())
+                    .With("ChildChunkListId", childChunkList->GetId())
+                    .With("ChildrenCount", childChunkList->Children().size());
 
                 for (auto childChunk : childChunkList->Children()) {
                     YT_VERIFY(IsPhysicalChunkType(childChunk->GetType()));
@@ -940,23 +936,21 @@ bool IsHunkChunkUniquelyPresentInChunkList(
         chunkTree->GetType() != EObjectType::JournalChunk &&
         chunkTree->GetType() != EObjectType::ErasureJournalChunk)
     {
-        YT_LOG_ALERT("Chunk of unexpected kind is encountered in IsHunkChunkUniquelyPresentInChunkList "
-            "(ChunkListId: %v, ChunkListKind: %v, ChunkTreeId: %v, ChunkTreeType: %v)",
-            chunkList->GetId(),
-            chunkList->GetKind(),
-            chunkTree->GetId(),
-            chunkTree->GetType());
+        YT_TLOG_ALERT("Chunk of unexpected kind is encountered in IsHunkChunkUniquelyPresentInChunkList")
+            .With("ChunkListId", chunkList->GetId())
+            .With("ChunkListKind", chunkList->GetKind())
+            .With("ChunkTreeId", chunkTree->GetId())
+            .With("ChunkTreeType", chunkTree->GetType());
         return false;
     }
 
     auto* chunk = chunkTree->AsChunk();
 
     if (!chunkList->IsHunkRelated()) {
-        YT_LOG_ALERT("Chunk list of unexpected kind is encountered in IsHunkChunkUniquelyPresentInChunkList "
-            "(ChunkListId: %v, ChunkListKind: %v, ChunkId: %v)",
-            chunkList->GetId(),
-            chunkList->GetKind(),
-            chunk->GetId());
+        YT_TLOG_ALERT("Chunk list of unexpected kind is encountered in IsHunkChunkUniquelyPresentInChunkList")
+            .With("ChunkListId", chunkList->GetId())
+            .With("ChunkListKind", chunkList->GetKind())
+            .With("ChunkId", chunk->GetId());
         return false;
     }
 
@@ -968,11 +962,10 @@ bool IsHunkChunkUniquelyPresentInChunkList(
     for (auto [parent, cardinality] : chunk->Parents()) {
         YT_VERIFY(parent->GetType() == EObjectType::ChunkList);
 
-        YT_LOG_ALERT_IF(cardinality != 1, "Parent chunk list of unexpected cardinality is encountered "
-            "in IsHunkChunkUniquelyPresentInChunkList (ChunkListId: %v, ChunkListKind: %v, ChunkId: %v)",
-            chunkList->GetId(),
-            chunkList->GetKind(),
-            chunk->GetId());
+        YT_TLOG_ALERT_IF(cardinality != 1, "Parent chunk list of unexpected cardinality is encountered in IsHunkChunkUniquelyPresentInChunkList")
+            .With("ChunkListId", chunkList->GetId())
+            .With("ChunkListKind", chunkList->GetKind())
+            .With("ChunkId", chunk->GetId());
 
         for (auto grandparent : parent->AsChunkList()->Parents()) {
             YT_VERIFY(grandparent->GetType() == EObjectType::ChunkList);
@@ -987,12 +980,13 @@ bool IsHunkChunkUniquelyPresentInChunkList(
         }
     }
 
-    YT_LOG_ALERT_IF(occurrenceCount != 1, "Hunk chunk with zero references from a supposed parent is encountered "
-        "in IsHunkChunkUniquelyPresentInChunkList (ChunkListId: %v, ChunkListKind: %v, ChunkId: %v, OccurrenceCount: %v)",
-        chunkList->GetId(),
-        chunkList->GetKind(),
-        chunk->GetId(),
-        occurrenceCount);
+    YT_TLOG_ALERT_IF(
+        occurrenceCount != 1,
+        "Hunk chunk with zero references from a supposed parent is encountered in IsHunkChunkUniquelyPresentInChunkList")
+        .With("ChunkListId", chunkList->GetId())
+        .With("ChunkListKind", chunkList->GetKind())
+        .With("ChunkId", chunk->GetId())
+        .With("OccurrenceCount", occurrenceCount);
 
     return true;
 }
@@ -1028,11 +1022,10 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 
     if (chunkList->IsHunkRelated()) {
         if (!chunkList->Children().empty()) {
-            YT_LOG_ALERT("Recomputing statistics of non-empty hunk-related chunk list is forbidden; skipping that "
-                "(ChunkListId: %v, ChunkListKind: %v, ChildrenCount: %v)",
-                chunkList->GetId(),
-                chunkList->GetKind(),
-                chunkList->Children().size());
+            YT_TLOG_ALERT("Recomputing statistics of non-empty hunk-related chunk list is forbidden; skipping that")
+                .With("ChunkListId", chunkList->GetId())
+                .With("ChunkListKind", chunkList->GetKind())
+                .With("ChildrenCount", chunkList->Children().size());
         }
         return;
     }
@@ -1600,7 +1593,7 @@ std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
     TRange<TAugmentedStoredChunkReplicaPtr> chunkReplicas)
 {
     if (!chunk->IsJournal()) {
-        YT_LOG_ALERT("Getting chunk replica descriptors for non-journal chunk");
+        YT_TLOG_ALERT("Getting chunk replica descriptors for non-journal chunk");
     }
 
     std::vector<TChunkReplicaDescriptor> replicas;
@@ -1611,14 +1604,14 @@ std::vector<TChunkReplicaDescriptor> GetChunkReplicaDescriptors(
         }
         auto* location = locationReplica->AsChunkLocationPtr();
         if (!IsObjectAlive(location)) {
-            YT_LOG_ALERT("Replica from non alive location is passed to GetChunkReplicaDescriptors (ChunkId: %v)",
-                chunk->GetId());
+            YT_TLOG_ALERT("Replica from non alive location is passed to GetChunkReplicaDescriptors")
+                .With("ChunkId", chunk->GetId());
             continue;
         }
         auto node = location->GetNode();
         if (!IsObjectAlive(node)) {
-            YT_LOG_ALERT("Replica from non alive node is passed to GetChunkReplicaDescriptors (ChunkId: %v)",
-                chunk->GetId());
+            YT_TLOG_ALERT("Replica from non alive node is passed to GetChunkReplicaDescriptors")
+                .With("ChunkId", chunk->GetId());
             continue;
         }
         replicas.push_back({

@@ -192,10 +192,8 @@ private:
                     }
 
                     const auto& Logger = ChunkServerLogger();
-                    YT_LOG_ALERT_IF(
-                        user->GetPendingRemoval(),
-                        "User pending for removal has accessed chunk service (User: %v)",
-                        user->GetName());
+                    YT_TLOG_ALERT_IF(user->GetPendingRemoval(), "User pending for removal has accessed chunk service")
+                        .With("User", user->GetName());
 
                     queue->SetQueueSizeLimit(10'000);
 
@@ -259,7 +257,8 @@ private:
             auto* requestQueue = methodInfo->GetDefaultRequestQueue();
             requestQueue->ConfigureWeightThrottler(weightThrottlerConfig);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Failed to configure request weight throttler for ChunkService.ExecuteBatch default request queue");
+            YT_TLOG_ALERT("Failed to configure request weight throttler for ChunkService.ExecuteBatch default request queue")
+                .With(ex);
         }
 
         auto configureRequestQueueProvider = [&] (const auto& queueProvider) {
@@ -389,8 +388,8 @@ private:
             req->SetTimeout(context->GetTimeout());
             NRpc::SetCurrentAuthenticationIdentity(req);
 
-            YT_LOG_DEBUG("Forwarding touch request to remote replicator (ChunkCount: %v)",
-                req->subrequests_size());
+            YT_TLOG_DEBUG("Forwarding touch request to remote replicator")
+                .With("ChunkCount", req->subrequests_size());
             YT_UNUSED_FUTURE(req->Invoke());
         }
 
@@ -669,16 +668,15 @@ private:
                     MakeFormattableView(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
-                YT_LOG_DEBUG(error, "Error allocating write targets "
-                    "(SessionId: %v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v)",
-                    sessionId,
-                    desiredTargetCount,
-                    minTargetCount,
-                    replicationFactorOverride,
-                    preferredHostName,
-                    forbiddenAddresses,
-                    allocatedAddresses);
+                YT_TLOG_DEBUG("Error allocating write targets")
+                    .With("SessionId", sessionId)
+                    .With("DesiredTargetCount", desiredTargetCount)
+                    .With("MinTargetCount", minTargetCount)
+                    .With("ReplicationFactorOverride", replicationFactorOverride)
+                    .With("PreferredHostName", preferredHostName)
+                    .With("ForbiddenAddresses", forbiddenAddresses)
+                    .With("AllocatedAddresses", allocatedAddresses)
+                    .With(error);
                 ToProto(subresponse->mutable_error(), error);
             }
         }
@@ -818,8 +816,7 @@ private:
 
         // COMPAT(kvk1920)
         for (const auto& subrequest : request->confirm_chunk_subrequests()) {
-            YT_LOG_ALERT_UNLESS(subrequest.location_uuids_supported(),
-                "Chunk confirmation request without location uuids is received");
+            YT_TLOG_ALERT_UNLESS(subrequest.location_uuids_supported(), "Chunk confirmation request without location uuids is received");
         }
 
         // TODO(shakurov): use mutation idempotizer for all mutations (not
@@ -1033,8 +1030,8 @@ private:
             // Fastpath.
             auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
             if (chunk->IsConfirmed()) {
-                YT_LOG_DEBUG("Chunk is already confirmed (ChunkId: %v)",
-                    chunkId);
+                YT_TLOG_DEBUG("Chunk is already confirmed")
+                    .With("ChunkId", chunkId);
 
                 if (context->Request().request_statistics()) {
                     // NB: Do not include referenced hunk data in case of a non-hunk chunk because it is irrelevant
@@ -1080,7 +1077,8 @@ private:
                 if (requestStatistics) {
                     auto* chunk = chunkManager->GetChunkOrThrow(chunkId);
                     if (!chunk->IsConfirmed()) {
-                        YT_LOG_ALERT("Chunk is not confirmed after confirm (ChunkId: %v)", chunkId);
+                        YT_TLOG_ALERT("Chunk is not confirmed after confirm")
+                            .With("ChunkId", chunkId);
                         return TError(NRpc::EErrorCode::TransientFailure,
                             "Chunk %v is not confirmed after confirm",
                             chunkId);
@@ -1126,9 +1124,9 @@ private:
         syncFutures.reserve(2);
         syncFutures.push_back(hiveManager->SyncWith(cellId, /*enableBatching*/ true));
 
-        YT_LOG_DEBUG("Request will synchronize with another cell (RequestId: %v, CellTag: %v)",
-            context->GetRequestId(),
-            cellTag);
+        YT_TLOG_DEBUG("Request will synchronize with another cell")
+            .With("RequestId", context->GetRequestId())
+            .With("CellTag", cellTag);
 
         if (IsCypressTransactionMirroredToSequoia(transactionId) && AreCypressTransactionsInSequoiaEnabled()) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();

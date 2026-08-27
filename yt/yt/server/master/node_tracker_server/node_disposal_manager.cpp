@@ -94,7 +94,8 @@ public:
         DisposeNodeSemaphore_->AsyncAcquire().AsUnique().Subscribe(
             BIND([mutation = std::move(mutation)] (TErrorOr<TAsyncSemaphoreGuard>&& guardOrError) {
                 // Even if acquiring semaphore failed, we still have to commit mutation.
-                YT_LOG_ALERT_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire node disposal semaphore");
+                YT_TLOG_ALERT_UNLESS(guardOrError.IsOK(), "Failed to acquire node disposal semaphore")
+                    .With(guardOrError);
 
                 Y_UNUSED(WaitFor(mutation->CommitAndLog(Logger())));
             })
@@ -106,20 +107,21 @@ public:
         YT_VERIFY(HasMutationContext());
 
         if (node->Flavors().contains(ENodeFlavor::Data)) {
-            YT_LOG_ALERT("Data node is being disposed completely (NodeId: %v)", node->GetId());
+            YT_TLOG_ALERT("Data node is being disposed completely")
+                .With("NodeId", node->GetId());
         }
 
-        YT_LOG_INFO("Disposing node completely (NodeId: %v)", node->GetId());
+        YT_TLOG_INFO("Disposing node completely")
+            .With("NodeId", node->GetId());
 
         YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
             // Node was being disposed location by location, but smth needs it to be disposed right now.
             if (node->GetLocalState() == ENodeState::BeingDisposed) {
                 for (const auto& location : node->ChunkLocations()) {
                     if (ChunkLocationsBeingDisposed_.contains(location->GetIndex())) {
-                        YT_LOG_WARNING(
-                            "Chunk location was being disposed but it was forcibly disposed (LocationIndex: %v, NodeId: %v)",
-                            location->GetIndex(),
-                            node->GetId());
+                        YT_TLOG_WARNING("Chunk location was being disposed but it was forcibly disposed")
+                            .With("LocationIndex", location->GetIndex())
+                            .With("NodeId", node->GetId());
                         EraseFromDisposalQueue(location->GetIndex());
                     }
                 }
@@ -327,11 +329,10 @@ private:
                                 return;
                             }
 
-                            YT_LOG_DEBUG(
-                                response,
-                                "Failed to modify Sequoia replicas during location disposal (LocationUuid: %v, LocationIndex: %v)",
-                                location->GetUuid(),
-                                location->GetIndex());
+                            YT_TLOG_DEBUG("Failed to modify Sequoia replicas during location disposal")
+                                .With("LocationUuid", location->GetUuid())
+                                .With("LocationIndex", location->GetIndex())
+                                .With(response);
 
                             location->SetBeingDisposed(false);
                             return;
@@ -348,9 +349,9 @@ private:
 
         YT_VERIFY(node->GetLocalState() == ENodeState::Unregistered);
 
-        YT_LOG_INFO("Starting node disposal (NodeId: %v, Address: %v)",
-            node->GetId(),
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Starting node disposal")
+            .With("NodeId", node->GetId())
+            .With("Address", node->GetDefaultAddress());
 
         node->ReportedHeartbeats().clear();
     }
@@ -375,9 +376,9 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SetNodeLocalState(node, ENodeState::Offline);
 
-        YT_LOG_INFO("Node offline (NodeId: %v, Address: %v)",
-            node->GetId(),
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Node offline")
+            .With("NodeId", node->GetId())
+            .With("Address", node->GetDefaultAddress());
     }
 
     void TopUpLocationsBeingDisposed()
@@ -455,10 +456,10 @@ private:
                 YT_VERIFY(location->GetBeingDisposed());
             }
 
-            YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v, Location: %v)",
-                nodeId,
-                node->GetDefaultAddress(),
-                location->GetUuid());
+            YT_TLOG_INFO("Disposing location")
+                .With("NodeId", nodeId)
+                .With("Address", node->GetDefaultAddress())
+                .With("Location", location->GetUuid());
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             chunkManager->DisposeLocation(location);

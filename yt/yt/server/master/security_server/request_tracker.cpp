@@ -227,7 +227,8 @@ void TRequestTracker::OnUpdateAlivePeerCount()
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     const auto& hydraManager = hydraFacade->GetHydraManager();
     auto alivePeerIds = hydraManager->GetAlivePeerIds();
-    YT_LOG_DEBUG("Alive peers updated (AlivePeerIds: %v)", alivePeerIds);
+    YT_TLOG_DEBUG("Alive peers updated")
+        .With("AlivePeerIds", alivePeerIds);
     int peerCount = std::ssize(alivePeerIds);
     if (peerCount != AlivePeerCount_) {
         AlivePeerCount_ = peerCount;

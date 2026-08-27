@@ -96,7 +96,8 @@ public:
         }
         auto previouslyScheduledForRemovalNodes = std::exchange(ScheduledForRemovalNodes_, {});
 
-        YT_LOG_INFO("Started registering node expiration (Count: %v)", previouslyScheduledForRemovalNodes.size());
+        YT_TLOG_INFO("Started registering node expiration")
+            .With("Count", previouslyScheduledForRemovalNodes.size());
 
         for (auto trunkNode : previouslyScheduledForRemovalNodes) {
             if (trunkNode->GetExpirationTimeIterator()) {
@@ -115,7 +116,7 @@ public:
                 RegisterNodeExpirationTimeout(trunkNode);
             }
         }
-        YT_LOG_INFO("Finished registering node expiration");
+        YT_TLOG_INFO("Finished registering node expiration");
     }
 
     void OnLeaderActive() override
@@ -198,9 +199,9 @@ public:
         if (expirationTimeProperties) {
             const auto& [user, expirationTime, armingTime] = *expirationTimeProperties;
 
-            YT_LOG_DEBUG("Node expiration time set (NodeId: %v, ExpirationTime: %v)",
-                trunkNode->GetId(),
-                expirationTime);
+            YT_TLOG_DEBUG("Node expiration time set")
+                .With("NodeId", trunkNode->GetId())
+                .With("ExpirationTime", expirationTime);
             RegisterNodeExpirationTime(trunkNode, expirationTime);
             if (oldExpirationTimeProperties) {
                 auto oldUser = std::get<TUserRawPtr>(*oldExpirationTimeProperties);
@@ -210,8 +211,8 @@ public:
                 }
             }
         } else if (oldExpirationTimeProperties) {
-            YT_LOG_DEBUG("Node expiration time reset (NodeId: %v)",
-                trunkNode->GetId());
+            YT_TLOG_DEBUG("Node expiration time reset")
+                .With("NodeId", trunkNode->GetId());
 
             auto oldUser = std::get<TUserRawPtr>(*oldExpirationTimeProperties);
             FailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
@@ -244,9 +245,9 @@ public:
         if (expirationTimeoutProperties) {
             const auto& [user, expirationTimeout, armingTime] = *expirationTimeoutProperties;
 
-            YT_LOG_DEBUG("Node expiration timeout set (NodeId: %v, ExpirationTimeout: %v)",
-                trunkNode->GetId(),
-                expirationTimeout);
+            YT_TLOG_DEBUG("Node expiration timeout set")
+                .With("NodeId", trunkNode->GetId())
+                .With("ExpirationTimeout", expirationTimeout);
             if (!IsNodeLocked(trunkNode)) {
                 RegisterNodeExpirationTimeout(trunkNode);
             }
@@ -259,8 +260,8 @@ public:
                 }
             }
         } else if (oldExpirationTimeoutProperties) {
-            YT_LOG_DEBUG("Node expiration timeout reset (NodeId: %v)",
-                trunkNode->GetId());
+            YT_TLOG_DEBUG("Node expiration timeout reset")
+                .With("NodeId", trunkNode->GetId());
 
             auto oldUser = std::get<TUserRawPtr>(*oldExpirationTimeoutProperties);
             FailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode, oldUser));
@@ -285,10 +286,10 @@ public:
         if (trunkNodeExpirationTimeout && !IsNodeLocked(trunkNode)) {
             auto expirationTimeout = *trunkNodeExpirationTimeout;
             auto expirationTime = trunkNode->GetTouchTime() + expirationTimeout;
-            YT_LOG_TRACE("Node is scheduled to expire by timeout (NodeId: %v, ExpirationTimeout: %v, AnticipatedExpirationTime: %v)",
-                trunkNode->GetId(),
-                expirationTimeout,
-                expirationTime);
+            YT_TLOG_TRACE("Node is scheduled to expire by timeout")
+                .With("NodeId", trunkNode->GetId())
+                .With("ExpirationTimeout", expirationTimeout)
+                .With("AnticipatedExpirationTime", expirationTime);
             RegisterNodeExpirationTimeout(trunkNode);
         }
     }
@@ -534,8 +535,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Starting removal of expired nodes (Count: %v)",
-            std::ssize(expiredTrunkNodes));
+        YT_TLOG_DEBUG("Starting removal of expired nodes")
+            .With("Count", std::ssize(expiredTrunkNodes));
 
         std::vector<TEphemeralObjectPtr<TCypressNode>> trunkNodes;
         trunkNodes.reserve(expiredTrunkNodes.size());
@@ -623,9 +624,9 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG(rspOrError,
-                "Cannot remove an expired node; backing off and retrying (NodeId: %v)",
-                trunkNode->GetId());
+            YT_TLOG_DEBUG("Cannot remove an expired node; backing off and retrying")
+                .With("NodeId", trunkNode->GetId())
+                .With(rspOrError);
 
             if (user && GetDynamicConfig()->EnableAuthorizedExpiration) {
                 if (!IsObjectAlive(user) || user->IsBeingRemoved()) {
@@ -638,10 +639,9 @@ private:
                         FailedExpirationAttempts_.emplace(TFailedAttemptDescriptor(trunkNode.Get(), user), 0);
                     auto failedAttempts = failedAttemptsIt->second++;
 
-                    YT_LOG_DEBUG(
-                        "Failed an attempt to remove the expired node due to an authorization error (NodeId: %v, Attempts: %v)",
-                        trunkNode->GetId(),
-                        failedAttempts + 1);
+                    YT_TLOG_DEBUG("Failed an attempt to remove the expired node due to an authorization error")
+                        .With("NodeId", trunkNode->GetId())
+                        .With("Attempts", failedAttempts + 1);
 
                     auto expirationAttemptsExceeded = failedAttempts >= GetDynamicConfig()->ExpirationAttemptLimit;
                     if (expirationAttemptsExceeded) {
@@ -691,10 +691,9 @@ private:
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         if (!batchRspOrError.IsOK()) {
-            YT_LOG_ERROR(
-                batchRspOrError,
-                "Failed to reset expiration (NodeId: %v)",
-                trunkNodeId);
+            YT_TLOG_ERROR("Failed to reset expiration")
+                .With("NodeId", trunkNodeId)
+                .With(batchRspOrError);
             return;
         }
 
@@ -702,17 +701,15 @@ private:
         YT_VERIFY(rsps.size() == attributesToRemove.size());
         for (const auto& rspOrError : rsps) {
             if (!rspOrError.IsOK()) {
-                YT_LOG_ERROR(
-                    rspOrError,
-                    "Failed to reset expiration (NodeId: %v)",
-                    trunkNodeId);
+                YT_TLOG_ERROR("Failed to reset expiration")
+                    .With("NodeId", trunkNodeId)
+                    .With(rspOrError);
                 return;
             }
         }
 
-        YT_LOG_DEBUG(
-            "Expiration was reset (NodeId: %v)",
-            trunkNodeId);
+        YT_TLOG_DEBUG("Expiration was reset")
+            .With("NodeId", trunkNodeId);
         FailedExpirationAttempts_.erase(TFailedAttemptDescriptorView(trunkNode.Get(), user));
     }
 
@@ -808,8 +805,8 @@ private:
                 std::move(failedAttemptDescriptor), nodeAttempts.attempts());
         }
 
-        YT_LOG_DEBUG("Persisted expiration failed attempts (Count: %v)",
-            std::ssize(PersistentFailedExpirationAttempts_));
+        YT_TLOG_DEBUG("Persisted expiration failed attempts")
+            .With("Count", std::ssize(PersistentFailedExpirationAttempts_));
     }
 };
 

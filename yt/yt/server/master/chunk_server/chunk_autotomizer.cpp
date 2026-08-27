@@ -304,11 +304,11 @@ public:
             job->SetNode(node);
             context->ScheduleJob(job);
 
-            YT_LOG_DEBUG("Autotomy job scheduled (JobId: %v, Address: %v, BodyChunkId: %v, TailChunkId: %v)",
-                job->GetJobId(),
-                node->GetDefaultAddress(),
-                bodyChunkId,
-                tailChunkId);
+            YT_TLOG_DEBUG("Autotomy job scheduled")
+                .With("JobId", job->GetJobId())
+                .With("Address", node->GetDefaultAddress())
+                .With("BodyChunkId", bodyChunkId)
+                .With("TailChunkId", tailChunkId);
         }
     }
 
@@ -329,13 +329,12 @@ public:
         auto jobTimeout = GetDynamicConfig()->JobTimeout;
         auto jobDuration = TInstant::Now() - job->GetStartTime();
         if (jobDuration > jobTimeout) {
-            YT_LOG_WARNING("Job timed out, aborting "
-                "(JobId: %v, BodyChunkId: %v, Address: %v, Duration: %v, Timeout: %v)",
-                job->GetJobId(),
-                job->GetBodyChunkId(),
-                job->NodeAddress(),
-                jobDuration,
-                jobTimeout);
+            YT_TLOG_WARNING("Job timed out, aborting")
+                .With("JobId", job->GetJobId())
+                .With("BodyChunkId", job->GetBodyChunkId())
+                .With("Address", job->NodeAddress())
+                .With("Duration", jobDuration)
+                .With("Timeout", jobTimeout);
 
             callbacks->AbortJob(job);
         }
@@ -347,17 +346,16 @@ public:
         YT_VERIFY(IsLeader());
 
         if (!IsChunkRegistered(job->GetBodyChunkId())) {
-            YT_LOG_DEBUG("Autotomy job completed for unregistered chunk, ignored (BodyChunkId: %v)",
-                job->GetBodyChunkId());
+            YT_TLOG_DEBUG("Autotomy job completed for unregistered chunk, ignored")
+                .With("BodyChunkId", job->GetBodyChunkId());
             return;
         }
 
-        YT_LOG_DEBUG("Autotomy job is completed "
-            "(JobId: %v, BodyChunkId: %v, TailChunkId: %v, Speculative: %v)",
-            job->GetJobId(),
-            job->GetBodyChunkId(),
-            job->GetTailChunkId(),
-            job->GetSpeculative());
+        YT_TLOG_DEBUG("Autotomy job is completed")
+            .With("JobId", job->GetJobId())
+            .With("BodyChunkId", job->GetBodyChunkId())
+            .With("TailChunkId", job->GetTailChunkId())
+            .With("Speculative", job->GetSpeculative());
 
         const auto& jobResult = job->Result();
         const auto& jobResultExt = jobResult.GetExtension(NChunkClient::NProto::TAutotomizeChunkJobResultExt::autotomize_chunk_job_result_ext);
@@ -385,10 +383,10 @@ public:
         auto bodyChunkId = job->GetBodyChunkId();
         auto jobId = job->GetJobId();
 
-        YT_LOG_DEBUG("Job aborted (BodyChunkId: %v, JobId: %v, Error: %v)",
-            bodyChunkId,
-            jobId,
-            job->Error());
+        YT_TLOG_DEBUG("Job aborted")
+            .With("BodyChunkId", bodyChunkId)
+            .With("JobId", jobId)
+            .With("Error", job->Error());
 
         UnregisterJob(jobId);
         TouchChunk(bodyChunkId);
@@ -402,10 +400,10 @@ public:
         auto bodyChunkId = job->GetBodyChunkId();
         auto jobId = job->GetJobId();
 
-        YT_LOG_DEBUG("Job failed (BodyChunkId: %v, JobId: %v, Error: %v)",
-            bodyChunkId,
-            jobId,
-            job->Error());
+        YT_TLOG_DEBUG("Job failed")
+            .With("BodyChunkId", bodyChunkId)
+            .With("JobId", jobId)
+            .With("Error", job->Error());
 
         UnregisterJob(jobId);
         TouchChunk(bodyChunkId);
@@ -511,19 +509,15 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
-        YT_LOG_INFO(
-            "Updating chunk autotomizer transactions "
-            "(TransactionId: %v, PreviousTransactionId: %v)",
-            TransactionRotator_.GetTransactionId(),
-            TransactionRotator_.GetPreviousTransactionId());
+        YT_TLOG_INFO("Updating chunk autotomizer transactions")
+            .With("TransactionId", TransactionRotator_.GetTransactionId())
+            .With("PreviousTransactionId", TransactionRotator_.GetPreviousTransactionId());
 
         TransactionRotator_.Rotate();
 
-        YT_LOG_INFO(
-            "Chunk autotomizer transactions updated "
-            "(TransactionId: %v, PreviousTransactionId: %v)",
-            TransactionRotator_.GetTransactionId(),
-            TransactionRotator_.GetPreviousTransactionId());
+        YT_TLOG_INFO("Chunk autotomizer transactions updated")
+            .With("TransactionId", TransactionRotator_.GetTransactionId())
+            .With("PreviousTransactionId", TransactionRotator_.GetPreviousTransactionId());
     }
 
     void HydraUpdateAutotomizerState(TReqUpdateAutotomizerState* request)
@@ -540,18 +534,15 @@ private:
         auto chunksToAllocateTail = ::NYT::FromProto<std::vector<TChunkId>>(request->chunks_to_allocate_tail());
         for (auto bodyChunkId : chunksToAllocateTail) {
             if (!IsChunkRegistered(bodyChunkId)) {
-                YT_LOG_DEBUG(
-                    "Tail chunk allocation is requested for unregistered chunk, ignored (BodyChunkId: %v)",
-                    bodyChunkId);
+                YT_TLOG_DEBUG("Tail chunk allocation is requested for unregistered chunk, ignored")
+                    .With("BodyChunkId", bodyChunkId);
                 continue;
             }
 
             if (!IsChunkAutotomizable(bodyChunkId)) {
-                YT_LOG_DEBUG(
-                    "Tail chunk allocation is requested for non-autotomizable chunk, ignored "
-                    "(BodyChunkId: %v, NonAutotomicityReason: %v)",
-                    bodyChunkId,
-                    GetChunkNonAutotomicityReason(bodyChunkId));
+                YT_TLOG_DEBUG("Tail chunk allocation is requested for non-autotomizable chunk, ignored")
+                    .With("BodyChunkId", bodyChunkId)
+                    .With("NonAutotomicityReason", GetChunkNonAutotomicityReason(bodyChunkId));
                 continue;
             }
 
@@ -575,27 +566,22 @@ private:
         auto tailChunkId = ::NYT::FromProto<TChunkId>(request->tail_chunk_id());
         const auto& tailChunkSealInfo = request->tail_chunk_seal_info();
 
-        YT_LOG_DEBUG(
-            "Chunk autotomy completed "
-            "(BodyChunkId: %v, BodyLogicalRowCount: %v, TailChunkId: %v, TailLogicalRowCount: %v)",
-            bodyChunkId,
-            bodyChunkSealInfo.row_count(),
-            tailChunkId,
-            tailChunkSealInfo.row_count());
+        YT_TLOG_DEBUG("Chunk autotomy completed")
+            .With("BodyChunkId", bodyChunkId)
+            .With("BodyLogicalRowCount", bodyChunkSealInfo.row_count())
+            .With("TailChunkId", tailChunkId)
+            .With("TailLogicalRowCount", tailChunkSealInfo.row_count());
 
         if (!IsChunkRegistered(bodyChunkId)) {
-            YT_LOG_DEBUG(
-                "Chunk is not registered, ignoring autotomy result (BodyChunkId: %v)",
-                bodyChunkId);
+            YT_TLOG_DEBUG("Chunk is not registered, ignoring autotomy result")
+                .With("BodyChunkId", bodyChunkId);
             return;
         }
 
         if (!IsChunkAutotomizable(bodyChunkId)) {
-            YT_LOG_DEBUG(
-                "Chunk is no longer autotomizable, ignoring autotomy result "
-                "(BodyChunkId: %v, NonAutotomicityReason: %v)",
-                bodyChunkId,
-                GetChunkNonAutotomicityReason(bodyChunkId));
+            YT_TLOG_DEBUG("Chunk is no longer autotomizable, ignoring autotomy result")
+                .With("BodyChunkId", bodyChunkId)
+                .With("NonAutotomicityReason", GetChunkNonAutotomicityReason(bodyChunkId));
             UnsuccessfulAutotomyCounter_.Increment();
             UnregisterChunk(bodyChunkId);
             return;
@@ -610,10 +596,9 @@ private:
 
         // NB: Tail might be dead.
         if (!IsObjectAlive(tailChunk)) {
-            YT_LOG_DEBUG(
-                "Tail chunk is dead, restarting autotomy (BodyChunkId: %v, TailChunkId: %v)",
-                bodyChunkId,
-                tailChunkId);
+            YT_TLOG_DEBUG("Tail chunk is dead, restarting autotomy")
+                .With("BodyChunkId", bodyChunkId)
+                .With("TailChunkId", tailChunkId);
             if (IsLeader()) {
                 TouchChunk(bodyChunkId);
             }
@@ -650,10 +635,9 @@ private:
             } catch (const TErrorException& ex) {
                 // This situation is not that bad since both body and tail chunks will stay alive
                 // and still can be (unreliably) sealed to prevent data loss.
-                YT_LOG_ALERT(
-                    ex,
-                    "Failed to seal chunk (ChunkId: %v)",
-                    chunk->GetId());
+                YT_TLOG_ALERT("Failed to seal chunk")
+                    .With("ChunkId", chunk->GetId())
+                    .With(ex);
             }
         };
         sealChunk(bodyChunk, bodyChunkSealInfo);
@@ -812,17 +796,15 @@ private:
         YT_VERIFY(IsJournalChunkId(bodyChunkId));
 
         if (!IsChunkAutotomizable(bodyChunkId)) {
-            YT_LOG_DEBUG(
-                "Attempted to register non-autotomizable chunk, ignored (BodyChunkId: %v, NonAutotomicityReason: %v)",
-                bodyChunkId,
-                GetChunkNonAutotomicityReason(bodyChunkId));
+            YT_TLOG_DEBUG("Attempted to register non-autotomizable chunk, ignored")
+                .With("BodyChunkId", bodyChunkId)
+                .With("NonAutotomicityReason", GetChunkNonAutotomicityReason(bodyChunkId));
             return false;
         }
 
         if (RegisteredChunks_.contains(bodyChunkId)) {
-            YT_LOG_DEBUG(
-                "Chunk is already registered (BodyChunkId: %v)",
-                bodyChunkId);
+            YT_TLOG_DEBUG("Chunk is already registered")
+                .With("BodyChunkId", bodyChunkId);
             return false;
         }
 
@@ -831,11 +813,12 @@ private:
         };
         YT_VERIFY(RegisteredChunks_.emplace(bodyChunkId, autotomyState).second);
 
-        YT_LOG_DEBUG(
-            "Registered chunk (BodyChunkId: %v, RowCount: %v, FirstOverlayedRowIndex: %v)",
-            bodyChunkId,
-            chunkSealInfo.row_count(),
-            chunkSealInfo.has_first_overlayed_row_index() ? std::make_optional(chunkSealInfo.first_overlayed_row_index()) : std::nullopt);
+        YT_TLOG_DEBUG("Registered chunk")
+            .With("BodyChunkId", bodyChunkId)
+            .With("RowCount", chunkSealInfo.row_count())
+            .With(
+                "FirstOverlayedRowIndex",
+                chunkSealInfo.has_first_overlayed_row_index() ? std::make_optional(chunkSealInfo.first_overlayed_row_index()) : std::nullopt);
 
         return true;
     }
@@ -870,9 +853,8 @@ private:
         // Persistent actions.
         YT_VERIFY(RegisteredChunks_.erase(bodyChunkId) > 0);
 
-        YT_LOG_DEBUG(
-            "Unregistered chunk (BodyChunkId: %v)",
-            bodyChunkId);
+        YT_TLOG_DEBUG("Unregistered chunk")
+            .With("BodyChunkId", bodyChunkId);
 
         return true;
     }
@@ -882,7 +864,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
-        YT_LOG_DEBUG("Requesting to update chunk autotomizer transactions");
+        YT_TLOG_DEBUG("Requesting to update chunk autotomizer transactions");
 
         NProto::TReqUpdateChunkAutotomizerTransactions request;
 
@@ -905,12 +887,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Chunk autotomizer transaction finished "
-            "(FinishedTransactionId: %v, ChunkAutotomizerTransactionId: %v, ChunkAutotomizerPreviousTransactionId: %v)",
-            transaction->GetId(),
-            transactionId,
-            previousTransactionId);
+        YT_TLOG_DEBUG("Chunk autotomizer transaction finished")
+            .With("FinishedTransactionId", transaction->GetId())
+            .With("ChunkAutotomizerTransactionId", transactionId)
+            .With("ChunkAutotomizerPreviousTransactionId", previousTransactionId);
 
         if (IsLeader() && transaction->GetId() == transactionId) {
             UpdateTransactions();
@@ -960,10 +940,9 @@ private:
             bodyChunk->GetReplicaLagLimit());
         YT_VERIFY(IsObjectAlive(tailChunk));
 
-        YT_LOG_DEBUG(
-            "Tail chunk allocated for chunk autotomy (BodyChunkId: %v, TailChunkId: %v)",
-            bodyChunkId,
-            tailChunk->GetId());
+        YT_TLOG_DEBUG("Tail chunk allocated for chunk autotomy")
+            .With("BodyChunkId", bodyChunkId)
+            .With("TailChunkId", tailChunk->GetId());
 
         return tailChunk->GetId();
     }
@@ -977,10 +956,9 @@ private:
 
         auto tailChunkCount = GetDynamicConfig()->TailChunksPerAllocation;
 
-        YT_LOG_DEBUG(
-            "Allocating tail chunks (BodyChunkId: %v, TailChunkCount: %v)",
-            bodyChunkId,
-            tailChunkCount);
+        YT_TLOG_DEBUG("Allocating tail chunks")
+            .With("BodyChunkId", bodyChunkId)
+            .With("TailChunkCount", tailChunkCount);
 
         for (int chunkIndex = 0; chunkIndex < tailChunkCount; ++chunkIndex) {
             // Persistent actions.
@@ -1035,7 +1013,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
-        YT_LOG_DEBUG("Unstaging chunk (ChunkId: %v)", chunkId);
+        YT_TLOG_DEBUG("Unstaging chunk")
+            .With("ChunkId", chunkId);
 
         ChunksToUnstage_.push(chunkId);
     }
@@ -1057,7 +1036,8 @@ private:
             ++unstagedChunkCount;
         }
 
-        YT_LOG_DEBUG("Unstaging chunks (ChunkCount: %v)", unstagedChunkCount);
+        YT_TLOG_DEBUG("Unstaging chunks")
+            .With("ChunkCount", unstagedChunkCount);
         if (unstagedChunkCount > 0) {
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
@@ -1107,7 +1087,8 @@ private:
         auto* autotomyState = GetChunkAutotomyState(bodyChunkId);
         YT_VERIFY(autotomyState->Jobs.emplace(jobId, job).second);
 
-        YT_LOG_DEBUG("Job registered (JobId: %v)", jobId);
+        YT_TLOG_DEBUG("Job registered")
+            .With("JobId", jobId);
     }
 
     bool UnregisterJob(NChunkServer::TJobId jobId)
@@ -1127,7 +1108,8 @@ private:
         auto* autotomyState = GetChunkAutotomyState(bodyChunkId);
         YT_VERIFY(autotomyState->Jobs.erase(jobId) > 0);
 
-        YT_LOG_DEBUG("Job unregistered (JobId: %v)", jobId);
+        YT_TLOG_DEBUG("Job unregistered")
+            .With("JobId", jobId);
 
         return true;
     }
@@ -1138,7 +1120,8 @@ private:
         YT_VERIFY(IsLeader());
 
         auto chunksToTouch = std::min<int>(ChunkRefreshQueue_.size(), GetDynamicConfig()->MaxChunksPerRefresh);
-        YT_LOG_DEBUG("Refreshing chunks (ChunkCount: %v)", chunksToTouch);
+        YT_TLOG_DEBUG("Refreshing chunks")
+            .With("ChunkCount", chunksToTouch);
 
         // Fast path.
         if (chunksToTouch == 0) {
@@ -1247,14 +1230,13 @@ private:
                 speculative,
                 urgent);
 
-            YT_LOG_DEBUG("Autotomy job created "
-                "(JobId: %v, JobEpoch: %v, BodyChunkId: %v, TailChunkId: %v, Speculative: %v, Urgent: %v)",
-                jobId,
-                JobEpoch_,
-                bodyChunkId,
-                tailChunkId,
-                speculative,
-                urgent);
+            YT_TLOG_DEBUG("Autotomy job created")
+                .With("JobId", jobId)
+                .With("JobEpoch", JobEpoch_)
+                .With("BodyChunkId", bodyChunkId)
+                .With("TailChunkId", tailChunkId)
+                .With("Speculative", speculative)
+                .With("Urgent", urgent);
 
             RegisterJob(job);
 

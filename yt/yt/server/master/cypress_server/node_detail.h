@@ -175,9 +175,8 @@ public:
     void SetReachable(TCypressNode* node) override
     {
         const auto& Logger = CypressServerLogger;
-        YT_LOG_ALERT_IF(node->GetReachable(),
-            "Node is already reachable (NodeId: %v)",
-            node->GetVersionedId());
+        YT_TLOG_ALERT_IF(node->GetReachable(), "Node is already reachable")
+            .With("NodeId", node->GetVersionedId());
 
         node->SetReachable(true);
 
@@ -192,9 +191,8 @@ public:
     void SetUnreachable(TCypressNode* node) override
     {
         const auto& Logger = CypressServerLogger;
-        YT_LOG_ALERT_IF(!node->GetReachable(),
-            "Node is already unreachable (NodeId: %v)",
-            node->GetVersionedId());
+        YT_TLOG_ALERT_IF(!node->GetReachable(), "Node is already unreachable")
+            .With("NodeId", node->GetVersionedId());
 
         node->SetReachable(false);
 
@@ -430,12 +428,11 @@ protected:
         const TLockRequest& lockRequest)
     {
         const auto& Logger = CypressServerLogger;
-        YT_LOG_DEBUG(
-            "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %v)",
-            originatingNode->GetVersionedId(),
-            branchedNode->GetVersionedId(),
-            lockRequest.Mode,
-            lockRequest.Timestamp);
+        YT_TLOG_DEBUG("Node branched")
+            .With("OriginatingNodeId", originatingNode->GetVersionedId())
+            .With("BranchedNodeId", branchedNode->GetVersionedId())
+            .With("Mode", lockRequest.Mode)
+            .With("LockTimestamp", lockRequest.Timestamp);
     }
 
     virtual void DoMerge(TImpl* /*originatingNode*/, TImpl* /*branchedNode*/)
@@ -450,10 +447,9 @@ protected:
         TImpl* branchedNode)
     {
         const auto& Logger = CypressServerLogger;
-        YT_LOG_DEBUG(
-            "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
-            originatingNode->GetVersionedId(),
-            branchedNode->GetVersionedId());
+        YT_TLOG_DEBUG("Node merged")
+            .With("OriginatingNodeId", originatingNode->GetVersionedId())
+            .With("BranchedNodeId", branchedNode->GetVersionedId());
     }
 
     virtual void DoUnbranch(

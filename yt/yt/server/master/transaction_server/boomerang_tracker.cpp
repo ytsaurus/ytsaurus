@@ -125,7 +125,7 @@ void TBoomerangTracker::OnCheck()
         return;
     }
 
-    YT_LOG_DEBUG("Starting removal commit for stuck boomerang waves");
+    YT_TLOG_DEBUG("Starting removal commit for stuck boomerang waves");
 
     NProto::TReqRemoveStuckBoomerangWaves request;
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
@@ -166,11 +166,11 @@ void TBoomerangTracker::ProcessReturnedBoomerang(NProto::TReqReturnBoomerang* re
 
     auto mutationId = FromProto<TMutationId>(request->boomerang_mutation_id());
 
-    YT_LOG_DEBUG("Boomerang returned (MutationId: %v, BoomerangWaveId: %v, ReturnedBoomerangCount: %v, BoomerangWaveSize: %v)",
-        mutationId,
-        waveId,
-        returnedBoomerangCount,
-        waveSize);
+    YT_TLOG_DEBUG("Boomerang returned")
+        .With("MutationId", mutationId)
+        .With("BoomerangWaveId", waveId)
+        .With("ReturnedBoomerangCount", returnedBoomerangCount)
+        .With("BoomerangWaveSize", waveSize);
 }
 
 TBoomerangTracker::TBoomerangWaveDescriptor* TBoomerangTracker::GetOrCreateBoomerangWaveDescriptor(TBoomerangWaveId waveId, int waveSize)
@@ -185,11 +185,11 @@ TBoomerangTracker::TBoomerangWaveDescriptor* TBoomerangTracker::GetOrCreateBoome
         return &emplaceResult.first->second;
     } else {
         if (it->second.Size != waveSize) {
-            YT_LOG_ALERT("Two boomerangs from the same wave declare different wave size (BoomerangWaveId: %v, ExpectedBoomerangWaveSize: %v, ActualBoomerangWaveSize: %v, ReturnedBoomerangCount: %v)",
-                waveId,
-                it->second.Size,
-                waveSize,
-                it->second.ReturnedBoomerangCount);
+            YT_TLOG_ALERT("Two boomerangs from the same wave declare different wave size")
+                .With("BoomerangWaveId", waveId)
+                .With("ExpectedBoomerangWaveSize", it->second.Size)
+                .With("ActualBoomerangWaveSize", waveSize)
+                .With("ReturnedBoomerangCount", it->second.ReturnedBoomerangCount);
         }
         return &it->second;
     }

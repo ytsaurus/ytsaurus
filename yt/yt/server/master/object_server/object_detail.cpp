@@ -373,16 +373,13 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
 
-        YT_LOG_DEBUG_IF(
-            prerequisitesExt.revisions_size() != 0,
-            "Request contains prerequisite revisions (RequestId: %v, AuthenticationIdentity: %v, NodeId: %v, "
-            "OriginalTargetPath: %v, OriginalAdditionalPaths: %v, Revisions: %v)",
-            FromProto<TRequestId>(requestHeader.request_id()),
-            GetCurrentAuthenticationIdentity(),
-            GetId(),
-            GetOriginalRequestTargetYPath(requestHeader),
-            GetOriginalRequestAdditionalPaths(requestHeader),
-            prerequisitesExt.revisions());
+        YT_TLOG_DEBUG_IF(prerequisitesExt.revisions_size() != 0, "Request contains prerequisite revisions")
+            .With("RequestId", FromProto<TRequestId>(requestHeader.request_id()))
+            .With("AuthenticationIdentity", GetCurrentAuthenticationIdentity())
+            .With("NodeId", GetId())
+            .With("OriginalTargetPath", GetOriginalRequestTargetYPath(requestHeader))
+            .With("OriginalAdditionalPaths", GetOriginalRequestAdditionalPaths(requestHeader))
+            .With("Revisions", prerequisitesExt.revisions());
 
         objectManager->ValidatePrerequisites(
             requestHeader,

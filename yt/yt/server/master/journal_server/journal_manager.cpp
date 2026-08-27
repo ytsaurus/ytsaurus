@@ -57,9 +57,9 @@ public:
 
         trunkNode->SnapshotStatistics() = statistics;
 
-        YT_LOG_DEBUG("Journal node statistics updated (NodeId: %v, Statistics: %v)",
-            trunkNode->GetId(),
-            trunkNode->SnapshotStatistics());
+        YT_TLOG_DEBUG("Journal node statistics updated")
+            .With("NodeId", trunkNode->GetId())
+            .With("Statistics", trunkNode->SnapshotStatistics());
     }
 
     void SealJournal(
@@ -80,8 +80,8 @@ public:
             chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
         }
 
-        YT_LOG_DEBUG("Journal node sealed (NodeId: %v)",
-            trunkNode->GetId());
+        YT_TLOG_DEBUG("Journal node sealed")
+            .With("NodeId", trunkNode->GetId());
 
         if (trunkNode->IsForeign()) {
             auto req = TJournalYPathProxy::Seal(FromObjectId(trunkNode->GetId()));
@@ -126,9 +126,9 @@ public:
             DoTruncateJournal(trunkNode, desiredRowCount);
         }
 
-        YT_LOG_DEBUG("Journal node truncated (NodeId: %v, RowCount: %v)",
-            trunkNode->GetId(),
-            desiredRowCount);
+        YT_TLOG_DEBUG("Journal node truncated")
+            .With("NodeId", trunkNode->GetId())
+            .With("RowCount", desiredRowCount);
 
         if (trunkNode->IsForeign()) {
             auto req = TJournalYPathProxy::UpdateStatistics(FromObjectId(trunkNode->GetId()));
@@ -149,10 +149,9 @@ private:
 
         auto totalRowCount = chunkList->Statistics().RowCount;
         if (totalRowCount < desiredRowCount) {
-            YT_LOG_DEBUG(
-                "Journal has less rows than requested for truncation (TotalRowCount: %v, DesiredRowCount: %v)",
-                totalRowCount,
-                desiredRowCount);
+            YT_TLOG_DEBUG("Journal has less rows than requested for truncation")
+                .With("TotalRowCount", totalRowCount)
+                .With("DesiredRowCount", desiredRowCount);
             return;
         }
 
@@ -165,10 +164,9 @@ private:
         for (auto child : chunkList->Children()) {
             YT_VERIFY(appendedRowCount <= desiredRowCount);
             if (appendedRowCount == desiredRowCount) {
-                YT_LOG_DEBUG(
-                    "Dropping chunk when truncating journal (NodeId: %v, ChunkId: %v)",
-                    trunkNode->GetId(),
-                    child->GetId());
+                YT_TLOG_DEBUG("Dropping chunk when truncating journal")
+                    .With("NodeId", trunkNode->GetId())
+                    .With("ChunkId", child->GetId());
                 continue;
             }
 
@@ -177,23 +175,21 @@ private:
             auto chunkRowCount = chunk->GetRowCount();
             auto newRowCount = GetJournalRowCount(appendedRowCount, firstOverlayedRowIndex, chunkRowCount);
             if (newRowCount <= appendedRowCount) {
-                YT_LOG_DEBUG(
-                    "Dropping nested chunk (NodeId: %v, ChunkId: %v, AppendedRowCount: %v, ChunkRowCount: %v)",
-                    trunkNode->GetId(),
-                    child->GetId(),
-                    appendedRowCount,
-                    chunkRowCount);
+                YT_TLOG_DEBUG("Dropping nested chunk")
+                    .With("NodeId", trunkNode->GetId())
+                    .With("ChunkId", child->GetId())
+                    .With("AppendedRowCount", appendedRowCount)
+                    .With("ChunkRowCount", chunkRowCount);
                 continue;
             }
 
             if (newRowCount > desiredRowCount) {
                 auto rowCountToTrim = newRowCount - desiredRowCount;
-                YT_LOG_DEBUG(
-                    "Truncating trailing journal chunk (NodeId: %v, ChunkId: %v, PrevRowCount: %v, NewRowCount: %v)",
-                    trunkNode->GetId(),
-                    child->GetId(),
-                    chunkRowCount,
-                    chunkRowCount - rowCountToTrim);
+                YT_TLOG_DEBUG("Truncating trailing journal chunk")
+                    .With("NodeId", trunkNode->GetId())
+                    .With("ChunkId", child->GetId())
+                    .With("PrevRowCount", chunkRowCount)
+                    .With("NewRowCount", chunkRowCount - rowCountToTrim);
                 chunkRowCount -= rowCountToTrim;
                 newRowCount = desiredRowCount;
             }

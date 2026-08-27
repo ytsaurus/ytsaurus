@@ -234,14 +234,13 @@ private:
             OnMaintenanceUpdated(component, type, target->AsObject());
         }
 
-        YT_LOG_DEBUG(
-            "Maintenance request added (Component: %v, Address: %v, Id: %v, User: %v, Type: %v, Comment: %v)",
-            component,
-            address,
-            id,
-            user,
-            type,
-            comment);
+        YT_TLOG_DEBUG("Maintenance request added")
+            .With("Component", component)
+            .With("Address", address)
+            .With("Id", id)
+            .With("User", user)
+            .With("Type", type)
+            .With("Comment", comment);
 
         if (!IsReplicationToSecondaryMastersNeeded(component)) {
             return;
@@ -274,10 +273,10 @@ private:
 
         for (auto id : ids) {
             if (!target->MaintenanceRequests().contains(id)) {
-                YT_LOG_ALERT("Cannot remove maintenance request (Component: %v, Address: %v, Id: %v)",
-                    component,
-                    address,
-                    id);
+                YT_TLOG_ALERT("Cannot remove maintenance request")
+                    .With("Component", component)
+                    .With("Address", address)
+                    .With("Id", id);
                 continue;
             }
             if (auto type = target->RemoveMaintenance(id)) {
@@ -285,11 +284,10 @@ private:
             }
         }
 
-        YT_LOG_DEBUG(
-            "Maintenance requests removed (Component: %v, Address: %v, Ids: %v)",
-            component,
-            address,
-            ids);
+        YT_TLOG_DEBUG("Maintenance requests removed")
+            .With("Component", component)
+            .With("Address", address)
+            .With("Ids", ids);
 
         if (ids.empty() || !IsReplicationToSecondaryMastersNeeded(component)) {
             return;
@@ -414,8 +412,8 @@ private:
             component != EMaintenanceComponent::HttpProxy &&
             component != EMaintenanceComponent::RpcProxy)
         {
-            YT_LOG_ALERT("Maintenance component is not supported yet (Component: %v)",
-                component);
+            YT_TLOG_ALERT("Maintenance component is not supported yet")
+                .With("Component", component);
             return nullptr;
         }
 

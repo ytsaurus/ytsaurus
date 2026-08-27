@@ -131,9 +131,9 @@ public:
             TabletIdQueue_[bundleId].push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
             QueueSizeGauge_.Update(++TotalQueueSize_);
-            YT_LOG_DEBUG("Tablet is put into balancer queue (TableId: %v, TabletId: %v)",
-                tablet->GetTable()->GetId(),
-                tablet->GetId());
+            YT_TLOG_DEBUG("Tablet is put into balancer queue")
+                .With("TableId", tablet->GetTable()->GetId())
+                .With("TabletId", tablet->GetId());
         }
     }
 
@@ -178,14 +178,14 @@ private:
     {
         const auto& local = bundle->TabletBalancerConfig()->TabletBalancerSchedule;
         if (!local.IsEmpty()) {
-            YT_LOG_DEBUG("Using local balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
-                bundle->GetName(),
-                local.GetFormula());
+            YT_TLOG_DEBUG("Using local balancer schedule for bundle")
+                .With("BundleName", bundle->GetName())
+                .With("ScheduleFormula", local.GetFormula());
             return local;
         }
-        YT_LOG_DEBUG("Using global balancer schedule for bundle (BundleName: %v, ScheduleFormula: %v)",
-            bundle->GetName(),
-            FallbackBalancingSchedule_.GetFormula());
+        YT_TLOG_DEBUG("Using global balancer schedule for bundle")
+            .With("BundleName", bundle->GetName())
+            .With("ScheduleFormula", FallbackBalancingSchedule_.GetFormula());
         return FallbackBalancingSchedule_;
     }
 
@@ -223,9 +223,8 @@ private:
 
             // If it was nesessary but not possible to balance cells, postpone balancing to the next iteration and log it.
             if (BundlesPendingCellBalancing_.contains(bundle->GetId()) && bundle->GetActiveTabletActionCount() > 0) {
-                YT_LOG_DEBUG(
-                    "Tablet balancer did not balance cells because bundle participates in action (Bundle: %v)",
-                    bundle->GetName());
+                YT_TLOG_DEBUG("Tablet balancer did not balance cells because bundle participates in action")
+                    .With("Bundle", bundle->GetName());
                 bundlesForCellBalancingOnNextIteration.insert(bundle->GetId());
             }
         }
@@ -244,24 +243,24 @@ private:
 
         YT_PROFILE_TIMING("/tablet_server/tablet_balancer/balance_tablets") {
             for (auto* bundle : forReshard) {
-                YT_LOG_DEBUG("Balancing tablets for bundle (Bundle: %v)",
-                    bundle->GetName());
+                YT_TLOG_DEBUG("Balancing tablets for bundle")
+                    .With("Bundle", bundle->GetName());
                 BalanceTablets(bundle);
             }
         }
 
         YT_PROFILE_TIMING("/tablet_server/tablet_balancer/balance_cells_in_memory") {
             for (auto* bundle : forMove) {
-                YT_LOG_DEBUG("Balancing in memory cells for bundle (Bundle: %v)",
-                    bundle->GetName());
+                YT_TLOG_DEBUG("Balancing in memory cells for bundle")
+                    .With("Bundle", bundle->GetName());
                 ReassignInMemoryTablets(bundle);
             }
         }
 
         YT_PROFILE_TIMING("/tablet_server/tablet_balancer/balance_cells_ext_memory") {
             for (auto* bundle : forMove) {
-                YT_LOG_DEBUG("Balancing ext memory cells for bundle (Bundle: %v)",
-                    bundle->GetName());
+                YT_TLOG_DEBUG("Balancing ext memory cells for bundle")
+                    .With("Bundle", bundle->GetName());
                 ReassignExtMemoryTablets(bundle, std::nullopt);
             }
         }
@@ -304,7 +303,8 @@ private:
                 return formula.IsSatisfiedBy(CurrentTime_);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to evaluate tablet balancer schedule formula");
+            YT_TLOG_ERROR("Failed to evaluate tablet balancer schedule formula")
+                .With(ex);
             return false;
         }
     }
@@ -327,16 +327,14 @@ private:
         auto* srcCell = tablet->GetCell();
 
         auto correlationId = TGuid::Create();
-        YT_LOG_DEBUG("Tablet balancer would like to move tablet "
-            "(TableId: %v, InMemoryMode: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, "
-            "Bundle: %v, TabletBalancerCorrelationId: %v)",
-            table->GetId(),
-            table->GetInMemoryMode(),
-            tablet->GetId(),
-            srcCell->GetId(),
-            targetCellId,
-            table->TabletCellBundle()->GetName(),
-            correlationId);
+        YT_TLOG_DEBUG("Tablet balancer would like to move tablet")
+            .With("TableId", table->GetId())
+            .With("InMemoryMode", table->GetInMemoryMode())
+            .With("TabletId", tablet->GetId())
+            .With("SrcCellId", srcCell->GetId())
+            .With("DstCellId", targetCellId)
+            .With("Bundle", table->TabletCellBundle()->GetName())
+            .With("TabletBalancerCorrelationId", correlationId);
 
         TReqCreateTabletAction request;
         request.set_kind(ToProto(ETabletActionKind::Move));
@@ -360,14 +358,13 @@ private:
 
         auto* table = tablets[0]->GetTable();
         auto correlationId = TGuid::Create();
-        YT_LOG_DEBUG("Tablet balancer would like to reshard tablets "
-            "(TableId: %v, TabletIds: %v, NewTabletCount: %v, TotalSize: %v, Bundle: %v, TabletBalancerCorrelationId: %v)",
-            table->GetId(),
-            tabletIds,
-            newTabletCount,
-            size,
-            table->TabletCellBundle()->GetName(),
-            correlationId);
+        YT_TLOG_DEBUG("Tablet balancer would like to reshard tablets")
+            .With("TableId", table->GetId())
+            .With("TabletIds", tabletIds)
+            .With("NewTabletCount", newTabletCount)
+            .With("TotalSize", size)
+            .With("Bundle", table->TabletCellBundle()->GetName())
+            .With("TabletBalancerCorrelationId", correlationId);
 
         TReqCreateTabletAction request;
         request.set_kind(ToProto(ETabletActionKind::Reshard));
@@ -753,7 +750,7 @@ private:
 
         if (!Config_->EnableTabletBalancer) {
             if (Enabled_) {
-                YT_LOG_INFO("Tablet balancer disabled");
+                YT_TLOG_INFO("Tablet balancer disabled");
             }
             Enabled_ = false;
             return;
@@ -763,7 +760,7 @@ private:
 
         if (!balancerConfig->EnableTabletBalancer) {
             if (Enabled_) {
-                YT_LOG_INFO("Tablet balancer disabled");
+                YT_TLOG_INFO("Tablet balancer disabled");
             }
             Enabled_ = false;
             return;
@@ -772,7 +769,7 @@ private:
         FallbackBalancingSchedule_ = balancerConfig->TabletBalancerSchedule;
 
         if (!Enabled_) {
-            YT_LOG_INFO("Tablet balancer enabled");
+            YT_TLOG_INFO("Tablet balancer enabled");
         }
         Enabled_ = true;
     }

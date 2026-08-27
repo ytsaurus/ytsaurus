@@ -153,23 +153,29 @@ void TConsistentChunkPlacement::AddChunk(TChunk* chunk) noexcept
 
             Rings_[mediumIndex].AddFile(&placementGroup, SufficientlyLargeReplicaCount_);
 
-            YT_LOG_DEBUG("Chunk placement group created (ChunkId: %v, ConsistentReplicaPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
-                chunk->GetId(),
-                chunk->GetConsistentReplicaPlacementHash(),
-                mediumIndex,
-                chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
-                SufficientlyLargeReplicaCount_,
-                PlacementGroups_.size());
+            YT_TLOG_DEBUG("Chunk placement group created")
+                .With("ChunkId", chunk->GetId())
+                .WithFormat("ConsistentReplicaPlacementHash", "%x", chunk->GetConsistentReplicaPlacementHash())
+                .With("MediumIndex", mediumIndex)
+                .WithFormat(
+                    "ReplicationFactor",
+                    "%v(%v)",
+                    chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
+                    SufficientlyLargeReplicaCount_)
+                .With("TotalPlacementGroupCount", PlacementGroups_.size());
         } else {
             placementGroup.AddChunk(chunk);
 
-            YT_LOG_DEBUG("Chunk added to placement group (ChunkId: %v, ConsistentReplicaPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
-                chunk->GetId(),
-                chunk->GetConsistentReplicaPlacementHash(),
-                mediumIndex,
-                chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
-                SufficientlyLargeReplicaCount_,
-                PlacementGroups_.size());
+            YT_TLOG_DEBUG("Chunk added to placement group")
+                .With("ChunkId", chunk->GetId())
+                .WithFormat("ConsistentReplicaPlacementHash", "%x", chunk->GetConsistentReplicaPlacementHash())
+                .With("MediumIndex", mediumIndex)
+                .WithFormat(
+                    "ReplicationFactor",
+                    "%v(%v)",
+                    chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
+                    SufficientlyLargeReplicaCount_)
+                .With("TotalPlacementGroupCount", PlacementGroups_.size());
         }
     }
 }
@@ -199,12 +205,15 @@ void TConsistentChunkPlacement::RemoveChunk(
 
         if (it == PlacementGroups_.end()) {
             if (!missingOk) {
-                YT_LOG_ALERT("Placement group not found for the chunk (ChunkId: %v, ConsistentChunkPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v))",
-                    chunk->GetId(),
-                    chunk->GetConsistentReplicaPlacementHash(),
-                    mediumIndex,
-                    chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
-                    SufficientlyLargeReplicaCount_);
+                YT_TLOG_ALERT("Placement group not found for the chunk")
+                    .With("ChunkId", chunk->GetId())
+                    .WithFormat("ConsistentChunkPlacementHash", "%x", chunk->GetConsistentReplicaPlacementHash())
+                    .With("MediumIndex", mediumIndex)
+                    .WithFormat(
+                        "ReplicationFactor",
+                        "%v(%v)",
+                        chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
+                        SufficientlyLargeReplicaCount_);
             }
             continue;
         }
@@ -223,21 +232,27 @@ void TConsistentChunkPlacement::RemoveChunk(
             YT_VERIFY(placementGroup.Chunks().empty());
             PlacementGroups_.erase(it);
 
-            YT_LOG_DEBUG("Chunk placement group destroyed (ChunkId: %v, ConsistentChunkPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
-                chunk->GetId(),
-                chunk->GetConsistentReplicaPlacementHash(),
-                mediumIndex,
-                chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
-                SufficientlyLargeReplicaCount_,
-                PlacementGroups_.size());
+            YT_TLOG_DEBUG("Chunk placement group destroyed")
+                .With("ChunkId", chunk->GetId())
+                .WithFormat("ConsistentChunkPlacementHash", "%x", chunk->GetConsistentReplicaPlacementHash())
+                .With("MediumIndex", mediumIndex)
+                .WithFormat(
+                    "ReplicationFactor",
+                    "%v(%v)",
+                    chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
+                    SufficientlyLargeReplicaCount_)
+                .With("TotalPlacementGroupCount", PlacementGroups_.size());
         } else {
-            YT_LOG_DEBUG("Chunk removed from placement group (ChunkId: %v, ConsistentChunkPlacementHash: %x, MediumIndex: %v, ReplicationFactor: %v(%v), TotalPlacementGroupCount: %v)",
-                chunk->GetId(),
-                chunk->GetConsistentReplicaPlacementHash(),
-                mediumIndex,
-                chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
-                SufficientlyLargeReplicaCount_,
-                PlacementGroups_.size());
+            YT_TLOG_DEBUG("Chunk removed from placement group")
+                .With("ChunkId", chunk->GetId())
+                .WithFormat("ConsistentChunkPlacementHash", "%x", chunk->GetConsistentReplicaPlacementHash())
+                .With("MediumIndex", mediumIndex)
+                .WithFormat(
+                    "ReplicationFactor",
+                    "%v(%v)",
+                    chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry),
+                    SufficientlyLargeReplicaCount_)
+                .With("TotalPlacementGroupCount", PlacementGroups_.size());
         }
     }
 }
@@ -256,13 +271,13 @@ std::vector<TChunk*> TConsistentChunkPlacement::AddNode(TNode* node)
         auto oldResultSize = std::ssize(result);
         auto affectedGroupCount = DoAddNode(node, mediumIndex, tokenCount, &result);
 
-        YT_LOG_DEBUG("Node added to consistent placement ring (Node: %v, MediumIndex: %v, TokenCount: %v, AffectedPlacementGroupCount: %v, AffectedChunkCount: %v, TotalPlacementGroupCount: %v)",
-            node->GetDefaultAddress(),
-            mediumIndex,
-            tokenCount,
-            affectedGroupCount,
-            std::ssize(result) - oldResultSize,
-            PlacementGroups_.size());
+        YT_TLOG_DEBUG("Node added to consistent placement ring")
+            .With("Node", node->GetDefaultAddress())
+            .With("MediumIndex", mediumIndex)
+            .With("TokenCount", tokenCount)
+            .With("AffectedPlacementGroupCount", affectedGroupCount)
+            .With("AffectedChunkCount", std::ssize(result) - oldResultSize)
+            .With("TotalPlacementGroupCount", PlacementGroups_.size());
     }
 
     SortUnique(result);
@@ -305,13 +320,13 @@ std::vector<TChunk*> TConsistentChunkPlacement::RemoveNode(TNode* node)
         auto oldResultSize = std::ssize(result);
         auto affectedGroupCount = DoRemoveNode(node, mediumIndex, tokenCount, &result);
 
-        YT_LOG_DEBUG("Node removed from consistent placement ring (Node: %v, MediumIndex: %v, TokenCount: %v, AffectedPlacementGroupCount: %v, AffectedChunkCount: %v, TotalPlacementGroupCount: %v)",
-            node->GetDefaultAddress(),
-            mediumIndex,
-            tokenCount,
-            affectedGroupCount,
-            std::ssize(result) - oldResultSize,
-            PlacementGroups_.size());
+        YT_TLOG_DEBUG("Node removed from consistent placement ring")
+            .With("Node", node->GetDefaultAddress())
+            .With("MediumIndex", mediumIndex)
+            .With("TokenCount", tokenCount)
+            .With("AffectedPlacementGroupCount", affectedGroupCount)
+            .With("AffectedChunkCount", std::ssize(result) - oldResultSize)
+            .With("TotalPlacementGroupCount", PlacementGroups_.size());
     }
 
     SortUnique(result);
@@ -375,10 +390,10 @@ void TConsistentChunkPlacement::SetChunkReplicaCount(int replicaCount)
         mediumRing.AddFile(&group, SufficientlyLargeReplicaCount_);
     }
 
-    YT_LOG_DEBUG("CRP chunk replica count changed (OldReplicaCount: %v, NewReplicaCount: %v, PlacementGroupCount: %v)",
-        oldReplicaCount,
-        SufficientlyLargeReplicaCount_,
-        PlacementGroups_.size());
+    YT_TLOG_DEBUG("CRP chunk replica count changed")
+        .With("OldReplicaCount", oldReplicaCount)
+        .With("NewReplicaCount", SufficientlyLargeReplicaCount_)
+        .With("PlacementGroupCount", PlacementGroups_.size());
 }
 
 void TConsistentChunkPlacement::Clear()
@@ -438,11 +453,10 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
             chunk->GetConsistentReplicaPlacementHash(),
             mediumIndex});
     if (placementGroupIt == PlacementGroups_.end()) {
-        YT_LOG_ALERT("Consistent chunk placement was requested for unknown group, ignored "
-            "(ChunkId: %v, ConsistentReplicaPlacementHash: %x, MediumIndex: %v)",
-            chunk->GetId(),
-            chunk->GetConsistentReplicaPlacementHash(),
-            mediumIndex);
+        YT_TLOG_ALERT("Consistent chunk placement was requested for unknown group, ignored")
+            .With("ChunkId", chunk->GetId())
+            .WithFormat("ConsistentReplicaPlacementHash", "%x", chunk->GetConsistentReplicaPlacementHash())
+            .With("MediumIndex", mediumIndex);
         return {};
     }
     auto& placementGroup = placementGroupIt->second;
@@ -464,12 +478,11 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
     auto replicationFactor = chunk->GetPhysicalReplicationFactor(mediumIndex, requisitionRegistry);
 
     if (replicationFactor > SufficientlyLargeReplicaCount_) {
-        YT_LOG_ALERT("CRP's \"replicas_per_chunk\" parameter is less than a chunk's replication factor "
-            "(ReplicasPerChunk: %v, ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v)",
-            SufficientlyLargeReplicaCount_,
-            chunk->GetId(),
-            mediumIndex,
-            replicationFactor);
+        YT_TLOG_ALERT("CRP's \"replicas_per_chunk\" parameter is less than a chunk's replication factor")
+            .With("ReplicasPerChunk", SufficientlyLargeReplicaCount_)
+            .With("ChunkId", chunk->GetId())
+            .With("MediumIndex", mediumIndex)
+            .With("ReplicationFactor", replicationFactor);
     }
 
     TNodeList result;
@@ -495,12 +508,11 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
     if (dataNodeCount >= replicationFactor &&
         dataNodeCount >= ChunkReplicaIndexBound)
     {
-        YT_LOG_WARNING("CRP nodes do not satisfy rack awareness constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v), DataNodeCount: %v)",
-            chunk->GetId(),
-            mediumIndex,
-            replicationFactor,
-            SufficientlyLargeReplicaCount_,
-            dataNodeCount);
+        YT_TLOG_WARNING("CRP nodes do not satisfy rack awareness constraints")
+            .With("ChunkId", chunk->GetId())
+            .With("MediumIndex", mediumIndex)
+            .WithFormat("ReplicationFactor", "%v(%v)", replicationFactor, SufficientlyLargeReplicaCount_)
+            .With("DataNodeCount", dataNodeCount);
     }
 
     result.clear();
@@ -521,13 +533,12 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
     }
 
     if (dataNodeCount >= replicationFactor) {
-        YT_LOG_WARNING("CRP nodes do not satisfy clash constraints (ChunkId: %v, MediumIndex: %v, ReplicationFactor: %v(%v), DataNodeCount: %v, AllocatedTargetNodeCount: %v)",
-            chunk->GetId(),
-            mediumIndex,
-            replicationFactor,
-            SufficientlyLargeReplicaCount_,
-            dataNodeCount,
-            std::ssize(result));
+        YT_TLOG_WARNING("CRP nodes do not satisfy clash constraints")
+            .With("ChunkId", chunk->GetId())
+            .With("MediumIndex", mediumIndex)
+            .WithFormat("ReplicationFactor", "%v(%v)", replicationFactor, SufficientlyLargeReplicaCount_)
+            .With("DataNodeCount", dataNodeCount)
+            .With("AllocatedTargetNodeCount", std::ssize(result));
     }
 
     result.clear();

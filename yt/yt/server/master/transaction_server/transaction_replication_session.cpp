@@ -354,8 +354,8 @@ bool TTransactionReplicationSessionBase::IsTransactionRemote(TTransactionId tran
 
 void TTransactionReplicationSessionBase::LogAndThrowUnknownTransactionPresenceError(TTransactionId transactionId) const
 {
-    YT_LOG_DEBUG("Cannot reliably check transaction presence; probably current epoch ended; the request will be dropped (TransactionId: %v)",
-        transactionId);
+    YT_TLOG_DEBUG("Cannot reliably check transaction presence; probably current epoch ended; the request will be dropped")
+        .With("TransactionId", transactionId);
 
     // TODO(shakurov): a more specific error code?
     auto error = TError(NYT::NRpc::EErrorCode::Unavailable, "Cannot reliably check transaction presence; probably current epoch ended; the request will be dropped")
@@ -438,11 +438,9 @@ void TTransactionReplicationSessionWithoutBoomerangs::ConstructReplicationReques
 {
     auto requestIds = DoConstructReplicationRequests();
 
-    YT_LOG_DEBUG_UNLESS(
-        ReplicationRequests_.empty(),
-        "Requesting remote transaction replication (RequestIds: %v, TransactionIds: %v)",
-        requestIds,
-        RemoteTransactionIds_);
+    YT_TLOG_DEBUG_UNLESS(ReplicationRequests_.empty(), "Requesting remote transaction replication")
+        .With("RequestIds", requestIds)
+        .With("TransactionIds", RemoteTransactionIds_);
 }
 
 TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run()
@@ -525,8 +523,9 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
                             }
                             EmplaceOrCrash(result, transactionId, std::move(transactionReplicationFuture));
                         } else {
-                            YT_LOG_DEBUG(rspOrError, "Remote transaction replication failed (TransactionId: %v)",
-                                transactionId);
+                            YT_TLOG_DEBUG("Remote transaction replication failed")
+                                .With("TransactionId", transactionId)
+                                .With(rspOrError);
 
                             EmplaceOrCrash(result, transactionId, MakeFuture(TError(rspOrError)));
                         }
@@ -564,8 +563,8 @@ void TTransactionReplicationSessionWithBoomerangs::SetMutation(
 
     if (!Mutation_->GetMutationId()) {
         Mutation_->SetMutationId(GenerateMutationId(), Mutation_->IsRetry());
-        YT_LOG_DEBUG("Boomerang mutation has empty ID, forcing one (ForcedMutationId: %v)",
-            Mutation_->GetMutationId());
+        YT_TLOG_DEBUG("Boomerang mutation has empty ID, forcing one")
+            .With("ForcedMutationId", Mutation_->GetMutationId());
     }
 
     YT_VERIFY(Mutation_->GetMutationId());
@@ -639,14 +638,12 @@ void TTransactionReplicationSessionWithBoomerangs::ConstructReplicationRequests(
         fillBoomerangRequest(request.Get());
     }
 
-    YT_LOG_DEBUG_UNLESS(ReplicationRequests_.empty(),
-        "Requesting remote transaction replication (RequestIds: %v, "
-        "TransactionIds: %v, BoomerangMutationId: %v, BoomerangWaveId: %v, BoomerangWaveSize: %v)",
-        requestIds,
-        RemoteTransactionIds_,
-        Mutation_->GetMutationId(),
-        boomerangWaveId,
-        boomerangWaveSize);
+    YT_TLOG_DEBUG_UNLESS(ReplicationRequests_.empty(), "Requesting remote transaction replication")
+        .With("RequestIds", requestIds)
+        .With("TransactionIds", RemoteTransactionIds_)
+        .With("BoomerangMutationId", Mutation_->GetMutationId())
+        .With("BoomerangWaveId", boomerangWaveId)
+        .With("BoomerangWaveSize", boomerangWaveSize);
 }
 
 // TODO(shakurov): refactor. Get rid of .WithTimeout.
@@ -702,8 +699,9 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
                         continue;
                     }
 
-                    YT_LOG_DEBUG(rspOrError, "Remote transaction replication failed (TransactionId: %v)",
-                        transactionId);
+                    YT_TLOG_DEBUG("Remote transaction replication failed")
+                        .With("TransactionId", transactionId)
+                        .With(rspOrError);
                 }
             }
         }));
@@ -715,13 +713,14 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
         }
 
         for (auto transactionId : MirroredTransactionIds_) {
-            YT_LOG_DEBUG(error, "Remote transaction replication failed (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Remote transaction replication failed")
+                .With("TransactionId", transactionId)
+                .With(error);
         }
     }));
 
-    YT_LOG_DEBUG("Request is awaiting boomerang mutation to be applied (MutationId: %v)",
-        Mutation_->GetMutationId());
+    YT_TLOG_DEBUG("Request is awaiting boomerang mutation to be applied")
+        .With("MutationId", Mutation_->GetMutationId());
 
     // NB: The actual responses are irrelevant, because boomerang arrival
     // implicitly signifies a sync with corresponding cell. Absence of errors,
@@ -730,8 +729,9 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
         .Apply(BIND([this, this_ = MakeStrong(this), keptResult = std::move(keptResult)] (const TError& error) {
             auto mutationId = Mutation_->GetMutationId();
             if (!error.IsOK()) {
-                YT_LOG_DEBUG(error, "Request is no longer awaiting boomerang mutation to be applied (MutationId: %v)",
-                    mutationId);
+                YT_TLOG_DEBUG("Request is no longer awaiting boomerang mutation to be applied")
+                    .With("MutationId", mutationId)
+                    .With(error);
 
                 EndRequestInResponseKeeper(error);
 

@@ -109,7 +109,8 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
-        YT_LOG_ALERT_IF(!config->WrapObjectServiceExecuteIntoSequoiaTransaction && config->EnableSequoiaRevisions,
+        YT_TLOG_ALERT_IF(
+            !config->WrapObjectServiceExecuteIntoSequoiaTransaction && config->EnableSequoiaRevisions,
             "Sequoia revisions requires wrapping every ObjectService::Execute into Sequoia transaction");
     });
 }

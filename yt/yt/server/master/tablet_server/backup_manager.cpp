@@ -108,11 +108,9 @@ public:
         if (table->IsForeign() && transaction->IsForeign() && !transaction->IsExternalized()) {
             const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
             if (!config->EnableNonStrictExternalizedTransactionUsage) {
-                YT_LOG_ALERT(
-                    "Backup session is starting in non-externalized transaction "
-                    "(TableId: %v, TransactionId: %v)",
-                    table->GetId(),
-                    transaction->GetId());
+                YT_TLOG_ALERT("Backup session is starting in non-externalized transaction")
+                    .With("TableId", table->GetId())
+                    .With("TransactionId", transaction->GetId());
             }
         }
 
@@ -121,17 +119,17 @@ public:
             THROW_ERROR_EXCEPTION("Backups are disabled");
         }
 
-        YT_LOG_DEBUG(
-            "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %v, "
-            "BackupMode: %v, ClockClusterTag: %v, BackupableReplicaIds: %v)",
-            table->GetId(),
-            transaction->GetId(),
-            timestamp,
-            backupMode,
-            clockClusterTag,
-            MakeFormattableView(replicaBackupDescriptors, [] (auto* builder, const auto& descriptor) {
-                builder->AppendFormat("%v", descriptor.ReplicaId);
-            }));
+        YT_TLOG_DEBUG("Setting backup checkpoint")
+            .With("TableId", table->GetId())
+            .With("TransactionId", transaction->GetId())
+            .With("CheckpointTimestamp", timestamp)
+            .With("BackupMode", backupMode)
+            .With("ClockClusterTag", clockClusterTag)
+            .With(
+                "BackupableReplicaIds",
+                MakeFormattableView(replicaBackupDescriptors, [] (auto* builder, const auto& descriptor) {
+                    builder->AppendFormat("%v", descriptor.ReplicaId);
+                }));
 
         if (timestamp == NullTimestamp) {
             THROW_ERROR_EXCEPTION("Checkpoint timestamp cannot be null");
@@ -232,13 +230,12 @@ public:
 
                 ToProto(req.mutable_replicas(), replicaBackupDescriptors);
 
-                YT_LOG_DEBUG(
-                    "Setting backup checkpoint (TableId: %v, TabletId: %v, TransactionId: %v, CellId: %v, AllocatedDynamicStoreId: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    transaction->GetId(),
-                    cell->GetId(),
-                    allocatedDynamicStoreId);
+                YT_TLOG_DEBUG("Setting backup checkpoint")
+                    .With("TableId", table->GetId())
+                    .With("TabletId", tablet->GetId())
+                    .With("TransactionId", transaction->GetId())
+                    .With("CellId", cell->GetId())
+                    .With("AllocatedDynamicStoreId", allocatedDynamicStoreId);
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
                 auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
@@ -260,13 +257,14 @@ public:
         TTransaction* transaction,
         std::vector<TTableReplicaBackupDescriptor> replicaBackupDescriptors) override
     {
-        YT_LOG_DEBUG("Starting restore from backup (TableId: %v, TransactionId: %v, "
-            "BackupableReplicaIds: %v)",
-            table->GetId(),
-            transaction->GetId(),
-            MakeFormattableView(replicaBackupDescriptors, [] (auto* builder, const auto& descriptor) {
-                builder->AppendFormat("%v", descriptor.ReplicaId);
-            }));
+        YT_TLOG_DEBUG("Starting restore from backup")
+            .With("TableId", table->GetId())
+            .With("TransactionId", transaction->GetId())
+            .With(
+                "BackupableReplicaIds",
+                MakeFormattableView(replicaBackupDescriptors, [] (auto* builder, const auto& descriptor) {
+                    builder->AppendFormat("%v", descriptor.ReplicaId);
+                }));
 
         if (table->IsReplicated()) {
             ValidateReplicasAssociation(table, replicaBackupDescriptors, /*validateModes*/ false);
@@ -290,25 +288,20 @@ public:
                 tablet->GetBackupState() != ETabletBackupState::CheckpointRejected &&
                 tablet->GetBackupState() != ETabletBackupState::CheckpointInterrupted)
             {
-                YT_LOG_DEBUG(
-                    "Attempted to release backup checkpoint from a tablet "
-                    "in wrong backup state (TableId: %v, TabletId: %v, TransactionId: %v, "
-                    "BackupState: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    transaction->GetId(),
-                    tablet->GetBackupState());
+                YT_TLOG_DEBUG("Attempted to release backup checkpoint from a tablet in wrong backup state")
+                    .With("TableId", table->GetId())
+                    .With("TabletId", tablet->GetId())
+                    .With("TransactionId", transaction->GetId())
+                    .With("BackupState", tablet->GetBackupState());
                 continue;
             }
 
             if (tablet->GetBackupState() == ETabletBackupState::CheckpointInterrupted) {
-                YT_LOG_DEBUG(
-                    "Will not release backup checkpoint from the tablet whose backup was interrupted "
-                    "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    tablet->GetBackupState(),
-                    transaction->GetId());
+                YT_TLOG_DEBUG("Will not release backup checkpoint from the tablet whose backup was interrupted")
+                    .With("TableId", table->GetId())
+                    .With("TabletId", tablet->GetId())
+                    .With("BackupState", tablet->GetBackupState())
+                    .With("TransactionId", transaction->GetId());
             } else {
                 auto* cell = tablet->GetCell();
 
@@ -317,27 +310,23 @@ public:
                     ToProto(req.mutable_tablet_id(), tablet->GetId());
                     req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
 
-                    YT_LOG_DEBUG(
-                        "Releasing backup checkpoint (TableId: %v, TabletId: %v, "
-                        "BackupState: %v, TransactionId: %v, CellId: %v)",
-                        table->GetId(),
-                        tablet->GetId(),
-                        tablet->GetBackupState(),
-                        transaction->GetId(),
-                        cell->GetId());
+                    YT_TLOG_DEBUG("Releasing backup checkpoint")
+                        .With("TableId", table->GetId())
+                        .With("TabletId", tablet->GetId())
+                        .With("BackupState", tablet->GetBackupState())
+                        .With("TransactionId", transaction->GetId())
+                        .With("CellId", cell->GetId());
 
                     const auto& hiveManager = Bootstrap_->GetHiveManager();
                     auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
                     hiveManager->PostMessage(mailbox, req);
                 } else {
                     // Backup could start when the tablet was not mounted.
-                    YT_LOG_DEBUG(
-                        "Attempted to release backup checkpoint from a tablet without cell "
-                        "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
-                        table->GetId(),
-                        tablet->GetId(),
-                        tablet->GetBackupState(),
-                        transaction->GetId());
+                    YT_TLOG_DEBUG("Attempted to release backup checkpoint from a tablet without cell")
+                        .With("TableId", table->GetId())
+                        .With("TabletId", tablet->GetId())
+                        .With("BackupState", tablet->GetBackupState())
+                        .With("TransactionId", transaction->GetId());
                 }
             }
 
@@ -345,11 +334,9 @@ public:
         }
 
         if (!transaction->TablesWithBackupCheckpoints().contains(table)) {
-            YT_LOG_ALERT(
-                "Attempted to remove unknown backup checkpoint table from "
-                "a transaction (TableId: %v, TransactionId: %v)",
-                table->GetId(),
-                transaction->GetId());
+            YT_TLOG_ALERT("Attempted to remove unknown backup checkpoint table from a transaction")
+                .With("TableId", table->GetId())
+                .With("TransactionId", transaction->GetId());
         } else {
             EraseOrCrash(transaction->TablesWithBackupCheckpoints(), table);
         }
@@ -367,13 +354,12 @@ public:
         int rejectedCount = tabletCountByState[ETabletBackupState::CheckpointRejected];
         int interruptedCount = tabletCountByState[ETabletBackupState::CheckpointInterrupted];
 
-        YT_LOG_DEBUG("Backup checkpoint checked (TableId: %v, "
-            "PendingCount: %v, ConfirmedCount: %v, RejectedCount: %v, InterruptedCount: %v)",
-            table->GetId(),
-            pendingCount,
-            confirmedCount,
-            rejectedCount,
-            interruptedCount);
+        YT_TLOG_DEBUG("Backup checkpoint checked")
+            .With("TableId", table->GetId())
+            .With("PendingCount", pendingCount)
+            .With("ConfirmedCount", confirmedCount)
+            .With("RejectedCount", rejectedCount)
+            .With("InterruptedCount", interruptedCount);
 
         if (rejectedCount + interruptedCount > 0) {
             auto error = TError(
@@ -412,34 +398,26 @@ public:
             if (sourceTablet->GetBackupState() == ETabletBackupState::CheckpointConfirmed) {
                 clonedTablet->SetBackupState(ETabletBackupState::BackupStarted);
             } else {
-                YT_LOG_DEBUG(
-                    "Failed to clone tablet in backup mode since it is "
-                    "in invalid backup state (SourceTabletId: %v, DestinationTabletId: %v, "
-                    "SourceTableId: %v, DestinationTableId: %v, ExpectedState: %v, "
-                    "ActualState: %v)",
-                    sourceTablet->GetId(),
-                    clonedTablet->GetId(),
-                    sourceTablet->GetTable()->GetId(),
-                    clonedTablet->GetTable()->GetId(),
-                    ETabletBackupState::CheckpointConfirmed,
-                    sourceTablet->GetBackupState());
+                YT_TLOG_DEBUG("Failed to clone tablet in backup mode since it is in invalid backup state")
+                    .With("SourceTabletId", sourceTablet->GetId())
+                    .With("DestinationTabletId", clonedTablet->GetId())
+                    .With("SourceTableId", sourceTablet->GetTable()->GetId())
+                    .With("DestinationTableId", clonedTablet->GetTable()->GetId())
+                    .With("ExpectedState", ETabletBackupState::CheckpointConfirmed)
+                    .With("ActualState", sourceTablet->GetBackupState());
                 clonedTablet->SetBackupState(ETabletBackupState::BackupFailed);
             }
         } else if (mode == ENodeCloneMode::Restore) {
             if (sourceTablet->GetBackupState() == ETabletBackupState::BackupCompleted) {
                 clonedTablet->SetBackupState(ETabletBackupState::RestoreStarted);
             } else {
-                YT_LOG_DEBUG(
-                    "Failed to clone tablet in restore mode since it is "
-                    "in invalid backup state (SourceTabletId: %v, DestinationTabletId: %v, "
-                    "SourceTableId: %v, DestinationTableId: %v, ExpectedState: %v, "
-                    "ActualState: %v)",
-                    sourceTablet->GetId(),
-                    clonedTablet->GetId(),
-                    sourceTablet->GetTable()->GetId(),
-                    clonedTablet->GetTable()->GetId(),
-                    ETabletBackupState::BackupCompleted,
-                    sourceTablet->GetBackupState());
+                YT_TLOG_DEBUG("Failed to clone tablet in restore mode since it is in invalid backup state")
+                    .With("SourceTabletId", sourceTablet->GetId())
+                    .With("DestinationTabletId", clonedTablet->GetId())
+                    .With("SourceTableId", sourceTablet->GetTable()->GetId())
+                    .With("DestinationTableId", clonedTablet->GetTable()->GetId())
+                    .With("ExpectedState", ETabletBackupState::BackupCompleted)
+                    .With("ActualState", sourceTablet->GetBackupState());
                 clonedTablet->SetBackupState(ETabletBackupState::RestoreFailed);
             }
         } else {
@@ -511,10 +489,9 @@ public:
         }
 
         table->SetAggregatedTabletBackupState(*aggregate);
-        YT_LOG_DEBUG(
-            "Updated aggregated backup state (TableId: %v, BackupState: %v)",
-            table->GetId(),
-            *aggregate);
+        YT_TLOG_DEBUG("Updated aggregated backup state")
+            .With("TableId", table->GetId())
+            .With("BackupState", *aggregate);
     }
 
     void OnBackupInterruptedByUnmount(TTablet* tablet) override
@@ -533,9 +510,9 @@ public:
             .With("table_path", table->GetMountPath());
         RegisterBackupError(tablet->GetTable(), error);
 
-        YT_LOG_DEBUG("Tablet backup interrupted by unmount (TableId: %v, TabletId: %v)",
-            table->GetId(),
-            tablet->GetId());
+        YT_TLOG_DEBUG("Tablet backup interrupted by unmount")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId());
 
         tablet->SetBackupState(ETabletBackupState::CheckpointInterrupted);
         UpdateAggregatedBackupState(table);
@@ -558,10 +535,9 @@ private:
 
             auto* tabletBase = tabletManager->FindTablet(tabletId);
             if (!IsObjectAlive(tabletBase)) {
-                YT_LOG_DEBUG(
-                    "Cannot finish backup since tablet is missing (TabletId: %v, TransactionId: %v)",
-                    tabletId,
-                    transactionId);
+                YT_TLOG_DEBUG("Cannot finish backup since tablet is missing")
+                    .With("TabletId", tabletId)
+                    .With("TransactionId", transactionId);
                 continue;
             }
 
@@ -569,11 +545,9 @@ private:
             auto* tablet = tabletBase->As<TTablet>();
 
             if (!tablet->GetTable()) {
-                YT_LOG_DEBUG(
-                    "Cannot finish backup since tablet lacks table "
-                    "(TabletId: %v, TransactionId: %v)",
-                    tabletId,
-                    transactionId);
+                YT_TLOG_DEBUG("Cannot finish backup since tablet lacks table")
+                    .With("TabletId", tabletId)
+                    .With("TransactionId", transactionId);
                 continue;
             }
 
@@ -581,23 +555,20 @@ private:
                 YT_VERIFY(table == tablet->GetTable());
             } else {
                 table = tablet->GetTable();
-                YT_LOG_DEBUG(
-                    "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %v, BackupMode: %v)",
-                    table->GetId(),
-                    transactionId,
-                    table->GetBackupCheckpointTimestamp(),
-                    table->GetBackupMode());
+                YT_TLOG_DEBUG("Finishing table backup")
+                    .With("TableId", table->GetId())
+                    .With("TransactionId", transactionId)
+                    .With("Timestamp", table->GetBackupCheckpointTimestamp())
+                    .With("BackupMode", table->GetBackupMode());
             }
 
             if (tablet->GetBackupState() != ETabletBackupState::BackupStarted) {
-                YT_LOG_WARNING(
-                    "Attempted to finish backup of the tablet in invalid state "
-                    "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v, BackupMode: %v)",
-                    table->GetId(),
-                    tabletId,
-                    tablet->GetBackupState(),
-                    transactionId,
-                    table->GetBackupMode());
+                YT_TLOG_WARNING("Attempted to finish backup of the tablet in invalid state")
+                    .With("TableId", table->GetId())
+                    .With("TabletId", tabletId)
+                    .With("BackupState", tablet->GetBackupState())
+                    .With("TransactionId", transactionId)
+                    .With("BackupMode", table->GetBackupMode());
                 continue;
             }
 
@@ -624,9 +595,9 @@ private:
                     auto error = tabletChunkManager->ApplyBackupCutoff(tablet);
 
                     if (!error.IsOK()) {
-                        YT_LOG_DEBUG(error,
-                            "Failed to apply cutoff row index to tablet (TabletId: %v)",
-                            tablet->GetId());
+                        YT_TLOG_DEBUG("Failed to apply cutoff row index to tablet")
+                            .With("TabletId", tablet->GetId())
+                            .With(error);
                         RegisterBackupError(table, error);
                         tablet->SetBackupState(ETabletBackupState::BackupFailed);
                     }
@@ -663,10 +634,9 @@ private:
 
             auto* tabletBase = tabletManager->FindTablet(tabletId);
             if (!IsObjectAlive(tabletBase)) {
-                YT_LOG_DEBUG(
-                    "Cannot finish restore since tablet is missing (TabletId: %v, TransactionId: %v)",
-                    tabletId,
-                    transactionId);
+                YT_TLOG_DEBUG("Cannot finish restore since tablet is missing")
+                    .With("TabletId", tabletId)
+                    .With("TransactionId", transactionId);
                 return;
             }
 
@@ -674,11 +644,9 @@ private:
             auto* tablet = tabletBase->As<TTablet>();
 
             if (!tablet->GetTable()) {
-                YT_LOG_DEBUG(
-                    "Cannot finish restore since tablet lacks table "
-                    "(TabletId: %v, TransactionId: %v)",
-                    tabletId,
-                    transactionId);
+                YT_TLOG_DEBUG("Cannot finish restore since tablet lacks table")
+                    .With("TabletId", tabletId)
+                    .With("TransactionId", transactionId);
                 continue;
             }
 
@@ -689,13 +657,11 @@ private:
             }
 
             if (tablet->GetBackupState() != ETabletBackupState::RestoreStarted) {
-                YT_LOG_WARNING(
-                    "Attempted to finish restore of the tablet in invalid state "
-                    "(TableId: %v, TabletId: %v, BackupState: %v, TransactionId: %v)",
-                    table->GetId(),
-                    tabletId,
-                    tablet->GetBackupState(),
-                    transactionId);
+                YT_TLOG_WARNING("Attempted to finish restore of the tablet in invalid state")
+                    .With("TableId", table->GetId())
+                    .With("TabletId", tabletId)
+                    .With("BackupState", tablet->GetBackupState())
+                    .With("TransactionId", transactionId);
                 return;
             }
 
@@ -706,11 +672,11 @@ private:
                     ETabletBackupState::RestoreStarted,
                     ETabletBackupState::None);
             } else {
-                YT_LOG_DEBUG(error,
-                    "Failed to restore the tablet from backup (TableId: %v, TabletId: %v, TransactionId: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    transactionId);
+                YT_TLOG_DEBUG("Failed to restore the tablet from backup")
+                    .With("TableId", table->GetId())
+                    .With("TabletId", tablet->GetId())
+                    .With("TransactionId", transactionId)
+                    .With(error);
                 tablet->CheckedSetBackupState(
                     ETabletBackupState::RestoreStarted,
                     ETabletBackupState::RestoreFailed);
@@ -733,9 +699,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Table backup mode reset (TableId: %v)",
-            tableId);
+        YT_TLOG_DEBUG("Table backup mode reset")
+            .With("TableId", tableId);
         auto* tableNode = node->As<TTableNode>();
         tableNode->SetBackupMode(EBackupMode::None);
     }
@@ -758,11 +723,9 @@ private:
         }
 
         if (tablet->GetBackupState() != ETabletBackupState::CheckpointRequested) {
-            YT_LOG_DEBUG(
-                "Backup checkpoint passage reported to a tablet in "
-                "wrong backup state, ignored (TabletId: %v, BackupState: %v)",
-                tablet->GetId(),
-                tablet->GetBackupState());
+            YT_TLOG_DEBUG("Backup checkpoint passage reported to a tablet in wrong backup state, ignored")
+                .With("TabletId", tablet->GetId())
+                .With("BackupState", tablet->GetBackupState());
             return;
         }
 
@@ -790,23 +753,20 @@ private:
                 }
             }
 
-            YT_LOG_DEBUG(
-                "Backup checkpoint confirmed by the tablet cell "
-                "(TableId: %v, TabletId: %v, CutoffDescriptor: %v, Replicas: %v)",
-                tablet->GetTable()->GetId(),
-                tablet->GetId(),
-                tablet->BackupCutoffDescriptor(),
-                replicaLogStrings);
+            YT_TLOG_DEBUG("Backup checkpoint confirmed by the tablet cell")
+                .With("TableId", tablet->GetTable()->GetId())
+                .With("TabletId", tablet->GetId())
+                .With("CutoffDescriptor", tablet->BackupCutoffDescriptor())
+                .With("Replicas", replicaLogStrings);
             tablet->CheckedSetBackupState(
                 ETabletBackupState::CheckpointRequested,
                 ETabletBackupState::CheckpointConfirmed);
         } else {
             auto error = FromProto<TError>(response->error());
-            YT_LOG_DEBUG(error,
-                "Backup checkpoint rejected by the tablet cell "
-                "(TableId: %v, TabletId: %v)",
-                tablet->GetTable()->GetId(),
-                tablet->GetId());
+            YT_TLOG_DEBUG("Backup checkpoint rejected by the tablet cell")
+                .With("TableId", tablet->GetTable()->GetId())
+                .With("TabletId", tablet->GetId())
+                .With(error);
             RegisterBackupError(tablet->GetTable(), error);
             tablet->CheckedSetBackupState(
                 ETabletBackupState::CheckpointRequested,
@@ -857,9 +817,9 @@ private:
         };
 
         for (auto tablet : table->GetTrunkNode()->Tablets()) {
-            YT_LOG_DEBUG("Schedule backup task for tablet (Task: %v, TabletId: %v)",
-                taskName,
-                tablet->GetId());
+            YT_TLOG_DEBUG("Schedule backup task for tablet")
+                .With("Task", taskName)
+                .With("TabletId", tablet->GetId());
             ToProto(currentReq.add_tablet_ids(), tablet->GetId());
 
             storeCount += tablet->GetChunkList()->Statistics().ChunkCount;
@@ -892,11 +852,9 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG(
-                "Releasing backup checkpoint on transaction abort (TableId: %v, "
-                "TransactionId: %v)",
-                table->GetId(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Releasing backup checkpoint on transaction abort")
+                .With("TableId", table->GetId())
+                .With("TransactionId", transaction->GetId());
             ReleaseBackupCheckpoint(table, transaction);
             table->MutableBackupError() = {};
         }
@@ -908,20 +866,17 @@ private:
             return;
         }
 
-        YT_LOG_ALERT(
-            "Table backup transaction was committed manually before cloning (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_ALERT("Table backup transaction was committed manually before cloning")
+            .With("TransactionId", transaction->GetId());
 
         for (auto table : GetValuesSortedByKey(transaction->TablesWithBackupCheckpoints())) {
             if (!IsObjectAlive(table)) {
                 continue;
             }
 
-            YT_LOG_DEBUG(
-                "Releasing backup checkpoint on manual transaction commit (TableId: %v, "
-                "TransactionId: %v)",
-                table->GetId(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Releasing backup checkpoint on manual transaction commit")
+                .With("TableId", table->GetId())
+                .With("TransactionId", transaction->GetId());
             ReleaseBackupCheckpoint(table, transaction);
             table->MutableBackupError() = {};
         }

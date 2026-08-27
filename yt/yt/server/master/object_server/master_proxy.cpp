@@ -129,8 +129,8 @@ private:
 
             if (*optionalExistingObject) {
                 object = *optionalExistingObject;
-                YT_LOG_DEBUG("Existing object returned (Id: %v)",
-                    object->GetId());
+                YT_TLOG_DEBUG("Existing object returned")
+                    .With("Id", object->GetId());
             }
         }
 
@@ -140,9 +140,9 @@ private:
                 type,
                 attributes.Get());
 
-            YT_LOG_DEBUG("Object created (Id: %v, Type: %v)",
-                object->GetId(),
-                type);
+            YT_TLOG_DEBUG("Object created")
+                .With("Id", object->GetId())
+                .With("Type", type);
         }
 
         ToProto(response->mutable_object_id(), object->GetId());

@@ -308,10 +308,9 @@ void TChunkList::SetKind(EChunkListKind kind)
 TKeyBound TChunkList::GetPivotKeyBound() const
 {
     if (IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method GetPivotKeyBound that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method GetPivotKeyBound that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         return TKeyBound::MakeUniversal(/*isUpper*/ false);
     }
 
@@ -351,10 +350,9 @@ TChunkList::TAppendTabletChunkLists TChunkList::GetAppendTabletChunkLists() cons
 TChunkTreeStatistics& TChunkList::Statistics()
 {
     if (IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method Statistics that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method Statistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         static TChunkTreeStatistics nullStatistics;
         return nullStatistics;
     }
@@ -365,10 +363,9 @@ TChunkTreeStatistics& TChunkList::Statistics()
 const TChunkTreeStatistics& TChunkList::Statistics() const
 {
     if (IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method Statistics that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method Statistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         static TChunkTreeStatistics nullStatistics;
         return nullStatistics;
     }
@@ -379,10 +376,9 @@ const TChunkTreeStatistics& TChunkList::Statistics() const
 TLegacyOwningKey TChunkList::GetPivotKey() const
 {
     if (IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method GetPivotKey that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method GetPivotKey that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         return {};
     }
 
@@ -392,10 +388,9 @@ TLegacyOwningKey TChunkList::GetPivotKey() const
 void TChunkList::SetPivotKey(TLegacyOwningKey pivotKey)
 {
     if (IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method SetPivotKey that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method SetPivotKey that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         return;
     }
 
@@ -484,10 +479,9 @@ bool TChunkList::HasChildToIndexMapping() const
 bool TChunkList::HasChild(TChunkTree* child) const
 {
     if (!HasChildToIndexMapping()) {
-        YT_LOG_ALERT("Accessed chunk list method HasChild that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method HasChild that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         return false;
     }
 
@@ -497,10 +491,9 @@ bool TChunkList::HasChild(TChunkTree* child) const
 const THunkChunkTreeStatistics& TChunkList::HunkStatistics() const
 {
     if (!IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method HunkStatistics that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method HunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         static THunkChunkTreeStatistics nullStatistics;
         return nullStatistics;
     }
@@ -511,10 +504,9 @@ const THunkChunkTreeStatistics& TChunkList::HunkStatistics() const
 void TChunkList::AccumulateHunkStatistics(TChunk* chunk, bool force)
 {
     if (!IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method AccumulateHunkStatistics that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method AccumulateHunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         return;
     }
 
@@ -535,10 +527,9 @@ void TChunkList::AccumulateHunkStatistics(TChunk* chunk, bool force)
 void TChunkList::DeaccumulateHunkStatistics(TChunk* chunk)
 {
     if (!IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method DeaccumulateHunkStatistics that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method DeaccumulateHunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         return;
     }
 
@@ -557,10 +548,9 @@ void TChunkList::DeaccumulateHunkStatistics(TChunk* chunk)
 void TChunkList::ResetHunkStatistics()
 {
     if (!IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT("Accessed chunk list method ResetHunkStatistics that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method ResetHunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         return;
     }
 
@@ -573,12 +563,11 @@ void TChunkList::CopyHunkStatistics(TChunkList* other)
     if (!IsHunkRelated() ||
         other->GetKind() != GetKind()) [[unlikely]]
     {
-        YT_LOG_ALERT("Accessed chunk list method CopyHunkStatistics that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v, OtherChunkListId: %v, OtherChunkListKind: %v)",
-            GetId(),
-            GetKind(),
-            other->GetId(),
-            other->GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method CopyHunkStatistics that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind())
+            .With("OtherChunkListId", other->GetId())
+            .With("OtherChunkListKind", other->GetKind());
         return;
     }
 
@@ -591,11 +580,9 @@ void TChunkList::CopyHunkStatistics(TChunkList* other)
 void TChunkList::AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSizeDelta)
 {
     if (!IsHunkRelated()) [[unlikely]] {
-        YT_LOG_ALERT(
-            "Accessed chunk list method AccumulateNewlyReferencedHunkDataSize that requires it to be of a different kind "
-            "(ChunkListId: %v, Kind: %v)",
-            GetId(),
-            GetKind());
+        YT_TLOG_ALERT("Accessed chunk list method AccumulateNewlyReferencedHunkDataSize that requires it to be of a different kind")
+            .With("ChunkListId", GetId())
+            .With("Kind", GetKind());
         return;
     }
 
@@ -622,12 +609,11 @@ void TChunkList::AccumulateNewlyReferencedHunkDataSize(TChunk* chunk, i64 dataSi
     // NB: We do not check ReferencedErasureDiskSpace field because it is unreliable
     // due to integer arithmetics in ComputeDiskSpaceFromDataSize.
     if (hunkTraits.Statistics.ReferencedRegularDiskSpace < 0) {
-        YT_LOG_ALERT("Encountered inconsistent referenced disk space upon referencing hunk data in a chunk list "
-            "(ChunkListId: %v, ChunkId: %v, DataSizeDelta: %v, Statistics: %v)",
-            GetId(),
-            chunk->GetId(),
-            dataSizeDelta,
-            hunkTraits.Statistics);
+        YT_TLOG_ALERT("Encountered inconsistent referenced disk space upon referencing hunk data in a chunk list")
+            .With("ChunkListId", GetId())
+            .With("ChunkId", chunk->GetId())
+            .With("DataSizeDelta", dataSizeDelta)
+            .With("Statistics", hunkTraits.Statistics);
     }
 }
 

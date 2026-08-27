@@ -219,12 +219,11 @@ public:
 
         YT_VERIFY(EntranceNodes_.emplace(trunkNode->GetId(), trunkNode).second);
 
-        YT_LOG_DEBUG(
-            "Portal entrance registered (EntranceNodeId: %v, ExitCellTag: %v, Account: %v, Path: %v)",
-            trunkNode->GetId(),
-            trunkNode->GetExitCellTag(),
-            trunkNode->Account()->GetName(),
-            path);
+        YT_TLOG_DEBUG("Portal entrance registered")
+            .With("EntranceNodeId", trunkNode->GetId())
+            .With("ExitCellTag", trunkNode->GetExitCellTag())
+            .With("Account", trunkNode->Account()->GetName())
+            .With("Path", path);
     }
 
     void DestroyEntranceNode(TPortalEntranceNode* trunkNode) override
@@ -241,8 +240,8 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, trunkNode->GetExitCellTag());
 
-        YT_LOG_DEBUG("Portal entrance unregistered (NodeId: %v)",
-            trunkNode->GetId());
+        YT_TLOG_DEBUG("Portal entrance unregistered")
+            .With("NodeId", trunkNode->GetId());
     }
 
     void DestroyExitNode(TPortalExitNode* trunkNode) override
@@ -259,8 +258,8 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, trunkNode->GetEntranceCellTag());
 
-        YT_LOG_DEBUG("Portal exit unregistered (NodeId: %v)",
-            trunkNode->GetId());
+        YT_TLOG_DEBUG("Portal exit unregistered")
+            .With("NodeId", trunkNode->GetId());
     }
 
     const TEntranceNodeMap& GetEntranceNodes() override
@@ -287,11 +286,9 @@ public:
     void ValidateNoNodesBehindRemovedMastersPortal(const TCellTagSet& removedMasterCellTags) const override
     {
         for (const auto& [_, node] : EntranceNodes_) {
-            YT_LOG_FATAL_IF(
-                removedMasterCellTags.contains(node->GetExitCellTag()),
-                "Master cell with node behind the portal was removed (CellTag: %v, NodeId: %v)",
-                node->GetExitCellTag(),
-                node->GetId());
+            YT_TLOG_FATAL_IF(removedMasterCellTags.contains(node->GetExitCellTag()), "Master cell with node behind the portal was removed")
+                .With("CellTag", node->GetExitCellTag())
+                .With("NodeId", node->GetId());
         }
     }
 
@@ -348,8 +345,8 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* owner = securityManager->FindSubjectByNameOrAlias(ownerName, /*activeLifeStageOnly*/ false);
         if (!owner) {
-            YT_LOG_ALERT("Serialized subject is missing (SubjectNameOrAlias: %v)",
-                ownerName);
+            YT_TLOG_ALERT("Serialized subject is missing")
+                .With("SubjectNameOrAlias", ownerName);
         }
 
         return owner;
@@ -365,8 +362,8 @@ private:
             auto nodeId = FromProto<TObjectId>(portalExitInfo.node_id());
             auto it = ExitNodes_.find(nodeId);
             if (it == ExitNodes_.end()) {
-                YT_LOG_ERROR("Skipping unknown portal exit synchronization (NodeId: %v)",
-                    nodeId);
+                YT_TLOG_ERROR("Skipping unknown portal exit synchronization")
+                    .With("NodeId", nodeId);
                 continue;
             }
 
@@ -426,15 +423,16 @@ private:
 
                 ++synchronizedPortalsCount;
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Portal exit synchronization failed (ExitNodeId: %v)",
-                    nodeId);
+                YT_TLOG_ERROR("Portal exit synchronization failed")
+                    .With("ExitNodeId", nodeId)
+                    .With(ex);
                 continue;
             }
         }
 
-        YT_LOG_DEBUG("Portals were synchronized (SuccessCount: %v, FailureCount: %v)",
-            synchronizedPortalsCount,
-            request->portal_infos().size() - synchronizedPortalsCount);;
+        YT_TLOG_DEBUG("Portals were synchronized")
+            .With("SuccessCount", synchronizedPortalsCount)
+            .With("FailureCount", request->portal_infos().size() - synchronizedPortalsCount);
     }
 
     static void SanitizePortalExitExplicitAttributes(IAttributeDictionary* attributes)
@@ -553,9 +551,9 @@ private:
             handler->FillAttributes(node, inheritedAttributes.Get(), explicitAttributes.Get());
         } catch (const std::exception&) {
             // Unfortunately, we cannot cancel portal exit creation, so we just leave it with incorrect attributes.
-            YT_LOG_ALERT("Invalid portal exit attributes; portal exit created with empty attributes (EntranceNodeId: %v, ExitNodeId: %v)",
-                entranceNodeId,
-                exitNodeId);
+            YT_TLOG_ALERT("Invalid portal exit attributes; portal exit created with empty attributes")
+                .With("EntranceNodeId", entranceNodeId)
+                .With("ExitNodeId", exitNodeId);
         }
 
         node->SetReachable(true);
@@ -571,11 +569,11 @@ private:
 
         EmplaceOrCrash(ExitNodes_, node->GetId(), node);
 
-        YT_LOG_DEBUG("Portal exit registered (ExitNodeId: %v, ShardId: %v, Account: %v, Path: %v)",
-            exitNodeId,
-            shard->GetId(),
-            account->GetName(),
-            path);
+        YT_TLOG_DEBUG("Portal exit registered")
+            .With("ExitNodeId", exitNodeId)
+            .With("ShardId", shard->GetId())
+            .With("Account", account->GetName())
+            .With("Path", path);
     }
 
     void HydraRemovePortalEntrance(NProto::TReqRemovePortalEntrance* request)
@@ -587,22 +585,22 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedObjectId(entranceNodeId));
         if (!IsObjectAlive(node)) {
-            YT_LOG_DEBUG("Attempt to remove a non-existing portal entrance node (EntranceNodeId: %v)",
-                entranceNodeId);
+            YT_TLOG_DEBUG("Attempt to remove a non-existing portal entrance node")
+                .With("EntranceNodeId", entranceNodeId);
             return;
         }
 
         auto* entranceNode = node->As<TPortalEntranceNode>();
         if (entranceNode->GetRemovalStarted()) {
-            YT_LOG_DEBUG("Attempt to remove a portal entrance node for which removal is already started (EntranceNodeId: %v)",
-                entranceNodeId);
+            YT_TLOG_DEBUG("Attempt to remove a portal entrance node for which removal is already started")
+                .With("EntranceNodeId", entranceNodeId);
             return;
         }
 
         entranceNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG("Portal entrance removal started (EntranceNodeId: %v)",
-            entranceNodeId);
+        YT_TLOG_DEBUG("Portal entrance removal started")
+            .With("EntranceNodeId", entranceNodeId);
 
         // XXX(babenko)
         auto* parentNode = entranceNode->GetParent();
@@ -620,22 +618,22 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* node = cypressManager->FindNode(TVersionedObjectId(exitNodeId));
         if (!IsObjectAlive(node)) {
-            YT_LOG_DEBUG("Attempt to remove a non-existing portal exit node (ExitNodeId: %v)",
-                exitNodeId);
+            YT_TLOG_DEBUG("Attempt to remove a non-existing portal exit node")
+                .With("ExitNodeId", exitNodeId);
             return;
         }
 
         auto* exitNode = node->As<TPortalExitNode>();
         if (exitNode->GetRemovalStarted()) {
-            YT_LOG_DEBUG("Attempt to remove a portal exit node for which removal is already started (ExitNodeId: %v)",
-                exitNodeId);
+            YT_TLOG_DEBUG("Attempt to remove a portal exit node for which removal is already started")
+                .With("ExitNodeId", exitNodeId);
             return;
         }
 
         exitNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG("Portal exit removal started (ExitNodeId: %v)",
-            exitNodeId);
+        YT_TLOG_DEBUG("Portal exit removal started")
+            .With("ExitNodeId", exitNodeId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(exitNode);

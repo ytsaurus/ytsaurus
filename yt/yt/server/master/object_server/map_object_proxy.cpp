@@ -1021,7 +1021,9 @@ void TNonversionedMapObjectFactoryBase<TObject>::RollbackEvent(const TFactoryEve
         }
     } catch (const std::exception& ex) {
         const auto& Logger = NObjectServer::ObjectServerLogger;
-        YT_LOG_FATAL(ex, "Unhandled exception during rollback of factory event (EventType: %v)", event.Type);
+        YT_TLOG_FATAL("Unhandled exception during rollback of factory event")
+            .With("EventType", event.Type)
+            .With(ex);
     }
 }
 

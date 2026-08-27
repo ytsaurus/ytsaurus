@@ -92,11 +92,10 @@ TChunk::TChunk(TChunkId id)
 TChunkTreeStatistics TChunk::GetStatistics(bool includeReferencedHunkData) const
 {
     if (IsHunkChunkFormat(GetChunkFormat())) {
-        YT_LOG_ALERT("Called chunk method GetStatistics that requires it to be of a non-hunk format "
-            "(ChunkId: %v, IncludeReferencedHunkData: %v, ChunkFormat: %v)",
-            Id_,
-            includeReferencedHunkData,
-            GetChunkFormat());
+        YT_TLOG_ALERT("Called chunk method GetStatistics that requires it to be of a non-hunk format")
+            .With("ChunkId", Id_)
+            .With("IncludeReferencedHunkData", includeReferencedHunkData)
+            .With("ChunkFormat", GetChunkFormat());
     }
 
     TChunkTreeStatistics result;
@@ -150,10 +149,9 @@ TChunkTreeStatistics TChunk::GetStatistics(bool includeReferencedHunkData) const
 THunkChunkTreeStatistics TChunk::GetHunkStatistics() const
 {
     if (!IsHunkChunkFormat(GetChunkFormat())) {
-        YT_LOG_ALERT("Called chunk method GetHunkStatistics that requires it to be of a hunk format "
-            "(ChunkId: %v, ChunkFormat: %v)",
-            Id_,
-            GetChunkFormat());
+        YT_TLOG_ALERT("Called chunk method GetHunkStatistics that requires it to be of a hunk format")
+            .With("ChunkId", Id_)
+            .With("ChunkFormat", GetChunkFormat());
     }
 
     THunkChunkTreeStatistics result;
@@ -370,28 +368,24 @@ void TChunk::AddReplica(
 
     if (medium->IsOffshore()) {
         if (replica.GetStoredReplicaType() == EStoredReplicaType::ChunkLocation) {
-            YT_LOG_ALERT(
-                "Attempted to add chunk location replica with offshore medium, ignored"
-                "(ChunkId: %v, MediumIndex: %v)",
-                GetId(),
-                medium->GetIndex());
+            YT_TLOG_ALERT("Attempted to add chunk location replica with offshore medium, ignored")
+                .With("ChunkId", GetId())
+                .With("MediumIndex", medium->GetIndex());
             return;
         }
         if (replica.GetEffectiveMediumIndex() != medium->GetIndex()) {
-            YT_LOG_ALERT(
-                "Offshore replica medium index differs from medium index, ignored"
-                "(ChunkId: %v, OffshoreReplicaMediumIndex: %v, MediumIndex: %v)",
-                GetId(),
-                replica.GetEffectiveMediumIndex(),
-                medium->GetIndex());
+            YT_TLOG_ALERT("Offshore replica medium index differs from medium index, ignored")
+                .With("ChunkId", GetId())
+                .With("OffshoreReplicaMediumIndex", replica.GetEffectiveMediumIndex())
+                .With("MediumIndex", medium->GetIndex());
             return;
         }
         if (approved) {
             ++data->ApprovedReplicaCount;
         } else {
-            YT_LOG_ALERT("Received unapproved offshore replica (ChunkId: %v, MediumIndex: %v)",
-                GetId(),
-                medium->GetIndex());
+            YT_TLOG_ALERT("Received unapproved offshore replica")
+                .With("ChunkId", GetId())
+                .With("MediumIndex", medium->GetIndex());
         }
         data->AddStoredReplica(replica);
         return;
@@ -454,19 +448,17 @@ void TChunk::RemoveReplica(
             return;
         }
     }
-    YT_LOG_ALERT(
-        "Failed to remove chunk replica from chunk (ChunkId: %v, Replica: %v)",
-        GetId(),
-        replica);
+    YT_TLOG_ALERT("Failed to remove chunk replica from chunk")
+        .With("ChunkId", GetId())
+        .With("Replica", replica);
 }
 
 void TChunk::ApproveReplica(TAugmentedStoredChunkReplicaPtr replica)
 {
     if (replica.GetStoredReplicaType() == EStoredReplicaType::OffshoreMedia) {
-        YT_LOG_ALERT(
-            "Attempted to approve offshore medium replica, ignored (ReplicaMediumIndex: %v, ReplicaIndex: %v)",
-            replica.GetEffectiveMediumIndex(),
-            replica.GetReplicaIndex());
+        YT_TLOG_ALERT("Attempted to approve offshore medium replica, ignored")
+            .With("ReplicaMediumIndex", replica.GetEffectiveMediumIndex())
+            .With("ReplicaIndex", replica.GetReplicaIndex());
         return;
     }
 
@@ -512,15 +504,13 @@ void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
             miscExt.compressed_data_size() != 0 ||
             miscExt.data_weight() != 1))
         {
-            YT_LOG_ALERT("Encountered unexpected non-zero statistics upon hunk journal chunk confirmation "
-                "(ChunkId: %v, UncompressedDataSize: %v, ActualUncompressedDataSize: %v, "
-                "CompressedDataSize: %v, DataWeight: %v, ActualDataWeight: %v)",
-                GetId(),
-                miscExt.uncompressed_data_size(),
-                uncompressedDataSize,
-                miscExt.compressed_data_size(),
-                miscExt.data_weight(),
-                dataWeight);
+            YT_TLOG_ALERT("Encountered unexpected non-zero statistics upon hunk journal chunk confirmation")
+                .With("ChunkId", GetId())
+                .With("UncompressedDataSize", miscExt.uncompressed_data_size())
+                .With("ActualUncompressedDataSize", uncompressedDataSize)
+                .With("CompressedDataSize", miscExt.compressed_data_size())
+                .With("DataWeight", miscExt.data_weight())
+                .With("ActualDataWeight", dataWeight);
         }
 
         // NB: For hunk chunks these fields indicate referenced data that is filled independentely.
@@ -532,13 +522,12 @@ void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
         SetProtoExtension(protoMeta.mutable_extensions(), miscExt);
         ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(protoMeta);
     } else if (dataWeight != 0 || uncompressedDataSize != 0) {
-        YT_LOG_ALERT("Encountered unexpected statistics upon confirmation of a non-hunk chunk "
-            "(ChunkId: %v, DataWeight: %v, NewDataWeight: %v, UncompressedDataSize: %v, NewUncompressedDataSize: %v)",
-            GetId(),
-            dataWeight,
-            miscExt.data_weight(),
-            uncompressedDataSize,
-            miscExt.uncompressed_data_size());
+        YT_TLOG_ALERT("Encountered unexpected statistics upon confirmation of a non-hunk chunk")
+            .With("ChunkId", GetId())
+            .With("DataWeight", dataWeight)
+            .With("NewDataWeight", miscExt.data_weight())
+            .With("UncompressedDataSize", uncompressedDataSize)
+            .With("NewUncompressedDataSize", miscExt.uncompressed_data_size());
     }
 
     OnMiscExtUpdated(miscExt);
@@ -708,11 +697,10 @@ void TChunk::Seal(const TChunkSealInfo& info)
 
     if (IsHunkChunkFormat(GetChunkFormat())) {
         if (GetUncompressedDataSize() > GetDiskSpace()) {
-            YT_LOG_ALERT("Unexpected statistics upon seal of journal hunk chunk "
-                "(ChunkId: %v, UncompressedDataSize: %v, DiskSpace: %v)",
-                GetId(),
-                GetUncompressedDataSize(),
-                GetDiskSpace());
+            YT_TLOG_ALERT("Unexpected statistics upon seal of journal hunk chunk")
+                .With("ChunkId", GetId())
+                .With("UncompressedDataSize", GetUncompressedDataSize())
+                .With("DiskSpace", GetDiskSpace());
         }
     } else {
         miscExt.set_uncompressed_data_size(info.uncompressed_data_size());
@@ -793,10 +781,9 @@ bool TChunk::IsExportedToCell(TCellTag cellTag) const
     }
 
     if (it->second.RefCounter == 0) {
-        YT_LOG_ALERT("Chunk export data has zero reference counter "
-            "(ChunkId: %v, CellIndex: %v)",
-            GetId(),
-            cellTag);
+        YT_TLOG_ALERT("Chunk export data has zero reference counter")
+            .With("ChunkId", GetId())
+            .With("CellIndex", cellTag);
     }
 
     return true;
@@ -815,10 +802,9 @@ void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const
         if (data.RefCounter != 0) {
             registry->Ref(data.ChunkRequisitionIndex);
         } else {
-            YT_LOG_ALERT("Chunk export data has zero reference counter "
-                "(ChunkId: %v, CellTag: %v)",
-                GetId(),
-                cellTag);
+            YT_TLOG_ALERT("Chunk export data has zero reference counter")
+                .With("ChunkId", GetId())
+                .With("CellTag", cellTag);
         }
     }
 }
@@ -838,10 +824,9 @@ void TChunk::UnrefUsedRequisitions(
         if (data.RefCounter != 0) {
             registry->Unref(data.ChunkRequisitionIndex, objectManager);
         } else {
-            YT_LOG_ALERT("Chunk export data has zero reference counter "
-                "(ChunkId: %v, CellTag: %v)",
-                GetId(),
-                cellTag);
+            YT_TLOG_ALERT("Chunk export data has zero reference counter")
+                .With("ChunkId", GetId())
+                .With("CellTag", cellTag);
         }
     }
 }
@@ -859,10 +844,9 @@ inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequis
         if (data.RefCounter != 0) {
             result |= registry->GetRequisition(data.ChunkRequisitionIndex);
         } else {
-            YT_LOG_ALERT("Chunk export data has zero reference counter "
-                "(ChunkId: %v, CellTag: %v)",
-                GetId(),
-                cellTag);
+            YT_TLOG_ALERT("Chunk export data has zero reference counter")
+                .With("ChunkId", GetId())
+                .With("CellTag", cellTag);
         }
     }
 
@@ -984,13 +968,12 @@ void TChunk::AccumulateNewlyReferencedHunkStatistics(i64 dataWeightDelta, i64 da
     auto newUncompressedDataSize = GetUncompressedDataSize() + dataSizeDelta;
 
     if (newDataWeight < 0 || newUncompressedDataSize < 0) {
-        YT_LOG_ALERT("Encountered negative data statistics upon referencing hunk data "
-            "(ChunkId: %v, PreviousDataWeight: %v, PreviousDataSize: %v, DataWeightDelta: %v, DataSizeDelta: %v)",
-            GetId(),
-            GetDataWeight(),
-            GetUncompressedDataSize(),
-            dataWeightDelta,
-            dataSizeDelta);
+        YT_TLOG_ALERT("Encountered negative data statistics upon referencing hunk data")
+            .With("ChunkId", GetId())
+            .With("PreviousDataWeight", GetDataWeight())
+            .With("PreviousDataSize", GetUncompressedDataSize())
+            .With("DataWeightDelta", dataWeightDelta)
+            .With("DataSizeDelta", dataSizeDelta);
     }
 
     TMiscExt miscExt;

@@ -81,8 +81,8 @@ private:
                 break;
             }
             if (!account->GetParent() && account != securityManager->GetRootAccount() && IsObjectAlive(account)) {
-                YT_LOG_ALERT("Unattended account (Id: %v)",
-                    account->GetId());
+                YT_TLOG_ALERT("Unattended account")
+                    .With("Id", account->GetId());
             }
             names.push_back(account->GetName());
         }

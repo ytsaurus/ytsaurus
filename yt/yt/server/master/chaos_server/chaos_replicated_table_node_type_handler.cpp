@@ -183,25 +183,25 @@ private:
         const auto& cellManager = GetBootstrap()->GetTamedCellManager();
         auto* chaosCell = cellManager->FindCellByCellTag(cellTag);
         if (!IsObjectAlive(chaosCell)) {
-            YT_LOG_WARNING("No chaos cell hosting replication card is known (ReplicationCardId: %v, CellTag: %v)",
-                node->GetReplicationCardId(),
-                cellTag);
+            YT_TLOG_WARNING("No chaos cell hosting replication card is known")
+                .With("ReplicationCardId", node->GetReplicationCardId())
+                .With("CellTag", cellTag);
             return;
         }
 
         const auto& hiveManager = GetBootstrap()->GetHiveManager();
         auto mailbox = hiveManager->FindMailbox(chaosCell->GetId());
         if (!mailbox) {
-            YT_LOG_WARNING("No mailbox exists for chaos cell (ReplicationCardId: %v, ChaosCellId: %v)",
-                node->GetReplicationCardId(),
-                chaosCell->GetId());
+            YT_TLOG_WARNING("No mailbox exists for chaos cell")
+                .With("ReplicationCardId", node->GetReplicationCardId())
+                .With("ChaosCellId", chaosCell->GetId());
             return;
         }
 
-        YT_LOG_DEBUG("Sending replication card removal request to chaos cell (TableId: %v, ReplicationCardId: %v, ChaosCellId: %v)",
-            node->GetId(),
-            node->GetReplicationCardId(),
-            chaosCell->GetId());
+        YT_TLOG_DEBUG("Sending replication card removal request to chaos cell")
+            .With("TableId", node->GetId())
+            .With("ReplicationCardId", node->GetReplicationCardId())
+            .With("ChaosCellId", chaosCell->GetId());
 
         NChaosClient::NProto::TReqRemoveReplicationCard request;
         ToProto(request.mutable_replication_card_id(), node->GetReplicationCardId());

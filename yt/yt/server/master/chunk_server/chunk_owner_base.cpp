@@ -76,11 +76,11 @@ void TChunkOwnerBase::Save(NCellMaster::TSaveContext& context) const
     if (!IsTrunk()) {
         Save(context, DeltaStatistics());
     } else {
-        YT_LOG_ALERT_IF(DeltaStatistics() != TChunkOwnerDataStatistics(),
-            "Trunk node has non empty delta statistics, which will be lost during snapshot save "
-            "(ChunkOwnerNodeId: %v, DeltaStatistics: %v)",
-            GetVersionedId(),
-            DeltaStatistics());
+        YT_TLOG_ALERT_IF(
+            DeltaStatistics() != TChunkOwnerDataStatistics(),
+            "Trunk node has non empty delta statistics, which will be lost during snapshot save")
+            .With("ChunkOwnerNodeId", GetVersionedId())
+            .With("DeltaStatistics", DeltaStatistics());
     }
     Save(context, CompressionCodec_);
     Save(context, ErasureCodec_);
@@ -148,21 +148,18 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     // Check invariant: null hunk primary medium index <=> empty hunk replication.
     if (auto hunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex()) {
         if (HunkReplication().GetSize() == 0) {
-            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered "
-                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                GetVersionedId(),
-                hunkPrimaryMediumIndex);
+            YT_TLOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered")
+                .With("ChunkOwnerNodeId", GetVersionedId())
+                .With("HunkPrimaryIndex", hunkPrimaryMediumIndex);
         } else if (!HunkReplication().Get(*hunkPrimaryMediumIndex)) {
-            YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered "
-                "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
-                GetVersionedId(),
-                hunkPrimaryMediumIndex);
+            YT_TLOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered")
+                .With("ChunkOwnerNodeId", GetVersionedId())
+                .With("HunkPrimaryIndex", hunkPrimaryMediumIndex);
         }
     } else if (HunkReplication().GetSize() != 0) {
-        YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered "
-            "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
-            GetVersionedId(),
-            HunkReplication());
+        YT_TLOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered")
+            .With("ChunkOwnerNodeId", GetVersionedId())
+            .With("HunkReplication", HunkReplication());
     }
 
     // COMPAT(babenko)
@@ -335,11 +332,12 @@ const TChunkReplication& TChunkOwnerBase::EffectiveHunkReplication() const
     if (HunkPrimaryMediumIndex_ == GenericMediumIndex) {
         return Replication_;
     } else {
-        YT_LOG_ALERT_UNLESS(HunkReplication_.IsValid(),
-            "Chunk owner node has invalid hunk replication despite having non-null hunk primary medium index (ChunkOwnerNodeId: %v, HunkReplication: %v, HunkPrimaryMediumIndex: %v)",
-            GetId(),
-            HunkReplication_,
-            HunkPrimaryMediumIndex_);
+        YT_TLOG_ALERT_UNLESS(
+            HunkReplication_.IsValid(),
+            "Chunk owner node has invalid hunk replication despite having non-null hunk primary medium index")
+            .With("ChunkOwnerNodeId", GetId())
+            .With("HunkReplication", HunkReplication_)
+            .With("HunkPrimaryMediumIndex", HunkPrimaryMediumIndex_);
         return HunkReplication_;
     }
 }
@@ -368,12 +366,10 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
     }
 
     if (context.Statistics && updateStatistics) {
-        YT_LOG_ALERT_IF(*context.Statistics != *updateStatistics,
-            "Statistics mismatch detected while ending upload "
-            "(ChunkOwnerNodeId: %v, ContextStatistics: %v, UpdateStatistics: %v)",
-            GetVersionedId(),
-            *context.Statistics,
-            *updateStatistics);
+        YT_TLOG_ALERT_IF(*context.Statistics != *updateStatistics, "Statistics mismatch detected while ending upload")
+            .With("ChunkOwnerNodeId", GetVersionedId())
+            .With("ContextStatistics", *context.Statistics)
+            .With("UpdateStatistics", *updateStatistics);
     }
 
     switch (UpdateMode_) {

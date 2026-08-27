@@ -49,6 +49,14 @@ void FormatValue(TStringBuilderBase* builder, const TAccessTrackingOptions& opti
         options.suppress_expiration_timeout_renewal());
 }
 
+NLogging::TLoggingTagList MakeAccessTrackingOptionsTags(const TAccessTrackingOptions& options)
+{
+    return NLogging::TLoggingTagList()
+        .With("SuppressAccessTracking", options.suppress_access_tracking())
+        .With("SuppressModificationTracking", options.suppress_modification_tracking())
+        .With("SuppressExpirationTimeoutRenewal", options.suppress_expiration_timeout_renewal());
+}
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -203,9 +203,9 @@ private:
                 auto key = ConvertTo<std::string>(child);
                 int id = 0;
                 if (!TryFromString<int>(key, id)) {
-                    YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",
-                        path,
-                        key);
+                    YT_TLOG_WARNING("Janitor has found a broken Hydra file")
+                        .With("Path", path)
+                        .With("Key", key);
                     return std::nullopt;
                 }
 
@@ -218,8 +218,8 @@ private:
         auto getListResult = [&] (int subrequestIndex, TPeerInfo peer) -> IListNodePtr {
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(subrequestIndex);
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_WARNING("Missing persistence storage for cell (CellId: %v)",
-                    peer.CellId);
+                YT_TLOG_WARNING("Missing persistence storage for cell")
+                    .With("CellId", peer.CellId);
                 return nullptr;
             }
             return ConvertTo<IListNodePtr>(TYsonString(rspOrError.ValueOrThrow()->value()));
@@ -289,9 +289,9 @@ private:
                 auto key = ConvertTo<std::string>(child);
                 int id = 0;
                 if (!TryFromString<int>(key, id)) {
-                    YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",
-                        path,
-                        key);
+                    YT_TLOG_WARNING("Janitor has found a broken Hydra file")
+                        .With("Path", path)
+                        .With("Key", key);
                     continue;
                 }
 
@@ -300,7 +300,8 @@ private:
                 }
 
                 auto filePath = YPathJoin(path, key);
-                YT_LOG_DEBUG("Janitor is removing Hydra file (Path: %v)", filePath);
+                YT_TLOG_DEBUG("Janitor is removing Hydra file")
+                    .With("Path", filePath);
 
                 --(*budget);
 
@@ -322,9 +323,12 @@ private:
         for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspRemove>()) {
             auto filePath = std::any_cast<TYPath>(tag);
             if (rspOrError.IsOK()) {
-                YT_LOG_DEBUG("Janitor has successfully removed Hydra file (Path: %v)", filePath);
+                YT_TLOG_DEBUG("Janitor has successfully removed Hydra file")
+                    .With("Path", filePath);
             } else {
-                YT_LOG_WARNING(rspOrError, "Janitor has failed to remove Hydra file (Path: %v)", filePath);
+                YT_TLOG_WARNING("Janitor has failed to remove Hydra file")
+                    .With("Path", filePath)
+                    .With(rspOrError);
             }
         }
     }
@@ -337,8 +341,8 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Cell janitor cleanup started (ActiveShardIndices: %v)",
-            ListActiveShardIndices());
+        YT_TLOG_DEBUG("Cell janitor cleanup started")
+            .With("ActiveShardIndices", ListActiveShardIndices());
 
         int snapshotBudget = GetDynamicConfig()->MaxSnapshotCountToRemovePerCheck;
         int changelogBudget = GetDynamicConfig()->MaxChangelogCountToRemovePerCheck;
@@ -374,14 +378,15 @@ private:
             .Run(peersToCleanup, &snapshotBudget, &changelogBudget));
 
         if (!result.IsOK()) {
-            YT_LOG_WARNING(result, "Cell janitor cleanup failed");
+            YT_TLOG_WARNING("Cell janitor cleanup failed")
+                .With(result);
             return;
         }
 
-        YT_LOG_DEBUG("Cell janitor cleanup completed (CellCount: %v, RemainingSnapshotBudget: %v, RemainingChangelogBudget: %v)",
-            cellIds.size(),
-            snapshotBudget,
-            changelogBudget);
+        YT_TLOG_DEBUG("Cell janitor cleanup completed")
+            .With("CellCount", cellIds.size())
+            .With("RemainingSnapshotBudget", snapshotBudget)
+            .With("RemainingChangelogBudget", changelogBudget);
     }
 
     std::vector<TCellId> ListActiveCellIds()

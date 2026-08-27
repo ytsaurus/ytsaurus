@@ -38,11 +38,9 @@ bool ValidateSnapshotReign(TReign reign)
 EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 {
     // In Master we do it the hard way.
-    YT_LOG_FATAL_UNLESS(reign == GetCurrentReign(),
-        "Attempted to recover master from invalid reign "
-        "(RecoverReign: %v, CurrentReign: %v)",
-        reign,
-        GetCurrentReign());
+    YT_TLOG_FATAL_UNLESS(reign == GetCurrentReign(), "Attempted to recover master from invalid reign")
+        .With("RecoverReign", reign)
+        .With("CurrentReign", GetCurrentReign());
 
     return EFinalRecoveryAction::None;
 }

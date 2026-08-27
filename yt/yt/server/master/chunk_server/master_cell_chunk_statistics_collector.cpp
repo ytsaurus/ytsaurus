@@ -303,10 +303,11 @@ private:
         auto error = WaitFor(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
             ->CommitAndLog(Logger()));
         if (error.IsOK()) {
-            YT_LOG_DEBUG("Master cell chunk statistics updated successfully (GlobalScanFinished: %v)",
-                !ChunkScanner_.HasUnscannedChunk());
+            YT_TLOG_DEBUG("Master cell chunk statistics updated successfully")
+                .With("GlobalScanFinished", !ChunkScanner_.HasUnscannedChunk());
         } else {
-            YT_LOG_ERROR(error, "Failed to update master cell chunk statistics");
+            YT_TLOG_ERROR("Failed to update master cell chunk statistics")
+                .With(error);
         }
     }
 

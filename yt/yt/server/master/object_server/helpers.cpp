@@ -71,7 +71,9 @@ TError CheckObjectName(TStringBuf name)
         auto error = TError("Invalid object name: starts with %v", ObjectIdPathPrefix)
             .With("name", name);
         if (NHiveServer::IsHiveMutation()) {
-            YT_LOG_ALERT(error, "Invalid object name in Hive mutation (Name: %v)", name);
+            YT_TLOG_ALERT("Invalid object name in Hive mutation")
+                .With("Name", name)
+                .With(error);
             return {};
         }
         return error;

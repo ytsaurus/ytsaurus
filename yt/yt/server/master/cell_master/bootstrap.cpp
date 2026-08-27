@@ -809,17 +809,17 @@ void TBootstrap::DoInitialize()
     }
 
     if (PrimaryMaster_) {
-        YT_LOG_INFO("Running as primary master (CellId: %v, CellTag: %v, SecondaryCellTags: %v, PeerId: %v)",
-            CellId_,
-            CellTag_,
-            SecondaryCellTags_,
-            localPeerId);
+        YT_TLOG_INFO("Running as primary master")
+            .With("CellId", CellId_)
+            .With("CellTag", CellTag_)
+            .With("SecondaryCellTags", SecondaryCellTags_)
+            .With("PeerId", localPeerId);
     } else if (SecondaryMaster_) {
-        YT_LOG_INFO("Running as secondary master (CellId: %v, CellTag: %v, PrimaryCellTag: %v, PeerId: %v)",
-            CellId_,
-            CellTag_,
-            PrimaryCellTag_,
-            localPeerId);
+        YT_TLOG_INFO("Running as secondary master")
+            .With("CellId", CellId_)
+            .With("CellTag", CellTag_)
+            .With("PrimaryCellTag", PrimaryCellTag_)
+            .With("PeerId", localPeerId);
     }
 
     ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
@@ -1000,8 +1000,8 @@ void TBootstrap::DoInitialize()
     InitializeTimestampProvider();
 
     if (MulticellManager_->IsPrimaryMaster() && Config_->EnableTimestampManager) {
-        YT_LOG_DEBUG("Initializing internal clocks (ClockClusterTag: %v)",
-            GetCellTag());
+        YT_TLOG_DEBUG("Initializing internal clocks")
+            .With("ClockClusterTag", GetCellTag());
 
         TimestampManager_ = New<TTimestampManager>(
             Config_->TimestampManager,
@@ -1188,7 +1188,8 @@ void TBootstrap::DoStart()
 
     HydraFacade_->Initialize();
 
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
     if (auto httpsConfig = Config_->CreateMonitoringHttpsServerConfig()) {
         HttpsServer_ = NHttps::CreateServer(httpsConfig, /*pollerThreadCount*/ 1);
@@ -1269,11 +1270,13 @@ void TBootstrap::DoStart()
 
     HttpServer_->Start();
     if (HttpsServer_) {
-        YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+        YT_TLOG_INFO("Listening for HTTPS requests")
+            .With("Port", HttpsServer_->GetAddress().GetPort());
         HttpsServer_->Start();
     }
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker(), NativeAuthenticator_));
     RpcServer_->Start();
 }

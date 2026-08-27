@@ -132,7 +132,7 @@ bool TCellTracker::IsEnabled()
     }
 
     if (!LastEnabled_ || !*LastEnabled_) {
-        YT_LOG_INFO("Cell tracker enabled");
+        YT_TLOG_INFO("Cell tracker enabled");
         LastEnabled_ = true;
     }
 

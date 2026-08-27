@@ -129,9 +129,8 @@ private:
     {
         auto retiringCells = GetDecommissionedCellsUsedByActions();
 
-        YT_LOG_DEBUG_IF(!retiringCells.empty(),
-            "Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
-            retiringCells.size());
+        YT_TLOG_DEBUG_IF(!retiringCells.empty(), "Tablet cell decommissioner observes decommissioned cells with tablets")
+            .With("CellCount", retiringCells.size());
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
@@ -182,9 +181,9 @@ private:
                 // When cell is decommissioned all tablet actions should be unlinked.
                 for (auto cell : action->TabletCells()) {
                     if (cell->IsDecommissionStarted()) {
-                        YT_LOG_ERROR("Tablet action target cell is decommissioned (ActionId: %v, CellId: %v)",
-                            action->GetId(),
-                            cell->GetId());
+                        YT_TLOG_ERROR("Tablet action target cell is decommissioned")
+                            .With("ActionId", action->GetId())
+                            .With("CellId", cell->GetId());
 
                         retiringCells.insert(cell);
                     }

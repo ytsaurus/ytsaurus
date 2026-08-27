@@ -449,11 +449,10 @@ void TTransaction::AttachLock(TLock* lock, const IObjectManagerPtr& objectManage
     while (currentTransaction) {
         currentTransaction->IncrementRecursiveLockCount();
 
-        YT_LOG_TRACE(
-            "Transaction recursive lock count increased (RecursiveLockCount: %v, TransactionId: %v, LockId: %v)",
-            currentTransaction->GetRecursiveLockCount(),
-            currentTransaction->GetId(),
-            lock->GetId());
+        YT_TLOG_TRACE("Transaction recursive lock count increased")
+            .With("RecursiveLockCount", currentTransaction->GetRecursiveLockCount())
+            .With("TransactionId", currentTransaction->GetId())
+            .With("LockId", lock->GetId());
 
         currentTransaction = currentTransaction->GetParent();
     }
@@ -476,11 +475,10 @@ void TTransaction::DetachLock(
     while (currentTransaction) {
         currentTransaction->DecrementRecursiveLockCount();
 
-        YT_LOG_TRACE(
-            "Transaction recursive lock count decreased (RecursiveLockCount: %v, TransactionId: %v, LockId: %v)",
-            currentTransaction->GetRecursiveLockCount(),
-            currentTransaction->GetId(),
-            lock->GetId());
+        YT_TLOG_TRACE("Transaction recursive lock count decreased")
+            .With("RecursiveLockCount", currentTransaction->GetRecursiveLockCount())
+            .With("TransactionId", currentTransaction->GetId())
+            .With("LockId", lock->GetId());
 
         currentTransaction = currentTransaction->GetParent();
     }
@@ -493,10 +491,9 @@ void TTransaction::IncrementRecursiveLockCount()
 
 void TTransaction::DecrementRecursiveLockCount()
 {
-    YT_LOG_ALERT_IF(--RecursiveLockCount_ < 0,
-        "Transaction recursive lock count is negative (TransactionId: %v, RecursiveLockCount: %v)",
-        GetId(),
-        RecursiveLockCount_);
+    YT_TLOG_ALERT_IF(--RecursiveLockCount_ < 0, "Transaction recursive lock count is negative")
+        .With("TransactionId", GetId())
+        .With("RecursiveLockCount", RecursiveLockCount_);
 }
 
 void TTransaction::SetTransactionLeasesState(ETransactionLeasesState newState)
@@ -516,7 +513,8 @@ void TTransaction::SetTransactionLeasesState(ETransactionLeasesState newState)
             LeasesRevokedPromise_ = NewPromise<void>();
         }
         LeasesRevokedPromise_.TrySet();
-        YT_LOG_DEBUG("Transaction leases revoked (TransactionId: %v)", Id_);
+        YT_TLOG_DEBUG("Transaction leases revoked")
+            .With("TransactionId", Id_);
     }
 }
 

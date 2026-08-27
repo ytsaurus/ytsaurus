@@ -141,9 +141,8 @@ void FormatValue(TStringBuilderBase* builder, TMediumPtrWithReplicaInfo value, T
 void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value)
 {
     // Only applicable to offshore replicas. Domestic replicas require real node ids.
-    YT_LOG_ALERT_IF(value.GetPtr()->IsOffshore(),
-        "Attempted to serialize domestic medium as offshore (MediumName: %v)",
-        value.GetPtr()->GetName());
+    YT_TLOG_ALERT_IF(value.GetPtr()->IsOffshore(), "Attempted to serialize domestic medium as offshore")
+        .With("MediumName", value.GetPtr()->GetName());
 
     TChunkReplicaWithMedium replica(
         NNodeTrackerClient::OffshoreNodeId,

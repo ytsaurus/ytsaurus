@@ -169,9 +169,9 @@ private:
             for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspGet>()) {
                 auto cellId = std::any_cast<TCellId>(tag);
                 if (!rspOrError.IsOK()) {
-                    YT_LOG_WARNING(rspOrError,
-                        "Error fetching cell bundle id for cell (CellId: %v)",
-                        cellId);
+                    YT_TLOG_WARNING("Error fetching cell bundle id for cell")
+                        .With("CellId", cellId)
+                        .With(rspOrError);
                     continue;
                 }
                 auto cellBundleId = ConvertTo<TCellBundleId>(TYsonString(rspOrError.Value()->value()));
@@ -196,9 +196,9 @@ private:
             for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspGet>()) {
                 auto cellBundleId = std::any_cast<TCellBundleId>(tag);
                 if (!rspOrError.IsOK()) {
-                    YT_LOG_WARNING(rspOrError,
-                        "Error fetching cell bundle attributes (CellBundleId: %v)",
-                        cellBundleId);
+                    YT_TLOG_WARNING("Error fetching cell bundle attributes")
+                        .With("CellBundleId", cellBundleId)
+                        .With(rspOrError);
                     continue;
                 }
                 auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
@@ -234,9 +234,9 @@ private:
                 auto it = cellIdToCellInfo.find(cellId);
                 YT_VERIFY(it != cellIdToCellInfo.end());
                 if (!rspOrError.IsOK()) {
-                    YT_LOG_WARNING(rspOrError,
-                        "Error fetching peers for cell (CellId: %v)",
-                        cellId);
+                    YT_TLOG_WARNING("Error fetching peers for cell")
+                        .With("CellId", cellId)
+                        .With(rspOrError);
                     cellIdToCellInfo.erase(it);
                     continue;
                 }
@@ -253,8 +253,8 @@ private:
         const TPeerListPtr& peers,
         const TTabletCellOptionsPtr& cellOptions)
     {
-        YT_LOG_DEBUG("Registering cell in Cypress (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Registering cell in Cypress")
+            .With("CellId", cellId);
 
         auto cellNodePath = GetCellHydraPersistencePath(cellId);
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
@@ -374,9 +374,9 @@ private:
             auto cellId = activeCellIds[index];
             const auto& result = results[index];
             if (!result.IsOK()) {
-                YT_LOG_WARNING(result,
-                    "Error registering cell in Cypress (CellId: %v)",
-                    cellId);
+                YT_TLOG_WARNING("Error registering cell in Cypress")
+                    .With("CellId", cellId)
+                    .With(result);
                 continue;
             }
             ToProto(request->add_cypress_registered_ids(), cellId);
@@ -404,8 +404,8 @@ private:
             for (const auto& [tag, rspOrError] : batchRsp->GetTaggedResponses<TYPathProxy::TRspExists>()) {
                 auto cellId = std::any_cast<TCellId>(tag);
                 if (rspOrError.ValueOrThrow()->value()) {
-                    YT_LOG_ALERT("Synchronizer attempted to delete an existing cell (CellId: %v)",
-                        cellId);
+                    YT_TLOG_ALERT("Synchronizer attempted to delete an existing cell")
+                        .With("CellId", cellId);
                     return;
                 }
             }
@@ -413,8 +413,8 @@ private:
         {
             auto batchReq = proxy.ExecuteBatch();
             for (auto cellId : cellIds) {
-                YT_LOG_INFO("Unregistering cell from Cypress (CellId: %v)",
-                    cellId);
+                YT_TLOG_INFO("Unregistering cell from Cypress")
+                    .With("CellId", cellId);
 
                 auto path = GetCellHydraPersistencePath(cellId);
                 auto req = TYPathProxy::Remove(path);
@@ -434,8 +434,8 @@ private:
         const TPeerListPtr& peers,
         const TTabletCellOptionsPtr& cellOptions)
     {
-        YT_LOG_DEBUG("Executing cell ACLs update (CellId: %v)",
-            cellId);
+        YT_TLOG_DEBUG("Executing cell ACLs update")
+            .With("CellId", cellId);
 
         auto snapshotAcl = ConvertToYsonString(cellOptions->SnapshotAcl, EYsonFormat::Binary).ToString();
         auto changelogAcl = ConvertToYsonString(cellOptions->ChangelogAcl, EYsonFormat::Binary).ToString();
@@ -501,9 +501,9 @@ private:
             const auto& result = results[index];
             auto version = cellIdToCellInfo[cellId].Version;
             if (!result.IsOK()) {
-                YT_LOG_WARNING(result,
-                    "Error updating cell ACLs (CellId: %v)",
-                    cellId);
+                YT_TLOG_WARNING("Error updating cell ACLs")
+                    .With("CellId", cellId)
+                    .With(result);
                 continue;
             }
             auto* updateInfo = request->add_acls_update_info();
@@ -516,7 +516,7 @@ private:
     {
         auto dynamicConfig = GetDynamicConfig();
 
-        YT_LOG_DEBUG("Synchronizing cells Hydra presistence");
+        YT_TLOG_DEBUG("Synchronizing cells Hydra presistence");
 
         auto proxy = CreateObjectServiceReadProxy(
             Bootstrap_->GetRootClient(),
@@ -544,8 +544,8 @@ private:
                 }
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex,
-                "Error listing registered cells");
+            YT_TLOG_WARNING("Error listing registered cells")
+                .With(ex);
             return;
         }
 
@@ -568,7 +568,7 @@ private:
             for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspList>()) {
                 auto listNode = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
                 if (listNode->Attributes().Get("incomplete", false)) {
-                    YT_LOG_ALERT("Hydra persistence synchronizer got an incomplete response");
+                    YT_TLOG_ALERT("Hydra persistence synchronizer got an incomplete response");
                     return;
                 }
                 auto list = listNode->AsList();
@@ -588,8 +588,8 @@ private:
                 }
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex,
-                "Error listing alive cells");
+            YT_TLOG_WARNING("Error listing alive cells")
+                .With(ex);
             return;
         }
 
@@ -606,22 +606,22 @@ private:
         try {
             RegisterCellsInCypress(toRegisterCellIds, &request);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex,
-                "Error registering cells in Cypress");
+            YT_TLOG_WARNING("Error registering cells in Cypress")
+                .With(ex);
         }
 
         try {
             UnregisterCellsFromCypress(toUnregisterCellIds);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex,
-                "Error unregistering cells from Cypress");
+            YT_TLOG_WARNING("Error unregistering cells from Cypress")
+                .With(ex);
         }
 
         try {
             ExecuteCellAclsUpdates(pendingAclsUpdateCellIds, &request);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex,
-                "Error executing cell ACLs updates");
+            YT_TLOG_WARNING("Error executing cell ACLs updates")
+                .With(ex);
         }
 
         if (request.cypress_registered_ids_size() != 0 ||
@@ -635,7 +635,7 @@ private:
 
     void OnUpdateHydraFileIds()
     {
-        YT_LOG_DEBUG("Started cell Hydra persistence file id update");
+        YT_TLOG_DEBUG("Started cell Hydra persistence file id update");
 
         if (NextCellIndexToFetchHydraFileIds_ >= ssize(CachedHydraFileInfos_)) {
             CachedHydraFileInfos_.clear();
@@ -648,8 +648,8 @@ private:
 
             NextCellIndexToFetchHydraFileIds_ = 0;
 
-            YT_LOG_DEBUG("Cell Hydra persistence file updater updated cell list (CellCount: %v)",
-                ssize(CachedHydraFileInfos_));
+            YT_TLOG_DEBUG("Cell Hydra persistence file updater updated cell list")
+                .With("CellCount", ssize(CachedHydraFileInfos_));
         }
 
         int lastCellIndex = std::min<int>(
@@ -672,7 +672,8 @@ private:
                 .ThrowOnError();
             NextCellIndexToFetchHydraFileIds_ = lastCellIndex;
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to update Hydra persistence file ids");
+            YT_TLOG_ERROR("Failed to update Hydra persistence file ids")
+                .With(ex);
         }
     }
 
@@ -707,8 +708,8 @@ private:
                 .ThrowOnError();
         }
 
-        YT_LOG_DEBUG("Finished cell Hydra persistence file id update (UpdatedCellCount: %v)",
-            request.entries_size());
+        YT_TLOG_DEBUG("Finished cell Hydra persistence file id update")
+            .With("UpdatedCellCount", request.entries_size());
     }
 
     std::vector<THydraFileInfo> GetMaxHydraFileIds(const std::vector<TCellId>& cellIds) const

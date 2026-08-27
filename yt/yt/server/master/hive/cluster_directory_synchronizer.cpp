@@ -94,7 +94,7 @@ private:
     void DoSync() override
     {
         try {
-            YT_LOG_DEBUG("Started synchronizing cluster directory");
+            YT_TLOG_DEBUG("Started synchronizing cluster directory");
 
             auto config = Config_.Acquire();
             TMasterReadOptions options{
@@ -139,7 +139,7 @@ private:
             }
 
             Synchronized_.Fire(TError());
-            YT_LOG_DEBUG("Finished synchronizing cluster directory");
+            YT_TLOG_DEBUG("Finished synchronizing cluster directory");
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             Synchronized_.Fire(error);

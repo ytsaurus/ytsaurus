@@ -140,10 +140,10 @@ public:
         auto* node = TryAllocateNode(cell);
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet tracker assigning peer (CellId: %v, PeerId: %v, AllocatedNode: %v)",
-                cell->GetId(),
-                peerId,
-                node ? node->GetNode()->GetDefaultAddress() : "None");
+            YT_TLOG_DEBUG("Tablet tracker assigning peer")
+                .With("CellId", cell->GetId())
+                .With("PeerId", peerId)
+                .With("AllocatedNode", node ? node->GetNode()->GetDefaultAddress() : "None");
         }
 
         if (node) {
@@ -159,11 +159,12 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             auto node = cell->Peers()[peerId].Node;
-            YT_LOG_DEBUG(reason, "Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
-                cell->GetId(),
-                peerId,
-                node ? node->GetDefaultAddress() : NullNodeAddress(),
-                descriptor.GetDefaultAddress());
+            YT_TLOG_DEBUG("Tablet tracker revoking peer")
+                .With("CellId", cell->GetId())
+                .With("PeerId", peerId)
+                .With("Node", node ? node->GetDefaultAddress() : NullNodeAddress())
+                .With("DescriptorAddress", descriptor.GetDefaultAddress())
+                .With(reason);
         }
 
         const auto* node = PeerTracker_.FindPeer(cell, peerId);
@@ -192,7 +193,8 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             auto dumpId = TGuid::Create();
-            YT_LOG_DEBUG("Tablet cells distribution before balancing (DumpId: %v)", dumpId);
+            YT_TLOG_DEBUG("Tablet cells distribution before balancing")
+                .With("DumpId", dumpId);
             DumpState(dumpId);
         }
 
@@ -205,7 +207,7 @@ public:
 
         if (hasDecommissionedNodes) {
             if (Provider_->IsVerboseLoggingEnabled()) {
-                YT_LOG_DEBUG("Cluster has decommissioned tablet nodes with cells, skipping cell rebalancing");
+                YT_TLOG_DEBUG("Cluster has decommissioned tablet nodes with cells, skipping cell rebalancing");
             }
         } else {
             for (auto [bundleId, bundle] : Provider_->CellBundles()) {
@@ -220,7 +222,8 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             auto dumpId = TGuid::Create();
-            YT_LOG_DEBUG("Tablet cells distribution after balancing (DumpId: %v)", dumpId);
+            YT_TLOG_DEBUG("Tablet cells distribution after balancing")
+                .With("DumpId", dumpId);
             DumpState(dumpId);
         }
 
@@ -690,13 +693,13 @@ private:
         });
 
         if (aboveCeil > 0 || belowFloor > 0) {
-            YT_LOG_DEBUG("Tablet cell balancer needs to smooth bundle (Bundle: %v, Area: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
-                area->GetCellBundle()->GetName(),
-                area->GetName(),
-                ceil,
-                floor,
-                aboveCeil,
-                belowFloor);
+            YT_TLOG_DEBUG("Tablet cell balancer needs to smooth bundle")
+                .With("Bundle", area->GetCellBundle()->GetName())
+                .With("Area", area->GetName())
+                .With("Ceil", ceil)
+                .With("Floor", floor)
+                .With("AboveCeilCount", aboveCeil)
+                .With("BelowFloorCount", belowFloor);
         }
 
         std::vector<TNodeHolder*> candidates;

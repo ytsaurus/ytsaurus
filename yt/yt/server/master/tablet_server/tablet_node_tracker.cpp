@@ -104,11 +104,11 @@ private:
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/tablet_server/tablet_node_heartbeat_time") {
-            YT_LOG_DEBUG("Processing tablet node heartbeat (NodeId: %v, Address: %v, State: %v, ReportedTabletNodeHeartbeat: %v)",
-                nodeId,
-                node->GetDefaultAddress(),
-                node->GetLocalState(),
-                node->ReportedTabletNodeHeartbeat());
+            YT_TLOG_DEBUG("Processing tablet node heartbeat")
+                .With("NodeId", nodeId)
+                .With("Address", node->GetDefaultAddress())
+                .With("State", node->GetLocalState())
+                .With("ReportedTabletNodeHeartbeat", node->ReportedTabletNodeHeartbeat());
 
             nodeTracker->UpdateLastSeenTime(node);
 

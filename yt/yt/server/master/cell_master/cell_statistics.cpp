@@ -44,6 +44,19 @@ void FormatValue(TStringBuilderBase* builder, const NProto::TCellStatistics& sta
         statistics.inconsistently_placed_chunk_count());
 }
 
+NLogging::TLoggingTagList MakeCellStatisticsTags(const TCellStatistics& statistics)
+{
+    return NLogging::TLoggingTagList()
+        .With("ChunkCount", statistics.chunk_count())
+        .With("LostVitalChunkCount", statistics.lost_vital_chunk_count())
+        .With("OnlineNodeCount", statistics.online_node_count())
+        .With("DataMissingChunkCount", statistics.data_missing_chunk_count())
+        .With("ParityMissingChunkCount", statistics.parity_missing_chunk_count())
+        .With("OldestPartMissingChunkCount", statistics.oldest_part_missing_chunk_count())
+        .With("QuorumMissingChunkCount", statistics.quorum_missing_chunk_count())
+        .With("InconsistentlyPlacedChunkCount", statistics.inconsistently_placed_chunk_count());
+}
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

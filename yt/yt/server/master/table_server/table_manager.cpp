@@ -226,9 +226,9 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
-            YT_LOG_DEBUG("Schedule node statistics update (NodeId: %v, StatisticsUpdateRequest: %v)",
-                chunkOwner->GetId(),
-                request);
+            YT_TLOG_DEBUG("Schedule node statistics update")
+                .With("NodeId", chunkOwner->GetId())
+                .With("StatisticsUpdateRequest", request);
 
             // NB: Mixing statistics update requests with and without CAS might
             // lead to some unexpected results, because the resulting request
@@ -251,8 +251,8 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
 
-        YT_LOG_DEBUG("Sending node statistics update (NodeId: %v)",
-            chunkOwner->GetId());
+        YT_TLOG_DEBUG("Sending node statistics update")
+            .With("NodeId", chunkOwner->GetId());
 
         TStatisticsUpdateRequest statistics{
             .UpdateDataStatistics = true,
@@ -540,9 +540,8 @@ public:
         };
 
         if (auto schemaOrError = GetHeavyTableSchemaAsync(compactTableSchema).TryGet()) {
-            YT_LOG_ALERT_IF(isUnexpectedError(*schemaOrError),
-                *schemaOrError,
-                "Unexpected error found in table schema cache");
+            YT_TLOG_ALERT_IF(isUnexpectedError(*schemaOrError), "Unexpected error found in table schema cache")
+                .With(*schemaOrError);
             return schemaOrError->ValueOrThrow();
         }
 
@@ -550,9 +549,8 @@ public:
         auto heavySchemaOrError = TableSchemaCache_->ConvertToHeavyTableSchemaAndCache(
             compactTableSchema,
             /*doCache*/ true);
-        YT_LOG_ALERT_IF(isUnexpectedError(heavySchemaOrError),
-            heavySchemaOrError,
-            "Unexpected error encountered while converting compact schema to heavy table schema");
+        YT_TLOG_ALERT_IF(isUnexpectedError(heavySchemaOrError), "Unexpected error encountered while converting compact schema to heavy table schema")
+            .With(heavySchemaOrError);
         return heavySchemaOrError
             .ValueOrThrow();
     }
@@ -620,8 +618,8 @@ public:
         auto maxSchemaMemoryUsageToLog = config->MaxSchemaMemoryUsageToLog;
         auto cacheHeavySchemaOnCreation = config->CacheHeavySchemaOnCreation;
 
-        YT_LOG_DEBUG("Schema created (Id: %v)",
-            id);
+        YT_TLOG_DEBUG("Schema created")
+            .With("Id", id);
 
         const auto& compactSchema = schema->AsCompactTableSchema(/*crashOnZombie*/ false);
         // Parsing schemas takes precious CPU resources here and offloading it is almost free.
@@ -641,13 +639,13 @@ public:
                 }
 
                 if (!heavySchemaOrError->IsOK()) {
-                    YT_LOG_DEBUG("Newly created schema cannot be parsed (Id: %v, Error: %v)",
-                        id,
-                        *heavySchemaOrError);
+                    YT_TLOG_DEBUG("Newly created schema cannot be parsed")
+                        .With("Id", id)
+                        .With("Error", *heavySchemaOrError);
                 } else {
-                    YT_LOG_DEBUG("Newly created schema parsed (Id: %v, Schema: %v)",
-                        id,
-                        MakeTableSchemaTruncatedFormatter(heavySchemaOrError->Value(), maxSchemaMemoryUsageToLog));
+                    YT_TLOG_DEBUG("Newly created schema parsed")
+                        .With("Id", id)
+                        .With("Schema", MakeTableSchemaTruncatedFormatter(heavySchemaOrError->Value(), maxSchemaMemoryUsageToLog));
                 }
             }));
 
@@ -661,15 +659,15 @@ public:
         schema->AlertIfNonEmptyExportCount();
 
         if (!schema->ReferencingAccounts().empty()) {
-            YT_LOG_ALERT("Table schema being destroyed is still referenced by some accounts (SchemaId: %v, AccountCount: %v)",
-                schema->GetId(),
-                schema->ReferencingAccounts().size());
+            YT_TLOG_ALERT("Table schema being destroyed is still referenced by some accounts")
+                .With("SchemaId", schema->GetId())
+                .With("AccountCount", schema->ReferencingAccounts().size());
         }
 
         if (!schema->ChargedMasterMemoryUsage().empty()) {
-            YT_LOG_ALERT("Table schema being destroyed is still charged to some accounts (SchemaId: %v, AccountCount: %v)",
-                schema->GetId(),
-                schema->ChargedMasterMemoryUsage().size());
+            YT_TLOG_ALERT("Table schema being destroyed is still charged to some accounts")
+                .With("SchemaId", schema->GetId())
+                .With("AccountCount", schema->ChargedMasterMemoryUsage().size());
         }
 
         if (schema->IsNative()) {
@@ -685,8 +683,8 @@ public:
         YT_VERIFY(!schema->IsDisposed());
         YT_VERIFY(FindMasterTableSchema(schema->GetId()));
 
-        YT_LOG_DEBUG("Resurrecting master table schema object (SchemaId: %v)",
-            schema->GetId());
+        YT_TLOG_DEBUG("Resurrecting master table schema object")
+            .With("SchemaId", schema->GetId());
 
         const auto& tableSchema = schema->AsCompactTableSchema(/*crashOnZombie*/ false);
         if (schema->IsNative()) {
@@ -723,9 +721,9 @@ public:
             // schemas in automaton thread. This is unavoidable.
             ToProto(request.mutable_schema(), schema->AsCompactTableSchema());
 
-            YT_LOG_DEBUG("Exporting schema to another cell (SchemaId: %v, DestinationCellTag: %v)",
-                schema->GetId(),
-                dstCellTag);
+            YT_TLOG_DEBUG("Exporting schema to another cell")
+                .With("SchemaId", schema->GetId())
+                .With("DestinationCellTag", dstCellTag);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, dstCellTag);
@@ -744,9 +742,9 @@ public:
             TReqUnimportMasterTableSchema request;
             ToProto(request.mutable_schema_id(), schema->GetId());
 
-            YT_LOG_DEBUG("Unexporting schema from another cell (SchemaId: %v, DestinationCellTag: %v)",
-                schema->GetId(),
-                dstCellTag);
+            YT_TLOG_DEBUG("Unexporting schema from another cell")
+                .With("SchemaId", schema->GetId())
+                .With("DestinationCellTag", dstCellTag);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, dstCellTag);
@@ -855,9 +853,9 @@ public:
         if (dynamic && effectiveTableSchema->IsSorted() && !effectiveTableSchema->IsUniqueKeys()) {
             if (!native) {
                 // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
-                YT_LOG_ALERT("Schema doesn't have \"unique_keys\" set to true on the external cell for a dynamic table (TableId: %v, Schema: %v)",
-                    nodeId,
-                    GetHeavyTableSchemaSync(tableSchema));
+                YT_TLOG_ALERT("Schema doesn't have \"unique_keys\" set to true on the external cell for a dynamic table")
+                    .With("TableId", nodeId)
+                    .With("Schema", GetHeavyTableSchemaSync(tableSchema));
             }
             auto heavySchema = GetHeavyTableSchemaSync(effectiveTableSchema);
             tableSchema =  New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
@@ -923,11 +921,11 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_DEBUG("Creating secondary index (TableId: %v, IndexTableId: %v, Kind: %v, Predicate: %v)",
-            tableId,
-            indexTableId,
-            kind,
-            predicate);
+        YT_TLOG_DEBUG("Creating secondary index")
+            .With("TableId", tableId)
+            .With("IndexTableId", indexTableId)
+            .With("Kind", kind)
+            .With("Predicate", predicate);
 
         if (tableId == indexTableId) {
             THROW_ERROR_EXCEPTION("Table cannot be an index to itself")
@@ -1130,14 +1128,15 @@ public:
                 YT_ABORT();
         }
 
-        YT_LOG_DEBUG("Table collocation created "
-            "(CollocationId: %v, CollocationType: %v, ExternalCellTag: %v, TableIds: %v)",
-            collocation->GetId(),
-            type,
-            externalCellTag,
-            MakeFormattableView(collocation->Tables(), [] (auto* builder, TTableNode* table) {
-                builder->AppendFormat("%v", table->GetId());
-            }));
+        YT_TLOG_DEBUG("Table collocation created")
+            .With("CollocationId", collocation->GetId())
+            .With("CollocationType", type)
+            .With("ExternalCellTag", externalCellTag)
+            .With(
+                "TableIds",
+                MakeFormattableView(collocation->Tables(), [] (auto* builder, TTableNode* table) {
+                    builder->AppendFormat("%v", table->GetId());
+                }));
 
         return collocation;
     }
@@ -1164,8 +1163,8 @@ public:
 
         YT_VERIFY(collocation->GetObjectRefCounter() == 0);
 
-        YT_LOG_DEBUG("Table collocation zombified (TableCollocationId: %v)",
-            collocation->GetId());
+        YT_TLOG_DEBUG("Table collocation zombified")
+            .With("TableCollocationId", collocation->GetId());
     }
 
     void AddTableToCollocation(
@@ -1244,12 +1243,11 @@ public:
                 YT_ABORT();
         }
 
-        YT_LOG_DEBUG("Added table to collocation "
-            "(CollocationId: %v, CollocationType: %v, TableId: %v, NewCollocationSize: %v)",
-            collocation->GetId(),
-            collocationType,
-            table->GetId(),
-            collocation->Tables().size());
+        YT_TLOG_DEBUG("Added table to collocation")
+            .With("CollocationId", collocation->GetId())
+            .With("CollocationType", collocationType)
+            .With("TableId", table->GetId())
+            .With("NewCollocationSize", collocation->Tables().size());
     }
 
     void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation) override
@@ -1276,12 +1274,11 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG("Removed table from collocation "
-            "(CollocationId: %v, CollocationType: %v, TableId: %v, NewCollocationSize: %v)",
-            collocation->GetId(),
-            collocationType,
-            table->GetId(),
-            collocation->Tables().size());
+        YT_TLOG_DEBUG("Removed table from collocation")
+            .With("CollocationId", collocation->GetId())
+            .With("CollocationType", collocationType)
+            .With("TableId", table->GetId())
+            .With("NewCollocationSize", collocation->Tables().size());
 
         OnReplicationCollocationCreated(collocation);
 
@@ -1321,9 +1318,9 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.insert(node).second) {
-            YT_LOG_ALERT("Attempting to register a queue twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a queue twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -1333,9 +1330,9 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.erase(node)) {
-            YT_LOG_ALERT("Attempting to unregister an unknown queue (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown queue")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -1352,10 +1349,9 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!QueueConsumers_.insert(node).second) {
-            YT_LOG_ALERT(
-                "Attempting to register a consumer twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a consumer twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -1365,10 +1361,9 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!QueueConsumers_.erase(node)) {
-            YT_LOG_ALERT(
-                "Attempting to unregister an unknown consumer (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown consumer")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -1386,10 +1381,9 @@ public:
         YT_ASSERT(node->IsTrunk());
 
         if (!QueueProducers_.insert(node).second) {
-            YT_LOG_ALERT(
-                "Attempting to register a producer twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a producer twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -1400,10 +1394,9 @@ public:
         YT_ASSERT(node->IsTrunk());
 
         if (!QueueProducers_.erase(node)) {
-            YT_LOG_ALERT(
-                "Attempting to unregister an unknown producer (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown producer")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -1448,8 +1441,8 @@ public:
             std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
             for (auto cellTag : multicellManager->GetRoleMasterCells(EMasterCellRole::CypressNodeHost)) {
                 if (multicellManager->GetCellTag() != cellTag) {
-                    YT_LOG_DEBUG("Requesting queue agent objects from secondary cell (CellTag: %v)",
-                        cellTag);
+                    YT_TLOG_DEBUG("Requesting queue agent objects from secondary cell")
+                        .With("CellTag", cellTag);
                     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
                         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
                     auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
@@ -1625,8 +1618,8 @@ private:
             YT_VERIFY(IsSupportedNodeType(node->GetType()));
 
             if (statistics.UpdateTabletResourceUsage && !IsTabletOwnerType(node->GetType())) {
-                YT_LOG_ALERT("Requested to send tablet resource usage update for a non-tablet owner node; ignored (NodeId: %v)",
-                    nodeId);
+                YT_TLOG_ALERT("Requested to send tablet resource usage update for a non-tablet owner node; ignored")
+                    .With("NodeId", nodeId);
                 continue;
             }
 
@@ -1656,9 +1649,9 @@ private:
             nodeIds.push_back(nodeId);
         }
 
-        YT_LOG_DEBUG("Sending node statistics update (RequestedNodeCount: %v, NodeIds: %v)",
-            request->node_count(),
-            nodeIds);
+        YT_TLOG_DEBUG("Sending node statistics update")
+            .With("RequestedNodeCount", request->node_count())
+            .With("NodeIds", nodeIds);
 
         for (const auto& [cellTag, request] : cellTagToRequest) {
             multicellManager->PostToMaster(request, cellTag);
@@ -1673,8 +1666,8 @@ private:
             nodeIds.push_back(FromProto<TNodeId>(entry.node_id()));
         }
 
-        YT_LOG_DEBUG("Received node statistics update (NodeIds: %v)",
-            nodeIds);
+        YT_TLOG_DEBUG("Received node statistics update")
+            .With("NodeIds", nodeIds);
 
         TCompactVector<TTableId, 8> nodeIdsToRetry; // Just for logging.
         NTableServer::NProto::TReqConfirmTableStatisticsUpdate confirmRequest;
@@ -1722,8 +1715,8 @@ private:
                     auto tabletResourceUsage = FromProto<TTabletResources>(entry.tablet_resource_usage());
                     table->SetExternalTabletResourceUsage(tabletResourceUsage);
                 } else {
-                    YT_LOG_ALERT("Received tablet resource usage update for a non-tablet owner node (NodeId: %v)",
-                        nodeId);
+                    YT_TLOG_ALERT("Received tablet resource usage update for a non-tablet owner node")
+                        .With("NodeId", nodeId);
                 }
             }
 
@@ -1764,8 +1757,8 @@ private:
         if (!nodeIdsToRetry.empty()) {
             YT_VERIFY(std::ssize(nodeIdsToRetry) == confirmRequest.content_revision_cas_failed_nodes_size());
 
-            YT_LOG_DEBUG("Content revision CASes failed, requesting retries (NodeIds: %v)",
-                nodeIdsToRetry);
+            YT_TLOG_DEBUG("Content revision CASes failed, requesting retries")
+                .With("NodeIds", nodeIdsToRetry);
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1790,10 +1783,10 @@ private:
             if (actualContentRevision >= chunkOwner->GetNativeContentRevision()) {
                 chunkOwner->SetNativeContentRevision(actualContentRevision);
             } else {
-                YT_LOG_ALERT("Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %x, NodeRevision: %x)",
-                    nodeId,
-                    actualContentRevision,
-                    chunkOwner->GetNativeContentRevision());
+                YT_TLOG_ALERT("Received non-monotonic revision with content revision CAS failure notification; ignored")
+                    .With("NodeId", nodeId)
+                    .WithFormat("ReceivedRevision", "%x", actualContentRevision)
+                    .WithFormat("NodeRevision", "%x", chunkOwner->GetNativeContentRevision());
             }
 
             ScheduleStatisticsUpdate(
@@ -2073,46 +2066,39 @@ private:
                     ? it->second
                     : 0;
 
-                YT_LOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter,
-                    "Table schema has unexpected export ref counter "
-                    "(SchemaId: %v, CellTag: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
-                    schemaId,
-                    cellTag,
-                    expectedRefCounter,
-                    actualRefCounter);
+                YT_TLOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter, "Table schema has unexpected export ref counter")
+                    .With("SchemaId", schemaId)
+                    .With("CellTag", cellTag)
+                    .With("ExpectedRefCounter", expectedRefCounter)
+                    .With("ActualRefCounter", actualRefCounter);
 
                 expectedExportRefCounters.erase(it);
             }
 
             auto actualExportRefCountersSize = actualExportRefCounters.size();
-            YT_LOG_FATAL_UNLESS(expectedExportRefCounters.empty(),
-                "Table schema has missing entries in export ref counter map "
-                "(SchemaId: %v, ExpectedExportRefCounterMapSize: %v, ActualExportRefCounterMapSize: %v)",
-                schemaId,
-                expectedExportRefCounters.size() + actualExportRefCountersSize,
-                actualExportRefCountersSize);
+            YT_TLOG_FATAL_UNLESS(expectedExportRefCounters.empty(), "Table schema has missing entries in export ref counter map")
+                .With("SchemaId", schemaId)
+                .With("ExpectedExportRefCounterMapSize", expectedExportRefCounters.size() + actualExportRefCountersSize)
+                .With("ActualExportRefCounterMapSize", actualExportRefCountersSize);
 
             // Check nativeness.
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             auto expectedNativeness = CellTagFromId(schemaId) == multicellManager->GetCellTag();
-            YT_LOG_FATAL_UNLESS(schema->IsNative() == expectedNativeness,
-                "Table schema has unexpected nativeness "
-                "(SchemaId: %v, ExpectedNativeness: %v, ActualNativeness: %v)",
-                schemaId,
-                expectedNativeness,
-                schema->IsNative());
+            YT_TLOG_FATAL_UNLESS(schema->IsNative() == expectedNativeness, "Table schema has unexpected nativeness")
+                .With("SchemaId", schemaId)
+                .With("ExpectedNativeness", expectedNativeness)
+                .With("ActualNativeness", schema->IsNative());
 
             // Check ref counters.
             auto expectedRefCounter = GetOrCrash(schemaToRefCounter, schema);
             auto actualRefCounter = schema->GetObjectRefCounter();
-            YT_LOG_FATAL_UNLESS(
+            YT_TLOG_FATAL_UNLESS(
                 expectedRefCounter == actualRefCounter ||
                 (expectedRefCounter + 1 == actualRefCounter && schema->IsForeign()),
-                "Table schema has unexpected ref counter "
-                "(SchemaId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
-                schemaId,
-                expectedRefCounter,
-                actualRefCounter);
+                "Table schema has unexpected ref counter")
+                .With("SchemaId", schemaId)
+                .With("ExpectedRefCounter", expectedRefCounter)
+                .With("ActualRefCounter", actualRefCounter);
 
             // Check referencing accounts.
             auto expectedReferencingAccounts = GetOrCrash(schemaToReferencingAccounts, schema);
@@ -2124,25 +2110,21 @@ private:
                     ? it->second
                     : 0;
 
-                YT_LOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter,
-                    "Table schema has unexpected referencing accounts counter "
-                    "(SchemaId: %v, AccountId: %v, Account: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
-                    schemaId,
-                    account->GetId(),
-                    account->GetName(),
-                    expectedRefCounter,
-                    actualRefCounter);
+                YT_TLOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter, "Table schema has unexpected referencing accounts counter")
+                    .With("SchemaId", schemaId)
+                    .With("AccountId", account->GetId())
+                    .With("Account", account->GetName())
+                    .With("ExpectedRefCounter", expectedRefCounter)
+                    .With("ActualRefCounter", actualRefCounter);
 
                 expectedReferencingAccounts.erase(it);
             }
 
             auto actualReferencingAccountsSize = actualReferencingAccounts.size();
-            YT_LOG_FATAL_UNLESS(expectedExportRefCounters.empty(),
-                "Table schema has missing entries in referencing accounts map "
-                "(SchemaId: %v, ExpectedReferencingAccountsMapSize: %v, ActualReferencingAccountsMapSize: %v)",
-                schemaId,
-                expectedReferencingAccounts.size() + actualReferencingAccountsSize,
-                actualReferencingAccountsSize);
+            YT_TLOG_FATAL_UNLESS(expectedExportRefCounters.empty(), "Table schema has missing entries in referencing accounts map")
+                .With("SchemaId", schemaId)
+                .With("ExpectedReferencingAccountsMapSize", expectedReferencingAccounts.size() + actualReferencingAccountsSize)
+                .With("ActualReferencingAccountsMapSize", actualReferencingAccountsSize);
         }
     }
 

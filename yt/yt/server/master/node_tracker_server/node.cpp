@@ -562,10 +562,10 @@ void TNode::SetRegistrationPending(TCellTag selfCellTag)
         }
 
         if (descriptor.State != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is pending registration in unexpected state (NodeId: %v, CellTag: %v, State: %v)",
-                GetId(),
-                cellTag,
-                descriptor.State);
+            YT_TLOG_ALERT("Node is pending registration in unexpected state")
+                .With("NodeId", GetId())
+                .With("CellTag", cellTag)
+                .With("State", descriptor.State);
             continue;
         }
         descriptor.RegistrationPending = true;
@@ -587,11 +587,11 @@ void TNode::SetState(
     }
 
     if (descriptor.RegistrationPending && descriptor.State != ENodeState::Offline) {
-        YT_LOG_ALERT("Registration pending flag was not discarded (NodeId: %v, CellTag: %v, OldState: %v, NewState: %v)",
-            GetId(),
-            cellTag,
-            descriptor.State,
-            state);
+        YT_TLOG_ALERT("Registration pending flag was not discarded")
+            .With("NodeId", GetId())
+            .With("CellTag", cellTag)
+            .With("OldState", descriptor.State)
+            .With("NewState", state);
         descriptor.RegistrationPending = false;
     }
 
@@ -625,11 +625,11 @@ void TNode::SetCellAggregatedStateReliability(
     YT_VERIFY(HasMutationContext());
 
     auto& descriptor = GetOrCrash(MulticellDescriptors_, cellTag);
-    YT_LOG_DEBUG("Setting node cell aggregated state reliability (NodeId: %v, OldReliability: %v, NewReliability: %v, CellTag: %v)",
-        GetId(),
-        descriptor.CellReliability,
-        reliability,
-        cellTag);
+    YT_TLOG_DEBUG("Setting node cell aggregated state reliability")
+        .With("NodeId", GetId())
+        .With("OldReliability", descriptor.CellReliability)
+        .With("NewReliability", reliability)
+        .With("CellTag", cellTag);
 
     if (descriptor.CellReliability != reliability) {
         ValidateReliabilityTransition(descriptor.CellReliability, reliability);
@@ -825,10 +825,10 @@ void TNode::AddTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex, 
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
     if (!PushReplicationTargetNodeIds_[chunkId].emplace(targetMediumIndex, node->GetId()).second) {
-        YT_LOG_ALERT("Pull replication is already planned for this chunk to another destination (ChunkId: %v, SourceNodeId: %v, TargetNodeId: %v)",
-            chunkId,
-            GetId(),
-            node->GetId());
+        YT_TLOG_ALERT("Pull replication is already planned for this chunk to another destination")
+            .With("ChunkId", chunkId)
+            .With("SourceNodeId", GetId())
+            .With("TargetNodeId", node->GetId());
     }
 }
 
@@ -863,9 +863,9 @@ void TNode::UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
 {
     auto chunkIt = ChunksBeingPulled_.find(chunkId);
     if (chunkIt == ChunksBeingPulled_.end()) {
-        YT_LOG_ALERT("Trying to remove a chunk from pull replication queue that was already removed (ChunkId: %v, NodeId: %v)",
-            chunkId,
-            GetId());
+        YT_TLOG_ALERT("Trying to remove a chunk from pull replication queue that was already removed")
+            .With("ChunkId", chunkId)
+            .With("NodeId", GetId());
         return;
     }
 
@@ -873,10 +873,10 @@ void TNode::UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
 
     auto mediumIt = chunkIt->second.find(targetMediumIndex);
     if (mediumIt == chunkIt->second.end()) {
-        YT_LOG_ALERT("Trying to remove a chunk from pull replication queue that was already removed for that medium (ChunkId: %v, NodeId: %v, Medium: %v)",
-            chunkId,
-            GetId(),
-            targetMediumIndex);
+        YT_TLOG_ALERT("Trying to remove a chunk from pull replication queue that was already removed for that medium")
+            .With("ChunkId", chunkId)
+            .With("NodeId", GetId())
+            .With("Medium", targetMediumIndex);
         return;
     }
 
@@ -942,10 +942,8 @@ void TNode::ValidateReliabilityTransition(
                 return;
             }
 
-            YT_LOG_ALERT(
-                "Invalid cell aggregated state reliability transition (Reliability: %v -> %v)",
-                oldReliability,
-                newReliability);
+            YT_TLOG_ALERT("Invalid cell aggregated state reliability transition")
+                .WithFormat("Reliability", "%v -> %v", oldReliability, newReliability);
         };
 
     switch (oldReliability) {

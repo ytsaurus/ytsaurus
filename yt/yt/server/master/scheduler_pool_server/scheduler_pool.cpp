@@ -194,11 +194,10 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
                 EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
             } else {
                 GetMutableAttributes()->Set(uninternedKey, value);
-                YT_LOG_INFO("Moving pool attribute from specified attributes map to common attributes map "
-                    "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
-                    Id_,
-                    uninternedKey,
-                    ConvertToYsonString(value, EYsonFormat::Text));
+                YT_TLOG_INFO("Moving pool attribute from specified attributes map to common attributes map")
+                    .With("ObjectId", Id_)
+                    .With("AttributeName", uninternedKey)
+                    .With("AttributeValue", ConvertToYsonString(value, EYsonFormat::Text));
             }
         }
     } else {
@@ -219,28 +218,26 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
             }
             if (knownPoolAttributes.contains(internedKey)) {
                 if (SpecifiedAttributes_.contains(internedKey)) {
-                    YT_LOG_ALERT("Found pool attribute that is stored in both SpecifiedAttributes map and common attributes map "
-                        "(ObjectId: %v, AttributeName: %v, CommonAttributeValue: %v, SpecifiedAttributeValue: %v)",
-                        Id_,
-                        key,
-                        ConvertToYsonString(value, EYsonFormat::Text),
-                        ConvertToYsonString(SpecifiedAttributes_[internedKey], EYsonFormat::Text));
+                    YT_TLOG_ALERT("Found pool attribute that is stored in both SpecifiedAttributes map and common attributes map")
+                        .With("ObjectId", Id_)
+                        .With("AttributeName", key)
+                        .With("CommonAttributeValue", ConvertToYsonString(value, EYsonFormat::Text))
+                        .With("SpecifiedAttributeValue", ConvertToYsonString(SpecifiedAttributes_[internedKey], EYsonFormat::Text));
                 } else {
                     try {
-                        YT_LOG_INFO("Moving pool attribute from common attributes map to SpecifiedAttributes map "
-                            "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
-                            Id_,
-                            key,
-                            ConvertToYsonString(value, EYsonFormat::Text));
+                        YT_TLOG_INFO("Moving pool attribute from common attributes map to SpecifiedAttributes map")
+                            .With("ObjectId", Id_)
+                            .With("AttributeName", key)
+                            .With("AttributeValue", ConvertToYsonString(value, EYsonFormat::Text));
                         FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value));
                         EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
                         keysToRemove.push_back(key);
                     } catch (const std::exception& ex) {
-                        YT_LOG_ALERT(ex, "Cannot parse value of pool attribute; the value will be dropped "
-                            "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
-                            Id_,
-                            key,
-                            ConvertToYsonString(value, EYsonFormat::Text));
+                        YT_TLOG_ALERT("Cannot parse value of pool attribute; the value will be dropped")
+                            .With("ObjectId", Id_)
+                            .With("AttributeName", key)
+                            .With("AttributeValue", ConvertToYsonString(value, EYsonFormat::Text))
+                            .With(ex);
                     }
                 }
             }

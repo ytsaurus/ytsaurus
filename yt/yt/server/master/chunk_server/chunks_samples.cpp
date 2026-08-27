@@ -146,22 +146,28 @@ void TChunksSamples::HydraApplyMulticellStatisticsUpdate(NProto::TReqChunksSampl
     InconsistentlyPlacedChunksSample_[cellTag] = FromProto<std::vector<TObjectId>>(request->inconsistently_placed_chunk_ids());
 
     if (!request->lost_vital_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received lost vital chunks sample (LostVitalChunksSampleSize: %v)", request->lost_vital_chunk_ids_size());
+        YT_TLOG_DEBUG("Received lost vital chunks sample")
+            .With("LostVitalChunksSampleSize", request->lost_vital_chunk_ids_size());
     }
     if (!request->data_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received data missing chunks sample (DataMissingChunksSampleSize: %v)", request->data_missing_chunk_ids_size());
+        YT_TLOG_DEBUG("Received data missing chunks sample")
+            .With("DataMissingChunksSampleSize", request->data_missing_chunk_ids_size());
     }
     if (!request->parity_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received parity missing chunks sample (ParityMissingChunksSampleSize: %v)", request->parity_missing_chunk_ids_size());
+        YT_TLOG_DEBUG("Received parity missing chunks sample")
+            .With("ParityMissingChunksSampleSize", request->parity_missing_chunk_ids_size());
     }
     if (!request->oldest_part_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received oldest part missing chunks sample (OldestPartMissingChunksSampleSize: %v)", request->oldest_part_missing_chunk_ids_size());
+        YT_TLOG_DEBUG("Received oldest part missing chunks sample")
+            .With("OldestPartMissingChunksSampleSize", request->oldest_part_missing_chunk_ids_size());
     }
     if (!request->quorum_missing_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received quorum missing chunks sample (QuorumMissingChunksSampleSize: %v)", request->quorum_missing_chunk_ids_size());
+        YT_TLOG_DEBUG("Received quorum missing chunks sample")
+            .With("QuorumMissingChunksSampleSize", request->quorum_missing_chunk_ids_size());
     }
     if (!request->inconsistently_placed_chunk_ids().empty()) {
-        YT_LOG_DEBUG("Received inconsistently placed chunks sample (InconsistentlyPlacedChunksSampleSize: %v)", request->inconsistently_placed_chunk_ids_size());
+        YT_TLOG_DEBUG("Received inconsistently placed chunks sample")
+            .With("InconsistentlyPlacedChunksSampleSize", request->inconsistently_placed_chunk_ids_size());
     }
 }
 

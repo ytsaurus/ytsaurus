@@ -387,9 +387,9 @@ void TTablet::ValidateUnmount()
     for (auto it : GetIteratorsSortedByKey(Replicas())) {
         const auto& [weakReplica, replicaInfo] = *it;
         if (!IsObjectAlive(weakReplica)) {
-            YT_LOG_ALERT("Found zombie replica during tablet unmount validation (TabletId: %v, ReplicaId: %v)",
-                GetId(),
-                weakReplica->GetId());
+            YT_TLOG_ALERT("Found zombie replica during tablet unmount validation")
+                .With("TabletId", GetId())
+                .With("ReplicaId", weakReplica->GetId());
             continue;
         }
         auto* replica = weakReplica.Get();

@@ -107,13 +107,10 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
     auto appendEmptySecurityTags =
         branchedNode->GetSecurityTagsUpdateMode() == ESecurityTagsUpdateMode::Append &&
         branchedNode->DeltaSecurityTags()->IsEmpty();
-    YT_LOG_ALERT_IF(
-        appendEmptySecurityTags,
-        "Found a node with append security tags update mode, but no changes in security tags "
-        "(NodeId: %v, DeltaSecurityTags: %v, SnapshotSecurityTags: %v)",
-        branchedNode->GetVersionedId(),
-        branchedNode->DeltaSecurityTags()->Items,
-        branchedNode->SnapshotSecurityTags()->Items);
+    YT_TLOG_ALERT_IF(appendEmptySecurityTags, "Found a node with append security tags update mode, but no changes in security tags")
+        .With("NodeId", branchedNode->GetVersionedId())
+        .With("DeltaSecurityTags", branchedNode->DeltaSecurityTags()->Items)
+        .With("SnapshotSecurityTags", branchedNode->SnapshotSecurityTags()->Items);
 
     return
         branchedNode->GetUpdateMode() != EUpdateMode::None ||
@@ -258,17 +255,15 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
 {
     const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
-    YT_LOG_DEBUG(
-        "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, HunkChunkListId: %v, "
-        "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %v)",
-        originatingNode->GetVersionedId(),
-        branchedNode->GetVersionedId(),
-        NObjectServer::GetObjectId(originatingNode->GetChunkList()),
-        NObjectServer::GetObjectId(originatingNode->GetHunkChunkList()),
-        primaryMedium->GetName(),
-        originatingNode->Replication(),
-        lockRequest.Mode,
-        lockRequest.Timestamp);
+    YT_TLOG_DEBUG("Node branched")
+        .With("OriginatingNodeId", originatingNode->GetVersionedId())
+        .With("BranchedNodeId", branchedNode->GetVersionedId())
+        .With("ChunkListId", NObjectServer::GetObjectId(originatingNode->GetChunkList()))
+        .With("HunkChunkListId", NObjectServer::GetObjectId(originatingNode->GetHunkChunkList()))
+        .With("PrimaryMedium", primaryMedium->GetName())
+        .With("Replication", originatingNode->Replication())
+        .With("Mode", lockRequest.Mode)
+        .With("LockTimestamp", lockRequest.Timestamp);
 }
 
 template <class TChunkOwner>
@@ -388,13 +383,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                         originatingNode->template As<TTableNode>(),
                         branchedNode->template As<TTableNode>());
                 } else {
-                    YT_LOG_ALERT(
-                        "Branched chunk list equals originating chunk list "
-                        "(UpdateMode: %v, ChunkListId: %v, NodeId: %v, TransactionId: %v)",
-                        branchedMode,
-                        branchedChunkList->GetId(),
-                        originatingNode->GetId(),
-                        branchedNode->GetTransaction()->GetId());
+                    YT_TLOG_ALERT("Branched chunk list equals originating chunk list")
+                        .With("UpdateMode", branchedMode)
+                        .With("ChunkListId", branchedChunkList->GetId())
+                        .With("NodeId", originatingNode->GetId())
+                        .With("TransactionId", branchedNode->GetTransaction()->GetId());
                 }
             }
 
@@ -428,13 +421,11 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                             originatingNode->template As<TTableNode>(),
                             branchedNode->template As<TTableNode>());
                     } else {
-                        YT_LOG_ALERT(
-                            "Branched chunk list equals originating chunk list "
-                            "(UpdateMode: %v, ChunkListId: %v, NodeId: %v, TransactionId: %v)",
-                            branchedMode,
-                            branchedChunkList->GetId(),
-                            originatingNode->GetId(),
-                            branchedNode->GetTransaction()->GetId());
+                        YT_TLOG_ALERT("Branched chunk list equals originating chunk list")
+                            .With("UpdateMode", branchedMode)
+                            .With("ChunkListId", branchedChunkList->GetId())
+                            .With("NodeId", originatingNode->GetId())
+                            .With("TransactionId", branchedNode->GetTransaction()->GetId());
                     }
                 } else {
                     YT_VERIFY(!topmostCommit);
@@ -580,31 +571,25 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
     const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
     const auto* originatingPrimaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     const auto* branchedPrimaryMedium = chunkManager->GetMediumByIndex(branchedNode->GetPrimaryMediumIndex());
-    YT_LOG_DEBUG(
-        "Node merged (OriginatingNodeId: %v, OriginatingPrimaryMedium: %v, OriginatingReplication: %v, "
-        "BranchedNodeId: %v, BranchedChunkListId: %v, BranchedHunkChunkListId: %v, BranchedUpdateMode: %v, "
-        "BranchedSecurityTagsUpdateMode: %v, BranchedPrimaryMedium: %v, BranchedReplication: %v, "
-        "NewOriginatingChunkListId: %v, NewOriginatingHunkChunkListId: %v, NewOriginatingUpdateMode: %v, "
-        "NewOriginatingSecurityTagsUpdateMode: %v, BranchedSnapshotStatistics: %v, BranchedDeltaStatistics: %v, "
-        "NewOriginatingSnapshotStatistics: %v, NewOriginatingDeltaStatistics: %v)",
-        originatingNode->GetVersionedId(),
-        originatingPrimaryMedium->GetName(),
-        originatingNode->Replication(),
-        branchedNode->GetVersionedId(),
-        NObjectServer::GetObjectId(branchedNode->GetChunkList()),
-        NObjectServer::GetObjectId(branchedNode->GetHunkChunkList()),
-        branchedNode->GetUpdateMode(),
-        branchedNode->GetSecurityTagsUpdateMode(),
-        branchedPrimaryMedium->GetName(),
-        branchedNode->Replication(),
-        NObjectServer::GetObjectId(originatingNode->GetChunkList()),
-        NObjectServer::GetObjectId(originatingNode->GetHunkChunkList()),
-        originatingNode->GetUpdateMode(),
-        originatingNode->GetSecurityTagsUpdateMode(),
-        branchedNode->SnapshotStatistics(),
-        branchedNode->DeltaStatistics(),
-        originatingNode->SnapshotStatistics(),
-        originatingNode->DeltaStatistics());
+    YT_TLOG_DEBUG("Node merged")
+        .With("OriginatingNodeId", originatingNode->GetVersionedId())
+        .With("OriginatingPrimaryMedium", originatingPrimaryMedium->GetName())
+        .With("OriginatingReplication", originatingNode->Replication())
+        .With("BranchedNodeId", branchedNode->GetVersionedId())
+        .With("BranchedChunkListId", NObjectServer::GetObjectId(branchedNode->GetChunkList()))
+        .With("BranchedHunkChunkListId", NObjectServer::GetObjectId(branchedNode->GetHunkChunkList()))
+        .With("BranchedUpdateMode", branchedNode->GetUpdateMode())
+        .With("BranchedSecurityTagsUpdateMode", branchedNode->GetSecurityTagsUpdateMode())
+        .With("BranchedPrimaryMedium", branchedPrimaryMedium->GetName())
+        .With("BranchedReplication", branchedNode->Replication())
+        .With("NewOriginatingChunkListId", NObjectServer::GetObjectId(originatingNode->GetChunkList()))
+        .With("NewOriginatingHunkChunkListId", NObjectServer::GetObjectId(originatingNode->GetHunkChunkList()))
+        .With("NewOriginatingUpdateMode", originatingNode->GetUpdateMode())
+        .With("NewOriginatingSecurityTagsUpdateMode", originatingNode->GetSecurityTagsUpdateMode())
+        .With("BranchedSnapshotStatistics", branchedNode->SnapshotStatistics())
+        .With("BranchedDeltaStatistics", branchedNode->DeltaStatistics())
+        .With("NewOriginatingSnapshotStatistics", originatingNode->SnapshotStatistics())
+        .With("NewOriginatingDeltaStatistics", originatingNode->DeltaStatistics());
 }
 
 template <class TChunkOwner>

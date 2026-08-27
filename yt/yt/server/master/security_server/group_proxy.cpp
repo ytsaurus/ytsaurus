@@ -101,11 +101,9 @@ private:
         auto* group = GetThisImpl();
 
         if (member->IsUser()) {
-            YT_LOG_ALERT_IF(
-                member->AsUser()->GetPendingRemoval(),
-                "User pending for removal joined group (User: %v, Group: %v)",
-                member->GetName(),
-                group->GetName());
+            YT_TLOG_ALERT_IF(member->AsUser()->GetPendingRemoval(), "User pending for removal joined group")
+                .With("User", member->GetName())
+                .With("Group", group->GetName());
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();

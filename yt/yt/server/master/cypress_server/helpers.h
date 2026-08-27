@@ -36,6 +36,8 @@ namespace NProto {
 
 void FormatValue(TStringBuilderBase* builder, const TAccessTrackingOptions& options, TStringBuf /*spec*/);
 
+NLogging::TLoggingTagList MakeAccessTrackingOptionsTags(const TAccessTrackingOptions& options);
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -99,7 +99,7 @@ private:
         }
 
         try {
-            YT_LOG_DEBUG("Started synchronizing cell directory");
+            YT_TLOG_DEBUG("Started synchronizing cell directory");
 
             THashMap<TCellId, int> idToVersion;
             for (const auto& info : CellDirectory_->GetRegisteredCells()) {
@@ -129,10 +129,11 @@ private:
                 }
             }
 
-            YT_LOG_DEBUG("Finished synchronizing cell directory");
+            YT_TLOG_DEBUG("Finished synchronizing cell directory");
             promise.Set();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error synchronizing cell directory");
+            YT_TLOG_DEBUG("Error synchronizing cell directory")
+                .With(ex);
             promise.Set(ex);
         }
     }

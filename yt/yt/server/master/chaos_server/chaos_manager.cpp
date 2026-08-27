@@ -292,9 +292,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.insert(node).second) {
-            YT_LOG_ALERT("Attempting to register a queue twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a queue twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -304,9 +304,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.erase(node)) {
-            YT_LOG_ALERT("Attempting to unregister an unknown queue (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown queue")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -316,9 +316,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Consumers_.insert(node).second) {
-            YT_LOG_ALERT("Attempting to register a consumer twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a consumer twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -328,9 +328,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Consumers_.erase(node)) {
-            YT_LOG_ALERT("Attempting to unregister an unknown consumer (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown consumer")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -340,9 +340,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Producers_.insert(node).second) {
-            YT_LOG_ALERT("Attempting to register a producer twice (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to register a producer twice")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -352,9 +352,9 @@ private:
         YT_VERIFY(HasHydraContext());
 
         if (!Producers_.erase(node)) {
-            YT_LOG_ALERT("Attempting to unregister an unknown producer (Node: %v, Path: %v)",
-                node->GetId(),
-                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+            YT_TLOG_ALERT("Attempting to unregister an unknown producer")
+                .With("Node", node->GetId())
+                .With("Path", Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
     }
 
@@ -436,29 +436,28 @@ private:
 
                 for (const auto& alienPeer : alienCell.AlienPeers) {
                     if (alienPeer.PeerId < 0 || alienPeer.PeerId >= std::ssize(cell->Peers())) {
-                        YT_LOG_ALERT("Trying to update alien peer with invalid peer id (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
-                            cell->GetId(),
-                            alienPeer.PeerId,
-                            clusterName);
+                        YT_TLOG_ALERT("Trying to update alien peer with invalid peer id")
+                            .With("ChaosCellId", cell->GetId())
+                            .With("PeerId", alienPeer.PeerId)
+                            .With("AlienCluster", clusterName);
                         continue;
                     }
 
                     if (!cell->IsAlienPeer(alienPeer.PeerId)) {
-                        YT_LOG_ALERT("Trying to update local peer as alien, ignored (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
-                            cell->GetId(),
-                            alienPeer.PeerId,
-                            clusterName);
+                        YT_TLOG_ALERT("Trying to update local peer as alien, ignored")
+                            .With("ChaosCellId", cell->GetId())
+                            .With("PeerId", alienPeer.PeerId)
+                            .With("AlienCluster", clusterName);
                         continue;
                     }
 
                     cell->UpdateAlienPeer(alienPeer.PeerId, alienPeer.NodeDescriptor);
 
-                    YT_LOG_DEBUG("Updated alien peer config (ChaosCellId: %v, "
-                        "AlienCluster: %v, AlienConfigVersion: %v, PeerAddress: %v)",
-                        cell->GetId(),
-                        clusterName,
-                        alienCell.ConfigVersion,
-                        alienPeer.NodeDescriptor.GetDefaultAddress());
+                    YT_TLOG_DEBUG("Updated alien peer config")
+                        .With("ChaosCellId", cell->GetId())
+                        .With("AlienCluster", clusterName)
+                        .With("AlienConfigVersion", alienCell.ConfigVersion)
+                        .With("PeerAddress", alienPeer.NodeDescriptor.GetDefaultAddress());
                 }
 
                 cell->SetAlienConfigVersion(alienClusterIndex, alienCell.ConfigVersion);
@@ -479,9 +478,9 @@ private:
                         }
                     }
 
-                    YT_LOG_DEBUG("Updated alien peer config for lost peers (ChaosCellId: %v, AlienCluster: %v)",
-                        cellId,
-                        clusterName);
+                    YT_TLOG_DEBUG("Updated alien peer config for lost peers")
+                        .With("ChaosCellId", cellId)
+                        .With("AlienCluster", clusterName);
 
                     cell->SetAlienConfigVersion(alienClusterIndex, 0);
                 }
@@ -499,8 +498,8 @@ private:
         auto indexToName = FromProto<std::vector<std::string>>(request->clusters());
         AlienClusterRegistry_->Reset(std::move(indexToName));
 
-        YT_LOG_DEBUG("Alien cluster registry is reset (ActualClusters: %v)",
-            AlienClusterRegistry_->GetIndexToName());
+        YT_TLOG_DEBUG("Alien cluster registry is reset")
+            .With("ActualClusters", AlienClusterRegistry_->GetIndexToName());
     }
 
     void HydraPrepareCreateReplicationCard(
@@ -531,9 +530,9 @@ private:
             if (auto* node = cypressManager->FindNode(trunkTable, transaction)) {
                 auto* tableNode = node->As<TChaosReplicatedTableNode>();
                 tableNode->SetReplicationCardId(replicationCardId);
-                YT_LOG_DEBUG("Replication card assigned to chaos replicated table (TableId: %v, ReplicationCardId: %v)",
-                    TVersionedNodeId(tableId, GetObjectId(transaction)),
-                    replicationCardId);
+                YT_TLOG_DEBUG("Replication card assigned to chaos replicated table")
+                    .With("TableId", TVersionedNodeId(tableId, GetObjectId(transaction)))
+                    .With("ReplicationCardId", replicationCardId);
             }
         };
 
