@@ -1,11 +1,13 @@
 GO_LIBRARY()
 
 SRCS(
+    bus_transport.go
     call.go
     client.go
     conn_pool.go
     encoder.go
     error_wrapper.go
+    grpc_transport.go
     helpers.go
     logging.go
     method.go
@@ -37,6 +39,7 @@ ENDIF()
 GO_TEST_SRCS(
     client_test.go
     conn_pool_test.go
+    grpc_transport_test.go
     helpers_test.go
     mutation_retrier_test.go
     object_type_test.go

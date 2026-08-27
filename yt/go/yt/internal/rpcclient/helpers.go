@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -35,6 +36,17 @@ func unexpectedStatusCode(rsp *http.Response) error {
 	}
 
 	return internal.NewHTTPError(rsp.StatusCode, rsp.Header, body)
+}
+
+func resolveServerName(conf *yt.Config, addr string) string {
+	if conf.PeerAlternativeHostName != "" {
+		return conf.PeerAlternativeHostName
+	}
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		// VerifyHostname expects FQDN or IP, both without port.
+		return host
+	}
+	return addr
 }
 
 func convertTxID(txID yt.TxID) *misc.TGuid {
