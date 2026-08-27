@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/golang/protobuf/proto"
+	"google.golang.org/grpc/codes"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/xerrors"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
 	"go.ytsaurus.tech/yt/go/yterrors"
@@ -22,13 +22,13 @@ import (
 
 const ProtocolVersionMajor = 1
 
-func (c *client) listRPCProxies() ([]string, error) {
+func (c *client) listProxies() ([]string, error) {
 	if !c.stop.TryAdd() {
 		return nil, xerrors.New("client is stopped")
 	}
 	defer c.stop.Done()
 
-	v := url.Values{"type": {"rpc"}}
+	v := url.Values{"type": {c.transport.ProxyType()}}
 	if c.conf.ProxyRole != "" {
 		v.Add("role", c.conf.ProxyRole)
 	}
@@ -96,7 +96,12 @@ type ProxyBouncer struct {
 	Log log.Structured
 
 	ProxySet *internal.ProxySet
-	ConnPool *ConnPool
+	ConnPool ConnDiscarder
+}
+
+// ConnDiscarder closes cached connections to a banned proxy.
+type ConnDiscarder interface {
+	Discard(addr string)
 }
 
 func (b *ProxyBouncer) banProxy(call *Call, err error) {
@@ -109,8 +114,8 @@ func (b *ProxyBouncer) banProxy(call *Call, err error) {
 	b.ConnPool.Discard(call.SelectedProxy)
 }
 
-func (b *ProxyBouncer) Intercept(ctx context.Context, call *Call, next CallInvoker, rsp proto.Message, opts ...bus.SendOption) error {
-	err := next(ctx, call, rsp, opts...)
+func (b *ProxyBouncer) Intercept(ctx context.Context, call *Call, next CallInvoker, rsp proto.Message) error {
+	err := next(ctx, call, rsp)
 	b.banProxy(call, err)
 	return err
 }
@@ -122,6 +127,11 @@ func shouldBanProxy(err error) bool {
 
 	var opErr *net.OpError
 	if errors.As(err, &opErr) {
+		return true
+	}
+
+	var grpcErr *grpcStatusError
+	if errors.As(err, &grpcErr) && grpcErr.code == codes.Unavailable {
 		return true
 	}
 
