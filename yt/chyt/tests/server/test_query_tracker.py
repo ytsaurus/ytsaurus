@@ -57,6 +57,19 @@ class TestQueriesChyt(ClickHouseTestBase):
             assert query_info["result_count"] == 1
             assert_items_equal(query.read_result(0), [{"1": 1}])
 
+    @authors("ulya-sidorina")
+    def test_result_truncation(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+
+            query = start_query("chyt", "select number from numbers(10000)", settings=settings)
+            query.track()
+            assert not query.get_result(0)["is_truncated"]
+
+            query = start_query("chyt", "select number from numbers(10001)", settings=settings)
+            query.track()
+            assert query.get_result(0)["is_truncated"]
+
     @authors("gudqeit")
     def test_read_table(self, query_tracker):
         table_schema = [{"name": "value", "type": "int64"}]
