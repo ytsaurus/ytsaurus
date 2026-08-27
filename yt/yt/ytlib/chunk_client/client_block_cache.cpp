@@ -269,7 +269,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return entry->CachedBlock().Size();
+        // Items of async cache are more complex than that and the real memory tax is higher,
+        // but promise states do constitute the bulk of it.
+        return entry->CachedBlock().Size() + sizeof(NYT::NDetail::TPromiseState<TAsyncBlockCacheEntryPtr>);
     }
 
     bool IsEnabled() const
