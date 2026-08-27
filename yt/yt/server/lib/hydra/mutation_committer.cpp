@@ -61,6 +61,30 @@ TError MakeStoppedError()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 ComputeQuorumSequenceNumber(
+    std::vector<std::pair<i64, int>> loggedSequenceNumbersAndWeights,
+    int quorumWeight)
+{
+    std::sort(
+        loggedSequenceNumbersAndWeights.begin(),
+        loggedSequenceNumbersAndWeights.end(),
+        [] (const auto& lhs, const auto& rhs) {
+            return lhs.first > rhs.first;
+        });
+
+    int accumulatedWeight = 0;
+    for (const auto& [sequenceNumber, weight] : loggedSequenceNumbersAndWeights) {
+        accumulatedWeight += weight;
+        if (accumulatedWeight >= quorumWeight) {
+            return sequenceNumber;
+        }
+    }
+
+    return -1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCommitterBase::TCommitterBase(
     TConfigWrapperPtr config,
     const TDistributedHydraManagerOptions& options,
@@ -756,17 +780,19 @@ void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    std::vector<i64> loggedNumbers;
+    std::vector<std::pair<i64, int>> loggedNumbersAndWeights;
     for (int i = 0; i < CellManager_->GetTotalPeerCount(); ++i) {
         if (CellManager_->GetPeerConfig(i)->Voting) {
-            loggedNumbers.push_back(PeerStates_[i].LastLoggedSequenceNumber);
+            loggedNumbersAndWeights.emplace_back(
+                PeerStates_[i].LastLoggedSequenceNumber,
+                CellManager_->GetPeerWeight(i));
         }
     }
-    YT_VERIFY(std::ssize(loggedNumbers) == CellManager_->GetVotingPeerCount());
+    YT_VERIFY(std::ssize(loggedNumbersAndWeights) == CellManager_->GetVotingPeerCount());
 
-    std::sort(loggedNumbers.begin(), loggedNumbers.end(), std::greater<>());
-
-    auto committedSequenceNumber = loggedNumbers[CellManager_->GetQuorumPeerCount() - 1];
+    auto committedSequenceNumber = ComputeQuorumSequenceNumber(
+        std::move(loggedNumbersAndWeights),
+        CellManager_->GetQuorumWeight());
 
     YT_TLOG_DEBUG("Trying to promote committed sequence number")
         .With("NewCommittedSequenceNumber", committedSequenceNumber)

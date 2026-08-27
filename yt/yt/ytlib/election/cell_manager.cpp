@@ -31,6 +31,8 @@ TCellManager::TCellManager(
     , VotingPeerCount_(Config_->CountVotingPeers())
     , QuorumPeerCount_(Config_->QuorumPeerCount.value_or(VotingPeerCount_ / 2 + 1))
     , TotalPeerCount_(Config_->Peers.size())
+    , VotingWeight_(Config_->CountVotingWeight())
+    , QuorumWeight_((VotingWeight_ * QuorumPeerCount_ + VotingPeerCount_ - 1) / VotingPeerCount_)
     , Logger(ElectionLogger()
         .WithTag("CellId", Config_->CellId)
         .WithTag("SelfPeerId", selfId))
@@ -79,14 +81,19 @@ int TCellManager::GetVotingPeerCount() const
     return VotingPeerCount_;
 }
 
-int TCellManager::GetQuorumPeerCount() const
-{
-    return QuorumPeerCount_;
-}
-
 int TCellManager::GetTotalPeerCount() const
 {
     return TotalPeerCount_;
+}
+
+int TCellManager::GetPeerWeight(int id) const
+{
+    return Config_->Peers[id]->Weight;
+}
+
+int TCellManager::GetQuorumWeight() const
+{
+    return QuorumWeight_;
 }
 
 const TCellPeerConfigPtr& TCellManager::GetPeerConfig(int id) const

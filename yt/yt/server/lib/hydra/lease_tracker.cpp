@@ -69,7 +69,7 @@ public:
 
         for (int id = 0; id < Owner_->EpochContext_->CellManager->GetTotalPeerCount(); ++id) {
             if (id == Owner_->EpochContext_->CellManager->GetSelfPeerId()) {
-                OnSuccess();
+                OnSuccess(id);
             } else {
                 SendPing(id);
             }
@@ -86,7 +86,7 @@ private:
     const TLeaseTrackerPtr Owner_;
     const NLogging::TLogger Logger;
 
-    int ActiveCount_ = 0;
+    int ActiveWeight_ = 0;
     std::vector<TFuture<void>> AsyncResults_;
     std::vector<TError> PingErrors_;
 
@@ -152,7 +152,7 @@ private:
 
         if (voting) {
             if (state == EPeerState::Following || state == EPeerState::FollowerRecovery) {
-                OnSuccess();
+                OnSuccess(followerId);
             } else {
                 PingErrors_.push_back(TError("Follower %v is in %Qlv state",
                     followerId,
@@ -172,11 +172,11 @@ private:
         }
     }
 
-    void OnSuccess()
+    void OnSuccess(int peerId)
     {
-        ++ActiveCount_;
-        if (ActiveCount_ == Owner_->EpochContext_->CellManager->GetQuorumPeerCount()) {
-            Promise_.Set();
+        ActiveWeight_ += Owner_->EpochContext_->CellManager->GetPeerWeight(peerId);
+        if (ActiveWeight_ >= Owner_->EpochContext_->CellManager->GetQuorumWeight()) {
+            Promise_.TrySet();
         }
     }
 };

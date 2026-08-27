@@ -471,18 +471,18 @@ private:
         }
 
         // Count votes (including self) and quorum.
-        int voteCount = CountVotesFor(candidateId, candidateStatus.VoteEpochId);
-        int quorumCount = Owner_->CellManager_->GetQuorumPeerCount();
+        int voteWeight = CountVotesFor(candidateId, candidateStatus.VoteEpochId);
+        int quorumWeight = Owner_->CellManager_->GetQuorumWeight();
 
         // Check for quorum.
-        if (voteCount < quorumCount) {
+        if (voteWeight < quorumWeight) {
             return false;
         }
 
-        YT_TLOG_DEBUG("Candidate has quorum")
+        YT_TLOG_DEBUG("Candidate has quorum (PeerId: %v, VoteWeight: %v, QuorumWeight: %v)")
             .With("PeerId", candidateId)
-            .With("VoteCount", voteCount)
-            .With("QuorumCount", quorumCount);
+            .With("VoteWeight", voteWeight)
+            .With("QuorumWeight", quorumWeight);
 
         Finished_ = true;
 
@@ -505,7 +505,7 @@ private:
         int result = 0;
         for (const auto& [peerId, peerStatus] : StatusTable_) {
             if (peerStatus.VoteId == candidateId && peerStatus.VoteEpochId == epochId) {
-                ++result;
+                result += Owner_->CellManager_->GetPeerWeight(peerId);
             }
         }
         return result;
@@ -778,7 +778,12 @@ void TDistributedElectionManager::OnLeaderPingLeaseExpired()
 
 bool TDistributedElectionManager::CheckQuorum()
 {
-    if (std::ssize(AliveFollowerIds_) >= CellManager_->GetQuorumPeerCount()) {
+    int aliveWeight = 0;
+    for (auto peerId : AliveFollowerIds_) {
+        aliveWeight += CellManager_->GetPeerWeight(peerId);
+    }
+
+    if (aliveWeight >= CellManager_->GetQuorumWeight()) {
         return true;
     }
 

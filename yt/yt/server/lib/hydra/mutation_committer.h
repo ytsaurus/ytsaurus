@@ -44,6 +44,15 @@ using TMutationDraftQueue = TMpscQueue<TMutationDraft>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Given, for each voting peer, its last logged sequence number paired with its weight,
+//! returns the highest sequence number reached by peers whose weights sum to at least
+//! quorumWeight, or -1 if no such sequence number exists.
+i64 ComputeQuorumSequenceNumber(
+    std::vector<std::pair<i64, int>> loggedSequenceNumbersAndWeights,
+    int quorumWeight);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCommitterBase
     : public TRefCounted
 {
