@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
+from ..computation import TransformResult
 from ..context import ResponseContext
 from ..row import Message, NewTimer, Payload
 from ..state import ExternalState, State, StatesHolder
@@ -20,6 +21,11 @@ class ProcessResponse:
         for tr in self._ctx.transform_results:
             result.extend(tr.messages)
         return result
+
+    @property
+    def transform_results(self) -> List[TransformResult]:
+        """Raw output groups, each carrying its parent ids (lineage)."""
+        return list(self._ctx.transform_results)
 
     @property
     def distribute(self) -> List[bool]:

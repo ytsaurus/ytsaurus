@@ -1,0 +1,95 @@
+{
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+                "output_stream_ids" = ["events"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                            "finite" = false;
+                        };
+                    };
+                };
+                "parameters" = {};
+            };
+            "compactor" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TSwiftMapCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(word)"; "type" = "uint64"; required = %true;};
+                    {"name" = "word"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["events"];
+                "output_stream_ids" = ["compacted"];
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {
+                    "allow_batching_with_relaxed_guarantees" = %true;
+                };
+            };
+            "writer" = {
+                "computation_class_name" = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
+                "group_by_schema" = [
+                    {"name" = "hash"; "expression" = "farm_hash(word)"; "type" = "uint64"; required = %true;};
+                    {"name" = "word"; "type" = "string";};
+                ];
+                "input_stream_ids" = ["compacted"];
+                "output_stream_ids" = [];
+                "required_resource_ids" = {
+                    "CompanionManager" = {
+                        "worker" = true;
+                        "controller" = false;
+                    };
+                };
+                "parameters" = {
+                    "internal_states" = ["total-state"];
+                };
+            };
+        };
+        "streams" = {
+            "events" = {
+                "schema" = [
+                    {name = "word"; type = "string";};
+                    {name = "count"; type = "int64";};
+                ];
+            };
+            "compacted" = {
+                "schema" = [
+                    {name = "word"; type = "string";};
+                    {name = "count"; type = "int64";};
+                ];
+            };
+        };
+        "resources" = {
+            "CompanionManager" = {
+                "resource_class_name" = "NYT::NFlow::NCompanion::TCompanionManager";
+                "parameters" = {
+                };
+                "dependencies" = {};
+            };
+        };
+    };
+    "dynamic_spec" = {
+        "computations" = {
+            "reader" = {
+                "parameters" = {
+                };
+            };
+            "compactor" = {
+                "parameters" = {
+                };
+            };
+            "writer" = {
+                "parameters" = {
+                };
+            };
+        };
+    };
+}
