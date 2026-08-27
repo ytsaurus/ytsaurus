@@ -1069,7 +1069,8 @@ namespace {
 
 TYsonString DoGetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,
-    TChunkTreeId chunkTreeId)
+    TChunkTreeId chunkTreeId,
+    std::string userNameToForward)
 {
     std::vector<TVersionedObjectId> nodeIds;
 
@@ -1106,6 +1107,7 @@ TYsonString DoGetMulticellOwningNodes(
             TChunkServiceProxy proxy(channel);
 
             auto req = proxy.GetChunkOwningNodes();
+            req->SetUser(userNameToForward);
             ToProto(req->mutable_chunk_id(), chunkTreeId);
 
             requestFutures.emplace_back(cellTag, req->Invoke());
@@ -1167,7 +1169,10 @@ TFuture<TYsonString> GetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,
     TChunkTree* chunkTree)
 {
-    return BIND(&DoGetMulticellOwningNodes, Unretained(bootstrap), chunkTree->GetId())
+    const auto& securityManager = bootstrap->GetSecurityManager();
+    auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
+    return BIND(&DoGetMulticellOwningNodes, Unretained(bootstrap), chunkTree->GetId(), userNameToForward)
         .AsyncVia(GetCurrentInvoker())
         .Run();
 }

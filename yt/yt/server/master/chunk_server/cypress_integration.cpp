@@ -495,6 +495,9 @@ private:
         } else {
             Bootstrap_->GetObjectService()->RequireLeader();
 
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto channels = chunkManager->GetChunkReplicatorChannels();
 
@@ -505,6 +508,7 @@ private:
                 // TODO(nadya02): Set the correct timeout here.
                 proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                 auto batchReq = proxy.ExecuteBatch();
+                batchReq->SetUser(userNameToForward);
                 auto req = TCypressYPathProxy::Enumerate(GetWellKnownPath(GetLocalChunkMapType()));
                 req->set_limit(limit);
                 batchReq->AddRequest(req, "enumerate");
@@ -647,6 +651,9 @@ private:
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto channels = chunkManager->GetChunkReplicatorChannels();
 
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto userNameToForward = securityManager->GetAuthenticatedUserNameToForward();
+
             std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
             responseFutures.reserve(channels.size());
             for (const auto& channel : channels) {
@@ -654,7 +661,7 @@ private:
                 // TODO(nadya02): Set the correct timeout here.
                 proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
                 auto req = TYPathProxy::Get(GetWellKnownPath(GetLocalChunkMapType()) + "/@count");
-                responseFutures.push_back(proxy.Execute(req));
+                responseFutures.push_back(proxy.ExecuteAs(userNameToForward, req));
             }
 
             return AllSucceeded(std::move(responseFutures))

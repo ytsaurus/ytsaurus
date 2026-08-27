@@ -725,12 +725,15 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(TCellTag cellTag)
 {
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
     // TODO(nadya02): Set the correct timeout here.
     proxy.SetDefaultTimeout(NRpc::HugeDoNotUseRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetUser(securityManager->GetAuthenticatedUserNameToForward());
     batchReq->SetSuppressUpstreamSync(true);
 
     auto path = GetWellKnownPath();

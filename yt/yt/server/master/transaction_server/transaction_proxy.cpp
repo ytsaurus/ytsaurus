@@ -457,6 +457,9 @@ private:
             multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        batchReq->SetUser(securityManager->GetAuthenticatedUserNameToForward());
+
         auto transactionId = GetId();
 
         if (remoteTransactionType == ERemoteTransactionType::Externalized) {
@@ -506,6 +509,9 @@ private:
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
             multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        batchReq->SetUser(securityManager->GetAuthenticatedUserNameToForward());
 
         auto transactionId = Object_->GetId();
         auto req = TYPathProxy::Get("&" + FromObjectId(transactionId) + "/@" + attributeKey);
