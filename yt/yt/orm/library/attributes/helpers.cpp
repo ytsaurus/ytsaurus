@@ -202,6 +202,56 @@ NYTree::INodePtr ConvertProtobufElementToNode(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TIntEnumToStringYsonConsumer::TIntEnumToStringYsonConsumer(
+    IYsonConsumer* underlying,
+    const TProtobufEnumType* enumType)
+    : Underlying_(underlying)
+    , EnumType_(enumType)
+{ }
+
+TIntEnumToStringYsonConsumer::TIntEnumToStringYsonConsumer(
+    IYsonConsumer* underlying,
+    const TProtobufElement& enumElement)
+    : TIntEnumToStringYsonConsumer(
+        underlying,
+        GetProtobufElementOrThrow<TProtobufScalarElement>(
+            std::holds_alternative<std::unique_ptr<TProtobufRepeatedElement>>(enumElement)
+                ? std::get<std::unique_ptr<TProtobufRepeatedElement>>(enumElement)->Element
+                : enumElement)
+            .EnumType)
+{ }
+
+void TIntEnumToStringYsonConsumer::OnMyInt64Scalar(i64 value)
+{
+    auto literal = FindProtobufEnumLiteralByValue(EnumType_, value);
+    THROW_ERROR_EXCEPTION_IF(literal.empty(),
+        "Cannot convert unknown enum value %v to a string",
+        value);
+    Underlying_->OnStringScalar(literal);
+}
+
+void TIntEnumToStringYsonConsumer::OnMyEntity()
+{
+    Underlying_->OnEntity();
+}
+
+void TIntEnumToStringYsonConsumer::OnMyBeginList()
+{
+    Underlying_->OnBeginList();
+}
+
+void TIntEnumToStringYsonConsumer::OnMyListItem()
+{
+    Underlying_->OnListItem();
+}
+
+void TIntEnumToStringYsonConsumer::OnMyEndList()
+{
+    Underlying_->OnEndList();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Returns [index of the item, its content].
 TErrorOr<std::pair<int, TYsonString>> LookupUnknownYsonFieldsItem(
     UnknownFieldSet* unknownFields,
