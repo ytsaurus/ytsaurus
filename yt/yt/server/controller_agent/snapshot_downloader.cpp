@@ -31,7 +31,7 @@ TSnapshotDownloader::TSnapshotDownloader(
 
 std::vector<TSharedRef> TSnapshotDownloader::Run()
 {
-    YT_LOG_INFO("Starting downloading snapshot");
+    YT_TLOG_INFO("Starting downloading snapshot");
 
     const auto& client = Bootstrap_->GetClient();
 
@@ -41,7 +41,7 @@ std::vector<TSharedRef> TSnapshotDownloader::Run()
     auto reader = WaitFor(client->CreateFileReader(GetSnapshotPath(OperationId_), options))
         .ValueOrThrow();
 
-    YT_LOG_INFO("Snapshot reader opened");
+    YT_TLOG_INFO("Snapshot reader opened");
 
     std::vector<TSharedRef> blocks;
     while (true) {
@@ -52,7 +52,7 @@ std::vector<TSharedRef> TSnapshotDownloader::Run()
         blocks.push_back(block);
     }
 
-    YT_LOG_INFO("Snapshot downloaded successfully");
+    YT_TLOG_INFO("Snapshot downloaded successfully");
 
     return blocks;
 }

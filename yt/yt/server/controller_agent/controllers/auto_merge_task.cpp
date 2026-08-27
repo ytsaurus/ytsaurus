@@ -310,14 +310,12 @@ void TAutoMergeTask::AddJobTypeToJoblet(const TJobletPtr& joblet) const
         i64 dataWeightPerChunk = dataWeight / std::max<i64>(chunkCount, 1);
         i64 minDataWeightPerChunk = TaskHost_->GetSpec()->AutoMerge->ShallowMergeMinDataWeightPerChunk;
         if (dataWeightPerChunk <= minDataWeightPerChunk) {
-            YT_LOG_DEBUG(
-                "Falling back to deep merge due to low data weight per chunk "
-                "(JobId: %v, DataWeight: %v, ChunkCount: %v, DataWeightPerChunk: %v, ShallowMergeMinDataWeightPerChunk: %v)",
-                joblet->JobId,
-                dataWeight,
-                chunkCount,
-                dataWeightPerChunk,
-                minDataWeightPerChunk);
+            YT_TLOG_DEBUG("Falling back to deep merge due to low data weight per chunk")
+                .With("JobId", joblet->JobId)
+                .With("DataWeight", dataWeight)
+                .With("ChunkCount", chunkCount)
+                .With("DataWeightPerChunk", dataWeightPerChunk)
+                .With("ShallowMergeMinDataWeightPerChunk", minDataWeightPerChunk);
             enableShallowMerge = false;
         }
     }
@@ -363,7 +361,8 @@ void TAutoMergeTask::UpdateSelf()
 
     TaskHost_->UpdateTask(this);
 
-    YT_LOG_DEBUG("Task updated (ShouldScheduleJobs: %v)", shouldScheduleJobs);
+    YT_TLOG_DEBUG("Task updated")
+        .With("ShouldScheduleJobs", shouldScheduleJobs);
 }
 
 void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
@@ -385,7 +384,8 @@ TJobFinishedResult TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAborte
 
     if (jobSummary.AbortReason == EAbortReason::ShallowMergeFailed) {
         if (EnableShallowMerge_.exchange(false)) {
-            YT_LOG_DEBUG("Shallow merge failed; switching to deep merge (JobId: %v)", jobSummary.Id);
+            YT_TLOG_DEBUG("Shallow merge failed; switching to deep merge")
+                .With("JobId", jobSummary.Id);
         }
     }
 

@@ -78,9 +78,9 @@ void TLayerJobExperiment::PatchUserJobSpec(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TJobletPtr& joblet) const
 {
-    YT_LOG_DEBUG("Switching the job to the probing layer (JobId: %v, Layer: %v)",
-        joblet->JobId,
-        BaseLayer_.Path);
+    YT_TLOG_DEBUG("Switching the job to the probing layer")
+        .With("JobId", joblet->JobId)
+        .With("Layer", BaseLayer_.Path);
 
     for (auto& layerSpec : *jobSpec->mutable_root_volume_layers()) {
         if (layerSpec.data_source().path() == DefaultBaseLayerPath_) {
@@ -145,13 +145,12 @@ void TMtnJobExperiment::PatchUserJobSpec(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TJobletPtr& joblet) const
 {
-    YT_LOG_DEBUG("Switching the job to the probing network project "
-        "(JobId: %v, NetworkProject: %v, NetworkProjectId: %v, EnableNat64: %v, DisableNetwork: %v)",
-        joblet->JobId,
-        NetworkProjectName_,
-        NetworkProject_.Id,
-        NetworkProject_.EnableNat64,
-        NetworkProject_.DisableNetwork);
+    YT_TLOG_DEBUG("Switching the job to the probing network project")
+        .With("JobId", joblet->JobId)
+        .With("NetworkProject", NetworkProjectName_)
+        .With("NetworkProjectId", NetworkProject_.Id)
+        .With("EnableNat64", NetworkProject_.EnableNat64)
+        .With("DisableNetwork", NetworkProject_.DisableNetwork);
 
     ToProto(jobSpec->mutable_network_project(), NetworkProject_);
 }
@@ -363,9 +362,9 @@ void TExperimentJobManager::PatchUserJobSpec(
     if (IsEnabled() &&
         (joblet->CompetitionType == EJobCompetitionType::Experiment || ShouldSwitchSettings()))
     {
-        YT_LOG_DEBUG("Switching the job to the experimental setup (JobId: %v, JobIsExperimental: %v)",
-            joblet->JobId,
-            ExperimentStatus_ != EJobExperimentStatus::TreatmentSucceeded);
+        YT_TLOG_DEBUG("Switching the job to the experimental setup")
+            .With("JobId", joblet->JobId)
+            .With("JobIsExperimental", ExperimentStatus_ != EJobExperimentStatus::TreatmentSucceeded);
         JobExperiment_->PatchUserJobSpec(jobSpec, joblet);
     }
 }

@@ -34,12 +34,12 @@ bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
         .WithTag("Cookie", joblet->OutputCookie);
 
     if (!IsRelevant(joblet)) {
-        YT_LOG_DEBUG("Ignoring competitive job request; job is not relevant");
+        YT_TLOG_DEBUG("Ignoring competitive job request; job is not relevant");
         return false;
     }
 
     if (BannedCookies_.contains(joblet->OutputCookie)) {
-        YT_LOG_DEBUG("Ignoring competitive job request; cookie is banned");
+        YT_TLOG_DEBUG("Ignoring competitive job request; cookie is banned");
         return false;
     }
 
@@ -47,16 +47,17 @@ bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
     std::optional<std::string> rejectReason;
 
     if (JobCounter_->GetTotal() >= MaxCompetitiveJobCount_) {
-        YT_LOG_DEBUG("Ignoring competitive job request; competitive job limit reached (Limit: %v)", MaxCompetitiveJobCount_);
+        YT_TLOG_DEBUG("Ignoring competitive job request; competitive job limit reached")
+            .With("Limit", MaxCompetitiveJobCount_);
         return false;
     } else if (CompetitionCandidates_.contains(joblet->OutputCookie)) {
-        YT_LOG_DEBUG("Ignoring competitive job request; competition candidate is already in queue");
+        YT_TLOG_DEBUG("Ignoring competitive job request; competition candidate is already in queue");
         return false;
     } else if (competition->Status == ECompetitionStatus::TwoCompetitiveJobs) {
-        YT_LOG_DEBUG("Ignoring competitive job request; competitive job is already running");
+        YT_TLOG_DEBUG("Ignoring competitive job request; competitive job is already running");
         return false;
     } else if (competition->Status == ECompetitionStatus::HasCompletedJob) {
-        YT_LOG_DEBUG("Ignoring competitive job request; competitive job has already completed");
+        YT_TLOG_DEBUG("Ignoring competitive job request; competitive job has already completed");
         return false;
     }
 
@@ -64,7 +65,7 @@ bool TCompetitiveJobManagerBase::TryAddCompetitiveJob(const TJobletPtr& joblet)
     competition->PendingDataWeight = joblet->InputStripeList->GetAggregateStatistics().DataWeight;
     InsertOrCrash(CompetitionCandidates_, joblet->OutputCookie);
     PendingDataWeight_ += joblet->InputStripeList->GetAggregateStatistics().DataWeight;
-    YT_LOG_DEBUG("Competition request is registered");
+    YT_TLOG_DEBUG("Competition request is registered");
 
     return true;
 }
@@ -92,9 +93,9 @@ void TCompetitiveJobManagerBase::OnJobScheduled(const TJobletPtr& joblet)
     }
 
     if (joblet->CompetitionType == CompetitionType_) {
-        YT_LOG_DEBUG("Scheduling secondary job (JobId: %v, Cookie: %v)",
-            joblet->JobId,
-            joblet->OutputCookie);
+        YT_TLOG_DEBUG("Scheduling secondary job")
+            .With("JobId", joblet->JobId)
+            .With("Cookie", joblet->OutputCookie);
         auto competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
         YT_VERIFY(competition->Status == ECompetitionStatus::SingleJobOnly);
         competition->Competitors.push_back(joblet->JobId);
@@ -136,9 +137,9 @@ void TCompetitiveJobManagerBase::OnJobLost(IChunkPoolOutput::TCookie cookie)
 {
     auto it = CookieToCompetition_.find(cookie);
     if (it != CookieToCompetition_.end()) {
-        YT_LOG_DEBUG("Aborting competitive job from controller since job result is lost (OutputCookie: %v, AbortReason: %v)",
-            cookie,
-            ResultLost_);
+        YT_TLOG_DEBUG("Aborting competitive job from controller since job result is lost")
+            .With("OutputCookie", cookie)
+            .With("AbortReason", ResultLost_);
         YT_VERIFY(it->second->Competitors.size() == 1);
         // We should abort job synchronously to prevent occurrence of two original job.
         Host_->AbortJob(it->second->Competitors[0], ResultLost_);
@@ -165,9 +166,9 @@ void TCompetitiveJobManagerBase::OnJobFinished(const TJobletPtr& joblet)
     }
 
     if (CompetitionCandidates_.erase(joblet->OutputCookie)) {
-        YT_LOG_DEBUG("Canceling competitive job request early since original job finished (JobId: %v, Cookie: %v)",
-            joblet->JobId,
-            joblet->OutputCookie);
+        YT_TLOG_DEBUG("Canceling competitive job request early since original job finished")
+            .With("JobId", joblet->JobId)
+            .With("Cookie", joblet->OutputCookie);
         PendingDataWeight_ -= pendingDataWeight;
         competition->ProgressCounterGuard.SetCategory(EProgressCategory::None);
     }
@@ -180,17 +181,18 @@ void TCompetitiveJobManagerBase::MarkCompetitionAsCompleted(const TJobletPtr& jo
         auto competition = it->second;
         competition->Status = ECompetitionStatus::HasCompletedJob;
 
-        YT_LOG_DEBUG("Job completed in non-trivial competition (Cookie: %v, WinnerJobId: %v, LoserJobIds: %v, CompetitionType: %v)",
-            joblet->OutputCookie,
-            joblet->JobId,
-            competition->Competitors,
-            joblet->CompetitionType);
+        YT_TLOG_DEBUG("Job completed in non-trivial competition")
+            .With("Cookie", joblet->OutputCookie)
+            .With("WinnerJobId", joblet->JobId)
+            .With("LoserJobIds", competition->Competitors)
+            .With("CompetitionType", joblet->CompetitionType);
     }
 }
 
 void TCompetitiveJobManagerBase::BanCookie(IChunkPoolOutput::TCookie cookie)
 {
-    YT_LOG_DEBUG("Competitive manager is banning cookie (Cookie: %v)", cookie);
+    YT_TLOG_DEBUG("Competitive manager is banning cookie")
+        .With("Cookie", cookie);
     BannedCookies_.insert(cookie);
 
     if (CompetitionCandidates_.erase(cookie)) {

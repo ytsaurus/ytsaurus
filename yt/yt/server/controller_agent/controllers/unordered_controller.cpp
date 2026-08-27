@@ -330,16 +330,14 @@ protected:
     void InitJobSizeConstraints()
     {
         JobSizeConstraints_ = CreateJobSizeConstraints();
-        YT_LOG_INFO(
-            "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
-            "MaxCompressedDataSizePerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
-            JobSizeConstraints_->GetJobCount(),
-            JobSizeConstraints_->GetDataWeightPerJob(),
-            JobSizeConstraints_->GetMaxDataWeightPerJob(),
-            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
-            JobSizeConstraints_->GetInputSliceDataWeight(),
-            JobSizeConstraints_->GetInputSliceRowCount(),
-            JobSizeConstraints_->IsExplicitJobCount());
+        YT_TLOG_INFO("Calculated operation parameters")
+            .With("JobCount", JobSizeConstraints_->GetJobCount())
+            .With("DataWeightPerJob", JobSizeConstraints_->GetDataWeightPerJob())
+            .With("MaxDataWeightPerJob", JobSizeConstraints_->GetMaxDataWeightPerJob())
+            .With("MaxCompressedDataSizePerJob", JobSizeConstraints_->GetMaxCompressedDataSizePerJob())
+            .With("InputSliceDataWeight", JobSizeConstraints_->GetInputSliceDataWeight())
+            .With("InputSliceRowCount", JobSizeConstraints_->GetInputSliceRowCount())
+            .With("IsExplicitJobCount", JobSizeConstraints_->IsExplicitJobCount());
     }
 
     virtual TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const
@@ -357,12 +355,11 @@ protected:
 
     std::vector<TLegacyDataSlicePtr> CollectInputChunkSlices()
     {
-        YT_LOG_INFO("Collecting inputs");
+        YT_TLOG_INFO("Collecting inputs");
 
         i64 inputSliceDataWeightEstimation = CreateJobSizeConstraints()->GetInputSliceDataWeight();
-        YT_LOG_DEBUG(
-            "Calculated input slice data weight estimation for versioned data slices (InputSliceDataWeightEstimation: %v)",
-            inputSliceDataWeightEstimation);
+        YT_TLOG_DEBUG("Calculated input slice data weight estimation for versioned data slices")
+            .With("InputSliceDataWeightEstimation", inputSliceDataWeightEstimation);
 
         auto slices = CollectPrimaryInputDataSlices(inputSliceDataWeightEstimation);
         UpdateEstimatedInputStatistics(TInputStatisticsCollector::FromChunks(slices, /*isPrimary*/ true));
@@ -941,11 +938,12 @@ private:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved()) {
-                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount(),
-                    "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v, TeleportedOutputRowCount: %v)",
-                    EstimatedInputStatistics_->RowCount,
-                    UnorderedTask_->GetTotalOutputRowCount(),
-                    TeleportedOutputRowCount_);
+                YT_TLOG_ERROR_IF(
+                    EstimatedInputStatistics_->RowCount != TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in unordered merge operation")
+                    .With("TotalEstimatedInputRowCount", EstimatedInputStatistics_->RowCount)
+                    .With("TotalOutputRowCount", UnorderedTask_->GetTotalOutputRowCount())
+                    .With("TeleportedOutputRowCount", TeleportedOutputRowCount_);
                 YT_VERIFY(EstimatedInputStatistics_->RowCount == TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount());
                 if (Spec_->ForceTransform) {
                     YT_VERIFY(TeleportedOutputRowCount_ == 0);

@@ -38,7 +38,7 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
 {
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-    YT_LOG_DEBUG("Memory watchdog check started");
+    YT_TLOG_DEBUG("Memory watchdog check started");
 
     Bootstrap_->GetControllerAgent()->GetMasterConnector()->SetControllerAgentAlert(
         EControllerAgentAlertType::ControllerMemoryOverconsumption,
@@ -54,13 +54,14 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
         }
         auto memory = controller->GetMemoryUsage();
 
-        YT_LOG_DEBUG("Checking operation controller memory usage (OperationId: %v, MemoryUsage: %v, MemoryLimit: %v)",
-            operationId,
-            memory,
-            Config_->OperationControllerMemoryLimit);
+        YT_TLOG_DEBUG("Checking operation controller memory usage")
+            .With("OperationId", operationId)
+            .With("MemoryUsage", memory)
+            .With("MemoryLimit", Config_->OperationControllerMemoryLimit);
 
         if (memory > Config_->OperationControllerMemoryLimit) {
-            YT_LOG_DEBUG("Aborting operation due to exceeded memory (OperationId: %v)", operationId);
+            YT_TLOG_DEBUG("Aborting operation due to exceeded memory")
+                .With("OperationId", operationId);
 
             auto error = TError(NControllerAgent::EErrorCode::OperationControllerMemoryLimitExceeded,
                 "Operation controller memory usage exceeds memory limit, probably input of the operation "
@@ -75,7 +76,8 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
 
         totalMemory += memory;
         if (memory > Config_->OperationControllerMemoryOverconsumptionThreshold) {
-            YT_LOG_DEBUG("Setting overconsumption alert for operation (OperationId: %v)", operationId);
+            YT_TLOG_DEBUG("Setting overconsumption alert for operation")
+                .With("OperationId", operationId);
 
             overconsumptingControllers.emplace_back(operationId, controller, memory);
             controller->SetOperationAlert(
@@ -88,15 +90,15 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
         }
     }
 
-    YT_LOG_DEBUG("Checking total controller memory usages (TotalMemoryUsage: %v, MemoryLimit: %v)",
-        totalMemory,
-        Config_->TotalControllerMemoryLimit);
+    YT_TLOG_DEBUG("Checking total controller memory usages")
+        .With("TotalMemoryUsage", totalMemory)
+        .With("MemoryLimit", Config_->TotalControllerMemoryLimit);
 
     if (!Config_->TotalControllerMemoryLimit || totalMemory <= *Config_->TotalControllerMemoryLimit) {
         return;
     }
 
-    YT_LOG_DEBUG("Memory pressure detected, aborting topmost overflown operations");
+    YT_TLOG_DEBUG("Memory pressure detected, aborting topmost overflown operations");
 
     // Sorts operation controllers by memory.
     SortBy(overconsumptingControllers, [] (const auto& op) {
@@ -106,9 +108,8 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
     while (!overconsumptingControllers.empty() && totalMemory > Config_->TotalControllerMemoryLimit) {
         auto [operationId, controller, memory] = overconsumptingControllers.back();
 
-        YT_LOG_DEBUG(
-            "Aborting operation due to memory overconsumption under memory pressure (OperationId: %v)",
-            operationId);
+        YT_TLOG_DEBUG("Aborting operation due to memory overconsumption under memory pressure")
+            .With("OperationId", operationId);
 
         controller->OnMemoryLimitExceeded(TError(
             EErrorCode::OperationControllerMemoryLimitExceeded,
@@ -131,7 +132,7 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
                 .With("total_controller_memory_limit", Config_->TotalControllerMemoryLimit));
     }
 
-    YT_LOG_DEBUG("Memory wachdog check finished");
+    YT_TLOG_DEBUG("Memory wachdog check finished");
 }
 
 void TMemoryWatchdog::UpdateConfig(TMemoryWatchdogConfigPtr config)

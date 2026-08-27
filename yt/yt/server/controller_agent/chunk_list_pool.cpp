@@ -77,10 +77,10 @@ TChunkListId TChunkListPool::Extract(TCellTag cellTag)
     auto id = data.Ids.back();
     data.Ids.pop_back();
 
-    YT_LOG_DEBUG("Chunk list extracted from pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
-        id,
-        cellTag,
-        data.Ids.size());
+    YT_TLOG_DEBUG("Chunk list extracted from pool")
+        .With("ChunkListId", id)
+        .With("CellTag", cellTag)
+        .With("RemainingCount", data.Ids.size());
 
     return id;
 }
@@ -90,10 +90,10 @@ void TChunkListPool::Reinstall(TChunkListId id)
     auto cellTag = CellTagFromId(id);
     auto& data = CellMap_[cellTag];
     data.Ids.push_back(id);
-    YT_LOG_DEBUG("Reinstalled chunk list into the pool (ChunkListId: %v, CellTag: %v, RemainingCount: %v)",
-        id,
-        cellTag,
-        data.Ids.size());
+    YT_TLOG_DEBUG("Reinstalled chunk list into the pool")
+        .With("ChunkListId", id)
+        .With("CellTag", cellTag)
+        .With("RemainingCount", data.Ids.size());
 }
 
 void TChunkListPool::AllocateMore(TCellTag cellTag)
@@ -107,14 +107,14 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
     count = std::min(count, Config_->MaxChunkListAllocationCount);
 
     if (data.RequestInProgress) {
-        YT_LOG_DEBUG("Cannot allocate more chunk lists for pool, another request is in progress (CellTag: %v)",
-            cellTag);
+        YT_TLOG_DEBUG("Cannot allocate more chunk lists for pool, another request is in progress")
+            .With("CellTag", cellTag);
         return;
     }
 
-    YT_LOG_DEBUG("Allocating more chunk lists for pool (CellTag: %v, Count: %v)",
-        cellTag,
-        count);
+    YT_TLOG_DEBUG("Allocating more chunk lists for pool")
+        .With("CellTag", cellTag)
+        .With("Count", count);
 
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TChunkServiceProxy proxy(channel);
@@ -147,8 +147,9 @@ void TChunkListPool::OnChunkListsCreated(
     data.RequestInProgress = false;
 
     if (!rspOrError.IsOK()) {
-        YT_LOG_ERROR(rspOrError, "Error allocating chunk lists for pool (CellTag: %v)",
-            cellTag);
+        YT_TLOG_ERROR("Error allocating chunk lists for pool")
+            .With("CellTag", cellTag)
+            .With(rspOrError);
         return;
     }
 
@@ -157,9 +158,9 @@ void TChunkListPool::OnChunkListsCreated(
     data.Ids.insert(data.Ids.end(), ids.begin(), ids.end());
     data.LastSuccessCount = ids.size();
 
-    YT_LOG_DEBUG("Allocated more chunk lists for pool (CellTag: %v, Count: %v)",
-        cellTag,
-        data.LastSuccessCount);
+    YT_TLOG_DEBUG("Allocated more chunk lists for pool")
+        .With("CellTag", cellTag)
+        .With("Count", data.LastSuccessCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

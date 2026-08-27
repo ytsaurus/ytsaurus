@@ -175,8 +175,8 @@ public:
         const auto snapshot = GetGlobalMemoryUsageSnapshot();
         YT_VERIFY(snapshot);
 
-        YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
-            snapshot->GetUsage(OperationIdTag, ToString(Id_)));
+        YT_TLOG_INFO("Controller wrapper destructed, controller destruction scheduled")
+            .With("MemoryUsage", snapshot->GetUsage(OperationIdTag, ToString(Id_)));
 
         DtorInvoker_->Invoke(BIND([
             underlying = std::move(Underlying_),
@@ -189,22 +189,21 @@ public:
             YT_VERIFY(snapshotBefore);
 
             auto memoryUsageBefore = snapshotBefore->GetUsage(OperationIdTag, ToString(id));
-            YT_LOG_INFO("Started destructing operation controller (MemoryUsageBefore: %v)", memoryUsageBefore);
+            YT_TLOG_INFO("Started destructing operation controller")
+                .With("MemoryUsageBefore", memoryUsageBefore);
             if (auto refCount = ResetAndGetResidualRefCount(underlying)) {
-                YT_LOG_WARNING(
-                    "Controller is going to be removed, but it has residual reference count; memory leak is possible "
-                    "(RefCount: %v)",
-                    refCount);
+                YT_TLOG_WARNING("Controller is going to be removed, but it has residual reference count; memory leak is possible")
+                    .With("RefCount", refCount);
             }
 
             const auto snapshotAfter = GetGlobalMemoryUsageSnapshot();
             YT_VERIFY(snapshotAfter);
 
             auto memoryUsageAfter = snapshotAfter->GetUsage(OperationIdTag, ToString(id));
-            YT_LOG_INFO("Finished destructing operation controller (Elapsed: %v, MemoryUsageAfter: %v, MemoryUsageDecrease: %v)",
-                timer.GetElapsedTime(),
-                memoryUsageAfter,
-                memoryUsageBefore - memoryUsageAfter);
+            YT_TLOG_INFO("Finished destructing operation controller")
+                .With("Elapsed", timer.GetElapsedTime())
+                .With("MemoryUsageAfter", memoryUsageAfter)
+                .With("MemoryUsageDecrease", memoryUsageBefore - memoryUsageAfter);
         }));
     }
 

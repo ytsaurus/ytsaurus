@@ -387,11 +387,10 @@ protected:
 
         InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
-        YT_LOG_INFO(
-            "Calculated operation parameters (JobCount: %v, MaxDataWeightPerJob: %v, InputSliceDataWeight: %v)",
-            JobSizeConstraints_->GetJobCount(),
-            JobSizeConstraints_->GetMaxDataWeightPerJob(),
-            InputSliceDataWeight_);
+        YT_TLOG_INFO("Calculated operation parameters")
+            .With("JobCount", JobSizeConstraints_->GetJobCount())
+            .With("MaxDataWeightPerJob", JobSizeConstraints_->GetMaxDataWeightPerJob())
+            .With("InputSliceDataWeight", InputSliceDataWeight_);
     }
 
     void CustomPrepare() override
@@ -461,7 +460,7 @@ protected:
     void ProcessInputs()
     {
         YT_PROFILE_TIMING("/operations/merge/input_processing_time") {
-            YT_LOG_INFO("Processing inputs");
+            YT_TLOG_INFO("Processing inputs");
 
             auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
@@ -517,10 +516,10 @@ protected:
                 }
             }
 
-            YT_LOG_INFO("Processed inputs (PrimaryUnversionedSlices: %v, PrimaryVersionedSlices: %v, ForeignSlices: %v)",
-                primaryUnversionedSlices,
-                primaryVersionedSlices,
-                foreignSlices);
+            YT_TLOG_INFO("Processed inputs")
+                .With("PrimaryUnversionedSlices", primaryUnversionedSlices)
+                .With("PrimaryVersionedSlices", primaryVersionedSlices)
+                .With("ForeignSlices", foreignSlices);
         }
     }
 
@@ -833,12 +832,12 @@ public:
     void AdjustSortColumns() override
     {
         const auto& specSortColumns = Spec_->MergeBy;
-        YT_LOG_INFO("Spec sort columns obtained (SortColumns: %v)",
-            specSortColumns);
+        YT_TLOG_INFO("Spec sort columns obtained")
+            .With("SortColumns", specSortColumns);
 
         PrimarySortColumns_ = CheckInputTablesSorted(specSortColumns);
-        YT_LOG_INFO("Sort columns adjusted (SortColumns: %v)",
-            PrimarySortColumns_);
+        YT_TLOG_INFO("Sort columns adjusted")
+            .With("SortColumns", PrimarySortColumns_);
     }
 
     TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
@@ -1003,10 +1002,11 @@ protected:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != SortedTask_->GetTotalOutputRowCount(),
-                    "Input/output row count mismatch in sorted merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                    EstimatedInputStatistics_->RowCount,
-                    SortedTask_->GetTotalOutputRowCount());
+                YT_TLOG_ERROR_IF(
+                    EstimatedInputStatistics_->RowCount != SortedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in sorted merge operation")
+                    .With("TotalEstimatedInputRowCount", EstimatedInputStatistics_->RowCount)
+                    .With("TotalOutputRowCount", SortedTask_->GetTotalOutputRowCount());
                 YT_VERIFY(EstimatedInputStatistics_->RowCount == SortedTask_->GetTotalOutputRowCount());
             }
         }
@@ -1287,11 +1287,11 @@ public:
 
     void AdjustSortColumns() override
     {
-        YT_LOG_INFO("Adjusting sort columns (EnableKeyGuarantee: %v, ReduceBy: %v, SortBy: %v, JoinBy: %v)",
-            *Spec_->EnableKeyGuarantee,
-            Spec_->ReduceBy,
-            Spec_->SortBy,
-            Spec_->JoinBy);
+        YT_TLOG_INFO("Adjusting sort columns")
+            .With("EnableKeyGuarantee", *Spec_->EnableKeyGuarantee)
+            .With("ReduceBy", Spec_->ReduceBy)
+            .With("SortBy", Spec_->SortBy)
+            .With("JoinBy", Spec_->JoinBy);
 
         if (*Spec_->EnableKeyGuarantee) {
             auto specKeyColumns = Spec_->SortBy.empty() ? Spec_->ReduceBy : Spec_->SortBy;
@@ -1347,10 +1347,10 @@ public:
                 return table->IsPrimary();
             });
         }
-        YT_LOG_INFO("Sort columns adjusted (PrimarySortColumns: %v, ForeignSortColumns: %v, SortColumns: %v)",
-            PrimarySortColumns_,
-            ForeignSortColumns_,
-            SortColumns_);
+        YT_TLOG_INFO("Sort columns adjusted")
+            .With("PrimarySortColumns", PrimarySortColumns_)
+            .With("ForeignSortColumns", ForeignSortColumns_)
+            .With("SortColumns", SortColumns_);
 
         if (!Spec_->PivotKeys.empty()) {
             if (!*Spec_->EnableKeyGuarantee) {
@@ -1426,7 +1426,7 @@ private:
         options.SliceForeignChunks = Spec_->SliceForeignChunks;
         options.SortedJobOptions.ConsiderOnlyPrimarySize = Spec_->ConsiderOnlyPrimarySize;
         if (Spec_->MinManiacDataWeight && IsKeyGuaranteeEnabled()) {
-            YT_LOG_INFO("Ignoring min_maniac_data_weight since key guarantee is enabled");
+            YT_TLOG_INFO("Ignoring min_maniac_data_weight since key guarantee is enabled");
         } else {
             options.MinManiacDataWeight = Spec_->MinManiacDataWeight;
         }

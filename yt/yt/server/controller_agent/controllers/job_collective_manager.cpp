@@ -84,7 +84,9 @@ void TJobCollectiveManager::OnJobScheduled(const TJobletPtr& joblet)
         auto it = EmplaceOrCrash(CookieToCollective_, joblet->OutputCookie, TCollective());
         auto& collective = it->second;
 
-        YT_LOG_DEBUG("Job collective created (MasterJobId: %v, OutputCookie: %v)", masterJobId, joblet->OutputCookie);
+        YT_TLOG_DEBUG("Job collective created")
+            .With("MasterJobId", masterJobId)
+            .With("OutputCookie", joblet->OutputCookie);
 
         for (int i = 1; i < GetCollectiveSize(); i++) {
             auto guard = TProgressCounterGuard(JobCounter_);
@@ -145,20 +147,18 @@ bool TJobCollectiveManager::OnJobCompleted(const TJobletPtr& joblet)
         } else {
             YT_VERIFY(joblet->JobId == collective.MasterJobId);
 
-            YT_LOG_DEBUG(
-                "Job collective completed since master job completed (MasterJobId: %v, OutputCookie: %v, CollectiveWillBeRemovedImmediately: %v)",
-                collective.MasterJobId,
-                joblet->OutputCookie,
-                collective.Pending == GetCollectiveSize() - 1);
+            YT_TLOG_DEBUG("Job collective completed since master job completed")
+                .With("MasterJobId", collective.MasterJobId)
+                .With("OutputCookie", joblet->OutputCookie)
+                .With("CollectiveWillBeRemovedImmediately", collective.Pending == GetCollectiveSize() - 1);
 
             collective.Finished = true;
 
             if (collective.Pending) {
-                YT_LOG_DEBUG(
-                    "Job collective completed before scheduling all slaves (MasterJobId: %v, OutputCookie: %v, NonScheduledSlaves: %v)",
-                    collective.MasterJobId,
-                    joblet->OutputCookie,
-                    collective.Pending);
+                YT_TLOG_DEBUG("Job collective completed before scheduling all slaves")
+                    .With("MasterJobId", collective.MasterJobId)
+                    .With("OutputCookie", joblet->OutputCookie)
+                    .With("NonScheduledSlaves", collective.Pending);
                 EraseOrCrash(PendingCookies_, joblet->OutputCookie);
             }
             for (auto& slave : collective.Slaves) {
@@ -175,10 +175,9 @@ bool TJobCollectiveManager::OnJobCompleted(const TJobletPtr& joblet)
             return true;
         }
     } else {
-        YT_LOG_DEBUG(
-            "Master job completed but collective is already finished (MasterJobId: %v, OutputCookie: %v)",
-            joblet->JobId,
-            joblet->OutputCookie);
+        YT_TLOG_DEBUG("Master job completed but collective is already finished")
+            .With("MasterJobId", joblet->JobId)
+            .With("OutputCookie", joblet->OutputCookie);
     }
     return false;
 }
@@ -230,20 +229,18 @@ std::optional<TJobCollectiveManager::TCollectiveIterator> TJobCollectiveManager:
         return std::nullopt;
     }
     if (!joblet->CollectiveInfo) {
-        YT_LOG_INFO(
-            "Job collective not found: missing CollectiveInfo (OutputCookie: %v, JobId: %v)",
-            joblet->OutputCookie,
-            joblet->JobId);
+        YT_TLOG_INFO("Job collective not found: missing CollectiveInfo")
+            .With("OutputCookie", joblet->OutputCookie)
+            .With("JobId", joblet->JobId);
         return std::nullopt;
     }
     if (it->second.MasterJobId.Underlying() != joblet->CollectiveInfo.CollectiveId) {
-        YT_LOG_INFO(
-            "Job collective not found: master job epoch mismatch (OutputCookie: %v, JobletCollectiveId: %v, MapMasterJobId: %v, JobId: %v, Rank: %v)",
-            joblet->OutputCookie,
-            joblet->CollectiveInfo.CollectiveId,
-            it->second.MasterJobId,
-            joblet->JobId,
-            joblet->CollectiveInfo.Rank);
+        YT_TLOG_INFO("Job collective not found: master job epoch mismatch")
+            .With("OutputCookie", joblet->OutputCookie)
+            .With("JobletCollectiveId", joblet->CollectiveInfo.CollectiveId)
+            .With("MapMasterJobId", it->second.MasterJobId)
+            .With("JobId", joblet->JobId)
+            .With("Rank", joblet->CollectiveInfo.Rank);
         return std::nullopt;
     }
     return it;
@@ -263,7 +260,9 @@ bool TJobCollectiveManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet, EA
         auto& collective = collectiveIt->second;
 
         if (!collective.Finished) {
-            YT_LOG_DEBUG("Job collective aborted (MasterJobId: %v, OutputCookie: %v)", collective.MasterJobId, joblet->OutputCookie);
+            YT_TLOG_DEBUG("Job collective aborted")
+                .With("MasterJobId", collective.MasterJobId)
+                .With("OutputCookie", joblet->OutputCookie);
 
             if (!isMasterJob) {
                 Task_->GetTaskHost()->AsyncAbortJob(collective.MasterJobId, EAbortReason::JobCollectiveDisbanded);
@@ -290,11 +289,10 @@ bool TJobCollectiveManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet, EA
         }
 
         if (collective.Pending) {
-            YT_LOG_DEBUG(
-                "Job collective aborted before scheduling all slaves (MasterJobId: %v, OutputCookie: %v, NonScheduledSlaves: %v)",
-                collective.MasterJobId,
-                joblet->OutputCookie,
-                collective.Pending);
+            YT_TLOG_DEBUG("Job collective aborted before scheduling all slaves")
+                .With("MasterJobId", collective.MasterJobId)
+                .With("OutputCookie", joblet->OutputCookie)
+                .With("NonScheduledSlaves", collective.Pending);
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
 

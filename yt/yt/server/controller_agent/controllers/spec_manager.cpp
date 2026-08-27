@@ -43,9 +43,8 @@ void TSpecManager::InitializeReviving(INodePtr&& cumulativeSpecPatch)
     // But if we were to update spec during revive with clean start, it would complicate things, as
     // code inside update cannot rely on any internal state.
     if (InitialCumulativeSpecPatch_) {
-        YT_LOG_DEBUG(
-            "Setting initial spec patch (InitialPatch: %v)",
-            FormatPatch(InitialCumulativeSpecPatch_));
+        YT_TLOG_DEBUG("Setting initial spec patch")
+            .With("InitialPatch", FormatPatch(InitialCumulativeSpecPatch_));
         auto currentSpec = GetSpec();
         auto newSpec = PatchNode(ConvertToNode(currentSpec), InitialCumulativeSpecPatch_);
         DynamicSpec_.Exchange(Host_->ParseTypedSpec(newSpec));
@@ -59,10 +58,9 @@ void TSpecManager::SetConfigurator(TOperationSpecBaseSealedConfigurator configur
 
 void TSpecManager::ValidateSpecPatch(const INodePtr& newCumulativeSpecPatch) const
 {
-    YT_LOG_INFO(
-        "Validating spec patch (OldPatch: %v, NewPatch: %v)",
-        FormatPatch(InitialCumulativeSpecPatch_),
-        FormatPatch(newCumulativeSpecPatch));
+    YT_TLOG_INFO("Validating spec patch")
+        .With("OldPatch", FormatPatch(InitialCumulativeSpecPatch_))
+        .With("NewPatch", FormatPatch(newCumulativeSpecPatch));
 
     YT_VERIFY(UpdateConfigurator_);
 
@@ -100,7 +98,7 @@ void TSpecManager::ApplySpecPatchReviving()
             InitialCumulativeSpecPatch_,
             /*shouldFail*/ TestingSpec_ && TestingSpec_->FailRevive);
     } else {
-        YT_LOG_INFO("No initial spec patch");
+        YT_TLOG_INFO("No initial spec patch");
     }
 }
 
@@ -109,10 +107,9 @@ void TSpecManager::DoApply(
     INodePtr patch,
     bool shouldFail)
 {
-    YT_LOG_INFO(
-        "Applying spec patch (OldPatch: %v, NewPatch: %v)",
-        FormatPatch(InitialCumulativeSpecPatch_),
-        FormatPatch(patch));
+    YT_TLOG_INFO("Applying spec patch")
+        .With("OldPatch", FormatPatch(InitialCumulativeSpecPatch_))
+        .With("NewPatch", FormatPatch(patch));
 
     auto newSpec = PatchNode(ConvertToNode(currentSpec), patch);
 
@@ -145,19 +142,17 @@ void TSpecManager::DoApply(
         InitialCumulativeSpecPatch_ = std::move(patch);
     } catch (const std::exception& ex) {
         Host_->ProcessSafeException(ex);
-        YT_LOG_ERROR(
-            ex,
-            "Failed to apply patch (Patch: %v)",
-            FormatPatch(patch));
+        YT_TLOG_ERROR("Failed to apply patch")
+            .With("Patch", FormatPatch(patch))
+            .With(ex);
         THROW_ERROR_EXCEPTION(
             EErrorCode::ExceptionLeadingToOperationFailure,
             "Failed to apply spec patch")
             .With(ex);
     } catch (const TAssertionFailedException& ex) {
         Host_->ProcessSafeException(ex);
-        YT_LOG_ERROR(
-            "Failed to apply patch (Patch: %v)",
-            FormatPatch(patch));
+        YT_TLOG_ERROR("Failed to apply patch")
+            .With("Patch", FormatPatch(patch));
         THROW_ERROR_EXCEPTION(
             EErrorCode::ExceptionLeadingToOperationFailure,
             "Operation controller crashed while applying spec patch");

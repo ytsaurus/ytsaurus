@@ -37,7 +37,7 @@ public:
 
     void Analyze() override
     {
-        YT_LOG_DEBUG("Analyze operation alerts");
+        YT_TLOG_DEBUG("Analyze operation alerts");
 
         AnalyzeMemoryAndTmpfsUsage();
         AnalyzeInputStatistics();
@@ -619,10 +619,10 @@ private:
                 auto frontRecord = records.front();
                 if (now - frontRecord.Time > config->WindowSize) {
                     auto averageUsage = (usage - frontRecord.Value) / (now - frontRecord.Time).MilliSeconds();
-                    YT_LOG_DEBUG("Checking average GPU power on window (TaskName: %v, AverageUsage: %v, EffectiveWindowSize: %v)",
-                        taskName,
-                        usage - frontRecord.Value,
-                        now - frontRecord.Time);
+                    YT_TLOG_DEBUG("Checking average GPU power on window")
+                        .With("TaskName", taskName)
+                        .With("AverageUsage", usage - frontRecord.Value)
+                        .With("EffectiveWindowSize", now - frontRecord.Time);
                     if (averageUsage < config->Threshold) {
                         auto error = TError(
                                 "Jobs of task %Qlv have average GPU power less than %v Watts during last %v minutes",
@@ -764,14 +764,12 @@ private:
             auto deltaEnqueuedActionCount = statistics.EnqueuedActionCount - lastStatistics.EnqueuedActionCount;
             auto deltaExecutedActionCount = statistics.ExecutedActionCount - lastStatistics.ExecutedActionCount;
 
-            YT_LOG_DEBUG(
-                "Operation controller queue statistics (ControllerQueue: %v, DeltaEnqueuedActionCount: %v, "
-                "DeltaExecutedActionCount: %v, WaitingActionCount: %v, TotalTimeEstimate: %v)",
-                queue,
-                deltaEnqueuedActionCount,
-                deltaExecutedActionCount,
-                statistics.WaitingActionCount,
-                statistics.TotalTimeEstimate);
+            YT_TLOG_DEBUG("Operation controller queue statistics")
+                .With("ControllerQueue", queue)
+                .With("DeltaEnqueuedActionCount", deltaEnqueuedActionCount)
+                .With("DeltaExecutedActionCount", deltaExecutedActionCount)
+                .With("WaitingActionCount", statistics.WaitingActionCount)
+                .With("TotalTimeEstimate", statistics.TotalTimeEstimate);
 
             if (statistics.TotalTimeEstimate > Config_->QueueTotalTimeEstimateThreshold) {
                 queueToTotalTimeEstimate.emplace(queue, statistics.TotalTimeEstimate);
