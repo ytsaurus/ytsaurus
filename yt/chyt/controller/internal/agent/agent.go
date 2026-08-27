@@ -48,7 +48,9 @@ type Agent struct {
 	opletInfoBatchCh chan []strawberry.OpletInfoForScaler
 	scalingTargetCh  chan []scalingRequest
 
-	metrics *AgentMetrics
+	metrics                  *AgentMetrics
+	metricsProvider          strawberry.MetricsProvider
+	collectControllerMetrics bool
 }
 
 func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config, metrics *AgentMetrics) *Agent {
@@ -58,6 +60,8 @@ func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller straw
 	}
 
 	tf := config.HealthCheckerToleranceFactorOrDefault()
+	metricsProvider, collectControllerMetrics := controller.(strawberry.MetricsProvider)
+	collectControllerMetrics = collectControllerMetrics && metrics != nil
 	return &Agent{
 		ytc:              ytc,
 		l:                l,
@@ -73,7 +77,9 @@ func NewAgent(proxy, token string, ytc yt.Client, l log.Logger, controller straw
 			time.Duration(tf*float64(config.PassPeriodOrDefault())),
 			time.Duration(tf*float64(config.RevisionCollectPeriodOrDefault())),
 			time.Duration(tf*float64(config.CollectOperationsPeriodOrDefault()))),
-		metrics: metrics,
+		metrics:                  metrics,
+		metricsProvider:          metricsProvider,
+		collectControllerMetrics: collectControllerMetrics,
 	}
 }
 
@@ -237,6 +243,7 @@ func (a *Agent) processOplets() {
 		dur   time.Duration
 		alias string
 	}, workerNumber)
+	workerControllerMetrics := make([][]controllerOpletMetricSet, workerNumber)
 	for i := 0; i < workerNumber; i++ {
 		go func(idx int) {
 			defer wg.Done()
@@ -246,13 +253,22 @@ func (a *Agent) processOplets() {
 				// We don't need to check the liveness of the operation in the agent,
 				// since we do it while processing the result of the operation listing.
 				_ = oplet.Pass(a.ctx, false /*checkOpLiveness*/)
-
 				passDur := time.Since(start)
+
 				a.metrics.RecordOpletPassDuration(passDur)
 				workerPassDur[idx] += passDur
 				if passDur > workerMaxPassDur[idx].dur {
 					workerMaxPassDur[idx].dur = passDur
 					workerMaxPassDur[idx].alias = oplet.Alias()
+				}
+
+				if a.collectControllerMetrics && !oplet.Inappropriate() {
+					workerControllerMetrics[idx] = append(
+						workerControllerMetrics[idx],
+						controllerOpletMetricSet{
+							alias:   oplet.Alias(),
+							metrics: a.metricsProvider.GetMetrics(oplet),
+						})
 				}
 			}
 		}(i)
@@ -264,6 +280,15 @@ func (a *Agent) processOplets() {
 	close(opletsChan)
 
 	wg.Wait()
+	if a.collectControllerMetrics {
+		var controllerMetrics []controllerOpletMetricSet
+		for _, workerMetrics := range workerControllerMetrics {
+			controllerMetrics = append(controllerMetrics, workerMetrics...)
+		}
+		if err := a.metrics.SetControllerMetrics(controllerMetrics); err != nil {
+			a.l.Warn("failed to update controller metrics", log.Error(err))
+		}
+	}
 
 	logFields := make([]log.Field, 0, 5)
 	logFields = append(logFields, log.Duration("elapsed_time", time.Since(startedAt)))
