@@ -52,6 +52,11 @@ public:
             std::move(groundClientFuture));
     }
 
+    TInstant GetLastReconfigurationTime() const override
+    {
+        return LastReconfigurationTime_.load(std::memory_order::relaxed);
+    }
+
 private:
     const TWeakPtr<IConnection> LocalConnection_;
     TAtomicIntrusivePtr<TSequoiaConnectionConfig> Config_;
@@ -60,6 +65,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     TFuture<IClientPtr> GroundClientFuture_;
     TClientCachePtr ClientCache_;
+    std::atomic<TInstant> LastReconfigurationTime_ = {};
 
     void Initialize()
     {
@@ -78,6 +84,7 @@ private:
             auto guard = WriterGuard(Lock_);
             GroundClientFuture_ = std::move(groundClientFuture);
             ClientCache_ = std::move(clientCache);
+            LastReconfigurationTime_.store(TInstant::Now(), std::memory_order::relaxed);
         }
     }
 
