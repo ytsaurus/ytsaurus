@@ -8,12 +8,6 @@
 
 namespace NYT::NTransactionServer {
 
-namespace NProto {
-
-class TTransactionFinishRequest;
-
-} // namespace NProto
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // NB: modifies original RPC request.
