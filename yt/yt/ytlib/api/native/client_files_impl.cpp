@@ -22,6 +22,21 @@ IFileWriterPtr TClient::CreateFileWriter(
     return NNative::CreateFileWriter(this, path, options, HeavyRequestMemoryUsageTracker_);
 }
 
+TFuture<TFilePartitions> TClient::PartitionFile(
+    const TYPath& /*path*/,
+    const std::vector<TFileReadRange>& /*ranges*/,
+    const TPartitionFileOptions& /*options*/)
+{
+    THROW_ERROR_EXCEPTION("PartitionFile is not implemented yet");
+}
+
+TFuture<IFileReaderPtr> TClient::CreateFilePartitionReader(
+    const TFilePartitionCookiePtr& /*cookie*/,
+    const TReadFilePartitionOptions& /*options*/)
+{
+    THROW_ERROR_EXCEPTION("CreateFilePartitionReader is not implemented yet");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
