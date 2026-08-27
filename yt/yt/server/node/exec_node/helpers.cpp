@@ -82,10 +82,9 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     userObject.Path = path;
 
     {
-        YT_LOG_INFO(
-            "Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %x)",
-            path,
-            contentRevision);
+        YT_TLOG_INFO("Fetching layer basic attributes")
+            .With("LayerPath", path)
+            .WithFormat("OldContentRevision", "%x", contentRevision);
 
         TGetUserObjectBasicAttributesOptions options;
         options.SuppressAccessTracking = true;
@@ -116,7 +115,9 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
     // COMPAT(shakurov): remove this once YT-13605 is deployed everywhere.
     if (userObject.ContentRevision == NHydra::NullRevision) {
-        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %x)", path, contentRevision);
+        YT_TLOG_INFO("Fetching layer revision")
+            .With("LayerPath", path)
+            .WithFormat("OldContentRevision", "%x", contentRevision);
         try {
             FetchContentRevision(bootstrap, &userObject);
         } catch (const std::exception& ex) {
@@ -131,18 +132,16 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     };
 
     if (contentRevision == userObject.ContentRevision) {
-        YT_LOG_INFO(
-            "Layer revision not changed, using cached (LayerPath: %v, ObjectId: %v)",
-            path,
-            objectId);
+        YT_TLOG_INFO("Layer revision not changed, using cached")
+            .With("LayerPath", path)
+            .With("ObjectId", objectId);
         return result;
     }
 
-    YT_LOG_INFO(
-        "Fetching layer chunk specs (LayerPath: %v, ObjectId: %v, ContentRevision: %x)",
-        path,
-        objectId,
-        userObject.ContentRevision);
+    YT_TLOG_INFO("Fetching layer chunk specs")
+        .With("LayerPath", path)
+        .With("ObjectId", objectId)
+        .WithFormat("ContentRevision", "%x", userObject.ContentRevision);
 
     const auto& client = bootstrap->GetClient();
     const auto& connection = client->GetNativeConnection();

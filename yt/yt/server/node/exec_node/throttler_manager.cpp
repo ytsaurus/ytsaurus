@@ -175,7 +175,7 @@ void TThrottlerManager::OnMasterConnected()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_INFO("Update cluster throttlers on master connect");
+    YT_TLOG_INFO("Update cluster throttlers on master connect");
 
     {
         auto guard = Guard(Lock_);
@@ -189,7 +189,7 @@ void TThrottlerManager::OnMasterDisconnected()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_INFO("Disable cluster throttlers on master disconnect");
+    YT_TLOG_INFO("Disable cluster throttlers on master disconnect");
 
     {
         auto guard = Guard(Lock_);
@@ -207,12 +207,12 @@ void TThrottlerManager::UpdateJobsDisabledByMaster(bool jobsDisabledByMaster)
     {
         auto guard = Guard(Lock_);
 
-        YT_LOG_DEBUG("Update JobsDisabledByMaster (OldJobsDisabledByMaster: %v, NewJobsDisabledByMaster: %v)",
-            JobsDisabledByMaster_,
-            jobsDisabledByMaster);
+        YT_TLOG_DEBUG("Update JobsDisabledByMaster")
+            .With("OldJobsDisabledByMaster", JobsDisabledByMaster_)
+            .With("NewJobsDisabledByMaster", jobsDisabledByMaster);
 
         if (!JobsDisabledByMaster_ && jobsDisabledByMaster) {
-            YT_LOG_INFO("Disable cluster throttlers on jobs disabled by master");
+            YT_TLOG_INFO("Disable cluster throttlers on jobs disabled by master");
 
             ClusterThrottlersConfig_.Reset();
             DistributedThrottlersHolder_.clear();
@@ -237,9 +237,9 @@ void TThrottlerManager::UpdateDistributedThrottlers()
             }
 
             if (!throttlerConfig || !throttlerConfig->Limit) {
-                YT_LOG_ERROR("Limit is not set for remote cluster (ClusterName: %v, TrafficType: %v)",
-                    clusterName,
-                    trafficType);
+                YT_TLOG_ERROR("Limit is not set for remote cluster")
+                    .With("ClusterName", clusterName)
+                    .With("TrafficType", trafficType);
                 continue;
             }
 
@@ -247,22 +247,22 @@ void TThrottlerManager::UpdateDistributedThrottlers()
             auto it = DistributedThrottlersHolder_.find(throttlerId);
             if (it == DistributedThrottlersHolder_.end()) {
                 // This type of throttler hasn't been used yet.
-                YT_LOG_DEBUG("Skip updating distributed throttler since it has been unused (ThrottlerId: %v)",
-                    throttlerId);
+                YT_TLOG_DEBUG("Skip updating distributed throttler since it has been unused")
+                    .With("ThrottlerId", throttlerId);
                 continue;
             }
 
             if (NYson::ConvertToYsonString(it->second.ThrottlerConfig) == NYson::ConvertToYsonString(throttlerConfig)) {
-                YT_LOG_DEBUG("Skip updating distributed throttler since its config has not changed (ThrottlerId: %v, ThrottlerLimit: %v)",
-                    throttlerId,
-                    it->second.ThrottlerConfig->Limit);
+                YT_TLOG_DEBUG("Skip updating distributed throttler since its config has not changed")
+                    .With("ThrottlerId", throttlerId)
+                    .With("ThrottlerLimit", it->second.ThrottlerConfig->Limit);
                 continue;
             }
 
-            YT_LOG_INFO("Update distributed throttler (ThrottlerId: %v, OldThrottlerLimit: %v, NewThrottlerLimit: %v)",
-                throttlerId,
-                it->second.ThrottlerConfig->Limit,
-                throttlerConfig->Limit);
+            YT_TLOG_INFO("Update distributed throttler")
+                .With("ThrottlerId", throttlerId)
+                .With("OldThrottlerLimit", it->second.ThrottlerConfig->Limit)
+                .With("NewThrottlerLimit", throttlerConfig->Limit);
 
             auto throttler = DistributedThrottlerFactory_->GetOrCreateThrottler(
                 throttlerId,
@@ -287,7 +287,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 {
     auto Logger = this->Logger.WithTag("UpdateClusterThrottlersConfigTag", TGuid::Create());
 
-    YT_LOG_DEBUG("Try update cluster throttlers config");
+    YT_TLOG_DEBUG("Try update cluster throttlers config");
 
     auto clearState = [&] {
         auto guard = Guard(Lock_);
@@ -300,27 +300,30 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     auto future = GetClusterThrottlersYson(Client_);
     auto errorOrYson = WaitFor(future);
     if (errorOrYson.FindMatching(NYTree::EErrorCode::ResolveError)) {
-        YT_LOG_DEBUG(errorOrYson, "Cluster throttlers are not configured");
+        YT_TLOG_DEBUG("Cluster throttlers are not configured")
+            .With(errorOrYson);
         clearState();
         ClusterThrottlersConfigInitializedPromise_.TrySet();
         return;
     }
 
     if (!errorOrYson.IsOK()) {
-        YT_LOG_WARNING(errorOrYson, "Failed to get cluster throttlers config");
+        YT_TLOG_WARNING("Failed to get cluster throttlers config")
+            .With(errorOrYson);
         return;
     }
 
     const auto& newConfigYson = errorOrYson.Value();
-    YT_LOG_DEBUG("Got cluster throttlers config (Config: %v)",
-        NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text));
+    YT_TLOG_DEBUG("Got cluster throttlers config")
+        .With("Config", NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text));
 
     TClusterThrottlersConfigPtr newConfig;
     try {
         newConfig = ConvertTo<TClusterThrottlersConfigPtr>(newConfigYson);
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to parse cluster throttlers config (Config: %v)",
-            NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text));
+        YT_TLOG_ERROR("Failed to parse cluster throttlers config")
+            .With("Config", NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text))
+            .With(ex);
 
         clearState();
 
@@ -333,36 +336,36 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
         auto guard = Guard(Lock_);
 
         if (JobsDisabledByMaster_) {
-            YT_LOG_DEBUG("Skip updating cluster throttlers config since jobs are disabled by master");
+            YT_TLOG_DEBUG("Skip updating cluster throttlers config since jobs are disabled by master");
             return;
         }
 
         if (!MasterConnected_) {
-            YT_LOG_DEBUG("Skip updating cluster throttlers config since master is disconnected");
+            YT_TLOG_DEBUG("Skip updating cluster throttlers config since master is disconnected");
             return;
         }
 
         if (AreClusterThrottlersConfigsEqual(ClusterThrottlersConfig_, newConfig)) {
-            YT_LOG_DEBUG("New cluster throttlers config is the same as the old one");
+            YT_TLOG_DEBUG("New cluster throttlers config is the same as the old one");
             return;
         }
 
-        YT_LOG_INFO("New cluster throttlers config is different from the old one");
+        YT_TLOG_INFO("New cluster throttlers config is different from the old one");
 
         ClusterThrottlersConfig_ = std::move(newConfig);
 
         std::optional<i64> memberPriorityHint;
         if (!ClusterThrottlersConfig_->LeaderNodeTagFilter.IsSatisfiedBy(Bootstrap_->GetLocalDescriptor().GetTags())) {
-            YT_LOG_INFO("Leader node tag filter is not satisfied, set the lowest member priority (LeaderNodeTagFilter: %v, NodeTags: %v)",
-                ClusterThrottlersConfig_->LeaderNodeTagFilter,
-                Bootstrap_->GetLocalDescriptor().GetTags());
+            YT_TLOG_INFO("Leader node tag filter is not satisfied, set the lowest member priority")
+                .With("LeaderNodeTagFilter", ClusterThrottlersConfig_->LeaderNodeTagFilter)
+                .With("NodeTags", Bootstrap_->GetLocalDescriptor().GetTags());
 
             // Set the lowest member priority. The higher the value, the lower the priority.
             memberPriorityHint = std::numeric_limits<i64>::max();
         } else {
-            YT_LOG_INFO("Leader node tag filter is satisfied (LeaderNodeTagFilter: %v, NodeTags: %v)",
-                ClusterThrottlersConfig_->LeaderNodeTagFilter,
-                Bootstrap_->GetLocalDescriptor().GetTags());
+            YT_TLOG_INFO("Leader node tag filter is satisfied")
+                .With("LeaderNodeTagFilter", ClusterThrottlersConfig_->LeaderNodeTagFilter)
+                .With("NodeTags", Bootstrap_->GetLocalDescriptor().GetTags());
         }
 
         ClusterThrottlersConfigUpdater_->SetPeriod(ClusterThrottlersConfig_->UpdatePeriod);
@@ -371,12 +374,12 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
             if (DistributedThrottlerFactory_) {
                 UpdateDistributedThrottlers();
 
-                YT_LOG_INFO("Reconfigure distributed throttler factory");
+                YT_TLOG_INFO("Reconfigure distributed throttler factory");
                 DistributedThrottlerFactory_->Reconfigure(ClusterThrottlersConfig_->DistributedThrottler);
             } else {
                 DistributedThrottlersHolder_.clear();
 
-                YT_LOG_INFO("Create distributed throttler factory");
+                YT_TLOG_INFO("Create distributed throttler factory");
                 DistributedThrottlerFactory_ = CreateDistributedThrottlerFactory(
                     ClusterThrottlersConfig_->DistributedThrottler,
                     ChannelFactory_,
@@ -396,11 +399,11 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
         } else {
             DistributedThrottlersHolder_.clear();
 
-            YT_LOG_INFO("Disable distributed throttler factory");
+            YT_TLOG_INFO("Disable distributed throttler factory");
             DistributedThrottlerFactory_.Reset();
         }
 
-        YT_LOG_INFO("Updated cluster throttlers config");
+        YT_TLOG_INFO("Updated cluster throttlers config");
     }
 
     ClusterThrottlersConfigInitializedPromise_.TrySet();
@@ -422,8 +425,8 @@ void TThrottlerManager::UpdateClusterLimits(const THashMap<std::string, TCluster
         } else if (throttlerConfig->Rps) {
             trafficType = EThrottlerTrafficType::Rps;
         } else {
-            YT_LOG_WARNING("Unexpected traffic type in cluster limits config (ClusterName: %v)",
-                clusterName);
+            YT_TLOG_WARNING("Unexpected traffic type in cluster limits config")
+                .With("ClusterName", clusterName);
             continue;
         }
 
@@ -450,17 +453,17 @@ IThroughputThrottlerPtr TThrottlerManager::GetLocalThrottler(EExecNodeThrottlerK
 IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExecNodeThrottlerKind, EThrottlerTrafficType trafficType, TClusterName clusterName)
 {
     if (IsLocal(clusterName) || !DistributedThrottlerFactory_ || !ClusterThrottlersConfig_) {
-        YT_LOG_DEBUG("Distributed throttler is not required (ClusterName: %v, HasDistributedThrottlerFactory: %v, HasClusterThrottlersConfig: %v)",
-            clusterName,
-            !!DistributedThrottlerFactory_,
-            !!ClusterThrottlersConfig_);
+        YT_TLOG_DEBUG("Distributed throttler is not required")
+            .With("ClusterName", clusterName)
+            .With("HasDistributedThrottlerFactory", !!DistributedThrottlerFactory_)
+            .With("HasClusterThrottlersConfig", !!ClusterThrottlersConfig_);
         return nullptr;
     }
 
     auto it = ClusterThrottlersConfig_->ClusterLimits.find(*clusterName.Underlying());
     if (it == ClusterThrottlersConfig_->ClusterLimits.end()) {
-        YT_LOG_WARNING("Could not find remote cluster in cluster limits (ClusterName: %v)",
-            clusterName);
+        YT_TLOG_WARNING("Could not find remote cluster in cluster limits")
+            .With("ClusterName", clusterName);
         return nullptr;
     }
 
@@ -474,27 +477,27 @@ IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExec
     }
 
     if (!throttlerConfig || !throttlerConfig->Limit) {
-        YT_LOG_WARNING("Limit is not set for remote cluster (ClusterName: %v, TrafficType: %v)",
-            cluster,
-            trafficType);
+        YT_TLOG_WARNING("Limit is not set for remote cluster")
+            .With("ClusterName", cluster)
+            .With("TrafficType", trafficType);
         return nullptr;
     }
 
     auto throttlerId = ToThrottlerId(trafficType, TClusterName(cluster));
     auto distributedThrottlerIt = DistributedThrottlersHolder_.find(throttlerId);
     if (distributedThrottlerIt == DistributedThrottlersHolder_.end()) {
-        YT_LOG_DEBUG("Creating new distributed throttler (ThrottlerId: %v, ThrottlerLimit: %v)",
-            throttlerId,
-            throttlerConfig->Limit);
+        YT_TLOG_DEBUG("Creating new distributed throttler")
+            .With("ThrottlerId", throttlerId)
+            .With("ThrottlerLimit", throttlerConfig->Limit);
 
         auto throttler = DistributedThrottlerFactory_->GetOrCreateThrottler(
             throttlerId,
             throttlerConfig);
         distributedThrottlerIt = DistributedThrottlersHolder_.insert({std::move(throttlerId), {std::move(throttler), std::move(throttlerConfig)}}).first;
     } else {
-        YT_LOG_DEBUG("Getting distributed throttler (ThrottlerId: %v, ThrottlerLimit: %v)",
-            throttlerId,
-            distributedThrottlerIt->second.ThrottlerConfig->Limit);
+        YT_TLOG_DEBUG("Getting distributed throttler")
+            .With("ThrottlerId", throttlerId)
+            .With("ThrottlerLimit", distributedThrottlerIt->second.ThrottlerConfig->Limit);
     }
 
     return distributedThrottlerIt->second.Throttler;
@@ -516,15 +519,15 @@ IThroughputThrottlerPtr TThrottlerManager::DoGetOrCreateThrottler(
         localThrottler = GetLocalThrottler(kind, trafficType);
         distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, clusterName);
         if (!distributedThrottler) {
-            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler (MasterConnected: %v, JobsDisabledByMaster: %v)",
-                MasterConnected_,
-                JobsDisabledByMaster_);
+            YT_TLOG_DEBUG("Distributed throttler is missing; falling back to local throttler")
+                .With("MasterConnected", MasterConnected_)
+                .With("JobsDisabledByMaster", JobsDisabledByMaster_);
             return localThrottler;
         }
     }
     YT_VERIFY(localThrottler && distributedThrottler);
 
-    YT_LOG_DEBUG("Creating combined throttler");
+    YT_TLOG_DEBUG("Creating combined throttler");
     return CreateCombinedThrottler({std::move(localThrottler), std::move(distributedThrottler)});
 }
 
@@ -553,7 +556,7 @@ TThrottlerManager::TThrottlerManager(
     , MasterConnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterConnected, MakeWeak(this)))
     , MasterDisconnectedCallback_(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterDisconnected, MakeWeak(this)))
 {
-    YT_LOG_INFO("Constructing throttler manager");
+    YT_TLOG_INFO("Constructing throttler manager");
 
     if (ClusterNodeConfig_->EnableFairThrottler) {
         Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->CreateInThrottler("job_in");
@@ -590,7 +593,7 @@ TThrottlerManager::TThrottlerManager(
 
 TThrottlerManager::~TThrottlerManager()
 {
-    YT_LOG_INFO("Destructing throttler manager");
+    YT_TLOG_INFO("Destructing throttler manager");
 
     const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
     masterConnector->UnsubscribeJobsDisabledByMasterUpdated(JobsDisabledByMasterUpdatedCallback_);
@@ -711,9 +714,9 @@ std::optional<THashMap<TClusterName, bool>> TThrottlerManager::GetClusterToIncom
     auto guard = Guard(Lock_);
     for (const auto& [clusterName, trafficUtilization] : *clusterTrafficUtilization) {
         if (trafficUtilization.Limit <= 0) {
-            YT_LOG_DEBUG("Skip adding cluster network bandwidth availability to controller agent heartbeat request because of unexpected limit (ClusterName: %v, Limit: %v)",
-                clusterName,
-                trafficUtilization.Limit);
+            YT_TLOG_DEBUG("Skip adding cluster network bandwidth availability to controller agent heartbeat request because of unexpected limit")
+                .With("ClusterName", clusterName)
+                .With("Limit", trafficUtilization.Limit);
             continue;
         }
 
@@ -736,25 +739,19 @@ std::optional<THashMap<TClusterName, bool>> TThrottlerManager::GetClusterToIncom
 
         addClusterToResult(clusterName, isAvailable);
 
-        YT_LOG_DEBUG(
-            "Add cluster network bandwidth availability to controller agent heartbeat request "
-            "(ClusterName: %v, Rate: %v, Limit: %v, "
-            "RateLimitRatio: %v, RateLimitRatioHardThreshold: %v, RateLimitRatioSoftThreshold: %v, "
-            "MaxEstimatedTimeToReadPendingBytes: %v, MaxEstimatedTimeToReadPendingBytesThreshold: %v, "
-            "MinEstimatedTimeToReadPendingBytes: %v, MinEstimatedTimeToReadPendingBytesThreshold: %v, "
-            "PendingBytes: %v, IsAvailable: %v)",
-            clusterName,
-            trafficUtilization.Rate,
-            trafficUtilization.Limit,
-            rateLimitRatio,
-            trafficUtilization.RateLimitRatioHardThreshold,
-            trafficUtilization.RateLimitRatioSoftThreshold,
-            trafficUtilization.MaxEstimatedTimeToReadPendingBytes,
-            trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold,
-            trafficUtilization.MinEstimatedTimeToReadPendingBytes,
-            trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold,
-            trafficUtilization.PendingBytes,
-            isAvailable);
+        YT_TLOG_DEBUG("Add cluster network bandwidth availability to controller agent heartbeat request")
+            .With("ClusterName", clusterName)
+            .With("Rate", trafficUtilization.Rate)
+            .With("Limit", trafficUtilization.Limit)
+            .With("RateLimitRatio", rateLimitRatio)
+            .With("RateLimitRatioHardThreshold", trafficUtilization.RateLimitRatioHardThreshold)
+            .With("RateLimitRatioSoftThreshold", trafficUtilization.RateLimitRatioSoftThreshold)
+            .With("MaxEstimatedTimeToReadPendingBytes", trafficUtilization.MaxEstimatedTimeToReadPendingBytes)
+            .With("MaxEstimatedTimeToReadPendingBytesThreshold", trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold)
+            .With("MinEstimatedTimeToReadPendingBytes", trafficUtilization.MinEstimatedTimeToReadPendingBytes)
+            .With("MinEstimatedTimeToReadPendingBytesThreshold", trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold)
+            .With("PendingBytes", trafficUtilization.PendingBytes)
+            .With("IsAvailable", isAvailable);
     }
 
     // Lock is already taken.
@@ -765,11 +762,9 @@ std::optional<THashMap<TClusterName, bool>> TThrottlerManager::GetClusterToIncom
             bool isAvailable = false;
             addClusterToResult(TClusterName{clusterName}, isAvailable);
 
-            YT_LOG_DEBUG(
-                "Add cluster network bandwidth availability to controller agent heartbeat request "
-                "(ClusterName: %v, IsAvailable: %v)",
-                clusterName,
-                isAvailable);
+            YT_TLOG_DEBUG("Add cluster network bandwidth availability to controller agent heartbeat request")
+                .With("ClusterName", clusterName)
+                .With("IsAvailable", isAvailable);
         }
     }
 

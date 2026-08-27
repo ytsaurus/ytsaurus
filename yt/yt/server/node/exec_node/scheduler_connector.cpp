@@ -117,13 +117,12 @@ void TSchedulerConnector::OnDynamicConfigChanged(
 
     DynamicConfig_.Store(newConfig);
 
-    YT_LOG_DEBUG(
-        "Set new scheduler heartbeat options (NewPeriod: %v, NewSplay: %v, NewMinBackoff: %v, NewMaxBackoff: %v, NewBackoffMultiplier: %v)",
-        newConfig->HeartbeatExecutor.Period,
-        newConfig->HeartbeatExecutor.Splay,
-        newConfig->HeartbeatExecutor.MinBackoff,
-        newConfig->HeartbeatExecutor.MaxBackoff,
-        newConfig->HeartbeatExecutor.BackoffMultiplier);
+    YT_TLOG_DEBUG("Set new scheduler heartbeat options")
+        .With("NewPeriod", newConfig->HeartbeatExecutor.Period)
+        .With("NewSplay", newConfig->HeartbeatExecutor.Splay)
+        .With("NewMinBackoff", newConfig->HeartbeatExecutor.MinBackoff)
+        .With("NewMaxBackoff", newConfig->HeartbeatExecutor.MaxBackoff)
+        .With("NewBackoffMultiplier", newConfig->HeartbeatExecutor.BackoffMultiplier);
     HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutor);
 
     TracingSampler_->UpdateConfig(newConfig->TracingSampler);
@@ -136,9 +135,8 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
     bool considerUserJobFreeMemoryWatermark = DynamicConfig_.Acquire()->ConsiderUserJobFreeMemoryWatermark;
 
     auto scheduleOutOfBandHeartbeat = [&] {
-        YT_LOG_DEBUG(
-            "Send out of band heartbeat to scheduler (ConsiderUserJobFreeMemoryWatermark: %v)",
-            considerUserJobFreeMemoryWatermark);
+        YT_TLOG_DEBUG("Send out of band heartbeat to scheduler")
+            .With("ConsiderUserJobFreeMemoryWatermark", considerUserJobFreeMemoryWatermark);
         HeartbeatExecutor_->ScheduleOutOfBand();
     };
 
@@ -159,20 +157,18 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
     auto pendingResourceHolderCount = jobResourceManager->GetPendingResourceHolderCount();
     if (pendingResourceHolderCount > 0) {
         PendingResourceHolderHeartbeatSkippedCounter_.Increment();
-        YT_LOG_DEBUG(
-            "Skipping out of band heartbeat because of pending resource holders (PendingResourceHolderCount: %v)",
-            pendingResourceHolderCount);
+        YT_TLOG_DEBUG("Skipping out of band heartbeat because of pending resource holders")
+            .With("PendingResourceHolderCount", pendingResourceHolderCount);
 
         return;
     }
 
     if (Dominates(MinSpareResources_, freeResources)) {
         NotEnoughResourcesHeartbeatSkippedCounter_.Increment();
-        YT_LOG_DEBUG(
-            "Skipping out of band heartbeat because of not enough resources (FreeResources: %v, MinSpareResources: %v, ConsiderUserJobFreeMemoryWatermark: %v)",
-            freeResources,
-            MinSpareResources_,
-            considerUserJobFreeMemoryWatermark);
+        YT_TLOG_DEBUG("Skipping out of band heartbeat because of not enough resources")
+            .With("FreeResources", freeResources)
+            .With("MinSpareResources", MinSpareResources_)
+            .With("ConsiderUserJobFreeMemoryWatermark", considerUserJobFreeMemoryWatermark);
 
         return;
     }
@@ -212,9 +208,8 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
 {
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    YT_LOG_INFO(
-        "Setting new min spare resources (MinSpareResources: %v)",
-        minSpareResources);
+    YT_TLOG_INFO("Setting new min spare resources")
+        .With("MinSpareResources", minSpareResources);
 
     MinSpareResources_ = minSpareResources;
 }
@@ -223,9 +218,8 @@ void TSchedulerConnector::EnqueueFinishedAllocation(TAllocationPtr allocation)
 {
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
-    YT_LOG_DEBUG(
-        "Finished allocation enqueued, send out of band heartbeat to scheduler (AllocationId: %v)",
-        allocation->GetId());
+    YT_TLOG_DEBUG("Finished allocation enqueued, send out of band heartbeat to scheduler")
+        .With("AllocationId", allocation->GetId());
 
     FinishedAllocations_.emplace(std::move(allocation));
 
@@ -283,21 +277,19 @@ TError TSchedulerConnector::DoSendHeartbeat()
     profileInterval(HeartbeatInfo_.LastSentHeartbeatTime, TimeBetweenSentHeartbeatsCounter_);
     HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
-    YT_LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
-        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_resources()));
+    YT_TLOG_INFO("Scheduler heartbeat sent")
+        .With("ResourceUsage", FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_resources()));
 
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
-        YT_LOG_ERROR(
-            rspOrError,
-            "Error reporting heartbeat to scheduler (BackoffTime: [%v, %v])",
-            minBackoff,
-            maxBackoff);
+        YT_TLOG_ERROR("Error reporting heartbeat to scheduler")
+            .WithFormat("BackoffTime", "[%v, %v]", minBackoff, maxBackoff)
+            .With(rspOrError);
         return TError("Failed to report heartbeat to scheduler");
     }
 
-    YT_LOG_INFO("Successfully reported heartbeat to scheduler");
+    YT_TLOG_INFO("Successfully reported heartbeat to scheduler");
 
     profileInterval(
         std::max(HeartbeatInfo_.LastFullyProcessedHeartbeatTime, HeartbeatInfo_.LastThrottledHeartbeatTime),
@@ -312,10 +304,8 @@ TError TSchedulerConnector::DoSendHeartbeat()
         HeartbeatInfo_.LastFullyProcessedHeartbeatTime = TInstant::Now();
     } else {
         auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
-        YT_LOG_DEBUG(
-            "Failed to report heartbeat to scheduler because scheduling was skipped (BackoffTime: [%v, %v])",
-            minBackoff,
-            maxBackoff);
+        YT_TLOG_DEBUG("Failed to report heartbeat to scheduler because scheduling was skipped")
+            .WithFormat("BackoffTime", "[%v, %v]", minBackoff, maxBackoff);
         HeartbeatInfo_.LastThrottledHeartbeatTime = TInstant::Now();
     }
 
@@ -330,7 +320,7 @@ void TSchedulerConnector::OnStartHeartbeats()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_INFO("Starting heartbeats to scheduler");
+    YT_TLOG_INFO("Starting heartbeats to scheduler");
 
     HeartbeatExecutor_->Start();
 }
@@ -339,7 +329,7 @@ void TSchedulerConnector::OnMasterDisconnected()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_INFO("Stopping heartbeats to scheduler");
+    YT_TLOG_INFO("Stopping heartbeats to scheduler");
 
     YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 }
@@ -374,10 +364,8 @@ void TSchedulerConnector::PrepareHeartbeatRequest(
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run());
 
-    YT_LOG_FATAL_IF(
-        !error.IsOK(),
-        error,
-        "Failed to prepare scheduler heartbeat request");
+    YT_TLOG_FATAL_IF(!error.IsOK(), "Failed to prepare scheduler heartbeat request")
+        .With(error);
 }
 
 void TSchedulerConnector::ProcessHeartbeatResponse(
@@ -394,10 +382,8 @@ void TSchedulerConnector::ProcessHeartbeatResponse(
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run());
 
-    YT_LOG_FATAL_IF(
-        !error.IsOK(),
-        error,
-        "Error while processing scheduler heartbeat response");
+    YT_TLOG_FATAL_IF(!error.IsOK(), "Error while processing scheduler heartbeat response")
+        .With(error);
 }
 
 void TSchedulerConnector::DoPrepareHeartbeatRequest(
@@ -428,13 +414,12 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
                 NJobAgent::EResourcesState::Acquired,
             }));
 
-        YT_LOG_DEBUG(
-            "Reporting resource usage to scheduler (IncludeReleasingResources: %v, Usage: %v, Limits: %v, DiskResources: %v, ConsiderUserJobFreeMemoryWatermark: %v)",
-            includeReleasingResources,
-            resourceUsage,
-            resourceLimits,
-            diskResources,
-            considerUserJobFreeMemoryWatermark);
+        YT_TLOG_DEBUG("Reporting resource usage to scheduler")
+            .With("IncludeReleasingResources", includeReleasingResources)
+            .With("Usage", resourceUsage)
+            .With("Limits", resourceLimits)
+            .With("DiskResources", diskResources)
+            .With("ConsiderUserJobFreeMemoryWatermark", considerUserJobFreeMemoryWatermark);
 
         *request->mutable_resource_limits() = resourceLimits;
         *request->mutable_resource_usage() = resourceUsage;

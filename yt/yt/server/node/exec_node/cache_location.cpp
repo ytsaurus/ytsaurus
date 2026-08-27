@@ -205,9 +205,9 @@ std::optional<TChunkDescriptor> TCacheLocation::RepairChunk(TChunkId chunkId)
             break;
 
         default:
-            YT_LOG_WARNING("Invalid chunk type (Type: %v, ChunkId: %v)",
-                chunkType,
-                chunkId);
+            YT_TLOG_WARNING("Invalid chunk type")
+                .With("Type", chunkType)
+                .With("ChunkId", chunkId);
             break;
     }
     return optionalDescriptor;
@@ -237,9 +237,8 @@ std::vector<std::string> TCacheLocation::GetChunkPartNames(TChunkId chunkId) con
 TFuture<void> TCacheLocation::RemoveChunks()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
-    YT_LOG_INFO(
-        "Location is disabled; unregistering all the artifacts in it (LocationId: %v)",
-        GetId());
+    YT_TLOG_INFO("Location is disabled; unregistering all the artifacts in it")
+        .With("LocationId", GetId());
 
     return ArtifactCache_->RemoveArtifactsByLocation(MakeStrong(this), /*forbidSlruResurrection*/ true);
 }
@@ -260,7 +259,9 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
         return false;
     }
 
-    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
+    YT_TLOG_WARNING("Disabling location")
+        .With("LocationUuid", GetUuid())
+        .With(reason);
 
     // No new actions can appear here. Please see TDiskLocation::RegisterAction.
     auto error = TError("Artifact location at %v is disabled", GetPath())
@@ -272,7 +273,8 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
         try {
             CreateDisableLockFile(reason);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Creating disable lock file failed");
+            YT_TLOG_ERROR("Creating disable lock file failed")
+                .With(ex);
         }
 
         try {
@@ -284,16 +286,17 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
                 .Run())
                 .ThrowOnError();
             ResetLocationStatistic();
-            YT_LOG_INFO("Location disabling finished");
+            YT_TLOG_INFO("Location disabling finished");
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Location disabling error");
+            YT_TLOG_FATAL("Location disabling error")
+                .With(ex);
         }
 
         auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling, reason);
 
         if (!finish) {
-            YT_LOG_ALERT("Detect location state racing (CurrentState: %v)",
-                GetState());
+            YT_TLOG_ALERT("Detect location state racing")
+                .With("CurrentState", GetState());
         }
     })
         .AsyncVia(GetAuxPoolInvoker())

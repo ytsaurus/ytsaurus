@@ -126,16 +126,15 @@ public:
         try {
             jobLogsPath = FindExistingJobLogsPath(jobId);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex,
-                "Job log directory is not found, skipping removal (JobId: %v)",
-                jobId);
+            YT_TLOG_DEBUG("Job log directory is not found, skipping removal")
+                .With("JobId", jobId)
+                .With(ex);
             return;
         }
 
-        YT_LOG_DEBUG(
-            "Job proxy log removal scheduled (JobId: %v, Delay: %v)",
-            jobId,
-            logsStoragePeriod);
+        YT_TLOG_DEBUG("Job proxy log removal scheduled")
+            .With("JobId", jobId)
+            .With("Delay", logsStoragePeriod);
 
         TDelayedExecutor::Submit(
             BIND_NO_PROPAGATE(
@@ -171,10 +170,9 @@ public:
         const auto locationCheckPeriod = newConfig->LocationCheckPeriod.value_or(Config_->LocationCheckPeriod);
         if (LocationCheckExecutor_) {
             LocationCheckExecutor_->SetPeriod(locationCheckPeriod);
-            YT_LOG_INFO(
-                "Updated location check period (Prev: %v, Current: %v)",
-                Config_->LocationCheckPeriod,
-                locationCheckPeriod);
+            YT_TLOG_INFO("Updated location check period")
+                .With("Prev", Config_->LocationCheckPeriod)
+                .With("Current", locationCheckPeriod);
         }
 
         DynamicConfig_.Store(std::move(newConfig));
@@ -241,14 +239,15 @@ private:
 
                 auto dirPath = NFS::CombinePaths(prefixPath, dirName);
 
-                YT_LOG_INFO("Creating job proxy logs sharding key directory (DirPath: %v)", dirPath);
+                YT_TLOG_INFO("Creating job proxy logs sharding key directory")
+                    .With("DirPath", dirPath);
 
                 NFS::MakeDirRecursive(dirPath);
             }
         };
 
         try {
-            YT_LOG_INFO("Started creating job proxy sharding key directories");
+            YT_TLOG_INFO("Started creating job proxy sharding key directories");
 
             for (const auto& location : Config_->Locations) {
                 createShardingDir(location->Path);
@@ -256,9 +255,10 @@ private:
 
             createShardingDir(Config_->JobProxyLogSymlinksPath);
 
-            YT_LOG_INFO("Finished creating job proxy sharding key directories");
+            YT_TLOG_INFO("Finished creating job proxy sharding key directories");
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to create sharding key directories");
+            YT_TLOG_ERROR("Failed to create sharding key directories")
+                .With(ex);
         }
     }
 
@@ -282,9 +282,8 @@ private:
         auto cleanupShard = [] (const std::string& shardPath) {
             for (const auto& shardDirEntry : std::filesystem::directory_iterator(shardPath)) {
                 if (!shardDirEntry.is_symlink()) {
-                    YT_LOG_WARNING(
-                        "Unexpected non-symlink entry in symlinks sharding directory (Path: %v)",
-                        shardDirEntry.path().string());
+                    YT_TLOG_WARNING("Unexpected non-symlink entry in symlinks sharding directory")
+                        .With("Path", shardDirEntry.path().string());
 
                     continue;
                 }
@@ -298,10 +297,9 @@ private:
                     targetPath = NFs::ReadLink(TString(symlinkPath));
                     isBroken = !NFs::Exists(targetPath);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(
-                        ex,
-                        "Failed to read job log symlink (Path: %v)",
-                        symlinkPath);
+                    YT_TLOG_ERROR("Failed to read job log symlink")
+                        .With("Path", symlinkPath)
+                        .With(ex);
                     isBroken = true;
                 }
 
@@ -311,23 +309,20 @@ private:
 
                 try {
                     NFS::Remove(symlinkPath);
-                    YT_LOG_INFO(
-                        "Removed broken job log symlink (Path: %v, Target: %v)",
-                        symlinkPath,
-                        targetPath);
+                    YT_TLOG_INFO("Removed broken job log symlink")
+                        .With("Path", symlinkPath)
+                        .With("Target", targetPath);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(
-                        ex,
-                        "Failed to remove broken job log symlink (Path: %v, Target: %v)",
-                        symlinkPath,
-                        targetPath);
+                    YT_TLOG_ERROR("Failed to remove broken job log symlink")
+                        .With("Path", symlinkPath)
+                        .With("Target", targetPath)
+                        .With(ex);
                 }
             }
         };
 
-        YT_LOG_INFO(
-            "Started cleaning broken job log symlinks (Root: %v)",
-            Config_->JobProxyLogSymlinksPath);
+        YT_TLOG_INFO("Started cleaning broken job log symlinks")
+            .With("Root", Config_->JobProxyLogSymlinksPath);
 
         try {
             for (const auto& shardDirKey : NFS::EnumerateDirectories(Config_->JobProxyLogSymlinksPath)) {
@@ -336,20 +331,18 @@ private:
                 try {
                     cleanupShard(symlinksShardingDirPath);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(
-                        ex,
-                        "Failed to clean up symlinks sharding directory (Path: %v)",
-                        symlinksShardingDirPath);
+                    YT_TLOG_ERROR("Failed to clean up symlinks sharding directory")
+                        .With("Path", symlinksShardingDirPath)
+                        .With(ex);
                 }
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(
-                ex,
-                "Failed to enumerate symlinks sharding directories (Root: %v)",
-                Config_->JobProxyLogSymlinksPath);
+            YT_TLOG_ERROR("Failed to enumerate symlinks sharding directories")
+                .With("Root", Config_->JobProxyLogSymlinksPath)
+                .With(ex);
         }
 
-        YT_LOG_INFO("Finished cleaning broken job log symlinks");
+        YT_TLOG_INFO("Finished cleaning broken job log symlinks");
     }
 
     void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, const std::string& shardingDirPath) noexcept
@@ -359,15 +352,14 @@ private:
 
         auto guard = TAsyncSemaphoreGuard();
         if (DynamicConfig_.Acquire()->DirectoryTraversalConcurrency.value_or(Config_->DirectoryTraversalConcurrency) != 0) {
-            YT_LOG_INFO("Waiting semaphore to traverse job directory");
+            YT_TLOG_INFO("Waiting semaphore to traverse job directory");
             guard = WaitFor(AsyncSemaphore_->AsyncAcquire().AsUnique()).ValueOrThrow();
         }
 
         auto logsStoragePeriod = DynamicConfig_.Acquire()->LogsStoragePeriod.value_or(Config_->LogsStoragePeriod);
 
-        YT_LOG_INFO(
-            "Start traversing job directory (LogsStoragePeriod: %v)",
-            logsStoragePeriod);
+        YT_TLOG_INFO("Start traversing job directory")
+            .With("LogsStoragePeriod", logsStoragePeriod);
 
         for (const auto& jobDirName : NFS::EnumerateDirectories(shardingDirPath)) {
             auto jobDirPath = NFS::CombinePaths(shardingDirPath, jobDirName);
@@ -381,10 +373,9 @@ private:
             if (jobLogsDirModificationTime + logsStoragePeriod <= currentTime) {
                 Bootstrap_->GetStorageHeavyInvoker()->Invoke(std::move(removeJobDirectory));
             } else {
-                YT_LOG_DEBUG(
-                    "Job proxy log removal scheduled (DirectoryName: %v, Time: %v)",
-                    jobDirName,
-                    jobLogsDirModificationTime + logsStoragePeriod);
+                YT_TLOG_DEBUG("Job proxy log removal scheduled")
+                    .With("DirectoryName", jobDirName)
+                    .With("Time", jobLogsDirModificationTime + logsStoragePeriod);
 
                 TDelayedExecutor::Submit(
                     std::move(removeJobDirectory),
@@ -393,16 +384,15 @@ private:
             }
         }
 
-        YT_LOG_INFO("Finish traversing job directory");
+        YT_TLOG_INFO("Finish traversing job directory");
     }
 
     void RemoveJobDirectory(const std::string& targetDirectory, const std::string& jobDirectoryName) noexcept
     {
         TGuid guid;
         if (!TGuid::FromString(jobDirectoryName, &guid)) {
-            YT_LOG_ERROR(
-                "Failed to parse job directory name as job ID, skipping symlink removal (DirectoryName: %v)",
-                jobDirectoryName);
+            YT_TLOG_ERROR("Failed to parse job directory name as job ID, skipping symlink removal")
+                .With("DirectoryName", jobDirectoryName);
             return;
         }
 
@@ -414,22 +404,22 @@ private:
 
         try {
             NFS::Remove(symlinkPath);
-            YT_LOG_INFO("Symlink for job removed (Path: %v)", symlinkPath);
+            YT_TLOG_INFO("Symlink for job removed")
+                .With("Path", symlinkPath);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(
-                ex,
-                "Failed to remove symlink for job directory (Path: %v)",
-                symlinkPath);
+            YT_TLOG_ERROR("Failed to remove symlink for job directory")
+                .With("Path", symlinkPath)
+                .With(ex);
         }
 
         try {
             NFS::RemoveRecursive(targetDirectory);
-            YT_LOG_INFO("Job directory removed (Path: %v)", targetDirectory);
+            YT_TLOG_INFO("Job directory removed")
+                .With("Path", targetDirectory);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(
-                ex,
-                "Failed to remove job directory (Path: %v)",
-                targetDirectory);
+            YT_TLOG_ERROR("Failed to remove job directory")
+                .With("Path", targetDirectory)
+                .With(ex);
             return;
         }
     }
@@ -498,10 +488,9 @@ private:
 
                 NFS::MakeSymbolicLink(targetJobLogPath, symlinkPath);
 
-                YT_LOG_INFO(
-                    "Created symlink for job directory (SymlinkPath: %v, Target: %v)",
-                    symlinkPath,
-                    targetJobLogPath);
+                YT_TLOG_INFO("Created symlink for job directory")
+                    .With("SymlinkPath", symlinkPath)
+                    .With("Target", targetJobLogPath);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to bind job log directory")
                     .With("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
@@ -527,10 +516,9 @@ private:
         auto path = NFS::CombinePaths({Config_->Locations[index]->Path, shardingKey, ToString(jobId)});
         if (NFS::Exists(path)) {
             if (!aliveLocationsIndices[index]) {
-                YT_LOG_WARNING(
-                    "Job's log directory is located in a damaged location (JobId: %v, Location: %v)",
-                    jobId,
-                    Config_->Locations[index]->Path);
+                YT_TLOG_WARNING("Job's log directory is located in a damaged location")
+                    .With("JobId", jobId)
+                    .With("Location", Config_->Locations[index]->Path);
             }
             return path;
         }
@@ -539,10 +527,9 @@ private:
             auto path = NFS::CombinePaths({Config_->Locations[location]->Path, shardingKey, ToString(jobId)});
             if (NFS::Exists(path)) {
                 if (!aliveLocationsIndices[location]) {
-                    YT_LOG_WARNING(
-                        "Job's log directory is located in a damaged location (JobId: %v, Location: %v)",
-                        jobId,
-                        Config_->Locations[location]->Path);
+                    YT_TLOG_WARNING("Job's log directory is located in a damaged location")
+                        .With("JobId", jobId)
+                        .With("Location", Config_->Locations[location]->Path);
                 }
                 return path;
             }
@@ -567,10 +554,9 @@ private:
 
         auto logFileName = LogFileName_.Load();
 
-        YT_LOG_DEBUG(
-            "Dumping job proxy log file (JobId: %v, LogFileName: %v)",
-            jobId,
-            logFileName);
+        YT_TLOG_DEBUG("Dumping job proxy log file")
+            .With("JobId", jobId)
+            .With("LogFileName", logFileName);
 
         auto logFilePath = NFS::CombinePaths(logsPath, NFS::GetFileName(logFileName));
         auto logFile = [&] {
@@ -641,7 +627,7 @@ private:
 
     void CheckAllLocations() noexcept
     {
-        YT_LOG_DEBUG("Location liveness check started");
+        YT_TLOG_DEBUG("Location liveness check started");
 
         std::vector<TError> results(LocationHealthCheckers_.size());
         for (int idx = 0; idx < std::ssize(LocationHealthCheckers_); ++idx) {
@@ -677,18 +663,16 @@ private:
 
         for (int idx = 0; idx < std::ssize(results); ++idx) {
             if (oldAlive[idx] && !results[idx].IsOK()) {
-                YT_LOG_ERROR(
-                    results[idx],
-                    "Job proxy log location disabled (Path: %v)",
-                    Config_->Locations[idx]->Path);
+                YT_TLOG_ERROR("Job proxy log location disabled")
+                    .With("Path", Config_->Locations[idx]->Path)
+                    .With(results[idx]);
             } else if (!oldAlive[idx] && results[idx].IsOK()) {
-                YT_LOG_INFO(
-                    "Job proxy log location recovered (Path: %v)",
-                    Config_->Locations[idx]->Path);
+                YT_TLOG_INFO("Job proxy log location recovered")
+                    .With("Path", Config_->Locations[idx]->Path);
             }
         }
 
-        YT_LOG_DEBUG("Location liveness check finished");
+        YT_TLOG_DEBUG("Location liveness check finished");
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

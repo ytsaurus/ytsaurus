@@ -308,11 +308,9 @@ void TJobFSSecretary::ConfigureFromSpec(
 void TJobFSSecretary::VerifyDescriptionMatchesApplied(const TJobFSDescriptionPtr& current) const
 {
     auto crashIfFailed = [&] (const TError& error) {
-        YT_LOG_FATAL_UNLESS(
-            error.IsOK(),
-            error,
-            "Job spec differs from the first job in this allocation (CurrentJobId: %v)",
-            JobId_);
+        YT_TLOG_FATAL_UNLESS(error.IsOK(), "Job spec differs from the first job in this allocation")
+            .With("CurrentJobId", JobId_)
+            .With(error);
     };
 
     crashIfFailed(CheckArtifacts(Description_->Artifacts, current->Artifacts));
@@ -750,7 +748,7 @@ void TJobFSSecretary::SetRootVolume(IVolumePtr volume)
 
 IVolumePtr TJobFSSecretary::ReleaseRootVolume()
 {
-    YT_LOG_DEBUG("Releasing root volume");
+    YT_TLOG_DEBUG("Releasing root volume");
     return std::move(RootVolume_);
 }
 
@@ -766,7 +764,7 @@ void TJobFSSecretary::SetGpuCheckVolume(IVolumePtr volume)
 
 IVolumePtr TJobFSSecretary::ReleaseGpuCheckVolume()
 {
-    YT_LOG_DEBUG("Releasing GPU check volume");
+    YT_TLOG_DEBUG("Releasing GPU check volume");
     return std::move(GpuCheckVolume_);
 }
 
@@ -782,7 +780,7 @@ const THashSet<std::string>& TJobFSSecretary::GetNbdDeviceIds() const
 
 THashSet<std::string> TJobFSSecretary::ReleaseNbdDeviceIds()
 {
-    YT_LOG_DEBUG("Releasing NBD device ids");
+    YT_TLOG_DEBUG("Releasing NBD device ids");
     return std::move(NbdDeviceIds_);
 }
 
@@ -798,7 +796,7 @@ const THashMap<std::string, TVolumeResultPtr>& TJobFSSecretary::GetNonRootVolume
 
 THashMap<std::string, TVolumeResultPtr> TJobFSSecretary::ReleaseNonReusableNonRootVolumes()
 {
-    YT_LOG_DEBUG("Releasing non-reusable non-root volumes");
+    YT_TLOG_DEBUG("Releasing non-reusable non-root volumes");
 
     THashMap<std::string, TVolumeResultPtr> result;
 
@@ -893,7 +891,7 @@ IVolumePtr TJobFSSecretary::ReleaseRootVolumeIfNeeded()
 
 std::vector<IVolumePtr> TJobFSSecretary::ReleaseVolumes()
 {
-    YT_LOG_DEBUG("Releasing volumes");
+    YT_TLOG_DEBUG("Releasing volumes");
 
     std::vector<IVolumePtr> volumes;
     volumes.reserve(2 + NonRootVolumes_.size());
@@ -970,10 +968,9 @@ void TJobFSSecretary::SetCachedArtifacts(std::vector<TArtifactPtr> artifacts)
 
 void TJobFSSecretary::AddPreparedLayers(TPreparedLayers layers)
 {
-    YT_LOG_DEBUG(
-        "Adding prepared layers (NewLayerCount: %v, ExistingLayerCount: %v)",
-        size(layers.ArtifactKeyToOverlayData),
-        size(PreparedLayers_.ArtifactKeyToOverlayData));
+    YT_TLOG_DEBUG("Adding prepared layers")
+        .With("NewLayerCount", size(layers.ArtifactKeyToOverlayData))
+        .With("ExistingLayerCount", size(PreparedLayers_.ArtifactKeyToOverlayData));
 
     for (auto& [key, overlayData] : layers.ArtifactKeyToOverlayData) {
         EmplaceOrCrash(
@@ -1021,15 +1018,14 @@ std::vector<TOverlayData> TJobFSSecretary::GetPreparedOverlayData(const std::vec
 
 void TJobFSSecretary::ReleasePreparedLayers()
 {
-    YT_LOG_DEBUG(
-        "Releasing prepared layers (LayerCount: %v)",
-        size(PreparedLayers_.ArtifactKeyToOverlayData));
+    YT_TLOG_DEBUG("Releasing prepared layers")
+        .With("LayerCount", size(PreparedLayers_.ArtifactKeyToOverlayData));
     PreparedLayers_ = {};
 }
 
 void TJobFSSecretary::ReleaseArtifacts()
 {
-    YT_LOG_DEBUG("Releasing artifacts");
+    YT_TLOG_DEBUG("Releasing artifacts");
 
     NameToPreparedArtifacts_.clear();
 }

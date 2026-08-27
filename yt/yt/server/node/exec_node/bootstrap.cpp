@@ -107,7 +107,7 @@ public:
 
     void Initialize() override
     {
-        YT_LOG_INFO("Initializing exec node");
+        YT_TLOG_INFO("Initializing exec node");
 
         // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
@@ -217,13 +217,11 @@ public:
     void Run() override
     {
         {
-            YT_LOG_INFO("Waiting for throttlers to initialize");
+            YT_TLOG_INFO("Waiting for throttlers to initialize");
             auto error = WaitFor(ThrottlerManager_->Start());
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Unexpected failure while waiting for throttlers to initialize");
-            YT_LOG_INFO("Throttlers initialized");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for throttlers to initialize")
+                .With(error);
+            YT_TLOG_INFO("Throttlers initialized");
         }
 
         auto nbdConfig = DynamicConfig_.Acquire()->ExecNode->Nbd;
@@ -512,7 +510,8 @@ private:
             for (const auto& secondaryMasterConfig : newJobProxyConfigTemplate->OriginalClusterConnection->Static->SecondaryMasters) {
                 auto cellTag = CellTagFromId(secondaryMasterConfig->CellId);
                 if (newSecondaryMasterConfigs.erase(cellTag)) {
-                    YT_LOG_ALERT("Config contains a cell that was reported as new (CellTag: %v)", cellTag);
+                    YT_TLOG_ALERT("Config contains a cell that was reported as new")
+                        .With("CellTag", cellTag);
                 }
             }
 
