@@ -19,6 +19,7 @@
 | `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` до 1.75.2) | `true` | Чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` | 1.75.3 |
 | `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Использовать фильтры Spark-запроса для выборочного чтения из {{product-name}} | - |
 | `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Объединять все фильтры в непрерывный диапазон при выборочном чтении | - |
+| `spark.yt.read.keyColumnsFilterPushdown.mergeAdjacent.enabled` | `false` | Объединять диапазоны по соседним целочисленным значениям ключа в один диапазон | 2.12.0 |
 | `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit` | `100` | Максимальное количество диапазонов таблицы при выборочном чтении | - |
 | `spark.yt.transaction.timeout` | `5 minutes` | Таймаут на транзакцию записывающей операции | - |
 | `spark.yt.transaction.pingInterval` | `30 seconds` | Периодичность пингования транзакции записывающей операции | - |
