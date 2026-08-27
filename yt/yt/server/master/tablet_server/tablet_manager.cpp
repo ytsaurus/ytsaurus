@@ -366,12 +366,11 @@ public:
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
-        YT_LOG_DEBUG(
-            "Tablet created (TableId: %v, TabletId: %v, Type: %v, Account: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            type,
-            table->Account()->GetName());
+        YT_TLOG_DEBUG("Tablet created")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("Type", type)
+            .With("Account", table->Account()->GetName());
 
         return tablet;
     }
@@ -382,9 +381,9 @@ public:
 
         // XXX(savrus): this is a workaround for YTINCIDENTS-42
         if (auto* cell = tablet->GetCell()) {
-            YT_LOG_ALERT("Destroying tablet with non-null tablet cell (TabletId: %v, CellId: %v)",
-                tablet->GetId(),
-                cell->GetId());
+            YT_TLOG_ALERT("Destroying tablet with non-null tablet cell")
+                .With("TabletId", tablet->GetId())
+                .With("CellId", cell->GetId());
 
             // Replicated table not supported.
             if (tablet->GetType() == EObjectType::Tablet) {
@@ -392,15 +391,15 @@ public:
             }
 
             if (cell->Tablets().erase(tablet) > 0) {
-                YT_LOG_ALERT("Unbinding tablet from tablet cell since tablet is destroyed (TabletId: %v, CellId: %v)",
-                    tablet->GetId(),
-                    cell->GetId());
+                YT_TLOG_ALERT("Unbinding tablet from tablet cell since tablet is destroyed")
+                    .With("TabletId", tablet->GetId())
+                    .With("CellId", cell->GetId());
             }
 
             if (tablet->GetState() == ETabletState::Mounted) {
-                YT_LOG_ALERT("Sending force unmount request to node since tablet is destroyed (TabletId: %v, CellId: %v)",
-                    tablet->GetId(),
-                    cell->GetId());
+                YT_TLOG_ALERT("Sending force unmount request to node since tablet is destroyed")
+                    .With("TabletId", tablet->GetId())
+                    .With("CellId", cell->GetId());
 
                 TReqUnmountTablet request;
                 ToProto(request.mutable_tablet_id(), tablet->GetId());
@@ -424,11 +423,9 @@ public:
         if (tablet->GetType() == EObjectType::Tablet) {
             auto dynamicStoreCount = tablet->As<TTablet>()->DynamicStores().size();
             if (dynamicStoreCount > 0) {
-                YT_LOG_ALERT(
-                    "Tablet has dynamic stores upon destruction "
-                    "(TabletId: %v, StoreCount: %v)",
-                    tablet->GetId(),
-                    dynamicStoreCount);
+                YT_TLOG_ALERT("Tablet has dynamic stores upon destruction")
+                    .With("TabletId", tablet->GetId())
+                    .With("StoreCount", dynamicStoreCount);
             }
         }
 
@@ -492,12 +489,11 @@ public:
 
         InsertOrCrash(table->Replicas(), replica);
 
-        YT_LOG_DEBUG(
-            "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %v)",
-            table->GetId(),
-            replica->GetId(),
-            mode,
-            startReplicationTimestamp);
+        YT_TLOG_DEBUG("Table replica created")
+            .With("TableId", table->GetId())
+            .With("ReplicaId", replica->GetId())
+            .With("Mode", mode)
+            .With("StartReplicationTimestamp", startReplicationTimestamp);
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         for (int tabletIndex = 0; tabletIndex < std::ssize(table->Tablets()); ++tabletIndex) {
@@ -649,16 +645,14 @@ public:
             preserveTimestamps = std::nullopt;
         }
 
-        YT_LOG_DEBUG("Table replica updated "
-            "(TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, "
-            "Atomicity: %v, PreserveTimestamps: %v, EnableReplicatedTableTracker: %v)",
-            table->GetId(),
-            replica->GetId(),
-            enabled,
-            mode,
-            atomicity,
-            preserveTimestamps,
-            enableReplicatedTableTracker);
+        YT_TLOG_DEBUG("Table replica updated")
+            .With("TableId", table->GetId())
+            .With("ReplicaId", replica->GetId())
+            .With("Enabled", enabled)
+            .With("Mode", mode)
+            .With("Atomicity", atomicity)
+            .With("PreserveTimestamps", preserveTimestamps)
+            .With("EnableReplicatedTableTracker", enableReplicatedTableTracker);
 
         if (mode) {
             replica->SetMode(*mode);
@@ -680,14 +674,14 @@ public:
 
         if (enabled) {
             if (*enabled) {
-                YT_LOG_DEBUG("Enabling table replica (TableId: %v, ReplicaId: %v)",
-                    table->GetId(),
-                    replica->GetId());
+                YT_TLOG_DEBUG("Enabling table replica")
+                    .With("TableId", table->GetId())
+                    .With("ReplicaId", replica->GetId());
                 replica->SetState(ETableReplicaState::Enabling);
             } else {
-                YT_LOG_DEBUG("Disabling table replica (TableId: %v, ReplicaId: %v)",
-                    table->GetId(),
-                    replica->GetId());
+                YT_TLOG_DEBUG("Disabling table replica")
+                    .With("TableId", table->GetId())
+                    .With("ReplicaId", replica->GetId());
                 replica->SetState(ETableReplicaState::Disabling);
             }
         }
@@ -893,10 +887,9 @@ public:
             try {
                 enableConstraintValidation &= !ConvertTo<bool>(*yson);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex,
-                    "Failed to parse \"suppress_dynamic_table_chunk_size_validation\" attribute of an authenticated user "
-                    "(User: %v)",
-                    authenticatedUser->GetName());
+                YT_TLOG_WARNING("Failed to parse \"suppress_dynamic_table_chunk_size_validation\" attribute of an authenticated user")
+                    .With("User", authenticatedUser->GetName())
+                    .With(ex);
             }
         }
 
@@ -954,9 +947,10 @@ public:
         }
 
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Validation of chunk constraints failed during table mount (TableId: %v, User: %v)",
-                table->GetId(),
-                authenticatedUser->GetName());
+            YT_TLOG_DEBUG("Validation of chunk constraints failed during table mount")
+                .With("TableId", table->GetId())
+                .With("User", authenticatedUser->GetName())
+                .With(error);
             GetUserChunkConstraintValidationErrorCounter(authenticatedUser->GetName()).Increment();
             THROW_ERROR_EXCEPTION_IF(enableConstraintValidation, error);
         }
@@ -1154,12 +1148,10 @@ public:
         DoRemount(table, firstTabletIndex, lastTabletIndex);
 
         if (resourceUsageBefore != table->GetTabletResourceUsage()) {
-            YT_LOG_ALERT(
-                "Tablet resource usage changed during table remount "
-                "(TableId: %v, UsageBefore: %v, UsageAfter: %v)",
-                table->GetId(),
-                resourceUsageBefore,
-                table->GetTabletResourceUsage());
+            YT_TLOG_ALERT("Tablet resource usage changed during table remount")
+                .With("TableId", table->GetId())
+                .With("UsageBefore", resourceUsageBefore)
+                .With("UsageAfter", table->GetTabletResourceUsage());
         }
         UpdateResourceUsage(table, table->GetTabletResourceUsage() - resourceUsageBefore);
     }
@@ -1419,10 +1411,9 @@ public:
                 break;
 
             default:
-                YT_LOG_DEBUG("Attempted to cancel transition of tablet in inappropriate state, ignored "
-                    "(TabletId: %v, State: %v)",
-                    tablet->GetId(),
-                    tablet->GetState());
+                YT_TLOG_DEBUG("Attempted to cancel transition of tablet in inappropriate state, ignored")
+                    .With("TabletId", tablet->GetId())
+                    .With("State", tablet->GetState());
                 return;
         }
 
@@ -1450,11 +1441,11 @@ public:
             CreateAndAttachDynamicStores(tablet, &req);
         }
 
-        YT_LOG_DEBUG("Canceling tablet transition (TabletId: %v, TableId: %v, State: %v, MountRevision: %x)",
-            tablet->GetId(),
-            table->GetId(),
-            tablet->GetState(),
-            tablet->Servant().GetMountRevision());
+        YT_TLOG_DEBUG("Canceling tablet transition")
+            .With("TabletId", tablet->GetId())
+            .With("TableId", table->GetId())
+            .With("State", tablet->GetState())
+            .WithFormat("MountRevision", "%x", tablet->Servant().GetMountRevision());
 
         auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
         hiveManager->PostMessage(mailbox, req);
@@ -1754,8 +1745,9 @@ public:
                 });
             return action->GetId();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to create tablet action during sync reshard (TabletBalancerCorrelationId: %v)",
-                correlationId);
+            YT_TLOG_DEBUG("Failed to create tablet action during sync reshard")
+                .With("TabletBalancerCorrelationId", correlationId)
+                .With(ex);
             return NullObjectId;
         }
     }
@@ -1793,8 +1785,8 @@ public:
                 });
             return action->GetId();
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG("Failed to create tablet action during sync cells balancing (TabletBalancerCorrelationId: %v)",
-                correlationId);
+            YT_TLOG_DEBUG("Failed to create tablet action during sync cells balancing")
+                .With("TabletBalancerCorrelationId", correlationId);
             return NullObjectId;
         }
     }
@@ -2097,11 +2089,9 @@ public:
                     }
 
                     if (!replicaBackupDescriptor) {
-                        YT_LOG_DEBUG(
-                            "Will not clone table replica since it does not participate in backup "
-                            "(TableId: %v, ReplicaId: %v)",
-                            trunkReplicatedSourceTable->GetId(),
-                            replica->GetId());
+                        YT_TLOG_DEBUG("Will not clone table replica since it does not participate in backup")
+                            .With("TableId", trunkReplicatedSourceTable->GetId())
+                            .With("ReplicaId", replica->GetId());
                         continue;
                     }
                 }
@@ -2118,12 +2108,10 @@ public:
                         if (tablet->BackedUpReplicaInfos().contains(replica->GetId())) {
                             replicaInfo = &GetOrCrash(tablet->BackedUpReplicaInfos(), replica->GetId());
                         } else {
-                            YT_LOG_ALERT(
-                                "Tablet does not contain replica info during backup (TabletId: %v, "
-                                "TableId: %v, ReplicaId: %v)",
-                                tablet->GetId(),
-                                trunkReplicatedSourceTable->GetId(),
-                                replica->GetId());
+                            YT_TLOG_ALERT("Tablet does not contain replica info during backup")
+                                .With("TabletId", tablet->GetId())
+                                .With("TableId", trunkReplicatedSourceTable->GetId())
+                                .With("ReplicaId", replica->GetId());
                             replicaInfo = tablet->GetReplicaInfo(replica);
                         }
                     } else {
@@ -2150,15 +2138,13 @@ public:
                     committedReplicationRowIndexes,
                     replica->GetEnableReplicatedTableTracker());
 
-                YT_LOG_DEBUG(
-                    "Table replica cloned (OriginalReplicaId: %v, ClonedReplicaId: %v, "
-                    "OriginalTableId: %v, ClonedTableId: %v, OriginalReplicaPath: %v, ClonedReplicaPath: %v)",
-                    replica->GetId(),
-                    clonedReplica->GetId(),
-                    sourceTable->GetId(),
-                    clonedTable->GetId(),
-                    replica->GetReplicaPath(),
-                    clonedReplica->GetReplicaPath());
+                YT_TLOG_DEBUG("Table replica cloned")
+                    .With("OriginalReplicaId", replica->GetId())
+                    .With("ClonedReplicaId", clonedReplica->GetId())
+                    .With("OriginalTableId", sourceTable->GetId())
+                    .With("ClonedTableId", clonedTable->GetId())
+                    .With("OriginalReplicaPath", replica->GetReplicaPath())
+                    .With("ClonedReplicaPath", clonedReplica->GetReplicaPath());
             }
 
             if (isBackupAction) {
@@ -2233,8 +2219,8 @@ public:
 
         table->AccountTabletStatistics(tablet->GetTabletStatistics());
 
-        YT_LOG_DEBUG("Table is switched to dynamic mode (TableId: %v)",
-            table->GetId());
+        YT_TLOG_DEBUG("Table is switched to dynamic mode")
+            .With("TableId", table->GetId());
     }
 
     void ValidateMakeTableStatic(TTableNode* table) override
@@ -2324,8 +2310,8 @@ public:
             -tabletResourceUsage,
             /*scheduleTableDataStatisticsUpdate*/ false);
 
-        YT_LOG_DEBUG("Table is switched to static mode (TableId: %v)",
-            table->GetId());
+        YT_TLOG_DEBUG("Table is switched to static mode")
+            .With("TableId", table->GetId());
     }
 
     void SetTableClipTimestamp(TTableNode* table, TTimestamp clipTimestamp) override
@@ -2386,10 +2372,10 @@ public:
         transaction->BulkInsertState().LockedDynamicTables().insert(table);
         table->AddDynamicTableLock(transaction->GetId(), timestamp, pendingTabletCount);
 
-        YT_LOG_DEBUG("Waiting for tablet lock confirmation (TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
-            table->GetId(),
-            transaction->GetId(),
-            pendingTabletCount);
+        YT_TLOG_DEBUG("Waiting for tablet lock confirmation")
+            .With("TableId", table->GetId())
+            .With("TransactionId", transaction->GetId())
+            .With("PendingTabletCount", pendingTabletCount);
     }
 
     void CheckDynamicTableLock(
@@ -2424,9 +2410,8 @@ public:
 
         auto* tabletOwner = node->As<TTabletOwnerBase>();
 
-        YT_LOG_DEBUG("Tablet owner replication changed, will recompute tablet statistics "
-            "(NodeId: %v)",
-            tabletOwner->GetId());
+        YT_TLOG_DEBUG("Tablet owner replication changed, will recompute tablet statistics")
+            .With("NodeId", tabletOwner->GetId());
         RecomputeTableTabletStatistics(tabletOwner);
     }
 
@@ -2625,11 +2610,11 @@ public:
             dstBundle->ResourceLimits() += resourceDelta;
         } catch (const std::exception& ex) {
             if (IsHiveMutation()) {
-                YT_LOG_ALERT(ex, "Failed to transfer resources between bundles "
-                    "(SrcBundle: %v, DstBundle: %v, ResourceDelta: %v)",
-                    srcBundle->GetName(),
-                    dstBundle->GetName(),
-                    resourceDelta);
+                YT_TLOG_ALERT("Failed to transfer resources between bundles")
+                    .With("SrcBundle", srcBundle->GetName())
+                    .With("DstBundle", dstBundle->GetName())
+                    .With("ResourceDelta", resourceDelta)
+                    .With(ex);
             } else {
                 THROW_ERROR_EXCEPTION("Failed to transfer resources from bundle %Qv to bundle %Qv",
                     srcBundle->GetName(),
@@ -2662,11 +2647,10 @@ public:
                 } else if (tablet->AuxiliaryServant().GetCell() == cell) {
                     cell->GossipStatistics().Local() += tablet->GetTabletStatistics(/*fromAuxiliaryCell*/ true);
                 } else {
-                    YT_LOG_ALERT("Tablet belongs to a cell by neither of its servants "
-                        "(CellId: %v, TabletId: %v, TableId: %v)",
-                        cell->GetId(),
-                        tablet->GetId(),
-                        tablet->GetOwner()->GetId());
+                    YT_TLOG_ALERT("Tablet belongs to a cell by neither of its servants")
+                        .With("CellId", cell->GetId())
+                        .With("TabletId", tablet->GetId())
+                        .With("TableId", tablet->GetOwner()->GetId());
                 }
             }
         }
@@ -2690,10 +2674,9 @@ public:
 
             auto* tableNode = node->As<TTableNode>();
             if (!tableNode->IsDynamic()) {
-                YT_LOG_ALERT("Static parent table node was encountered upon sealing of hunk journal chunk "
-                    "(ChunkId: %v, OwningNodeId: %v)",
-                    chunk->GetId(),
-                    node->GetId());
+                YT_TLOG_ALERT("Static parent table node was encountered upon sealing of hunk journal chunk")
+                    .With("ChunkId", chunk->GetId())
+                    .With("OwningNodeId", node->GetId());
                 continue;
             }
 
@@ -2746,9 +2729,9 @@ public:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->AttachToChunkList(tablet->GetChunkList(), {dynamicStore});
-        YT_LOG_DEBUG("Dynamic store attached to tablet (TabletId: %v, DynamicStoreId: %v)",
-            tablet->GetId(),
-            dynamicStore->GetId());
+        YT_TLOG_DEBUG("Dynamic store attached to tablet")
+            .With("TabletId", tablet->GetId())
+            .With("DynamicStoreId", dynamicStore->GetId());
 
         RecomputeTableSnapshotStatistics(table);
 
@@ -3253,9 +3236,8 @@ private:
             try {
                 return ConvertTo<bool>(*yson);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING("Failed to parse \"use_avenues\" attribute of a tablet cell bundle "
-                    "(BundleName: %v)",
-                    bundle->GetName());
+                YT_TLOG_WARNING("Failed to parse \"use_avenues\" attribute of a tablet cell bundle")
+                    .With("BundleName", bundle->GetName());
             }
         }
 
@@ -3397,19 +3379,17 @@ private:
                 chunkListStatistics.LogicalHunkDataWeight;
             reqReplicatable.set_cumulative_data_weight(cumulativeDataWeight);
 
-            YT_LOG_DEBUG("Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
-                "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v, "
-                "NodeEndpointId: %v, ConflictHorizonTimestamp: %v)",
-                table->GetId(),
-                tablet->GetId(),
-                cell->GetId(),
-                chunksOrViews.size(),
-                table->GetAtomicity(),
-                table->GetCommitOrdering(),
-                freeze,
-                table->GetUpstreamReplicaId(),
-                tablet->GetNodeEndpointId(),
-                tablet->GetConflictHorizonTimestamp());
+            YT_TLOG_DEBUG("Mounting tablet")
+                .With("TableId", table->GetId())
+                .With("TabletId", tablet->GetId())
+                .With("CellId", cell->GetId())
+                .With("ChunkCount", chunksOrViews.size())
+                .With("Atomicity", table->GetAtomicity())
+                .With("CommitOrdering", table->GetCommitOrdering())
+                .With("Freeze", freeze)
+                .With("UpstreamReplicaId", table->GetUpstreamReplicaId())
+                .With("NodeEndpointId", tablet->GetNodeEndpointId())
+                .With("ConflictHorizonTimestamp", tablet->GetConflictHorizonTimestamp());
 
             if (!tablet->IsMountedWithAvenue()) {
                 ++NonAvenueTabletCount_;
@@ -3437,9 +3417,9 @@ private:
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
             auto& [weakReplica, replicaInfo] = *it;
             if (!IsObjectAlive(weakReplica)) {
-                YT_LOG_ALERT("Found zombie replica during tablet mount (TabletId: %v, ReplicaId: %v)",
-                    tablet->GetId(),
-                    weakReplica->GetId());
+                YT_TLOG_ALERT("Found zombie replica during tablet mount")
+                    .With("TabletId", tablet->GetId())
+                    .With("ReplicaId", weakReplica->GetId());
                 continue;
             }
             auto* replica = weakReplica.Get();
@@ -3499,11 +3479,10 @@ private:
         auto mailbox = hiveManager->GetMailbox(cell->GetId());
         hiveManager->PostMessage(mailbox, request);
 
-        YT_LOG_DEBUG(
-            "Mounting hunk tablet (TabletId: %v, CellId: %v, NodeEndpointId: %v)",
-            tablet->GetId(),
-            cell->GetId(),
-            tablet->GetNodeEndpointId());
+        YT_TLOG_DEBUG("Mounting hunk tablet")
+            .With("TabletId", tablet->GetId())
+            .With("CellId", cell->GetId())
+            .With("NodeEndpointId", tablet->GetNodeEndpointId());
 
         if (!tablet->IsMountedWithAvenue()) {
             ++NonAvenueTabletCount_;
@@ -3522,17 +3501,14 @@ private:
         auto revision = GetCurrentMutationContext()->GetVersion().ToRevision();
         auto avenueEndpointId = GenerateAvenueEndpointId(tablet);
 
-        YT_LOG_DEBUG("Mounting tablet to auxiliary cell "
-            "(TableId: %v, TabletId: %v, CellId: %v, "
-            "MountRevision: %x, AuxiliaryCellId: %v, AuxiliaryMountRevision: %x, "
-            "TabletwiseAvenueEndpointId: %v)",
-            tablet->GetTable()->GetId(),
-            tablet->GetId(),
-            tablet->GetCell()->GetId(),
-            tablet->Servant().GetMountRevision(),
-            cell->GetId(),
-            revision,
-            avenueEndpointId);
+        YT_TLOG_DEBUG("Mounting tablet to auxiliary cell")
+            .With("TableId", tablet->GetTable()->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("CellId", tablet->GetCell()->GetId())
+            .WithFormat("MountRevision", "%x", tablet->Servant().GetMountRevision())
+            .With("AuxiliaryCellId", cell->GetId())
+            .WithFormat("AuxiliaryMountRevision", "%x", revision)
+            .With("TabletwiseAvenueEndpointId", avenueEndpointId);
 
         YT_VERIFY(!tablet->GetTabletwiseAvenueEndpointId());
         tablet->SetTabletwiseAvenueEndpointId(avenueEndpointId);
@@ -3589,10 +3565,9 @@ private:
         if (!table->IsPhysicallySorted() &&
             ssize(tablet->DynamicStores()) >= DynamicStoreIdPoolSize + 1)
         {
-            YT_LOG_DEBUG("Ordered tablet has enough dynamic stores, will not send "
-                "dynamic store id for smooth movement (TabletId: %v, DynamicStoreCount: %v)",
-                tablet->GetId(),
-                ssize(tablet->DynamicStores()));
+            YT_TLOG_DEBUG("Ordered tablet has enough dynamic stores, will not send dynamic store id for smooth movement")
+                .With("TabletId", tablet->GetId())
+                .With("DynamicStoreCount", ssize(tablet->DynamicStores()));
             return false;
         }
 
@@ -3653,17 +3628,17 @@ private:
             state == ETabletState::Freezing);
 
         if (tablet->GetState() == ETabletState::Mounted) {
-            YT_LOG_DEBUG("Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
-                tablet->GetOwner()->GetId(),
-                tablet->GetId(),
-                cell->GetId());
+            YT_TLOG_DEBUG("Freezing tablet")
+                .With("TableId", tablet->GetOwner()->GetId())
+                .With("TabletId", tablet->GetId())
+                .With("CellId", cell->GetId());
 
             tablet->SetState(ETabletState::Freezing);
 
             tablet->Servant().SetState(ETabletState::Freezing);
             if (auto& auxiliaryServant = tablet->AuxiliaryServant()) {
-                YT_LOG_DEBUG("Freezing auxiliary tablet servant (TabletId: %v)",
-                    tablet->GetId());
+                YT_TLOG_DEBUG("Freezing auxiliary tablet servant")
+                    .With("TabletId", tablet->GetId());
                 auxiliaryServant.SetState(ETabletState::Freezing);
             }
 
@@ -3688,10 +3663,10 @@ private:
             state == ETabletState::Unfreezing);
 
         if (tablet->GetState() == ETabletState::Frozen) {
-            YT_LOG_DEBUG("Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
-                table->GetId(),
-                tablet->GetId(),
-                cell->GetId());
+            YT_TLOG_DEBUG("Unfreezing tablet")
+                .With("TableId", table->GetId())
+                .With("TabletId", tablet->GetId())
+                .With("CellId", cell->GetId());
 
             tablet->Servant().SetState(ETabletState::Unfreezing);
             YT_VERIFY(!tablet->AuxiliaryServant());
@@ -3719,10 +3694,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Provisionally flushing tablet (TableId: %v, TabletId: %v, CellId: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            tablet->GetCell()->GetId());
+        YT_TLOG_DEBUG("Provisionally flushing tablet")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("CellId", tablet->GetCell()->GetId());
 
         TReqProvisionalFlush request;
         ToProto(request.mutable_tablet_id(), tablet->GetId());
@@ -3763,11 +3738,11 @@ private:
                     pendingTabletCount = it->second.PendingTabletCount;
                 }
 
-                YT_LOG_DEBUG("Confirmed tablet lock (TabletId: %v, TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
-                    tabletId,
-                    table->GetId(),
-                    transactionId,
-                    pendingTabletCount);
+                YT_TLOG_DEBUG("Confirmed tablet lock")
+                    .With("TabletId", tabletId)
+                    .With("TableId", table->GetId())
+                    .With("TransactionId", transactionId)
+                    .With("PendingTabletCount", pendingTabletCount);
             }
         }
     }
@@ -3856,10 +3831,10 @@ private:
             auto state = tablet->GetState();
 
             if (state != ETabletState::Unmounted) {
-                YT_LOG_DEBUG("Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    cell->GetId());
+                YT_TLOG_DEBUG("Remounting tablet")
+                    .With("TableId", table->GetId())
+                    .With("TabletId", tablet->GetId())
+                    .With("CellId", cell->GetId());
 
                 YT_VERIFY(tablet->GetInMemoryMode() == tableSettings.EffectiveMountConfig->InMemoryMode);
 
@@ -3987,12 +3962,11 @@ private:
 
         ParseTabletRange(hunkStorage, &firstTabletIndex, &lastTabletIndex);
 
-        YT_LOG_DEBUG(
-            "Resharding hunk storage (HunkStorageId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, TabletCount: %v)",
-            hunkStorage->GetId(),
-            firstTabletIndex,
-            lastTabletIndex,
-            newTabletCount);
+        YT_TLOG_DEBUG("Resharding hunk storage")
+            .With("HunkStorageId", hunkStorage->GetId())
+            .With("FirstTabletIndex", firstTabletIndex)
+            .With("LastTabletIndex", lastTabletIndex)
+            .With("TabletCount", newTabletCount);
 
         auto resourceUsageBefore = hunkStorage->GetTabletResourceUsage();
 
@@ -4280,7 +4254,7 @@ private:
         if (!oldConfig->TabletManager->AccumulatePreloadPendingStoreCountCorrectly &&
             config->AccumulatePreloadPendingStoreCountCorrectly)
         {
-            YT_LOG_DEBUG("Recomputing statistics of all tablet cells");
+            YT_TLOG_DEBUG("Recomputing statistics of all tablet cells");
             RecomputeAllTabletCellStatistics();
         }
     }
@@ -4384,7 +4358,7 @@ private:
 
         TMasterAutomatonPart::CheckInvariants();
 
-        YT_LOG_INFO("Started validating table replica weak ref counters");
+        YT_TLOG_INFO("Started validating table replica weak ref counters");
 
         THashMap<TTableReplica*, int> replicaToExpectedWeakRefCounter;
         for (auto [id, tabletBase] : Tablets()) {
@@ -4399,15 +4373,13 @@ private:
         for (const auto& [_, replica] : TableReplicaMap_) {
             auto expectedWeakRefCount = GetOrDefault(replicaToExpectedWeakRefCounter, replica);
             auto actualWeakRefCount = replica->GetObjectWeakRefCounter();
-            YT_LOG_FATAL_UNLESS(
-                actualWeakRefCount == expectedWeakRefCount,
-                "Table replica has wrong weak ref counter (ReplicaId: %v, ExpectedWeakRefCount: %v, ActualWeakRefCount: %v)",
-                replica->GetId(),
-                expectedWeakRefCount,
-                actualWeakRefCount);
+            YT_TLOG_FATAL_UNLESS(actualWeakRefCount == expectedWeakRefCount, "Table replica has wrong weak ref counter")
+                .With("ReplicaId", replica->GetId())
+                .With("ExpectedWeakRefCount", expectedWeakRefCount)
+                .With("ActualWeakRefCount", actualWeakRefCount);
         }
 
-        YT_LOG_INFO("Finished validating table replica weak ref counters");
+        YT_TLOG_INFO("Finished validating table replica weak ref counters");
     }
 
     template <class T>
@@ -4466,7 +4438,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Sending tablet cell statistics gossip message");
+        YT_TLOG_INFO("Sending tablet cell statistics gossip message");
 
         NProto::TReqSetTabletCellStatistics request;
         request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
@@ -4504,13 +4476,13 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR("Received tablet cell statistics gossip message from unknown cell (CellTag: %v)",
-                cellTag);
+            YT_TLOG_ERROR("Received tablet cell statistics gossip message from unknown cell")
+                .With("CellTag", cellTag);
             return;
         }
 
-        YT_LOG_INFO("Received tablet cell statistics gossip message (CellTag: %v)",
-            cellTag);
+        YT_TLOG_INFO("Received tablet cell statistics gossip message")
+            .With("CellTag", cellTag);
 
         for (const auto& entry : request->entries()) {
             auto cellId = FromProto<TTabletCellId>(entry.tablet_cell_id());
@@ -4677,13 +4649,12 @@ private:
         YT_VERIFY(IsTabletOwnerType(node->GetType()));
         auto* tabletOwner = node->As<TTabletOwnerBase>();
 
-        YT_LOG_DEBUG("Received update upstream tablet state request "
-            "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, ExpectedLastMountTransactionId: %v, ActualLastMountTransactionId: %v)",
-            tableId,
-            actualState,
-            expectedState,
-            transactionId,
-            tabletOwner->GetLastMountTransactionId());
+        YT_TLOG_DEBUG("Received update upstream tablet state request")
+            .With("TableId", tableId)
+            .With("ActualTabletState", actualState)
+            .With("ExpectedTabletState", expectedState)
+            .With("ExpectedLastMountTransactionId", transactionId)
+            .With("ActualLastMountTransactionId", tabletOwner->GetLastMountTransactionId());
 
         if (actualState) {
             tabletOwner->SetActualTabletState(*actualState);
@@ -4714,11 +4685,10 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         tabletOwner->SetPrimaryLastMountTransactionId(transactionId);
 
-        YT_LOG_DEBUG(
-            "Table tablet state check request received (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v)",
-            tabletOwner->GetId(),
-            tabletOwner->GetLastMountTransactionId(),
-            tabletOwner->GetPrimaryLastMountTransactionId());
+        YT_TLOG_DEBUG("Table tablet state check request received")
+            .With("TableId", tabletOwner->GetId())
+            .With("LastMountTransactionId", tabletOwner->GetLastMountTransactionId())
+            .With("PrimaryLastMountTransactionId", tabletOwner->GetPrimaryLastMountTransactionId());
 
         UpdateTabletState(tabletOwner);
     }
@@ -4768,19 +4738,19 @@ private:
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, table->GetExternalCellTag());
 
-            YT_LOG_DEBUG("Table tablet state check requested (TableId: %v, LastMountTransactionId: %v)",
-                table->GetId(),
-                table->GetLastMountTransactionId());
+            YT_TLOG_DEBUG("Table tablet state check requested")
+                .With("TableId", table->GetId())
+                .With("LastMountTransactionId", table->GetLastMountTransactionId());
             return;
         }
 
         // TODO(savrus): Remove this after testing multicell on real cluster is done.
-        YT_LOG_DEBUG("Table tablet state check started (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v, TabletCountByState: %v, TabletCountByExpectedState: %v)",
-            table->GetId(),
-            table->GetLastMountTransactionId(),
-            table->GetPrimaryLastMountTransactionId(),
-            ConvertToYsonString(table->TabletCountByState(), EYsonFormat::Text).ToString(),
-            ConvertToYsonString(table->TabletCountByExpectedState(), EYsonFormat::Text).ToString());
+        YT_TLOG_DEBUG("Table tablet state check started")
+            .With("TableId", table->GetId())
+            .With("LastMountTransactionId", table->GetLastMountTransactionId())
+            .With("PrimaryLastMountTransactionId", table->GetPrimaryLastMountTransactionId())
+            .With("TabletCountByState", ConvertToYsonString(table->TabletCountByState(), EYsonFormat::Text).ToString())
+            .With("TabletCountByExpectedState", ConvertToYsonString(table->TabletCountByExpectedState(), EYsonFormat::Text).ToString());
 
 
         if (table->TabletCountByExpectedState()[ETabletState::Unmounting] > 0 ||
@@ -4814,13 +4784,12 @@ private:
             }
         }
 
-        YT_LOG_DEBUG("Table tablet state updated "
-            "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v)",
-            table->GetId(),
-            actualState,
-            expectedState,
-            table->GetLastMountTransactionId(),
-            table->GetPrimaryLastMountTransactionId());
+        YT_TLOG_DEBUG("Table tablet state updated")
+            .With("TableId", table->GetId())
+            .With("ActualTabletState", actualState)
+            .With("ExpectedTabletState", expectedState)
+            .With("LastMountTransactionId", table->GetLastMountTransactionId())
+            .With("PrimaryLastMountTransactionId", table->GetPrimaryLastMountTransactionId());
 
         table->SetActualTabletState(actualState);
         if (expectedState) {
@@ -4874,12 +4843,11 @@ private:
                 // servant was mounting. Although auxiliary servant is forcefully unmounted, its
                 // "mounted" notification may still arrive after the tablet has been completely
                 // unmounted.
-                YT_LOG_WARNING("Unexpected notification received by an unmounted tablet, ignored "
-                    "(TabletId: %v, SenderId: %v, NotificationType: %v, MountRevision: %x)",
-                    tablet->GetId(),
-                    senderId,
-                    changeType,
-                    mountRevision);
+                YT_TLOG_WARNING("Unexpected notification received by an unmounted tablet, ignored")
+                    .With("TabletId", tablet->GetId())
+                    .With("SenderId", senderId)
+                    .With("NotificationType", changeType)
+                    .WithFormat("MountRevision", "%x", mountRevision);
             }
             return nullptr;
         }
@@ -4890,14 +4858,12 @@ private:
 
         servant = tablet->FindServant(mountRevision);
         if (!servant) {
-            YT_LOG_WARNING("Notification received by a tablet with wrong mount revision, ignored "
-                "(TabletId: %v, MainServantMountRevision: %x, RequestMountRevision: %x, SenderId: %v, "
-                "NotificationType: %v)",
-                tablet->GetId(),
-                tablet->Servant().GetMountRevision(),
-                mountRevision,
-                senderId,
-                changeType);
+            YT_TLOG_WARNING("Notification received by a tablet with wrong mount revision, ignored")
+                .With("TabletId", tablet->GetId())
+                .WithFormat("MainServantMountRevision", "%x", tablet->Servant().GetMountRevision())
+                .WithFormat("RequestMountRevision", "%x", mountRevision)
+                .With("SenderId", senderId)
+                .With("NotificationType", changeType);
             return nullptr;
         }
 
@@ -4907,16 +4873,13 @@ private:
 
         // This condition should never be violated given that mount revision check passed.
         if (senderId != expectedSenderId) {
-            YT_LOG_ALERT(
-                "Notification received from unexpected sender, ignored "
-                "(TabletId: %v, State: %v, SenderId: %v, TabletCellId: %v, MountRevision: %x, "
-                "NotificationType: %v)",
-                tablet->GetId(),
-                tablet->GetState(),
-                senderId,
-                GetObjectId(tablet->Servant().GetCell()),
-                servant->GetMountRevision(),
-                changeType);
+            YT_TLOG_ALERT("Notification received from unexpected sender, ignored")
+                .With("TabletId", tablet->GetId())
+                .With("State", tablet->GetState())
+                .With("SenderId", senderId)
+                .With("TabletCellId", GetObjectId(tablet->Servant().GetCell()))
+                .WithFormat("MountRevision", "%x", servant->GetMountRevision())
+                .With("NotificationType", changeType);
             return nullptr;
         }
 
@@ -4964,10 +4927,9 @@ private:
 
             TabletActionManager_->OnTabletActionStateChanged(tablet->GetAction());
 
-            YT_LOG_DEBUG("Auxiliary servant mounted "
-                "(TableId: %v, TabletId: %v)",
-                tablet->GetOwner()->GetId(),
-                tablet->GetId());
+            YT_TLOG_DEBUG("Auxiliary servant mounted")
+                .With("TableId", tablet->GetOwner()->GetId())
+                .With("TabletId", tablet->GetId());
 
             return;
         }
@@ -4975,9 +4937,9 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT("Mounted notification received for a tablet in wrong state, ignored (TabletId: %v, State: %v)",
-                    tabletId,
-                    state);
+                YT_TLOG_ALERT("Mounted notification received for a tablet in wrong state, ignored")
+                    .With("TabletId", tabletId)
+                    .With("State", state);
             }
             return;
         }
@@ -4985,12 +4947,12 @@ private:
         auto* table = tablet->GetOwner();
         auto* cell = tablet->GetCell();
 
-        YT_LOG_DEBUG("Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %x, CellId: %v, Frozen: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            tablet->Servant().GetMountRevision(),
-            cell->GetId(),
-            frozen);
+        YT_TLOG_DEBUG("Tablet mounted")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .WithFormat("MountRevision", "%x", tablet->Servant().GetMountRevision())
+            .With("CellId", cell->GetId())
+            .With("Frozen", frozen);
 
         {
             auto newState = frozen ? ETabletState::Frozen : ETabletState::Mounted;
@@ -5103,9 +5065,9 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Freezing) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT("Frozen notification received for a tablet in wrong state, ignored (TabletId: %v, State: %v)",
-                    tabletId,
-                    state);
+                YT_TLOG_ALERT("Frozen notification received for a tablet in wrong state, ignored")
+                    .With("TabletId", tabletId)
+                    .With("State", state);
             }
             return;
         }
@@ -5116,10 +5078,10 @@ private:
 
         DiscardDynamicStores(tablet);
 
-        YT_LOG_DEBUG("Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            cell->GetId());
+        YT_TLOG_DEBUG("Tablet frozen")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("CellId", cell->GetId());
 
         servant->SetState(ETabletState::Frozen);
         tablet->SetState(ETabletState::Frozen);
@@ -5161,17 +5123,17 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT("Unfrozen notification received for a tablet in wrong state, ignored (TabletId: %v, State: %v)",
-                    tabletId,
-                    state);
+                YT_TLOG_ALERT("Unfrozen notification received for a tablet in wrong state, ignored")
+                    .With("TabletId", tabletId)
+                    .With("State", state);
             }
             return;
         }
 
-        YT_LOG_DEBUG("Tablet unfrozen (TableId: %v, TabletId: %v, CellId: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            cell->GetId());
+        YT_TLOG_DEBUG("Tablet unfrozen")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("CellId", cell->GetId());
 
         servant->SetState(ETabletState::Mounted);
         tablet->SetState(ETabletState::Mounted);
@@ -5193,10 +5155,10 @@ private:
 
         tablet->GetAction()->FlushingTablets().erase(tabletId);
 
-        YT_LOG_DEBUG("Tablet has been provisionally flushed (TableId: %v, TabletId: %v, CellId: %v)",
-            tablet->GetOwner()->GetId(),
-            tablet->GetId(),
-            tablet->GetCell()->GetId());
+        YT_TLOG_DEBUG("Tablet has been provisionally flushed")
+            .With("TableId", tablet->GetOwner()->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("CellId", tablet->GetCell()->GetId());
 
         TabletActionManager_->OnTabletActionStateChanged(tablet->GetAction());
     }
@@ -5219,19 +5181,17 @@ private:
             /*senderIsCell*/ false,
             "Cancel");
         if (!servant) {
-            YT_LOG_DEBUG("Failed to cancel tablet transition: invalid mount revision "
-                "(TabletId: %v, TabletMountRevision: %x, RequestMountRevision: %x)",
-                tablet->GetId(),
-                tablet->Servant().GetMountRevision(),
-                response->mount_revision());
+            YT_TLOG_DEBUG("Failed to cancel tablet transition: invalid mount revision")
+                .With("TabletId", tablet->GetId())
+                .WithFormat("TabletMountRevision", "%x", tablet->Servant().GetMountRevision())
+                .WithFormat("RequestMountRevision", "%x", response->mount_revision());
             return;
         }
 
         if (tablet->GetState() != ETabletState::Freezing && tablet->GetState() != ETabletState::Unmounting) {
-            YT_LOG_ALERT("Tablet transition cancelation response received by a tablet in wrong state, ignored "
-                "(TabletId: %v, State: %v)",
-                tablet->GetId(),
-                tablet->GetState());
+            YT_TLOG_ALERT("Tablet transition cancelation response received by a tablet in wrong state, ignored")
+                .With("TabletId", tablet->GetId())
+                .With("State", tablet->GetState());
             return;
         }
 
@@ -5244,11 +5204,11 @@ private:
         tablet->SetState(newState);
         servant->SetState(newState);
 
-        YT_LOG_DEBUG("Tablet transition canceled (TableId: %v, TabletId: %v, PreviousState: %v, NewState: %v)",
-            tablet->GetOwner()->GetId(),
-            tablet->GetId(),
-            previousState,
-            newState);
+        YT_TLOG_DEBUG("Tablet transition canceled")
+            .With("TableId", tablet->GetOwner()->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("PreviousState", previousState)
+            .With("NewState", newState);
 
         UpdateTabletState(tablet->GetOwner());
     }
@@ -5270,14 +5230,12 @@ private:
         if (mainServant.GetMountRevision() != sourceMountRevision ||
             auxiliaryServant.GetMountRevision() != targetMountRevision)
         {
-            YT_LOG_DEBUG("Mount revision mismatch, will not switch servants "
-                "(TabletId: %v, ExpectedSourceMountRevision: %x, ExpectedTargetMountRevision: %x, "
-                "ActualSourceMountRevision: %x, ActualTargetMountRevision: %x)",
-                tablet->GetId(),
-                sourceMountRevision,
-                targetMountRevision,
-                mainServant.GetMountRevision(),
-                auxiliaryServant.GetMountRevision());
+            YT_TLOG_DEBUG("Mount revision mismatch, will not switch servants")
+                .With("TabletId", tablet->GetId())
+                .WithFormat("ExpectedSourceMountRevision", "%x", sourceMountRevision)
+                .WithFormat("ExpectedTargetMountRevision", "%x", targetMountRevision)
+                .WithFormat("ActualSourceMountRevision", "%x", mainServant.GetMountRevision())
+                .WithFormat("ActualTargetMountRevision", "%x", auxiliaryServant.GetMountRevision());
             return;
         }
 
@@ -5296,19 +5254,19 @@ private:
             tablet->GetNodeEndpointId(),
             mainServant.GetCell()->GetId());
 
-        YT_LOG_DEBUG("Servant switched (TabletId: %v, SourceCellId: %v, TargetCellId: %v)",
-            tabletId,
-            GetObjectId(auxiliaryServant.GetCell()),
-            GetObjectId(mainServant.GetCell()));
+        YT_TLOG_DEBUG("Servant switched")
+            .With("TabletId", tabletId)
+            .With("SourceCellId", GetObjectId(auxiliaryServant.GetCell()))
+            .With("TargetCellId", GetObjectId(mainServant.GetCell()));
     }
 
     void DeallocateAuxiliaryServant(TTabletBase* tablet) override
     {
         auto& auxiliaryServant = tablet->AuxiliaryServant();
 
-        YT_LOG_DEBUG("Deallocating auxiliary servant (TabletId: %v, CellId: %v)",
-            tablet->GetId(),
-            auxiliaryServant.GetCell()->GetId());
+        YT_TLOG_DEBUG("Deallocating auxiliary servant")
+            .With("TabletId", tablet->GetId())
+            .With("CellId", auxiliaryServant.GetCell()->GetId());
 
         NTabletNode::NProto::TReqUnmountTablet req;
         ToProto(req.mutable_tablet_id(), tablet->GetId());
@@ -5339,13 +5297,11 @@ private:
         auto& auxiliaryServant = tablet->AuxiliaryServant();
 
         if (auxiliaryServant.GetMountRevision() != auxiliaryMountRevision) {
-            YT_LOG_DEBUG("Mount revision mismatch, will not deallocate servant "
-                "(TabletId: %v, ExpectedAuxiliaryMountRevision: %x, "
-                "ActualSourceMountRevision: %x, ActualTargetMountRevision: %x)",
-                tablet->GetId(),
-                auxiliaryMountRevision,
-                mainServant.GetMountRevision(),
-                auxiliaryServant.GetMountRevision());
+            YT_TLOG_DEBUG("Mount revision mismatch, will not deallocate servant")
+                .With("TabletId", tablet->GetId())
+                .WithFormat("ExpectedAuxiliaryMountRevision", "%x", auxiliaryMountRevision)
+                .WithFormat("ActualSourceMountRevision", "%x", mainServant.GetMountRevision())
+                .WithFormat("ActualTargetMountRevision", "%x", auxiliaryServant.GetMountRevision());
 
             return;
         }
@@ -5395,22 +5351,21 @@ private:
         }
 
         if (!error.IsOK()) {
-            YT_LOG_DEBUG(error, "Smooth movement aborted by node "
-                "(TabletId: %v, MainCellId: %v, AuxiliaryCellId: %v)",
-                tablet->GetId(),
-                GetObjectId(tablet->Servant().GetCell()),
-                GetObjectId(tablet->AuxiliaryServant().GetCell()));
+            YT_TLOG_DEBUG("Smooth movement aborted by node")
+                .With("TabletId", tablet->GetId())
+                .With("MainCellId", GetObjectId(tablet->Servant().GetCell()))
+                .With("AuxiliaryCellId", GetObjectId(tablet->AuxiliaryServant().GetCell()))
+                .With(error);
         }
 
         // NB: At this moment master definitely knows which of the servants is active
         // since both TReqReportSmoothMovementAborted and TReqSwitchServant go via the same
         // avenue channel.
 
-        YT_LOG_DEBUG("Deallocating auxiliary servant on smooth movement abort "
-            "(TabletId: %v, MainCellId: %v, AuxiliaryCellId: %v)",
-            tablet->GetId(),
-            GetObjectId(tablet->Servant().GetCell()),
-            GetObjectId(tablet->AuxiliaryServant().GetCell()));
+        YT_TLOG_DEBUG("Deallocating auxiliary servant on smooth movement abort")
+            .With("TabletId", tablet->GetId())
+            .With("MainCellId", GetObjectId(tablet->Servant().GetCell()))
+            .With("AuxiliaryCellId", GetObjectId(tablet->AuxiliaryServant().GetCell()));
 
         DeallocateAuxiliaryServant(tablet);
 
@@ -5449,12 +5404,11 @@ private:
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
-        YT_LOG_DEBUG("Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
-            "CommittedReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
-            tabletId,
-            replicaId,
-            replicaInfo->GetCommittedReplicationRowIndex(),
-            replicaInfo->GetCurrentReplicationTimestamp());
+        YT_TLOG_DEBUG("Table replica statistics updated")
+            .With("TabletId", tabletId)
+            .With("ReplicaId", replicaId)
+            .With("CommittedReplicationRowIndex", replicaInfo->GetCommittedReplicationRowIndex())
+            .With("CurrentReplicationTimestamp", replicaInfo->GetCurrentReplicationTimestamp());
     }
 
     void HydraOnTableReplicaEnabled(NProto::TRspEnableTableReplica* response)
@@ -5481,11 +5435,10 @@ private:
 
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         if (replicaInfo->GetState() != ETableReplicaState::Enabling) {
-            YT_LOG_WARNING("Enabled replica notification received for a replica in a wrong state, "
-                "ignored (TabletId: %v, ReplicaId: %v, State: %v)",
-                tabletId,
-                replicaId,
-                replicaInfo->GetState());
+            YT_TLOG_WARNING("Enabled replica notification received for a replica in a wrong state, ignored")
+                .With("TabletId", tabletId)
+                .With("ReplicaId", replicaId)
+                .With("State", replicaInfo->GetState());
             return;
         }
 
@@ -5517,11 +5470,10 @@ private:
 
         auto* replicaInfo = tablet->As<TTablet>()->GetReplicaInfo(replica);
         if (replicaInfo->GetState() != ETableReplicaState::Disabling) {
-            YT_LOG_WARNING("Disabled replica notification received for a replica in a wrong state, "
-                "ignored (TabletId: %v, ReplicaId: %v, State: %v)",
-                tabletId,
-                replicaId,
-                replicaInfo->GetState());
+            YT_TLOG_WARNING("Disabled replica notification received for a replica in a wrong state, ignored")
+                .With("TabletId", tabletId)
+                .With("ReplicaId", replicaId)
+                .With("State", replicaInfo->GetState());
             return;
         }
 
@@ -5531,24 +5483,22 @@ private:
 
     void StartReplicaTransition(TTablet* tablet, TTableReplica* replica, TTableReplicaInfo* replicaInfo, ETableReplicaState newState)
     {
-        YT_LOG_DEBUG("Table replica is now transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
-            tablet->GetTable()->GetId(),
-            tablet->GetId(),
-            replica->GetId(),
-            replicaInfo->GetState(),
-            newState);
+        YT_TLOG_DEBUG("Table replica is now transitioning")
+            .With("TableId", tablet->GetTable()->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("ReplicaId", replica->GetId())
+            .WithFormat("State", "%v -> %v", replicaInfo->GetState(), newState);
         replicaInfo->SetState(newState);
         YT_VERIFY(replica->TransitioningTablets().insert(tablet).second);
     }
 
     void StopReplicaTransition(TTablet* tablet, TTableReplica* replica, TTableReplicaInfo* replicaInfo, ETableReplicaState newState)
     {
-        YT_LOG_DEBUG("Table replica is no longer transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
-            tablet->GetTable()->GetId(),
-            tablet->GetId(),
-            replica->GetId(),
-            replicaInfo->GetState(),
-            newState);
+        YT_TLOG_DEBUG("Table replica is no longer transitioning")
+            .With("TableId", tablet->GetTable()->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("ReplicaId", replica->GetId())
+            .WithFormat("State", "%v -> %v", replicaInfo->GetState(), newState);
         replicaInfo->SetState(newState);
         YT_VERIFY(replica->TransitioningTablets().erase(tablet) == 1);
     }
@@ -5568,16 +5518,16 @@ private:
 
         switch (state) {
             case ETableReplicaState::Enabling:
-                YT_LOG_DEBUG("Table replica enabled (TableId: %v, ReplicaId: %v)",
-                    table->GetId(),
-                    replica->GetId());
+                YT_TLOG_DEBUG("Table replica enabled")
+                    .With("TableId", table->GetId())
+                    .With("ReplicaId", replica->GetId());
                 replica->SetState(ETableReplicaState::Enabled);
                 break;
 
             case ETableReplicaState::Disabling:
-                YT_LOG_DEBUG("Table replica disabled (TableId: %v, ReplicaId: %v)",
-                    table->GetId(),
-                    replica->GetId());
+                YT_TLOG_DEBUG("Table replica disabled")
+                    .With("TableId", table->GetId())
+                    .With("ReplicaId", replica->GetId());
                 replica->SetState(ETableReplicaState::Disabled);
                 break;
 
@@ -5673,11 +5623,10 @@ private:
         auto cell = servant->GetCell();
         YT_VERIFY(cell);
 
-        YT_LOG_DEBUG(
-            "Tablet unmounted from servant (TableId: %v, TabletId: %v, CellId: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            cell->GetId());
+        YT_TLOG_DEBUG("Tablet unmounted from servant")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("CellId", cell->GetId());
 
         auto tabletStatistics = tablet->GetTabletStatistics(servant->IsAuxiliary());
         cell->GossipStatistics().Local() -= tabletStatistics;
@@ -5816,25 +5765,24 @@ private:
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
             auto& [weakReplica, replicaInfo] = *it;
             if (!IsObjectAlive(weakReplica)) {
-                YT_LOG_ALERT("Found zombie replica during handling tablet unmounted notification (TabletId: %v, ReplicaId: %v)",
-                    tablet->GetId(),
-                    weakReplica->GetId());
+                YT_TLOG_ALERT("Found zombie replica during handling tablet unmounted notification")
+                    .With("TabletId", tablet->GetId())
+                    .With("ReplicaId", weakReplica->GetId());
                 continue;
             }
             auto* replica = weakReplica.Get();
             if (replica->TransitioningTablets().erase(tablet) == 1) {
-                YT_LOG_ALERT("Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
-                    tablet->GetTable()->GetId(),
-                    tablet->GetId(),
-                    replica->GetId(),
-                    replicaInfo.GetState());
+                YT_TLOG_ALERT("Table replica is still transitioning")
+                    .With("TableId", tablet->GetTable()->GetId())
+                    .With("TabletId", tablet->GetId())
+                    .With("ReplicaId", replica->GetId())
+                    .With("State", replicaInfo.GetState());
             } else {
-                YT_LOG_DEBUG("Table replica state updated (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
-                    tablet->GetTable()->GetId(),
-                    tablet->GetId(),
-                    replica->GetId(),
-                    replicaInfo.GetState(),
-                    ETableReplicaState::None);
+                YT_TLOG_DEBUG("Table replica state updated")
+                    .With("TableId", tablet->GetTable()->GetId())
+                    .With("TabletId", tablet->GetId())
+                    .With("ReplicaId", replica->GetId())
+                    .WithFormat("State", "%v -> %v", replicaInfo.GetState(), ETableReplicaState::None);
             }
             replicaInfo.SetState(ETableReplicaState::None);
             CheckTransitioningReplicaTablets(replica);
@@ -5895,11 +5843,10 @@ private:
 
         tablet->SetStoresUpdatePreparedTransaction(transaction);
 
-        YT_LOG_DEBUG(
-            "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
-            transaction->GetId(),
-            tablet->GetOwner()->GetId(),
-            tabletId);
+        YT_TLOG_DEBUG("Tablet stores update prepared")
+            .With("TransactionId", transaction->GetId())
+            .With("TableId", tablet->GetOwner()->GetId())
+            .With("TabletId", tabletId);
     }
 
     void HydraPrepareUpdateHunkTabletStores(
@@ -5920,12 +5867,10 @@ private:
 
         tablet->SetStoresUpdatePreparedTransaction(transaction);
 
-        YT_LOG_DEBUG(
-            "Hunk tablet stores update prepared "
-            "(TransactionId: %v, HunkStorageId: %v, TabletId: %v)",
-            transaction->GetId(),
-            tablet->GetOwner()->GetId(),
-            tabletId);
+        YT_TLOG_DEBUG("Hunk tablet stores update prepared")
+            .With("TransactionId", transaction->GetId())
+            .With("HunkStorageId", tablet->GetOwner()->GetId())
+            .With("TabletId", tabletId);
     }
 
     void PrepareUpdateTabletStoresBase(TTabletBase* tablet)
@@ -5998,12 +5943,10 @@ private:
         NHydra::TRevision mountRevision)
     {
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            YT_LOG_DEBUG(
-                "Tablet stores update commit for an improperly prepared tablet; ignored "
-                "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
-                tablet->GetId(),
-                transaction->GetId(),
-                GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
+            YT_TLOG_DEBUG("Tablet stores update commit for an improperly prepared tablet; ignored")
+                .With("TabletId", tablet->GetId())
+                .With("ExpectedTransactionId", transaction->GetId())
+                .With("ActualTransactionId", GetObjectId(tablet->GetStoresUpdatePreparedTransaction()));
             return false;
         }
 
@@ -6012,13 +5955,11 @@ private:
         auto* servant = tablet->FindServant(mountRevision);
 
         if (!servant) {
-            YT_LOG_DEBUG(
-                "Invalid mount revision on tablet stores update commit; ignored "
-                "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %x, ActualMountRevision: %x)",
-                tablet->GetId(),
-                transaction->GetId(),
-                mountRevision,
-                tablet->Servant().GetMountRevision());
+            YT_TLOG_DEBUG("Invalid mount revision on tablet stores update commit; ignored")
+                .With("TabletId", tablet->GetId())
+                .With("TransactionId", transaction->GetId())
+                .WithFormat("ExpectedMountRevision", "%x", mountRevision)
+                .WithFormat("ActualMountRevision", "%x", tablet->Servant().GetMountRevision());
             return false;
         }
 
@@ -6161,11 +6102,10 @@ private:
 
         const auto* table = tablet->GetOwner();
 
-        YT_LOG_DEBUG(
-            "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
-            transaction->GetId(),
-            table->GetId(),
-            tabletId);
+        YT_TLOG_DEBUG("Tablet stores update aborted")
+            .With("TransactionId", transaction->GetId())
+            .With("TableId", table->GetId())
+            .With("TabletId", tabletId);
     }
 
     void HydraUpdateTabletTrimmedRowCount(NProto::TReqUpdateTabletTrimmedRowCount* request)
@@ -6191,9 +6131,9 @@ private:
 
         tablet->As<TTablet>()->SetTrimmedRowCount(trimmedRowCount);
 
-        YT_LOG_DEBUG("Tablet trimmed row count updated (TabletId: %v, TrimmedRowCount: %v)",
-            tabletId,
-            trimmedRowCount);
+        YT_TLOG_DEBUG("Tablet trimmed row count updated")
+            .With("TabletId", tabletId)
+            .With("TrimmedRowCount", trimmedRowCount);
     }
 
     void HydraAllocateDynamicStore(NProto::TReqAllocateDynamicStore* request)
@@ -6219,10 +6159,10 @@ private:
         ToProto(rsp.mutable_tablet_id(), tabletId);
         rsp.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
 
-        YT_LOG_DEBUG("Dynamic store allocated (StoreId: %v, TabletId: %v, TableId: %v)",
-            dynamicStore->GetId(),
-            tabletId,
-            tablet->As<TTablet>()->GetTable()->GetId());
+        YT_TLOG_DEBUG("Dynamic store allocated")
+            .With("StoreId", dynamicStore->GetId())
+            .With("TabletId", tabletId)
+            .With("TableId", tablet->As<TTablet>()->GetTable()->GetId());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
@@ -6236,15 +6176,13 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR("Received tablet cell bundle "
-                "resource usage gossip message from unknown cell (CellTag: %v)",
-                cellTag);
+            YT_TLOG_ERROR("Received tablet cell bundle resource usage gossip message from unknown cell")
+                .With("CellTag", cellTag);
             return;
         }
 
-        YT_LOG_INFO("Received tablet cell bundle "
-            "resource usage gossip message (CellTag: %v)",
-            cellTag);
+        YT_TLOG_INFO("Received tablet cell bundle resource usage gossip message")
+            .With("CellTag", cellTag);
 
         for (const auto& entry : request->entries()) {
             auto bundleId = FromProto<TTabletCellBundleId>(entry.bundle_id());
@@ -6287,7 +6225,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Sending tablet cell bundle resource usage gossip");
+        YT_TLOG_INFO("Sending tablet cell bundle resource usage gossip");
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
@@ -6354,10 +6292,9 @@ private:
         if (GetDynamicConfig()->EnableTabletResourceValidation) {
             const auto& bundle = table->TabletCellBundle();
             if (!bundle) {
-                YT_LOG_ALERT("Failed to validate tablet resource usage increase since table lacks tablet cell bundle "
-                    "(TableId: %v, Delta: %v)",
-                    table->GetId(),
-                    delta);
+                YT_TLOG_ALERT("Failed to validate tablet resource usage increase since table lacks tablet cell bundle")
+                    .With("TableId", table->GetId())
+                    .With("Delta", delta);
                 return;
             }
             bundle->ValidateResourceUsageIncrease(delta);
@@ -6378,10 +6315,9 @@ private:
         // Brand-new bundle accounting.
         const auto& bundle = table->TabletCellBundle();
         if (!bundle) {
-            YT_LOG_ALERT("Failed to update tablet resource usage since table lacks tablet cell bundle "
-                "(TableId: %v, Delta: %v)",
-                table->GetId(),
-                delta);
+            YT_TLOG_ALERT("Failed to update tablet resource usage since table lacks tablet cell bundle")
+                .With("TableId", table->GetId())
+                .With("Delta", delta);
             return;
         }
         bundle->UpdateResourceUsage(delta);
@@ -6526,12 +6462,11 @@ private:
         auto cell = tablet->Servant().GetCell();
         YT_VERIFY(cell);
 
-        YT_LOG_DEBUG(
-            "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
-            table->GetId(),
-            tablet->GetId(),
-            GetObjectId(tablet->Servant().GetCell()),
-            force);
+        YT_TLOG_DEBUG("Unmounting tablet")
+            .With("TableId", table->GetId())
+            .With("TabletId", tablet->GetId())
+            .With("CellId", GetObjectId(tablet->Servant().GetCell()))
+            .With("Force", force);
 
         tablet->SetState(ETabletState::Unmounting);
     }
@@ -6583,9 +6518,9 @@ private:
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
             auto& [weakReplica, replicaInfo] = *it;
             if (!IsObjectAlive(weakReplica)) {
-                YT_LOG_ALERT("Found zombie replica during tablet unmount (TabletId: %v, ReplicaId: %v)",
-                    tablet->GetId(),
-                    weakReplica->GetId());
+                YT_TLOG_ALERT("Found zombie replica during tablet unmount")
+                    .With("TabletId", tablet->GetId())
+                    .With("ReplicaId", weakReplica->GetId());
                 continue;
             }
             auto* replica = weakReplica.Get();
