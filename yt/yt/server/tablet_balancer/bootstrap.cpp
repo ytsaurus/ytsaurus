@@ -172,21 +172,19 @@ public:
     {
         DoInitialize();
 
-        YT_LOG_INFO("Dry run iteration started (DryRun: %v, CreateTabletActions: %v, Bundle: %v, Groups: %v, Mode: %v)",
-            config->IsDryRun,
-            config->CreateTabletActions,
-            config->Bundle,
-            config->Groups,
-            config->Mode);
+        YT_TLOG_INFO("Dry run iteration started")
+            .With("DryRun", config->IsDryRun)
+            .With("CreateTabletActions", config->CreateTabletActions)
+            .With("Bundle", config->Bundle)
+            .With("Groups", config->Groups)
+            .With("Mode", config->Mode);
 
         {
-            YT_LOG_INFO("Loading dynamic config for the first time");
+            YT_TLOG_INFO("Loading dynamic config for the first time");
             auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Unexpected failure while waiting for the first dynamic config loaded");
-            YT_LOG_INFO("Dynamic config loaded");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Unexpected failure while waiting for the first dynamic config loaded")
+                .With(error);
+            YT_TLOG_INFO("Dynamic config loaded");
         }
 
         WaitFor(
@@ -195,7 +193,7 @@ public:
                 .Run())
             .ThrowOnError();
 
-        YT_LOG_INFO("Dry run iteration finished");
+        YT_TLOG_INFO("Dry run iteration finished");
     }
 
 private:
@@ -233,8 +231,8 @@ private:
 
     void DoInitialize()
     {
-        YT_LOG_INFO("Starting tablet balancer process (ClusterName: %v)",
-            Config_->ClusterConnection->Static->ClusterName);
+        YT_TLOG_INFO("Starting tablet balancer process")
+            .With("ClusterName", Config_->ClusterConnection->Static->ClusterName);
 
         LocalAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
@@ -323,10 +321,12 @@ private:
 
     void DoStart()
     {
-        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        YT_TLOG_INFO("Listening for HTTP requests")
+            .With("Port", Config_->MonitoringPort);
         HttpServer_->Start();
 
-        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        YT_TLOG_INFO("Listening for RPC requests")
+            .With("Port", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
 
@@ -349,7 +349,7 @@ private:
 
         ElectionManager_->Start();
 
-        YT_LOG_INFO("Finished initializing bootstrap");
+        YT_TLOG_INFO("Finished initializing bootstrap");
     }
 
     void RegisterInstance()
@@ -371,7 +371,8 @@ private:
             if (error.IsOK()) {
                 break;
             } else {
-                YT_LOG_DEBUG(error, "Error updating Cypress node");
+                YT_TLOG_DEBUG("Error updating Cypress node")
+                    .With(error);
             }
         }
     }
