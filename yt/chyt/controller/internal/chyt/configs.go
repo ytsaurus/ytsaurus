@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -447,6 +448,12 @@ func (c *Controller) storageArtifactsDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("storage_artifacts")
 }
 
+const (
+	defaultErrorLogFile = "./clickhouse.error.log"
+	defaultDebugLogFile = "./clickhouse.debug.log"
+	defaultInfoLogFile  = "./clickhouse.log"
+)
+
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
 	r := speclet.Resources
 
@@ -485,6 +492,15 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		}
 	}
 
+	errorLogFile := defaultErrorLogFile
+	debugLogFile := defaultDebugLogFile
+	infoLogFile := defaultInfoLogFile
+	if speclet.logsDir != nil {
+		errorLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.error.log")
+		debugLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.debug.log")
+		infoLogFile = filepath.Join(*speclet.logsDir, "clickhouse-$YT_JOB_INDEX.log")
+	}
+
 	ytServerClickHouseConfig := map[string]any{
 		"clickhouse":         clickhouseConfig,
 		"yt":                 ytConfig,
@@ -503,7 +519,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 			"rotation_check_period": 60000,
 			"writers": map[string]any{
 				"error": map[string]any{
-					"file_name":       "./clickhouse.error.log",
+					"file_name":       errorLogFile,
 					"type":            "file",
 					"rotation_policy": logRotationPolicy,
 				},
@@ -511,12 +527,12 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 					"type": "stderr",
 				},
 				"debug": map[string]any{
-					"file_name":       "./clickhouse.debug.log",
+					"file_name":       debugLogFile,
 					"type":            "file",
 					"rotation_policy": logRotationPolicy,
 				},
 				"info": map[string]any{
-					"file_name":       "./clickhouse.log",
+					"file_name":       infoLogFile,
 					"type":            "file",
 					"rotation_policy": logRotationPolicy,
 				},
