@@ -677,11 +677,9 @@ private:
         });
 
         auto nakedChannel = NHydra::CreatePeerChannel(config, channelFactory, kind);
-        auto channel = CreateRetryingChannel(config, nakedChannel, isRetriableError);
-        channel = CreateDefaultTimeoutChannel(std::move(channel), config->RpcTimeout);
         return {
             .NonRetryingChannel = CreateDefaultTimeoutChannel(nakedChannel, config->RpcTimeout),
-            .RetryingChannel = CreateDefaultTimeoutChannel(CreateRetryingChannel(config, channel, isRetriableError), config->RpcTimeout),
+            .RetryingChannel = CreateDefaultTimeoutChannel(CreateRetryingChannel(config, nakedChannel, isRetriableError), config->RpcTimeout),
         };
     }
 };
