@@ -1,4 +1,6 @@
 items:
+  - name: Обзор
+    href: index.md
   - name: Предустановленные
     href: preinstalled.md
   - name: Разработка на Python

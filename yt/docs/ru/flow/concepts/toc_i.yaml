@@ -1,4 +1,6 @@
 items:
+  - name: Обзор
+    href: index.md
   - name: Глоссарий
     href: glossary.md
   - name: Объект Pipeline

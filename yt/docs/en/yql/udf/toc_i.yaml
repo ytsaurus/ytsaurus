@@ -1,4 +1,6 @@
 items:
+  - name: Overview
+    href: index.md
   - name: Pre-installed
     href: preinstalled.md
   - name: Developing in Python
@@ -17,4 +19,3 @@ items:
        href: cpp_stream.md
      - name: Data processing in C++ UDF
        href: cpp_data_processing.md
-
