@@ -932,6 +932,8 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferAccountResources);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFile);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteFile);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PartitionFile);
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadFilePartition);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadJournal);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteJournal);
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TruncateJournal);
@@ -1288,6 +1290,10 @@ TApiService::TApiService(
         .SetStreamingEnabled(true)
         .SetCancelable(true));
     registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(WriteFile)
+        .SetStreamingEnabled(true)
+        .SetCancelable(true));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(PartitionFile));
+    registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ReadFilePartition)
         .SetStreamingEnabled(true)
         .SetCancelable(true));
 
@@ -6522,6 +6528,20 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteFile)
                 .ThrowOnError();
         },
         false /*feedbackEnabled*/);
+}
+
+DEFINE_RPC_SERVICE_METHOD(TApiService, PartitionFile)
+{
+    Y_UNUSED(request, response, context);
+
+    THROW_ERROR_EXCEPTION("PartitionFile is not implemented yet");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TApiService, ReadFilePartition)
+{
+    Y_UNUSED(request, response, context);
+
+    THROW_ERROR_EXCEPTION("ReadFilePartition is not implemented yet");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
