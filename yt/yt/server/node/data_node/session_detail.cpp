@@ -242,7 +242,7 @@ TFuture<void> TSessionBase::Start()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Starting session");
+    YT_TLOG_DEBUG("Starting session");
 
     return
         BIND(&TSessionBase::DoStart, MakeStrong(this))
@@ -255,12 +255,13 @@ TFuture<void> TSessionBase::Start()
                 Active_ = true;
 
                 if (!error.IsOK()) {
-                    YT_LOG_DEBUG(error, "Session has failed to start");
+                    YT_TLOG_DEBUG("Session has failed to start")
+                        .With(error);
                     Cancel(error);
                     THROW_ERROR(error);
                 }
 
-                YT_LOG_DEBUG("Session started");
+                YT_TLOG_DEBUG("Session started");
 
                 if (!PendingCancelationError_.IsOK()) {
                     Cancel(PendingCancelationError_);
@@ -292,12 +293,16 @@ void TSessionBase::Cancel(const TError& error)
             }
 
             if (!Active_) {
-                YT_LOG_DEBUG(error, "Session will be canceled after becoming active (SessionId: %v)", SessionId_);
+                YT_TLOG_DEBUG("Session will be canceled after becoming active")
+                    .With("SessionId", SessionId_)
+                    .With(error);
                 PendingCancelationError_ = error;
                 return;
             }
 
-            YT_LOG_DEBUG(error, "Canceling session (SessionId: %v)", SessionId_);
+            YT_TLOG_DEBUG("Canceling session")
+                .With("SessionId", SessionId_)
+                .With(error);
 
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
@@ -342,7 +347,7 @@ TFuture<ISession::TFinishResult> TSessionBase::Finish(
 
             ValidateActive();
 
-            YT_LOG_DEBUG("Finishing session");
+            YT_TLOG_DEBUG("Finishing session");
 
             TLeaseManager::CloseLease(Lease_);
             Active_ = false;
@@ -390,9 +395,9 @@ void TSessionBase::ProbePutBlocks(
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    YT_LOG_INFO("ProbePutBlocks request pushed "
-        "(SessionId: %v, RequestedCumulativeBlockSize: %v)",
-        SessionId_, requestedCumulativeMemorySize);
+    YT_TLOG_INFO("ProbePutBlocks request pushed")
+        .With("SessionId", SessionId_)
+        .With("RequestedCumulativeBlockSize", requestedCumulativeMemorySize);
 
     ProbePutBlocksRequestSupplier_->PushRequest({
         .CumulativeBlockSize = requestedCumulativeMemorySize,

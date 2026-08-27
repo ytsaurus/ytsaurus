@@ -301,10 +301,9 @@ private:
             session->Ping();
             shouldCloseSession = ShouldCloseSession(session);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(
-                ex,
-                "Failed to get session (SessionId: %v)",
-                sessionId);
+            YT_TLOG_WARNING("Failed to get session")
+                .With("SessionId", sessionId)
+                .With(ex);
             shouldCloseSession = true;
         }
 

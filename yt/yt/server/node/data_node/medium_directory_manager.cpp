@@ -34,11 +34,11 @@ TMediumDirectoryPtr TMediumDirectoryManager::GetMediumDirectory() const
 
     const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
     const auto& mediumDirectorySynchronizer = connection->GetMediumDirectorySynchronizer();
-    YT_LOG_DEBUG("Waiting for at least one medium directory synchronization since startup");
+    YT_TLOG_DEBUG("Waiting for at least one medium directory synchronization since startup");
     WaitFor(mediumDirectorySynchronizer
         ->RecentSync())
         .ThrowOnError();
-    YT_LOG_DEBUG("Medium directory synchronization finished");
+    YT_TLOG_DEBUG("Medium directory synchronization finished");
     return connection->GetMediumDirectory();
 }
 

@@ -377,21 +377,20 @@ public:
             !delta->RemovedSinceLastSuccess.empty() ||
             !delta->ChangedMediumSinceLastSuccess.empty())
         {
-            YT_LOG_INFO(
-                "Chunk changed during full heartbeat (ChunkAdded: %v, ChunkRemoved: %v, MediumChanged: %v)",
-                MakeShrunkFormattableView(
+            YT_TLOG_INFO("Chunk changed during full heartbeat")
+                .With("ChunkAdded", MakeShrunkFormattableView(
                     delta->AddedSinceLastSuccess,
                     [] (TStringBuilderBase* builder, const auto& chunk) {
                         builder->AppendString(ToString(chunk->GetId()));
                     },
-                    3),
-                MakeShrunkFormattableView(
+                    3))
+                .With("ChunkRemoved", MakeShrunkFormattableView(
                     delta->RemovedSinceLastSuccess,
                     [] (TStringBuilderBase* builder, const auto& chunk) {
                         builder->AppendString(ToString(chunk->GetId()));
                     },
-                    3),
-                MakeShrunkFormattableView(
+                    3))
+                .With("MediumChanged", MakeShrunkFormattableView(
                     delta->ChangedMediumSinceLastSuccess,
                     [] (TStringBuilderBase* builder, const auto& entry) {
                         builder->AppendString(ToString(entry.first->GetId()));
@@ -457,24 +456,27 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_WARNING(error, "Error reporting full data node heartbeat to master (CellTag: %v)",
-            cellTag);
+        YT_TLOG_WARNING("Error reporting full data node heartbeat to master")
+            .With("CellTag", cellTag)
+            .With(error);
     }
 
     void OnFullHeartbeatSessionFailed(TCellTag cellTag, TError error)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_WARNING(error, "Error during per-location full data node heartbeat session (CellTag: %v)",
-            cellTag);
+        YT_TLOG_WARNING("Error during per-location full data node heartbeat session")
+            .With("CellTag", cellTag)
+            .With(error);
     }
 
     void OnIncrementalHeartbeatFailed(TCellTag cellTag, TError error)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_WARNING(error, "Error reporting incremental data node heartbeat to master (CellTag: %v)",
-            cellTag);
+        YT_TLOG_WARNING("Error reporting incremental data node heartbeat to master")
+            .With("CellTag", cellTag)
+            .With(error);
 
         auto* delta = GetChunksDelta(cellTag);
 
@@ -491,8 +493,9 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_WARNING(error, "Error during validation full data node heartbeat session (CellTag: %v)",
-            cellTag);
+        YT_TLOG_WARNING("Error during validation full data node heartbeat session")
+            .With("CellTag", cellTag)
+            .With(error);
     }
 
     void OnIncrementalHeartbeatSucceeded(
@@ -590,7 +593,7 @@ public:
     {
         auto doScheduleHeartbeat = [this, this_ = MakeStrong(this)] {
             if (!Initialized_) {
-                YT_LOG_WARNING("Master connector is not initialized");
+                YT_TLOG_WARNING("Master connector is not initialized");
                 return;
             }
 
@@ -614,9 +617,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Scheduling out-of-order job heartbeat "
-            "(JobTrackerAddress: %v)",
-            jobTrackerAddress);
+        YT_TLOG_DEBUG("Scheduling out-of-order job heartbeat")
+            .With("JobTrackerAddress", jobTrackerAddress);
 
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         controlInvoker->Invoke(BIND(
@@ -665,11 +667,9 @@ protected:
         auto masterEpoch = Bootstrap_->GetMasterEpoch();
         auto minEpochToStartHeartbeats = GetNodeDynamicConfig()->TestingOptions->MinEpochToStartHeartbeats;
         if (minEpochToStartHeartbeats && masterEpoch < *minEpochToStartHeartbeats) {
-            YT_LOG_WARNING(
-                "Will not report heartbeats to master, master epoch is less than MinEpochToStartHeartbeats testing option "
-                "(MasterEpoch: %v, MinEpochToStartHeartbeats: %v)",
-                masterEpoch,
-                *minEpochToStartHeartbeats);
+            YT_TLOG_WARNING("Will not report heartbeats to master, master epoch is less than MinEpochToStartHeartbeats testing option")
+                .With("MasterEpoch", masterEpoch)
+                .With("MinEpochToStartHeartbeats", *minEpochToStartHeartbeats);
             return MakeFuture(TError("Master epoch is less than MinEpochToStartHeartbeats testing option"));
         }
 
@@ -711,9 +711,9 @@ protected:
             }
 
             default: {
-                YT_LOG_WARNING("Skip heartbeat report to master, since node is in invalid state (CellTag: %v, DataNodeState: %v)",
-                    cellTag,
-                    state);
+                YT_TLOG_WARNING("Skip heartbeat report to master, since node is in invalid state")
+                    .With("CellTag", cellTag)
+                    .With("DataNodeState", state);
 
                 return MakeFuture(TError("Invalid node state %Qlv", state).With("data_node_state", state));
             }
@@ -757,9 +757,9 @@ protected:
             }
 
             default: {
-                YT_LOG_WARNING("Skip processing successful heartbeat since node is in invalid state (CellTag: %v, DataNodeState: %v)",
-                    cellTag,
-                    state);
+                YT_TLOG_WARNING("Skip processing successful heartbeat since node is in invalid state")
+                    .With("CellTag", cellTag)
+                    .With("DataNodeState", state);
 
                 Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             }
@@ -774,9 +774,8 @@ protected:
 
         if (!HasMasterConnectorState(cellTag)) {
             // Heartbeats may fail before initialization of master connector state.
-            YT_LOG_WARNING(
-                "Data node failed to initialize master connector state during heartbeat report (CellTag: %v)",
-                cellTag);
+            YT_TLOG_WARNING("Data node failed to initialize master connector state during heartbeat report")
+                .With("CellTag", cellTag);
             return;
         }
 
@@ -811,9 +810,9 @@ protected:
             }
 
             default: {
-                YT_LOG_WARNING("Skip processing failed heartbeat since node is in invalid state (CellTag: %v, DataNodeState: %v)",
-                    cellTag,
-                    state);
+                YT_TLOG_WARNING("Skip processing failed heartbeat since node is in invalid state")
+                    .With("CellTag", cellTag)
+                    .With("DataNodeState", state);
 
                 Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             }
@@ -1052,7 +1051,8 @@ private:
                     if (GetDynamicConfig()->ForceSyncMasterCellDirectoryBeforeCheckChunks) {
                         auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->RecentSync());
                         if (!syncResultOrError.IsOK()) {
-                            YT_LOG_ALERT(syncResultOrError, "Failed to synchronize master cell directory when data node heartbeats have started");
+                            YT_TLOG_ALERT("Failed to synchronize master cell directory when data node heartbeats have started")
+                                .With(syncResultOrError);
                         }
                     }
                     Bootstrap_->GetChunkStore()->CheckAllChunksHaveValidCellTags(masterCellTags);
@@ -1130,7 +1130,7 @@ private:
             IncrementalHeartbeatCounters_.clear();
         }
 
-        YT_LOG_INFO("Dynamic config changed");
+        YT_TLOG_INFO("Dynamic config changed");
     }
 
     // TODO(cherepashka): refactor report of job heartbeats.
@@ -1158,9 +1158,9 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Reporting job heartbeat to master (JobTrackerAddress: %v, OutOfOrder: %v)",
-            jobTrackerAddress,
-            outOfOrder);
+        YT_TLOG_DEBUG("Reporting job heartbeat to master")
+            .With("JobTrackerAddress", jobTrackerAddress)
+            .With("OutOfOrder", outOfOrder);
 
         auto* jobTrackerData = GetJobTrackerData(jobTrackerAddress);
         auto cellTag = jobTrackerData->CellTag;
@@ -1184,40 +1184,37 @@ private:
             {
                 auto error = WaitFor(
                     jobController->PrepareHeartbeatRequest(cellTag, jobTrackerAddress, req));
-                YT_LOG_FATAL_UNLESS(
-                    error.IsOK(),
-                    error,
-                    "Failed to prepare heartbeat request to master (JobTrackerAddress: %v)",
-                    jobTrackerAddress);
+                YT_TLOG_FATAL_UNLESS(error.IsOK(), "Failed to prepare heartbeat request to master")
+                    .With("JobTrackerAddress", jobTrackerAddress)
+                    .With(error);
             }
 
-            YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v, JobTrackerAddress: %v, SequenceNumber: %v)",
-                FormatResourceUsage(req->resource_usage(), req->resource_limits()),
-                jobTrackerAddress,
-                sequenceNumber);
+            YT_TLOG_INFO("Job heartbeat sent to master")
+                .With("ResourceUsage", FormatResourceUsage(req->resource_usage(), req->resource_limits()))
+                .With("JobTrackerAddress", jobTrackerAddress)
+                .With("SequenceNumber", sequenceNumber);
 
             auto rspOrError = WaitFor(req->Invoke());
 
             if (rspOrError.IsOK()) {
-                YT_LOG_INFO("Successfully reported job heartbeat to master (JobTrackerAddress: %v, SequenceNumber: %v)",
-                    jobTrackerAddress,
-                    sequenceNumber);
+                YT_TLOG_INFO("Successfully reported job heartbeat to master")
+                    .With("JobTrackerAddress", jobTrackerAddress)
+                    .With("SequenceNumber", sequenceNumber);
 
                 const auto& rsp = rspOrError.Value();
                 auto error = WaitFor(jobController->ProcessHeartbeatResponse(
                     jobTrackerAddress,
                     rsp));
-                YT_LOG_FATAL_IF(
-                    !error.IsOK(),
-                    error,
-                    "Fail to process heartbeat response (JobTrackerAddress: %v, SequenceNumber: %v)",
-                    jobTrackerAddress,
-                    sequenceNumber);
+                YT_TLOG_FATAL_IF(!error.IsOK(), "Fail to process heartbeat response")
+                    .With("JobTrackerAddress", jobTrackerAddress)
+                    .With("SequenceNumber", sequenceNumber)
+                    .With(error);
             } else {
-                YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (CellTag: %v, JobTrackerAddress: %v, SequenceNumber: %v)",
-                    cellTag,
-                    jobTrackerAddress,
-                    sequenceNumber);
+                YT_TLOG_WARNING("Error reporting job heartbeat to master")
+                    .With("CellTag", cellTag)
+                    .With("JobTrackerAddress", jobTrackerAddress)
+                    .With("SequenceNumber", sequenceNumber)
+                    .With(rspOrError);
 
                 if (!outOfOrder) {
                     JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % jobTrackerAddresses.size();
@@ -1302,10 +1299,9 @@ private:
             Bootstrap_->GetMasterChannel(cellTag),
             BIND([cellTag, Logger = this->Logger] (const TError& error) -> bool {
                 if (IsRetriableError(error) || error.FindMatching(HeartbeatRetriableErrors)) {
-                    YT_LOG_DEBUG(
-                        error,
-                        "Failed to report location full heartbeat (CellTag: %v)",
-                        cellTag);
+                    YT_TLOG_DEBUG("Failed to report location full heartbeat")
+                        .With("CellTag", cellTag)
+                        .With(error);
                     return true;
                 }
                 return false;
@@ -1397,9 +1393,8 @@ private:
                     result.LocationResponses.push_back(rspOrError.ValueOrThrow());
                 }
 
-                YT_LOG_INFO("Locations successfully reported to master, finalizing full heartbeat session"
-                    " (CellTag: %v)",
-                    cellTag);
+                YT_TLOG_INFO("Locations successfully reported to master, finalizing full heartbeat session")
+                    .With("CellTag", cellTag);
 
                 result.FinalizeResponse = WaitFor(finalizeRequest->Invoke())
                     .ValueOrThrow();
@@ -1452,9 +1447,9 @@ private:
                     futures.reserve(heartbeatRequests.size());
                     for (const auto& request : heartbeatRequests) {
                         auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
-                        YT_LOG_INFO("Sending validation full heartbeat to master (CellTag: %v, LocationUuid: %v)",
-                            cellTag,
-                            locationUuid);
+                        YT_TLOG_INFO("Sending validation full heartbeat to master")
+                            .With("CellTag", cellTag)
+                            .With("LocationUuid", locationUuid);
 
                         futures.push_back(request->Invoke());
                     }
@@ -1661,10 +1656,9 @@ private:
             if (locationIndex != NNodeTrackerClient::InvalidChunkLocationIndex) {
                 chunkInfo.set_location_index(ToProto(chunk->GetLocation()->GetIndex()));
             } else {
-                YT_LOG_ALERT(
-                    "Location index is not set, using location directory for data node heartbeat (LocationUuid: %v, ChunkId: %v)",
-                    locationUuid,
-                    chunk->GetId());
+                YT_TLOG_ALERT("Location index is not set, using location directory for data node heartbeat")
+                    .With("LocationUuid", locationUuid)
+                    .With("ChunkId", chunk->GetId());
                 chunkInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
             }
         } else {
@@ -1787,22 +1781,22 @@ private:
 
         auto* delta = FindChunksDelta(chunk->GetId());
         if (!delta) {
-            YT_LOG_ALERT("Chunk from unknown cell was added (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v, CellTag: %v)",
-                chunk->GetId(),
-                chunk->GetLocation()->GetId(),
-                chunk->GetLocation()->GetUuid(),
-                chunk->GetLocation()->GetIndex(),
-                CellTagFromId(chunk->GetId()));
+            YT_TLOG_ALERT("Chunk from unknown cell was added")
+                .With("ChunkId", chunk->GetId())
+                .With("LocationId", chunk->GetLocation()->GetId())
+                .With("LocationUuid", chunk->GetLocation()->GetUuid())
+                .With("LocationIndex", chunk->GetLocation()->GetIndex())
+                .With("CellTag", CellTagFromId(chunk->GetId()));
             return;
         }
         delta->RemovedSinceLastSuccess.erase(chunk);
         delta->AddedSinceLastSuccess.insert(chunk);
 
-        YT_LOG_DEBUG("Chunk addition registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-            chunk->GetId(),
-            chunk->GetLocation()->GetId(),
-            chunk->GetLocation()->GetUuid(),
-            chunk->GetLocation()->GetIndex());
+        YT_TLOG_DEBUG("Chunk addition registered")
+            .With("ChunkId", chunk->GetId())
+            .With("LocationId", chunk->GetLocation()->GetId())
+            .With("LocationUuid", chunk->GetLocation()->GetUuid())
+            .With("LocationIndex", chunk->GetLocation()->GetIndex());
     }
 
     void OnChunkRemoved(const IChunkPtr& chunk)
@@ -1831,11 +1825,11 @@ private:
 
         Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache()->TryRemove(chunk->GetId());
 
-        YT_LOG_DEBUG("Chunk removal registered (ChunkId: %v, LocationId: %v, LocationUuid: %v, LocationIndex: %v)",
-            chunk->GetId(),
-            chunk->GetLocation()->GetId(),
-            chunk->GetLocation()->GetUuid(),
-            chunk->GetLocation()->GetIndex());
+        YT_TLOG_DEBUG("Chunk removal registered")
+            .With("ChunkId", chunk->GetId())
+            .With("LocationId", chunk->GetLocation()->GetId())
+            .With("LocationUuid", chunk->GetLocation()->GetUuid())
+            .With("LocationIndex", chunk->GetLocation()->GetIndex());
     }
 
     void OnChunkMediumChanged(const IChunkPtr& chunk, int mediumIndex)

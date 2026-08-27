@@ -158,22 +158,22 @@ private:
         i64 skipPrefix = 0;
         auto httpRange = NHttp::FindBytesRange(req->GetHeaders());
 
-        YT_LOG_DEBUG("Received Skynet read request (ChunkId: %v, ReadRange: %v, StartPartIndex: %v, HttpRange: %v)",
-            chunkId,
-            readRange,
-            startPartIndex,
-            httpRange);
+        YT_TLOG_DEBUG("Received Skynet read request")
+            .With("ChunkId", chunkId)
+            .With("ReadRange", readRange)
+            .With("StartPartIndex", startPartIndex)
+            .With("HttpRange", httpRange);
 
         if (httpRange) {
             AdjustReadRange(*httpRange, &readRange, &startPartIndex, &skipPrefix, &byteLimit);
 
-            YT_LOG_DEBUG("Adjusted read range (ChunkId: %v, ReadRange: %v, StartPartIndex: %v, HttpRange: %v, SkipPrefix: %v, ByteLimit: %v)",
-                chunkId,
-                readRange,
-                startPartIndex,
-                httpRange,
-                skipPrefix,
-                byteLimit);
+            YT_TLOG_DEBUG("Adjusted read range")
+                .With("ChunkId", chunkId)
+                .With("ReadRange", readRange)
+                .With("StartPartIndex", startPartIndex)
+                .With("HttpRange", httpRange)
+                .With("SkipPrefix", skipPrefix)
+                .With("ByteLimit", byteLimit);
         }
 
         auto chunk = Bootstrap_->GetChunkStore()->GetChunkOrThrow(chunkId, AllMediaIndex);

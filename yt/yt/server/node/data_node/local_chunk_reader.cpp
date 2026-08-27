@@ -273,13 +273,12 @@ public:
                 UseDirectIO_));
         }
 
-        YT_LOG_DEBUG("Local chunk reader will read fragments "
-            "(FragmentCount: %v, FragmentsSize: %v, UseDirectIO: %v, ReadSessionId: %v, ChunkId: %v)",
-            readRequests.size(),
-            fragmentsSize,
-            UseDirectIO_,
-            options.ReadSessionId,
-            chunk->GetId());
+        YT_TLOG_DEBUG("Local chunk reader will read fragments")
+            .With("FragmentCount", readRequests.size())
+            .With("FragmentsSize", fragmentsSize)
+            .With("UseDirectIO", UseDirectIO_)
+            .With("ReadSessionId", options.ReadSessionId)
+            .With("ChunkId", chunk->GetId());
 
         struct TChunkFragmentBufferTag
         { };

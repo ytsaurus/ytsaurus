@@ -62,10 +62,10 @@ TNbdSession::TNbdSession(
 
 TFuture<TBlock> TNbdSession::Read(i64 offset, i64 length, ui64 cookie)
 {
-    YT_LOG_DEBUG("Reading from NBD session (Offset: %v, Length: %v, Cookie: %x)",
-        offset,
-        length,
-        cookie);
+    YT_TLOG_DEBUG("Reading from NBD session")
+        .With("Offset", offset)
+        .With("Length", length)
+        .WithFormat("Cookie", "%x", cookie);
 
     return NbdChunkHandler_->Read(offset, length, cookie);
 }
@@ -74,36 +74,36 @@ TFuture<std::vector<TBlock>> TNbdSession::ReadBatch(
     const std::vector<TNbdReadSubrequest>& subrequests,
     ui64 cookie)
 {
-    YT_LOG_DEBUG("Batch reading from NBD session (SubrequestCount: %v, Cookie: %x)",
-        subrequests.size(),
-        cookie);
+    YT_TLOG_DEBUG("Batch reading from NBD session")
+        .With("SubrequestCount", subrequests.size())
+        .WithFormat("Cookie", "%x", cookie);
 
     return NbdChunkHandler_->ReadBatch(subrequests, cookie);
 }
 
 TFuture<NIO::TIOCounters> TNbdSession::Write(i64 offset, const TBlock& block, ui64 cookie)
 {
-    YT_LOG_DEBUG("Writing to NBD session (Offset: %v, Length: %v, Cookie: %x)",
-        offset,
-        block.Size(),
-        cookie);
+    YT_TLOG_DEBUG("Writing to NBD session")
+        .With("Offset", offset)
+        .With("Length", block.Size())
+        .WithFormat("Cookie", "%x", cookie);
 
     return NbdChunkHandler_->Write(offset, block, cookie);
 }
 
 TFuture<void> TNbdSession::Flush(ui64 cookie)
 {
-    YT_LOG_DEBUG("Flushing NBD session (Cookie: %x)",
-        cookie);
+    YT_TLOG_DEBUG("Flushing NBD session")
+        .WithFormat("Cookie", "%x", cookie);
 
     return NbdChunkHandler_->Flush(cookie);
 }
 
 TFuture<void> TNbdSession::FlushRange(i64 offset, i64 size)
 {
-    YT_LOG_DEBUG("Flushing NBD session range (Offset: %v, Size: %v)",
-        offset,
-        size);
+    YT_TLOG_DEBUG("Flushing NBD session range")
+        .With("Offset", offset)
+        .With("Size", size);
 
     return NbdChunkHandler_->FlushRange(offset, size);
 }
