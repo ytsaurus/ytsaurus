@@ -1,5 +1,6 @@
 RECURSE(
     async_request
+    batch_compaction
     docker_vanilla_companion
     external_state_join
     retryable_async_request
