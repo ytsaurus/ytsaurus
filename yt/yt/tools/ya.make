@@ -34,6 +34,6 @@ RECURSE(
     sqllogictest_generator
 )
 
-IF (OS_LINUX AND YT_ENABLE_JOURNAL_NBD)
+IF (OS_LINUX AND NOT OPENSOURCE)
     RECURSE(nbd_server)
 ENDIF()
