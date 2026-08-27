@@ -43,6 +43,7 @@ RECURSE(
     internal
     multicell
     ytdiscovery
+    ytgrpc
     ythttp
     ytjaeger
     ytotel

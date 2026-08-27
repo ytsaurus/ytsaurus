@@ -7,7 +7,6 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -96,22 +95,22 @@ func (tx *tabletTx) LockRows(
 	return tx.Encoder.lockRows(ctx, path, locks, lockType, keys, opts, tx.atomicity)
 }
 
-func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error) {
+func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message) (err error) {
 	call.RequestedProxy = tx.coordinator
 
 	switch call.Method {
 	case MethodStartTransaction:
-		return tx.c.Invoke(ctx, call, rsp, opts...)
+		return tx.c.Invoke(ctx, call, rsp)
 
 	case MethodCommitTransaction:
 		err = tx.pinger.TryCommit(func() error {
-			return tx.c.Invoke(ctx, call, rsp, opts...)
+			return tx.c.Invoke(ctx, call, rsp)
 		})
 		return
 
 	case MethodAbortTransaction:
 		err = tx.pinger.TryAbort(func() error {
-			return tx.c.Invoke(ctx, call, rsp, opts...)
+			return tx.c.Invoke(ctx, call, rsp)
 		})
 		return
 
@@ -119,7 +118,7 @@ func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message, opts 
 		if err = tx.pinger.CheckAlive(); err != nil {
 			return
 		}
-		return tx.doWriteRows(ctx, call, rsp, opts...)
+		return tx.doWriteRows(ctx, call, rsp)
 
 	default:
 		if err = tx.pinger.CheckAlive(); err != nil {
@@ -130,7 +129,7 @@ func (tx *tabletTx) do(ctx context.Context, call *Call, rsp proto.Message, opts 
 				return err
 			}
 		}
-		return tx.c.Invoke(ctx, call, rsp, opts...)
+		return tx.c.Invoke(ctx, call, rsp)
 	}
 }
 
@@ -181,7 +180,7 @@ func (tx *tabletTx) doMultiLookup(
 	return tx.c.InvokeMultiLookup(ctx, call, rsp)
 }
 
-func (tx *tabletTx) doWriteRows(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error) {
+func (tx *tabletTx) doWriteRows(ctx context.Context, call *Call, rsp proto.Message) (err error) {
 	if err = tx.pinger.CheckAlive(); err != nil {
 		return
 	}
@@ -192,7 +191,7 @@ func (tx *tabletTx) doWriteRows(ctx context.Context, call *Call, rsp proto.Messa
 		return err
 	}
 
-	return tx.c.Invoke(ctx, call, rsp, opts...)
+	return tx.c.Invoke(ctx, call, rsp)
 }
 
 func (tx *tabletTx) ID() yt.TxID {

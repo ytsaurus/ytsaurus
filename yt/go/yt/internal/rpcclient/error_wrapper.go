@@ -6,7 +6,6 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
 
@@ -27,8 +26,8 @@ func annotateError(call *Call, err error) error {
 	return yterrors.Err(args...)
 }
 
-func (e *ErrorWrapper) Intercept(ctx context.Context, call *Call, next CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
-	err = next(ctx, call, rsp, opts...)
+func (e *ErrorWrapper) Intercept(ctx context.Context, call *Call, next CallInvoker, rsp proto.Message) (err error) {
+	err = next(ctx, call, rsp)
 	if err != nil {
 		return annotateError(call, err)
 	}
