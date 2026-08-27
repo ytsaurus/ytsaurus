@@ -487,7 +487,8 @@ public:
         return ExecNodeMemoryDistributionByTagsCache_->GetOrPut(
             filter,
             [&] {
-                YT_LOG_DEBUG("Started calculating node memory distribution (SchedulingTagFilter: %v)", filter);
+                YT_TLOG_DEBUG("Started calculating node memory distribution")
+                    .With("SchedulingTagFilter", filter);
 
                 auto descriptors = CachedExecNodeDescriptors_.Acquire();
 
@@ -498,7 +499,8 @@ public:
                     }
                 }
 
-                YT_LOG_DEBUG("Finished calculating node memory distribution (SchedulingTagFilter: %v)", filter);
+                YT_TLOG_DEBUG("Finished calculating node memory distribution")
+                    .With("SchedulingTagFilter", filter);
 
                 return result;
             });
@@ -509,9 +511,12 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!alert.IsOK()) {
-            YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %v)", alertType);
+            YT_TLOG_WARNING("Setting scheduler alert")
+                .With("AlertType", alertType)
+                .With(alert);
         } else {
-            YT_LOG_DEBUG("Reset scheduler alert (AlertType: %v)", alertType);
+            YT_TLOG_DEBUG("Reset scheduler alert")
+                .With("AlertType", alertType);
         }
 
         MasterConnector_->SetSchedulerAlert(alertType, alert);
@@ -543,12 +548,12 @@ public:
             ? TYPath(Format("#%v", poolObjectId))
             : Config_->PoolTreesRoot;
 
-        YT_LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v, Path: %v, TreeId: %v)",
-            permission,
-            user,
-            poolName,
-            path,
-            treeId);
+        YT_TLOG_DEBUG("Validating pool permission")
+            .With("Permission", permission)
+            .With("User", user)
+            .With("Pool", poolName)
+            .With("Path", path)
+            .With("TreeId", treeId);
 
         auto result = WaitFor(GetClient()->CheckPermission(user, path, permission))
             .ValueOrThrow();
@@ -563,7 +568,7 @@ public:
                 .With("path", path);
         }
 
-        YT_LOG_DEBUG("Pool permission successfully validated");
+        YT_TLOG_DEBUG("Pool permission successfully validated");
     }
 
     TFuture<void> ValidateOperationAccess(
@@ -596,11 +601,10 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG(
-            "Validating job shell access (User: %v, Name: %v, Owners: %v)",
-            user,
-            jobShellName,
-            jobShellOwners);
+        YT_TLOG_DEBUG("Validating job shell access")
+            .With("User", user)
+            .With("Name", jobShellName)
+            .With("Owners", jobShellOwners);
 
         NControllerAgent::ValidateJobShellAccess(
             Bootstrap_->GetClient(),
@@ -721,16 +725,16 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        YT_LOG_INFO("Starting operation (OperationType: %v, OperationId: %v, TransactionId: %v, User: %v, ExperimentAssignments: %v)",
-            type,
-            operationId,
-            transactionId,
-            user,
-            operation->GetExperimentAssignmentNames());
+        YT_TLOG_INFO("Starting operation")
+            .With("OperationType", type)
+            .With("OperationId", operationId)
+            .With("TransactionId", transactionId)
+            .With("User", user)
+            .With("ExperimentAssignments", operation->GetExperimentAssignmentNames());
 
-        YT_LOG_INFO("Total resource limits (OperationId: %v, ResourceLimits: %v)",
-            operationId,
-            FormatResources(GetResourceLimits(EmptySchedulingTagFilter)));
+        YT_TLOG_INFO("Total resource limits")
+            .With("OperationId", operationId)
+            .With("ResourceLimits", FormatResources(GetResourceLimits(EmptySchedulingTagFilter)));
 
         try {
             WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
@@ -779,9 +783,10 @@ public:
         ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Abort);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
-            YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
-                operation->GetId(),
-                operation->GetState());
+            YT_TLOG_INFO("Operation is already shutting down")
+                .With("OperationId", operation->GetId())
+                .With("State", operation->GetState())
+                .With(error);
             return operation->GetFinished();
         }
 
@@ -859,8 +864,8 @@ public:
             controller->Resume();
         }
 
-        YT_LOG_INFO("Operation resumed (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("Operation resumed")
+            .With("OperationId", operation->GetId());
 
         return MasterConnector_->FlushOperationNode(operation);
     }
@@ -877,9 +882,10 @@ public:
         ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::Complete);
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
-            YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
-                operation->GetId(),
-                operation->GetState());
+            YT_TLOG_INFO("Operation is already shutting down")
+                .With("OperationId", operation->GetId())
+                .With("State", operation->GetState())
+                .With(error);
             return operation->GetFinished();
         }
 
@@ -889,9 +895,10 @@ public:
                 operation->GetState()));
         }
 
-        YT_LOG_INFO(error, "Completing operation (OperationId: %v, State: %v)",
-            operation->GetId(),
-            operation->GetState());
+        YT_TLOG_INFO("Completing operation")
+            .With("OperationId", operation->GetId())
+            .With("State", operation->GetState())
+            .With(error);
 
         DoSetOperationAlert(
             operation->GetId(),
@@ -981,10 +988,9 @@ public:
         const std::string& treeId,
         const std::vector<TAllocationId>& allocationIds)
     {
-        YT_LOG_INFO(
-            "Operation banned in tentative tree (OperationId: %v, TreeId: %v)",
-            operation->GetId(),
-            treeId);
+        YT_TLOG_INFO("Operation banned in tentative tree")
+            .With("OperationId", operation->GetId())
+            .With("TreeId", treeId);
 
         auto error = TError("Allocation was in banned tentative pool tree")
             .With("abort_reason", EAbortReason::BannedInTentativeTree);
@@ -1004,18 +1010,18 @@ public:
         if (schedulingOptionsPerPoolTree.find(treeId) != schedulingOptionsPerPoolTree.end()) {
             UnregisterOperationFromTrees(operation, {treeId});
         } else {
-            YT_LOG_INFO("Operation was already unregistered from tree (OperationId: %v, TreeId: %v)",
-                operation->GetId(),
-                treeId);
+            YT_TLOG_INFO("Operation was already unregistered from tree")
+                .With("OperationId", operation->GetId())
+                .With("TreeId", treeId);
         }
     }
 
     void UnregisterOperationFromTrees(const TOperationPtr& operation, const std::vector<std::string>& treeIds)
     {
         for (const auto& treeId : treeIds) {
-            YT_LOG_INFO("Unregistering operation from tree (OperationId: %v, TreeId: %v)",
-                operation->GetId(),
-                treeId);
+            YT_TLOG_INFO("Unregistering operation from tree")
+                .With("OperationId", operation->GetId())
+                .With("TreeId", treeId);
 
             Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
         }
@@ -1131,8 +1137,8 @@ public:
             .Item("authenticated_user").Value(user)
             .Item("runtime_parameters").Value(newParams);
 
-        YT_LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("Operation runtime parameters updated")
+            .With("OperationId", operation->GetId());
     }
 
     TFuture<void> UpdateOperationParameters(
@@ -1299,9 +1305,9 @@ public:
             return;
         }
 
-        YT_LOG_INFO("Materializing operation (OperationId: %v, RevivedFromSnapshot: %v)",
-            operation->GetId(),
-            operation->GetRevivedFromSnapshot());
+        YT_TLOG_INFO("Materializing operation")
+            .With("OperationId", operation->GetId())
+            .With("RevivedFromSnapshot", operation->GetRevivedFromSnapshot());
 
         TFuture<TOperationControllerMaterializeResult> asyncMaterializeResult;
         std::vector<TFuture<void>> futures;
@@ -1331,11 +1337,9 @@ public:
                     return;
                 }
                 if (operation->GetState() != expectedState) { // EOperationState::RevivingJobs or EOperationState::Materializing
-                    YT_LOG_INFO(
-                        "Operation state changed during materialization, skip materialization postprocessing "
-                        "(ActualState: %v, ExpectedState: %v)",
-                        operation->GetState(),
-                        expectedState);
+                    YT_TLOG_INFO("Operation state changed during materialization, skip materialization postprocessing")
+                        .With("ActualState", operation->GetState())
+                        .With("ExpectedState", expectedState);
                     return;
                 }
 
@@ -1978,9 +1982,9 @@ private:
                 operation->ResetAlertWithoutArchivation(alertType);
                 OperationsCleaner_->EnqueueOperationAlertEvent(operationId, alertType, alert);
 
-                YT_LOG_DEBUG("Operation alert reset (OperationId: %v, Type: %v)",
-                    operationId,
-                    alertType);
+                YT_TLOG_DEBUG("Operation alert reset")
+                    .With("OperationId", operationId)
+                    .With("Type", alertType);
             }
         } else if (operation->SetAlertWithoutArchivation(alertType, alert)) {
             OperationsCleaner_->EnqueueOperationAlertEvent(operationId, alertType, alert);
@@ -1994,9 +1998,10 @@ private:
                 operation->SetAlertResetCookie(alertType, resetCookie);
             }
 
-            YT_LOG_DEBUG(alert, "Operation alert set (OperationId: %v, Type: %v)",
-                operationId,
-                alertType);
+            YT_TLOG_DEBUG("Operation alert set")
+                .With("OperationId", operationId)
+                .With("Type", alertType)
+                .With(alert);
         }
     }
 
@@ -2081,14 +2086,14 @@ private:
         CheckConfigForUnrecognizedOptions();
 
         {
-            YT_LOG_INFO("Connecting node manager");
+            YT_TLOG_INFO("Connecting node manager");
 
             // TODO(eshcherbin): Rename to OnMasterHandshake?
             NodeManager_->OnMasterConnected(result);
         }
 
         {
-            YT_LOG_INFO("Registering existing operations");
+            YT_TLOG_INFO("Registering existing operations");
 
             for (const auto& operation : result.Operations) {
                 if (operation->GetMutationId()) {
@@ -2148,7 +2153,7 @@ private:
         LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
 
-        YT_LOG_INFO("Master connected for scheduler");
+        YT_TLOG_INFO("Master connected for scheduler");
     }
 
     void DoCleanup()
@@ -2220,30 +2225,30 @@ private:
         DoCleanup();
 
         {
-            YT_LOG_INFO("Started disconnecting node manager");
+            YT_TLOG_INFO("Started disconnecting node manager");
 
             NodeManager_->OnMasterDisconnected();
 
-            YT_LOG_INFO("Finished disconnecting node manager");
+            YT_TLOG_INFO("Finished disconnecting node manager");
         }
 
-        YT_LOG_INFO("Master disconnected for scheduler");
+        YT_TLOG_INFO("Master disconnected for scheduler");
     }
 
     void ValidateOperationState(const TOperationPtr& operation, EOperationState expectedState)
     {
         if (operation->GetState() != expectedState) {
-            YT_LOG_INFO("Operation has unexpected state (OperationId: %v, State: %v, ExpectedState: %v)",
-                operation->GetId(),
-                operation->GetState(),
-                expectedState);
+            YT_TLOG_INFO("Operation has unexpected state")
+                .With("OperationId", operation->GetId())
+                .With("State", operation->GetState())
+                .With("ExpectedState", expectedState);
             throw TFiberCanceledException();
         }
     }
 
     void RequestPoolTrees(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        YT_LOG_INFO("Requesting pool trees");
+        YT_TLOG_INFO("Requesting pool trees");
 
         auto req = TYPathProxy::Get(Config_->PoolTreesRoot);
 
@@ -2266,7 +2271,7 @@ private:
 
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        YT_LOG_INFO("Requesting exec nodes information");
+        YT_TLOG_INFO("Requesting exec nodes information");
 
         auto req = TYPathProxy::List(GetExecNodesPath());
         req->set_limit(CypressNodeLimit);
@@ -2286,7 +2291,8 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>("get_nodes");
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error getting exec nodes information");
+            YT_TLOG_WARNING("Error getting exec nodes information")
+                .With(rspOrError);
             return;
         }
 
@@ -2305,15 +2311,16 @@ private:
             auto error = NodeManager_->HandleNodesAttributes(nodeList);
             SetSchedulerAlert(ESchedulerAlertType::UpdateNodesFailed, error);
 
-            YT_LOG_INFO("Exec nodes information updated");
+            YT_TLOG_INFO("Exec nodes information updated");
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error updating exec nodes information");
+            YT_TLOG_WARNING("Error updating exec nodes information")
+                .With(ex);
         }
     }
 
     void RequestOperationsEffectiveAcl(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
-        YT_LOG_INFO("Requesting operations effective acl");
+        YT_TLOG_INFO("Requesting operations effective acl");
 
         auto req = TYPathProxy::Get("//sys/operations/@effective_acl");
         batchReq->AddRequest(req, "get_operations_effective_acl");
@@ -2323,7 +2330,8 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operations_effective_acl");
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error getting operations effective ACL");
+            YT_TLOG_WARNING("Error getting operations effective ACL")
+                .With(rspOrError);
             return;
         }
 
@@ -2332,7 +2340,8 @@ private:
             const auto& rsp = rspOrError.Value();
             operationsEffectiveAcl = ConvertTo<TSerializableAccessControlList>(TYsonString(rsp->value()));
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Error parsing operations effective ACL");
+            YT_TLOG_WARNING("Error parsing operations effective ACL")
+                .With(ex);
             return;
         }
 
@@ -2349,7 +2358,7 @@ private:
 
     void RequestConfig(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
     {
-        YT_LOG_INFO("Requesting scheduler configuration");
+        YT_TLOG_INFO("Requesting scheduler configuration");
 
         auto req = TYPathProxy::Get("//sys/scheduler/config");
         batchReq->AddRequest(req, "get_config");
@@ -2389,7 +2398,7 @@ private:
         auto newConfigNode = ConvertToNode(newConfig);
 
         if (!AreNodesEqual(oldConfigNode, newConfigNode)) {
-            YT_LOG_INFO("Scheduler configuration updated");
+            YT_TLOG_INFO("Scheduler configuration updated");
 
             Config_ = newConfig;
             CheckConfigForUnrecognizedOptions();
@@ -2442,7 +2451,7 @@ private:
 
     void RequestOperationsArchiveVersion(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        YT_LOG_INFO("Requesting operation archive version");
+        YT_TLOG_INFO("Requesting operation archive version");
 
         auto req = TYPathProxy::Get(GetOperationsArchiveVersionPath());
         batchReq->AddRequest(req, "get_operations_archive_version");
@@ -2452,7 +2461,8 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operations_archive_version");
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO(rspOrError, "Error getting operation archive version");
+            YT_TLOG_INFO("Error getting operation archive version")
+                .With(rspOrError);
             return;
         }
 
@@ -2480,7 +2490,7 @@ private:
 
     void RequestClusterName(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        YT_LOG_INFO("Requesting cluster name");
+        YT_TLOG_INFO("Requesting cluster name");
 
         auto req = TYPathProxy::Get(GetClusterNamePath());
         batchReq->AddRequest(req, "get_cluster_name");
@@ -2490,7 +2500,8 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_cluster_name");
         if (!rspOrError.IsOK()) {
-            YT_LOG_INFO(rspOrError, "Error getting cluster name");
+            YT_TLOG_INFO("Error getting cluster name")
+                .With(rspOrError);
             return;
         }
 
@@ -2499,7 +2510,7 @@ private:
 
     void RequestUserToDefaultPoolMap(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        YT_LOG_DEBUG("Requesting mapping from user to default pool");
+        YT_TLOG_DEBUG("Requesting mapping from user to default pool");
 
         auto req = TYPathProxy::Get(GetUserToDefaultPoolMapPath());
         req->set_limit(CypressNodeLimit);
@@ -2511,7 +2522,8 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_user_to_default_pool");
         if (!rspOrError.IsOK() && rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            YT_LOG_INFO(rspOrError, "Mapping from user to default pool does not exist");
+            YT_TLOG_INFO("Mapping from user to default pool does not exist")
+                .With(rspOrError);
             return;
         }
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting mapping from user to default pool");
@@ -2638,19 +2650,17 @@ private:
                 for (const auto& [treeId, error] : poolLimitViolations) {
                     bool shouldEraseTree = false;
                     if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
-                        YT_LOG_INFO(
-                            error,
-                            "Tentative tree is erased for operation because pool limits are violated (OperationId: %v, TreeId: %v)",
-                            operation->GetId(),
-                            treeId);
+                        YT_TLOG_INFO("Tentative tree is erased for operation because pool limits are violated")
+                            .With("OperationId", operation->GetId())
+                            .With("TreeId", treeId)
+                            .With(error);
 
                         shouldEraseTree = true;
                     } else if (operation->Spec()->EraseTreesWithPoolLimitViolations) {
-                        YT_LOG_INFO(
-                            error,
-                            "Tree is erased for operation because pool limits are violated (OperationId: %v, TreeId: %v)",
-                            operation->GetId(),
-                            treeId);
+                        YT_TLOG_INFO("Tree is erased for operation because pool limits are violated")
+                            .With("OperationId", operation->GetId())
+                            .With("TreeId", treeId)
+                            .With(error);
 
                         shouldEraseTree = true;
                     }
@@ -2782,12 +2792,11 @@ private:
             auto transaction = client->AttachTransaction(transactionId, options);
             return transaction;
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(
-                ex,
-                "Error attaching operation transaction (TransactionType: %v, OperationId: %v, TransactionId: %v)",
-                name,
-                operationId,
-                transactionId);
+            YT_TLOG_WARNING("Error attaching operation transaction")
+                .With("TransactionType", name)
+                .With("OperationId", operationId)
+                .With("TransactionId", transactionId)
+                .With(ex);
         }
 
         return nullptr;
@@ -2840,8 +2849,8 @@ private:
             .Do(std::bind(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation, _1))
             .Do(std::bind(&NStrategy::IStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1));
 
-        YT_LOG_INFO("Preparing operation (OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Preparing operation")
+            .With("OperationId", operationId);
 
         operation->SetStateAndEnqueueEvent(EOperationState::Preparing);
 
@@ -2866,8 +2875,8 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Operation prepared (OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Operation prepared")
+            .With("OperationId", operationId);
 
         LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId)
@@ -2886,8 +2895,8 @@ private:
 
         ValidateOperationState(operation, EOperationState::ReviveInitializing);
 
-        YT_LOG_INFO("Reviving operation (OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Reviving operation")
+            .With("OperationId", operationId);
 
         try {
             RegisterAssignedOperation(operation);
@@ -2940,8 +2949,8 @@ private:
                 }
             }
 
-            YT_LOG_INFO("Operation has been revived (OperationId: %v)",
-                operationId);
+            YT_TLOG_INFO("Operation has been revived")
+                .With("OperationId", operationId);
 
             operation->RevivalDescriptor().reset();
 
@@ -2952,8 +2961,9 @@ private:
                 .EndMap());
 
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
-                operationId);
+            YT_TLOG_WARNING("Operation has failed to revive")
+                .With("OperationId", operationId)
+                .With(ex);
             auto wrappedError = TError("Operation has failed to revive")
                 .With(ex);
             OnOperationFailed(operation, wrappedError);
@@ -2965,10 +2975,9 @@ private:
     TFuture<void> RegisterAllocationsFromRevivedOperation(const TOperationPtr& operation)
     {
         auto allocations = std::move(operation->RevivedAllocations());
-        YT_LOG_INFO(
-            "Registering running allocations from the revived operation (OperationId: %v, AllocationCount: %v)",
-            operation->GetId(),
-            allocations.size());
+        YT_TLOG_INFO("Registering running allocations from the revived operation")
+            .With("OperationId", operation->GetId())
+            .With("AllocationCount", allocations.size());
 
         if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideRegisterAllocationsFromRevivedOperation) {
             TDelayedExecutor::WaitForDuration(*delay);
@@ -3029,15 +3038,15 @@ private:
                     .With("operation_alias", operation->Alias())
                     .With("operation_id", it->second.OperationId);
             }
-            YT_LOG_DEBUG("Assigning an already existing alias to a new operation (Alias: %v, OldOperationId: %v, NewOperationId: %v)",
-                *operation->Alias(),
-                it->second.OperationId,
-                operation->GetId());
+            YT_TLOG_DEBUG("Assigning an already existing alias to a new operation")
+                .With("Alias", *operation->Alias())
+                .With("OldOperationId", it->second.OperationId)
+                .With("NewOperationId", operation->GetId());
             it->second = std::move(alias);
         } else {
-            YT_LOG_DEBUG("Assigning a new alias to a new operation (Alias: %v, OperationId: %v)",
-                *operation->Alias(),
-                operation->GetId());
+            YT_TLOG_DEBUG("Assigning a new alias to a new operation")
+                .With("Alias", *operation->Alias())
+                .With("OperationId", operation->GetId());
             OperationAliases_[*operation->Alias()] = std::move(alias);
         }
     }
@@ -3058,11 +3067,9 @@ private:
         operation->PoolTreeControllerSettingsMap() = poolTreeControllerSettingsMap;
         operation->EraseTrees(unknownTreeIds);
 
-        YT_LOG_DEBUG_UNLESS(
-            unknownTreeIds.empty(),
-            "Operation has unknown pool trees after registration (OperationId: %v, TreeIds: %v)",
-            operation->GetId(),
-            unknownTreeIds);
+        YT_TLOG_DEBUG_UNLESS(unknownTreeIds.empty(), "Operation has unknown pool trees after registration")
+            .With("OperationId", operation->GetId())
+            .With("TreeIds", unknownTreeIds);
 
         NodeManager_->RegisterOperation(
             operation->GetId(),
@@ -3075,11 +3082,10 @@ private:
         auto service = CreateOperationOrchidService(operation);
         YT_VERIFY(IdToOperationService_.emplace(operation->GetId(), service).second);
 
-        YT_LOG_DEBUG(
-            "Operation registered (OperationId: %v, OperationAlias: %v, WaitingForRevival: %v)",
-            operation->GetId(),
-            operation->Alias(),
-            waitingForRevival);
+        YT_TLOG_DEBUG("Operation registered")
+            .With("OperationId", operation->GetId())
+            .With("OperationAlias", operation->Alias())
+            .With("WaitingForRevival", waitingForRevival);
     }
 
     void RegisterAssignedOperation(const TOperationPtr& operation)
@@ -3088,8 +3094,8 @@ private:
 
         auto agent = operation->FindAgent();
         if (!agent || agent->GetState() != EControllerAgentState::Registered) {
-            YT_LOG_INFO("Assigned agent is missing or not registered, operation returned to waiting for agent state (OperationId: %v)",
-                operation->GetId());
+            YT_TLOG_INFO("Assigned agent is missing or not registered, operation returned to waiting for agent state")
+                .With("OperationId", operation->GetId());
             operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
             AddOperationToTransientQueue(operation);
             throw NConcurrency::TFiberCanceledException();
@@ -3108,9 +3114,9 @@ private:
 
         if (operation->Alias()) {
             auto& alias = GetOrCrash(OperationAliases_, *operation->Alias());
-            YT_LOG_DEBUG("Alias now corresponds to an unregistered operation (Alias: %v, OperationId: %v)",
-                *operation->Alias(),
-                operation->GetId());
+            YT_TLOG_DEBUG("Alias now corresponds to an unregistered operation")
+                .With("Alias", *operation->Alias())
+                .With("OperationId", operation->GetId());
             YT_VERIFY(alias.Operation == operation);
             alias.Operation = nullptr;
         }
@@ -3130,28 +3136,25 @@ private:
 
         MasterConnector_->UnregisterOperation(operation);
 
-        YT_LOG_DEBUG("Operation unregistered (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_DEBUG("Operation unregistered")
+            .With("OperationId", operation->GetId());
     }
 
     void AbortOperationAllocations(const TOperationPtr& operation, const TError& error, EAbortReason abortReason, bool terminated)
     {
         NodeManager_->AbortOperationAllocations(operation->GetId(), error, abortReason, terminated);
 
-        YT_LOG_INFO(
-            error,
-            "All operations allocations aborted at scheduler (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("All operations allocations aborted at scheduler")
+            .With("OperationId", operation->GetId())
+            .With(error);
 
         const auto& agent = operation->FindAgent();
         if (agent) {
             try {
                 WaitFor(agent->GetFullHeartbeatProcessed())
                     .ThrowOnError();
-                YT_LOG_DEBUG(
-                    "Full heartbeat from agent processed, "
-                    "aborted allocations supposed to be considered by controller agent (OperationId: %v)",
-                    operation->GetId());
+                YT_TLOG_DEBUG("Full heartbeat from agent processed, aborted allocations supposed to be considered by controller agent")
+                    .With("OperationId", operation->GetId());
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to wait full heartbeat from agent for operation %v", operation->GetId())
                     .With(ex);
@@ -3242,8 +3245,8 @@ private:
         auto codicilGuard = operation->MakeCodicilGuard();
 
         auto operationId = operation->GetId();
-        YT_LOG_INFO("Completing operation (OperationId: %v)",
-            operationId);
+        YT_TLOG_INFO("Completing operation")
+            .With("OperationId", operationId);
 
         operation->SetStateAndEnqueueEvent(EOperationState::Completing);
         operation->SetSuspended(false);
@@ -3332,8 +3335,8 @@ private:
 
         FinishOperation(operation);
 
-        YT_LOG_INFO("Operation completed (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("Operation completed")
+            .With("OperationId", operation->GetId());
     }
 
     void DoFailOperation(
@@ -3350,8 +3353,9 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        YT_LOG_INFO(error, "Operation failed (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("Operation failed")
+            .With("OperationId", operation->GetId())
+            .With(error);
 
         TerminateOperation(
             operation,
@@ -3373,9 +3377,10 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        YT_LOG_INFO(error, "Aborting operation (OperationId: %v, State: %v)",
-            operation->GetId(),
-            operation->GetState());
+        YT_TLOG_INFO("Aborting operation")
+            .With("OperationId", operation->GetId())
+            .With("State", operation->GetState())
+            .With(error);
 
         if (operation->Spec()->TestingOperationOptions->DelayInsideAbort) {
             TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideAbort);
@@ -3431,10 +3436,9 @@ private:
             DoSetOperationAlert(operation->GetId(), EOperationAlertType::OperationSuspended, error);
         }
 
-        YT_LOG_INFO(
-            error,
-            "Operation suspended (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("Operation suspended")
+            .With("OperationId", operation->GetId())
+            .With(error);
     }
 
     TOperationProgress RequestOperationProgress(const TOperationPtr& operation) const
@@ -3466,8 +3470,9 @@ private:
                     .EndMap();
                 return result;
             } else {
-                YT_LOG_INFO(rspOrError, "Failed to get operation info from controller agent (OperationId: %v)",
-                    operation->GetId());
+                YT_TLOG_INFO("Failed to get operation info from controller agent")
+                    .With("OperationId", operation->GetId())
+                    .With(rspOrError);
             }
         }
 
@@ -3551,7 +3556,8 @@ private:
                     YT_LOG_WARNING(error);
                     Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
                 } else {
-                    YT_LOG_WARNING(error, "Operation termination failed but looks like controller is already unregistered");
+                    YT_TLOG_WARNING("Operation termination failed but looks like controller is already unregistered")
+                        .With(error);
                 }
                 return;
             }
@@ -3567,17 +3573,15 @@ private:
                 WaitFor(operation->AbortCommonTransactions())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(
-                    ex,
-                    "Failed to abort transactions of orphaned operation (OperationId: %v)",
-                    operation->GetId());
+                YT_TLOG_DEBUG("Failed to abort transactions of orphaned operation")
+                    .With("OperationId", operation->GetId())
+                    .With(ex);
             }
         } else {
-            YT_LOG_DEBUG(
-                "Skipping transactions abort (OperationId: %v, InitialState: %v, HasTransaction: %v)",
-                operation->GetId(),
-                initialState,
-                static_cast<bool>(operation->Transactions()));
+            YT_TLOG_DEBUG("Skipping transactions abort")
+                .With("OperationId", operation->GetId())
+                .With("InitialState", initialState)
+                .With("HasTransaction", static_cast<bool>(operation->Transactions()));
         }
 
         SetOperationFinalState(operation, finalState, error);
@@ -3636,8 +3640,8 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        YT_LOG_INFO("Completing operation without revival (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("Completing operation without revival")
+            .With("OperationId", operation->GetId());
 
         if (operation->RevivalDescriptor()->ShouldCommitOutputTransaction) {
             WaitFor(operation->Transactions()->OutputTransaction->Commit())
@@ -3681,8 +3685,9 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        YT_LOG_INFO(error, "Aborting operation without revival (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_INFO("Aborting operation without revival")
+            .With("OperationId", operation->GetId())
+            .With(error);
 
         // Fire-and-forget.
         YT_UNUSED_FUTURE(operation->AbortCommonTransactions());
@@ -3836,8 +3841,8 @@ private:
 
         auto unrecognized = Config_->GetRecursiveUnrecognized();
         if (unrecognized && unrecognized->GetChildCount() > 0) {
-            YT_LOG_WARNING("Scheduler config contains unrecognized options (Unrecognized: %v)",
-                ConvertToYsonString(unrecognized, EYsonFormat::Text));
+            YT_TLOG_WARNING("Scheduler config contains unrecognized options")
+                .With("Unrecognized", ConvertToYsonString(unrecognized, EYsonFormat::Text));
             SetSchedulerAlert(
                 ESchedulerAlertType::UnrecognizedConfigOptions,
                 TError("Scheduler config contains unrecognized options")
@@ -3860,9 +3865,9 @@ private:
             TransientOperationQueueScanPeriodExecutor_->ScheduleOutOfBand();
         }
 
-        YT_LOG_DEBUG("Operation added to transient queue (OperationId: %v, State: %v)",
-            operation->GetId(),
-            operation->GetState());
+        YT_TLOG_DEBUG("Operation added to transient queue")
+            .With("OperationId", operation->GetId())
+            .With("State", operation->GetState());
     }
 
     bool HandleWaitingForAgentOperation(const TOperationPtr& operation)
@@ -3904,8 +3909,8 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        YT_LOG_DEBUG("Handling orphaned operation (OperationId: %v)",
-            operation->GetId());
+        YT_TLOG_DEBUG("Handling orphaned operation")
+            .With("OperationId", operation->GetId());
 
         try {
             ValidateOperationState(operation, EOperationState::Orphaned);
@@ -3913,14 +3918,12 @@ private:
             YT_VERIFY(operation->RevivalDescriptor());
             const auto& revivalDescriptor = *operation->RevivalDescriptor();
 
-            YT_LOG_DEBUG("Operation revival descriptor flags "
-                "(UserTransactionAborted: %v, OperationAborting: %v, OperationCommitted: %v, ShouldCommitOutputTransaction: %v, "
-                "OperationId: %v)",
-                revivalDescriptor.UserTransactionAborted,
-                revivalDescriptor.OperationAborting,
-                revivalDescriptor.OperationCommitted,
-                revivalDescriptor.ShouldCommitOutputTransaction,
-                operation->GetId());
+            YT_TLOG_DEBUG("Operation revival descriptor flags")
+                .With("UserTransactionAborted", revivalDescriptor.UserTransactionAborted)
+                .With("OperationAborting", revivalDescriptor.OperationAborting)
+                .With("OperationCommitted", revivalDescriptor.OperationCommitted)
+                .With("ShouldCommitOutputTransaction", revivalDescriptor.ShouldCommitOutputTransaction)
+                .With("OperationId", operation->GetId());
 
             if (revivalDescriptor.OperationCommitted) {
                 CompleteOperationWithoutRevival(operation);
@@ -3963,8 +3966,9 @@ private:
             operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
             AddOperationToTransientQueue(operation);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
-                operationId);
+            YT_TLOG_WARNING("Operation has failed to revive")
+                .With("OperationId", operationId)
+                .With(ex);
             auto wrappedError = TError("Operation has failed to revive")
                 .With(ex);
             OnOperationFailed(operation, wrappedError);
@@ -3984,9 +3988,9 @@ private:
         operations.reserve(queuedOperations.size());
         for (const auto& operation : queuedOperations) {
             if (operation->GetState() != EOperationState::Orphaned) {
-                YT_LOG_DEBUG("Operation is no longer orphaned (OperationId: %v, State: %v)",
-                    operation->GetId(),
-                    operation->GetState());
+                YT_TLOG_DEBUG("Operation is no longer orphaned")
+                    .With("OperationId", operation->GetId())
+                    .With("State", operation->GetState());
                 continue;
             }
             operations.push_back(operation);
@@ -3997,16 +4001,19 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Fetching revival descriptors for operations (OperationCount: %v)", operations.size());
+        YT_TLOG_INFO("Fetching revival descriptors for operations")
+            .With("OperationCount", operations.size());
 
         auto result = WaitFor(MasterConnector_->FetchOperationRevivalDescriptors(operations));
         if (!result.IsOK()) {
-            YT_LOG_ERROR(result, "Error fetching revival descriptors");
+            YT_TLOG_ERROR("Error fetching revival descriptors")
+                .With(result);
             MasterConnector_->Disconnect(result);
             return;
         }
 
-        YT_LOG_INFO("Revival descriptors are fetched (OperationCount: %v)", operations.size());
+        YT_TLOG_INFO("Revival descriptors are fetched")
+            .With("OperationCount", operations.size());
 
         for (const auto& operation : operations) {
             operation->GetCancelableControlInvoker()->Invoke(
@@ -4018,18 +4025,18 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Started scanning pending operations");
+        YT_TLOG_DEBUG("Started scanning pending operations");
 
         Strategy_->ScanPendingOperations();
 
-        YT_LOG_DEBUG("Finished scanning pending operations");
+        YT_TLOG_DEBUG("Finished scanning pending operations");
     }
 
     void ScanTransientOperationQueue()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Started scanning transient operation queue");
+        YT_TLOG_DEBUG("Started scanning transient operation queue");
 
         if (TInstant::Now() > OperationToAgentAssignmentFailureTime_ + Config_->OperationToAgentAssignmentBackoff) {
             int scannedOperationCount = 0;
@@ -4038,9 +4045,9 @@ private:
             std::vector<TOperationPtr> newQueuedOperations;
             for (const auto& operation : queuedOperations) {
                 if (operation->GetState() != EOperationState::WaitingForAgent) {
-                    YT_LOG_DEBUG("Operation is no longer waiting for agent (OperationId: %v, State: %v)",
-                        operation->GetId(),
-                        operation->GetState());
+                    YT_TLOG_DEBUG("Operation is no longer waiting for agent")
+                        .With("OperationId", operation->GetId())
+                        .With("State", operation->GetState());
                     continue;
                 }
                 ++scannedOperationCount;
@@ -4050,10 +4057,11 @@ private:
             }
             queuedOperations = std::move(newQueuedOperations);
 
-            YT_LOG_DEBUG("Waiting for agent operations handled (OperationCount: %v)", scannedOperationCount);
+            YT_TLOG_DEBUG("Waiting for agent operations handled")
+                .With("OperationCount", scannedOperationCount);
         }
 
-        YT_LOG_DEBUG("Finished scanning transient operation queue");
+        YT_TLOG_DEBUG("Finished scanning transient operation queue");
     }
 
     void OnOperationsRemovedFromCypress(const std::vector<TArchiveOperationRequest>& removedOperationRequests)
@@ -4066,22 +4074,21 @@ private:
                 if (it == OperationAliases_.end()) {
                     // This case may happen due to reordering of removal requests inside operation cleaner
                     // (e.g. some of the removal requests may fail due to lock conflict).
-                    YT_LOG_DEBUG("Operation alias has already been removed (Alias: %v, OperationId: %v)",
-                        request.Alias,
-                        request.Id);
+                    YT_TLOG_DEBUG("Operation alias has already been removed")
+                        .With("Alias", request.Alias)
+                        .With("OperationId", request.Id);
                 } else if (it->second.OperationId == request.Id) {
                     // We should have already dropped the pointer to the operation. Let's assert that.
                     YT_VERIFY(!it->second.Operation);
-                    YT_LOG_DEBUG("Operation alias is still assigned to an operation, removing it (Alias: %v, OperationId: %v)",
-                        request.Alias,
-                        request.Id);
+                    YT_TLOG_DEBUG("Operation alias is still assigned to an operation, removing it")
+                        .With("Alias", request.Alias)
+                        .With("OperationId", request.Id);
                     OperationAliases_.erase(it);
                 } else {
-                    YT_LOG_DEBUG("Operation alias was reused by another operation, doing nothing "
-                        "(Alias: %v, OldOperationId: %v, NewOperationId: %v)",
-                        request.Alias,
-                        request.Id,
-                        it->second.OperationId);
+                    YT_TLOG_DEBUG("Operation alias was reused by another operation, doing nothing")
+                        .With("Alias", request.Alias)
+                        .With("OldOperationId", request.Id)
+                        .With("NewOperationId", it->second.OperationId);
                 }
             }
         }

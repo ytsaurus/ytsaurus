@@ -109,14 +109,11 @@ void TPoolTreeElement::InitializeUpdate(TInstant /*now*/)
             CollectResourceTreeOperationElements(&descendantOperationElements);
         }
 
-        YT_LOG_INFO(
-            "Updating applied specified resource limits "
-            "(NewSpecifiedResourceLimits: %v, CurrentSpecifiedResourceLimits: %v, "
-            "NewOvercommitTolerance: %v, CurrentOvercommitTolerance: %v)",
-            MaybeSpecifiedResourceLimits_,
-            PersistentAttributes_.AppliedSpecifiedResourceLimits,
-            SpecifiedResourceLimitsOvercommitTolerance_,
-            PersistentAttributes_.AppliedSpecifiedResourceLimitsOvercommitTolerance);
+        YT_TLOG_INFO("Updating applied specified resource limits")
+            .With("NewSpecifiedResourceLimits", MaybeSpecifiedResourceLimits_)
+            .With("CurrentSpecifiedResourceLimits", PersistentAttributes_.AppliedSpecifiedResourceLimits)
+            .With("NewOvercommitTolerance", SpecifiedResourceLimitsOvercommitTolerance_)
+            .With("CurrentOvercommitTolerance", PersistentAttributes_.AppliedSpecifiedResourceLimitsOvercommitTolerance);
 
         ResourceTreeElement_->SetSpecifiedResourceLimits(
             MaybeSpecifiedResourceLimits_,
@@ -342,9 +339,9 @@ TJobResources TPoolTreeElement::GetInstantResourceUsage(bool withPrecommit) cons
         ? ResourceTreeElement_->GetResourceUsageWithPrecommit()
         : ResourceTreeElement_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
-        YT_LOG_WARNING("Found usage of schedulable element with non-zero user slots and zero memory (ElementId: %v, Usage: %v)",
-            GetId(),
-            FormatResources(resourceUsage));
+        YT_TLOG_WARNING("Found usage of schedulable element with non-zero user slots and zero memory")
+            .With("ElementId", GetId())
+            .With("Usage", FormatResources(resourceUsage));
     }
     return resourceUsage;
 }
@@ -1413,9 +1410,9 @@ void TPoolTreePoolElement::SetStarvationStatus(EStarvationStatus starvationStatu
     YT_VERIFY(Mutable_);
 
     if (starvationStatus != GetStarvationStatus()) {
-        YT_LOG_INFO("Pool starvation status changed (Current: %v, New: %v)",
-            GetStarvationStatus(),
-            starvationStatus);
+        YT_TLOG_INFO("Pool starvation status changed")
+            .With("Current", GetStarvationStatus())
+            .With("New", starvationStatus);
     }
     TPoolTreeElement::SetStarvationStatus(starvationStatus, now);
 }
@@ -1586,9 +1583,9 @@ void TPoolTreePoolElement::AttachParent(TPoolTreeCompositeElement* parent)
     Parent_ = parent;
     TreeElementHost_->GetResourceTree()->AttachParent(ResourceTreeElement_, parent->ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Pool is attached (Pool: %v, ParentPool: %v)",
-        Id_,
-        parent->GetId());
+    YT_TLOG_DEBUG("Pool is attached")
+        .With("Pool", Id_)
+        .With("ParentPool", parent->GetId());
 }
 
 const TPoolTreeCompositeElement* TPoolTreePoolElement::GetNearestAncestorWithResourceLimits(const TPoolTreeCompositeElement* element) const
@@ -1646,23 +1643,17 @@ void TPoolTreePoolElement::ChangeParent(TPoolTreeCompositeElement* newParent)
     Parent_->IncreaseRunningOperationCount(RunningOperationCount());
     Parent_->IncreaseLightweightRunningOperationCount(LightweightRunningOperationCount());
 
-    YT_LOG_INFO("Parent pool is changed ("
-        "NewParent: %v, "
-        "OldParent: %v, "
-        "CurrentResourceLimits: %v, "
-        "SourceAncestorWithResourceLimits: %v, "
-        "DestinationAncestorWithResourceLimits: %v, "
-        "AncestorWithResourceLimitsChanged: %v)",
-        newParent->GetId(),
-        oldParent->GetId(),
-        PersistentAttributes_.AppliedSpecifiedResourceLimits,
-        sourceAncestorWithResourceLimits
-            ? std::optional(sourceAncestorWithResourceLimits->GetId())
-            : std::nullopt,
-        destinationAncestorWithResourceLimits
-            ? std::optional(destinationAncestorWithResourceLimits->GetId())
-            : std::nullopt,
-        ancestorWithResourceLimitsChanged);
+    YT_TLOG_INFO("Parent pool is changed")
+        .With("NewParent", newParent->GetId())
+        .With("OldParent", oldParent->GetId())
+        .With("CurrentResourceLimits", PersistentAttributes_.AppliedSpecifiedResourceLimits)
+        .With(
+            "SourceAncestorWithResourceLimits",
+            sourceAncestorWithResourceLimits ? std::optional(sourceAncestorWithResourceLimits->GetId()) : std::nullopt)
+        .With(
+            "DestinationAncestorWithResourceLimits",
+            destinationAncestorWithResourceLimits ? std::optional(destinationAncestorWithResourceLimits->GetId()) : std::nullopt)
+        .With("AncestorWithResourceLimitsChanged", ancestorWithResourceLimitsChanged);
 }
 
 void TPoolTreePoolElement::DetachParent()
@@ -1676,9 +1667,9 @@ void TPoolTreePoolElement::DetachParent()
     Parent_->RemoveChild(this);
     TreeElementHost_->GetResourceTree()->ScheduleDetachParent(ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Pool is detached (Pool: %v, ParentPool: %v)",
-        Id_,
-        oldParentId);
+    YT_TLOG_DEBUG("Pool is detached")
+        .With("Pool", Id_)
+        .With("ParentPool", oldParentId);
 }
 
 void TPoolTreePoolElement::DoSetConfig(TPoolConfigPtr newConfig)
@@ -1903,10 +1894,10 @@ void TPoolTreeOperationElement::PreUpdate(TFairSharePreUpdateContext* context)
         PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_);
         PersistentAttributes_.LastBestAllocationShareUpdateTime = context->Now;
 
-        YT_LOG_DEBUG("Updated operation best allocation share (AdjustedResourceLimits: %v, TotalResourceLimits: %v, BestAllocationShare: %.6g)",
-            FormatResources(allocationLimits),
-            FormatResources(TotalResourceLimits_),
-            PersistentAttributes_.BestAllocationShare);
+        YT_TLOG_DEBUG("Updated operation best allocation share")
+            .With("AdjustedResourceLimits", FormatResources(allocationLimits))
+            .With("TotalResourceLimits", FormatResources(TotalResourceLimits_))
+            .WithFormat("BestAllocationShare", "%.6g", PersistentAttributes_.BestAllocationShare);
     }
 }
 
@@ -2085,9 +2076,9 @@ void TPoolTreeOperationElement::SetStarvationStatus(EStarvationStatus starvation
         return;
     }
 
-    YT_LOG_INFO("Operation starvation status changed (Current: %v, New: %v)",
-        currentStarvationStatus,
-        starvationStatus);
+    YT_TLOG_INFO("Operation starvation status changed")
+        .With("Current", currentStarvationStatus)
+        .With("New", starvationStatus);
 
     TPoolTreeElement::SetStarvationStatus(starvationStatus, now);
 
@@ -2096,13 +2087,11 @@ void TPoolTreeOperationElement::SetStarvationStatus(EStarvationStatus starvation
         PersistentAttributes_.FairShareOnStarvationStart = Attributes_.FairShare.Total;
         PersistentAttributes_.UsageOnStarvationStart = Attributes_.UsageShare;
         if (TreeConfig_->EnableDetailedStarvationLogs) {
-            YT_LOG_DEBUG(
-                "Operation started starving "
-                "(StarvationStatus: %v, StarvingSince: %v, CurrentFairShare: %v, CurrentUsage: %v)",
-                starvationStatus,
-                PersistentAttributes_.StarvingSince,
-                Attributes_.FairShare.Total,
-                Attributes_.UsageShare);
+            YT_TLOG_DEBUG("Operation started starving")
+                .With("StarvationStatus", starvationStatus)
+                .With("StarvingSince", PersistentAttributes_.StarvingSince)
+                .With("CurrentFairShare", Attributes_.FairShare.Total)
+                .With("CurrentUsage", Attributes_.UsageShare);
 
             NLogging::LogStructuredEventFluently(SchedulerStructuredLogger(), NLogging::ELogLevel::Info)
                 .Item("timestamp").Value(TInstant::Now())
@@ -2134,15 +2123,13 @@ void TPoolTreeOperationElement::SetStarvationStatus(EStarvationStatus starvation
             .Reason = reason});
 
         if (TreeConfig_->EnableDetailedStarvationLogs) {
-            YT_LOG_DEBUG(
-                "Operation stopped starving "
-                "(StarvationStatus: %v, StarvingSince: %v, CurrentFairShare: %v, CurrentUsage: %v, FairShareOnStarvationStart: %v, UsageOnStarvationStart: %v)",
-                starvationStatus,
-                PersistentAttributes_.StarvingSince,
-                Attributes_.FairShare.Total,
-                Attributes_.UsageShare,
-                PersistentAttributes_.FairShareOnStarvationStart,
-                PersistentAttributes_.UsageOnStarvationStart);
+            YT_TLOG_DEBUG("Operation stopped starving")
+                .With("StarvationStatus", starvationStatus)
+                .With("StarvingSince", PersistentAttributes_.StarvingSince)
+                .With("CurrentFairShare", Attributes_.FairShare.Total)
+                .With("CurrentUsage", Attributes_.UsageShare)
+                .With("FairShareOnStarvationStart", PersistentAttributes_.FairShareOnStarvationStart)
+                .With("UsageOnStarvationStart", PersistentAttributes_.UsageOnStarvationStart);
 
             NLogging::LogStructuredEventFluently(SchedulerStructuredLogger(), NLogging::ELogLevel::Info)
                 .Item("timestamp").Value(TInstant::Now())
@@ -2455,7 +2442,8 @@ void TPoolTreeOperationElement::AttachParent(TPoolTreeCompositeElement* newParen
     newParent->IncreaseOperationCount(1);
     newParent->AddChild(this, /*enabled*/ false);
 
-    YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", newParent->GetId());
+    YT_TLOG_DEBUG("Operation attached to pool")
+        .With("Pool", newParent->GetId());
 }
 
 void TPoolTreeOperationElement::ChangeParent(TPoolTreeCompositeElement* parent, int slotIndex)
@@ -2487,9 +2475,9 @@ void TPoolTreeOperationElement::ChangeParent(TPoolTreeCompositeElement* parent, 
     Parent_->IncreaseOperationCount(1);
     Parent_->AddChild(this, enabled);
 
-    YT_LOG_DEBUG("Operation changed pool (OldPool: %v, NewPool: %v)",
-        oldParentId,
-        parent->GetId());
+    YT_TLOG_DEBUG("Operation changed pool")
+        .With("OldPool", oldParentId)
+        .With("NewPool", parent->GetId());
 }
 
 void TPoolTreeOperationElement::DetachParent()
@@ -2511,7 +2499,8 @@ void TPoolTreeOperationElement::DetachParent()
     Parent_ = nullptr;
     TreeElementHost_->GetResourceTree()->ScheduleDetachParent(ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Operation detached from pool (Pool: %v)", parentId);
+    YT_TLOG_DEBUG("Operation detached from pool")
+        .With("Pool", parentId);
 }
 
 void TPoolTreeOperationElement::MarkOperationRunningInPool()
@@ -2525,9 +2514,9 @@ void TPoolTreeOperationElement::MarkOperationRunningInPool()
     RunningInThisPoolTree_ = true;
     PendingByPool_.reset();
 
-    YT_LOG_INFO("Operation is running in pool (Pool: %v, Lightweight: %v)",
-        Parent_->GetId(),
-        lightweight);
+    YT_TLOG_INFO("Operation is running in pool")
+        .With("Pool", Parent_->GetId())
+        .With("Lightweight", lightweight);
 }
 
 bool TPoolTreeOperationElement::IsOperationRunningInPool() const
@@ -2556,10 +2545,10 @@ void TPoolTreeOperationElement::MarkPendingBy(TPoolTreeCompositeElement* violate
     violatedPool->PendingOperationIds().push_back(OperationId_);
     PendingByPool_ = violatedPool->GetId();
 
-    YT_LOG_DEBUG("Operation is pending since max running operation count is violated (OperationId: %v, Pool: %v, Limit: %v)",
-        OperationId_,
-        violatedPool->GetId(),
-        violatedPool->GetMaxRunningOperationCount());
+    YT_TLOG_DEBUG("Operation is pending since max running operation count is violated")
+        .With("OperationId", OperationId_)
+        .With("Pool", violatedPool->GetId())
+        .With("Limit", violatedPool->GetMaxRunningOperationCount());
 }
 
 std::optional<std::string> TPoolTreeOperationElement::GetCustomProfilingTag() const

@@ -70,7 +70,8 @@ void TResourceTree::UpdateConfig(const TStrategyTreeConfigPtr& config)
         ResetPreemptedResourceUsagePrecommit();
 
         UsePrecommitForPreemption_.store(config->UsePrecommitForPreemption);
-        YT_LOG_DEBUG("Switch precommit preemption setting (Enabled: %v)", UsePrecommitForPreemption_);
+        YT_TLOG_DEBUG("Switch precommit preemption setting")
+            .With("Enabled", UsePrecommitForPreemption_);
     }
 }
 
@@ -137,7 +138,8 @@ void TResourceTree::ScheduleDetachParent(const TResourceTreeElementPtr& element)
 {
     YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-    YT_LOG_DEBUG("Scheduling element to detach (Id: %v)", element->GetId());
+    YT_TLOG_DEBUG("Scheduling element to detach")
+        .With("Id", element->GetId());
     YT_VERIFY(element->Initialized_);
     ElementsToDetachQueue_.Enqueue(element);
 }
@@ -169,11 +171,11 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
         TJobResources preemptedUsagePrecommit;
         element->ReleaseResources(&usagePrecommit, &usage, &preemptedUsagePrecommit);
 
-        YT_LOG_DEBUG("Strong release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v, PreemptedUsagePrecommit: %v)",
-            element->GetId(),
-            FormatResources(usage),
-            FormatResources(usagePrecommit),
-            FormatResources(preemptedUsagePrecommit));
+        YT_TLOG_DEBUG("Strong release of element resources")
+            .With("Id", element->GetId())
+            .With("Usage", FormatResources(usage))
+            .With("UsagePrecommit", FormatResources(usagePrecommit))
+            .With("PreemptedUsagePrecommit", FormatResources(preemptedUsagePrecommit));
 
         MaybeDelay(ResourceTreeReleaseResourcesRandomDelay_, EDelayType::Sync);
 
@@ -188,11 +190,11 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
         auto usagePrecommit = element->GetResourceUsagePrecommit();
         auto usage = element->GetResourceUsage();
         auto preemptedUsagePrecommit = element->GetPreemptedResourceUsagePrecommit();
-        YT_LOG_DEBUG("Relaxed release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v, PreemptedUsagePrecommit: %v)",
-            element->GetId(),
-            FormatResources(usage),
-            FormatResources(usagePrecommit),
-            FormatResources(preemptedUsagePrecommit));
+        YT_TLOG_DEBUG("Relaxed release of element resources")
+            .With("Id", element->GetId())
+            .With("Usage", FormatResources(usage))
+            .With("UsagePrecommit", FormatResources(usagePrecommit))
+            .With("PreemptedUsagePrecommit", FormatResources(preemptedUsagePrecommit));
         DoIncreaseHierarchicalResourceUsagePrecommit(element, -usagePrecommit);
         DoIncreaseHierarchicalResourceUsage(element, -usage);
 
@@ -238,12 +240,10 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeEleme
 
     auto increaseLocalResourceUsage = [element] (auto* current, const TJobResources& delta) {
         bool success = current->IncreaseLocalResourceUsage(delta);
-        YT_LOG_DEBUG_UNLESS(
-            success,
-            "Local increase of usage failed (Delta: %v, CurrentElement: %v, SourceElement: %v)",
-            delta,
-            current->GetId(),
-            element->GetId());
+        YT_TLOG_DEBUG_UNLESS(success, "Local increase of usage failed")
+            .With("Delta", delta)
+            .With("CurrentElement", current->GetId())
+            .With("SourceElement", element->GetId());
         return success;
     };
 
@@ -264,11 +264,9 @@ void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTr
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!element->GetAlive()) {
-        YT_LOG_DEBUG(
-            "Unable to increase resource usage precommit hierarchically because element is not alive "
-            "(Id: %v, Delta: %v)",
-            element->GetId(),
-            delta);
+        YT_TLOG_DEBUG("Unable to increase resource usage precommit hierarchically because element is not alive")
+            .With("Id", element->GetId())
+            .With("Delta", delta);
 
         return;
     }
@@ -293,12 +291,10 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
     auto increaseLocalResourceUsagePrecommit = [element, enableDetailedLogs] (auto* current, const TJobResources& delta) {
         bool success = current->IncreaseLocalResourceUsagePrecommit(delta, enableDetailedLogs);
-        YT_LOG_DEBUG_UNLESS(
-            success,
-            "Local increase of usage precommit failed (Delta: %v, CurrentElement: %v, SourceElement: %v)",
-            delta,
-            current->GetId(),
-            element->GetId());
+        YT_TLOG_DEBUG_UNLESS(success, "Local increase of usage precommit failed")
+            .With("Delta", delta)
+            .With("CurrentElement", current->GetId())
+            .With("SourceElement", element->GetId());
 
         return success;
     };
@@ -413,13 +409,11 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 
     auto commitLocalResourceUsage = [element] (auto* current, const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources) {
         bool success = current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
-        YT_LOG_DEBUG_UNLESS(
-            success,
-            "Local commit of usage failed (ResourceUsageDelta: %v, PrecommittedResources: %v, CurrentElement: %v, SourceElement: %v)",
-            resourceUsageDelta,
-            precommittedResources,
-            current->GetId(),
-            element->GetId());
+        YT_TLOG_DEBUG_UNLESS(success, "Local commit of usage failed")
+            .With("ResourceUsageDelta", resourceUsageDelta)
+            .With("PrecommittedResources", precommittedResources)
+            .With("CurrentElement", current->GetId())
+            .With("SourceElement", element->GetId());
         return success;
     };
 
@@ -448,7 +442,7 @@ EResourceTreeIncreasePreemptedResult TResourceTree::TryIncreaseHierarchicalPreem
     auto guard = ReaderGuard(StructureLock_);
 
     if (!UsePrecommitForPreemption_) {
-        YT_LOG_DEBUG("Skip increasing precommit preempted usage because it is disabled");
+        YT_TLOG_DEBUG("Skip increasing precommit preempted usage because it is disabled");
         return EResourceTreeIncreasePreemptedResult::NoResourceLimitsViolation;
     }
 
@@ -467,13 +461,10 @@ EResourceTreeIncreasePreemptedResult TResourceTree::TryIncreaseHierarchicalPreem
 
     auto increaseLocalPreemptedResourceUsagePrecommitUnsafe = [element] (auto* current, const TJobResources& delta) {
         auto precommitStatus = current->IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(delta);
-        YT_LOG_DEBUG_UNLESS(
-            precommitStatus,
-            "Local increase of precommit preempted resource usage failed "
-            "(ResourceUsageDelta: %v, CurrentElement: %v, SourceElement: %v)",
-            delta,
-            current->GetId(),
-            element->GetId());
+        YT_TLOG_DEBUG_UNLESS(precommitStatus, "Local increase of precommit preempted resource usage failed")
+            .With("ResourceUsageDelta", delta)
+            .With("CurrentElement", current->GetId())
+            .With("SourceElement", element->GetId());
         return precommitStatus;
     };
 
@@ -529,7 +520,7 @@ bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
     IncrementStructureLockReadCount();
 
     if (!UsePrecommitForPreemption_) {
-        YT_LOG_DEBUG("Skip commiting precommit preempted usage because UsePrecommitForPreemption is disabled");
+        YT_TLOG_DEBUG("Skip commiting precommit preempted usage because UsePrecommitForPreemption is disabled");
         return false;
     }
 
@@ -540,13 +531,11 @@ bool TResourceTree::CommitHierarchicalPreemptedResourceUsage(
 
     auto commitLocalPreemptedResourceUsageUnsafe = [&] (auto* current) -> bool {
         bool success = current->CommitLocalPreemptedResourceUsageUnsafe(resourceUsageDelta, precommittedResources);
-        YT_LOG_DEBUG_UNLESS(
-            success,
-            "Local commit of preempted usage failed (ResourceUsageDelta: %v, PrecommittedResources: %v, CurrentElement: %v, SourceElement: %v)",
-            resourceUsageDelta,
-            precommittedResources,
-            current->GetId(),
-            element->GetId());
+        YT_TLOG_DEBUG_UNLESS(success, "Local commit of preempted usage failed")
+            .With("ResourceUsageDelta", resourceUsageDelta)
+            .With("PrecommittedResources", precommittedResources)
+            .With("CurrentElement", current->GetId())
+            .With("SourceElement", element->GetId());
         return success;
     };
 
@@ -596,13 +585,11 @@ void TResourceTree::PerformPostponedActions()
     auto elementsToDetach = ElementsToDetachQueue_.DequeueAll();
     for (const auto& element : elementsToDetach) {
         YT_VERIFY(element->Parent_);
-        YT_LOG_FATAL_UNLESS(
-            element->GetResourceUsageWithPrecommit() == TJobResources(),
-            "Resource tree element has non-zero resources (Id: %v, ResourceUsage: %v, ResourceUsageWithPrecommit: %v, ResourceLimitsSpecified: %v)",
-            element->GetId(),
-            FormatResources(element->GetResourceUsage()),
-            FormatResources(element->GetResourceUsageWithPrecommit()),
-            element->AreResourceLimitsSpecified());
+        YT_TLOG_FATAL_UNLESS(element->GetResourceUsageWithPrecommit() == TJobResources(), "Resource tree element has non-zero resources")
+            .With("Id", element->GetId())
+            .With("ResourceUsage", FormatResources(element->GetResourceUsage()))
+            .With("ResourceUsageWithPrecommit", FormatResources(element->GetResourceUsageWithPrecommit()))
+            .With("ResourceLimitsSpecified", element->AreResourceLimitsSpecified());
 
         element->Parent_ = nullptr;
         EraseOrCrash(AliveElements_, element);
@@ -662,13 +649,11 @@ void TResourceTree::DoInitializeResourceUsageFor(
         }
     }
 
-    YT_LOG_DEBUG(
-        "Resource usage initialized for element in resource tree "
-        "(Id: %v, ResourceUsage: %v, ResourceUsagePrecommit: %v, PreemptedResourceUsagePrecommit: %v)",
-        targetElement->Id_,
-        FormatResources(newResourceUsage),
-        FormatResources(newResourceUsagePrecommit),
-        FormatResources(newPreemptedResourceUsagePrecommit));
+    YT_TLOG_DEBUG("Resource usage initialized for element in resource tree")
+        .With("Id", targetElement->Id_)
+        .With("ResourceUsage", FormatResources(newResourceUsage))
+        .With("ResourceUsagePrecommit", FormatResources(newResourceUsagePrecommit))
+        .With("PreemptedResourceUsagePrecommit", FormatResources(newPreemptedResourceUsagePrecommit));
 }
 
 TWriterGuard<TReaderWriterSpinLock> TResourceTree::AcquireStructureLock()

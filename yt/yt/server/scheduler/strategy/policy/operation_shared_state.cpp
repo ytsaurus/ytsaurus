@@ -37,7 +37,7 @@ TOperationSharedState::TOperationSharedState(
 
 TJobResources TOperationSharedState::Disable()
 {
-    YT_LOG_DEBUG("Operation element disabled in strategy");
+    YT_TLOG_DEBUG("Operation element disabled in strategy");
 
     auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
@@ -61,7 +61,7 @@ TJobResources TOperationSharedState::Disable()
 
 void TOperationSharedState::Enable()
 {
-    YT_LOG_DEBUG("Operation element enabled in strategy");
+    YT_TLOG_DEBUG("Operation element enabled in strategy");
 
     auto guard = WriterGuard(AllocationPropertiesMapLock_);
 
@@ -158,12 +158,10 @@ bool TOperationSharedState::ProcessAllocationPreemption(
 
     // NB(eshcherbin): Delta is negative and precommitted resources are positive.
     if (!operationElement->CommitHierarchicalPreemptedResourceUsage(resourceUsageDelta, precommittedResources)) {
-        YT_LOG_DEBUG(
-            "Failed to commit preempted resource usage, decreasing resource usage instead "
-            "(OperationId: %v, ResourceUsageDelta: %v, PrecommittedResources: %v)",
-            operationElement->GetId(),
-            resourceUsageDelta,
-            precommittedResources);
+        YT_TLOG_DEBUG("Failed to commit preempted resource usage, decreasing resource usage instead")
+            .With("OperationId", operationElement->GetId())
+            .With("ResourceUsageDelta", resourceUsageDelta)
+            .With("PrecommittedResources", precommittedResources);
         operationElement->IncreaseHierarchicalResourceUsage(resourceUsageDelta);
     }
 
@@ -268,10 +266,9 @@ void TOperationSharedState::UpdatePreemptibleAllocationsList(
     DoUpdatePreemptibleAllocationsList(element, &moveCount);
 
     auto elapsed = timer.GetElapsedTime();
-    YT_LOG_DEBUG_IF(elapsed > element->TreeConfig()->UpdatePreemptibleListDurationLoggingThreshold,
-        "Preemptible list update is too long (Duration: %v, MoveCount: %v)",
-        elapsed.MilliSeconds(),
-        moveCount);
+    YT_TLOG_DEBUG_IF(elapsed > element->TreeConfig()->UpdatePreemptibleListDurationLoggingThreshold, "Preemptible list update is too long")
+        .With("Duration", elapsed.MilliSeconds())
+        .With("MoveCount", moveCount);
 }
 
 void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOperationElement* element, int* moveCount)
@@ -420,27 +417,23 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
         ? ToJobResources(nonPreemptibleResourceUsageConfig, TJobResources::Infinite())
         : TJobResources();
 
-    YT_LOG_DEBUG_IF(
-        enableLogging,
-        "Update preemptible lists inputs (FairShare: %.6g, TotalResourceLimits: %v, NonPreemptibleResourceUsageConfig: %v, "
-        "PreemptionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
-        fairShare,
-        FormatResources(element->GetTotalResourceLimits()),
-        FormatResourcesConfig(nonPreemptibleResourceUsageConfig),
-        preemptionSatisfactionThreshold,
-        aggressivePreemptionSatisfactionThreshold);
+    YT_TLOG_DEBUG_IF(enableLogging, "Update preemptible lists inputs")
+        .WithFormat("FairShare", "%.6g", fairShare)
+        .With("TotalResourceLimits", FormatResources(element->GetTotalResourceLimits()))
+        .With("NonPreemptibleResourceUsageConfig", FormatResourcesConfig(nonPreemptibleResourceUsageConfig))
+        .With("PreemptionSatisfactionThreshold", preemptionSatisfactionThreshold)
+        .With("AggressivePreemptionSatisfactionThreshold", aggressivePreemptionSatisfactionThreshold);
 
     // NB: We need 2 iterations since thresholds may change significantly such that we need
     // to move allocation from preemptible list to non-preemptible list through aggressively preemptible list.
     for (int iteration = 0; iteration < 2; ++iteration) {
-        YT_LOG_DEBUG_IF(
-            enableLogging,
-            "Preemptible lists usage bounds before update "
-            "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemptibleResourceUsage: %v, Iteration: %v)",
-            FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible]),
-            FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible]),
-            FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible]),
-            iteration);
+        YT_TLOG_DEBUG_IF(enableLogging, "Preemptible lists usage bounds before update")
+            .With("NonPreemptibleResourceUsage", FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible]))
+            .With(
+                "AggressivelyPreemptibleResourceUsage",
+                FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible]))
+            .With("PreemptibleResourceUsage", FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible]))
+            .With("Iteration", iteration);
 
         {
             auto usageDelta = balanceLists(
@@ -472,20 +465,21 @@ void TOperationSharedState::DoUpdatePreemptibleAllocationsList(const TPoolTreeOp
         }
     }
 
-    YT_LOG_DEBUG_IF(
-        enableLogging,
-        "Preemptible lists usage bounds after update "
-        "(NonPreemptibleResourceUsage: %v, AggressivelyPreemptibleResourceUsage: %v, PreemptibleResourceUsage: %v)",
-        FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible]),
-        FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible]),
-        FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible]));
+    YT_TLOG_DEBUG_IF(enableLogging, "Preemptible lists usage bounds after update")
+        .With("NonPreemptibleResourceUsage", FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::NonPreemptible]))
+        .With(
+            "AggressivelyPreemptibleResourceUsage",
+            FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::AggressivelyPreemptible]))
+        .With("PreemptibleResourceUsage", FormatResources(ResourceUsagePerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible]));
 }
 
 void TOperationSharedState::SetPreemptible(bool value)
 {
     bool oldValue = Preemptible_;
     if (oldValue != value) {
-        YT_LOG_DEBUG("Preemptible status changed (OldValue: %v, NewValue: %v)", oldValue, value);
+        YT_TLOG_DEBUG("Preemptible status changed")
+            .With("OldValue", oldValue)
+            .With("NewValue", value);
 
         Preemptible_ = value;
     }
@@ -777,11 +771,9 @@ std::optional<EAllocationUpdateStatus> TOperationSharedState::CheckAllocationVal
     // The allocation may be unknown: a stale update or finish can outlive the allocation it
     // targets when the operation is revived. The caller drops it rather than resubmitting forever.
     if (!AllocationPropertiesMap_.contains(allocationId)) {
-        YT_LOG_WARNING(
-            "Skipping allocation update for an allocation unknown to the operation shared state "
-            "(OperationId: %v, AllocationId: %v)",
-            operationElement->GetOperationId(),
-            allocationId);
+        YT_TLOG_WARNING("Skipping allocation update for an allocation unknown to the operation shared state")
+            .With("OperationId", operationElement->GetOperationId())
+            .With("AllocationId", allocationId);
         return EAllocationUpdateStatus::Unexpected;
     }
 

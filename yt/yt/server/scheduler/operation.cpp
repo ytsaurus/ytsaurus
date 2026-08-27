@@ -574,14 +574,14 @@ TFuture<void> TOperation::AbortCommonTransactions()
         }
 
         if (transaction) {
-            YT_LOG_DEBUG("Aborting transaction (TransactionId: %v, Type: %v)",
-                transaction->GetId(),
-                transactionType);
+            YT_TLOG_DEBUG("Aborting transaction")
+                .With("TransactionId", transaction->GetId())
+                .With("Type", transactionType);
             YT_VERIFY(abortedTransactions.emplace(transaction).second);
             asyncResults.push_back(transaction->Abort());
         } else {
-            YT_LOG_DEBUG("Transaction is missing, skipping abort (Type: %v)",
-                transactionType);
+            YT_TLOG_DEBUG("Transaction is missing, skipping abort")
+                .With("Type", transactionType);
         }
     };
 
@@ -606,14 +606,14 @@ bool TOperation::AddSecureVaultEntry(const std::string& key, const INodePtr& val
     YT_VERIFY(State_ == EOperationState::Starting);
 
     if (!SecureVault_) {
-        YT_LOG_DEBUG("Creating empty secure vault due to scheduler request (OperationId: %v)",
-            Id_);
+        YT_TLOG_DEBUG("Creating empty secure vault due to scheduler request")
+            .With("OperationId", Id_);
         SecureVault_ = GetEphemeralNodeFactory()->CreateMap();
     }
 
-    YT_LOG_DEBUG("Adding secure vault entry (OperationId: %v, Key: %v)",
-        Id_,
-        key);
+    YT_TLOG_DEBUG("Adding secure vault entry")
+        .With("OperationId", Id_)
+        .With("Key", key);
     return SecureVault_->AddChild(key, value);
 }
 
@@ -623,7 +623,7 @@ void TOperation::SetTemporaryToken(const std::string& token, const TNodeId& node
     YT_VERIFY(Spec_->IssueTemporaryToken);
     // We allow issuing unused temporary tokens to support enabling this option by default.
     if (!AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token))) {
-        YT_LOG_DEBUG("Not using temporary token as there is an explicit one");
+        YT_TLOG_DEBUG("Not using temporary token as there is an explicit one");
     }
 
     TemporaryTokenNodeId_ = nodeId;
@@ -685,8 +685,9 @@ void ParseSpec(
                 ConvertTo<TSerializableAccessControlList>(aclNode);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to parse operation ACL from spec, removing it (OperationId: %v)",
-                *operationId);
+            YT_TLOG_WARNING("Failed to parse operation ACL from spec, removing it")
+                .With("OperationId", *operationId)
+                .With(ex);
             specNode->RemoveChild("acl");
         }
     }

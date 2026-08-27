@@ -129,11 +129,9 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(
     bool enableDetailedLogs)
 {
     if (Kind_ != EResourceTreeElementKind::Operation && !ResourceLimitsSpecified_) {
-        YT_LOG_DEBUG_IF(enableDetailedLogs,
-            "Skipping local resource usage precommmit because element has no specified resource limits "
-            "(Id: %v, Delta: %v)",
-            Id_,
-            delta);
+        YT_TLOG_DEBUG_IF(enableDetailedLogs, "Skipping local resource usage precommmit because element has no specified resource limits")
+            .With("Id", Id_)
+            .With("Delta", delta);
 
         return true;
     }
@@ -141,11 +139,9 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(
     auto guard = WriterGuard(ResourceUsageLock_);
 
     if (!Alive_) {
-        YT_LOG_DEBUG_IF(enableDetailedLogs,
-            "Unable to increase local resource usage precommit because element is not alive "
-            "(Id: %v, Delta: %v)",
-            Id_,
-            delta);
+        YT_TLOG_DEBUG_IF(enableDetailedLogs, "Unable to increase local resource usage precommit because element is not alive")
+            .With("Id", Id_)
+            .With("Delta", delta);
 
         return false;
     }
@@ -161,12 +157,10 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitUnsafe(
 
     ResourceUsagePrecommit_ += delta;
 
-    YT_LOG_DEBUG_IF(enableDetailedLogs,
-        "Successfully increased local resource usage precommit "
-        "(Id: %v, Delta: %v, ResourceUsagePrecommit: %v)",
-        Id_,
-        delta,
-        ResourceUsagePrecommit_);
+    YT_TLOG_DEBUG_IF(enableDetailedLogs, "Successfully increased local resource usage precommit")
+        .With("Id", Id_)
+        .With("Delta", delta)
+        .With("ResourceUsagePrecommit", ResourceUsagePrecommit_);
 
     if (Kind_ == EResourceTreeElementKind::Operation) {
         YT_VERIFY(Dominates(ResourceUsagePrecommit_, TJobResources()));

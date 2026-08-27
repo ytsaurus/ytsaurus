@@ -134,7 +134,7 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoInitialize()
 {
-    YT_LOG_INFO("Starting scheduler");
+    YT_TLOG_INFO("Starting scheduler");
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
@@ -203,14 +203,17 @@ void TBootstrap::DoInitialize()
 
 void TBootstrap::DoStart()
 {
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+    YT_TLOG_INFO("Listening for HTTP requests")
+        .With("Port", Config_->MonitoringPort);
     HttpServer_->Start();
     if (HttpsServer_) {
-        YT_LOG_INFO("Listening for HTTPS requests (Port: %v)", HttpsServer_->GetAddress().GetPort());
+        YT_TLOG_INFO("Listening for HTTPS requests")
+            .With("Port", HttpsServer_->GetAddress().GetPort());
         HttpsServer_->Start();
     }
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+    YT_TLOG_INFO("Listening for RPC requests")
+        .With("Port", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 }

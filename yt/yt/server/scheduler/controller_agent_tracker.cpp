@@ -108,7 +108,7 @@ void ProcessScheduleAllocationMailboxes(
         .WithTag("RequestId", context->GetRequestId())
         .WithTag("IncarnationId", request->agent_id());
 
-    YT_LOG_DEBUG("Processing schedule allocation mailboxes");
+    YT_TLOG_DEBUG("Processing schedule allocation mailboxes");
 
     agent->GetScheduleAllocationResponsesInbox()->HandleIncoming(
         request->mutable_agent_to_scheduler_schedule_allocation_responses(),
@@ -128,7 +128,7 @@ void ProcessScheduleAllocationMailboxes(
             ToProto(protoRequest, *request);
         });
 
-    YT_LOG_DEBUG("Schedule allocation mailboxes processed");
+    YT_TLOG_DEBUG("Schedule allocation mailboxes processed");
 }
 
 void ProcessScheduleAllocationResponses(
@@ -142,7 +142,7 @@ void ProcessScheduleAllocationResponses(
         .WithTag("RequestId", context->GetRequestId())
         .WithTag("IncarnationId", context->Request().agent_id());
 
-    YT_LOG_DEBUG("Processing schedule allocation responses");
+    YT_TLOG_DEBUG("Processing schedule allocation responses");
 
     std::vector<TFuture<void>> futures;
     for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
@@ -161,22 +161,18 @@ void ProcessScheduleAllocationResponses(
                     auto expectedControllerEpoch = nodeShard->GetOperationControllerEpoch(operationId);
 
                     if (controllerEpoch != expectedControllerEpoch) {
-                        YT_LOG_DEBUG(
-                            "Received allocation schedule result with unexpected controller epoch; result is ignored "
-                            "(OperationId: %v, AllocationId: %v, ControllerEpoch: %v, ExpectedControllerEpoch: %v)",
-                            operationId,
-                            allocationId,
-                            controllerEpoch,
-                            expectedControllerEpoch);
+                        YT_TLOG_DEBUG("Received allocation schedule result with unexpected controller epoch; result is ignored")
+                            .With("OperationId", operationId)
+                            .With("AllocationId", allocationId)
+                            .With("ControllerEpoch", controllerEpoch)
+                            .With("ExpectedControllerEpoch", expectedControllerEpoch);
                         continue;
                     }
 
                     if (nodeShard->IsOperationControllerTerminated(operationId)) {
-                        YT_LOG_DEBUG(
-                            "Received allocation schedule result for operation whose controller is terminated; "
-                            "result is ignored (OperationId: %v, AllocationId: %v)",
-                            operationId,
-                            allocationId);
+                        YT_TLOG_DEBUG("Received allocation schedule result for operation whose controller is terminated; result is ignored")
+                            .With("OperationId", operationId)
+                            .With("AllocationId", allocationId);
                         continue;
                     }
 
@@ -195,7 +191,7 @@ void ProcessScheduleAllocationResponses(
             })
             .Via(dtorInvoker));
 
-    YT_LOG_DEBUG("Schedule allocation responses are processed");
+    YT_TLOG_DEBUG("Schedule allocation responses are processed");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,10 +257,9 @@ public:
         auto controllerAgentTag = operation->GetRuntimeParameters()->ControllerAgentTag;
 
         if (!AgentTagsFetched_ || TagsWithTooFewAgents_.contains(controllerAgentTag)) {
-            YT_LOG_INFO(
-                "Failed to pick agent since number of agent with matching tag is too low (OperationId: %v, ControllerAgentTag: %v)",
-                operation->GetId(),
-                controllerAgentTag);
+            YT_TLOG_INFO("Failed to pick agent since number of agent with matching tag is too low")
+                .With("OperationId", operation->GetId())
+                .With("ControllerAgentTag", controllerAgentTag);
 
             return nullptr;
         }
@@ -322,9 +317,10 @@ public:
                     auto memoryStatistics = agent->GetMemoryStatistics();
                     if (!memoryStatistics) {
                         ++missingMemoryStatisticsCount;
-                        YT_LOG_WARNING("Controller agent skipped since it did not report memory information "
-                            "and memory usage balanced pick strategy used (AgentId: %v)",
-                            agent->GetId());
+                        YT_TLOG_WARNING(
+                            "Controller agent skipped since it did not report memory information "
+                            "and memory usage balanced pick strategy used")
+                            .With("AgentId", agent->GetId());
                         continue;
                     }
 
@@ -353,17 +349,13 @@ public:
         }
 
         if (!pickedAgent) {
-            YT_LOG_INFO(
-                "Failed to pick agent for operation ("
-                "OperationId: %v, ControllerAgentTag: %v, "
-                "NonMatchingTagCount: %v, NonRegisteredCount: %v, "
-                "MissingMemoryStatisticsCount: %v, NotEnoughMemoryCount: %v)",
-                operation->GetId(),
-                controllerAgentTag,
-                nonMatchingTagCount,
-                nonRegisteredCount,
-                missingMemoryStatisticsCount,
-                notEnoughMemoryCount);
+            YT_TLOG_INFO("Failed to pick agent for operation")
+                .With("OperationId", operation->GetId())
+                .With("ControllerAgentTag", controllerAgentTag)
+                .With("NonMatchingTagCount", nonMatchingTagCount)
+                .With("NonRegisteredCount", nonRegisteredCount)
+                .With("MissingMemoryStatisticsCount", missingMemoryStatisticsCount)
+                .With("NotEnoughMemoryCount", notEnoughMemoryCount);
         }
 
         return pickedAgent;
@@ -378,10 +370,10 @@ public:
         YT_VERIFY(agent->Operations().insert(operation).second);
         operation->SetAgent(agent.Get());
 
-        YT_LOG_INFO("Operation assigned to agent (AgentId: %v, Tags: %v, OperationId: %v)",
-            agent->GetId(),
-            agent->GetTags(),
-            operation->GetId());
+        YT_TLOG_INFO("Operation assigned to agent")
+            .With("AgentId", agent->GetId())
+            .With("Tags", agent->GetTags())
+            .With("OperationId", operation->GetId());
     }
 
 
@@ -394,9 +386,10 @@ public:
         auto traceContext = NTracing::GetOrCreateTraceContext("HandleAgentFailure");
         auto guard = NTracing::TCurrentTraceContextGuard(std::move(traceContext));
 
-        YT_LOG_WARNING(error, "Agent failed; unregistering (AgentId: %v, IncarnationId: %v)",
-            agent->GetId(),
-            agent->GetIncarnationId());
+        YT_TLOG_WARNING("Agent failed; unregistering")
+            .With("AgentId", agent->GetId())
+            .With("IncarnationId", agent->GetIncarnationId())
+            .With(error);
 
         Bootstrap_
             ->GetControlInvoker(EControlQueue::AgentTracker)
@@ -418,9 +411,9 @@ public:
 
         EraseOrCrash(agent->Operations(), operation);
 
-        YT_LOG_DEBUG("Operation unregistered from agent (AgentId: %v, OperationId: %v)",
-            agent->GetId(),
-            operation->GetId());
+        YT_TLOG_DEBUG("Operation unregistered from agent")
+            .With("AgentId", agent->GetId())
+            .With("OperationId", operation->GetId());
     }
 
     TControllerAgentTrackerConfigPtr GetConfig() const
@@ -524,7 +517,7 @@ public:
                 incarnationId);
         }
         if (agentState == EControllerAgentState::WaitingForInitialHeartbeat) {
-            YT_LOG_INFO("Agent registration confirmed by heartbeat");
+            YT_TLOG_INFO("Agent registration confirmed by heartbeat");
             agent->SetState(EControllerAgentState::Registered);
         }
 
@@ -564,11 +557,10 @@ public:
                                 treeIdToOperationTotalTimeDelta.emplace(treeId, metrics.Values()[EJobMetricName::TotalTime]);
                             }
 
-                            YT_LOG_DEBUG(
-                                "Unknown operation is running at agent; unregister requested (AgentId: %v, OperationId: %v, TreeIdToOperationTotalTimeDelta: %v)",
-                                agent->GetId(),
-                                operationId,
-                                treeIdToOperationTotalTimeDelta);
+                            YT_TLOG_DEBUG("Unknown operation is running at agent; unregister requested")
+                                .With("AgentId", agent->GetId())
+                                .With("OperationId", operationId)
+                                .With("TreeIdToOperationTotalTimeDelta", treeIdToOperationTotalTimeDelta);
 
                             // NB: Some operations might be requested to be unregistered twice
                             // if this callback is too slow.
@@ -634,7 +626,7 @@ public:
                 // can in fact throw if agent pointer expires. However, we have it in our closure meaning that
                 // we are guaranteed to have agent alive at least while this lambda is alive.
                 RunNoExcept([&] {
-                    YT_LOG_DEBUG("Handling operation events inbox");
+                    YT_TLOG_DEBUG("Handling operation events inbox");
                     for (auto& protoEvent : eventsToProcess) {
                         auto eventType = static_cast<EAgentToSchedulerOperationEventType>(protoEvent.event_type());
                         auto operationId = FromProto<TOperationId>(protoEvent.operation_id());
@@ -647,11 +639,10 @@ public:
                         }
 
                         if (operation->ControllerEpoch() != controllerEpoch) {
-                            YT_LOG_DEBUG(
-                                "Received operation event with unexpected controller epoch; ignored (OperationId: %v, ControllerEpoch: %v, EventType: %v)",
-                                operationId,
-                                controllerEpoch,
-                                eventType);
+                            YT_TLOG_DEBUG("Received operation event with unexpected controller epoch; ignored")
+                                .With("OperationId", operationId)
+                                .With("ControllerEpoch", controllerEpoch)
+                                .With("EventType", eventType);
                             continue;
                         }
 
@@ -748,7 +739,7 @@ public:
                         }
                     }
 
-                    YT_LOG_DEBUG("Operation events inbox handled");
+                    YT_TLOG_DEBUG("Operation events inbox handled");
                 });
             }));
     }
@@ -822,9 +813,9 @@ public:
 
                 state = existingAgent->GetState();
                 if (state == EControllerAgentState::Registered || state == EControllerAgentState::WaitingForInitialHeartbeat) {
-                    YT_LOG_INFO("Kicking out agent due to id conflict (AgentId: %v, ExistingIncarnationId: %v)",
-                        agentId,
-                        existingAgent->GetIncarnationId());
+                    YT_TLOG_INFO("Kicking out agent due to id conflict")
+                        .With("AgentId", agentId)
+                        .With("ExistingIncarnationId", existingAgent->GetIncarnationId());
                     UnregisterAgent(existingAgent, std::move(agentGuard));
                 }
             }
@@ -846,10 +837,10 @@ public:
             auto address = NNodeTrackerClient::GetAddressOrThrow(addresses, Bootstrap_->GetLocalNetworks());
             auto channel = Bootstrap_->GetClient()->GetChannelFactory()->CreateChannel(address);
 
-            YT_LOG_INFO("Registering agent (AgentId: %v, Addresses: %v, Tags: %v)",
-                agentId,
-                addresses,
-                tags);
+            YT_TLOG_INFO("Registering agent")
+                .With("AgentId", agentId)
+                .With("Addresses", addresses)
+                .With("Tags", tags);
 
             auto agent = New<TControllerAgent>(
                 agentId,
@@ -868,9 +859,8 @@ public:
             return agent;
         }();
 
-        YT_LOG_INFO(
-            "Starting agent incarnation transaction (AgentId: %v)",
-            agentId);
+        YT_TLOG_INFO("Starting agent incarnation transaction")
+            .With("AgentId", agentId);
 
         WaitFor(
             BIND(&TImpl::DoRegisterAgent, MakeStrong(this), agent)
@@ -931,7 +921,7 @@ public:
                     .WithTag("RequestId", context->GetRequestId())
                     .WithTag("IncarnationId", request->agent_id());
 
-                YT_LOG_DEBUG("Group running allocation updates by node shards");
+                YT_TLOG_DEBUG("Group running allocation updates by node shards");
 
                 std::vector<TNodeShardAllocationUpdates> groupedAllocationUpdates(nodeManager->GetNodeShardCount());
 
@@ -943,12 +933,12 @@ public:
                         groupedAllocationUpdates[shardId].RunningAllocationStatisticsUpdates.push_back(protoStatisticsUpdate);
                     });
 
-                YT_LOG_DEBUG("Running allocation updates grouped by node shards");
+                YT_TLOG_DEBUG("Running allocation updates grouped by node shards");
 
                 agent->GetRunningAllocationStatisticsUpdatesInbox()->ReportStatus(
                     response->mutable_agent_to_scheduler_running_allocation_statistics_updates());
 
-                YT_LOG_DEBUG("Handling allocation events outbox");
+                YT_TLOG_DEBUG("Handling allocation events outbox");
 
                 agent->GetAllocationEventsOutbox()->HandleStatus(
                     request->scheduler_to_agent_allocation_events());
@@ -956,9 +946,9 @@ public:
                     response->mutable_scheduler_to_agent_allocation_events(),
                     config->MaxMessageAllocationEventCount);
 
-                YT_LOG_DEBUG("Allocation events outbox handled");
+                YT_TLOG_DEBUG("Allocation events outbox handled");
 
-                YT_LOG_DEBUG("Handling operation events outbox");
+                YT_TLOG_DEBUG("Handling operation events outbox");
 
                 agent->GetOperationEventsOutbox()->HandleStatus(
                     request->scheduler_to_agent_operation_events());
@@ -969,7 +959,7 @@ public:
                         ToProto(protoEvent->mutable_operation_id(), event.OperationId);
                     });
 
-                YT_LOG_DEBUG("Operation events outbox handled");
+                YT_TLOG_DEBUG("Operation events outbox handled");
 
                 return groupedAllocationUpdates;
             })
@@ -986,9 +976,9 @@ public:
                     const auto Logger = SchedulerLogger()
                         .WithTag("RequestId", context->GetRequestId())
                         .WithTag("IncarnationId", request->agent_id());
-                    YT_LOG_DEBUG("Filling exec node descriptors");
+                    YT_TLOG_DEBUG("Filling exec node descriptors");
                     response->Attachments().push_back(scheduler->GetCachedProtoExecNodeDescriptors());
-                    YT_LOG_DEBUG("Exec node descriptors filled");
+                    YT_TLOG_DEBUG("Exec node descriptors filled");
                 })
                 .ThrowOnError();
         }
@@ -1004,7 +994,7 @@ public:
                     .WithTag("RequestId", context->GetRequestId())
                     .WithTag("IncarnationId", context->Request().agent_id());
 
-                YT_LOG_DEBUG("Processing allocation events");
+                YT_TLOG_DEBUG("Processing allocation events");
 
                 for (int shardId = 0; shardId < std::ssize(nodeShards); ++shardId) {
                     nodeShardInvokers[shardId]->Invoke(
@@ -1033,7 +1023,7 @@ public:
                             }
                         }));
                 }
-                YT_LOG_DEBUG("Allocation events are processed");
+                YT_TLOG_DEBUG("Allocation events are processed");
             })
             .ThrowOnError();
 
@@ -1160,10 +1150,9 @@ private:
             BIND_NO_PROPAGATE(&TImpl::OnAgentIncarnationTransactionAborted, MakeWeak(this), MakeWeak(agent))
                 .Via(GetCancelableControlInvoker()));
 
-        YT_LOG_INFO(
-            "Agent incarnation transaction started (AgentId: %v, IncarnationId: %v)",
-            agent->GetId(),
-            agent->GetIncarnationId());
+        YT_TLOG_INFO("Agent incarnation transaction started")
+            .With("AgentId", agent->GetId())
+            .With("IncarnationId", agent->GetIncarnationId());
     }
 
     void UnregisterAgent(const TControllerAgentPtr& agent, TGuard<NThreading::TSpinLock>&& guard)
@@ -1175,9 +1164,9 @@ private:
             return;
         }
 
-        YT_LOG_INFO("Notify operations that agent is going to unregister (AgentId: %v, IncarnationId: %v)",
-            agent->GetId(),
-            agent->GetIncarnationId());
+        YT_TLOG_INFO("Notify operations that agent is going to unregister")
+            .With("AgentId", agent->GetId())
+            .With("IncarnationId", agent->GetIncarnationId());
 
         YT_VERIFY(agentState == EControllerAgentState::Registered || agentState == EControllerAgentState::WaitingForInitialHeartbeat);
 
@@ -1190,9 +1179,9 @@ private:
             scheduler->OnOperationAgentUnregistered(operation);
         }
 
-        YT_LOG_INFO("Aborting agent incarnation transaction (AgentId: %v, IncarnationId: %v)",
-            agent->GetId(),
-            agent->GetIncarnationId());
+        YT_TLOG_INFO("Aborting agent incarnation transaction")
+            .With("AgentId", agent->GetId())
+            .With("IncarnationId", agent->GetIncarnationId());
 
         agent->GetIncarnationTransaction()->Abort()
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
@@ -1210,9 +1199,9 @@ private:
                     return;
                 }
 
-                YT_LOG_INFO("Agent unregistered (AgentId: %v, IncarnationId: %v)",
-                    agent->GetId(),
-                    agent->GetIncarnationId());
+                YT_TLOG_INFO("Agent unregistered")
+                    .With("AgentId", agent->GetId())
+                    .With("IncarnationId", agent->GetIncarnationId());
 
                 agent->SetState(EControllerAgentState::Unregistered);
                 MutateAgentMappings([agentId = agent->GetId()] (auto& idToAgent) {
@@ -1246,9 +1235,9 @@ private:
             return;
         }
 
-        YT_LOG_WARNING("Agent heartbeat timeout; unregistering (AgentId: %v, IncarnationId: %v)",
-            agent->GetId(),
-            agent->GetIncarnationId());
+        YT_TLOG_WARNING("Agent heartbeat timeout; unregistering")
+            .With("AgentId", agent->GetId())
+            .With("IncarnationId", agent->GetIncarnationId());
 
         auto agentGuard = agent->AcquireInnerStateLock();
         UnregisterAgent(agent, std::move(agentGuard));
@@ -1263,9 +1252,10 @@ private:
             return;
         }
 
-        YT_LOG_WARNING(error, "Agent incarnation transaction aborted; unregistering (AgentId: %v, IncarnationId: %v)",
-            agent->GetId(),
-            agent->GetIncarnationId());
+        YT_TLOG_WARNING("Agent incarnation transaction aborted; unregistering")
+            .With("AgentId", agent->GetId())
+            .With("IncarnationId", agent->GetIncarnationId())
+            .With(error);
 
         auto agentGuard = agent->AcquireInnerStateLock();
         UnregisterAgent(agent, std::move(agentGuard));
@@ -1273,7 +1263,7 @@ private:
 
     void RequestControllerAgentInstances(const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& batchReq) const
     {
-        YT_LOG_INFO("Requesting controller agents list");
+        YT_TLOG_INFO("Requesting controller agents list");
 
         auto req = TYPathProxy::Get("//sys/controller_agents/instances");
         req->mutable_attributes()->add_keys("tags");
@@ -1377,7 +1367,7 @@ private:
 
         ResponseKeeper_->Start();
 
-        YT_LOG_INFO("Master connected for controller agent tracker");
+        YT_TLOG_INFO("Master connected for controller agent tracker");
     }
 
     void OnMasterDisconnected()
@@ -1388,7 +1378,7 @@ private:
 
         DoCleanup();
 
-        YT_LOG_INFO("Master disconnected for controller agent tracker");
+        YT_TLOG_INFO("Master disconnected for controller agent tracker");
     }
 
     const IInvokerPtr& GetCancelableControlInvoker()
