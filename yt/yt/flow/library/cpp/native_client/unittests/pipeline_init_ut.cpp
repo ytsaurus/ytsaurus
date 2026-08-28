@@ -98,13 +98,13 @@ TEST(TPipelineInitTest, CreatesTheLeasesTable)
         .WillByDefault(Return(MakeFuture<ITransactionPtr>(transaction)));
 
     ON_CALL(*transaction, CreateNode(_, _, _))
-        .WillByDefault(Invoke([&] (
+        .WillByDefault([&] (
             const TYPath& path,
             EObjectType /*type*/,
             const TCreateNodeOptions& /*options*/) {
             createdPaths.push_back(path);
             return MakeFuture<TNodeId>(TNodeId(TGuid::Create()));
-        }));
+        });
 
     ON_CALL(*transaction, Commit(_))
         .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));
