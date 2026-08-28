@@ -25,12 +25,12 @@ import grpc
 import pytest
 
 import datetime
-from hashlib import sha1
+import gzip
 import os.path
 import re
 import shutil
-import time
-import gzip
+
+from hashlib import sha1
 
 import requests
 import httpx
@@ -503,16 +503,14 @@ class TestRpcProxyInJobProxyMultiCluster(TestRpcProxyInJobProxyBase):
     @authors("ermolovd")
     def test_exe_node_multiproxy_mode(self):
         config = {
-            "%true": {
-                "exec_node":  {
-                    "job_controller": {
-                        "job_proxy": {
-                            "job_proxy_api_service": {
-                                "multiproxy": {
-                                    "presets": {
-                                        "default": {
-                                            "enabled_methods": "read",
-                                        }
+            "exec_node":  {
+                "job_controller": {
+                    "job_proxy": {
+                        "job_proxy_api_service": {
+                            "multiproxy": {
+                                "presets": {
+                                    "default": {
+                                        "enabled_methods": "read",
                                     }
                                 }
                             }
@@ -521,8 +519,7 @@ class TestRpcProxyInJobProxyMultiCluster(TestRpcProxyInJobProxyBase):
                 },
             },
         }
-        set("//sys/cluster_nodes/@config", config)
-        time.sleep(5)
+        update_nodes_dynamic_config(config)
 
         set("//tmp/name", "remote", driver=self.remote_driver)
         set("//tmp/name", "local")
