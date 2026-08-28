@@ -24,6 +24,8 @@ ENDIF()
 
 SET(
     SOURCE
+    node_id_allocator.cpp
+    node_id_allocator.h
     nodeid_assigner.cpp
     nodeid_assigner.h
     resource_manager.cpp

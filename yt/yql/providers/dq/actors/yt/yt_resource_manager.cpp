@@ -2,10 +2,16 @@
 #include "node_id_allocator.h"
 
 #include <util/thread/pool.h>
+
+#include <util/generic/algorithm.h>
 #include <util/generic/size_literals.h>
+#include <util/generic/utility.h>
+
 #include <util/string/builder.h>
+#include <util/string/cast.h>
 #include <util/string/join.h>
 #include <util/string/strip.h>
+
 #include <util/system/env.h>
 
 #include <yql/essentials/utils/yql_panic.h>
@@ -25,6 +31,8 @@
 
 #include <library/cpp/protobuf/util/pb_io.h>
 
+#include <limits>
+
 namespace NYql {
 
 #define RM_LOG(A) YQL_CLOG(A, ProviderDq) << ClusterName << ": "
@@ -39,6 +47,8 @@ namespace NYql {
         const TString YT_BACKEND("YT_BACKEND");
         const TString YT_FORCE_IPV4("YT_FORCE_IPV4");
     }
+
+    constexpr TStringBuf YqlWorkerTaskPrefix = "yql_worker_";
 
     using namespace NActors;
 
@@ -153,6 +163,19 @@ namespace NYql {
             : TRichActor<TYtResourceManager>(&TYtResourceManager::Follower)
             , Options(options)
             , Counters(Options.Counters)
+            , RecoveryQuarantinedRecordCount(Counters->GetCounter("recovery_quarantined_record_count"))
+            , RecoveryConflictingClaimCount(Counters->GetCounter("recovery_conflicting_claim_count"))
+            , QuarantinedOwnerCount(Counters->GetCounter("quarantined_owner_count"))
+            , QuarantinedClaimCount(Counters->GetCounter("quarantined_claim_count"))
+            , CapacityBlockedByQuarantine(Counters->GetCounter("capacity_blocked_by_quarantine"))
+            , OverlappingClaimCount(Counters->GetCounter("overlapping_claim_count"))
+            , IncompleteQuarantinedClaimRecordCount(Counters
+                ->GetCounter("incomplete_quarantined_claim_record_count"))
+            , PendingOperationIdUpdateCount(Counters->GetCounter("pending_operation_id_update_count"))
+            , UnknownStartOutcomeCount(Counters
+                ->GetCounter("unknown_start_outcome_count", /*derivative*/ true))
+            , UnknownStartOutcomeClaimCount(Counters
+                ->GetCounter("unknown_start_outcome_claim_count", /*derivative*/ true))
             , ClusterName(Options.YtBackend.GetClusterName())
             , ClusterOperationsPath(Options.YtBackend.GetPrefix() + "/operations/" + Options.YtBackend.GetClusterName())
             , Coordinator(coordinator)
@@ -160,9 +183,12 @@ namespace NYql {
             , CoordinatorWrapper(Coordinator->GetWrapper())
             , NodeIdAllocator(Options.YtBackend.GetMinNodeId(), Options.YtBackend.GetMaxNodeId())
         {
+            ResetHealthCounters();
         }
 
     private:
+        struct TRecoveredOperation;
+
         // States: Follower <-> (ListOperations -> Leader)
 
         void StartFollower(TEvBecomeFollower::TPtr& ev, const TActorContext& ctx) {
@@ -173,34 +199,36 @@ namespace NYql {
 
             RM_LOG(INFO) << "Become follower, leader=" << leaderAttributes.at(NCommonAttrs::ACTOR_NODEID_ATTR).AsUint64()
                          << " RunningOperations=" << RunningOperations.size()
-                         << " MutationsCache=" << MutationsCache.size()
                          << " PendingNodeReleases=" << PendingNodeReleases.size();
-            if (!MutationsCache.empty()) {
-                for (const auto& [mid, nodes] : MutationsCache) {
-                    RM_LOG(WARN) << "Dropping stale MutationsCache entry on follower transition: mutation=" << mid << " nodes=[" << JoinSeq(",", nodes) << "]";
-                }
-                MutationsCache.clear();
-            }
             for (const auto& [k, v] : RunningOperations) {
                 UnregisterChild(v.ActorId);
             }
             RunningOperations.clear();
+            PendingStartOperationRequests.clear();
+            PendingOperationIdUpdates.clear();
+            OperationIdUpdateRequests.clear();
+            ListOperationsRequestId.Clear();
+            RecoveredOperations.clear();
+            ClaimReconciliationRequests.clear();
+            QuarantinedOwners.clear();
+            QuarantinedClaims = 0;
+            IncompleteQuarantinedClaimRecords = 0;
             NodeIdAllocator.Clear();
             PendingNodeReleases.clear();
+            ResetHealthCounters();
             Become(&TYtResourceManager::Follower);
         }
 
         void StartLeader(TEvBecomeLeader::TPtr& ev, const TActorContext& ctx) {
             Y_UNUSED(ctx);
-            RM_LOG(INFO) << "Become leader, epoch=" << ev->Get()->LeaderEpoch
-                         << " MutationsCache=" << MutationsCache.size();
-            for (const auto& [mid, nodes] : MutationsCache) {
-                RM_LOG(DEBUG) << "  MutationsCache entry: mutation=" << mid << " nodes=[" << JoinSeq(",", nodes) << "]";
-            }
+            RM_LOG(INFO) << "Become leader, epoch=" << ev->Get()->LeaderEpoch;
 
             LeaderTransactionId = NYT::NObjectClient::TTransactionId::FromString(ev->Get()->LeaderTransaction);
+            RecoveredOperations.clear();
+            ClaimReconciliationRequests.clear();
 
             ListOperations();
+            Tick();
             Become(&TYtResourceManager::ListOperationsState);
         }
 
@@ -212,8 +240,10 @@ namespace NYql {
 
             IgnoreFunc(TEvTick)
             IgnoreFunc(TEvDropOperation)
+            IgnoreFunc(TEvListNodeResponse)
             IgnoreFunc(TEvStartOperationResponse)
             IgnoreFunc(TEvCreateNodeResponse)
+            IgnoreFunc(TEvGetOperationResponse)
             IgnoreFunc(TEvSetNodeResponse)
             IgnoreFunc(TEvRemoveNodeResponse)
         })
@@ -222,9 +252,10 @@ namespace NYql {
             HFunc(TEvBecomeFollower, StartFollower)
             HFunc(TEvDropOperation, OnDropOperation)
             HFunc(TEvListNodeResponse, OnListOperations)
+            HFunc(TEvGetOperationResponse, OnClaimReconciliationResponse)
             HFunc(TEvStartOperationResponse, OnStartOperationResponse)
             HFunc(TEvRemoveNodeResponse, OnRemoveNodeResponse)
-            cFunc(TEvTick::EventType, ListOperations)
+            cFunc(TEvTick::EventType, OnRecoveryTick)
             cFunc(TEvents::TEvPoison::EventType, PassAway)
             IgnoreFunc(TEvCreateNodeResponse)
             IgnoreFunc(TEvSetNodeResponse)
@@ -234,15 +265,13 @@ namespace NYql {
             HFunc(TEvBecomeFollower, StartFollower)
             HFunc(TEvDropOperation, OnDropOperation)
             HFunc(TEvListNodeResponse, OnListResponse)
+            IgnoreFunc(TEvGetOperationResponse)
             HFunc(TEvStartOperationResponse, OnStartOperationResponse)
             cFunc(TEvents::TEvPoison::EventType, PassAway)
-            cFunc(TEvTick::EventType, [this]() {
-                ListWorkers();
-                Tick();
-            })
+            cFunc(TEvTick::EventType, OnLeaderTick)
             HFunc(TEvCreateNodeResponse, OnCreateNode)
             HFunc(TEvRemoveNodeResponse, OnRemoveNodeResponse)
-            IgnoreFunc(TEvSetNodeResponse)
+            HFunc(TEvSetNodeResponse, OnSetNodeResponse)
         })
 
         TAutoPtr<IEventHandle> AfterRegister(const TActorId& self, const TActorId& parentId) override {
@@ -258,9 +287,64 @@ namespace NYql {
             RegisterChild(Coordinator->CreateLockOnCluster(YtWrapper, Options.YtBackend.GetPrefix(), Options.LockName, false));
         }
 
+        void OnRecoveryTick()
+        {
+            if (!ListOperationsRequestId && ClaimReconciliationRequests.empty()) {
+                ListOperations();
+            }
+            Tick();
+        }
+
+        void OnLeaderTick()
+        {
+            RetryOperationIdUpdates();
+            ListWorkers();
+            Tick();
+        }
+
         void Tick() {
             TimerCookieHolder.Reset(NActors::ISchedulerCookie::Make2Way());
             Schedule(Options.TickInterval, new TEvTick(), TimerCookieHolder.Get());
+        }
+
+        void AddQuarantinedClaims(const TString& owner, i64 claimCount)
+        {
+            Y_ABORT_UNLESS(!owner.empty());
+            Y_ABORT_UNLESS(claimCount > 0);
+            if (QuarantinedOwners.insert(owner).second) {
+                QuarantinedClaims += claimCount;
+            }
+        }
+
+        void UpdateHealthCounters()
+        {
+            const i64 claimCount = NodeIdAllocator.GetClaimCount();
+            const i64 managedClaimCount = claimCount - QuarantinedClaims;
+            Y_ABORT_UNLESS(managedClaimCount >= 0);
+
+            // Measures only capacity that would be available without quarantined claims.
+            const i64 maxJobs = Options.YtBackend.GetMaxJobs();
+            const i64 availableWithoutQuarantine = Max<i64>(maxJobs - managedClaimCount, 0);
+            const i64 blockedCapacity = Min(QuarantinedClaims, availableWithoutQuarantine);
+
+            *QuarantinedOwnerCount = ssize(QuarantinedOwners);
+            *QuarantinedClaimCount = QuarantinedClaims;
+            *CapacityBlockedByQuarantine = blockedCapacity;
+            *OverlappingClaimCount = claimCount - NodeIdAllocator.GetClaimedNodeIdCount();
+            *IncompleteQuarantinedClaimRecordCount = IncompleteQuarantinedClaimRecords;
+            *PendingOperationIdUpdateCount = ssize(PendingOperationIdUpdates);
+        }
+
+        void ResetHealthCounters()
+        {
+            *RecoveryQuarantinedRecordCount = 0;
+            *RecoveryConflictingClaimCount = 0;
+            *QuarantinedOwnerCount = 0;
+            *QuarantinedClaimCount = 0;
+            *CapacityBlockedByQuarantine = 0;
+            *OverlappingClaimCount = 0;
+            *IncompleteQuarantinedClaimRecordCount = 0;
+            *PendingOperationIdUpdateCount = 0;
         }
 
         void CreateCoreTable(ui32 tableNumber)
@@ -307,57 +391,45 @@ namespace NYql {
                 return;
             }
 
-            int totalJobs = 0;
             for (const auto& [k, v] : RunningOperations) {
-                totalJobs += v.Nodes.size();
                 RM_LOG(DEBUG) << "Operation: " << k << " " << v.Nodes.size() << " ";
             }
+            const i64 potentialJobCount = NodeIdAllocator.GetClaimCount();
+            const i64 maxJobs = Options.YtBackend.GetMaxJobs();
 
-            RM_LOG(DEBUG) << "Running/Max jobs: " << totalJobs << "/" << Options.YtBackend.GetMaxJobs();
+            RM_LOG(DEBUG) << "Potential/Max jobs: " << potentialJobCount << "/" << maxJobs;
 
-            int needToStart = Options.YtBackend.GetMaxJobs() - totalJobs;
+            const i64 needToStart = maxJobs - potentialJobCount;
             RM_LOG(DEBUG) << "Need to start: " << needToStart;
             if (needToStart > 0) {
                 StartOperations(needToStart, ctx);
             }
         }
 
-        void DropRunningOperation(const TString& mutationId, const TVector<ui32>& preserve = {}) {
+        void DropRunningOperation(const TString& mutationId) {
+            ForgetOperationIdUpdate(mutationId);
+
             TVector<ui32> currentNodes;
             const auto it = RunningOperations.find(mutationId);
             if (it != RunningOperations.end()) {
                 currentNodes = it->second.Nodes;
                 RM_LOG(DEBUG) << "DropRunningOperation mutation=" << mutationId
                               << " operationId=" << it->second.OperationId
-                              << " node_ids=[" << JoinSeq(",", currentNodes) << "]"
-                              << (preserve.empty() ? " action=remove_coordinator_node" : " action=preserve_in_cache");
+                              << " node_ids=[" << JoinSeq(",", currentNodes) << "]";
                 RunningOperations.erase(it);
             } else {
-                RM_LOG(DEBUG) << "DropRunningOperation mutation=" << mutationId << " (not in RunningOperations)"
-                              << (preserve.empty() ? " action=remove_coordinator_node" : " action=preserve_in_cache");
+                RM_LOG(DEBUG) << "DropRunningOperation mutation=" << mutationId << " (not in RunningOperations)";
             }
 
-            if (!preserve.empty()) {
-                // Freeing current nodes then re-allocating preserve nodes (may be same set).
-                NodeIdAllocator.Deallocate(currentNodes);
-                MutationsCache[mutationId] = preserve;
-                NodeIdAllocator.Allocate(preserve);
-                RM_LOG(WARN) << "Operation in unknown state, preserve mutation=" << mutationId
-                             << " node_ids=[" << JoinSeq(",", preserve) << "] MutationsCache.size=" << MutationsCache.size();
-            } else {
-                // Do NOT free node_ids yet — they stay allocated until the operation node
-                // is confirmed removed from Cypress. This prevents a new operation from reusing
-                // the same node_ids while the old operation node is still in Cypress
-                // (which would happen if TEvRemoveNode fails silently).
-                auto removePath = ClusterOperationsPath + "/" + mutationId;
-                RM_LOG(DEBUG) << "Removing operation node " << removePath
-                              << " LeaderTxn=" << ToString(LeaderTransactionId)
-                              << " deferring release of node_ids=[" << JoinSeq(",", currentNodes) << "]";
-                NYT::NApi::TRemoveNodeOptions removeNodeOptions;
-                removeNodeOptions.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
-                PendingNodeReleases[YtRequestId] = {mutationId, currentNodes};
-                Send(YtWrapper, new TEvRemoveNode(YtRequestId++, removePath, removeNodeOptions));
-            }
+            auto removePath = ClusterOperationsPath + "/" + mutationId;
+            RM_LOG(DEBUG) << "Removing operation node " << removePath
+                          << " LeaderTxn=" << ToString(LeaderTransactionId)
+                          << " deferring release of node_ids=[" << JoinSeq(",", currentNodes) << "]";
+            NYT::NApi::TRemoveNodeOptions removeNodeOptions;
+            removeNodeOptions.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
+            removeNodeOptions.Force = true;
+            PendingNodeReleases[YtRequestId] = {mutationId, currentNodes};
+            Send(YtWrapper, new TEvRemoveNode(YtRequestId++, removePath, removeNodeOptions));
         }
 
         void OnRemoveNodeResponse(TEvRemoveNodeResponse::TPtr& ev, const NActors::TActorContext&) {
@@ -375,15 +447,15 @@ namespace NYql {
             if (result.IsOK()) {
                 RM_LOG(DEBUG) << "Operation node removed: mutation=" << mutationId
                               << " freeing node_ids=[" << JoinSeq(",", nodeIds) << "]";
-                NodeIdAllocator.Deallocate(nodeIds);
+                if (!NodeIdAllocator.Release(mutationId)) {
+                    RM_LOG(ERROR) << "Cannot release node IDs for mutation=" << mutationId;
+                }
+                UpdateHealthCounters();
             } else {
                 RM_LOG(ERROR) << "OPERATION NODE REMOVE FAILED: mutation=" << mutationId
                               << " node_ids=[" << JoinSeq(",", nodeIds) << "] remain blocked until next epoch"
                               << " LeaderTxn=" << ToString(LeaderTransactionId)
                               << " error=" << ToString(result);
-                // node_ids intentionally left allocated — the operation node may still exist in
-                // Cypress with these IDs. They will be freed by NodeIdAllocator.Clear() when
-                // leadership is lost, and the new leader will re-evaluate via OnListOperations.
             }
         }
 
@@ -393,6 +465,13 @@ namespace NYql {
             auto mutationId = ev->Get()->MutationId;
             auto maybeOperation = RunningOperations.find(mutationId);
             if (maybeOperation != RunningOperations.end()) {
+                if (ev->Sender != maybeOperation->second.ActorId ||
+                    operationId != maybeOperation->second.OperationId)
+                {
+                    RM_LOG(WARN) << "Ignoring stale operation callback " << operationId << "|" << mutationId;
+                    return;
+                }
+
                 UnregisterChild(maybeOperation->second.ActorId);
 
                 RM_LOG(DEBUG) << "Stop operation " << operationId << "|" << mutationId;
@@ -412,8 +491,245 @@ namespace NYql {
             }
         }
 
+        void SetClaimError(TRecoveredOperation* operation, TString error) const
+        {
+            if (operation->ClaimError.empty()) {
+                operation->ClaimError = std::move(error);
+            }
+        }
+
+        void ParseRecoveredClaim(const NYT::TNode& opNode, TRecoveredOperation* operation) const
+        {
+            try {
+                operation->Owner = opNode.AsString();
+                if (operation->Owner.empty()) {
+                    SetClaimError(operation, "owner is empty");
+                    return;
+                }
+
+                const auto& attributes = opNode.GetAttributes().AsMap();
+                const auto operationSizeIt = attributes.find(NCommonAttrs::OPERATIONSIZE_ATTR);
+                if (operationSizeIt == attributes.end()) {
+                    SetClaimError(operation, "operation size is missing");
+                } else {
+                    try {
+                        const i64 operationSize = operationSizeIt->second.IntCast<i64>();
+                        if (operationSize <= 0) {
+                            SetClaimError(operation, TStringBuilder() << "operation size " << operationSize
+                                << " is not positive");
+                        } else {
+                            operation->OperationSize = operationSize;
+                        }
+                    } catch (...) {
+                        SetClaimError(operation, TStringBuilder() << "operation size is invalid: "
+                            << CurrentExceptionMessage());
+                    }
+                }
+
+                const auto nodeIdsIt = attributes.find(NCommonAttrs::ACTOR_NODEID_ATTR);
+                if (nodeIdsIt == attributes.end()) {
+                    SetClaimError(operation, "node IDs are missing");
+                    return;
+                }
+
+                const auto& nodeList = nodeIdsIt->second.AsList();
+                if (nodeList.empty()) {
+                    SetClaimError(operation, "node ID list is empty");
+                    return;
+                }
+
+                THashSet<ui32> uniqueNodeIds;
+                uniqueNodeIds.reserve(nodeList.size());
+                operation->Nodes.reserve(nodeList.size());
+                for (const auto& node : nodeList) {
+                    try {
+                        const ui64 nodeId = node.IntCast<ui64>();
+                        if (nodeId > std::numeric_limits<ui32>::max()) {
+                            SetClaimError(operation, TStringBuilder() << "node ID " << nodeId << " does not fit ui32");
+                            continue;
+                        }
+
+                        const auto typedNodeId = static_cast<ui32>(nodeId);
+                        if (!uniqueNodeIds.insert(typedNodeId).second) {
+                            SetClaimError(operation, TStringBuilder() << "node ID " << nodeId << " is duplicated");
+                            continue;
+                        }
+
+                        operation->Nodes.push_back(typedNodeId);
+                    } catch (...) {
+                        SetClaimError(operation, TStringBuilder() << "node ID " << NYT::NodeToYsonString(node)
+                            << " is not an unsigned integer: " << CurrentExceptionMessage());
+                    }
+                }
+
+                if (operation->OperationSize && *operation->OperationSize != ssize(operation->Nodes)) {
+                    SetClaimError(operation, TStringBuilder() << "operation size " << *operation->OperationSize
+                        << " does not match node ID count " << ssize(operation->Nodes));
+                }
+            } catch (...) {
+                SetClaimError(operation, TStringBuilder() << "cannot parse record "
+                    << NYT::NodeToYsonString(opNode) << ": " << CurrentExceptionMessage());
+            }
+        }
+
+        void ParseRecoveredMetadata(const NYT::TNode& opNode, TRecoveredOperation* operation) const
+        {
+            auto setMetadataError = [&] (TString error) {
+                if (operation->MetadataError.empty()) {
+                    operation->MetadataError = std::move(error);
+                }
+            };
+
+            try {
+                const auto& attributes = opNode.GetAttributes().AsMap();
+                if (const auto operationIdIt = attributes.find(NCommonAttrs::OPERATIONID_ATTR);
+                    operationIdIt != attributes.end())
+                {
+                    const auto operationId = operationIdIt->second.AsString();
+                    NYT::TGuid operationGuid;
+                    if (NYT::TGuid::FromString(operationId, &operationGuid)) {
+                        operation->OperationId = operationId;
+                    } else {
+                        setMetadataError(TStringBuilder() << "operation ID " << operationId << " is not a GUID");
+                    }
+                }
+
+                const auto mutationIdIt = attributes.find("yql_mutation_id");
+                if (mutationIdIt == attributes.end()) {
+                    setMetadataError("mutation ID is missing");
+                } else if (mutationIdIt->second.AsString() != operation->Owner) {
+                    setMetadataError("mutation ID does not match owner");
+                }
+
+                NYT::TGuid ownerGuid;
+                if (!NYT::TGuid::FromString(operation->Owner, &ownerGuid)) {
+                    setMetadataError("owner is not a GUID");
+                }
+
+                if (const auto clusterNameIt = attributes.find(NCommonAttrs::CLUSTERNAME_ATTR);
+                    clusterNameIt != attributes.end())
+                {
+                    const auto recoveredClusterName = clusterNameIt->second.AsString();
+                    if (recoveredClusterName != ClusterName) {
+                        setMetadataError(TStringBuilder() << "cluster name " << recoveredClusterName
+                            << " does not match " << ClusterName);
+                    }
+                }
+            } catch (...) {
+                setMetadataError(CurrentExceptionMessage());
+            }
+        }
+
+        bool TryParseProvidedSpecClaim(
+            const TString& operationYson,
+            TVector<ui32>* nodes,
+            TString* error) const
+        {
+            try {
+                const auto operationNode = NYT::NodeFromYsonString(operationYson);
+                const auto& operation = operationNode.AsMap();
+                const auto providedSpecIt = operation.find("provided_spec");
+                if (providedSpecIt == operation.end()) {
+                    *error = "provided spec is missing";
+                    return false;
+                }
+
+                const auto& spec = providedSpecIt->second.AsMap();
+                const auto tasksIt = spec.find("tasks");
+                if (tasksIt == spec.end() || !tasksIt->second.IsMap() || tasksIt->second.AsMap().empty()) {
+                    *error = "provided spec has no tasks";
+                    return false;
+                }
+
+                const auto& tasks = tasksIt->second.AsMap();
+                THashSet<ui32> uniqueNodeIds;
+                TMaybe<i64> operationSize;
+                int taskCountWithOperationSize = 0;
+                nodes->clear();
+                nodes->reserve(tasks.size());
+
+                for (const auto& [taskName, taskNode] : tasks) {
+                    if (!taskName.StartsWith(YqlWorkerTaskPrefix)) {
+                        *error = TStringBuilder() << "unexpected task " << taskName;
+                        return false;
+                    }
+
+                    const auto& task = taskNode.AsMap();
+                    const auto jobCountIt = task.find("job_count");
+                    if (jobCountIt == task.end() || jobCountIt->second.IntCast<i64>() != 1) {
+                        *error = TStringBuilder() << "task " << taskName << " must have one job";
+                        return false;
+                    }
+
+                    const auto environmentIt = task.find("environment");
+                    if (environmentIt == task.end()) {
+                        *error = TStringBuilder() << "task " << taskName << " has no environment";
+                        return false;
+                    }
+                    const auto& environment = environmentIt->second.AsMap();
+                    const auto nodeIdIt = environment.find(NCommonJobVars::ACTOR_NODE_ID);
+                    if (nodeIdIt == environment.end()) {
+                        *error = TStringBuilder() << "task " << taskName << " has no actor node ID";
+                        return false;
+                    }
+
+                    const ui64 nodeId = FromString<ui64>(nodeIdIt->second.AsString());
+                    if (nodeId > std::numeric_limits<ui32>::max()) {
+                        *error = TStringBuilder() << "actor node ID " << nodeId << " does not fit ui32";
+                        return false;
+                    }
+                    const auto typedNodeId = static_cast<ui32>(nodeId);
+                    if (taskName != YqlWorkerTaskPrefix + ToString(typedNodeId)) {
+                        *error = TStringBuilder() << "task " << taskName << " does not match actor node ID " << nodeId;
+                        return false;
+                    }
+                    if (!uniqueNodeIds.insert(typedNodeId).second) {
+                        *error = TStringBuilder() << "actor node ID " << nodeId << " is duplicated";
+                        return false;
+                    }
+                    nodes->push_back(typedNodeId);
+
+                    if (const auto sizeIt = environment.find(NCommonJobVars::OPERATION_SIZE);
+                        sizeIt != environment.end())
+                    {
+                        ++taskCountWithOperationSize;
+                        const i64 currentOperationSize = FromString<i64>(sizeIt->second.AsString());
+                        if (operationSize && *operationSize != currentOperationSize) {
+                            *error = "operation size differs between tasks";
+                            return false;
+                        }
+                        operationSize = currentOperationSize;
+                    }
+                }
+
+                if (taskCountWithOperationSize != 0 && taskCountWithOperationSize != ssize(tasks)) {
+                    *error = "operation size is missing in some tasks";
+                    return false;
+                }
+                if (operationSize && *operationSize != ssize(*nodes)) {
+                    *error = TStringBuilder() << "operation size " << *operationSize
+                        << " does not match task count " << ssize(*nodes);
+                    return false;
+                }
+
+                Sort(*nodes);
+                return true;
+            } catch (...) {
+                *error = CurrentExceptionMessage();
+                return false;
+            }
+        }
+
         void OnListOperations(TEvListNodeResponse::TPtr& ev, const TActorContext& ctx)
         {
+            if (!ListOperationsRequestId ||
+                ev->Get()->RequestId != *ListOperationsRequestId)
+            {
+                RM_LOG(WARN) << "Ignoring unexpected operations list response: request_id=" << ev->Get()->RequestId;
+                return;
+            }
+            ListOperationsRequestId.Clear();
+
             auto result = std::get<0>(*ev->Get());
 
             if (!result.IsOK()) {
@@ -426,105 +742,271 @@ namespace NYql {
                 return;
             }
 
-            const auto operationsList = NYT::NodeFromYsonString(result.Value()).AsList();
+            TVector<NYT::TNode> operationsList;
+            try {
+                operationsList = NYT::NodeFromYsonString(result.Value()).AsList();
+            } catch (...) {
+                RM_LOG(ERROR) << "Cannot parse operations list; retrying on next tick"
+                              << " error=" << CurrentExceptionMessage();
+                Tick();
+                return;
+            }
             RM_LOG(DEBUG) << "OnListOperations: " << operationsList.size() << " operation nodes";
 
-            // Pass 1: attach to operations that are already running in YT (have OPERATIONID_ATTR).
-            // Running operations claim their node_ids first so that pass 2 can detect conflicts.
+            Y_ABORT_UNLESS(ClaimReconciliationRequests.empty());
+            RecoveredOperations.clear();
+            RecoveredOperations.reserve(operationsList.size());
             for (const auto& opNode : operationsList) {
-                const auto& attributes = opNode.GetAttributes().AsMap();
-
-                if (attributes.find(NCommonAttrs::OPERATIONID_ATTR) == attributes.end()) {
-                    continue; // handled in pass 2
-                }
-
-                auto mutationIdStr = attributes.find("yql_mutation_id")->second.AsString();
-                auto nodeIdsIt = attributes.find(NCommonAttrs::ACTOR_NODEID_ATTR);
-
-                if (nodeIdsIt == attributes.end()) {
-                    DropRunningOperation(mutationIdStr);
-                    continue;
-                }
-
-                const auto& nodeList = nodeIdsIt->second.AsList();
-                TVector<ui32> nodeIds;
-                nodeIds.reserve(nodeList.size());
-                for (const auto& n : nodeList) {
-                    nodeIds.push_back(n.AsUint64());
-                }
-
-                auto operationId = attributes.find(NCommonAttrs::OPERATIONID_ATTR)->second.AsString();
-                RM_LOG(DEBUG) << "Attach to " << operationId << "|" << mutationIdStr
-                              << " node_ids=[" << JoinSeq(",", nodeIds) << "]";
-
-                auto dups = NodeIdAllocator.Allocate(nodeIds);
-                if (!dups.empty()) {
-                    RM_LOG(ERROR) << "NODE_ID CONFLICT among running operations: mutation=" << mutationIdStr
-                                  << " conflicting ids=[" << JoinSeq(",", dups) << "]";
-                }
-
-                auto& status = RunningOperations[mutationIdStr];
-                status.MutationId = mutationIdStr;
-                status.OperationId = operationId;
-                status.Nodes = nodeIds;
-
-                StartOperationWatcher(operationId, mutationIdStr, ctx);
+                TRecoveredOperation operation;
+                ParseRecoveredClaim(opNode, &operation);
+                ParseRecoveredMetadata(opNode, &operation);
+                RecoveredOperations.push_back(std::move(operation));
             }
 
-            // Pass 2: start pending operations (no OPERATIONID_ATTR).
-            // If their node_ids conflict with a running operation from pass 1, the operation node
-            // is stale (TEvRemoveNode failed previously) — remove it from Cypress and skip.
-            for (const auto& opNode : operationsList) {
-                const auto& attributes = opNode.GetAttributes().AsMap();
-
-                if (attributes.find(NCommonAttrs::OPERATIONID_ATTR) != attributes.end()) {
-                    continue; // already handled in pass 1
-                }
-
-                auto mutationIdStr = attributes.find("yql_mutation_id")->second.AsString();
-                auto mutationId = NYT::TGuid::FromString(mutationIdStr);
-                auto command = attributes.find("yql_command")->second.AsString();
-                auto filePaths = attributes.find("yql_file_paths")->second;
-                auto nodeIdsIt = attributes.find(NCommonAttrs::ACTOR_NODEID_ATTR);
-
-                if (nodeIdsIt == attributes.end()) {
-                    DropRunningOperation(mutationIdStr);
+            for (int index = 0; index < ssize(RecoveredOperations); ++index) {
+                const auto& operation = RecoveredOperations[index];
+                if (operation.ClaimError.empty() ||
+                    !operation.OperationSize ||
+                    ssize(operation.Nodes) > *operation.OperationSize ||
+                    operation.OperationId.empty() ||
+                    operation.Owner.empty())
+                {
                     continue;
                 }
 
-                const auto& nodeList = nodeIdsIt->second.AsList();
-                TVector<ui32> nodeIds;
-                nodeIds.reserve(nodeList.size());
-                for (const auto& n : nodeList) {
-                    nodeIds.push_back(n.AsUint64());
-                }
-
-                RM_LOG(DEBUG) << "Pending mutation " << mutationIdStr
-                              << " node_ids=[" << JoinSeq(",", nodeIds) << "]";
-
-                if (!NodeIdAllocator.TryAllocate(nodeIds)) {
-                    // node_ids are already claimed by a running operation from pass 1.
-                    // This operation node is stale: TEvRemoveNode must have failed previously,
-                    // leaving it in Cypress while its node_ids were reused.
-                    RM_LOG(ERROR) << "STALE OPERATION NODE: mutation=" << mutationIdStr
-                                  << " node_ids=[" << JoinSeq(",", nodeIds) << "] conflict with running operation"
-                                  << " => removing stale operation node";
-                    // The stale mutation was never added to RunningOperations in this pass,
-                    // so DropRunningOperation will not touch any node_ids — they remain owned
-                    // by the running operation that claimed them in pass 1.
-                    Y_ABORT_UNLESS(!RunningOperations.contains(mutationIdStr),
-                        "Stale mutation unexpectedly found in RunningOperations");
-                    DropRunningOperation(mutationIdStr);
-                    continue;
-                }
-
-                RM_LOG(DEBUG) << "Start or attach to " << mutationIdStr;
-                StartOrAttachOperation(mutationId, nodeIds, command, filePaths);
+                NYT::NApi::TGetOperationOptions options;
+                options.Attributes = {"provided_spec"};
+                options.Timeout = TDuration::Seconds(30);
+                const ui64 requestId = YtRequestId++;
+                ClaimReconciliationRequests.emplace(requestId, index);
+                Send(YtWrapper, new TEvGetOperation(
+                    requestId,
+                    NYT::NScheduler::TOperationId(NYT::TGuid::FromString(operation.OperationId)),
+                    options));
             }
 
-            if (PendingStartOperationRequests.empty() && CurrentStateFunc() != &TYtResourceManager::Leader) {
-                Become(&TYtResourceManager::Leader);
-                Tick();
+            if (ClaimReconciliationRequests.empty()) {
+                FinishRecovery(ctx);
+            }
+        }
+
+        void OnClaimReconciliationResponse(
+            TEvGetOperationResponse::TPtr& ev,
+            const NActors::TActorContext& ctx)
+        {
+            const ui64 requestId = ev->Get()->RequestId;
+            const auto requestIt = ClaimReconciliationRequests.find(requestId);
+            if (requestIt == ClaimReconciliationRequests.end()) {
+                RM_LOG(DEBUG) << "Ignoring stale claim reconciliation response: request_id=" << requestId;
+                return;
+            }
+
+            const int operationIndex = requestIt->second;
+            ClaimReconciliationRequests.erase(requestIt);
+            Y_ABORT_UNLESS(operationIndex >= 0 && operationIndex < ssize(RecoveredOperations));
+            auto& operation = RecoveredOperations[operationIndex];
+            Y_ABORT_UNLESS(operation.OperationSize);
+            const i64 operationSize = *operation.OperationSize;
+
+            const auto result = std::get<0>(*ev->Get());
+            TVector<ui32> nodes;
+            TString error;
+            const bool claimRecovered = result.IsOK() &&
+                TryParseProvidedSpecClaim(result.Value(), &nodes, &error) &&
+                operationSize == ssize(nodes) &&
+                AllOf(operation.Nodes, [&] (ui32 nodeId) {
+                    return Find(nodes, nodeId) != nodes.end();
+                });
+            if (claimRecovered) {
+                operation.Nodes = std::move(nodes);
+                operation.ClaimError.clear();
+                RM_LOG(INFO) << "Recovered node ID claim from operation spec: owner=" << operation.Owner
+                             << " operation_id=" << operation.OperationId
+                             << " node_ids=[" << JoinSeq(",", operation.Nodes) << "]";
+            } else {
+                if (!result.IsOK()) {
+                    error = ToString(result);
+                } else if (error.empty()) {
+                    if (operationSize != ssize(nodes)) {
+                        error = TStringBuilder() << "operation spec node ID count " << ssize(nodes)
+                            << " does not match durable operation size " << operationSize;
+                    } else {
+                        error = TStringBuilder() << "operation spec node IDs [" << JoinSeq(",", nodes)
+                            << "] do not contain durable node IDs [" << JoinSeq(",", operation.Nodes) << "]";
+                    }
+                }
+                // Preserving capacity after a failed reconciliation may reuse an unknown live ID.
+                RM_LOG(ERROR) << "Cannot reconcile node ID claim: owner=" << operation.Owner
+                              << " operation_id=" << operation.OperationId
+                              << " error=" << error;
+            }
+
+            if (ClaimReconciliationRequests.empty()) {
+                FinishRecovery(ctx);
+            }
+        }
+
+        void FinishRecovery(const NActors::TActorContext& ctx)
+        {
+            Y_ABORT_UNLESS(ClaimReconciliationRequests.empty());
+
+            QuarantinedOwners.clear();
+            QuarantinedClaims = 0;
+            IncompleteQuarantinedClaimRecords = 0;
+
+            i64 conflictingClaimCount = 0;
+            for (const auto& operation : RecoveredOperations) {
+                if (operation.Owner.empty() || operation.Nodes.empty()) {
+                    continue;
+                }
+
+                const auto claimResult = NodeIdAllocator.RestoreClaim(operation.Owner, operation.Nodes);
+                Y_ABORT_UNLESS(claimResult.Valid);
+                conflictingClaimCount += ssize(claimResult.ConflictingNodeIds);
+                if (!claimResult.ConflictingNodeIds.empty()) {
+                    RM_LOG(ERROR) << "Recovered operation has unsafe node ID claims: owner=" << operation.Owner
+                                  << " node_ids=[" << JoinSeq(",", operation.Nodes) << "]"
+                                  << " conflicting_ids=[" << JoinSeq(",", claimResult.ConflictingNodeIds) << "]";
+                }
+            }
+            *RecoveryConflictingClaimCount = conflictingClaimCount;
+
+            i64 quarantinedRecordCount = 0;
+            for (const auto& operation : RecoveredOperations) {
+                TString quarantineReason;
+                if (!operation.ClaimError.empty()) {
+                    quarantineReason = operation.ClaimError;
+                    ++IncompleteQuarantinedClaimRecords;
+                } else if (!operation.MetadataError.empty()) {
+                    quarantineReason = operation.MetadataError;
+                } else if (operation.OperationId.empty()) {
+                    quarantineReason = "operation ID is missing";
+                }
+
+                if (!quarantineReason.empty()) {
+                    ++quarantinedRecordCount;
+                    if (!operation.Owner.empty() && !operation.Nodes.empty()) {
+                        AddQuarantinedClaims(operation.Owner, ssize(operation.Nodes));
+                    }
+                    RM_LOG(ERROR) << "Quarantining recovered operation: owner=" << operation.Owner
+                                  << " operation_id=" << operation.OperationId
+                                  << " node_ids=[" << JoinSeq(",", operation.Nodes) << "]"
+                                  << " reason=" << quarantineReason;
+                    continue;
+                }
+
+                RM_LOG(DEBUG) << "Attach to " << operation.OperationId << "|" << operation.Owner
+                              << " node_ids=[" << JoinSeq(",", operation.Nodes) << "]";
+
+                auto& status = RunningOperations[operation.Owner];
+                status.MutationId = operation.Owner;
+                status.OperationId = operation.OperationId;
+                status.Nodes = operation.Nodes;
+
+                StartOperationWatcher(operation.OperationId, operation.Owner, ctx);
+            }
+            *RecoveryQuarantinedRecordCount = quarantinedRecordCount;
+            UpdateHealthCounters();
+            RecoveredOperations.clear();
+
+            Become(&TYtResourceManager::Leader);
+            Tick();
+        }
+
+        void SendOperationIdUpdate(const TString& mutationId)
+        {
+            auto updateIt = PendingOperationIdUpdates.find(mutationId);
+            Y_ABORT_UNLESS(updateIt != PendingOperationIdUpdates.end());
+            Y_ABORT_UNLESS(!updateIt->second.RequestId);
+
+            const ui64 requestId = YtRequestId++;
+            updateIt->second.RequestId = requestId;
+            const auto requestInserted = OperationIdUpdateRequests.emplace(requestId, mutationId).second;
+            Y_ABORT_UNLESS(requestInserted);
+
+            NYT::NApi::TSetNodeOptions options;
+            options.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
+            Send(YtWrapper, new TEvSetNode(
+                requestId,
+                ClusterOperationsPath + "/" + mutationId + "/@" + NCommonAttrs::OPERATIONID_ATTR,
+                NYT::NYson::TYsonString(NYT::NodeToYsonString(NYT::TNode(updateIt->second.OperationId))),
+                options));
+        }
+
+        void ScheduleOperationIdUpdate(const TString& mutationId, const TString& operationId)
+        {
+            const auto updateInserted = PendingOperationIdUpdates.emplace(
+                mutationId,
+                TPendingOperationIdUpdate{.OperationId = operationId}).second;
+            Y_ABORT_UNLESS(updateInserted);
+            UpdateHealthCounters();
+            SendOperationIdUpdate(mutationId);
+        }
+
+        void ForgetOperationIdUpdate(const TString& mutationId)
+        {
+            const auto updateIt = PendingOperationIdUpdates.find(mutationId);
+            if (updateIt == PendingOperationIdUpdates.end()) {
+                return;
+            }
+            if (updateIt->second.RequestId) {
+                OperationIdUpdateRequests.erase(*updateIt->second.RequestId);
+            }
+            PendingOperationIdUpdates.erase(updateIt);
+            UpdateHealthCounters();
+        }
+
+        void RetryOperationIdUpdates()
+        {
+            for (const auto& [mutationId, update] : PendingOperationIdUpdates) {
+                if (!update.RequestId) {
+                    SendOperationIdUpdate(mutationId);
+                }
+            }
+        }
+
+        void OnSetNodeResponse(TEvSetNodeResponse::TPtr& ev, const NActors::TActorContext&)
+        {
+            const ui64 requestId = ev->Get()->RequestId;
+            const auto requestIt = OperationIdUpdateRequests.find(requestId);
+            if (requestIt == OperationIdUpdateRequests.end()) {
+                RM_LOG(DEBUG) << "Ignoring stale operation ID update response: request_id=" << requestId;
+                return;
+            }
+
+            const TString mutationId = requestIt->second;
+            OperationIdUpdateRequests.erase(requestIt);
+
+            auto updateIt = PendingOperationIdUpdates.find(mutationId);
+            if (updateIt == PendingOperationIdUpdates.end() ||
+                updateIt->second.RequestId != requestId)
+            {
+                RM_LOG(DEBUG) << "Ignoring stale operation ID update response: request_id=" << requestId
+                              << " mutation=" << mutationId;
+                return;
+            }
+
+            const auto operationIt = RunningOperations.find(mutationId);
+            if (operationIt == RunningOperations.end() ||
+                operationIt->second.OperationId != updateIt->second.OperationId)
+            {
+                PendingOperationIdUpdates.erase(updateIt);
+                UpdateHealthCounters();
+                RM_LOG(DEBUG) << "Ignoring stale operation ID update response: request_id=" << requestId
+                              << " mutation=" << mutationId;
+                return;
+            }
+
+            updateIt->second.RequestId.Clear();
+            const auto result = std::get<0>(*ev->Get());
+            if (result.IsOK()) {
+                PendingOperationIdUpdates.erase(updateIt);
+                UpdateHealthCounters();
+                RM_LOG(DEBUG) << "Operation ID persisted: mutation=" << mutationId;
+            } else {
+                RM_LOG(ERROR) << "Cannot persist operation ID; retrying on next tick: mutation=" << mutationId
+                              << " operation_id=" << operationIt->second.OperationId
+                              << " error=" << ToString(result);
             }
         }
 
@@ -533,37 +1015,34 @@ namespace NYql {
             auto requestId = ev->Get()->RequestId;
 
             auto maybeJobs = PendingStartOperationRequests.find(requestId);
-
-            Y_ABORT_UNLESS(maybeJobs != PendingStartOperationRequests.end());
+            if (maybeJobs == PendingStartOperationRequests.end()) {
+                RM_LOG(WARN) << "Ignoring stale start operation response: request_id=" << requestId
+                    << " result=" << ToString(result);
+                return;
+            }
 
             auto mutationId = maybeJobs->second.MutationId;
 
             if (!result.IsOK()) {
-                // TODO: Check response code
-                RM_LOG(WARN) << "Failed to start operation " << ToString(result);
-                DropRunningOperation(mutationId, maybeJobs->second.Nodes);
+                RunningOperations.erase(mutationId);
+                AddQuarantinedClaims(mutationId, ssize(maybeJobs->second.Nodes));
+                *UnknownStartOutcomeCount += 1;
+                *UnknownStartOutcomeClaimCount += ssize(maybeJobs->second.Nodes);
+                UpdateHealthCounters();
+                // TODO(lucius): Reconcile ambiguous Start outcomes in DQ-134.
+                RM_LOG(WARN) << "Operation start outcome is unknown; node IDs remain blocked: mutation=" << mutationId
+                             << " node_ids=[" << JoinSeq(",", maybeJobs->second.Nodes) << "]"
+                             << " error=" << ToString(result);
             } else {
                 auto operationId = ToString(result.Value());
                 Y_ABORT_UNLESS(RunningOperations.contains(mutationId));
 
                 RunningOperations[mutationId].OperationId = operationId;
-
-                NYT::NApi::TSetNodeOptions setNodeOptions;
-                setNodeOptions.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
-
-                Send(YtWrapper, new TEvSetNode(
-                    ClusterOperationsPath + "/" + mutationId + "/@" + NCommonAttrs::OPERATIONID_ATTR,
-                    NYT::NYson::TYsonString(NYT::NodeToYsonString(NYT::TNode(operationId))),
-                    setNodeOptions));
+                ScheduleOperationIdUpdate(mutationId, operationId);
                 StartOperationWatcher(operationId, mutationId, ctx);
             }
 
             PendingStartOperationRequests.erase(maybeJobs);
-
-            if (PendingStartOperationRequests.empty() && CurrentStateFunc() != &TYtResourceManager::Leader) {
-                Become(&TYtResourceManager::Leader);
-                Tick();
-            }
         }
 
         void ListOperations() {
@@ -574,10 +1053,9 @@ namespace NYql {
                 NCommonAttrs::OPERATIONID_ATTR,
                 NCommonAttrs::CLUSTERNAME_ATTR,
                 NCommonAttrs::ACTOR_NODEID_ATTR,
-                "yql_command",
-                "yql_file_paths"
             };
             auto command = new TEvListNode(ClusterOperationsPath, options);
+            ListOperationsRequestId = command->RequestId;
             RM_LOG(DEBUG) << "List " << ClusterOperationsPath;
             Send(YtWrapper, command);
         }
@@ -598,26 +1076,29 @@ namespace NYql {
             Send(CoordinatorWrapper, command);
         }
 
-        void StartOperations(int jobs, const NActors::TActorContext& ctx) {
-            int jobsPerOperation = Options.YtBackend.HasJobsPerOperation()
+        void StartOperations(i64 jobs, const NActors::TActorContext& ctx) {
+            const i64 jobsPerOperation = Options.YtBackend.HasJobsPerOperation()
                 ? Options.YtBackend.GetJobsPerOperation()
                 : Options.YtBackend.GetMaxJobs();
 
             Y_ABORT_UNLESS(jobsPerOperation > 0);
 
-            int startedJobs = 0;
-            for (int i = 0; i < jobs; i += jobsPerOperation) {
+            i64 startedJobs = 0;
+            for (i64 i = 0; i < jobs; i += jobsPerOperation) {
                 if (jobs - i >= jobsPerOperation) {
-                    StartOperation(jobsPerOperation, ctx);
+                    if (!StartOperation(jobsPerOperation, ctx)) {
+                        break;
+                    }
                     startedJobs += jobsPerOperation;
                 }
             }
 
-            int remainingJobs = jobs - startedJobs;
+            const i64 remainingJobs = jobs - startedJobs;
             if (remainingJobs > 0) {
-                RM_LOG(WARN) << "Only " << startedJobs << " of " << jobs
-                    << " jobs will be started: " << remainingJobs
-                    << " jobs are not enough for a full operation (jobsPerOperation=" << jobsPerOperation << ")";
+                RM_LOG(WARN) << "Some jobs will not be started: started_jobs=" << startedJobs
+                    << " requested_jobs=" << jobs
+                    << " remaining_jobs=" << remainingJobs
+                    << " jobs_per_operation=" << jobsPerOperation;
             }
         }
 
@@ -718,7 +1199,7 @@ namespace NYql {
                     .Item("tasks")
                         .BeginMap()
                             .DoFor(nodes, [&] (NYT::TFluentMap fluent1, const auto& nodeId) {
-                                fluent1.Item("yql_worker_" + ToString(nodeId))
+                                fluent1.Item(YqlWorkerTaskPrefix + ToString(nodeId))
                                     .BeginMap()
                                         .DoIf(Options.YtBackend.GetNetworkProject().size() > 0, [&] (NYT::TFluentMap fluent) {
                                             fluent.Item("network_project").Value(Options.YtBackend.GetNetworkProject());
@@ -804,41 +1285,7 @@ namespace NYql {
             return NYT::NodeToYsonString(operationSpec);
         }
 
-        void StartOrAttachOperation(
-            const NYT::TGuid& mutationId,
-            const TVector<ui32>& nodes,
-            const TString& command,
-            const NYT::TNode& filePaths)
-        {
-            auto mutationIdStr = ToString(mutationId);
-            RM_LOG(INFO) << "Creating " << nodes.size() << " workers " << mutationIdStr;
-
-            auto operationSpec = GetOperationSpec(nodes, command, TMaybe<NYT::TNode>(filePaths));
-
-            auto startOperationOptions = NYT::NApi::TStartOperationOptions();
-            startOperationOptions.MutationId = mutationId;
-            startOperationOptions.Retry = true;
-
-            auto& state = RunningOperations[mutationIdStr];
-            state.MutationId = mutationIdStr;
-            state.Nodes = nodes;
-
-            RM_LOG(DEBUG) << "Attaching to operation with mutationId " << mutationIdStr;
-
-            Y_ENSURE(!nodes.empty());
-            CreateCoreTable(*nodes.begin());
-
-            Send(YtWrapper, MakeHolder<TEvStartOperation>(
-                YtRequestId,
-                NYT::NScheduler::EOperationType::Vanilla,
-                operationSpec,
-                startOperationOptions).Release());
-
-            PendingStartOperationRequests[YtRequestId++] = {nodes,
-                mutationIdStr, THolder<TEvStartOperation>()};
-        }
-
-        void StartOperation(int jobs, const NActors::TActorContext& ctx) {
+        bool StartOperation(i64 jobs, const NActors::TActorContext& ctx) {
             Y_UNUSED(ctx);
 
             RM_LOG(INFO) << "Creating " << jobs << " workers ";
@@ -857,37 +1304,67 @@ namespace NYql {
 
             auto startOperationOptions = NYT::NApi::TStartOperationOptions();
 
-            if (MutationsCache.empty()) {
-                startOperationOptions.MutationId = startOperationOptions.GetOrGenerateMutationId();
-                NodeIdAllocator.Allocate(nodes, jobs);
-            } else {
-                const auto cachedMutationIt = MutationsCache.begin();
-                const auto& cachedMutationIdStr = cachedMutationIt->first;
-                startOperationOptions.MutationId = NYT::TGuid::FromString(cachedMutationIdStr);
-                nodes = cachedMutationIt->second;
-                {
-                    auto dups = NodeIdAllocator.Allocate(nodes);
-                    RM_LOG(INFO) << "Get mutation from cache mutation=" << cachedMutationIdStr
-                                 << " nodes=" << nodes.size() << " node_ids=[" << JoinSeq(",", nodes) << "]";
-                    if (!dups.empty()) {
-                        RM_LOG(ERROR) << "NODE_ID CONFLICT restoring from MutationsCache: mutation=" << cachedMutationIdStr
-                                      << " conflicting ids=[" << JoinSeq(",", dups) << "]";
-                    }
-                }
-                MutationsCache.erase(cachedMutationIt);
-            }
-
-            if (nodes.empty()) {
-                RM_LOG(WARN) << "Cannot allocate node ids for " << jobs << " jobs";
-                return;
+            startOperationOptions.MutationId = startOperationOptions.GetOrGenerateMutationId();
+            const auto mutationIdStr = ToString(startOperationOptions.MutationId);
+            if (!NodeIdAllocator.Allocate(mutationIdStr, jobs, &nodes)) {
+                RM_LOG(WARN) << "Cannot allocate node IDs: jobs=" << jobs
+                    << " mutation_id=" << mutationIdStr;
+                return false;
             }
 
             startOperationOptions.Retry = true;
 
-            auto operationSpec = GetOperationSpec(nodes, command, TMaybe<NYT::TNode>());
+            TString operationSpec;
+            NYT::NApi::TCreateNodeOptions createOptions;
+            try {
+                operationSpec = GetOperationSpec(nodes, command, TMaybe<NYT::TNode>());
 
-            auto mutationId = startOperationOptions.MutationId;
-            auto mutationIdStr = ToString(mutationId);
+                createOptions.IgnoreExisting = true;
+                createOptions.Recursive = true;
+
+                auto filesAttribute = Options.Files;
+                if (Options.YtBackend.GetProxyAddress().StartsWith("localhost")) {
+                    filesAttribute.clear();
+                }
+
+                // Keep launch inputs for rollback compatibility and DQ-134 reconciliation.
+                auto attributes = NYT::BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("yql_mutation_id").Value(mutationIdStr)
+                        .Item(NCommonAttrs::OPERATIONSIZE_ATTR).Value(jobs)
+                        .Item("yql_command").Value(command)
+                        .Item("yql_file_paths")
+                            .DoListFor(filesAttribute, [&] (NYT::TFluentList list, const TResourceFile& item) {
+                                auto baseName = item.GetRemoteFileName();
+                                list.Item()
+                                    .BeginAttributes()
+                                        .Item("executable").Value(true)
+                                        .Item("file_name").Value(baseName)
+                                    .EndAttributes()
+                                    .Value(Options.UploadPrefix + "/" + baseName);
+                            })
+                        .Item(NCommonAttrs::ROLE_ATTR).Value("worker_node")
+                        .Item(NCommonAttrs::ACTOR_NODEID_ATTR)
+                            .BeginList()
+                                .DoFor(nodes, [&] (NYT::TFluentList fluent1, const auto& nodeId) {
+                                    fluent1.Item().Value(nodeId);
+                                })
+                            .EndList()
+                        .Item(NCommonAttrs::CLUSTERNAME_ATTR).Value(ClusterName)
+                    .EndMap();
+
+                createOptions.Attributes = NYT::NYTree::IAttributeDictionary::FromMap(
+                    NYT::NYTree::ConvertToNode(NYT::NYson::TYsonString(NYT::NodeToYsonString(attributes)))->AsMap());
+
+                createOptions.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
+
+                CreateCoreTable(*nodes.begin());
+            } catch (...) {
+                NodeIdAllocator.Release(mutationIdStr);
+                RM_LOG(ERROR) << "Cannot prepare operation: mutation_id=" << mutationIdStr
+                    << " error=" << CurrentExceptionMessage();
+                return false;
+            }
 
             RM_LOG(DEBUG) << "Start operation with mutationId " << mutationIdStr;
 
@@ -895,51 +1372,8 @@ namespace NYql {
             state.MutationId = mutationIdStr;
             state.Nodes = nodes;
 
-            NYT::NApi::TCreateNodeOptions createOptions;
-            createOptions.IgnoreExisting = true;
-            createOptions.Recursive = true;
-
             RM_LOG(DEBUG) << "Creating operation with mutationId " << mutationIdStr
                           << " node_ids=[" << JoinSeq(",", nodes) << "]";
-
-            auto filesAttribute = Options.Files;
-            if (Options.YtBackend.GetProxyAddress().StartsWith("localhost")) {
-                filesAttribute.clear();
-            }
-
-            auto attributes = NYT::BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("yql_mutation_id").Value(mutationIdStr)
-                    .Item(NCommonAttrs::OPERATIONSIZE_ATTR).Value(jobs)
-                    .Item("yql_command").Value(command)
-                    .Item("yql_file_paths")
-                        .DoListFor(filesAttribute, [&] (NYT::TFluentList list, const TResourceFile& item) {
-                            auto baseName = item.GetRemoteFileName();
-                            list.Item()
-                                .BeginAttributes()
-                                    .Item("executable").Value(true)
-                                    .Item("file_name").Value(baseName)
-                                .EndAttributes()
-                                .Value(Options.UploadPrefix + "/" + baseName);
-                        })
-                    .Item(NCommonAttrs::ROLE_ATTR).Value("worker_node")
-                    .Item(NCommonAttrs::ACTOR_NODEID_ATTR)
-                        .BeginList()
-                            .DoFor(nodes, [&] (NYT::TFluentList fluent1, const auto& nodeId) {
-                                fluent1.Item().Value(nodeId);
-                            })
-                        .EndList()
-                    .Item(NCommonAttrs::CLUSTERNAME_ATTR).Value(ClusterName)
-                .EndMap();
-
-            createOptions.Attributes = NYT::NYTree::IAttributeDictionary::FromMap(
-                NYT::NYTree::ConvertToNode(NYT::NYson::TYsonString(NYT::NodeToYsonString(attributes)))->AsMap()
-            );
-
-            createOptions.PrerequisiteTransactionIds.push_back(LeaderTransactionId);
-
-            Y_ENSURE(!nodes.empty());
-            CreateCoreTable(*nodes.begin());
 
             Send(YtWrapper, new TEvCreateNode(
                 YtRequestId,
@@ -957,6 +1391,7 @@ namespace NYql {
                     startOperationOptions)
             };
             YtRequestId += 2;
+            return true;
         }
 
         void OnCreateNode(TEvCreateNodeResponse::TPtr& ev, const TActorContext& ctx) {
@@ -995,6 +1430,18 @@ namespace NYql {
 private:
         const TResourceManagerOptions Options;
         TIntrusivePtr<NMonitoring::TDynamicCounters> Counters;
+
+        const NMonitoring::TDynamicCounters::TCounterPtr RecoveryQuarantinedRecordCount;
+        const NMonitoring::TDynamicCounters::TCounterPtr RecoveryConflictingClaimCount;
+        const NMonitoring::TDynamicCounters::TCounterPtr QuarantinedOwnerCount;
+        const NMonitoring::TDynamicCounters::TCounterPtr QuarantinedClaimCount;
+        const NMonitoring::TDynamicCounters::TCounterPtr CapacityBlockedByQuarantine;
+        const NMonitoring::TDynamicCounters::TCounterPtr OverlappingClaimCount;
+        const NMonitoring::TDynamicCounters::TCounterPtr IncompleteQuarantinedClaimRecordCount;
+        const NMonitoring::TDynamicCounters::TCounterPtr PendingOperationIdUpdateCount;
+        const NMonitoring::TDynamicCounters::TCounterPtr UnknownStartOutcomeCount;
+        const NMonitoring::TDynamicCounters::TCounterPtr UnknownStartOutcomeClaimCount;
+
         const TString ClusterName;
         const TString ClusterOperationsPath;
 
@@ -1007,7 +1454,20 @@ private:
 
         NYT::NObjectClient::TTransactionId LeaderTransactionId;
 
+        TMaybe<ui64> ListOperationsRequestId;
         TNodeIdAllocator NodeIdAllocator;
+
+        struct TRecoveredOperation {
+            TString Owner;
+            TString OperationId;
+            TVector<ui32> Nodes;
+            TMaybe<i64> OperationSize;
+            TString ClaimError;
+            TString MetadataError;
+        };
+
+        TVector<TRecoveredOperation> RecoveredOperations;
+        THashMap<ui64, int> ClaimReconciliationRequests;
 
         struct TOperationStatus {
             TString OperationId;
@@ -1019,7 +1479,9 @@ private:
         // mutationId -> operation
         THashMap<TString, TOperationStatus> RunningOperations;
 
-        THashMap<TString, TVector<ui32>> MutationsCache;
+        THashSet<TString> QuarantinedOwners;
+        i64 QuarantinedClaims = 0;
+        i64 IncompleteQuarantinedClaimRecords = 0;
 
         // RequestId -> Jobs
         struct TPendingStartOperation {
@@ -1029,8 +1491,13 @@ private:
         };
         THashMap<ui64, TPendingStartOperation> PendingStartOperationRequests;
 
-        // RequestId -> (mutationId, nodeIds): tracks in-flight TEvRemoveNode for operation nodes in Cypress.
-        // node_ids are freed only after the removal is confirmed, preventing reuse of stale IDs.
+        struct TPendingOperationIdUpdate {
+            TString OperationId;
+            TMaybe<ui64> RequestId;
+        };
+        THashMap<TString, TPendingOperationIdUpdate> PendingOperationIdUpdates;
+        THashMap<ui64, TString> OperationIdUpdateRequests;
+
         struct TPendingNodeRelease {
             TString MutationId;
             TVector<ui32> Nodes;
