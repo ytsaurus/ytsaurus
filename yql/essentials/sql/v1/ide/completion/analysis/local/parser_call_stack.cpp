@@ -125,6 +125,14 @@ bool IsLikelyExistingTableStack(const TParserCallStack& stack) {
                       RULE(Id_table_or_type)}, stack));
 }
 
+bool IsDropTableStack(const TParserCallStack& stack) {
+    return ContainsRule(RULE(Drop_table_stmt), stack);
+}
+
+bool IsDropViewStack(const TParserCallStack& stack) {
+    return ContainsRule(RULE(Drop_view_stmt), stack);
+}
+
 bool IsLikelyTableArgStack(const TParserCallStack& stack) {
     return Contains({RULE(Table_arg)}, stack);
 }

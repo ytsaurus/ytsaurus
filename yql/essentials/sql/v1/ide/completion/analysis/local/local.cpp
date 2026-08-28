@@ -275,14 +275,23 @@ private:
         const TCursorTokenContext& context, const TC3Candidates& candidates) const {
         TLocalSyntaxContext::TObject object;
 
-        if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyObjectRefStack))) {
-            object.Kinds.emplace(EObjectKind::Folder);
-            object.Kinds.emplace(EObjectKind::Unknown);
-        }
+        const bool isDropTable = AnyOf(candidates.Rules, RuleAdapted(IsDropTableStack));
+        const bool isDropView = AnyOf(candidates.Rules, RuleAdapted(IsDropViewStack));
 
-        if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyExistingTableStack))) {
+        if (isDropTable || isDropView) {
             object.Kinds.emplace(EObjectKind::Folder);
-            object.Kinds.emplace(EObjectKind::Table);
+            object.Kinds.emplace(isDropView ? EObjectKind::View : EObjectKind::Table);
+        } else {
+            if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyObjectRefStack))) {
+                object.Kinds.emplace(EObjectKind::Folder);
+                object.Kinds.emplace(EObjectKind::Unknown);
+            }
+
+            if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyExistingTableStack))) {
+                object.Kinds.emplace(EObjectKind::Folder);
+                object.Kinds.emplace(EObjectKind::Table);
+                object.Kinds.emplace(EObjectKind::View);
+            }
         }
 
         if (object.Kinds.empty() && !AnyOf(candidates.Rules, RuleAdapted(IsLikelyTableArgStack))) {

@@ -112,6 +112,16 @@ TCandidate ToCandidate(TTableName name, TLocalSyntaxContext& local) {
     return {.Kind = ECandidateKind::TableName, .Content = std::move(name.Identifier)};
 }
 
+TCandidate ToCandidate(TViewName name, TLocalSyntaxContext& local) {
+    if (!local.IsQuoted.AtLhs) {
+        name.Identifier.prepend('`');
+    }
+    if (!local.IsQuoted.AtRhs) {
+        name.Identifier.append('`');
+    }
+    return {.Kind = ECandidateKind::ViewName, .Content = std::move(name.Identifier)};
+}
+
 TCandidate ToCandidate(TClusterName name) {
     return {.Kind = ECandidateKind::ClusterName, .Content = std::move(name.Identifier)};
 }
@@ -146,6 +156,7 @@ TCandidate ToCandidate(TGenericName generic, TLocalSyntaxContext& local) {
             std::is_same_v<T, TKeyword> ||
             std::is_same_v<T, TFolderName> ||
             std::is_same_v<T, TTableName> ||
+            std::is_same_v<T, TViewName> ||
             std::is_same_v<T, TColumnName> ||
             std::is_same_v<T, TUnknownName>;
 

@@ -5,6 +5,7 @@ namespace NSQLComplete {
 THashSet<TString> TFolderEntry::KnownTypes = {
     TFolderEntry::Folder,
     TFolderEntry::Table,
+    TFolderEntry::View,
 };
 
 } // namespace NSQLComplete

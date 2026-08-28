@@ -68,6 +68,9 @@ struct TFolderName: TIdentifier {
 struct TTableName: TIdentifier {
 };
 
+struct TViewName: TIdentifier {
+};
+
 struct TClusterName: TIdentifier {
     struct TConstraints: TNamespaced {};
 };
@@ -98,6 +101,7 @@ using TGenericName = std::variant<
     THintName,
     TFolderName,
     TTableName,
+    TViewName,
     TClusterName,
     TColumnName,
     TBindingName,
