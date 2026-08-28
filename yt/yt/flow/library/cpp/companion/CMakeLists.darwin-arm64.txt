@@ -14,7 +14,7 @@
 
 add_subdirectory(proto)
 add_subdirectory(server)
-add_subdirectory(unittest)
+add_subdirectory(unittests)
 
 add_library(library-cpp-companion)
 

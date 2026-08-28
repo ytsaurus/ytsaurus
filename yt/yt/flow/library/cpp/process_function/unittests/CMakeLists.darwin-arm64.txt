@@ -12,14 +12,14 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(yt-flow-library-cpp-process_function-unittest)
+add_executable(yt-flow-library-cpp-process_function-unittests)
 
 
-set_property(TARGET yt-flow-library-cpp-process_function-unittest PROPERTY OUTPUT_NAME
-  yt-yt-flow-library-cpp-process_function-unittest
+set_property(TARGET yt-flow-library-cpp-process_function-unittests PROPERTY OUTPUT_NAME
+  yt-yt-flow-library-cpp-process_function-unittests
 )
 
-target_compile_options(yt-flow-library-cpp-process_function-unittest PRIVATE
+target_compile_options(yt-flow-library-cpp-process_function-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -29,7 +29,7 @@ target_compile_options(yt-flow-library-cpp-process_function-unittest PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-flow-library-cpp-process_function-unittest PUBLIC
+target_link_libraries(yt-flow-library-cpp-process_function-unittests PUBLIC
   contrib-libs-cxxsupp
   yutil
   build-cow-on
@@ -46,11 +46,11 @@ target_link_libraries(yt-flow-library-cpp-process_function-unittest PUBLIC
   client-unittests-mock
 )
 
-target_allocator(yt-flow-library-cpp-process_function-unittest
+target_allocator(yt-flow-library-cpp-process_function-unittests
   system_allocator
 )
 
-target_link_options(yt-flow-library-cpp-process_function-unittest PRIVATE
+target_link_options(yt-flow-library-cpp-process_function-unittests PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -58,25 +58,25 @@ target_link_options(yt-flow-library-cpp-process_function-unittest PRIVATE
   CoreFoundation
 )
 
-target_sources(yt-flow-library-cpp-process_function-unittest PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/adapter_test_context.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/process_function_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/registry_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/source_adapter_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittest/transform_ordered_source_adapter_ut.cpp
+target_sources(yt-flow-library-cpp-process_function-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/adapter_test_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/process_function_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/registry_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/source_adapter_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/process_function/unittests/transform_ordered_source_adapter_ut.cpp
 )
 
 
 add_test(
   NAME
-  yt-yt-flow-library-cpp-process_function-unittest
+  yt-yt-flow-library-cpp-process_function-unittests
   COMMAND
-  yt-yt-flow-library-cpp-process_function-unittest
+  yt-yt-flow-library-cpp-process_function-unittests
 )
 
 set_property(
   TEST
-  yt-yt-flow-library-cpp-process_function-unittest
+  yt-yt-flow-library-cpp-process_function-unittests
   PROPERTY
   LABELS
   SMALL
@@ -84,16 +84,16 @@ set_property(
 
 set_property(
   TEST
-  yt-yt-flow-library-cpp-process_function-unittest
+  yt-yt-flow-library-cpp-process_function-unittests
   PROPERTY
   ENVIRONMENT
 )
 
-vcs_info(yt-flow-library-cpp-process_function-unittest)
+vcs_info(yt-flow-library-cpp-process_function-unittests)
 
 set_property(
   TEST
-  yt-yt-flow-library-cpp-process_function-unittest
+  yt-yt-flow-library-cpp-process_function-unittests
   PROPERTY
   PROCESSORS
   1
