@@ -537,6 +537,14 @@ class Numeric(HasExpressionLookup, TypeEngine[_N]):
 
     def literal_processor(self, dialect):
         def process(value):
+            # the value is rendered into the SQL string directly and
+            # unquoted; the database's native parsing does the numeric
+            # conversion.  don't convert to a Decimal or float here, as that
+            # would alter the rendered representation (e.g. "1.0000" -> "1.0").
+            # instead validate that the value parses as a number, so that a
+            # non-numeric string can't be injected for a literal_execute
+            # parameter, but render the original string form unchanged.
+            decimal.Decimal(value)
             return str(value)
 
         return process
@@ -563,11 +571,7 @@ class Numeric(HasExpressionLookup, TypeEngine[_N]):
                 # we're a "numeric", DBAPI returns floats, convert.
                 return processors.to_decimal_processor_factory(
                     decimal.Decimal,
-                    (
-                        self.scale
-                        if self.scale is not None
-                        else self._default_decimal_return_scale
-                    ),
+                    self._effective_decimal_return_scale,
                 )
         else:
             if dialect.supports_native_decimal:
