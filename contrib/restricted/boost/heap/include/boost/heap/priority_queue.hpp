@@ -142,7 +142,7 @@ public:
      * \b Complexity: Constant.
      *
      * */
-    priority_queue( priority_queue&& rhs ) noexcept( std::is_nothrow_move_constructible< super_t >::value ) = default;
+    priority_queue( priority_queue&& rhs ) = default;
 
     /**
      * \b Effects: C++11-style move assignment.
@@ -150,8 +150,7 @@ public:
      * \b Complexity: Constant.
      *
      * */
-    priority_queue& operator=( priority_queue&& rhs ) noexcept( std::is_nothrow_move_assignable< super_t >::value )
-        = default;
+    priority_queue& operator=( priority_queue&& rhs ) = default;
 
     /**
      * \b Effects: Assigns priority queue from rhs.
