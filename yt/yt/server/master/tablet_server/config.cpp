@@ -246,7 +246,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("forbid_arbitrary_data_versions_in_retention_config", &TThis::ForbidArbitraryDataVersionsInRetentionConfig)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("max_table_collocation_size", &TThis::MaxTableCollocationSize)
         .Default(500);
