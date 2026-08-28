@@ -98,6 +98,7 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
     TReplicaId selfUpstreamReplicaId,
     const TReplicationCardPtr& replicationCard,
     const TReplicationProgress& replicationProgress,
+    const THashSet<std::string>& extraSameDcQueueClusters,
     TInstant now)
 {
     // If our progress is less than any queue replica progress, pull from that replica.
@@ -149,9 +150,11 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
 
     auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
         std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> candidates;
+        std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> sameDcCandidates;
         std::optional<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> lastFetchedCandidate;
 
         bool isSelfReplicaInLastEra = oldestTimestamp >= selfReplica->History.back().Timestamp;
+
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
                 continue;
@@ -165,11 +168,12 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
             }
 
             if (selfReplica->ContentType == ETableReplicaContentType::Data) {
-                if (ForceSameClusterQueue_) {
-                    if (isSelfReplicaInLastEra &&
-                        selfReplica->ClusterName == replicaInfo.ClusterName)
+                if (ForceSameClusterQueue_ && isSelfReplicaInLastEra) {
+                    if (selfReplica->ClusterName == replicaInfo.ClusterName)
                     {
                         return {replicaId, &replicaInfo};
+                    } else if (extraSameDcQueueClusters.contains(replicaInfo.ClusterName)) {
+                        sameDcCandidates.emplace_back(replicaId, &replicaInfo);
                     }
                 }
 
@@ -194,6 +198,10 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
                     candidates.emplace_back(replicaId, &replicaInfo);
                 }
             }
+        }
+
+        if (!sameDcCandidates.empty()) {
+            return sameDcCandidates[RandomNumber(sameDcCandidates.size())];
         }
 
         if (lastFetchedCandidate) {

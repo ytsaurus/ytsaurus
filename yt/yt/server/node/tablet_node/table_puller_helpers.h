@@ -59,6 +59,7 @@ public:
         NChaosClient::TReplicaId selfUpstreamReplicaId,
         const NChaosClient::TReplicationCardPtr& replicationCard,
         const NChaosClient::TReplicationProgress& replicationProgress,
+        const THashSet<std::string>& extraSameDcQueueClusters,
         TInstant now);
 
     void ResetLastPulledFromReplicaId();

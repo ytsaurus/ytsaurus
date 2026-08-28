@@ -156,6 +156,7 @@ TEST(TQueueReplicaSelectorTest, PreferLocal)
         asyncDataReplicaId,
         replicationCard,
         replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+        /*extraSameDcQueueClusters*/ {},
         now);
 
     ASSERT_TRUE(result.IsOK());
@@ -177,6 +178,8 @@ TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
     auto now = TInstant::Now();
     auto nowTs = InstantToTimestamp(now).second;
     TReplicaId asyncQueueReplicaId;
+    TReplicaId remote0QueueReplicaId;
+    TReplicaId primaryQueueReplicaId;
     TReplicaId asyncDataReplicaId;
     for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
         if (replicaInfo.Mode == ETableReplicaMode::Async) {
@@ -185,6 +188,12 @@ TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
             } else {
                 asyncDataReplicaId = replicaId;
                 continue;
+            }
+        } else if (replicaInfo.ContentType == ETableReplicaContentType::Queue) {
+            if (replicaInfo.ClusterName == "remote_0") {
+                remote0QueueReplicaId = replicaId;
+            } else if (replicaInfo.ClusterName == "primary") {
+                primaryQueueReplicaId = replicaId;
             }
         }
 
@@ -196,6 +205,7 @@ TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
             asyncDataReplicaId,
             replicationCard,
             replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
             now);
 
         ASSERT_TRUE(result.IsOK());
@@ -211,11 +221,40 @@ TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
             asyncDataReplicaId,
             replicationCard,
             replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
             now);
 
         ASSERT_TRUE(result.IsOK());
         const auto& value = result.Value();
         EXPECT_NE(asyncQueueReplicaId, std::get<0>(value));
+        EXPECT_EQ(NullTimestamp, std::get<2>(value));
+    }
+
+    {
+        auto result = queueReplicaSelector.PickQueueReplica(
+            asyncDataReplicaId,
+            replicationCard,
+            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {"remote_0"},
+            now);
+
+        ASSERT_TRUE(result.IsOK());
+        const auto& value = result.Value();
+        EXPECT_EQ(remote0QueueReplicaId, std::get<0>(value));
+        EXPECT_EQ(NullTimestamp, std::get<2>(value));
+    }
+
+    {
+        auto result = queueReplicaSelector.PickQueueReplica(
+            asyncDataReplicaId,
+            replicationCard,
+            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {"primary"},
+            now);
+
+        ASSERT_TRUE(result.IsOK());
+        const auto& value = result.Value();
+        EXPECT_EQ(primaryQueueReplicaId, std::get<0>(value));
         EXPECT_EQ(NullTimestamp, std::get<2>(value));
     }
 
@@ -227,6 +266,7 @@ TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
             asyncDataReplicaId,
             replicationCard,
             replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
             now);
 
         ASSERT_TRUE(result.IsOK());
@@ -269,6 +309,7 @@ TEST(TQueueReplicaSelectorTest, BanReplicas)
         asyncDataReplicaId,
         replicationCard,
         replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+        /*extraSameDcQueueClusters*/ {},
         now);
 
     ASSERT_TRUE(result.IsOK());
@@ -282,6 +323,7 @@ TEST(TQueueReplicaSelectorTest, BanReplicas)
             asyncDataReplicaId,
             replicationCard,
             replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
             now);
 
         ASSERT_TRUE(result.IsOK());
@@ -295,6 +337,7 @@ TEST(TQueueReplicaSelectorTest, BanReplicas)
         asyncDataReplicaId,
             replicationCard,
             replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
             now);
 
     ASSERT_TRUE(result.IsOK());
@@ -308,6 +351,7 @@ TEST(TQueueReplicaSelectorTest, BanReplicas)
         asyncDataReplicaId,
             replicationCard,
             replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
             now);
 
     ASSERT_FALSE(noneReplica.IsOK());
