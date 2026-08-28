@@ -2354,7 +2354,7 @@ TEST_F(TDataNodeTest, StartChunkReflectsNetInThrottlerQueueSize)
     Y_UNUSED(throttleFuture);
 }
 
-TEST_F(TDataNodeTest, DISABLED_NetInThrottlingIsReportedAsWriteThrottling)
+TEST_F(TDataNodeTest, NetInThrottlingIsReportedAsWriteThrottling)
 {
     auto bootstrap = GetDataNodeBootstrap();
     bootstrap->GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit = 0;
@@ -2708,7 +2708,7 @@ TEST_F(TGetBlockSetBatchTest, HandlesConcurrentCompletions)
     }
 }
 
-TEST_P(TGetBlockSetTest, DISABLED_GetBlockSetTest)
+TEST_P(TGetBlockSetTest, GetBlockSetTest)
 {
     auto testCase = GetParam();
 
