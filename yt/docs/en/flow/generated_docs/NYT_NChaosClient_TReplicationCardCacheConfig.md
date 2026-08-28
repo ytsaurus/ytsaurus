@@ -117,5 +117,8 @@ Source: [yt/yt/client/chaos_client/config.h]({{source-root}}/yt/yt/client/chaos_
  ||
 || `enable_watching` | **Type**: `bool`
  ||
+|| `watched_cache` | **Type**: `NYT::TIntrusivePtr<`[NYT::NChaosClient::TWatchedReplicationCardCacheConfig](./all_yson_structs#NYT_NChaosClient_TWatchedReplicationCardCacheConfig)`>`
+**Default value**: `{}`
+ ||
 |#
 

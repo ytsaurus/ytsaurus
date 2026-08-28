@@ -4,8 +4,9 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     config.cpp
-    controller_service.cpp
     controller.cpp
+    controller_service.cpp
+    dyntable_election_manager.cpp
     flow_executor.cpp
     job_balancer.cpp
     job_balancer_common.cpp
@@ -15,6 +16,7 @@ SRCS(
     job_manager.cpp
     lease_manager.cpp
     persisted_state_manager.cpp
+    private.cpp
     state_access.cpp
     state_manager.cpp
     throttler_host.cpp

@@ -253,6 +253,19 @@ IAttributeDictionaryPtr GetCompactOutputMessagesTableAttributes()
         /*uniqueKeys*/ true));
 }
 
+IAttributeDictionaryPtr GetLeasesTableAttributes()
+{
+    return CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(key)")),
+            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("subkey", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Any),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+}
+
 auto GetTables()
 {
     return std::vector<std::tuple<TStringBuf, IAttributeDictionaryPtr>>{
@@ -269,6 +282,7 @@ auto GetTables()
         {FlowStateObsoleteTableName, GetFlowStateObsoleteTableAttributes()},
         {FlowControlTableName, GetFlowControlTableAttributes()},
         {PartitionTransactionsTableName, GetPartitionTransactionsTableAttributes()},
+        {LeasesTableName, GetLeasesTableAttributes()},
     };
 }
 

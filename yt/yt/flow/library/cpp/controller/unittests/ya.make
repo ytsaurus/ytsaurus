@@ -5,7 +5,9 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 SRCS(
     async_balancer_ut.cpp
     compact_rebalance_actions_ut.cpp
+    config_ut.cpp
     controller_ut.cpp
+    dyntable_election_manager_ut.cpp
     job_manager_ut.cpp
     partitioning_ut.cpp
     resource_balancer_ut.cpp

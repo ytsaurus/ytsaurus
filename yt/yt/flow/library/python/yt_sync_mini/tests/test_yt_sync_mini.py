@@ -71,8 +71,10 @@ def test_python_catalogue_matches_cpp(yt_client):
     missing_in_cpp = sorted(python_known - cpp_children)
     if missing_in_cpp:
         errors.append(
-            f"Python catalogue lists {missing_in_cpp} but cpp ``GetTables()`` "
-            "(yt/yt/flow/library/cpp/native_client/pipeline_init.cpp) does not create them."
+            f"Python catalogue lists {missing_in_cpp} but a pipeline node does not get them. "
+            "The node is materialized by the native client compiled into the recipe's prebuilt "
+            "ytserver, so a table just added to cpp GetTables() shows up here only after "
+            "yt/packages/ytflow_latest is rebuilt and its resource pin bumped."
         )
 
     for table_name in sorted(cpp_children & python_known):

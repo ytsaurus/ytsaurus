@@ -44,6 +44,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using ::testing::_;
+using ::testing::AnyNumber;
 using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::StrictMock;
@@ -337,6 +338,14 @@ public:
             .WillRepeatedly(Return(nullptr));
         EXPECT_CALL(*authenticator, CreateYTControllerRpcAuthenticator())
             .WillRepeatedly(Return(nullptr));
+
+        // Every committed scheduling iteration reports the end of leader recovery, carrying the
+        // epoch it read when it started leading; the fixture is strict, so both calls need an
+        // expectation even though no test asserts on them.
+        EXPECT_CALL(*YTConnector, GetLeadershipEpoch())
+            .WillRepeatedly(Return(0));
+        EXPECT_CALL(*YTConnector, OnLeaderRecoveryFinished(_))
+            .Times(AnyNumber());
 
         // CreateFlowExecutor builds shared NTables handles in its ctor; that calls into the YT connector.
         EXPECT_CALL(*YTConnector, GetClient())

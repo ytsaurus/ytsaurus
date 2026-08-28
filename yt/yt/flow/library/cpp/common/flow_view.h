@@ -119,6 +119,14 @@ struct TJob
     TIncarnationId WorkerIncarnationId;
     TPartitionId PartitionId;
     TLeaseId LeaseId;
+    //! When set, the job is fenced by rows of the pipeline's leases dynamic table instead of a
+    //! lease transaction prerequisite (LeaseId stays null).
+    //!
+    //! The counterpart of #LeaseId for the dyntable backend: both are filled once the fence of
+    //! this job exists — the rows are committed by their own transaction before the layout that
+    //! carries this flag — and the controller tells jobs that still need a fence from those that
+    //! already have one by exactly these two fields.
+    bool DyntableLease = false;
 
     REGISTER_YSON_STRUCT(TJob);
 

@@ -23,6 +23,11 @@ YT_DEFINE_LEAKY_GLOBAL(const NProfiling::TProfiler, ControllerProfiler, "", "yt.
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EElectionBackend,
+    (Cypress)
+    (Dyntable)
+);
+
 DEFINE_ENUM(EWorkerState,
     // Handshake has been just received, waiting for the first heartbeat.
     (WaitingForInitialHeartbeat)
@@ -64,7 +69,9 @@ DECLARE_REFCOUNTED_STRUCT(TControllerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TPersistedStateManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TLeaseManagerConfig)
-DECLARE_REFCOUNTED_STRUCT(TElectionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TElectionBackendConfigBase)
+DECLARE_REFCOUNTED_STRUCT(TCypressElectionBackendConfig)
+DECLARE_REFCOUNTED_STRUCT(TDyntableElectionBackendConfig)
 DECLARE_REFCOUNTED_STRUCT(TControllerServiceConfig)
 
 using TControlActionQueuePtr = NConcurrency::IEnumIndexedFairShareActionQueuePtr<EControlQueue>;

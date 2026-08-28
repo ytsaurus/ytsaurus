@@ -129,6 +129,20 @@ PIPELINE_TABLES: dict[str, Any] = {
             {"name": "last_transaction_start_timestamp", "type": "uint64", "group": "default"},
         ],
     },
+    "leases": {
+        "schema": [
+            {
+                "name": "hash",
+                "expression": "farm_hash(key)",
+                "type": "uint64",
+                "sort_order": "ascending",
+                "group": "default",
+            },
+            {"name": "key", "type": "string", "sort_order": "ascending", "group": "default"},
+            {"name": "subkey", "type": "string", "sort_order": "ascending", "group": "default"},
+            {"name": "value", "type": "any", "group": "default"},
+        ],
+    },
 }
 
 

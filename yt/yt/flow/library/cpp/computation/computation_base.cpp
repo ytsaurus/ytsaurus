@@ -480,6 +480,8 @@ NTables::TTransactionManagerPtr TComputationBase::CreateTransactionManager() con
     transactionContext->Profiler = GetContext()->Profiler;
     transactionContext->LeaseId = Context_->Job->LeaseId;
     transactionContext->PartitionId = Context_->Partition->PartitionId;
+    transactionContext->DyntableLease = Context_->Job->DyntableLease;
+    transactionContext->JobId = Context_->Job->JobId;
     transactionContext->StatusProfiler = Context_->StatusProfiler;
     return New<NTables::TTransactionManager>(transactionContext, New<TDynamicRetryableRequestSpec>());
 }

@@ -23,6 +23,8 @@
 #include <yt/yt/flow/library/cpp/controller/describe/describe_workers.h>
 
 #include <yt/yt/flow/library/cpp/misc/deploy_url_provider.h>
+
+#include <util/random/random.h>
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -135,6 +137,8 @@ private:
     TYsonString GetPipelineDynamicSpec(const std::string& command, const TYsonString& argument);
 
     TSetPipelineDynamicSpecResult SetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument) override;
+    //! One attempt of #SetPipelineDynamicSpec, without the conflict retries.
+    TSetPipelineDynamicSpecResult DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument);
     TYsonString SetPipelineDynamicSpec(const std::string& command, const TYsonString& argument);
 
     TGetPipelineSpecResult GetPipelineSpec(const TGetPipelineSpecArg& argument) override;
@@ -222,6 +226,23 @@ TYsonString TFlowExecutor::GetFlowViewV2(const std::string& /*command*/, const T
 
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Spec updates race the controller's own committing cycle: both write the pipeline's important
+//! versions, and with the dyntable backend both also touch the leader lease row, so a row lock
+//! conflict is an expected outcome rather than a failure. The pause is randomized because a fixed
+//! one lets an update collide with the same periodic writer over and over.
+bool IsRetriableSpecUpdateError(const TError& error)
+{
+    return static_cast<bool>(error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict));
+}
+
+TDuration GetSpecUpdateRetryDelay(TDuration period, int attempt)
+{
+    auto backoff = period * (1 << std::min(attempt, 3));
+    return backoff / 2 + TDuration::MicroSeconds(RandomNumber<ui64>(backoff.MicroSeconds() + 1));
+}
+
 TGetPipelineDynamicSpecResult TFlowExecutor::GetPipelineDynamicSpec(const TGetPipelineDynamicSpecArg& argument)
 {
     auto versionedSpec = PersistedStateManager_->RecoverDynamicSpec();
@@ -243,6 +264,28 @@ TSetPipelineDynamicSpecResult TFlowExecutor::SetPipelineDynamicSpec(const TSetPi
 {
     THROW_ERROR_EXCEPTION_UNLESS(argument.Spec, "Spec must be specified");
 
+    // Every attempt rereads the current spec, so a retry applies the requested change to whatever
+    // the winner of the conflict has left behind, not to a stale snapshot. #SetPipelineSpecs
+    // retries the very same way; this path used to be the one without it.
+    for (int attempt = 0;; ++attempt) {
+        try {
+            return DoSetPipelineDynamicSpec(argument);
+        } catch (const TErrorException& exception) {
+            if (attempt + 1 >= Config_->SetSpecRetryCount || !IsRetriableSpecUpdateError(exception.Error())) {
+                throw;
+            }
+            auto delay = GetSpecUpdateRetryDelay(Config_->SetSpecRetryPeriod, attempt);
+            YT_TLOG_INFO("Dynamic spec update conflicted, retrying")
+                .With("Attempt", attempt + 1)
+                .With("Delay", delay)
+                .With(exception.Error());
+            TDelayedExecutor::WaitForDuration(delay);
+        }
+    }
+}
+
+TSetPipelineDynamicSpecResult TFlowExecutor::DoSetPipelineDynamicSpec(const TSetPipelineDynamicSpecArg& argument)
+{
     auto versionedSpec = PersistedStateManager_->RecoverDynamicSpec();
     const auto originalVersion = versionedSpec->GetVersion();
     const auto expectedVersion = argument.ExpectedVersion.has_value() ? argument.ExpectedVersion.value() : originalVersion;

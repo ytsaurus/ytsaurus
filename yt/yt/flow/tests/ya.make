@@ -6,6 +6,8 @@ RECURSE(
     computation_cycles_and_buffers
     conflict_horizon
     diagnostic_tools
+    dyntable_conflicts
+    dyntable_leases
     epoch_seqno_sync
     external_joiner
     flow_execute

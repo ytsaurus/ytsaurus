@@ -117,5 +117,8 @@
  ||
 || `enable_watching` | **Тип**: `bool`
  ||
+|| `watched_cache` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NChaosClient::TWatchedReplicationCardCacheConfig](./all_yson_structs#NYT_NChaosClient_TWatchedReplicationCardCacheConfig)`>`
+**Значение по умолчанию**: `{}`
+ ||
 |#
 
