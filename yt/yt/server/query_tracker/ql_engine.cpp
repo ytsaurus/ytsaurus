@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/client/tablet_client/public.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/attributes.h>
 
@@ -37,12 +39,14 @@ public:
         const TEngineConfigBasePtr& config,
         const NRecords::TActiveQuery& activeQuery,
         const TSelectRowsOptions& options,
+        bool failOnIncompleteInput,
         const IClientPtr& queryClient,
         const IInvokerPtr& controlInvoker)
         : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Query_(activeQuery.Query)
         , QueryClient_(queryClient)
         , Options_(options)
+        , FailOnIncompleteInput_(failOnIncompleteInput)
     { }
 
     void Start() override
@@ -69,6 +73,7 @@ private:
     const std::string Query_;
     const IClientPtr QueryClient_;
     const TSelectRowsOptions Options_;
+    const bool FailOnIncompleteInput_;
 
     TFuture<TSelectRowsResult> AsyncQueryResult_;
 
@@ -81,7 +86,26 @@ private:
             OnQueryFailed(queryResultOrError);
             return;
         }
-        OnQueryCompleted({TRowset{.Rowset = queryResultOrError.Value().Rowset}});
+        const auto& queryResult = queryResultOrError.Value();
+
+        // SelectRows uses FailOnIncompleteResult for both input and output.
+        // We may disable it to allow output truncation, so preserve input failure here.
+        if (FailOnIncompleteInput_ && queryResult.Statistics.IncompleteInput) {
+            auto error = TError(
+                NTabletClient::EErrorCode::QueryInputRowCountLimitExceeded,
+                "Query terminated prematurely due to excessive input; "
+                "consider rewriting your query or changing input limit");
+            if (Options_.InputRowLimit) {
+                error = error.With("input_row_limit", *Options_.InputRowLimit);
+            }
+            OnQueryFailed(error);
+            return;
+        }
+
+        OnQueryCompleted({TRowset{
+            .Rowset = queryResult.Rowset,
+            .IsTruncated = queryResult.Statistics.IncompleteOutput,
+        }});
     }
 };
 
@@ -100,7 +124,8 @@ public:
     {
         auto settings = ConvertToAttributes(activeQuery.Settings);
         auto cluster = settings->Find<std::string>("cluster").value_or(Config_->DefaultCluster);
-        auto options = GetOptions(settings.Get());
+        auto failOnIncompleteInput = GetFailOnIncompleteInput(settings.Get());
+        auto options = GetOptions(settings.Get(), Config_->RowCountLimit);
         auto queryClient = ClusterDirectory_->GetConnectionOrThrow(cluster)->CreateClient(TClientOptions::FromUser(activeQuery.User));
         return New<TQLQueryHandler>(
             StateClient_,
@@ -108,6 +133,7 @@ public:
             Config_,
             activeQuery,
             options,
+            failOnIncompleteInput,
             queryClient,
             ControlQueue_->GetInvoker());
     }
@@ -129,7 +155,13 @@ private:
     TQLEngineConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
 
-    static TSelectRowsOptions GetOptions(IAttributeDictionary* settings)
+    static bool GetFailOnIncompleteInput(IAttributeDictionary* settings)
+    {
+        return settings->Find<bool>("fail_on_incomplete_result")
+            .value_or(TSelectRowsOptions().FailOnIncompleteResult);
+    }
+
+    static TSelectRowsOptions GetOptions(IAttributeDictionary* settings, i64 rowCountLimit)
     {
         auto options = TSelectRowsOptions();
 
@@ -168,6 +200,13 @@ private:
         }
         if (auto failOnIncompleteResult = settings->Find<bool>("fail_on_incomplete_result")) {
             options.FailOnIncompleteResult = *failOnIncompleteResult;
+        }
+
+        // Query Tracker row count limit should truncate the stored result
+        // instead of failing the query with QueryOutputRowCountLimitExceeded.
+        if (!options.OutputRowLimit || *options.OutputRowLimit > rowCountLimit) {
+            options.OutputRowLimit = rowCountLimit;
+            options.FailOnIncompleteResult = false;
         }
 
         return options;

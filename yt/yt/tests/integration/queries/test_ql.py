@@ -1,7 +1,9 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (authors, raises_yt_error, create_dynamic_table,
-                         sync_mount_table, insert_rows)
+                         sync_mount_table, insert_rows, get, set)
+
+from yt.environment.helpers import wait_for_dynamic_config_update
 
 from yt_queries import start_query
 
@@ -48,6 +50,13 @@ class TestQueriesQL(YTEnvSetup):
         assert_items_equal(q.read_result(0), rows)
         assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(is_truncated)
 
+    @staticmethod
+    def _set_ql_row_count_limit(query_tracker, limit):
+        config = get("//sys/query_tracker/config")
+        config.setdefault("query_tracker", {}).setdefault("ql_engine", {})["row_count_limit"] = limit
+        set("//sys/query_tracker/config", config)
+        wait_for_dynamic_config_update(query_tracker.query_tracker.client, config, "//sys/query_tracker/instances")
+
     @authors("gudqeit", "sabdenovch")
     def test_simple_query(self, query_tracker):
         self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
@@ -75,6 +84,47 @@ class TestQueriesQL(YTEnvSetup):
         with raises_yt_error("Query .* failed"):
             q.track()
         assert q.get_state() == "failed"
+
+    @authors("ulya-sidorina")
+    def test_result_truncation_by_output_row_limit(self, query_tracker):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        insert_rows("//tmp/t", rows)
+
+        settings = {
+            "cluster": "primary",
+            "output_row_limit": 1,
+            "fail_on_incomplete_result": False,
+        }
+        q = start_query("ql", "* from [//tmp/t] limit 2", settings=settings)
+        q.track()
+
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows[:1])
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(True)
+
+    @authors("ulya-sidorina")
+    def test_result_truncation_by_query_tracker_row_count_limit(self, query_tracker):
+        self._set_ql_row_count_limit(query_tracker, 2)
+
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(4)]
+        insert_rows("//tmp/t", rows)
+
+        settings = {"cluster": "primary"}
+        q = start_query("ql", "* from [//tmp/t] where key < 2 order by key", settings=settings)
+        q.track()
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows[:2])
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(False)
+
+        q = start_query("ql", "* from [//tmp/t] order by key", settings=settings)
+        q.track()
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows[:2])
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(True)
 
     @authors("gudqeit")
     def test_types(self, query_tracker):
