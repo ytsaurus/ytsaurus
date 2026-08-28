@@ -39,7 +39,7 @@ public:
     TMockChunkReader(
         TChunkId chunkId,
         TChunkData chunkData,
-        TFuture<void> metaReadAllowedToProceedFuture = VoidFuture,
+        TFuture<void> metaReadAllowedToProceedFuture = OKFuture,
         TPromise<void> notifyMetaReadStartedPromise = {})
         : ChunkId_(chunkId)
         , ChunkData_(std::move(chunkData))
@@ -109,7 +109,7 @@ public:
     void RegisterBackendChunkReader(
         TChunkId chunkId,
         TChunkData chunkData,
-        TFuture<void> metaReadAllowedToProceedFuture = VoidFuture,
+        TFuture<void> metaReadAllowedToProceedFuture = OKFuture,
         TPromise<void> notifyMetaReadStartedPromise = {})
     {
         EmplaceOrCrash(

@@ -80,7 +80,7 @@ public:
         bool eden,
         const std::vector<TVersionedOwningRow>& rows,
         const TTableSchemaPtr& chunkSchema = nullptr,
-        TFuture<void> metaReadAllowedToProceedFuture = VoidFuture,
+        TFuture<void> metaReadAllowedToProceedFuture = OKFuture,
         TPromise<void> notifyMetaReadStartedPromise = {})
     {
         NTabletNode::NProto::TAddStoreDescriptor descriptor;
