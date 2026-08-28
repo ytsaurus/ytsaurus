@@ -43,5 +43,5 @@ RECURSE(
 )
 
 RECURSE_FOR_TESTS(
-    unittest
+    unittests
 )

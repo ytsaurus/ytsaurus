@@ -17,7 +17,7 @@ RECURSE(
 )
 
 RECURSE_FOR_TESTS(
-    unittest
+    unittests
 )
 
 IF (NOT SANITIZER_TYPE)
