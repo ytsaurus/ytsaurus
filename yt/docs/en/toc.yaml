@@ -601,6 +601,8 @@ items:
             href: admin-guide/update/update-cron.md
           - name: Odin
             href: admin-guide/update/update-odin.md
+          - name: Task-proxy
+            href: admin-guide/update/update-task-proxy.md
           - name: Updating volumes
             href: admin-guide/update/update-volumes.md
        - name: Getting the YTsaurus specification ready
