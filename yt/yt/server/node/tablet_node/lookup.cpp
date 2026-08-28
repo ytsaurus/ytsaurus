@@ -1168,7 +1168,7 @@ struct TPartitionSession
     // Right know we cannot do that because chunk reader may call Open in ctor and start reading blocks.
     bool SessionStarted = false;
     // Prevents reading the partition until all its store sessions are open.
-    TFuture<void> OpenStoreSessionsFuture = VoidFuture;
+    TFuture<void> OpenStoreSessionsFuture;
 
     TStoreSessionList StoreSessions;
     bool StoreSessionsPrepared = false;
@@ -2093,7 +2093,7 @@ auto TTabletLookupSession<TPipeline>::Run() -> TFuture<typename decltype(TPipeli
 
     YT_VERIFY(!PartitionSessions_.empty());
     StartPartitionSession(&PartitionSessions_[0]);
-    if (PartitionSessions_[0].OpenStoreSessionsFuture != VoidFuture) {
+    if (PartitionSessions_[0].OpenStoreSessionsFuture != OKFuture) {
         openFutures.push_back(PartitionSessions_[0].OpenStoreSessionsFuture);
     }
 
@@ -2186,7 +2186,7 @@ void TTabletLookupSession<TPipeline>::StartPartitionSession(TPartitionSession* p
 
     auto openFutures = OpenStoreSessions(partitionSession->StoreSessions);
     partitionSession->OpenStoreSessionsFuture = openFutures.empty()
-        ? VoidFuture
+        ? OKFuture
         : AllSucceeded(std::move(openFutures));
 }
 
@@ -2327,6 +2327,7 @@ bool TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
         InflightKeyLookupCount_ += std::ssize(partitionSession.ChunkLookupKeys);
     }
 
+    YT_VERIFY(partitionSession.OpenStoreSessionsFuture);
     if (const auto& maybeError = partitionSession.OpenStoreSessionsFuture.TryGet()) {
         maybeError->ThrowOnError();
     } else {
