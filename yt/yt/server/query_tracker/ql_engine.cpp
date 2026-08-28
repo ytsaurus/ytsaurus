@@ -81,7 +81,11 @@ private:
             OnQueryFailed(queryResultOrError);
             return;
         }
-        OnQueryCompleted({TRowset{.Rowset = queryResultOrError.Value().Rowset}});
+        const auto& queryResult = queryResultOrError.Value();
+        OnQueryCompleted({TRowset{
+            .Rowset = queryResult.Rowset,
+            .IsTruncated = queryResult.Statistics.IncompleteOutput,
+        }});
     }
 };
 

@@ -76,6 +76,25 @@ class TestQueriesQL(YTEnvSetup):
             q.track()
         assert q.get_state() == "failed"
 
+    @authors("ulya-sidorina")
+    def test_result_truncation(self, query_tracker):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        insert_rows("//tmp/t", rows)
+
+        settings = {
+            "cluster": "primary",
+            "output_row_limit": 1,
+            "fail_on_incomplete_result": False,
+        }
+        q = start_query("ql", "* from [//tmp/t] limit 2", settings=settings)
+        q.track()
+
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows[:1])
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(True)
+
     @authors("gudqeit")
     def test_types(self, query_tracker):
         schema = [
