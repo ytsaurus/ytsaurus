@@ -1816,6 +1816,13 @@ class SQLCompiler(Compiled):
                     ),
                 )
                 for bindparam in self.bind_names
+                # literal_execute parameters are rendered into the SQL string
+                # via their literal_processor and never bound as values, so
+                # they do not need a bind processor.  Skipping them also avoids
+                # invoking bind-processor construction that may require the
+                # DBAPI to be present (see asyncpg, psycopgcffi cases),
+                # facilitating testing.
+                if bindparam not in self.literal_execute_params
             )
             if value is not None
         }
@@ -6654,6 +6661,9 @@ class StrSQLCompiler(SQLCompiler):
         :ref:`faq_sql_expression_string`
 
     """
+
+    def get_select_precolumns(self, select: Select[Any], **kw: Any) -> str:
+        return "DISTINCT " if select._distinct else ""
 
     def _fallback_column_name(self, column):
         return "<name unknown>"
