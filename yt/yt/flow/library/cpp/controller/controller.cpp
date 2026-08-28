@@ -339,6 +339,8 @@ public:
             TProfiler Profiler;
 
             TGauge Unknown = Profiler.Gauge("/unknown");
+            TGauge Failed = Profiler.Gauge("/failed");
+            TGauge GracefullyMoving = Profiler.Gauge("/gracefully_moving");
             TGauge Preparing = Profiler.Gauge("/preparing");
             TGauge WorkingYoung = Profiler.Gauge("/working_young");
             TGauge WorkingOld = Profiler.Gauge("/working_old");
@@ -979,6 +981,8 @@ private:
         struct TCounters
         {
             ui64 Unknown = 0;
+            ui64 Failed = 0;
+            ui64 GracefullyMoving = 0;
             ui64 Preparing = 0;
             ui64 WorkingYoung = 0;
             ui64 WorkingOld = 0;
@@ -1028,8 +1032,15 @@ private:
             const auto& status = statusIt->second;
             if (!status->CurrentJobStatus) {
                 handlePartitionWithoutJobStatus();
-            } else if (!status->CurrentJobStatus->Error.IsOK()) {
-                reasonCounters.Unknown += 1;
+            } else if (const auto& error = status->CurrentJobStatus->Error; !error.IsOK()) {
+                // The job is done but still assigned: it is waiting for the controller to drop it
+                // (and, for a graceful move, to recreate it on the target worker). Both are regular
+                // lifecycle states, so keep them apart from a partition with no job at all.
+                if (error.FindMatching(NFlow::EErrorCode::GracefulShutdown)) {
+                    reasonCounters.GracefullyMoving += 1;
+                } else {
+                    reasonCounters.Failed += 1;
+                }
             } else if (!status->CurrentJobStatus->RetryableErrors.empty()) {
                 reasonCounters.WorkingWithRetryableError += 1;
             } else if (!status->CurrentJobStatus->InitedTime.has_value()) {
@@ -1052,6 +1063,8 @@ private:
 
                 auto& reasonMetrics = computationMetrics.ReasonMetrics[reason];
                 reasonMetrics.Unknown.Update(reasonCounters.Unknown);
+                reasonMetrics.Failed.Update(reasonCounters.Failed);
+                reasonMetrics.GracefullyMoving.Update(reasonCounters.GracefullyMoving);
                 reasonMetrics.Preparing.Update(reasonCounters.Preparing);
                 reasonMetrics.WorkingYoung.Update(reasonCounters.WorkingYoung);
                 reasonMetrics.WorkingOld.Update(reasonCounters.WorkingOld);
@@ -1059,6 +1072,8 @@ private:
                 reasonMetrics.Stopped.Update(reasonCounters.Stopped);
 
                 totalCounters.Unknown += reasonCounters.Unknown;
+                totalCounters.Failed += reasonCounters.Failed;
+                totalCounters.GracefullyMoving += reasonCounters.GracefullyMoving;
                 totalCounters.Preparing += reasonCounters.Preparing;
                 totalCounters.WorkingYoung += reasonCounters.WorkingYoung;
                 totalCounters.WorkingOld += reasonCounters.WorkingOld;
@@ -1077,6 +1092,8 @@ private:
             .With("WorkingYoung", totalCounters.WorkingYoung)
             .With("WorkingWithRetryableError", totalCounters.WorkingWithRetryableError)
             .With("Preparing", totalCounters.Preparing)
+            .With("GracefullyMoving", totalCounters.GracefullyMoving)
+            .With("Failed", totalCounters.Failed)
             .With("Unknown", totalCounters.Unknown)
             .With("Stopped", totalCounters.Stopped)
             .With("FlowViewAge", TInstant::Now() - TInstant::Seconds(flowView->State->CurrentTimestamp.Underlying()));
