@@ -1,4 +1,5 @@
 from yt.yt.flow.tools.reshard_flow_tables.lib import (
+    TMP_SUFFIX,
     get_reshard_targets,
     recreate_replication_log,
     reshard_mounted_table,
@@ -9,6 +10,7 @@ class FakeClient:
     def __init__(self, attributes=None):
         self.attributes = attributes or {}
         self.calls = []
+        self.created_replicas = 0
 
     def get(self, path):
         return self.attributes[path]
@@ -18,15 +20,18 @@ class FakeClient:
 
     def unmount_table(self, table, sync):
         self.calls.append(("unmount", table))
+        self.attributes[f"{table}/@tablet_state"] = "unmounted"
 
     def reshard_table(self, table, sync, **kwargs):
         self.calls.append(("reshard", table, kwargs))
 
     def mount_table(self, table, sync):
         self.calls.append(("mount", table))
+        self.attributes[f"{table}/@tablet_state"] = "mounted"
 
     def freeze_table(self, table, sync=False):
         self.calls.append(("freeze", table))
+        self.attributes[f"{table}/@tablet_state"] = "frozen"
 
     def remove(self, path):
         self.calls.append(("remove", path))
@@ -35,21 +40,31 @@ class FakeClient:
             for key, value in self.attributes.items():
                 if key.endswith("/@replicas") and replica_id in value:
                     del value[replica_id]
+            return
+        # A removed table takes its attributes with it: telling "no table here" from "a table that
+        # is merely unmounted" is exactly what the resume logic keys on.
+        for key in [key for key in self.attributes if key == path or key.startswith(f"{path}/@")]:
+            del self.attributes[key]
 
     def create(self, object_type, path=None, attributes=None):
         self.calls.append(("create", object_type, path, attributes))
-        if object_type == "chaos_table_replica":
-            replicas = self.attributes.get(f"{attributes['table_path']}/@replicas")
-            if replicas is not None:
-                replica_id = f"created-{len(replicas)}"
-                replicas[replica_id] = {
-                    "cluster_name": attributes["cluster_name"],
-                    "replica_path": attributes["replica_path"],
-                    "content_type": attributes["content_type"],
-                    "state": "enabled" if attributes.get("enabled") else "disabled",
-                    "replica_reached_last_own_era": self.newborn_confirms_era(),
-                }
-                return replica_id
+        if object_type != "chaos_table_replica":
+            self.attributes[f"{path}/@tablet_state"] = "unmounted"
+            return
+        replicas = self.attributes.get(f"{attributes['table_path']}/@replicas")
+        if replicas is not None:
+            # Ids are never reused, as in YT: a fake that hands the same id to a later replica
+            # would hide exactly the kind of mix-up these tests are here to catch.
+            replica_id = f"created-{self.created_replicas}"
+            self.created_replicas += 1
+            replicas[replica_id] = {
+                "cluster_name": attributes["cluster_name"],
+                "replica_path": attributes["replica_path"],
+                "content_type": attributes["content_type"],
+                "state": "enabled" if attributes.get("enabled") else "disabled",
+                "replica_reached_last_own_era": self.newborn_confirms_era(),
+            }
+            return replica_id
 
     def newborn_confirms_era(self):
         return True
@@ -158,15 +173,14 @@ def test_recreate_replication_log_swaps_it():
             f"{log}/@tablet_cell_bundle": "bigb",
             f"{log}/@primary_medium": "ssd_blobs",
             f"{log}/@tablet_state": "frozen",
-            f"{tmp}/@tablet_state": "frozen",
         }
     )
 
     recreate_replication_log(
         client,
         crt,
-        "queue-id",
-        client.get(f"{crt}/@replicas")["queue-id"],
+        "zeno",
+        log,
         log_pivot_keys=[[], [123]],
         make_client=lambda proxy: log_client,
         sleep=lambda seconds: None,
@@ -183,14 +197,14 @@ def test_recreate_replication_log_swaps_it():
     assert log_client.calls == [
         ("create", "replication_log_table", tmp, expected_attributes),
         ("reshard", tmp, {"pivot_keys": [[], [123]]}),
-        ("alter_table", tmp, "created-2"),
+        ("alter_table", tmp, "created-0"),
         ("mount", tmp),
         ("freeze", log),
         ("unmount", log),
         ("remove", log),
         ("create", "replication_log_table", log, expected_attributes),
         ("reshard", log, {"pivot_keys": [[], [123]]}),
-        ("alter_table", log, "created-2"),
+        ("alter_table", log, "created-1"),
         ("mount", log),
         ("freeze", tmp),
         ("unmount", tmp),
@@ -214,8 +228,8 @@ def test_recreate_replication_log_swaps_it():
         ("alter_table_replica", "queue-id", False),
         ("remove", "#queue-id"),
         ("create", "chaos_table_replica", None, replica_attributes(log)),
-        ("alter_table_replica", "created-2", False),
-        ("remove", "#created-2"),
+        ("alter_table_replica", "created-0", False),
+        ("remove", "#created-0"),
     ]
 
 
@@ -232,7 +246,6 @@ def test_also_chaos_replication_logs_recreates_the_log_after_data_reshard():
                 {
                     f"{log}/@schema": [],
                     f"{log}/@tablet_state": "frozen",
-                    f"{log}.reshard_tmp/@tablet_state": "frozen",
                 }
             ),
         )
@@ -314,7 +327,6 @@ def test_stale_tmp_table_without_replica_is_removed():
     log_client = FakeClient(
         {
             f"{log}/@schema": [],
-            tmp: True,
             f"{log}/@tablet_state": "frozen",
             f"{tmp}/@tablet_state": "frozen",
         }
@@ -323,21 +335,89 @@ def test_stale_tmp_table_without_replica_is_removed():
     recreate_replication_log(
         client,
         crt,
-        "queue-id",
-        client.get(f"{crt}/@replicas")["queue-id"],
+        "zeno",
+        log,
         log_pivot_keys=[[]],
         make_client=lambda proxy: log_client,
         sleep=lambda seconds: None,
     )
 
-    assert log_client.calls[0] == ("remove", tmp)
-    assert log_client.calls[1][0] == "create"
+    # It is dropped before the swap starts; a leftover left frozen by an interrupted retire has to
+    # be unmounted first, so that a table can be created at the path again.
+    assert log_client.calls[0] == ("unmount", tmp)
+    assert log_client.calls[1] == ("remove", tmp)
+    assert log_client.calls[2][0] == "create"
+
+
+def test_swap_resumes_when_only_the_tmp_log_is_attached():
+    # A previous run died after retiring the canonical log, so the card carries nothing but
+    # *.reshard_tmp. Moving the log back to its canonical path is the whole remaining job -- a rerun
+    # that dismissed the temporary log as a leftover used to strand the card on it forever.
+    crt = "//pipeline/states"
+    log = "//pipeline/states_log"
+    tmp = f"{log}.reshard_tmp"
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@replicas": {
+                "data-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": "//replica/states",
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                },
+                "tmp-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": tmp,
+                    "content_type": "queue",
+                    "state": "enabled",
+                },
+            },
+        }
+    )
+    # Only the temporary log exists, so its attributes are the ones to carry over.
+    log_client = FakeClient(
+        {
+            f"{tmp}/@schema": [{"name": "key", "type": "string"}],
+            f"{tmp}/@tablet_cell_bundle": "bigb",
+            f"{tmp}/@tablet_state": "frozen",
+        }
+    )
+
+    recreate_replication_log(
+        client,
+        crt,
+        "zeno",
+        log,
+        log_pivot_keys=[[]],
+        make_client=lambda proxy: log_client,
+        sleep=lambda seconds: None,
+    )
+
+    # The canonical log is attached first (writes keep landing in tmp meanwhile), and only then is
+    # tmp retired -- the card is never left without a sync log.
+    assert [call[0] for call in log_client.calls] == [
+        "create",
+        "reshard",
+        "alter_table",
+        "mount",
+        "freeze",
+        "unmount",
+        "remove",
+    ]
+    assert log_client.calls[0][2] == log
+    assert log_client.calls[0][3] == {
+        "dynamic": True,
+        "schema": [{"name": "key", "type": "string"}],
+        "tablet_cell_bundle": "bigb",
+    }
+    assert log_client.calls[-1] == ("remove", tmp)
+    assert ("alter_table_replica", "tmp-id", False) in client.calls
 
 
 def test_birth_race_retries_the_newborn_log():
     crt = "//pipeline/states"
     log = "//pipeline/states_log"
-    tmp = f"{log}.reshard_tmp"
 
     class RacyClient(FakeClient):
         # The first newborn loses the promotion race, every following one wins.
@@ -372,15 +452,14 @@ def test_birth_race_retries_the_newborn_log():
         {
             f"{log}/@schema": [],
             f"{log}/@tablet_state": "frozen",
-            f"{tmp}/@tablet_state": "frozen",
         }
     )
 
     recreate_replication_log(
         client,
         crt,
-        "queue-id",
-        client.get(f"{crt}/@replicas")["queue-id"],
+        "zeno",
+        log,
         log_pivot_keys=[[]],
         make_client=lambda proxy: log_client,
         sleep=lambda seconds: None,
@@ -405,4 +484,197 @@ def test_plain_external_table_is_resharded_without_a_log():
         ("unmount", table),
         ("reshard", table, {"tablet_count": 7, "uniform": True}),
         ("mount", table),
+    ]
+
+
+def test_every_replica_cluster_gets_its_log_recreated():
+    # yt_sync gives a chaos table one replication log per replica cluster, and they all live at the
+    # same path -- so a log is identified by (cluster, path). Keying by the path alone recreates an
+    # arbitrary one of them and leaves the rest un-resharded without a word.
+    crt = "//pipeline/states"
+    log = "//pipeline/states_log"
+    data = "//replica/states"
+    clients = {}
+
+    def make_client(proxy):
+        return clients.setdefault(
+            proxy,
+            FakeClient(
+                {
+                    f"{log}/@schema": [],
+                    f"{log}/@tablet_state": "frozen",
+                }
+            ),
+        )
+
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@replicas": {
+                f"data-{cluster}": {
+                    "cluster_name": cluster,
+                    "replica_path": data,
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                }
+                for cluster in ("pythia", "zeno")
+            }
+            | {
+                f"queue-{cluster}": {
+                    "cluster_name": cluster,
+                    "replica_path": log,
+                    "content_type": "queue",
+                    "state": "enabled",
+                }
+                for cluster in ("pythia", "zeno")
+            },
+        }
+    )
+
+    reshard_mounted_table(
+        client, crt, also_chaos_replication_logs=True, make_client=make_client, tablet_count=4, uniform=True
+    )
+
+    assert sorted(clients) == ["pythia", "zeno"]
+    for cluster in ("pythia", "zeno"):
+        calls = clients[cluster].calls
+        # Both clusters get the full swap: tmp created, the old log removed, the log recreated, tmp
+        # removed. Neither is left carrying its original log.
+        assert [call[2] for call in calls if call[0] == "create"] == [f"{log}{TMP_SUFFIX}", log], cluster
+        assert [call[1] for call in calls if call[0] == "remove"] == [log, f"{log}{TMP_SUFFIX}"], cluster
+    # Both of the original log replicas were retired -- neither cluster was skipped.
+    retired = [call[1] for call in client.calls if call[0] == "alter_table_replica"]
+    assert [replica_id for replica_id in retired if replica_id.startswith("queue-")] == [
+        "queue-pythia",
+        "queue-zeno",
+    ], retired
+
+
+def test_unmounted_canonical_log_is_discarded_before_the_serving_tmp():
+    # A previous run died inside the attach of the canonical log, between creating its chaos replica
+    # and mounting the table: the card carries a replica whose table never attached to it. Such a
+    # log serves nothing and can never freeze, so retiring it the normal way blocks on the freeze --
+    # and does so after retiring the temporary log, which is the one still taking writes.
+    crt = "//pipeline/states"
+    log = "//pipeline/states_log"
+    tmp = f"{log}{TMP_SUFFIX}"
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@replicas": {
+                "data-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": "//replica/states",
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                },
+                "canonical-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": log,
+                    "content_type": "queue",
+                    "state": "enabled",
+                },
+                "tmp-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": tmp,
+                    "content_type": "queue",
+                    "state": "enabled",
+                },
+            },
+        }
+    )
+    log_client = FakeClient(
+        {
+            f"{log}/@schema": [{"name": "key", "type": "string"}],
+            f"{log}/@tablet_state": "unmounted",
+            f"{tmp}/@tablet_state": "mounted",
+        }
+    )
+
+    recreate_replication_log(
+        client,
+        crt,
+        "zeno",
+        log,
+        log_pivot_keys=[[]],
+        make_client=lambda proxy: log_client,
+        sleep=lambda seconds: None,
+    )
+
+    # The broken log is dropped outright -- no freeze, and no unmount either, it is unmounted
+    # already -- and the tmp is retired only once a healthy log stands at the canonical path.
+    assert [call[0] for call in log_client.calls] == [
+        "remove",
+        "create",
+        "reshard",
+        "alter_table",
+        "mount",
+        "freeze",
+        "unmount",
+        "remove",
+    ]
+    assert log_client.calls[0] == ("remove", log)
+    assert ("freeze", log) not in log_client.calls
+    assert [call for call in client.calls if call[0] == "alter_table_replica"] == [
+        ("alter_table_replica", "canonical-id", False),
+        ("alter_table_replica", "tmp-id", False),
+    ]
+
+
+def test_unmounted_canonical_log_without_a_tmp_brings_one_up_first():
+    # The same broken canonical, but nothing else is attached. The card may not be left without a
+    # sync log, and a log that never attached is not one, so the temporary log has to come up before
+    # the broken one can go away.
+    crt = "//pipeline/states"
+    log = "//pipeline/states_log"
+    tmp = f"{log}{TMP_SUFFIX}"
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@replicas": {
+                "data-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": "//replica/states",
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                },
+                "canonical-id": {
+                    "cluster_name": "zeno",
+                    "replica_path": log,
+                    "content_type": "queue",
+                    "state": "enabled",
+                },
+            },
+        }
+    )
+    log_client = FakeClient(
+        {
+            f"{log}/@schema": [],
+            f"{log}/@tablet_state": "unmounted",
+        }
+    )
+
+    recreate_replication_log(
+        client,
+        crt,
+        "zeno",
+        log,
+        log_pivot_keys=[[]],
+        make_client=lambda proxy: log_client,
+        sleep=lambda seconds: None,
+    )
+
+    assert [(call[0], call[1] if call[0] != "create" else call[2]) for call in log_client.calls] == [
+        ("create", tmp),
+        ("reshard", tmp),
+        ("alter_table", tmp),
+        ("mount", tmp),
+        ("remove", log),
+        ("create", log),
+        ("reshard", log),
+        ("alter_table", log),
+        ("mount", log),
+        ("freeze", tmp),
+        ("unmount", tmp),
+        ("remove", tmp),
     ]
