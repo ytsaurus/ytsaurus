@@ -39,6 +39,8 @@ type prepare struct {
 
 	spec    *spec.Spec
 	actions []prepareAction
+
+	jobStatePaths []ypath.Path
 }
 
 func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) prepareAction {
@@ -65,6 +67,7 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 			if err != nil {
 				return err
 			}
+			p.jobStatePaths = append(p.jobStatePaths, tmpPath)
 
 			w, err := p.mr.yc.WriteFile(ctx, tmpPath, nil)
 			if err != nil {
@@ -391,8 +394,20 @@ func (p *prepare) prepare(opts []OperationOption) error {
 	return nil
 }
 
-func (p *prepare) start(opts []OperationOption) (*operation, error) {
-	if err := p.prepare(opts); err != nil {
+func (p *prepare) removeJobState() {
+	for _, path := range p.jobStatePaths {
+		_ = p.mr.yc.RemoveNode(p.ctx, path, &yt.RemoveNodeOptions{Force: true})
+	}
+}
+
+func (p *prepare) start(opts []OperationOption) (op *operation, err error) {
+	defer func() {
+		if err != nil {
+			p.removeJobState()
+		}
+	}()
+
+	if err = p.prepare(opts); err != nil {
 		return nil, err
 	}
 
