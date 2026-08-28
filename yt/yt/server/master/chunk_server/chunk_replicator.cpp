@@ -360,7 +360,15 @@ public:
         const TChunk* chunk,
         const TDataCenter* dataCenter) const override
     {
-        return ChunkPlacement_->GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
+        return ChunkPlacement_->GetMaxReplicasPerDataCenter(
+            mediumIndex,
+            chunk,
+            dataCenter);
+    }
+
+    bool IsDataCenterTemporarilyUnavailable(const TDataCenter* dataCenter) const override
+    {
+        return ChunkPlacement_->IsDataCenterTemporarilyUnavailable(dataCenter);
     }
 
     TNodeList GetConsistentPlacementWriteTargets(
@@ -783,7 +791,7 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     auto replicationFactor = ChunkStatisticsCalculator_->GetChunkAggregatedReplicationFactor(
         chunk,
         targetMediumIndex);
-    auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
+    auto maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(targetMediumIndex, chunk);
 
     auto statistics = ChunkStatisticsCalculator_->ComputeChunkStatistics(chunk, replicas);
     const auto& mediumStatistics = statistics.PerMediumStatistics[targetMediumIndex];
@@ -800,20 +808,12 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
 
     int replicasNeeded;
     if (Any(mediumStatistics.Status & EChunkStatus::Underreplicated)) {
-        auto minRackAwareReplicaCount = std::min(replicationFactor, MinAvailableReplicaCount + maxReplicasPerRack);
-
-        replicasNeeded = std::max({
-            replicationFactor - temporarilyUnavailableReplicaCount,
-            replicationFactor - MaxTemporarilyUnavailableReplicaCount,
-            minRackAwareReplicaCount}) - replicaCount;
-
-        if (replicasNeeded < 0) {
-            YT_TLOG_ALERT("Chunk replicas needed count is negative")
-                .With("ChunkId", chunkId)
-                .With("MediumIndex", targetMediumIndex)
-                .With("MediumStatus", mediumStatistics.Status);
-            return EMisscheduleReason::None;
-        }
+        replicasNeeded = ComputeReplicaDeficit(
+            replicationFactor,
+            replicaCount,
+            temporarilyUnavailableReplicaCount,
+            GetDynamicConfig()->TemporarilyUnavailableExtraFailureDomainTolerance,
+            maxReplicasPerRack);
     } else if (Any(mediumStatistics.Status & (EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
         replicasNeeded = 1;
     } else if (Any(mediumStatistics.Status & (EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned))) {
@@ -995,6 +995,7 @@ EMisscheduleReason TChunkReplicator::TryScheduleRepairJob(
     const auto& mediumStatistics = statistics.PerMediumStatistics[mediumIndex];
 
     NErasure::TPartIndexList erasedPartIndexes;
+    // TODO(danilalexeev): YT-29400. Avoid repairing safely deferred temporarily unavailable parts.
     for (int index = 0; index < totalPartCount; ++index) {
         if (mediumStatistics.ReplicaCount[index] == 0) {
             erasedPartIndexes.push_back(index);
@@ -3209,6 +3210,12 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
         oldConfig->ChunkManager->ConsistentReplicaPlacement->Enable)
     {
         InconsistentlyPlacedChunks_.clear();
+    }
+
+    if (newConfig->TemporarilyUnavailableExtraFailureDomainTolerance !=
+            oldConfig->ChunkManager->TemporarilyUnavailableExtraFailureDomainTolerance)
+    {
+        ScheduleGlobalChunkRefresh();
     }
 
     auto updateToggle = [&] (bool* currentValue, bool newValue, void (TChunkReplicator::*scheduleGlobal)(), std::string what) {
