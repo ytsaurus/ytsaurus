@@ -26,6 +26,7 @@ public:
         , LocalConnection_(std::move(localConnection))
         , LocalClient_(LocalConnection_->CreateNativeClient(clientOptions))
         , ClientOptions_(std::move(clientOptions))
+        , LocalDc_(LocalConnection_->GetStaticConfig()->Datacenter)
     { }
 
     IClientPtr GetClient(const std::string& clusterName) override
@@ -59,6 +60,11 @@ public:
         return LocalClient_;
     }
 
+    const std::optional<std::string>& GetLocalDc() const override
+    {
+        return LocalDc_;
+    }
+
     TDuration GetEvictionPeriod() const override
     {
         return TAlienClusterClientCacheBase::GetEvictionPeriod();
@@ -68,6 +74,7 @@ private:
     const IConnectionPtr LocalConnection_;
     const IClientPtr LocalClient_;
     const TClientOptions ClientOptions_;
+    const std::optional<std::string> LocalDc_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CachedClientsLock_);
 };

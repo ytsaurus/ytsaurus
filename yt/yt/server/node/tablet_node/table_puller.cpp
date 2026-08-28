@@ -121,6 +121,22 @@ public:
         return Underlying_->GetLocalClient();
     }
 
+    bool IsSameDatacenter(const std::string& clusterName)
+    {
+        const auto& localDc = Underlying_->GetLocalDc();
+        if (!localDc) {
+            return false;
+        }
+
+        const auto& remoteClient = GetClient(clusterName);
+        if (!remoteClient) {
+            return false;
+        }
+
+        const auto& remoteDc = remoteClient->GetNativeConnection()->GetStaticConfig()->Datacenter;
+        return remoteDc == localDc;
+    }
+
 private:
     inline static constinit NNative::IClientPtr NullClient = nullptr;
     const IAlienClusterClientCachePtr Underlying_;
@@ -565,6 +581,7 @@ private:
             tabletSnapshot->UpstreamReplicaId,
             replicationCard,
             *replicationProgress,
+            GetSameDcQueueReplicasClusters(replicationCard, selfReplica->ClusterName),
             now);
 
         if (!queueReplicaOrError.IsOK()) {
@@ -939,6 +956,27 @@ private:
         YT_TLOG_INFO("Doing hard backoff")
             .With(error);
         TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
+    }
+
+    THashSet<std::string> GetSameDcQueueReplicasClusters(
+        const TReplicationCardPtr& replicationCard,
+        const std::string& selfClusterName)
+    {
+        THashSet<std::string> otherSameDcQueueClusters;
+        for (const auto& replica : replicationCard->Replicas) {
+            if (replica.second.ContentType != ETableReplicaContentType::Queue ||
+                !IsReplicaEnabled(replica.second.State) ||
+                replica.second.ClusterName == selfClusterName)
+            {
+                continue;
+            }
+
+            if (ReplicatorClientCache_.IsSameDatacenter(replica.second.ClusterName)) {
+                otherSameDcQueueClusters.insert(replica.second.ClusterName);
+            }
+        }
+
+        return otherSameDcQueueClusters;
     }
 };
 

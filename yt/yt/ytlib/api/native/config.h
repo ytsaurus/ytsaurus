@@ -218,6 +218,8 @@ struct TConnectionStaticConfig
     //! Visible in profiling as tag `connection_name`.
     std::string ConnectionName;
 
+    std::optional<std::string> Datacenter;
+
     //! Region defines geographical location, largest tier in cloud hierarchy.
     std::optional<std::string> Region;
 
