@@ -121,7 +121,7 @@ TEST_F(TQueryPrepareTest, BadWhere)
 TEST_F(TQueryPrepareTest, BadTableName)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//bad/table"))
-        .WillOnce(Invoke(&RaiseTableNotFound));
+        .WillOnce(&RaiseTableNotFound);
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//bad/table]",

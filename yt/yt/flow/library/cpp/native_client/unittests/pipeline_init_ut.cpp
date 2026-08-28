@@ -16,7 +16,6 @@ using namespace NObjectClient;
 using namespace NYPath;
 
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 
@@ -43,13 +42,13 @@ TEST(TPipelineInitTest, IgnoreExistingPropagatesToInnerTables)
         .WillByDefault(Return(MakeFuture<ITransactionPtr>(transaction)));
 
     ON_CALL(*transaction, CreateNode(_, _, _))
-        .WillByDefault(Invoke([&] (
+        .WillByDefault([&] (
             const TYPath& path,
             EObjectType type,
             const TCreateNodeOptions& options) {
             createNodeCalls.push_back({path, type, options});
             return MakeFuture<TNodeId>(TNodeId(TGuid::Create()));
-        }));
+        });
 
     ON_CALL(*transaction, Commit(_))
         .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));
