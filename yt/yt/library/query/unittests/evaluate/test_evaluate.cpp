@@ -150,7 +150,7 @@ TQueryStatistics DoExecuteQuery(
 
     auto readerMock = New<NiceMock<TReaderMock>>();
     EXPECT_CALL(*readerMock, Read(_))
-        .WillRepeatedly(Invoke(readRows));
+        .WillRepeatedly(readRows);
     ON_CALL(*readerMock, GetReadyEvent())
         .WillByDefault(Return(OKFuture));
 
@@ -810,7 +810,7 @@ TEvaluateCoordinatedGroupByResult TQueryEvaluateTest::EvaluateCoordinatedGroupBy
 
         auto readerMock = New<NiceMock<TReaderMock>>();
         EXPECT_CALL(*readerMock, Read(_))
-            .WillRepeatedly(Invoke(readRows));
+            .WillRepeatedly(readRows);
         ON_CALL(*readerMock, GetReadyEvent())
             .WillByDefault(Return(OKFuture));
 
@@ -904,7 +904,7 @@ ISchemafulPipePtr TQueryEvaluateTest::RunOnNodeThread(
 
     auto readerMock = New<NiceMock<TReaderMock>>();
     EXPECT_CALL(*readerMock, Read(_))
-        .WillRepeatedly(Invoke(readRows));
+        .WillRepeatedly(readRows);
     ON_CALL(*readerMock, GetReadyEvent())
         .WillByDefault(Return(OKFuture));
 

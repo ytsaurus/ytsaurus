@@ -334,12 +334,12 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationCallsThrottling
         operation->GetSchedulingOperationController(),
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        .WillRepeatedly([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
                 TErrorOr<TControllerScheduleAllocationResultPtr>(New<TControllerScheduleAllocationResult>()));
-        }));
+        });
 
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -417,20 +417,20 @@ TEST_F(TOperationControllerTest, TestConcurrentScheduleAllocationExecDurationThr
         operation->GetSchedulingOperationController(),
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(JobCount + 1)
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        .WillOnce([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             auto result = New<TControllerScheduleAllocationResult>();
             result->NextDurationEstimate = TDuration::MilliSeconds(100);
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
                 TErrorOr<TControllerScheduleAllocationResultPtr>(result));
-        }))
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        })
+        .WillRepeatedly([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             auto result = New<TControllerScheduleAllocationResult>();
             result->NextDurationEstimate = TDuration::MilliSeconds(100);
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
                 TErrorOr<TControllerScheduleAllocationResultPtr>(result));
-        }));
+        });
 
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -530,12 +530,12 @@ TEST_F(TOperationControllerTest, TestConcurrentControllerScheduleAllocationCalls
         operation->GetSchedulingOperationController(),
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2 * JobCount)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        .WillRepeatedly([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             ++concurrentScheduleAllocationCalls;
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
                 TErrorOr<TControllerScheduleAllocationResultPtr>(New<TControllerScheduleAllocationResult>()));
-        }));
+        });
 
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -610,7 +610,7 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
     EXPECT_CALL(
         operation->GetSchedulingOperationController(),
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        .WillOnce([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             return BIND([&] {
                 Sleep(TDuration::Seconds(2));
 
@@ -618,8 +618,8 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
             })
                 .AsyncVia(actionQueue->GetInvoker())
                 .Run();
-        }))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        })
+        .WillOnce([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             return BIND([&] {
                 Sleep(TDuration::Seconds(2));
 
@@ -629,8 +629,8 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
             })
                 .AsyncVia(actionQueue->GetInvoker())
                 .Run();
-        }))
-        .WillOnce(testing::Invoke([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        })
+        .WillOnce([&] (auto /*context*/, auto /*jobLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             return BIND([&] {
                 Sleep(TDuration::MilliSeconds(10));
 
@@ -640,7 +640,7 @@ TEST_F(TOperationControllerTest, TestScheduleAllocationTimeout)
             })
                 .AsyncVia(actionQueue->GetInvoker())
                 .Run();
-        }));
+        });
     EXPECT_CALL(
         operation->GetSchedulingOperationController(),
         OnNonscheduledAllocationAborted(firstAllocationId, EAbortReason::SchedulingTimeout, testing::_))

@@ -28,7 +28,6 @@ using namespace NQueryClient;
 using namespace NYPath;
 
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::StrictMock;
 using NTransactionClient::operator""_ts;
@@ -63,9 +62,9 @@ TEST(TRetryableClientTest, SimpleSuccess)
     auto rowset = CreateRowset<TUnversionedRow>(TNameTablePtr{}, {}); // Dummy rowset, need only unique address to compare later.
     auto client = New<TStrictMockClient>();
     EXPECT_CALL(*client, LookupRows(_, _, _, _))
-        .WillOnce(testing::Invoke([&] () {
+        .WillOnce([&] () {
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TUnversionedLookupRowsResult{.Rowset = rowset});
-        }));
+        });
 
     auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
     auto result = WaitFor(retryableClient->LookupRows("//path", {}, {}, {})).ValueOrThrow();
@@ -77,12 +76,12 @@ TEST(TRetryableClientTest, RetryAndSuccess)
     auto rowset = CreateRowset<TUnversionedRow>(TNameTablePtr{}, {}); // Dummy rowset, need only unique address to compare later.
     auto client = New<TStrictMockClient>();
     EXPECT_CALL(*client, LookupRows(_, _, _, _))
-        .WillOnce(testing::Invoke([&] () {
+        .WillOnce([&] () {
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TError(NYT::EErrorCode::Timeout, "Fake timeout"));
-        }))
-        .WillOnce(testing::Invoke([&] () {
+        })
+        .WillOnce([&] () {
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TUnversionedLookupRowsResult{.Rowset = rowset});
-        }));
+        });
 
     auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
     auto result = WaitFor(retryableClient->LookupRows("//path", {}, {}, {})).ValueOrThrow();
@@ -94,10 +93,10 @@ TEST(TRetryableClientTest, Timeout)
     auto aqueue = New<TActionQueue>();
     auto client = New<TStrictMockClient>();
     EXPECT_CALL(*client, LookupRows(_, _, _, _))
-        .WillRepeatedly(testing::Invoke([&] () {
+        .WillRepeatedly([&] () {
             TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TError(NYT::EErrorCode::Timeout, "Fake timeout"));
-        }));
+        });
 
     auto retryableClient = CreateRetryableClient(client, aqueue->GetInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
     auto spec = New<TDynamicRetryableClientSpec>();
@@ -113,10 +112,10 @@ TEST(TRetryableClientTest, RetryableErrors)
     auto aqueue = New<TActionQueue>();
     auto client = New<TStrictMockClient>();
     EXPECT_CALL(*client, LookupRows(_, _, _, _))
-        .WillRepeatedly(testing::Invoke([&] () {
+        .WillRepeatedly([&] () {
             TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(TError(NYT::EErrorCode::Timeout, "Fake timeout"));
-        }));
+        });
 
     auto statusProfiler = CreateSyncStatusProfiler();
     auto retryableClient = CreateRetryableClient(client, aqueue->GetInvoker(), statusProfiler, TLogger("test"));
@@ -148,11 +147,11 @@ TEST(TRetryableClientTest, PrerequisiteCheckFailedIsNotRetriable)
     auto client = New<TStrictMockClient>();
     // StrictMock with a single expectation: a second (retry) call would fail the test.
     EXPECT_CALL(*client, LookupRows(_, _, _, _))
-        .WillOnce(testing::Invoke([&] () {
+        .WillOnce([&] () {
             return NYT::MakeFuture<TUnversionedLookupRowsResult>(
                 TError("Error committing transaction")
                     .With(TError(NObjectClient::EErrorCode::PrerequisiteCheckFailed, "Prerequisite check failed")));
-        }));
+        });
 
     auto retryableClient = CreateRetryableClient(client, GetSyncInvoker(), CreateSyncStatusProfiler(), TLogger("test"));
     auto result = WaitFor(retryableClient->LookupRows("//path", {}, {}, {}));

@@ -93,7 +93,7 @@ protected:
     {
         auto callCount = std::make_shared<int>(0);
         EXPECT_CALL(*Client_, SelectRows(_, _))
-            .WillRepeatedly(::testing::Invoke([callCount, failureCount] (
+            .WillRepeatedly([callCount, failureCount] (
                 const std::string& /*query*/,
                 const TSelectRowsOptions& /*options*/)
             {
@@ -101,7 +101,7 @@ protected:
                     return MakeFuture<TSelectRowsResult>(TError("Transient failure"));
                 }
                 return MakeFuture(MakeEmptySelectResult());
-            }));
+            });
         return callCount;
     }
 
@@ -117,14 +117,14 @@ protected:
         EXPECT_CALL(*transaction, DeleteRows(_, _, _, _))
             .Times(AnyNumber());
         EXPECT_CALL(*transaction, Commit(_))
-            .WillRepeatedly(::testing::Invoke([commitCount, failureCount] (
+            .WillRepeatedly([commitCount, failureCount] (
                 const TTransactionCommitOptions& /*options*/)
             {
                 if (++*commitCount <= failureCount) {
                     return MakeFuture<TTransactionCommitResult>(TError("Transient commit failure"));
                 }
                 return MakeFuture(TTransactionCommitResult{});
-            }));
+            });
 
         EXPECT_CALL(*Client_, StartTransaction(_, _))
             .WillRepeatedly(::testing::Return(MakeFuture<ITransactionPtr>(transaction)));

@@ -41,7 +41,6 @@ using namespace NYTree;
 using namespace NYson;
 
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 
@@ -83,10 +82,10 @@ NApi::ITableReaderPtr MakeTableReader(std::vector<i64> values, TFuture<void> rea
     const int valueId = reader->GetNameTable()->GetIdOrThrow("value");
     auto rows = std::make_shared<std::vector<i64>>(std::move(values));
 
-    EXPECT_CALL(*reader, GetReadyEvent()).WillRepeatedly(Invoke([=] {
+    EXPECT_CALL(*reader, GetReadyEvent()).WillRepeatedly([=] {
         return rows->empty() ? readyAfterRows : OKFuture;
-    }));
-    EXPECT_CALL(*reader, Read(_)).WillRepeatedly(Invoke([=] (const TRowBatchReadOptions& options) -> IUnversionedRowBatchPtr {
+    });
+    EXPECT_CALL(*reader, Read(_)).WillRepeatedly([=] (const TRowBatchReadOptions& options) -> IUnversionedRowBatchPtr {
         if (rows->empty()) {
             return nullptr;
         }
@@ -94,7 +93,7 @@ NApi::ITableReaderPtr MakeTableReader(std::vector<i64> values, TFuture<void> rea
         auto batch = MakeRowBatch(std::vector<i64>(rows->begin(), rows->begin() + count), valueId);
         rows->erase(rows->begin(), rows->begin() + count);
         return batch;
-    }));
+    });
 
     return reader;
 }
@@ -158,12 +157,12 @@ protected:
         auto pendingReaders = std::make_shared<std::deque<TFuture<NApi::ITableReaderPtr>>>(readers.begin(), readers.end());
         EXPECT_CALL(*client, CreateTableReader(_, _))
             .Times(std::ssize(readers))
-            .WillRepeatedly(Invoke([this, pendingReaders] (const TRichYPath& path, const NApi::TTableReaderOptions&) {
+            .WillRepeatedly([this, pendingReaders] (const TRichYPath& path, const NApi::TTableReaderOptions&) {
                 ReaderStarts_.push_back(GetRowIndexRange(path).first);
                 auto reader = pendingReaders->front();
                 pendingReaders->pop_front();
                 return reader;
-            }));
+            });
         return client;
     }
 

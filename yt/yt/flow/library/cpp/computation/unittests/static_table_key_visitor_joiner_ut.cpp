@@ -578,10 +578,9 @@ protected:
     TIntrusivePtr<TStaticTableKeyVisitorJoiner> MakeCursorJoiner()
     {
         using ::testing::_;
-        using ::testing::Invoke;
 
         EXPECT_CALL(*Mock_, GetNode(_, _))
-            .WillRepeatedly(Invoke([this] (const NYPath::TYPath& path, const NApi::TGetNodeOptions&) {
+            .WillRepeatedly([this] (const NYPath::TYPath& path, const NApi::TGetNodeOptions&) {
                 if (path.EndsWith("/@dynamic")) {
                     return MakeFuture(NYson::ConvertToYsonString(false));
                 }
@@ -589,9 +588,9 @@ protected:
                     return MakeFuture(NYson::ConvertToYsonString(TableSchema_));
                 }
                 return MakeFuture<NYson::TYsonString>(TError("Unexpected GetNode of %v", path));
-            }));
+            });
         EXPECT_CALL(*Mock_, CreateTableReader(_, _))
-            .WillRepeatedly(Invoke([this] (const NYPath::TRichYPath& path, const NApi::TTableReaderOptions&) {
+            .WillRepeatedly([this] (const NYPath::TRichYPath& path, const NApi::TTableReaderOptions&) {
                 auto lower = MinKey();
                 auto ranges = path.GetNewRanges(
                     TComparator(std::vector<ESortOrder>{ESortOrder::Ascending, ESortOrder::Ascending}));
@@ -610,7 +609,7 @@ protected:
                     TableSchema_,
                     std::move(rows),
                     std::exchange(LeadingEmptyBatches_, 0)));
-            }));
+            });
 
         auto context = New<TExternalStateJoinerContext>();
         context->KeySchema = KeySchema_;

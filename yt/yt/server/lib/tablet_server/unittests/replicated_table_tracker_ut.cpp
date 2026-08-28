@@ -31,7 +31,6 @@ using namespace NProfiling;
 using ::testing::StrictMock;
 using ::testing::Return;
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::Mock;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -497,10 +496,10 @@ public:
     void MockGoodTable(const TStrictMockClientPtr& client, const NYPath::TYPath& tablePath = TablePath1)
     {
         EXPECT_CALL(*client, GetNode(tablePath, _))
-            .WillRepeatedly(Invoke([=] (const NYPath::TYPath& /*path*/, const TGetNodeOptions& options) {
+            .WillRepeatedly([=] (const NYPath::TYPath& /*path*/, const TGetNodeOptions& options) {
                 EXPECT_TRUE(options.Attributes);
                 return MakeFuture(TYsonString());
-            }));
+            });
     }
 
     void MockBadTable(const TStrictMockClientPtr& client, const NYPath::TYPath& tablePath = TablePath1)
@@ -673,9 +672,9 @@ TEST_F(TReplicatedTableTrackerTest, PreloadCheck)
 
     auto mockPreloadState = [&] (EStorePreloadState preloadState) {
         EXPECT_CALL(*client, GetNode(TablePath1, _))
-            .WillRepeatedly(Invoke(std::bind_front(
+            .WillRepeatedly(std::bind_front(
                 ReturnSerializedPreloadStateFuture,
-                preloadState)));
+                preloadState));
 
         Sleep(CheckPeriod);
     };

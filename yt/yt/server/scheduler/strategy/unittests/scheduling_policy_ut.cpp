@@ -860,12 +860,12 @@ TEST_F(TSchedulingPolicyTest, DontSuggestMoreResourcesThanOperationNeeds)
         operationControllerStrategyHost,
         ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
         .Times(2)
-        .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+        .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
             heartbeatsInScheduling.fetch_add(1);
             EXPECT_TRUE(NConcurrency::WaitFor(readyToGo.ToFuture()).IsOK());
             return MakeFuture<TControllerScheduleAllocationResultPtr>(
                 TErrorOr<TControllerScheduleAllocationResultPtr>(New<TControllerScheduleAllocationResult>()));
-        }));
+        });
 
     std::vector<TFuture<void>> futures;
     auto actionQueue = New<NConcurrency::TActionQueue>();
@@ -1132,12 +1132,12 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithBatchScheduling)
             operationControllerStrategyHost,
             ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+            .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
                     TErrorOr<TControllerScheduleAllocationResultPtr>(result));
-            }));
+            });
     }
 
     auto checkRootChildSet = [rootElement = rootElement.Get()] (
@@ -1338,12 +1338,12 @@ TEST_F(TSchedulingPolicyTest, TestSchedulableChildSetWithoutBatchScheduling)
             operationControllerStrategyHost,
             ScheduleAllocation(testing::_, testing::_, testing::_, testing::_, testing::_, testing::_, testing::_))
             .Times(2)
-            .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
+            .WillRepeatedly([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*waitingForResourcesOnNodeTimeout*/, auto /*allocationGroupName*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
                 result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
                     TErrorOr<TControllerScheduleAllocationResultPtr>(result));
-            }));
+            });
     }
 
     // With heap.

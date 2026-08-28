@@ -17,7 +17,6 @@ using namespace NQueryClient;
 using namespace NYPath;
 
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::StrictMock;
 using NTransactionClient::operator""_ts;
 using TStrictMockTransaction = StrictMock<NApi::TMockTransaction>;
@@ -66,7 +65,7 @@ TEST(TRetryableTransactionTest, Simple)
         auto mockTransaction = New<TStrictMockTransaction>();
 
         EXPECT_CALL(*mockTransaction, ModifyRows(_, _, _, _))
-            .WillOnce(Invoke(checker));
+            .WillOnce(checker);
 
         retryableTransaction->DoAttempt(mockTransaction);
     }
