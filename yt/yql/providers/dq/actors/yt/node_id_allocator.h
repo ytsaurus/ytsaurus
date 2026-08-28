@@ -1,68 +1,45 @@
 #pragma once
 
-#include <algorithm>
-
+#include <util/generic/hash.h>
 #include <util/generic/hash_set.h>
+#include <util/generic/string.h>
 #include <util/generic/vector.h>
 
 namespace NYql {
 
 class TNodeIdAllocator {
 public:
-    TNodeIdAllocator(ui32 minNodeId, ui32 maxNodeId)
-        : MinNodeId(minNodeId)
-        , MaxNodeId(maxNodeId)
-    { }
+    struct TRestoreClaimResult {
+        bool Valid = false;
+        TVector<ui32> ConflictingNodeIds;
+    };
 
-    TVector<ui32> Allocate(const TVector<ui32>& res) {
-        TVector<ui32> duplicates;
-        for (ui32 id : res) {
-            if (!Allocated.insert(id).second) {
-                duplicates.push_back(id);
-            }
-        }
-        return duplicates;
-    }
+    TNodeIdAllocator(ui32 minNodeId, ui32 maxNodeId);
 
-    // Atomically allocates all IDs or none. Returns false on any conflict.
-    bool TryAllocate(const TVector<ui32>& res) {
-        const bool hasConflict = std::any_of(res.begin(), res.end(), [this](ui32 id) {
-            return Allocated.contains(id);
-        });
-        if (hasConflict) {
-            return false;
-        }
-        Allocated.insert(res.begin(), res.end());
-        return true;
-    }
+    // Restored claims may be outside the allocation range.
+    TRestoreClaimResult RestoreClaim(const TString& owner, const TVector<ui32>& nodeIds);
+    bool Allocate(const TString& owner, i64 count, TVector<ui32>* result);
+    bool Release(const TString& owner);
 
-    void Allocate(TVector<ui32>& res, ui32 count) {
-        res.reserve(count);
-        for (ui32 id = MinNodeId; id < MaxNodeId && res.size() < count; ++id) {
-            if (Allocated.emplace(id).second) {
-                res.push_back(id);
-            }
-        }
-    }
+    // Counts (owner, node ID) pairs.
+    i64 GetClaimCount() const;
+    // Counts distinct claimed node IDs.
+    i64 GetClaimedNodeIdCount() const;
 
-    void Deallocate(const TVector<ui32>& nodes) {
-        for (auto id : nodes) {
-            Allocated.erase(id);
-        }
-    }
-
-    void Clear() {
-        Allocated.clear();
-    }
-
-    bool IsAllocated(ui32 id) const {
-        return Allocated.contains(id);
-    }
+    void Clear();
 
 private:
-    THashSet<ui32> Allocated;
-    const ui32 MinNodeId;
-    const ui32 MaxNodeId;
+    using TNodeIdSet = THashSet<ui32>;
+    using TOwnerSet = THashSet<TString>;
+
+    const ui32 MinNodeId_;
+    const ui32 MaxNodeId_;
+
+    THashMap<TString, TNodeIdSet> NodeIdsByOwner_;
+    THashMap<ui32, TOwnerSet> OwnersByNodeId_;
+
+    bool CheckClaim(const TString& owner, const TVector<ui32>& nodeIds) const;
+    void AddClaim(const TString& owner, const TVector<ui32>& nodeIds);
 };
 
 } // namespace NYql

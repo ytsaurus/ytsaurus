@@ -700,12 +700,18 @@ namespace NYql {
             auto requestId = ev->Get()->RequestId;
             auto request = NewRequest<TRequest>(requestId, ev->Sender, ctx);
 
-            YT_UNUSED_FUTURE(Client->SetNode(path, value, options)
-                .Apply(BIND([=](const TErrorOr<void>& result) {
-                    if (auto req = request.Lock()) {
-                        req->Complete(new TEvSetNodeResponse(requestId, result));
-                    }
-                })));
+            try {
+                YT_UNUSED_FUTURE(Client->SetNode(path, value, options)
+                    .Apply(BIND([=](const TErrorOr<void>& result) {
+                        if (auto req = request.Lock()) {
+                            req->Complete(new TEvSetNodeResponse(requestId, result));
+                        }
+                    })));
+            } catch (const std::exception& ex) {
+                if (auto req = request.Lock()) {
+                    req->Complete(new TEvSetNodeResponse(requestId, ex));
+                }
+            }
         }
 
         void OnGetNode(TEvGetNode::TPtr& ev, const TActorContext& ctx) {
@@ -728,12 +734,18 @@ namespace NYql {
             auto requestId = ev->Get()->RequestId;
             auto request = NewRequest<TRequest>(requestId, ev->Sender, ctx);
 
-            YT_UNUSED_FUTURE(Client->RemoveNode(path, options)
-                .Apply(BIND([=](const TErrorOr<void>& result) {
-                    if (auto req = request.Lock()) {
-                        req->Complete(new TEvRemoveNodeResponse(requestId, result));
-                    }
-                })));
+            try {
+                YT_UNUSED_FUTURE(Client->RemoveNode(path, options)
+                    .Apply(BIND([=](const TErrorOr<void>& result) {
+                        if (auto req = request.Lock()) {
+                            req->Complete(new TEvRemoveNodeResponse(requestId, result));
+                        }
+                    })));
+            } catch (const std::exception& ex) {
+                if (auto req = request.Lock()) {
+                    req->Complete(new TEvRemoveNodeResponse(requestId, ex));
+                }
+            }
         }
 
         void OnCreateNode(TEvCreateNode::TPtr& ev, const TActorContext& ctx) {
@@ -747,24 +759,30 @@ namespace NYql {
                 << " cluster=" << ClusterName
                 << " path=" << path;
 
-            YT_UNUSED_FUTURE(Client->CreateNode(path, type, options)
-                .Apply(BIND([=](const TErrorOr<NYT::NCypressClient::TNodeId>& result) {
-                    if (result.IsOK()) {
-                        const auto nodeId = result.Value();
-                        YQL_CLOG(DEBUG, ProviderDq) << "YtWrapper CreateNode OK"
-                            << " cluster=" << ClusterName
-                            << " path=" << path
-                            << " node_id=" << ToString(nodeId);
-                    } else {
-                        YQL_CLOG(WARN, ProviderDq) << "YtWrapper CreateNode failed"
-                            << " cluster=" << ClusterName
-                            << " path=" << path
-                            << " error=" << ToString(result);
-                    }
-                    if (auto req = request.Lock()) {
-                        req->Complete(new TEvCreateNodeResponse(requestId, result));
-                    }
-                })));
+            try {
+                YT_UNUSED_FUTURE(Client->CreateNode(path, type, options)
+                    .Apply(BIND([=](const TErrorOr<NYT::NCypressClient::TNodeId>& result) {
+                        if (result.IsOK()) {
+                            const auto nodeId = result.Value();
+                            YQL_CLOG(DEBUG, ProviderDq) << "YtWrapper CreateNode OK"
+                                << " cluster=" << ClusterName
+                                << " path=" << path
+                                << " node_id=" << ToString(nodeId);
+                        } else {
+                            YQL_CLOG(WARN, ProviderDq) << "YtWrapper CreateNode failed"
+                                << " cluster=" << ClusterName
+                                << " path=" << path
+                                << " error=" << ToString(result);
+                        }
+                        if (auto req = request.Lock()) {
+                            req->Complete(new TEvCreateNodeResponse(requestId, result));
+                        }
+                    })));
+            } catch (const std::exception& ex) {
+                if (auto req = request.Lock()) {
+                    req->Complete(new TEvCreateNodeResponse(requestId, ex));
+                }
+            }
         }
 
         void OnStartTransaction(TEvStartTransaction::TPtr& ev, const TActorContext& ctx) {
