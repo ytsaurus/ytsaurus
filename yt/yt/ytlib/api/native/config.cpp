@@ -179,6 +179,8 @@ void TConnectionStaticConfig::Register(TRegistrar registrar)
         .Default("default");
     registrar.Parameter("region", &TThis::Region)
         .Default();
+    registrar.Parameter("datacenter", &TThis::Datacenter)
+        .Default();
     registrar.Parameter("banned_replica_tracker_cache", &TThis::BannedReplicaTrackerCache)
         .DefaultNew();
 }
