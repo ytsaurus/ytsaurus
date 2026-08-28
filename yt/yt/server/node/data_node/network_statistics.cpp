@@ -43,6 +43,8 @@ void TNetworkStatistics::IncrementWriteThrottlingCounter(const std::string& name
 
 void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics* statistics)
 {
+    Counters_.Flush();
+
     Counters_.IterateReadOnly([&] (const auto& name, const auto& counters) {
         auto* network = statistics->add_network();
         network->set_network(name);
