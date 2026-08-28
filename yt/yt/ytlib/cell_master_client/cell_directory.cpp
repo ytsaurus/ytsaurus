@@ -660,12 +660,12 @@ private:
                 effectiveError = &error.InnerErrors().front();
             }
 
-            if (effectiveError->GetNonTrivialCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+            if (effectiveError->FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)) {
                 return true;
             }
 
             if (options.RetryRequestQueueSizeLimitExceeded &&
-                effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
+                effectiveError->FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded))
             {
                 return true;
             }
