@@ -24,7 +24,7 @@ struct TPerMediumChunkStatistics
     //! Number of decommissioned replicas, per each replica index.
     std::array<int, ChunkReplicaIndexBound> DecommissionedReplicaCount{};
 
-    //! Number of replicas on pending restart nodes, per each replica index.
+    //! Number of temporarily unavailable replicas, per each replica index.
     std::array<int, ChunkReplicaIndexBound> TemporarilyUnavailableReplicaCount{};
 
     //! Indexes of replicas whose replication is advised.
@@ -61,14 +61,14 @@ struct IChunkStatisticsCalculatorCallbacks
     virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() const = 0;
     virtual const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const = 0;
     virtual NLogging::ELogLevel GetChunkLogLevel(const TChunk* chunk) const = 0;
+    //! Returns the maximum replica count permitted in a rack, including data-center constraints.
     virtual int GetMaxReplicasPerRack(int mediumIndex, const TChunk* chunk) const = 0;
     virtual int GetMaxReplicasPerDataCenter(
         int mediumIndex,
         const TChunk* chunk,
         const NNodeTrackerServer::TDataCenter* dataCenter) const = 0;
-    virtual TNodeList GetConsistentPlacementWriteTargets(
-        const TChunk* chunk,
-        int mediumIndex) const = 0;
+    virtual bool IsDataCenterTemporarilyUnavailable(const NNodeTrackerServer::TDataCenter* dataCenter) const = 0;
+    virtual TNodeList GetConsistentPlacementWriteTargets(const TChunk* chunk, int mediumIndex) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStatisticsCalculatorCallbacks)

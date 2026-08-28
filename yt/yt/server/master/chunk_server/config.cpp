@@ -997,6 +997,13 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("banned_storage_data_centers", &TThis::BannedStorageDataCenters)
         .Default();
 
+    registrar.Parameter("temporarily_unavailable_storage_data_centers", &TThis::TemporarilyUnavailableStorageDataCenters)
+        .Default();
+
+    registrar.Parameter("temporarily_unavailable_extra_failure_domain_tolerance", &TThis::TemporarilyUnavailableExtraFailureDomainTolerance)
+        .GreaterThanOrEqual(0)
+        .Default(1);
+
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 
@@ -1074,6 +1081,14 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Days(1));
 
     registrar.Postprocessor([] (TThis* config) {
+        for (const auto& dataCenter : config->BannedStorageDataCenters) {
+            if (config->TemporarilyUnavailableStorageDataCenters.contains(dataCenter)) {
+                THROW_ERROR_EXCEPTION(
+                    "Storage data center %Qv cannot be both banned and temporarily unavailable",
+                    dataCenter);
+            }
+        }
+
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (IsMasterJobType(jobType) && !jobTypeToThrottler.contains(jobType)) {

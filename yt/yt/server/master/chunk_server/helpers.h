@@ -245,7 +245,14 @@ void AccumulateNewlyReferencedHunkStatistics(TChunk* hunkChunk, i64 dataWeightDe
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsReplicaDecommissioned(TChunkLocation* replica);
-bool IsReplicaOnPendingRestartNode(TChunkLocation* replica);
+
+//! Returns the number of replicas requested by requisition and extra-rack-failure-tolerance policies.
+int ComputeReplicaDeficit(
+    int targetReplicaCount,
+    int availableReplicaCount,
+    int temporarilyUnavailableReplicaCount,
+    int additionalRackFailureTolerance,
+    int maxReplicasPerRack);
 
 ////////////////////////////////////////////////////////////////////////////////
 

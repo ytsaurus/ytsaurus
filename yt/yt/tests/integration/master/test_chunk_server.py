@@ -986,7 +986,11 @@ class TestNodePendingRestart(TestNodePendingRestartBase):
         for node in nodes[:2]:
             add_maintenance("cluster_node", node, "pending_restart", "")
 
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 5)
+        wait(lambda: get(f"#{chunk_id}/@replication_status/default/temporarily_unavailable"))
+
+        status = get(f"#{chunk_id}/@replication_status/default")
+        assert not status["underreplicated"]
+        assert len(get(f"#{chunk_id}/@stored_replicas")) == 4
 
     @authors("danilalexeev")
     def test_temporarily_unavailable_erasure_replicas(self):

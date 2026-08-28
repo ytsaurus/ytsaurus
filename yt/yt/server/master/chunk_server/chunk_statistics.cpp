@@ -25,8 +25,22 @@ using namespace NObjectServer;
 
 constinit const auto Logger = ChunkServerLogger;
 
-constexpr int MinAvailableReplicaCount = 1;
-constexpr int MaxTemporarilyUnavailableReplicaCount = 1;
+namespace {
+
+bool IsReplicaTemporarilyUnavailable(
+    TChunkLocation* replica,
+    const IChunkStatisticsCalculatorCallbacksPtr& callbacks)
+{
+    auto node = replica->GetNode();
+    if (node->IsPendingRestart()) {
+        return true;
+    }
+
+    const auto* dataCenter = node->GetDataCenter();
+    return dataCenter && callbacks->IsDataCenterTemporarilyUnavailable(dataCenter);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,7 +144,7 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeErasureChunkStatistics(
             ++mediumStatistics.DecommissionedReplicaCount[replicaIndex];
             decommissionedReplicas[mediumIndex][replicaIndex].push_back(chunkLocation);
             ++decommissionedReplicaCount[mediumIndex];
-        } else if (IsReplicaOnPendingRestartNode(chunkLocation)) {
+        } else if (IsReplicaTemporarilyUnavailable(chunkLocation, Callbacks_)) {
             ++mediumStatistics.TemporarilyUnavailableReplicaCount[replicaIndex];
             ++temporarilyUnavailableReplicaCount[mediumIndex];
         } else {
@@ -318,9 +332,8 @@ void TChunkStatisticsCalculator::ComputeErasureChunkStatisticsForMedium(
     int totalPartCount = codec->GetTotalPartCount();
     int dataPartCount = codec->GetDataPartCount();
 
-    auto temporarilyUnavailablePartCount = 0;
     NErasure::TPartIndexSet temporarilyUnavailableIndexes;
-    auto statisticsReplicaMissingStatus = EChunkStatus::None;
+    auto temporarilyUnavailableMissingStatus = EChunkStatus::None;
 
     for (int index = 0; index < totalPartCount; ++index) {
         int replicaCount = result.ReplicaCount[index];
@@ -377,24 +390,29 @@ void TChunkStatisticsCalculator::ComputeErasureChunkStatisticsForMedium(
         }
 
         if (replicaCount == 0 && decommissionedReplicaCount == 0 && !removalAdvised) {
-            statisticsReplicaMissingStatus |= isDataPart ? EChunkStatus::DataMissing : EChunkStatus::ParityMissing;
+            auto missingStatus = isDataPart ? EChunkStatus::DataMissing : EChunkStatus::ParityMissing;
 
             if (temporarilyUnavailableReplicaCount > 0) {
-                ++temporarilyUnavailablePartCount;
                 temporarilyUnavailableIndexes.set(index);
+                temporarilyUnavailableMissingStatus |= missingStatus;
             } else {
                 erasedIndexes.set(index);
-                result.Status |= statisticsReplicaMissingStatus;
+                result.Status |= missingStatus;
             }
         }
     }
 
-    auto isTemporaryUnavailabilitySafe =
-        temporarilyUnavailablePartCount + maxReplicasPerRack <=
-        codec->GetGuaranteedRepairablePartCount();
-    if (erasedIndexes.any() || !isTemporaryUnavailabilitySafe)
-    {
-        result.Status |= statisticsReplicaMissingStatus;
+    // Promote temporarily unavailable parts to missing if their loss together with the
+    // configured additional rack failures exceeds the repair budget.
+    auto reserveForAdditionalRackFailures =
+        static_cast<i64>(Callbacks_->GetDynamicConfig()->TemporarilyUnavailableExtraFailureDomainTolerance) *
+        maxReplicasPerRack;
+    auto temporarilyUnavailablePartCount = static_cast<i64>(temporarilyUnavailableIndexes.count());
+    auto shouldPromoteTemporarilyUnavailableParts =
+        temporarilyUnavailablePartCount + reserveForAdditionalRackFailures >
+            codec->GetGuaranteedRepairablePartCount();
+    if (erasedIndexes.any() || shouldPromoteTemporarilyUnavailableParts) {
+        result.Status |= temporarilyUnavailableMissingStatus;
         erasedIndexes |= temporarilyUnavailableIndexes;
     }
 
@@ -619,7 +637,7 @@ TChunkStatistics TChunkStatisticsCalculator::ComputeRegularChunkStatistics(
             ++decommissionedReplicaCount[mediumIndex];
             decommissionedReplicas[mediumIndex].emplace_back(chunkLocation, replica.GetReplicaIndex());
             ++totalDecommissionedReplicaCount;
-        } else if (IsReplicaOnPendingRestartNode(chunkLocation)) {
+        } else if (IsReplicaTemporarilyUnavailable(chunkLocation, Callbacks_)) {
             ++temporarilyUnavailableReplicaCount[mediumIndex];
             temporarilyUnavailableReplicas[mediumIndex].emplace_back(chunkLocation, replica.GetReplicaIndex());
         } else {
@@ -790,8 +808,12 @@ void TChunkStatisticsCalculator::ComputeRegularChunkStatisticsForMedium(
     const TNodePtrWithReplicaAndMediumIndexList& missingReplicas)
 {
     auto replicationFactor = replicationPolicy.GetReplicationFactor();
-    auto minRackAwareReplicaCount = std::min(replicationFactor, MinAvailableReplicaCount + maxReplicasPerRack);
-    auto minSafeAvailableReplicaCount = std::max(replicationFactor - MaxTemporarilyUnavailableReplicaCount, minRackAwareReplicaCount);
+    auto replicaDeficit = ComputeReplicaDeficit(
+        replicationFactor,
+        replicaCount,
+        temporarilyUnavailableReplicaCount,
+        Callbacks_->GetDynamicConfig()->TemporarilyUnavailableExtraFailureDomainTolerance,
+        maxReplicasPerRack);
     auto totalReplicaCount = replicaCount + decommissionedReplicaCount + temporarilyUnavailableReplicaCount;
 
     result.ReplicaCount[GenericChunkReplicaIndex] = replicaCount;
@@ -808,10 +830,7 @@ void TChunkStatisticsCalculator::ComputeRegularChunkStatisticsForMedium(
             result.Status |= EChunkStatus::SealedMissing;
         }
 
-        if ((replicaCount + temporarilyUnavailableReplicaCount < replicationFactor ||
-             replicaCount < minSafeAvailableReplicaCount) &&
-             hasSealedReplica)
-        {
+        if (replicaDeficit > 0 && hasSealedReplica) {
             result.Status |= EChunkStatus::Underreplicated;
         }
 
