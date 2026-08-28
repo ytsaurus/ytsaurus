@@ -51,6 +51,7 @@ def get_args():
             "states",
             "partition_states",
             "partition_transactions",
+            "leases",
         ],
         default=None,
         help="table to reshard",
@@ -503,6 +504,16 @@ def reshard_partition_transactions_table(client, computations, path, tablet_coun
     )
 
 
+def reshard_leases_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
+    # Same write profile as partition_transactions -- tiny rows rewritten at a high rate, keyed by
+    # farm_hash(key) -- so spread it over the same width. A single tablet cannot compact the lease
+    # churn of every partition and hits "too many overlapping stores, writes disabled" (code 1703).
+    table = f"{path}/leases"
+    reshard_partition_table(
+        client, computations, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
+    )
+
+
 def reshard_tables(args):
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG if args.verbose else logging.INFO
@@ -583,6 +594,10 @@ def reshard_pipeline_tables(client, args):
         )
     if args.table is None or args.table == "partition_transactions":
         reshard_partition_transactions_table(
+            client, computations, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
+        )
+    if args.table is None or args.table == "leases":
+        reshard_leases_table(
             client, computations, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
         )
 

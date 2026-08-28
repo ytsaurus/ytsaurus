@@ -227,6 +227,9 @@ void TJob::Register(TRegistrar registrar)
     registrar.Parameter("partition_id", &TThis::PartitionId);
 
     registrar.Parameter("lease_id", &TThis::LeaseId);
+
+    registrar.Parameter("dyntable_lease", &TThis::DyntableLease)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

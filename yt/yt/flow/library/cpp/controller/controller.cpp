@@ -22,6 +22,7 @@
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -428,7 +429,11 @@ public:
         , Invoker_(invoker)
         , MainCycleInvoker_(mainCycleInvoker)
         , ThrottlerHost_(std::move(throttlerHost))
-        , LeaseManager_(CreateLeaseManager(Connector_, Config_->LeaseManager))
+        , LeaseManager_(CreateLeaseManager(
+            Connector_,
+            Config_->LeaseManager,
+            Config_->ElectionManager.GetType() == EElectionBackend::Dyntable,
+            Config_->PersistedStateManager->MaxWritesPerTransaction))
         , MutationMetrics_(Profiler_)
         , CurrentEpochGauge_(Profiler_.Gauge("/current_epoch"))
         , ComputationCountGauge_(Profiler_.Gauge("/computation_count"))
@@ -922,11 +927,12 @@ private:
         auto checkLeases = [&] {
             LeaseManager_->CheckLeases(flowView);
         };
-        auto terminateAndPrepareLeases = [&] {
-            LeaseManager_->TerminateStrayLeases(flowView);
-            LeaseManager_->PrepareLeases(flowView);
-        };
         auto stopJobsAndResetState = [&] (EPipelineState newState) {
+            // StopAllJobs empties the layout, which makes every lease stray, so the same call
+            // that revokes them everywhere else revokes them here. It has to happen before the
+            // new state becomes observable: a delayed worker that still holds a valid lease
+            // would commit state and output into a pipeline already seen as paused, stopped or
+            // completed.
             JobManager_->StopAllJobs(flowView);
             LeaseManager_->TerminateStrayLeases(flowView);
             flowView->State->ExecutionSpec->PipelineState->TrySetValue(newState, VersionProvider_);
@@ -943,8 +949,22 @@ private:
         checkLeases();
         if (state == EPipelineState::Working || state == EPipelineState::Draining) {
             manageJobs();
-            terminateAndPrepareLeases();
         }
+        if (state == EPipelineState::Working || state == EPipelineState::Draining) {
+            LeaseManager_->PrepareLeases(flowView);
+        }
+        // After the grants and as late as the lease writes go: manageJobs() has just taken jobs
+        // away from some partitions, and their leases must be gone before this layout is
+        // persisted, or a partition the layout no longer knows about keeps a worker running on it
+        // while its next job starts alongside. Runs in every state — jobs are dropped in all of
+        // them.
+        //
+        // The order only shrinks the window, it does not close it: a revocation is the one lease
+        // write that hurts when the iteration is discarded afterwards, and PersistFlowState can
+        // still lose a row-lock race to a spec update below. The jobs whose leases were revoked
+        // then die on their next commit and are recreated a job-failure cycle later; the fence is
+        // never weakened, only liveness is.
+        LeaseManager_->TerminateStrayLeases(flowView);
         if (state == EPipelineState::Working && JobManager_->CheckPipelineCompleted(flowView)) {
             stopJobsAndResetState(EPipelineState::Completed);
         } else if (state == EPipelineState::Draining && JobManager_->CheckPipelineStopped(flowView)) {
@@ -1414,8 +1434,12 @@ private:
             RootStatusProfiler_);
         WeakLeader_ = leader;
 
+        // The epoch belongs to the leadership this scheduler loop serves: reporting the end of
+        // recovery with it keeps a delayed callback from touching a later leadership.
+        auto leadershipEpoch = Connector_->GetLeadershipEpoch();
+
         auto schedulerActivityContext = TRegularActivityContext{.LeaderProfiler = leaderProfiler, .RootStatusProfiler = RootStatusProfiler_, .ActivityName = "schedule"};
-        YT_UNUSED_FUTURE(BIND([this, this_ = MakeStrong(this), leader, schedulerActivityContext] {
+        YT_UNUSED_FUTURE(BIND([this, this_ = MakeStrong(this), leader, schedulerActivityContext, leadershipEpoch] {
             auto dynamicSpecVersion = TVersion(-1);
             while (true) {
                 try {
@@ -1448,6 +1472,7 @@ private:
                     TDelayedExecutor::WaitForDuration(Config_->WarmUpTime);
 
                     while (true) {
+                        auto pipelineState = EPipelineState::Unknown;
                         try {
                             auto guard = TEventTimerGuard(schedulerActivityContext.IterationTime);
                             {
@@ -1504,10 +1529,35 @@ private:
                                     .With("Version", newFlowView->State->ExecutionSpec->PipelineState->GetVersion())
                                     .With("TargetState", newFlowView->CurrentDynamicSpec->GetValue()->TargetState);
                                 schedulerActivityContext.ErrorState->ClearError();
+                                pipelineState = newFlowView->State->ExecutionSpec->PipelineState->GetValue();
+                                // The iteration committed, so the fenced transactions feed the
+                                // leader lease from here on and the recovery-time renewal must
+                                // stop — but only once the pipeline has a spec. Until then the
+                                // iterations are no-ops throttled by NoSpecIterationBackoff, and
+                                // between two of them nothing else would touch the leader row.
+                                if (pipelineState != EPipelineState::Unknown) {
+                                    Connector_->OnLeaderRecoveryFinished(leadershipEpoch);
+                                }
                             }
                         } catch (const std::exception& ex) {
                             auto error = TError(ex);
-                            if (!error.FindMatching(NFlow::EErrorCode::SpecVersionMismatch) && !error.FindMatching(NFlow::EErrorCode::FlowCoreTargetVersionMismatch)) {
+                            // A row lock conflict is an expected outcome of an iteration, not a
+                            // reason to tear the leader down: with the dyntable backend every
+                            // fenced transaction writes the leader lease row, so an iteration
+                            // racing a client-driven spec update loses it about as often as it
+                            // wins. Restarting the executor thread would rebuild the leader and
+                            // leave its flow view keeper uninitialized for everybody else; the
+                            // next iteration simply redoes the work.
+                            // A tablet in the middle of a smooth movement is the same kind of
+                            // outcome: it rejects the commit, moves, and is back within seconds.
+                            // Restarting the executor over it costs a full flow view rebuild, and
+                            // on a pipeline whose iteration runs for minutes that turns a routine
+                            // tablet move into a controller that never finishes an iteration.
+                            if (!error.FindMatching(NFlow::EErrorCode::SpecVersionMismatch) &&
+                                !error.FindMatching(NFlow::EErrorCode::FlowCoreTargetVersionMismatch) &&
+                                !error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict) &&
+                                !IsTransientTabletError(error))
+                            {
                                 THROW_ERROR_EXCEPTION("Schedule iteration failed")
                                     .With(error);
                             }
@@ -1516,7 +1566,9 @@ private:
                             YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Schedule iteration failed")
                                 .With(error);
                         }
-                        TDelayedExecutor::WaitForDuration(Config_->SchedulerPeriod);
+                        TDelayedExecutor::WaitForDuration(pipelineState == EPipelineState::Unknown
+                                ? std::max(Config_->SchedulerPeriod, NoSpecIterationBackoff)
+                                : Config_->SchedulerPeriod);
                         schedulerActivityContext.TotalIterations.Increment();
                     }
                 } catch (const std::exception& ex) {

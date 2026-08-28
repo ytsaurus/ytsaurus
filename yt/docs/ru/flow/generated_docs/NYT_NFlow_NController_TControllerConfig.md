@@ -35,8 +35,18 @@
 || `publish_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `2h`
  ||
-|| `election_manager` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NController::TElectionManagerConfig](./all_yson_structs#NYT_NFlow_NController_TElectionManagerConfig)`>`
-**Значение по умолчанию**: `{}`
+|| `election_manager` | **Тип**: `NYT::NYTree::TPolymorphicYsonStruct<NYT::NYTree::NDetail::TPolymorphicMapping<&NYT::NFlow::NController::ElectionBackendDiscriminator.<char const at offset 0>, NYT::NFlow::NController::EElectionBackend, NYT::NYTree::NDetail::TOptionalValue<NYT::NFlow::NController::EElectionBackend, (NYT::NFlow::NController::EElectionBackend)0>, NYT::NFlow::NController::TElectionBackendConfigBase, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)0, NYT::NFlow::NController::TCypressElectionBackendConfig>, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)1, NYT::NFlow::NController::TDyntableElectionBackendConfig>>>`
+**Значение по умолчанию**:
+
+```yson
+{
+    "backend" = "cypress";
+    "leader_cache_update_period" = 1000;
+    "lock_acquisition_period" = 1000;
+    "transaction_ping_period" = 1000;
+    "transaction_timeout" = 5000;
+}
+```
 Настройки выбора лидера среди нескольких контроллеров. ||
 || `persisted_state_manager` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NController::TPersistedStateManagerConfig](./all_yson_structs#NYT_NFlow_NController_TPersistedStateManagerConfig)`>`
 **Значение по умолчанию**: `{}`

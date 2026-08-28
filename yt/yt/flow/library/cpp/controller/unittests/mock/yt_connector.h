@@ -30,6 +30,8 @@ struct TMockYTConnector
         NApi::TTransactionStartOptions options),
         (override));
     MOCK_METHOD(NPrerequisiteClient::TPrerequisiteId, GetPrerequisiteId, (), (const, override));
+    MOCK_METHOD(void, OnLeaderRecoveryFinished, (ui64), (override));
+    MOCK_METHOD(ui64, GetLeadershipEpoch, (), (const, override));
 
     MOCK_METHOD(void, SubscribeLeadingStarted, (const TCallback<void()>& callback), (override));
     MOCK_METHOD(void, UnsubscribeLeadingStarted, (const TCallback<void()>& callback), (override));

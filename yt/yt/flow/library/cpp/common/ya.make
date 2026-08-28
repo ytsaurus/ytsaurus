@@ -12,6 +12,7 @@ SRCS(
     computation.cpp
     describe_traits.cpp
     distributing_tracker.cpp
+    dyntable_lease.cpp
     external_state_manager.cpp
     file_source.cpp
     flow_core_build_info.cpp

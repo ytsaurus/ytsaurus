@@ -52,8 +52,9 @@ target_link_libraries(library-cpp-controller PUBLIC
 
 target_sources(library-cpp-controller PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/controller_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/controller.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/controller_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/dyntable_election_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/flow_executor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_balancer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_balancer_common.cpp
@@ -63,6 +64,7 @@ target_sources(library-cpp-controller PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/lease_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/persisted_state_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/state_access.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/throttler_host.cpp

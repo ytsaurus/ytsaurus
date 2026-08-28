@@ -24,6 +24,27 @@ PIPELINE_SORTED_TABLE_PRESET = {
                     "merge_rows_on_flush": True,
                     "merge_deletions_on_flush": True,
                 },
+                # The chaos replication log of every sorted pipeline table inherits this block
+                # (yt_sync's resolve_replication_log_attributes moves it onto the log).
+                #
+                # -1 is the sentinel that asks yt_sync to size the log itself: half the data
+                # replica's tablet count below 100 tablets, a third at or above, rounded to its
+                # grid (get_replication_log_recommended_tablet_count). Leaving the block out is
+                # not the same as leaving it empty — an unset count reads back as 1
+                # (tablet_info.effective_tablet_count), the auto-sizing is skipped for anything
+                # positive, and the log is born with a single tablet that then takes the table's
+                # whole write stream. Which table runs hot depends on the pipeline, so the
+                # default covers them all.
+                #
+                # On a non-chaos deployment nothing strips this block (the pop happens only on
+                # the chaos path), so it lands on the data table as a plain node attribute. It
+                # changes no behaviour there, but it does show up as an attribute diff once, and
+                # since it is neither "regular" nor unmount-requiring for yt_sync, that first
+                # sync remounts the sorted tables. Deliberate: a one-off remount is the accepted
+                # price of having the logs sized correctly everywhere.
+                "replication_log": {
+                    "tablet_count": -1,
+                },
                 "hunk_chunk_reader": {"fragment_read_hedging_delay": 50},
             },
         },
@@ -222,6 +243,39 @@ PIPELINE_TABLES_PRESET = {
                     # Erasure makes compaction slower.
                     "erasure_codec": "none",
                     # Compressing only increases size of this data.
+                    "compression_codec": "none",
+                },
+            },
+        },
+    },
+    "leases": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": {
+                    # Same access profile as partition_transactions: tiny rows rewritten at a high
+                    # rate (every worker transaction touches its lease row, the controller renews
+                    # leases continuously).
+                    "in_memory_mode": "uncompressed",
+                    "mount_config": {
+                        "enable_lookup_hash_table": True,
+                        "min_partition_data_size": 100,
+                        "desired_partition_data_size": 500,
+                        "max_partition_data_size": 5000,
+                        "min_compaction_store_count": 2,
+                        "min_partitioning_data_size": 1,
+                    },
+                    "chunk_writer": {
+                        "block_size": 300,
+                        "max_block_size": 500,
+                        "desired_chunk_size": 300,
+                    },
+                    "tablet_balancer_config": {
+                        "min_tablet_size": 300,
+                        "desired_tablet_size": 1000,
+                        "max_tablet_size": 3000,
+                    },
+                    "erasure_codec": "none",
                     "compression_codec": "none",
                 },
             },

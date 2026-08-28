@@ -72,7 +72,9 @@ target_link_options(yt-flow-library-cpp-controller-unittests PRIVATE
 target_sources(yt-flow-library-cpp-controller-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/async_balancer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/compact_rebalance_actions_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/config_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/controller_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/dyntable_election_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/job_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/partitioning_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/resource_balancer_ut.cpp

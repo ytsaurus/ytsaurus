@@ -35,8 +35,18 @@ Period during which the controller attempts to tell {{product-name}} that it is 
 || `publish_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `2h`
  ||
-|| `election_manager` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NController::TElectionManagerConfig](./all_yson_structs#NYT_NFlow_NController_TElectionManagerConfig)`>`
-**Default value**: `{}`
+|| `election_manager` | **Type**: `NYT::NYTree::TPolymorphicYsonStruct<NYT::NYTree::NDetail::TPolymorphicMapping<&NYT::NFlow::NController::ElectionBackendDiscriminator.<char const at offset 0>, NYT::NFlow::NController::EElectionBackend, NYT::NYTree::NDetail::TOptionalValue<NYT::NFlow::NController::EElectionBackend, (NYT::NFlow::NController::EElectionBackend)0>, NYT::NFlow::NController::TElectionBackendConfigBase, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)0, NYT::NFlow::NController::TCypressElectionBackendConfig>, NYT::NYTree::NDetail::TLeafTag<(NYT::NFlow::NController::EElectionBackend)1, NYT::NFlow::NController::TDyntableElectionBackendConfig>>>`
+**Default value**:
+
+```yson
+{
+    "backend" = "cypress";
+    "leader_cache_update_period" = 1000;
+    "lock_acquisition_period" = 1000;
+    "transaction_ping_period" = 1000;
+    "transaction_timeout" = 5000;
+}
+```
 Leader election settings for multiple controllers. ||
 || `persisted_state_manager` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NController::TPersistedStateManagerConfig](./all_yson_structs#NYT_NFlow_NController_TPersistedStateManagerConfig)`>`
 **Default value**: `{}`

@@ -15,9 +15,11 @@ FLOW_NODE_DEFAULT_CONFIG = {
         "feedback_period": "100ms",
         "publish_retry_period": "100ms",
         "lease_manager": {
-            "lease_timeout": "15s",
+            # Must stay a few leader lease ttls above the dyntable backend's, or the config
+            # postprocessor rejects it: a handover has to fit inside the deadline the previous
+            # leader left behind.
+            "lease_timeout": "60s",
             "lease_ping_period": "1s",
-            "lease_check_period": "1s",
         },
         "controller_service": {
             "set_spec_retry_period": "100ms",

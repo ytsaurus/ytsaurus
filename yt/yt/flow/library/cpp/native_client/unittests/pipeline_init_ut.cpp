@@ -83,5 +83,41 @@ TEST(TPipelineInitTest, IgnoreExistingPropagatesToInnerTables)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// The dyntable lease backend cannot run without the "leases" table, and a pipeline created by the
+// native client is provisioned by #GetTables alone: yt_sync is not involved there. The Python
+// catalogue drift test cannot cover this — it creates a pipeline through the master, which does
+// not create that table at all — so dropping the registration would otherwise go unnoticed.
+TEST(TPipelineInitTest, CreatesTheLeasesTable)
+{
+    auto client = New<NiceMock<TMockClient>>();
+    auto transaction = New<NiceMock<TMockTransaction>>();
+
+    std::vector<TYPath> createdPaths;
+
+    ON_CALL(*client, StartTransaction(_, _))
+        .WillByDefault(Return(MakeFuture<ITransactionPtr>(transaction)));
+
+    ON_CALL(*transaction, CreateNode(_, _, _))
+        .WillByDefault(Invoke([&] (
+            const TYPath& path,
+            EObjectType /*type*/,
+            const TCreateNodeOptions& /*options*/) {
+            createdPaths.push_back(path);
+            return MakeFuture<TNodeId>(TNodeId(TGuid::Create()));
+        }));
+
+    ON_CALL(*transaction, Commit(_))
+        .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));
+
+    ON_CALL(*client, MountTable(_, _))
+        .WillByDefault(Return(OKFuture));
+
+    CreatePipelineNode(client, "//tmp/pipeline", TCreateNodeOptions());
+
+    EXPECT_THAT(createdPaths, ::testing::Contains("//tmp/pipeline/leases"));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NFlow

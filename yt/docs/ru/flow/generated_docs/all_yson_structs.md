@@ -28,6 +28,8 @@
 
 {% include [_](./NYT_NChaosClient_TReplicationCardCacheConfig.md) %}
 
+{% include [_](./NYT_NChaosClient_TWatchedReplicationCardCacheConfig.md) %}
+
 {% include [_](./NYT_NClient_NCache_TClientsCacheConfig.md) %}
 
 {% include [_](./NYT_NCodegen_EOptimizationLevel.md) %}
@@ -73,8 +75,6 @@
 {% include [_](./NYT_NFlow_NController_TControllerConfig.md) %}
 
 {% include [_](./NYT_NFlow_NController_TControllerServiceConfig.md) %}
-
-{% include [_](./NYT_NFlow_NController_TElectionManagerConfig.md) %}
 
 {% include [_](./NYT_NFlow_NController_TLeaseManagerConfig.md) %}
 

@@ -69,6 +69,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/describe_traits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/distributing_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/dyntable_lease.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/external_state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/file_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/flow_core_build_info.cpp

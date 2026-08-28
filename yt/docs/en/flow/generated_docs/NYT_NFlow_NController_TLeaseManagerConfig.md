@@ -6,17 +6,11 @@ Source: [yt/yt/flow/library/cpp/controller/config.h]({{source-root}}/yt/yt/flow/
 #|
 || **Parameter** | **Description** ||
 || `lease_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
-**Default value**: `5m`
-Lease transaction timeout. ||
+**Default value**: `10m`
+How long a job stays fenced without the controller refreshing the fence. With the Cypress election backend this is the timeout of the job's master lease transaction; with the dyntable one it is the ttl of the pipeline-wide deadline row that gates every worker commit. ||
 || `lease_ping_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `30s`
 Period at which the controller pings the lease transaction. ||
-|| `lease_check_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
-**Default value**: `2m`
-Period at which the controller checks the liveness of the lease transaction. ||
-|| `lease_check_period_jitter` | **Type**: `double`
-**Default value**: `0.5`
-Jitter for distributing load over time. ||
 || `max_concurrent_requests` | **Type**: `long`
 **Default value**: `500`
 Maximum number of concurrent requests. Do not increase to avoid overloading the master. ||

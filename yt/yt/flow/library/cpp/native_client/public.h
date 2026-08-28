@@ -42,6 +42,7 @@ inline constexpr TStringBuf FlowStateTableName = "flow_state";
 inline constexpr TStringBuf FlowStateObsoleteTableName = "flow_state_obsolete";
 inline constexpr TStringBuf FlowControlTableName = "flow_control";
 inline constexpr TStringBuf PartitionTransactionsTableName = "partition_transactions";
+inline constexpr TStringBuf LeasesTableName = "leases";
 
 inline const std::vector InternalFlowTables{
     InputMessagesTableName,
@@ -56,7 +57,8 @@ inline const std::vector InternalFlowTables{
     FlowStateTableName,
     FlowStateObsoleteTableName,
     FlowControlTableName,
-    PartitionTransactionsTableName};
+    PartitionTransactionsTableName,
+    LeasesTableName};
 
 ////////////////////////////////////////////////////////////////////////////////
 

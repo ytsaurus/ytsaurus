@@ -1,6 +1,7 @@
 #include "transaction_manager.h"
 
 #include <yt/yt/flow/library/cpp/common/computation.h>
+#include <yt/yt/flow/library/cpp/common/dyntable_lease.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/flow/library/cpp/misc/retryable_client.h>
@@ -44,6 +45,9 @@ TTransactionManager::TTransactionManager(
     : Context_(std::move(context))
     , Spec_(std::move(spec))
     , PartitionTransactionsPath_(NYPath::YPathJoin(Context_->PipelinePath.GetPath(), PartitionTransactionsTableName))
+    , DyntableLeases_(
+        NYPath::YPathJoin(Context_->PipelinePath.GetPath(), FlowControlTableName),
+        NYPath::YPathJoin(Context_->PipelinePath.GetPath(), LeasesTableName))
     , Logger(Context_->Logger.WithTag("Manager", "Transaction"))
     , Profiler_(Context_->Profiler.WithPrefix("/transaction_manager"))
     , SkipEmptyTransactionsDeadline_(TInstant::Zero())
@@ -90,7 +94,20 @@ ITransactionPtr TTransactionManager::CreateOrdinaryTransactionSync(TDuration tim
 TTransactionCommitResult TTransactionManager::CommitOrdinaryTransactionSync(ITransactionPtr ordinaryTransaction, TDuration timeout)
 {
     TTransactionCommitOptions commitOptions;
-    commitOptions.PrerequisiteTransactionIds = {Context_->LeaseId};
+    if (Context_->DyntableLease) {
+        // The lease rows check-and-touch inside the transaction replaces the lease transaction
+        // prerequisite: a concurrent revocation writes the same row and conflicts with this commit.
+        // The lookup gets the per-attempt timeout: without it a slow read burns the whole retry
+        // budget instead of failing one attempt.
+        DyntableLeaseDeadline_.store(DyntableLeases_.ValidateAndTouchPartitionLease(
+            ordinaryTransaction,
+            Context_->PartitionId,
+            Context_->JobId,
+            DyntableLeaseDeadline_.load(),
+            timeout));
+    } else {
+        commitOptions.PrerequisiteTransactionIds = {Context_->LeaseId};
+    }
     auto timeoutOptions = TFutureTimeoutOptions{.Error = TError(NYT::EErrorCode::Timeout, "Timeout (inner timeout of retryable client)")};
     return WaitFor(ordinaryTransaction->Commit(commitOptions).WithTimeout(timeout, timeoutOptions))
         .ValueOrThrow();
