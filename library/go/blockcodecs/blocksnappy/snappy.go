@@ -1,7 +1,7 @@
 package blocksnappy
 
 import (
-	"github.com/golang/snappy"
+	"github.com/klauspost/compress/s2"
 
 	"go.ytsaurus.tech/library/go/blockcodecs"
 )
@@ -17,15 +17,15 @@ func (s snappyCodec) Name() string {
 }
 
 func (s snappyCodec) DecodedLen(in []byte) (int, error) {
-	return snappy.DecodedLen(in)
+	return s2.DecodedLen(in)
 }
 
 func (s snappyCodec) Encode(dst, src []byte) ([]byte, error) {
-	return snappy.Encode(dst, src), nil
+	return s2.EncodeSnappy(dst, src), nil
 }
 
 func (s snappyCodec) Decode(dst, src []byte) ([]byte, error) {
-	return snappy.Decode(dst, src)
+	return s2.Decode(dst, src)
 }
 
 func init() {
