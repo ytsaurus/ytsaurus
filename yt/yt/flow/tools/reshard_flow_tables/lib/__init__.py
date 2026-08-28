@@ -228,11 +228,17 @@ COPIED_LOG_ATTRIBUTES = [
 ]
 
 
+# The temporary log a swap goes through lives beside the canonical one, at its path plus this
+# suffix. Telling a leftover of a crashed run from a real log is the whole basis of resuming, so
+# the suffix is one constant rather than a literal repeated at each site.
+TMP_SUFFIX = ".reshard_tmp"
+
+
 def recreate_replication_log(
     client,
     table,
-    replica_id,
-    replica,
+    log_cluster,
+    log_path,
     log_pivot_keys,
     make_client=None,
     sleep=time.sleep,
@@ -247,18 +253,42 @@ def recreate_replication_log(
     attach the final log at the original path, retire the temporary one. Writes stay available the
     whole time — they simply land in whichever sync log is active; retiring a log freezes
     it first and waits until every data replica passes a barrier timestamp taken after the
-    freeze, so nothing is lost."""
-    make_client = make_client or _replica_cluster_client
-    log_cluster = str(replica["cluster_name"])
-    log_path = str(replica["replica_path"])
-    log_client = make_client(log_cluster)
-    tmp_path = f"{log_path}.reshard_tmp"
+    freeze, so nothing is lost.
 
-    schema = log_client.get(f"{log_path}/@schema")
+    Takes the canonical |log_cluster|:|log_path| rather than a replica, so a rerun resumes whatever
+    the previous run left behind: the swap is driven by which of the two logs the card currently
+    carries. The cluster is half of a log's identity — a CRT holds one log per replica cluster and
+    they all share a path, so matching on the path alone picks an arbitrary one of them."""
+    make_client = make_client or _replica_cluster_client
+    log_client = make_client(log_cluster)
+    tmp_path = f"{log_path}{TMP_SUFFIX}"
+
+    def tablet_state(path):
+        # None when there is no table at the path at all, which a rerun must tell apart from an
+        # unmounted one: the attribute is absent exactly when the node is.
+        if not log_client.exists(f"{path}/@tablet_state"):
+            return None
+        return log_client.get(f"{path}/@tablet_state")
+
+    attached = {
+        str(attached_replica["replica_path"]): attached_replica_id
+        for attached_replica_id, attached_replica in get_replication_log_replicas(client, table)
+        if str(attached_replica["cluster_name"]) == log_cluster
+        and str(attached_replica["replica_path"]) in (log_path, tmp_path)
+    }
+    canonical_replica_id = attached.get(log_path)
+    tmp_replica_id = attached.get(tmp_path)
+    if canonical_replica_id is None and tmp_replica_id is None:
+        raise RuntimeError(f"replication log {log_cluster}:{log_path} of {table} has no attached replica to recreate")
+
+    # A resumed run reads the layout off whichever log is actually there: mid-swap the canonical
+    # one is already gone and only the temporary log is left to copy the attributes from.
+    source_path = log_path if tablet_state(log_path) is not None else tmp_path
+    schema = log_client.get(f"{source_path}/@schema")
     attributes = {"dynamic": True, "schema": schema}
     for name in COPIED_LOG_ATTRIBUTES:
-        if log_client.exists(f"{log_path}/@{name}"):
-            attributes[name] = log_client.get(f"{log_path}/@{name}")
+        if log_client.exists(f"{source_path}/@{name}"):
+            attributes[name] = log_client.get(f"{source_path}/@{name}")
 
     def replica_state(some_replica_id):
         return client.get(f"{table}/@replicas").get(some_replica_id, {}).get("state")
@@ -303,6 +333,28 @@ def recreate_replication_log(
         )
         return new_replica_id
 
+    def drop_table(path):
+        # A retire that died between removing the chaos replica and removing the table leaves an
+        # unattached table behind. Nothing writes to it (writes go through the card), and attach_log
+        # cannot create over it, so drop it; one left frozen has to be unmounted first.
+        state = tablet_state(path)
+        if state is None:
+            return
+        logging.info(f"Removing {log_cluster}:{path}...")
+        if state != "unmounted":
+            log_client.unmount_table(path, sync=True)
+        log_client.remove(path)
+
+    def detach_log(some_replica_id, path):
+        client.alter_table_replica(some_replica_id, enabled=False)
+        wait_until(
+            lambda: replica_state(some_replica_id) == "disabled",
+            f"log replica {log_cluster}:{path} of {table} to disable",
+            sleep=sleep,
+        )
+        client.remove(f"#{some_replica_id}")
+        drop_table(path)
+
     def retire_log(some_replica_id, path):
         logging.info(f"Retiring log {log_cluster}:{path}...")
         # Under live write load freezing takes longer than the wrapper's built-in sync wait
@@ -320,15 +372,7 @@ def recreate_replication_log(
             f"data replicas of {table} to apply log {path}",
             sleep=sleep,
         )
-        client.alter_table_replica(some_replica_id, enabled=False)
-        wait_until(
-            lambda: replica_state(some_replica_id) == "disabled",
-            f"log replica {log_cluster}:{path} of {table} to disable",
-            sleep=sleep,
-        )
-        client.remove(f"#{some_replica_id}")
-        log_client.unmount_table(path, sync=True)
-        log_client.remove(path)
+        detach_log(some_replica_id, path)
 
     def attach_healthy_log(path):
         # A newborn sync log non-deterministically (~50%) loses the race between its internal
@@ -355,18 +399,41 @@ def recreate_replication_log(
                 retire_log(new_replica_id, path)
         raise RuntimeError(f"log {log_cluster}:{path} failed to confirm its era after {attach_attempts} attempts")
 
-    # A crashed previous run may have left the temporary log behind — retire it first.
-    for stale_replica_id, stale in get_replication_log_replicas(client, table):
-        if str(stale["replica_path"]) == tmp_path:
-            retire_log(stale_replica_id, tmp_path)
-    if log_client.exists(tmp_path):
-        # A tmp table without a replica: the previous run died between create and attach,
-        # nothing has been written to it — safe to drop.
-        logging.info(f"Removing stale {log_cluster}:{tmp_path}...")
-        log_client.remove(tmp_path)
+    if canonical_replica_id is not None and tablet_state(log_path) in (None, "unmounted"):
+        # A run that died inside attach_log leaves a replica the card believes in over a table that
+        # never attached to it: the replica is created before the table is altered and mounted. Such
+        # a log carries no writes and can never freeze, so retiring it the normal way would block on
+        # the freeze for the full timeout — and would do so after retiring the temporary log, which
+        # is the one actually serving. Discard it and let the resume branch rebuild it instead.
+        logging.warning(f"Log {log_cluster}:{log_path} is attached but not mounted; discarding it")
+        if tmp_replica_id is None:
+            # The card may not be left without a sync log, and one that never attached does not
+            # count as such, so the temporary log has to come up before this one goes away.
+            drop_table(tmp_path)
+            tmp_replica_id = attach_healthy_log(tmp_path)
+        detach_log(canonical_replica_id, log_path)
+        canonical_replica_id = None
+
+    if canonical_replica_id is None:
+        # Resuming a run that died after retiring the canonical log: writers are on the temporary
+        # log, and moving them back is all that is left. This must happen unconditionally — treating
+        # the temporary log as a mere leftover to skip is what used to strand the card on it.
+        logging.info(f"Resuming the swap of {log_cluster}:{log_path} from {tmp_path}...")
+        drop_table(log_path)
+        attach_healthy_log(log_path)
+        retire_log(tmp_replica_id, tmp_path)
+        logging.info(f"Recreated {log_cluster}:{log_path}")
+        return
+
+    # Creating the temporary log is the one step that has to account for a leftover of a crashed
+    # run: retire it if the card still carries it, drop it if only the table survived.
+    if tmp_replica_id is not None:
+        retire_log(tmp_replica_id, tmp_path)
+    else:
+        drop_table(tmp_path)
 
     tmp_replica_id = attach_healthy_log(tmp_path)
-    retire_log(replica_id, log_path)
+    retire_log(canonical_replica_id, log_path)
     attach_healthy_log(log_path)
     retire_log(tmp_replica_id, tmp_path)
     logging.info(f"Recreated {log_cluster}:{log_path}")
@@ -390,12 +457,20 @@ def reshard_mounted_table(client, table, also_chaos_replication_logs=False, make
         log_pivot_keys = pivot_keys[::2]
     else:
         log_pivot_keys = uniform_uint64_pivot_keys(max(1, reshard_kwargs.get("tablet_count", 1) // 2))
-    for replica_id, replica in get_replication_log_replicas(client, table):
-        if str(replica["replica_path"]).endswith(".reshard_tmp"):
-            # A leftover of a crashed swap; the cleanup inside recreate_replication_log retires
-            # it while handling the real log, so it must not be swapped on its own.
-            continue
-        recreate_replication_log(client, table, replica_id, replica, log_pivot_keys, make_client=make_client)
+    # Fold a leftover *.reshard_tmp into the log it belongs to instead of skipping it: once a
+    # previous run has retired the canonical log, the temporary one is the ONLY log on the card, and
+    # skipping it would leave the swap half-done forever. recreate_replication_log resumes it.
+    # A CRT holds one log per replica cluster and they share a path, so a log is identified by the
+    # pair: keying by the path alone collapses them into one and leaves every cluster but one
+    # un-resharded, silently.
+    log_keys = set()
+    for _, replica in get_replication_log_replicas(client, table):
+        replica_path = str(replica["replica_path"])
+        if replica_path.endswith(TMP_SUFFIX):
+            replica_path = replica_path[: -len(TMP_SUFFIX)]
+        log_keys.add((str(replica["cluster_name"]), replica_path))
+    for log_cluster, log_path in sorted(log_keys):
+        recreate_replication_log(client, table, log_cluster, log_path, log_pivot_keys, make_client=make_client)
 
 
 def reshard_computation_key_table(
