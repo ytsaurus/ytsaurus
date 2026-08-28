@@ -576,6 +576,18 @@
                                 "value": 0
                             }
                         ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "E"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
                     }
                 ]
             },
@@ -594,21 +606,27 @@
                 },
                 {
                     "datasource": null,
-                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_gpu_policy_full_host_planning_time_avg\", tree=~\"{{tree}}\"}",
-                    "legendFormat": "full_host",
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_gpu_policy_full_host_module_bound_planning_time_avg\", tree=~\"{{tree}}\"}",
+                    "legendFormat": "full_host_module_bound",
                     "refId": "B"
+                },
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_gpu_policy_full_host_non_gang_planning_time_avg\", tree=~\"{{tree}}\"}",
+                    "legendFormat": "full_host_non_gang",
+                    "refId": "C"
                 },
                 {
                     "datasource": null,
                     "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_gpu_policy_regular_planning_time_avg\", tree=~\"{{tree}}\"}",
                     "legendFormat": "regular",
-                    "refId": "C"
+                    "refId": "D"
                 },
                 {
                     "datasource": null,
                     "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_gpu_policy_extra_planning_time_avg\", tree=~\"{{tree}}\"}",
                     "legendFormat": "extra",
-                    "refId": "D"
+                    "refId": "E"
                 }
             ],
             "title": "Planning stages",
@@ -729,7 +747,7 @@
             "gridPos": {
                 "h": 6,
                 "w": 12,
-                "x": 6,
+                "x": 0,
                 "y": 52
             },
             "targets": [
@@ -741,6 +759,49 @@
                 }
             ],
             "title": "Full-host module-bound ops per module",
+            "type": "timeseries"
+        },
+        {
+            "datasource": null,
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "hideFrom": {
+                            "legend": true
+                        }
+                    },
+                    "unit": "short"
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byFrameRefID",
+                            "options": "A"
+                        },
+                        "properties": [
+                            {
+                                "id": "min",
+                                "value": 0
+                            }
+                        ]
+                    }
+                ]
+            },
+            "gridPos": {
+                "h": 6,
+                "w": 12,
+                "x": 12,
+                "y": 52
+            },
+            "targets": [
+                {
+                    "datasource": null,
+                    "expr": "{cluster=~\"$cluster\", service=~\"yt-scheduler\", __name__=~\"yt_scheduler_gpu_policy_module_full_host_non_gang_assignments_count\", module=~\".+\", tree=~\"{{tree}}\"}",
+                    "legendFormat": "{{module}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Full-host non-gang assignments per module",
             "type": "timeseries"
         },
         {
