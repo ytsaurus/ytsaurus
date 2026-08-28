@@ -1673,6 +1673,7 @@ TRebalanceActions TBalancer::KickPartitionsFromOvercountedWorkers()
             double targetCpuUsagePerJob = targets.Executing.AvgCpuUsage;
             double targetCpuUsagePerWorker = maxCount * targets.Executing.AvgCpuUsage;
             while (workerInfo.Count > maxCount) {
+                int countBeforeKick = workerInfo.Count;
                 int plannedToRemove = workerInfo.Count - maxCount;
                 double removeCpuUsage = (workerInfo.CpuUsage - targetCpuUsagePerWorker) / plannedToRemove + targetCpuUsagePerJob;
                 TPartitionId partitionId = workerInfo.FindClosest(removeCpuUsage);
@@ -1682,7 +1683,11 @@ TRebalanceActions TBalancer::KickPartitionsFromOvercountedWorkers()
                 result.EmplaceAsTransaction(ERebalanceActionType::Del, partitionId, workerAddress, info);
                 YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Job was kicked because worker is overloaded")
                     .With("JobId", info.JobId)
-                    .With("Worker", workerAddress);
+                    .With("Partition", partitionId)
+                    .With("Computation", computationId)
+                    .With("Worker", workerAddress)
+                    .With("Count", countBeforeKick)
+                    .With("MaxCount", maxCount);
             }
         }
     }
@@ -2022,7 +2027,25 @@ bool TBalancer::WorkerLoadUneven() const
     const double relativeDeviation = stat.RelativeDeviation();
 
     // Rebalance only when the load is uneven by ALL three measures.
-    return spread >= ManagerSpec_->RebalanceMinCpuSpread && ratio >= ManagerSpec_->RebalanceMinCpuRatio && relativeDeviation > 2.0 * ManagerSpec_->RebalanceTargetDeviation;
+    const bool uneven =
+        spread >= ManagerSpec_->RebalanceMinCpuSpread &&
+        ratio >= ManagerSpec_->RebalanceMinCpuRatio &&
+        relativeDeviation > 2.0 * ManagerSpec_->RebalanceTargetDeviation;
+    // The open gate is the answer to "why is the balancer rebalancing right now", so spell out the
+    // measures against their thresholds and the extreme workers; the even case is reported by the
+    // callers ("Skipping overcount kick" / "Skipping deferred merge").
+    if (uneven) {
+        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Worker load uneven")
+            .With("Spread", spread)
+            .With("MinSpread", ManagerSpec_->RebalanceMinCpuSpread)
+            .With("Ratio", ratio)
+            .With("MinRatio", ManagerSpec_->RebalanceMinCpuRatio)
+            .With("RelativeDeviation", relativeDeviation)
+            .With("DeviationThreshold", 2.0 * ManagerSpec_->RebalanceTargetDeviation)
+            .With("MinWorker", stat.Set.begin()->second)
+            .With("MaxWorker", stat.Set.rbegin()->second);
+    }
+    return uneven;
 }
 
 double TBalancer::GetScore([[maybe_unused]] const TComputationId& computationId)
@@ -2288,7 +2311,21 @@ bool ShouldApplySlowActionsNow(
     YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Calculated scores")
         .With("Current", currentScore)
         .With("Deferred", deferredScore);
-    return deferredScore < currentScore - balancerSpec->RebalanceTargetDeviation;
+    const bool apply = deferredScore < currentScore - balancerSpec->RebalanceTargetDeviation;
+    // Log the verdict explicitly: the rejected case used to leave no trace, making "why did (not)
+    // the balancer act" undiagnosable from logs.
+    if (apply) {
+        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Applying deferred actions")
+            .With("Actions", alreadyAppliedDeferred.Transactions.size())
+            .With("ScoreImprovement", currentScore - deferredScore)
+            .With("Threshold", balancerSpec->RebalanceTargetDeviation);
+    } else {
+        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Keeping deferred actions: score improvement below threshold")
+            .With("Actions", alreadyAppliedDeferred.Transactions.size())
+            .With("ScoreImprovement", currentScore - deferredScore)
+            .With("Threshold", balancerSpec->RebalanceTargetDeviation);
+    }
+    return apply;
 }
 
 THashMap<std::string, double> GetWorkerCoefs(
