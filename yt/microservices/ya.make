@@ -24,6 +24,7 @@ IF (NOT OPENSOURCE)
         odin-chat-bot
         perfetto
         resource-pumper
+        shiva
         solomon-resolver
         thor
         moondiscover
