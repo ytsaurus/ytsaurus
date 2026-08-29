@@ -90,7 +90,9 @@ private:
 
         context->SetRequestInfo("SessionId: %v", sessionId);
 
-        DistributedChunkSessionManager_->RenewSessionLease(sessionId);
+        auto sequencer = DistributedChunkSessionManager_
+            ->RenewSessionLeaseAndGetSequencerOrThrow(sessionId);
+        ToProto(response->mutable_progress(), sequencer->GetProgress());
 
         context->Reply();
     }
@@ -108,9 +110,13 @@ private:
             "SessionId: %v",
             sessionId);
 
+        auto statistics = FromProto<TDistributedChunkSessionWriteStatistics>(request->statistics());
+
         auto sequencer = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
-        context->ReplyFrom(sequencer->WriteRecord(request->Attachments()[0]));
+        context->ReplyFrom(sequencer->WriteRecord(
+            request->Attachments()[0],
+            statistics));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, FinishSession)
@@ -123,7 +129,12 @@ private:
 
         auto sequencer = DistributedChunkSessionManager_->GetSequencerOrThrow(sessionId);
 
-        context->ReplyFrom(sequencer->Close().ToUncancelable());
+        auto closeFuture = sequencer->Close()
+            .Apply(BIND_NO_PROPAGATE([response] (const TDistributedChunkSessionProgress& progress) {
+                ToProto(response->mutable_progress(), progress);
+            }))
+            .ToUncancelable();
+        context->ReplyFrom(std::move(closeFuture));
     }
 };
 
