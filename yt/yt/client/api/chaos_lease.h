@@ -1,16 +1,17 @@
 #pragma once
 
+#include "prerequisite.h"
+
 #include <yt/yt/client/api/public.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
-namespace NYT::NApi::NNative {
+namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::IPrerequisitePtr CreateChaosLease(
-    NApi::IClientPtr client,
-    NRpc::IChannelPtr channel,
+IPrerequisitePtr CreateChaosLease(
+    IClientPtr client,
     NChaosClient::TChaosLeaseId id,
     TDuration timeout,
     bool pingAncestors,
@@ -18,4 +19,4 @@ NApi::IPrerequisitePtr CreateChaosLease(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NApi::NNative
+} // namespace NYT::NApi

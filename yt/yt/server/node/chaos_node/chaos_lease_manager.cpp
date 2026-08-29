@@ -17,6 +17,8 @@
 
 #include <yt/yt/client/chaos_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt/yt/core/ytree/composite_map.h>
 #include <yt/yt/core/ytree/virtual.h>
 
@@ -193,7 +195,14 @@ public:
 
     TFuture<void> PingChaosLease(TChaosLeaseId chaosLeaseId, bool pingAncestors) override
     {
-        return ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors);
+        return ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors)
+            .Apply(BIND([chaosLeaseId] (const TError& error) {
+                if (error.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+                    ThrowChaosLeaseNotKnown(chaosLeaseId);
+                }
+
+                error.ThrowOnError();
+            }));
     }
 
     TChaosLease* GetChaosLeaseOrThrowWithValidate(TChaosLeaseId chaosLeaseId) const

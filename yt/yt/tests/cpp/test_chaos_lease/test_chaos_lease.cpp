@@ -11,6 +11,8 @@
 
 #include <util/random/random.h>
 
+#include <atomic>
+
 namespace NYT::NCppTests {
 
 using namespace NApi;
@@ -306,8 +308,14 @@ TEST_P(TChaosLeaseTest, PingFailsAfterExpiration)
         [&] { return !LeaseExists(lease->GetId()); },
         "lease did not expire");
 
+    std::atomic<bool> aborted = false;
+    lease->SubscribeAborted(BIND([&] (const TError& /*error*/) {
+        aborted.store(true);
+    }));
+
     auto result = WaitFor(lease->Ping());
     ASSERT_FALSE(result.IsOK());
+    ASSERT_TRUE(aborted.load());
     YT_TLOG_INFO("Ping after expiration failed as expected")
         .With("Error", result.GetCode());
 }
