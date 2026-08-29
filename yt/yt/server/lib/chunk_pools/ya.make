@@ -9,12 +9,10 @@ SRCS(
     helpers.cpp
     input_chunk_mapping.cpp
     input_stream.cpp
+    job_manager.cpp
     job_size_adjuster.cpp
     job_size_tracker.cpp
     multi_chunk_pool.cpp
-    new_job_manager.cpp
-    new_sorted_chunk_pool.cpp
-    new_sorted_job_builder.cpp
     ordered_chunk_pool.cpp
     resource.cpp
     shuffle_chunk_pool.cpp

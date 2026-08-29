@@ -7,9 +7,9 @@
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -126,11 +126,10 @@ protected:
             }));
     }
 
-    static TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    static TDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateKeylessInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
-        dataSlice->TransformToNewKeyless();
         dataSlice->Tag = chunk->GetChunkId().Parts64[0] ^ chunk->GetChunkId().Parts64[1];
         return dataSlice;
     }
@@ -145,7 +144,7 @@ protected:
 
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
     {
-        std::vector<TLegacyDataSlicePtr> dataSlices;
+        std::vector<TDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
             auto dataSlice = BuildDataSliceByChunk(chunk);
             dataSlices.emplace_back(std::move(dataSlice));
@@ -290,13 +289,17 @@ protected:
             std::sort(chunkSlices.begin(), chunkSlices.end(), CompareChunkSlicesByLowerLimit);
 
             for (const auto& chunkSlice : chunkSlices) {
-                TLegacyKey chunkSliceLowerKey = chunkSlice->LegacyLowerLimit().Key;
-                TLegacyKey chunkSliceUpperKey = chunkSlice->LegacyUpperLimit().Key;
-                i64 chunkSliceLowerRowIndex = chunkSlice->LegacyLowerLimit().RowIndex
-                    ? *chunkSlice->LegacyLowerLimit().RowIndex
+                TLegacyKey chunkSliceLowerKey = chunkSlice->LowerLimit().KeyBound.IsUniversal()
+                    ? TLegacyKey()
+                    : KeyBoundToLegacyRow(chunkSlice->LowerLimit().KeyBound, RowBuffer_);
+                TLegacyKey chunkSliceUpperKey = chunkSlice->UpperLimit().KeyBound.IsUniversal()
+                    ? TLegacyKey()
+                    : KeyBoundToLegacyRow(chunkSlice->UpperLimit().KeyBound, RowBuffer_);
+                i64 chunkSliceLowerRowIndex = chunkSlice->LowerLimit().RowIndex
+                    ? *chunkSlice->LowerLimit().RowIndex
                     : chunkLowerRowIndex;
-                i64 chunkSliceUpperRowIndex = chunkSlice->LegacyUpperLimit().RowIndex
-                    ? *chunkSlice->LegacyUpperLimit().RowIndex
+                i64 chunkSliceUpperRowIndex = chunkSlice->UpperLimit().RowIndex
+                    ? *chunkSlice->UpperLimit().RowIndex
                     : chunkUpperRowIndex;
 
                 bool keysCoincide = lastUpperKey == chunkSliceLowerKey;

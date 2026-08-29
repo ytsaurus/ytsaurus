@@ -39,11 +39,11 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_teleporter.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -8452,7 +8452,7 @@ void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResu
         .Finish();
 }
 
-std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
+std::vector<TDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
     auto createScraperForFetcher = [&] (const TClusterName& clusterName) -> IFetcherChunkScraperPtr {
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
@@ -8490,12 +8490,11 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                     continue;
                 }
 
-                auto chunkSlice = CreateInputChunkSlice(chunk);
-                InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+                auto chunkSlice = CreateInputChunkSlice(chunk, RowBuffer_, table->Comparator);
+                InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, /*keyColumnCount*/ std::nullopt, table->Comparator);
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
-                dataSlice->TransformToNew(RowBuffer_, table->Comparator.GetLength());
-                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true, /*minManiacDataWeight*/ std::nullopt);
+                fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, /*sliceByKeys*/ true, /*minManiacDataWeight*/ std::nullopt);
                 totalDataWeightBefore += dataSlice->GetDataWeight();
             }
 
@@ -8513,11 +8512,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
     i64 totalDataSliceCount = 0;
     i64 totalDataWeightAfter = 0;
 
-    std::vector<TLegacyDataSlicePtr> result;
+    std::vector<TDataSlicePtr> result;
     for (const auto& [fetcher, comparator] : Zip(fetchers, comparators)) {
-        for (const auto& chunkSlice : fetcher->GetChunkSlices()) {
-            YT_VERIFY(!chunkSlice->IsLegacy);
-        }
         auto dataSlices = CombineVersionedChunkSlices(fetcher->GetChunkSlices(), comparator);
         for (auto& dataSlice : dataSlices) {
             YT_TLOG_TRACE("Added dynamic table slice")
@@ -8558,9 +8554,9 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
     return result;
 }
 
-std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
+std::vector<TDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
 {
-    std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputManager_->GetInputTables().size());
+    std::vector<std::vector<TDataSlicePtr>> dataSlicesByTableIndex(InputManager_->GetInputTables().size());
 
     i64 unversionedSliceCount = 0;
     i64 versionedSliceCount = 0;
@@ -8568,11 +8564,9 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
     auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
     for (const auto& chunk : InputManager_->CollectPrimaryUnversionedChunks()) {
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        const auto& inputTable = InputManager_->GetInputTables()[chunk->GetTableIndex()];
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk, RowBuffer_, inputTable->Comparator));
         dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
-
-        const auto& inputTable = InputManager_->GetInputTables()[dataSlice->GetTableIndex()];
-        dataSlice->TransformToNew(RowBuffer_, inputTable->Comparator);
 
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
         ++unversionedSliceCount;
@@ -8591,15 +8585,15 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
         .With("UnversionedSliceCount", unversionedSliceCount)
         .With("VersionedSliceCount", versionedSliceCount);
 
-    std::vector<TLegacyDataSlicePtr> dataSlices;
+    std::vector<TDataSlicePtr> dataSlices;
     std::ranges::move(dataSlicesByTableIndex | std::views::join, std::back_inserter(dataSlices));
 
     return dataSlices;
 }
 
-std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectForeignInputDataSlices(int foreignKeyColumnCount) const
+std::vector<std::deque<TDataSlicePtr>> TOperationControllerBase::CollectForeignInputDataSlices(int foreignKeyColumnCount) const
 {
-    std::vector<std::deque<TLegacyDataSlicePtr>> result;
+    std::vector<std::deque<TDataSlicePtr>> result;
     for (const auto& table : InputManager_->GetInputTables()) {
         if (table->IsForeign()) {
             result.emplace_back();
@@ -8609,12 +8603,9 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                 chunkSlices.reserve(table->Chunks.size());
                 YT_VERIFY(table->Comparator);
                 for (const auto& chunkSpec : table->Chunks) {
-                    auto& chunkSlice = chunkSlices.emplace_back(CreateInputChunkSlice(
-                        chunkSpec,
-                        RowBuffer_->CaptureRow(chunkSpec->BoundaryKeys()->MinKey.Get()),
-                        GetKeySuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), RowBuffer_)));
-
-                    chunkSlice->TransformToNew(RowBuffer_, table->Comparator.GetLength());
+                    auto chunkSlice = CreateInputChunkSlice(chunkSpec, RowBuffer_, table->Comparator);
+                    InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, /*keyColumnCount*/ std::nullopt, table->Comparator);
+                    chunkSlices.emplace_back(std::move(chunkSlice));
                 }
 
                 YT_VERIFY(table->Comparator);
@@ -8652,8 +8643,8 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                                 YT_ABORT();
                         }
                     }
-                    auto chunkSlice = CreateInputChunkSlice(inputChunk);
-                    chunkSlice->TransformToNew(RowBuffer_, table->Comparator.GetLength());
+                    YT_VERIFY(table->Comparator);
+                    auto chunkSlice = CreateInputChunkSlice(inputChunk, RowBuffer_, table->Comparator);
                     auto& dataSlice = result.back().emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(
                         *chunkSlice,
                         table->Comparator,
@@ -8747,34 +8738,22 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             auto chunkSlice = New<TInputChunkSlice>(
                 InputManager_->GetInputChunk(chunkId, protoChunkSpec.chunk_index()),
                 RowBuffer_,
-                protoChunkSpec);
-            // NB: Dynamic tables use legacy slices for now, so we do not convert dynamic table
-            // slices into new.
-            if (!dynamic) {
-                if (comparator) {
-                    chunkSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-                    InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, std::nullopt, comparator);
-                } else {
-                    chunkSlice->TransformToNewKeyless();
-                }
+                protoChunkSpec,
+                comparator);
+            if (!dynamic && comparator) {
+                InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, /*keyColumnCount*/ std::nullopt, comparator);
             }
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
-        TLegacyDataSlicePtr dataSlice;
+        TDataSlicePtr dataSlice;
         // XXX(coteeq): Should check for unversionedness rather than dynamicity.
         if (dynamic) {
             dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
-            if (comparator) {
-                dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-            } else {
-                dataSlice->TransformToNewKeyless();
-            }
         } else {
             YT_VERIFY(chunkSliceList.size() == 1);
             dataSlice = CreateUnversionedInputDataSlice(chunkSliceList[0]);
         }
 
-        YT_VERIFY(!dataSlice->IsLegacy);
         if (comparator) {
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
         }

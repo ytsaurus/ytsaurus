@@ -14,14 +14,14 @@
 #include <yt/yt/server/controller_agent/operation.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -119,7 +119,7 @@ protected:
             , Controller_(controller)
             , Options_(controller->GetSortedChunkPoolOptions())
         {
-            ChunkPool_ = CreateNewSortedChunkPool(
+            ChunkPool_ = CreateSortedChunkPool(
                 Options_,
                 controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory());
@@ -163,14 +163,12 @@ protected:
             return TotalOutputRowCount_;
         }
 
-        void AdjustDataSliceForPool(const TLegacyDataSlicePtr& dataSlice) const override
+        void AdjustDataSliceForPool(const TDataSlicePtr& dataSlice) const override
         {
             // Consider the following case as an example: we are running reduce over a sorted table
             // with two key columns [key, subkey] and a range >[5, foo]:<=[7, bar]. From the
             // pool's point of this slice covers a range >=[5]:<=[7] (note that boundaries become inclusive
             // when truncated).
-
-            YT_VERIFY(!dataSlice->IsLegacy);
 
             auto inputStreamDescriptor = Controller_->GetInputStreamDirectory().GetDescriptor(dataSlice->GetInputStreamIndex());
 
@@ -320,7 +318,7 @@ protected:
     TSortColumns ForeignSortColumns_;
 
     // TODO(max42): YT-14081.
-    // New sorted pool performs unwanted cuts even for small tests. In order to overcome that,
+    // The sorted pool may cut even small inputs. To account for that,
     // we consider total data slice weight instead of total chunk data weight.
     i64 TotalPrimaryInputDataSliceWeight_ = 0;
     i64 TotalForeignInputDataSliceWeight_ = 0;
@@ -450,7 +448,7 @@ protected:
         }
     }
 
-    TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
+    TChunkStripePtr CreateChunkStripe(TDataSlicePtr dataSlice)
     {
         auto chunkStripe = New<TChunkStripe>(InputManager_->GetInputTables()[dataSlice->GetTableIndex()]->IsForeign());
         chunkStripe->DataSlices().push_back(std::move(dataSlice));
@@ -474,9 +472,8 @@ protected:
                 const auto& comparator = InputManager_->GetInputTables()[chunk->GetTableIndex()]->Comparator;
                 YT_VERIFY(comparator);
 
-                const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+                const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk, RowBuffer_, comparator));
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
-                dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
                 InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
 
                 TotalPrimaryInputDataSliceWeight_ += dataSlice->GetDataWeight();
@@ -487,15 +484,6 @@ protected:
                 yielder.TryYield();
             }
             for (const auto& slice : CollectPrimaryVersionedDataSlices(InputSliceDataWeight_)) {
-                // If we keep chunk slice limits at this point, they will be transformed to legacy
-                // limits back and forth in legacy sorted chunk pool. Right now it breaks them, e.g.
-                // >=[1,1] -> [1,1] -> >[1]. I am not completely sure how to fix that properly, so
-                // I am removing chunk slice limits as a workaround until YT-13880.
-                for (const auto& chunkSlice : slice->ChunkSlices) {
-                    chunkSlice->LowerLimit() = TInputSliceLimit();
-                    chunkSlice->UpperLimit() = TInputSliceLimit();
-                }
-
                 SortedTask_->AddInput(CreateChunkStripe(slice));
 
                 TotalPrimaryInputDataSliceWeight_ += slice->GetDataWeight();
@@ -561,11 +549,6 @@ protected:
                 }
             }
         }
-    }
-
-    virtual bool ShouldSlicePrimaryTableByKeys() const
-    {
-        return true;
     }
 
     virtual i64 GetMinTeleportChunkSize()  = 0;
@@ -667,7 +650,6 @@ protected:
         jobOptions.ForeignComparator = GetComparator(ForeignSortColumns_);
         jobOptions.PrimaryPrefixLength = PrimarySortColumns_.size();
         jobOptions.ForeignPrefixLength = ForeignSortColumns_.size();
-        jobOptions.ShouldSlicePrimaryTableByKeys = ShouldSlicePrimaryTableByKeys();
         jobOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
         jobOptions.EnablePeriodicYielder = true;
 
@@ -798,11 +780,6 @@ public:
             operation)
         , Spec_(spec)
     { }
-
-    bool ShouldSlicePrimaryTableByKeys() const override
-    {
-        return true;
-    }
 
     bool IsRowCountPreserved() const override
     {
@@ -1268,11 +1245,6 @@ public:
     TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
         return TConfigurator<TReduceOperationSpec>();
-    }
-
-    bool ShouldSlicePrimaryTableByKeys() const override
-    {
-        return *Spec_->EnableKeyGuarantee;
     }
 
     EJobType GetJobType() const override

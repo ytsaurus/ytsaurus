@@ -11,9 +11,9 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -605,7 +605,7 @@ private:
         }
     }
 
-    void ValidateInputDataSlice(const TLegacyDataSlicePtr& dataSlice)
+    void ValidateInputDataSlice(const TDataSlicePtr& dataSlice)
     {
         auto errorCode = NChunkClient::EErrorCode::InvalidInputChunk;
         if (!dataSlice->IsTrivial()) {
@@ -847,7 +847,7 @@ private:
         return chunkPoolOptions;
     }
 
-    TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
+    TChunkStripePtr CreateChunkStripe(TDataSlicePtr dataSlice)
     {
         TChunkStripePtr chunkStripe = New<TChunkStripe>(false /*foreign*/);
         chunkStripe->DataSlices().push_back(std::move(dataSlice));
@@ -870,16 +870,14 @@ private:
     {
         auto yielder = CreatePeriodicYielder(PrepareYieldPeriod);
 
-        std::vector<TLegacyDataSlicePtr> hunkChunkSlices;
-        std::vector<TLegacyDataSlicePtr> compressionDictionarySlices;
-        std::vector<TLegacyDataSlicePtr> chunkSlices;
+        std::vector<TDataSlicePtr> hunkChunkSlices;
+        std::vector<TDataSlicePtr> compressionDictionarySlices;
+        std::vector<TDataSlicePtr> chunkSlices;
 
         for (const auto& chunk : Concatenate(InputManager_->CollectPrimaryUnversionedChunks(), InputManager_->CollectPrimaryVersionedChunks())) {
-            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            const auto& inputTable = InputManager_->GetInputTables()[chunk->GetTableIndex()];
+            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk, RowBuffer_, inputTable->Comparator));
             dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
-
-            const auto& inputTable = InputManager_->GetInputTables()[dataSlice->GetTableIndex()];
-            dataSlice->TransformToNew(RowBuffer_, inputTable->Comparator);
 
             ValidateInputDataSlice(dataSlice);
             if (chunk->IsHunk()) {
@@ -898,7 +896,7 @@ private:
         YT_VERIFY(std::ssize(CompressionDictionaryIds_) == std::ssize(compressionDictionarySlices));
 
         int sliceCount = 0;
-        auto addInputSlices = [&] (const TRemoteCopyTaskBasePtr& task, std::vector<TLegacyDataSlicePtr>&& slices) {
+        auto addInputSlices = [&] (const TRemoteCopyTaskBasePtr& task, std::vector<TDataSlicePtr>&& slices) {
             sliceCount += std::ssize(slices);
             for (auto& slice : slices) {
                 task->AddInput(CreateChunkStripe(std::move(slice)));

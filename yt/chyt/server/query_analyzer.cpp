@@ -14,8 +14,8 @@
 #include "table.h"
 #include "read_range_inference.h"
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -33,7 +33,6 @@
 #include <Analyzer/TableNode.h>
 #include <Analyzer/TableFunctionNode.h>
 #include <Analyzer/ConstantNode.h>
-#include <Analyzer/ColumnNode.h>
 #include <Analyzer/FunctionNode.h>
 #include <Analyzer/Utils.h>
 #include <Analyzer/WindowFunctionsUtils.h>

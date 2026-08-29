@@ -12,9 +12,9 @@
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 namespace NYT::NControllerAgent::NControllers {
 namespace {
@@ -39,7 +39,7 @@ TChunkStripeListPtr CreateTwoRowStripeList(i64 dataWeight = 200)
     inputChunk->SetTotalDataWeight(dataWeight);
 
     auto stripeList = New<TChunkStripeList>();
-    stripeList->AddStripe(New<TChunkStripe>(CreateUnversionedInputDataSlice(CreateInputChunkSlice(inputChunk))));
+    stripeList->AddStripe(New<TChunkStripe>(CreateUnversionedInputDataSlice(CreateKeylessInputChunkSlice(inputChunk))));
     return stripeList;
 }
 

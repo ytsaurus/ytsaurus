@@ -41,10 +41,10 @@ public:
     //! substitutes.
     NChunkPools::TChunkStripePtr GetMappedStripe(const NChunkPools::TChunkStripePtr& stripe) const;
 
-    //! Given the knowledge that the old stripe list transformed into the new stripe list,
-    //! populate mapping with the new input chunk correspondences, or report an error
-    //! in case of inconsistent transformation (for example, when new stripe contains
-    //! more data slices, or the new data slices have different read limits or boundary keys).
+    //! Given a source and regenerated stripe list, populate the mapping with input chunk
+    //! correspondences, or report an error when the transformation is inconsistent
+    //! (for example, when the regenerated stripe contains more data slices or its data
+    //! slices have different read limits or boundary keys).
     void OnStripeRegenerated(
         NChunkPools::IChunkPoolInput::TCookie cookie,
         const NChunkPools::TChunkStripePtr& newStripe);

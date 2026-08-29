@@ -18,7 +18,7 @@
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/chunk_pool_outputs_merger.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/shuffle_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
@@ -28,9 +28,9 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/data_sink.pb.h>
 
@@ -2783,7 +2783,6 @@ protected:
         jobOptions.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
         jobOptions.PrimaryComparator = GetComparator(GetSortedMergeSortColumns());
         jobOptions.PrimaryPrefixLength = jobOptions.PrimaryComparator.GetLength();
-        jobOptions.ShouldSlicePrimaryTableByKeys = GetSortedMergeJobType() == EJobType::SortedReduce;
         jobOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
 
         // NB: otherwise we could easily be persisted during preparing the jobs. Sorted chunk pool
@@ -2801,7 +2800,7 @@ protected:
             chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
         }
 
-        return CreateNewSortedChunkPool(chunkPoolOptions, nullptr /*chunkSliceFetcher*/, IntermediateInputStreamDirectory);
+        return CreateSortedChunkPool(chunkPoolOptions, /*chunkSliceFetcher*/ nullptr, IntermediateInputStreamDirectory);
     }
 
     i64 AccountRows(const TCompletedJobSummary& jobSummary)

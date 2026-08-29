@@ -37,7 +37,7 @@ struct ISortedStagingArea
     //!   into the next job.
     //! - Foreign: foreign data slice. Despite to previous two kinds, its lower bound may not be
     //!   equal to current upper bound inverse.
-    virtual void Put(NChunkClient::TLegacyDataSlicePtr dataSlice, ESliceType sliceType) = 0;
+    virtual void Put(NChunkClient::TDataSlicePtr dataSlice, ESliceType sliceType) = 0;
 
     //! Barriers are used to indicate positions which should not be overlapped by jobs
     //! (in particular, pivot keys and teleport chunks define barriers).
@@ -48,7 +48,7 @@ struct ISortedStagingArea
 
     //! Called at the end of processing to finalize some stuff and flush the remaining job (if any).
     //! Must be called exactly once.
-    virtual std::pair<std::vector<TNewJobStub>, TCurrentJobsStatistics> Finish() && = 0;
+    virtual std::pair<std::vector<TJobStub>, TCurrentJobsStatistics> Finish() && = 0;
 
     //! Returns largest of all primary data slice upper bounds. Used to
     //! determine how far current staging area spans to the right.
