@@ -81,18 +81,20 @@ public:
     void BuildSchedulingAttributesForNode(TNodeId /*nodeId*/, TFluentMap /*fluent*/) const override
     { }
 
-    void BuildSchedulingAttributesStringForOngoingAllocations(
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const std::vector<TAllocationPtr>& /*allocations*/,
-        TInstant /*now*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
-    { }
+        TInstant /*now*/) const override
+    {
+        return {};
+    }
 
-    void BuildElementLoggingStringAttributes(
+    NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-        const TPoolTreeElement* /*element*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
-    { }
+        const TPoolTreeElement* /*element*/) const override
+    {
+        return {};
+    }
 
     void PopulateOrchidService(const ICompositeMapServicePtr& /*orchidService*/) const override
     { }

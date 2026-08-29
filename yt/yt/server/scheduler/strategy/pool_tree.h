@@ -87,10 +87,9 @@ struct IPoolTree
         NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
     virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
-    virtual void BuildSchedulingAttributesStringForOngoingAllocations(
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const std::vector<TAllocationPtr>& allocations,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        TInstant now) const = 0;
 
     virtual void ApplyJobMetricsDelta(THashMap<TOperationId, TJobMetrics> jobMetricsPerOperation) = 0;
 
