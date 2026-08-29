@@ -1952,11 +1952,11 @@ public:
             YT_TLOG_DEBUG("Adding transaction to barriers")
                 .With("TransactionId", transaction->GetId())
                 .With("BarrierTags", MakeShrunkFormattableView(
-                        transaction->GetBarrierCookies(),
-                        [] (auto* builder, const auto& pair) {
-                            builder->AppendFormat("%v", pair.first);
-                        },
-                        /*limit*/ 100));
+                    transaction->GetBarrierCookies(),
+                    [] (auto* builder, const auto& pair) {
+                        builder->AppendFormat("%v", pair.first);
+                    },
+                    /*limit*/ 100));
         }
 
         if (!IsRecovery()) {
