@@ -1170,19 +1170,19 @@ private:
     {
         if (mapping.size() != chunkIds.size()) {
             for (const auto& chunkId : chunkIds) {
-                YT_LOG_FATAL_IF(
+                YT_TLOG_FATAL_IF(
                     !mapping.contains(chunkId),
-                    "Validate %v consistency failed. Chunk %v was not copied",
-                    chunkName,
-                    chunkId);
+                    "Consistency validation failed; chunk was not copied")
+                    .With("ChunkName", chunkName)
+                    .With("ChunkId", chunkId);
             }
             for (const auto& [oldId, newId] : mapping) {
-                YT_LOG_FATAL_IF(
+                YT_TLOG_FATAL_IF(
                     !chunkIds.contains(oldId),
-                    "Validate %v consistency failed. Chunk %v should not have been copied as %v",
-                    chunkName,
-                    oldId,
-                    newId);
+                    "Consistency validation failed; chunk should not have been copied")
+                    .With("ChunkName", chunkName)
+                    .With("OldChunkId", oldId)
+                    .With("NewChunkId", newId);
             }
         }
     }

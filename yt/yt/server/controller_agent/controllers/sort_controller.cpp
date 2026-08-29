@@ -1954,16 +1954,13 @@ protected:
 
         if (!dispatchDecision.has_value()) {
             YT_VERIFY(std::ssize(physicalPartitionIndices) == 1);
-            YT_LOG_TRACE(
-                "Physical partition does not meet early dispatch criteria "
-                "(ParentPartitionLevel: %v, ParentPartitionIndex: %v, PhysicalPartitionIndex: %v, "
-                "PartitionJobCount: %v, PartitionDataWeight: %v, PartitionDataSliceCount: %v)",
-                intermediatePartition->GetLevel(),
-                intermediatePartition->GetIndex(),
-                physicalPartitionIndices[0],
-                chunkPoolOutput->GetJobCounter()->GetTotal(),
-                chunkPoolOutput->GetDataSliceCounter()->GetTotal(),
-                chunkPoolOutput->GetDataWeightCounter()->GetTotal());
+            YT_TLOG_TRACE("Physical partition does not meet early dispatch criteria")
+                .With("ParentPartitionLevel", intermediatePartition->GetLevel())
+                .With("ParentPartitionIndex", intermediatePartition->GetIndex())
+                .With("PhysicalPartitionIndex", physicalPartitionIndices[0])
+                .With("PartitionJobCount", chunkPoolOutput->GetJobCounter()->GetTotal())
+                .With("PartitionDataWeight", chunkPoolOutput->GetDataWeightCounter()->GetTotal())
+                .With("PartitionDataSliceCount", chunkPoolOutput->GetDataSliceCounter()->GetTotal());
             return;
         }
 
@@ -4142,9 +4139,9 @@ private:
                 GetColumnNames(Spec_->SortBy));
         }
 
-        YT_LOG_DEBUG("ReduceColumns: %v, SortColumns: %v",
-            Spec_->ReduceBy,
-            GetColumnNames(Spec_->SortBy));
+        YT_TLOG_DEBUG("Reduce and sort columns determined")
+            .With("ReduceColumns", Spec_->ReduceBy)
+            .With("SortColumns", GetColumnNames(Spec_->SortBy));
     }
 
     std::vector<TRichYPath> GetInputTablePaths() const override

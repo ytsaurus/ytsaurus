@@ -1409,7 +1409,8 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             error.FindMatching(NChunkPools::EErrorCode::MaxPrimaryDataWeightPerJobExceeded) ||
             error.FindMatching(NChunkPools::EErrorCode::MaxCompressedDataSizePerJobExceeded))
         {
-            YT_LOG_ERROR(error);
+            YT_TLOG_ERROR("Job completion failed due to a chunk pool limit")
+                .With(error);
 
             result.OperationFailedError = error;
             return result;
@@ -2320,10 +2321,12 @@ void TTask::RegisterStripe(
                     .With("JobType", joblet->JobType)
                     .With("InputCookie", inputCookie);
             } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Handling stripe registration failure")
+                    .With("InputCookie", inputCookie)
+                    .With(ex);
                 auto error = TError("Failure while registering result stripe of a restarted job in a chunk mapping")
                     .With(ex)
                     .With("input_cookie", inputCookie);
-                YT_LOG_ERROR(error);
                 OnStripeRegistrationFailed(error, lostIt->second, stripe, streamDescriptor);
             }
 
