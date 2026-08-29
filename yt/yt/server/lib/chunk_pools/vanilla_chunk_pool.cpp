@@ -1,7 +1,7 @@
 #include "vanilla_chunk_pool.h"
 
 #include "helpers.h"
-#include "new_job_manager.h"
+#include "job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
@@ -22,13 +22,13 @@ using namespace NControllerAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVanillaChunkPool
-    : public TChunkPoolOutputWithNewJobManagerBase
+    : public TChunkPoolOutputWithJobManagerBase
     , public TJobSplittingBase
     , public IVanillaChunkPoolOutput
 {
 public:
     explicit TVanillaChunkPool(const TVanillaChunkPoolOptions& options)
-        : TChunkPoolOutputWithNewJobManagerBase(options.Logger)
+        : TChunkPoolOutputWithJobManagerBase(options.Logger)
         , JobCount_(options.JobCount)
         , RestartCompletedJobs_(options.RestartCompletedJobs)
     {
@@ -37,7 +37,7 @@ public:
         // We use very small portion of job manager functionality. We fill it with dummy
         // jobs and make manager deal with extracting/completing/failing/aborting jobs for us.
         for (int index = 0; index < options.JobCount; ++index) {
-            JobManager_->AddJob(std::make_unique<TNewJobStub>());
+            JobManager_->AddJob(std::make_unique<TJobStub>());
         }
     }
 
@@ -90,7 +90,7 @@ public:
         return NullStripeList;
     }
 
-    using TChunkPoolOutputWithNewJobManagerBase::Extract;
+    using TChunkPoolOutputWithJobManagerBase::Extract;
 
     void Extract(IChunkPoolOutput::TCookie cookie) final
     {

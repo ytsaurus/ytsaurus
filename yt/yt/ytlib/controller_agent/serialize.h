@@ -129,6 +129,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((InputChunkSliceUncompressedDataSize)   (302306))
     // 26.3 starts here
     ((BumpTo_26_3)                           (302400))
+    ((DropLegacyDataSliceRepresentation)     (302401))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

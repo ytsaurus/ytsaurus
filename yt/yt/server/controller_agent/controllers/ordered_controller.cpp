@@ -21,10 +21,10 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -309,7 +309,7 @@ protected:
 
     virtual i64 GetMinTeleportChunkSize() const = 0;
 
-    virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& /*dataSlice*/)
+    virtual void ValidateInputDataSlice(const TDataSlicePtr& /*dataSlice*/)
     { }
 
     virtual TCpuResource GetCpuLimit() const

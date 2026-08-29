@@ -147,7 +147,6 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(max42): maybe make job manager implement IPersistentChunkPoolOutput itself?
-template <class TJobManager>
 class TChunkPoolOutputWithJobManagerBase
     : public TChunkPoolOutputBase
 {
@@ -178,13 +177,10 @@ public:
 protected:
     TIntrusivePtr<TJobManager> JobManager_;
 
-    PHOENIX_DECLARE_POLYMORPHIC_TEMPLATE_TYPE(TChunkPoolOutputWithJobManagerBase, 0xf4778601);
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolOutputWithJobManagerBase, 0xf4778601);
 };
 
-using TChunkPoolOutputWithNewJobManagerBase = TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
-
-template <class TJobManager>
-void TChunkPoolOutputWithJobManagerBase<TJobManager>::RegisterMetadata(auto&& registrar)
+void TChunkPoolOutputWithJobManagerBase::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, JobManager_);
 }

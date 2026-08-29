@@ -3,13 +3,13 @@
 #include "config.h"
 #include "helpers.h"
 #include "job_size_adjuster.h"
-#include "new_job_manager.h"
+#include "job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
@@ -57,7 +57,7 @@ PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
 
 class TOrderedChunkPool
     : public TChunkPoolInputBase
-    , public TChunkPoolOutputWithNewJobManagerBase
+    , public TChunkPoolOutputWithJobManagerBase
     , public IOrderedChunkPool
     , public TJobSplittingBase
     , public virtual NLogging::TLoggerOwner
@@ -69,7 +69,7 @@ public:
     TOrderedChunkPool(
         const TOrderedChunkPoolOptions& options,
         TInputStreamDirectory inputStreamDirectory)
-        : TChunkPoolOutputWithNewJobManagerBase(options.Logger)
+        : TChunkPoolOutputWithJobManagerBase(options.Logger)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
@@ -119,10 +119,6 @@ public:
 
         if (stripe->DataSlices().empty()) {
             return IChunkPoolInput::NullCookie;
-        }
-
-        for (const auto& dataSlice : stripe->DataSlices()) {
-            YT_VERIFY(!dataSlice->IsLegacy);
         }
 
         auto cookie = std::ssize(Stripes_);
@@ -284,7 +280,7 @@ private:
     // cannot be currently estimated. In this scenario, a new slice may be
     // added without requiring a split.
     std::optional<i64> RowCountUntilJobSplit_;
-    std::unique_ptr<TNewJobStub> CurrentJob_;
+    std::unique_ptr<TJobStub> CurrentJob_;
 
     int JobIndex_ = 0;
     int BuiltJobCount_ = 0;
@@ -303,7 +299,7 @@ private:
         }
     }
 
-    bool IsTeleportable(const TLegacyDataSlicePtr& dataSlice) const
+    bool IsTeleportable(const TDataSlicePtr& dataSlice) const
     {
         if (dataSlice->Type != EDataSourceType::UnversionedTable) {
             return false;
@@ -379,7 +375,6 @@ private:
                     continue;
                 }
 
-                YT_VERIFY(!dataSlice->IsLegacy);
                 if (IsDataSliceSplittable(dataSlice)) {
                     AddSplittablePrimaryDataSlice(dataSlice, inputCookie);
                 } else {
@@ -406,7 +401,7 @@ private:
     }
 
     std::vector<IChunkPoolOutput::TCookie> SplitJob(
-        std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
+        std::vector<TDataSlicePtr> unreadInputDataSlices,
         int splitJobCount,
         IChunkPoolOutput::TCookie cookie)
     {
@@ -477,13 +472,11 @@ private:
     }
 
     IChunkPoolOutput::TCookie AddUnsplittablePrimaryDataSlice(
-        const TLegacyDataSlicePtr& dataSlice,
+        const TDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie,
         i64 dataWeightPerJob,
         i64 compressedDataSizePerJob)
     {
-        YT_VERIFY(!dataSlice->IsLegacy);
-
         RowCountUntilJobSplit_ = std::nullopt;
 
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);
@@ -501,7 +494,7 @@ private:
         return IChunkPoolOutput::NullCookie;
     }
 
-    bool IsDataSliceSplittable(const TLegacyDataSlicePtr& dataSlice) const
+    bool IsDataSliceSplittable(const TDataSlicePtr& dataSlice) const
     {
         if (dataSlice->Type != EDataSourceType::UnversionedTable) {
             return false;
@@ -518,7 +511,7 @@ private:
     }
 
     void AddSplittablePrimaryDataSlice(
-        const TLegacyDataSlicePtr& dataSlice,
+        const TDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie)
     {
         YT_VERIFY(IsDataSliceSplittable(dataSlice));
@@ -685,10 +678,10 @@ private:
         return IChunkPoolOutput::NullCookie;
     }
 
-    std::unique_ptr<TNewJobStub>& CurrentJob()
+    std::unique_ptr<TJobStub>& CurrentJob()
     {
         if (!CurrentJob_) {
-            CurrentJob_ = std::make_unique<TNewJobStub>();
+            CurrentJob_ = std::make_unique<TJobStub>();
         }
         return CurrentJob_;
     }

@@ -1,8 +1,8 @@
 #include "sorted_staging_area.h"
 
-#include "new_job_manager.h"
+#include "job_manager.h"
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 
 #include <yt/yt/core/misc/heap.h>
 
@@ -145,7 +145,7 @@ public:
         return Statistics_.IsZero();
     }
 
-    void PushBack(TLegacyDataSlicePtr dataSlice)
+    void PushBack(TDataSlicePtr dataSlice)
     {
         UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
 
@@ -155,7 +155,7 @@ public:
         DataSlices_.push_back(std::move(dataSlice));
     }
 
-    void PushFront(TLegacyDataSlicePtr dataSlice)
+    void PushFront(TDataSlicePtr dataSlice)
     {
         UpdateUpperBound(dataSlice->UpperLimit().KeyBound);
 
@@ -165,7 +165,7 @@ public:
         DataSlices_.push_front(std::move(dataSlice));
     }
 
-    std::deque<TLegacyDataSlicePtr> ExtractDataSlicesAndClear()
+    std::deque<TDataSlicePtr> ExtractDataSlicesAndClear()
     {
         Statistics_ = TResourceVector();
         UpperBound_ = TKeyBound();
@@ -180,7 +180,7 @@ public:
 private:
     TLogger Logger;
     const TComparator& Comparator_;
-    std::deque<TLegacyDataSlicePtr> DataSlices_;
+    std::deque<TDataSlicePtr> DataSlices_;
 
     void UpdateUpperBound(TKeyBound upperBound)
     {
@@ -199,7 +199,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TResourceVector, Statistics);
 
     //! Per-stream queue of data slices.
-    DEFINE_BYREF_RO_PROPERTY(std::vector<std::deque<TLegacyDataSlicePtr>>, StreamIndexToDataSlices);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<std::deque<TDataSlicePtr>>, StreamIndexToDataSlices);
 
 public:
     explicit TForeignDomain(const TComparator& foreignComparator)
@@ -207,12 +207,12 @@ public:
     { }
 
     //! Returns smallest data slice according to comparator or nullptr if empty.
-    TLegacyDataSlicePtr Front() const
+    TDataSlicePtr Front() const
     {
         return StreamHeap_.empty() ? nullptr : StreamIndexToDataSlices_[StreamHeap_.front()].front();
     }
 
-    void AddDataSlice(TLegacyDataSlicePtr dataSlice)
+    void AddDataSlice(TDataSlicePtr dataSlice)
     {
         int streamIndex = dataSlice->GetInputStreamIndex();
         if (streamIndex >= std::ssize(StreamIndexToDataSlices_)) {
@@ -316,7 +316,7 @@ public:
         UpperBound_ = newUpperBound;
     }
 
-    void Put(TLegacyDataSlicePtr dataSlice, ESliceType sliceType) override
+    void Put(TDataSlicePtr dataSlice, ESliceType sliceType) override
     {
         YT_VERIFY(dataSlice->Tag);
 
@@ -383,7 +383,7 @@ public:
         return JobsStatistics_;
     }
 
-    std::pair<std::vector<TNewJobStub>, TCurrentJobsStatistics> Finish() && override
+    std::pair<std::vector<TJobStub>, TCurrentJobsStatistics> Finish() && override
     {
         YT_TLOG_TRACE("Finishing work in staging area");
 
@@ -432,7 +432,7 @@ private:
     TKeyBound UpperBound_ = TKeyBound::MakeEmpty(/*isUpper*/ true);
 
     TCurrentJobsStatistics JobsStatistics_;
-    std::vector<TNewJobStub> PreparedJobs_;
+    std::vector<TJobStub> PreparedJobs_;
 
     //! These flags are used only for internal sanity check.
     bool PreviousJobContainedSolidSlices_ = false;
@@ -446,7 +446,7 @@ private:
     TForeignDomain ForeignDomain_;
     std::optional<TPrimaryDomain> SolidDomain_;
 
-    std::vector<TLegacyDataSlicePtr> NonSolidMainDataSlices_;
+    std::vector<TDataSlicePtr> NonSolidMainDataSlices_;
 
     std::string GetStatisticsDebugString() const
     {
@@ -475,7 +475,7 @@ private:
         // Since this reverses the order of the moved slices, we also have to iterate over `toBuffer`
         // in reverse order in line (2) while preserving their relative oder in line (3).
         // Refer to explanation in YT-14566 for more details.
-        std::vector<TLegacyDataSlicePtr> toBuffer;
+        std::vector<TDataSlicePtr> toBuffer;
 
         for (auto& dataSlice : NonSolidMainDataSlices_) {
             YT_VERIFY(!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound));

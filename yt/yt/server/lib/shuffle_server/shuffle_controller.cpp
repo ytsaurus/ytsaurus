@@ -162,7 +162,7 @@ private:
                 chunk.Chunk->GetRowCount()) * rowCount;
 
             if (rowCount > 0) {
-                result.push_back(New<TInputChunkSlice>(chunk.Chunk));
+                result.push_back(CreateKeylessInputChunkSlice(chunk.Chunk));
                 result.back()->OverrideSize(rowCount, dataSize, compressedDataSize, uncompressedDataSize);
             }
         };

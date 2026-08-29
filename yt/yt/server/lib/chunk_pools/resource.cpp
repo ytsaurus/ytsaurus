@@ -1,6 +1,6 @@
 #include "resource.h"
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 
 namespace NYT::NChunkPools {
 
@@ -8,7 +8,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceVector TResourceVector::FromDataSlice(const TLegacyDataSlicePtr& dataSlice, bool isPrimary)
+TResourceVector TResourceVector::FromDataSlice(const TDataSlicePtr& dataSlice, bool isPrimary)
 {
     TResourceVector result;
     result.Values[EResourceKind::DataSliceCount] = 1;

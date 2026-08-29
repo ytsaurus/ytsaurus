@@ -2,15 +2,15 @@
 
 #include "helpers.h"
 #include "job_size_adjuster.h"
-#include "new_job_manager.h"
+#include "job_manager.h"
 
 #include <yt/yt/server/lib/chunk_pools/config.h>
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
@@ -74,7 +74,7 @@ public:
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)
         , RowBuffer_(options.RowBuffer)
         , InputStreamDirectory_(std::move(directory))
-        , JobManager_(New<TNewJobManager>(options.Logger))
+        , JobManager_(New<TJobManager>(options.Logger))
         , FreeJobCounter_(New<TProgressCounter>())
         , FreeDataWeightCounter_(New<TProgressCounter>())
         , FreeCompressedDataSizeCounter_(New<TProgressCounter>())
@@ -134,7 +134,6 @@ public:
         InputCookieIsSuspended_.emplace_back(false);
 
         for (const auto& dataSlice : stripe->DataSlices()) {
-            YT_VERIFY(!dataSlice->IsLegacy);
             // XXX
             dataSlice->GetInputStreamIndex();
             AddDataSlice(dataSlice, cookie);
@@ -330,7 +329,7 @@ public:
     }
 
     std::vector<TOutputCookie> SplitJob(
-        const std::vector<TLegacyDataSlicePtr>& dataSlices,
+        const std::vector<TDataSlicePtr>& dataSlices,
         int jobCount)
     {
         i64 unreadRowCount = GetCumulativeRowCount(dataSlices);
@@ -435,7 +434,7 @@ private:
 
     TInputStreamDirectory InputStreamDirectory_;
 
-    TNewJobManagerPtr JobManager_;
+    TJobManagerPtr JobManager_;
 
     TProgressCounterPtr FreeJobCounter_;
     TProgressCounterPtr FreeDataWeightCounter_;
@@ -449,7 +448,7 @@ private:
     bool BuildFirstJobOnFinishedInput_ = false;
 
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
-    bool TryTeleportChunk(const TLegacyDataSlicePtr& dataSlice)
+    bool TryTeleportChunk(const TDataSlicePtr& dataSlice)
     {
         if (!dataSlice->IsTrivial() ||
             dataSlice->HasLimits() ||
@@ -484,10 +483,7 @@ private:
             .With("RangeIndex", dataSlice->GetRangeIndex())
             .With("IsTrivial", dataSlice->IsTrivial())
             .With("IsTeleportable", dataSlice->IsTeleportable)
-            .With("IsLegacy", dataSlice->IsLegacy)
             .With("HasLimits", dataSlice->HasLimits())
-            .With("LegacyLowerLimit", dataSlice->LegacyLowerLimit())
-            .With("LegacyUpperLimit", dataSlice->LegacyUpperLimit())
             .With("LowerLimit", dataSlice->LowerLimit())
             .With("UpperLimit", dataSlice->UpperLimit())
             .With("Pending", jobCounter->GetPending())
@@ -502,7 +498,7 @@ private:
             i64 idealDataWeightPerJob = GetAdjustedDataWeightPerJob();
             i64 idealCompressedDataSizePerJob = GetAdjustedCompressedDataSizePerJob();
 
-            auto jobStub = std::make_unique<TNewJobStub>();
+            auto jobStub = std::make_unique<TJobStub>();
 
             // Take local chunks first.
             if (nodeId != InvalidNodeId) {
@@ -561,7 +557,7 @@ private:
         return limit.RowIndex.value_or(defaultRowIndex) == defaultRowIndex && (!limit.KeyBound || limit.KeyBound.IsUniversal());
     };
 
-    void AddDataSlice(const TLegacyDataSlicePtr dataSlice, IChunkPoolInput::TCookie inputCookie)
+    void AddDataSlice(const TDataSlicePtr dataSlice, IChunkPoolInput::TCookie inputCookie)
     {
         dataSlice->Tag = inputCookie;
 
@@ -602,9 +598,9 @@ private:
                     upperLimit = slice->UpperLimit();
                 }
 
-                auto newDataSlice = New<TLegacyDataSlice>(
+                auto newDataSlice = New<TDataSlice>(
                     EDataSourceType::UnversionedTable,
-                    TLegacyDataSlice::TChunkSliceList{std::move(slice)},
+                    TDataSlice::TChunkSliceList{std::move(slice)},
                     lowerLimit,
                     upperLimit);
                 newDataSlice->CopyPayloadFrom(*dataSlice);
@@ -613,17 +609,13 @@ private:
                 AddStripe(New<TChunkStripe>(std::move(newDataSlice)), /*solid*/ false);
             }
         } else {
-            for (const auto& slice : CreateErasureInputChunkSlices(chunk, codecId)) {
-                slice->TransformToNewKeyless();
-
+            for (const auto& slice : CreateInputChunkSlicesFromCompleteErasureChunk(chunk, codecId)) {
                 auto smallerSlices = slice->SliceEvenly(
                     JobSizeConstraints_->GetInputSliceDataWeight(),
                     JobSizeConstraints_->GetInputSliceRowCount(),
                     RowBuffer_);
 
                 for (auto& smallerSlice : smallerSlices) {
-                    YT_VERIFY(!smallerSlice->IsLegacy);
-
                     TInputSliceLimit lowerLimit;
                     if (!IsTrivialLimit(smallerSlice->LowerLimit(), 0)) {
                         lowerLimit = smallerSlice->LowerLimit();
@@ -633,9 +625,9 @@ private:
                         upperLimit = smallerSlice->UpperLimit();
                     }
 
-                    auto newDataSlice = New<TLegacyDataSlice>(
+                    auto newDataSlice = New<TDataSlice>(
                         EDataSourceType::UnversionedTable,
-                        TLegacyDataSlice::TChunkSliceList{std::move(smallerSlice)},
+                        TDataSlice::TChunkSliceList{std::move(smallerSlice)},
                         lowerLimit,
                         upperLimit);
 
@@ -842,7 +834,7 @@ private:
         YT_VERIFY(!FreeStripes_.contains(stripeIndex));
         YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
 
-        auto jobStub = std::make_unique<TNewJobStub>();
+        auto jobStub = std::make_unique<TJobStub>();
         for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices()) {
             jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary*/ true);
         }
@@ -887,7 +879,7 @@ private:
     }
 
     void AddStripesToJob(
-        TNewJobStub* jobStub,
+        TJobStub* jobStub,
         const THashSet<int>::const_iterator& begin,
         const THashSet<int>::const_iterator& end,
         i64 idealDataWeightPerJob,

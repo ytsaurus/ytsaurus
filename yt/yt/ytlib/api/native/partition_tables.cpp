@@ -1,11 +1,11 @@
 #include "partition_tables.h"
 
 #include <yt/yt/ytlib/chunk_client/combine_data_slices.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/chunk_pools/chunk_pool.h>
 #include <yt/yt/ytlib/chunk_pools/chunk_pool_factory.h>
@@ -354,7 +354,7 @@ std::vector<std::vector<TDataSliceDescriptor>> TMultiTablePartitioner::ConvertCh
     return slicesByTable;
 }
 
-void TMultiTablePartitioner::AddDataSlice(int tableIndex, TLegacyDataSlicePtr dataSlice)
+void TMultiTablePartitioner::AddDataSlice(int tableIndex, TDataSlicePtr dataSlice)
 {
     YT_VERIFY(ChunkPool_);
 
@@ -392,11 +392,10 @@ void TMultiTablePartitioner::PrepareVersionedSliceFetcher(const TInputTable& inp
         Logger);
 
     for (const auto& inputChunk : inputChunks) {
-        auto inputChunkSlice = CreateInputChunkSlice(inputChunk);
-        InferLimitsFromBoundaryKeys(inputChunkSlice, rowBuffer);
+        auto inputChunkSlice = CreateInputChunkSlice(inputChunk, rowBuffer, comparator);
+        InferLimitsFromBoundaryKeys(inputChunkSlice, rowBuffer, /*keyColumnCount*/ std::nullopt, comparator);
         auto dataSlice = CreateUnversionedInputDataSlice(inputChunkSlice);
         dataSlice->SetInputStreamIndex(tableIndex);
-        dataSlice->TransformToNew(rowBuffer, comparator.GetLength());
         YT_TLOG_TRACE("Add data slice for slicing")
             .With("TableIndex", tableIndex)
             .With("DataSlice", dataSlice);
@@ -438,12 +437,11 @@ void TMultiTablePartitioner::AddUnversionedDataSlices(const TInputTable& inputTa
     const auto& comparator = GetComparator(inputTable.TableIndex);
 
     for (const auto& inputChunk : inputTable.Chunks) {
-        auto inputChunkSlice = CreateInputChunkSlice(inputChunk);
-        inputChunkSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-        TLegacyDataSlice::TChunkSliceList inputChunkSliceList;
+        auto inputChunkSlice = CreateInputChunkSlice(inputChunk, RowBuffer_, comparator);
+        TDataSlice::TChunkSliceList inputChunkSliceList;
 
         inputChunkSliceList.emplace_back(std::move(inputChunkSlice));
-        auto dataSlice = New<TLegacyDataSlice>(
+        auto dataSlice = New<TDataSlice>(
             EDataSourceType::UnversionedTable,
             std::move(inputChunkSliceList),
             TInputSliceLimit());

@@ -1,8 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice.h>
@@ -1737,43 +1739,313 @@ INSTANTIATE_TEST_SUITE_P(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TChunkSliceLimitTest, LegacyNewInterop)
+TEST(TChunkSliceLimitTest, CreatesInputChunkSliceWithExplicitLimits)
 {
     auto rowBuffer = New<TRowBuffer>();
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
 
-    TLegacyInputSliceLimit legacyLimit;
-    legacyLimit.RowIndex = 42;
+    TInputSliceLimit lowerLimit;
+    lowerLimit.RowIndex = 3;
+    lowerLimit.KeyBound = TKeyBound::FromRow(
+        rowBuffer->CaptureRow(MakeRow({10})),
+        /*isInclusive*/ true,
+        /*isUpper*/ false);
 
-    constexpr int KeyLength = 2;
-    auto intValue = MakeUnversionedInt64Value(27);
-    auto maxValue = MakeUnversionedSentinelValue(EValueType::Max);
+    TInputSliceLimit upperLimit(/*isUpper*/ true);
+    upperLimit.RowIndex = 7;
+    upperLimit.KeyBound = TKeyBound::FromRow(
+        rowBuffer->CaptureRow(MakeRow({20})),
+        /*isInclusive*/ false,
+        /*isUpper*/ true);
 
-    auto makeRow = [] (const std::vector<TUnversionedValue>& values) {
-        TUnversionedOwningRowBuilder builder;
-        for (auto value : values) {
-            builder.AddValue(value);
-        }
-        return builder.FinishRow();
-    };
+    auto slice = CreateInputChunkSlice(inputChunk, lowerLimit, upperLimit);
 
-    legacyLimit.Key = rowBuffer->CaptureRow(makeRow({intValue, maxValue, maxValue}));
-
-    NProto::TReadLimit protoLimit;
-    ToProto(&protoLimit, legacyLimit);
-
-    TInputSliceLimit newLimit(protoLimit, rowBuffer, TRange<TLegacyKey>(), TRange<TLegacyKey>(), KeyLength, /*isUpper*/ true);
-
-    EXPECT_EQ(std::make_optional(42), newLimit.RowIndex);
-    EXPECT_EQ(MakeKeyBound({intValue}, /*isInclusive*/ true, /*isUpper*/ true), newLimit.KeyBound);
-
-    ToProto(&protoLimit, newLimit);
-
-    legacyLimit = TLegacyInputSliceLimit(protoLimit, rowBuffer, TRange<TLegacyKey>());
-    EXPECT_EQ(std::make_optional(42), legacyLimit.RowIndex);
-    EXPECT_EQ(makeRow({intValue, maxValue}), legacyLimit.Key);
+    EXPECT_EQ(lowerLimit.RowIndex, slice->LowerLimit().RowIndex);
+    EXPECT_EQ(lowerLimit.KeyBound, slice->LowerLimit().KeyBound);
+    EXPECT_EQ(upperLimit.RowIndex, slice->UpperLimit().RowIndex);
+    EXPECT_EQ(upperLimit.KeyBound, slice->UpperLimit().KeyBound);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, ConvertsInputChunkReadLimits)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
+    inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>(MakeReadLimit(/*key*/ MakeRow({10}), /*rowIndex*/ 3));
+    inputChunk->UpperLimit() = std::make_unique<TLegacyReadLimit>(MakeReadLimit(/*key*/ MakeRow({20}), /*rowIndex*/ 7));
+
+    auto slice = CreateInputChunkSlice(
+        inputChunk,
+        rowBuffer,
+        TComparator({ESortOrder::Ascending}));
+
+    EXPECT_EQ(3, slice->LowerLimit().RowIndex);
+    EXPECT_EQ(
+        MakeKeyBound({MakeUnversionedInt64Value(10)}, /*isInclusive*/ true, /*isUpper*/ false),
+        slice->LowerLimit().KeyBound);
+    EXPECT_EQ(7, slice->UpperLimit().RowIndex);
+    EXPECT_EQ(
+        MakeKeyBound({MakeUnversionedInt64Value(20)}, /*isInclusive*/ false, /*isUpper*/ true),
+        slice->UpperLimit().KeyBound);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, RejectsNullRowBufferWhenConvertingReadLimits)
+{
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
+
+    EXPECT_DEATH(
+        Y_UNUSED(CreateInputChunkSlice(
+            inputChunk,
+            /*rowBuffer*/ nullptr,
+            TComparator({ESortOrder::Ascending}))),
+        "rowBuffer");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, PreservesKeylessInputChunkReadLimits)
+{
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
+    inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>(MakeReadLimit(/*key*/ std::nullopt, /*rowIndex*/ 2));
+    inputChunk->UpperLimit() = std::make_unique<TLegacyReadLimit>(MakeReadLimit(/*key*/ std::nullopt, /*rowIndex*/ 8));
+
+    auto slice = CreateKeylessInputChunkSlice(inputChunk);
+
+    EXPECT_EQ(2, slice->LowerLimit().RowIndex);
+    EXPECT_TRUE(slice->LowerLimit().KeyBound.IsUniversal());
+    EXPECT_EQ(8, slice->UpperLimit().RowIndex);
+    EXPECT_TRUE(slice->UpperLimit().KeyBound.IsUniversal());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, RejectsKeyedInputChunkReadLimitsInKeylessFactory)
+{
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
+    inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>(MakeReadLimit(/*key*/ MakeRow({1}), /*rowIndex*/ std::nullopt));
+
+    EXPECT_DEATH(
+        Y_UNUSED(CreateKeylessInputChunkSlice(inputChunk)),
+        "HasLegacyKey");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, RejectsLimitedChunkWhenSlicingErasureParts)
+{
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
+    inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>(MakeReadLimit(/*key*/ std::nullopt, /*rowIndex*/ 1));
+
+    EXPECT_DEATH(
+        Y_UNUSED(CreateInputChunkSlicesFromCompleteErasureChunk(
+            inputChunk,
+            /*codecId*/ NErasure::ECodec::IsaReedSolomon_3_3)),
+        "IsCompleteChunk");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, CapturesInlineKeyBoundPrefix)
+{
+    NProto::TReadLimit protoLimit;
+    ToProto(protoLimit.mutable_key_bound_prefix(), MakeRow({10}));
+    protoLimit.set_key_bound_is_inclusive(true);
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto sizeBefore = rowBuffer->GetSize();
+
+    TInputSliceLimit limit(
+        protoLimit,
+        rowBuffer,
+        /*keySet*/ TRange<TLegacyKey>(),
+        /*keyBoundPrefixes*/ TRange<TLegacyKey>(),
+        /*keyLength*/ 1,
+        /*isUpper*/ false);
+
+    EXPECT_GT(rowBuffer->GetSize(), sizeBefore);
+    EXPECT_EQ(MakeKeyBound({MakeUnversionedInt64Value(10)}, /*isInclusive*/ true, /*isUpper*/ false), limit.KeyBound);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, PreservesExclusiveInlineKeyBoundPrefix)
+{
+    NProto::TReadLimit protoLimit;
+    ToProto(protoLimit.mutable_key_bound_prefix(), MakeRow({10}));
+    protoLimit.set_key_bound_is_inclusive(false);
+
+    auto rowBuffer = New<TRowBuffer>();
+    TInputSliceLimit limit(
+        protoLimit,
+        rowBuffer,
+        /*keySet*/ TRange<TLegacyKey>(),
+        /*keyBoundPrefixes*/ TRange<TLegacyKey>(),
+        /*keyLength*/ 1,
+        /*isUpper*/ false);
+
+    EXPECT_EQ(MakeKeyBound({MakeUnversionedInt64Value(10)}, /*isInclusive*/ false, /*isUpper*/ false), limit.KeyBound);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(pogorelov): Old job proxies update only legacy_key when building an
+// interrupt descriptor, leaving key_bound_prefix from the original job spec.
+TEST(TChunkSliceLimitTest, PrefersUpdatedLegacyKeyOverStaleKeyBoundPrefix)
+{
+    auto rowBuffer = New<TRowBuffer>();
+
+    NProto::TReadLimit protoLowerLimit;
+    ToProto(protoLowerLimit.mutable_key_bound_prefix(), MakeRow({10}));
+    protoLowerLimit.set_key_bound_is_inclusive(true);
+    ToProto(protoLowerLimit.mutable_legacy_key(), MakeRow({20}));
+    TInputSliceLimit lowerLimit(
+        protoLowerLimit,
+        rowBuffer,
+        /*keySet*/ TRange<TLegacyKey>(),
+        /*keyBoundPrefixes*/ TRange<TLegacyKey>(),
+        /*keyLength*/ 1,
+        /*isUpper*/ false);
+    EXPECT_EQ(MakeKeyBound({MakeUnversionedInt64Value(20)}, /*isInclusive*/ true, /*isUpper*/ false), lowerLimit.KeyBound);
+
+    NProto::TReadLimit protoUpperLimit;
+    ToProto(protoUpperLimit.mutable_key_bound_prefix(), MakeRow({30}));
+    protoUpperLimit.set_key_bound_is_inclusive(true);
+    ToProto(protoUpperLimit.mutable_legacy_key(), MakeRow({20}));
+    TInputSliceLimit upperLimit(
+        protoUpperLimit,
+        rowBuffer,
+        /*keySet*/ TRange<TLegacyKey>(),
+        /*keyBoundPrefixes*/ TRange<TLegacyKey>(),
+        /*keyLength*/ 1,
+        /*isUpper*/ true);
+    EXPECT_EQ(MakeKeyBound({MakeUnversionedInt64Value(20)}, /*isInclusive*/ false, /*isUpper*/ true), upperLimit.KeyBound);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, ReconstructsInterruptedVersionedDataSlice)
+{
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
+    inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys{
+        .MinKey = MakeRow({10}),
+        .MaxKey = MakeRow({30}),
+    });
+
+    NProto::TChunkSpec interruptedChunkSpec;
+    ToProto(interruptedChunkSpec.mutable_lower_limit()->mutable_key_bound_prefix(), MakeRow({10}));
+    interruptedChunkSpec.mutable_lower_limit()->set_key_bound_is_inclusive(true);
+    ToProto(interruptedChunkSpec.mutable_lower_limit()->mutable_legacy_key(), MakeRow({20}));
+    ToProto(interruptedChunkSpec.mutable_upper_limit()->mutable_key_bound_prefix(), MakeRow({30}));
+    interruptedChunkSpec.mutable_upper_limit()->set_key_bound_is_inclusive(true);
+    ToProto(interruptedChunkSpec.mutable_upper_limit()->mutable_legacy_key(), MakeRow({30}, /*addMax*/ true));
+
+    auto rowBuffer = New<TRowBuffer>();
+    TComparator comparator({ESortOrder::Ascending});
+    auto chunkSlice = New<TInputChunkSlice>(
+        inputChunk,
+        rowBuffer,
+        interruptedChunkSpec,
+        comparator);
+    InferLimitsFromBoundaryKeys(chunkSlice, rowBuffer, /*keyColumnCount*/ std::nullopt, comparator);
+
+    auto dataSlice = CreateVersionedInputDataSlice({chunkSlice});
+    InferLimitsFromBoundaryKeys(dataSlice, rowBuffer, comparator);
+
+    EXPECT_EQ(MakeKeyBound({MakeUnversionedInt64Value(20)}, /*isInclusive*/ true, /*isUpper*/ false), chunkSlice->LowerLimit().KeyBound);
+    EXPECT_EQ(MakeKeyBound({MakeUnversionedInt64Value(20)}, /*isInclusive*/ true, /*isUpper*/ false), dataSlice->LowerLimit().KeyBound);
+    EXPECT_EQ(MakeKeyBound({MakeUnversionedInt64Value(30)}, /*isInclusive*/ true, /*isUpper*/ true), dataSlice->UpperLimit().KeyBound);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, RejectsIndexedKeysInStandaloneChunkSpec)
+{
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
+
+    auto rowBuffer = New<TRowBuffer>();
+    TComparator comparator({ESortOrder::Ascending});
+
+    NProto::TChunkSpec chunkSpecWithIndexedLowerLimit;
+    chunkSpecWithIndexedLowerLimit.mutable_lower_limit()->set_key_index(0);
+    EXPECT_DEATH(
+        Y_UNUSED(CreateInputChunkSlice(
+            inputChunk,
+            rowBuffer,
+            chunkSpecWithIndexedLowerLimit,
+            comparator)),
+        "lower_limit");
+
+    NProto::TChunkSpec chunkSpecWithIndexedUpperLimit;
+    chunkSpecWithIndexedUpperLimit.mutable_upper_limit()->set_key_index(0);
+    EXPECT_DEATH(
+        Y_UNUSED(CreateInputChunkSlice(
+            inputChunk,
+            rowBuffer,
+            chunkSpecWithIndexedUpperLimit,
+            comparator)),
+        "upper_limit");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkSliceLimitTest, CreatesKeylessSliceFromProtoChunkSpec)
+{
+    auto inputChunk = New<TInputChunk>();
+    inputChunk->SetTotalRowCount(10);
+    inputChunk->SetTotalDataWeight(10);
+    inputChunk->SetTotalUncompressedDataSize(10);
+    inputChunk->SetCompressedDataSize(10);
+
+    NProto::TChunkSpec chunkSpec;
+    chunkSpec.mutable_lower_limit()->set_row_index(2);
+    chunkSpec.mutable_upper_limit()->set_row_index(8);
+
+    auto slice = CreateInputChunkSlice(
+        inputChunk,
+        New<TRowBuffer>(),
+        chunkSpec,
+        TComparator());
+
+    EXPECT_EQ(2, slice->LowerLimit().RowIndex);
+    EXPECT_TRUE(slice->LowerLimit().KeyBound.IsUniversal());
+    EXPECT_EQ(8, slice->UpperLimit().RowIndex);
+    EXPECT_TRUE(slice->UpperLimit().KeyBound.IsUniversal());
+}
 
 } // namespace
 } // namespace NChunkClient
