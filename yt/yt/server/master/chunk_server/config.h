@@ -932,6 +932,10 @@ struct TDynamicChunkManagerConfig
     int MaxVerboselyLoggedChunks;
     TDuration MaxVerboseLoggingEnabledDuration;
 
+    // COMPAT(theevilbird): Get rid of it. Remove requisitions for chunk_wise_accounting_migration
+    // account and set |AggregatedRequisitionIndex_| to |EmptyChunkRequisitionIndex| in TChunk constructor.
+    bool SetEmptyRequisitionIndexOnImport;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

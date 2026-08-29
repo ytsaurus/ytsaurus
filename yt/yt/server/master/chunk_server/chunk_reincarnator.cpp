@@ -1835,6 +1835,9 @@ private:
         return std::ranges::all_of(
             requisition.ActiveEntries(),
             [] (const TRequisitionEntry& entry) {
+                if (!IsObjectAlive(entry.Account)) {
+                    return true;
+                }
                 return entry.Account->GetEnableChunkReincarnation();
             });
     }

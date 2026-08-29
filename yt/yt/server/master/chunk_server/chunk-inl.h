@@ -241,20 +241,56 @@ inline void TChunk::UpdateAggregatedRequisitionIndex(
 
 inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const
 {
-    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
-    return registry->GetRequisition(AggregatedRequisitionIndex_);
+    const auto Logger = ChunkServerLogger;
+    YT_LOG_ALERT_IF(
+        AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex,
+        "Chunk has empty requisition "
+        "(ChunkId: %v)",
+        GetId());
+
+    const auto& requisition = registry->GetRequisition(AggregatedRequisitionIndex_);
+    YT_LOG_ALERT_IF(
+        requisition.GetAllEntryCount() == 0,
+        "Chunk has requisition with zero entry count "
+        "(ChunkId: %v)",
+        GetId());
+
+    return requisition;
 }
 
 inline TChunkRequisitionIndex TChunk::GetAggregatedRequisitionIndex() const
 {
-    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
+    const auto Logger = ChunkServerLogger;
+    YT_LOG_ALERT_IF(
+        AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex,
+        "Chunk has empty requisition "
+        "(ChunkId: %v)",
+        GetId());
     return AggregatedRequisitionIndex_;
 }
 
 inline const TChunkReplication& TChunk::GetAggregatedReplication(const TChunkRequisitionRegistry* registry) const
 {
-    YT_VERIFY(AggregatedRequisitionIndex_ != EmptyChunkRequisitionIndex);
-    return registry->GetReplication(AggregatedRequisitionIndex_);
+    if (AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex) {
+        static const auto fakeEmptyReplication = TChunkRequisition(
+            nullptr /* account */,
+            DefaultStoreMediumIndex,
+            TReplicationPolicy(NChunkClient::DefaultReplicationFactor, false /*dataPartsOnly*/),
+            true /*committed*/)
+            .ToReplication();
+        return fakeEmptyReplication;
+    }
+
+    const auto& replication = registry->GetReplication(AggregatedRequisitionIndex_);
+
+    const auto Logger = ChunkServerLogger;
+    YT_LOG_ALERT_IF(
+        !replication.IsValid(),
+        "Chunk has invalid replication "
+        "(ChunkId: %v, Replication: %v)",
+        GetId(), replication);
+
+    return replication;
 }
 
 inline int TChunk::GetAggregatedReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const
