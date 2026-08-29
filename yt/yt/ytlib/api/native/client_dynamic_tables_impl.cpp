@@ -1,6 +1,5 @@
 #include "backup_session.h"
 #include "chaos_helpers.h"
-#include "chaos_lease.h"
 #include "client_impl.h"
 #include "config.h"
 #include "connection.h"
@@ -70,6 +69,8 @@
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/yt/client/api/chaos_lease.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
@@ -4277,7 +4278,6 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
     TChaosLeaseId chaosLeaseId,
     const TChaosLeaseAttachOptions& options)
 {
-    auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
     auto timeoutPath = Format("%v/@timeout", FromObjectId(chaosLeaseId));
     auto timeoutNode = WaitFor(GetNode(timeoutPath, {}))
         .ValueOrThrow();
@@ -4285,7 +4285,6 @@ IPrerequisitePtr TClient::DoAttachChaosLease(
 
     auto chaosLease = CreateChaosLease(
         this,
-        std::move(channel),
         chaosLeaseId,
         timeout,
         options.PingAncestors,
@@ -4303,6 +4302,22 @@ IPrerequisitePtr TClient::DoStartChaosLease(
     const TChaosLeaseStartOptions& /*options*/)
 {
     THROW_ERROR_EXCEPTION("Use CreateNode to start chaos leases");
+}
+
+void TClient::DoPingChaosLease(
+    TChaosLeaseId chaosLeaseId,
+    const TChaosLeasePingOptions& options)
+{
+    auto channel = GetChaosChannelByObjectIdOrThrow(chaosLeaseId);
+    auto proxy = TChaosNodeServiceProxy(std::move(channel));
+
+    auto req = proxy.PingChaosLease();
+    req->SetTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+    ToProto(req->mutable_chaos_lease_id(), chaosLeaseId);
+    req->set_ping_ancestors(options.PingAncestors);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
