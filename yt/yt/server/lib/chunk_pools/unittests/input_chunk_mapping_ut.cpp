@@ -1,8 +1,8 @@
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -78,12 +78,11 @@ protected:
 
     TChunkStripePtr CreateStripe(const std::vector<TInputChunkPtr>& chunks)
     {
-        std::vector<TLegacyDataSlicePtr> dataSlices;
+        std::vector<TDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
-            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk, RowBuffer_, Comparator_));
             dataSlice->SetInputStreamIndex(dataSlice->GetTableIndex());
-            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
-            dataSlice->TransformToNew(RowBuffer_, Comparator_);
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, Comparator_);
             dataSlices.emplace_back(std::move(dataSlice));
         }
         auto stripe = New<TChunkStripe>();

@@ -162,6 +162,7 @@ SRCS(
     GLOBAL chunk_client/configure_dispatcher.cpp
     chunk_client/confirming_writer.cpp
     chunk_client/data_sink.cpp
+    chunk_client/data_slice.cpp
     chunk_client/data_slice_descriptor.cpp
     chunk_client/data_source.cpp
     chunk_client/deferred_chunk_meta.cpp
@@ -182,7 +183,6 @@ SRCS(
     chunk_client/input_chunk.cpp
     chunk_client/job_io_meter.cpp
     GLOBAL chunk_client/job_spec_extensions.cpp
-    chunk_client/legacy_data_slice.cpp
     chunk_client/medium_directory_synchronizer.cpp
     chunk_client/medium_directory.cpp
     chunk_client/medium_descriptor.cpp

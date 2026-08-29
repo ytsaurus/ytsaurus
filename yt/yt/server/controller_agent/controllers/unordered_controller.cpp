@@ -17,10 +17,10 @@
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -353,7 +353,7 @@ protected:
         return options;
     }
 
-    std::vector<TLegacyDataSlicePtr> CollectInputChunkSlices()
+    std::vector<TDataSlicePtr> CollectInputChunkSlices()
     {
         YT_TLOG_INFO("Collecting inputs");
 
@@ -367,7 +367,7 @@ protected:
         return slices;
     }
 
-    void ProcessInputs(std::vector<TLegacyDataSlicePtr> inputDataSlices)
+    void ProcessInputs(std::vector<TDataSlicePtr> inputDataSlices)
     {
         auto periodicYielder = CreatePeriodicYielder(PrepareYieldPeriod);
 

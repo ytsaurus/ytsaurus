@@ -1,7 +1,5 @@
 #include "input_chunk.h"
 
-#include <yt/yt/library/erasure/impl/codec.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>

@@ -5,12 +5,12 @@
 #include <yt/yt/server/lib/chunk_pools/config.h>
 #include <yt/yt/server/lib/chunk_pools/input_chunk_mapping.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
-#include <yt/yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
+#include <yt/yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
+#include <yt/yt/ytlib/chunk_client/data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -46,7 +46,7 @@ public:
 
     TChunkSlice(
         const TInputChunkSlicePtr& chunkSlice,
-        const TLegacyDataSlicePtr& dataSlice,
+        const TDataSlicePtr& dataSlice,
         const TComparator& comparator)
         : ChunkId_(chunkSlice->GetInputChunk()->GetChunkId())
         , LowerLimit_(chunkSlice->LowerLimit())
@@ -84,7 +84,7 @@ bool IsNonEmptyIntersection(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedChunkPoolNewKeysTest
+class TSortedChunkPoolTest
     : public TSortedChunkPoolTestBase
 {
 protected:
@@ -154,7 +154,7 @@ protected:
 
     struct TMockChunkSliceFetcherBuilder
     {
-        explicit TMockChunkSliceFetcherBuilder(TSortedChunkPoolNewKeysTest* owner)
+        explicit TMockChunkSliceFetcherBuilder(TSortedChunkPoolTest* owner)
             : Owner(owner)
         { }
 
@@ -171,21 +171,18 @@ protected:
             return ChunkSliceFetcher;
         }
 
-        void RegisterSliceableUnversionedDataSlice(const TLegacyDataSlicePtr& dataSlice, std::vector<TInputChunkSlicePtr> slices)
+        void RegisterSliceableUnversionedDataSlice(const TDataSlicePtr& dataSlice, std::vector<TInputChunkSlicePtr> slices)
         {
-            for (const auto& slice : slices) {
-                YT_VERIFY(!slice->IsLegacy);
-            }
             auto chunk = dataSlice->GetSingleUnversionedChunk();
             ChunkSlices.insert(ChunkSlices.end(), slices.begin(), slices.end());
             AllChunksAreAdded += EXPECT_CALL(
                 *ChunkSliceFetcher,
                 AddDataSliceForSlicing(
                     Property(
-                        &TLegacyDataSlicePtr::Get,
+                        &TDataSlicePtr::Get,
                         Pointee(
                             Property(
-                                &TLegacyDataSlice::GetSingleUnversionedChunk,
+                                &TDataSlice::GetSingleUnversionedChunk,
                                 Eq(chunk)))),
                     _,
                     _,
@@ -193,7 +190,7 @@ protected:
                     _));
         }
 
-        void RegisterTriviallySliceableUnversionedDataSlice(const TLegacyDataSlicePtr& dataSlice)
+        void RegisterTriviallySliceableUnversionedDataSlice(const TDataSlicePtr& dataSlice)
         {
             auto chunkSlices = Owner->SliceUnversionedDataSlice(
                 dataSlice,
@@ -206,7 +203,7 @@ protected:
         ExpectationSet AllChunksAreAdded;
         TStrictMockChunkSliceFetcherPtr ChunkSliceFetcher = New<StrictMock<TMockChunkSliceFetcher>>();
         std::vector<TInputChunkSlicePtr> ChunkSlices;
-        TSortedChunkPoolNewKeysTest* Owner;
+        TSortedChunkPoolTest* Owner;
     };
 
     std::optional<TMockChunkSliceFetcherBuilder> MockBuilder_;
@@ -275,7 +272,7 @@ protected:
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
         UnversionedTableRowCounts_[tableIndex] += rowCount;
 
-        // inputChunk->{Lower,Upper}Limit() are not used in new sorted pool.
+        // The pool consumes limits from data slices, not directly from input chunks.
         // XXX(max42): double-check that.
 
         inputChunk->SetTotalRowCount(rowCount);
@@ -292,7 +289,7 @@ protected:
     }
 
     std::vector<TInputChunkSlicePtr> SliceUnversionedDataSlice(
-        TLegacyDataSlicePtr dataSlice,
+        TDataSlicePtr dataSlice,
         std::vector<TKeyBound> internalUpperBounds,
         std::vector<i64> sliceSizes = std::vector<i64>(),
         std::vector<i64> sliceRowCounts = std::vector<i64>(),
@@ -335,8 +332,7 @@ protected:
             auto upperBound = index < std::ssize(internalUpperBounds)
                 ? internalUpperBounds[index]
                 : dataSlice->UpperLimit().KeyBound;
-            auto& chunkSlice = slices.emplace_back(New<TInputChunkSlice>(chunk));
-            chunkSlice->TransformToNewKeyless();
+            auto& chunkSlice = slices.emplace_back(CreateKeylessInputChunkSlice(chunk));
             chunkSlice->LowerLimit().KeyBound = lowerBound;
             chunkSlice->UpperLimit().KeyBound = upperBound;
 
@@ -356,7 +352,7 @@ protected:
         Options_.SortedJobOptions.PrimaryComparator = PrimaryComparator_;
         Options_.SortedJobOptions.ForeignComparator = ForeignComparator_;
 
-        ChunkPool_ = CreateNewSortedChunkPool(
+        ChunkPool_ = CreateSortedChunkPool(
             Options_,
             BuildMockChunkSliceFetcherFactory(),
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
@@ -366,13 +362,12 @@ protected:
             }));
     }
 
-    TLegacyDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkPtr chunk)
+    TDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkPtr chunk)
     {
         using NYT::NChunkPools::CreateUnversionedInputDataSlice;
 
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        auto dataSlice = CreateUnversionedInputDataSlice(CreateKeylessInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(chunk->GetTableIndex());
-        dataSlice->TransformToNewKeyless();
 
         const auto& chunkSlice = dataSlice->ChunkSlices[0];
         if (!chunkSlice->LowerLimit().KeyBound) {
@@ -421,7 +416,7 @@ protected:
 
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
     {
-        std::vector<TLegacyDataSlicePtr> dataSlices;
+        std::vector<TDataSlicePtr> dataSlices;
         for (const auto& [index, chunk] : Enumerate(chunks)) {
             auto& dataSlice = dataSlices.emplace_back(CreateDataSlice(chunk));
             dataSlice->ChunkSlices[0]->SetSliceIndex(index);
@@ -431,7 +426,7 @@ protected:
         return ChunkPool_->Add(stripe);
     }
 
-    TChunkStripePtr CreateStripe(const std::vector<TLegacyDataSlicePtr>& dataSlices)
+    TChunkStripePtr CreateStripe(const std::vector<TDataSlicePtr>& dataSlices)
     {
         auto stripe = New<TChunkStripe>();
         for (auto [index, dataSlice] : Enumerate(dataSlices)) {
@@ -446,7 +441,7 @@ protected:
         return stripe;
     }
 
-    TLegacyDataSlicePtr CreateDataSlice(
+    TDataSlicePtr CreateDataSlice(
         const TInputChunkPtr& chunk,
         TKeyBound lowerBound = TKeyBound::MakeUniversal(/*isUpper*/ false),
         TKeyBound upperBound = TKeyBound::MakeUniversal(/*isUpper*/ true))
@@ -479,14 +474,14 @@ protected:
         return dataSlice;
     }
 
-    static TLegacyDataSlicePtr CreateInputDataSlice(const TLegacyDataSlicePtr& dataSlice)
+    static TDataSlicePtr CreateInputDataSlice(const TDataSlicePtr& dataSlice)
     {
         auto copyDataSlice = NChunkPools::CreateInputDataSlice(dataSlice);
         copyDataSlice->SetInputStreamIndex(dataSlice->GetInputStreamIndex());
         return copyDataSlice;
     }
 
-    TInputCookie AddDataSlice(TLegacyDataSlicePtr dataSlice)
+    TInputCookie AddDataSlice(TDataSlicePtr dataSlice)
     {
         auto stripe = CreateStripe({dataSlice});
         auto cookie = ChunkPool_->Add(std::move(stripe));
@@ -542,7 +537,7 @@ protected:
         ChunkPool_->Resume(cookie);
     }
 
-    void ResetDataSlice(IChunkPoolInput::TCookie cookie, const TLegacyDataSlicePtr& dataSlice)
+    void ResetDataSlice(IChunkPoolInput::TCookie cookie, const TDataSlicePtr& dataSlice)
     {
         YT_VERIFY(!InputCookieToChunkIds_[cookie].empty());
         // TODO(max42): what is this?
@@ -702,7 +697,7 @@ protected:
         }
 
         // Second check. Verify some (weak) sort order for versioned data slices.
-        auto unversionedDataSliceComparator = [this] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+        auto unversionedDataSliceComparator = [this] (const TDataSlicePtr& lhs, const TDataSlicePtr& rhs) {
             auto lhsChunk = lhs->GetSingleUnversionedChunk();
             auto rhsChunk = rhs->GetSingleUnversionedChunk();
             if (lhsChunk != rhsChunk) {
@@ -711,7 +706,7 @@ protected:
                 return PrimaryComparator_.CompareKeyBounds(lhs->LowerLimit().KeyBound, rhs->LowerLimit().KeyBound) <= 0;
             }
         };
-        auto versionedDataSliceComparator = [this] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+        auto versionedDataSliceComparator = [this] (const TDataSlicePtr& lhs, const TDataSlicePtr& rhs) {
             return PrimaryComparator_.CompareKeyBounds(lhs->LowerLimit().KeyBound, rhs->LowerLimit().KeyBound) < 0;
         };
 
@@ -900,9 +895,7 @@ protected:
                     }
 
                     for (const auto& dataSlice : stripe->DataSlices()) {
-                        EXPECT_FALSE(dataSlice->IsLegacy);
                         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                            EXPECT_FALSE(chunkSlice->IsLegacy);
                             if (stripe->IsForeign()) {
                                 auto chunkId = chunkSlice->GetInputChunk()->GetChunkId();
                                 auto foreignChunkSlice = TChunkSlice(chunkSlice, dataSlice, ForeignComparator_);
@@ -957,11 +950,11 @@ protected:
     IMultiChunkPoolPtr MultiChunkPool_;
 
     //! Vector containing all unversioned data slices that have ever been created in order of their creation.
-    std::vector<TLegacyDataSlicePtr> CreatedUnversionedDataSlices_;
+    std::vector<TDataSlicePtr> CreatedUnversionedDataSlices_;
     //! All unversioned primary data slices that have ever been created.
-    std::vector<TLegacyDataSlicePtr> CreatedUnversionedPrimaryDataSlices_;
+    std::vector<TDataSlicePtr> CreatedUnversionedPrimaryDataSlices_;
     //! All unversioned foreign data slices that have ever been created.
-    std::vector<TLegacyDataSlicePtr> CreatedUnversionedForeignDataSlices_;
+    std::vector<TDataSlicePtr> CreatedUnversionedForeignDataSlices_;
     //! Set containing all chunks that are added to the pool without being suspended.
     THashSet<TChunkId> ActiveChunks_;
 
@@ -1010,7 +1003,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports1)
+TEST_F(TSortedChunkPoolTest, SortedMergeTeleports1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1046,7 +1039,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports1)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports2)
+TEST_F(TSortedChunkPoolTest, SortedMergeTeleports2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1083,7 +1076,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports2)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports3)
+TEST_F(TSortedChunkPoolTest, SortedMergeTeleports3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1115,7 +1108,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports3)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports4)
+TEST_F(TSortedChunkPoolTest, SortedMergeTeleports4)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1156,7 +1149,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports4)
 
 // NB(max42): completely getting into this test may take several hours of your life.
 // Double-think before reading it :)
-TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeAllKindsOfTeleports)
+TEST_F(TSortedChunkPoolTest, SortedMergeAllKindsOfTeleports)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1418,7 +1411,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeAllKindsOfTeleports)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimple)
+TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1457,7 +1450,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimple)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeWithPersistBeforeFinish)
+TEST_F(TSortedChunkPoolTest, SortedMergeWithPersistBeforeFinish)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1489,7 +1482,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeWithPersistBeforeFinish)
     EXPECT_EQ(3u, stripeLists.front()->Stripes().size());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimpleWithGenericInputStreamDirectory)
+TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1528,7 +1521,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimpleWithGenericInputStreamDirec
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs1)
+TEST_F(TSortedChunkPoolTest, SlicingManiacs1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1574,7 +1567,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs1)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs2)
+TEST_F(TSortedChunkPoolTest, SlicingManiacs2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1625,7 +1618,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SlicingManiacs2)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceSimple)
+TEST_F(TSortedChunkPoolTest, SortedReduceSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -1668,7 +1661,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceSimple)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceManiacs)
+TEST_F(TSortedChunkPoolTest, SortedReduceManiacs)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -1701,7 +1694,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceManiacs)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceAllKindsOfTeleports)
+TEST_F(TSortedChunkPoolTest, SortedReduceAllKindsOfTeleports)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -1998,7 +1991,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceAllKindsOfTeleports)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceWithJoin)
+TEST_F(TSortedChunkPoolTest, SortedReduceWithJoin)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -2040,7 +2033,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceWithJoin)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, JoinReduce)
+TEST_F(TSortedChunkPoolTest, JoinReduce)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2092,7 +2085,7 @@ DEFINE_ENUM(ESliceByRowsWithForeignKind,
 
 class TSortedChunkPoolNewKeysSliceByRowsTest
     : public WithParamInterface<ESliceByRowsWithForeignKind>
-    , public TSortedChunkPoolNewKeysTest
+    , public TSortedChunkPoolTest
 { };
 
 TEST_P(TSortedChunkPoolNewKeysSliceByRowsTest, SliceByRowsAndAttachForeign)
@@ -2111,7 +2104,7 @@ TEST_P(TSortedChunkPoolNewKeysSliceByRowsTest, SliceByRowsAndAttachForeign)
 
     auto primarySlice = CreateDataSlice(CreateChunk(BuildRow({101, 5}), BuildRow({201, 5}), 0, 100_KB, 100'000));
 
-    std::vector<std::pair<bool, TLegacyDataSlicePtr>> foreignSlices;
+    std::vector<std::pair<bool, TDataSlicePtr>> foreignSlices;
 
     switch (GetParam()) {
         case ESliceByRowsWithForeignKind::Left: {
@@ -2189,7 +2182,7 @@ INSTANTIATE_TEST_SUITE_P(
         return Format("%v", info.param);
     });
 
-TEST_F(TSortedChunkPoolNewKeysTest, ManiacIsSliced)
+TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2220,7 +2213,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, ManiacIsSliced)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountExceeded)
+TEST_F(TSortedChunkPoolTest, MaxTotalSliceCountExceeded)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2249,7 +2242,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountExceeded)
     EXPECT_THROW(ChunkPool_->Finish(), std::exception);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountRetries)
+TEST_F(TSortedChunkPoolTest, MaxTotalSliceCountRetries)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2283,7 +2276,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountRetries)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestJobInterruption)
+TEST_F(TSortedChunkPoolTest, TestJobInterruption)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2323,7 +2316,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobInterruption)
     ASSERT_EQ(ExtractedCookies_.size(), 1u);
 
     const auto& stripeList = stripeLists[0];
-    std::vector<TLegacyDataSlicePtr> unreadDataSlices = {
+    std::vector<TDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(GetStripeByTableIndex(stripeList, 0)->DataSlices().front()),
         CreateInputDataSlice(GetStripeByTableIndex(stripeList, 1)->DataSlices().front()),
     };
@@ -2345,7 +2338,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobInterruption)
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 3)->DataSlices().size(), 1u);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria1)
+TEST_F(TSortedChunkPoolTest, RowSlicingCriteria1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2390,7 +2383,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria1)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2)
+TEST_F(TSortedChunkPoolTest, RowSlicingCriteria2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2423,7 +2416,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2Dynamic)
+TEST_F(TSortedChunkPoolTest, RowSlicingCriteria2Dynamic)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2455,7 +2448,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria2Dynamic)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria3)
+TEST_F(TSortedChunkPoolTest, RowSlicingCriteria3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2493,7 +2486,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCriteria3)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingWithForeigns)
+TEST_F(TSortedChunkPoolTest, RowSlicingWithForeigns)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2531,7 +2524,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingWithForeigns)
     }
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, JobSplitSimple)
+TEST_F(TSortedChunkPoolTest, JobSplitSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2563,7 +2556,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JobSplitSimple)
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
-    jobSummary.UnreadInputDataSlices = std::vector<TLegacyDataSlicePtr>(
+    jobSummary.UnreadInputDataSlices = std::vector<TDataSlicePtr>(
         stripeLists[0]->Stripes()[0]->DataSlices().begin(),
         stripeLists[0]->Stripes()[0]->DataSlices().end());
     jobSummary.SplitJobCount = 10;
@@ -2577,7 +2570,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JobSplitSimple)
     ASSERT_LE(stripeLists.size(), 12u);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, JobSplitWithForeign)
+TEST_F(TSortedChunkPoolTest, JobSplitWithForeign)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2590,7 +2583,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JobSplitWithForeign)
     InitJobConstraints();
     PrepareNewMock();
 
-    std::vector<TLegacyDataSlicePtr> allDataSlices;
+    std::vector<TDataSlicePtr> allDataSlices;
     const int chunkCount = 100;
     for (int index = 0; index < chunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
@@ -2621,7 +2614,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JobSplitWithForeign)
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
-    std::vector<TLegacyDataSlicePtr> unreadSlices;
+    std::vector<TDataSlicePtr> unreadSlices;
     unreadSlices.insert(
         unreadSlices.end(),
         GetStripeByTableIndex(stripeLists[0], 0)->DataSlices().begin(),
@@ -2644,7 +2637,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JobSplitWithForeign)
     }
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, JobSplitResultedInSingleJob)
+TEST_F(TSortedChunkPoolTest, JobSplitResultedInSingleJob)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -2677,7 +2670,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JobSplitResultedInSingleJob)
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
-    jobSummary.UnreadInputDataSlices = std::vector<TLegacyDataSlicePtr>(
+    jobSummary.UnreadInputDataSlices = std::vector<TDataSlicePtr>(
         stripeLists[0]->Stripes()[0]->DataSlices().begin(),
         stripeLists[0]->Stripes()[0]->DataSlices().end());
     jobSummary.SplitJobCount = 10;
@@ -2694,7 +2687,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JobSplitResultedInSingleJob)
     ASSERT_FALSE(ChunkPool_->IsSplittable(cookie));
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
+TEST_F(TSortedChunkPoolTest, SuchForeignMuchData)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     Options_.ChunkPoolStatistics = New<TSortedChunkPoolStatistics>();
@@ -2707,7 +2700,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
     DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
 
-    std::vector<TLegacyDataSlicePtr> dataSlices;
+    std::vector<TDataSlicePtr> dataSlices;
 
     for (int index = 0; index < 10; ++index) {
         auto chunk = CreateChunk(BuildRow({100 * index}), BuildRow({100 * (index + 1)}), 0);
@@ -2744,7 +2737,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignMuchData)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignWithPivotKeys)
+TEST_F(TSortedChunkPoolTest, SuchForeignWithPivotKeys)
 {
     InitTables(
         /*isForeign*/ {false, true},
@@ -2755,7 +2748,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignWithPivotKeys)
     DataWeightPerJob_ = 10_KB;
     InitJobConstraints();
 
-    std::vector<TLegacyDataSlicePtr> dataSlices;
+    std::vector<TDataSlicePtr> dataSlices;
 
     auto pushSlice = [&] (int firstKey, int lastKey, int tableIndex = 0) {
         auto chunk = CreateChunk(BuildRow({firstKey}), BuildRow({lastKey}), tableIndex);
@@ -2803,7 +2796,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuchForeignWithPivotKeys)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
+TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2816,7 +2809,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
     InitJobConstraints();
     PrepareNewMock();
 
-    std::vector<TLegacyDataSlicePtr> allDataSlices;
+    std::vector<TDataSlicePtr> allDataSlices;
     const int chunkCount = 100;
     for (int index = 0; index < chunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
@@ -2847,7 +2840,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
-    std::vector<TLegacyDataSlicePtr> unreadSlices;
+    std::vector<TDataSlicePtr> unreadSlices;
     unreadSlices.insert(
         unreadSlices.end(),
         GetStripeByTableIndex(stripeLists[0], 0)->DataSlices().begin(),
@@ -2869,7 +2862,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
     ASSERT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, InterruptRowSlicedAfterAdjustment)
+TEST_F(TSortedChunkPoolTest, InterruptRowSlicedAfterAdjustment)
 {
     // Let's say the somewhere in the initial slicing we sliced a chunk by row
     // indices inside SortedJobBuilder. The left part goes to one job, the right
@@ -2999,7 +2992,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, InterruptRowSlicedAfterAdjustment)
     ExtractOutputCookiesWhilePossible();
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SplitMustRespectSingleJobness)
+TEST_F(TSortedChunkPoolTest, SplitMustRespectSingleJobness)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     DataWeightPerJob_ = 2048;
@@ -3040,7 +3033,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SplitMustRespectSingleJobness)
     EXPECT_EQ(ExtractedCookies_.size(), 2u);
 
     const auto& stripeList = stripeLists[0];
-    std::vector<TLegacyDataSlicePtr> unreadDataSlices;
+    std::vector<TDataSlicePtr> unreadDataSlices;
     for (const auto& stripe : stripeList->Stripes()) {
         for (const auto& dataSlice : stripe->DataSlices()) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -3073,17 +3066,16 @@ TEST_F(TSortedChunkPoolNewKeysTest, SplitMustRespectSingleJobness)
 }
 
 class TSortedChunkPoolSingleJobSplit
-    : public TSortedChunkPoolNewKeysTest
+    : public TSortedChunkPoolTest
 {
 protected:
-    std::vector<TLegacyDataSlicePtr> MakeFirstSliceSingleton(
+    std::vector<TDataSlicePtr> MakeFirstSliceSingleton(
         const TChunkStripeListPtr& stripeList) const
     {
-        std::vector<TLegacyDataSlicePtr> unreadDataSlices;
+        std::vector<TDataSlicePtr> unreadDataSlices;
         i64 minKeyValue = Inf64;
         for (const auto& stripe: stripeList->Stripes()) {
             for (const auto& dataSlice : stripe->DataSlices()) {
-                YT_VERIFY(!dataSlice->IsLegacy);
                 const auto& lowerKey = dataSlice->LowerLimit().KeyBound.Prefix;
                 YT_VERIFY(lowerKey.Begin()->Type == EValueType::Int64);
                 minKeyValue = std::min(minKeyValue, lowerKey.Begin()->Data.Int64);
@@ -3129,7 +3121,7 @@ protected:
         return unreadDataSlices;
     }
 
-    TLegacyDataSlicePtr AddSlice(int lowerKey, int upperKey, int table)
+    TDataSlicePtr AddSlice(int lowerKey, int upperKey, int table)
     {
         auto chunk = CreateChunk(BuildRow({lowerKey}), BuildRow({upperKey}), table, 1_KB, 100, 1_KB);
         auto slice = CreateDataSlice(chunk);
@@ -3137,7 +3129,7 @@ protected:
         return slice;
     }
 
-    void DoSingleJobSplit(std::vector<TLegacyDataSlicePtr> unreadDataSlices)
+    void DoSingleJobSplit(std::vector<TDataSlicePtr> unreadDataSlices)
     {
         TCompletedJobSummary jobSummary;
         jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
@@ -3161,7 +3153,7 @@ TEST_F(TSortedChunkPoolSingleJobSplit, SplitMustRespectSingleJobnessWithSingleto
     InitJobConstraints();
     PrepareNewMock();
 
-    std::vector<TLegacyDataSlicePtr> dataSlices;
+    std::vector<TDataSlicePtr> dataSlices;
 
     dataSlices.push_back(AddSlice(0, 1, 0));
     dataSlices.push_back(AddSlice(1, 2, 0));
@@ -3205,7 +3197,7 @@ TEST_F(TSortedChunkPoolSingleJobSplit, SplitMustRespectSingleJobnessWithSingleto
     InitJobConstraints();
     PrepareNewMock();
 
-    std::vector<TLegacyDataSlicePtr> dataSlices;
+    std::vector<TDataSlicePtr> dataSlices;
 
     dataSlices.push_back(AddSlice(0, 1, 0));
     dataSlices.push_back(AddSlice(1, 2, 0));
@@ -3239,7 +3231,7 @@ TEST_F(TSortedChunkPoolSingleJobSplit, SplitMustRespectSingleJobnessWithSingleto
 }
 
 class TSortedChunkPoolJobSizeAdjusterTest
-    : public TSortedChunkPoolNewKeysTest
+    : public TSortedChunkPoolTest
 {
 protected:
     void InitPoolOptions()
@@ -3385,7 +3377,7 @@ TEST_F(TSortedChunkPoolJobSizeAdjusterTest, EnlargeJobsMaxDataSlices)
     ASSERT_EQ(std::ssize(stripeLists), 2);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, DoNotEnlargeJobsWithForeignData)
+TEST_F(TSortedChunkPoolTest, DoNotEnlargeJobsWithForeignData)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     Options_.SortedJobOptions.ConsiderOnlyPrimarySize = true;
@@ -3457,9 +3449,8 @@ TEST_F(TSortedChunkPoolNewKeysTest, DoNotEnlargeJobsWithForeignData)
     EXPECT_EQ(stripeLists.size(), 4u);
 }
 
-// TODO(max42): this test is no longer viable since we require
-// slices to be added to new sorted pool in correct order.
-TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_TestCorrectOrderInsideStripe)
+// TODO(max42): this test is not viable since slices must be added in input order.
+TEST_F(TSortedChunkPoolTest, DISABLED_TestCorrectOrderInsideStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3475,8 +3466,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_TestCorrectOrderInsideStripe)
     auto dataSlice = CreateDataSlice(chunk);
     std::vector<TInputChunkSlicePtr> slices;
     for (int index = 0; index < 100; ++index) {
-        auto& slice = slices.emplace_back(CreateInputChunkSlice(chunk));
-        slice->TransformToNewKeyless();
+        auto& slice = slices.emplace_back(CreateKeylessInputChunkSlice(chunk));
         slice->LowerLimit().RowIndex = 10 * index;
         slice->UpperLimit().RowIndex = 10 * (index + 1);
         int key1 = (10 * (100 - index) + 20 * index + 5) / 100;
@@ -3505,7 +3495,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_TestCorrectOrderInsideStripe)
     }
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase)
+TEST_F(TSortedChunkPoolTest, TestTrickyCase)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3552,7 +3542,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase2)
+TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3590,7 +3580,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase2)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase3)
+TEST_F(TSortedChunkPoolTest, TestTrickyCase3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3621,7 +3611,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase3)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase4)
+TEST_F(TSortedChunkPoolTest, TestTrickyCase4)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3668,7 +3658,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase4)
     EXPECT_TRUE(TeleportChunks_.empty());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestNoChunkSliceFetcher)
+TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3699,7 +3689,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestNoChunkSliceFetcher)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestStripeListStatisticsAreSet)
+TEST_F(TSortedChunkPoolTest, TestStripeListStatisticsAreSet)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3733,7 +3723,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestStripeListStatisticsAreSet)
     EXPECT_GT(statistics.DataWeight, 0);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestSeveralSlicesInInputStripe)
+TEST_F(TSortedChunkPoolTest, TestSeveralSlicesInInputStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3765,7 +3755,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestSeveralSlicesInInputStripe)
     EXPECT_EQ(2u, stripeLists[0]->Stripes()[1]->DataSlices().size());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys1)
+TEST_F(TSortedChunkPoolTest, TestPivotKeys1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -3809,7 +3799,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys1)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys2)
+TEST_F(TSortedChunkPoolTest, TestPivotKeys2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -3844,7 +3834,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys2)
 }
 
 
-TEST_F(TSortedChunkPoolNewKeysTest, SuspendFinishResumeTest)
+TEST_F(TSortedChunkPoolTest, SuspendFinishResumeTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3881,7 +3871,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SuspendFinishResumeTest)
     EXPECT_EQ(3u, stripeLists[0]->Stripes()[0]->DataSlices().size());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SliceByPrimaryDataSize)
+TEST_F(TSortedChunkPoolTest, SliceByPrimaryDataSize)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3920,7 +3910,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SliceByPrimaryDataSize)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, ExtractByDataSize)
+TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -3958,7 +3948,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, ExtractByDataSize)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, MaximumDataWeightPerJobViolation)
+TEST_F(TSortedChunkPoolTest, MaximumDataWeightPerJobViolation)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     MaxDataWeightPerJob_ = 10_KB;
@@ -3981,7 +3971,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, MaximumDataWeightPerJobViolation)
     EXPECT_THROW(ChunkPool_->Finish(), std::exception);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SingletonTeleportSingleton)
+TEST_F(TSortedChunkPoolTest, SingletonTeleportSingleton)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4020,7 +4010,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SingletonTeleportSingleton)
     EXPECT_EQ(2u, stripeLists.size());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, CartesianProductViaJoinReduce)
+TEST_F(TSortedChunkPoolTest, CartesianProductViaJoinReduce)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4058,7 +4048,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, CartesianProductViaJoinReduce)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, ResetBeforeFinish)
+TEST_F(TSortedChunkPoolTest, ResetBeforeFinish)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4093,7 +4083,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetBeforeFinish)
     EXPECT_EQ(1u, stripeLists.size());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, DoNotReuseChunkSlicesAfterReset)
+TEST_F(TSortedChunkPoolTest, DoNotReuseChunkSlicesAfterReset)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4152,7 +4142,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, DoNotReuseChunkSlicesAfterReset)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)
+TEST_F(TSortedChunkPoolTest, TeleportChunkAndShortReadLimits)
 {
     // YT-8836.
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -4186,7 +4176,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, TwoTablesWithoutKeyGuarantee)
+TEST_F(TSortedChunkPoolTest, TwoTablesWithoutKeyGuarantee)
 {
     // This test is similar to test_reduce_skewed_key_distribution_two_tables.
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -4217,7 +4207,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TwoTablesWithoutKeyGuarantee)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, Sampling)
+TEST_F(TSortedChunkPoolTest, Sampling)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -4232,7 +4222,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, Sampling)
 
     CreateChunkPool();
 
-    TLegacyDataSlicePtr dataSlice42;
+    TDataSlicePtr dataSlice42;
     for (int index = 0; index < 100; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
         auto dataSlice = CreateDataSlice(chunk);
@@ -4255,7 +4245,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, Sampling)
     EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, SamplingWithEnlarging)
+TEST_F(TSortedChunkPoolTest, SamplingWithEnlarging)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4270,7 +4260,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SamplingWithEnlarging)
 
     CreateChunkPool();
 
-    TLegacyDataSlicePtr dataSlice42;
+    TDataSlicePtr dataSlice42;
     for (int index = 0; index < 100; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
         auto dataSlice = CreateDataSlice(chunk);
@@ -4293,7 +4283,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SamplingWithEnlarging)
     EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, EnlargingWithTeleportation)
+TEST_F(TSortedChunkPoolTest, EnlargingWithTeleportation)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4319,7 +4309,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, EnlargingWithTeleportation)
 }
 
 // YT-9791
-TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
+TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4334,14 +4324,12 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
     CreateChunkPool();
 
     auto chunk = CreateChunk(BuildRow({0xA}), BuildRow({0xD}), 0);
-    auto chunkSlice1 = CreateInputChunkSlice(chunk);
-    chunkSlice1->TransformToNewKeyless();
+    auto chunkSlice1 = CreateKeylessInputChunkSlice(chunk);
     chunkSlice1->LowerLimit().RowIndex = 0;
     chunkSlice1->UpperLimit().RowIndex = 20;
     chunkSlice1->LowerLimit().KeyBound = BuildBound(">=", {0xA});
     chunkSlice1->UpperLimit().KeyBound = BuildBound("<", {0xB});
-    auto chunkSlice2 = CreateInputChunkSlice(chunk);
-    chunkSlice2->TransformToNewKeyless();
+    auto chunkSlice2 = CreateKeylessInputChunkSlice(chunk);
     chunkSlice2->LowerLimit().RowIndex = 0;
     chunkSlice2->UpperLimit().RowIndex = 20;
     chunkSlice2->LowerLimit().KeyBound = BuildBound(">=", {0xB});
@@ -4362,7 +4350,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
     EXPECT_EQ(2u, stripeList->Stripes()[0]->DataSlices().size());
     EXPECT_EQ(BuildBound("<", {0xB}), stripeList->Stripes()[0]->DataSlices()[0]->UpperLimit().KeyBound);
 
-    std::vector<TLegacyDataSlicePtr> unreadDataSlices = {
+    std::vector<TDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes()[0]->DataSlices()[0]),
         CreateInputDataSlice(stripeList->Stripes()[0]->DataSlices()[1]),
     };
@@ -4381,7 +4369,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
 }
 
 // YTADMINREQ-19334
-TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
+TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4396,14 +4384,12 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
     CreateChunkPool();
 
     auto chunk = CreateChunk(BuildRow({0xA}), BuildRow({0xD}), 0);
-    auto chunkSlice1 = CreateInputChunkSlice(chunk);
-    chunkSlice1->TransformToNewKeyless();
+    auto chunkSlice1 = CreateKeylessInputChunkSlice(chunk);
     chunkSlice1->LowerLimit().RowIndex = 0;
     chunkSlice1->UpperLimit().RowIndex = 10;
     chunkSlice1->LowerLimit().KeyBound = BuildBound(">=", {0xA});
     chunkSlice1->UpperLimit().KeyBound = BuildBound("<", {0xD});
-    auto chunkSlice2 = CreateInputChunkSlice(chunk);
-    chunkSlice2->TransformToNewKeyless();
+    auto chunkSlice2 = CreateKeylessInputChunkSlice(chunk);
     chunkSlice2->LowerLimit().RowIndex = 10;
     chunkSlice2->UpperLimit().RowIndex = 20;
     chunkSlice2->LowerLimit().KeyBound = BuildBound(">=", {0xA});
@@ -4424,7 +4410,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
     EXPECT_EQ(2u, stripeList->Stripes()[0]->DataSlices().size());
     EXPECT_EQ(10, stripeList->Stripes()[0]->DataSlices()[0]->UpperLimit().RowIndex);
 
-    std::vector<TLegacyDataSlicePtr> unreadDataSlices = {
+    std::vector<TDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes()[0]->DataSlices()[0]),
         CreateInputDataSlice(stripeList->Stripes()[0]->DataSlices()[1]),
     };
@@ -4444,7 +4430,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
     EXPECT_EQ(5, stripeList->Stripes()[0]->DataSlices()[0]->LowerLimit().RowIndex);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
+TEST_F(TSortedChunkPoolTest, JoinReduceForeignChunkSlicing)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4484,7 +4470,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, JoinReduceForeignChunkSlicing)
     EXPECT_EQ(2u, stripeLists[0]->Stripes()[0]->DataSlices().size());
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, DynamicStores)
+TEST_F(TSortedChunkPoolTest, DynamicStores)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4514,7 +4500,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, DynamicStores)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessCustom)
+TEST_F(TSortedChunkPoolTest, RowSlicingCorrectnessCustom)
 {
     for (int iter = 0; iter < 100; ++iter) {
         SetUp();
@@ -4538,7 +4524,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessCustom)
         DataWeightPerJob_ = contiguousChunkCount * 100_KB / jobCount;
         InitJobConstraints();
 
-        std::vector<TLegacyDataSlicePtr> dataSlices;
+        std::vector<TDataSlicePtr> dataSlices;
 
         for (int index = 0; index < contiguousChunkCount; ++index) {
             auto chunk = CreateChunk(BuildRow({contiguousChunkWidth * index}), BuildRow({contiguousChunkWidth * (index + 1)}), 0, /*size*/ 100_KB);
@@ -4580,7 +4566,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessCustom)
     }
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
+TEST_F(TSortedChunkPoolTest, RowSlicingCorrectnessStrong)
 {
     const int defaultIterCount = 10000;
 
@@ -4621,7 +4607,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
 
         int maxKey = std::uniform_int_distribution<int>(1, maxMaxKey)(Gen_);
 
-        std::vector<TLegacyDataSlicePtr> dataSlices;
+        std::vector<TDataSlicePtr> dataSlices;
 
         int totalSize = 0;
 
@@ -4669,7 +4655,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
     }
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, ResetJobSizeAtJobFlush)
+TEST_F(TSortedChunkPoolTest, ResetJobSizeAtJobFlush)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4700,7 +4686,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetJobSizeAtJobFlush)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, AttachForeignSlicesAfterUpperBoundPromotion)
+TEST_F(TSortedChunkPoolTest, AttachForeignSlicesAfterUpperBoundPromotion)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -4735,7 +4721,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, AttachForeignSlicesAfterUpperBoundPromotion)
     CheckForeignStripesAreAttachedCorrectly();
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, BrokenSizeTracking)
+TEST_F(TSortedChunkPoolTest, BrokenSizeTracking)
 {
     // Job size tracking is probably broken in new sorted chunk pool.
     // Consider the following scenario:
@@ -4900,7 +4886,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, BrokenSizeTracking)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, CompressedDataSizePerJob)
+TEST_F(TSortedChunkPoolTest, CompressedDataSizePerJob)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -4956,7 +4942,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, CompressedDataSizePerJob)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolNewKeysTest, CompressedDataSizePerJobRetryFactor)
+TEST_F(TSortedChunkPoolTest, CompressedDataSizePerJobRetryFactor)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     std::vector<bool> inputTables(5, false);
@@ -4994,7 +4980,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, CompressedDataSizePerJobRetryFactor)
     CheckEverything(stripeLists);
 }
 
-TEST_PI(TSortedChunkPoolNewKeysTest, MaxCompressedDataSizePerJob, Bool())
+TEST_PI(TSortedChunkPoolTest, MaxCompressedDataSizePerJob, Bool())
 {
     bool shouldExceed = GetParam();
 
@@ -5044,7 +5030,7 @@ TEST_PI(TSortedChunkPoolNewKeysTest, MaxCompressedDataSizePerJob, Bool())
     CheckEverything(stripeLists);
 }
 
-TEST_PI(TSortedChunkPoolNewKeysTest, MaxPrimaryCompressedDataSizePerJob, Bool())
+TEST_PI(TSortedChunkPoolTest, MaxPrimaryCompressedDataSizePerJob, Bool())
 {
     bool shouldExceed = GetParam();
 
@@ -5093,7 +5079,7 @@ TEST_PI(TSortedChunkPoolNewKeysTest, MaxPrimaryCompressedDataSizePerJob, Bool())
     CheckEverything(stripeLists);
 }
 
-TEST_PI(TSortedChunkPoolNewKeysTest, ConsiderOnlyPrimaryCompressedDataSize, Combine(Bool(), Bool()), std::tuple<bool, bool>)
+TEST_PI(TSortedChunkPoolTest, ConsiderOnlyPrimaryCompressedDataSize, Combine(Bool(), Bool()), std::tuple<bool, bool>)
 {
     auto [considerOnlyPrimarySize, usePrimaryCompressedDataSizePerJob] = GetParam();
 
@@ -5159,23 +5145,23 @@ TEST_PI(TSortedChunkPoolNewKeysTest, ConsiderOnlyPrimaryCompressedDataSize, Comb
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedChunkPoolNewKeysTestRandomized
+class TSortedChunkPoolTestRandomized
     : public WithParamInterface<std::tuple<int, bool>>
-    , public TSortedChunkPoolNewKeysTest
+    , public TSortedChunkPoolTest
 {
 public:
-    TSortedChunkPoolNewKeysTestRandomized() = default;
+    TSortedChunkPoolTestRandomized() = default;
 
     void SetUp() final
     {
-        TSortedChunkPoolNewKeysTest::SetUp();
+        TSortedChunkPoolTest::SetUp();
         Gen_.seed(get<0>(GetParam()));
     }
 };
 
 static constexpr int NumberOfRepeats = 100;
 
-TEST_P(TSortedChunkPoolNewKeysTestRandomized, JobDataWeightDistribution)
+TEST_P(TSortedChunkPoolTestRandomized, JobDataWeightDistribution)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = get<0>(GetParam()) % 2 == 0;
     Gen_.seed(get<0>(GetParam()));
@@ -5244,7 +5230,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, JobDataWeightDistribution)
     CheckEverything(stripeLists);
 }
 
-TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
+TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -5279,7 +5265,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
         for (int poolIndex = 0; poolIndex < underlyingPoolCount; ++poolIndex) {
             Options_.SortedJobOptions.PrimaryComparator = PrimaryComparator_;
             Options_.SortedJobOptions.ForeignComparator = ForeignComparator_;
-            underlyingPools.push_back(CreateNewSortedChunkPool(
+            underlyingPools.push_back(CreateSortedChunkPool(
                 Options_,
                 nullptr,
                 TInputStreamDirectory(InputTables_)));
@@ -5321,7 +5307,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
     THashSet<TChunkId> startedChunks;
     THashSet<TChunkId> completedChunks;
     THashSet<TChunkId> lostChunks;
-    THashMap<TChunkId, TLegacyDataSlicePtr> chunkIdToDataSlice;
+    THashMap<TChunkId, TDataSlicePtr> chunkIdToDataSlice;
 
     std::vector<std::vector<TChunkStripePtr>> stripesByPoolIndex;
     if (useMultiPool) {
@@ -5592,7 +5578,7 @@ TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
 }
 
 INSTANTIATE_TEST_SUITE_P(Instantiation200,
-    TSortedChunkPoolNewKeysTestRandomized,
+    TSortedChunkPoolTestRandomized,
     Combine(Range(0, NumberOfRepeats), Bool()));
 
 ////////////////////////////////////////////////////////////////////////////////

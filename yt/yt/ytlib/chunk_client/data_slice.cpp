@@ -1,4 +1,4 @@
-#include "legacy_data_slice.h"
+#include "data_slice.h"
 #include "chunk_spec.h"
 
 #include <yt/yt/ytlib/table_client/virtual_value_directory.h>
@@ -23,25 +23,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLegacyDataSlice::TLegacyDataSlice(
-    EDataSourceType type,
-    TChunkSliceList chunkSlices,
-    TLegacyInputSliceLimit lowerLimit,
-    TLegacyInputSliceLimit upperLimit,
-    std::optional<i64> tag)
-    : LegacyLowerLimit_(std::move(lowerLimit))
-    , LegacyUpperLimit_(std::move(upperLimit))
-    , IsLegacy(true)
-    , ChunkSlices(std::move(chunkSlices))
-    , Type(type)
-    , Tag(tag)
-{
-    for (const auto& chunkSlice : ChunkSlices) {
-        YT_VERIFY(chunkSlice->IsLegacy);
-    }
-}
-
-TLegacyDataSlice::TLegacyDataSlice(
+TDataSlice::TDataSlice(
     EDataSourceType type,
     TChunkSliceList chunkSlices,
     TInputSliceLimit lowerLimit,
@@ -49,22 +31,17 @@ TLegacyDataSlice::TLegacyDataSlice(
     std::optional<i64> tag)
     : LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
-    , IsLegacy(false)
     , ChunkSlices(std::move(chunkSlices))
     , Type(type)
     , Tag(tag)
-{
-    for (const auto& chunkSlice : ChunkSlices) {
-        YT_VERIFY(!chunkSlice->IsLegacy);
-    }
-}
+{ }
 
-int TLegacyDataSlice::GetChunkCount() const
+int TDataSlice::GetChunkCount() const
 {
     return ChunkSlices.size();
 }
 
-i64 TLegacyDataSlice::GetDataWeight() const
+i64 TDataSlice::GetDataWeight() const
 {
     i64 result = 0;
     for (const auto& chunkSlice : ChunkSlices) {
@@ -73,7 +50,7 @@ i64 TLegacyDataSlice::GetDataWeight() const
     return result;
 }
 
-i64 TLegacyDataSlice::GetRowCount() const
+i64 TDataSlice::GetRowCount() const
 {
     i64 result = 0;
     for (const auto& chunkSlice : ChunkSlices) {
@@ -82,7 +59,7 @@ i64 TLegacyDataSlice::GetRowCount() const
     return result;
 }
 
-i64 TLegacyDataSlice::GetValueCount() const
+i64 TDataSlice::GetValueCount() const
 {
     i64 result = 0;
     for (const auto& chunkSlice : ChunkSlices) {
@@ -91,7 +68,7 @@ i64 TLegacyDataSlice::GetValueCount() const
     return result;
 }
 
-i64 TLegacyDataSlice::GetCompressedDataSize() const
+i64 TDataSlice::GetCompressedDataSize() const
 {
     i64 result = 0;
     for (const auto& chunkSlice : ChunkSlices) {
@@ -100,7 +77,7 @@ i64 TLegacyDataSlice::GetCompressedDataSize() const
     return result;
 }
 
-i64 TLegacyDataSlice::GetUncompressedDataSize() const
+i64 TDataSlice::GetUncompressedDataSize() const
 {
     i64 result = 0;
     for (const auto& chunkSlice : ChunkSlices) {
@@ -109,7 +86,7 @@ i64 TLegacyDataSlice::GetUncompressedDataSize() const
     return result;
 }
 
-i64 TLegacyDataSlice::GetMaxBlockSize() const
+i64 TDataSlice::GetMaxBlockSize() const
 {
     i64 result = 0;
     for (const auto& chunkSlice : ChunkSlices) {
@@ -118,66 +95,54 @@ i64 TLegacyDataSlice::GetMaxBlockSize() const
     return result;
 }
 
-void TLegacyDataSlice::RegisterMetadata(auto&& registrar)
+void TDataSlice::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, IsLegacy);
-    PHOENIX_REGISTER_FIELD(2, LegacyLowerLimit_);
-    PHOENIX_REGISTER_FIELD(3, LegacyUpperLimit_);
-    PHOENIX_REGISTER_FIELD(4, LowerLimit_);
-    PHOENIX_REGISTER_FIELD(5, UpperLimit_);
-    PHOENIX_REGISTER_FIELD(6, ChunkSlices);
-    PHOENIX_REGISTER_FIELD(7, Type);
-    PHOENIX_REGISTER_FIELD(8, Tag);
-    PHOENIX_REGISTER_FIELD(9, InputStreamIndex_);
-    PHOENIX_REGISTER_FIELD(10, VirtualRowIndex);
-    PHOENIX_REGISTER_FIELD(11, ReadRangeIndex);
-    PHOENIX_REGISTER_FIELD(12, IsTeleportable);
+    PHOENIX_REGISTER_FIELD(1, LowerLimit_);
+    PHOENIX_REGISTER_FIELD(2, UpperLimit_);
+    PHOENIX_REGISTER_FIELD(3, ChunkSlices);
+    PHOENIX_REGISTER_FIELD(4, Type);
+    PHOENIX_REGISTER_FIELD(5, Tag);
+    PHOENIX_REGISTER_FIELD(6, InputStreamIndex_);
+    PHOENIX_REGISTER_FIELD(7, VirtualRowIndex);
+    PHOENIX_REGISTER_FIELD(8, ReadRangeIndex);
+    PHOENIX_REGISTER_FIELD(9, IsTeleportable);
 }
 
-int TLegacyDataSlice::GetTableIndex() const
+int TDataSlice::GetTableIndex() const
 {
     YT_VERIFY(ChunkSlices.size() > 0);
     return ChunkSlices[0]->GetInputChunk()->GetTableIndex();
 }
 
-int TLegacyDataSlice::GetRangeIndex() const
+int TDataSlice::GetRangeIndex() const
 {
     YT_VERIFY(ChunkSlices.size() > 0);
     return ChunkSlices[0]->GetInputChunk()->GetRangeIndex();
 }
 
-TInputChunkPtr TLegacyDataSlice::GetSingleUnversionedChunk() const
+TInputChunkPtr TDataSlice::GetSingleUnversionedChunk() const
 {
     return GetSingleUnversionedChunkSlice()->GetInputChunk();
 }
 
-TInputChunkSlicePtr TLegacyDataSlice::GetSingleUnversionedChunkSlice() const
+TInputChunkSlicePtr TDataSlice::GetSingleUnversionedChunkSlice() const
 {
     YT_VERIFY(IsTrivial());
 
     return ChunkSlices[0];
 }
 
-bool TLegacyDataSlice::IsTrivial() const
+bool TDataSlice::IsTrivial() const
 {
     return Type == EDataSourceType::UnversionedTable && ChunkSlices.size() == 1;
 }
 
-bool TLegacyDataSlice::IsEmpty() const
+bool TDataSlice::HasLimits() const
 {
-    return LegacyLowerLimit_.Key && LegacyUpperLimit_.Key && LegacyLowerLimit_.Key >= LegacyUpperLimit_.Key;
+    return !LowerLimit_.IsTrivial() || !UpperLimit_.IsTrivial();
 }
 
-bool TLegacyDataSlice::HasLimits() const
-{
-    if (IsLegacy) {
-        return LegacyLowerLimit_.Key || LegacyLowerLimit_.RowIndex || LegacyUpperLimit_.Key || LegacyUpperLimit_.RowIndex;
-    } else {
-        return !LowerLimit_.IsTrivial() || !UpperLimit_.IsTrivial();
-    }
-}
-
-std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> TLegacyDataSlice::SplitByRowIndex(i64 rowIndex) const
+std::pair<TDataSlicePtr, TDataSlicePtr> TDataSlice::SplitByRowIndex(i64 rowIndex) const
 {
     YT_VERIFY(IsTrivial());
     auto slices = ChunkSlices[0]->SplitByRowIndex(rowIndex);
@@ -187,8 +152,7 @@ std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> TLegacyDataSlice::SplitByRow
 
     // CreateUnversionedInputDataSlice infers key bounds both from chunk slice key bounds and
     // from data slice key bounds making resulting parts key bounds wider than our own key bounds.
-    // This is undesired behavior for new sorted pool, so workaround that by simply copying
-    // our them with our key bounds.
+    // Preserve the logical data-slice bounds while splitting its physical chunk slice.
     first->LowerLimit().KeyBound = LowerLimit().KeyBound;
     first->UpperLimit().KeyBound = UpperLimit().KeyBound;
     second->LowerLimit().KeyBound = LowerLimit().KeyBound;
@@ -200,7 +164,7 @@ std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> TLegacyDataSlice::SplitByRow
     return {std::move(first), std::move(second)};
 }
 
-void TLegacyDataSlice::CopyPayloadFrom(const TLegacyDataSlice& dataSlice)
+void TDataSlice::CopyPayloadFrom(const TDataSlice& dataSlice)
 {
     InputStreamIndex_ = dataSlice.InputStreamIndex_;
     Tag = dataSlice.Tag;
@@ -208,108 +172,30 @@ void TLegacyDataSlice::CopyPayloadFrom(const TLegacyDataSlice& dataSlice)
     ReadRangeIndex = dataSlice.ReadRangeIndex;
 }
 
-void TLegacyDataSlice::TransformToLegacy(const TRowBufferPtr& rowBuffer)
-{
-    YT_VERIFY(!IsLegacy);
-
-    LegacyLowerLimit_.RowIndex = LowerLimit_.RowIndex;
-    if (LowerLimit_.KeyBound.IsUniversal()) {
-        LegacyLowerLimit_.Key = MinKey();
-    } else {
-        LegacyLowerLimit_.Key = KeyBoundToLegacyRow(LowerLimit_.KeyBound, rowBuffer);
-    }
-    LegacyUpperLimit_.RowIndex = UpperLimit_.RowIndex;
-    if (UpperLimit_.KeyBound.IsUniversal()) {
-        LegacyUpperLimit_.Key = MaxKey();
-    } else {
-        LegacyUpperLimit_.Key = KeyBoundToLegacyRow(UpperLimit_.KeyBound, rowBuffer);
-    }
-    LowerLimit_ = TInputSliceLimit();
-    UpperLimit_ = TInputSliceLimit();
-
-    for (auto& chunkSlice : ChunkSlices) {
-        chunkSlice->TransformToLegacy(rowBuffer);
-    }
-
-    IsLegacy = true;
-}
-
-void TLegacyDataSlice::TransformToNew(const TRowBufferPtr& rowBuffer, int keyLength, bool trimChunkSliceKeys)
-{
-    YT_VERIFY(IsLegacy);
-
-    LowerLimit_.RowIndex = LegacyLowerLimit_.RowIndex;
-    LowerLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyLowerLimit_.Key, /*isUpper*/ false, keyLength, rowBuffer);
-    UpperLimit_.RowIndex = LegacyUpperLimit_.RowIndex;
-    UpperLimit_.KeyBound = KeyBoundFromLegacyRow(LegacyUpperLimit_.Key, /*isUpper*/ true, keyLength, rowBuffer);
-    LegacyLowerLimit_ = TLegacyInputSliceLimit();
-    LegacyUpperLimit_ = TLegacyInputSliceLimit();
-
-    std::optional<int> chunkSliceKeyLength;
-    if (trimChunkSliceKeys) {
-        chunkSliceKeyLength = keyLength;
-    }
-    for (auto& chunkSlice : ChunkSlices) {
-        chunkSlice->TransformToNew(rowBuffer, chunkSliceKeyLength);
-    }
-
-    IsLegacy = false;
-}
-
-void TLegacyDataSlice::TransformToNewKeyless()
-{
-    YT_VERIFY(IsLegacy);
-    YT_VERIFY(!LegacyLowerLimit_.Key);
-    YT_VERIFY(!LegacyUpperLimit_.Key);
-    LowerLimit_.RowIndex = LegacyLowerLimit_.RowIndex;
-    UpperLimit_.RowIndex = LegacyUpperLimit_.RowIndex;
-    LegacyLowerLimit_ = TLegacyInputSliceLimit();
-    LegacyUpperLimit_ = TLegacyInputSliceLimit();
-
-    for (auto& chunkSlice : ChunkSlices) {
-        chunkSlice->TransformToNewKeyless();
-    }
-
-    IsLegacy = false;
-}
-
-void TLegacyDataSlice::TransformToNew(
-    const NTableClient::TRowBufferPtr& rowBuffer,
-    NTableClient::TComparator comparator)
-{
-    if (comparator) {
-        TransformToNew(rowBuffer, comparator.GetLength());
-    } else {
-        TransformToNewKeyless();
-    }
-}
-
-int TLegacyDataSlice::GetSliceIndex() const
+int TDataSlice::GetSliceIndex() const
 {
     return Type == EDataSourceType::UnversionedTable
         ? ChunkSlices[0]->GetSliceIndex()
         : 0;
 }
 
-int TLegacyDataSlice::GetInputStreamIndex() const
+int TDataSlice::GetInputStreamIndex() const
 {
     YT_VERIFY(InputStreamIndex_);
     return *InputStreamIndex_;
 }
 
-void TLegacyDataSlice::SetInputStreamIndex(int inputStreamIndex)
+void TDataSlice::SetInputStreamIndex(int inputStreamIndex)
 {
     InputStreamIndex_ = inputStreamIndex;
 }
 
-PHOENIX_DEFINE_TYPE(TLegacyDataSlice);
+PHOENIX_DEFINE_TYPE(TDataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TLegacyDataSlicePtr& dataSlice, IYsonConsumer* consumer)
+void Serialize(const TDataSlicePtr& dataSlice, IYsonConsumer* consumer)
 {
-    YT_VERIFY(!dataSlice->IsLegacy);
-
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("lower_limit").Value(dataSlice->LowerLimit())
@@ -326,102 +212,62 @@ void Serialize(const TLegacyDataSlicePtr& dataSlice, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TLegacyDataSlicePtr& dataSlice, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TDataSlicePtr& dataSlice, TStringBuf /*spec*/)
 {
     Format(
         builder,
         "Type: %v, LowerLimit: %v, UpperLimit: %v, ChunkSlices: %v",
         dataSlice->Type,
-        dataSlice->IsLegacy ? ToString(dataSlice->LegacyLowerLimit()) : ToString(dataSlice->LowerLimit()),
-        dataSlice->IsLegacy ? ToString(dataSlice->LegacyUpperLimit()) : ToString(dataSlice->UpperLimit()),
+        dataSlice->LowerLimit(),
+        dataSlice->UpperLimit(),
         dataSlice->ChunkSlices);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLegacyDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice)
+TDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice)
 {
-    if (chunkSlice->IsLegacy) {
-        return New<TLegacyDataSlice>(
-            EDataSourceType::UnversionedTable,
-            TLegacyDataSlice::TChunkSliceList{chunkSlice},
-            chunkSlice->LegacyLowerLimit(),
-            chunkSlice->LegacyUpperLimit());
-    } else {
-        return New<TLegacyDataSlice>(
-            EDataSourceType::UnversionedTable,
-            TLegacyDataSlice::TChunkSliceList{chunkSlice},
-            chunkSlice->LowerLimit(),
-            chunkSlice->UpperLimit());
-    }
+    return New<TDataSlice>(
+        EDataSourceType::UnversionedTable,
+        TDataSlice::TChunkSliceList{chunkSlice},
+        chunkSlice->LowerLimit(),
+        chunkSlice->UpperLimit());
 }
 
-TLegacyDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSlicePtr>& inputChunkSlices)
+TDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSlicePtr>& inputChunkSlices)
 {
-    std::vector<TLegacyDataSlicePtr> dataSlices;
-
     YT_VERIFY(!inputChunkSlices.empty());
-    TLegacyDataSlice::TChunkSliceList chunkSlices;
+    TDataSlice::TChunkSliceList chunkSlices;
     std::optional<int> tableIndex;
-    TLegacyInputSliceLimit lowerLimit;
-    TLegacyInputSliceLimit upperLimit;
+    TInputSliceLimit lowerLimit;
+    TInputSliceLimit upperLimit(/*isUpper*/ true);
     for (const auto& inputChunkSlice : inputChunkSlices) {
         if (!tableIndex) {
             tableIndex = inputChunkSlice->GetInputChunk()->GetTableIndex();
-            lowerLimit.Key = inputChunkSlice->LegacyLowerLimit().Key;
-            upperLimit.Key = inputChunkSlice->LegacyUpperLimit().Key;
+            lowerLimit.KeyBound = inputChunkSlice->LowerLimit().KeyBound;
+            upperLimit.KeyBound = inputChunkSlice->UpperLimit().KeyBound;
         } else {
             YT_VERIFY(*tableIndex == inputChunkSlice->GetInputChunk()->GetTableIndex());
-            YT_VERIFY(lowerLimit.Key == inputChunkSlice->LegacyLowerLimit().Key);
-            YT_VERIFY(upperLimit.Key == inputChunkSlice->LegacyUpperLimit().Key);
+            YT_VERIFY(lowerLimit.KeyBound == inputChunkSlice->LowerLimit().KeyBound);
+            YT_VERIFY(upperLimit.KeyBound == inputChunkSlice->UpperLimit().KeyBound);
         }
         chunkSlices.push_back(inputChunkSlice);
     }
-    return New<TLegacyDataSlice>(
+    return New<TDataSlice>(
         EDataSourceType::VersionedTable,
         std::move(chunkSlices),
         std::move(lowerLimit),
         std::move(upperLimit));
 }
 
-TLegacyDataSlicePtr CreateInputDataSlice(
-    EDataSourceType type,
-    const std::vector<TInputChunkSlicePtr>& inputChunks,
-    TLegacyKey lowerKey,
-    TLegacyKey upperKey)
-{
-    TLegacyDataSlice::TChunkSliceList chunkSlices;
-    std::optional<int> tableIndex;
-    for (const auto& inputChunk : inputChunks) {
-        if (!tableIndex) {
-            tableIndex = inputChunk->GetInputChunk()->GetTableIndex();
-        } else {
-            YT_VERIFY(*tableIndex == inputChunk->GetInputChunk()->GetTableIndex());
-        }
-        chunkSlices.push_back(CreateInputChunkSlice(*inputChunk, lowerKey, upperKey));
-    }
-
-    TLegacyInputSliceLimit lowerLimit;
-    lowerLimit.Key = lowerKey;
-
-    TLegacyInputSliceLimit upperLimit;
-    upperLimit.Key = upperKey;
-
-    return New<TLegacyDataSlice>(
-        type,
-        std::move(chunkSlices),
-        std::move(lowerLimit),
-        std::move(upperLimit));
-}
-
-TLegacyDataSlicePtr CreateInputDataSlice(
+TDataSlicePtr CreateInputDataSlice(
     NChunkClient::EDataSourceType type,
     const std::vector<TInputChunkSlicePtr>& inputChunks,
     const TComparator& comparator,
     TKeyBound lowerBound,
     TKeyBound upperBound)
 {
-    TLegacyDataSlice::TChunkSliceList chunkSlices;
+    TDataSlice::TChunkSliceList chunkSlices;
     std::optional<int> tableIndex;
     for (const auto& inputChunk : inputChunks) {
         if (!tableIndex) {
@@ -438,84 +284,40 @@ TLegacyDataSlicePtr CreateInputDataSlice(
     TInputSliceLimit upperLimit;
     upperLimit.KeyBound = upperBound;
 
-    return New<TLegacyDataSlice>(
+    return New<TDataSlice>(
         type,
         std::move(chunkSlices),
         std::move(lowerLimit),
         std::move(upperLimit));
 }
 
-TLegacyDataSlicePtr CreateInputDataSlice(const TLegacyDataSlicePtr& dataSlice)
+TDataSlicePtr CreateInputDataSlice(const TDataSlicePtr& dataSlice)
 {
-    TLegacyDataSlice::TChunkSliceList chunkSlices;
+    TDataSlice::TChunkSliceList chunkSlices;
     for (const auto& slice : dataSlice->ChunkSlices) {
         chunkSlices.push_back(CreateInputChunkSlice(*slice));
     }
 
-    TLegacyDataSlicePtr newDataSlice;
-
-    if (dataSlice->IsLegacy) {
-        newDataSlice = New<TLegacyDataSlice>(
-            dataSlice->Type,
-            std::move(chunkSlices),
-            dataSlice->LegacyLowerLimit(),
-            dataSlice->LegacyUpperLimit(),
-            dataSlice->Tag);
-    } else {
-        newDataSlice = New<TLegacyDataSlice>(
-            dataSlice->Type,
-            std::move(chunkSlices),
-            dataSlice->LowerLimit(),
-            dataSlice->UpperLimit(),
-            dataSlice->Tag);
-    }
-    newDataSlice->CopyPayloadFrom(*dataSlice);
-    return newDataSlice;
-}
-
-TLegacyDataSlicePtr CreateInputDataSlice(
-    const TLegacyDataSlicePtr& dataSlice,
-    TLegacyKey lowerKey,
-    TLegacyKey upperKey)
-{
-    auto lowerLimit = dataSlice->LegacyLowerLimit();
-    auto upperLimit = dataSlice->LegacyUpperLimit();
-
-    if (lowerKey) {
-        lowerLimit.MergeLowerKey(lowerKey);
-    }
-
-    if (upperKey) {
-        upperLimit.MergeUpperKey(upperKey);
-    }
-
-    TLegacyDataSlice::TChunkSliceList chunkSlices;
-    for (const auto& slice : dataSlice->ChunkSlices) {
-        chunkSlices.push_back(CreateInputChunkSlice(*slice, lowerLimit.Key, upperLimit.Key));
-    }
-
-    auto newDataSlice = New<TLegacyDataSlice>(
+    auto newDataSlice = New<TDataSlice>(
         dataSlice->Type,
         std::move(chunkSlices),
-        std::move(lowerLimit),
-        std::move(upperLimit),
+        dataSlice->LowerLimit(),
+        dataSlice->UpperLimit(),
         dataSlice->Tag);
     newDataSlice->CopyPayloadFrom(*dataSlice);
     return newDataSlice;
 }
 
-TLegacyDataSlicePtr CreateInputDataSlice(
-    const TLegacyDataSlicePtr& dataSlice,
+TDataSlicePtr CreateInputDataSlice(
+    const TDataSlicePtr& dataSlice,
     const TComparator& comparator,
     TKeyBound lowerKeyBound,
     TKeyBound upperKeyBound)
 {
-    YT_VERIFY(!dataSlice->IsLegacy);
-
     lowerKeyBound = comparator.StrongerKeyBound(dataSlice->LowerLimit().KeyBound, lowerKeyBound);
     upperKeyBound = comparator.StrongerKeyBound(dataSlice->UpperLimit().KeyBound, upperKeyBound);
 
-    TLegacyDataSlice::TChunkSliceList chunkSlices;
+    TDataSlice::TChunkSliceList chunkSlices;
     for (const auto& slice : dataSlice->ChunkSlices) {
         // NB: Chunk slices are the part of physical data slice representation.
         // We intentionally do not intersect them with provided lower and upper bounds
@@ -528,7 +330,7 @@ TLegacyDataSlicePtr CreateInputDataSlice(
     auto upperLimit = dataSlice->UpperLimit();
     upperLimit.KeyBound = upperKeyBound;
 
-    auto newDataSlice = New<TLegacyDataSlice>(
+    auto newDataSlice = New<TDataSlice>(
         dataSlice->Type,
         std::move(chunkSlices),
         std::move(lowerLimit),
@@ -539,62 +341,42 @@ TLegacyDataSlicePtr CreateInputDataSlice(
 }
 
 void InferLimitsFromBoundaryKeys(
-    const TLegacyDataSlicePtr& dataSlice,
+    const TDataSlicePtr& dataSlice,
     const TRowBufferPtr& rowBuffer,
     const TComparator& comparator)
 {
-    if (dataSlice->IsLegacy) {
-        TLegacyKey minKey;
-        TLegacyKey maxKey;
-        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-            if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
-                if (!minKey || minKey > boundaryKeys->MinKey) {
-                    minKey = boundaryKeys->MinKey;
-                }
-                if (!maxKey || maxKey < boundaryKeys->MaxKey) {
-                    maxKey = boundaryKeys->MaxKey;
-                }
-            }
-        }
+    YT_VERIFY(comparator);
 
-        if (minKey) {
-            dataSlice->LegacyLowerLimit().MergeLowerKey(rowBuffer->CaptureRow(minKey));
-        }
-        if (maxKey) {
-            dataSlice->LegacyUpperLimit().MergeUpperKey(rowBuffer->CaptureRow(GetKeySuccessor(maxKey, rowBuffer)));
-        }
-    } else {
-        YT_VERIFY(comparator);
-
-        auto lowerBound = TKeyBound::MakeUniversal(/*isUpper*/ false);
-        auto upperBound = TKeyBound::MakeUniversal(/*isUpper*/ true);
-        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-            if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+    auto lowerBound = TKeyBound::MakeUniversal(/*isUpper*/ false);
+    auto upperBound = TKeyBound::MakeUniversal(/*isUpper*/ true);
+    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+        if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
+            if (boundaryKeys->MinKey) {
                 auto chunkLowerBound = KeyBoundFromLegacyRow(boundaryKeys->MinKey, /*isUpper*/ false, comparator.GetLength(), rowBuffer);
-                auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /*isUpper*/ true, comparator.GetLength(), rowBuffer);
                 comparator.ReplaceIfStrongerKeyBound(lowerBound, chunkLowerBound);
+            }
+            if (boundaryKeys->MaxKey) {
+                auto chunkUpperBound = KeyBoundFromLegacyRow(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer), /*isUpper*/ true, comparator.GetLength(), rowBuffer);
                 comparator.ReplaceIfStrongerKeyBound(upperBound, chunkUpperBound);
             }
         }
+    }
 
-        if (comparator.StrongerKeyBound(dataSlice->LowerLimit().KeyBound, lowerBound) == lowerBound) {
-            lowerBound.Prefix = rowBuffer->CaptureRow(lowerBound.Prefix);
-            dataSlice->LowerLimit().KeyBound = lowerBound;
-        }
-        if (comparator.StrongerKeyBound(dataSlice->UpperLimit().KeyBound, upperBound) == upperBound) {
-            upperBound.Prefix = rowBuffer->CaptureRow(upperBound.Prefix);
-            dataSlice->UpperLimit().KeyBound = upperBound;
-        }
+    if (comparator.StrongerKeyBound(dataSlice->LowerLimit().KeyBound, lowerBound) == lowerBound) {
+        lowerBound.Prefix = rowBuffer->CaptureRow(lowerBound.Prefix);
+        dataSlice->LowerLimit().KeyBound = lowerBound;
+    }
+    if (comparator.StrongerKeyBound(dataSlice->UpperLimit().KeyBound, upperBound) == upperBound) {
+        upperBound.Prefix = rowBuffer->CaptureRow(upperBound.Prefix);
+        dataSlice->UpperLimit().KeyBound = upperBound;
     }
 }
 
 void SetLimitsFromShortenedBoundaryKeys(
-    const TLegacyDataSlicePtr& dataSlice,
+    const TDataSlicePtr& dataSlice,
     int prefixLength,
     const TRowBufferPtr& rowBuffer)
 {
-    YT_VERIFY(!dataSlice->IsLegacy);
-
     auto chunk = dataSlice->GetSingleUnversionedChunk();
     if (const auto& boundaryKeys = chunk->BoundaryKeys()) {
         dataSlice->LowerLimit().KeyBound = TKeyBound::FromRow(
@@ -605,7 +387,7 @@ void SetLimitsFromShortenedBoundaryKeys(
 }
 
 std::optional<TChunkId> IsUnavailable(
-    const TLegacyDataSlicePtr& dataSlice,
+    const TDataSlicePtr& dataSlice,
     EChunkAvailabilityPolicy policy)
 {
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
@@ -618,8 +400,8 @@ std::optional<TChunkId> IsUnavailable(
 
 bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2)
 {
-    const auto& limit1 = slice1->LegacyLowerLimit();
-    const auto& limit2 = slice2->LegacyLowerLimit();
+    const auto& limit1 = slice1->LowerLimit();
+    const auto& limit2 = slice2->LowerLimit();
     i64 diff;
 
     diff = slice1->GetInputChunk()->GetRangeIndex() - slice2->GetInputChunk()->GetRangeIndex();
@@ -633,11 +415,11 @@ bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TIn
         return diff < 0;
     }
 
-    diff = CompareRows(limit1.Key, limit2.Key);
+    diff = CompareRows(limit1.KeyBound.Prefix, limit2.KeyBound.Prefix);
     return diff < 0;
 }
 
-i64 GetCumulativeRowCount(const std::vector<TLegacyDataSlicePtr>& dataSlices)
+i64 GetCumulativeRowCount(const std::vector<TDataSlicePtr>& dataSlices)
 {
     i64 result = 0;
     for (const auto& dataSlice : dataSlices) {
@@ -646,7 +428,7 @@ i64 GetCumulativeRowCount(const std::vector<TLegacyDataSlicePtr>& dataSlices)
     return result;
 }
 
-i64 GetCumulativeDataWeight(const std::vector<TLegacyDataSlicePtr>& dataSlices)
+i64 GetCumulativeDataWeight(const std::vector<TDataSlicePtr>& dataSlices)
 {
     i64 result = 0;
     for (const auto& dataSlice : dataSlices) {
@@ -657,13 +439,9 @@ i64 GetCumulativeDataWeight(const std::vector<TLegacyDataSlicePtr>& dataSlices)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TInputChunkSlicePtr>& chunkSlices, const TComparator& comparator)
+std::vector<TDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TInputChunkSlicePtr>& chunkSlices, const TComparator& comparator)
 {
-    for (const auto& chunkSlice : chunkSlices) {
-        YT_VERIFY(!chunkSlice->IsLegacy);
-    }
-
-    std::vector<TLegacyDataSlicePtr> dataSlices;
+    std::vector<TDataSlicePtr> dataSlices;
 
     std::vector<std::tuple<TKeyBound, int>> boundaries;
     boundaries.reserve(chunkSlices.size() * 2);
@@ -723,8 +501,6 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
                 comparator,
                 currentKeyBoundToLower,
                 upper);
-            YT_VERIFY(!slice->IsLegacy);
-
             dataSlices.push_back(std::move(slice));
         }
     }
@@ -734,7 +510,7 @@ std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(const std::vector<T
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
+std::string GetDataSliceDebugString(const TDataSlicePtr& dataSlice)
 {
     return Format("{DS: %v.%v.%v, L: %v:%v, DW: %v}",
         dataSlice->GetInputStreamIndex(),

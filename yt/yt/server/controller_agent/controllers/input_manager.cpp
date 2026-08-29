@@ -20,7 +20,6 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
@@ -1296,7 +1295,7 @@ void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescrip
                     std::remove_if(
                         dataSlices.begin(),
                         dataSlices.end(),
-                        [&] (TLegacyDataSlicePtr slice) {
+                        [&] (TDataSlicePtr slice) {
                             try {
                                 return chunkId == slice->GetSingleUnversionedChunk()->GetChunkId();
                             } catch (const std::exception& ex) {

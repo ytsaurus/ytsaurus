@@ -21,7 +21,7 @@ struct TResourceVector
 {
     TEnumIndexedArray<EResourceKind, i64> Values;
 
-    static TResourceVector FromDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice, bool isPrimary);
+    static TResourceVector FromDataSlice(const NChunkClient::TDataSlicePtr& dataSlice, bool isPrimary);
     static TResourceVector Zero();
 
     TResourceVector operator+(const TResourceVector& other) const;
