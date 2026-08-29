@@ -835,10 +835,10 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 
     for (const auto& node : nodesToRemove) {
-        YT_LOG_INFO("Node has not seen more than %v seconds, remove it (NodeId: %v, Address: %v)",
-            Config_->MaxOfflineNodeAge,
-            node->GetId(),
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Node has not been seen for too long, removing it")
+            .With("MaxOfflineNodeAge", Config_->MaxOfflineNodeAge)
+            .With("NodeId", node->GetId())
+            .With("Address", node->GetDefaultAddress());
         UnregisterNode(node);
         RemoveNode(node);
     }
@@ -861,13 +861,11 @@ void TNodeShard::UpdateNodeState(
     node->SetRegistrationError(error);
 
     if (oldMasterState != newMasterState || oldSchedulerState != newSchedulerState) {
-        YT_LOG_INFO("Node state changed (NodeId: %v, NodeAddress: %v, MasterState: %v -> %v, SchedulerState: %v -> %v)",
-            node->GetId(),
-            node->NodeDescriptor().GetDefaultAddress(),
-            oldMasterState,
-            newMasterState,
-            oldSchedulerState,
-            newSchedulerState);
+        YT_TLOG_INFO("Node state changed")
+            .With("NodeId", node->GetId())
+            .With("NodeAddress", node->NodeDescriptor().GetDefaultAddress())
+            .WithFormat("MasterState", "%v -> %v", oldMasterState, newMasterState)
+            .WithFormat("SchedulerState", "%v -> %v", oldSchedulerState, newSchedulerState);
     }
 }
 
@@ -921,9 +919,9 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
     MaybeDelay(Config_->TestingOptions->HandleNodesAttributesDelay);
 
     if (HasOngoingNodesAttributesUpdate_) {
-        auto error = TError("Node shard is handling nodes attributes update for too long, skipping new update");
-        YT_LOG_WARNING(error);
-        return {error};
+        static constexpr auto Message = "Node shard is handling nodes attributes update for too long, skipping new update"_sb;
+        YT_TLOG_WARNING(Message);
+        return {TError(Message)};
     }
 
     HasOngoingNodesAttributesUpdate_ = true;
@@ -1018,12 +1016,16 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
             auto updateResult = WaitFor(ManagerHost_->GetStrategy()->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
+                YT_TLOG_WARNING("Resetting node state")
+                    .With("NodeId", nodeId)
+                    .With("Address", address)
+                    .With("Tags", tags)
+                    .With(updateResult);
                 auto error = TError("Node tags update failed")
                     .With("node_id", nodeId)
                     .With("address", address)
                     .With("tags", tags)
                     .With(updateResult);
-                YT_LOG_WARNING(error);
                 errors.push_back(error);
 
                 // State change must happen before aborting allocations.
@@ -1897,18 +1899,10 @@ void TNodeShard::LogOngoingAllocationsOnHeartbeat(
             continue;
         }
 
-        TStringBuilder attributesBuilder;
-        TDelimitedStringBuilderWrapper delimitedAttributesBuilder(&attributesBuilder);
-        strategyProxy->BuildSchedulingAttributesStringForOngoingAllocations(
-            allocations,
-            now,
-            delimitedAttributesBuilder);
-
-        YT_LOG_DEBUG(
-            "Allocations are %lv (%v, NodeAddress: %v)",
-            allocationState,
-            attributesBuilder.Flush(),
-            node->GetDefaultAddress());
+        YT_TLOG_DEBUG("Ongoing allocations on heartbeat")
+            .With("AllocationState", allocationState)
+            .With(strategyProxy->BuildSchedulingAttributeTagsForOngoingAllocations(allocations, now))
+            .With("NodeAddress", node->GetDefaultAddress());
     }
 }
 

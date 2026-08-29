@@ -2291,12 +2291,11 @@ private:
             .With("SlotIndex", *slotIndex);
     }
 
-    void BuildElementLoggingStringAttributes(
+    NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+        const TPoolTreeElement* element) const override
     {
-        SchedulingPolicy_->BuildElementLoggingStringAttributes(treeSnapshot, element, delimitedBuilder);
+        return SchedulingPolicy_->BuildElementLoggingTags(treeSnapshot, element);
     }
 
     void OnOperationRemovedFromPool(
@@ -2442,16 +2441,22 @@ private:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        auto tryGetValidPool = [&] (const std::string& poolName, const char* poolCaption, const std::string& loggedAttributes) -> TPoolTreeCompositeElementPtr {
+        auto tryGetValidPool = [&] (const std::string& poolName, TStringBuf poolKind) -> TPoolTreeCompositeElementPtr {
             auto pool = FindPool(poolName);
             if (pool) {
                 if (pool->GetMode() != ESchedulingMode::Fifo) {
                     return pool;
                 } else {
-                    YT_LOG_INFO("%v has FIFO mode and won't be used %v", poolCaption, loggedAttributes);
+                    YT_TLOG_INFO("Pool has FIFO mode and will not be used")
+                        .With("PoolKind", poolKind)
+                        .With("PoolName", poolName)
+                        .With("UserName", userName);
                 }
             } else {
-                YT_LOG_INFO("%v is not registered in tree %v", poolCaption, loggedAttributes);
+                YT_TLOG_INFO("Pool is not registered in tree")
+                    .With("PoolKind", poolKind)
+                    .With("PoolName", poolName)
+                    .With("UserName", userName);
             }
             return nullptr;
         };
@@ -2460,15 +2465,13 @@ private:
             const auto& userToDefaultPoolMap = StrategyHost_->GetUserDefaultParentPoolMap();
             auto it = userToDefaultPoolMap.find(userName);
             if (it != userToDefaultPoolMap.end()) {
-                auto loggedAttributes = Format("(PoolName: %v, UserName: %v)", it->second, userName);
-                if (auto pool = tryGetValidPool(it->second, "User default parent pool", loggedAttributes)) {
+                if (auto pool = tryGetValidPool(it->second, "User default parent pool")) {
                     return pool;
                 }
             }
         }
 
-        auto loggedAttributes = Format("(PoolName: %v)", Config_->DefaultParentPool);
-        if (auto pool = tryGetValidPool(Config_->DefaultParentPool, "Default parent pool", loggedAttributes)) {
+        if (auto pool = tryGetValidPool(Config_->DefaultParentPool, "Default parent pool")) {
             return pool;
         }
 
@@ -2978,12 +2981,11 @@ private:
         SchedulingPolicy_->BuildSchedulingAttributesForNode(nodeId, fluent);
     }
 
-    void BuildSchedulingAttributesStringForOngoingAllocations(
+    NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const std::vector<TAllocationPtr>& allocations,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+        TInstant now) const override
     {
-        SchedulingPolicy_->BuildSchedulingAttributesStringForOngoingAllocations(GetAtomicTreeSnapshot(), allocations, now, delimitedBuilder);
+        return SchedulingPolicy_->BuildSchedulingAttributeTagsForOngoingAllocations(GetAtomicTreeSnapshot(), allocations, now);
     }
 
     void ProfileFairShare() const override
@@ -3125,10 +3127,9 @@ private:
 
         auto doLogOperationsInfo = [&] (const auto& operationIdToElement) {
             for (const auto& [operationId, element] : operationIdToElement) {
-                // TODO(eshcherbin): Rethink format of fair share info log message.
-                YT_LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                    element->GetLoggingString(treeSnapshot),
-                    operationId);
+                YT_TLOG_DEBUG("Scheduling info of operation")
+                    .With("OperationId", operationId)
+                    .With(element->GetLoggingTags(treeSnapshot));
             }
         };
 
@@ -3141,9 +3142,9 @@ private:
         auto Logger = this->Logger().WithTag("TreeSnapshotId", treeSnapshot->GetId());
 
         for (const auto& [poolName, element] : treeSnapshot->PoolMap()) {
-            YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
-                element->GetLoggingString(treeSnapshot),
-                poolName);
+            YT_TLOG_DEBUG("Scheduling info of pool")
+                .With("Pool", poolName)
+                .With(element->GetLoggingTags(treeSnapshot));
         }
     }
 

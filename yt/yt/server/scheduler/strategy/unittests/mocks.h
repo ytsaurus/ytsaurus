@@ -263,10 +263,9 @@ public:
         return ResourceTree_.Get();
     }
 
-    void BuildElementLoggingStringAttributes(
+    NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
-        const TPoolTreeElement* /*element*/,
-        TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
+        const TPoolTreeElement* /*element*/) const override
     {
         YT_UNIMPLEMENTED();
     }

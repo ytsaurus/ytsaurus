@@ -548,11 +548,10 @@ void TOperationControllerImpl::OnAllocationAborted(
     };
 
     auto result = EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent{std::move(eventSummary)});
-    YT_LOG_TRACE(
-        "%v abort notification %v (AllocationId: %v)",
-        scheduled ? "Allocation" : "Nonscheduled allocation",
-        result ? "enqueued" : "dropped",
-        allocationId);
+    YT_TLOG_TRACE("Allocation abort notification processed")
+        .With("Scheduled", scheduled)
+        .With("Enqueued", result)
+        .With("AllocationId", allocationId);
 }
 
 void TOperationControllerImpl::OnAllocationAborted(
@@ -583,10 +582,9 @@ void TOperationControllerImpl::OnAllocationFinished(const TAllocationPtr& alloca
     };
 
     auto result = EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent{std::move(summary)});
-    YT_LOG_TRACE(
-        "Allocation finish notification %v (AllocationId: %v)",
-        result ? "enqueued" : "dropped",
-        allocationId);
+    YT_TLOG_TRACE("Allocation finish notification processed")
+        .With("Enqueued", result)
+        .With("AllocationId", allocationId);
 }
 
 void TOperationControllerImpl::OnNonscheduledAllocationAborted(

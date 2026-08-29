@@ -1509,7 +1509,9 @@ private:
                         error = TError("Failed to archive operations")
                             .With("pending_count", pendingCount)
                             .With(ex);
-                        YT_LOG_WARNING(error);
+                        YT_TLOG_WARNING("Failed to archive operations")
+                            .With("PendingCount", pendingCount)
+                            .With(ex);
                         ArchiveErrorCounter_.Increment();
                     }
                 }
@@ -1928,8 +1930,8 @@ private:
         auto timeout = Config_->FinishedOperationsArchiveLookupTimeout;
         auto rowsetOrError = LookupOperationsInArchive(Client_, ids, filter, timeout);
         if (!rowsetOrError.IsOK()) {
-            YT_LOG_WARNING("Failed to fetch operation heavy fields from archive (Error: %v)",
-                rowsetOrError);
+            YT_TLOG_WARNING("Failed to fetch operation heavy fields from archive")
+                .With(rowsetOrError);
             return;
         }
         auto rows = rowsetOrError.Value()->GetRows();
@@ -2154,7 +2156,8 @@ private:
         } catch (const std::exception& ex) {
             auto error = TError("Failed to write operation alert events to archive")
                 .With(ex);
-            YT_LOG_WARNING(error);
+            YT_TLOG_WARNING("Deferring operation alert event archivation")
+                .With(ex);
             if (TInstant::Now() - LastOperationAlertEventSendTime_ > Config_->OperationAlertSenderAlertThreshold) {
                 SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, error);
             }

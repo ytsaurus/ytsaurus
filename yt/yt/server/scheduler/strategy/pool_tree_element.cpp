@@ -155,39 +155,30 @@ const TSchedulingTagFilter& TPoolTreeElement::GetSchedulingTagFilter() const
     return EmptySchedulingTagFilter;
 }
 
-void TPoolTreeElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const
+NLogging::TLoggingTagList TPoolTreeElement::BuildLoggingTags() const
 {
-    delimitedBuilder->AppendFormat(
-        "Status: %v, DominantResource: %v, DemandShare: %.6g, UsageShare: %.6g, LimitsShare: %.6g, "
-        "StrongGuaranteeShare: %.6g, TotalFairShare: %.6g, FairShare: %.6g, Satisfaction: %.4lg, LocalSatisfaction: %.4lg, "
-        "StarvationStatus: %v, Weight: %v, Volume: %v",
-        GetStatus(),
-        Attributes_.DominantResource,
-        Attributes_.DemandShare,
-        Attributes_.UsageShare,
-        Attributes_.LimitsShare,
-        Attributes_.StrongGuaranteeShare,
-        Attributes_.FairShare.Total,
-        Attributes_.FairShare,
-        PostUpdateAttributes_.SatisfactionRatio,
-        PostUpdateAttributes_.LocalSatisfactionRatio,
-        GetStarvationStatus(),
-        GetWeight(),
-        GetAccumulatedResourceRatioVolume());
+    return NLogging::TLoggingTagList()
+        .With("Status", GetStatus())
+        .With("DominantResource", Attributes_.DominantResource)
+        .WithFormat("DemandShare", "%.6g", Attributes_.DemandShare)
+        .WithFormat("UsageShare", "%.6g", Attributes_.UsageShare)
+        .WithFormat("LimitsShare", "%.6g", Attributes_.LimitsShare)
+        .WithFormat("StrongGuaranteeShare", "%.6g", Attributes_.StrongGuaranteeShare)
+        .WithFormat("TotalFairShare", "%.6g", Attributes_.FairShare.Total)
+        .WithFormat("FairShare", "%.6g", Attributes_.FairShare)
+        .WithFormat("Satisfaction", "%.4lg", PostUpdateAttributes_.SatisfactionRatio)
+        .WithFormat("LocalSatisfaction", "%.4lg", PostUpdateAttributes_.LocalSatisfactionRatio)
+        .With("StarvationStatus", GetStarvationStatus())
+        .With("Weight", GetWeight())
+        .With("Volume", GetAccumulatedResourceRatioVolume());
 }
 
-std::string TPoolTreeElement::GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const
+NLogging::TLoggingTagList TPoolTreeElement::GetLoggingTags(const TPoolTreeSnapshotPtr& treeSnapshot) const
 {
-    TStringBuilder builder;
-    builder.AppendFormat("Scheduling info for tree %Qv = {", GetTreeId());
+    auto tags = BuildLoggingTags();
+    tags.Add(TreeElementHost_->BuildElementLoggingTags(treeSnapshot, this));
 
-    TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
-    BuildLoggingStringAttributes(delimitedBuilder);
-    TreeElementHost_->BuildElementLoggingStringAttributes(treeSnapshot, this, delimitedBuilder);
-
-    builder.AppendString("}");
-
-    return builder.Flush();
+    return tags;
 }
 
 double TPoolTreeElement::GetWeight() const
@@ -1959,14 +1950,11 @@ void TPoolTreeOperationElement::UpdateControllerConfig(const TStrategyOperationC
     ControllerConfig_ = config;
 }
 
-void TPoolTreeOperationElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const
+NLogging::TLoggingTagList TPoolTreeOperationElement::BuildLoggingTags() const
 {
-    TPoolTreeElement::BuildLoggingStringAttributes(delimitedBuilder);
-
-    delimitedBuilder->AppendFormat(
-        "PendingAllocations: %v, AggregatedMinNeededResources: %v",
-        PendingAllocationCount_,
-        AggregatedMinNeededAllocationResources_);
+    return TPoolTreeElement::BuildLoggingTags()
+        .With("PendingAllocations", PendingAllocationCount_)
+        .With("AggregatedMinNeededResources", AggregatedMinNeededAllocationResources_);
 }
 
 bool TPoolTreeOperationElement::AreDetailedLogsEnabled() const

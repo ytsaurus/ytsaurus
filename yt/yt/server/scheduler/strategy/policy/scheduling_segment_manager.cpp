@@ -1050,10 +1050,9 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
     TSchedulingSegmentMap<bool> segmentUnsatisfied;
     TSchedulingSegmentMap<bool> segmentOversatisfied;
     bool imbalanced = !CheckSegmentBalance(context, &segmentUnsatisfied, &segmentOversatisfied);
-    YT_LOG_WARNING_IF(imbalanced,
-        "Failed to satisfy all scheduling segments during rebalancing (SegmentUnsatisfied: %v, SegmnetOversatisfied: %v)",
-        segmentUnsatisfied,
-        segmentOversatisfied);
+    YT_TLOG_WARNING_IF(imbalanced, "Failed to satisfy all scheduling segments during rebalancing")
+        .With("SegmentUnsatisfied", segmentUnsatisfied)
+        .With("SegmentOversatisfied", segmentOversatisfied);
 
     YT_TLOG_DEBUG("Finished node scheduling segments rebalancing")
         .With("TotalMovedNodeCount", movedNodes.size())

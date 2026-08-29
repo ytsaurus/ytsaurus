@@ -256,10 +256,9 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
         ] (const TError& /*error*/) {
             auto now = TInstant::Now();
             if (startTime + longScheduleAllocationThreshold < now) {
-                YT_LOG_DEBUG(
-                    "Schedule allocation takes too long (Duration: %v ms, LongScheduleAllocationThreshold: %v ms)",
-                    (now - startTime).MilliSeconds(),
-                    longScheduleAllocationThreshold.MilliSeconds());
+                YT_TLOG_DEBUG("Schedule allocation takes too long")
+                    .With("Duration", now - startTime)
+                    .With("LongScheduleAllocationThreshold", longScheduleAllocationThreshold);
             }
         }));
 

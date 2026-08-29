@@ -996,7 +996,8 @@ private:
 
             Owner_->LockTransaction_ = transactionOrError.Value();
 
-            YT_LOG_INFO("Lock transaction is %v", Owner_->LockTransaction_->GetId());
+            YT_TLOG_INFO("Lock transaction acquired")
+                .With("LockTransactionId", Owner_->LockTransaction_->GetId());
         }
 
         // - Take lock.
@@ -1561,9 +1562,9 @@ private:
         auto attachTransaction = [&] (TTransactionId transactionId, bool ping, const std::string& name = std::string()) -> ITransactionPtr {
             if (!transactionId) {
                 if (!name.empty()) {
-                    YT_LOG_DEBUG("Missing %v transaction (OperationId: %v)",
-                        name,
-                        operationId);
+                    YT_TLOG_DEBUG("Missing operation transaction")
+                        .With("TransactionType", name)
+                        .With("OperationId", operationId);
                 }
                 return nullptr;
             }
@@ -2168,7 +2169,8 @@ private:
         if (alertType) {
             SetSchedulerAlert(*alertType, error);
         }
-        YT_LOG_WARNING(error);
+        YT_TLOG_WARNING("Watcher handler failed")
+            .With(error);
     }
 
     void UpdateAlerts()
