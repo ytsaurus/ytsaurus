@@ -19,7 +19,7 @@ class TNativeAuthenticator
     : public IAuthenticator
 {
 public:
-    explicit TNativeAuthenticator(std::function<bool(TTvmId)> sourceValidator)
+    explicit TNativeAuthenticator(std::function<TError(TTvmId)> sourceValidator)
         : AuthenticationManager_(TNativeAuthenticationManager::Get())
         , TvmService_(AuthenticationManager_->GetTvmService())
         , SourceValidator_(std::move(sourceValidator))
@@ -56,7 +56,7 @@ public:
 private:
     TNativeAuthenticationManager* const AuthenticationManager_;
     const ITvmServicePtr TvmService_;
-    const std::function<bool(TTvmId)> SourceValidator_;
+    const std::function<TError(TTvmId)> SourceValidator_;
 
     bool NeedsAuthentication(const TAuthenticationContext& context) const
     {
@@ -99,13 +99,8 @@ private:
 
         try {
             auto ticket = TvmService_->ParseServiceTicket(ext.service_ticket());
-
-            if (!SourceValidator_(ticket.TvmId)) {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::AuthenticationError,
-                    "Source TVM id %v is rejected", ticket.TvmId);
-            }
-
+            SourceValidator_(ticket.TvmId)
+                .ThrowOnError();
             return TError();
         } catch (const std::exception& ex) {
             return TError(
@@ -118,7 +113,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IAuthenticatorPtr CreateNativeAuthenticator(std::function<bool(TTvmId)> sourceValidator)
+NRpc::IAuthenticatorPtr CreateNativeAuthenticator(std::function<TError(TTvmId)> sourceValidator)
 {
     return New<TNativeAuthenticator>(std::move(sourceValidator));
 }
