@@ -97,10 +97,6 @@ public:
         IConnectionPtr connection,
         const NLogging::TLogger& logger);
 
-    void Reconfigure(TChaosResidencyCacheConfigPtr config) override;
-
-    TChaosResidencyCacheConfigPtr GetCacheConfig() const;
-
 protected:
     class TGetSession;
 
@@ -108,9 +104,6 @@ protected:
         const TObjectId& objectId,
         const TCellTag& oldValue,
         bool forceRefresh) override;
-
-private:
-    TAtomicIntrusivePtr<TChaosResidencyCacheConfig> Config_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,31 +332,21 @@ public:
 
         auto defaultTimeout = connection->GetConfig()->DefaultChaosNodeServiceTimeout;
         auto channelFuture = EnsureChaosCellChannel(connection, CellTag_);
-        return RunWithHasChaosObject(connection, std::move(channelFuture), defaultTimeout);
-    }
 
-private:
-    const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
-
-    TFuture<TCellTag> RunWithHasChaosObject(
-        const IConnectionPtr& connection,
-        TFuture<IChannelPtr>&& channelFuture,
-        TDuration defaultTimeout)
-    {
         auto checkLastSeenResidencyFuture = channelFuture.IsSet()
-            ? CheckLastSeenResidencyViaIsChaosObjectExistent(
+            ? CheckLastSeenResidency(
                 ObjectId_,
                 CellTag_,
                 defaultTimeout,
                 std::move(channelFuture.AsUnique().GetOrCrash()
                     .ValueOrDefault(nullptr)))
             : channelFuture.AsUnique().Apply(BIND(
-                TGetSession::CheckLastSeenResidencyViaIsChaosObjectExistent,
+                TGetSession::CheckLastSeenResidency,
                 ObjectId_,
                 CellTag_,
                 defaultTimeout));
 
-        auto fullLookupFuture = checkLastSeenResidencyFuture.AsUnique().Apply(BIND(
+        return checkLastSeenResidencyFuture.AsUnique().Apply(BIND(
             [
                 this,
                 this_ = MakeStrong(this),
@@ -384,14 +367,15 @@ private:
                 }
 
                 // Cell is unavailable or replication card is absent.
-                return LookForObjectOnAllChaosCellsViaIsChaosObjectExistent(
+                return LookForObjectOnAllChaosCells(
                     connection->GetCellDirectory(),
                     defaultTimeout);
             }
         ));
-
-        return fullLookupFuture;
     }
+
+private:
+    const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
 
     static TFuture<TChaosObjectLocationResult> CheckResidency(
         IChannelPtr&& channel,
@@ -423,7 +407,7 @@ private:
         ));
     }
 
-    static TFuture<TChaosObjectLocationResult> CheckLastSeenResidencyViaIsChaosObjectExistent(
+    static TFuture<TChaosObjectLocationResult> CheckLastSeenResidency(
         const TObjectId& objectId,
         TCellTag cellTag,
         TDuration timeout,
@@ -436,7 +420,7 @@ private:
         return CheckResidency(std::move(channel), objectId, timeout, cellTag);
     }
 
-    TFuture<TCellTag> LookForObjectOnAllChaosCellsViaIsChaosObjectExistent(
+    TFuture<TCellTag> LookForObjectOnAllChaosCells(
         const ICellDirectoryPtr& cellDirectory,
         TDuration timeout)
     {
@@ -541,22 +525,10 @@ TChaosResidencyMasterCache::TChaosResidencyMasterCache(
     IConnectionPtr connection,
     const NLogging::TLogger& logger)
     : TChaosResidencyCacheBase(
-        config,
+        std::move(config),
         std::move(connection),
         logger)
-    , Config_(std::move(config))
 { }
-
-void TChaosResidencyMasterCache::Reconfigure(TChaosResidencyCacheConfigPtr config)
-{
-    Config_.Store(config);
-    TChaosResidencyCacheBase::Reconfigure(std::move(config));
-}
-
-TChaosResidencyCacheConfigPtr TChaosResidencyMasterCache::GetCacheConfig() const
-{
-    return Config_.Acquire();
-}
 
 TIntrusivePtr<TChaosResidencyCacheBase::TGetSessionBase> TChaosResidencyMasterCache::CreateGetSession(
     const TObjectId& objectId,
