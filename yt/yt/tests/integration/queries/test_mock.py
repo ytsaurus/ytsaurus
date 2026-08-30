@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    add_member, authors, create_access_control_object, remove,
+    abort_transaction, add_member, authors, create_access_control_object, remove,
     make_ace, raises_yt_error, wait, create_user, print_debug, select_rows,
     set, get, insert_rows, sync_compact_table, generate_uuid, ls)
 
@@ -115,6 +115,19 @@ class TestQueriesMock(YTEnvSetup):
         with raises_yt_error("Query .* aborted"):
             q.track()
         assert q.get_state() == "aborted"
+
+    @authors("ngc224")
+    def test_fail_query_after_lease_loss(self, query_tracker):
+        q = start_query("mock", "complete_after", settings={"duration": 60000})
+        wait(lambda: q.get_state() == "running")
+
+        active_query = q.get(attributes=["lease_transaction_id"])
+        abort_transaction(active_query["lease_transaction_id"])
+
+        with raises_yt_error("Query lease was lost; restarting query execution is unsafe"):
+            q.track()
+
+        assert q.get_state() == "failed"
 
     @authors("max42")
     def test_complete(self, query_tracker):
