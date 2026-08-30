@@ -2163,9 +2163,9 @@
     ],
     "test.test[select_yql-from_table_func_walkfolders-default.txt-Debug]": [
         {
-            "checksum": "073c7c15fb920db14943d6ec8f6cdab3",
-            "size": 382,
-            "uri": "https://{canondata_backend}/1031349/c78e0d43e78160bac227401aa7524f754948fb01/resource.tar.gz#test.test_select_yql-from_table_func_walkfolders-default.txt-Debug_/opt.yql"
+            "checksum": "4b3ce732f42c11159ca963140da16ce0",
+            "size": 456,
+            "uri": "https://{canondata_backend}/1925821/700f17c1fbb1e114825fc211ea1c1dd7b9b6ac12/resource.tar.gz#test.test_select_yql-from_table_func_walkfolders-default.txt-Debug_/opt.yql"
         }
     ],
     "test.test[select_yql-from_table_func_walkfolders-default.txt-Plan]": [
