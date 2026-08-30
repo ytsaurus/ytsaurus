@@ -96,6 +96,8 @@ public:
         return StartedSession_.SessionId;
     }
 
+    DEFINE_SIGNAL_OVERRIDE(TSessionProgressUpdatedSignature, ProgressUpdated);
+
     void FailUnexpectedly(const TError& error)
     {
         ClosedPromise_.TrySet(error);
