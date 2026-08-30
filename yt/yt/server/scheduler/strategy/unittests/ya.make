@@ -5,13 +5,15 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
-    assignment_plan_update_ut.cpp
     packing_ut.cpp
     pool_tree_element_ut.cpp
-    pool_tree_snapshot_state_ut.cpp
     scheduling_policy_ut.cpp
     operation_controller_ut.cpp
 )
+
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ENDIF()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
