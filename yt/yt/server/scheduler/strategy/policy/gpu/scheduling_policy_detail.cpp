@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -798,6 +800,7 @@ void TSchedulingPolicy::UpdateAssignmentPlan()
     auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&AssignmentPlanUpdateLock_))
         .ValueOrThrow();
 
+    NTracing::TTraceContextGuard traceContextGuard(NTracing::TTraceContext::NewRoot("UpdateAssignmentPlan"));
     TForbidContextSwitchGuard contextSwitchGuard;
 
     if (auto now = TInstant::Now(); now <= InitializationFromPersistentStateDeadline_) {
