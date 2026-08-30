@@ -11,12 +11,9 @@ namespace NYT::NScheduler::NStrategy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constinit const auto Logger = StrategyLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace NConcurrency;
 using namespace NThreading;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,9 +39,11 @@ void MaybeDelay(const std::atomic<TDuration::TValue>& delay, EDelayType delayTyp
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceTree::TResourceTree(
+    TLogger logger,
     const TStrategyTreeConfigPtr& config,
     const std::vector<IInvokerPtr>& feasibleInvokers)
-    : FeasibleInvokers_(feasibleInvokers)
+    : Logger(std::move(logger))
+    , FeasibleInvokers_(feasibleInvokers)
 {
     if (config) {
         UpdateConfig(config);
@@ -238,7 +237,7 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeEleme
 
     YT_VERIFY(element->Initialized_);
 
-    auto increaseLocalResourceUsage = [element] (auto* current, const TJobResources& delta) {
+    auto increaseLocalResourceUsage = [this, element] (auto* current, const TJobResources& delta) {
         bool success = current->IncreaseLocalResourceUsage(delta);
         YT_TLOG_DEBUG_UNLESS(success, "Local increase of usage failed")
             .With("Delta", delta)
@@ -289,7 +288,7 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
     YT_VERIFY(element->Initialized_);
 
-    auto increaseLocalResourceUsagePrecommit = [element, enableDetailedLogs] (auto* current, const TJobResources& delta) {
+    auto increaseLocalResourceUsagePrecommit = [this, element, enableDetailedLogs] (auto* current, const TJobResources& delta) {
         bool success = current->IncreaseLocalResourceUsagePrecommit(delta, enableDetailedLogs);
         YT_TLOG_DEBUG_UNLESS(success, "Local increase of usage precommit failed")
             .With("Delta", delta)
@@ -407,7 +406,7 @@ void TResourceTree::CommitHierarchicalResourceUsage(
     YT_VERIFY(element->Kind_ == EResourceTreeElementKind::Operation);
     YT_VERIFY(element->Initialized_);
 
-    auto commitLocalResourceUsage = [element] (auto* current, const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources) {
+    auto commitLocalResourceUsage = [this, element] (auto* current, const TJobResources& resourceUsageDelta, const TJobResources& precommittedResources) {
         bool success = current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
         YT_TLOG_DEBUG_UNLESS(success, "Local commit of usage failed")
             .With("ResourceUsageDelta", resourceUsageDelta)
@@ -459,7 +458,7 @@ EResourceTreeIncreasePreemptedResult TResourceTree::TryIncreaseHierarchicalPreem
         elementWithViolatedLimits = element.Get();
     }
 
-    auto increaseLocalPreemptedResourceUsagePrecommitUnsafe = [element] (auto* current, const TJobResources& delta) {
+    auto increaseLocalPreemptedResourceUsagePrecommitUnsafe = [this, element] (auto* current, const TJobResources& delta) {
         auto precommitStatus = current->IncreaseLocalPreemptedResourceUsagePrecommitUnsafe(delta);
         YT_TLOG_DEBUG_UNLESS(precommitStatus, "Local increase of precommit preempted resource usage failed")
             .With("ResourceUsageDelta", delta)
