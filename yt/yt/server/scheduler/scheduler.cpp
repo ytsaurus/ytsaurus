@@ -3552,11 +3552,11 @@ private:
                 WaitFor(controller->Terminate(finalState))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to abort controller of operation %v", operation->GetId())
-                    .With(ex);
                 if (auto agent = operation->FindAgent()) {
                     YT_TLOG_WARNING("Failed to abort operation controller")
                         .With("OperationId", operation->GetId())
+                        .With(ex);
+                    auto error = TError("Failed to abort controller of operation %v", operation->GetId())
                         .With(ex);
                     Bootstrap_->GetControllerAgentTracker()->HandleAgentFailure(agent, error);
                 } else {

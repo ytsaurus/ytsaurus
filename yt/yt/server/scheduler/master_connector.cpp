@@ -996,7 +996,7 @@ private:
 
             Owner_->LockTransaction_ = transactionOrError.Value();
 
-            YT_TLOG_INFO("Lock transaction acquired")
+            YT_TLOG_INFO("Lock transaction started")
                 .With("LockTransactionId", Owner_->LockTransaction_->GetId());
         }
 
