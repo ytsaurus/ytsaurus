@@ -110,7 +110,7 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             !TLeaseManager::RenewLease(std::move(lease)),
             NChunkClient::EErrorCode::NoSuchSession,
-            "Chunk write session %v is invalid or expired",
+            "Lease of chunk write session %v has expired",
             sessionId);
         return std::move(sequencer);
     }

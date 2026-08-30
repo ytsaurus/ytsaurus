@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <library/cpp/yt/string/format.h>
 
 #include <util/generic/strbuf.h>
@@ -9,15 +11,6 @@
 #include <iosfwd>
 
 namespace NYT::NDistributedChunkSessionClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto {
-
-class TSessionProgress;
-class TWriteRecordStatistics;
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

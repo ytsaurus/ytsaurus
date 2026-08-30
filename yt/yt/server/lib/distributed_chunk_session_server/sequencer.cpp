@@ -169,7 +169,7 @@ public:
                 .With("row_count", statistics.RowCount));
         }
 
-        i64 compressedDataSize = static_cast<i64>(record.Size());
+        i64 compressedDataSize = std::ssize(record);
 
         {
             auto guard = Guard(StateLock_);
