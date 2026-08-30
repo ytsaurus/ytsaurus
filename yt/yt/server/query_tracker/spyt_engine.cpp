@@ -1005,6 +1005,11 @@ public:
         , ProxyEngineProvider_(New<TProxySpytEngineProvider>(StateClient_))
     { }
 
+    bool IsSafeToRestartQuery() const override
+    {
+        return false;
+    }
+
     IQueryHandlerPtr StartOrAttachQuery(TActiveQuery activeQuery) override
     {
         const auto& sparkVersion = Config_->SparkVersion;

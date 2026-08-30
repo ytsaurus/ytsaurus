@@ -384,6 +384,26 @@ private:
         // If current query state is "running", switch it to "pending". Otherwise, keep the existing state of a query;
         // in particular, it may be "failing" or "completing" if the previous incarnation succeeded in reaching pre-terminating state.
         auto newState = optionalRecord->State == EQueryState::Running ? EQueryState::Pending : optionalRecord->State;
+        std::optional<TError> acquisitionError;
+        auto engine = Engines_[queryRecord.Engine];
+
+        if (queryRecord.LeaseTransactionId != NullTransactionId &&
+            !IsFinishingState(newState) &&
+            !engine->IsSafeToRestartQuery())
+        {
+            newState = EQueryState::Failing;
+
+            auto error = TError("Query lease was lost; restarting query execution is unsafe")
+                .With("previous_incarnation", queryRecord.Incarnation)
+                .With("previous_lease_transaction_id", queryRecord.LeaseTransactionId);
+
+            if (queryRecord.AssignedTracker) {
+                error = std::move(error)
+                    .With("previous_assigned_tracker", *queryRecord.AssignedTracker);
+            }
+
+            acquisitionError = std::move(error);
+        }
 
         auto rowBuffer = New<TRowBuffer>();
         TActiveQueryPartial newRecord{
@@ -393,6 +413,12 @@ private:
             .LeaseTransactionId = leaseTransactionId,
             .AssignedTracker = SelfAddress_,
         };
+
+        if (acquisitionError) {
+            newRecord.Error = acquisitionError;
+            newRecord.FinishTime = TInstant::Now();
+        }
+
         std::vector newRows{
             newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetPartialIdMapping()),
         };
@@ -425,10 +451,9 @@ private:
             .With("LeaseTransactionId", leaseTransactionId);
 
         IQueryHandlerPtr handler;
-        if (!IsFinishingState(optionalRecord->State)) {
+        if (!IsFinishingState(newState)) {
             try {
-                auto engine = queryRecord.Engine;
-                handler = Engines_[engine]->StartOrAttachQuery(queryRecord);
+                handler = engine->StartOrAttachQuery(queryRecord);
                 handler->Start();
             } catch (const std::exception& ex) {
                 YT_TLOG_INFO("Unrecoverable error on query start, finishing query")
@@ -771,7 +796,9 @@ private:
                     .With("ExpectedLeaseTransactionId", transactionId);
             }
 
-            DetachQuery(queryId);
+            if (query.Handler) {
+                query.Handler->Detach();
+            }
         }
     }
 

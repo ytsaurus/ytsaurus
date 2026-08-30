@@ -446,6 +446,11 @@ public:
             StateClient_->GetNativeConnection()->GetConfig()->BusClient)))
     { }
 
+    bool IsSafeToRestartQuery() const override
+    {
+        return false;
+    }
+
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
         return New<TChytQueryHandler>(StateClient_, StateRoot_, ChytConfig_, ChannelFactory_, activeQuery, ClusterDirectory_, ControlQueue_->GetInvoker());
