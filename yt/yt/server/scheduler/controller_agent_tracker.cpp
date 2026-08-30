@@ -1327,7 +1327,7 @@ private:
 
                 tagsWithTooFewAgents.insert(tag);
                 errors.push_back(
-                    TError{"Too few agents matching tag"}
+                    TError("Too few agents matching tag")
                         .With(TErrorAttribute{"controller_agent_tag", tag})
                         .With(TErrorAttribute{"alive_agents", aliveAgentWithCurrentTag})
                         .With(TErrorAttribute{"agents", agentsWithTag})
@@ -1341,8 +1341,10 @@ private:
 
         TError error;
         if (!errors.empty()) {
-            error = TError{EErrorCode::WatcherHandlerFailed, "Too few matching agents"}.With(std::move(errors));
-            YT_TLOG_WARNING("Too few matching agents")
+            static constexpr auto Message = "Too few matching agents"_sb;
+            error = TError(EErrorCode::WatcherHandlerFailed, Message)
+                .With(std::move(errors));
+            YT_TLOG_WARNING(Message)
                 .With(error);
         }
         Bootstrap_->GetScheduler()->GetMasterConnector()->SetSchedulerAlert(
