@@ -384,6 +384,13 @@ public:
             config->MutationHandlerFailureLogLevel);
     }
 
+    ELogLevel GetUnknownAutomatonPartsLogLevel() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return Config_->Get()->UnknownAutomatonPartsLogLevel;
+    }
+
     bool IsEnteringReadOnlyMode() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();

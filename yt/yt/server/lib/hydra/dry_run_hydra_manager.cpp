@@ -325,6 +325,14 @@ public:
             config->MutationHandlerFailureLogLevel);
     }
 
+    ELogLevel GetUnknownAutomatonPartsLogLevel() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return Config_->Get()->UnknownAutomatonPartsLogLevel;
+    }
+
+
     DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);
     DEFINE_SIGNAL_OVERRIDE(void(), AutomatonLeaderRecoveryComplete);
     DEFINE_SIGNAL_OVERRIDE(void(), ControlLeaderRecoveryComplete);

@@ -522,6 +522,9 @@ struct TDistributedHydraManagerConfig
     //! Sets per-mutation overrides for the log level above.
     THashMap<std::string, NLogging::ELogLevel> MutationHandlerFailureLogLevelOverrides;
 
+    //! Sets log level at which unknown automaton parts on snapshot load are reported.
+    NLogging::ELogLevel UnknownAutomatonPartsLogLevel;
+
     TDistributedHydraManagerConfigPtr ApplyDynamic(const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig) const;
     void ApplyDynamicInplace(const TDynamicDistributedHydraManagerConfig& dynamicConfig);
 
