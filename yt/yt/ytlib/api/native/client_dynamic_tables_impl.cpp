@@ -1504,25 +1504,37 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
                 options.DetailedProfilingInfo->WastedSubrequestCount += std::ssize(results) - failedSubrequestCount;
             }
 
-            // If any subrequest failed with TabletServantIsNotActive and partial result is not
-            // requested, collect all such errors and throw them as a single combined error so
-            // that the mount cache can patch all affected tablets in one shot.
-            std::vector<TError> servantNotActiveErrors;
+            // If all failed subrequests contain redirection errors and partial result is not
+            // requested, throw them as a single combined error so that the mount cache can patch
+            // all affected tablets in one shot. Otherwise, prioritize a non-redirection error so
+            // that regular mount cache invalidation is performed.
+            std::vector<TError> redirectionErrors;
+            std::optional<TError> nonRedirectionError;
             for (const auto& result : results) {
-                if (!result.IsOK()) {
-                    if (result.FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive)) {
-                        servantNotActiveErrors.push_back(result);
-                    }
+                if (result.IsOK()) {
+                    continue;
+                }
+
+                if (result.FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive) ||
+                    result.FindMatching(NTabletClient::EErrorCode::TabletResharded))
+                {
+                    redirectionErrors.push_back(result);
+                } else if (!nonRedirectionError) {
+                    nonRedirectionError = result;
                 }
             }
 
-            if (!servantNotActiveErrors.empty()) {
-                if (servantNotActiveErrors.size() == 1) {
-                    servantNotActiveErrors[0].ThrowOnError();
+            if (!redirectionErrors.empty() && !nonRedirectionError) {
+                if (redirectionErrors.size() == 1) {
+                    redirectionErrors[0].ThrowOnError();
                 } else {
-                    THROW_ERROR_EXCEPTION("Some lookup subrequests failed because tablet servants are not active")
-                        << servantNotActiveErrors;
+                    THROW_ERROR_EXCEPTION("Some lookup subrequests failed because tablet metadata changed")
+                        << redirectionErrors;
                 }
+            }
+
+            if (nonRedirectionError) {
+                nonRedirectionError->ThrowOnError();
             }
         }
     }
