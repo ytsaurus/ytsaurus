@@ -1,7 +1,7 @@
 #pragma once
 
-#include "seal_summary_fetcher.h"
 #include "public.h"
+#include "seal_summary_fetcher.h"
 
 #include <yt/yt/core/actions/callback.h>
 
