@@ -73,30 +73,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Reports the job's recently consumed I/O over #window to the data node via the
-// io_consumed request field. No-op when no meter is attached.
-template <class TRequestPtr>
-void SetRequestIoConsumed(const TRequestPtr& req, const TClientChunkWriteOptions& options, TDuration window)
-{
-    if (const auto& jobIoMeter = options.JobIoMeter) {
-        req->set_io_consumed(jobIoMeter->GetIoConsumedInWindow(window));
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Reports the configured I/O fair-share weight to the data node via the
-// io_fair_share_weight request field. No-op when the weight is not set.
-template <class TRequestPtr>
-void SetRequestIoFairShareWeight(const TRequestPtr& req, std::optional<double> weight)
-{
-    if (weight) {
-        req->set_io_fair_share_weight(*weight);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_CLASS(TReplicationWriter)
 DECLARE_REFCOUNTED_CLASS(TNode)
 DECLARE_REFCOUNTED_CLASS(TGroup)
@@ -1183,7 +1159,7 @@ private:
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
         SetRequestIoConsumed(req, options.ClientOptions, Config_->IoConsumedReportWindow);
-        SetRequestIoFairShareWeight(req, Config_->IoFairShareWeight);
+        SetRequestIoFairShareWeight(req, options.ClientOptions, Config_->IoFairShareWeight);
 
         // NB: If we are under erasure writer, he already have called #Finalize() on chunkMeta.
         // In particular, there might be parallel part writers, so in this case we should
@@ -1432,7 +1408,7 @@ void TGroup::ProbePutBlocks(const TReplicationWriterPtr& writer, const IChunkWri
             req->set_cumulative_block_size(CumulativeBlockSize_);
             ToProto(req->mutable_session_id(), writer->SessionId_);
             SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
-            SetRequestIoFairShareWeight(req, writer->Config_->IoFairShareWeight);
+            SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
             auto rspOrError = WaitFor(req->Invoke());
 
             if (rspOrError.IsOK()) {
@@ -1498,7 +1474,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
         req->set_populate_cache(writer->Config_->PopulateCache);
         req->set_cumulative_block_size(CumulativeBlockSize_);
         SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
-        SetRequestIoFairShareWeight(req, writer->Config_->IoFairShareWeight);
+        SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
 
         SetRpcAttachedBlocks(req, Blocks_);
 
@@ -1602,7 +1578,7 @@ void TGroup::SendGroup(
         req->set_block_count(Blocks_.size());
         req->set_cumulative_block_size(CumulativeBlockSize_);
         SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
-        SetRequestIoFairShareWeight(req, writer->Config_->IoFairShareWeight);
+        SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
         ToProto(req->mutable_target_descriptor(), dstNode->GetDescriptor());
 
         sendBlocksFutures.push_back(req->Invoke());

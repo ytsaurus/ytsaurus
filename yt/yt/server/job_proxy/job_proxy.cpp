@@ -553,7 +553,7 @@ void TJobProxy::RetrieveJobSpec()
     LogJobSpec(GetJobSpecHelper()->GetJobSpec());
 
     auto totalMemoryReserve = resourceUsage.memory();
-    CpuGuarantee_ = resourceUsage.cpu();
+    SetCpuGuarantee(resourceUsage.cpu());
     NetworkUsage_ = resourceUsage.network();
 
     // We never report to node less memory usage, than was initially reserved.
@@ -776,6 +776,14 @@ void TJobProxy::UpdateCumulativeMemoryUsage(i64 memoryUsage)
     LastMemoryMeasureTime_ = now;
 }
 
+void TJobProxy::SetCpuGuarantee(double cpuGuarantee)
+{
+    CpuGuarantee_ = cpuGuarantee;
+    if (JobIoMeter_) {
+        JobIoMeter_->SetIoFairShareWeight(cpuGuarantee);
+    }
+}
+
 void TJobProxy::SetJob(IJobPtr job)
 {
     Job_.Store(std::move(job));
@@ -924,7 +932,9 @@ TJobResult TJobProxy::RunJob()
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
         TrafficMeter_->Start();
 
-        JobIoMeter_ = New<TJobIoMeter>(Config_->JobIoMeterMaxHistoryDuration);
+        JobIoMeter_ = New<TJobIoMeter>(
+            Config_->JobIoMeterMaxHistoryDuration,
+            Config_->EnableJobIoStatistics);
 
         YT_VERIFY(Config_->BusServer->UnixDomainSocketPath);
         YT_VERIFY(Config_->GrpcServer->Addresses.size() == 1);
@@ -2157,7 +2167,7 @@ bool TJobProxy::TrySetCpuGuarantee(double cpuGuarantee)
         YT_TLOG_INFO("Changed CPU share")
             .With("OldCpuShare", CpuGuarantee_.load())
             .With("NewCpuShare", cpuGuarantee);
-        CpuGuarantee_ = cpuGuarantee;
+        SetCpuGuarantee(cpuGuarantee);
         UpdateResourceUsage();
         return true;
     } else {

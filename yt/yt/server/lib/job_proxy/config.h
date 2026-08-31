@@ -456,6 +456,11 @@ struct TJobProxyInternalConfig
     TDuration HeartbeatPeriod;
     TDuration InputPipeBlinkerPeriod;
 
+    //! Enables reporting per-job I/O statistics to data nodes.
+    //! When disabled, neither io_consumed nor io_fair_share_weight is sent,
+    //! including an explicitly configured reader or writer weight.
+    bool EnableJobIoStatistics;
+
     //! Time span over which the job I/O meter retains accounted I/O history.
     TDuration JobIoMeterMaxHistoryDuration;
 
@@ -601,6 +606,8 @@ struct TJobProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
     NTracing::TJaegerTracerDynamicConfigPtr Jaeger;
+
+    bool EnableJobIoStatistics;
 
     bool EnableJobShellSeccopm;
 
