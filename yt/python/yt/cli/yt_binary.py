@@ -1112,6 +1112,7 @@ def add_select_rows_parser(add_parser):
     group.add_argument("--forbid-join-without-index", dest="allow_join_without_index",
                        default=None, action="store_false")
     parser.add_argument("--execution-pool", type=str)
+    parser.add_argument("--replica-consistency", type=str, choices=["none", "sync"])
     parser.add_argument("--format", action=ParseFormat)
     parser.add_argument("--print-statistics", default=None, action="store_true")
     parser.add_argument("--syntax-version", type=int)
@@ -1165,6 +1166,7 @@ def add_lookup_rows_parser(add_parser):
     add_format_argument(parser, help="input format")
     parser.add_argument("--timestamp", type=int)
     parser.add_argument("--versioned", action="store_true", help="return all versions of the requested rows")
+    parser.add_argument("--replica-consistency", type=str, choices=["none", "sync"])
     parser.add_argument("--column-name", action="append", help="column name to lookup", dest="column_names")
     parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin))
 
