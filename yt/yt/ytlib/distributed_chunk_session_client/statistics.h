@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/client/chunk_client/public.h>
+
+#include <yt/yt/core/phoenix/type_decl.h>
+
 #include <library/cpp/yt/error/error.h>
 
 #include <library/cpp/yt/yson/public.h>
@@ -16,6 +20,7 @@
 
 #include <iosfwd>
 #include <optional>
+#include <utility>
 #include <variant>
 
 namespace NYT::NDistributedChunkSessionClient {
@@ -40,6 +45,8 @@ struct TDistributedChunkSessionProgress
     i64 RowCount = 0;
 
     bool operator==(const TDistributedChunkSessionProgress&) const = default;
+
+    PHOENIX_DECLARE_TYPE(TDistributedChunkSessionProgress, 0x4be2fca1);
 };
 
 struct TSessionSealSummary
@@ -59,9 +66,47 @@ bool IsNonnegative(const TDistributedChunkSessionProgress& progress);
 
 bool IsNonnegative(const TSessionSealSummary& summary);
 
+void VerifyNonnegative(const TDistributedChunkSessionProgress& progress);
+
+//! Every record carries at least one row, and a row weighs at least one unit of every
+//! measure, so no component ever drops below the record count. Splitting and
+//! extrapolation preserve this, which lets uncompressed data size be used directly as a
+//! strictly positive job-size weight.
+void VerifyAtLeastOneUnitPerRecord(const TDistributedChunkSessionProgress& progress);
+
 bool IsComponentwiseLessOrEqual(
     const TDistributedChunkSessionProgress& lhs,
     const TDistributedChunkSessionProgress& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDistributedChunkSessionProgress operator+(
+    const TDistributedChunkSessionProgress& lhs,
+    const TDistributedChunkSessionProgress& rhs);
+
+TDistributedChunkSessionProgress& operator+=(
+    TDistributedChunkSessionProgress& lhs,
+    const TDistributedChunkSessionProgress& rhs);
+
+TDistributedChunkSessionProgress operator-(
+    const TDistributedChunkSessionProgress& lhs,
+    const TDistributedChunkSessionProgress& rhs);
+
+//! Requires nonnegative |progress| with |progress.RecordCount| > 0,
+//! |prefixRecordCount| in [0, |progress.RecordCount|], and nonempty records.
+//! Both halves keep nonempty records and sum to |progress|.
+std::pair<TDistributedChunkSessionProgress, TDistributedChunkSessionProgress> Split(
+    const TDistributedChunkSessionProgress& progress,
+    i64 prefixRecordCount);
+
+//! Requires nonnegative |sample| with |sample.RecordCount| > 0 and nonempty records,
+//! |recordCount| nonnegative, and |compressedDataSize| at least |recordCount|.
+//! Compressed data size is taken verbatim rather than extrapolated, so that the seal
+//! total is reproduced exactly; the remaining components keep nonempty records.
+TDistributedChunkSessionProgress Extrapolate(
+    const TDistributedChunkSessionProgress& sample,
+    i64 recordCount,
+    i64 compressedDataSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

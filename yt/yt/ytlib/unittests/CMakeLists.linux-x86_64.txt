@@ -81,6 +81,7 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/downed_cell_tracker_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/encoding_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/erasure_parts_reader_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/input_chunk_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/job_resources_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/journal_chunk_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/memory_usage_tracker_ut.cpp

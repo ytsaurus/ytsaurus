@@ -22,6 +22,7 @@ SRCS(
     job_splitting_base_ut.cpp
     multi_chunk_pool_ut.cpp
     ordered_chunk_pool_ut.cpp
+    push_based_shuffle_chunk_pool_ut.cpp
     sorted_chunk_pool_ut.cpp
     sorted_staging_area_ut.cpp
     unordered_chunk_pool_ut.cpp

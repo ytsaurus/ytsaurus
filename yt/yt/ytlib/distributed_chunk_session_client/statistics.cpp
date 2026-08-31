@@ -2,16 +2,45 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/proto/session_service.pb.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/library/numeric/util.h>
+
+#include <library/cpp/yt/string/format.h>
 #include <library/cpp/yt/string/string_builder.h>
 
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include <ostream>
 
 namespace NYT::NDistributedChunkSessionClient {
 
 using namespace NYson;
 using namespace NYTree;
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 MultiplyAndDivideApproximately(i64 lhs, i64 rhs, i64 divisor)
+{
+    YT_VERIFY(lhs >= 0);
+    YT_VERIFY(rhs >= 0);
+    YT_VERIFY(divisor > 0);
+
+    double result = static_cast<double>(lhs) * rhs / divisor;
+    YT_VERIFY(
+        std::isfinite(result) &&
+        result <= static_cast<double>(std::numeric_limits<i64>::max()));
+    return SignedSaturationConversion(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +54,20 @@ bool IsNonnegative(const TSessionSealSummary& summary)
     return summary.RecordCount >= 0 && summary.PhysicalCompressedDataSize >= 0;
 }
 
+void VerifyNonnegative(const TDistributedChunkSessionProgress& progress)
+{
+    YT_VERIFY(IsNonnegative(progress));
+}
+
+void VerifyAtLeastOneUnitPerRecord(const TDistributedChunkSessionProgress& progress)
+{
+    YT_VERIFY(
+        progress.DataWeight >= progress.RecordCount &&
+        progress.CompressedDataSize >= progress.RecordCount &&
+        progress.UncompressedDataSize >= progress.RecordCount &&
+        progress.RowCount >= progress.RecordCount);
+}
+
 bool IsComponentwiseLessOrEqual(
     const TDistributedChunkSessionProgress& lhs,
     const TDistributedChunkSessionProgress& rhs)
@@ -34,6 +77,122 @@ bool IsComponentwiseLessOrEqual(
         lhs.UncompressedDataSize <= rhs.UncompressedDataSize &&
         lhs.RecordCount <= rhs.RecordCount &&
         lhs.RowCount <= rhs.RowCount;
+}
+
+TDistributedChunkSessionProgress operator+(
+    const TDistributedChunkSessionProgress& lhs,
+    const TDistributedChunkSessionProgress& rhs)
+{
+    auto checkedAdd = [] (i64 lhs, i64 rhs) {
+        YT_VERIFY(!(
+            (rhs > 0 && lhs > std::numeric_limits<i64>::max() - rhs) ||
+            (rhs < 0 && lhs < std::numeric_limits<i64>::min() - rhs)));
+
+        return lhs + rhs;
+    };
+
+    return {
+        .DataWeight = checkedAdd(lhs.DataWeight, rhs.DataWeight),
+        .CompressedDataSize = checkedAdd(lhs.CompressedDataSize, rhs.CompressedDataSize),
+        .UncompressedDataSize = checkedAdd(lhs.UncompressedDataSize, rhs.UncompressedDataSize),
+        .RecordCount = checkedAdd(lhs.RecordCount, rhs.RecordCount),
+        .RowCount = checkedAdd(lhs.RowCount, rhs.RowCount),
+    };
+}
+
+TDistributedChunkSessionProgress& operator+=(
+    TDistributedChunkSessionProgress& lhs,
+    const TDistributedChunkSessionProgress& rhs)
+{
+    lhs = lhs + rhs;
+    return lhs;
+}
+
+TDistributedChunkSessionProgress operator-(
+    const TDistributedChunkSessionProgress& lhs,
+    const TDistributedChunkSessionProgress& rhs)
+{
+    auto checkedSubtract = [] (i64 lhs, i64 rhs) {
+        YT_VERIFY(!(
+            (rhs > 0 && lhs < std::numeric_limits<i64>::min() + rhs) ||
+            (rhs < 0 && lhs > std::numeric_limits<i64>::max() + rhs)));
+
+        return lhs - rhs;
+    };
+
+    return {
+        .DataWeight = checkedSubtract(lhs.DataWeight, rhs.DataWeight),
+        .CompressedDataSize = checkedSubtract(lhs.CompressedDataSize, rhs.CompressedDataSize),
+        .UncompressedDataSize = checkedSubtract(lhs.UncompressedDataSize, rhs.UncompressedDataSize),
+        .RecordCount = checkedSubtract(lhs.RecordCount, rhs.RecordCount),
+        .RowCount = checkedSubtract(lhs.RowCount, rhs.RowCount),
+    };
+}
+
+std::pair<TDistributedChunkSessionProgress, TDistributedChunkSessionProgress> Split(
+    const TDistributedChunkSessionProgress& progress,
+    i64 prefixRecordCount)
+{
+    YT_VERIFY(prefixRecordCount >= 0 && prefixRecordCount <= progress.RecordCount);
+    YT_VERIFY(progress.RecordCount > 0);
+    VerifyAtLeastOneUnitPerRecord(progress);
+
+    auto getPrefixStatistic = [&] (i64 value) -> i64 {
+        if (prefixRecordCount == 0) {
+            return 0;
+        }
+        if (prefixRecordCount == progress.RecordCount) {
+            return value;
+        }
+
+        // Clamping keeps every component at or above the record count on both halves: the
+        // lower bound covers the prefix, the upper bound reserves the suffix its share.
+        // The range is nonempty because the component is at least the record count.
+        return std::clamp(
+            std::min(
+                value,
+                MultiplyAndDivideApproximately(value, prefixRecordCount, progress.RecordCount)),
+            prefixRecordCount,
+            value - (progress.RecordCount - prefixRecordCount));
+    };
+
+    TDistributedChunkSessionProgress prefix{
+        .DataWeight = getPrefixStatistic(progress.DataWeight),
+        .CompressedDataSize = getPrefixStatistic(progress.CompressedDataSize),
+        .UncompressedDataSize = getPrefixStatistic(progress.UncompressedDataSize),
+        .RecordCount = prefixRecordCount,
+        .RowCount = getPrefixStatistic(progress.RowCount),
+    };
+    return {prefix, progress - prefix};
+}
+
+TDistributedChunkSessionProgress Extrapolate(
+    const TDistributedChunkSessionProgress& sample,
+    i64 recordCount,
+    i64 compressedDataSize)
+{
+    YT_VERIFY(compressedDataSize >= recordCount);
+    YT_VERIFY(recordCount >= 0);
+    YT_VERIFY(sample.RecordCount > 0);
+    VerifyAtLeastOneUnitPerRecord(sample);
+
+    // The exact ratio is at least the record count for every component of the sample;
+    // the floor only covers rounding at the boundary.
+    auto extrapolateStatistic = [&] (i64 value) {
+        YT_VERIFY(value >= 0);
+
+        return std::max(
+            recordCount,
+            MultiplyAndDivideApproximately(value, recordCount, sample.RecordCount));
+    };
+
+    return {
+        .DataWeight = extrapolateStatistic(sample.DataWeight),
+        .CompressedDataSize = compressedDataSize,
+        .UncompressedDataSize = extrapolateStatistic(sample.UncompressedDataSize),
+        .RecordCount = recordCount,
+        .RowCount = extrapolateStatistic(sample.RowCount),
+    };
 }
 
 void FormatValue(
@@ -52,7 +211,8 @@ void FormatValue(
     const TDistributedChunkSessionProgress& progress,
     TStringBuf /*spec*/)
 {
-    builder->AppendFormat(
+    Format(
+        builder,
         "{DataWeight: %v, CompressedDataSize: %v, UncompressedDataSize: %v, RecordCount: %v, RowCount: %v}",
         progress.DataWeight,
         progress.CompressedDataSize,
@@ -134,6 +294,17 @@ void Serialize(
             .Item("row_count").Value(progress.RowCount)
         .EndMap();
 }
+
+void TDistributedChunkSessionProgress::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, DataWeight);
+    PHOENIX_REGISTER_FIELD(2, CompressedDataSize);
+    PHOENIX_REGISTER_FIELD(3, UncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(4, RecordCount);
+    PHOENIX_REGISTER_FIELD(5, RowCount);
+}
+
+PHOENIX_DEFINE_TYPE(TDistributedChunkSessionProgress);
 
 ////////////////////////////////////////////////////////////////////////////////
 
