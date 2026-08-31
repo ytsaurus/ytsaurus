@@ -74,7 +74,8 @@ public:
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-        std::optional<std::string> allocationGroupName) override;
+        std::optional<std::string> allocationGroupName,
+        TAllocationId allocationId) override;
 
     void UpdateGroupedNeededResources() override;
 

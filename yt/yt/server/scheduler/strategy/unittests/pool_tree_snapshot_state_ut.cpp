@@ -73,6 +73,7 @@ protected:
         bool preemptible = false)
     {
         auto assignment = New<TAssignment>(
+            /*id*/ TAssignmentId(TGuid::Create()),
             TestAllocationGroupName,
             TJobResourcesWithQuota(UnitResources),
             operation.Get(),
@@ -87,7 +88,8 @@ protected:
         const TNodePtr& node,
         const TAssignmentPtr& assignment)
     {
-        auto allocationId = TAllocationId(TGuid::Create());
+        // NB: A realized assignment shares its id with the allocation.
+        auto allocationId = assignment->Id;
         auto allocation = New<TAllocationState>(
             allocationId,
             node->GetId(),
