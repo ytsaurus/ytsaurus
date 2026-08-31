@@ -19,6 +19,8 @@
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/new.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NFlow {
 
 using namespace NConcurrency;
@@ -30,6 +32,8 @@ using namespace NTableClient;
 namespace {
 
 constexpr int MetaColumnCount = 5;
+
+YT_DEFINE_THREAD_LOCAL(TRowBufferPtr, GetMessageFilterRowBuffer, New<TRowBuffer>());
 
 //! Compiled predicate over a single expression, with a per-payload-schema cache of
 //! evaluation contexts (context creation does codegen and is expensive).
@@ -69,15 +73,15 @@ public:
 
         // EvaluateQuery does not switch fiber context, so the thread-local buffer is safe.
         TForbidContextSwitchGuard contextSwitchGuard;
-        static thread_local TRowBufferPtr BufferCache = New<TRowBuffer>();
+        auto& rowBuffer = GetMessageFilterRowBuffer();
         auto finally = Finally([&] {
-            BufferCache->Clear();
+            rowBuffer->Clear();
         });
 
         auto result = EvaluateQuery(
             *context,
             TRange(inputValues.data(), inputValues.size()),
-            BufferCache);
+            rowBuffer);
 
         // The predicate must evaluate to a boolean; anything else (including NULL) is a misconfigured expression.
         if (result.Type != EValueType::Boolean) {
