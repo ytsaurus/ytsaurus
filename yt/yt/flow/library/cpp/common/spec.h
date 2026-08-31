@@ -987,8 +987,14 @@ DEFINE_REFCOUNTED_TYPE(TDynamicThrottlerClassSpec);
 struct TDynamicThrottlerSpec
     : public NYTree::TYsonStruct
 {
-    //! Quota emitted globally per second. Null means unlimited.
+    //! Quota emitted globally per second. Null means unlimited, unless
+    //! |UseClassWeightsAsLimit| derives the rate from the class weights.
     std::optional<double> Limit;
+
+    //! Reads the class weights as absolute rates: the global limit becomes the
+    //! sum of the declared class weights, so a backlogged class is served at
+    //! its weight in quota units per second. Mutually exclusive with |Limit|.
+    bool UseClassWeightsAsLimit{};
 
     //! Quota bucket refill window on the server.
     TDuration Period;
@@ -1005,6 +1011,10 @@ struct TDynamicThrottlerSpec
     THashMap<TQuotaClassId, TDynamicThrottlerClassSpecPtr> Classes;
 
     std::optional<i64> MaxGrantAmount;
+
+    //! Quota emitted globally per second once |UseClassWeightsAsLimit| is
+    //! applied. Null means unlimited.
+    std::optional<double> GetEffectiveLimit() const;
 
     //! Server-side token bucket config.
     NConcurrency::TThroughputThrottlerConfigPtr BuildThroughputConfig() const;

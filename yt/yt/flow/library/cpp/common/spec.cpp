@@ -932,18 +932,48 @@ void TDynamicThrottlerSpec::Register(TRegistrar registrar)
     registrar.Parameter("max_grant_amount", &TThis::MaxGrantAmount)
         .Default()
         .GreaterThan(0);
+    registrar.Parameter("use_class_weights_as_limit", &TThis::UseClassWeightsAsLimit)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* spec) {
         for (const auto& [classId, _] : spec->Classes) {
             ValidateQuotaClassName(classId.Underlying());
         }
+
+        if (spec->UseClassWeightsAsLimit) {
+            THROW_ERROR_EXCEPTION_IF(
+                spec->Limit.has_value(),
+                "%Qv and %Qv are mutually exclusive",
+                "limit",
+                "use_class_weights_as_limit");
+            // The sum would be zero, and the throttler would grant nothing at
+            // all with no hint as to why.
+            THROW_ERROR_EXCEPTION_IF(
+                spec->Classes.empty(),
+                "%Qv requires at least one class in %Qv",
+                "use_class_weights_as_limit",
+                "classes");
+        }
     });
+}
+
+std::optional<double> TDynamicThrottlerSpec::GetEffectiveLimit() const
+{
+    if (Limit || !UseClassWeightsAsLimit) {
+        return Limit;
+    }
+
+    double limit = 0;
+    for (const auto& [_, classSpec] : Classes) {
+        limit += classSpec->Weight;
+    }
+    return limit;
 }
 
 NConcurrency::TThroughputThrottlerConfigPtr TDynamicThrottlerSpec::BuildThroughputConfig() const
 {
     auto config = New<NConcurrency::TThroughputThrottlerConfig>();
-    config->Limit = Limit;
+    config->Limit = GetEffectiveLimit();
     config->Period = Period;
     return config;
 }
@@ -953,10 +983,10 @@ NConcurrency::TPrefetchingThrottlerConfigPtr TDynamicThrottlerSpec::BuildPrefetc
     auto config = New<NConcurrency::TPrefetchingThrottlerConfig>();
     config->TargetRps = 1.0 / RequestPeriod.SecondsFloat();
     config->MinPrefetchAmount = 1;
-    if (Limit) {
-        // |Limit| is already a per-second rate, and |Period| is only the leaky
+    if (auto limit = GetEffectiveLimit()) {
+        // The limit is already a per-second rate, and |Period| is only the leaky
         // bucket's refill granularity, so it must not divide the rate here.
-        auto maxPrefetch = static_cast<i64>(std::ceil(*Limit * RequestPeriod.SecondsFloat()));
+        auto maxPrefetch = static_cast<i64>(std::ceil(*limit * RequestPeriod.SecondsFloat()));
         config->MaxPrefetchAmount = std::max<i64>(maxPrefetch, 1);
     } else {
         // Unlimited: no meaningful upper bound; pick a large batch so the
