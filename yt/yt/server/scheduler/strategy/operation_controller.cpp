@@ -229,7 +229,8 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
     const std::string& treeId,
     const NYPath::TYPath& poolPath,
     std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-    std::optional<std::string> allocationGroupName)
+    std::optional<std::string> allocationGroupName,
+    TAllocationId allocationId)
 {
     auto scheduleAllocationResultFuture = Controller_->ScheduleAllocation(
         context,
@@ -238,7 +239,8 @@ TControllerScheduleAllocationResultPtr TOperationController::ScheduleAllocation(
         treeId,
         poolPath,
         waitingForResourcesOnNodeTimeout,
-        std::move(allocationGroupName));
+        std::move(allocationGroupName),
+        allocationId);
 
     auto scheduleAllocationResultFutureWithTimeout = scheduleAllocationResultFuture
         .ToUncancelable()

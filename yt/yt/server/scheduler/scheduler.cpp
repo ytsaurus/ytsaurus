@@ -1264,6 +1264,13 @@ public:
         return NodeManager_->GetResourceUsage(filter);
     }
 
+    TCellTag GetPrimaryMasterCellTag() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
+    }
+
     void MarkOperationAsRunningInStrategy(TOperationId operationId) override
     {
         auto operation = GetOperation(operationId);

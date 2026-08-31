@@ -18,6 +18,24 @@ TAllocationId GenerateAllocationId(NObjectClient::TCellTag tag, NNodeTrackerClie
 NNodeTrackerClient::TNodeId NodeIdFromAllocationId(TAllocationId allocationId);
 ui64 EntropyFromAllocationId(TAllocationId allocationId);
 
+//! Checks that |allocationId| is well-formed, i.e. has the allocation object type
+//! and encodes |nodeId|.
+bool CheckAllocationId(TAllocationId allocationId, NNodeTrackerClient::TNodeId nodeId);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Generates allocation ids for a fixed cell tag.
+class TAllocationIdGenerator
+{
+public:
+    explicit TAllocationIdGenerator(NObjectClient::TCellTag cellTag);
+
+    TAllocationId Generate(NNodeTrackerClient::TNodeId nodeId) const;
+
+private:
+    const NObjectClient::TCellTag CellTag_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NSecurityClient::TSerializableAccessControlList MakeOperationArtifactAcl(const NSecurityClient::TSerializableAccessControlList& acl);
