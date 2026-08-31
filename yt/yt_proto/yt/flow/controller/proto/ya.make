@@ -8,7 +8,7 @@ SRCS(
 
 PROTO_NAMESPACE(yt)
 
-PY_NAMESPACE(yt_proto.yt.core)
+PY_NAMESPACE(yt_proto.yt.flow.controller.proto)
 
 EXCLUDE_TAGS(GO_PROTO)
 
