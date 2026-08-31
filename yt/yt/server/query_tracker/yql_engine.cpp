@@ -445,6 +445,11 @@ public:
         , ProxyEngineProvider_(New<TProxyYqlEngineProvider>(StateClient_, StateRoot_))
     { }
 
+    bool IsSafeToRestartQuery() const override
+    {
+        return false;
+    }
+
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);

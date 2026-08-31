@@ -97,6 +97,11 @@ public:
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
     { }
 
+    bool IsSafeToRestartQuery() const override
+    {
+        return true;
+    }
+
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
         auto settings = ConvertToAttributes(activeQuery.Settings);
