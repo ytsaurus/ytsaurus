@@ -1214,6 +1214,26 @@ class TestInputFetching(ClickHouseTestBase):
             query = f'explain plan actions = 1 select a from (select * from \'{table_path}\') t where t.a > 19'
             assert any(expl["explain"].strip().startswith("Pushed filter:") for expl in clique.make_query(query))
 
+    @authors("ivanzhukov")
+    def test_explain_distributed(self):
+        table_path = "//tmp/t"
+        create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
+
+        with Clique(1) as clique:
+            query_no_dist = f'EXPLAIN PLAN /*distributed=1*/ SELECT t.a FROM (SELECT * FROM \'{table_path}\') t'
+            query_dist = f'EXPLAIN PLAN   distributed=1   SELECT t.a FROM (SELECT * FROM \'{table_path}\') t'
+            output_no_dist = clique.make_query(query_no_dist)
+            output_dist = clique.make_query(query_dist)
+
+            # Check that the output for distributed=1 is an addition to the first one.
+            assert output_dist[:len(output_no_dist)] == output_no_dist
+
+            output_last_line_no_dist = output_no_dist[-1]["explain"].strip()
+            output_last_line_dist = output_dist[-1]["explain"].strip()
+
+            assert output_last_line_no_dist.endswith("ReadFromYTRemote (Tables: [//tmp/t, ] )")
+            assert output_last_line_dist.endswith("ReadFromPreparedSource (Read from NullSource)")
+
     @authors("buyval01")
     def test_timestamp_key_filtering(self):
         create(
