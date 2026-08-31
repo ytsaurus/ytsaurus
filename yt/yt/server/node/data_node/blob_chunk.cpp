@@ -417,6 +417,9 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     bool diskFetchNeeded = false;
 
     const auto& config = Context_->DataNodeConfig;
+    const auto dynamicConfig = Context_->DynamicConfigManager->GetConfig()->DataNode;
+    const auto maxBytesPerRead = dynamicConfig->MaxBytesPerRead.value_or(config->MaxBytesPerRead);
+    const auto maxBlocksPerRead = dynamicConfig->MaxBlocksPerRead.value_or(config->MaxBlocksPerRead);
 
     session->BlocksExt = blocksExt;
 
@@ -474,8 +477,8 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         pendingDataSize += blockInfo.Size;
         pendingBlockCount += 1;
 
-        if (pendingDataSize >= config->MaxBytesPerRead ||
-            pendingBlockCount >= config->MaxBlocksPerRead)
+        if (pendingDataSize >= maxBytesPerRead ||
+            pendingBlockCount >= maxBlocksPerRead)
         {
             session->EntryCount = entryIndex + 1;
             YT_TLOG_DEBUG("Read session trimmed due to read constraints")

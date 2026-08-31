@@ -74,6 +74,32 @@ constexpr auto TestSsdMediumName = "ssd_blobs";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TNetworkStatisticsTest, ReconfigureUpdatesThrottlingWindow)
+{
+    auto config = New<TDataNodeConfig>();
+    config->NetOutThrottlingDuration = TDuration::Hours(1);
+    TNetworkStatistics networkStatistics(config);
+
+    networkStatistics.IncrementReadThrottlingCounter("default");
+    // Trigger promotion of the newly inserted TSyncMap entry into the read-only snapshot.
+    networkStatistics.IncrementReadThrottlingCounter("default");
+
+    NNodeTrackerClient::NProto::TClusterNodeStatistics statistics;
+    networkStatistics.UpdateStatistics(&statistics);
+    ASSERT_EQ(statistics.network_size(), 1);
+    EXPECT_TRUE(statistics.network(0).throttling_reads());
+
+    auto dynamicConfig = New<TDataNodeDynamicConfig>();
+    dynamicConfig->NetOutThrottlingDuration = TDuration::Zero();
+    networkStatistics.Reconfigure(dynamicConfig);
+    statistics.clear_network();
+    networkStatistics.UpdateStatistics(&statistics);
+    ASSERT_EQ(statistics.network_size(), 1);
+    EXPECT_FALSE(statistics.network(0).throttling_reads());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<int> GenerateRandomBlockIdsWithOrder(int min, int max, int count, TRandomGenerator& generator)
 {
     std::vector<int> blockIds;

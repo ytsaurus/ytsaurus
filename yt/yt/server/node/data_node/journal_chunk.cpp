@@ -7,6 +7,7 @@
 #include "session.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/hydra/changelog.h>
 #include <yt/yt/server/lib/hydra/file_changelog.h>
@@ -505,7 +506,9 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         TWallTimer timer;
 
-        auto maxBytesPerRead = Context_->DataNodeConfig->MaxBytesPerRead;
+        const auto dynamicConfig = Context_->DynamicConfigManager->GetConfig()->DataNode;
+        auto maxBytesPerRead = dynamicConfig->MaxBytesPerRead.value_or(Context_->DataNodeConfig->MaxBytesPerRead);
+        auto maxBlocksPerRead = dynamicConfig->MaxBlocksPerRead.value_or(Context_->DataNodeConfig->MaxBlocksPerRead);
 
         // NB: The actual read request is still bounded by the config limit; the estimate
         // is only used to size the memory reservation, avoiding gross over-reservation
@@ -552,7 +555,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         auto blocksFuture = changelog->Read(
             firstBlockIndex,
-            std::min(blockCount, Context_->DataNodeConfig->MaxBlocksPerRead),
+            std::min(blockCount, maxBlocksPerRead),
             maxBytesPerRead);
         session->ChangelogReadFuture.Store(blocksFuture.As<void>());
 
