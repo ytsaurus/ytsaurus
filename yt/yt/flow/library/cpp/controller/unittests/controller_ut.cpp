@@ -286,6 +286,10 @@ public:
 
         EXPECT_CALL(*YTConnector, IsLeader())
             .WillRepeatedly(Return(true));
+        // Leadership published long ago, so the warm-up never holds job management back; the tests
+        // that care about the warm-up override this.
+        EXPECT_CALL(*YTConnector, GetLeadershipPublishTime())
+            .WillRepeatedly(Return(TInstant::Now() - TDuration::Hours(1)));
         EXPECT_CALL(*YTConnector, GetPipelinePath())
             .WillRepeatedly(Return(NYPath::TRichYPath("cluster://path")));
 
@@ -949,6 +953,85 @@ INSTANTIATE_TEST_SUITE_P(
     [] (const auto& info) {
         return Format("%vTo%v", info.param.PipelineState, info.param.TargetState);
     });
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TControllerHelpersTest, LeadershipWarmupTimeout)
+{
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    const auto& connector = dynamicSpec->ControllerConnector;
+
+    // Derived from the periods that govern how long a worker needs to reconnect, so that raising
+    // one of them raises the wait with it instead of leaving a fixed value meaningless.
+    auto derived = [&] {
+        return (connector->ControllerDiscoverPeriod + connector->ControllerHeartbeatPeriod) * 2 + TDuration::Seconds(5);
+    };
+    EXPECT_EQ(GetLeadershipWarmupTimeout(dynamicSpec), derived());
+
+    connector->ControllerDiscoverPeriod = TDuration::Seconds(30);
+    EXPECT_EQ(GetLeadershipWarmupTimeout(dynamicSpec), derived());
+    EXPECT_GT(GetLeadershipWarmupTimeout(dynamicSpec), TDuration::Seconds(30));
+
+    connector->ControllerHeartbeatPeriod = TDuration::Seconds(4);
+    EXPECT_EQ(GetLeadershipWarmupTimeout(dynamicSpec), derived());
+
+    // Waiting past the point where the workers abandon their jobs is pointless.
+    connector->ControllerDiscoverPeriod = connector->ControllerWaitTimeout;
+    EXPECT_EQ(GetLeadershipWarmupTimeout(dynamicSpec), connector->ControllerWaitTimeout);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TControllerHelpersTest, LeadershipWarmupLeft)
+{
+    auto now = TInstant::Now();
+
+    auto flowView = New<TFlowView>();
+    TTestDatabase database;
+    auto control = New<TPersistedStateControl<std::string>>(New<TStorageHandler>(database));
+    flowView->State->AttachToControl(control);
+    control->Recover();
+
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    flowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+    const auto Warmup = GetLeadershipWarmupTimeout(dynamicSpec);
+    ASSERT_GT(Warmup, TDuration::Seconds(5));
+
+    const auto& layout = flowView->State->ExecutionSpec->Layout;
+
+    // An empty layout has nothing to protect: a starting pipeline must not be delayed even before
+    // the leader address is published.
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, /*publishTime*/ TInstant::Zero(), now), TDuration::Zero());
+
+    auto partition = New<TPartition>();
+    partition->PartitionId = TPartitionId(TGuid::Create());
+    partition->ComputationId = TComputationId("computation");
+    partition->State = EPartitionState::Executing;
+    partition->StateTimestamp = now;
+    auto job = New<TJob>();
+    job->JobId = TJobId(TGuid::Create());
+    job->PartitionId = partition->PartitionId;
+    job->WorkerAddress = "worker.net:81";
+    flowView->State->StartMutation();
+    layout->CreatePartition(partition);
+    layout->CreateJob(job);
+    flowView->State->CommitMutation();
+
+    // Not published yet: the workers cannot discover this leader at all, so the whole warm-up is
+    // still ahead no matter how long ago leadership was won.
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, /*publishTime*/ TInstant::Zero(), now), Warmup);
+
+    // Published: the window is counted from the publication, not from the leadership.
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, now - TDuration::Seconds(5), now), Warmup - TDuration::Seconds(5));
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, now - Warmup, now), TDuration::Zero());
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, now - TDuration::Hours(1), now), TDuration::Zero());
+
+    // A pipeline whose workers are not expected to wait for the controller at all leaves nothing to
+    // warm up for: the cap collapses the wait to zero.
+    dynamicSpec->ControllerConnector->ControllerWaitTimeout = TDuration::Zero();
+    flowView->CurrentDynamicSpec->TrySetValue(dynamicSpec, TestVersionProvider());
+    EXPECT_EQ(GetLeadershipWarmupLeft(flowView, /*publishTime*/ TInstant::Zero(), now), TDuration::Zero());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

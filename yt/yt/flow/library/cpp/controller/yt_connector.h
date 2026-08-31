@@ -41,6 +41,13 @@ struct IYTConnector
      */
     virtual bool IsLeader() const = 0;
 
+    //! Instant when this leader's address became discoverable by workers, or a null instant while
+    //! it has not been published yet (or this node does not lead).
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TInstant GetLeadershipPublishTime() const = 0;
+
     /*!
      *  \note Thread affinity: any
      */
