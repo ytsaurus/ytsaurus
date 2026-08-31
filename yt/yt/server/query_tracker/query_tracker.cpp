@@ -381,10 +381,11 @@ private:
         std::optional<TError> acquisitionError;
         auto engine = Engines_[queryRecord.Engine];
 
-        if (queryRecord.LeaseTransactionId != NullTransactionId &&
-            !IsFinishingState(newState) &&
-            !engine->IsSafeToRestartQuery())
-        {
+        bool hasPreviousNonFinishingRun =
+            queryRecord.LeaseTransactionId != NullTransactionId &&
+            !IsFinishingState(newState);
+
+        if (hasPreviousNonFinishingRun && !engine->IsSafeToRestartQuery()) {
             newState = EQueryState::Failing;
 
             TError error("Query lease was lost; restarting query execution is unsafe");
@@ -396,6 +397,12 @@ private:
             }
 
             acquisitionError = std::move(error);
+        }
+
+        if (hasPreviousNonFinishingRun) {
+            // Ensure that we don't track this query, so query acquisition
+            // using same query tracker instance which dropped lease is safe.
+            DetachQuery(queryId);
         }
 
         auto rowBuffer = New<TRowBuffer>();
