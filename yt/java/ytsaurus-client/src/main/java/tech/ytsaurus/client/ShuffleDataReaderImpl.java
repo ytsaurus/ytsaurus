@@ -57,6 +57,6 @@ public class ShuffleDataReaderImpl extends StreamReaderImpl<TRspReadShuffleData>
 
     @Override
     public void close() throws IOException {
-        control.cancel();
+        doClose();
     }
 }

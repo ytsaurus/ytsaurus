@@ -26,6 +26,8 @@ import tech.ytsaurus.client.rpc.RpcClientResponse;
 import tech.ytsaurus.client.rpc.RpcClientStreamControl;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.core.common.YTsaurusError;
+import tech.ytsaurus.core.common.YTsaurusErrorCode;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.rpc.TResponseHeader;
@@ -626,6 +628,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     private static final int MAX_WINDOW_SIZE = 16384;
 
     private final Stash stash = new Stash();
+    private final AtomicBoolean closeRequested = new AtomicBoolean();
     private final SlidingWindow<Payload> window = new SlidingWindow<>(MAX_WINDOW_SIZE, payload -> {
         for (Attachment attachment : payload.getAttachments()) {
             try {
@@ -680,7 +683,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     }
 
     boolean doCanRead() {
-        return !stash.isEof();
+        return !closeRequested.get() && !stash.isEof();
     }
 
     byte[] doRead() throws Exception {
@@ -698,8 +701,29 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
     }
 
     CompletableFuture<Void> doClose() {
+        closeRequested.set(true);
         control.cancel();
         return result.handle((unused, error) -> null);
+    }
+
+    @Override
+    public void onError(Throwable error) {
+        if (closeRequested.get()
+                && error instanceof YTsaurusError
+                && ((YTsaurusError) error).getError().getCode() == YTsaurusErrorCode.Canceled.code) {
+            result.complete(null);
+        } else {
+            super.onError(error);
+        }
+    }
+
+    @Override
+    public void onCancel(CancellationException cancel) {
+        if (closeRequested.get()) {
+            result.complete(null);
+        } else {
+            super.onCancel(cancel);
+        }
     }
 
     @Override

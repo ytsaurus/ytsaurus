@@ -198,6 +198,6 @@ class AsyncTableReaderImpl<T> extends TableReaderBaseImpl<T> implements AsyncRea
 
     @Override
     public void close() {
-        control.cancel();
+        doClose();
     }
 }
