@@ -71,6 +71,6 @@ public class TablePartitionReaderImpl<T> extends StreamReaderImpl<TRspReadTableP
 
     @Override
     public void close() throws IOException {
-        control.cancel();
+        doClose();
     }
 }
