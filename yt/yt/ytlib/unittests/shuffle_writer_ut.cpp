@@ -5,6 +5,7 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_writer.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/statistics.h>
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
@@ -167,10 +168,13 @@ public:
         : SessionId_(sessionId)
     { }
 
-    TFuture<void> WriteRecord(TSharedRef record) override
+    TFuture<void> WriteRecord(
+        TSharedRef record,
+        TDistributedChunkSessionWriteStatistics statistics) override
     {
         auto guard = Guard(Lock_);
         Records_.push_back(std::move(record));
+        Statistics_.push_back(statistics);
         auto promise = NewPromise<void>();
         Promises_.push_back(promise);
         TryFulfillUnderLock();
@@ -197,6 +201,12 @@ public:
         return Records_;
     }
 
+    std::vector<TDistributedChunkSessionWriteStatistics> GetStatistics() const
+    {
+        auto guard = Guard(Lock_);
+        return Statistics_;
+    }
+
     int GetUnackedCount() const
     {
         auto guard = Guard(Lock_);
@@ -213,6 +223,7 @@ private:
     const TSessionId SessionId_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     std::vector<TSharedRef> Records_;
+    std::vector<TDistributedChunkSessionWriteStatistics> Statistics_;
     std::vector<TPromise<void>> Promises_;
     std::deque<TError> Responses_;
 
@@ -377,6 +388,17 @@ TEST(TPushBasedShuffleWriterTest, SingleRowSinglePartitionFlushesOnClose)
 
     EXPECT_EQ(std::ssize(chunkWriter->GetRecords()), 1);
     EXPECT_EQ(chunkWriter->GetUnackedCount(), 1);
+
+    auto records = chunkWriter->GetRecords();
+    auto recordStatistics = chunkWriter->GetStatistics();
+    const auto& record = records[0];
+    const auto& statistics = recordStatistics[0];
+    auto decompressed = DecompressShuffleRecord(record, NCompression::ECodec::None);
+    EXPECT_EQ(statistics.RowCount, 1);
+    EXPECT_EQ(statistics.DataWeight, GetDataWeight(rows[0]));
+    EXPECT_EQ(
+        statistics.UncompressedDataSize,
+        static_cast<i64>(sizeof(TRecordHeader) + GetByteSize(decompressed.UncompressedPayload)));
 
     chunkWriter->Ack();
     h.DrainInvoker();
@@ -589,6 +611,7 @@ TEST(TPushBasedShuffleWriterTest, ResendOnNewSessionAfterWriteRecordFailure)
 
     auto writer2 = h.GetChunkWriters().at(session2.SessionId);
     EXPECT_EQ(std::ssize(writer2->GetRecords()), 1) << "record should be resent on session 2";
+    EXPECT_EQ(writer2->GetStatistics(), writer1->GetStatistics());
 
     writer2->Ack();
     h.DrainInvoker();

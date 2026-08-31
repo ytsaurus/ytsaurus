@@ -39,6 +39,7 @@ struct TShuffleWireRecordTag { };
 struct TRecordEntry
 {
     TSharedRef Record;
+    TDistributedChunkSessionWriteStatistics Statistics;
     int SendAttempts = 0;
 };
 
@@ -66,6 +67,8 @@ struct TPartitionState
 
     // Eviction-heap key; cached Builder->GetDataSize(), updated per AddRow.
     i64 BufferedDataSize = 0;
+    // Logical data weight of the buffered rows; reported with the flushed record.
+    i64 BufferedDataWeight = 0;
     // Slot in EvictionHeap_, or -1 when there is no builder.
     int HeapIndex = -1;
 };
@@ -194,11 +197,13 @@ private:
             auto& partitionState = Partitions_[partitionIndex];
             if (!partitionState.Builder) {
                 YT_ASSERT(partitionState.BufferedDataSize == 0);
+                YT_ASSERT(partitionState.BufferedDataWeight == 0);
                 partitionState.Builder.emplace(WriterId_, partitionState.NextRowId);
                 PushToEvictionHeap(partitionIndex);
             }
             i64 prevAllocation = partitionState.Builder->GetAllocatedDataSize();
             partitionState.Builder->AddRow(row);
+            partitionState.BufferedDataWeight += GetDataWeight(row);
             i64 allocationDelta = partitionState.Builder->GetAllocatedDataSize() - prevAllocation;
 
             // The builder grew; resift it toward the heap front.
@@ -324,8 +329,15 @@ private:
         YT_VERIFY(record);
         BuildersBytes_ -= prevAllocation;
         partitionState.NextRowId += record->Header.RowCount;
+        TDistributedChunkSessionWriteStatistics statistics{
+            .DataWeight = partitionState.BufferedDataWeight,
+            .UncompressedDataSize = static_cast<i64>(
+                sizeof(TRecordHeader) + GetByteSize(record->UncompressedPayload)),
+            .RowCount = record->Header.RowCount,
+        };
         partitionState.Builder.reset();
         partitionState.BufferedDataSize = 0;
+        partitionState.BufferedDataWeight = 0;
         RemoveFromEvictionHeap(partitionIndex);
 
         // TODO(apollo1321): IDistributedChunkWriter::WriteRecord currently
@@ -334,7 +346,11 @@ private:
         auto compressed = MergeRefsToRef<TShuffleWireRecordTag>(
             CompressShuffleRecord(*record, Config_->Codec));
         InFlightBytes_ += compressed.Size();
-        partitionState.Pending.push_back({.Record = std::move(compressed), .SendAttempts = 0});
+        partitionState.Pending.push_back({
+            .Record = std::move(compressed),
+            .Statistics = statistics,
+            .SendAttempts = 0,
+        });
         ++OutstandingWork_;
 
         if (partitionState.Session) {
@@ -362,7 +378,9 @@ private:
             ++entry.SendAttempts;
             i64 cookie = partitionState.NextSendCookie++;
             auto sessionId = partitionState.Session->SessionId;
-            auto writeFuture = partitionState.Writer->WriteRecord(entry.Record);
+            auto writeFuture = partitionState.Writer->WriteRecord(
+                entry.Record,
+                entry.Statistics);
             partitionState.InFlight[cookie] = TInFlightEntry{
                 .Entry = std::move(entry),
                 .SessionId = sessionId,

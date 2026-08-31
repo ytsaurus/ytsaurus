@@ -18,6 +18,7 @@ struct TDistributedChunkSessionPoolTestingOptions
 {
     TCreateControllerCallback CreateController;
     TSendChunkSealRequestCallback SendChunkSealRequest;
+    IDistributedChunkSessionSealMonitorPtr SealMonitor;
 };
 
 IDistributedChunkSessionPoolPtr CreateDistributedChunkSessionPoolForTesting(

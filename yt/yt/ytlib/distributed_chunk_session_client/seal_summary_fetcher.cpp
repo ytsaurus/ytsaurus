@@ -37,13 +37,13 @@ static constexpr auto SealSummaryAttributeKeys = std::to_array<std::string_view>
     "compressed_data_size",
 });
 
-std::vector<TDistributedChunkSessionSealSummary> ParseSealSummaryResponse(
+std::vector<TSessionSealSummaryWithChunkId> ParseSealSummaryResponse(
     THashSet<TChunkId> requestedChunkIds,
     const NLogging::TLogger& Logger,
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchResponse)
 {
     auto requestedChunkCount = requestedChunkIds.size();
-    std::vector<TDistributedChunkSessionSealSummary> result;
+    std::vector<TSessionSealSummaryWithChunkId> result;
     result.reserve(requestedChunkIds.size());
 
     for (const auto& [tag, responseOrError] : batchResponse->GetTaggedResponses<TYPathProxy::TRspGet>("get")) {
@@ -79,10 +79,12 @@ std::vector<TDistributedChunkSessionSealSummary> ParseSealSummaryResponse(
                 recordCount,
                 compressedDataSize);
 
-            result.push_back(TDistributedChunkSessionSealSummary{
+            result.push_back(TSessionSealSummaryWithChunkId{
                 .ChunkId = chunkId,
-                .RecordCount = *recordCount,
-                .CompressedDataSize = *compressedDataSize,
+                .Summary = {
+                    .RecordCount = *recordCount,
+                    .PhysicalCompressedDataSize = *compressedDataSize,
+                },
             });
         }
     }
@@ -99,7 +101,7 @@ std::vector<TDistributedChunkSessionSealSummary> ParseSealSummaryResponse(
     return result;
 }
 
-TFuture<std::vector<TDistributedChunkSessionSealSummary>> DoFetchDistributedChunkSessionSealSummaries(
+TFuture<std::vector<TSessionSealSummaryWithChunkId>> DoFetchDistributedChunkSessionSealSummaries(
     NNative::IClientPtr client,
     IInvokerPtr invoker,
     NLogging::TLogger Logger,
@@ -123,7 +125,7 @@ TFuture<std::vector<TDistributedChunkSessionSealSummary>> DoFetchDistributedChun
 
     for (auto chunkId : chunkIds) {
         auto request = TYPathProxy::Get(FromObjectId(chunkId) + "/@");
-        ToProto(request->mutable_attributes()->mutable_keys(), SealSummaryAttributeKeys);
+        NYT::ToProto(request->mutable_attributes()->mutable_keys(), SealSummaryAttributeKeys);
         request->Tag() = chunkId;
         batchRequest->AddRequest(request, "get");
     }
@@ -142,7 +144,7 @@ TFuture<std::vector<TDistributedChunkSessionSealSummary>> DoFetchDistributedChun
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<std::vector<TDistributedChunkSessionSealSummary>> FetchDistributedChunkSessionSealSummaries(
+TFuture<std::vector<TSessionSealSummaryWithChunkId>> FetchDistributedChunkSessionSealSummaries(
     NNative::IClientPtr client,
     IInvokerPtr invoker,
     TThrottlerManagerPtr throttlerManager,
@@ -154,7 +156,7 @@ TFuture<std::vector<TDistributedChunkSessionSealSummary>> FetchDistributedChunkS
     YT_VERIFY(throttlerManager);
 
     if (chunkIds.empty()) {
-        return MakeFuture<std::vector<TDistributedChunkSessionSealSummary>>({});
+        return MakeFuture<std::vector<TSessionSealSummaryWithChunkId>>({});
     }
 
     auto cellTag = CellTagFromId(chunkIds.front());

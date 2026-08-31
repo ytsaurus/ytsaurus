@@ -46,6 +46,7 @@
 
 #include <library/cpp/yt/misc/range_helpers.h>
 
+#include <atomic>
 #include <thread>
 
 namespace NYT {
@@ -86,7 +87,19 @@ std::string MakeRandomString(size_t stringSize)
     return randomString;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+TFuture<void> WriteOpaqueRecord(
+    const IDistributedChunkWriterPtr& writer,
+    TSharedRef record)
+{
+    i64 recordSize = static_cast<i64>(record.Size());
+    return writer->WriteRecord(
+        std::move(record),
+        TDistributedChunkSessionWriteStatistics{
+            .DataWeight = recordSize,
+            .UncompressedDataSize = recordSize,
+            .RowCount = 1,
+        });
+}
 
 TDistributedChunkSessionReaderConfigPtr MakeReaderConfig()
 {
@@ -427,7 +440,7 @@ protected:
         payloads.reserve(recordCount);
         for (int i = 0; i < recordCount; ++i) {
             payloads.push_back(MakeRandomString(100));
-            WaitFor(writer->WriteRecord(TSharedRef::FromString(payloads.back())))
+            WaitFor(WriteOpaqueRecord(writer, TSharedRef::FromString(payloads.back())))
                 .ThrowOnError();
         }
 
@@ -566,8 +579,8 @@ TEST_F(TDistributedChunkSessionTest, MasterSealSummaryFetchWaitsForThrottler)
     ASSERT_EQ(sealSummaries.size(), 1u);
 
     EXPECT_EQ(sealSummaries[0].ChunkId, chunkInfo.ChunkId);
-    EXPECT_EQ(sealSummaries[0].RecordCount, RecordCount);
-    EXPECT_GT(sealSummaries[0].CompressedDataSize, 0);
+    EXPECT_EQ(sealSummaries[0].Summary.RecordCount, RecordCount);
+    EXPECT_GT(sealSummaries[0].Summary.PhysicalCompressedDataSize, 0);
 }
 
 TEST_F(TDistributedChunkSessionTest, MasterSealSummaryFetchOmitsUnsealedChunk)
@@ -614,7 +627,138 @@ TEST_F(TDistributedChunkSessionTest, MasterSealSummaryFetchOmitsMissingChunk)
 
     ASSERT_EQ(sealSummaries.size(), 1u);
     EXPECT_EQ(sealSummaries[0].ChunkId, chunkInfo.ChunkId);
-    EXPECT_EQ(sealSummaries[0].RecordCount, RecordCount);
+    EXPECT_EQ(sealSummaries[0].Summary.RecordCount, RecordCount);
+}
+
+TEST_F(TDistributedChunkSessionTest, ReportsProgressBeforeAndAfterClose)
+{
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    auto liveProgressPromise = NewPromise<TDistributedChunkSessionProgress>();
+    auto finalProgressPromise = NewPromise<TDistributedChunkSessionProgress>();
+    controller->SubscribeProgressUpdated(BIND(
+        [liveProgressPromise, finalProgressPromise] (const TControllerSessionProgress& progress) {
+            if (const auto* inFlight = std::get_if<TSessionInFlightProgress>(&progress)) {
+                if (inFlight->Underlying().RecordCount > 0) {
+                    liveProgressPromise.TrySet(inFlight->Underlying());
+                }
+            } else if (const auto* final = std::get_if<TSessionFinalProgress>(&progress);
+                final && final->Underlying())
+            {
+                finalProgressPromise.TrySet(*final->Underlying());
+            }
+        }));
+
+    auto startedSession = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+    auto writer = CreateDistributedChunkWriter(
+        startedSession.SequencerNode,
+        startedSession.SessionId,
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>());
+
+    auto firstRecord = TSharedRef::FromString(std::string("first"));
+    WaitFor(writer->WriteRecord(
+        firstRecord,
+        TDistributedChunkSessionWriteStatistics{
+            .DataWeight = 11,
+            .UncompressedDataSize = 17,
+            .RowCount = 2,
+        }))
+        .ThrowOnError();
+
+    auto liveProgress = WaitFor(
+        liveProgressPromise.ToFuture().WithTimeout(TDuration::Seconds(5)))
+        .ValueOrThrow();
+    EXPECT_EQ(
+        liveProgress,
+        (TDistributedChunkSessionProgress{
+            .DataWeight = 11,
+            .CompressedDataSize = static_cast<i64>(firstRecord.Size()),
+            .UncompressedDataSize = 17,
+            .RecordCount = 1,
+            .RowCount = 2,
+        }));
+
+    auto secondRecord = TSharedRef::FromString(std::string("second-record"));
+    WaitFor(writer->WriteRecord(
+        secondRecord,
+        TDistributedChunkSessionWriteStatistics{
+            .DataWeight = 13,
+            .UncompressedDataSize = 19,
+            .RowCount = 3,
+        }))
+        .ThrowOnError();
+
+    WaitFor(controller->Close())
+        .ThrowOnError();
+
+    auto finalProgress = WaitFor(
+        finalProgressPromise.ToFuture().WithTimeout(TDuration::Seconds(5)))
+        .ValueOrThrow();
+    EXPECT_EQ(
+        finalProgress,
+        (TDistributedChunkSessionProgress{
+            .DataWeight = 24,
+            .CompressedDataSize = static_cast<i64>(firstRecord.Size() + secondRecord.Size()),
+            .UncompressedDataSize = 36,
+            .RecordCount = 2,
+            .RowCount = 5,
+        }));
+
+    EnsureControllerIsDestroyed(std::move(controller));
+}
+
+TEST_F(TDistributedChunkSessionTest, CloseDoesNotPublishFinalProgressAsInFlight)
+{
+    ControllerConfig_->SessionPingPeriod = TDuration::Minutes(1);
+
+    auto controller = CreateDistributedChunkSessionController(
+        NativeClient_,
+        ControllerConfig_,
+        Transaction_->GetId(),
+        WriterOptions_,
+        WriterConfig_,
+        ActionQueue_->GetInvoker());
+
+    std::atomic<int> inFlightProgressUpdateCount = 0;
+    controller->SubscribeProgressUpdated(BIND(
+        [&] (const TControllerSessionProgress& progress) {
+            if (const auto* inFlight = std::get_if<TSessionInFlightProgress>(&progress);
+                inFlight && inFlight->Underlying().RecordCount > 0)
+            {
+                inFlightProgressUpdateCount.fetch_add(1, std::memory_order::relaxed);
+            }
+        }));
+
+    auto startedSession = WaitFor(controller->StartSession())
+        .ValueOrThrow();
+    auto writer = CreateDistributedChunkWriter(
+        startedSession.SequencerNode,
+        startedSession.SessionId,
+        NativeConnection_,
+        New<TDistributedChunkWriterConfig>());
+
+    WaitFor(writer->WriteRecord(
+        TSharedRef::FromString(std::string("record")),
+        TDistributedChunkSessionWriteStatistics{
+            .DataWeight = 11,
+            .UncompressedDataSize = 17,
+            .RowCount = 2,
+        }))
+        .ThrowOnError();
+
+    WaitFor(controller->Close())
+        .ThrowOnError();
+    EXPECT_EQ(inFlightProgressUpdateCount.load(std::memory_order::relaxed), 0);
+
+    EnsureControllerIsDestroyed(std::move(controller));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -646,7 +790,7 @@ TEST_F(TDistributedChunkSessionTest, SingleWriter)
 
     auto record = MakeRandomString(100);
 
-    WaitFor(writer->WriteRecord(TSharedRef::FromString(record)))
+    WaitFor(WriteOpaqueRecord(writer, TSharedRef::FromString(record)))
         .ThrowOnError();
 
     auto reader = CreateQuorumReader(startedSession.SessionId.ChunkId);
@@ -697,7 +841,9 @@ TEST_F(TDistributedChunkSessionTest, MultipleWriters)
         for (int recordIdx = 0; recordIdx < RecordsPerWriter; ++recordIdx) {
             int idx = writerIdx * RecordsPerWriter + recordIdx;
             expectedRecords[idx] = MakeRandomString(100);
-            writeFutures[idx] = writer->WriteRecord(TSharedRef::FromString(expectedRecords[idx]));
+            writeFutures[idx] = WriteOpaqueRecord(
+                writer,
+                TSharedRef::FromString(expectedRecords[idx]));
         }
     }
 
@@ -762,7 +908,9 @@ TEST_F(TDistributedChunkSessionTest, MultipleWritersPipelinedFlushes)
         for (int recordIdx = 0; recordIdx < RecordsPerWriter; ++recordIdx) {
             int idx = writerIdx * RecordsPerWriter + recordIdx;
             expectedRecords[idx] = MakeRandomString(100);
-            writeFutures[idx] = writer->WriteRecord(TSharedRef::FromString(expectedRecords[idx]));
+            writeFutures[idx] = WriteOpaqueRecord(
+                writer,
+                TSharedRef::FromString(expectedRecords[idx]));
         }
     }
 
@@ -811,7 +959,9 @@ TEST_F(TDistributedChunkSessionTest, SessionTimeout)
         NativeConnection_,
         New<TDistributedChunkWriterConfig>());
 
-    auto writeError = WaitFor(writer->WriteRecord(TSharedRef::FromString(MakeRandomString(100))));
+    auto writeError = WaitFor(WriteOpaqueRecord(
+        writer,
+        TSharedRef::FromString(MakeRandomString(100))));
     EXPECT_FALSE(writeError.IsOK());
     EXPECT_EQ(writeError.GetCode(), NChunkClient::EErrorCode::NoSuchSession);
     EXPECT_THAT(writeError.GetMessage(), HasSubstr("invalid or expired"));
@@ -857,7 +1007,9 @@ TEST_F(TDistributedChunkSessionTest, NotEnoughNodesToWrite)
         NativeConnection_,
         New<TDistributedChunkWriterConfig>());
 
-    auto writeError = WaitFor(writer->WriteRecord(TSharedRef::FromString(MakeRandomString(100))));
+    auto writeError = WaitFor(WriteOpaqueRecord(
+        writer,
+        TSharedRef::FromString(MakeRandomString(100))));
     EXPECT_FALSE(writeError.IsOK());
     EXPECT_THAT(writeError.GetMessage(), HasSubstr("Journal chunk writer failed"));
 }
@@ -1044,7 +1196,7 @@ TEST_F(TDistributedChunkSessionTest, SequencerNodeDiesAfterWrite)
 
     auto record = MakeRandomString(100);
 
-    WaitFor(writer->WriteRecord(TSharedRef::FromString(record)))
+    WaitFor(WriteOpaqueRecord(writer, TSharedRef::FromString(record)))
         .ThrowOnError();
 
     auto chunkId = startedSession.SessionId.ChunkId;
@@ -1093,7 +1245,8 @@ TEST_F(TDistributedChunkSessionTest, PoolRetryCreatesSeveralChunksForOneSlot)
         Transaction_->GetId(),
         WriterOptions_,
         WriterConfig_,
-        ActionQueue_->GetInvoker());
+        ActionQueue_->GetInvoker(),
+        /*sealMonitor*/ nullptr);
 
     auto first = WaitFor(pool->GetSession(0)).ValueOrThrow();
     auto second = WaitFor(pool->GetSession(0, first.SessionId)).ValueOrThrow();
@@ -1121,7 +1274,8 @@ TEST_F(TDistributedChunkSessionTest, FinalizeSlotEventuallySealsAllChunks)
         Transaction_->GetId(),
         WriterOptions_,
         WriterConfig_,
-        ActionQueue_->GetInvoker());
+        ActionQueue_->GetInvoker(),
+        /*sealMonitor*/ nullptr);
 
     auto first = WaitFor(pool->GetSession(0)).ValueOrThrow();
     auto second = WaitFor(pool->GetSession(0, first.SessionId)).ValueOrThrow();
@@ -1137,8 +1291,14 @@ TEST_F(TDistributedChunkSessionTest, FinalizeSlotEventuallySealsAllChunks)
         NativeConnection_,
         New<TDistributedChunkWriterConfig>());
 
-    WaitFor(firstWriter->WriteRecord(TSharedRef::FromString(std::string("row-1")))).ThrowOnError();
-    WaitFor(secondWriter->WriteRecord(TSharedRef::FromString(std::string("row-2")))).ThrowOnError();
+    WaitFor(WriteOpaqueRecord(
+        firstWriter,
+        TSharedRef::FromString(std::string("row-1"))))
+        .ThrowOnError();
+    WaitFor(WriteOpaqueRecord(
+        secondWriter,
+        TSharedRef::FromString(std::string("row-2"))))
+        .ThrowOnError();
     pool->FinalizeSlot(0);
 
     auto chunks = WaitFor(pool->GetSlotChunks(0))
@@ -1218,7 +1378,7 @@ TEST_F(TDistributedChunkSessionTest, ReadInterleavedWithWriter)
 
     std::thread writerThread([&] {
         for (int i = 0; i < Total; ++i) {
-            WaitFor(session.Writer->WriteRecord(TSharedRef::FromString(expected[i])))
+            WaitFor(WriteOpaqueRecord(session.Writer, TSharedRef::FromString(expected[i])))
                 .ThrowOnError();
             if ((i + 1) % Batch == 0) {
                 Sleep(TDuration::MilliSeconds(50));
@@ -1534,7 +1694,7 @@ TEST_F(TDistributedChunkSessionTest, SlowWriterDoesNotExhaustBudget)
     std::thread writerThread([&] {
         for (int i = 0; i < RecordCount; ++i) {
             Sleep(TDuration::MilliSeconds(80));
-            WaitFor(session.Writer->WriteRecord(TSharedRef::FromString(expected[i])))
+            WaitFor(WriteOpaqueRecord(session.Writer, TSharedRef::FromString(expected[i])))
                 .ThrowOnError();
         }
         WaitFor(session.Controller->Close())
@@ -1573,7 +1733,7 @@ TEST_F(TDistributedChunkSessionTest, SetAllWritersFinishedMidRead)
     std::vector<std::string> expected(RecordCount);
     for (int i = 0; i < RecordCount; ++i) {
         expected[i] = MakeRandomString(40);
-        WaitFor(session.Writer->WriteRecord(TSharedRef::FromString(expected[i])))
+        WaitFor(WriteOpaqueRecord(session.Writer, TSharedRef::FromString(expected[i])))
             .ThrowOnError();
     }
 

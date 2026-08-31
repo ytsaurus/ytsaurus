@@ -35,19 +35,21 @@ protected:
         return MakeId(EObjectType::JournalChunk, cellTag, counter, 0);
     }
 
-    static TDistributedChunkSessionSealSummary MakeSealSummary(TChunkId chunkId)
+    static TSessionSealSummaryWithChunkId MakeSealSummary(TChunkId chunkId)
     {
-        return TDistributedChunkSessionSealSummary{
+        return TSessionSealSummaryWithChunkId{
             .ChunkId = chunkId,
-            .RecordCount = 10,
-            .CompressedDataSize = 20,
+            .Summary = {
+                .RecordCount = 10,
+                .PhysicalCompressedDataSize = 20,
+            },
         };
     }
 
-    static std::vector<TDistributedChunkSessionSealSummary> MakeSealSummaries(
+    static std::vector<TSessionSealSummaryWithChunkId> MakeSealSummaries(
         const std::vector<TChunkId>& chunkIds)
     {
-        std::vector<TDistributedChunkSessionSealSummary> summaries;
+        std::vector<TSessionSealSummaryWithChunkId> summaries;
         summaries.reserve(chunkIds.size());
         for (auto chunkId : chunkIds) {
             summaries.push_back(MakeSealSummary(chunkId));
@@ -63,7 +65,7 @@ protected:
     }
 
     IDistributedChunkSessionSealMonitorPtr CreateMonitor(
-        TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
+        TSealSummaryFetchCallback fetchSealSummaries,
         TDistributedChunkSessionSealMonitorConfigPtr config = CreateConfig())
     {
         return CreateDistributedChunkSessionSealMonitor(
@@ -104,14 +106,14 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, FetchesNewChunksImmediately)
     config->PollPeriod = TDuration::Seconds(30);
 
     auto chunkId = MakeChunkId(TCellTag(1), 1);
-    auto deliveredPromise = NewPromise<std::vector<TDistributedChunkSessionSealSummary>>();
+    auto deliveredPromise = NewPromise<std::vector<TSessionSealSummaryWithChunkId>>();
     auto monitor = CreateMonitor(
         BIND([=] (std::vector<TChunkId> chunkIds) {
             return MakeFuture(MakeSealSummaries(chunkIds));
         }),
         config);
     auto subscription = monitor->Subscribe(BIND(
-        [deliveredPromise] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [deliveredPromise] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             deliveredPromise.TrySet(std::move(summaries));
         }));
 
@@ -130,7 +132,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, FetchesNewChunkWhileUnsealedChun
     auto firstChunkId = MakeChunkId(TCellTag(1), 1);
     auto secondChunkId = MakeChunkId(TCellTag(1), 2);
     auto firstFetchStartedPromise = NewPromise<void>();
-    auto firstFetchPromise = NewPromise<std::vector<TDistributedChunkSessionSealSummary>>();
+    auto firstFetchPromise = NewPromise<std::vector<TSessionSealSummaryWithChunkId>>();
     auto secondChunkDeliveredPromise = NewPromise<void>();
     std::atomic<int> fetchCount = 0;
 
@@ -144,7 +146,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, FetchesNewChunkWhileUnsealedChun
         }),
         config);
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             for (const auto& summary : summaries) {
                 if (summary.ChunkId == secondChunkId) {
                     secondChunkDeliveredPromise.TrySet();
@@ -155,7 +157,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, FetchesNewChunkWhileUnsealedChun
     subscription->TrackChunks({firstChunkId});
     WaitForCompletion(firstFetchStartedPromise.ToFuture());
     DrainActionQueue();
-    firstFetchPromise.TrySet(std::vector<TDistributedChunkSessionSealSummary>{});
+    firstFetchPromise.TrySet(std::vector<TSessionSealSummaryWithChunkId>{});
     DrainActionQueue();
 
     subscription->TrackChunks({secondChunkId});
@@ -178,13 +180,13 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, PollsUnsealedChunksAgain)
         BIND([&] (std::vector<TChunkId> chunkIds) {
             if (++fetchCount == 1) {
                 firstFetchStartedPromise.TrySet();
-                return MakeFuture<std::vector<TDistributedChunkSessionSealSummary>>({});
+                return MakeFuture<std::vector<TSessionSealSummaryWithChunkId>>({});
             }
             return MakeFuture(MakeSealSummaries(chunkIds));
         }),
         config);
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary>) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId>) {
             deliveredPromise.TrySet();
         }));
 
@@ -213,14 +215,14 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, RetriesFailedFetch)
         BIND([&] (std::vector<TChunkId> chunkIds) {
             if (++fetchCount == 1) {
                 firstFetchStartedPromise.TrySet();
-                return MakeFuture<std::vector<TDistributedChunkSessionSealSummary>>(
+                return MakeFuture<std::vector<TSessionSealSummaryWithChunkId>>(
                     TError("Failed to fetch seal summaries"));
             }
             return MakeFuture(MakeSealSummaries(chunkIds));
         }),
         config);
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary>) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId>) {
             deliveredPromise.TrySet();
         }));
 
@@ -239,7 +241,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, ReconfiguresFetchBatchSize)
     config->MaxChunksPerFetch = 1;
 
     auto firstFetchStartedPromise = NewPromise<void>();
-    auto firstFetchPromise = NewPromise<std::vector<TDistributedChunkSessionSealSummary>>();
+    auto firstFetchPromise = NewPromise<std::vector<TSessionSealSummaryWithChunkId>>();
     auto secondBatchPromise = NewPromise<std::vector<TChunkId>>();
     auto allDeliveredPromise = NewPromise<void>();
     std::atomic<int> fetchCount = 0;
@@ -256,7 +258,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, ReconfiguresFetchBatchSize)
         }),
         config);
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             if (deliveredCount.fetch_add(summaries.size()) + summaries.size() == 3) {
                 allDeliveredPromise.TrySet();
             }
@@ -275,7 +277,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, ReconfiguresFetchBatchSize)
     monitor->Reconfigure(reconfigured);
     DrainActionQueue();
 
-    firstFetchPromise.TrySet(std::vector<TDistributedChunkSessionSealSummary>{
+    firstFetchPromise.TrySet(std::vector<TSessionSealSummaryWithChunkId>{
         MakeSealSummary(MakeChunkId(TCellTag(1), 1)),
     });
 
@@ -300,7 +302,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, LimitsFetchBatchSize)
         }),
         config);
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             if (deliveredCount.fetch_add(summaries.size()) + summaries.size() == 5) {
                 allDeliveredPromise.TrySet();
             }
@@ -324,7 +326,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, DoesNotOverlapFetchesWithinCell)
     config->MaxChunksPerFetch = 1;
 
     auto firstBatchPromise = NewPromise<std::vector<TChunkId>>();
-    auto firstFetchPromise = NewPromise<std::vector<TDistributedChunkSessionSealSummary>>();
+    auto firstFetchPromise = NewPromise<std::vector<TSessionSealSummaryWithChunkId>>();
     auto allDeliveredPromise = NewPromise<void>();
     std::atomic<int> fetchCount = 0;
     std::atomic<int> deliveredCount = 0;
@@ -339,7 +341,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, DoesNotOverlapFetchesWithinCell)
         }),
         config);
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             if (deliveredCount.fetch_add(summaries.size()) + summaries.size() == 2) {
                 allDeliveredPromise.TrySet();
             }
@@ -364,7 +366,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, FetchesDifferentCellsConcurrentl
     auto firstCellChunkId = MakeChunkId(TCellTag(1), 1);
     auto secondCellChunkId = MakeChunkId(TCellTag(2), 1);
     auto firstCellFetchStartedPromise = NewPromise<void>();
-    auto firstCellFetchPromise = NewPromise<std::vector<TDistributedChunkSessionSealSummary>>();
+    auto firstCellFetchPromise = NewPromise<std::vector<TSessionSealSummaryWithChunkId>>();
     auto secondCellDeliveredPromise = NewPromise<void>();
 
     auto monitor = CreateMonitor(BIND([&] (std::vector<TChunkId> chunkIds) {
@@ -375,7 +377,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, FetchesDifferentCellsConcurrentl
         return MakeFuture(MakeSealSummaries(chunkIds));
     }));
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             for (const auto& summary : summaries) {
                 if (summary.ChunkId == secondCellChunkId) {
                     secondCellDeliveredPromise.TrySet();
@@ -388,7 +390,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, FetchesDifferentCellsConcurrentl
     subscription->TrackChunks({secondCellChunkId});
 
     WaitForCompletion(secondCellDeliveredPromise.ToFuture());
-    firstCellFetchPromise.TrySet(std::vector<TDistributedChunkSessionSealSummary>{});
+    firstCellFetchPromise.TrySet(std::vector<TSessionSealSummaryWithChunkId>{});
 }
 
 TEST_F(TDistributedChunkSessionSealMonitorTest, BatchesAcrossSubscriptions)
@@ -414,13 +416,13 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, BatchesAcrossSubscriptions)
         }),
         invoker);
     auto firstSubscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             ASSERT_EQ(summaries.size(), 1u);
             EXPECT_EQ(summaries[0].ChunkId, firstChunkId);
             firstDeliveredPromise.TrySet();
         }));
     auto secondSubscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             ASSERT_EQ(summaries.size(), 1u);
             EXPECT_EQ(summaries[0].ChunkId, secondChunkId);
             secondDeliveredPromise.TrySet();
@@ -441,7 +443,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, UnsubscribeIgnoresInFlightResult
 {
     auto chunkId = MakeChunkId(TCellTag(1), 1);
     auto fetchStartedPromise = NewPromise<void>();
-    auto fetchPromise = NewPromise<std::vector<TDistributedChunkSessionSealSummary>>();
+    auto fetchPromise = NewPromise<std::vector<TSessionSealSummaryWithChunkId>>();
     std::atomic<int> callbackCount = 0;
 
     auto monitor = CreateMonitor(BIND([&] (std::vector<TChunkId>) {
@@ -449,7 +451,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, UnsubscribeIgnoresInFlightResult
         return fetchPromise.ToFuture();
     }));
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary>) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId>) {
             ++callbackCount;
         }));
 
@@ -474,7 +476,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, TracksMoreChunksAfterDelivery)
         return MakeFuture(MakeSealSummaries(chunkIds));
     }));
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary> summaries) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId> summaries) {
             ASSERT_EQ(summaries.size(), 1u);
             if (++callbackCount == 1) {
                 EXPECT_EQ(summaries[0].ChunkId, firstChunkId);
@@ -513,7 +515,7 @@ TEST_F(TDistributedChunkSessionSealMonitorTest, RetriesSynchronousFetchException
         }),
         config);
     auto subscription = monitor->Subscribe(BIND(
-        [&] (std::vector<TDistributedChunkSessionSealSummary>) {
+        [&] (std::vector<TSessionSealSummaryWithChunkId>) {
             deliveredPromise.TrySet();
         }));
 
