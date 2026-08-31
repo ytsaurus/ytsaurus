@@ -2349,6 +2349,13 @@ def init_logging(path, name,
     if "compression_thread_count" not in logging_config:
         logging_config["compression_thread_count"] = 4
 
+    # With compressed logs, the default (unset flush_period) flushes writers after every
+    # batch, producing many tiny zstd frames (~5 KB) that compress ~6x instead of ~10x and
+    # waste CPU. A periodic flush lets frames accumulate -> smaller logs and less compression
+    # CPU, at the cost of up to flush_period of log buffered in RAM (lost on a hard crash).
+    if compression_options and "flush_period" not in logging_config:
+        logging_config["flush_period"] = 1000
+
     default_log_level = max(log_level, LogLevel.INFO)
     writer_name = _get_writer_name(default_log_level.to_str())
     logging_config.setdefault("rules", []).append({

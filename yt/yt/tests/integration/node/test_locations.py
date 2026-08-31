@@ -649,16 +649,18 @@ class CacheLocationOverflowBase(YTEnvSetup):
         ]
         assert len(leftover_temp_files) == 0, leftover_temp_files
 
-        entries = read_structured_log(
-            self.path_to_run + "/logs/controller-agent-0.json.log",
-            row_filter=lambda e: (
-                e.get("event_type") == "job_aborted" and
-                e.get("operation_id") == op.id and
-                "Job aborted by" not in e["error"]["message"]
-            ),
-        )
-        assert len(entries) > 0
-        for entry in entries:
+        def read_abort_entries():
+            return read_structured_log(
+                self.path_to_run + "/logs/controller-agent-0.json.log",
+                row_filter=lambda e: (
+                    e.get("event_type") == "job_aborted" and
+                    e.get("operation_id") == op.id and
+                    "Job aborted by" not in e["error"]["message"]
+                ),
+            )
+
+        wait(lambda: len(read_abort_entries()) > 0)
+        for entry in read_abort_entries():
             assert self._EXPECTED_ERROR in str(entry), entry
 
 
