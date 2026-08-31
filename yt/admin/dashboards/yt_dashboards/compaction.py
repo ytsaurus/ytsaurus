@@ -14,9 +14,32 @@ except ImportError:
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.sensor import MultiSensor, Title
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
-from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
+from yt_dashboard_generator.backends.monitoring import (
+    MonitoringCustomDashboardParameter,
+    MonitoringLabelDashboardParameter,
+    MonitoringQueryDashboardParameter,
+)
 from yt_dashboard_generator.backends.monitoring.sensors import (
     MonitoringExpr, DownsamplingAggregation)
+
+
+DIGEST_COMPACTION_REASONS = [
+    "apply_deletions",
+    "remove_duplicates",
+    "ttl_cleanup_expected",
+    "too_many_timestamps",
+    "aggregate_ttl_cleanup_expected",
+    "aggregate_delete_too_many_timestamps",
+]
+
+DIGEST_COMPACTION_REASON_SELECTOR = "|".join(DIGEST_COMPACTION_REASONS)
+TOP_SERIES_LIMIT = 20
+
+
+def _anomaly_view(expression):
+    return (expression
+        .top_max(TOP_SERIES_LIMIT)
+        .downsampling_aggregation(DownsamplingAggregation.Max))
 
 
 def generate1():
@@ -139,6 +162,179 @@ def generate3():
                 .cell("Hunk chunk count", NodeTablet("yt.tablet_node.tablet.hunk_chunk_count"))
         ).owner,
     ]
+
+
+def _build_digest_compaction_rowset():
+    def data_weight_sensor(direction):
+        return (NodeTablet(f"yt.tablet_node.store_compactor.{direction}_data_weight.rate")
+            .aggr("eden")
+            .value("activity", "compaction")
+            .value("reason", TemplateTag("reason"))
+            .unit("UNIT_BYTES_SI_PER_SECOND"))
+
+    def store_count_sensor(direction):
+        return MonitoringExpr(
+            NodeTablet(f"yt.tablet_node.store_compactor.{direction}_store_count.rate")
+                .aggr("eden")
+                .value("activity", "compaction")
+                .value("reason", TemplateTag("reason")))
+
+    in_data_weight = MonitoringExpr(data_weight_sensor("in"))
+    out_data_weight = MonitoringExpr(data_weight_sensor("out"))
+    in_store_count = store_count_sensor("in")
+    out_store_count = store_count_sensor("out")
+    write_data_weight = MonitoringExpr(
+        NodeTablet("yt.tablet_node.write.data_weight.rate")
+            .unit("UNIT_BYTES_SI_PER_SECOND"))
+
+    return (Rowset()
+        .aggr("host", "table_tag", "user")
+        .value("tablet_cell_bundle", TemplateTag("tablet_cell_bundle"))
+        .value("table_path", TemplateTag("table_path"))
+        .row()
+            .cell("Compacted data weight",
+                MultiSensor(
+                    _anomaly_view(in_data_weight),
+                    _anomaly_view(out_data_weight))
+                    .unit("UNIT_BYTES_SI_PER_SECOND"))
+            .cell("Output / input data weight",
+                _anomaly_view(out_data_weight / in_data_weight.drop_below(1e-6))
+                    .unit("UNIT_NONE"))
+        .row()
+            .cell("Digest input / table write data weight",
+                _anomaly_view(in_data_weight / write_data_weight.drop_below(1e-6))
+                    .unit("UNIT_NONE"))
+            .cell("Input / output store rate",
+                MultiSensor(
+                    _anomaly_view(in_store_count),
+                    _anomaly_view(out_store_count))
+                    .unit("UNIT_COUNTS_PER_SECOND"))
+    ).owner
+
+
+def _build_digest_fetching_rowset():
+    def fetch_sensor(digest_kind, metric):
+        return (NodeTablet(f"yt.tablet_node.compaction_hints.{digest_kind}.{metric}.rate")
+            .aggr("host", "cell_id")
+            .value("tablet_cell_bundle", TemplateTag("tablet_cell_bundle")))
+
+    def digest_sensors(metric):
+        return MultiSensor(
+            _anomaly_view(MonitoringExpr(fetch_sensor("row_digest", metric))),
+            _anomaly_view(MonitoringExpr(fetch_sensor("min_hash_digest", metric))),
+        )
+
+    def finished_to_requested(digest_kind):
+        finished = MonitoringExpr(fetch_sensor(digest_kind, "finished_request_count"))
+        requested = MonitoringExpr(fetch_sensor(digest_kind, "request_count"))
+        return (_anomaly_view(finished / requested.drop_below(1e-6))
+            .unit("UNIT_NONE"))
+
+    return (Rowset()
+        .row()
+            .cell("Fetch requests", digest_sensors("request_count")
+                .unit("UNIT_REQUESTS_PER_SECOND"))
+            .cell("Finished fetches", digest_sensors("finished_request_count")
+                .unit("UNIT_REQUESTS_PER_SECOND"))
+        .row()
+            .cell("Failed fetches", digest_sensors("failed_request_count")
+                .unit("UNIT_REQUESTS_PER_SECOND"))
+            .cell("Throttled fetch cycles", digest_sensors("throttled_request_count")
+                .unit("UNIT_COUNTS_PER_SECOND"))
+        .row()
+            .cell("Digest parse CPU", digest_sensors("parse_cumulative_time"))
+            .cell("Finished / requested fetches", MultiSensor(
+                finished_to_requested("row_digest"),
+                finished_to_requested("min_hash_digest")))
+    ).owner
+
+
+def _build_all_compactions_rowset():
+    def data_weight_sensor(direction, reason):
+        return _anomaly_view(MonitoringExpr(
+            NodeTablet(f"yt.tablet_node.store_compactor.{direction}_data_weight.rate")
+                .value("reason", reason)))
+
+    return (Rowset()
+        .aggr("host", "eden", "table_tag", "user")
+        .value("activity", "compaction")
+        .value("tablet_cell_bundle", TemplateTag("tablet_cell_bundle"))
+        .value("table_path", TemplateTag("table_path"))
+        .row()
+            .cell("Input data weight by reason",
+                _anomaly_view(MonitoringExpr(
+                    NodeTablet("yt.tablet_node.store_compactor.in_data_weight.rate")
+                        .all("reason")))
+                    .unit("UNIT_BYTES_SI_PER_SECOND")
+                    .stack())
+            .cell("Output store count by reason",
+                _anomaly_view(MonitoringExpr(
+                    NodeTablet("yt.tablet_node.store_compactor.out_store_count.rate")
+                        .all("reason")))
+                    .unit("UNIT_COUNTS_PER_SECOND")
+                    .stack())
+        .row()
+            .cell("Input data weight — all digest reasons",
+                data_weight_sensor("in", DIGEST_COMPACTION_REASON_SELECTOR)
+                    .unit("UNIT_BYTES_SI_PER_SECOND")
+                    .stack())
+            .cell("Periodic compaction data weight",
+                MultiSensor(
+                    data_weight_sensor("in", "periodic"),
+                    data_weight_sensor("out", "periodic"))
+                    .unit("UNIT_BYTES_SI_PER_SECOND"))
+    ).owner
+
+
+def build_compaction_digest():
+    dashboard = Dashboard()
+    dashboard.set_title("Compaction digest")
+    dashboard.set_description(
+        "Compaction efficiency and fetch pipeline health for row and min-hash digests.")
+
+    dashboard.add(Rowset().row(height=2).cell(
+        "", Title("Digest compactions", size="TITLE_SIZE_L")).owner)
+    dashboard.add(_build_digest_compaction_rowset())
+    dashboard.add(Rowset().row(height=2).cell(
+        "", Title("All compactions", size="TITLE_SIZE_L")).owner)
+    dashboard.add(_build_all_compactions_rowset())
+    dashboard.add(Rowset().row(height=2).cell(
+        "", Title("Digest fetching", size="TITLE_SIZE_L")).owner)
+    dashboard.add(_build_digest_fetching_rowset())
+
+    dashboard.add_parameter("cluster", "Cluster",
+        MonitoringQueryDashboardParameter(
+            "yt",
+            "cluster",
+            COMPACTION_DASHBOARD_DEFAULT_CLUSTER,
+            selectors='{service="node_tablet"}',
+            custom_items=[("All", "*")],
+            multiselectable=True))
+    dashboard.add_parameter("tablet_cell_bundle", "Tablet cell bundle",
+        MonitoringQueryDashboardParameter(
+            "yt",
+            "tablet_cell_bundle",
+            "-",
+            selectors='{service="node_tablet", cluster="{{cluster}}"}',
+            custom_items=[("All", "*")],
+            multiselectable=True))
+    dashboard.add_parameter("table_path", "Table path",
+        MonitoringQueryDashboardParameter(
+            "yt",
+            "table_path",
+            "*",
+            selectors=(
+                '{service="node_tablet", cluster="{{cluster}}", '
+                'tablet_cell_bundle="{{tablet_cell_bundle}}"}'),
+            custom_items=[("All", "*")],
+            multiselectable=True))
+    dashboard.add_parameter("reason", "Digest reason",
+        MonitoringCustomDashboardParameter(
+            values=DIGEST_COMPACTION_REASONS,
+            default_value="apply_deletions",
+            multiselectable=True))
+
+    return dashboard.value("cluster", TemplateTag("cluster"))
 
 
 def build_per_table_compaction():

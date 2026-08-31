@@ -133,6 +133,10 @@ dashboards = {
         "func": compaction.build_per_table_compaction,
         "monitoring": {},
     },
+    "compaction-digest": {
+        "func": compaction.build_compaction_digest,
+        "monitoring": {},
+    },
     "bundle-ui-user-load": {
         "func": build_bundle_ui_user_load,
         "monitoring": {},
