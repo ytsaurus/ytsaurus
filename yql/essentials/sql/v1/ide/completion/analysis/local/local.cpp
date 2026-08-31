@@ -275,23 +275,19 @@ private:
         const TCursorTokenContext& context, const TC3Candidates& candidates) const {
         TLocalSyntaxContext::TObject object;
 
-        const bool isDropTable = AnyOf(candidates.Rules, RuleAdapted(IsDropTableStack));
-        const bool isDropView = AnyOf(candidates.Rules, RuleAdapted(IsDropViewStack));
-
-        if (isDropTable || isDropView) {
+        if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyObjectRefStack))) {
             object.Kinds.emplace(EObjectKind::Folder);
-            object.Kinds.emplace(isDropView ? EObjectKind::View : EObjectKind::Table);
-        } else {
-            if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyObjectRefStack))) {
-                object.Kinds.emplace(EObjectKind::Folder);
-                object.Kinds.emplace(EObjectKind::Unknown);
-            }
+            object.Kinds.emplace(EObjectKind::Unknown);
+        }
 
-            if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyExistingTableStack))) {
-                object.Kinds.emplace(EObjectKind::Folder);
-                object.Kinds.emplace(EObjectKind::Table);
-                object.Kinds.emplace(EObjectKind::View);
-            }
+        if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyExistingTableStack))) {
+            object.Kinds.emplace(EObjectKind::Folder);
+            object.Kinds.emplace(EObjectKind::Table);
+        }
+
+        if (AnyOf(candidates.Rules, RuleAdapted(IsLikelyExistingViewStack))) {
+            object.Kinds.emplace(EObjectKind::Folder);
+            object.Kinds.emplace(EObjectKind::View);
         }
 
         if (object.Kinds.empty() && !AnyOf(candidates.Rules, RuleAdapted(IsLikelyTableArgStack))) {

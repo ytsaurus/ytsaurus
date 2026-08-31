@@ -65,10 +65,13 @@ struct TObjectNameConstraints {
 struct TFolderName: TIdentifier {
 };
 
-struct TTableName: TIdentifier {
+struct TObjectName: TIdentifier {
 };
 
-struct TViewName: TIdentifier {
+struct TTableName: TObjectName {
+};
+
+struct TViewName: TObjectName {
 };
 
 struct TClusterName: TIdentifier {
