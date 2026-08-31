@@ -112,6 +112,9 @@ void TDynamicTableSourceParameters::Register(TRegistrar registrar)
     registrar.Parameter("restart_instant", &TThis::RestartInstant)
         .Default(TInstant::Zero());
 
+    registrar.Parameter("allow_v1_migration", &TThis::AllowV1Migration)
+        .Default(false);
+
     registrar.Parameter("max_partition_count", &TThis::MaxPartitionCount)
         .Default(TSize::FromString("10K"));
     registrar.Parameter("throttler_period", &TThis::ThrottlerPeriod)

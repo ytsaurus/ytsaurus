@@ -94,6 +94,8 @@ struct TDynamicTableSourceParameters
     // Ignore current processing progress if previous start/restart was earlier than RestartInstant.
     TInstant RestartInstant;
 
+    bool AllowV1Migration = false;
+
     // Do not override parameters below if you are not sure.
 
     NYTree::TSize MaxPartitionCount;

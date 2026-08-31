@@ -167,6 +167,7 @@ struct TSourceControllerTable
     std::string GetName() const;
 
     std::tuple<i64, TSystemTimestamp, i64> GetOrderingKey() const; // Era, EventTimestamp, EventOrdinal
+    std::tuple<i64, TSystemTimestamp, TSystemTimestamp, std::string> GetV1OrderingKey() const;
 
     void SkipRemainingRows();
 
@@ -237,6 +238,11 @@ struct TSourceControllerState
     std::vector<TSourceControllerTablePtr> PendingCleanupTables;
 
     TInstant ActiveClusterUnavailableSince;
+
+    std::optional<EMigrationMode> Mode;
+    std::optional<i64> CutoverEra;
+    std::optional<TSystemTimestamp> CutoverEventTimestamp;
+    std::vector<std::string> CutoverProcessedTableNames;
 
     REGISTER_YSON_STRUCT(TSourceControllerState);
 
@@ -312,7 +318,11 @@ public:
         std::vector<TSourceControllerTablePtr>& tables,
         const TDynamicTableSourceParametersPtr& dynamicSourceParameters,
         const TSourceControllerTablePtr& lastProcessingTable,
-        const TEventNameOrderPtr& nameOrder = {});
+        const TEventNameOrderPtr& nameOrder = {},
+        EMigrationMode mode = EMigrationMode::V2,
+        std::optional<i64> cutoverEra = {},
+        std::optional<TSystemTimestamp> cutoverEventTimestamp = {},
+        const std::vector<std::string>& cutoverProcessedTableNames = {});
 
     static double GetDesiredRangeRowsPerSecond(
         const TDynamicTableSourceParametersPtr& dynamicParameters,
@@ -330,7 +340,39 @@ public:
         const TDynamicTableSourceParametersPtr& dynamicSourceSpec,
         const TSourceControllerTablePtr& lastProcessingTable,
         i64 era,
-        const TEventNameOrderPtr& nameOrder = {});
+        const TEventNameOrderPtr& nameOrder = {},
+        EMigrationMode mode = EMigrationMode::V2,
+        std::optional<i64> cutoverEra = {},
+        std::optional<TSystemTimestamp> cutoverEventTimestamp = {},
+        const std::vector<std::string>& cutoverProcessedTableNames = {});
+
+    static void InitializeMigrationState(
+        TSourceControllerState* state,
+        bool isNativeV2Source);
+
+    static bool IsV1MigrationAllowed(
+        const std::string& sourceClassName,
+        bool allowV1Migration);
+
+    static void UpdateMigrationState(
+        TSourceControllerState* state,
+        bool allowV1Migration,
+        const std::vector<TSourceControllerTablePtr>& tables,
+        const NLogging::TLogger& publicLogger);
+
+    static bool IsTableLess(
+        const TSourceControllerTablePtr& lhs,
+        const TSourceControllerTablePtr& rhs,
+        EMigrationMode mode);
+
+    static bool IsSameTableKey(
+        const TSourceControllerTablePtr& lhs,
+        const TSourceControllerTablePtr& rhs,
+        EMigrationMode mode);
+
+    static void SortTables(
+        std::vector<TSourceControllerTablePtr>& tables,
+        EMigrationMode mode);
 
     static std::pair<NYPath::TRichYPath, NYTree::INodePtr> ResolveTable(
         const NApi::IClientPtr& client,
@@ -344,9 +386,10 @@ public:
     static void UpdateControllerState(
         TSourceControllerState* state,
         const std::vector<TSourceControllerTablePtr>& tables,
-        const NLogging::TLogger& publicLogger);
+        const NLogging::TLogger& publicLogger,
+        EMigrationMode mode = EMigrationMode::V2);
 
-    static void ApplyRestartInstantLogic(
+    static bool ApplyRestartInstantLogic(
         TSourceControllerState* state,
         TInstant restartInstant,
         const NLogging::TLogger& publicLogger);
@@ -361,7 +404,11 @@ public:
         const TDynamicTableSourceParametersPtr& dynamicSourceSpec,
         i64 era,
         const TSourceControllerTablePtr& lastProcessingTable,
-        const TEventNameOrderPtr& nameOrder);
+        const TEventNameOrderPtr& nameOrder,
+        EMigrationMode mode,
+        std::optional<i64> cutoverEra,
+        std::optional<TSystemTimestamp> cutoverEventTimestamp,
+        std::vector<std::string> cutoverProcessedTableNames);
 
     static std::vector<std::string> GetPathClusters(const NYPath::TRichYPath& path);
 
@@ -408,21 +455,33 @@ private:
         const TDynamicTableSourceParametersPtr& dynamicSourceSpec,
         i64 era,
         const TSourceControllerTablePtr& lastProcessingTable,
-        const TEventNameOrderPtr& nameOrder);
+        const TEventNameOrderPtr& nameOrder,
+        EMigrationMode mode,
+        std::optional<i64> cutoverEra,
+        std::optional<TSystemTimestamp> cutoverEventTimestamp,
+        const std::vector<std::string>& cutoverProcessedTableNames);
 
     TListedTables GetSingleClusterTables(
         const TTableSourceParametersPtr& sourceSpec,
         const TDynamicTableSourceParametersPtr& dynamicSourceSpec,
         i64 era,
         const TSourceControllerTablePtr& lastProcessingTable,
-        const TEventNameOrderPtr& nameOrder);
+        const TEventNameOrderPtr& nameOrder,
+        EMigrationMode mode,
+        std::optional<i64> cutoverEra,
+        std::optional<TSystemTimestamp> cutoverEventTimestamp,
+        const std::vector<std::string>& cutoverProcessedTableNames);
 
     TListedTables GetMultiClusterTables(
         const TTableSourceParametersPtr& sourceSpec,
         const TDynamicTableSourceParametersPtr& dynamicSourceSpec,
         i64 era,
         const TSourceControllerTablePtr& lastProcessingTable,
-        const TEventNameOrderPtr& nameOrder);
+        const TEventNameOrderPtr& nameOrder,
+        EMigrationMode mode,
+        std::optional<i64> cutoverEra,
+        std::optional<TSystemTimestamp> cutoverEventTimestamp,
+        const std::vector<std::string>& cutoverProcessedTableNames);
 
 private:
     IStatusErrorStatePtr CheckDistributingTableErrorState_;

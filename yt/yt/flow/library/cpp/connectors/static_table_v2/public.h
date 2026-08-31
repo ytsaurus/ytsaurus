@@ -2,6 +2,7 @@
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
+#include <library/cpp/yt/misc/enum.h>
 #include <library/cpp/yt/misc/strong_typedef.h>
 
 namespace NYT::NFlow::NStaticTableConnectorV2 {
@@ -9,6 +10,12 @@ namespace NYT::NFlow::NStaticTableConnectorV2 {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSourceController;
+
+DEFINE_ENUM(EMigrationMode,
+    ((V1)       (0))
+    ((Draining) (1))
+    ((V2)       (2))
+);
 
 DECLARE_REFCOUNTED_STRUCT(TTableTimestampLocatorSpec);
 DECLARE_REFCOUNTED_STRUCT(TTableSourceParameters);

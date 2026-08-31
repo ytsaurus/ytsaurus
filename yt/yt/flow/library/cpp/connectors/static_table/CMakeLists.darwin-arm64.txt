@@ -32,16 +32,15 @@ target_link_libraries(cpp-connectors-static_table PUBLIC
   yutil
   library-cpp-common
   cpp-connectors-common
+  cpp-connectors-static_table_v2
   library-cpp-resources
   yt-yt-core
   yt-yt-client
-  yt-library-re2
 )
 
 target_sources(cpp-connectors-static_table PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/arrival_order_table_sink.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/spec.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/source.cpp
 )
 
 
@@ -64,10 +63,10 @@ target_link_libraries(cpp-connectors-static_table.global PUBLIC
   yutil
   library-cpp-common
   cpp-connectors-common
+  cpp-connectors-static_table_v2
   library-cpp-resources
   yt-yt-core
   yt-yt-client
-  yt-library-re2
 )
 
 target_sources(cpp-connectors-static_table.global PRIVATE

@@ -84,7 +84,7 @@
 
 {% include [_](./NYT_NFlow_NFileStorage_TFileStorageConfig.md) %}
 
-{% include [_](./NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec.md) %}
+{% include [_](./NYT_NFlow_NStaticTableConnectorV2_TTableTimestampLocatorSpec.md) %}
 
 {% include [_](./NYT_NFlow_NWorker_TWorkerConfig.md) %}
 
@@ -181,6 +181,8 @@
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
+
+{% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_NStaticTableConnectorV2_TSource.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TAsyncMultiClusterQueueSink.md) %}
 
@@ -287,6 +289,8 @@
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnector_TArrivalOrderTableSink.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnector_TSource.md) %}
+
+{% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_NStaticTableConnectorV2_TSource.md) %}
 
 {% include [_](./NYT_NFlow_TUnitedParameters_NYT_NFlow_TAsyncMultiClusterQueueSink.md) %}
 

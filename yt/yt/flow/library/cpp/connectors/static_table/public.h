@@ -1,33 +1,38 @@
 #pragma once
 
-#include <library/cpp/yt/memory/ref_counted.h>
+#include <yt/yt/flow/library/cpp/connectors/static_table_v2/public.h>
 
-#include <library/cpp/yt/misc/strong_typedef.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NFlow::NStaticTableConnector {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSourceController;
 class TArrivalOrderTableSink;
 class TArrivalOrderTableSinkController;
 
-DECLARE_REFCOUNTED_STRUCT(TTableTimestampLocatorSpec);
-DECLARE_REFCOUNTED_STRUCT(TTableSourceParameters);
-DECLARE_REFCOUNTED_STRUCT(TDynamicTableSourceParameters);
-DECLARE_REFCOUNTED_STRUCT(TDynamicTableSourcePartitionSpec);
 DECLARE_REFCOUNTED_STRUCT(TArrivalOrderTableSinkParameters);
 DECLARE_REFCOUNTED_STRUCT(TDynamicArrivalOrderTableSinkParameters);
 DECLARE_REFCOUNTED_STRUCT(TArrivalOrderTableSinkOwner);
 DECLARE_REFCOUNTED_STRUCT(TArrivalOrderTableSinkPartitionProgress);
 DECLARE_REFCOUNTED_STRUCT(TArrivalOrderTableSinkProgress);
 
-DECLARE_REFCOUNTED_STRUCT(TPartitionStatus);
-
-DECLARE_REFCOUNTED_STRUCT(TSourceControllerTable);
-DECLARE_REFCOUNTED_STRUCT(TSourceControllerState);
-
-YT_DEFINE_STRONG_TYPEDEF(TRangeId, i64);
+using TSourceController = NStaticTableConnectorV2::TSourceController;
+using TTableTimestampLocatorSpec = NStaticTableConnectorV2::TTableTimestampLocatorSpec;
+using TTableTimestampLocatorSpecPtr = NStaticTableConnectorV2::TTableTimestampLocatorSpecPtr;
+using TTableSourceParameters = NStaticTableConnectorV2::TTableSourceParameters;
+using TTableSourceParametersPtr = NStaticTableConnectorV2::TTableSourceParametersPtr;
+using TDynamicTableSourceParameters = NStaticTableConnectorV2::TDynamicTableSourceParameters;
+using TDynamicTableSourceParametersPtr = NStaticTableConnectorV2::TDynamicTableSourceParametersPtr;
+using TDynamicTableSourcePartitionSpec = NStaticTableConnectorV2::TDynamicTableSourcePartitionSpec;
+using TDynamicTableSourcePartitionSpecPtr = NStaticTableConnectorV2::TDynamicTableSourcePartitionSpecPtr;
+using TPartitionStatus = NStaticTableConnectorV2::TPartitionStatus;
+using TPartitionStatusPtr = NStaticTableConnectorV2::TPartitionStatusPtr;
+using TSourceControllerTable = NStaticTableConnectorV2::TSourceControllerTable;
+using TSourceControllerTablePtr = NStaticTableConnectorV2::TSourceControllerTablePtr;
+using TSourceControllerState = NStaticTableConnectorV2::TSourceControllerState;
+using TSourceControllerStatePtr = NStaticTableConnectorV2::TSourceControllerStatePtr;
+using TRangeId = NStaticTableConnectorV2::TRangeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 

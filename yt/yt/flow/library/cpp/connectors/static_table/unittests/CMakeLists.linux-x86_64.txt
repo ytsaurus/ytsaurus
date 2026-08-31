@@ -67,7 +67,6 @@ target_link_options(yt-flow-library-cpp-connectors-static_table-unittests PRIVAT
 
 target_sources(yt-flow-library-cpp-connectors-static_table-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/unittests/arrival_order_table_sink_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/static_table/unittests/source_ut.cpp
 )
 
 

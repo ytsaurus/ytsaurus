@@ -4,7 +4,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     arrival_order_table_sink_ut.cpp
-    source_ut.cpp
 )
 
 PEERDIR(
