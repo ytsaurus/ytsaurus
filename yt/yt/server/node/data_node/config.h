@@ -1153,6 +1153,9 @@ struct TDataNodeDynamicConfig
     //! After that time alert about long live read sessions will be sent.
     std::optional<TDuration> LongLiveReadSessionThreshold;
 
+    std::optional<TDuration> SessionBlockReorderTimeout;
+    std::optional<int> MaxOutOfTurnSessions;
+
     //! Prepared chunk readers are kept open during this period of time after the last use.
     TDuration ChunkReaderRetentionTimeout;
 
@@ -1179,6 +1182,9 @@ struct TDataNodeDynamicConfig
 
     TP2PConfigPtr P2P;
 
+    std::optional<int> MaxBlocksPerRead;
+    std::optional<i64> MaxBytesPerRead;
+
     //! Desired number of bytes per disk write in a blob chunks.
     std::optional<i64> BytesPerWrite;
 
@@ -1204,6 +1210,8 @@ struct TDataNodeDynamicConfig
     TCacheLocationDynamicConfigPtr CacheLocation;
 
     std::optional<i64> NetOutThrottlingLimit;
+
+    std::optional<TDuration> NetOutThrottlingDuration;
 
     std::optional<i64> NetInThrottlingLimit;
 

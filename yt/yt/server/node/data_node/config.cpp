@@ -1159,6 +1159,13 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("long_live_read_session_threshold", &TThis::LongLiveReadSessionThreshold)
         .Optional();
+    registrar.Parameter("session_block_reorder_timeout", &TThis::SessionBlockReorderTimeout)
+        .GreaterThan(TDuration::Zero())
+        .Optional();
+    registrar.Parameter("max_out_of_turn_sessions", &TThis::MaxOutOfTurnSessions)
+        .GreaterThanOrEqual(0)
+        .LessThan(64)
+        .Optional();
 
     registrar.Parameter("chunk_reader_retention_timeout", &TThis::ChunkReaderRetentionTimeout)
         .Default(TDuration::Minutes(1));
@@ -1199,6 +1206,12 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("p2p", &TThis::P2P)
         .Optional();
 
+    registrar.Parameter("max_blocks_per_read", &TThis::MaxBlocksPerRead)
+        .GreaterThan(0)
+        .Optional();
+    registrar.Parameter("max_bytes_per_read", &TThis::MaxBytesPerRead)
+        .GreaterThan(0)
+        .Optional();
     registrar.Parameter("bytes_per_write", &TThis::BytesPerWrite)
         .GreaterThan(0)
         .Default();
@@ -1245,6 +1258,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .Default();
+    registrar.Parameter("net_out_throttling_duration", &TThis::NetOutThrottlingDuration)
+        .GreaterThan(TDuration::Zero())
+        .Optional();
 
     registrar.Parameter("net_in_throttling_limit", &TThis::NetInThrottlingLimit)
         .Default();

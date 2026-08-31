@@ -11,6 +11,8 @@
 #include "nbd_session.h"
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -420,7 +422,10 @@ bool TSessionManager::CanPassSessionOutOfTurn(TChunkId chunkId)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto count = Config_->MaxOutOfTurnSessions;
+    auto count = Bootstrap_->GetDynamicConfigManager()
+        ->GetConfig()
+        ->DataNode
+        ->MaxOutOfTurnSessions.value_or(Config_->MaxOutOfTurnSessions);
     if (count == 0) {
         return false;
     }

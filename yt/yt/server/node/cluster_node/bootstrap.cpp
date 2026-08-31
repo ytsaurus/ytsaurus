@@ -1496,6 +1496,7 @@ private:
         auto netTxLimit = NodeResourceManager_->GetNetTxLimit();
         auto netRxLimit = NodeResourceManager_->GetNetRxLimit();
         ReconfigureThrottlers(newConfig, netTxLimit, netRxLimit);
+        NetworkStatistics_->Reconfigure(newConfig->DataNode);
 
         RawReadRpsOutThrottler_->Reconfigure(newConfig->DataNode->ReadRpsOutThrottler
             ? newConfig->DataNode->ReadRpsOutThrottler
