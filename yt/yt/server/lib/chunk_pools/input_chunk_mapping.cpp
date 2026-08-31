@@ -31,23 +31,27 @@ TInputChunkMapping::TInputChunkMapping(EChunkMappingMode mode, NLogging::TLogger
     , Logger(logger)
 { }
 
-TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& stripe) const
+TMappedChunkStripe TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& stripe) const
 {
     auto guard = ReaderGuard(SpinLock_);
     return GetMappedStripeGuarded(stripe);
 }
 
-TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr& stripe) const
+TMappedChunkStripe TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr& stripe) const
 {
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     YT_VERIFY(stripe);
 
     if (Substitutes_.empty()) {
-        return stripe;
+        return {
+            .Stripe = stripe,
+            .IsRegenerated = false,
+        };
     }
 
     auto mappedStripe = New<TChunkStripe>();
+    bool isRegenerated = false;
     for (const auto& dataSlice : stripe->DataSlices()) {
         if (dataSlice->Type == EDataSourceType::UnversionedTable) {
             const auto& chunk = dataSlice->GetSingleUnversionedChunk();
@@ -56,6 +60,7 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
                 // The chunk was never substituted, so it remains as is.
                 mappedStripe->DataSlices().push_back(dataSlice);
             } else {
+                isRegenerated = true;
                 const auto& substitutes = iterator->second;
                 if (substitutes.empty()) {
                     continue;
@@ -94,7 +99,10 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr
         }
     }
 
-    return mappedStripe;
+    return {
+        .Stripe = mappedStripe,
+        .IsRegenerated = isRegenerated,
+    };
 }
 
 void TInputChunkMapping::OnStripeRegenerated(
@@ -215,7 +223,7 @@ void TInputChunkMapping::Reset(IChunkPoolInput::TCookie resetCookie, const TChun
         if (cookie == resetCookie) {
             stripe = resetStripe;
         } else {
-            stripe = GetMappedStripeGuarded(stripe);
+            stripe = GetMappedStripeGuarded(stripe).Stripe;
         }
     }
 
