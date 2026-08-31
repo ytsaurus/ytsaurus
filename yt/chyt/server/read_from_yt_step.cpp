@@ -18,13 +18,18 @@
 #include <Planner/PlannerActionsVisitor.h>
 #include <Planner/PlannerContext.h>
 
-#include <Parsers/ASTIdentifier.h>
-#include <Parsers/ASTFunction.h>
+#include <Parsers/ASTAsterisk.h>
 #include <Parsers/ASTExplainQuery.h>
+#include <Parsers/ASTFunction.h>
+#include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
+#include <Parsers/ASTSetQuery.h>
 #include <Parsers/ASTTablesInSelectQuery.h>
-#include <Parsers/ASTAsterisk.h>
+
+#include <Processors/Chunk.h>
+#include <Processors/Executors/PullingPipelineExecutor.h>
+#include <Processors/QueryPlan/QueryPlan.h>
 
 #include <Functions/FunctionsMiscellaneous.h>
 
@@ -224,6 +229,44 @@ bool AddFilterToQuery(
     return data.rewriteSubquery(ast->as<DB::ASTSelectQuery&>(), DB::Names{});
 }
 
+// A copy of the same static function inside ReadFromRemote.cpp
+void FormatExplain(DB::IQueryPlanStep::FormatSettings& settings, DB::Pipes pipes)
+{
+    String prefix(settings.offset + settings.indent, settings.indent_char);
+    for (auto & pipe : pipes) {
+        DB::QueryPipeline pipeline(std::move(pipe));
+        DB::PullingPipelineExecutor executor(pipeline);
+
+        DB::Chunk chunk;
+        while (executor.pull(chunk)) {
+            if (!chunk.hasColumns() || !chunk.hasRows()) {
+                continue;
+            }
+
+            const auto & col = chunk.getColumns().front();
+            size_t numRows = col->size();
+
+            for (size_t row = 0; row < numRows; ++row) {
+                settings.out << prefix << col->getDataAt(row).toView() << '\n';
+            }
+        }
+    }
+}
+
+// A copy of the same static function inside ReadFromRemote.cpp
+DB::ASTPtr MakeExplain(const DB::ExplainPlanOptions& options, DB::ASTPtr query)
+{
+    auto explainSettings = std::make_shared<DB::ASTSetQuery>();
+    explainSettings->is_standalone = false;
+    explainSettings->changes = options.toSettingsChanges();
+
+    auto explainQuery = std::make_shared<DB::ASTExplainQuery>(DB::ASTExplainQuery::ExplainKind::QueryPlan);
+    explainQuery->setExplainedQuery(query);
+    explainQuery->setSettings(explainSettings);
+
+    return explainQuery;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,10 +293,12 @@ TReadFromYTStep::TReadFromYTStep(
 
 String TReadFromYTStep::getName() const
 {
-    return "ReadFromYT";
+    return "ReadFromYTRemote";
 }
 
-void TReadFromYTStep::initializePipeline(DB::QueryPipelineBuilder& pipeline, const DB::BuildQueryPipelineSettings&)
+// Calling this method makes sense only _after_ the interpreter has processed the initial query and fields such as
+// |filter_actions_dag| are set by it.
+void TReadFromYTStep::AddAdditionalFiltersSuggestedByInterpreter()
 {
     const auto& plannerContext = QueryInfo_.planner_context;
     const auto& context = plannerContext->getMutableQueryContext();
@@ -267,6 +312,11 @@ void TReadFromYTStep::initializePipeline(DB::QueryPipelineBuilder& pipeline, con
             });
         }
     }
+}
+
+void TReadFromYTStep::initializePipeline(DB::QueryPipelineBuilder& pipeline, const DB::BuildQueryPipelineSettings&)
+{
+    AddAdditionalFiltersSuggestedByInterpreter();
 
     Executor_.Fire();
     auto pipe = Executor_.ExtractUnitedPipe();
@@ -326,6 +376,18 @@ void TReadFromYTStep::describeActions(FormatSettings& formatSettings) const
         auto expression = std::make_shared<DB::ExpressionActions>(PrewhereInfo_->prewhere_actions.clone());
         expression->describeActions(out, prefix);
     }
+}
+
+void TReadFromYTStep::describeDistributedPlan(FormatSettings& formatSettings, const DB::ExplainPlanOptions& options)
+{
+    AddAdditionalFiltersSuggestedByInterpreter();
+
+    Executor_.ModifySecondaryQueries([&] (DB::ASTPtr& query) {
+        query = MakeExplain(options, query);
+    });
+
+    Executor_.Fire();
+    FormatExplain(formatSettings, Executor_.ExtractPipes());
 }
 
 void TReadFromYTStep::describeActions(DB::JSONBuilder::JSONMap& map) const
