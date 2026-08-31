@@ -3,6 +3,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/yt/client/table_client/key_bound.h>
+#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt/core/misc/object_pool.h>
 #include <yt/yt/core/misc/range_helpers.h>
@@ -16,6 +17,10 @@ using namespace NChunkClient::NProto;
 using namespace NTableClient::NProto;
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,6 +140,32 @@ bool FindBoundaryKeyBounds(
     *lowerBound = TOwningKeyBound::FromRow(minKey, /*isInclusive*/ true, /*isUpper*/ false);
     *upperBound = TOwningKeyBound::FromRow(maxKey, /*isInclusive*/ true, /*isUpper*/ true);
     return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<int> FindMinHashDigestBlockIndex(
+    const TDataBlockMetaExt& dataBlockMetaExt,
+    const TSystemBlockMetaExt& systemBlockMetaExt)
+{
+    std::optional<int> minHashDigestBlockIndex;
+    for (int systemBlockIndex = 0; systemBlockIndex < systemBlockMetaExt.system_blocks_size(); ++systemBlockIndex) {
+        const auto& systemBlockMeta = systemBlockMetaExt.system_blocks(systemBlockIndex);
+        if (!systemBlockMeta.HasExtension(TMinHashDigestSystemBlockMeta::min_hash_digest_block_meta)) {
+            continue;
+        }
+
+        int blockIndex = dataBlockMetaExt.data_blocks_size() + systemBlockIndex;
+
+        YT_LOG_ALERT_IF(minHashDigestBlockIndex,
+            "There are two blocks with min hash digest (FirstBlockIndex: %v, SecondBlockIndex: %v)",
+            *minHashDigestBlockIndex,
+            blockIndex);
+
+        minHashDigestBlockIndex = blockIndex;
+    }
+
+    return minHashDigestBlockIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
