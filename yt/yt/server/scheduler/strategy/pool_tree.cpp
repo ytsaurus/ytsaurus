@@ -2465,13 +2465,13 @@ private:
             const auto& userToDefaultPoolMap = StrategyHost_->GetUserDefaultParentPoolMap();
             auto it = userToDefaultPoolMap.find(userName);
             if (it != userToDefaultPoolMap.end()) {
-                if (auto pool = tryGetValidPool(it->second, "User default parent pool")) {
+                if (auto pool = tryGetValidPool(it->second, "UserDefaultParent")) {
                     return pool;
                 }
             }
         }
 
-        if (auto pool = tryGetValidPool(Config_->DefaultParentPool, "Default parent pool")) {
+        if (auto pool = tryGetValidPool(Config_->DefaultParentPool, "DefaultParent")) {
             return pool;
         }
 
