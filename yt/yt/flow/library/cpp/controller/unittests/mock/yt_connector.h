@@ -23,6 +23,7 @@ struct TMockYTConnector
     MOCK_METHOD(void, Start, (), (override));
     MOCK_METHOD(EYTConnectorState, GetState, (), (const, override));
     MOCK_METHOD(bool, IsLeader, (), (const, override));
+    MOCK_METHOD(TInstant, GetLeadershipPublishTime, (), (const, override));
     MOCK_METHOD(void, ValidateLeader, (), (const, override));
     MOCK_METHOD(void, Disconnect, (), (override));
     MOCK_METHOD(TFuture<NApi::ITransactionPtr>, StartTransaction, (

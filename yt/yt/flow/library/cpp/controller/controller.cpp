@@ -62,6 +62,14 @@ constinit const auto Logger = ControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Shape of the derived leadership warm-up, see #GetLeadershipWarmupTimeout. The factor leaves room
+//! for a discovery tick missed just before the address was published (the executor is jittered), the
+//! extra time covers the RPC latency and the registration stampede of a large fleet.
+static constexpr int LeadershipWarmupPeriodFactor = 2;
+static constexpr auto LeadershipWarmupExtraTime = TDuration::Seconds(5);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // FuncGauge-based lag gauge: computes lag as (Now() - LastWatermark) at read time.
 // Unlike TGauge, continues growing even if Update() stops being called (e.g. controller is stuck).
 // Returns -1 if no watermark has been set yet.
@@ -950,7 +958,17 @@ private:
         auto state = flowView->State->ExecutionSpec->PipelineState->GetValue();
         checkLeases();
         if (state == EPipelineState::Working || state == EPipelineState::Draining) {
-            manageJobs();
+            // Job management is held off as a whole, which keeps RemoveLostJobs and DistributeJobs
+            // consistent: a job left pointing at a not-yet-registered worker is exactly what the
+            // latter refuses to distribute.
+            auto warmupLeft = GetLeadershipWarmupLeft(flowView, Connector_->GetLeadershipPublishTime(), TInstant::Now());
+            if (warmupLeft > TDuration::Zero()) {
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Skipping job management during leadership warm-up")
+                    .With("WarmupLeft", warmupLeft)
+                    .With("Jobs", flowView->State->ExecutionSpec->Layout->Jobs.size());
+            } else {
+                manageJobs();
+            }
         }
         if (state == EPipelineState::Working || state == EPipelineState::Draining) {
             LeaseManager_->PrepareLeases(flowView);
@@ -1845,6 +1863,41 @@ IControllerPtr CreateController(
         ignoreSingletonsDynamicConfig,
         clockClusterTag,
         std::move(rootStatusProfiler));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDuration GetLeadershipWarmupTimeout(const TDynamicPipelineSpecPtr& dynamicSpec)
+{
+    const auto& connector = dynamicSpec->ControllerConnector;
+
+    auto timeout =
+        (connector->ControllerDiscoverPeriod + connector->ControllerHeartbeatPeriod) * LeadershipWarmupPeriodFactor +
+        LeadershipWarmupExtraTime;
+
+    return std::min(timeout, connector->ControllerWaitTimeout);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDuration GetLeadershipWarmupLeft(const TFlowViewPtr& flowView, TInstant publishTime, TInstant now)
+{
+    // A layout with no jobs has nothing to protect, so a starting pipeline is never delayed.
+    if (flowView->State->ExecutionSpec->Layout->Jobs.size() == 0) {
+        return TDuration::Zero();
+    }
+
+    auto warmupTimeout = GetLeadershipWarmupTimeout(flowView->CurrentDynamicSpec->GetValue());
+    if (warmupTimeout == TDuration::Zero()) {
+        return TDuration::Zero();
+    }
+
+    if (publishTime == TInstant::Zero()) {
+        return warmupTimeout;
+    }
+
+    auto deadline = publishTime + warmupTimeout;
+    return now < deadline ? deadline - now : TDuration::Zero();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

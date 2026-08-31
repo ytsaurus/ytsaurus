@@ -128,6 +128,13 @@ public:
         return State_ == EYTConnectorState::Leader;
     }
 
+    TInstant GetLeadershipPublishTime() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return LeadershipPublishTime_.load();
+    }
+
     void ValidateLeader() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -250,6 +257,9 @@ private:
     TFuture<void> PublisherFuture_;
 
     std::atomic<EYTConnectorState> State_ = EYTConnectorState::Disconnected;
+    //! Set once TryPublishLeadership succeeds, cleared when leading ends. Read by the controller to
+    //! tell "we lead" from "workers can actually find us".
+    std::atomic<TInstant> LeadershipPublishTime_ = TInstant::Zero();
 
     ILockElectionManagerPtr ElectionManager_;
     //! Set alongside #ElectionManager_ when the Dyntable backend is selected; null otherwise.
@@ -427,6 +437,9 @@ private:
             WaitFor(transaction->Commit()).ThrowOnError();
             YT_TLOG_INFO("Published leader controller address to flow_control table")
                 .With("Address", NodeInfo_->RpcAddress);
+            // Only now can a worker discover this leader, so this is where the warm-up window
+            // during which the controller must not touch jobs starts.
+            LeadershipPublishTime_.store(TInstant::Now());
         } catch (const std::exception& ex) {
             YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to publish leader_controller to flow_control table")
                 .With(ex);
@@ -502,6 +515,7 @@ private:
         TForbidContextSwitchGuard contextSwitchGuard;
 
         State_.store(EYTConnectorState::Leader);
+        LeadershipPublishTime_.store(TInstant::Zero());
 
         PublisherFuture_ = BIND(&TYTConnector::PublishLeadership, MakeWeak(this), ElectionManager_->GetPrerequisiteId())
             .AsyncVia(SerializedInvoker_)
@@ -521,6 +535,7 @@ private:
         DoCleanUp();
 
         State_.store(EYTConnectorState::Follower);
+        LeadershipPublishTime_.store(TInstant::Zero());
 
         PublisherFuture_.Cancel(TError("Leading ended"));
 
