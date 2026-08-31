@@ -1564,7 +1564,8 @@ class TestBulkInsert(DynamicTablesBase):
 
 ##################################################################
 
-
+# TODO(dave11ar): Maybe remove, register_lockable_dynamic_tables and
+# allow_bulk_insert_under_user_transaction is |True| by default.
 class TestBulkInsertLockConfirmation(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -1577,6 +1578,8 @@ class TestBulkInsertLockConfirmation(DynamicTablesBase):
             "dynamic_table_lock_checking_attempt_count_limit": 3,
             "dynamic_table_lock_checking_interval_duration_min": 200,
             "dynamic_table_lock_checking_interval_duration_max": 500,
+            "register_lockable_dynamic_tables": False,
+            "allow_bulk_insert_under_user_transaction": False,
         },
     }
 
