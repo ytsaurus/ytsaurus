@@ -8,19 +8,28 @@ on:
     types:
       - opened
 
+permissions: {}
+
 jobs:
   pr-notifications:
     name: Send PR notifications
     runs-on: ubuntu-latest
     steps:
       - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_NOTIFICATIONS_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            New PR in *${{ github.repository }}*: `${{ github.event.pull_request.title }}`
-            ${{ github.server_url }}/${{ github.repository }}/pull/${{ github.event.number }}
+        shell: bash
+        env:
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_NOTIFICATIONS_CHAT_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          NOTIFICATION_TITLE: ${{ github.event.pull_request.title }}
+          NOTIFICATION_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          printf -v message 'New PR in %s: %s\n%s' \
+            "$REPOSITORY" "$NOTIFICATION_TITLE" "$NOTIFICATION_URL"
 
+          curl --fail --silent --show-error --output /dev/null \
+            --request POST \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${message}" \
+            --data-urlencode 'link_preview_options={"is_disabled":true}' \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
