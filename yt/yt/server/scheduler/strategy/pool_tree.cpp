@@ -298,7 +298,7 @@ public:
         , Logger(StrategyLogger().WithTag("TreeId", TreeId_))
         , Host_(host)
         , StrategyHost_(strategyHost)
-        , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
+        , ResourceTree_(New<TResourceTree>(Logger, Config_, feasibleInvokers))
         , Profiler_(
             SchedulerProfiler()
                 .WithGlobal()

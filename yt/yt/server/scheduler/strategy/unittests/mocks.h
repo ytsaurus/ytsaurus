@@ -255,7 +255,7 @@ class TPoolTreeElementHostMock
 {
 public:
     explicit TPoolTreeElementHostMock(const TStrategyTreeConfigPtr& treeConfig)
-        : ResourceTree_(New<TResourceTree>(treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
+        : ResourceTree_(New<TResourceTree>(StrategyLogger(), treeConfig, std::vector<IInvokerPtr>({GetCurrentInvoker()})))
     { }
 
     TResourceTree* GetResourceTree() override

@@ -1338,6 +1338,7 @@ public:
                 }
                 if (operation->GetState() != expectedState) { // EOperationState::RevivingJobs or EOperationState::Materializing
                     YT_TLOG_INFO("Operation state changed during materialization, skip materialization postprocessing")
+                        .With("OperationId", operation->GetId())
                         .With("ActualState", operation->GetState())
                         .With("ExpectedState", expectedState);
                     return;
