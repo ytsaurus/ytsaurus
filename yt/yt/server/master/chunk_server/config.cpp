@@ -1068,6 +1068,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         &TThis::UpdateHistoricallyNonVitalOnChunkCreationAndExport)
         .Default(false)
         .DontSerializeDefault();
+    
+    registrar.Parameter("set_empty_requisition_index_on_import", &TThis::SetEmptyRequisitionIndexOnImport)
+        .Default(false)
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;

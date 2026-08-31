@@ -5367,6 +5367,12 @@ private:
                 chunk = DoCreateChunk(chunkId);
                 chunk->SetForeign();
 
+                // COMPAT(theevilbird)
+                if (GetDynamicConfig()->SetEmptyRequisitionIndexOnImport) {
+                    const auto& objectManager = Bootstrap_->GetObjectManager();
+                    chunk->SetLocalRequisitionIndex(EmptyChunkRequisitionIndex, GetChunkRequisitionRegistry(), objectManager);
+                }
+
                 if (importData.has_chunk_schema_id()) {
                     auto chunkSchemaId = FromProto<TMasterTableSchemaId>(importData.chunk_schema_id());
                     auto* existingChunkSchema = tableManager->GetMasterTableSchema(chunkSchemaId);
