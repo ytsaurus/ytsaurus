@@ -34,5 +34,8 @@ Timeout for a single `RequestQuota` request. ||
 Named weighted quota classes. Backlogged classes share bandwidth in proportion to their weights and idle shares are redistributed. ||
 || `max_grant_amount` | **Type**: `std::optional<long>`
 Maximum server scheduling chunk in absolute quota units. It bounds the delay before active classes are reconsidered. If unset, a single request is granted whole, so it holds the token bucket for its entire prefetch window and delays every other class by that long. ||
+|| `use_class_weights_as_limit` | **Type**: `bool`
+**Default value**: `false`
+Reads the class weights as absolute rates: the issuance rate becomes the sum of the declared class weights, so a backlogged class is served at its weight in units per second. Requires at least one class and is mutually exclusive with `limit`. The reserved `default` class is not part of the sum. ||
 |#
 

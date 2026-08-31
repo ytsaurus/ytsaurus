@@ -71,7 +71,13 @@ class Test(FlowTestBase):
             100,
         )
 
-    def prepare_pipeline_config(self, finite=True, watermark_alignment=None):
+    @staticmethod
+    def class_weight_sum():
+        pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
+        classes = pipeline_config["dynamic_spec"]["throttlers"]["output_quota"]["classes"]
+        return sum(class_spec["weight"] for class_spec in classes.values())
+
+    def prepare_pipeline_config(self, finite=True, watermark_alignment=None, class_weights_as_limit=False):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
         for source, computation in [
@@ -110,7 +116,14 @@ class Test(FlowTestBase):
         pipeline_config["spec"]["computations"]["Throttled"]["sinks"]["queue"]["parameters"][
             "queue_path"
         ] = self.output_queue
-        pipeline_config["dynamic_spec"]["throttlers"]["output_quota"]["limit"] = THROTTLER_LIMIT
+        output_quota = pipeline_config["dynamic_spec"]["throttlers"]["output_quota"]
+        if class_weights_as_limit:
+            # The class weights become absolute rates and the only source of the
+            # bucket's limit.
+            del output_quota["limit"]
+            output_quota["use_class_weights_as_limit"] = True
+        else:
+            output_quota["limit"] = THROTTLER_LIMIT
 
         self.patch_config(pipeline_config)
         return self.dump_config_to_log_dir(pipeline_config, "pipeline.yson")
@@ -188,6 +201,37 @@ class Test(FlowTestBase):
         counts = self.subtract_counts(after, before)
         assert counts["vip"] > counts["bulk"], counts
         assert counts["regular"] > counts["bulk"], counts
+
+    @pytest.mark.authors(["sergeypozdeev"])
+    def test_class_weights_as_limit(self):
+        """Without an explicit limit the bucket rate is the sum of the class weights."""
+        run_yt_sync("primary", self.work_yt_path)
+        for source in self.input_queues:
+            self.write_input_data(max(EVENT_COUNT * 5, PRIORITY_WINDOW * 2), source)
+        pipeline_config_path = self.prepare_pipeline_config(finite=False, class_weights_as_limit=True)
+        weight_sum = self.class_weight_sum()
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+        ):
+            wait(lambda: self.count_output_rows() >= 20, timeout=180)
+            before = self.count_output_by_source()
+            started_at = time.monotonic()
+            wait(lambda: self.count_output_rows() >= sum(before.values()) + PRIORITY_WINDOW, timeout=300)
+            elapsed = time.monotonic() - started_at
+            after = self.count_output_by_source()
+            self.client.stop_pipeline(self.pipeline_path)
+            self.wait_pipeline_state("stopped", timeout=180)
+
+        counts = self.subtract_counts(after, before)
+        produced = sum(counts.values())
+        # An unthrottled reader emits an order of magnitude more than the weight
+        # sum, so this bounds the derived limit rather than the readers.
+        assert produced / elapsed <= weight_sum * 1.5, (produced, elapsed, weight_sum)
+        # The classes keep arbitrating under the derived limit.
+        assert counts["vip"] > counts["bulk"], counts
 
     @pytest.mark.authors(["sergeypozdeev"])
     def test_idle_class_share_is_redistributed(self):

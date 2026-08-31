@@ -2022,6 +2022,90 @@ TEST(TDynamicSpecTest, ClientConfigEqualityIgnoresServerOnlyFields)
     });
 }
 
+TEST(TDynamicSpecTest, ClassWeightsAsLimitSumsDeclaredWeights)
+{
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(R""""(
+        {
+            use_class_weights_as_limit = %true;
+            request_period = 1000;
+            classes = {
+                vip = {weight = 5.0;};
+                regular = {weight = 3.0;};
+                bulk = {weight = 1.0;};
+            };
+        }
+    )""""));
+
+    // The reserved default class is not part of the sum: a weight is the rate
+    // its class is served at, and classless traffic is not declared here.
+    EXPECT_EQ(spec->GetEffectiveLimit(), 9.0);
+    EXPECT_EQ(spec->BuildThroughputConfig()->Limit, 9.0);
+    EXPECT_EQ(spec->BuildPrefetchingConfig()->MaxPrefetchAmount, 9);
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitTracksWeightChanges)
+{
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; request_period=1000; classes={vip={weight=5.0;};};}"));
+    EXPECT_EQ(spec->GetEffectiveLimit(), 5.0);
+
+    // The limit is derived on demand rather than resolved once, so a hot
+    // reconfiguration of the weights moves it.
+    auto changed = CloneYsonStruct(spec);
+    changed->Classes.at(TQuotaClassId("vip"))->Weight = 2.0;
+    EXPECT_EQ(changed->GetEffectiveLimit(), 2.0);
+    // With the flag on a weight is a rate, so a change this large resizes the
+    // client's prefetch window and the client has to be rebuilt.
+    EXPECT_FALSE(spec->ClientConfigEquals(*changed));
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitKeepsClientWhenPrefetchWindowHolds)
+{
+    // A client sizes only its prefetch window from the limit; the rate itself is
+    // enforced on the server. A weight change too small to move that window must
+    // therefore keep the client and the quota it has already prefetched.
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; request_period=100; classes={vip={weight=5.0;};};}"));
+    auto changed = CloneYsonStruct(spec);
+    changed->Classes.at(TQuotaClassId("vip"))->Weight = 4.9;
+
+    EXPECT_NE(spec->GetEffectiveLimit(), changed->GetEffectiveLimit());
+    EXPECT_EQ(
+        spec->BuildPrefetchingConfig()->MaxPrefetchAmount,
+        changed->BuildPrefetchingConfig()->MaxPrefetchAmount);
+    EXPECT_TRUE(spec->ClientConfigEquals(*changed));
+}
+
+TEST(TDynamicSpecTest, ClassWeightsAsLimitSurvivesSerializationRoundTrip)
+{
+    // The dynamic spec is stored as a parsed struct and served back
+    // re-serialized, so the derived limit must not leak into |limit| — it would
+    // come back as an explicitly set field and be rejected on the next update.
+    auto spec = ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+        "{use_class_weights_as_limit=%true; classes={vip={weight=5.0;};};}"));
+    auto roundTripped = ConvertTo<TDynamicThrottlerSpecPtr>(ConvertToNode(spec));
+
+    EXPECT_FALSE(roundTripped->Limit.has_value());
+    EXPECT_TRUE(roundTripped->UseClassWeightsAsLimit);
+    EXPECT_EQ(roundTripped->GetEffectiveLimit(), 5.0);
+}
+
+TEST(TDynamicSpecTest, RejectsClassWeightsAsLimitWithExplicitLimit)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+            "{limit=100.0; use_class_weights_as_limit=%true; classes={vip={};};}")),
+        "mutually exclusive");
+}
+
+TEST(TDynamicSpecTest, RejectsClassWeightsAsLimitWithoutClasses)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicThrottlerSpecPtr>(TYsonStringBuf(
+            "{use_class_weights_as_limit=%true;}")),
+        "requires at least one class");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TResolveUseCompactInputMessagesTest, DefaultUintKeyEnablesCompact)
