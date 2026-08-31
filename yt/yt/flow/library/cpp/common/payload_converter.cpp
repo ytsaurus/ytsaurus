@@ -14,6 +14,8 @@
 #include <library/cpp/containers/insert_only_concurrent_cache/cache.h>
 #include <library/cpp/yt/memory/new.h>
 
+#include <library/cpp/yt/misc/tls.h>
+
 namespace NYT::NFlow {
 
 using namespace NConcurrency;
@@ -31,6 +33,8 @@ struct TColumnAction
     // If < 0, fill with null (expression column placeholder or missing column).
     int SourceIndex;
 };
+
+YT_DEFINE_THREAD_LOCAL(TRowBufferPtr, GetPayloadConverterRowBuffer, New<TRowBuffer>());
 
 } // namespace
 
@@ -126,9 +130,9 @@ public:
         // We reuse a thread-local instance to avoid per-call heap allocation.
         // EvaluateKeys doesn't switch fiber context, so thread-local is safe here.
         TForbidContextSwitchGuard contextSwitchGuard;
-        static thread_local TRowBufferPtr BufferCache = New<TRowBuffer>();
+        auto& rowBuffer = GetPayloadConverterRowBuffer();
         auto finally = Finally([&] {
-            BufferCache->Clear();
+            rowBuffer->Clear();
         });
 
         // All expression columns are inplace (no string data): allocate the owning row
@@ -138,7 +142,7 @@ public:
             stringDataSize,
             [&] (TMutableUnversionedRow row) {
                 fillRow(row);
-                Evaluator_->EvaluateKeys(row, BufferCache, /*preserveColumnsIds*/ false);
+                Evaluator_->EvaluateKeys(row, rowBuffer, /*preserveColumnsIds*/ false);
             });
     }
 
