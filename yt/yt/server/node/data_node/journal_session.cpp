@@ -161,15 +161,20 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
          index < std::ssize(blocks);
          ++index)
     {
-        if (auto error = blocks[index].CheckChecksum(); !error.IsOK()) {
-            error = TError("Error appending changelog records")
+        if (auto checksumError = blocks[index].CheckChecksum(); !checksumError.IsOK()) {
+            static constexpr auto Message = "Error appending changelog records"_sb;
+
+            YT_TLOG_ALERT(Message)
+                .With("ChunkId", SessionId_.ChunkId)
+                .With("MediumIndex", SessionId_.MediumIndex)
+                .With("ChangelogId", Changelog_->GetId())
+                .With(checksumError);
+
+            THROW_ERROR_EXCEPTION(Message)
                 .With("chunk_id", SessionId_.ChunkId)
                 .With("medium_index", SessionId_.MediumIndex)
                 .With("changelog_id", Changelog_->GetId())
-                .With(error);
-
-            YT_LOG_ALERT(error);
-            THROW_ERROR error;
+                .With(checksumError);
         }
         records.push_back(blocks[index].Data);
         payloadSize += records.back().Size();

@@ -594,10 +594,10 @@ private:
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run());
 
-        YT_LOG_FATAL_UNLESS(
+        YT_TLOG_FATAL_UNLESS(
             snapshotOrError.IsOK(),
-            snapshotOrError,
-            "Unexpected faliure while making data node job controller info snapshot");
+            "Unexpected failure while making data node job controller info snapshot")
+            .With(snapshotOrError);
 
         return std::move(snapshotOrError.Value());
     }
