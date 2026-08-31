@@ -15,6 +15,12 @@ DEFINE_ENUM(EChunkMappingMode,
     (SortedWithoutKeyGuarantree)
 );
 
+struct TMappedChunkStripe
+{
+    NChunkPools::TChunkStripePtr Stripe;
+    bool IsRegenerated = false;
+};
+
 //! This class is companion for IPersistentChunkPoolInput.
 //! During the operation lifetime an input chunk may be suspended and replaced with
 //! another chunks (or chunks) on resumption. We keep the mapping that
@@ -39,7 +45,7 @@ public:
 
     //! Modify given stripe, replacing all the input chunks with their current
     //! substitutes.
-    NChunkPools::TChunkStripePtr GetMappedStripe(const NChunkPools::TChunkStripePtr& stripe) const;
+    TMappedChunkStripe GetMappedStripe(const NChunkPools::TChunkStripePtr& stripe) const;
 
     //! Given a source and regenerated stripe list, populate the mapping with input chunk
     //! correspondences, or report an error when the transformation is inconsistent
@@ -67,7 +73,7 @@ private:
     THashMap<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::TChunkStripePtr> OriginalStripes_;
     NLogging::TSerializableLogger Logger;
 
-    NChunkPools::TChunkStripePtr GetMappedStripeGuarded(const NChunkPools::TChunkStripePtr& stripe) const;
+    TMappedChunkStripe GetMappedStripeGuarded(const NChunkPools::TChunkStripePtr& stripe) const;
 
     static void ValidateSortedChunkConsistency(
         const NChunkClient::TInputChunkPtr& oldChunk,

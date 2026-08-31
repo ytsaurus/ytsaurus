@@ -131,7 +131,7 @@ protected:
 
     bool CheckMapping(TChunkStripePtr from, TChunkStripePtr to)
     {
-        auto mappedFrom = ChunkMapping_->GetMappedStripe(from);
+        auto mappedFrom = ChunkMapping_->GetMappedStripe(from).Stripe;
         return Same(ToChunks(mappedFrom), ToChunks(to));
     }
 };
@@ -179,6 +179,23 @@ TEST_F(TInputChunkMappingTest, RegeneratedIntermediateChunk)
     EXPECT_TRUE(CheckMapping(stripeA1, stripeA1));
     ChunkMapping_->OnStripeRegenerated(42, stripeA2);
     EXPECT_TRUE(CheckMapping(stripeA1, stripeA2));
+}
+
+TEST_F(TInputChunkMappingTest, IsRegenerated)
+{
+    InitChunkMapping(EChunkMappingMode::Sorted);
+
+    auto chunkA = CreateChunk();
+    auto chunkB = CreateChunk();
+
+    auto stripeA = CreateStripe({chunkA});
+    auto stripeB = CreateStripe({chunkB});
+
+    ChunkMapping_->Add(42, stripeA);
+    EXPECT_FALSE(ChunkMapping_->GetMappedStripe(stripeA).IsRegenerated);
+
+    ChunkMapping_->OnStripeRegenerated(42, stripeB);
+    EXPECT_TRUE(ChunkMapping_->GetMappedStripe(stripeA).IsRegenerated);
 }
 
 TEST_F(TInputChunkMappingTest, UnorderedSimple)
@@ -287,7 +304,7 @@ TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
     stripeAWithLimits->DataSlices()[0]->LowerLimit() = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit() = lowerLimit;
     stripeAWithLimits->DataSlices()[0]->UpperLimit() = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->UpperLimit() = upperLimit;
 
-    auto mappedStripeAWithLimits = ChunkMapping_->GetMappedStripe(stripeAWithLimits);
+    auto mappedStripeAWithLimits = ChunkMapping_->GetMappedStripe(stripeAWithLimits).Stripe;
 
     auto oldLowerLimit = mappedStripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit();
     auto newLowerLimit = stripeAWithLimits->DataSlices()[0]->ChunkSlices[0]->LowerLimit();
