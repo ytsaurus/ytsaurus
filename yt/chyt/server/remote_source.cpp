@@ -6,8 +6,14 @@
 #include "secondary_query_header.h"
 #include "format.h"
 
+#include <Columns/ColumnString.h>
+
+#include <Core/ColumnWithTypeAndName.h>
 #include <Core/Settings.h>
 
+#include <DataTypes/DataTypeString.h>
+
+#include <Parsers/ASTExplainQuery.h>
 #include <Parsers/ASTInsertQuery.h>
 #include <Parsers/ASTSelectQuery.h>
 
@@ -246,6 +252,7 @@ DB::Pipe CreateRemoteSource(
     }
 
     bool isInsert = queryAst->as<DB::ASTInsertQuery>();
+    bool isExplain = queryAst->as<DB::ASTExplainQuery>();
 
     std::optional<DB::RemoteQueryExecutor::Extension> extension;
     if (taskIterator) {
@@ -304,7 +311,7 @@ DB::Pipe CreateRemoteSource(
     bool addExtremes = false;
     bool asyncRead = false;
     bool asyncQuerySending = false;
-    if (!isInsert && processingStage == DB::QueryProcessingStage::Complete) {
+    if (!isExplain && !isInsert && processingStage == DB::QueryProcessingStage::Complete) {
         addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
         addExtremes = context->getSettingsRef()[DB::Setting::extremes];
     }
@@ -399,8 +406,15 @@ void TDistributedQueryExecutor::Fire()
 
     YT_VERIFY(!DistributeInfo_.SecondaryQueries.empty());
     bool isInsert = DistributeInfo_.SecondaryQueries[0].Query->as<DB::ASTInsertQuery>();
+    bool isExplain = DistributeInfo_.SecondaryQueries[0].Query->as<DB::ASTExplainQuery>();
     DB::Block blockHeader;
-    if (!isInsert) {
+    if (isExplain) {
+        blockHeader = DB::Block{DB::ColumnWithTypeAndName{
+            DB::ColumnString::create(),
+            std::make_shared<DB::DataTypeString>(),
+            "explain",
+        }};
+    } else if (!isInsert) {
         auto queryTree = QueryAnalysisResult_->QueryTree;
         blockHeader = DB::InterpreterSelectQueryAnalyzer::getSampleBlock(
             queryTree,
@@ -432,7 +446,7 @@ void TDistributedQueryExecutor::Fire()
             Logger,
             DistributeInfo_.TaskIterator);
 
-        if (!isInsert && !DB::blocksHaveEqualStructure(blockHeader, DistributeInfo_.OutputHeader)) {
+        if (!isExplain && !isInsert && !DB::blocksHaveEqualStructure(blockHeader, DistributeInfo_.OutputHeader)) {
             auto renameActionsDAG = DB::ActionsDAG::makeConvertingActions(
                 blockHeader.getColumnsWithTypeAndName(),
                 DistributeInfo_.OutputHeader.getColumnsWithTypeAndName(),
