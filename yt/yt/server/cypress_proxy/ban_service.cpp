@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/client/security_client/public.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/net/local_address.h>
@@ -220,6 +222,11 @@ private:
 
     void SetBanned(const std::string& user, bool isBanned)
     {
+        if (isBanned && user == NSecurityClient::RootUserName) {
+            THROW_ERROR_EXCEPTION("User %Qv cannot be banned",
+                user);
+        }
+
         auto userValue = CrossClusterReplicatedState_->Value(GetTag(), TYPath(user));
         auto nodeFactory = NYTree::CreateEphemeralNodeFactory();
         auto node = nodeFactory->CreateMap();
