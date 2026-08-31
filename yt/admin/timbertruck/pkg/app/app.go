@@ -528,6 +528,17 @@ func (c *oneShotAppTaskController) OnSkippedRow(data io.WriterTo, info pipelines
 	c.logger.Warn("Row skipped", attrs...)
 }
 
+func (c *oneShotAppTaskController) OnLargeRow(info pipelines.LargeRowInfo) {
+	attrs := []any{
+		"kind", string(info.Kind),
+		"offset", info.Offset,
+	}
+	for k, v := range info.Attrs {
+		attrs = append(attrs, k, v)
+	}
+	c.logger.Warn("Large row", attrs...)
+}
+
 type oneShotApp struct {
 	tasks []oneShotAppTask
 
