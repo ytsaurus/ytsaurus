@@ -123,8 +123,8 @@ public:
         }
 
         if (mediumConfig->MaxWriteRate == 0) {
-            YT_LOG_WARNING("Skipping load test for location. DWPD of current disk is unknown (Location: %v)",
-                Location_->GetId());
+            YT_TLOG_WARNING("Skipping load test for location; DWPD of current disk is unknown")
+                .With("LocationId", Location_->GetId());
 
             Stop();
             return;
@@ -474,7 +474,8 @@ public:
 
         auto it = Locations_.find(uuid);
         if (it == Locations_.end()) {
-            YT_LOG_WARNING("IO capacity requested for unknown location (LocationUUID: %v)", uuid);
+            YT_TLOG_WARNING("IO capacity requested for unknown location")
+                .With("LocationUuid", uuid);
             return {};
         }
         auto capacity = it->second->GetMeasured();

@@ -458,11 +458,11 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
         auto currentPath = chunk->GetLocation()->GetChunkPath(chunk->GetId());
 
         // Check that replicas point to the different inodes.
-        YT_LOG_FATAL_IF(
+        YT_TLOG_FATAL_IF(
             NFS::AreInodesIdentical(oldPath, currentPath),
-            "Duplicate chunks point to the same inode: %v vs %v",
-            currentPath,
-            oldPath);
+            "Duplicate chunks point to the same inode")
+            .With("CurrentPath", currentPath)
+            .With("OldPath", oldPath);
 
         switch (TypeFromId(DecodeChunkId(chunk->GetId()).Id)) {
             case EObjectType::Chunk:
@@ -471,9 +471,9 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                 // since different replicas may have different chunk meta formats.
 
                 // Remove duplicate replica.
-                YT_LOG_WARNING("Removing duplicate blob chunk: %v vs %v",
-                    currentPath,
-                    oldPath);
+                YT_TLOG_WARNING("Removing duplicate blob chunk")
+                    .With("CurrentPath", currentPath)
+                    .With("OldPath", oldPath);
                 chunk->SyncRemove(true);
                 break;
             }
@@ -500,13 +500,13 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                 }
 
                 // Remove shorter replica.
-                YT_LOG_WARNING("Removing shorter journal chunk: %v (RowCount: %v, Sealed: %v) vs %v (RowCount: %v, Sealed: %v)",
-                    shorterChunk->GetFileName(),
-                    shorterRowCount,
-                    shorterChunk->AsJournalChunk()->IsSealed(),
-                    longerChunk->GetFileName(),
-                    longerRowCount,
-                    longerChunk->AsJournalChunk()->IsSealed());
+                YT_TLOG_WARNING("Removing shorter journal chunk")
+                    .With("ShorterFileName", shorterChunk->GetFileName())
+                    .With("ShorterRowCount", shorterRowCount)
+                    .With("ShorterSealed", shorterChunk->AsJournalChunk()->IsSealed())
+                    .With("LongerFileName", longerChunk->GetFileName())
+                    .With("LongerRowCount", longerRowCount)
+                    .With("LongerSealed", longerChunk->AsJournalChunk()->IsSealed());
 
                 shorterChunk->SyncRemove(true);
                 if (shorterChunk == oldChunk) {

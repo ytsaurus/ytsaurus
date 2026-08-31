@@ -324,8 +324,8 @@ public:
         for (const auto& [chunk, oldMediumIndex] : delta->ChangedMediumSinceLastSuccess) {
             if (chunkEventCount >= MaxChunkEventsPerIncrementalHeartbeat_) {
                 auto mediumChangedBacklogCount = delta->ChangedMediumSinceLastSuccess.size() - delta->ReportedChangedMedium.size();
-                YT_LOG_INFO("Chunk event limit per heartbeat is reached, will report %v chunks with medium changed in next heartbeats",
-                    mediumChangedBacklogCount);
+                YT_TLOG_INFO("Chunk event limit per heartbeat is reached, will report the rest in next heartbeats")
+                    .With("MediumChangedBacklogCount", mediumChangedBacklogCount);
                 break;
             }
 
@@ -642,8 +642,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         PerLocationFullHeartbeatsEnabled_ = value;
-        YT_LOG_INFO("Per-location full data node heartbeats are %v",
-            value ? "enabled" : "disabled");
+        YT_TLOG_INFO("Per-location full data node heartbeats toggled")
+            .With("Enabled", value);
     }
 
     void SetLocationIndexesInHeartbeatsEnabled(bool value) override
@@ -651,8 +651,8 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         LocationIndexesInHeartbeatsEnabled_ = value;
-        YT_LOG_INFO("Location indexes in data node heartbeats are %v",
-            value ? "enabled" : "disabled");
+        YT_TLOG_INFO("Location indexes in data node heartbeats toggled")
+            .With("Enabled", value);
     }
 
 protected:
@@ -1283,9 +1283,9 @@ private:
                 .Run())
             .ValueOrThrow();
 
-        YT_LOG_INFO("Sending full data node heartbeat to master (CellTag: %v, %v)",
-            cellTag,
-            req->statistics());
+        YT_TLOG_INFO("Sending full data node heartbeat to master")
+            .With("CellTag", cellTag)
+            .With("Statistics", req->statistics());
 
         BeforeFullHeartbeatInvoke();
 
@@ -1369,10 +1369,10 @@ private:
         futures.reserve(heartbeatRequests.size());
         for (const auto& request : heartbeatRequests) {
             auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
-            YT_LOG_INFO("Sending location full heartbeat to master (CellTag: %v, LocationUuid: %v, %v)",
-                cellTag,
-                locationUuid,
-                request->statistics());
+            YT_TLOG_INFO("Sending location full heartbeat to master")
+                .With("CellTag", cellTag)
+                .With("LocationUuid", locationUuid)
+                .With("Statistics", request->statistics());
 
             // For testing purposes.
             if (auto duration = GetNodeDynamicConfig()->TestingOptions->FullHeartbeatSessionSleepDuration) {
@@ -1479,9 +1479,9 @@ private:
             chunkMapGuard.reset();
         }
 
-        YT_LOG_INFO("Sending incremental data node heartbeat to master (CellTag: %v, %v)",
-            cellTag,
-            req->statistics());
+        YT_TLOG_INFO("Sending incremental data node heartbeat to master")
+            .With("CellTag", cellTag)
+            .With("Statistics", req->statistics());
 
         return req->Invoke();
     }

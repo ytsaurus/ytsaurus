@@ -1567,9 +1567,8 @@ TEST_P(TFairShareHierarchicalTest, DISABLED_StressTest)
     GetFairShareHierarchicalScheduler()->BuildOrchid(&writer);
     writer.Flush();
     NLogging::TLogger Logger("TFairShareHierarchicalTest");
-    YT_LOG_DEBUG(
-        "Orchid: %v",
-        NYson::TYsonString(output.Str(), NYson::EYsonType::MapFragment));
+    YT_TLOG_DEBUG("Orchid built")
+        .With("Orchid", NYson::TYsonString(output.Str(), NYson::EYsonType::MapFragment));
 
     for (const auto& workloadCategory : workloadCategories) {
         TWorkloadDescriptor workload(workloadCategory);
