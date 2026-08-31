@@ -117,6 +117,7 @@ type TaskController interface {
 	NotifyProgress(pipelines.FilePosition)
 	Logger() *slog.Logger
 	OnSkippedRow(data io.WriterTo, info pipelines.SkippedRowInfo)
+	OnLargeRow(info pipelines.LargeRowInfo)
 }
 
 type TaskArgs struct {
@@ -157,7 +158,8 @@ func (tt *TimberTruck) AddStream(config StreamConfig, newPipeline NewPipelineFun
 		),
 		config:             config,
 		newPipelineFunc:    newPipeline,
-		skippedRowsMetrics: newSkippedRowsMetrics(tt.logger, config.Name, tt.metrics),
+		skippedRowsMetrics: newRowCounters(tt.metrics, config.Name, "tt.stream.skipped_rows", "reason", pipelines.AllSkipRowReasons),
+		largeRowsMetrics:   newRowCounters(tt.metrics, config.Name, "tt.stream.large_rows", "kind", pipelines.AllLargeRowKinds),
 		haveTasks:          make(chan struct{}),
 	}
 	if handler.config.MaxActiveTaskCount == nil {
@@ -353,7 +355,8 @@ type streamHandler struct {
 	config          StreamConfig
 	newPipelineFunc NewPipelineFunc
 
-	skippedRowsMetrics skippedRowsMetrics
+	skippedRowsMetrics rowCounters[pipelines.SkipRowReason]
+	largeRowsMetrics   rowCounters[pipelines.LargeRowKind]
 	haveTasks          chan struct{}
 }
 
@@ -674,6 +677,7 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 			logger:             h.logger.With("component", "Pipeline", "stagedpath", task.StagedPath),
 			skippedRowsWriter:  newSkippedRowsWriter(path.Join(h.skippedRowsDir(), path.Base(task.StagedPath)), h.logger),
 			skippedRowsMetrics: h.skippedRowsMetrics,
+			largeRowsMetrics:   h.largeRowsMetrics,
 		}
 
 		var p *pipelines.Pipeline
@@ -849,7 +853,8 @@ type taskController struct {
 	datastore          *Datastore
 	logger             *slog.Logger
 	skippedRowsWriter  *SkippedRowsWriter
-	skippedRowsMetrics skippedRowsMetrics
+	skippedRowsMetrics rowCounters[pipelines.SkipRowReason]
+	largeRowsMetrics   rowCounters[pipelines.LargeRowKind]
 }
 
 func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
@@ -894,6 +899,19 @@ func (c *taskController) OnSkippedRow(data io.WriterTo, info pipelines.SkippedRo
 		attrs = append(attrs, k, v)
 	}
 	c.logger.Warn("Row skipped", attrs...)
+}
+
+func (c *taskController) OnLargeRow(info pipelines.LargeRowInfo) {
+	c.largeRowsMetrics.Inc(info.Kind)
+
+	attrs := []any{
+		"kind", string(info.Kind),
+		"offset", info.Offset,
+	}
+	for k, v := range info.Attrs {
+		attrs = append(attrs, k, v)
+	}
+	c.logger.Warn("Large row", attrs...)
 }
 
 func getCreatePipelineMaxBackoff() time.Duration {
