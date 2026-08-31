@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "statistics.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -14,11 +15,10 @@ namespace NYT::NDistributedChunkSessionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDistributedChunkSessionSealSummary
+struct TSessionSealSummaryWithChunkId
 {
     NChunkClient::TChunkId ChunkId;
-    i64 RecordCount = 0;
-    i64 CompressedDataSize = 0;
+    TSessionSealSummary Summary;
 };
 
 //! Fetches master-side seal summaries for distributed-session chunks.
@@ -28,7 +28,7 @@ struct TDistributedChunkSessionSealSummary
  * Chunk ids must be unique.
  * All chunks must belong to the same master cell.
  */
-TFuture<std::vector<TDistributedChunkSessionSealSummary>> FetchDistributedChunkSessionSealSummaries(
+TFuture<std::vector<TSessionSealSummaryWithChunkId>> FetchDistributedChunkSessionSealSummaries(
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker,
     NChunkClient::TThrottlerManagerPtr throttlerManager,

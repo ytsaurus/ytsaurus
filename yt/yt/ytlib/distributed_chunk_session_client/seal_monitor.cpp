@@ -81,7 +81,7 @@ class TDistributedChunkSessionSealMonitor
 public:
     TDistributedChunkSessionSealMonitor(
         TDistributedChunkSessionSealMonitorConfigPtr config,
-        TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
+        TSealSummaryFetchCallback fetchSealSummaries,
         IInvokerPtr invoker,
         NLogging::TLogger logger)
         : Config_(std::move(config))
@@ -168,7 +168,7 @@ private:
     };
 
     TDistributedChunkSessionSealMonitorConfigPtr Config_;
-    const TDistributedChunkSessionSealSummaryFetchCallback FetchSealSummaries_;
+    const TSealSummaryFetchCallback FetchSealSummaries_;
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
 
@@ -413,11 +413,11 @@ private:
 
         cellState.FetchInProgress = true;
 
-        TFuture<std::vector<TDistributedChunkSessionSealSummary>> fetchFuture;
+        TFuture<std::vector<TSessionSealSummaryWithChunkId>> fetchFuture;
         try {
             fetchFuture = FetchSealSummaries_(std::move(chunkIds));
         } catch (const std::exception& ex) {
-            fetchFuture = MakeFuture<std::vector<TDistributedChunkSessionSealSummary>>(TError(ex));
+            fetchFuture = MakeFuture<std::vector<TSessionSealSummaryWithChunkId>>(TError(ex));
         }
 
         fetchFuture.Subscribe(BIND_NO_PROPAGATE(
@@ -479,7 +479,7 @@ private:
     void OnSealSummariesFetched(
         TCellTag cellTag,
         std::vector<TPollEntry> entries,
-        const TErrorOr<std::vector<TDistributedChunkSessionSealSummary>>& summariesOrError) noexcept
+        const TErrorOr<std::vector<TSessionSealSummaryWithChunkId>>& summariesOrError) noexcept
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
@@ -517,16 +517,16 @@ private:
 
     std::vector<TPollEntry> ProcessSealSummaries(
         const std::vector<TPollEntry>& entries,
-        const std::vector<TDistributedChunkSessionSealSummary>& summaries) noexcept
+        const std::vector<TSessionSealSummaryWithChunkId>& summaries) noexcept
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        THashMap<TChunkId, TDistributedChunkSessionSealSummary> summaryByChunkId;
+        THashMap<TChunkId, TSessionSealSummaryWithChunkId> summaryByChunkId;
         for (const auto& summary : summaries) {
             EmplaceOrCrash(summaryByChunkId, summary.ChunkId, summary);
         }
 
-        THashMap<TSealSubscriptionStatePtr, std::vector<TDistributedChunkSessionSealSummary>> deliveries;
+        THashMap<TSealSubscriptionStatePtr, std::vector<TSessionSealSummaryWithChunkId>> deliveries;
         std::vector<TPollEntry> unsealedEntries;
         int matchedSummaryCount = 0;
         int sealedChunkCount = 0;
@@ -606,7 +606,7 @@ void TDistributedChunkSessionSealSubscription::TrackChunks(
 
 IDistributedChunkSessionSealMonitorPtr CreateDistributedChunkSessionSealMonitor(
     TDistributedChunkSessionSealMonitorConfigPtr config,
-    TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
+    TSealSummaryFetchCallback fetchSealSummaries,
     IInvokerPtr invoker,
     NLogging::TLogger logger)
 {

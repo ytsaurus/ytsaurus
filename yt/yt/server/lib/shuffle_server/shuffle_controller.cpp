@@ -248,7 +248,8 @@ public:
             Transaction_->GetId(),
             std::move(writerOptions),
             std::move(writerConfig),
-            SerializedInvoker_);
+            SerializedInvoker_,
+            /*sealMonitor*/ nullptr);
 
         for (int partitionIndex = 0; partitionIndex < PartitionCount_; ++partitionIndex) {
             Pool_->GetSession(partitionIndex)

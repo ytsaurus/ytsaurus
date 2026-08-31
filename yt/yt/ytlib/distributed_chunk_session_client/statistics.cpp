@@ -20,6 +20,11 @@ bool IsNonnegative(const TDistributedChunkSessionProgress& progress)
     return IsComponentwiseLessOrEqual(TDistributedChunkSessionProgress{}, progress);
 }
 
+bool IsNonnegative(const TSessionSealSummary& summary)
+{
+    return summary.RecordCount >= 0 && summary.PhysicalCompressedDataSize >= 0;
+}
+
 bool IsComponentwiseLessOrEqual(
     const TDistributedChunkSessionProgress& lhs,
     const TDistributedChunkSessionProgress& rhs)
@@ -29,6 +34,17 @@ bool IsComponentwiseLessOrEqual(
         lhs.UncompressedDataSize <= rhs.UncompressedDataSize &&
         lhs.RecordCount <= rhs.RecordCount &&
         lhs.RowCount <= rhs.RowCount;
+}
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TSessionSealSummary& summary,
+    TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "{RecordCount: %v, PhysicalCompressedDataSize: %v}",
+        summary.RecordCount,
+        summary.PhysicalCompressedDataSize);
 }
 
 void FormatValue(
@@ -51,6 +67,15 @@ void PrintTo(
 {
     TStringBuilder builder;
     FormatValue(&builder, progress, /*spec*/ {});
+    *os << builder.Flush();
+}
+
+void PrintTo(
+    const TSessionSealSummary& summary,
+    std::ostream* os)
+{
+    TStringBuilder builder;
+    FormatValue(&builder, summary, /*spec*/ {});
     *os << builder.Flush();
 }
 

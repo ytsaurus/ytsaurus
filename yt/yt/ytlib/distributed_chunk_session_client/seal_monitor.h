@@ -11,12 +11,13 @@ namespace NYT::NDistributedChunkSessionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TDistributedChunkSessionSealSummaryFetchCallback =
-    TCallback<TFuture<std::vector<TDistributedChunkSessionSealSummary>>(
+using TSealSummaryFetchCallback =
+    TCallback<TFuture<std::vector<TSessionSealSummaryWithChunkId>>(
         std::vector<NChunkClient::TChunkId>)>;
 
+//! Delivered chunks are no longer tracked when the callback starts and may be tracked again.
 using TDistributedChunkSessionSealedCallback =
-    TCallback<void(std::vector<TDistributedChunkSessionSealSummary>)>;
+    TCallback<void(std::vector<TSessionSealSummaryWithChunkId>)>;
 
 struct IDistributedChunkSessionSealSubscription
 {
@@ -49,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionSealMonitor)
 
 IDistributedChunkSessionSealMonitorPtr CreateDistributedChunkSessionSealMonitor(
     TDistributedChunkSessionSealMonitorConfigPtr config,
-    TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
+    TSealSummaryFetchCallback fetchSealSummaries,
     IInvokerPtr invoker,
     NLogging::TLogger logger = DistributedChunkSessionLogger());
 

@@ -42,9 +42,22 @@ struct TDistributedChunkSessionProgress
     bool operator==(const TDistributedChunkSessionProgress&) const = default;
 };
 
+struct TSessionSealSummary
+{
+    //! Exact terminal journal record count learned after master sealing.
+    i64 RecordCount = 0;
+    //! Physical changelog size reported by master. Includes journal framing and
+    //! padding, so it must not be read as a logical compressed size.
+    i64 PhysicalCompressedDataSize = 0;
+
+    bool operator==(const TSessionSealSummary&) const = default;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsNonnegative(const TDistributedChunkSessionProgress& progress);
+
+bool IsNonnegative(const TSessionSealSummary& summary);
 
 bool IsComponentwiseLessOrEqual(
     const TDistributedChunkSessionProgress& lhs,
@@ -75,11 +88,20 @@ using TControllerSessionProgress = std::variant<
 
 void FormatValue(
     TStringBuilderBase* builder,
+    const TSessionSealSummary& summary,
+    TStringBuf spec);
+
+void FormatValue(
+    TStringBuilderBase* builder,
     const TDistributedChunkSessionProgress& progress,
     TStringBuf spec);
 
 void PrintTo(
     const TDistributedChunkSessionProgress& progress,
+    std::ostream* os);
+
+void PrintTo(
+    const TSessionSealSummary& summary,
     std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
