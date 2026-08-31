@@ -428,6 +428,8 @@ private:
         std::vector<TCellTag> futureCellTags;
         auto chaosCellTags = GetChaosCellTags(cellDirectory);
 
+        foundFutures.reserve(chaosCellTags.size());
+        futureCellTags.reserve(chaosCellTags.size());
         for (auto cellTag : chaosCellTags) {
             auto channel = cellDirectory->FindChannelByCellTag(cellTag);
             if (!channel) {
