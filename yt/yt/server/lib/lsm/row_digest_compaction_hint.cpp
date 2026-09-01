@@ -14,7 +14,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTDigestConfigPtr GetNonCompressableDigestConfig()
+TTDigestConfigPtr CreateNonCompressibleDigestConfig()
 {
     auto digestConfig = New<TTDigestConfig>();
     digestConfig->Delta = 0.;
@@ -25,7 +25,7 @@ TTDigestConfigPtr GetNonCompressableDigestConfig()
 double GetAbsoluteRank(const IQuantileDigestPtr& digest, TInstant timestamp)
 {
     return digest->GetRank(timestamp.Seconds()) * digest->GetCount();
-};
+}
 
 const TVersionedRowDigestPtr& GetDigest(TStore* store)
 {
@@ -176,8 +176,8 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::Aggregat
     auto minStoresTimestamp = TimestampToInstant(stores.front()->GetMinTimestamp()).first;
     auto maxStoresTimestamp = TInstant::Zero();
 
-    static auto NonCompressableDigestConfig = GetNonCompressableDigestConfig();
-    auto cumulativeDigest = New<TVersionedRowDigest>(NonCompressableDigestConfig);
+    static const auto NonCompressibleDigestConfig = CreateNonCompressibleDigestConfig();
+    auto cumulativeDigest = New<TVersionedRowDigest>(NonCompressibleDigestConfig);
 
     for (int prefixLength = 1; prefixLength <= ssize(stores); ++prefixLength) {
         auto* store = stores[prefixLength - 1];
