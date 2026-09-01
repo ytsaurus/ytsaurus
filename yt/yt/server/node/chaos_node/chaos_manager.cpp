@@ -54,6 +54,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NChaosNode {
 
 using namespace NYson;
@@ -1706,8 +1708,8 @@ private:
             if (!suspendedCoordinatorCellId) {
                 coordinators = GetValuesSortedByKey(chaosObject->Coordinators());
             } else {
-              auto* coordinatorInfo = &GetOrCrash(chaosObject->Coordinators(), suspendedCoordinatorCellId);
-              coordinators = {{suspendedCoordinatorCellId, coordinatorInfo}};
+                auto* coordinatorInfo = &GetOrCrash(chaosObject->Coordinators(), suspendedCoordinatorCellId);
+                coordinators = {{suspendedCoordinatorCellId, coordinatorInfo}};
             }
 
             for (auto [cellId, coordinator] : coordinators) {
@@ -2859,6 +2861,14 @@ private:
 
         response->mutable_replication_card_progress_update_results()->Reserve(replicationCardProgressUpdates.size());
 
+        i64 replicaUpdateCount = 0;
+        for (const auto& replicationCardProgressUpdate : replicationCardProgressUpdates) {
+            replicaUpdateCount += std::ssize(replicationCardProgressUpdate.ReplicaProgressUpdates);
+        }
+
+        std::vector<TReplicationProgress> garbageProgresses;
+        garbageProgresses.reserve(replicaUpdateCount);
+
         for (const auto& replicationCardProgressUpdate : replicationCardProgressUpdates) {
             auto* updateResult = response->add_replication_card_progress_update_results();
             ToProto(updateResult->mutable_replication_card_id(), replicationCardProgressUpdate.ReplicationCardId);
@@ -2890,9 +2900,12 @@ private:
                     continue;
                 }
 
-                replicaInfo->ReplicationProgress = BuildMaxProgress(
+                auto newProgress = BuildMaxProgress(
                     replicaInfo->ReplicationProgress,
                     replicaProgressUpdate.ReplicationProgressUpdate);
+
+                garbageProgresses.push_back(std::move(replicaInfo->ReplicationProgress));
+                replicaInfo->ReplicationProgress = std::move(newProgress);
             }
 
             if (replicationCardProgressUpdate.FetchOptions) {
@@ -2905,6 +2918,12 @@ private:
             YT_TLOG_DEBUG("Successfully updated replication progress")
                 .With("ReplicationCardId", replicationCardProgressUpdate.ReplicationCardId);
         }
+
+        NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+            BIND([
+                garbageProgresses = std::move(garbageProgresses),
+                replicationCardProgressUpdatesBatch = std::move(replicationCardProgressUpdatesBatch)
+            ] { }));
     }
 
     void HydraRemoveExpiredReplicaHistory(NProto::TReqRemoveExpiredReplicaHistory *request)
