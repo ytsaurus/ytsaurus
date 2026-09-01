@@ -276,6 +276,66 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         set("//tmp/t/@min_partition_data_size", 1)
         _check(expected_partitions=3)
 
+    @authors("dave11ar")
+    def test_partition_old_eden_store_by_timestamp(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        self._create_partitions(partition_count=3)
+
+        set("//tmp/t/@mount_config/testing", {"opaque_stores_in_orchid": False})
+        set("//tmp/t/@mount_config/max_old_eden_chunk_partitioning_lag", 0)
+        set("//tmp/t/@mount_config/always_flush_to_eden", True)
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+
+        def _get_store_counts():
+            orchid = get(f"//sys/tablets/{tablet_id}/orchid")
+            persistent_eden_store_count = sum(
+                store["store_state"] == "persistent"
+                for store in orchid["eden"]["stores"].values()
+            )
+            partition_store_count = sum(
+                len(partition["stores"])
+                for partition in orchid["partitions"]
+            )
+            return persistent_eden_store_count, partition_store_count
+
+        chunk_ids = builtins.set(get("//tmp/t/@chunk_ids"))
+        insert_rows("//tmp/t", [{"key": 0}, {"key": 7}])
+        sync_flush_table("//tmp/t")
+
+        old_eden_store_ids = builtins.set(get("//tmp/t/@chunk_ids")) - chunk_ids
+        assert len(old_eden_store_ids) == 1
+        old_eden_store_id = old_eden_store_ids.pop()
+        assert old_eden_store_id in get(f"//sys/tablets/{tablet_id}/orchid/eden/stores")
+        assert _get_store_counts() == (1, 3)
+
+        set("//tmp/t/@mount_config/always_flush_to_eden", False)
+        remount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1}])
+        sync_flush_table("//tmp/t")
+
+        assert _get_store_counts() == (1, 4)
+
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
+        remount_table("//tmp/t")
+
+        wait(lambda: old_eden_store_id not in get(f"//sys/tablets/{tablet_id}/orchid/eden/stores"))
+
+        def _check_partitioning_reason():
+            completed_tasks = get(
+                f"//sys/cluster_nodes/{address}/orchid/store_compactor/partitioning_tasks/completed_tasks"
+            )
+            for task in completed_tasks:
+                if old_eden_store_id in task["store_ids"]:
+                    assert task["reason"] == "old_eden_chunk"
+                    return True
+            return False
+
+        wait(_check_partitioning_reason)
+
     @authors("akozhikhov")
     def test_partitioning_with_chunk_views(self):
         # Creating two chunks [{0}, {1}, {2}] and [{2}, {3}] and check whether they become partitioned.
