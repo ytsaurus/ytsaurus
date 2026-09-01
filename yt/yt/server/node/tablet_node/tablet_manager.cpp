@@ -211,7 +211,9 @@ public:
                     TabletNodeLogger().WithTag("Fetcher", "ChunkViewSize"),
                     TabletNodeProfiler().WithPrefix("/compaction_hints/chunk_view_size"),
                     Bootstrap_->GetTabletNodeDynamicConfig()
-                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow]),
+                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow],
+                    Bootstrap_->GetCompactionHintFetchThrottlers()
+                        ->RequestThrottlers()[NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow]),
             },
             {
                 NLsm::EStoreCompactionHintKind::VersionedRowDigest,
@@ -220,7 +222,9 @@ public:
                     TabletNodeLogger().WithTag("Fetcher", "RowDigest"),
                     TabletNodeProfiler().WithPrefix("/compaction_hints/row_digest"),
                     Bootstrap_->GetTabletNodeDynamicConfig()
-                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::VersionedRowDigest]),
+                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::VersionedRowDigest],
+                    Bootstrap_->GetCompactionHintFetchThrottlers()
+                        ->RequestThrottlers()[NLsm::EStoreCompactionHintKind::VersionedRowDigest]),
             },
             {
                 NLsm::EStoreCompactionHintKind::MinHashDigest,
@@ -229,7 +233,9 @@ public:
                     TabletNodeLogger().WithTag("Fetcher", "MinHashDigest"),
                     TabletNodeProfiler().WithPrefix("/compaction_hints/min_hash_digest"),
                     Bootstrap_->GetTabletNodeDynamicConfig()
-                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::MinHashDigest]),
+                        ->StoreCompactor->CompactionHintFetchers[NLsm::EStoreCompactionHintKind::MinHashDigest],
+                    Bootstrap_->GetCompactionHintFetchThrottlers()
+                        ->RequestThrottlers()[NLsm::EStoreCompactionHintKind::MinHashDigest]),
             },
         }
     {
