@@ -178,7 +178,9 @@ public:
         for (const auto& [id, spec] : Context_->ResourceSpec->FileSources) {
             auto sourceContext = New<TFileSourceContext>();
             sourceContext->SourceSpec = spec;
+            sourceContext->PipelineAuthenticator = Context_->PipelineAuthenticator;
             sourceContext->ClientsCache = Context_->ClientsCache;
+            sourceContext->HttpClient = Context_->HttpClient;
             sourceContext->PipelinePath = Context_->PipelinePath;
             sourceContext->Invoker = Context_->Invoker;
             sourceContext->Logger = Context_->Logger

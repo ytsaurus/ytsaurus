@@ -366,6 +366,7 @@ public:
             YTConnector,
             PersistedStateManager,
             authenticator,
+            /*httpClient*/ nullptr,
             /*ignoreSingletonsDynamicConfig*/ false,
             /*clockClusterTag*/ NObjectClient::InvalidCellTag,
             CreateSyncStatusProfiler());

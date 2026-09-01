@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/http/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/client/cache/public.h>
@@ -25,7 +27,9 @@ struct TResourceControllerContext
     TResourceSpecPtr ResourceSpec;
 
     // Common infrastructure.
+    IPipelineAuthenticatorPtr PipelineAuthenticator;
     NClient::NCache::IClientsCachePtr ClientsCache;
+    NHttp::IClientPtr HttpClient;
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr Invoker;
     ITimeProviderPtr TimeProvider;

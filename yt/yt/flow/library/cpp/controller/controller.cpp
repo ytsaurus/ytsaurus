@@ -422,6 +422,7 @@ public:
         const NProfiling::TProfiler& profiler,
         IYTConnectorPtr connector,
         IPipelineAuthenticatorPtr authenticator,
+        NHttp::IClientPtr httpClient,
         TControllerConfigPtr config,
         TNodeInfoPtr nodeInfo,
         const IInvokerPtr& invoker,
@@ -431,6 +432,7 @@ public:
         IStatusProfilerPtr statusProfiler)
         : Connector_(std::move(connector))
         , PipelineAuthenticator_(std::move(authenticator))
+        , HttpClient_(std::move(httpClient))
         , TimeProvider_(CreateRetryingTimeProvider(Connector_->GetClient(), clockClusterTag, invoker, statusProfiler, ControllerLogger()))
         , VersionProvider_(CreateVersionProvider(TimeProvider_))
         , Config_(std::move(config))
@@ -536,6 +538,7 @@ public:
             YT_TLOG_WARNING("No job manager, fast stop");
             auto context = New<TJobManagerContext>();
             context->ClientsCache = Connector_->GetClientsCache();
+            context->HttpClient = HttpClient_;
             context->PipelinePath = Connector_->GetPipelinePath();
             context->Invoker = Invoker_;
             context->MainCycleInvoker = MainCycleInvoker_;
@@ -732,6 +735,7 @@ public:
 private:
     const IYTConnectorPtr Connector_;
     const IPipelineAuthenticatorPtr PipelineAuthenticator_;
+    const NHttp::IClientPtr HttpClient_;
     const ITimeProviderPtr TimeProvider_;
     const IVersionProviderPtr VersionProvider_;
     const TControllerConfigPtr Config_;
@@ -776,6 +780,7 @@ private:
             try {
                 auto context = New<TJobManagerContext>();
                 context->ClientsCache = Connector_->GetClientsCache();
+                context->HttpClient = HttpClient_;
                 context->PipelinePath = Connector_->GetPipelinePath();
                 context->Invoker = Invoker_;
                 context->MainCycleInvoker = MainCycleInvoker_;
@@ -1309,6 +1314,7 @@ public:
         IYTConnectorPtr connector,
         IPersistedStateManagerPtr persistedStateManager,
         IPipelineAuthenticatorPtr authenticator,
+        NHttp::IClientPtr httpClient,
         bool ignoreSingletonsDynamicConfig,
         NObjectClient::TCellTag clockClusterTag,
         IStatusProfilerPtr rootStatusProfiler)
@@ -1320,6 +1326,7 @@ public:
         , Connector_(std::move(connector))
         , PersistedStateManager_(persistedStateManager)
         , PipelineAuthenticator_(std::move(authenticator))
+        , HttpClient_(std::move(httpClient))
         , IgnoreSingletonsDynamicConfig_(ignoreSingletonsDynamicConfig)
         , FlowViewKeeper_(New<TFlowViewKeeper>())
         , ClockClusterTag_(clockClusterTag)
@@ -1398,6 +1405,7 @@ private:
     const IYTConnectorPtr Connector_;
     const IPersistedStateManagerPtr PersistedStateManager_;
     const IPipelineAuthenticatorPtr PipelineAuthenticator_;
+    const NHttp::IClientPtr HttpClient_;
     const IFlowExecutorPtr FlowExecutor_;
     const bool IgnoreSingletonsDynamicConfig_;
     const TFlowViewKeeperPtr FlowViewKeeper_;
@@ -1460,6 +1468,7 @@ private:
             leaderProfiler,
             Connector_,
             PipelineAuthenticator_,
+            HttpClient_,
             Config_,
             NodeInfo_,
             cancelableInvoker,
@@ -1847,6 +1856,7 @@ IControllerPtr CreateController(
     IYTConnectorPtr connector,
     IPersistedStateManagerPtr stateManager,
     IPipelineAuthenticatorPtr authenticator,
+    NHttp::IClientPtr httpClient,
     bool ignoreSingletonsDynamicConfig,
     NObjectClient::TCellTag clockClusterTag,
     IStatusProfilerPtr rootStatusProfiler)
@@ -1860,6 +1870,7 @@ IControllerPtr CreateController(
         std::move(connector),
         std::move(stateManager),
         std::move(authenticator),
+        std::move(httpClient),
         ignoreSingletonsDynamicConfig,
         clockClusterTag,
         std::move(rootStatusProfiler));

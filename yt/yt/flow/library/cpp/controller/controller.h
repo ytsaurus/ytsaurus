@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/client/api/public.h>
+#include <yt/yt/core/http/public.h>
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NFlow::NController {
@@ -38,6 +39,7 @@ IControllerPtr CreateController(
     IYTConnectorPtr connector,
     IPersistedStateManagerPtr stateManager,
     IPipelineAuthenticatorPtr authenticator,
+    NHttp::IClientPtr httpClient,
     bool ignoreSingletonsDynamicConfig,
     NObjectClient::TCellTag clockClusterTag,
     IStatusProfilerPtr rootStatusProfiler);
