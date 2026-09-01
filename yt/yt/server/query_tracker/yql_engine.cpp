@@ -340,6 +340,14 @@ private:
             .EndMap();
         OnProgress(std::move(progress));
 
+        if (rsp->yql_response().has_error()) {
+            auto error = ConvertTo<TError>(TYsonString(rsp->yql_response().error()));
+            OnQueryFailed(TError("Failed to run query")
+                .With("query_id", QueryId_)
+                .With(std::move(error)));
+            return;
+        }
+
         std::vector<TErrorOr<TWireRowset>> wireRowsetOrErrors;
         for (int index = 0; index < rsp->rowset_errors_size(); ++index) {
             auto error = FromProto<TError>(rsp->rowset_errors()[index]);
