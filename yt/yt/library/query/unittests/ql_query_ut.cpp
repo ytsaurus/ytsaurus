@@ -1476,7 +1476,7 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
     };
 
     EXPECT_NE(fragment->Query->OrderClause, nullptr);
-    EXPECT_EQ(fragment->Query->GetScanOrder(false), EScanOrder::Unordered);
+    EXPECT_EQ(fragment->Query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Unordered);
 
     auto [dataSource, query] = InferRanges(
         columnEvaluatorCache,
@@ -1490,7 +1490,7 @@ TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
         Logger());
 
     EXPECT_EQ(query->OrderClause, nullptr);
-    EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Ordered);
+    EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Ordered);
 }
 
 TEST_F(TQueryPrepareTest, LeftJoinOptionalizesType)
@@ -12106,7 +12106,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
             "* from [//t] order by k desc, l desc, m desc limit 10", {}, optionsOn)->Query;
         EXPECT_TRUE(query->OrderClause);
         EXPECT_TRUE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
     }
 
     {
@@ -12114,7 +12114,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
             "* from [//t] order by k desc limit 10", {}, optionsOn)->Query;
         EXPECT_TRUE(query->OrderClause);
         EXPECT_TRUE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
     }
 
     {
@@ -12122,7 +12122,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
             "* from [//t] order by k desc, l desc limit 10", {}, optionsOn)->Query;
         EXPECT_TRUE(query->OrderClause);
         EXPECT_TRUE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
     }
 
     {
@@ -12130,7 +12130,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
             "* from [//t] order by k desc, l asc limit 10", {}, optionsOn)->Query;
         EXPECT_TRUE(query->OrderClause);
         EXPECT_FALSE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Unordered);
     }
 
     {
@@ -12138,7 +12138,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
             "* from [//t] order by l desc limit 10", {}, optionsOn)->Query;
         EXPECT_TRUE(query->OrderClause);
         EXPECT_FALSE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Unordered);
     }
 
     {
@@ -12146,7 +12146,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
             "* from [//t] order by k desc limit 10", {}, optionsOff)->Query;
         EXPECT_TRUE(query->OrderClause);
         EXPECT_FALSE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Unordered);
     }
 
     {
@@ -12154,7 +12154,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderBy)
             "sum(v) from [//t] group by k order by k desc limit 10", {}, optionsOn)->Query;
         EXPECT_TRUE(query->OrderClause);
         EXPECT_FALSE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Unordered);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Unordered);
     }
 }
 
@@ -12190,7 +12190,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderByOnFixedKeyPrefix)
             Logger());
 
         EXPECT_TRUE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
     }
 
     {
@@ -12209,7 +12209,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderByOnFixedKeyPrefix)
             Logger());
 
         EXPECT_TRUE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
     }
 
     {
@@ -12276,7 +12276,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderByOnFixedKeyPrefix)
             Logger());
 
         EXPECT_TRUE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
     }
 
     {
@@ -12309,7 +12309,7 @@ TEST_F(TQueryPrepareTest, ReverseScanForOrderByOnFixedKeyPrefix)
             Logger());
 
         EXPECT_TRUE(query->IsReverseScan);
-        EXPECT_EQ(query->GetScanOrder(false), EScanOrder::Reversed);
+        EXPECT_EQ(query->GetScanOrder(/*allowUnorderedGroupByWithLimit*/ false), EScanOrder::Reversed);
     }
 
     {
