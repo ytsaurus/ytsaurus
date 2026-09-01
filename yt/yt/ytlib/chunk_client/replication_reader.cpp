@@ -310,7 +310,7 @@ public:
         YT_TLOG_DEBUG("Replication reader initialized")
             .With("InitialSeedReplicas", MakeFormattableView(InitialSeeds_, TChunkReplicaAddressFormatter(NodeDirectory_)))
             .With("FetchPromPeers", Config_->FetchNodeDescriptors)
-            .With("LocalDescriptor", LocalDescriptor_)
+            .With("LocalDescriptor", *LocalDescriptor_)
             .With("PopulateCache", Config_->PopulateCache)
             .With("AllowFetchingSeedsFromMaster", Options_->AllowFetchingSeedsFromMaster)
             .With("Networks", Networks_);
@@ -386,7 +386,7 @@ private:
     const TNodeDirectoryPtr NodeDirectory_;
     const INodeStatusDirectoryPtr NodeStatusDirectory_;
     const TMediumDirectoryPtr MediumDirectory_;
-    const TNodeDescriptor LocalDescriptor_;
+    const TInternedNodeDescriptor LocalDescriptor_;
     const TChunkId ChunkId_;
     const IBlockCachePtr BlockCache_;
     const IClientChunkMetaCachePtr ChunkMetaCache_;
@@ -990,7 +990,7 @@ protected:
     EAddressLocality GetNodeLocality(const TNodeDescriptor& descriptor)
     {
         auto reader = Reader_.Lock();
-        return reader ? ComputeAddressLocality(descriptor, reader->LocalDescriptor_) : EAddressLocality::None;
+        return reader ? ComputeAddressLocality(descriptor, *reader->LocalDescriptor_) : EAddressLocality::None;
     }
 
     IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
