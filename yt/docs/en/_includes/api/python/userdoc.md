@@ -174,6 +174,8 @@ You can retrieve the token from the following places (listed in priority order).
 1. From the `config["token"]`option that gets to the global configuration from the `YT_TOKEN` environment variable.
 2. From the file specified in `config["token_path"]`; the default value of this option is `~/.yt/token`. This option can also be overridden using the `YT_TOKEN_PATH` environment variable (the environment variable only applies to the global client configuration; for details, see the [ section](#configuration)).
 
+`YT_USER` is not a Python API or CLI configuration variable. With an HTTP proxy, the token determines the user. For the RPC and native drivers, set an explicit username with `config["driver_user_name"]`; with RPC, it must match the user associated with the token. For details, see [Selecting a username](../../../user-guide/storage/auth.md#user-selection).
+
 #### Setting up configuration retries { #configuration_retries }
 
 Commands in {{product-name}} are classified into light and heavy (to get the system's view on the list of commands, see [Commands](../../../api/commands.md)).
