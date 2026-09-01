@@ -64,6 +64,7 @@ target_sources(yql-essentials-minikql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/compact_hash.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_alloc.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_block_map_join_utils.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_bridge_mode.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_buffer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_date_scaler.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_function_metadata.cpp
@@ -92,6 +93,7 @@ target_sources(yql-essentials-minikql PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/compact_hash.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/defs.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_block_map_join_utils.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_bridge_mode.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_buffer.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_date_scaler.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/mkql_function_metadata.h
