@@ -5945,7 +5945,7 @@ void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputCh
             }
             YT_TLOG_WARNING(Message)
                 .With("TableName", tableName)
-                .With("Chunk", chunk->GetChunkId())
+                .With("ChunkId", chunk->GetChunkId())
                 .With(result);
         }
         chunkIds.push_back(chunk->GetChunkId());
@@ -8943,7 +8943,7 @@ void TOperationControllerBase::AttachToLivePreview(
             }
             YT_TLOG_WARNING(Message)
                 .With("TableName", tableName)
-                .With("Chunk", chunk->GetChunkId())
+                .With("ChunkId", chunk->GetChunkId())
                 .With(result);
         }
     }
@@ -11674,7 +11674,7 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
         }
         YT_TLOG_WARNING(Message)
             .With("TableName", tableName)
-            .With("Chunk", chunk->GetChunkId())
+            .With("ChunkId", chunk->GetChunkId())
             .With(result);
     }
 
