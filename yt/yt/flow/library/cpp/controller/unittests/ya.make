@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
     async_balancer_ut.cpp
+    chunked_modification_ut.cpp
     compact_rebalance_actions_ut.cpp
     config_ut.cpp
     controller_ut.cpp

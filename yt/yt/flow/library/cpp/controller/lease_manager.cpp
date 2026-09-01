@@ -1,5 +1,6 @@
 #include "private.h"
 
+#include "chunked_modification.h"
 #include "config.h"
 #include "lease_manager.h"
 #include "yt_connector.h"
@@ -459,11 +460,6 @@ private:
     //! retry windows between a failing touch and an expired fleet.
     static constexpr int DeadlineTouchesPerTimeout = 3;
 
-    //! Backoff between rounds that a moving tablet forced, growing linearly with the round.
-    //! Sized against the move itself (seconds), not against the transaction that failed.
-    static constexpr auto TransientRetryBackoff = TDuration::MilliSeconds(200);
-    static constexpr auto MaxTransientRetryBackoff = TDuration::Seconds(2);
-
     //! The one and only read of the lease table, at the start of the leadership. Whatever the
     //! predecessor knew died with it, so this is the only way to learn which partitions its rows
     //! name; from then on the record is maintained in memory and the table is never scanned again.
@@ -522,24 +518,9 @@ private:
         }
     }
 
-    //! Applies |modify| to |items| in transactions of at most |itemsPerChunk| items each, calling
-    //! |onCommitted| for every chunk that lands and returning the errors of those that never did.
-    //!
-    //! Two kinds of failure are retried here, and only these two:
-    //!
-    //! A write-write conflict is retried on a halved chunk when |splitOnConflict| says the
-    //! conflict can happen only once per row — which holds for the revocation phases, where the
-    //! worker behind the conflict can never start another transaction after phase 1. Halving then
-    //! isolates the guilty rows and the rounds converge after at most log2(chunk size) splits.
-    //! It does NOT hold for a grant: nothing has revoked the superseded worker at that point, so
-    //! it keeps committing until the grant lands, and splitting would only multiply transactions.
-    //!
-    //! A tablet in the middle of a smooth movement is retried whole, after a delay: it rejected
-    //! the chunk regardless of its contents and comes back within seconds, so the rounds have to
-    //! outlast the move rather than race it.
-    //!
-    //! Anything else is returned to the caller untried: a tablet that is genuinely down stays
-    //! down for longer than an iteration.
+    //! Applies |modify| to |items| in transactions of at most |itemsPerChunk| items each; see
+    //! #NController::ModifyInChunks for the chunking, the retry policy and what |splitOnConflict|
+    //! claims about the conflicts of a phase.
     //!
     //! The chunks are committed one after another, each in its own transaction fenced by the
     //! leader row. Committing them in parallel would mean not touching that row — every chunk
@@ -554,100 +535,32 @@ private:
         const std::function<void(const ITransactionPtr&, const std::vector<T>&)>& modify,
         const std::function<void(const std::vector<T>&)>& onCommitted = {})
     {
-        if (items.empty()) {
-            return {};
-        }
-
-        std::vector<std::vector<T>> chunks;
-        for (ssize_t begin = 0; begin < std::ssize(items); begin += itemsPerChunk) {
-            auto end = std::min(begin + itemsPerChunk, std::ssize(items));
-            chunks.emplace_back(items.begin() + begin, items.begin() + end);
-        }
-
-        // Enough to split the widest chunk down to a single item and retry it a few times.
-        constexpr int MaxRounds = 20;
-        std::vector<TError> failures;
-        for (int round = 1;; ++round) {
-            auto results = CommitChunks(chunks, modify);
-
-            ssize_t modifiedItems = 0;
-            ssize_t conflictedChunks = 0;
-            ssize_t transientChunks = 0;
-            std::vector<std::vector<T>> retryChunks;
-            for (ssize_t index = 0; index < std::ssize(results); ++index) {
-                auto& chunk = chunks[index];
-                if (results[index].IsOK()) {
-                    modifiedItems += std::ssize(chunk);
-                    if (onCommitted) {
-                        onCommitted(chunk);
-                    }
-                    continue;
-                }
-                const auto& error = results[index];
-                bool conflicted = static_cast<bool>(error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict));
-                bool transient = IsTransientTabletError(error);
-                if ((!conflicted && !transient) || round >= MaxRounds) {
-                    failures.push_back(error);
-                    continue;
-                }
-                conflictedChunks += conflicted;
-                transientChunks += transient;
-                if (conflicted && splitOnConflict && std::ssize(chunk) > 1) {
-                    auto middle = chunk.begin() + std::ssize(chunk) / 2;
-                    retryChunks.emplace_back(chunk.begin(), middle);
-                    retryChunks.emplace_back(middle, chunk.end());
-                } else {
-                    retryChunks.push_back(std::move(chunk));
-                }
-            }
-
-            YT_TLOG_INFO("Dyntable lease modification round")
-                .With("Phase", phase)
-                .With("Round", round)
-                .With("Chunks", std::ssize(chunks))
-                .With("ModifiedItems", modifiedItems)
-                .With("ConflictedChunks", conflictedChunks)
-                .With("TransientChunks", transientChunks)
-                .With("FailedChunks", std::ssize(failures))
-                .With("RetryChunks", std::ssize(retryChunks));
-
-            if (retryChunks.empty()) {
-                return failures;
-            }
-            // A moving tablet is back within seconds, so the rounds have to wait it out rather
-            // than spend themselves on it: without this the whole budget burns in well under a
-            // second and the pass fails for a condition that had not even cleared yet. Conflicts
-            // need no delay — they resolve by the halving, not by waiting — so the sleep happens
-            // only when a transient failure is what forced the round.
-            if (transientChunks > 0) {
-                TDelayedExecutor::WaitForDuration(std::min(
-                    TransientRetryBackoff * round,
-                    MaxTransientRetryBackoff));
-            }
-            chunks = std::move(retryChunks);
-        }
+        return NController::ModifyInChunks<T>(
+            phase,
+            items,
+            itemsPerChunk,
+            splitOnConflict,
+            [&] (const std::vector<T>& chunk) {
+                return CommitChunk(chunk, modify);
+            },
+            onCommitted);
     }
 
     template <class T>
-    std::vector<TError> CommitChunks(
-        const std::vector<std::vector<T>>& chunks,
+    TError CommitChunk(
+        const std::vector<T>& chunk,
         const std::function<void(const ITransactionPtr&, const std::vector<T>&)>& modify)
     {
-        std::vector<TError> results;
-        results.reserve(chunks.size());
-        for (const auto& chunk : chunks) {
-            try {
-                auto transaction = WaitFor(Connector_->StartTransaction(ETransactionType::Tablet))
-                    .ValueOrThrow();
-                modify(transaction, chunk);
-                WaitFor(transaction->Commit())
-                    .ThrowOnError();
-                results.emplace_back();
-            } catch (const std::exception& ex) {
-                results.push_back(TError(ex));
-            }
+        try {
+            auto transaction = WaitFor(Connector_->StartTransaction(ETransactionType::Tablet))
+                .ValueOrThrow();
+            modify(transaction, chunk);
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+            return {};
+        } catch (const std::exception& ex) {
+            return TError(ex);
         }
-        return results;
     }
 };
 
