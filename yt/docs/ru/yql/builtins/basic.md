@@ -400,10 +400,10 @@ FROM my_table;
 * `Udf(Foo::Bar, "1e9+7" as RunConfig")(1, 'extended' As Precision)` — Вызов udf `Foo::Bar` с указанным `RunConfig` и именованными параметрами.
 * `Udf(Foo::Bar, $parent as Depends)` — Вызов udf `Foo::Bar` с указанием зависимости вычисления от заданного узла - с версии [2025.03](../changelog/2025.03.md).
 
-Также можно задать дополнительные настройки в виде именованных аргументов, их тип должен быть `String`:
+Также можно задать дополнительные настройки в виде именованных аргументов, их тип должен быть `String` или числовый литерал:
 
-* `Cpu` — фактор, описывающий, насколько много CPU потребляет udf. Значение по умолчанию — "1". Чем оно больше, тем большая параллельность нужна для вызова такой udf.
-* `ExtraMem` — сколько udf требуется дополнительно памяти в байтах. Значение по умолчанию — "0".
+* `Cpu` — положительный фактор, описывающий потребление CPU функцией. Значение по умолчанию — "1". Чем оно больше, тем большая параллельность нужна для вызова функции. Например: "4.5".
+* `ExtraMem` — дополнительная память в байтах. Значение по умолчанию — "0". Можно указать неотрицательное целое число байт либо строку с суффиксом `K`, `M` или `G`, например "512K", "2048M" или "1G".
 
 #### Сигнатуры
 
@@ -433,7 +433,11 @@ SELECT Udf(Protobuf::TryParse, $config As TypeConfig)("")
 ```
 
 ```yql
-SELECT Udf(Foo::Bar, "4" as Cpu, "100000000" as ExtraMem)(1);
+SELECT Udf(Foo::Bar, 4.5 as Cpu, 100000000 as ExtraMem)(1);
+```
+
+```yql
+SELECT Udf(Foo::Bar, "4.5" as Cpu, "100M" as ExtraMem)(1);
 ```
 
 
@@ -1261,6 +1265,38 @@ LinearDestroy(T, [Linear<U1>...])->T
 Функция доступна начиная с версии [2025.05](../changelog/2025.05.md).
 Функция возвращает свой первый аргумент, при этом поглощая 0 или более значений [линейных](../types/linear.md) типов, перечисленных после первого аргумента.
 
+## AsErased, PeekErased {#type_erasure}
+
+#### Сигнатура {#type-erasure-signature}
+
+```yql
+AsErased(T)->Resource<_Erased>
+PeekErased(Resource<_Erased>, type U)->Optional<U>
+```
+
+Функции доступны начиная с версии [2026.02](../changelog/2026.02.md). В Query Tracker для их использования выберите версию языка 2026.02 или новее. `AsErased` стирает тип значения, приводя любой входной тип к фиксированному. Передавать в неё [линейный](../types/linear.md) тип нельзя, но можно использовать `DynamicLinear`. `PeekErased` возвращает исходное значение, если его тип строго совпадает с заданным, иначе возвращает пустой `Optional`.
+
+Стирание типа позволяет строить рекурсивные данные и функции:
+
+```yql
+$erased = TypeOf(AsErased(NULL));
+$nodeType = Struct<value: String, left: Optional<$erased>, right: Optional<$erased>>;
+
+$makeNode = ($value, $left, $right) -> {
+    RETURN CAST(<|
+        value: $value,
+        left: IF($left IS NOT NULL, AsErased($left)),
+        right: IF($right IS NOT NULL, AsErased($right))
+    |> AS $nodeType);
+};
+```
+
+```yql
+$e = AsErased(1);
+SELECT PeekErased($e, Int32),  -- 1
+       PeekErased($e, String); -- NULL
+```
+
 ## Block
 
 #### Сигнатура
@@ -1523,6 +1559,18 @@ Just(T)->T?
 ```yql
 SELECT
   Just("my_string"); --  String?
+```
+
+## AsOptional {#asoptional}
+
+Доступна начиная с версии [2026.01](../changelog/2026.01.md). Добавляет переданному значению возможность содержать `NULL`. Если тип уже является опциональным, PostgreSQL-типом или `NULL`, возвращает значение без изменений. В отличие от [Just](#optional-ops), не добавляет дополнительный уровень вложенности для уже опциональных значений.
+
+```yql
+SELECT
+  AsOptional(42),       -- Just(42)
+  AsOptional(NULL),     -- NULL
+  AsOptional(Just(42)), -- Just(42)
+  AsOptional(1p);       -- 1p
 ```
 
 ## Unwrap {#unwrap}

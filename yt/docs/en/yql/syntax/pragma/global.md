@@ -296,3 +296,17 @@ Increasing the limit on the number of groups in [GROUP BY](../group_by.md).
 Increasing the limit on the number of dimensions in [GROUP BY](../group_by.md#rollup-cube-group-sets).
 
 Use this option with care: the computational complexity of the query grows exponentially with the number of dimensions.
+
+## CostBasedOptimizer {#costbasedoptimizer}
+
+| Value type | Default |
+| --- | --- |
+| String: `disable` / `pg` / `native` | disable |
+
+Enables the cost-based optimizer for `JOIN` order. It reorders inputs to minimize plan cost based on table statistics and applies only when there are more than two inputs.
+
+* `disable`: Optimization is disabled.
+* `native`: Native optimizer, recommended for YT.
+* `pg`: Optimizer based on PostgreSQL algorithms.
+
+This is a static pragma: its value is fixed before the query optimization stage.

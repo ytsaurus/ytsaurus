@@ -185,6 +185,38 @@ Set the memory buffer size for running a CommonJoinCore node (it runs in a job w
 
 Add preliminary conversion of dynamic tables to static tables. In `join` mode, only tables that are inputs to joins are converted. This lets you use the map join strategy on such tables. In `all` mode, all dynamic tables in the query are converted to static tables. In `disable` mode, no conversion happens.
 
+## yt.CostBasedOptimizerPartial {#yt.costbasedoptimizerpartial}
+
+Controls when the [cost-based optimizer](global.md#costbasedoptimizer) starts for queries with multiple `JOIN` inputs. Use this pragma to avoid waiting for every input to be materialized when preserving computation parallelism is more important than fully reordering the joins.
+
+| Possible values | Default value | Type |
+| --- | --- | --- |
+| Non-negative number | 0 | Static |
+
+The value specifies how many `JOIN` inputs must be ready and materialized before reordering:
+
+* `0`: Wait for all inputs and perform full reordering. This gives the optimizer the most information, but reduces parallelism and may prevent operation fusion.
+* `1`: Do not wait; optimize only ready subtrees. This preserves parallelism, but may reorder a smaller part of the plan.
+* `N > 1`: Experimental mode that starts optimization when at least `N` inputs are ready.
+
+#### Example {#cost-based-optimizer-partial-example}
+
+```yql
+PRAGMA CostBasedOptimizer = 'native';
+PRAGMA yt.CostBasedOptimizerPartial = '1';
+PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
+```
+
+#### Result {#cost-based-optimizer-partial-result}
+
+The optimizer reorders ready `JOIN` subtrees without waiting for the remaining inputs. Extended statistics are requested only when the total number of table chunks on a cluster does not exceed 10,000.
+
+#### Features and limitations {#cost-based-optimizer-partial-limitations}
+
+* The pragma applies only when [`CostBasedOptimizer`](global.md#costbasedoptimizer) is enabled.
+* Values greater than `1` enable an experimental mode: the threshold semantics and query planning behavior may change in future YQL versions. For long-lived queries, use `0` or `1`.
+* Partial optimization preserves more parallelism, but may produce a less efficient `JOIN` order than full reordering after every input is ready.
+
 ## yt.CoreDumpPath {#core-dump-path}
 
 | Possible values | Default value | Type |
@@ -399,6 +431,38 @@ This sets the maximum total size of tables used at the evaluation stage.
 | ExpirationDeadline: a point in time in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) format. ExpirationInterval: a time interval with support for the `s/m/h/d` suffixes, during which there must be no calls to the node. | — | Dynamic |
 
 This lets you manage the [TTL of tables created by the operation]({{yt-docs-root}}/user-guide/storage/cypress#TTL).
+
+## yt.ExtendedStatsMaxChunkCount {#yt.extendedstatsmaxchunkcount}
+
+Limits collection of extended column statistics for the cost-based optimizer. Use this pragma to prevent statistics collection for tables with many chunks from delaying query optimization.
+
+| Possible values | Default value | Type |
+| --- | --- | --- |
+| Positive number | — | Static |
+
+The value specifies the maximum total number of input-table chunks on one cluster:
+
+* At or below the threshold, YQL requests extended statistics.
+* Above the threshold, statistics are not requested and the optimizer uses less accurate estimates.
+* `0` removes the chunk-count limit.
+* If the pragma is not set, extended statistics are not requested.
+
+#### Example {#extended-stats-max-chunk-count-example}
+
+```yql
+PRAGMA CostBasedOptimizer = 'native';
+PRAGMA yt.ExtendedStatsMaxChunkCount = '10000';
+```
+
+#### Result {#extended-stats-max-chunk-count-result}
+
+The optimizer receives extended column statistics when the input tables have no more than 10,000 chunks in total on a cluster. For larger input sets, optimization continues without these statistics.
+
+#### Features and limitations {#extended-stats-max-chunk-count-limitations}
+
+* The pragma affects only statistics collection and does not restrict reading the tables themselves.
+* A value of `0` may make statistics collection slow for very large tables.
+* The recommended initial value is `10000`; adjust it according to the number of input chunks and acceptable optimization time.
 
 ## yt.ExternalTx {#external-tx}
 
@@ -830,11 +894,44 @@ This setting is similar to `yt.MinPublishedAvgChunkSize`, but it works for inter
 
 ## yt.NetworkProject {#network-project}
 
+{% if audience == "internal" %}
+
+Specifies the network project for jobs of regular operations created after the pragma. Use this dynamic pragma when the network project must change only for part of the query without affecting the evaluation stage or the part of the plan created earlier.
+
+{% endif %}
+
 | Possible values | Default value | Type |
 | --- | --- | --- |
 | String | `yt.StaticNetworkProject` | Dynamic |
 
+{% if audience == "internal" %}
+
+#### Example {#network-project-example}
+
+```yql
+PRAGMA yt.NetworkProject = 'my-network-project';
+
+SELECT
+    key AS key,
+    value AS value
+FROM `//path/to/table`;
+```
+
+#### Result {#network-project-result}
+
+Jobs of regular operations in the part of the query after the pragma will run with the `my-network-project` network project.
+
+#### Features and limitations {#network-project-limitations}
+
+* The pragma is dynamic and affects only the following part of the query.
+* Setting `yt.NetworkProject` partially disables DQ. DQ may still be used for the evaluation stage or for the part of the query before the pragma.
+* If the pragma is not set, the `yt.StaticNetworkProject` value is used.
+
+{% else %}
+
 This sets the use of the specified network project in jobs for regular operations in the request.
+
+{% endif %}
 
 ## yt.NightlyCompress {#nightly-compress}
 
@@ -1308,13 +1405,38 @@ This pragma sets the `sort_locality_timeout` setting in the operation specificat
 
 This pragma sets a map that describes the client through which the operation was started. See the [documentation]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options).
 
+{% if audience == "internal" %}
+
 ## yt.StaticNetworkProject {#static-network-project}
+
+Specifies the network project for jobs of all MapReduce operations in the query, including the evaluation stage. Use this static pragma when the entire query must run in one network project.
 
 | Possible values | Default value | Type |
 | --- | --- | --- |
 | String | - | Static, [per-cluster](*per-cluster) |
 
-This pragma specifies the use of the indicated {% if audience == "internal" %}[network project]({{yt-docs-root}}/user-guide/data-processing/operations/mtn){% else %}network project{% endif %} in jobs for all MapReduce operations in the query (including the evaluation stage).
+#### Example {#static-network-project-example}
+
+```yql
+PRAGMA yt.StaticNetworkProject = 'my-network-project';
+
+SELECT
+    key AS key,
+    value AS value
+FROM `//path/to/table`;
+```
+
+#### Result {#static-network-project-result}
+
+Jobs of all MapReduce operations in the query, including the evaluation stage, will run with the `my-network-project` network project.
+
+#### Features and limitations {#static-network-project-limitations}
+
+* The pragma is static and configured separately for each cluster.
+* Setting `yt.StaticNetworkProject` completely disables DQ for the query.
+* For details about network projects, see the [{{product-name}} documentation]({{yt-docs-root}}/user-guide/data-processing/operations/mtn).
+
+{% endif %}
 
 ## yt.StaticPool {#static-pool}
 
@@ -1542,6 +1664,38 @@ In Query Tracker, the `yt.UseNativeYtTypes` pragma is enabled by default. On the
 
 {% endnote %}
 {% endif %}
+
+## yt.UseQLFilter {#yt.useqlfilter}
+
+Passes the compatible part of a `WHERE` condition to {{product-name}} through [`input_query`]({{yt-docs-root}}/user-guide/data-processing/operations/operations-options#common_options). Using `min`/`max` statistics, {{product-name}} can skip chunks and blocks where the condition is known to be false. The pragma is useful for selective reads from large static tables with a strict schema.
+
+| Possible values | Default value | Type |
+| --- | --- | --- |
+| Flag | false | Static |
+
+#### Example {#use-ql-filter-example}
+
+```yql
+PRAGMA yt.UseQLFilter;
+
+SELECT
+    key AS key,
+    value AS value
+FROM `//path/to/table`
+WHERE key >= 1000 AND key < 2000;
+```
+
+#### Result {#use-ql-filter-result}
+
+Compatible comparisons from `WHERE` are passed in `input_query`. If table statistics prove that a chunk or block has no `key` values in the specified range, {{product-name}} skips it without reading from disk. The remaining part of the condition is still evaluated by YQL.
+
+#### Features and limitations {#use-ql-filter-limitations}
+
+* Supported types are numeric types, `Bool`, `String`, `Utf8`, and their `Optional` variants.
+* Supported expressions are `<`, `<=`, `>`, `>=`, `==`, and `!=` comparisons between a column and a constant expression, and `AND`, `OR`, `NOT`, `EXISTS`, and `COALESCE`.
+* The table must have a strict schema.
+* Dynamic tables are not supported.
+* The pragma does not apply to tables with a custom schema or columns specified through `WITH SCHEMA` or `WITH COLUMNS`.
 
 ## yt.UserSlots {#user-slots}
 
