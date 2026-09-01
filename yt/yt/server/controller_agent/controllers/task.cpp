@@ -1693,7 +1693,8 @@ void TTask::AddSequentialInputSpec(
             IsInput_ ? nodeDirectoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
-            comparator);
+            comparator,
+            jobSpecExt);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -1722,7 +1723,8 @@ void TTask::AddParallelInputSpec(
             IsInput_ ? directoryBuilderFactory.GetNodeDirectoryBuilder(stripe).get() : nullptr,
             inputSpec,
             stripe,
-            comparator);
+            comparator,
+            jobSpecExt);
     }
     UpdateInputSpecTotals(jobSpec, joblet);
 }
@@ -1731,11 +1733,14 @@ void TTask::AddChunksToInputSpec(
     TNodeDirectoryBuilder* directoryBuilder,
     TTableInputSpec* inputSpec,
     TChunkStripePtr stripe,
-    TComparator comparator)
+    TComparator comparator,
+    TJobSpecExt* jobSpecExt)
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    stripe = GetChunkMapping()->GetMappedStripe(stripe);
+    auto mappedStripe = GetChunkMapping()->GetMappedStripe(stripe);
+    stripe = std::move(mappedStripe.Stripe);
+    jobSpecExt->set_is_approximate(jobSpecExt->is_approximate() || mappedStripe.IsRegenerated);
 
     for (const auto& dataSlice : stripe->DataSlices()) {
         AdjustOutputKeyBounds(dataSlice);
@@ -2116,10 +2121,10 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
         }
     }
 
-    jobSpecExt->set_is_approximate(joblet->InputStripeList->IsApproximate());
+    jobSpecExt->set_is_approximate(jobSpecExt->is_approximate() || joblet->InputStripeList->IsApproximate());
 
     // Adjust sizes if approximation flag is set.
-    if (joblet->InputStripeList->IsApproximate()) {
+    if (jobSpecExt->is_approximate()) {
         jobSpecExt->set_input_data_weight(static_cast<i64>(
             jobSpecExt->input_data_weight() *
             ApproximateSizesBoostFactor));

@@ -343,7 +343,8 @@ protected:
         NNodeTrackerClient::TNodeDirectoryBuilder* directoryBuilder,
         NControllerAgent::NProto::TTableInputSpec* inputSpec,
         NChunkPools::TChunkStripePtr stripe,
-        NTableClient::TComparator comparator = NTableClient::TComparator());
+        NTableClient::TComparator comparator,
+        NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
 
     void AddOutputTableSpecs(NControllerAgent::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
