@@ -1,57 +1,56 @@
 ## CHYT
 
 
-Is released as a docker image.
+Поставляется в виде docker-образа.
 
 
 
-
-**Releases:**
+**Релизы:**
 
 {% cut "**2.18.6**" %}
 
-**Release date:** 2026-06-22
+**Дата релиза:** 2026-06-22
 
 
-**Release page:** [2.18.6](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.6)
+**Страница релиза:** [2.18.6](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.6)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.6](https://github.com/orgs/ytsaurus/packages/container/chyt/967753290?tag=2.18.6)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:2.18.6](https://github.com/orgs/ytsaurus/packages/container/chyt/967753290?tag=2.18.6)
 
 
-**Fixes:**
+**Исправления:**
 
-* Fix usage of `enable_distinct_read_optimization` and `enable_min_max_optimization` features with dictionaries over YTsaurus tables(ea82d76ea5beedc7405a30275ae37e8426953f85)
-* Fix read range inference over complex filters (cdb1a6c84ee02e9ee1e65cc878c3f5ba288d592b, 03fdd7e3a2785702604419df0d3ef5e9ac305d57)
+* Исправлено использование функций `enable_distinct_read_optimization` и `enable_min_max_optimization` со словарями поверх таблиц YTsaurus (ea82d76ea5beedc7405a30275ae37e8426953f85)
+* Исправлен вывод диапазона чтения для сложных фильтров (cdb1a6c84ee02e9ee1e65cc878c3f5ba288d592b, 03fdd7e3a2785702604419df0d3ef5e9ac305d57)
 
 
-**Notes:**
+**Примечания:**
 
-If you are using the `enable_read_range_inferring` flag since version 2.18, we strongly recommend that you upgrade to this version to avoid potential data loss due to the mentioned bugs.
+Если вы используете флаг `enable_read_range_inferring` начиная с версии 2.18, настоятельно рекомендуем обновиться до этой версии, чтобы избежать возможной потери данных из-за указанных ошибок.
 
 {% endcut %}
 
 
 {% cut "**2.18.5**" %}
 
-**Release date:** 2026-06-09
+**Дата релиза:** 2026-06-09
 
 
-**Release page:** [2.18.5](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.5)
+**Страница релиза:** [2.18.5](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.5)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.5](https://github.com/orgs/ytsaurus/packages/container/chyt/939459874?tag=2.18.5)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:2.18.5](https://github.com/orgs/ytsaurus/packages/container/chyt/939459874?tag=2.18.5)
 
 
-**Features:**
+**Новые возможности:**
 
-* Support omit_inaccessible_rows (90b6b7ae985f849f63b876ae3d60b79217e65a03)
-* Separate thread pool for pull task routine (fa4c50776aed759301acf4ebc20fa6934d7ffe3f)
+* Поддержка omit_inaccessible_rows (90b6b7ae985f849f63b876ae3d60b79217e65a03)
+* Отдельный пул потоков для обработки pull-задач (fa4c50776aed759301acf4ebc20fa6934d7ffe3f)
 
-**Fixes:**
+**Исправления:**
 
-* Fix error on ytTables(<empty_arr>) (7787c0803dd9d654722f199220761f8aa857302a)
-* Use UTC timezone for ytListLogTables arguments (ab598fffbf0ce97f3a5c36e349edcfa09b9edc1a)
+* Исправлена ошибка в ytTables(<empty_arr>) (7787c0803dd9d654722f199220761f8aa857302a)
+* Использование часового пояса UTC для аргументов ytListLogTables (ab598fffbf0ce97f3a5c36e349edcfa09b9edc1a)
 
 
 
@@ -60,19 +59,19 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 
 {% cut "**2.18.4**" %}
 
-**Release date:** 2026-05-15
+**Дата релиза:** 2026-05-15
 
 
-**Release page:** [2.18.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.4)
+**Страница релиза:** [2.18.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.4)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.18.4](https://github.com/orgs/ytsaurus/packages/container/chyt/873819001?tag=2.18.4)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:2.18.4](https://github.com/orgs/ytsaurus/packages/container/chyt/873819001?tag=2.18.4)
 
 
-**Fixes:**
+**Исправления:**
 
-* Add missing extractKeyValuePairs functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
-* Use FetcherInvoker for TableAttributeCache (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
+* Добавлены недостающие функции extractKeyValuePairs в целевой компонент CHYT (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
+* Использование FetcherInvoker для TableAttributeCache (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
 
 
 {% endcut %}
@@ -80,19 +79,19 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 
 {% cut "**2.18.3**" %}
 
-**Release date:** 2026-04-02
+**Дата релиза:** 2026-04-02
 
 
-**Release page:** [2.18.3](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.3)
+**Страница релиза:** [2.18.3](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.3)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.3](https://github.com/orgs/ytsaurus/packages/container/chyt/785932269?tag=stable-2.18.3)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:stable-2.18.3](https://github.com/orgs/ytsaurus/packages/container/chyt/785932269?tag=stable-2.18.3)
 
 
-**Fixes:**
+**Исправления:**
 
-* Fix conversion of constant sets in read range inferrence (7bdb3cf)
-* Fix handling of arrays in key condition (8a34c91)
+* Исправлено преобразование константных множеств при выводе диапазона чтения (7bdb3cf)
+* Исправлена обработка массивов в ключевом условии (8a34c91)
 
 
 {% endcut %}
@@ -100,35 +99,35 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 
 {% cut "**2.18.2**" %}
 
-**Release date:** 2026-03-23
+**Дата релиза:** 2026-03-23
 
 
-**Release page:** [2.18.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.2)
+**Страница релиза:** [2.18.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.2)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.2](https://github.com/orgs/ytsaurus/packages/container/chyt/757077349?tag=stable-2.18.2)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:stable-2.18.2](https://github.com/orgs/ytsaurus/packages/container/chyt/757077349?tag=stable-2.18.2)
 
 
-#### Fixes:
-* Fix distinct optimization reading not full block (056b99bd53dc92c2fdb2d59b8c0f30dafca9c80c)
+#### Исправления:
+* Исправлена оптимизация чтения distinct, из-за которой блок читался не полностью (056b99bd53dc92c2fdb2d59b8c0f30dafca9c80c)
 
 {% endcut %}
 
 
 {% cut "**2.18.1**" %}
 
-**Release date:** 2026-03-04
+**Дата релиза:** 2026-03-04
 
 
-**Release page:** [2.18.1](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.1)
+**Страница релиза:** [2.18.1](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.1)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:stable-2.18.1](https://github.com/orgs/ytsaurus/packages/container/chyt/721252481?tag=stable-2.18.1)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:stable-2.18.1](https://github.com/orgs/ytsaurus/packages/container/chyt/721252481?tag=stable-2.18.1)
 
 
-**Fixes:**
+**Исправления:**
 
-* Fix accounting of empty statistics in TColumnarStatisticsFetcher after failed fetch (75c3baf)
+* Исправлен учет пустой статистики в TColumnarStatisticsFetcher после неудачной выборки (75c3baf)
 
 
 {% endcut %}
@@ -136,123 +135,122 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 
 {% cut "**2.18.0**" %}
 
-**Release date:** 2026-01-20
+**Дата релиза:** 2026-01-20
 
 
-**Release page:** [2.18.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.0)
+**Страница релиза:** [2.18.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.18.0)
 
 
-#### Features:
-- Support RLS in CHYT, [3fe297c](https://github.com/ytsaurus/ytsaurus/commit/3fe297cd8ffc38e019c0121126ceaf5f636166ef).
-- Add read range inference from perdicate, [3a9eb82](https://github.com/ytsaurus/ytsaurus/commit/3a9eb82c7ec5495632f13dc3e8884a158312de4d).
-- Add chyt\_query\_statistics for insert queries and failed queries, [974b2c2](https://github.com/ytsaurus/ytsaurus/commit/974b2c28d5dcf44316516e285596b9c13090ee71), [99a08a3](https://github.com/ytsaurus/ytsaurus/commit/99a08a3449806035c48dd74ee587486569b7a6e1).
-- Add output table to runtime variables, [05cd02a](https://github.com/ytsaurus/ytsaurus/commit/05cd02ade583eaacd9ecf13cd8e27689e4bceefb).
-- Add feature to distribute input specs for secondary queries in pull mode, [c4ba9c4](https://github.com/ytsaurus/ytsaurus/commit/c4ba9c46ffd8522946ef34fe505b61805a21f504).
-- Add optimization for better performance with min/max queries using columnar statistics from nodes, [d83cd46](https://github.com/ytsaurus/ytsaurus/commit/d83cd46c0b5830fbbcdd23c00106b387b439542b).
-- Add optimization for better performance with rle and dictionary encoding (using only distinct values without materialization), [c777591](https://github.com/ytsaurus/ytsaurus/commit/c77759151d82bbfc8720cc269a3c295555974bdf).
-- Add revision check to AttributeCache for more stable performance, [3f3be85](https://github.com/ytsaurus/ytsaurus/commit/3f3be8596e05dd30054e7ddc7bfb15421ffd9afc).
-- Add EnableComlexOptionalConversion to prevent conversion of arrays (can't be nullable in Clickhouse, will change default to false in future), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
-- Add parallel insert-select support in storage\_distributor, [4632de8](https://github.com/ytsaurus/ytsaurus/commit/4632de8546d04ef8f3dedb9b9a26007a5384288b).
+#### Новые возможности:
+- Поддержка RLS в CHYT, [3fe297c](https://github.com/ytsaurus/ytsaurus/commit/3fe297cd8ffc38e019c0121126ceaf5f636166ef).
+- Добавлен вывод диапазона чтения из предиката, [3a9eb82](https://github.com/ytsaurus/ytsaurus/commit/3a9eb82c7ec5495632f13dc3e8884a158312de4d).
+- Добавлена статистика chyt\_query\_statistics для insert-запросов и завершившихся с ошибкой запросов, [974b2c2](https://github.com/ytsaurus/ytsaurus/commit/974b2c28d5dcf44316516e285596b9c13090ee71), [99a08a3](https://github.com/ytsaurus/ytsaurus/commit/99a08a3449806035c48dd74ee587486569b7a6e1).
+- Добавлена выходная таблица в переменные времени выполнения, [05cd02a](https://github.com/ytsaurus/ytsaurus/commit/05cd02ade583eaacd9ecf13cd8e27689e4bceefb).
+- Добавлена возможность распределять входные спецификации для вторичных запросов в pull-режиме, [c4ba9c4](https://github.com/ytsaurus/ytsaurus/commit/c4ba9c46ffd8522946ef34fe505b61805a21f504).
+- Добавлена оптимизация для повышения производительности запросов с min/max на основе колоночной статистики с узлов, [d83cd46](https://github.com/ytsaurus/ytsaurus/commit/d83cd46c0b5830fbbcdd23c00106b387b439542b).
+- Добавлена оптимизация для повышения производительности при rle- и словарном кодировании (с использованием только уникальных значений без материализации), [c777591](https://github.com/ytsaurus/ytsaurus/commit/c77759151d82bbfc8720cc269a3c295555974bdf).
+- Добавлена проверка ревизии в AttributeCache для более стабильной производительности, [3f3be85](https://github.com/ytsaurus/ytsaurus/commit/3f3be8596e05dd30054e7ddc7bfb15421ffd9afc).
+- Добавлен EnableComlexOptionalConversion для предотвращения преобразования массивов (не могут быть nullable в ClickHouse; в будущем значение по умолчанию будет изменено на false), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
+- Добавлена поддержка параллельного insert-select в storage\_distributor, [4632de8](https://github.com/ytsaurus/ytsaurus/commit/4632de8546d04ef8f3dedb9b9a26007a5384288b).
 
-#### Fixes:
-- Fix usage of master chunk spec fetcher for ordered dynamic tables. Applicable for CHYT over YT server versions up to 24.2, inclusive, [d3df92f](https://github.com/ytsaurus/ytsaurus/commit/d3df92fd4fa2756f397d329e79243be008512311).
-- Fix CTE errors in LEFT JOIN with IN condition, [b51e5db](https://github.com/ytsaurus/ytsaurus/commit/b51e5db56c9867a4b6615e24d791b59cef7becab).
-- Track total progress on coordinator, [0d5fc5c](https://github.com/ytsaurus/ytsaurus/commit/0d5fc5ce2b0f1c65922627f6d7dfb8bc7d215dd5).
-- Fix multithreaded write to secondaryProgress from different pipes, [8db79f4](https://github.com/ytsaurus/ytsaurus/commit/8db79f457cf71f0e00b8f65bd079aa03aaa9ad52).
+#### Исправления:
+- Исправлено использование мастер-фетчера спецификаций чанков для упорядоченных динамических таблиц. Применимо для CHYT поверх версий YT-сервера до 24.2 включительно, [d3df92f](https://github.com/ytsaurus/ytsaurus/commit/d3df92fd4fa2756f397d329e79243be008512311).
+- Исправлены ошибки CTE в LEFT JOIN с условием IN, [b51e5db](https://github.com/ytsaurus/ytsaurus/commit/b51e5db56c9867a4b6615e24d791b59cef7becab).
+- Отслеживание общего прогресса на координаторе, [0d5fc5c](https://github.com/ytsaurus/ytsaurus/commit/0d5fc5ce2b0f1c65922627f6d7dfb8bc7d215dd5).
+- Исправлена многопоточная запись в secondaryProgress из разных пайпов, [8db79f4](https://github.com/ytsaurus/ytsaurus/commit/8db79f457cf71f0e00b8f65bd079aa03aaa9ad52).
 
 {% endcut %}
 
 
 {% cut "**2.17.4**" %}
 
-**Release date:** 2025-09-23
+**Дата релиза:** 2025-09-23
 
 
-**Release page:** [2.17.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.4)
+**Страница релиза:** [2.17.4](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.4)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.17.4](https://github.com/orgs/ytsaurus/packages/container/chyt/524445395?tag=2.17.4)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:2.17.4](https://github.com/orgs/ytsaurus/packages/container/chyt/524445395?tag=2.17.4)
 
 
-- Backport YT-25206: Set up Cypress Transaction Service on Cypress Proxies (Commit: eb104f198aeb5bd30208e0214c03fd50f0535655)
-- Backport YT TLS support (Commit: fde3ac361bd81d5c8df21e3bcc13c9710cb446a8)
-- Fix usage of CTE in distributed queries (Commit: e275fa81599ff28fbb6a41de4c7c6c9fee0417fd)
-- Add aklomp-base64 support for base64 functions (Commit: 5708583fcc58051627bfcd4f9849de6f7915afcf)
-- Add usage of new analyzer to ytTables function (Commit: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
+- Бэкпорт YT-25206: настройка сервиса транзакций Cypress на прокси-серверах Cypress (коммит: eb104f198aeb5bd30208e0214c03fd50f0535655)
+- Бэкпорт поддержки TLS в YT (коммит: fde3ac361bd81d5c8df21e3bcc13c9710cb446a8)
+- Исправлено использование CTE в распределенных запросах (коммит: e275fa81599ff28fbb6a41de4c7c6c9fee0417fd)
+- Добавлена поддержка aklomp-base64 для функций base64 (коммит: 5708583fcc58051627bfcd4f9849de6f7915afcf)
+- Добавлено использование нового анализатора в функции ytTables (коммит: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
 
 {% endcut %}
 
 
 {% cut "**2.17.2**" %}
 
-**Release date:** 2025-07-04
+**Дата релиза:** 2025-07-04
 
 
-**Release page:** [2.17.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.2)
+**Страница релиза:** [2.17.2](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.17.2)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.17.2](https://github.com/orgs/ytsaurus/packages/container/chyt/454419671?tag=2.17.2)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:2.17.2](https://github.com/orgs/ytsaurus/packages/container/chyt/454419671?tag=2.17.2)
 
 
-No description
+Описание отсутствует
 
 {% endcut %}
 
 
 {% cut "**2.16.0**" %}
 
-**Release date:** 2024-11-06
+**Дата релиза:** 2024-11-06
 
 
-**Release page:** [2.16.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.16.0)
+**Страница релиза:** [2.16.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.16.0)
 
 
-**Docker image:** [ghcr.io/ytsaurus/chyt:2.16.0](https://github.com/orgs/ytsaurus/packages/container/chyt/301743715?tag=2.16.0)
+**Docker-образ:** [ghcr.io/ytsaurus/chyt:2.16.0](https://github.com/orgs/ytsaurus/packages/container/chyt/301743715?tag=2.16.0)
 
 
-- Support ClickHouse query cache (may be configured via `clickhouse_config`)
-- Read in order optimization (PR #757)
-- New PREWHERE algorithm on a data conversion level, turned on by default
-- Convert `bool` data type to `Bool` instread of `YtBoolean`. `YtBoolean` type is deprecated
-- Convert `dict` data type to `Map` instead of `Array(Typle(Key, Value))`
-- Convert `timestamp` data type to `DateTime64` instead of `UInt64`
-- Support reading and writing `date32`, `datetime64`, `timestamp64`, `interval64` data types
-- Support reading `json` data type as `String`
-- Support JSON_* functions from ClickHouse
-- The ability to specify a cypress directory as a database
-- Support exporting system log tables to cypress (query_log, metric_log, etc)
+- Поддержка кэша запросов ClickHouse (может быть настроен через `clickhouse_config`)
+- Оптимизация чтения по порядку (PR #757)
+- Новый алгоритм PREWHERE на уровне преобразования данных, включен по умолчанию
+- Преобразование типа данных `bool` в `Bool` вместо `YtBoolean`. Тип `YtBoolean` устарел
+- Преобразование типа данных `dict` в `Map` вместо `Array(Typle(Key, Value))`
+- Преобразование типа данных `timestamp` в `DateTime64` вместо `UInt64`
+- Поддержка чтения и записи типов данных `date32`, `datetime64`, `timestamp64`, `interval64`
+- Поддержка чтения типа данных `json` как `String`
+- Поддержка функций JSON_* из ClickHouse
+- Возможность указать директорию Cypress в качестве базы данных
+- Поддержка экспорта системных таблиц журнала в Cypress (query_log, metric_log и т. д.)
 
-**Note**: `date32`, `datetime64`, `timestamp64` and `interval64` were introduced in YTsaurus 24.1. If the YTsaurus cluster version is older, trying to store these data types in a table will lead to a `not a valid type` error.
+**Примечание**: типы данных `date32`, `datetime64`, `timestamp64` и `interval64` были добавлены в YTsaurus 24.1. Если версия кластера YTsaurus старше, попытка сохранить эти типы данных в таблице приведет к ошибке `not a valid type`.
 
 {% endcut %}
 
 
 {% cut "**2.14.0**" %}
 
-**Release date:** 2024-02-15
+**Дата релиза:** 2024-02-15
 
 
-**Release page:** [2.14.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.14.0)
+**Страница релиза:** [2.14.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.14.0)
 
 
-- Support SQL UDFs
-- Support reading dynamic and static tables via concat-functions
+- Поддержка SQL UDF
+- Поддержка чтения динамических и статических таблиц через concat-функции
 
 {% endcut %}
 
 
 {% cut "**2.13.0**" %}
 
-**Release date:** 2024-01-19
+**Дата релиза:** 2024-01-19
 
 
-**Release page:** [2.13.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.13.0)
+**Страница релиза:** [2.13.0](https://github.com/ytsaurus/ytsaurus/releases/tag/chyt/2.13.0)
 
 
-- Update ClickHouse code version to the latest LTS release (22.8 -> 23.8)
-- Support for reading and writing ordered dynamic tables
-- Move dumping query registry debug information to a separate thread
-- Configure temporary data storage
+- Обновление версии кода ClickHouse до последнего LTS-релиза (22.8 -> 23.8)
+- Поддержка чтения и записи упорядоченных динамических таблиц
+- Вынос выгрузки отладочной информации реестра запросов в отдельный поток
+- Настройка временного хранилища данных
 
 {% endcut %}
-
