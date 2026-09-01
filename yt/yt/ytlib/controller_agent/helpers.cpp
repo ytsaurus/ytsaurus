@@ -215,29 +215,30 @@ void SaveJobFiles(
 
     for (const auto& [externalCellTag, files] : externalCellTagToFiles) {
         TChunkServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, externalCellTag));
-        auto batchReq = proxy.ExecuteBatch();
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-        // COMPAT(shakurov): prefer proto ext (above).
-        batchReq->set_suppress_upstream_sync(true);
-        GenerateMutationId(batchReq);
 
+        std::vector<TFuture<TChunkServiceProxy::TRspAttachChunkTreesPtr>> futures;
+        futures.reserve(files.size());
         for (const auto* file : files) {
             const auto& info = fileToInfo[file];
-            auto* req = batchReq->add_attach_chunk_trees_subrequests();
+            auto req = proxy.AttachChunkTrees();
+            SetSuppressUpstreamSync(&req->Header(), true);
+            GenerateMutationId(req);
+
             ToProto(req->mutable_parent_id(), info.ChunkListId);
             ToProto(req->add_child_ids(), file->ChunkId);
             req->set_request_statistics(true);
+
+            futures.push_back(req->Invoke());
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-        const auto& batchRsp = batchRspOrError.Value();
+        auto rspsOrError = WaitFor(AllSucceeded(futures));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspsOrError);
+        const auto& rsps = rspsOrError.Value();
 
-        for (int index = 0; index < batchRsp->attach_chunk_trees_subresponses_size(); ++index) {
-            const auto& rsp = batchRsp->attach_chunk_trees_subresponses(index);
+        for (int index = 0; index < std::ssize(files); ++index) {
             const auto* file = files[index];
             auto& info = fileToInfo[file];
-            info.Statistics = rsp.statistics();
+            info.Statistics = rsps[index]->statistics();
         }
     }
 
