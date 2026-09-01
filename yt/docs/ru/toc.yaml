@@ -686,7 +686,7 @@ items:
         items:
           - name: Чтение с удаленных кластеров через RPC Proxy
             href: admin-guide/multiproxy.md
-  - name: Release notes
+  - name: Список изменений
     when: audience == "public"
     href: admin-guide/releases.md
   - name: Release notes

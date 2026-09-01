@@ -1,8 +1,8 @@
-# Release notes
+# Список изменений
 
 > Note: This page is only available in English.
 
-Thanks to multiple outside contributors for the active participation in {{product-name}} development.
+Благодарим многочисленных сторонних участников за активное участие в разработке {{product-name}}.
 
 
 ## {{product-name}} Server {#server}
