@@ -1372,6 +1372,75 @@ class TestArtifactCacheBypass(YTEnvSetup):
         # In tests we crash if slot location is disabled.
         # Thus, if this test passed successfully, location was not disabled.
 
+    @pytest.mark.skip("Disk quota cannot be applied in CI due to running in tmpfs")
+    @authors("krasovav")
+    @pytest.mark.parametrize("has_root_volume", [True, False])
+    def test_insufficient_rootfs_for_files(self, has_root_volume):
+        """
+        Test that map operation fails when rootfs size is insufficient
+        for copying files from file_paths with copy_files=true.
+
+        This test verifies the fix for the issue where files were copied
+        to a rootfs without checking if there's enough space, potentially
+        causing slot location to be disabled.
+        """
+        # Create input and output tables
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        # Create a file that's larger than the rootfs we'll allocate.
+        # File size: 20 MB
+        file_size = 20 * 1024 * 1024
+        create("file", "//tmp/large_file")
+        write_file("//tmp/large_file", b"A" * file_size)
+
+        # The operation should fail with rootfs overflow.
+        root_volume_size = file_size // 2
+
+        layers = []
+        if has_root_volume:
+            create("file", "//tmp/exec.tar.gz")
+            write_file("//tmp/exec.tar.gz", open("rootfs/exec.tar.gz", "rb").read())
+            create("file", "//tmp/rootfs.tar.gz")
+            write_file("//tmp/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
+
+            layers = [{"path": "//tmp/rootfs.tar.gz"}, {"path": "//tmp/exec.tar.gz"}]
+
+        volumes = {
+            "root": {
+                "disk_request": {
+                    "type": "local_disk",
+                    "disk_space": root_volume_size,
+                },
+                "layers": layers,
+            },
+        }
+
+        with raises_yt_error('Failed to build file "large_file" in sandbox "user": disk space limit is too small'):
+            map(
+                command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "copy_files": True,
+                        "volumes": volumes,
+                        "job_volume_mounts": [{"volume_id": "root", "mount_path": "/"}],
+                        "file_paths": ["//tmp/large_file"],
+                    },
+                    "max_failed_job_count": 1,
+                }
+            )
+
+        # Verify that no slot location was disabled.
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes:
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+            for alert in alerts:
+                assert "disabled" not in alert.get("message", "").lower(), \
+                    f"Found disabled location alert on node {node}: {alert['message']}"
+
     @authors("yuryalekseev", "krasovav")
     @pytest.mark.parametrize("volume_type", ["tmpfs", "local_disk"])
     @pytest.mark.parametrize("has_root_volume", [True, False])
