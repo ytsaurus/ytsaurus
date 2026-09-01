@@ -14,6 +14,8 @@
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/yt/ytlib/journal_client/helpers.h>
@@ -194,6 +196,8 @@ private:
                 newRowCount = desiredRowCount;
             }
 
+            auto oldChunkMasterMemoryUsage = chunk->GetMasterMemoryUsage();
+
             // Temporarily set row count to logical row count
             // for AttachToChunkList to compute statistics correctly
             // (it is not the sum of row counts for overlayed chunks).
@@ -201,6 +205,13 @@ private:
             chunkManager->AttachToChunkList(newChunkList, {child});
             // Then set it back.
             chunk->SetRowCount(chunkRowCount);
+
+            if (chunk->IsNative() && chunk->IsDiskSizeFinal()) {
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                securityManager->UpdateChunkMasterMemoryUsage(
+                    chunk,
+                    chunk->GetMasterMemoryUsage() - oldChunkMasterMemoryUsage);
+            }
 
             YT_VERIFY(newChunkList->Statistics().RowCount == newRowCount);
             appendedRowCount = newRowCount;
