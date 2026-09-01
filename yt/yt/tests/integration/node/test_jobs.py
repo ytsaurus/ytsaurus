@@ -111,7 +111,7 @@ class TestJobsDisabled(YTEnvSetup):
         "job_resource_manager": {
             "resource_limits": {
                 "cpu": 100,
-                "user_slots": 100,
+                "user_slots": 10,
             },
         }
     }
