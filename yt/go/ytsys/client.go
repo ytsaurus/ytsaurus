@@ -114,6 +114,15 @@ type Client struct {
 	l  log.Structured
 }
 
+// DataNodeDiskInfo describes a YT-mounted disk reported by data node's disk manager.
+type DataNodeDiskInfo struct {
+	DiskID     string `yson:"disk_id" json:"disk_id"`
+	DeviceName string `yson:"device_name" json:"device_name"`
+	State      string `yson:"state" json:"state"`
+	Absent     string `yson:"absent" json:"absent"`
+	Error      string `yson:"error" json:"error"`
+}
+
 // NewClient creates new client.
 func NewClient(yc yt.Client, l log.Structured) *Client {
 	if l == nil {
@@ -309,6 +318,17 @@ func (c *Client) GetDiskIDsMismatched(ctx context.Context, node *Node) (*bool, e
 	}
 
 	return diskIDsMismatched, nil
+}
+
+func (c *Client) GetDataNodeDiskInfos(ctx context.Context, node *Node) ([]DataNodeDiskInfo, error) {
+	path := node.GetCypressPath().Child("orchid/data_node/location_manager/disk_infos")
+
+	var diskInfos []DataNodeDiskInfo
+	if err := c.yc.GetNode(ctx, path, &diskInfos, nil); err != nil {
+		return nil, err
+	}
+
+	return diskInfos, nil
 }
 
 func (c *Client) GetNodeStartTime(ctx context.Context, node *Node) (*yson.Time, error) {
