@@ -500,6 +500,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
+    registrar.Parameter("hotswap_manager", &TThis::HotswapManager)
+        .DefaultNew();
     registrar.Parameter("data_node", &TThis::DataNode)
         .DefaultNew();
     registrar.Parameter("cellar_node", &TThis::CellarNode)
