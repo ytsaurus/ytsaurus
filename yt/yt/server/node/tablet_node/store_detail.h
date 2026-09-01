@@ -193,14 +193,18 @@ public:
 
     TMinHashDigestBlockIndex(int blockIndex);
 
-    bool IsFetched();
-    bool IsFound();
-    int GetBlockIndex();
+    static TMinHashDigestBlockIndex FromChunkMeta(
+        const NChunkClient::NProto::TChunkMeta& chunkMeta);
+
+    bool IsFetched() const;
+    bool IsFound() const;
+    int GetBlockIndex() const;
 
 private:
     int BlockIndex_ = NotFetched;
 };
 
+static_assert(std::is_trivially_copyable_v<TMinHashDigestBlockIndex>);
 
 class TChunkStoreBase
     : public TStoreBase
@@ -286,6 +290,7 @@ public:
     TInMemoryChunkDataPtr GetInMemoryChunkData() const override;
 
     TMinHashDigestBlockIndex GetMinHashDigestBlockIndex() const;
+    void SetMinHashDigestBlockIndex(TMinHashDigestBlockIndex blockIndex);
 
     // Fast path.
     NTableClient::TCachedVersionedChunkMetaPtr FindCachedVersionedChunkMeta(
@@ -328,7 +333,8 @@ protected:
 
     TTimestamp OverrideTimestamp_;
 
-    std::atomic<int> MinHashDigestBlockIndex_ = TMinHashDigestBlockIndex::NotFetched;
+    std::atomic<TMinHashDigestBlockIndex> MinHashDigestBlockIndex_{
+        TMinHashDigestBlockIndex::NotFetched};
 
     void OnLocalReaderFailed();
 

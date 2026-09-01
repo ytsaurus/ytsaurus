@@ -8,6 +8,8 @@
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+
 #include <yt/yt/core/misc/sync_cache.h>
 
 #include <yt/yt/library/min_hash_digest/min_hash_digest.h>
@@ -62,22 +64,36 @@ private:
         auto chunkReadOptions = CreateChunkReadOptions();
 
         if (!blockIndex.IsFetched()) {
-            bool compressBlockLastKeys = Store_->GetTablet()->GetSettings().MountConfig->CompressBlockLastKeys;
-
             SubscribeWithErrorHandling(
-                Store_->GetCachedVersionedChunkMeta(
-                    chunkReader,
-                    chunkReadOptions,
-                    /*prepareColumnMeta*/ false,
-                    compressBlockLastKeys),
+                chunkReader->GetMeta(
+                    IChunkReader::TGetMetaOptions{
+                        .ClientOptions = chunkReadOptions,
+                    },
+                    /*partitionTags*/ {},
+                    /*extensionTags*/ std::vector<int>{
+                        TProtoExtensionTag<NTableClient::NProto::TDataBlockMetaExt>::Value,
+                        TProtoExtensionTag<NTableClient::NProto::TSystemBlockMetaExt>::Value,
+                    })
+                    .Apply(BIND([] (const TRefCountedChunkMetaPtr& chunkMeta) {
+                        return TMinHashDigestBlockIndex::FromChunkMeta(*chunkMeta);
+                    })),
                 std::bind_front(
-                    &TMinHashDigestFetchPipeline::MakeMinHashDigestRequest,
+                    &TMinHashDigestFetchPipeline::OnMinHashDigestBlockIndexReceived,
                     this,
                     chunkReader,
                     chunkReadOptions));
             return;
         }
 
+        MakeMinHashDigestRequest(chunkReader, chunkReadOptions);
+    }
+
+    void OnMinHashDigestBlockIndexReceived(
+        const IChunkReaderPtr& chunkReader,
+        const TClientChunkReadOptions& chunkReadOptions,
+        TMinHashDigestBlockIndex blockIndex)
+    {
+        Store_->SetMinHashDigestBlockIndex(blockIndex);
         MakeMinHashDigestRequest(chunkReader, chunkReadOptions);
     }
 
