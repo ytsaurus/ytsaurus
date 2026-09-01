@@ -1,5 +1,10 @@
+import pytest
+
 from yt.yt.flow.tools.reshard_flow_tables.lib import (
     TMP_SUFFIX,
+    apply_reshard_plans,
+    current_tablet_count,
+    reshard_timer_table,
     get_reshard_targets,
     recreate_replication_log,
     reshard_mounted_table,
@@ -12,7 +17,15 @@ class FakeClient:
         self.calls = []
         self.created_replicas = 0
 
+    # Attributes every dynamic table carries. Spelling them out at each call site would only add
+    # noise to tests that are not about the tablet layout.
+    DEFAULT_ATTRIBUTES = {"@sorted": True, "@pivot_keys": [[]], "@tablet_count": 1}
+
     def get(self, path):
+        if path not in self.attributes:
+            default = self.DEFAULT_ATTRIBUTES.get(path.rpartition("/")[2])
+            if default is not None:
+                return default
         return self.attributes[path]
 
     def exists(self, path):
@@ -142,6 +155,287 @@ def test_reshard_mounted_table_unmounts_reshards_and_mounts():
         ("reshard", "//pipeline/states", {"tablet_count": 5, "uniform": True}),
         ("mount", "//pipeline/states"),
     ]
+
+
+class FailingReshardClient(FakeClient):
+    """Fails the reshard of the table it is asked to fail, as the bundle running out of tablets
+    does."""
+
+    def __init__(self, attributes=None, failing_table=None):
+        super().__init__(attributes)
+        self.failing_table = failing_table
+
+    def reshard_table(self, table, sync, **kwargs):
+        super().reshard_table(table, sync, **kwargs)
+        if self.failing_table in (None, table) and kwargs.get("tablet_count") == 5:
+            raise RuntimeError('Tablet cell bundle "yacs-prestable" is over tablet count limit')
+
+
+def test_failed_reshard_restores_the_previous_layout():
+    # An unmounted internal table is not a failed release but a dead pipeline: workers get "has no
+    # mounted tablets" (code 1702) on every commit, and a stop issued afterwards drains forever.
+    client = FailingReshardClient(
+        {
+            "//pipeline/states/@type": "table",
+            "//pipeline/states/@sorted": True,
+            "//pipeline/states/@pivot_keys": [[], ["b"]],
+        }
+    )
+
+    with pytest.raises(RuntimeError):
+        reshard_mounted_table(client, "//pipeline/states", tablet_count=5, uniform=True)
+
+    assert client.calls == [
+        ("unmount", "//pipeline/states"),
+        ("reshard", "//pipeline/states", {"tablet_count": 5, "uniform": True}),
+        # A failed reshard_table(sync=True) does not mean the mutation was rejected -- it also
+        # raises when the wait that follows it times out -- so the rollback reshards regardless.
+        ("unmount", "//pipeline/states"),
+        ("reshard", "//pipeline/states", {"pivot_keys": [[], ["b"]]}),
+        ("mount", "//pipeline/states"),
+    ]
+    assert client.attributes["//pipeline/states/@tablet_state"] == "mounted"
+
+
+def test_an_ordered_table_is_restored_by_its_tablet_count():
+    # An ordered table has no pivot keys; its layout is the plain tablet count.
+    client = FailingReshardClient(
+        {
+            "//pipeline/queue/@type": "table",
+            "//pipeline/queue/@sorted": False,
+            "//pipeline/queue/@tablet_count": 3,
+        }
+    )
+
+    with pytest.raises(RuntimeError):
+        reshard_mounted_table(client, "//pipeline/queue", tablet_count=5, uniform=True)
+
+    assert ("reshard", "//pipeline/queue", {"tablet_count": 3}) in client.calls
+    assert client.attributes["//pipeline/queue/@tablet_state"] == "mounted"
+
+
+def test_an_interrupted_reshard_restores_the_table():
+    # Every call here blocks for up to tablets_ready_timeout (30 minutes), so an operator giving up
+    # and hitting Ctrl+C is a real way into the window where the table sits unmounted.
+    # KeyboardInterrupt is a BaseException and slips past a bare `except Exception`.
+    class InterruptedClient(FakeClient):
+        def reshard_table(self, table, sync, **kwargs):
+            super().reshard_table(table, sync, **kwargs)
+            if kwargs.get("tablet_count") == 5:
+                raise KeyboardInterrupt
+
+    client = InterruptedClient(
+        {
+            "//pipeline/states/@type": "table",
+            "//pipeline/states/@sorted": True,
+            "//pipeline/states/@pivot_keys": [[], ["b"]],
+        }
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        reshard_mounted_table(client, "//pipeline/states", tablet_count=5, uniform=True)
+
+    assert ("reshard", "//pipeline/states", {"pivot_keys": [[], ["b"]]}) in client.calls
+    assert client.attributes["//pipeline/states/@tablet_state"] == "mounted"
+
+
+def test_a_failed_unmount_mounts_the_table_back():
+    # The unmount is a mutation like any other: unmount_table(sync=True) is make_request plus a
+    # separate wait for the tablets, so a timeout raises over a table that is already unmounted.
+    # Nothing has been resharded at that point, but the table is down, which is what kills the
+    # pipeline -- so the rollback has to cover this window too. The second unmount succeeds: by
+    # then the tablets the first call gave up waiting for have settled.
+    class FailingUnmountClient(FakeClient):
+        def __init__(self, attributes=None):
+            super().__init__(attributes)
+            self.unmounts_left_to_fail = 1
+
+        def unmount_table(self, table, sync):
+            super().unmount_table(table, sync)
+            if self.unmounts_left_to_fail:
+                self.unmounts_left_to_fail -= 1
+                raise RuntimeError(f"Timed out while waiting for tablets of {table} to unmount")
+
+    client = FailingUnmountClient(
+        {
+            "//pipeline/states/@type": "table",
+            "//pipeline/states/@sorted": True,
+            "//pipeline/states/@pivot_keys": [[], ["b"]],
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="Timed out"):
+        reshard_mounted_table(client, "//pipeline/states", tablet_count=5, uniform=True)
+
+    assert client.calls == [
+        ("unmount", "//pipeline/states"),
+        ("unmount", "//pipeline/states"),
+        ("reshard", "//pipeline/states", {"pivot_keys": [[], ["b"]]}),
+        ("mount", "//pipeline/states"),
+    ]
+    assert client.attributes["//pipeline/states/@tablet_state"] == "mounted"
+
+
+def test_a_failing_chaos_replica_is_restored_on_its_own_cluster():
+    # A CRT owns no tablets: the reshard runs against every data replica, each on its own cluster
+    # and its own bundle. A replica that fails must be put back where it stands, and the failure
+    # must still reach the caller rather than being swallowed on the way out.
+    crt = "//pipeline/states"
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@replicas": {
+                "id-1": {"cluster_name": "pythia", "replica_path": crt, "content_type": "data"},
+                "id-2": {"cluster_name": "zeno", "replica_path": "//replica/states", "content_type": "data"},
+            },
+        }
+    )
+    clients = {
+        "pythia": FakeClient({f"{crt}/@type": "table", f"{crt}/@sorted": True, f"{crt}/@pivot_keys": [[], ["p"]]}),
+        "zeno": FailingReshardClient(
+            {
+                "//replica/states/@type": "table",
+                "//replica/states/@sorted": True,
+                "//replica/states/@pivot_keys": [[], ["z"]],
+            },
+            failing_table="//replica/states",
+        ),
+    }
+
+    with pytest.raises(RuntimeError):
+        reshard_mounted_table(client, crt, make_client=clients.get, tablet_count=5, uniform=True)
+
+    # The healthy replica took the new layout and stayed mounted...
+    assert clients["pythia"].calls == [
+        ("unmount", crt),
+        ("reshard", crt, {"tablet_count": 5, "uniform": True}),
+        ("mount", crt),
+    ]
+    assert clients["pythia"].attributes[f"{crt}/@tablet_state"] == "mounted"
+    # ...and the failing one went back to the pivot keys it had, on its own cluster.
+    assert ("reshard", "//replica/states", {"pivot_keys": [[], ["z"]]}) in clients["zeno"].calls
+    assert clients["zeno"].attributes["//replica/states/@tablet_state"] == "mounted"
+
+
+def test_chaos_table_width_is_read_from_its_replicas():
+    # A CRT node has no @tablet_count of its own, so ordering by delta has to look at the replicas.
+    crt = "//pipeline/states"
+    client = FakeClient(
+        {
+            f"{crt}/@type": "chaos_replicated_table",
+            f"{crt}/@replicas": {
+                "id-1": {"cluster_name": "pythia", "replica_path": crt, "content_type": "data"},
+                "id-2": {"cluster_name": "zeno", "replica_path": "//replica/states", "content_type": "data"},
+            },
+        }
+    )
+    clients = {
+        "pythia": FakeClient({f"{crt}/@type": "table", f"{crt}/@tablet_count": 8}),
+        "zeno": FakeClient({"//replica/states/@type": "table", "//replica/states/@tablet_count": 40}),
+    }
+
+    assert current_tablet_count(client, crt, make_client=clients.get) == 40
+
+
+def test_failed_mount_restores_the_previous_layout():
+    # The new layout is in place but will not come up; the previous one did, so go back to it.
+    class FailingMountClient(FakeClient):
+        def __init__(self, attributes=None):
+            super().__init__(attributes)
+            self.mounts_left_to_fail = 1
+
+        def mount_table(self, table, sync):
+            if self.mounts_left_to_fail:
+                self.mounts_left_to_fail -= 1
+                self.calls.append(("failed mount", table))
+                raise RuntimeError("Not enough tablet static memory")
+            super().mount_table(table, sync)
+
+    client = FailingMountClient(
+        {
+            "//pipeline/states/@type": "table",
+            "//pipeline/states/@sorted": True,
+            "//pipeline/states/@pivot_keys": [[], ["b"]],
+        }
+    )
+
+    with pytest.raises(RuntimeError):
+        reshard_mounted_table(client, "//pipeline/states", tablet_count=5, uniform=True)
+
+    assert client.calls == [
+        ("unmount", "//pipeline/states"),
+        ("reshard", "//pipeline/states", {"tablet_count": 5, "uniform": True}),
+        ("failed mount", "//pipeline/states"),
+        ("unmount", "//pipeline/states"),
+        ("reshard", "//pipeline/states", {"pivot_keys": [[], ["b"]]}),
+        ("mount", "//pipeline/states"),
+    ]
+    assert client.attributes["//pipeline/states/@tablet_state"] == "mounted"
+
+
+def test_a_failed_rollback_still_reports_the_original_error():
+    # Restoring runs while another error propagates, and that first error is the one worth
+    # reporting -- the rollback failure must not shadow it.
+    class DoomedClient(FakeClient):
+        def reshard_table(self, table, sync, **kwargs):
+            raise RuntimeError("over tablet count limit" if kwargs.get("tablet_count") == 5 else "rollback is broken")
+
+        def mount_table(self, table, sync):
+            raise RuntimeError("mount is broken too")
+
+    client = DoomedClient({"//pipeline/states/@type": "table"})
+
+    with pytest.raises(RuntimeError, match="over tablet count limit"):
+        reshard_mounted_table(client, "//pipeline/states", tablet_count=5, uniform=True)
+
+
+def test_plans_run_smallest_growth_first():
+    # Every table of a pipeline shares one bundle, and its tablet count is a hard limit. Running a
+    # fixed order lets a growing table eat the budget a later one needs, while the tables that
+    # would have released tablets never get their turn.
+    client = FakeClient(
+        {
+            "//pipeline/grows_a_lot/@type": "table",
+            "//pipeline/grows_a_lot/@tablet_count": 10,
+            "//pipeline/grows_a_bit/@type": "table",
+            "//pipeline/grows_a_bit/@tablet_count": 10,
+            "//pipeline/shrinks/@type": "table",
+            "//pipeline/shrinks/@tablet_count": 100,
+        }
+    )
+    plans = [
+        ("//pipeline/grows_a_lot", {"tablet_count": 50, "uniform": True}),
+        ("//pipeline/grows_a_bit", {"tablet_count": 20, "uniform": True}),
+        ("//pipeline/shrinks", {"tablet_count": 10, "uniform": True}),
+    ]
+
+    apply_reshard_plans(client, plans)
+
+    assert [table for kind, table, *_ in client.calls if kind == "reshard"] == [
+        "//pipeline/shrinks",
+        "//pipeline/grows_a_bit",
+        "//pipeline/grows_a_lot",
+    ]
+
+
+def test_plan_width_comes_from_the_pivot_keys_when_they_are_given():
+    client = FakeClient({"//pipeline/states/@type": "table", "//pipeline/states/@tablet_count": 3})
+
+    apply_reshard_plans(client, [("//pipeline/states", {"pivot_keys": [[], ["a"]]})])
+
+    assert ("reshard", "//pipeline/states", {"pivot_keys": [[], ["a"]]}) in client.calls
+
+
+def test_reshard_timer_table_plans_and_applies_in_one_call():
+    # Kept for alice/wonderlogs/flow/rt_dwh/tools/ensure_flow_sharding, which reshards the timers
+    # table on its own and imports this entry point rather than running the tool.
+    client = FakeClient({"//pipeline/timers/@type": "table", "//pipeline/timers/@tablet_count": 1})
+
+    reshard_timer_table(client, ["computation"], "//pipeline", 2)
+
+    assert [kind for kind, *_ in client.calls] == ["unmount", "reshard", "mount"]
+    assert client.calls[1][1] == "//pipeline/timers"
+    assert len(client.calls[1][2]["pivot_keys"]) == 2
 
 
 def test_recreate_replication_log_swaps_it():

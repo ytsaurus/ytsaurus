@@ -439,14 +439,67 @@ def recreate_replication_log(
     logging.info(f"Recreated {log_cluster}:{log_path}")
 
 
+def restore(client, table, previous_layout):
+    """Best-effort return of |table| to |previous_layout|, mounted.
+
+    Reshards unconditionally rather than only when the layout is known to have changed: a failed
+    `reshard_table(sync=True)` says nothing about whether the mutation went through. It is
+    make_request plus a separate _waiting_for_tablet_transition (dynamic_table_commands.py), so a
+    timeout waiting for the tablets raises over an applied reshard. Resharding an unmounted table
+    to the layout it already has is cheap and idempotent, so paying for it always beats guessing.
+
+    Never raises: it runs while another error is propagating, and that error is the one worth
+    reporting."""
+    try:
+        client.unmount_table(table, sync=True)
+        client.reshard_table(table, sync=True, **previous_layout)
+        client.mount_table(table, sync=True)
+    except BaseException:
+        logging.exception(
+            f"Failed to restore {table}: it is left unmounted, and the pipeline will reject every"
+            " commit against it until it is mounted by hand"
+        )
+
+
+def read_layout(client, table):
+    """The reshard arguments that reproduce the current tablet layout of |table|: explicit pivot
+    keys for a sorted table, a plain tablet count for an ordered one."""
+    if client.get(f"{table}/@sorted"):
+        return {"pivot_keys": client.get(f"{table}/@pivot_keys")}
+    return {"tablet_count": client.get(f"{table}/@tablet_count")}
+
+
+def reshard_one_table(client, table, **reshard_kwargs):
+    """unmount -> reshard -> mount, leaving the table mounted whatever happens.
+
+    A failure used to strand the table unmounted, and an unmounted internal table is not a failed
+    release but a dead pipeline: workers get "has no mounted tablets" (code 1702) on every commit
+    against it, and a stop issued afterwards drains forever. Losing the reshard is acceptable,
+    losing the pipeline is not."""
+    previous_layout = read_layout(client, table)
+    try:
+        # The unmount belongs inside the rollback too: unmount_table(sync=True) is make_request
+        # plus a separate wait for the tablets, so a timeout raises over a table that is already
+        # unmounted -- the very state this function exists to keep the pipeline out of.
+        client.unmount_table(table, sync=True)
+        client.reshard_table(table, sync=True, **reshard_kwargs)
+        client.mount_table(table, sync=True)
+    except BaseException:
+        # BaseException, not Exception: every one of these calls blocks for up to
+        # tablets_ready_timeout (30 minutes), and an operator who gives up and hits Ctrl+C in that
+        # window would otherwise walk away leaving the table unmounted -- the exact outcome this
+        # function exists to prevent.
+        logging.error(f"Resharding {table} failed, restoring its previous layout")
+        restore(client, table, previous_layout)
+        raise
+
+
 def reshard_mounted_table(client, table, also_chaos_replication_logs=False, make_client=None, **reshard_kwargs):
     for target_client, target_table in get_reshard_targets(
         client, table, make_client=make_client, warn_logs=not also_chaos_replication_logs
     ):
         logging.info(f"Resharding {target_table}...")
-        target_client.unmount_table(target_table, sync=True)
-        target_client.reshard_table(target_table, sync=True, **reshard_kwargs)
-        target_client.mount_table(target_table, sync=True)
+        reshard_one_table(target_client, target_table, **reshard_kwargs)
         logging.info(f"Finished resharding {target_table}")
     if not also_chaos_replication_logs:
         return
@@ -473,12 +526,56 @@ def reshard_mounted_table(client, table, also_chaos_replication_logs=False, make
         recreate_replication_log(client, table, log_cluster, log_path, log_pivot_keys, make_client=make_client)
 
 
-def reshard_computation_key_table(
-    client, computations, source_keys, table, tablet_count, compact_key=False, also_chaos_replication_logs=False
-):
+def planned_tablet_count(reshard_kwargs):
+    pivot_keys = reshard_kwargs.get("pivot_keys")
+    return len(pivot_keys) if pivot_keys is not None else reshard_kwargs["tablet_count"]
+
+
+def current_tablet_count(client, table, make_client=None):
+    """Width of the widest reshard target of |table|: a chaos replicated table owns no tablets
+    itself, its replicas do."""
+    return max(
+        (
+            target_client.get(f"{target_table}/@tablet_count")
+            for target_client, target_table in get_reshard_targets(
+                client, table, make_client=make_client, warn_logs=False
+            )
+        ),
+        default=0,
+    )
+
+
+def apply_reshard_plans(client, plans, also_chaos_replication_logs=False, make_client=None):
+    """Run |plans| -- (table, reshard_kwargs) pairs -- smallest growth first.
+
+    The tablet count of a tablet cell bundle is a hard limit and every table of a pipeline shares
+    one bundle, so a fixed order lets a growing table eat the budget a later one needs -- and the
+    tables that would have RELEASED tablets never get their turn, because they are at the end of
+    the list. Ordering by delta spends what the shrinking tables free before asking for more."""
+    ordered = sorted(
+        (
+            (table, reshard_kwargs, current_tablet_count(client, table, make_client=make_client))
+            for table, reshard_kwargs in plans
+        ),
+        key=lambda plan: planned_tablet_count(plan[1]) - plan[2],
+    )
+    for table, reshard_kwargs, current in ordered:
+        target = planned_tablet_count(reshard_kwargs)
+        logging.info(f"Planned: {table} {current} -> {target} tablets ({target - current:+d})")
+    for table, reshard_kwargs, _ in ordered:
+        reshard_mounted_table(
+            client,
+            table,
+            also_chaos_replication_logs=also_chaos_replication_logs,
+            make_client=make_client,
+            **reshard_kwargs,
+        )
+
+
+def plan_computation_key_table(computations, source_keys, table, tablet_count, compact_key=False):
     if len(computations) == 0:
         logging.info(f"Skip {table} because there is no computations")
-        return
+        return None
 
     hash_step = 2**64 // tablet_count
 
@@ -502,91 +599,65 @@ def reshard_computation_key_table(
                     pivot_keys.append(build_compact_input_message_pivot_key(computation_id, i))
                 else:
                     pivot_keys.append([computation_id, yson.YsonList([yson.YsonUint64(i)])])
-    reshard_mounted_table(client, table, also_chaos_replication_logs=also_chaos_replication_logs, pivot_keys=pivot_keys)
+    return table, {"pivot_keys": pivot_keys}
 
 
-def reshard_partition_table(client, computations, table, tablet_count, also_chaos_replication_logs=False):
-    reshard_mounted_table(
-        client,
-        table,
-        also_chaos_replication_logs=also_chaos_replication_logs,
-        tablet_count=tablet_count * len(computations),
-        uniform=True,
+def plan_partition_table(computations, table, tablet_count):
+    return table, {"tablet_count": tablet_count * len(computations), "uniform": True}
+
+
+def plan_input_table(computations, path, tablet_count):
+    return plan_computation_key_table(computations, {}, f"{path}/input_messages", tablet_count)
+
+
+def plan_compact_input_table(computations, path, tablet_count):
+    return plan_computation_key_table(
+        computations, {}, f"{path}/compact_input_messages", tablet_count, compact_key=True
     )
 
 
-def reshard_input_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
-    table = f"{path}/input_messages"
-    reshard_computation_key_table(
-        client, computations, {}, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
-    )
-
-
-def reshard_compact_input_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
-    table = f"{path}/compact_input_messages"
-    reshard_computation_key_table(
-        client,
-        computations,
-        {},
-        table,
-        tablet_count,
-        compact_key=True,
-        also_chaos_replication_logs=also_chaos_replication_logs,
-    )
+def plan_timer_table(computations, path, tablet_count):
+    return plan_computation_key_table(computations, {}, f"{path}/timers", tablet_count)
 
 
 def reshard_timer_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
-    table = f"{path}/timers"
-    reshard_computation_key_table(
-        client, computations, {}, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
-    )
+    """Plan and apply the timers reshard in one call.
+
+    The tool itself plans every table before applying anything, so that the plans can be ordered by
+    how much each one grows. This entry point reshards the one table on its own and keeps its
+    original signature for the caller outside the tool
+    (alice/wonderlogs/flow/rt_dwh/tools/ensure_flow_sharding)."""
+    plan = plan_timer_table(computations, path, tablet_count)
+    if plan is None:
+        return
+    apply_reshard_plans(client, [plan], also_chaos_replication_logs=also_chaos_replication_logs)
 
 
-def reshard_compact_partition_output_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
-    table = f"{path}/compact_partition_output_messages"
-    reshard_partition_table(
-        client, computations, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
-    )
+def plan_compact_partition_output_table(computations, path, tablet_count):
+    return plan_partition_table(computations, f"{path}/compact_partition_output_messages", tablet_count)
 
 
-def reshard_compact_output_table(
-    client, computations, source_keys, path, tablet_count, also_chaos_replication_logs=False
-):
-    table = f"{path}/compact_output_messages"
-    reshard_computation_key_table(
-        client, computations, source_keys, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
-    )
+def plan_compact_output_table(computations, source_keys, path, tablet_count):
+    return plan_computation_key_table(computations, source_keys, f"{path}/compact_output_messages", tablet_count)
 
 
-def reshard_state_table(client, computations, source_keys, path, tablet_count, also_chaos_replication_logs=False):
-    table = f"{path}/states"
-    reshard_computation_key_table(
-        client, computations, source_keys, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
-    )
+def plan_state_table(computations, source_keys, path, tablet_count):
+    return plan_computation_key_table(computations, source_keys, f"{path}/states", tablet_count)
 
 
-def reshard_partition_state_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
-    table = f"{path}/partition_states"
-    reshard_partition_table(
-        client, computations, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
-    )
+def plan_partition_state_table(computations, path, tablet_count):
+    return plan_partition_table(computations, f"{path}/partition_states", tablet_count)
 
 
-def reshard_partition_transactions_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
-    table = f"{path}/partition_transactions"
-    reshard_partition_table(
-        client, computations, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
-    )
+def plan_partition_transactions_table(computations, path, tablet_count):
+    return plan_partition_table(computations, f"{path}/partition_transactions", tablet_count)
 
 
-def reshard_leases_table(client, computations, path, tablet_count, also_chaos_replication_logs=False):
+def plan_leases_table(computations, path, tablet_count):
     # Same write profile as partition_transactions -- tiny rows rewritten at a high rate, keyed by
     # farm_hash(key) -- so spread it over the same width. A single tablet cannot compact the lease
     # churn of every partition and hits "too many overlapping stores, writes disabled" (code 1703).
-    table = f"{path}/leases"
-    reshard_partition_table(
-        client, computations, table, tablet_count, also_chaos_replication_logs=also_chaos_replication_logs
-    )
+    return plan_partition_table(computations, f"{path}/leases", tablet_count)
 
 
 def reshard_tables(args):
@@ -596,21 +667,17 @@ def reshard_tables(args):
 
     client = yt.YtClient(proxy=args.proxy, config=_make_client_config())
 
+    plans = []
     if args.pipeline_path is not None:
-        reshard_pipeline_tables(client, args)
+        plans.extend(plan_pipeline_tables(client, args))
     for external_table in args.external_table:
         # An external table has no computations, so it is resharded to --tablet-count tablets
         # uniformly (over its leading hash key column), just like a pipeline partition table.
-        reshard_mounted_table(
-            client,
-            external_table,
-            also_chaos_replication_logs=args.also_chaos_replication_logs,
-            tablet_count=args.tablet_count,
-            uniform=True,
-        )
+        plans.append((external_table, {"tablet_count": args.tablet_count, "uniform": True}))
+    apply_reshard_plans(client, plans, also_chaos_replication_logs=args.also_chaos_replication_logs)
 
 
-def reshard_pipeline_tables(client, args):
+def plan_pipeline_tables(client, args):
     spec = client.get_pipeline_spec(args.pipeline_path)
     partitions = client.get_flow_view(args.pipeline_path, "/state/execution_spec/layout/partitions", cache=True)
 
@@ -642,39 +709,28 @@ def reshard_pipeline_tables(client, args):
         if "source_key" in partition:
             source_keys[partition["computation_id"]].append(partition["source_key"])
 
-    logging.info(args.table)
+    path = args.pipeline_path
+    tablet_count = args.tablet_count
+    plans = []
     if args.table is None or args.table == "input_messages":
-        reshard_input_table(client, inputs, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs)
+        plans.append(plan_input_table(inputs, path, tablet_count))
     if args.table is None or args.table == "compact_input_messages":
-        reshard_compact_input_table(
-            client, inputs, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
-        )
+        plans.append(plan_compact_input_table(inputs, path, tablet_count))
     if args.table is None or args.table == "compact_output_messages":
-        reshard_compact_output_table(
-            client, sources, source_keys, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
-        )
+        plans.append(plan_compact_output_table(sources, source_keys, path, tablet_count))
     if args.table is None or args.table == "compact_partition_output_messages":
-        reshard_compact_partition_output_table(
-            client, outputs, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
-        )
+        plans.append(plan_compact_partition_output_table(outputs, path, tablet_count))
     if args.table is None or args.table == "timers":
-        reshard_timer_table(client, timers, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs)
+        plans.append(plan_timer_table(timers, path, tablet_count))
     if args.table is None or args.table == "states":
-        reshard_state_table(
-            client, computations, source_keys, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
-        )
+        plans.append(plan_state_table(computations, source_keys, path, tablet_count))
     if args.table is None or args.table == "partition_states":
-        reshard_partition_state_table(
-            client, computations, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
-        )
+        plans.append(plan_partition_state_table(computations, path, tablet_count))
     if args.table is None or args.table == "partition_transactions":
-        reshard_partition_transactions_table(
-            client, computations, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
-        )
+        plans.append(plan_partition_transactions_table(computations, path, tablet_count))
     if args.table is None or args.table == "leases":
-        reshard_leases_table(
-            client, computations, args.pipeline_path, args.tablet_count, args.also_chaos_replication_logs
-        )
+        plans.append(plan_leases_table(computations, path, tablet_count))
+    return [plan for plan in plans if plan is not None]
 
 
 if __name__ == "__main__":
