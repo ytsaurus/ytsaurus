@@ -473,6 +473,72 @@ class TestIoEngine(YTEnvSetup):
             }
         }, False)
 
+    @authors("depression")
+    def test_probe_put_blocks_stress_low_memory(self):
+        REPLICATION_FACTOR = self.NUM_NODES
+        BLOCK_SIZE = 64 * 1024
+
+        GROUP_SIZE = 2 * BLOCK_SIZE
+        WRITE_MEMORY_LIMIT = int(6.25 * GROUP_SIZE)
+        GROUP_COUNT = 2
+        WRITER_COUNT = 20
+
+        group_string = os.urandom(GROUP_SIZE // 2).hex()
+        update_nodes_dynamic_config({
+            "data_node": {
+                "use_probe_put_blocks": True,
+                "enable_probe_put_blocks_fair_share": False,
+                "store_location_config_per_medium": {
+                    "default": {
+                        "memory_limit_fraction_for_starting_new_sessions": 0.8,
+                        "write_memory_limit": WRITE_MEMORY_LIMIT,  # about six groups
+                    }
+                },
+            }
+        })
+
+        chunk_writer = {
+            "block_size": BLOCK_SIZE,
+            "group_size": GROUP_SIZE,
+            "node_ping_period": 500,
+            "min_upload_replication_factor": REPLICATION_FACTOR,
+            "upload_replication_factor": REPLICATION_FACTOR,
+            "use_probe_put_blocks": True,
+        }
+
+        paths = ["//tmp/deadlock_writer_{}".format(index) for index in range(WRITER_COUNT)]
+        for path in paths:
+            create(
+                "table",
+                path,
+                attributes={
+                    "compression_codec": "none",
+                    "replication_factor": REPLICATION_FACTOR,
+                    "chunk_writer": chunk_writer,
+                })
+
+        rows = [{"key": group_string} for _ in range(GROUP_COUNT)]
+        start_barrier = threading.Barrier(len(paths))
+        errors = []
+
+        def write(path):
+            start_barrier.wait()
+            try:
+                write_table(path, rows)
+            except Exception as error:
+                print_debug("error in writer: ", error)
+                errors.append(error)
+
+        writers = [threading.Thread(target=write, args=(path,), daemon=True) for path in paths]
+        for writer in writers:
+            writer.start()
+        join_deadline = time.monotonic() + 25
+        for writer in writers:
+            writer.join(timeout=max(0, join_deadline - time.monotonic()))
+
+        assert all(not writer.is_alive() for writer in writers)
+        assert not errors
+
     def _run_send_blocks_writes(self, need_send_blocks):
         nodes = ls("//sys/cluster_nodes")
         send_blocks_tags = {"yt_service": "DataNodeService", "method": "SendBlocks"}
