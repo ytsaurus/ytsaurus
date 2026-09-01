@@ -4,6 +4,7 @@
 #include "tablet.h"
 #include "sorted_chunk_store.h"
 
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
@@ -37,8 +38,11 @@ void TCompactionHintFetchThrottlers::Reconfigure(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetchPipeline::TCompactionHintFetchPipeline(TSortedChunkStore* store)
+TCompactionHintFetchPipeline::TCompactionHintFetchPipeline(
+    TSortedChunkStore* store,
+    const TExponentialBackoffOptions& retryBackoffOptions)
     : Store_(store)
+    , RetryBackoff_(retryBackoffOptions)
 { }
 
 void TCompactionHintFetchPipeline::Enqueue()
@@ -115,15 +119,25 @@ void TCompactionHintFetchPipeline::OnRequestFailed(const TError& error)
     const auto& context = GetFetcher()->Context();
     const auto& Logger = context.Logger;
 
-    YT_TLOG_WARNING("Failed to fetch compaction hint for store, retry")
+    RetryBackoff_.Next();
+
+    auto backoffTime = RetryBackoff_.GetBackoff();
+
+    YT_TLOG_WARNING("Failed to fetch compaction hint for store; retrying with backoff")
         .With("StoreId", Store_->GetId())
         .With("ChunkId", Store_->GetChunkId())
+        .With("RetryIndex", RetryBackoff_.GetInvocationIndex())
+        .With("BackoffTime", backoffTime)
         .With(error);
 
     context.FailedRequestCount.Increment();
 
-    // Pipeline is stateless, so we can just put it in fetcher to retry.
-    GetFetcher()->EnqueuePipeline(this);
+    // The delayed callback only re-enqueues the pipeline; the actual request remains subject
+    // to the fetcher throttler.
+    TDelayedExecutor::Submit(
+        BIND(&TCompactionHintFetchPipeline::Enqueue, MakeWeak(this)),
+        backoffTime,
+        GetEpochAutomatonInvoker());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,6 +212,13 @@ void TCompactionHintFetcher::Reconfigure(const TCompactionHintFetcherConfigPtr& 
     Config_ = config;
 
     FetchingExecutor_->SetOptions(Config_->PeriodicExecutor);
+}
+
+const TExponentialBackoffOptions& TCompactionHintFetcher::GetRetryBackoffOptions() const
+{
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+    return Config_->RetryBackoff;
 }
 
 void TCompactionHintFetcher::EnqueuePipeline(const TCompactionHintFetchPipelinePtr& pipeline)
