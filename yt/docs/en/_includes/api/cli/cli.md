@@ -15,6 +15,8 @@ To work with a cluster, you need to get an access token and put it in the `~/.yt
 
 For more information about the tokens and authentication, see the [Authentication](../../../user-guide/storage/auth.md) section.
 
+The `yt` CLI does not read the `YT_USER` environment variable. When the CLI uses an HTTP proxy, as in the standard setup, the token determines the user; the RPC and native drivers follow separate rules. Run `yt whoami` to check the authenticated username. For details, see [Selecting a username](../../../user-guide/storage/auth.md#user-selection).
+
 In addition to the access token, you need to specify the cluster to work with. To do this, you can specify the proxy server name in the `YT_PROXY` environment variable: `export YT_PROXY=<cluster-name>` or pass the proxy server name to each command individually via the `proxy` option, such as `--proxy <cluster-name>`.
 
 Below are some features of the CLI:
