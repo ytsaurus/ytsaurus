@@ -1,7 +1,5 @@
 #include "yt_directory_last_file_source.h"
 
-#include "yt_file_source.h"
-
 #include <yt/yt/flow/library/cpp/common/registry.h>
 
 #include <yt/yt/client/api/client.h>
@@ -15,10 +13,21 @@ namespace NYT::NFlow {
 
 using namespace NApi;
 using namespace NConcurrency;
-using namespace NHydra;
 using namespace NObjectClient;
 using namespace NYPath;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+bool IsSupportedChildType(EObjectType type)
+{
+    return type == EObjectType::File ||
+        type == EObjectType::Table;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,54 +61,46 @@ TFuture<TFileSourceRevisionPtr> TYTDirectoryLastFileSource::Discover()
     auto client = GetContext()->ClientsCache->GetClient(*cluster);
 
     TListNodeOptions options;
-    options.Attributes = {"id", "type", "revision", "uncompressed_data_size"};
-    return client->ListNode(directoryPath.GetPath(), options)
-        .Apply(BIND([
-            directoryPath = std::move(directoryPath),
-            cluster = *cluster,
-            pinnedFileName = std::move(pinnedFileName)
-        ] (const NYson::TYsonString& listYson) {
-            auto list = ConvertToNode(listYson);
+    options.Attributes = {"type"};
+    auto list = ConvertToNode(WaitFor(client->ListNode(directoryPath.GetPath(), options))
+            .ValueOrThrow());
 
-            std::pair<std::string, INodePtr> selected;
-            for (const auto& child : list->AsList()->GetChildren()) {
-                auto name = ConvertTo<std::string>(child);
-                auto type = child->Attributes().Get<EObjectType>("type");
-                if (pinnedFileName && name == *pinnedFileName) {
-                    THROW_ERROR_EXCEPTION_UNLESS(
-                        type == EObjectType::File,
-                        "Pinned YT directory child %Qv is not a file",
-                        name);
-                    selected = {std::move(name), child};
-                    break;
-                }
-                if (!pinnedFileName &&
-                    type == EObjectType::File &&
-                    (!selected.second || name > selected.first))
-                {
-                    selected = {std::move(name), child};
-                }
-            }
-            THROW_ERROR_EXCEPTION_IF(
-                pinnedFileName && !selected.second,
-                "Pinned YT directory file %Qv does not exist",
-                *pinnedFileName);
-            if (!selected.second) {
-                return TFileSourceRevisionPtr{};
-            }
+    std::optional<std::string> selectedName;
+    for (const auto& child : list->AsList()->GetChildren()) {
+        auto name = ConvertTo<std::string>(child);
+        auto type = child->Attributes().Get<EObjectType>("type");
+        if (pinnedFileName && name == *pinnedFileName) {
+            THROW_ERROR_EXCEPTION_UNLESS(
+                IsSupportedChildType(type),
+                "Pinned YT directory child %Qv must be a Cypress file or a BLOB table",
+                name)
+                .With("actual_type", type);
+            selectedName = std::move(name);
+            break;
+        }
+        if (!pinnedFileName &&
+            IsSupportedChildType(type) &&
+            (!selectedName || name > *selectedName))
+        {
+            selectedName = std::move(name);
+        }
+    }
 
-            auto childPath = directoryPath;
-            childPath.SetCluster(cluster);
-            childPath.SetPath(YPathJoin(directoryPath.GetPath(), selected.first));
-            return MakeYTFileSourceRevision(
-                TypeName<TYTDirectoryLastFileSource>(),
-                childPath,
-                cluster,
-                selected.second->Attributes().Get<TObjectId>("id"),
-                selected.second->Attributes().Get<TRevision>("revision"),
-                selected.second->Attributes().Get<i64>("uncompressed_data_size"),
-                selected.first);
-        }));
+    THROW_ERROR_EXCEPTION_IF(
+        pinnedFileName && !selectedName,
+        "Pinned YT directory child %Qv does not exist",
+        *pinnedFileName);
+    if (!selectedName) {
+        return MakeFuture<TFileSourceRevisionPtr>(nullptr);
+    }
+
+    auto childPath = directoryPath;
+    childPath.SetCluster(*cluster);
+    childPath.SetPath(YPathJoin(directoryPath.GetPath(), *selectedName));
+    return DiscoverYTFileSource(
+        GetContext(),
+        TypeName<TYTDirectoryLastFileSource>(),
+        childPath);
 }
 
 TFuture<void> TYTDirectoryLastFileSource::Download(

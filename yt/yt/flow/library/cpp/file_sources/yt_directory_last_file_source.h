@@ -1,6 +1,6 @@
 #pragma once
 
-#include "file_source_base.h"
+#include "yt_file_source.h"
 
 namespace NYT::NFlow {
 

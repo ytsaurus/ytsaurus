@@ -60,9 +60,23 @@ TTextDataPtr TTestFileResource::Initialize(const TMaterializedFileSourceSnapshot
     if (fileSources->GetFileSources().size() == 1) {
         TVector<TFsPath> entries;
         TFsPath(fileSources->GetOnlyFileSource()->GetRootPath()).List(entries);
+        Sort(entries, [] (const auto& lhs, const auto& rhs) {
+            return lhs.GetPath() < rhs.GetPath();
+        });
         THROW_ERROR_EXCEPTION_UNLESS(
-            entries.size() == 1 && entries.front().IsFile(),
-            "Test file resource expects exactly one regular file in its materialized root");
+            !entries.empty() && AllOf(entries, [] (const auto& entry) {
+                return entry.IsFile();
+            }),
+            "Test file resource expects regular files in its materialized root");
+
+        if (entries.size() > 1) {
+            std::vector<std::string> values;
+            values.reserve(entries.size());
+            for (const auto& entry : entries) {
+                values.push_back(ReadFile(entry));
+            }
+            return New<TTextData>(JoinSeq("|", values));
+        }
 
         const auto& file = entries.front();
         auto size = TFileStat(file, /*nofollow*/ true).Size;

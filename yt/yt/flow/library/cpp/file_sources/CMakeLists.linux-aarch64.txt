@@ -35,6 +35,7 @@ target_link_libraries(library-cpp-file_sources PUBLIC
   yutil
   library-cpp-common
   yt-client-cache
+  yt-yt-core
   library-cpp-file_storage
   cpp-yt-memory
 )
@@ -64,6 +65,7 @@ target_link_libraries(library-cpp-file_sources.global PUBLIC
   yutil
   library-cpp-common
   yt-client-cache
+  yt-yt-core
   library-cpp-file_storage
   cpp-yt-memory
 )

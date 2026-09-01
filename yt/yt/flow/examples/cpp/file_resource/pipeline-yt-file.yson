@@ -49,7 +49,7 @@
                     "file" = {
                         "file_source_class_name" = "NYT::NFlow::TYTFileSource";
                         "parameters" = {
-                            "path" = "<cluster=cluster_name>//path/to/config-file";
+                            "path" = "<cluster=cluster_name>//path/to/config-files";
                         };
                     };
                 };
