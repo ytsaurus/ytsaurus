@@ -101,6 +101,44 @@ TKeyVisitor::TKeyVisitor(
     , PersistedCounter_(Context_->Profiler.Counter("/persisted_count"))
 {
     YT_VERIFY(Context_->Spec);
+
+    // A state manager that cannot serve List() would fail every sweep
+    // iteration behind the retryable background fill and the cursor would
+    // never advance; refuse the combination when the visitor is built.
+    const auto& names = Context_->Spec->Names;
+    const auto& externalNames = Context_->Spec->ExternalNames;
+    const bool scanAll = !names && !externalNames;
+    if (Context_->StateManager && (scanAll || (externalNames && !externalNames->empty()))) {
+        for (const auto& [name, manager] : Context_->StateManager->GetExternalStateManagers()) {
+            if (externalNames && !externalNames->contains(name)) {
+                continue;
+            }
+            try {
+                manager->ValidateListable();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "External state manager %Qv cannot serve key visitor stream %Qv",
+                    name,
+                    Context_->StreamId)
+                    .With(ex);
+            }
+        }
+        for (const auto& [name, joiner] : Context_->StateManager->GetExternalStateJoiners()) {
+            if (!externalNames || !externalNames->contains(name) || !joiner->IsVisitorDriven()) {
+                continue;
+            }
+            try {
+                joiner->ValidateListable();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    "External state joiner %Qv cannot serve key visitor stream %Qv",
+                    name,
+                    Context_->StreamId)
+                    .With(ex);
+            }
+        }
+    }
+
     EmittedRate_.Update(0);
     ProcessedRate_.Update(0);
 }

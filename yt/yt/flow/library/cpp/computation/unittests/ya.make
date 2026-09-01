@@ -19,6 +19,7 @@ SRCS(
     meta_setter_ut.cpp
     registry_ut.cpp
     resource_ut.cpp
+    simple_state_adapter_ut.cpp
     state_client_ut.cpp
     state_providers_ut.cpp
     swift_map_validation_ut.cpp

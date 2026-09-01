@@ -67,6 +67,12 @@ message TState
     // Payload schema. Might be empty for reset=true or internal state.
     optional bytes schema = 2;
     repeated TStateItem stateItems = 3;
+    // Wire format of the state item payloads: 0 = simple wire row, 1 = serialized
+    // proto message. A state with a non-default format is only sent to companions
+    // that advertised it in CompanionInfo supported_state_formats.
+    optional int32 format = 4 [default = 0];
+    // Fully qualified proto message name of the payloads; set when format = 1.
+    optional string proto_type = 5;
 }
 
 message TStream

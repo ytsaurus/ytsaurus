@@ -19,12 +19,14 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.flow.config.EnvironmentReader;
 import tech.ytsaurus.flow.config.PipelineRunnerConfig;
 import tech.ytsaurus.flow.stream.FlowStream;
+import tech.ytsaurus.yson.ClosableYsonConsumer;
 import tech.ytsaurus.yson.YsonParser;
+import tech.ytsaurus.yson.YsonTextWriter;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
-import tech.ytsaurus.ysontree.YTreeTextSerializer;
+import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
 /**
  * Java-side runner for the {@code --config --flow-bin} vanilla launch path.
@@ -340,7 +342,15 @@ public class FlowLauncher {
     private Path writeExtendedConfig(YTreeNode pipelineConfig) throws IOException {
         Path dir = Files.createTempDirectory("flow_runner_");
         Path path = dir.resolve("extended-pipeline.yson");
-        Files.writeString(path, YTreeTextSerializer.serialize(pipelineConfig), StandardCharsets.UTF_8);
+        // YTreeTextSerializer decodes every string node through a Java String,
+        // which corrupts non-UTF-8 payloads (e.g. a serialized proto descriptor
+        // set in the spec); walking with stringAsBytes escapes the raw bytes
+        // instead, producing pure-ASCII text.
+        StringBuilder sb = new StringBuilder();
+        try (ClosableYsonConsumer consumer = new YsonTextWriter(sb)) {
+            YTreeNodeUtils.walk(pipelineConfig, consumer, /*stringAsBytes*/ true);
+        }
+        Files.writeString(path, sb.toString(), StandardCharsets.UTF_8);
         return path;
     }
 

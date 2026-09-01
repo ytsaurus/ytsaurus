@@ -39,9 +39,11 @@ void TTransformOrderedSourceCompanionComputation::DoInit(IJobInitContextPtr init
     }
 
     for (const auto& stateName : GetKeys(GetSpec()->ExternalStateJoiners)) {
-        YT_TLOG_DEBUG("Initializing ExternalStateJoiner")
+        YT_TLOG_DEBUG("Initializing JoinedStateAdapter")
             .With("StateName", stateName);
-        initContext->InitExternalStateClient(ExternalStateJoiners_[stateName], stateName);
+        auto adapter = initContext->CreateJoinedCompanionStateAdapter(stateName);
+        ValidateCompanionStateFormat(adapter->Describe());
+        JoinedStateAdapters_[stateName] = std::move(adapter);
     }
     YT_TLOG_DEBUG("DoInit finished");
 }
@@ -95,7 +97,7 @@ void TTransformOrderedSourceCompanionComputation::DoProcess(
         addInternalStatesForKey(message->Key);
     }
 
-    AddJoinedExternalStates(request, ExternalStateJoiners_, input);
+    AddJoinedExternalStates(request, JoinedStateAdapters_, input);
 
     request->OverrideStreamSpecs = CreateLocalStreamSpecs(
         sourceStreamsSchemas,

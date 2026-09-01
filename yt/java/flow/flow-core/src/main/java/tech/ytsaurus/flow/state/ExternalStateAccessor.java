@@ -18,6 +18,7 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
             Payload key,
             StatesHolder<ExternalState> statesHolder
     ) {
+        statesHolder.requireRowFormat();
         this.statesHolder = statesHolder;
         this.key = key;
     }

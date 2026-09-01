@@ -8,6 +8,7 @@ SRCS(
     buffer_warmup.cpp
     partition_buffer_state.cpp
     checksum.cpp
+    companion_state_adapter.cpp
     computation_controller.cpp
     computation.cpp
     describe_traits.cpp

@@ -18,6 +18,11 @@ TFuture<IExternalStateManager::TListResult> IExternalStateManager::List(TFilter 
             .With("type", TypeName(*this)));
 }
 
+ICompanionStateAdapterPtr IExternalStateManager::CreateCompanionAdapter(std::string /*stateName*/)
+{
+    return nullptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void IExternalStateJoiner::TParametersBase::Register(TRegistrar /*registrar*/)
@@ -39,6 +44,11 @@ TFuture<IExternalStateJoiner::TListResult> IExternalStateJoiner::List(TFilter /*
 {
     return MakeFuture<IExternalStateJoiner::TListResult>(TError("List is not implemented")
             .With("type", TypeName(*this)));
+}
+
+ICompanionStateAdapterPtr IExternalStateJoiner::CreateCompanionAdapter(std::string /*stateName*/)
+{
+    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -158,7 +158,11 @@ public:
 
     TFuture<TListResult> List(TFilter filter, i64 limit, std::optional<TKey> offsetExclusive) final;
 
+    ICompanionStateAdapterPtr CreateCompanionAdapter(std::string stateName) final;
+
 private:
+    class TCompanionAdapter;
+
     struct TEpochState
     {
         TStateSchemaPtr StateSchema;
@@ -233,7 +237,11 @@ public:
 
     TFuture<TListResult> List(TFilter filter, i64 limit, std::optional<TKey> offsetExclusive) final;
 
+    ICompanionStateAdapterPtr CreateCompanionAdapter(std::string stateName) final;
+
 private:
+    class TCompanionAdapter;
+
     using TCacheCookie = TExpiringJobNamedStateCache::TCookie;
 
     const TExpiringJobNamedStateCachePtr StateCache_;
