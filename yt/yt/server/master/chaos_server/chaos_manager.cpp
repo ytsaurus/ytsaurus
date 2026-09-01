@@ -575,7 +575,6 @@ private:
 
         Load(context, *AlienClusterRegistry_);
 
-        // COMPAT(ponasenko-rs)
         Load(context, EnabledMetadataClusters_);
 
         Load(context, Queues_);
