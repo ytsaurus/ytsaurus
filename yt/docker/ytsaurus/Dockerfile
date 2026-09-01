@@ -265,8 +265,8 @@ deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://download.opensus
 EOF
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update -q --error-on=any
-apt-get install -y cri-tools cri-o
+apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 update -q --error-on=any
+apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 install -y cri-tools cri-o
 EOT
 
 ##########################################################################################
