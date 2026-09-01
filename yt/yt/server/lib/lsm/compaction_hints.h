@@ -42,7 +42,8 @@ using TStoreCompactionHintArray = TEnumIndexedArray<
     EStoreCompactionHintKind,
     T,
     EStoreCompactionHintKind::ChunkViewTooNarrow,
-    EStoreCompactionHintKind::MinHashDigest>;
+    EStoreCompactionHintKind::MinHashDigest
+>;
 
 template <class T>
 using TCalculatableStoreCompactionHintArray = TEnumIndexedArray<
@@ -136,15 +137,15 @@ class TStoreCompactionHint
         : public TCompactionHintRecalculationFinalizerBase
     {
     public:
-        explicit TStoreCompactionHintRecalculationFinalizer(TStore* store, TStoreCompactionHint* hint);
+        TStoreCompactionHintRecalculationFinalizer(TStore* store, TStoreCompactionHint* hint);
 
         ~TStoreCompactionHintRecalculationFinalizer();
 
         bool TryApplyRecalculation(TInstant timestamp, EStoreCompactionReason reason);
 
     private:
-        TStore* Store_;
-        TStoreCompactionHint* Hint_;
+        TStore* const Store_;
+        TStoreCompactionHint* const Hint_;
     };
 
     friend TStoreCompactionHintRecalculationFinalizer;
@@ -212,8 +213,8 @@ class TPartitionCompactionHint
         void TryApplyRecalculationBySubset(TInstant timestamp, EStoreCompactionReason reason, ui64 storeSubset);
 
     private:
-        TPartition* Partition_;
-        TPartitionCompactionHint* Hint_;
+        TPartition* const Partition_;
+        TPartitionCompactionHint* const Hint_;
         ui64 StoreSubset_ = 0;
 
         bool StoreSubsetContains(int index) const;

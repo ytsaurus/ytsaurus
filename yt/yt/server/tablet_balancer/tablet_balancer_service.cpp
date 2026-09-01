@@ -23,7 +23,7 @@ class TTabletBalancerService
     : public TServiceBase
 {
 public:
-    TTabletBalancerService(IBootstrap* bootstrap)
+    explicit TTabletBalancerService(IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TTabletBalancerServiceProxy::GetDescriptor(),
@@ -35,7 +35,7 @@ public:
     }
 
 private:
-    const IBootstrap* Bootstrap_;
+    IBootstrap* const Bootstrap_;
 
     DECLARE_RPC_SERVICE_METHOD(NTabletBalancerClient::NProto, RequestBalancing)
     {

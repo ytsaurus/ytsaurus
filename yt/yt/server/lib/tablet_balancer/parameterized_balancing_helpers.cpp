@@ -1191,7 +1191,7 @@ private:
         int workerCount = std::clamp(
             tabletCount / Config_.MinTabletsPerMoveRecomputationWorker,
             1,
-            threadCount);
+            std::min(threadCount, MaxRecomputeThreadCount));
 
         // Optimization for small bundles.
         if (workerCount == 1) {
@@ -1244,7 +1244,7 @@ private:
             }
         }
 
-        ExecuteActionRecomputation([&, this_ = MakeStrong(this)] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
+        ExecuteActionRecomputation([&] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
             for (auto& tablet : tablets) {
                 auto* sourceCell = &Cells_[tablet.CellIndex];
 
@@ -1267,7 +1267,7 @@ private:
     {
         MoveActions_.Reset();
 
-        ExecuteActionRecomputation([&, this_ = MakeStrong(this)] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
+        ExecuteActionRecomputation([&] (TMutableRange<TTabletInfo> tablets, TMoveActions* moveActions) {
             for (auto& tablet : tablets) {
                 for (auto cellIndex : SortedCellIndexes_) {
                     if (!TryMoveTablet(&tablet, &Cells_[cellIndex], moveActions)) {
