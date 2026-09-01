@@ -803,11 +803,11 @@ private:
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode(), queryType);
 
             if (result.YsonError) {
-                auto error = ConvertTo<TError>(TYsonString(*result.YsonError));
-                THROW_ERROR error;
+                YT_TLOG_INFO("YQL plugin query run failed")
+                    .With(ConvertTo<TError>(TYsonString(*result.YsonError)));
+            } else {
+                YT_TLOG_INFO("YQL plugin query run completed");
             }
-
-            YT_TLOG_INFO("YQL plugin query run completed");
 
             auto clientOptions = NApi::TClientOptions::FromUserAndToken(user, token);
 
@@ -818,7 +818,8 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
             ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
-            if (request.build_rowsets() && result.YsonResult) {
+            ValidateAndFillYqlResponseField(yqlResponse, result.YsonError, &TYqlResponse::mutable_error);
+            if (request.build_rowsets() && result.YsonResult && !result.YsonError) {
                 std::vector<TWireYqlRowset> rowsets;
                 switch (queryType) {
                 case EQueryType::Regular:
