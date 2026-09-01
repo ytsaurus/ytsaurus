@@ -182,7 +182,7 @@ guaranteed not to change during the entire run.
 ### Pinning a version
 
 A source may define dynamic parameters. For example, `TYTDirectoryLastFileSource` can temporarily
-select a specific file instead of the latest one:
+select a specific table revision instead of the latest one:
 
 ```yson
 dynamic_spec = {
@@ -224,29 +224,48 @@ file_sources = {
 The file is treated as immutable. Do not replace its contents in place; publish a new version at a
 new path.
 
-### Mutable file in {{product-name}}
+### Files in a {{product-name}} BLOB table
 
-`TYTFileSource` tracks the file node ID and revision:
+`TYTFileSource` materializes all files from one static sorted BLOB table. `path` may point either
+to the table itself or to a link to it. The table must have exactly this strict, unique-key schema:
+
+```yson
+<strict=%true;unique_keys=%true>[
+    {name="filename";type="string";sort_order="ascending";};
+    {name="part_index";type="int64";sort_order="ascending";};
+    {name="data";type="string";};
+]
+```
+
+Every filename becomes a regular file in the materialized root:
 
 ```yson
 file_sources = {
     model = {
         file_source_class_name = "NYT::NFlow::TYTFileSource";
         parameters = {
-            path = "<cluster=primary>//path/to/model.bin";
+            path = "<cluster=primary>//path/to/current-model-files";
         };
     };
 };
 ```
 
-Overwriting the file at the same path creates a new resource version. Workers download the exact
-revision selected by the controller, so a change between discovery and download cannot publish
-data under the wrong version.
+Every file starts at part index zero and part indexes are consecutive. Filenames must be single
+path components.
 
-### Latest file in a {{product-name}} directory
+One table represents one immutable revision of the complete file set. To publish the next revision,
+create a new table and atomically repoint the link configured in `path`. Do not modify an already
+published table.
 
-`TYTDirectoryLastFileSource` selects the lexicographically greatest file name among the directory's
-immediate children:
+The controller snapshot-locks the object referenced by `path` and identifies a revision by cluster,
+table object ID, and content revision. Workers lock and verify that exact table before streaming
+its rows.
+
+### Latest BLOB table in a {{product-name}} directory
+
+`TYTDirectoryLastFileSource` treats every immediate directory child as a separate revision of the
+complete file set. It selects the child with the lexicographically greatest name and materializes
+all files from the selected BLOB table:
 
 ```yson
 file_sources = {
@@ -259,9 +278,9 @@ file_sources = {
 };
 ```
 
-Use sortable names such as `000001` and `000002` for sequential releases. An empty directory does
-not replace a previously discovered version. The `pinned_file_name` parameter selects one immediate
-child of the directory.
+Add new immutable tables under lexicographically sortable timestamp names such as
+`2026-08-31T07:00:00Z` and `2026-08-31T08:00:00Z`. The dynamic
+`pinned_file_name` parameter selects one exact child table name.
 
 ## Worker disk cache
 
