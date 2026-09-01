@@ -364,7 +364,7 @@ select Block(($arg)->{
 Чтобы использовать специфичные для вашего проекта python библиотеки, необходимо создать свою копию Python3/Python2 UDF с любым другим набором PEERDIR по аналогии с общей:
 
 1. В ya.make используется макрос [YQL_PYTHON3_UDF]({{source-root}}/yql/udfs/common/python/python3/ya.make?rev=4358725#L1) / [YQL_PYTHON_UDF]({{source-root}}/yql/udfs/common/python/python_arc/ya.make?rev=4358725#L3);
-2. [Параметры NAME и RESOURCE_NAME]({{source-root}}/yql/udfs/common/python/python3/ya.make?rev=4358725#L6-7) надо заменить на `CustomPython3` / `CustomPython2` соответственно;
+2. [Параметры NAME и RESOURCE_NAME]({{source-root}}/yql/udfs/common/python/python3/ya.make?rev=4358725#L6-7) надо заменить на `CustomPython3` / `CustomPython2` соответственно; при этом можно добавить произвольный префикс;
 3. Добавить PEERDIR на нужные python библиотеки;
 4. Дальнейшее использование аналогично C++ UDF<!--[C++ UDF](cpp.md#use-udf-via-attach)-->;
 5. При обращении к UDF в запросе использовать `CustomPython3::` / `CustomPython2::` префикс вместо `Python3::` / `ArcPython::`.

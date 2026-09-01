@@ -13,7 +13,9 @@
 
 * [GROUP BY](group_by.md)
 * [JOIN](join.md)
+* [COMBINE](combine.md)
 * [WINDOW](window.md)
+* [MATERIALIZE](materialize.md)
 
 * [FLATTEN](flatten.md)
 * [ACTION](action.md)
