@@ -208,6 +208,8 @@ private:
 
     void UpdateCumulativeMemoryUsage(i64 memoryUsage);
 
+    void SetCpuGuarantee(double cpuGuarantee);
+
     void SetJob(IJobPtr job);
     IJobPtr FindJob() const;
     IJobPtr GetJobOrThrow();

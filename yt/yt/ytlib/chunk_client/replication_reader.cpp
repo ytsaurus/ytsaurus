@@ -95,28 +95,6 @@ static const double MaxBackoffMultiplier = 1000.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRequestPtr>
-void SetRequestIoConsumed(const TRequestPtr& req, const TClientChunkReadOptions& options, TDuration window)
-{
-    if (const auto& jobIoMeter = options.JobIoMeter) {
-        req->set_io_consumed(jobIoMeter->GetIoConsumedInWindow(window));
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Reports the configured I/O fair-share weight to the data node via the
-// io_fair_share_weight request field. No-op when the weight is not set.
-template <class TRequestPtr>
-void SetRequestIoFairShareWeight(const TRequestPtr& req, std::optional<double> weight)
-{
-    if (weight) {
-        req->set_io_fair_share_weight(*weight);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TPeerId
 {
     TPeerId() = default;
@@ -3538,7 +3516,7 @@ private:
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         SetRequestIoConsumed(req, SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
-        SetRequestIoFairShareWeight(req, ReaderConfig_->IoFairShareWeight);
+        SetRequestIoFairShareWeight(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(BlockCount_);
@@ -3861,7 +3839,7 @@ private:
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         SetRequestIoConsumed(req, SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
-        SetRequestIoFairShareWeight(req, ReaderConfig_->IoFairShareWeight);
+        SetRequestIoFairShareWeight(req, SessionOptions_, ReaderConfig_->IoFairShareWeight);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
@@ -4929,7 +4907,7 @@ private:
         req->SetMultiplexingParallelism(queuedBatch.Session->SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
         SetRequestIoConsumed(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoConsumedReportWindow);
-        SetRequestIoFairShareWeight(req, ReaderConfig_->IoFairShareWeight);
+        SetRequestIoFairShareWeight(req, queuedBatch.Session->SessionOptions_, ReaderConfig_->IoFairShareWeight);
         ToProto(req->mutable_chunk_id(), ChunkId_);
 
         auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());

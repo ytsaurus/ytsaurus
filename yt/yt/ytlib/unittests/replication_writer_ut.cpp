@@ -495,6 +495,9 @@ struct TWriterTestCase
     std::set<int> ThrottlingNodes;
     std::set<int> FailedNodes;
     std::optional<double> IoFairShareWeight;
+    std::optional<double> JobIoFairShareWeight;
+    bool AttachJobIoMeter = false;
+    bool EnableJobIoStatistics = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -861,7 +864,7 @@ TEST_P(TJobIoMeterWriterTest, AccountsWrittenBytes)
         service->SetReportChunkWriterStatistics(DataBytesPerFlush, MetaBytesPerFinish);
     }
 
-    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1));
+    auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), /*enabled*/ true);
 
     IChunkWriter::TWriteBlocksOptions writeOptions;
     writeOptions.ClientOptions.JobIoMeter = jobIoMeter;
@@ -928,7 +931,16 @@ class TIoFairShareWeightWriterTest
 
 TEST_P(TIoFairShareWeightWriterTest, ReportsIoFairShareWeight)
 {
+    auto testCase = GetParam();
+
     IChunkWriter::TWriteBlocksOptions writeOptions;
+    if (testCase.AttachJobIoMeter) {
+        auto jobIoMeter = New<TJobIoMeter>(TDuration::Hours(1), testCase.EnableJobIoStatistics);
+        if (testCase.JobIoFairShareWeight) {
+            jobIoMeter->SetIoFairShareWeight(*testCase.JobIoFairShareWeight);
+        }
+        writeOptions.ClientOptions.JobIoMeter = std::move(jobIoMeter);
+    }
     TWorkloadDescriptor workloadDescriptor;
 
     Writer->Open()
@@ -945,11 +957,25 @@ TEST_P(TIoFairShareWeightWriterTest, ReportsIoFairShareWeight)
         }))
         .BlockingWait(TDuration::Seconds(120));
 
+    std::optional<double> expectedIoFairShareWeight;
+    if (!testCase.AttachJobIoMeter || testCase.EnableJobIoStatistics) {
+        if (testCase.IoFairShareWeight) {
+            expectedIoFairShareWeight = testCase.IoFairShareWeight;
+        } else if (testCase.AttachJobIoMeter) {
+            expectedIoFairShareWeight = testCase.JobIoFairShareWeight;
+        }
+    }
+    const bool expectedHasIoConsumed = testCase.AttachJobIoMeter && testCase.EnableJobIoStatistics;
+    const double expectedWeight = expectedIoFairShareWeight.value_or(-1);
     for (const auto& service : Services) {
-        EXPECT_EQ(service->GetLastIoFairShareWeight(), GetParam().IoFairShareWeight.value());
-        EXPECT_EQ(service->GetLastFinishIoFairShareWeight(), GetParam().IoFairShareWeight.value());
-        if (GetParam().UseProbePutBlocks) {
-            EXPECT_EQ(service->GetLastProbeIOFairShareWeight(), GetParam().IoFairShareWeight.value());
+        EXPECT_EQ(service->GetFinishHasIoConsumed(), expectedHasIoConsumed);
+        if (testCase.UseProbePutBlocks) {
+            EXPECT_EQ(service->GetProbeHasIOConsumed(), expectedHasIoConsumed);
+        }
+        EXPECT_EQ(service->GetLastIoFairShareWeight(), expectedWeight);
+        EXPECT_EQ(service->GetLastFinishIoFairShareWeight(), expectedWeight);
+        if (testCase.UseProbePutBlocks) {
+            EXPECT_EQ(service->GetLastProbeIOFairShareWeight(), expectedWeight);
         }
     }
 }
@@ -963,6 +989,18 @@ INSTANTIATE_TEST_SUITE_P(
             .NodeCount = 1,
             .BlockCount = 16,
             .IoFairShareWeight = 2.5,
+            .JobIoFairShareWeight = 3.5,
+            .AttachJobIoMeter = true,
+        },
+        TWriterTestCase{
+            .UseProbePutBlocks = true,
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 16,
+            .IoFairShareWeight = 2.5,
+            .JobIoFairShareWeight = 3.5,
+            .AttachJobIoMeter = true,
+            .EnableJobIoStatistics = false,
         },
         TWriterTestCase{
             .ReplicationFactor = 3,
@@ -975,7 +1013,13 @@ INSTANTIATE_TEST_SUITE_P(
             .ReplicationFactor = 1,
             .NodeCount = 1,
             .BlockCount = 16,
-            .IoFairShareWeight = 2.5,
+            .JobIoFairShareWeight = 0.0,
+            .AttachJobIoMeter = true,
+        },
+        TWriterTestCase{
+            .ReplicationFactor = 1,
+            .NodeCount = 1,
+            .BlockCount = 16,
         }));
 
 ////////////////////////////////////////////////////////////////////////////////
