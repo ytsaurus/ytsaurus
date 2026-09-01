@@ -416,6 +416,97 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TControllerTest, StaleJobStatusIsIgnoredAfterReassignment)
+{
+    ControllerConfig->WarmUpTime = TDuration::Hours(1);
+    ControllerConfig->FeedbackPeriod = TDuration::MilliSeconds(10);
+
+    const auto partitionId = TPartitionId(TGuid::Create());
+    const auto oldJobId = TJobId(TGuid::Create());
+    const auto replacementJobId = TJobId(TGuid::Create());
+    const auto initialStateTimestamp = TInstant::Now();
+
+    const auto& state = PersistedStateManagerLocalState->FlowView->State;
+    state->AttachToControl(PersistedStateManagerLocalState->PersistedMasterControl);
+    PersistedStateManagerLocalState->PersistedMasterControl->Recover();
+
+    state->StartMutation();
+    auto partition = New<TPartition>();
+    partition->PartitionId = partitionId;
+    partition->ComputationId = TComputationId("computation");
+    partition->State = EPartitionState::Executing;
+    partition->StateEpoch = 7;
+    partition->StateTimestamp = initialStateTimestamp;
+    state->ExecutionSpec->Layout->CreatePartition(partition);
+
+    auto oldJob = New<TJob>();
+    oldJob->JobId = oldJobId;
+    oldJob->PartitionId = partitionId;
+    oldJob->WorkerAddress = "old-worker";
+    oldJob->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    state->ExecutionSpec->Layout->CreateJob(oldJob);
+    state->CommitMutation();
+
+    state->StartMutation();
+    state->ExecutionSpec->Layout->RemoveJob(oldJobId, EJobFinishReason::LostWorker);
+    auto replacementJob = New<TJob>();
+    replacementJob->JobId = replacementJobId;
+    replacementJob->PartitionId = partitionId;
+    replacementJob->WorkerAddress = "replacement-worker";
+    replacementJob->WorkerIncarnationId = TIncarnationId(TGuid::Create());
+    state->ExecutionSpec->Layout->CreateJob(replacementJob);
+    state->CommitMutation();
+
+    Prepare();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+
+        auto waitForFeedback = [&] (auto&& predicate) {
+            const auto deadline = TInstant::Now() + TDuration::Seconds(5);
+            while (!predicate()) {
+                ASSERT_LT(TInstant::Now(), deadline);
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }
+        };
+
+        waitForFeedback([&] {
+            const auto& feedback = Controller->GetFlowViewKeeper()->GetFlowView()->Feedback;
+            const auto* status = feedback->PartitionJobStatuses.FindPtr(partitionId);
+            return status && (*status)->CurrentJobId == replacementJobId;
+        });
+
+        const auto feedbackUpdateTime = Controller->GetFlowViewKeeper()->GetFlowView()->Feedback->UpdateTime;
+        auto staleStatus = New<TJobStatus>();
+        staleStatus->JobId = oldJobId;
+        staleStatus->IsFinished = true;
+        staleStatus->Epoch = 100;
+        staleStatus->UpdateTime = TInstant::Now();
+        Controller->RegisterJobStatus(oldJobId, staleStatus);
+
+        waitForFeedback([&] {
+            return Controller->GetFlowViewKeeper()->GetFlowView()->Feedback->UpdateTime > feedbackUpdateTime;
+        });
+
+        const auto& flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+        const auto& jobStatus = GetOrCrash(flowView->Feedback->PartitionJobStatuses, partitionId);
+        EXPECT_EQ(jobStatus->CurrentJobId, replacementJobId);
+        EXPECT_FALSE(jobStatus->CurrentJobStatus);
+
+        const auto& currentPartition = GetOrCrash(flowView->State->ExecutionSpec->Layout->Partitions, partitionId);
+        EXPECT_EQ(currentPartition->CurrentJobId, replacementJobId);
+        EXPECT_EQ(currentPartition->State, EPartitionState::Executing);
+        EXPECT_EQ(currentPartition->StateEpoch, 7);
+        EXPECT_EQ(currentPartition->StateTimestamp, initialStateTimestamp);
+        EXPECT_TRUE(flowView->State->ExecutionSpec->Layout->Jobs.contains(replacementJobId));
+        EXPECT_FALSE(flowView->State->ExecutionSpec->Layout->Jobs.contains(oldJobId));
+
+        StopLeading();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TControllerTest, WaitPersist)
 {
     Prepare();
