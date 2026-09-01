@@ -26,7 +26,7 @@ const (
 
 	// DefaultLargeCompressedRowRatio is the share of MaxCompressedRowBytes starting from which
 	// a compressed row is reported as large by default.
-	DefaultLargeCompressedRowRatio = 0.75
+	DefaultLargeCompressedRowRatio = 0.8
 )
 
 type Config struct {
