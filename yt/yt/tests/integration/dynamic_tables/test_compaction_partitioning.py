@@ -31,19 +31,23 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
 
-    def _update_compaction_hint_fetcher_config(self, name, period, limit=300):
+    def _update_compaction_hint_fetcher_config(self, name, period, limit=300, retry_backoff=None):
+        fetcher_config = {
+            "periodic_executor": {
+                "period": period,
+            },
+            "request_throttler": {
+                "limit": limit,
+            },
+        }
+        if retry_backoff is not None:
+            fetcher_config["retry_backoff"] = retry_backoff
+
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
                     "compaction_hint_fetchers": {
-                        name: {
-                            "periodic_executor": {
-                                "period": period,
-                            },
-                            "request_throttler": {
-                                "limit": limit,
-                            },
-                        },
+                        name: fetcher_config,
                     },
                 },
             },
@@ -1357,6 +1361,67 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         remount_table(table)
 
         wait(lambda: not _has_any_hint())
+
+    @authors("dave11ar")
+    def test_compaction_hint_fetch_retry_backoff(self):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+
+        retry_backoff = {
+            "invocation_count": 2 ** 31 - 1,
+            "min_backoff": 10000,
+            "max_backoff": 10000,
+            "backoff_jitter": 0.0,
+        }
+        self._update_compaction_hint_fetcher_config(
+            "versioned_row_digest",
+            period=100,
+            limit=0,
+            retry_backoff=retry_backoff)
+
+        table = "//tmp/t"
+        self._create_simple_table(
+            table,
+            chunk_reader={
+                "chunk_meta_cache_failure_probability": 1.0,
+            },
+            mount_config={
+                "compaction_hints": {
+                    "row_digest": {
+                        "enable_non_aggregates": True,
+                    },
+                },
+            },
+        )
+        sync_mount_table(table)
+        insert_rows(table, [{"key": 1, "value": "v"}])
+        sync_flush_table(table)
+
+        profiler = profiler_factory().at_node(cell_node)
+        failed_request_count = profiler.counter(
+            "tablet_node/compaction_hints/row_digest/failed_request_count",
+            tags={"cell_id": cell_id})
+        finished_request_count = profiler.counter(
+            "tablet_node/compaction_hints/row_digest/finished_request_count",
+            tags={"cell_id": cell_id})
+
+        self._update_compaction_hint_fetcher_config(
+            "versioned_row_digest",
+            period=100,
+            retry_backoff=retry_backoff)
+
+        wait(lambda: failed_request_count.get_delta() > 0)
+        failed_request_count_before_backoff = failed_request_count.get_delta()
+
+        set(f"{table}/@chunk_reader/chunk_meta_cache_failure_probability", 0.0)
+        set(f"{table}/@mount_config/compaction_hints/row_digest/max_obsolete_timestamp_ratio", 0.9)
+        remount_table(table)
+
+        sleep(1)
+        assert failed_request_count.get_delta() == failed_request_count_before_backoff
+        assert finished_request_count.get_delta() == 0
+
+        wait(lambda: finished_request_count.get_delta() == 1)
 
     @authors("dave11ar")
     def test_timestamp_row_digest_enabling_no_digest(self):
