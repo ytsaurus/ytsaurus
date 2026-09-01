@@ -132,7 +132,9 @@ public:
             auto resourceControllerContext = New<TResourceControllerContext>();
             resourceControllerContext->ResourceId = resourceId;
             resourceControllerContext->ResourceSpec = resourceSpec;
+            resourceControllerContext->PipelineAuthenticator = PipelineAuthenticator_;
             resourceControllerContext->ClientsCache = Context_->ClientsCache;
+            resourceControllerContext->HttpClient = Context_->HttpClient;
             resourceControllerContext->PipelinePath = Context_->PipelinePath;
             resourceControllerContext->Invoker = Context_->MainCycleInvoker;
             resourceControllerContext->TimeProvider = Context_->TimeProvider;

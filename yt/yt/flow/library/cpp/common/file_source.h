@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/http/public.h>
+
 #include <yt/yt/client/cache/public.h>
 #include <yt/yt/client/ypath/rich.h>
 
@@ -84,7 +86,9 @@ struct TFileSourceContext
     : public TRefCounted
 {
     TFileSourceSpecPtr SourceSpec;
+    IPipelineAuthenticatorPtr PipelineAuthenticator;
     NClient::NCache::IClientsCachePtr ClientsCache;
+    NHttp::IClientPtr HttpClient;
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr Invoker;
     NLogging::TLogger Logger;

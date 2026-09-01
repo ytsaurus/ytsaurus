@@ -7,6 +7,8 @@
 #include <yt/yt/client/api/public.h>
 #include <yt/yt/client/cache/cache.h>
 
+#include <yt/yt/core/http/public.h>
+
 namespace NYT::NFlow::NController {
 
 // TODO(mikari): revise naming
@@ -17,6 +19,7 @@ struct TJobManagerContext
     : public TRefCounted
 {
     NClient::NCache::IClientsCachePtr ClientsCache;
+    NHttp::IClientPtr HttpClient;
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr Invoker;
     IInvokerPtr MainCycleInvoker;
