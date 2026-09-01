@@ -209,6 +209,8 @@ class TPartitionCompactionHint
 
         ~TPartitionCompactionHintRecalculationFinalizer();
 
+        i64 CalculateStoreSubsetDataSize(ui64 storeSubset) const;
+
         void TryApplyRecalculationByPrefix(TInstant timestamp, EStoreCompactionReason reason, int storePrefixLength);
         void TryApplyRecalculationBySubset(TInstant timestamp, EStoreCompactionReason reason, ui64 storeSubset);
 
@@ -217,7 +219,7 @@ class TPartitionCompactionHint
         TPartitionCompactionHint* const Hint_;
         ui64 StoreSubset_ = 0;
 
-        bool StoreSubsetContains(int index) const;
+        static bool StoreSubsetContains(ui64 storeSubset, int index);
 
         std::vector<TStoreId> GetStoreIds() const;
     };
