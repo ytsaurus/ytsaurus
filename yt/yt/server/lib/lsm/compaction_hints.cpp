@@ -212,6 +212,18 @@ TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::~TPart
     Hint_->ApplyRecalculation(Timestamp_, Reason_, GetStoreIds());
 }
 
+i64 TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::CalculateStoreSubsetDataSize(ui64 storeSubset) const
+{
+    i64 dataSize = 0;
+    for (int index = 0; index < ssize(Stores_); ++index) {
+        if (StoreSubsetContains(storeSubset, index)) {
+            dataSize += Stores_[index]->GetCompressedDataSize();
+        }
+    }
+
+    return dataSize;
+}
+
 void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::TryApplyRecalculationByPrefix(
     TInstant timestamp,
     EStoreCompactionReason reason,
@@ -234,14 +246,17 @@ void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::T
         .With("Reason", reason)
         .With("StoreSubset", storeSubset);
 
+    YT_ASSERT(CalculateStoreSubsetDataSize(storeSubset) >=
+        Partition_->GetTablet()->GetMountConfig()->CompactionHints->MinCompactionDataSize);
+
     if (TCompactionHintRecalculationFinalizerBase::TryApplyRecalculation(timestamp, reason)) {
         StoreSubset_ = storeSubset;
     }
 }
 
-bool TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::StoreSubsetContains(int index) const
+bool TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::StoreSubsetContains(ui64 storeSubset, int index)
 {
-    return (StoreSubset_ & (1ULL << index)) != 0;
+    return (storeSubset & (1ULL << index)) != 0;
 }
 
 std::vector<TStoreId> TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::GetStoreIds() const
@@ -253,7 +268,7 @@ std::vector<TStoreId> TPartitionCompactionHint::TPartitionCompactionHintRecalcul
     std::vector<TStoreId> storeIds;
     storeIds.reserve(std::popcount(StoreSubset_));
     for (ui32 index = 0; index < ssize(Stores_); ++index) {
-        if (StoreSubsetContains(index)) {
+        if (StoreSubsetContains(StoreSubset_, index)) {
             storeIds.push_back(Stores_[index]->GetId());
         }
     }
