@@ -709,7 +709,7 @@ private:
             }
 
             if (!IsRegisteredMasterCell(cellTag) && DynamicallyPropagatedMasterCellTags_.insert(cellTag).second) {
-                YT_TLOG_ALERT_UNLESS(GetCurrentSnapshotLoadContext()->ReadOnly, "New master cell is found in static config without readonly mode")
+                YT_TLOG_FATAL_UNLESS(GetCurrentSnapshotLoadContext()->ReadOnly, "New master cell is found in static config without readonly mode")
                     .With("CellTag", cellTag);
 
                 if (IsDynamicallyPropagatedMasterCell(selfCellTag)) {
