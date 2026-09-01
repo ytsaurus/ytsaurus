@@ -1414,10 +1414,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("register_lockable_dynamic_tables", &TThis::RegisterLockableDynamicTables)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("allow_bulk_insert_under_user_transaction", &TThis::AllowBulkInsertUnderUserTransaction)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("max_unversioned_dynamic_table_output_chunk_size", &TThis::MaxUnversionedDynamicTableOutputChunkSize)
         .GreaterThan(0)
@@ -1494,6 +1494,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
                 config->CudaProfilerEnvironment->PathEnvironmentVariableName,
                 config->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
+
+        THROW_ERROR_EXCEPTION_IF(
+            config->AllowBulkInsertUnderUserTransaction && !config->RegisterLockableDynamicTables,
+            "\"allow_bulk_insert_under_user_transaction\" can not be enabled if \"register_lockable_dynamic_tables\" is disabled");
     });
 }
 
