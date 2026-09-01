@@ -8,6 +8,23 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCompactionHintFetchThrottlers
+    : public TRefCounted
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(NLsm::TStoreCompactionHintArray<NConcurrency::IReconfigurableThroughputThrottlerPtr>, RequestThrottlers);
+
+public:
+    explicit TCompactionHintFetchThrottlers(
+        const NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr>& configs);
+
+    void Reconfigure(const NLsm::TStoreCompactionHintArray<TCompactionHintFetcherConfigPtr>& configs);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompactionHintFetchThrottlers)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPerCellCompactionHintFetchingContext
 {
     const NProfiling::TCounter FinishedRequestCount;
@@ -89,7 +106,8 @@ public:
         TTabletCellId cellId,
         NLogging::TLogger logger,
         const NProfiling::TProfiler& profiler,
-        TCompactionHintFetcherConfigPtr config);
+        TCompactionHintFetcherConfigPtr config,
+        NConcurrency::IReconfigurableThroughputThrottlerPtr requestThrottler);
 
     void Start(IInvokerPtr epochAutomatonInvoker, TCompactionHintFetcherConfigPtr config);
 
