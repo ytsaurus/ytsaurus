@@ -219,11 +219,14 @@ class TestJobTracker(YTEnvSetup):
 
         assert job_id not in self._list_jobs(op)
 
-        events = self._get_job_events_from_event_log(op.id, controller_agent_address)
-        aborted_job_events = {event["job_id"]: event for event in events if event["event_type"] == "job_aborted"}
+        def get_aborted_job_events():
+            events = self._get_job_events_from_event_log(op.id, controller_agent_address)
+            return {event["job_id"]: event for event in events if event["event_type"] == "job_aborted"}
 
-        assert len(aborted_job_events) == 1
-        assert aborted_job_events[job_id]["reason"] == "node_offline"
+        # The event log is flushed to disk periodically, so the event may not be there yet.
+        wait(lambda: len(get_aborted_job_events()) == 1)
+
+        assert get_aborted_job_events()[job_id]["reason"] == "node_offline"
 
         set_node_banned(node_address, False)
 
