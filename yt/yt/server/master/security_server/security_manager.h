@@ -160,6 +160,14 @@ struct ISecurityManager
         const NChunkServer::TChunkRequisition& requisition,
         i64 delta) = 0;
 
+    //! Recharges the accounts referencing #chunk in its current aggregated requisition
+    //! by #masterMemoryUsageDelta, without touching chunk count or disk space usage.
+    //! Used when a chunk's own TChunkMeta is mutated in place (e.g. hunk chunk reference
+    //! accounting, journal truncation) after the chunk has already been charged.
+    virtual void UpdateChunkMasterMemoryUsage(
+        const NChunkServer::TChunk* chunk,
+        i64 masterMemoryUsageDelta) = 0;
+
     //! Updates resources of account resource usage lease.
     virtual void UpdateAccountResourceUsageLease(
         TAccountResourceUsageLease* accountResourceUsageLease,

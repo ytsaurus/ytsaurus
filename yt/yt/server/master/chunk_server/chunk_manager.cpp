@@ -1089,6 +1089,7 @@ public:
 
         const auto& tableManager = Bootstrap_->GetTableManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         YT_VERIFY(validationResult.ReferencedHunkChunks.size() == validationResult.ReferencedDataSizePerChunk.size());
         YT_VERIFY(validationResult.ReferencedDataWeightPerChunk.size() == validationResult.ReferencedDataSizePerChunk.size());
@@ -1099,7 +1100,17 @@ public:
             auto referencedDataSize = validationResult.ReferencedDataSizePerChunk[index];
 
             YT_VERIFY(IsObjectAlive(hunkChunk));
+
+            // NB: This may change the hunk chunk's own master memory usage by mutating
+            // its meta; recharge the accounts referencing it if it's already been charged.
+            auto oldHunkChunkMasterMemoryUsage = hunkChunk->GetMasterMemoryUsage();
             AccumulateNewlyReferencedHunkStatistics(hunkChunk, referencedDataWeight, referencedDataSize);
+            if (hunkChunk->IsNative() && hunkChunk->IsDiskSizeFinal()) {
+                securityManager->UpdateChunkMasterMemoryUsage(
+                    hunkChunk,
+                    hunkChunk->GetMasterMemoryUsage() - oldHunkChunkMasterMemoryUsage);
+            }
+
             objectManager->RefObject(hunkChunk);
         }
 
@@ -1472,6 +1483,7 @@ public:
 
         if (auto hunkChunkRefsExt = chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
             for (const auto& protoRef : hunkChunkRefsExt->refs()) {
                 auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
                 auto* hunkChunk = FindChunk(hunkChunkId);
@@ -1482,10 +1494,18 @@ public:
                     continue;
                 }
 
+                // NB: Recharge before unreffing: UnrefObject may destroy hunkChunk
+                // immediately, and we need to read its master memory usage beforehand.
+                auto oldHunkChunkMasterMemoryUsage = hunkChunk->GetMasterMemoryUsage();
                 AccumulateNewlyReferencedHunkStatistics(
                     hunkChunk,
                     -1 * protoRef.total_hunk_length(),
                     -1 * ComputeHunkDataSize(protoRef));
+                if (hunkChunk->IsNative() && hunkChunk->IsDiskSizeFinal()) {
+                    securityManager->UpdateChunkMasterMemoryUsage(
+                        hunkChunk,
+                        hunkChunk->GetMasterMemoryUsage() - oldHunkChunkMasterMemoryUsage);
+                }
 
                 objectManager->UnrefObject(hunkChunk);
             }
