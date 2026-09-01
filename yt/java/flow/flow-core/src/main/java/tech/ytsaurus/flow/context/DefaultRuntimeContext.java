@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.context;
 
 import java.util.Map;
 
+import com.google.protobuf.Message;
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.row.Keyed;
 import tech.ytsaurus.flow.row.MessageBuilder;
@@ -9,7 +10,11 @@ import tech.ytsaurus.flow.state.DefaultStateManager;
 import tech.ytsaurus.flow.state.ExternalStateAccessor;
 import tech.ytsaurus.flow.state.ExternalStateDescriptor;
 import tech.ytsaurus.flow.state.JoinedExternalStateDescriptor;
+import tech.ytsaurus.flow.state.JoinedProtoExternalStateDescriptor;
+import tech.ytsaurus.flow.state.ProtoExternalStateDescriptor;
+import tech.ytsaurus.flow.state.ProtoStateAccessor;
 import tech.ytsaurus.flow.state.ReadOnlyExternalStateAccessor;
+import tech.ytsaurus.flow.state.ReadOnlyProtoStateAccessor;
 import tech.ytsaurus.flow.state.StateAccessor;
 import tech.ytsaurus.flow.state.StateBackend;
 import tech.ytsaurus.flow.state.StateDescriptor;
@@ -99,6 +104,37 @@ public class DefaultRuntimeContext implements RuntimeContext {
             Keyed key
     ) {
         return (ReadOnlyExternalStateAccessor) stateManager.create(descriptor, key);
+    }
+
+    /**
+     * Retrieves a proto-format external state accessor for the given descriptor and key.
+     *
+     * @param descriptor The proto external state descriptor used to create the accessor.
+     * @param key        The key associated with the state.
+     * @return The accessor created by the descriptor for the given key.
+     */
+    @Override
+    public <T extends Message> ProtoStateAccessor<T> getState(
+            ProtoExternalStateDescriptor<T> descriptor,
+            Keyed key
+    ) {
+        return (ProtoStateAccessor<T>) stateManager.create(descriptor, key);
+    }
+
+    /**
+     * Retrieves a read-only proto-format joined external state accessor for the given
+     * descriptor and key.
+     *
+     * @param descriptor The joined proto external state descriptor used to create the accessor.
+     * @param key        The key associated with the state.
+     * @return The read-only accessor created by the descriptor for the given key.
+     */
+    @Override
+    public <T extends Message> ReadOnlyProtoStateAccessor<T> getState(
+            JoinedProtoExternalStateDescriptor<T> descriptor,
+            Keyed key
+    ) {
+        return (ReadOnlyProtoStateAccessor<T>) stateManager.create(descriptor, key);
     }
 
     /**

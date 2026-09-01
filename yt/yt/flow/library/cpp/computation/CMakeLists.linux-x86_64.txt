@@ -63,6 +63,7 @@ target_sources(library-cpp-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/ordered_source_computation_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/passthrough_computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/simple_external_state_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/job_state/job_init_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/job_state/state_providers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/job_state/state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/stores/compact_output_store.cpp

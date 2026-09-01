@@ -65,6 +65,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/buffer_warmup.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/partition_buffer_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/checksum.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/companion_state_adapter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/computation_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/describe_traits.cpp

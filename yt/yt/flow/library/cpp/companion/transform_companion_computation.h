@@ -4,10 +4,11 @@
 #include "companion_model.h"
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
+
 #include <yt/yt/flow/library/cpp/computation/computation_base.h>
 #include <yt/yt/flow/library/cpp/computation/job_state/job_init_context.h>
 #include <yt/yt/flow/library/cpp/computation/public.h>
-#include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
 #include <yt/yt/flow/library/cpp/computation/transform_computation.h>
 
 #include <yt/yt/flow/library/cpp/computation/job_state/state_manager.h>
@@ -51,8 +52,8 @@ public:
 
 private:
     THashMap<std::string, TMutableStateKeyClient<TCompanionState>> InternalStateClients_;
-    THashMap<std::string, TMutableStateKeyClient<TSimpleExternalState>> ExternalStateClients_;
-    THashMap<std::string, TJoinedStateKeyClient<TSimpleExternalState>> ExternalStateJoiners_;
+    THashMap<std::string, ICompanionStateAdapterPtr> ExternalStateAdapters_;
+    THashMap<std::string, ICompanionStateAdapterPtr> JoinedStateAdapters_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTransformCompanionComputation);

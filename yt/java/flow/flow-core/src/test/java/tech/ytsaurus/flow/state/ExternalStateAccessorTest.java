@@ -45,6 +45,21 @@ class ExternalStateAccessorTest {
     }
 
     @Test
+    void protoFormatHolderIsRejected() {
+        // A proto-format holder stores null in the row payload slot, so a
+        // row accessor over it would silently read every state as absent.
+        var holder = new StatesHolder<ExternalState>(
+                STATE_NAME, KEY_SCHEMA, null, StateFormat.PROTO, "Some.Type");
+        var exception = assertThrows(IllegalStateException.class, () -> accessor(holder));
+        assertTrue(exception.getMessage().contains("proto wire format"));
+
+        var readOnlyException = assertThrows(
+                IllegalStateException.class,
+                () -> new ReadOnlyExternalStateAccessor(key(), holder));
+        assertTrue(readOnlyException.getMessage().contains("proto wire format"));
+    }
+
+    @Test
     void setThenGetWorksOnSchemalessHolder() {
         var holder = new StatesHolder<ExternalState>(STATE_NAME, KEY_SCHEMA, null);
         var acc = accessor(holder);

@@ -9,15 +9,6 @@
 
 #include <functional>
 
-namespace NYT::NFlow {
-
-struct TSimpleExternalState;
-
-template <class T>
-class TJoinedStateKeyClient;
-
-} // namespace NYT::NFlow
-
 namespace NYT::NFlow::NCompanion {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,12 +29,12 @@ TCompanionResponsePtr ProcessWithCompanionHealing(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Packs read-only joined external states into |request|: for every joiner, the loaded states for
-//! its extract-derived keys — the keys its preload loaded, derived from the whole batch rather
-//! than from a single message key.
+//! Packs read-only joined external states into |request|: for every joiner adapter, the encoded
+//! states for its extract-derived keys — the keys its preload loaded, derived from the whole
+//! batch rather than from a single message key.
 void AddJoinedExternalStates(
     const TCompanionProcessRequestPtr& request,
-    const THashMap<std::string, TJoinedStateKeyClient<TSimpleExternalState>>& joiners,
+    const THashMap<std::string, ICompanionStateAdapterPtr>& joiners,
     const IInputContextPtr& input);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,6 +70,14 @@ protected:
      *  requires companion resources.
      */
     void FetchAndValidateCompanionInfo();
+
+    //! Verifies that the companion advertised support for the wire format of the
+    //! state described by |descriptor|. Must be called after #FetchAndValidateCompanionInfo.
+    /*!
+     *  A state with a format the companion did not advertise must never be sent to it;
+     *  the thrown error asks to update the companion SDK.
+     */
+    void ValidateCompanionStateFormat(const TCompanionStateDescriptor& descriptor);
 
     //! Put job info to companion context.
     /*!

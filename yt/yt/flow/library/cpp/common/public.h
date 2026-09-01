@@ -233,6 +233,7 @@ DECLARE_REFCOUNTED_STRUCT(TInputOrderingSpec);
 
 DECLARE_REFCOUNTED_STRUCT(IExternalStateManager);
 DECLARE_REFCOUNTED_STRUCT(IExternalStateJoiner);
+DECLARE_REFCOUNTED_STRUCT(ICompanionStateAdapter);
 DECLARE_REFCOUNTED_STRUCT(TExternalStateManagerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicExternalStateManagerContext);
 DECLARE_REFCOUNTED_STRUCT(TExternalStateJoinerContext);

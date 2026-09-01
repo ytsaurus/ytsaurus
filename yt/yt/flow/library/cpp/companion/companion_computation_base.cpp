@@ -1,8 +1,6 @@
 #include "companion_computation_base.h"
 
-#include <yt/yt/flow/library/cpp/common/state_client.h>
-
-#include <yt/yt/flow/library/cpp/computation/simple_external_state_manager.h>
+#include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -42,28 +40,30 @@ TCompanionResponsePtr ProcessWithCompanionHealing(
 
 void AddJoinedExternalStates(
     const TCompanionProcessRequestPtr& request,
-    const THashMap<std::string, TJoinedStateKeyClient<TSimpleExternalState>>& joiners,
+    const THashMap<std::string, ICompanionStateAdapterPtr>& joiners,
     const IInputContextPtr& input)
 {
-    for (const auto& [stateName, stateClient] : joiners) {
-        for (const auto& key : stateClient.ExtractKeys(input)) {
-            auto stateHandle = stateClient.GetState(key);
-            const auto* joinedState = stateHandle.Get();
-            if (!joinedState) {
+    for (const auto& [stateName, adapter] : joiners) {
+        for (const auto& key : adapter->ExtractKeys(input)) {
+            auto payload = adapter->EncodeState(key);
+            if (!payload) {
                 continue;
             }
             GetOrInsert(
                 request->JoinedExternalStates,
                 stateName,
                 [&] {
-                    return TStateHolder<TPayload>{
+                    auto descriptor = adapter->Describe();
+                    return TStateHolder<TSharedRef>{
                         .StateName = stateName,
-                        .Schema = joinedState->Schema,
+                        .Schema = descriptor.Schema,
+                        .Format = descriptor.Format,
+                        .ProtoType = descriptor.ProtoType,
                     };
                 })
                 .StateItems.push_back({
                     .Key = key,
-                    .State = joinedState->Payload,
+                    .State = std::move(payload),
                 });
         }
     }

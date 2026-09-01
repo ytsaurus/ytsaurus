@@ -25,6 +25,8 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
     private final String name;
     private final @Nullable TableSchema keySchema;
     private final @Nullable TableSchema stateSchema;
+    private final StateFormat format;
+    private final @Nullable String protoType;
     private final Map<UnversionedRow, T> states;
     /**
      * States whose value was changed during the current epoch via {@link #set} by state accessors.
@@ -47,9 +49,21 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
             @Nullable TableSchema keySchema,
             @Nullable TableSchema stateSchema
     ) {
+        this(name, keySchema, stateSchema, StateFormat.SIMPLE_ROW, null);
+    }
+
+    public StatesHolder(
+            String name,
+            @Nullable TableSchema keySchema,
+            @Nullable TableSchema stateSchema,
+            StateFormat format,
+            @Nullable String protoType
+    ) {
         this.name = name;
         this.keySchema = keySchema;
         this.stateSchema = stateSchema;
+        this.format = format;
+        this.protoType = protoType;
         this.states = new HashMap<>();
         this.modifiedStates = new HashMap<>();
     }
@@ -134,6 +148,40 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      */
     public @Nullable TableSchema getStateSchema() {
         return stateSchema;
+    }
+
+    /**
+     * Get the wire format of this state's payloads.
+     *
+     * @return State format.
+     */
+    public StateFormat getFormat() {
+        return format;
+    }
+
+    /**
+     * Get the fully qualified proto message name of the payloads, when the format is
+     * {@link StateFormat#PROTO} and the type was declared on the wire.
+     *
+     * @return Proto type name, or {@code null}.
+     */
+    public @Nullable String getProtoType() {
+        return protoType;
+    }
+
+    /**
+     * Ensures this holder carries row-format payloads. A proto-format holder stores null in the
+     * row payload slot, so a row accessor over it would silently read every state as absent.
+     *
+     * @throws IllegalStateException if this holder is in the proto wire format
+     */
+    void requireRowFormat() {
+        if (format == StateFormat.PROTO) {
+            throw new IllegalStateException(
+                    "External state %s is in the proto wire format; use a proto state descriptor"
+                            .formatted(name)
+            );
+        }
     }
 
     /**

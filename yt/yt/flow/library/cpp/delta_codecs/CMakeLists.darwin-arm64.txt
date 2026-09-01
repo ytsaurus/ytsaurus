@@ -31,6 +31,7 @@ target_link_libraries(library-cpp-delta_codecs PUBLIC
   contrib-libs-cxxsupp
   yutil
   contrib-libs-xdelta3
+  contrib-tools-open-vcdiff
   cpp-yt-memory
   cpp-yt-misc
   cpp-yt-error
@@ -40,6 +41,7 @@ target_sources(library-cpp-delta_codecs PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/delta_codecs/codec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/delta_codecs/none.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/delta_codecs/state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/delta_codecs/vcdiff.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/delta_codecs/xdelta.cpp
 )
 

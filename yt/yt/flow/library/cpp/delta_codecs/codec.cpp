@@ -1,6 +1,7 @@
 #include "codec.h"
 
 #include "none.h"
+#include "vcdiff.h"
 #include "xdelta.h"
 
 #include <library/cpp/yt/error/error.h>
@@ -18,6 +19,10 @@ ICodec* GetCodec(ECodec id)
         }
         case ECodec::XDelta: {
             static TXDeltaCodec codec;
+            return &codec;
+        }
+        case ECodec::VCDiff: {
+            static TVCDiffCodec codec;
             return &codec;
         }
         default:

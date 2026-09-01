@@ -28,6 +28,8 @@ import tech.ytsaurus.flow.rpc.TStream;
 import tech.ytsaurus.flow.rpc.TWatermark;
 import tech.ytsaurus.flow.state.ExternalState;
 import tech.ytsaurus.flow.state.InternalState;
+import tech.ytsaurus.flow.state.ProtoExternalState;
+import tech.ytsaurus.flow.state.StateFormat;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreams;
 import tech.ytsaurus.flow.stream.FlowStreamsContext;
@@ -360,6 +362,10 @@ public class ProtobufRequestConverter {
         for (var entry : externalStates.entrySet()) {
             var stateName = entry.getKey();
             var stateValuesMap = entry.getValue();
+            if (stateValuesMap.values().stream().anyMatch(v -> v instanceof ProtoExternalState)) {
+                result.add(convertProtoFormatStateToProto(stateName, stateValuesMap, keyCodec));
+                continue;
+            }
             TState.Builder stateBuilder = TState.newBuilder().setName(stateName);
 
             // Resolve the schema: derive from the first non-reset state with a non-null
@@ -408,6 +414,44 @@ public class ProtobufRequestConverter {
         }
 
         return result;
+    }
+
+    /**
+     * Converts a proto-format external state: payloads are serialized-message bytes, the state
+     * carries {@code format = proto} and, when derivable from a written message, the proto type.
+     */
+    private static TState convertProtoFormatStateToProto(
+            String stateName,
+            Map<Payload, ExternalState> stateValuesMap,
+            KeyCodec keyCodec
+    ) {
+        TState.Builder stateBuilder = TState.newBuilder()
+                .setName(stateName)
+                .setFormat(StateFormat.PROTO.getWireValue());
+        for (var stateValue : stateValuesMap.values()) {
+            if (stateValue instanceof ProtoExternalState protoState && protoState.getMessage() != null) {
+                stateBuilder.setProtoType(protoState.getMessage().getDescriptorForType().getFullName());
+                break;
+            }
+        }
+        var stateItems = new ArrayList<TStateItem>(stateValuesMap.size());
+        for (var stateEntry : stateValuesMap.entrySet()) {
+            var state = stateEntry.getValue();
+            var itemBuilder = TStateItem.newBuilder()
+                    .setKey(keyCodec.encode(stateEntry.getKey().getRow()))
+                    .setReset(state.isReset());
+            if (!state.isReset()) {
+                if (!(state instanceof ProtoExternalState protoState)) {
+                    throw new IllegalArgumentException(
+                            "External state %s mixes proto-format and row-format entries".formatted(stateName)
+                    );
+                }
+                itemBuilder.setState(protoState.serialize());
+            }
+            stateItems.add(itemBuilder.build());
+        }
+        stateBuilder.addAllStateItems(stateItems);
+        return stateBuilder.build();
     }
 
     private static @Nullable TableSchema firstNonResetSchema(Map<Payload, ExternalState> stateValuesMap) {

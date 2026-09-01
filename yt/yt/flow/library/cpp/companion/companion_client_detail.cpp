@@ -30,6 +30,8 @@ void TCompanionComputationInfo::Register(TRegistrar registrar)
     registrar.Parameter("computation_id", &TThis::ComputationId);
     registrar.Parameter("computation_type", &TThis::CompanionComputationType)
         .Default();
+    registrar.Parameter("supported_state_formats", &TThis::SupportedStateFormats)
+        .Default({FormatEnum(EStateFormat::SimpleRow)});
 }
 
 void TCompanionInfo::Register(TRegistrar registrar)

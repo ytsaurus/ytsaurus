@@ -1,5 +1,6 @@
 #include "simple_external_state_manager.h"
 
+#include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
@@ -20,6 +21,8 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/join.h>
@@ -28,6 +31,9 @@ namespace NYT::NFlow {
 
 using namespace NTableClient;
 using namespace NApi;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -729,6 +735,126 @@ void TSimpleExternalStateJoiner::UpdateCache(
     cached->Payload = payload;
     cached->Schema = schema;
     StateCache_->Insert(key, std::move(cached), cookie);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Companion bridge over the manager's states. Encode reproduces the wire-row
+//! serialization companions have always received for simple external states.
+class TSimpleExternalStateManager::TCompanionAdapter
+    : public ICompanionStateAdapter
+{
+public:
+    TCompanionAdapter(TIntrusivePtr<TSimpleExternalStateManager> manager, std::string stateName)
+        : Manager_(std::move(manager))
+        , StateName_(std::move(stateName))
+    { }
+
+    TCompanionStateDescriptor Describe() const final
+    {
+        auto guard = Guard(Manager_->Lock_);
+        return TCompanionStateDescriptor{
+            .StateName = StateName_,
+            .Format = EStateFormat::SimpleRow,
+            .Schema = Manager_->EpochState_ ? Manager_->EpochState_->StateSchema : nullptr,
+        };
+    }
+
+    TSharedRef EncodeState(const TKey& key) final
+    {
+        const auto& state = GetTypedState(key)->Get();
+        return TSharedRef::FromString(ToProto<TProtobufString>(state.Payload));
+    }
+
+    void ApplyState(const TKey& key, TSharedRef payload) final
+    {
+        auto state = GetTypedState(key);
+        // Parses straight from the wire bytes; copying them into a protobuf
+        // string first would double every returned payload.
+        TCompactUnversionedOwningRow row;
+        DeserializeFromBuffer(payload.Begin(), payload.End(), &row);
+        state->Get().Payload = TPayload(std::move(row));
+    }
+
+    void ResetState(const TKey& key) final
+    {
+        GetTypedState(key)->Clear();
+    }
+
+private:
+    const TIntrusivePtr<TSimpleExternalStateManager> Manager_;
+    const std::string StateName_;
+
+    TIntrusivePtr<TStateHolder> GetTypedState(const TKey& key) const
+    {
+        auto state = DynamicPointerCast<TStateHolder>(Manager_->GetState(key));
+        YT_VERIFY(state);
+        return state;
+    }
+};
+
+ICompanionStateAdapterPtr TSimpleExternalStateManager::CreateCompanionAdapter(std::string stateName)
+{
+    return New<TCompanionAdapter>(MakeStrong(this), std::move(stateName));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleExternalStateJoiner::TCompanionAdapter
+    : public ICompanionStateAdapter
+{
+public:
+    TCompanionAdapter(TIntrusivePtr<TSimpleExternalStateJoiner> joiner, std::string stateName)
+        : Joiner_(std::move(joiner))
+        , StateName_(std::move(stateName))
+    { }
+
+    TCompanionStateDescriptor Describe() const final
+    {
+        auto guard = Guard(Joiner_->Lock_);
+        return TCompanionStateDescriptor{
+            .StateName = StateName_,
+            .Format = EStateFormat::SimpleRow,
+            .Schema = Joiner_->StateSchema_,
+        };
+    }
+
+    TSharedRef EncodeState(const TKey& key) final
+    {
+        auto state = DynamicPointerCast<TStateHolder>(Joiner_->GetState(key));
+        YT_VERIFY(state);
+        return TSharedRef::FromString(ToProto<TProtobufString>(state->Get().Payload));
+    }
+
+    void ApplyState(const TKey& key, TSharedRef /*payload*/) final
+    {
+        ThrowReadOnly(key);
+    }
+
+    void ResetState(const TKey& key) final
+    {
+        ThrowReadOnly(key);
+    }
+
+    THashSet<TKey> ExtractKeys(const IInputContextPtr& input) const final
+    {
+        return ExtractJoinedStateKeys(*Joiner_, input);
+    }
+
+private:
+    const TIntrusivePtr<TSimpleExternalStateJoiner> Joiner_;
+    const std::string StateName_;
+
+    [[noreturn]] void ThrowReadOnly(const TKey& key) const
+    {
+        THROW_ERROR_EXCEPTION("Cannot modify read-only joined state %Qv", StateName_)
+            .With("key", ToString(key));
+    }
+};
+
+ICompanionStateAdapterPtr TSimpleExternalStateJoiner::CreateCompanionAdapter(std::string stateName)
+{
+    return New<TCompanionAdapter>(MakeStrong(this), std::move(stateName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

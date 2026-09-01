@@ -102,6 +102,15 @@ public:
         WithPrefix(name)->InitExternalStateClient<TStateHolder>(client);
     }
 
+    //! Looks up an external state manager declared in
+    //! ``TComputationSpec::ExternalStateManagers[GetPrefix() + normalized(name)]`` and asks it
+    //! for a companion state adapter. Throws if the name is not declared or if the manager
+    //! class does not provide an adapter.
+    ICompanionStateAdapterPtr CreateCompanionStateAdapter(TStringBuf name) const;
+
+    //! Joiner counterpart of #CreateCompanionStateAdapter; the returned adapter is read-only.
+    ICompanionStateAdapterPtr CreateJoinedCompanionStateAdapter(TStringBuf name) const;
+
     virtual TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
     virtual TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const = 0;
 

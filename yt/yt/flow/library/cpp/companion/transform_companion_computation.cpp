@@ -39,19 +39,19 @@ void TTransformCompanionComputation::DoInit(IJobInitContextPtr initContext)
             initContext->InitClient<TCompanionState>(InternalStateClients_[stateName], stateName);
         }
     }
-    // Init external state clients — names come from the spec's
-    // ``external_state_managers`` block.
     for (const auto& stateName : GetKeys(GetSpec()->ExternalStateManagers)) {
-        YT_TLOG_DEBUG("Initializing ExternalStateClient")
+        YT_TLOG_DEBUG("Initializing ExternalStateAdapter")
             .With("StateName", stateName);
-        initContext->InitExternalStateClient(ExternalStateClients_[stateName], stateName);
+        auto adapter = initContext->CreateCompanionStateAdapter(stateName);
+        ValidateCompanionStateFormat(adapter->Describe());
+        ExternalStateAdapters_[stateName] = std::move(adapter);
     }
-    // Init read-only external state joiners — names come from the spec's
-    // ``external_state_joiners`` block.
     for (const auto& stateName : GetKeys(GetSpec()->ExternalStateJoiners)) {
-        YT_TLOG_DEBUG("Initializing ExternalStateJoiner")
+        YT_TLOG_DEBUG("Initializing JoinedStateAdapter")
             .With("StateName", stateName);
-        initContext->InitExternalStateClient(ExternalStateJoiners_[stateName], stateName);
+        auto adapter = initContext->CreateJoinedCompanionStateAdapter(stateName);
+        ValidateCompanionStateFormat(adapter->Describe());
+        JoinedStateAdapters_[stateName] = std::move(adapter);
     }
     YT_TLOG_DEBUG("DoInit finished");
 }
@@ -79,9 +79,9 @@ void TTransformCompanionComputation::DoProcess(
 
     // Map of Map to internal state accessors for the current epoch. Updated by companion response.
     THashMap<std::string, THashMap<TKey, TStateAccessor<TCompanionState>>> internalStateMap;
-    // Map of Map to pointer to simple external states. Updated by companion response.
-    // The states themselves are owned by the external state manager for the epoch.
-    THashMap<std::string, THashMap<TKey, TSimpleExternalState*>> externalStateMap;
+    // Keys already encoded per external state; response items are validated against this set
+    // and applied back through the adapters.
+    THashMap<std::string, THashSet<TKey>> externalStateKeys;
 
     auto addInternalStatesForKey = [&] (const TKey& key) {
         for (const auto& [stateName, stateClient] : InternalStateClients_) {
@@ -104,27 +104,33 @@ void TTransformCompanionComputation::DoProcess(
         }
     };
 
+    // Every declared external state travels in the request even when no key
+    // in the batch has a payload (a proto state whose rows are all absent):
+    // the companion SDK resolves its accessors from the request holders and
+    // needs the state's format and proto type to accept writes that create
+    // absent states.
+    for (const auto& [stateName, adapter] : ExternalStateAdapters_) {
+        auto descriptor = adapter->Describe();
+        TStateHolder<TSharedRef> holder{
+            .StateName = stateName,
+            .Schema = descriptor.Schema,
+            .Format = descriptor.Format,
+            .ProtoType = descriptor.ProtoType,
+        };
+        request->ExternalStates.emplace(stateName, std::move(holder));
+    }
+
     auto addExternalStatesForKey = [&] (const TKey& key) {
-        for (const auto& [stateName, stateClient] : ExternalStateClients_) {
-            if (externalStateMap[stateName].contains(key)) {
+        for (const auto& [stateName, adapter] : ExternalStateAdapters_) {
+            if (!externalStateKeys[stateName].insert(key).second) {
                 continue;
             }
-            auto stateHandle = stateClient.GetState(key);
-            auto* extState = stateHandle.Get();
-            externalStateMap[stateName][key] = extState;
-            if (extState) {
-                GetOrInsert(
-                    request->ExternalStates,
-                    stateName,
-                    [&] {
-                        return TStateHolder<TPayload>{
-                            .StateName = stateName,
-                            .Schema = extState->Schema,
-                        };
-                    })
+            auto payload = adapter->EncodeState(key);
+            if (payload) {
+                GetOrCrash(request->ExternalStates, stateName)
                     .StateItems.push_back({
                         .Key = key,
-                        .State = extState->Payload,
+                        .State = std::move(payload),
                     });
             }
         }
@@ -160,7 +166,7 @@ void TTransformCompanionComputation::DoProcess(
         addExternalStatesForKey(visit->Key);
     }
 
-    AddJoinedExternalStates(request, ExternalStateJoiners_, input);
+    AddJoinedExternalStates(request, JoinedStateAdapters_, input);
 
     for (const auto& streamId : Concatenate(GetSpec()->InputStreamIds, GetKeys(GetSpec()->TimerStreams))) {
         auto streamWatermark = GetEpochEventWatermark(streamId);
@@ -229,23 +235,31 @@ void TTransformCompanionComputation::DoProcess(
     }
     // Set External States.
     for (const auto& state : response->ExternalStates) {
-        auto stateMapIt = externalStateMap.find(state.StateName);
-        if (stateMapIt == externalStateMap.end()) {
+        auto adapterIt = ExternalStateAdapters_.find(state.StateName);
+        if (adapterIt == ExternalStateAdapters_.end()) {
             THROW_ERROR_EXCEPTION("External state is not found for state name")
                 .With("state_name", state.StateName);
         }
+        const auto& adapter = adapterIt->second;
+        auto expectedFormat = adapter->Describe().Format;
+        if (state.Format != expectedFormat) {
+            THROW_ERROR_EXCEPTION("External state returned with unexpected wire format")
+                .With("state_name", state.StateName)
+                .With("format", state.Format)
+                .With("expected_format", expectedFormat);
+        }
+        const auto& sentKeys = externalStateKeys[state.StateName];
 
         for (const auto& stateItem : state.StateItems) {
-            auto stateIt = externalStateMap[state.StateName].find(stateItem.Key);
-            if (stateIt == externalStateMap[state.StateName].end()) {
+            if (!sentKeys.contains(stateItem.Key)) {
                 THROW_ERROR_EXCEPTION("External state is not found for key")
                     .With("state_name", state.StateName)
                     .With("key", stateItem.Key);
             }
             if (stateItem.Reset) {
-                stateIt->second->Clear();
+                adapter->ResetState(stateItem.Key);
             } else {
-                stateIt->second->Payload = stateItem.State;
+                adapter->ApplyState(stateItem.Key, stateItem.State);
             }
         }
     }
