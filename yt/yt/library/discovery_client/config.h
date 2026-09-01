@@ -64,7 +64,7 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryClientConfig)
 struct TDiscoveryBaseConfig
     : public virtual NYTree::TYsonStruct
 {
-    NDiscoveryClient::TGroupId GroupId;
+    TGroupId GroupId;
     TDuration UpdatePeriod;
     TDuration BanTimeout;
 

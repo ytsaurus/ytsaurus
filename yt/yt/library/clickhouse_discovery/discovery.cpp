@@ -14,7 +14,7 @@ using namespace NDiscoveryClient;
 
 namespace {
 
-TDiscoveryConnectionConfigPtr GetDiscoveryConnection(const IConnectionPtr& connection)
+TDiscoveryConnectionConfigPtr GetDiscoveryConnectionOrThrow(const IConnectionPtr& connection)
 {
     auto connectionConfig = connection->GetConfig();
     if (!connectionConfig->DiscoveryConnection) {
@@ -36,9 +36,9 @@ IDiscoveryPtr CreateDiscoveryFromNativeConnection(
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler)
 {
-    return NDiscoveryClient::CreateDiscovery(
+    return CreateDiscovery(
         std::move(config),
-        GetDiscoveryConnection(connection),
+        GetDiscoveryConnectionOrThrow(connection),
         std::move(channelFactory),
         std::move(invoker),
         std::move(extraAttributes),
