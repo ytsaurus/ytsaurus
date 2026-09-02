@@ -297,8 +297,9 @@ std::vector<TTableResolveResponse> ResolveTablePaths(
         const auto& rspOrError = batchResponse->GetResponse<TYPathProxy::TRspGet>(index);
         if (!rspOrError.IsOK()) {
             tableResolveResponses.emplace_back();
-            YT_LOG_WARNING(rspOrError,
-                "Failed to resolve table id for table %v", paths[index]);
+            YT_TLOG_WARNING("Failed to resolve table id")
+                .With("TablePath", paths[index])
+                .With(rspOrError);
             continue;
         }
 
@@ -425,14 +426,17 @@ void CheckBundleSnapshotInvariants(const TBundleSnapshotPtr& bundleSnapshot)
 
     for (const auto& [id, tablet] : bundleSnapshot->Bundle->Tablets) {
         YT_VERIFY(tablet->Table);
-        YT_LOG_FATAL_IF(
-            std::find_if(tablet->Table->Tablets.begin(), tablet->Table->Tablets.end(), [&id] (const auto& tablet) {
+        bool tabletListedInTable = std::any_of(
+            tablet->Table->Tablets.begin(),
+            tablet->Table->Tablets.end(),
+            [&id] (const auto& tablet) {
                 return tablet->Id == id;
-            }) == tablet->Table->Tablets.end(),
-            "Bundle snapshot invariant check failed: tablet's table does not have this tablet in list of tablets "
-            "(TabletId: %v, TableId: %v)",
-            id,
-            tablet->Table->Id);
+            });
+        YT_TLOG_FATAL_UNLESS(
+            tabletListedInTable,
+            "Bundle snapshot invariant check failed: tablet's table does not have this tablet in list of tablets")
+            .With("TabletId", id)
+            .With("TableId", tablet->Table->Id);
 
         YT_TLOG_FATAL_UNLESS(
             bundleSnapshot->Bundle->Tables.contains(tablet->Table->Id),
@@ -858,8 +862,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             if (!UpdateStateFuture_) {
                 Counters_->DirectStateRequest.Increment(isDirectRequest);
 
-                YT_LOG_DEBUG("Planning to fetch bundle state%v",
-                    isDirectRequest ? " due to a direct request" : "");
+                YT_TLOG_DEBUG("Planning to fetch bundle state")
+                    .With("DirectRequest", isDirectRequest);
                 UpdateStateFuture_ = BIND(&TBundleState::UpdateState, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -875,8 +879,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             if (!UpdateStatisticsFuture_) {
                 Counters_->DirectStatisticsRequest.Increment(isDirectRequest);
 
-                YT_LOG_DEBUG("Planning to fetch bundle statistics%v",
-                    isDirectRequest ? " due to a direct request" : "");
+                YT_TLOG_DEBUG("Planning to fetch bundle statistics")
+                    .With("DirectRequest", isDirectRequest);
                 UpdateStatisticsFuture_ = BIND(&TBundleState::UpdateStatistics, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -896,8 +900,8 @@ TFuture<TBundleSnapshotPtr> TBundleState::CreateUpdateFutureIfNeeded(EFetchKind 
             if (!UpdatePerformanceCountersFuture_) {
                 Counters_->DirectPerformanceCountersRequest.Increment(isDirectRequest);
 
-                YT_LOG_DEBUG("Planning to fetch performance counters%v",
-                    isDirectRequest ? " due to a direct request" : "");
+                YT_TLOG_DEBUG("Planning to fetch performance counters")
+                    .With("DirectRequest", isDirectRequest);
                 UpdatePerformanceCountersFuture_ = BIND(&TBundleState::UpdatePerformanceCounters, MakeStrong(this))
                     .AsyncVia(FetcherInvoker_)
                     .Run();
@@ -1938,10 +1942,9 @@ TBundleState::TTabletCellInfo TBundleState::TabletCellInfoFromAttributes(
     for (const auto& peer : peers) {
         if (peer.State == EPeerState::Leading) {
             if (address.has_value()) {
-                YT_LOG_WARNING("Cell has two leading peers (Cell: %v, Peers: [%v, %v])",
-                    cellId,
-                    address,
-                    peer.NodeAddress);
+                YT_TLOG_WARNING("Cell has two leading peers")
+                    .With("CellId", cellId)
+                    .With("Peers", std::vector{*address, peer.NodeAddress});
 
                 address.reset();
                 break;
@@ -2026,8 +2029,9 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
 
             EmplaceOrCrash(nodeStatistics, address, std::move(statistics));
         } catch (const TErrorException& ex) {
-            YT_LOG_ERROR(ex, "Failed to get \"statistics\" or \"tablet_slots\" attribute for node %Qv",
-                address);
+            YT_TLOG_ERROR("Failed to get \"statistics\" or \"tablet_slots\" attribute for node")
+                .With("NodeAddress", address)
+                .With(ex);
         }
     }
 
