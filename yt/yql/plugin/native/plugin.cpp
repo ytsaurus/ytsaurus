@@ -431,13 +431,15 @@ public:
             // TODO(aneporada): Add static gatewaays config to TYqlNativePluginOptions
             SyncWithStaticGateways(StaticGatewaysConfig_, GatewaysConfigInitial_);
 
+            YtClusters_ = MakeIntrusive<TConfigClusters>(GatewaysConfigInitial_.GetYt());
+
             NYql::TFileStorageConfig fileStorageConfig;
             fileStorageConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
                 options.FileStorageConfig,
                 NYson::ReflectProtobufMessageType<NYql::TFileStorageConfig>(),
                 protobufWriterOptions));
 
-            FileStorage_ = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig)}));
+            FileStorage_ = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig, YtClusters_)}));
 
             NYql::TYtTvmConfig tvmConfig;
             tvmConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
@@ -661,7 +663,9 @@ public:
 
         auto dynamicConfig = DynamicConfig_.Acquire();
         auto factory = CreateProgramFactory(queryId, *dynamicConfig);
-        factory->SetUrlListerManager(MakeUrlListerManager({MakeYtUrlLister()}));
+        factory->SetUrlListerManager(MakeUrlListerManager({
+            MakeYtUrlLister(MakeIntrusive<TConfigClusters>(dynamicConfig->GatewaysConfig.GetYt()))
+        }));
         auto [program, sqlSettings] = CreateProgramAndSqlSettingsFromParameters(
             queryId,
             queryText,
@@ -1125,6 +1129,7 @@ private:
     const bool StartDqManager_;
     TDqManagerPtr DqManager_;
     THolder<IThreadPool> DqGatewayOffloadThreadPool_;
+    TConfigClusters::TPtr YtClusters_;
     NYql::TFileStoragePtr FileStorage_;
     ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry_;
     TAtomicIntrusivePtr<TDynamicConfig> DynamicConfig_;

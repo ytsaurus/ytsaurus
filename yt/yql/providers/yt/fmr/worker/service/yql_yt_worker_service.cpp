@@ -189,7 +189,7 @@ int main(int argc, const char *argv[]) {
         if (fmrCacheConfig) {
             ytDownloaderServer = fmrCacheConfig->GetCluster();
         }
-        NYql::NFS::IDownloaderPtr ytDownloader =  MakeYtDownloader(*options.FsConfig, ytDownloaderServer);
+        NYql::NFS::IDownloaderPtr ytDownloader = MakeYtDownloader(*options.FsConfig, ytDownloaderServer);
         TFileStoragePtr fileStorage = WithAsync(CreateFileStorage(*options.FsConfig, {ytDownloader}));
 
         auto jobPreparer = MakeFmrJobPreparer(fileStorage, MakeFileTableDataServiceDiscovery({.Path = tableDataServiceDiscoveryFilePath}), TFmrJobPreparerSettings(), tvmClient, tableDataServiceTvmId);
