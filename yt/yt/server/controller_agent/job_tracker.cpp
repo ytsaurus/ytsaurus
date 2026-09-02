@@ -1870,10 +1870,9 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
 
             increaseJobMessageSizes(/*isKnownJob:*/ false);
 
-            YT_LOG_INFO(
-                "Request node to %v unknown job (JobState: %v)",
-                shouldAbortJob ? "abort" : "remove",
-                jobSummary.JobSummary->State);
+            YT_TLOG_INFO("Requesting node to discard unknown job")
+                .With("Action", shouldAbortJob ? "abort" : "remove")
+                .With("JobState", jobSummary.JobSummary->State);
 
             ++heartbeatCounters.UnknownJobCount;
 
@@ -3290,14 +3289,12 @@ void TJobTracker::ProcessAllocationEvents(
     const auto& Logger = context.OperationLogger;
 
     auto logOperationIsNotRunningEvent = [&] (const auto& operationStatus) {
-        YT_LOG_INFO(
-            "Received allocation events of operation that is %v; ignore it"
-            " (OperationId: %v, IncarnationId: %v, FinishedAllocationCount: %v, AbortedAllocationCount: %v)",
-            operationStatus,
-            operationId,
-            IncarnationId_,
-            std::size(finishedAllocations),
-            std::size(abortedAllocations));
+        YT_TLOG_INFO("Received allocation events of an operation that is not running; ignoring them")
+            .With("OperationStatus", operationStatus)
+            .With("OperationId", operationId)
+            .With("IncarnationId", IncarnationId_)
+            .With("FinishedAllocationCount", std::size(finishedAllocations))
+            .With("AbortedAllocationCount", std::size(abortedAllocations));
     };
 
     auto operationIt = RegisteredOperations_.find(operationId);
@@ -3404,13 +3401,11 @@ void TJobTracker::ProcessFinishedAllocations(
             TNodeInfo* nodeInfo,
             std::optional<TNodeJobs::TAllocationIterator> maybeAllocationIt)
         {
-            YT_LOG_INFO(
-                "%v; send finished allocation event to operation controller"
-                " (AllocationId: %v, NodeId: %v, NodeAddress: %v)",
-                message,
-                event.Id,
-                nodeId,
-                GetNodeAddressForLogging(nodeId));
+            YT_TLOG_INFO("Sending finished allocation event to operation controller")
+                .With("Reason", message)
+                .With("AllocationId", event.Id)
+                .With("NodeId", nodeId)
+                .With("NodeAddress", GetNodeAddressForLogging(nodeId));
             operationUpdatesProcessingContext.FinishedAllocations.push_back(std::move(event));
 
             if (nodeInfo && maybeAllocationIt) {
@@ -3445,15 +3440,13 @@ void TJobTracker::ProcessAbortedAllocations(
             TNodeInfo* nodeInfo,
             std::optional<TNodeJobs::TAllocationIterator> maybeAllocationIt)
         {
-            YT_LOG_INFO(
-                "%v; send aborted allocation event to operation controller"
-                " (AllocationId: %v, NodeId: %v, NodeAddress: %v, AbortReason: %v, AbortionError: %v)",
-                message,
-                event.Id,
-                nodeId,
-                GetNodeAddressForLogging(nodeId),
-                event.AbortReason,
-                event.Error);
+            YT_TLOG_INFO("Sending aborted allocation event to operation controller")
+                .With("Reason", message)
+                .With("AllocationId", event.Id)
+                .With("NodeId", nodeId)
+                .With("NodeAddress", GetNodeAddressForLogging(nodeId))
+                .With("AbortReason", event.AbortReason)
+                .With("AbortionError", event.Error);
 
             operationUpdatesProcessingContext.AbortedAllocations.push_back(std::move(event));
 

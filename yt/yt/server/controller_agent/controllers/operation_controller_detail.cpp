@@ -1506,9 +1506,10 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         LogProgress(/*force*/ true);
     } catch (const std::exception& ex) {
+        YT_TLOG_INFO("Failing operation after materialization failure")
+            .With(ex);
         auto wrappedError = TError(NControllerAgent::EErrorCode::MaterializationFailed, "Materialization failed")
             .With(ex);
-        YT_LOG_INFO(wrappedError);
         DoFailOperation(wrappedError);
         return result;
     }
@@ -3887,27 +3888,27 @@ void TOperationControllerBase::ProcessAllocationEvent(TAllocationEvent&& eventSu
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     if (!ShouldProcessJobEvents()) {
-        YT_LOG_DEBUG("Stale allocation %v event, ignored (AllocationIdId: %v)", eventType, eventSummary.Id);
+        YT_TLOG_DEBUG("Stale allocation event ignored")
+            .With("EventType", eventType)
+            .With("AllocationId", eventSummary.Id);
         return;
     }
 
     auto allocationIt = AllocationMap_.find(eventSummary.Id);
 
     if (allocationIt == end(AllocationMap_)) {
-        YT_LOG_DEBUG(
-            "Allocation is not found, ignore %v allocation event (EventSummary: %v)",
-            eventType,
-            eventSummary);
+        YT_TLOG_DEBUG("Allocation is not found; ignoring allocation event")
+            .With("EventType", eventType)
+            .With("EventSummary", eventSummary);
         return;
     }
 
     auto& allocation = allocationIt->second;
 
-    YT_LOG_DEBUG(
-        "Processing %v allocation event (AllocationId: %v, HasActiveJob: %v)",
-        eventType,
-        eventSummary.Id,
-        static_cast<bool>(allocation.Joblet));
+    YT_TLOG_DEBUG("Processing allocation event")
+        .With("EventType", eventType)
+        .With("AllocationId", eventSummary.Id)
+        .With("HasActiveJob", static_cast<bool>(allocation.Joblet));
 
     // NB(pogorelov): Job might be not registered in job tracker (e.g. allocation not scheduled or node did not request job settlement),
     // so joblet may still be present in allocation.
@@ -3969,7 +3970,8 @@ void TOperationControllerBase::OnJobRunning(
                 "User %Qv is not a superuser but tried to crash controller agent using testing options in spec; "
                 "this incident will be reported",
                 AuthenticatedUser_);
-            YT_LOG_ALERT(error);
+            YT_TLOG_ALERT("User is not a superuser but tried to crash controller agent using testing options in spec")
+                .With(error);
             THROW_ERROR_EXCEPTION(error);
         }
     }
@@ -5941,10 +5943,10 @@ void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputCh
                     .With("table_name", tableName)
                     .With("chunk_id", chunk->GetChunkId());
             }
-            YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-                Message,
-                tableName,
-                chunk);
+            YT_TLOG_WARNING(Message)
+                .With("TableName", tableName)
+                .With("Chunk", chunk->GetChunkId())
+                .With(result);
         }
         chunkIds.push_back(chunk->GetChunkId());
         YT_TLOG_DEBUG("Releasing intermediate chunk")
@@ -5958,10 +5960,11 @@ void TOperationControllerBase::AddChunksToUnstageList(const std::vector<TInputCh
 
 void TOperationControllerBase::ProcessSafeException(const std::exception& ex)
 {
-    auto error = TError("Exception thrown in operation controller that led to operation failure")
+    YT_TLOG_ERROR("Failing operation after unhandled exception")
         .With(ex);
 
-    YT_LOG_ERROR(error);
+    auto error = TError("Exception thrown in operation controller that led to operation failure")
+        .With(ex);
 
     OnOperationFailed(error, /*flush*/ false, /*abortAllJoblets*/ false);
 }
@@ -5970,6 +5973,11 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
 {
     TControllerAgentCounterManager::Get()->IncrementAssertionsFailed(OperationType_);
 
+    YT_TLOG_ERROR("Operation controller crashed")
+        .With("FailedCondition", ex.GetExpression())
+        .With("StackTrace", ex.GetStackTrace())
+        .With("CorePath", ex.GetCorePath());
+
     auto error = TError(
         NScheduler::EErrorCode::OperationControllerCrashed,
         "Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
@@ -5977,8 +5985,6 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
         .With("stack_trace", ex.GetStackTrace())
         .With("core_path", ex.GetCorePath())
         .With("operation_id", OperationId_);
-
-    YT_LOG_ERROR(error);
 
     OnOperationFailed(error, /*flush*/ false, /*abortAllJoblets*/ false);
 }
@@ -6731,7 +6737,7 @@ void TOperationControllerBase::ForEachLockableDynamicTable(const std::function<v
         }
     } else {
         if (Spec_->Atomicity == EAtomicity::None && !Config_->LockNonAtomicOutputDynamicTables) {
-            YT_LOG_DEBUG("Will not lock output tables with atomicity %Qlv", EAtomicity::None);
+            YT_TLOG_DEBUG("Will not lock output tables with atomicity \"none\"");
             return;
         }
     }
@@ -8935,10 +8941,10 @@ void TOperationControllerBase::AttachToLivePreview(
                     .With("table_name", tableName)
                     .With("chunk_id", chunk->GetChunkId());
             }
-            YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-                Message,
-                tableName,
-                chunk);
+            YT_TLOG_WARNING(Message)
+                .With("TableName", tableName)
+                .With("Chunk", chunk->GetChunkId())
+                .With(result);
         }
     }
 }
@@ -10636,7 +10642,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         } else if (auto localDiskRequest = volume->DiskRequest->TryGetConcrete<TLocalDiskRequest>()) {
             ToProto(jobSpec->mutable_disk_request(), *localDiskRequest);
         } else {
-            YT_LOG_FATAL("Unknown volume type %v", volume->DiskRequest->GetType());
+            YT_TLOG_FATAL("Unknown volume type")
+                .With("VolumeType", volume->DiskRequest->GetType());
         }
     }
 
@@ -11665,10 +11672,10 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
                 .With("table_name", tableName)
                 .With("chunk_id", chunk->GetChunkId());
         }
-        YT_LOG_WARNING(result, "%v (TableName: %v, Chunk: %v)",
-            Message,
-            tableName,
-            chunk);
+        YT_TLOG_WARNING(Message)
+            .With("TableName", tableName)
+            .With("Chunk", chunk->GetChunkId())
+            .With(result);
     }
 
     if (vertexDescriptor == GetOutputLivePreviewVertexDescriptor()) {
@@ -11740,9 +11747,9 @@ void TOperationControllerBase::RegisterOutputRows(i64 count, int tableIndex)
     if (RowCountLimitTableIndex_ && *RowCountLimitTableIndex_ == tableIndex && !IsFinished()) {
         CompletedRowCount_ += count;
         if (CompletedRowCount_ >= RowCountLimit_) {
-            YT_LOG_INFO("Row count limit is reached (CompletedRowCount: %v, RowCountLimit: %v).",
-                CompletedRowCount_,
-                RowCountLimit_);
+            YT_TLOG_INFO("Row count limit is reached")
+                .With("CompletedRowCount", CompletedRowCount_)
+                .With("RowCountLimit", RowCountLimit_);
             OnOperationCompleted(/*interrupted*/ true);
         }
     }
