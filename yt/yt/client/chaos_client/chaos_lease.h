@@ -1,0 +1,20 @@
+#pragma once
+
+#include "public.h"
+
+namespace NYT::NChaosClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChaosLease
+    : public TRefCounted
+{
+    TDuration Timeout;
+    TInstant LastPingTime;
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosLease)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChaosClient

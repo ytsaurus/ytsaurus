@@ -62,6 +62,18 @@ void TReplicationCardsWatcherConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChaosLeasesWatcherConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("poll_expiration_time", &TThis::PollExpirationTime)
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("gone_leases_expiration_time", &TThis::GoneLeasesExpirationTime)
+        .Default(TDuration::Minutes(10));
+    registrar.Parameter("expiration_sweep_period", &TThis::ExpirationSweepPeriod)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChaosReplicationCardUpdatesBatcherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)

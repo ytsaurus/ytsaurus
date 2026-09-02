@@ -1,4 +1,4 @@
-#include "replication_cards_watcher.h"
+#include "chaos_leases_watcher.h"
 
 #include "config.h"
 #include "private.h"
@@ -7,17 +7,17 @@ namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReplicationCardsWatcherPtr CreateReplicationCardsWatcher(
-    TReplicationCardsWatcherConfigPtr config,
+IChaosLeasesWatcherPtr CreateChaosLeasesWatcher(
+    TChaosLeasesWatcherConfigPtr config,
     IInvokerPtr invoker)
 {
-    return New<TObjectWatcher<TReplicationCardPtr, IReplicationCardsWatcher>>(
+    return New<TObjectWatcher<TChaosLeasePtr, IChaosLeasesWatcher>>(
         std::move(invoker),
         config->ExpirationSweepPeriod,
         config->PollExpirationTime,
-        config->GoneCardsExpirationTime,
-        ReplicationCardWatcherLogger(),
-        "ReplicationCard");
+        config->GoneLeasesExpirationTime,
+        ChaosLeaseWatcherLogger(),
+        "ChaosLease");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -93,6 +93,22 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardsWatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChaosLeasesWatcherConfig
+    : public NYTree::TYsonStruct
+{
+    TDuration PollExpirationTime;
+    TDuration GoneLeasesExpirationTime;
+    TDuration ExpirationSweepPeriod;
+
+    REGISTER_YSON_STRUCT(TChaosLeasesWatcherConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosLeasesWatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TChaosReplicationCardUpdatesBatcherConfig
     : public NYTree::TYsonStruct
 {
