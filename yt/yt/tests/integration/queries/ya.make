@@ -1,6 +1,7 @@
 PY3_LIBRARY()
 
 TEST_SRCS(
+    base.py
     test_environment.py
     test_mock.py
     test_ql.py

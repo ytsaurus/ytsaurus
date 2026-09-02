@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from .base import QueriesTestBase
 
 from yt_commands import (authors, raises_yt_error, create_dynamic_table,
                          sync_mount_table, insert_rows)
@@ -22,7 +22,7 @@ from yt.wrapper import yson
 import pytest
 
 
-class TestQueriesQL(YTEnvSetup):
+class TestQueriesQL(QueriesTestBase):
     ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
