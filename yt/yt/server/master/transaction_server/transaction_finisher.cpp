@@ -60,59 +60,57 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-auto MakeFinishRequestFormatter(const TTransactionFinishRequest& request)
+NLogging::TLoggingTagList MakeFinishRequestTags(const TTransactionFinishRequest& request)
 {
-    return MakeFormatterWrapper([request] (TStringBuilderBase* builder) {
-        Visit(request,
-            [&] (const TTransactionCommitRequest& request) {
-                builder->AppendFormat(", RequestKind: Commit, PrerequisiteTransactionIds: %v, MutationId: %v, AuthenticationIdentity: %v",
-                    request.PrerequisiteTransactionIds,
-                    request.MutationId,
-                    request.AuthenticationIdentity);
-            },
-            [&] (const TTransactionAbortRequest& request) {
-                builder->AppendFormat(", RequestKind: Abort, Force: %v, MutationId: %v, AtuthenticationIdentity: %v",
-                    request.Force,
-                    request.MutationId,
-                    request.AuthenticationIdentity);
-            },
-            [&] (const TTransactionExpirationRequest& /*request*/) {
-                builder->AppendString(", RequestKind: Expiration");
-            });
-    });
+    return Visit(request,
+        [] (const TTransactionCommitRequest& request) {
+            return NLogging::TLoggingTagList()
+                .With("RequestKind", "Commit")
+                .With("PrerequisiteTransactionIds", request.PrerequisiteTransactionIds)
+                .With("MutationId", request.MutationId)
+                .With("AuthenticationIdentity", request.AuthenticationIdentity);
+        },
+        [] (const TTransactionAbortRequest& request) {
+            return NLogging::TLoggingTagList()
+                .With("RequestKind", "Abort")
+                .With("Force", request.Force)
+                .With("MutationId", request.MutationId)
+                .With("AuthenticationIdentity", request.AuthenticationIdentity);
+        },
+        [] (const TTransactionExpirationRequest& /*request*/) {
+            return NLogging::TLoggingTagList()
+                .With("RequestKind", "Expiration");
+        });
 }
 
 [[nodiscard]] bool CheckTransaction(
     TTransaction* transaction,
     TStringBuf actionDescription,
-    auto additionalFormatter)
+    const NLogging::TLoggingTagList& tags)
 {
     if (!IsObjectAlive(transaction)) {
-        YT_LOG_ALERT("Attempted to %v non-alive transaction (TransactionId: %v%v)",
-            actionDescription,
-            GetObjectId(transaction),
-            additionalFormatter);
+        YT_TLOG_ALERT("Attempted to act on a non-alive transaction")
+            .With("Action", actionDescription)
+            .With("TransactionId", GetObjectId(transaction))
+            .With(tags);
         return false;
     }
     if (transaction->IsCypressTransaction() && transaction->IsForeign()) {
-        YT_LOG_ALERT("Attempted to %v foreign Cypress transaction (TransactionId: %v%v)",
-            actionDescription,
-            GetObjectId(transaction),
-            additionalFormatter);
+        YT_TLOG_ALERT("Attempted to act on a foreign Cypress transaction")
+            .With("Action", actionDescription)
+            .With("TransactionId", GetObjectId(transaction))
+            .With(tags);
         return false;
     }
 
     return true;
 }
 
-void NoopFormatter(TStringBuilderBase* /*builder*/)
-{ }
-
 [[nodiscard]] bool CheckTransaction(
     TTransaction* transaction,
     TStringBuf actionDescription)
 {
-    return CheckTransaction(transaction, actionDescription, MakeFormatterWrapper(NoopFormatter));
+    return CheckTransaction(transaction, actionDescription, {});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,17 +135,17 @@ public:
 
         auto it = Transactions_.find(transaction);
         if (it == Transactions_.end()) {
-            YT_LOG_ALERT("Attempted to enqueue non-registered transaction %v (TransactionId: %v)",
-                Action_,
-                GetObjectId(transaction));
+            YT_TLOG_ALERT("Attempted to enqueue non-registered transaction")
+                .With("Action", Action_)
+                .With("TransactionId", GetObjectId(transaction));
             return std::nullopt;
         }
 
         auto& transactionInfo = it->second;
         if (transactionInfo.QueueIterator) {
-            YT_LOG_ALERT("Attempted to enqueue already enqueued transaction %v (TransactionId: %v)",
-                Action_,
-                GetObjectId(transaction));
+            YT_TLOG_ALERT("Attempted to enqueue already enqueued transaction")
+                .With("Action", Action_)
+                .With("TransactionId", GetObjectId(transaction));
             return std::nullopt;
         }
 
@@ -166,8 +164,8 @@ public:
     TTransaction* Dequeue()
     {
         if (Queue_.empty()) {
-            YT_LOG_ALERT("Attempted to dequeue transaction %v from empty queue",
-                Action_);
+            YT_TLOG_ALERT("Attempted to dequeue transaction from empty queue")
+                .With("Action", Action_);
             return nullptr;
         }
 
@@ -179,22 +177,22 @@ public:
         YT_ASSERT(transaction);
         auto it = Transactions_.find(transaction);
         if (it == Transactions_.end()) {
-            YT_LOG_ALERT("Transaction %v queue is broken: dequeued transaction does not registered (TransactionId: %v)",
-                Action_,
-                GetObjectId(transaction));
+            YT_TLOG_ALERT("Transaction queue is broken: dequeued transaction is not registered")
+                .With("Action", Action_)
+                .With("TransactionId", GetObjectId(transaction));
             return nullptr;
         }
         auto& queueIterator = it->second.QueueIterator;
         if (!queueIterator) {
-            YT_LOG_ALERT("Transaction %v queue is broken: dequeued transaction has not registered queue iterator (TransactionId: %v)",
-                Action_,
-                GetObjectId(transaction));
+            YT_TLOG_ALERT("Transaction queue is broken: dequeued transaction has not registered queue iterator")
+                .With("Action", Action_)
+                .With("TransactionId", GetObjectId(transaction));
             return nullptr;
         }
         if (*queueIterator != Queue_.begin()) {
-            YT_LOG_ALERT("Transaction %v queue is broken: dequeued transaction has invalid queue iterator (TransactionId: %v)",
-                Action_,
-                GetObjectId(transaction));
+            YT_TLOG_ALERT("Transaction queue is broken: dequeued transaction has invalid queue iterator")
+                .With("Action", Action_)
+                .With("TransactionId", GetObjectId(transaction));
             return nullptr;
         }
 
@@ -218,9 +216,9 @@ public:
             TEphemeralTransactionPtr(transaction),
             TTransactionInfo{.BackoffStrategy = TBackoffStrategy(retryOptions)}).second)
         {
-            YT_LOG_ALERT("Transaction %v registered twice (TransactionId: %v)",
-                Action_,
-                GetObjectId(transaction));
+            YT_TLOG_ALERT("Transaction registered twice")
+                .With("Action", Action_)
+                .With("TransactionId", GetObjectId(transaction));
         }
     }
 
@@ -322,11 +320,10 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
-        if (!CheckTransaction(transaction, "begin finish request for", MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
-                builder->AppendFormat(", RequestId: %v, Method: %v",
-                    context->GetRequestId(),
-                    context->GetMethod());
-            })) ||
+        auto requestTags = NLogging::TLoggingTagList()
+            .With("RequestId", context->GetRequestId())
+            .With("Method", context->GetMethod());
+        if (!CheckTransaction(transaction, "begin finish request for", requestTags) ||
             transaction->GetPersistentState() != ETransactionState::Active ||
             FinishQueue_.Contains(transaction))
         {
@@ -362,7 +359,7 @@ public:
     {
         YT_VERIFY(HasMutationContext());
 
-        if (!CheckTransaction(transaction, "persist finish request for", MakeFinishRequestFormatter(request))) {
+        if (!CheckTransaction(transaction, "persist finish request for", MakeFinishRequestTags(request))) {
             return;
         }
 
@@ -370,7 +367,8 @@ public:
         if (leasesState == ETransactionLeasesState::Active) {
             YT_TLOG_ALERT("Attempted to persist finish request for foreign Cypress transaction before lease revocation")
                 .With("TransactionId", transaction->GetId())
-                .WithFormat("LeasesState", "%v%v", leasesState, MakeFinishRequestFormatter(request));
+                .With("LeasesState", leasesState)
+                .With(MakeFinishRequestTags(request));
             return;
         }
 
@@ -379,18 +377,19 @@ public:
             if (!update) {
                 YT_TLOG_DEBUG("Transaction finish request was already persisted")
                     .With("TransactionId", transaction->GetId())
-                    .WithFormat("LeasesState", "%v%v", leasesState, MakeFinishRequestFormatter(it->second));
+                    .With("LeasesState", leasesState)
+                    .With(MakeFinishRequestTags(it->second));
                 return;
             }
 
             it->second = request;
         }
 
-        YT_LOG_DEBUG("Transaction finish %v (TransactionId: %v, LeasesState: %v%v)",
-            inserted ? "request persisted" : "persisted request updated",
-            transaction->GetId(),
-            leasesState,
-            MakeFinishRequestFormatter(request));
+        YT_TLOG_DEBUG("Transaction finish request stored")
+            .With("Inserted", inserted)
+            .With("TransactionId", transaction->GetId())
+            .With("LeasesState", leasesState)
+            .With(MakeFinishRequestTags(request));
 
         if (inserted && IsLeader()) {
             auto activeRequestCount = GetActiveRequestCount(transaction);
@@ -810,7 +809,8 @@ private:
         }
         const auto& finishRequest = it->second;
 
-        YT_LOG_DEBUG("Trying to finish transaction without leases %v", transaction->GetId());
+        YT_TLOG_DEBUG("Trying to finish transaction without leases")
+            .With("TransactionId", transaction->GetId());
 
         auto* transactionFinisherHost = GetTransactionFinisherHost();
         Visit(finishRequest,
@@ -948,18 +948,21 @@ private:
         for (const auto& [transaction, request] : Requests_) {
             if (!IsObjectAlive(transaction)) {
                 YT_TLOG_ALERT("Found persisted finish request for non-alive transaction")
-                    .WithFormat("TransactionId", "%v%v", transaction->GetId(), MakeFinishRequestFormatter(request));
+                    .With("TransactionId", transaction->GetId())
+                    .With(MakeFinishRequestTags(request));
                 continue;
             }
 
             YT_TLOG_DEBUG("Found persisted finish request for alive transation")
-                .WithFormat("TransactionId", "%v%v", transaction->GetId(), MakeFinishRequestFormatter(request));
+                .With("TransactionId", transaction->GetId())
+                .With(MakeFinishRequestTags(request));
 
             switch (transaction->GetTransactionLeasesState()) {
                 case ETransactionLeasesState::Active:
                     YT_TLOG_ALERT("Unexpected transaction leases state after persisting transaction finish request")
                         .With("TransactionId", transaction->GetId())
-                        .WithFormat("LeasesState", "%v%v", transaction->GetTransactionLeasesState(), MakeFinishRequestFormatter(request));
+                        .With("LeasesState", transaction->GetTransactionLeasesState())
+                        .With(MakeFinishRequestTags(request));
                     break;
                 case ETransactionLeasesState::Revoking:
                 case ETransactionLeasesState::Revoked:
@@ -1010,7 +1013,8 @@ private:
 
         for (const auto& [transaction, request] : Requests_) {
             YT_TLOG_FATAL_UNLESS(IsObjectAlive(transaction), "Transaction finisher contains request for non-alive transaction")
-                .WithFormat("TransactionId", "%v%v", transaction->GetId(), MakeFinishRequestFormatter(request));
+                .With("TransactionId", transaction->GetId())
+                .With(MakeFinishRequestTags(request));
 
             YT_TLOG_FATAL_IF(
                 transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active,

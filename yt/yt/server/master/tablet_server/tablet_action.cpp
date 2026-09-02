@@ -123,9 +123,9 @@ void FormatValue(TStringBuilderBase* builder, const TTabletAction& action, TStri
 {
     Format(
         builder,
-        "ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, "
+        "{ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, "
         "Cells: %v, PivotKeys: %v, TabletBalancerCorrelationId: %v, ExpirationTime: %v, ExpirationTimeout: %v, "
-        "InplaceReshard: %v, TabletMountRevisions: %v, TableId: %v, Bundle: %v",
+        "InplaceReshard: %v, TabletMountRevisions: %v, TableId: %v, Bundle: %v}",
         action.GetId(),
         action.GetState(),
         action.GetKind(),

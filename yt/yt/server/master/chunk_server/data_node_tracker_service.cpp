@@ -157,11 +157,9 @@ private:
         constexpr bool fullHeartbeat = std::is_same_v<TReqHeartbeat, TReqFullHeartbeat>;
 
         if (!FromProto<TChunkLocationDirectory>(request.location_directory()).IsValid()) {
-            YT_LOG_ALERT(
-                "Invalid data node %v heartbeat: location directory contains duplicates "
-                "(NodeId: %v)",
-                fullHeartbeat ? "full" : "incremental",
-                request.node_id());
+            YT_TLOG_ALERT("Invalid data node heartbeat: location directory contains duplicates")
+                .With("FullHeartbeat", fullHeartbeat)
+                .With("NodeId", request.node_id());
             THROW_ERROR_EXCEPTION("Location directory contains duplicates");
         }
     }

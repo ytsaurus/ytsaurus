@@ -802,11 +802,11 @@ private:
             } else {
                 for (auto sequoiaReplica : sequoiaReplicas) {
                     if (std::find(masterReplicas.begin(), masterReplicas.end(), sequoiaReplica) == masterReplicas.end()) {
-                        YT_LOG_ALERT("Extra Sequoia replica found (ChunkId: %v, MasterReplicas: %v, ExtraSequoiaReplicas: %v, CommitTimestamp: %v)",
-                            chunkId,
-                            masterReplicas,
-                            sequoiaReplica,
-                            state->Timestamp);
+                        YT_TLOG_ALERT("Extra Sequoia replica found")
+                            .With("ChunkId", chunkId)
+                            .With("MasterReplicas", masterReplicas)
+                            .With("ExtraSequoiaReplica", sequoiaReplica)
+                            .With("CommitTimestamp", state->Timestamp);
                     }
                 }
             }

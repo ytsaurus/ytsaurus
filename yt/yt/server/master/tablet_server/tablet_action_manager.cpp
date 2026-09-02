@@ -812,8 +812,8 @@ private:
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
 
-        YT_LOG_DEBUG("Tablet action created (%v)",
-            *action);
+        YT_TLOG_DEBUG("Tablet action created")
+            .With("TabletAction", *action);
 
         return action;
     }

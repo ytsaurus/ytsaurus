@@ -938,8 +938,8 @@ private:
             const auto& [clusterName, connectionInfo] = *jt;
             auto connection = static_cast<NApi::IConnectionPtr>(ClusterDirectory_->FindConnection(clusterName));
             if (!connection) {
-                YT_LOG_WARNING("Removed unknown cluster %v from replicated table tracker",
-                    clusterName);
+                YT_TLOG_WARNING("Removed unknown cluster from replicated table tracker")
+                    .With("ClusterName", clusterName);
                 ClusterToConnection_.erase(jt);
             } else if (connection != connectionInfo.Connection) {
                 CreateClient(clusterName, std::move(connection), guard);
@@ -1242,19 +1242,16 @@ private:
             ETableReplicaContentType::Data,
             std::ssize(replicas));
 
-        YT_LOG_DEBUG("Table %v "
-            "(TableId: %v, CollocationId: %v, "
-            "Replicas: %v, SyncReplicas: %v, AsyncReplicas: %v, SkippedReplicas: %v, "
-            "DesiredMaxSyncReplicaCount: %v, DesiredMinSyncReplicaCount: %v)",
-            newTable ? "added" : "updated",
-            object->GetId(),
-            collocationId,
-            object->Replicas().size(),
-            syncReplicas,
-            asyncReplicas,
-            skippedReplicas,
-            maxSyncReplicaCount,
-            minSyncReplicaCount);
+        YT_TLOG_DEBUG("Table registered in replicated table tracker")
+            .With("New", newTable)
+            .With("TableId", object->GetId())
+            .With("CollocationId", collocationId)
+            .With("Replicas", object->Replicas().size())
+            .With("SyncReplicas", syncReplicas)
+            .With("AsyncReplicas", asyncReplicas)
+            .With("SkippedReplicas", skippedReplicas)
+            .With("DesiredMaxSyncReplicaCount", maxSyncReplicaCount)
+            .With("DesiredMinSyncReplicaCount", minSyncReplicaCount);
 
         table->SetConfig(config);
         table->SetReplicas(replicas);

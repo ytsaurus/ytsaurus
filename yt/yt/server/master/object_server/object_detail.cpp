@@ -807,12 +807,12 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             }
 
             if (owner->IsUser()) {
-                YT_LOG_ALERT_IF(
+                YT_TLOG_ALERT_IF(
                     owner->AsUser()->GetPendingRemoval(),
-                    "User pending for removal is being set as %Qv attribute for object (User: %v, ObjectId: %v)",
-                    EInternedAttributeKey::Owner.Unintern(),
-                    owner->GetName(),
-                    GetId());
+                    "User pending for removal is being set as an attribute for object")
+                    .With("Attribute", EInternedAttributeKey::Owner.Unintern())
+                    .With("User", owner->GetName())
+                    .With("ObjectId", GetId());
             }
 
             if (!force) {
