@@ -2667,7 +2667,7 @@ protected:
     }
 };
 
-TEST_F(TOperationNotInPoolTreeTest, TestAssignmentPlanUpdateForAbsentOperation)
+TEST_F(TOperationNotInPoolTreeTest, AssignmentPlanUpdateForAbsentOperation)
 {
     auto nodes = CreateSingleModuleTestNodes();
     auto operation = CreateSingleGroupTestOperationWithExtraResources(
@@ -2703,7 +2703,6 @@ TEST_F(TOperationNotInPoolTreeTest, TestAssignmentPlanUpdateForAbsentOperation)
 
     DoAllocationAssignmentPlanUpdate(&context);
 }
-
 
 } // namespace
 } // namespace NYT::NScheduler::NStrategy::NPolicy::NGpu

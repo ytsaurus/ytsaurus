@@ -152,7 +152,7 @@ void TGpuManager::Start()
 
     if (StaticConfig_->GpuFlavor != EGpuFlavor::Nvidia) {
         if (Bootstrap_->GetJobEnvironmentType() == NJobProxy::EJobEnvironmentType::Porto) {
-            YT_TLOG_FATAL("Non-nvidia GPU flavor does not support Porto job environment")
+            YT_TLOG_FATAL("Non-Nvidia GPU flavor does not support Porto job environment")
                 .With("GpuFlavor", StaticConfig_->GpuFlavor);
         }
 
@@ -226,6 +226,8 @@ void TGpuManager::Start()
         YT_TLOG_INFO("No GPU driver layer directory specified");
     }
 
+    // NB(severovv): If initial discovery yields no devices, GPU support stays disabled until restart.
+    // Late discovery from an initially empty device set is intentionally unsupported.
     if (gpuInfos.empty()) {
         return;
     }
@@ -404,7 +406,7 @@ void TGpuManager::OnHealthCheck()
                     ++GpuDeviceCount_;
                     GpuDeviceIndices_.insert(gpuInfo.Index);
                     newFreeSlotIndices.emplace_back(gpuInfo.Index);
-                    YT_TLOG_WARNING("Discovered new GPU device")
+                    YT_TLOG_INFO("Discovered new GPU device")
                         .With("DeviceIndex", gpuInfo.Index)
                         .With("DeviceName", gpuInfo.Name);
                 }
