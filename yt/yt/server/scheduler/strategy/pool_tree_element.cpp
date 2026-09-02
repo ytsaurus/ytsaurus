@@ -773,6 +773,12 @@ void TPoolTreeCompositeElement::InitializeUpdate(TInstant now)
 void TPoolTreeCompositeElement::PreUpdate(TFairSharePreUpdateContext* context)
 {
     YT_VERIFY(Mutable_);
+
+    // NB: Resolved before descending, since the children inherit whatever this element ends up with.
+    EffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled_ =
+        GetSpecifiedFifoChildrenReorderingForGuaranteeUtilizationEnabled().value_or(
+            Parent_ && Parent_->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+
     for (const auto& child : EnabledChildren_) {
         child->PreUpdate(context);
     }
@@ -1064,6 +1070,16 @@ bool TPoolTreeCompositeElement::HasHigherPriorityInFifoMode(const NVectorHdrf::T
 bool TPoolTreeCompositeElement::IsStepFunctionForGangOperationsEnabled() const
 {
     return true;
+}
+
+bool TPoolTreeCompositeElement::IsFifoChildrenReorderingForGuaranteeUtilizationEnabled() const
+{
+    return EffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled_;
+}
+
+std::optional<bool> TPoolTreeCompositeElement::GetSpecifiedFifoChildrenReorderingForGuaranteeUtilizationEnabled() const
+{
+    return {};
 }
 
 const std::vector<TPoolTreeElementPtr>& TPoolTreeCompositeElement::EnabledChildren() const
@@ -1504,6 +1520,11 @@ THashSet<std::string> TPoolTreePoolElement::GetAllowedProfilingTags() const
 bool TPoolTreePoolElement::IsStepFunctionForGangOperationsEnabled() const
 {
     return Config_->EnableStepFunctionForGangOperations;
+}
+
+std::optional<bool> TPoolTreePoolElement::GetSpecifiedFifoChildrenReorderingForGuaranteeUtilizationEnabled() const
+{
+    return Config_->EnableFifoChildrenReorderingForGuaranteeUtilization;
 }
 
 bool TPoolTreePoolElement::ShouldComputePromisedGuaranteeFairShare() const
