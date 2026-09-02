@@ -76,10 +76,11 @@ public:
         }
 
         auto cellConfig = New<TCellConfig>();
+        YT_VERIFY(weights.empty() || std::ssize(weights) == peerCount);
         for (int id = 0; id < peerCount; ++id) {
             auto peerConfig = New<TCellPeerConfig>();
             peerConfig->Address = GetPeerAddress(id);
-            if (id < std::ssize(weights)) {
+            if (!weights.empty()) {
                 peerConfig->Weight = weights[id];
             }
             cellConfig->Peers.push_back(peerConfig);
