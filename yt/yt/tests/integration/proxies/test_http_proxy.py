@@ -58,13 +58,9 @@ def try_parse_yt_error_trailers(rsp):
 
 class HttpProxyTestBase(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 5
-    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
     ENABLE_HTTP_PROXY = True
-    ENABLE_RPC_PROXY = True
-    NUM_SECONDARY_MASTER_CELLS = 2
     NUM_HTTP_PROXIES = 1
-    NUM_RPC_PROXIES = 2
 
     DELTA_HTTP_PROXY_CONFIG = {
         "coordinator": {
@@ -417,50 +413,6 @@ class TestHttpProxy(HttpProxyTestBase):
     @authors("prime")
     def test_supported_api_versions(self):
         assert ["v3", "v4"] == requests.get(self._get_proxy_address() + "/api").json()
-
-    @authors("prime")
-    def test_discover_versions_v2(self):
-        # Give all components some time to be considered online.
-        time.sleep(5)
-
-        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
-        rsp.raise_for_status()
-
-        versions = rsp.json()
-        assert "details" in versions
-        assert "summary" in versions
-
-        print_debug(f"Collected component versions: {versions}")
-
-        counts = collections.Counter()
-
-        for instance in versions["details"]:
-            assert "address" in instance
-            assert "start_time" in instance
-            assert "type" in instance
-            assert "version" in instance
-
-            if "state" in instance:
-                assert instance["state"] == "online"
-
-            counts[instance["type"]] += 1
-
-        summary = versions["summary"]
-        # All components run on the same version + there is a total summary.
-        assert len(summary) == 2
-        for version_summary in summary.values():
-            for type, component_summary in version_summary.items():
-                assert component_summary["total"] == counts[type]
-                assert component_summary["banned"] == 0
-                assert component_summary["offline"] == 0
-
-        assert counts["primary_master"] == 1
-        assert counts["secondary_master"] == 2
-        assert counts["cluster_node"] == 5
-        assert counts["scheduler"] == 1
-        assert counts["controller_agent"] == 1
-        assert counts["http_proxy"] == 1
-        assert counts["rpc_proxy"] == 2
 
     @authors("prime")
     def test_cache_control(self):
@@ -1065,6 +1017,10 @@ class TestHttpProxyPoolMetrics(HttpProxyTestBase):
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SCHEDULERS = 1
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 2
     NUM_DISCOVERY_SERVERS = 1
     NUM_TIMESTAMP_PROVIDERS = 1
     NUM_MASTER_CACHES = 1
@@ -1112,7 +1068,7 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
 
         assert counts["primary_master"] == 1
         assert counts["secondary_master"] == 2
-        assert counts["cluster_node"] == 5
+        assert counts["cluster_node"] == 3
         assert counts["scheduler"] == 1
         assert counts["controller_agent"] == 1
         assert counts["http_proxy"] == 1
@@ -1130,6 +1086,10 @@ class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
     USE_SEQUOIA = True
+    NUM_SECONDARY_MASTER_CELLS = 2
+    ENABLE_RPC_PROXY = True
+    NUM_SCHEDULERS = 1
+    NUM_RPC_PROXIES = 2
     NUM_CLOCKS = 1
     NUM_REMOTE_CLUSTERS = 1
     USE_SEQUOIA_REMOTE_0 = False
@@ -1172,7 +1132,7 @@ class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
 
         assert counts["primary_master"] == 1
         assert counts["secondary_master"] == 2
-        assert counts["cluster_node"] == 5
+        assert counts["cluster_node"] == 3
         assert counts["scheduler"] == 1
         assert counts["http_proxy"] == 1
         assert counts["rpc_proxy"] == 2
@@ -1187,6 +1147,7 @@ class TestSolomonProxy(HttpProxyTestBase):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_HTTP_PROXIES = 1
+    ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
 
     # Just to make the test run faster.
@@ -1462,13 +1423,12 @@ class TestHttpProxyAccessChecker(HttpProxyAccessCheckerTestBase):
 class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
     ENABLE_MULTIDAEMON = True
 
-    @classmethod
-    def setup_class(cls):
-        cls.DELTA_HTTP_PROXY_CONFIG["access_checker"].update({
+    DELTA_HTTP_PROXY_CONFIG = {
+        "access_checker": {
             "use_access_control_objects": True,
             "path_prefix": "//sys/access_control_object_namespaces/http_proxy_roles",
-        })
-        super().setup_class()
+        }
+    }
 
     def create_proxy_role_namespace(self):
         create_access_control_object_namespace("http_proxy_roles")
@@ -1508,12 +1468,11 @@ class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
 class TestHttpProxyAuth(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
-    @classmethod
-    def setup_class(cls):
-        cls.DELTA_HTTP_PROXY_CONFIG["auth"] = {
+    DELTA_HTTP_PROXY_CONFIG = {
+        "auth": {
             "enable_authentication": True,
         }
-        super(TestHttpProxyAuth, cls).setup_class()
+    }
 
     def create_user_with_token(self, user):
         create_user(user)
@@ -1776,11 +1735,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
 
 
 class TestHttpProxyJobShellAudit(HttpProxyTestBase):
-    NUM_MASTERS = 1
-    NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    ENABLE_HTTP_PROXY = True
-    NUM_HTTP_PROXIES = 1
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -1880,6 +1835,8 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
 
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
     NUM_TEST_PARTITIONS = 6
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 2
     ENABLE_MULTIDAEMON = True
 
     def setup_method(self, method):
@@ -2035,8 +1992,6 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
 
 
 class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
-    NUM_SCHEDULERS = 0
-
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
             "build_snapshot_delay": 10000,
@@ -2177,7 +2132,6 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
-    NUM_HTTP_PROXIES = 1
     ENABLE_MULTIDAEMON = True
 
     def enable_allocation_tags(self, proxy):
