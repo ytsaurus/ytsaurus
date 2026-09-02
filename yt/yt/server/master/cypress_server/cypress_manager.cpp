@@ -3353,10 +3353,11 @@ private:
                         .With("NodeId", nodeId)
                         .With("UpdateMode", updateMode);
 
-                    YT_LOG_ALERT_UNLESS(securityTagsUpdateMode == ESecurityTagsUpdateMode::None,
-                        "Trunk node with non-trivial security tags update mode was found (NodeId: %v, SecurityTagsUpdateMode: %v)",
-                        nodeId,
-                        updateMode);
+                    YT_TLOG_ALERT_UNLESS(
+                        securityTagsUpdateMode == ESecurityTagsUpdateMode::None,
+                        "Trunk node with non-trivial security tags update mode was found")
+                        .With("NodeId", nodeId)
+                        .With("SecurityTagsUpdateMode", securityTagsUpdateMode);
                 }
             }
 
@@ -3609,10 +3610,10 @@ private:
                 .With("Type", node->GetType())
                 .With("ExternalCellTag", node->GetExternalCellTag());
         } else {
-            YT_LOG_DEBUG("%v node registered (NodeId: %v, Type: %v)",
-                node->IsForeign() ? "Foreign" : "Local",
-                node->GetId(),
-                node->GetType());
+            YT_TLOG_DEBUG("Node registered")
+                .With("Foreign", node->IsForeign())
+                .With("NodeId", node->GetId())
+                .With("Type", node->GetType());
         }
 
         return node;
@@ -3795,7 +3796,8 @@ private:
         Visit(error,
             [&] (const TCheckLockSuccess&) { },
             [&] (const auto& error) {
-                YT_LOG_ALERT_IF(error.Error.IsOK(), "CheckLock failed with %v, but the TError inside is emtpy", TypeName(error));
+                YT_TLOG_ALERT_IF(error.Error.IsOK(), "Lock check failed but the error inside is empty")
+                    .With("ErrorType", TypeName(error));
             });
 
         return error;

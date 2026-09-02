@@ -648,24 +648,20 @@ private:
                     subresponse->add_replicas(ToProto(replica));
                 }
 
-                YT_LOG_DEBUG("Write targets allocated "
-                    "(SessionId: %v%v, DesiredTargetCount: %v, MinTargetCount: %v, ReplicationFactorOverride: %v, "
-                    "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v, Targets: %v)",
-                    sessionId,
-                    MakeFormatterWrapper([&] (auto* builder) {
-                        if (hasConsistentReplicaPlacementHash) {
-                            builder->AppendFormat(
-                                ", ConsistentReplicaPlacementHash: %x",
-                                consistentReplicaPlacementHash);
-                        }
-                    }),
-                    desiredTargetCount,
-                    minTargetCount,
-                    replicationFactorOverride,
-                    preferredHostName,
-                    forbiddenAddresses,
-                    allocatedAddresses,
-                    MakeFormattableView(targets, TNodePtrAddressFormatter()));
+                YT_TLOG_DEBUG("Write targets allocated")
+                    .With("SessionId", sessionId)
+                    .WithFormatIf(
+                        hasConsistentReplicaPlacementHash,
+                        "ConsistentReplicaPlacementHash",
+                        "%x",
+                        consistentReplicaPlacementHash)
+                    .With("DesiredTargetCount", desiredTargetCount)
+                    .With("MinTargetCount", minTargetCount)
+                    .With("ReplicationFactorOverride", replicationFactorOverride)
+                    .With("PreferredHostName", preferredHostName)
+                    .With("ForbiddenAddresses", forbiddenAddresses)
+                    .With("AllocatedAddresses", allocatedAddresses)
+                    .With("Targets", MakeFormattableView(targets, TNodePtrAddressFormatter()));
             } catch (const std::exception& ex) {
                 auto error = TError(ex);
                 YT_TLOG_DEBUG("Error allocating write targets")

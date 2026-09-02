@@ -446,9 +446,9 @@ private:
             return false;
         }
         if (!ChunkMetaEqual(firstChunk, chunk)) {
-            YT_LOG_DEBUG("Shallow merge criteria violated: chunk metas differ (ChunkId: %v, ChunkId: %v)",
-                ChunkIds_.front(),
-                chunk->GetId());
+            YT_TLOG_DEBUG("Shallow merge criteria violated: chunk metas differ")
+                .With("FirstChunkId", ChunkIds_.front())
+                .With("ChunkId", chunk->GetId());
             return false;
         }
 
@@ -512,18 +512,16 @@ private:
         const auto targetSatisfiedCriteriaCount = 10;
 
         auto& statistics = TraversalStatistics_.ViolatedCriteriaStatistics;
-        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criterionName, auto formattedArguments) {
+        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criterionName, auto makeCriterionTags) {
             if (condition) {
                 ++satisfiedCriteriaCount;
             } else {
                 ++violatedCriteriaCount;
-                YT_LOG_DEBUG(
-                    "Cannot add chunk to merge job due to limit violation "
-                    "(ViolatedCriterion: %v, %v, DesiredParentChunkListId: %v, ParentChunkListId: %v)",
-                    criterionName,
-                    formattedArguments,
-                    ParentChunkListId_,
-                    parent->GetId());
+                YT_TLOG_DEBUG("Cannot add chunk to merge job due to limit violation")
+                    .With("ViolatedCriterion", criterionName)
+                    .With(makeCriterionTags())
+                    .With("DesiredParentChunkListId", ParentChunkListId_)
+                    .With("ParentChunkListId", parent->GetId());
             }
         };
 
@@ -531,78 +529,96 @@ private:
             ChunkListsWithJobs_ < config->MaxChunkListCountPerMergeSession,
             statistics.MaxChunkListCountPerMergeSessionViolatedCriteria,
             "ChunkListsWithJobsCountPerMergeSession",
-            Format("CurrentChunkListsWithJobsCount: %v, MaxChunkListWithJobsCountPerMergeSession: %v",
-                ChunkListsWithJobs_,
-                config->MaxChunkListCountPerMergeSession));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("CurrentChunkListsWithJobsCount", ChunkListsWithJobs_)
+                    .With("MaxChunkListWithJobsCountPerMergeSession", config->MaxChunkListCountPerMergeSession);
+            });
 
         incrementSatisfiedOrViolatedCriteriaCount(
             parent->GetId() != LastChunkListId_ || LastChunkListJobCount_ < config->MaxJobsPerChunkList,
             statistics.MaxJobsPerChunkListViolatedCriteria,
             "JobCountPerChunkList",
-            Format("LastChunkListId: %v, LastChunkListJobCount: %v, MaxJobsPerChunkList: %v",
-                LastChunkListId_,
-                LastChunkListJobCount_,
-                config->MaxJobsPerChunkList));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("LastChunkListId", LastChunkListId_)
+                    .With("LastChunkListJobCount", LastChunkListJobCount_)
+                    .With("MaxJobsPerChunkList", config->MaxJobsPerChunkList);
+            });
 
         incrementSatisfiedOrViolatedCriteriaCount(
             std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
             statistics.MaxChunkCountViolatedCriteria,
             "ChunkCount",
-            Format("CurrentChunkCount: %v, MaxChunkCount: %v",
-                std::ssize(ChunkIds_),
-                mergerCriteria.MaxChunkCount));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("CurrentChunkCount", std::ssize(ChunkIds_))
+                    .With("MaxChunkCount", mergerCriteria.MaxChunkCount);
+            });
 
         incrementSatisfiedOrViolatedCriteriaCount(
             chunk->ChunkMeta()->GetExtensionsByteSize() < mergerCriteria.MaxChunkMetaSize,
             statistics.MaxChunkMetaSizeViolatedCriteria,
             "ChunkMetaSize",
-            Format("ChunkMetaSize: %v, MaxChunkMetaSize: %v",
-                chunk->ChunkMeta()->GetExtensionsByteSize(),
-                mergerCriteria.MaxChunkMetaSize));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("ChunkMetaSize", chunk->ChunkMeta()->GetExtensionsByteSize())
+                    .With("MaxChunkMetaSize", mergerCriteria.MaxChunkMetaSize);
+            });
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize,
             statistics.MaxCompressedDataSizeViolatedCriteria,
             "CompressedDataSize",
-            Format("CurrentCompressedDataSize: %v, ChunkCompressedDataSize: %v, MaxCompressedDataSize: %v",
-                CurrentCompressedDataSize_,
-                chunk->GetCompressedDataSize(),
-                mergerCriteria.MaxCompressedDataSize));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("CurrentCompressedDataSize", CurrentCompressedDataSize_)
+                    .With("ChunkCompressedDataSize", chunk->GetCompressedDataSize())
+                    .With("MaxCompressedDataSize", mergerCriteria.MaxCompressedDataSize);
+            });
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight,
             statistics.MaxDataWeightViolatedCriteria,
             "DataWeight",
-            Format("CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v",
-                CurrentDataWeight_,
-                chunk->GetDataWeight(),
-                mergerCriteria.MaxDataWeight));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("CurrentDataWeight", CurrentDataWeight_)
+                    .With("ChunkDataWeight", chunk->GetDataWeight())
+                    .With("MaxDataWeight", mergerCriteria.MaxDataWeight);
+            });
 
         incrementSatisfiedOrViolatedCriteriaCount(
             chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight,
             statistics.MaxInputChunkDataWeightViolatedCriteria,
             "InputChunkDataWeight",
-            Format("ChunkDataWeight: %v, MaxInputChunkDataWeight: %v",
-                chunk->GetDataWeight(),
-                mergerCriteria.MaxInputChunkDataWeight));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("ChunkDataWeight", chunk->GetDataWeight())
+                    .With("MaxInputChunkDataWeight", mergerCriteria.MaxInputChunkDataWeight);
+            });
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,
             statistics.MaxRowCountViolatedCriteria,
             "RowCount",
-            Format("CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v",
-                CurrentRowCount_,
-                chunk->GetRowCount(),
-                mergerCriteria.MaxRowCount));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("CurrentRowCount", CurrentRowCount_)
+                    .With("ChunkRowCount", chunk->GetRowCount())
+                    .With("MaxRowCount", mergerCriteria.MaxRowCount);
+            });
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize,
             statistics.MaxUncompressedDataSizeViolatedCriteria,
             "UncompressedDataSize",
-            Format("CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v",
-                CurrentUncompressedDataSize_,
-                chunk->GetUncompressedDataSize(),
-                mergerCriteria.MaxUncompressedDataSize));
+            [&] {
+                return NLogging::TLoggingTagList()
+                    .With("CurrentUncompressedDataSize", CurrentUncompressedDataSize_)
+                    .With("ChunkUncompressedDataSize", chunk->GetUncompressedDataSize())
+                    .With("MaxUncompressedDataSize", mergerCriteria.MaxUncompressedDataSize);
+            });
 
         if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
             ++satisfiedCriteriaCount;
@@ -1837,11 +1853,12 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
         auto validateError = [&, this_ = MakeStrong(this)] (auto error, auto message) {
             if (!error.IsOK()) {
                 YT_VERIFY(job->GetState() == EJobState::Failed);
-                YT_LOG_ALERT(error, "%v (JobId: %v, NodeId: %v, AccountId: %v)",
-                    message,
-                    job->GetJobId(),
-                    job->JobInfo().NodeId,
-                    job->JobInfo().AccountId);
+                YT_TLOG_ALERT("Chunk merge job validation failed; disabling chunk merger")
+                    .With("Reason", message)
+                    .With("JobId", job->GetJobId())
+                    .With("NodeId", job->JobInfo().NodeId)
+                    .With("AccountId", job->JobInfo().AccountId)
+                    .With(error);
                 NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
                     BIND(&TChunkMerger::DisableChunkMerger, MakeStrong(this)));
             }
@@ -1849,8 +1866,8 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
 
         auto shallowMergeValidationError = FromProto<TError>(jobResultExt.shallow_merge_validation_error());
         auto chunksMetaValidationError = FromProto<TError>(jobResultExt.chunk_meta_validation_error());
-        validateError(shallowMergeValidationError, "Shallow merge validation failed; disabling chunk merger");
-        validateError(chunksMetaValidationError, "Input and output chunks meta validation failed; disabling chunk merger");
+        validateError(shallowMergeValidationError, "Shallow merge validation failed");
+        validateError(chunksMetaValidationError, "Input and output chunks meta validation failed");
     }
 
     FinalizeJob(

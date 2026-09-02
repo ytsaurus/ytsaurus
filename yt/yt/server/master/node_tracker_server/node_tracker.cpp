@@ -3326,10 +3326,10 @@ private:
             PendingRestartMaintenanceNodeIdToSetIt_.emplace(nodeId, it);
         }
 
-        YT_LOG_INFO("Node restart is %v (NodeId: %v, Address: %v)",
-            node->IsPendingRestart() ? "pending" : "no longer pending",
-            nodeId,
-            node->GetDefaultAddress());
+        YT_TLOG_INFO("Node restart pending state changed")
+            .With("PendingRestart", node->IsPendingRestart())
+            .With("NodeId", nodeId)
+            .With("Address", node->GetDefaultAddress());
 
         NodePendingRestartChanged_.Fire(node);
     }

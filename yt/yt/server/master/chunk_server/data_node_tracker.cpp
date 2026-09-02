@@ -1175,12 +1175,10 @@ private:
 
         auto* location = FindChunkLocationByUuid(uuid);
         if (!IsObjectAlive(location)) {
-            YT_LOG_ALERT(
-                "Data node reported %v heartbeat with invalid location directory: "
-                "location does not exist (NodeAddress: %v, LocationUuid: %v)",
-                FullHeartbeat ? "full" : "incremental",
-                node->GetDefaultAddress(),
-                uuid);
+            YT_TLOG_ALERT("Data node reported heartbeat with invalid location directory: location does not exist")
+                .With("FullHeartbeat", FullHeartbeat)
+                .With("NodeAddress", node->GetDefaultAddress())
+                .With("LocationUuid", uuid);
             THROW_ERROR_EXCEPTION(
                 "Heartbeats with unknown location in location directory are invalid")
                 .With("location_uuid", uuid);
@@ -1188,27 +1186,21 @@ private:
 
         auto locationNode = location->GetNode();
         if (!locationNode) {
-            YT_LOG_ALERT(
-                "Data node reported %v heartbeat with invalid location directory: "
-                "location does not have owning node "
-                "(NodeAddress: %v, LocationUuid: %v)",
-                FullHeartbeat ? "full" : "incremental",
-                node->GetDefaultAddress(),
-                uuid);
+            YT_TLOG_ALERT("Data node reported heartbeat with invalid location directory: location does not have owning node")
+                .With("FullHeartbeat", FullHeartbeat)
+                .With("NodeAddress", node->GetDefaultAddress())
+                .With("LocationUuid", uuid);
             THROW_ERROR_EXCEPTION(
                 "Heartbeats with dangling locations in location directory are invalid")
                 .With("location_uuid", uuid);
         }
 
         if (locationNode != node) {
-            YT_LOG_ALERT(
-                "Data node reported %v heartbeat with invalid location directory: "
-                "location belongs to another node "
-                "(NodeAddress: %v, LocationUuid: %v, AnotherNodeAddress: %v)",
-                FullHeartbeat ? "full" : "incremental",
-                node->GetDefaultAddress(),
-                uuid,
-                locationNode->GetDefaultAddress());
+            YT_TLOG_ALERT("Data node reported heartbeat with invalid location directory: location belongs to another node")
+                .With("FullHeartbeat", FullHeartbeat)
+                .With("NodeAddress", node->GetDefaultAddress())
+                .With("LocationUuid", uuid)
+                .With("AnotherNodeAddress", locationNode->GetDefaultAddress());
             THROW_ERROR_EXCEPTION(
                 "Heartbeat's location directory cannot contain location which belongs to other node")
                 .With("location_uuid", uuid)
@@ -1528,12 +1520,11 @@ private:
 
             node->SetNextValidationFullHeartbeatTime(mutationContext->GetTimestamp() + timeBeforeNextValidationHeartbeat);
 
-            YT_LOG_DEBUG(
-                "%v validation full heartbeat session for node (NodeId: %v, Address: %v, Time: %v)",
-                time.has_value() ? "Rescheduling" : "Scheduling initial",
-                nodeId,
-                node->GetDefaultAddress(),
-                node->GetNextValidationFullHeartbeatTime());
+            YT_TLOG_DEBUG("Scheduling validation full heartbeat session for node")
+                .With("Rescheduling", time.has_value())
+                .With("NodeId", nodeId)
+                .With("Address", node->GetDefaultAddress())
+                .With("Time", node->GetNextValidationFullHeartbeatTime());
 
             response->set_schedule_validation_full_heartbeat_session(time.has_value());
         }
@@ -1764,11 +1755,11 @@ private:
         const auto& diskFamilyWhitelist = medium->AsDomestic()->DiskFamilyWhitelist();
         auto diskFamily = FromProto<std::string>(location->Statistics().disk_family());
         if (diskFamilyWhitelist && !std::ranges::binary_search(*diskFamilyWhitelist, diskFamily)) {
-            YT_LOG_ALERT("Inconsistent medium (LocationUuid: %v, Medium: %v, DiskFamily: %v, DiskFamilyWhitelist: %v)",
-                locationUuid,
-                medium->GetName(),
-                diskFamilyWhitelist,
-                diskFamily);
+            YT_TLOG_ALERT("Inconsistent medium")
+                .With("LocationUuid", locationUuid)
+                .With("Medium", medium->GetName())
+                .With("DiskFamily", diskFamily)
+                .With("DiskFamilyWhitelist", diskFamilyWhitelist);
             LocationAlerts_[locationUuid] = TError("Inconsistent medium")
                 .With("location_uuid", locationUuid)
                 .With("medium_name", medium->GetName())

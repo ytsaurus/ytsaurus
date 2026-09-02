@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,15 +55,15 @@ struct ITabletChunkManager
         TTablet* tablet,
         NProto::TReqUpdateTabletStores* request) = 0;
 
-    //! Returns logging string containing update statistics.
-    virtual std::string CommitUpdateTabletStores(
+    //! Returns logging tags containing update statistics.
+    virtual NLogging::TLoggingTagList CommitUpdateTabletStores(
         TTablet* tablet,
         NTransactionServer::TTransaction* transaction,
         NProto::TReqUpdateTabletStores* request,
         NTabletClient::ETabletStoresUpdateReason updateReason) = 0;
 
-    //! Returns logging string containing update statistics.
-    virtual std::string CommitUpdateHunkTabletStores(
+    //! Returns logging tags containing update statistics.
+    virtual NLogging::TLoggingTagList CommitUpdateHunkTabletStores(
         THunkTablet* tablet,
         NProto::TReqUpdateHunkTabletStores* request) = 0;
 

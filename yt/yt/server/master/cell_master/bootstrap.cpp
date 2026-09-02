@@ -1290,8 +1290,8 @@ void TBootstrap::DoLoadSnapshot(
     auto snapshotId = TryFromString<int>(NFS::GetFileNameWithoutExtension(fileName));
     if (snapshotId.Empty()) {
         snapshotId = InvalidSegmentId;
-        YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse snapshot name as id, using id %v as substitute",
-            snapshotId);
+        YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Cannot parse snapshot name as id, using a substitute")
+            .With("SnapshotId", snapshotId);
     }
     auto snapshotReader = CreateLocalSnapshotReader(fileName, *snapshotId, GetSnapshotIOInvoker());
 
@@ -1337,8 +1337,8 @@ void TBootstrap::DoReplayChangelogs(const std::vector<std::string>& changelogFil
         auto changelogId = TryFromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
         if (changelogId.Empty()) {
             changelogId = InvalidSegmentId;
-            YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Can't parse changelog name as id, using id %v as substitute",
-                changelogId);
+            YT_TLOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Cannot parse changelog name as id, using a substitute")
+                .With("ChangelogId", changelogId);
         }
 
         auto changelog = WaitFor(dispatcher->OpenChangelog(*changelogId, changelogFileName, changelogsConfig))

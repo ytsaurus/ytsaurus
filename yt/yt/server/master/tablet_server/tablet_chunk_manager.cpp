@@ -775,7 +775,7 @@ public:
         }
     }
 
-    std::string CommitUpdateTabletStores(
+    NLogging::TLoggingTagList CommitUpdateTabletStores(
         TTablet* tablet,
         NTransactionServer::TTransaction* transaction,
         NProto::TReqUpdateTabletStores* request,
@@ -1006,19 +1006,16 @@ public:
         counters->UpdateTabletStoresStoreCount.Increment(chunksToAttach.size() + chunksOrViewsToDetach.size());
         counters->UpdateTabletStoresHunkChunkCount.Increment(hunkChunksToAttach.size() + hunkChunksToDetach.size());
 
-        return Format("AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
-            "AttachedHunkChunkIds: %v, DetachedHunkChunkIds: %v, "
-            "AttachedRowCount: %v, DetachedRowCount: %v, UpdateReason: %v",
-            MakeFormattableView(chunksToAttach, TObjectIdFormatter()),
-            MakeFormattableView(chunksOrViewsToDetach, TObjectIdFormatter()),
-            MakeFormattableView(hunkChunksToAttach, TObjectIdFormatter()),
-            MakeFormattableView(hunkChunksToDetach, TObjectIdFormatter()),
-            attachedRowCount,
-            detachedRowCount,
-            updateReason);
+        return NLogging::TLoggingTagList()
+            .With("AttachedChunkIds", MakeFormattableView(chunksToAttach, TObjectIdFormatter()))
+            .With("DetachedChunkOrViewIds", MakeFormattableView(chunksOrViewsToDetach, TObjectIdFormatter()))
+            .With("AttachedHunkChunkIds", MakeFormattableView(hunkChunksToAttach, TObjectIdFormatter()))
+            .With("DetachedHunkChunkIds", MakeFormattableView(hunkChunksToDetach, TObjectIdFormatter()))
+            .With("AttachedRowCount", attachedRowCount)
+            .With("DetachedRowCount", detachedRowCount);
     }
 
-    std::string CommitUpdateHunkTabletStores(
+    NLogging::TLoggingTagList CommitUpdateHunkTabletStores(
         THunkTablet* tablet,
         NProto::TReqUpdateHunkTabletStores* request) override
     {
@@ -1087,10 +1084,10 @@ public:
             chunkManager->ScheduleChunkRequisitionUpdate(chunk);
         }
 
-        return Format("AddedChunkIds: %v, RemovedChunkIds: %v, MarkSealableChunkIds: %v)",
-            MakeFormattableView(chunksToAdd, TObjectIdFormatter()),
-            MakeFormattableView(chunksToRemove, TObjectIdFormatter()),
-            MakeFormattableView(chunksToMarkSealable, TObjectIdFormatter()));
+        return NLogging::TLoggingTagList()
+            .With("AddedChunkIds", MakeFormattableView(chunksToAdd, TObjectIdFormatter()))
+            .With("RemovedChunkIds", MakeFormattableView(chunksToRemove, TObjectIdFormatter()))
+            .With("MarkSealableChunkIds", MakeFormattableView(chunksToMarkSealable, TObjectIdFormatter()));
     }
 
     void MakeTableDynamic(NTableServer::TTableNode* table, i64 cumulativeDataWeight) override

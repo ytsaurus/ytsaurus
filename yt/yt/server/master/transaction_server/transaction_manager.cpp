@@ -357,22 +357,21 @@ public:
         }
 
         const auto& transactions = it->second;
-        YT_LOG_ALERT_IF(transactions.empty(),
-            "Lease is referenced by an empty list of transactions (LeaseId: %v)",
-            lease->GetId());
+        YT_TLOG_ALERT_IF(transactions.empty(), "Lease is referenced by an empty list of transactions")
+            .With("LeaseId", lease->GetId());
 
-        YT_LOG_ALERT_IF(lease->GetPersistentRefCounter() < std::ssize(transactions),
-            "Lease has persistent reference count smaller than the number of transactions it's referenced by "
-            "(LeaseId: %v, PersistentRefCounter: %v, ReferencingTransactionCount: %v, ReferencingTransactions: %v)",
-            lease->GetId(),
-            lease->GetPersistentRefCounter(),
-            std::ssize(transactions),
-            MakeShrunkFormattableView(
-                transactions,
-                [] (TStringBuilderBase* builder, TTransaction* transaction) {
-                    builder->AppendFormat("%v", GetObjectId(transaction));
-                },
-                100));
+        YT_TLOG_ALERT_IF(
+            lease->GetPersistentRefCounter() < std::ssize(transactions),
+            "Lease has persistent reference count smaller than the number of transactions it's referenced by")
+            .With("LeaseId", lease->GetId())
+            .With("PersistentRefCounter", lease->GetPersistentRefCounter())
+            .With("ReferencingTransactionCount", std::ssize(transactions))
+            .With("ReferencingTransactions", MakeShrunkFormattableView(
+                    transactions,
+                    [] (TStringBuilderBase* builder, TTransaction* transaction) {
+                        builder->AppendFormat("%v", GetObjectId(transaction));
+                    },
+                    100));
 
         for (auto* transaction : transactions) {
             auto it = TransactionToReferencedLeases_.find(transaction);
@@ -1010,10 +1009,10 @@ public:
         TTransaction* transaction,
         const TTransactionCommitOptions& options) override
     {
-        YT_LOG_ALERT_IF(
+        YT_TLOG_ALERT_IF(
             transaction->IsCypressTransaction() && IsSequoiaId(transaction->GetId()),
-            "Attempt to commit Cypress transaction in non-Sequoia way (TransactionId: %v)",
-            transaction->GetId());
+            "Attempt to commit Cypress transaction in non-Sequoia way")
+            .With("TransactionId", transaction->GetId());
 
         CommitTransaction(transaction, options);
     }
@@ -1144,9 +1143,10 @@ public:
         if (auto currentSequoiaRevision = GetCurrentSequoiaRevision()) {
             Visit(*currentSequoiaRevision,
                 [&] (const TSequoiaRevisionPrepare&) {
-                    YT_LOG_ALERT_IF(IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transaction->GetId()),
-                        "Mirrored transaction commit is executed outside of Sequoia transaction commit (TransactionId: %v)",
-                        transaction->GetId());
+                    YT_TLOG_ALERT_IF(
+                        IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transaction->GetId()),
+                        "Mirrored transaction commit is executed outside of Sequoia transaction commit")
+                        .With("TransactionId", transaction->GetId());
                 },
                 [&] (const TSequoiaRevisionCommit& revision) {
                     sequoiaRevision = revision.Revision;
@@ -1227,10 +1227,10 @@ public:
         TTransaction* transaction,
         const TTransactionAbortOptions& options) override
     {
-        YT_LOG_ALERT_IF(
+        YT_TLOG_ALERT_IF(
             transaction->IsCypressTransaction() && IsSequoiaId(transaction->GetId()),
-            "Attempt to abort mirrored Cypress transaction in non-Sequoia way (TransactionId: %v)",
-            transaction->GetId());
+            "Attempt to abort mirrored Cypress transaction in non-Sequoia way")
+            .With("TransactionId", transaction->GetId());
 
         AbortTransaction(
             transaction,
@@ -1543,11 +1543,11 @@ public:
             if (IsObjectAlive(user)) {
                 startRequest.set_user(ToProto(user->GetName()));
             } else {
-                YT_LOG_ALERT("Transaction user is not alive during %v (TransactionId: %v)",
-                    transaction->GetId() == transactionId
-                    ? "replication"
-                    : "externalization",
-                    transaction->GetId());
+                YT_TLOG_ALERT("Transaction user is not alive")
+                    .With("Operation", transaction->GetId() == transactionId
+                        ? "replication"
+                        : "externalization")
+                    .With("TransactionId", transaction->GetId());
             }
         } else {
             // TODO(shakurov): this is a reproduction of an old bug. Remove.
@@ -3183,10 +3183,10 @@ private:
             return;
         }
 
-        YT_LOG_ALERT_UNLESS(
+        YT_TLOG_ALERT_UNLESS(
             IsCypressTransactionType(TypeFromId(transactionId)),
-            "Unexpected transaction object type encountered during replica materialization (TransactionId: %v)",
-            transactionId);
+            "Unexpected transaction object type encountered during replica materialization")
+            .With("TransactionId", transactionId);
 
         HydraStartForeignTransaction(request);
     }
@@ -3335,12 +3335,10 @@ private:
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto cellType = TypeFromId(cellId);
 
-        auto alerted = AlertOnInvalidLeaseCellType(
-            cellId,
-            "Requested to issue leases for unknown cell type, ignored (TransactionIds: %v, CellType: %v)",
-            transactionIds,
-            cellType);
-        if (alerted) {
+        if (!IsValidCellTypeForLeaseIssue(cellType)) {
+            YT_TLOG_ALERT("Requested to issue leases for unknown cell type, ignored")
+                .With("TransactionIds", transactionIds)
+                .With("CellType", cellType);
             return;
         }
         auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
@@ -3507,12 +3505,10 @@ private:
                 hiveManager->PostMessage(mailbox, message);
 
                 if (force) {
-                    auto alerted = AlertOnInvalidLeaseCellType(
-                        cellId,
-                        "Requested to revoke leases for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
-                        transaction->GetId(),
-                        cellType);
-                    if (alerted) {
+                    if (!IsValidCellTypeForLeaseIssue(cellType)) {
+                        YT_TLOG_ALERT("Requested to revoke leases for unknown cell type, ignored")
+                            .With("TransactionId", transaction->GetId())
+                            .With("CellType", cellType);
                         return;
                     }
                     auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
@@ -3532,17 +3528,6 @@ private:
     bool IsValidCellTypeForLeaseIssue(EObjectType cellType)
     {
         return cellType == EObjectType::TabletCell || cellType == EObjectType::MasterCell;
-    }
-
-    template <class... TArgs>
-    bool AlertOnInvalidLeaseCellType(TCellId cellId, TFormatString<TArgs...> format, TArgs&&... args)
-    {
-        if (IsValidCellTypeForLeaseIssue(TypeFromId(cellId))) {
-            return false;
-        }
-
-        YT_LOG_ALERT(format, std::forward<TArgs>(args)...);
-        return true;
     }
 
     THashSet<TTransactionId>* FindCellLeaseTransactionIds(TCellId cellId)
@@ -4049,19 +4034,17 @@ private:
         }
 
         if (barriers.empty()) {
-            YT_LOG_DEBUG("No prepared transactions %v",
-                MakeFormatterWrapper([&barrierTags] (auto* builder) {
-                    Visit(barrierTags,
-                        [builder=builder] (TAllBarrierTags) {
-                            builder->AppendFormat("with barrier tags");
-                        },
-                        [builder=builder] (const std::vector<std::string>& specifiedTags) {
-                            builder->AppendFormat("(BarrierTags: %v)",
-                                specifiedTags);
-                        }
-                    );
-                })
-            );
+            auto barrierTagList = Visit(barrierTags,
+                [] (TAllBarrierTags) {
+                    return NLogging::TLoggingTagList()
+                        .With("AllBarrierTags", true);
+                },
+                [] (const std::vector<std::string>& specifiedTags) {
+                    return NLogging::TLoggingTagList()
+                        .With("BarrierTags", specifiedTags);
+                });
+            YT_TLOG_DEBUG("No prepared transactions")
+                .With(barrierTagList);
 
             return delayed(OKFuture);
         }
@@ -4081,9 +4064,8 @@ private:
             auto& counter = BarrierTimestampStartMap_[start];
             --counter;
 
-            YT_LOG_ALERT_IF(counter < 0,
-                "Barrier wait time metrics have negative counter (StartTime: %v)",
-                start);
+            YT_TLOG_ALERT_IF(counter < 0, "Barrier wait time metrics have negative counter")
+                .With("StartTime", start);
 
             if (counter == 0) {
                 BarrierTimestampStartMap_.erase(start);
@@ -4553,12 +4535,10 @@ private:
         }
 
         auto cellType = TypeFromId(cellId);
-        auto alerted = AlertOnInvalidLeaseCellType(
-            cellId,
-            "Lease revoked for unknown cell type, ignored (TransactionId: %v, CellType: %v)",
-            transaction->GetId(),
-            cellType);
-        if (alerted) {
+        if (!IsValidCellTypeForLeaseIssue(cellType)) {
+            YT_TLOG_ALERT("Lease revoked for unknown cell type, ignored")
+                .With("TransactionId", transaction->GetId())
+                .With("CellType", cellType);
             return;
         }
         auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
@@ -4643,8 +4623,8 @@ private:
         auto mirroringWasEnabled = getCypressTransactionMirroringEnabled(oldConfig);
         auto mirroringEnabled = getCypressTransactionMirroringEnabled(Bootstrap_->GetDynamicConfig());
         if (mirroringEnabled != mirroringWasEnabled) {
-            YT_LOG_INFO("Cypress transaction mirroring %v",
-                mirroringEnabled ? "enabled" : "disabled");
+            YT_TLOG_INFO("Cypress transaction mirroring toggled")
+                .With("Enabled", mirroringEnabled);
         }
 
         {
@@ -4652,8 +4632,8 @@ private:
 
             auto barriersEnabled = newConfig->EnableWaitUntilPreparedTransactionsFinished;
             if (barriersEnabled != EnableWaitUntilPreparedTransactionsFinished_) {
-                YT_LOG_INFO("Barriers for 2pc transactions are %v",
-                    barriersEnabled ? "enabled" : "disabled");
+                YT_TLOG_INFO("Barriers for 2pc transactions toggled")
+                    .With("Enabled", barriersEnabled);
                 EnableWaitUntilPreparedTransactionsFinished_ = barriersEnabled;
             }
 
@@ -4705,11 +4685,9 @@ private:
             IsMirroringToSequoiaEnabled() &&
             !GetSequoiaContext())
         {
-            YT_LOG_ALERT(
-                "Attempt to %v mirrored transaction via TransactionSupervisor.%vTransaction (TransactionId: %v)",
-                commit ? "commit" : "abort",
-                commit ? "Commit" : "Abort",
-                transactionId);
+            YT_TLOG_ALERT("Attempt to finish mirrored transaction via transaction supervisor")
+                .With("Action", commit ? "commit" : "abort")
+                .With("TransactionId", transactionId);
 
             THROW_ERROR_EXCEPTION(
                 "Cannot %v mirrored transaction via TransactionSupervisor.%vTransaction",

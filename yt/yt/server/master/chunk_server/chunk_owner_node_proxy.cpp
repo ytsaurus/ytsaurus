@@ -1464,13 +1464,11 @@ void TChunkOwnerNodeProxy::SetReplication(
     OnStorageParametersUpdated();
 
     const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-    YT_LOG_DEBUG(
-        IsHunk
-            ? "Chunk owner hunk replication changed (NodeId: %v, HunkPrimaryMedium: %v, HunkReplication %v)"
-            : "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication %v)",
-        node->GetId(),
-        medium->GetName(),
-        replication);
+    YT_TLOG_DEBUG("Chunk owner replication changed")
+        .With("Hunk", IsHunk)
+        .With("NodeId", node->GetId())
+        .With("PrimaryMedium", medium->GetName())
+        .With("Replication", replication);
 }
 
 template <bool IsHunk>
@@ -1517,12 +1515,10 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(const std::string& mediumName, bool 
 
     OnStorageParametersUpdated();
 
-    YT_LOG_DEBUG(
-        IsHunk
-        ? "Chunk owner hunk primary medium changed (NodeId: %v, PrimaryMedium: %v)"
-        : "Chunk owner primary medium changed (NodeId: %v, PrimaryMedium: %v)",
-        node->GetId(),
-        medium->GetName());
+    YT_TLOG_DEBUG("Chunk owner primary medium changed")
+        .With("Hunk", IsHunk)
+        .With("NodeId", node->GetId())
+        .With("PrimaryMedium", medium->GetName());
 }
 
 void TChunkOwnerNodeProxy::RemoveHunkPrimaryMedium()

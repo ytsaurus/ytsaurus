@@ -1228,7 +1228,8 @@ private:
                             auto error = TError("Unexpected last seen replicas size %v for erasure chunk %v",
                                 std::ssize(lastSeenReplicas),
                                 chunkId);
-                            YT_LOG_ALERT(error);
+                            YT_TLOG_ALERT("Unexpected last seen replica count for erasure chunk")
+                                .With(error);
                             THROW_ERROR_EXCEPTION(error);
                         }
                         for (int index = 0; index < ::NErasure::MaxTotalPartCount; ++index) {

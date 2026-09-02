@@ -774,17 +774,14 @@ public:
 
                 if (!schemaById) {
                     // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
-                    YT_LOG_ALERT_IF(
+                    YT_TLOG_ALERT_IF(
                         !schema && !schemaFromConstrainedSchema,
-                        "Request to create a foreign node has %v id of an unimported schema on external cell "
-                        "(NodeId: %v, NativeCellTag: %v, CellTag: %v, SchemaId: %v)",
-                        MakeFormatterWrapper([&] (auto* builder) {
-                            builder->AppendString(isChunkSchema ? "chunk schema" : "schema");
-                        }),
-                        nodeId,
-                        nativeCellTag,
-                        multicellManager->GetCellTag(),
-                        schemaId);
+                        "Request to create a foreign node carries an id of an unimported schema on external cell")
+                        .With("ChunkSchema", isChunkSchema)
+                        .With("NodeId", nodeId)
+                        .With("NativeCellTag", nativeCellTag)
+                        .With("CellTag", multicellManager->GetCellTag())
+                        .With("SchemaId", schemaId);
                 }
             }
         }
@@ -1228,9 +1225,9 @@ public:
         }
 
         if (!collocation->Tables().insert(table).second) {
-            YT_LOG_ALERT("Table %v is already present in collocation %v",
-                table->GetId(),
-                collocation->GetId());
+            YT_TLOG_ALERT("Table is already present in collocation")
+                .With("TableId", table->GetId())
+                .With("CollocationId", collocation->GetId());
         }
 
         switch (collocationType) {
@@ -1268,9 +1265,9 @@ public:
         }
 
         if (collocation->Tables().erase(table) != 1) {
-            YT_LOG_ALERT("Table %v is already missing from collocation %v",
-                table->GetId(),
-                collocation->GetId());
+            YT_TLOG_ALERT("Table is already missing from collocation")
+                .With("TableId", table->GetId())
+                .With("CollocationId", collocation->GetId());
             return;
         }
 

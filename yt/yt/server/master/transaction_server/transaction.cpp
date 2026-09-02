@@ -249,12 +249,13 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     // All transactions should have this flag set to true, unless they were started before 24.2
     // and something went wrong when attempting to abort it.
     // But let's write a detailed message here anyway.
-    YT_LOG_ALERT_UNLESS(
+    YT_TLOG_ALERT_UNLESS(
         NativeTxExternalizationEnabled_,
-        "A Cypress transaction has NativeTxExternalizationEnabled set to false; This can happen if a transaction "
-        "was started too long ago. New algorithm relies on all transactions being externalized. This issue may lead "
-        "to data corruption! Please abort said transaction (TransactionId: %v)",
-        Id_);
+        "A Cypress transaction has NativeTxExternalizationEnabled set to false; "
+        "this can happen if the transaction was started too long ago; the new algorithm "
+        "relies on all transactions being externalized, so this may lead to data corruption; "
+        "please abort said transaction")
+        .With("TransactionId", Id_);
 
     using NYT::Save;
     Save(context, GetPersistentState());
