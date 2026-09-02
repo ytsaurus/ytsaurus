@@ -70,10 +70,9 @@ struct IPoolTreeElementHost
 {
     virtual TResourceTree* GetResourceTree() = 0;
 
-    virtual void BuildElementLoggingStringAttributes(
+    virtual NLogging::TLoggingTagList BuildElementLoggingTags(
         const TPoolTreeSnapshotPtr& treeSnapshot,
-        const TPoolTreeElement* element,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        const TPoolTreeElement* element) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IPoolTreeElementHost)
@@ -254,7 +253,7 @@ public:
     const NLogging::TLogger& GetLogger() const override;
     bool AreDetailedLogsEnabled() const override;
 
-    std::string GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const;
+    NLogging::TLoggingTagList GetLoggingTags(const TPoolTreeSnapshotPtr& treeSnapshot) const;
 
     TPoolTreeCompositeElement* GetMutableParent();
     const TPoolTreeCompositeElement* GetParent() const;
@@ -371,7 +370,7 @@ protected:
         const TError& alert,
         std::optional<TDuration> timeout);
 
-    virtual void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const;
+    virtual NLogging::TLoggingTagList BuildLoggingTags() const;
 
     //! Pre update methods.
     virtual void DisableNonAliveElements() = 0;
@@ -851,7 +850,7 @@ public:
 
     void UpdatePoolAttributes(bool runningInEphemeralPool);
 
-    void BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
+    NLogging::TLoggingTagList BuildLoggingTags() const override;
     bool AreDetailedLogsEnabled() const final;
 
     ESchedulableStatus GetStatus() const override;

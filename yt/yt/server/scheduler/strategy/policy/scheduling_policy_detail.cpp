@@ -2505,13 +2505,10 @@ void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
     bool hasUserSlotsAfter = schedulingHeartbeatContext->GetNodeDescriptor()->ResourceLimits.GetUserSlots() > 0;
     nodeState->Descriptor = schedulingHeartbeatContext->GetNodeDescriptor();
 
-    YT_LOG_INFO_IF(hasUserSlotsBefore != hasUserSlotsAfter,
-        "Node user slots were %v (NodeId: %v, NodeAddress: %v)",
-        hasUserSlotsAfter
-            ? "enabled"
-            : "disabled",
-        nodeState->Descriptor->Id,
-        NNodeTrackerClient::GetDefaultAddress(nodeState->Descriptor->Addresses));
+    YT_TLOG_INFO_IF(hasUserSlotsBefore != hasUserSlotsAfter, "Node user slots toggled")
+        .With("Enabled", hasUserSlotsAfter)
+        .With("NodeId", nodeState->Descriptor->Id)
+        .With("NodeAddress", NNodeTrackerClient::GetDefaultAddress(nodeState->Descriptor->Addresses));
 
     nodeState->SpecifiedSchedulingSegment = [&] () -> std::optional<ESchedulingSegment> {
         const auto& schedulingOptions = nodeState->Descriptor->SchedulingOptions;
@@ -2599,17 +2596,14 @@ void TSchedulingPolicy::ScheduleAllocations(TScheduleAllocationsContext* context
     };
 
     // TODO(eshcherbin): Move attributes from heartbeat response info here.
-    YT_LOG_DEBUG_IF(context->IsSchedulingInfoLoggingEnabled(),
-        "Finished scheduling allocations on node "
-        "(NodeAddress: %v, ResourceUsage: %v, ResourceLimits: %v, "
-        "ScheduledResources: %v, PreemptedResources: %v, HeartbeatTimeoutExpired: %v, Duration: %v)",
-        schedulingHeartbeatContext->GetNodeDescriptor()->GetDefaultAddress(),
-        schedulingHeartbeatContext->ResourceUsage(),
-        schedulingHeartbeatContext->ResourceLimits(),
-        schedulingHeartbeatContext->IsHeartbeatTimeoutExpired(),
-        computeTotalAllocationResources(schedulingHeartbeatContext->StartedAllocations()),
-        computeTotalAllocationResources(schedulingHeartbeatContext->PreemptedAllocations()),
-        elapsedTime);
+    YT_TLOG_DEBUG_IF(context->IsSchedulingInfoLoggingEnabled(), "Finished scheduling allocations on node")
+        .With("NodeAddress", schedulingHeartbeatContext->GetNodeDescriptor()->GetDefaultAddress())
+        .With("ResourceUsage", schedulingHeartbeatContext->ResourceUsage())
+        .With("ResourceLimits", schedulingHeartbeatContext->ResourceLimits())
+        .With("ScheduledResources", computeTotalAllocationResources(schedulingHeartbeatContext->StartedAllocations()))
+        .With("PreemptedResources", computeTotalAllocationResources(schedulingHeartbeatContext->PreemptedAllocations()))
+        .With("HeartbeatTimeoutExpired", schedulingHeartbeatContext->IsHeartbeatTimeoutExpired())
+        .With("Duration", elapsedTime);
 }
 
 void TSchedulingPolicy::PreemptAllocationsGracefully(
@@ -2920,11 +2914,10 @@ void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluent
         .Item("last_preemptive_heartbeat_statistics").Value(nodeState->LastPreemptiveHeartbeatStatistics);
 }
 
-void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
+NLogging::TLoggingTagList TSchedulingPolicy::BuildSchedulingAttributeTagsForOngoingAllocations(
     const TPoolTreeSnapshotPtr& treeSnapshot,
     const std::vector<TAllocationPtr>& allocations,
-    TInstant now,
-    TDelimitedStringBuilderWrapper& delimitedBuilder) const
+    TInstant now) const
 {
     const auto& cachedAllocationPreemptionStatuses = treeSnapshot
         ? GetPoolTreeSnapshotState(treeSnapshot)->CachedAllocationPreemptionStatuses()
@@ -2940,11 +2933,12 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
         }
     }
 
-    delimitedBuilder->AppendFormat(
-        "AllocationIdsByPreemptionStatus: %v, UnknownStatusAllocationIds: %v, TimeSinceLastPreemptionStatusUpdateSeconds: %v",
-        allocationIdsByPreemptionStatus,
-        unknownStatusAllocationIds,
-        (now - cachedAllocationPreemptionStatuses.UpdateTime).SecondsFloat());
+    return NLogging::TLoggingTagList()
+        .With("AllocationIdsByPreemptionStatus", allocationIdsByPreemptionStatus)
+        .With("UnknownStatusAllocationIds", unknownStatusAllocationIds)
+        .With(
+            "TimeSinceLastPreemptionStatusUpdateSeconds",
+            (now - cachedAllocationPreemptionStatuses.UpdateTime).SecondsFloat());
 }
 
 TPostUpdateContextPtr TSchedulingPolicy::CreatePostUpdateContext(TPoolTreeRootElement* rootElement)
@@ -3058,10 +3052,9 @@ void TSchedulingPolicy::UpdateConfig(TStrategyTreeConfigPtr config)
     UpdateSsdPriorityPreemptionMedia();
 }
 
-void TSchedulingPolicy::BuildElementLoggingStringAttributes(
+NLogging::TLoggingTagList TSchedulingPolicy::BuildElementLoggingTags(
     const TPoolTreeSnapshotPtr& treeSnapshot,
-    const TPoolTreeElement* element,
-    TDelimitedStringBuilderWrapper& delimitedBuilder) const
+    const TPoolTreeElement* element) const
 {
     if (element->GetType() == ESchedulerElementType::Operation) {
         const auto* operationElement = static_cast<const TPoolTreeOperationElement*>(element);
@@ -3077,20 +3070,21 @@ void TSchedulingPolicy::BuildElementLoggingStringAttributes(
             : TStaticAttributes{};
         auto minNeededResourcesWithDiskQuotaUnsatisfiedCount = operationSharedState->GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount();
 
-        delimitedBuilder->AppendFormat(
-            "PreemptibleRunningAllocations: %v, AggressivelyPreemptibleRunningAllocations: %v, PreemptionStatusStatistics: %v, "
-            "SchedulingIndex: %v, SchedulingPriority: %v, DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v, "
-            "SchedulingSegment: %v, SchedulingSegmentModule: %v",
-            operationSharedState->GetPreemptibleAllocationCount(),
-            operationSharedState->GetAggressivelyPreemptibleAllocationCount(),
-            operationSharedState->GetPreemptionStatusStatistics(),
-            attributes.SchedulingIndex,
-            attributes.SchedulingPriority,
-            operationSharedState->GetDeactivationReasons(),
-            minNeededResourcesWithDiskQuotaUnsatisfiedCount,
-            operationState->SchedulingSegment,
-            operationState->SchedulingSegmentModule);
+        return NLogging::TLoggingTagList()
+            .With("PreemptibleRunningAllocations", operationSharedState->GetPreemptibleAllocationCount())
+            .With(
+                "AggressivelyPreemptibleRunningAllocations",
+                operationSharedState->GetAggressivelyPreemptibleAllocationCount())
+            .With("PreemptionStatusStatistics", operationSharedState->GetPreemptionStatusStatistics())
+            .With("SchedulingIndex", attributes.SchedulingIndex)
+            .With("SchedulingPriority", attributes.SchedulingPriority)
+            .With("DeactivationReasons", operationSharedState->GetDeactivationReasons())
+            .With("MinNeededResourcesUnsatisfiedCount", minNeededResourcesWithDiskQuotaUnsatisfiedCount)
+            .With("SchedulingSegment", operationState->SchedulingSegment)
+            .With("SchedulingSegmentModule", operationState->SchedulingSegmentModule);
     }
+
+    return {};
 }
 
 void TSchedulingPolicy::InitPersistentState(INodePtr persistentState)

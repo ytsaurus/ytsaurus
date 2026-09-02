@@ -1515,9 +1515,9 @@ TEST_F(TSchedulingPolicyTest, TestCollectConsideredSchedulableChildrenPerPool)
             EXPECT_EQ(expectedActiveElements.contains(element), context->DynamicAttributesOf(element).Active);
 
             if (auto* pool = dynamic_cast<TPoolTreeCompositeElement*>(element)) {
-                YT_LOG_INFO("Testing pool's child set presence: (ExpectedPresent: %v, ActualPresent: %v)",
-                    expectedActiveElements.contains(pool),
-                    context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
+                YT_TLOG_INFO("Testing pool's child set presence")
+                    .With("ExpectedPresent", expectedActiveElements.contains(pool))
+                    .With("ActualPresent", context->DynamicAttributesOf(pool).SchedulableChildSet.has_value());
 
                 ASSERT_EQ(
                     expectedActiveElements.contains(pool),

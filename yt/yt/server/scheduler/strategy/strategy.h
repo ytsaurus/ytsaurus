@@ -154,10 +154,9 @@ struct INodeHeartbeatStrategyProxy
         const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
-    virtual void BuildSchedulingAttributesStringForOngoingAllocations(
+    virtual NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(
         const std::vector<TAllocationPtr>& allocations,
-        TInstant now,
-        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+        TInstant now) const = 0;
 
     virtual TMatchingTreeCookie GetMatchingTreeCookie() const = 0;
 
