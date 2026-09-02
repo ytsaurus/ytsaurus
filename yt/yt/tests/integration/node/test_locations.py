@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
-from yt_helpers import profiler_factory, read_structured_log
+from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
 from yt_commands import (
     authors, read_table, wait, ls, set, get, map, update_nodes_dynamic_config, create,
@@ -622,6 +622,9 @@ class CacheLocationOverflowBase(YTEnvSetup):
         assert get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1
         assert not os.path.exists(f"{self.cache_volume_path}/disabled")
 
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        from_barrier = write_log_barrier(controller_agent_address)
+
         op = run_test_vanilla(
             command="true",
             spec={"max_failed_job_count": 1},
@@ -633,9 +636,11 @@ class CacheLocationOverflowBase(YTEnvSetup):
             wait(lambda: get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 0)
             wait(lambda: os.path.exists(f"{self.cache_volume_path}/disabled"))
             assert op.get_job_count("aborted") == 1
+            to_barrier = write_log_barrier(controller_agent_address)
             op.abort()
         else:
             wait(lambda: op.get_job_count("aborted") >= 2)
+            to_barrier = write_log_barrier(controller_agent_address)
             op.abort()
 
             assert get(f"//sys/cluster_nodes/{node}/@resource_limits/user_slots") == 1
@@ -652,6 +657,8 @@ class CacheLocationOverflowBase(YTEnvSetup):
         def read_abort_entries():
             return read_structured_log(
                 self.path_to_run + "/logs/controller-agent-0.json.log",
+                from_barrier=from_barrier,
+                to_barrier=to_barrier,
                 row_filter=lambda e: (
                     e.get("event_type") == "job_aborted" and
                     e.get("operation_id") == op.id and
