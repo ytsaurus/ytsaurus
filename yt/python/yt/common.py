@@ -400,6 +400,10 @@ class YtError(Exception):
         """Command is not supported/Command is not supported by api."""
         return self.contains_text("is not supported")
 
+    def is_flow_view_keeper_not_initialized(self):
+        """Flow controller has not built its flow view yet."""
+        return self.contains_code(3302)
+
 
 class YtResponseError(YtError):
     """Represents an error in YT response."""
