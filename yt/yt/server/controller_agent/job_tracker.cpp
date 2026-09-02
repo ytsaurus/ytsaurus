@@ -3291,7 +3291,6 @@ void TJobTracker::ProcessAllocationEvents(
     auto logOperationIsNotRunningEvent = [&] (const auto& operationStatus) {
         YT_TLOG_INFO("Received allocation events of an operation that is not running; ignoring them")
             .With("OperationStatus", operationStatus)
-            .With("OperationId", operationId)
             .With("IncarnationId", IncarnationId_)
             .With("FinishedAllocationCount", std::size(finishedAllocations))
             .With("AbortedAllocationCount", std::size(abortedAllocations));
