@@ -176,6 +176,7 @@ private:
     IStrategyHost* const StrategyHost_;
 
     const NLogging::TLogger Logger;
+    const std::string TreeId_;
 
     TGpuSchedulingPolicyConfigWrapper Config_;
 

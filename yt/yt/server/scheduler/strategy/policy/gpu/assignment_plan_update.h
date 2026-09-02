@@ -1,7 +1,10 @@
 #pragma once
 
 #include "config_wrapper.h"
+#include "public.h"
 #include "structs.h"
+
+#include <yt/yt/core/logging/fluent_log.h>
 
 #include <library/cpp/yt/string/string_builder.h>
 
@@ -112,6 +115,8 @@ struct IAssignmentPlanUpdateContext
     virtual TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const = 0;
 
     virtual bool IsDetailedLoggingEnabled(const TOperationPtr& operation) const = 0;
+
+    virtual NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

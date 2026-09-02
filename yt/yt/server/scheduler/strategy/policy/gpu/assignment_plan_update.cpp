@@ -734,7 +734,7 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
 
     const auto& [bestModuleBindingOutcome, bestModule] = *std::ranges::min_element(possibleModuleBindings);
 
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationBoundToModule)
+    Context_->LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationBoundToModule)
         .Item("operation_id").Value(operation->GetId())
         .Item("module").Value(bestModule);
 

@@ -82,6 +82,11 @@ const std::vector<IInvokerPtr>& TStrategyHost::GetNodeShardInvokers() const
     return NodeShardInvokers_;
 }
 
+NObjectClient::TCellTag TStrategyHost::GetPrimaryMasterCellTag() const
+{
+    return NObjectClient::TCellTag(0);
+}
+
 TFluentLogEvent TStrategyHost::LogFairShareEventFluently(TInstant now)
 {
     return LogEventFluently(GetEventLogger(), ELogEventType::FairShareInfo, now);

@@ -14,11 +14,13 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAssignmentHandler::TAssignmentHandler(TLogger logger)
-    : Logger(std::move(logger))
+TAssignmentHandler::TAssignmentHandler(std::string treeId)
+    : Logger(GetLogger(treeId))
+    , TreeId_(std::move(treeId))
 { }
 
 TAssignmentPtr TAssignmentHandler::AddPlannedAssignment(
+    TAssignmentId assignmentId,
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
     TOperation* operation,
@@ -26,6 +28,7 @@ TAssignmentPtr TAssignmentHandler::AddPlannedAssignment(
     bool preemptible) const
 {
     auto assignment = New<TAssignment>(
+        assignmentId,
         std::move(allocationGroupName),
         std::move(resourceUsage),
         operation,
@@ -36,12 +39,13 @@ TAssignmentPtr TAssignmentHandler::AddPlannedAssignment(
     assignment->Node->AddAssignment(assignment);
     assignment->Operation->AddPlannedAssignment(assignment, preemptible);
 
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentAdded)
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentAdded, TreeId_)
         .Item("operation_id").Value(operation->GetId())
         .Item("node_address").Value(node->Address())
         .Item("assignment").Value(assignment);
 
-    YT_LOG_DEBUG("Added assignment (AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v, Preemptible: %v, OperationId: %v)",
+    YT_LOG_DEBUG("Added assignment (AssignmentId: %v, AllocationGroupName: %v, ResourceUsage: %v, NodeAddress: %v, Preemptible: %v, OperationId: %v)",
+        assignment->Id,
         assignment->AllocationGroupName,
         assignment->ResourceUsage,
         assignment->Node->Address(),
@@ -64,15 +68,16 @@ void TAssignmentHandler::PreemptAssignment(
         preemptedForOperationId);
     assignment->Operation->RemoveAssignment(assignment);
 
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentPreempted)
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AssignmentPreempted, TreeId_)
         .Item("assignment").Value(assignment)
         .Item("reason").Value(preemptionReason)
         .Item("description").Value(preemptionDescription);
 
     YT_LOG_DEBUG(
         "Preempted assignment "
-        "(Reason: %v, Description: %v, PreemptedFor: %v, AllocationGroupName: %v, "
+        "(AssignmentId: %v, Reason: %v, Description: %v, PreemptedFor: %v, AllocationGroupName: %v, "
         "ResourceUsage: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, PreemptibleProgressStartTime: %v)",
+        assignment->Id,
         preemptionReason,
         preemptionDescription,
         preemptedForOperationId,
@@ -88,8 +93,9 @@ void TAssignmentHandler::RemoveAssignment(const TAssignmentPtr& assignment, bool
 {
     YT_LOG_DEBUG(
         "Removing assignment "
-        "(ResourceUsage: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, "
+        "(AssignmentId: %v, ResourceUsage: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v, "
         "Strict: %v)",
+        assignment->Id,
         assignment->ResourceUsage,
         assignment->Node->Address(),
         assignment->Operation->GetId(),
@@ -117,13 +123,17 @@ void TAssignmentHandler::RemoveAssignment(const TAssignmentPtr& assignment, bool
 ////////////////////////////////////////////////////////////////////////////////
 
 TAssignmentPlanUpdateContext::TAssignmentPlanUpdateContext(
+    TAllocationIdGenerator allocationIdGenerator,
     NLogging::TLogger logger,
+    std::string treeId,
     const TOperationMap& operations,
     const TNodeMap& nodes,
     const TPoolTreeSnapshotPtr& treeSnapshot,
     const TAssignmentHandler& assignmentHandler,
     EGpuSchedulingPolicyMode policyMode)
-    : Logger(logger)
+    : AllocationIdGenerator_(std::move(allocationIdGenerator))
+    , Logger(logger)
+    , TreeId_(std::move(treeId))
     , Operations_(operations)
     , Nodes_(nodes)
     , Statistics_(New<TGpuPlanUpdateStatistics>())
@@ -171,8 +181,14 @@ TAssignmentPtr TAssignmentPlanUpdateContext::AddPlannedAssignment(
     TNode* node,
     bool preemptible)
 {
+    // NB: Assignment ids are minted in the allocation id format so that the id can be
+    // reused as the allocation id when the assignment is realized.
+    auto assignmentId = AllocationIdGenerator_.Generate(node->GetId());
+
     IncreaseOperationUsage(operation, resourceUsage);
+
     return AssignmentHandler_.AddPlannedAssignment(
+        assignmentId,
         std::move(allocationGroupName),
         resourceUsage,
         operation,
@@ -216,6 +232,11 @@ TJobResources TAssignmentPlanUpdateContext::GetAvailableOperationLimits(const TO
         treeElement = treeElement->GetParent();
     }
     return Max(availableLimits, TJobResources{});
+}
+
+TOneShotFluentLogEvent TAssignmentPlanUpdateContext::LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const
+{
+    return NGpu::LogStructuredGpuEventFluently(eventType, TreeId_);
 }
 
 std::optional<TString> TAssignmentPlanUpdateContext::FindLimitViolatingParentId(const TPoolTreeElement* element) const
@@ -460,8 +481,9 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatus(const TOperationPtr& o
                 !Dominates(fairShare + TResourceVector::Epsilon(), usageShare));
 
             if (previousStatus != assignment->Preemptible) {
-                YT_LOG_DEBUG("Changed assignment preemptible status (OperationId: %v, Preemptible: %v, FairShare: %v, UsageShare: %v)",
+                YT_LOG_DEBUG("Changed assignment preemptible status (OperationId: %v, AssignmentId: %v, Preemptible: %v, FairShare: %v, UsageShare: %v)",
                     operation->GetId(),
+                    assignment->Id,
                     assignment->Preemptible,
                     fairShare,
                     usageShare);

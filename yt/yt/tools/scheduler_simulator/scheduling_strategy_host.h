@@ -58,6 +58,8 @@ public:
     int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const override;
     void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
 
+    NObjectClient::TCellTag GetPrimaryMasterCellTag() const override;
+
     std::optional<int> FindMediumIndexByName(const std::string& mediumName) const override;
     const std::string& GetMediumNameByIndex(int mediumIndex) const override;
 

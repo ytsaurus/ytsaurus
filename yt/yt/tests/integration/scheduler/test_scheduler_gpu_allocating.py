@@ -1446,6 +1446,10 @@ class TestAllocatingGpuSchedulingPolicyPreemption(AllocatingGpuSchedulingPolicyB
             op=starving_op,
         )
         target_node = scheduling_event["node_address"]
+        assert scheduling_event["tree_id"] == "gpu"
+        assert not is_default_guid(scheduling_event.get("assignment_id"))
+        # Assignment id is reused as the allocation id.
+        assert scheduling_event["assignment_id"] == scheduling_event["allocation_id"]
 
         events = wait_for_allocation_preempted(
             scheduler_log_file,
@@ -1459,6 +1463,8 @@ class TestAllocatingGpuSchedulingPolicyPreemption(AllocatingGpuSchedulingPolicyB
         event = events[0]
         assert event["preempted_usage"]["gpu"] == 8
         assert event["node_address"] == target_node
+        assert event["tree_id"] == "gpu"
+        assert not is_default_guid(event.get("allocation_id"))
         assert event["preemption_info"]["reason"] == "preemption"
         assert event["preemption_info"]["preempted_for_operation_id"] == starving_op.id
 

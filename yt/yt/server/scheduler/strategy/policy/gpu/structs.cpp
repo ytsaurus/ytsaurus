@@ -12,11 +12,13 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 ////////////////////////////////////////////////////////////////////////////////
 
 TAssignment::TAssignment(
+    TAssignmentId id,
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
     TOperation* operation,
     TNode* node)
-    : AllocationGroupName(std::move(allocationGroupName))
+    : Id(id)
+    , AllocationGroupName(std::move(allocationGroupName))
     , Operation(operation)
     , Node(node)
     , OperationId(operation->GetId())
@@ -29,6 +31,7 @@ void TAssignment::AddAllocation(const TAllocationStatePtr& allocation)
     YT_VERIFY(!AllocationId);
 
     YT_VERIFY(allocation->Assignment().Lock() == this);
+    YT_VERIFY(allocation->GetId() == Id);
 
     AllocationId = allocation->GetId();
 
@@ -57,6 +60,7 @@ void Serialize(const TAssignment& assignment, NYson::IYsonConsumer* consumer)
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
+            .Item("id").Value(assignment.Id)
             .Item("node_address").Value(assignment.Node->Address())
             .Item("operation_id").Value(assignment.OperationId)
             .Item("allocation_group_name").Value(assignment.AllocationGroupName)

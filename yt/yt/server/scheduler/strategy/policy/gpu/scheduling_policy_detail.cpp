@@ -122,12 +122,13 @@ TSchedulingPolicy::TSchedulingPolicy(
     : Host_(std::move(host))
     , StrategyHost_(strategyHost)
     , Logger(GetLogger(treeId))
+    , TreeId_(treeId)
     , Config_(std::move(config))
     , PlanUpdateExecutor_(New<TPeriodicExecutor>(
         StrategyHost_->GetControlInvoker(EControlQueue::GpuAssignmentPlanUpdate),
         BIND(&TSchedulingPolicy::UpdateAssignmentPlan, MakeWeak(this)),
         Config_->PlanUpdatePeriod))
-    , AssignmentHandler_(GetLogger(treeId))
+    , AssignmentHandler_(treeId)
     , Profiler_(std::move(profiler))
     , ProfilingCounters_(Profiler_)
 { }
@@ -203,7 +204,7 @@ void TSchedulingPolicy::RegisterOperation(const TPoolTreeOperationElement* eleme
 
     EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
 
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationRegistered)
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationRegistered, TreeId_)
         .Item("operation_id").Value(operation->GetId())
         .Item("type").Value(operation->GetType())
         .Item("gang").Value(operation->IsGang())
@@ -247,7 +248,7 @@ void TSchedulingPolicy::UnregisterOperation(const TPoolTreeOperationElement* ele
 
     DisabledOperations_.erase(it);
 
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationUnregistered)
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationUnregistered, TreeId_)
         .Item("operation_id").Value(element->GetOperationId());
 
     YT_LOG_DEBUG("Operation unregistered (OperationId: %v)", element->GetOperationId());
@@ -417,15 +418,18 @@ void TSchedulingPolicy::ReviveAllocation(
     TJobResourcesWithQuota assignmentResources(resourceUsage);
     assignmentResources.DiskQuota() = allocation->DiskQuota();
 
+    TAssignmentId assignmentId;
     if (auto assignment = GetOrDefault(operation->AllocationIdToAssignment(), allocationId)) {
         YT_VERIFY(assignment->Reviving);
         YT_VERIFY(assignment->Node == node.Get());
 
         assignment->Reviving = false;
+        assignmentId = assignment->Id;
         auto allocationState = New<TAllocationState>(allocationId, nodeId, assignment, resourceUsage);
         operation->AddRevivedAllocation(allocationState, assignment);
     } else {
         auto newAssignment = New<TAssignment>(
+            /*id*/ allocationId,
             allocation->AllocationGroupName(),
             assignmentResources,
             operation.Get(),
@@ -433,14 +437,16 @@ void TSchedulingPolicy::ReviveAllocation(
         operation->AddAssignment(newAssignment);
         node->AddAssignment(newAssignment);
 
+        assignmentId = newAssignment->Id;
         auto allocationState = New<TAllocationState>(allocationId, nodeId, newAssignment, resourceUsage);
         newAssignment->AddAllocation(allocationState);
     }
 
     YT_LOG_DEBUG(
-        "Allocation revived (OperationId: %v, AllocationId: %v, NodeId: %v)",
+        "Allocation revived (OperationId: %v, AllocationId: %v, AssignmentId: %v, NodeId: %v)",
         operation->GetId(),
         allocationId,
+        assignmentId,
         nodeId);
 }
 
@@ -824,7 +830,9 @@ void TSchedulingPolicy::UpdateAssignmentPlan()
     }
 
     TAssignmentPlanUpdateContext updateContext(
+        TAllocationIdGenerator(StrategyHost_->GetPrimaryMasterCellTag()),
         Logger,
+        TreeId_,
         EnabledOperations_,
         Nodes_,
         treeSnapshot,
@@ -981,6 +989,7 @@ void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
 
         // DiskQuota is not considered with non-preliminary assignments.
         auto assignment = New<TAssignment>(
+            /*id*/ allocationId,
             pendingAllocation.AllocationGroupName,
             TJobResourcesWithQuota(currentUsage),
             operation.Get(),
@@ -993,9 +1002,10 @@ void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
 
         YT_LOG_DEBUG(
             "Pending revived allocation adopted "
-            "(OperationId: %v, AllocationId: %v, NodeId: %v)",
+            "(OperationId: %v, AllocationId: %v, AssignmentId: %v, NodeId: %v)",
             operation->GetId(),
             allocationId,
+            assignment->Id,
             node->GetId());
     }
 
@@ -1109,19 +1119,19 @@ void TSchedulingPolicy::UpdatePersistentState()
 
 void TSchedulingPolicy::LogSnapshotEvent(const TGpuPlanUpdateStatisticsPtr& statistics) const
 {
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::ModulesInfo)
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::ModulesInfo, TreeId_)
         .Item("modules").DoMapFor(statistics->ModuleStatistics, [] (TFluentMap fluent, const auto& item) {
             const auto& [module, moduleStatistic] = item;
             fluent.Item(module).Value(moduleStatistic);
         });
 
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::NodesInfo)
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::NodesInfo, TreeId_)
         .Item("nodes").DoMapFor(Nodes_, [] (TFluentMap fluent, const auto& item) {
             const auto& [_, node] = item;
             fluent.Item(node->Address()).Value(node);
         });
 
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationsInfo)
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationsInfo, TreeId_)
         .Item("operations").DoMap([&] (TFluentMap fluent) {
             for (const auto& [operationId, operation] : EnabledOperations_) {
                 fluent
@@ -1480,9 +1490,10 @@ void TSchedulingPolicy::ScheduleAllocations(
             assignment->ResourceUsage);
         assignment->AddAllocation(allocation);
 
-        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AllocationScheduled)
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AllocationScheduled, TreeId_)
             .Item("operation_id").Value(operationElement->GetOperationId())
             .Item("allocation_id").Value(allocationId)
+            .Item("assignment_id").Value(assignment->Id)
             .Item("node_address").Value(node->Address())
             .Item("allocation_group_name").Value(assignment->AllocationGroupName)
             .Item("resource_usage").Value(allocation->ResourceUsage())
@@ -1576,14 +1587,15 @@ bool TSchedulingPolicy::PreemptAllocation(
         element->GetEffectiveAllocationPreemptionTimeout(),
         preemptionReason);
 
-    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AllocationPreempted)
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AllocationPreempted, TreeId_)
         .Item("operation_id").Value(element->GetOperationId())
         .Item("allocation_id").Value(allocation->GetId())
         .Item("node_address").Value(allocation->GetNode()->GetDefaultAddress())
         .Item("reason").Value(preemptionReason)
         .Item("preempted_usage").Value(-usageToPreempt)
         .DoIf(allocationState != nullptr, [&] (auto fluent) {
-            fluent.OptionalItem("preemption_info", allocationState->PreemptionInfo());
+            fluent
+                .OptionalItem("preemption_info", allocationState->PreemptionInfo());
         });
 
     return true;
@@ -1616,7 +1628,8 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
         schedulingHeartbeatContext->GetNodeFreeDiskResourcesWithDiscount(assignment->ResourceUsage),
         treeSnapshot->ControllerConfig()->ScheduleAllocationTimeLimit,
         operationElement->GetTreeId(),
-        assignment->AllocationGroupName)
+        assignment->AllocationGroupName,
+        /*allocationId*/ assignment->Id)
         .AsyncVia(nodeShardInvoker)
         .Run();
     ++GetScheduleAllocationsStatistics(schedulingHeartbeatContext)->ControllerScheduleAllocationCount;
@@ -1640,6 +1653,7 @@ TControllerScheduleAllocationResultPtr TSchedulingPolicy::DoScheduleAllocation(
     }
 
     YT_VERIFY(scheduleAllocationResult->StartDescriptor->AllocationGroupName == assignment->AllocationGroupName);
+    YT_VERIFY(scheduleAllocationResult->StartDescriptor->Id == assignment->Id);
 
     auto allocationId = scheduleAllocationResult->StartDescriptor->Id;
 

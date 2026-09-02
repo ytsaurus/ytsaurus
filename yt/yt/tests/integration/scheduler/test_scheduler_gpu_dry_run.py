@@ -902,6 +902,7 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
         for event in structured_log:
             if event["category"] != "SchedulerGpuStructuredLog":
                 continue
+            assert event["tree_id"] == "gpu"
             if event["event_type"] == "operations_info":
                 if op.id not in event["operations"]:
                     continue
@@ -937,6 +938,7 @@ class TestDryRunGpuSchedulingPolicy(DryRunGpuSchedulingPolicyTestBaseConfig):
                 modules_log_found = True
             if event["event_type"] == "assignment_added":
                 assert event["operation_id"] == op.id
+                assert not is_default_guid(event["assignment"]["id"])
                 assignment_log_found = True
 
         assert assignment_log_found

@@ -30,6 +30,7 @@ inline constexpr int MaxNodeGpuCount = 8;
 // TODO(yaishenka): Change to class.
 struct TAssignment final
 {
+    const TAssignmentId Id;
     const std::string AllocationGroupName;
     TOperation* const Operation;
     TNode* const Node;
@@ -46,6 +47,7 @@ struct TAssignment final
     std::optional<TInstant> PreemptibleProgressStartTime;
 
     TAssignment(
+        TAssignmentId id,
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,

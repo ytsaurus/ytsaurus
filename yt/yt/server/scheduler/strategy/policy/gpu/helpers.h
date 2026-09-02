@@ -11,7 +11,7 @@ namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 bool IsAssignmentPreliminary(const TAssignmentPtr& assignment);
 
-NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType);
+NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType, const std::string& treeId);
 
 NLogging::TLogger GetLogger(const std::string& treeId);
 

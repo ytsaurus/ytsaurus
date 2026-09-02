@@ -717,13 +717,19 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const std::string& treeId,
     const TYPath& poolPath,
     std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-    std::optional<std::string> allocationGroupName)
+    std::optional<std::string> allocationGroupName,
+    TAllocationId allocationId)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto nodeId = context->GetNodeDescriptor()->Id;
-    auto cellTag = Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
-    auto allocationId = GenerateAllocationId(cellTag, nodeId);
+
+    if (allocationId) {
+        YT_VERIFY(CheckAllocationId(allocationId, nodeId));
+    } else {
+        auto cellTag = Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
+        allocationId = GenerateAllocationId(cellTag, nodeId);
+    }
 
     const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();
     const auto shardId = nodeManager->GetNodeShardId(nodeId);

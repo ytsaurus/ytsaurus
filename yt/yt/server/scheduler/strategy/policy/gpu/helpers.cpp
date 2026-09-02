@@ -12,11 +12,12 @@ bool IsAssignmentPreliminary(const TAssignmentPtr& assignment)
     return !assignment->AllocationId;
 }
 
-NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType)
+NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType, const std::string& treeId)
 {
     return LogStructuredEventFluently(SchedulerGpuEventLogger(), NLogging::ELogLevel::Info)
         .Item("timestamp").Value(TInstant::Now())
-        .Item("event_type").Value(eventType);
+        .Item("event_type").Value(eventType)
+        .Item(EventLogPoolTreeKey).Value(treeId);
 }
 
 NLogging::TLogger GetLogger(const std::string& treeId)

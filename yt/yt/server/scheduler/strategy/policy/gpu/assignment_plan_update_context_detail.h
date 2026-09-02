@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/scheduler/strategy/policy/attributes_list.h>
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 namespace NYT::NScheduler::NStrategy::NPolicy::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,9 +23,10 @@ struct TPlanUpdateAttributes
 class TAssignmentHandler
 {
 public:
-    explicit TAssignmentHandler(NLogging::TLogger logger);
+    explicit TAssignmentHandler(std::string treeId);
 
     TAssignmentPtr AddPlannedAssignment(
+        TAssignmentId assignmentId,
         std::string allocationGroupName,
         TJobResourcesWithQuota resourceUsage,
         TOperation* operation,
@@ -40,6 +43,7 @@ public:
 
 private:
     const NLogging::TLogger Logger;
+    const std::string TreeId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +53,9 @@ class TAssignmentPlanUpdateContext
 {
 public:
     TAssignmentPlanUpdateContext(
+        TAllocationIdGenerator allocationIdGenerator,
         NLogging::TLogger logger,
+        std::string treeId,
         const TOperationMap& operations,
         const TNodeMap& nodes,
         const TPoolTreeSnapshotPtr& treeSnapshot,
@@ -79,6 +85,8 @@ public:
     bool IsDetailedLoggingEnabled(const TOperationPtr& operation) const override;
 
 
+    NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const override;
+
     void UpdatePreemptionStatuses() const;
     void FillOperationUsage();
     void PreemptLimitViolatingOperations();
@@ -87,7 +95,10 @@ public:
     void ResetOperationResources(const TOperationPtr& operation) const;
 
 private:
+    const TAllocationIdGenerator AllocationIdGenerator_;
+
     const NLogging::TLogger Logger;
+    const std::string TreeId_;
 
     const TOperationMap& Operations_;
     const TNodeMap& Nodes_;
