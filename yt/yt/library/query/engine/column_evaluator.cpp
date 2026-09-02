@@ -300,7 +300,7 @@ public:
 
     i64 GetSize() const override
     {
-        return TSyncSlruCacheBase<llvm::FoldingSetNodeID, TCachedColumnEvaluator>::GetSize();
+        return TSyncSlruCacheBase::GetSize();
     }
 
 private:
