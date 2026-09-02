@@ -632,7 +632,11 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
                 dataSlices,
                 /*hintKeyPrefixes*/ std::nullopt,
                 New<TNameTable>(),
-                TClientChunkReadOptions(),
+                TClientChunkReadOptions{
+                    // Otherwise reads default to the idle category, which is served only from
+                    // capacity left over by other users.
+                    .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+                },
                 TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
                 /*columnFilter*/ {},
                 TPartitionTags{partitionIndex});
