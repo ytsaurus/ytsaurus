@@ -30,8 +30,10 @@
 #include <yt/yt/server/master/chaos_server/chaos_replicated_table_node.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/grafting_manager.h>
 #include <yt/yt/server/master/cypress_server/portal_exit_node.h>
 #include <yt/yt/server/master/cypress_server/portal_manager.h>
+#include <yt/yt/server/master/cypress_server/scion_node.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
@@ -2684,6 +2686,18 @@ private:
         const auto& portalManager = Bootstrap_->GetPortalManager();
         for (auto [exitId, exit] : portalManager->GetExitNodes()) {
             if (const auto& attributes = exit->EffectiveInheritableAttributes()) {
+                if (auto tabletCellBundle = attributes->TabletCellBundle.ToOptional()) {
+                    ++refCounters[*tabletCellBundle];
+                }
+                if (auto chaosCellBundle = attributes->ChaosCellBundle.ToOptional()) {
+                    ++refCounters[*chaosCellBundle];
+                }
+            }
+        }
+
+        const auto& graftingManager = Bootstrap_->GetGraftingManager();
+        for (auto [scionId, scion] : graftingManager->ScionNodes()) {
+            if (const auto& attributes = scion->EffectiveInheritableAttributes()) {
                 if (auto tabletCellBundle = attributes->TabletCellBundle.ToOptional()) {
                     ++refCounters[*tabletCellBundle];
                 }
