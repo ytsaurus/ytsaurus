@@ -94,6 +94,10 @@ struct TVanillaConfig
     //! cluster). The durable per-pipeline copy under the pipeline node is a cheap CopyNode from here.
     NYPath::TYPath CachePath;
 
+    //! Directory where uploads are staged before being moved into the cache; the parent of
+    //! `CachePath` when empty.
+    NYPath::TYPath UploadTempPath;
+
     ui64 MaxFailedJobCount{};
     int MaxStderrCount{};
     TDuration WaitTimeout;
@@ -191,6 +195,9 @@ struct TFlowVanillaOptions
     std::optional<std::string> ProxyRole;
     //! Content-addressed cache the job files are uploaded to; defaults to the shared wrapper cache.
     NYPath::TYPath CachePath;
+    //! Directory where uploads are staged before being moved into the cache; the parent of the
+    //! cache when empty.
+    NYPath::TYPath UploadTempPath;
     //! Proxy URL aliasing rules propagated into the job environment; when empty, the launcher's own
     //! YT_PROXY_URL_ALIASING_CONFIG environment variable is propagated instead.
     THashMap<std::string, std::string> ProxyUrlAliasingRules;

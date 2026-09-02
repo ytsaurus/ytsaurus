@@ -14,9 +14,7 @@ from .yt_sync import run_yt_sync
 
 PIPELINE_CONFIG_PATH = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline/pipeline.yson")
 
-REANIMATE_BINARY = yatest.common.binary_path(
-    "yt/yt/flow/tools/reanimate_vanilla_operation/reanimate_vanilla_operation"
-)
+REANIMATE_BINARY = yatest.common.binary_path("yt/yt/flow/tools/reanimate_vanilla_operation/reanimate_vanilla_operation")
 
 _TERMINAL_STATES = ("completed", "failed", "aborted")
 
@@ -78,13 +76,31 @@ class TestReanimateVanillaCpp(FlowTestBase):
         run_yt_sync(self.primary_cluster_name, self.work_yt_path)
         config_path = self.prepare_pipeline_config()
 
+        cache_path = f"{self.work_yt_path}/vanilla_cache/files"
+        upload_temp_path = f"{self.work_yt_path}/vanilla_upload"
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": config_path},
             use_vanilla_jobs=True,
             vanilla_secret_env=[SECRET_ENV],
             additional_env={SECRET_ENV: SECRET_VALUE},
+            vanilla_config_patch={"cache_path": cache_path, "upload_temp_path": upload_temp_path},
         ):
             self.wait_pipeline_state("working", timeout=300)
+
+            # The files went through the custom cache, staged in the explicit temp dir: the cache
+            # holds the blobs, while the staging dir was used (it got created) and holds only
+            # throwaways, all removed after being copied into the cache.
+            assert len(self.client.list(cache_path)) > 0
+            assert self.client.list(upload_temp_path) == []
+
+            # The staged node's expiration timeout must follow the blob neither into the cache nor
+            # into the durable copy reanimate depends on.
+            for shard in self.client.list(cache_path):
+                for blob in self.client.list(f"{cache_path}/{shard}"):
+                    assert not self.client.exists(f"{cache_path}/{shard}/{blob}/@expiration_timeout")
+            files_dir = f"{self.pipeline_path}/vanilla/files"
+            for name in self.client.list(files_dir):
+                assert not self.client.exists(f"{files_dir}/{name}/@expiration_timeout")
 
             # @current_vanilla_operation is only a pointer to the operation (by alias); the secret_env
             # names live in the persisted spec, not in the attribute.

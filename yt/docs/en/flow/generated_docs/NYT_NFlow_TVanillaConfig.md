@@ -24,6 +24,9 @@ The RPC proxy role for the `runtime_cluster` (the pipeline cluster's role may no
 || `cache_path` | **Type**: `TString`
 **Default value**: `//tmp/yt_wrapper/file_storage/new_cache`
 A content-addressed cache to which job files are uploaded (shared by all flow operations on the cluster). A long-term copy in the pipeline folder is a cheap `CopyNode` from this cache. ||
+|| `upload_temp_path` | **Type**: `TString`
+**Default value**: `TString("")`
+A directory where uploads are staged as temporary files before being moved into the cache. If not set, the parent directory of `cache_path` is used. The temporary file is removed once it is in the cache or if the upload fails; a file orphaned by a launcher crash expires on its own after a few hours. ||
 || `max_failed_job_count` | **Type**: `unsigned long`
 **Default value**: `10000`
 The maximum number of failed jobs after which the vanilla operation fails. ||

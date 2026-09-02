@@ -4,12 +4,15 @@
 #include <yt/yt/client/api/file_reader.h>
 #include <yt/yt/client/api/file_writer.h>
 
+#include <yt/yt/client/cypress_client/public.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -19,6 +22,8 @@
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 #include <library/cpp/digest/md5/md5.h>
+
+#include <util/datetime/base.h>
 
 #include <util/generic/buffer.h>
 #include <util/generic/guid.h>
@@ -43,16 +48,23 @@ namespace {
 
 constexpr size_t UploadBlockSize = 16_MB;
 
-//! Create-options for an uploaded cache file. On a local (test) YT the default replication factor of
+//! How long a staged upload node outlives a launcher that died mid-upload before the master removes
+//! it. Long enough to sit out a cluster maintenance window.
+constexpr auto UploadExpirationTimeout = TDuration::Hours(6);
+
+//! Create-options for a staged upload node. On a local (test) YT the default replication factor of
 //! 3 triples the on-disk footprint of the (debug-fat, ~GB) job binary and exhausts the small node
 //! disks, collapsing the cluster mid-test; pin it to 1 there. Mirrors the mapreduce client's
 //! IsLocalMode() file-cache optimization. Off a local cluster the cluster default is kept.
-NApi::TCreateNodeOptions MakeCacheFileOptions(const NApi::IClientPtr& client)
+NApi::TCreateNodeOptions MakeUploadFileOptions(const NApi::IClientPtr& client)
 {
     NApi::TCreateNodeOptions options;
     options.Recursive = true;
+    options.Attributes = CreateEphemeralAttributes();
+    // A launcher that dies mid-upload cannot remove its node; the master does it instead once the
+    // node has gone untouched this long (an in-flight upload holds a lock, which defers the removal).
+    options.Attributes->Set("expiration_timeout", UploadExpirationTimeout.MilliSeconds());
     if (IsLocalModeCluster(client)) {
-        options.Attributes = CreateEphemeralAttributes();
         options.Attributes->Set("replication_factor", 1);
     }
     return options;
@@ -83,6 +95,7 @@ template <class TFill>
 NYPath::TYPath EnsureInCache(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& cacheDir,
+    const NYPath::TYPath& uploadTempDir,
     const TString& md5,
     TFill&& fill)
 {
@@ -98,28 +111,61 @@ NYPath::TYPath EnsureInCache(
         return cached.Path;
     }
 
-    // PutFileToCache copies the node into the cache, so this upload node is a throwaway. Stage it in
-    // the parent temp dir (under //tmp, with its own TTL), not inside the cache — which has no
-    // top-level cleanup of its own — and drop it once it has been copied in.
-    auto uploadDir = cacheDir.substr(0, cacheDir.rfind('/'));
+    // PutFileToCache copies the node into the cache, so this upload node is a throwaway. Stage it
+    // outside the cache — which has no top-level cleanup of its own — and drop it once it has been
+    // copied in. Without an explicit staging dir, use the cache's parent (under //tmp, with its own
+    // TTL, for the default cache).
+    auto uploadDir = uploadTempDir.empty() ? cacheDir.substr(0, cacheDir.rfind('/')) : uploadTempDir;
     auto tempPath = Format("%v/upload_%v", uploadDir, TGuid::Create());
-    auto fileOptions = MakeCacheFileOptions(client);
+    auto fileOptions = MakeUploadFileOptions(client);
     WaitFor(client->CreateNode(tempPath, NObjectClient::EObjectType::File, fileOptions)).ThrowOnError();
 
-    NApi::TFileWriterOptions writerOptions;
-    writerOptions.ComputeMD5 = true;
-    auto writer = client->CreateFileWriter(NYPath::TRichYPath(tempPath), writerOptions);
-    WaitFor(writer->Open()).ThrowOnError();
-    fill(writer);
-    WaitFor(writer->Close()).ThrowOnError();
+    // After a failed upload the writer's aborting transaction may still hold the node's lock for a
+    // moment, hence the retries.
+    auto removeStaged = [&] {
+        constexpr int AttemptCount = 5;
+        constexpr auto Backoff = TDuration::Seconds(1);
 
-    NApi::TPutFileToCacheOptions putOptions;
-    putOptions.CachePath = cacheDir;
-    auto put = WaitFor(client->PutFileToCache(tempPath, md5, putOptions)).ValueOrThrow();
+        NApi::TRemoveNodeOptions removeOptions;
+        removeOptions.Force = true;
+        TError error;
+        for (int attempt = 0; attempt < AttemptCount; ++attempt) {
+            if (attempt > 0) {
+                TDelayedExecutor::WaitForDuration(Backoff);
+            }
+            error = WaitFor(client->RemoveNode(tempPath, removeOptions));
+            if (!error.FindMatching(NCypressClient::EErrorCode::ConcurrentTransactionLockConflict)) {
+                break;
+            }
+        }
+        return error;
+    };
 
-    NApi::TRemoveNodeOptions removeOptions;
-    removeOptions.Force = true;
-    WaitFor(client->RemoveNode(tempPath, removeOptions)).ThrowOnError();
+    // The staged node goes away whether or not it made it into the cache: a failed upload must not
+    // leave a partial file behind.
+    NApi::TPutFileToCacheResult put;
+    try {
+        NApi::TFileWriterOptions writerOptions;
+        writerOptions.ComputeMD5 = true;
+        auto writer = client->CreateFileWriter(NYPath::TRichYPath(tempPath), writerOptions);
+        WaitFor(writer->Open()).ThrowOnError();
+        fill(writer);
+        WaitFor(writer->Close()).ThrowOnError();
+
+        NApi::TPutFileToCacheOptions putOptions;
+        putOptions.CachePath = cacheDir;
+        put = WaitFor(client->PutFileToCache(tempPath, md5, putOptions)).ValueOrThrow();
+    } catch (const std::exception&) {
+        auto removeError = removeStaged();
+        if (!removeError.IsOK()) {
+            YT_TLOG_WARNING("Failed to remove staged upload node")
+                .With("Path", tempPath)
+                .With(removeError);
+        }
+        throw;
+    }
+
+    removeStaged().ThrowOnError();
     return put.Path;
 }
 
@@ -146,12 +192,17 @@ NYPath::TYPath EnsureCypressFileInCache(
         char buffer[33];
         md5 = hasher.End(buffer);
     }
-    return EnsureInCache(destClient, cacheDir, md5, [&] (const NApi::IFileWriterPtr& writer) {
-        auto reader = WaitFor(srcClient->CreateFileReader(srcPath)).ValueOrThrow();
-        while (auto block = WaitFor(reader->Read()).ValueOrThrow()) {
-            WaitFor(writer->Write(block)).ThrowOnError();
-        }
-    });
+    return EnsureInCache(
+        destClient,
+        cacheDir,
+        /*uploadTempDir*/ {},
+        md5,
+        [&] (const NApi::IFileWriterPtr& writer) {
+            auto reader = WaitFor(srcClient->CreateFileReader(srcPath)).ValueOrThrow();
+            while (auto block = WaitFor(reader->Read()).ValueOrThrow()) {
+                WaitFor(writer->Write(block)).ThrowOnError();
+            }
+        });
 }
 
 } // namespace
@@ -179,9 +230,10 @@ NYPath::TYPath EnsureFileInCache(
     const NApi::IClientPtr& client,
     const std::string& localPath,
     const TString& md5,
-    const NYPath::TYPath& cacheDir)
+    const NYPath::TYPath& cacheDir,
+    const NYPath::TYPath& uploadTempDir)
 {
-    return EnsureInCache(client, cacheDir, md5, [&] (const NApi::IFileWriterPtr& writer) {
+    return EnsureInCache(client, cacheDir, uploadTempDir, md5, [&] (const NApi::IFileWriterPtr& writer) {
         StreamLocalFile(writer, localPath);
     });
 }

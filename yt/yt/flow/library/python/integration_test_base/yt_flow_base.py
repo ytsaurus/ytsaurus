@@ -418,6 +418,7 @@ class FlowTestBase:
         workers_count: int,
         secret_env: list[str] | None = None,
         runtime_cluster: str | None = None,
+        config_patch: dict | None = None,
     ):
         """Patches the pipeline-config YSON in-place to enable a vanilla-jobs launch."""
         config_path = pipeline_binary_args.get("--config")
@@ -448,6 +449,8 @@ class FlowTestBase:
             pipeline_config["vanilla"]["runtime_cluster"] = runtime_cluster
             # All clusters of the test federation expose the same proxy role.
             pipeline_config["vanilla"]["runtime_proxy_role"] = self.RPC_PROXY_ROLE
+        if config_patch:
+            pipeline_config["vanilla"].update(config_patch)
         dump_yson_config(pipeline_config, config_path)
 
     @contextmanager
@@ -468,6 +471,7 @@ class FlowTestBase:
         use_vanilla_jobs: bool = False,
         vanilla_secret_env: list[str] | None = None,
         vanilla_runtime_cluster: str | None = None,
+        vanilla_config_patch: dict | None = None,
         patch_node_config: bool = True,
         additional_env: dict[str, str] | None = None,
         worker_node_config_overrides: list[dict] | None = None,
@@ -495,7 +499,9 @@ class FlowTestBase:
             leader_wait_timeout = max(leader_wait_timeout, 120)
 
         if use_vanilla_jobs:
-            self._inject_vanilla_block(pipeline_binary_args, workers_count, vanilla_secret_env, vanilla_runtime_cluster)
+            self._inject_vanilla_block(
+                pipeline_binary_args, workers_count, vanilla_secret_env, vanilla_runtime_cluster, vanilla_config_patch
+            )
 
         if problems:
             if controller_problems_config is None:
