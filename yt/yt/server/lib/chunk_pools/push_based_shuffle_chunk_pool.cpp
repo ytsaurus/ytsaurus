@@ -353,16 +353,10 @@ private:
         TDistributedChunkSessionProgress Statistics;
         bool Approximate = false;
 
-        bool CanCombine(const TChunkRange& other) const
-        {
-            return
-                InputChunk == other.InputChunk &&
-                UpperRecordIndex == other.LowerRecordIndex;
-        }
-
         void Combine(const TChunkRange& other)
         {
-            YT_VERIFY(CanCombine(other));
+            YT_VERIFY(InputChunk == other.InputChunk);
+            YT_VERIFY(UpperRecordIndex == other.LowerRecordIndex);
 
             UpperRecordIndex = other.UpperRecordIndex;
             Statistics += other.Statistics;
@@ -406,27 +400,18 @@ private:
         bool Approximate = false;
         THashMap<TChunkId, i64> RangeIndexByChunkId;
 
-        bool CanCombine(const TChunkRange& range) const
-        {
-            auto it = RangeIndexByChunkId.find(range.InputChunk->GetChunkId());
-            return
-                it != RangeIndexByChunkId.end() &&
-                Ranges[it->second].CanCombine(range);
-        }
-
         bool AppendRange(TChunkRange range)
         {
             Statistics += range.Statistics;
             Approximate |= range.Approximate;
 
             auto chunkId = range.InputChunk->GetChunkId();
-            auto it = RangeIndexByChunkId.find(chunkId);
-            if (it != RangeIndexByChunkId.end() && Ranges[it->second].CanCombine(range)) {
-                Ranges[it->second].Combine(range);
+            auto [rangeIndexIt, inserted] = RangeIndexByChunkId.emplace(chunkId, std::ssize(Ranges));
+            if (!inserted) {
+                Ranges[rangeIndexIt->second].Combine(range);
                 return false;
             }
 
-            RangeIndexByChunkId[chunkId] = std::ssize(Ranges);
             Ranges.push_back(std::move(range));
             return true;
         }
@@ -491,7 +476,7 @@ private:
 
             while (range.Statistics.RecordCount > 0) {
                 if (std::ssize(Builder_.Ranges) >= Owner_->Options_.MaxDataSliceCountPerJob &&
-                    !Builder_.CanCombine(range))
+                    !Builder_.RangeIndexByChunkId.contains(range.InputChunk->GetChunkId()))
                 {
                     YT_VERIFY(TryFlushJobBuilder());
                     continue;
