@@ -211,8 +211,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::OnBlockRangeReadFromDisk(
 
     YT_TLOG_DEBUG("Successfully read block range of journal chunk")
         .With("ChunkId", Id_)
-        .With("FirstBlockIndex", firstBlockIndex)
-        .With("BlockCount", blockCount)
+        .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1))
         .With("NewlyReadBlockCount", std::ssize(blocks))
         .With("AlreadyReadBlockCount", std::ssize(alreadyReadBlocks))
         .With("CookieCount", std::ssize(blockCookies));
@@ -499,7 +498,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         YT_TLOG_DEBUG("Started reading journal chunk blocks")
             .With("ChunkId", Id_)
-            .With("Blocks", FormatBlocks(firstBlockIndex, lastBlockIndex))
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, lastBlockIndex))
             .With("LocationId", Location_->GetId())
             .With("LocationUuid", Location_->GetUuid())
             .With("LocationIndex", Location_->GetIndex());
@@ -596,7 +595,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         YT_TLOG_DEBUG("Finished reading journal chunk blocks")
             .With("ChunkId", Id_)
-            .With("Blocks", FormatBlocks(firstBlockIndex, lastBlockIndex))
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, lastBlockIndex))
             .With("LocationId", Location_->GetId())
             .With("LocationUuid", Location_->GetUuid())
             .With("LocationIndex", Location_->GetIndex())
