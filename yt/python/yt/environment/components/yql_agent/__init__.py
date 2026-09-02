@@ -93,9 +93,15 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             "${yt_debug_log_file}",
             os.path.join(self.env.logs_path, "qtworker_{}_yt_debug.log".format(index)))
 
-        if len(self.remote_envs) > 0:
-            gw_text = gw_text.replace("${remote_cluster_name}", self.remote_envs[0].id)
-            gw_text = gw_text.replace("${remote_cluster_address}", self.remote_envs[0].get_http_proxy_address())
+        remote_cluster_mappings = []
+        for remote_env in self.remote_envs:
+            remote_cluster_mappings.append("\n".join([
+                "ClusterMapping {",
+                "        Name: \"{}\"".format(remote_env.id),
+                "        Cluster: \"{}\"".format(remote_env.get_http_proxy_address()),
+                "    }",
+            ]))
+        gw_text = gw_text.replace("${remote_cluster_mappings}", "\n\n    ".join(remote_cluster_mappings))
 
         return gw_text
 
