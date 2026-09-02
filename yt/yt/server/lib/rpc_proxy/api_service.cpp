@@ -3259,8 +3259,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingChaosLease)
     auto client = GetAuthenticatedClientOrThrow(context, request);
     auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
 
-    auto options = TChaosLeaseAttachOptions{};
-    options.Ping = true;
+    TChaosLeasePingOptions options;
+    SetTimeoutOptions(&options, context.Get());
     options.PingAncestors = request->ping_ancestors();
 
     context->SetRequestInfo("ChaosLeaseId: %v",
@@ -3269,7 +3269,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, PingChaosLease)
     ExecuteCall(
         context,
         [=] {
-            return client->AttachChaosLease(chaosLeaseId, options).AsVoid();
+            return client->PingChaosLease(chaosLeaseId, options);
         });
 }
 

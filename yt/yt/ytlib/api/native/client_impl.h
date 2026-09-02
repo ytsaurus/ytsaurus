@@ -819,6 +819,10 @@ public: \
         NChaosClient::TChaosLeaseId chaosLeaseId,
         const TChaosLeaseAttachOptions& options = {}),
         (chaosLeaseId, options))
+    IMPLEMENT_METHOD(void, PingChaosLease, (
+        NChaosClient::TChaosLeaseId chaosLeaseId,
+        const TChaosLeasePingOptions& options = {}),
+        (chaosLeaseId, options))
 
     IMPLEMENT_METHOD(void, SetUserBanned, (
         const std::string& user,
