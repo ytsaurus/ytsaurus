@@ -39,6 +39,8 @@ import pathlib
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
+DEFAULT_ORCHID_ROOT = "//sys/strawberry/chyt_orchids"
+
 DEFAULTS = {
     "memory_config": {
         "footprint": 1 * GB,
@@ -126,6 +128,7 @@ class Clique(object):
 
         discovery_patch = {
             "yt": {
+                "orchid_root": "{}/{}".format(DEFAULT_ORCHID_ROOT, self.alias),
                 "discovery": {
                     "version": 2,
                     "heartbeat_period": 400,
@@ -168,6 +171,7 @@ class Clique(object):
         if config_patch is not None:
             config = update(config, config_patch)
 
+        self.orchid_root = config["yt"]["orchid_root"]
         self.discovery_version = config["yt"]["discovery"]["version"]
         self.discovery_servers = ls("//sys/discovery_servers")
 
@@ -794,14 +798,14 @@ class Clique(object):
         return t
 
     def get_orchid(self, instance, path, verbose=True):
-        orchid_path = "//sys/clickhouse/orchids/{}/{}".format(self.op.id, instance.attributes["job_cookie"])
+        orchid_path = "{}/{}".format(self.orchid_root, instance.attributes["job_cookie"])
         return get(orchid_path + path, verbose=verbose)
 
     def get_profiler(self, instance_id=None):
         if instance_id is None:
             instance_id = self.get_active_instances()[0].attributes["job_cookie"]
 
-        sensors_path = "//sys/clickhouse/orchids/{}/{}/sensors".format(self.op.id, instance_id)
+        sensors_path = "{}/{}/sensors".format(self.orchid_root, instance_id)
 
         return Profiler(self.yt_client, sensors_path)
 
@@ -970,6 +974,9 @@ class ClickHouseTestBase(YTEnvSetup):
             os.mkdir(Clique.core_dump_path)
             os.chmod(Clique.core_dump_path, 0o777)
 
+        if not exists(DEFAULT_ORCHID_ROOT):
+            create("map_node", DEFAULT_ORCHID_ROOT, recursive=True)
+
         if exists("//sys/clickhouse"):
             return
 
@@ -1032,6 +1039,10 @@ class ClickHouseTestBase(YTEnvSetup):
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
         create_user("yt-clickhouse-dictionaries")
+        yt_set(
+            DEFAULT_ORCHID_ROOT + "/@acl/end",
+            make_ace("allow", "yt-clickhouse", ["write", "remove"]),
+        )
 
         create_user("chyt-sql-objects")
         yt_set("//sys/accounts/sys/@acl/end", make_ace("allow", "chyt-sql-objects", "use"))

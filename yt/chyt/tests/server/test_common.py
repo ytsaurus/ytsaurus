@@ -8,7 +8,7 @@ from yt_commands import (authors, raises_yt_error, create, create_user, make_ace
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from base import (ClickHouseTestBase, Clique, QueryFailedError, UserJobFailed, InstanceUnavailableCode, enable_sequoia,
-                  grant_system_permissions_to_clickhouse_user)
+                  grant_system_permissions_to_clickhouse_user, DEFAULT_ORCHID_ROOT)
 
 from yt.common import YtError, wait, parts_to_uuid, update_inplace, update as config_update
 
@@ -444,24 +444,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("evgenstf")
     def test_orchid_error_handle(self):
-        if not exists("//sys/clickhouse/orchids"):
-            create("map_node", "//sys/clickhouse/orchids")
-
         create_user("test_user")
         set(
-            "//sys/clickhouse/@acl",
+            DEFAULT_ORCHID_ROOT + "/@acl",
             [
                 make_ace("allow", "test_user", ["write", "create", "remove", "modify_children"]),
-            ],
-        )
-        set("//sys/accounts/sys/@acl", [make_ace("allow", "test_user", "use")])
-
-        set(
-            "//sys/clickhouse/orchids/@acl",
-            [
                 make_ace("deny", "test_user", "create"),
             ],
         )
+        set("//sys/accounts/sys/@acl", [make_ace("allow", "test_user", "use")])
 
         with pytest.raises(YtError):
             with Clique(1, config_patch={"yt": {"user": "test_user"}}):
@@ -573,6 +564,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
         finally:
             if node_to_ban is not None:
                 set_node_banned(node_to_ban, False)
+
+    @authors("buyval01")
+    def test_no_default_orchid_root(self):
+        with Clique(1, config_patch={"yt": {"orchid_root": ""}}) as clique:
+            assert not exists("{}/{}".format(DEFAULT_ORCHID_ROOT, clique.op.id))
 
     @authors("evgenstf")
     def test_subquery_data_weight_limit_exceeded(self):

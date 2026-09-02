@@ -636,6 +636,8 @@ void TYtConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("clique_incarnation", &TThis::CliqueIncarnation)
         .Default(-1);
+    registrar.Parameter("orchid_root", &TThis::OrchidRoot)
+        .Default();
     registrar.Parameter("address", &TThis::Address)
         .Default();
     registrar.Parameter("clique_instance_count", &TThis::CliqueInstanceCount)
