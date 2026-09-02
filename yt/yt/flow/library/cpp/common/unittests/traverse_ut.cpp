@@ -85,6 +85,26 @@ TEST(TTraverseTest, MergeInflightLifecycleMetrics)
     EXPECT_EQ(merged->InflightMetrics->OfferedBytesPerSec, 100);
 }
 
+TEST(TTraverseTest, MergeInflightFlagsAreOrderIndependent)
+{
+    auto emptySuspended = New<TInflightStreamTraverseData>();
+    emptySuspended->Empty = true;
+    emptySuspended->Suspended = true;
+
+    auto active = New<TInflightStreamTraverseData>();
+    active->Empty = false;
+    active->Suspended = false;
+
+    for (const auto& inflights : {
+            std::vector{emptySuspended, active},
+            std::vector{active, emptySuspended},
+         }) {
+        const auto merged = MergeInflightTraverseData(inflights);
+        EXPECT_FALSE(merged->Empty);
+        EXPECT_FALSE(merged->Suspended);
+    }
+}
+
 TEST(TTraverseTest, NoneMergeClearsLocalLifecycleMetrics)
 {
     auto stream = New<TStreamTraverseData>();
