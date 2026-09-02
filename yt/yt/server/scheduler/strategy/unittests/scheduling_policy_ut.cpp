@@ -1,3 +1,5 @@
+#include "mocks.h"
+
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/server/scheduler/strategy/operation.h>
@@ -11,8 +13,6 @@
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy_detail.h>
 #include <yt/yt/server/scheduler/strategy/policy/pool_tree_snapshot_state.h>
-
-#include <yt/yt/server/scheduler/strategy/unittests/mocks.h>
 
 #include <yt/yt/server/scheduler/common/public.h>
 #include <yt/yt/server/scheduler/common/exec_node.h>
