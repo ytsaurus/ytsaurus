@@ -115,10 +115,8 @@ private:
                     Tablet_->SetScanBackoffInstant(TInstant::Now() + Tablet_->MountConfig()->ScanBackoffPeriod);
                 }
 
-                TError wrappedError = TError("Failed to scan hunk tablet")
-                    .With("tablet_id", Tablet_->GetId())
+                YT_TLOG_ERROR("Failed to scan hunk tablet")
                     .With(error);
-                YT_LOG_ERROR(wrappedError);
 
                 Tablet_->Profiler()->GetHunkTabletScannerCounters()->FailedScanCount.Increment(1);
             }
@@ -362,9 +360,11 @@ private:
                 }
             }
 
-            auto error = TError("Hunk tablet scanner transaction commit wait failed")
+            static constexpr auto Message = "Aborting hunk tablet scan"_sb;
+            YT_TLOG_ALERT(Message)
+                .With("TransactionId", transaction->GetId());
+            auto error = TError(Message)
                 .With("transaction_id", transaction->GetId());
-            YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
         }
 

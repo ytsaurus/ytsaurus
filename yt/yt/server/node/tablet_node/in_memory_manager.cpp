@@ -741,9 +741,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     if (enablePreliminaryNetworkThrottling) {
         auto difference = compressedDataSize - preThrottledBytes.value_or(0);
-        YT_LOG_DEBUG("Throttling the difference between received and estimated data size (Estimated: %v, Received %v)",
-            preThrottledBytes,
-            compressedDataSize);
+        YT_TLOG_DEBUG("Throttling the difference between received and estimated data size")
+            .With("Estimated", preThrottledBytes)
+            .With("Received", compressedDataSize);
 
         WaitFor(networkThrottler->Throttle(std::max(0l, difference)))
             .ThrowOnError();

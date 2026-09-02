@@ -1797,18 +1797,16 @@ private:
             }
             tabletSnapshot->PerformanceCounters->Increment(chunkReadOptions, /*isSystemWorkload*/ true);
 
-            YT_LOG_INFO("Eden partitioning completed "
-                "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
-                partitioningResult.RowCount,
-                storeIdsToAdd,
-                MakeFormattableView(stores, TStoreIdFormatter()),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (partitioningResult.HunkWriter->HasHunks()) {
-                        builder->AppendFormat(", HunkChunkIdToAdd: %v",
-                            partitioningResult.HunkWriter->GetChunkId());
-                    }
-                }),
-                timer.GetElapsedTime());
+            auto hunkChunkIdToAdd = partitioningResult.HunkWriter->HasHunks()
+                ? partitioningResult.HunkWriter->GetChunkId()
+                : NullChunkId;
+
+            YT_TLOG_INFO("Eden partitioning completed")
+                .With("RowCount", partitioningResult.RowCount)
+                .With("StoreIdsToAdd", storeIdsToAdd)
+                .With("StoreIdsToRemove", MakeFormattableView(stores, TStoreIdFormatter()))
+                .WithIf(hunkChunkIdToAdd != NullChunkId, "HunkChunkIdToAdd", hunkChunkIdToAdd)
+                .With("WallTime", timer.GetElapsedTime());
 
             structuredLogger->LogEvent("end_partitioning")
                 .Item("partition_id").Value(eden->GetId())
@@ -1840,14 +1838,18 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(TError());
         } catch (const std::exception& ex) {
-            auto error = TError(ex)
+            static constexpr auto Message = "Error partitioning Eden, backing off"_sb;
+            auto error = TError(Message)
                 .With("tablet_id", tabletSnapshot->TabletId)
-                .With("background_activity", ETabletBackgroundActivity::Partitioning);
+                .With("background_activity", ETabletBackgroundActivity::Partitioning)
+                .With(ex);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(error);
-            YT_TLOG_ERROR("Error partitioning Eden, backing off")
-                .With(error);
+            YT_TLOG_ERROR(Message)
+                .With("TabletId", tabletSnapshot->TabletId)
+                .With("BackgroundActivity", ETabletBackgroundActivity::Partitioning)
+                .With(ex);
 
             structuredLogger->LogEvent("backoff_partitioning")
                 .Item("partition_id").Value(eden->GetId())
@@ -1942,14 +1944,18 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
-            auto error = TError(ex)
+            static constexpr auto Message = "Error discarding expired partition stores, backing off"_sb;
+            auto error = TError(Message)
                 .With("tablet_id", tabletSnapshot->TabletId)
-                .With("background_activity", ETabletBackgroundActivity::Compaction);
+                .With("background_activity", ETabletBackgroundActivity::Compaction)
+                .With(ex);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
-            YT_TLOG_ERROR("Error discarding expired partition stores, backing off")
-                .With(error);
+            YT_TLOG_ERROR(Message)
+                .With("TabletId", tabletSnapshot->TabletId)
+                .With("BackgroundActivity", ETabletBackgroundActivity::Compaction)
+                .With(ex);
 
             structuredLogger->LogEvent("backoff_discard_stores")
                 .Item("partition_id").Value(partition->GetId());
@@ -2228,18 +2234,16 @@ private:
                 outputTotalDataWeight += statistics.data_weight();
             }
 
-            YT_LOG_INFO("Partition compaction completed "
-                "(RowCount: %v, StoreIdsToAdd: %v, StoreIdsToRemove: %v%v, WallTime: %v)",
-                compactionResult.RowCount,
-                storeIdsToAdd,
-                MakeFormattableView(stores, TStoreIdFormatter()),
-                MakeFormatterWrapper([&] (auto* builder) {
-                    if (compactionResult.HunkWriter->HasHunks()) {
-                        builder->AppendFormat(", HunkChunkIdToAdd: %v",
-                            compactionResult.HunkWriter->GetChunkId());
-                    }
-                }),
-                timer.GetElapsedTime());
+            auto hunkChunkIdToAdd = compactionResult.HunkWriter->HasHunks()
+                ? compactionResult.HunkWriter->GetChunkId()
+                : NullChunkId;
+
+            YT_TLOG_INFO("Partition compaction completed")
+                .With("RowCount", compactionResult.RowCount)
+                .With("StoreIdsToAdd", storeIdsToAdd)
+                .With("StoreIdsToRemove", MakeFormattableView(stores, TStoreIdFormatter()))
+                .WithIf(hunkChunkIdToAdd != NullChunkId, "HunkChunkIdToAdd", hunkChunkIdToAdd)
+                .With("WallTime", timer.GetElapsedTime());
 
             structuredLogger->LogEvent("end_compaction")
                 .Item("partition_id").Value(partition->GetId())
@@ -2261,14 +2265,18 @@ private:
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
-            auto error = TError(ex)
+            static constexpr auto Message = "Error compacting partition, backing off"_sb;
+            auto error = TError(Message)
                 .With("tablet_id", tabletSnapshot->TabletId)
-                .With("background_activity", ETabletBackgroundActivity::Compaction);
+                .With("background_activity", ETabletBackgroundActivity::Compaction)
+                .With(ex);
 
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
-            YT_TLOG_ERROR("Error compacting partition, backing off")
-                .With(error);
+            YT_TLOG_ERROR(Message)
+                .With("TabletId", tabletSnapshot->TabletId)
+                .With("BackgroundActivity", ETabletBackgroundActivity::Compaction)
+                .With(ex);
 
             structuredLogger->LogEvent("backoff_compaction")
                 .Item("partition_id").Value(partition->GetId())
