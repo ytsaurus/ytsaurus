@@ -816,10 +816,12 @@ struct TMessageBatcherSettings
     // Maximum time to collect input batch.
     TDuration BatchDuration;
 
-    // Batching parameters for transformations
-    // TODO(mikari): right now this parameters applied independently to timers, inputs and sources.
+    // Existing producers apply row and byte limits independently to their own batches.
     NYTree::TSize MaxRowsPerBatch;
     NYTree::TSize MaxBytesPerBatch;
+
+    // Maximum number of distinct keys in a keyed input-message batch. Unset disables this limit.
+    std::optional<NYTree::TSize> MaxKeysPerBatch;
 
     REGISTER_YSON_STRUCT(TMessageBatcherSettings);
 
