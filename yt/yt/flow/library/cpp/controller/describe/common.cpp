@@ -91,6 +91,16 @@ void TMessage::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCurrentResourceUsage::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu_usage_cores", &TThis::CpuUsageCores)
+        .Default(0.0);
+    registrar.Parameter("memory_usage", &TThis::MemoryUsage)
+        .Default(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPartitionsStats::Register(TRegistrar registrar)
 {
     registrar.Parameter("count", &TThis::Count)
@@ -416,7 +426,8 @@ i64 GetMostStableMemoryUsage(const TNodePerformanceMetricsPtr& metrics)
 
 THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
     const TFlowViewPtr& flowView,
-    const THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>>& intermediateDescriptions)
+    const THashMap<TComputationId, std::vector<TPartitionIntermediateDescription>>& intermediateDescriptions,
+    TCurrentResourceUsage* currentResourceUsage)
 {
     THashMap<TComputationId, TComputationDescription> computationDescriptions;
 
@@ -443,6 +454,16 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
         THashMap<std::string, TError> retryableErrors;
         THashMap<EJobFinishReason, TError> jobFailErrors;
         for (const auto& intermediatePartition : intermediatePartitions) {
+            if (currentResourceUsage &&
+                intermediatePartition.Job &&
+                intermediatePartition.PartitionJobStatus &&
+                intermediatePartition.PartitionJobStatus->CurrentJobStatus &&
+                !intermediatePartition.PartitionJobStatus->CurrentJobStatus->IsFinished)
+            {
+                const auto& performanceMetrics = intermediatePartition.PartitionJobStatus->CurrentJobStatus->PerformanceMetrics;
+                currentResourceUsage->CpuUsageCores += performanceMetrics->CpuUsageCurrent.value_or(0.0);
+                currentResourceUsage->MemoryUsage += performanceMetrics->MemoryUsageCurrent;
+            }
             if (intermediatePartition.PartitionJobStatus && intermediatePartition.PartitionJobStatus->CurrentJobStatus) {
                 const auto& currentJobStatus = intermediatePartition.PartitionJobStatus->CurrentJobStatus;
                 NodePerformanceMetricsAdd(computationDescription.Metrics, currentJobStatus->PerformanceMetrics);

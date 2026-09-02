@@ -596,10 +596,25 @@ class FlowExecuteTestBase(FlowTestBase):
                 res = console_flow_execute("get-flow-view", "--output-format=proto")
 
             # Test describe-pipeline-status.
-            res = self.client.flow_execute(
-                self.pipeline_path, flow_command="describe-pipeline", flow_argument={"status_only": True}
-            )
+            def describe_pipeline_is_ready():
+                nonlocal res
+                res = self.client.flow_execute(
+                    self.pipeline_path, flow_command="describe-pipeline", flow_argument={"status_only": True}
+                )
+                return res["worker_count"] == workers_count
+
+            wait(describe_pipeline_is_ready, timeout=180)
+            current_resource_usage = res["current_resource_usage"]
+            assert current_resource_usage["cpu_usage_cores"] >= 0
+            assert current_resource_usage["memory_usage"] >= 0
             assert len(res["messages"]) > 0
+            authentication = res["authentication"]
+            assert authentication["method"] in {"oauth", "tvm"}
+            subject_type_by_method = {"oauth": "user", "tvm": "tvm"}
+            expected_subject_type = subject_type_by_method[authentication["method"]]
+            assert authentication["subject_type"] == expected_subject_type
+            assert authentication["subject"]
+            assert authentication["display_name"]
 
             # Test describe-computations.
             res = self.client.flow_execute(self.pipeline_path, flow_command="describe-computations")

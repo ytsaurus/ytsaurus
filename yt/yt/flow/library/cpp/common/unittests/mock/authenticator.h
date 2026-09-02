@@ -20,7 +20,7 @@ struct TMockPipelineAuthenticator
     MOCK_METHOD(NRpc::IChannelFactoryPtr, CreateSelfCredentialsInjectingChannelFactory, (NRpc::IChannelFactoryPtr underlying), (override));
     MOCK_METHOD(NRpc::IAuthenticatorPtr, CreateSelfRpcAuthenticator, (), (override));
     MOCK_METHOD(NRpc::IAuthenticatorPtr, CreateYTControllerRpcAuthenticator, (), (override));
-    MOCK_METHOD(std::string, GetAuthDescription, (), (override));
+    MOCK_METHOD(TPipelineAuthenticationDescriptionPtr, GetPipelineAuthenticationDescription, (), (override));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
