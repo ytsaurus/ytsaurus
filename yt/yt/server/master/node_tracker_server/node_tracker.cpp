@@ -1043,11 +1043,11 @@ private:
     int AggregatedOnlineNodeCount_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeStatisticsLock_);
-    TInstant NodeStatisticsUpdateDeadline_ = {};
+    TInstant NodeStatisticsUpdateDeadline_;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     using TFlavoredNodeStatistics = TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics>;
     TFlavoredNodeStatistics FlavoredNodeStatistics_;
-    TInstant LocalStateToNodeCountUpdateDeadline_ = {};
+    TInstant LocalStateToNodeCountUpdateDeadline_;
     using TLocalStateToNodeCount = TEnumIndexedArray<ENodeState, int>;
     TLocalStateToNodeCount LocalStateToNodeCount_;
     THashMap<const TDataCenter*, TAggregatedNodeStatistics> DataCenterNodeStatistics_;
@@ -2821,7 +2821,7 @@ private:
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         dataNodeTracker->OnProfiling(&buffer);
 
-        auto localStateToNodeCount = GetLocalStateToNodeCount();
+        const auto& localStateToNodeCount = GetLocalStateToNodeCount();
         for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
             TWithTagGuard tagGuard(&buffer, "state", FormatEnum(state));
             buffer.AddGauge("/node_count", localStateToNodeCount[state]);
