@@ -300,9 +300,9 @@ public:
                     leases.insert(lease);
                     LeaseToReferencingTransactions_[lease].insert(transaction);
                 } else {
-                    YT_LOG_ALERT("Lease not found while loading transaction-to-referenced-lease map (LeaseId: %v, TransactionId: %v)",
-                        leaseId,
-                        transaction->GetId());
+                    YT_TLOG_ALERT("Lease not found while loading transaction-to-referenced-lease map")
+                        .With("LeaseId", leaseId)
+                        .With("TransactionId", transaction->GetId());
                 }
             }
         }
@@ -335,16 +335,14 @@ public:
                         LeaseToReferencingTransactions_.erase(leaseIt);
                     }
                 } else {
-                    YT_LOG_ALERT("Lease is referenced by transaction according to transaction-to-lease map but not according to lease-to-transaction map "
-                        "(LeaseId: %v, TransactionId: %v)",
-                        lease->GetId(),
-                        transaction->GetId());
+                    YT_TLOG_ALERT("Lease is referenced by transaction according to transaction-to-lease map but not according to lease-to-transaction map")
+                        .With("LeaseId", lease->GetId())
+                        .With("TransactionId", transaction->GetId());
                 }
             } else {
-                YT_LOG_ALERT("Lease is referenced by transaction according to transaction-to-lease map but is not referenced by any transaction according to lease-to-transaction map "
-                    "(LeaseId: %v, TransactionId: %v)",
-                    lease->GetId(),
-                    transaction->GetId());
+                YT_TLOG_ALERT("Lease is referenced by transaction according to transaction-to-lease map but is not referenced by any transaction according to lease-to-transaction map")
+                    .With("LeaseId", lease->GetId())
+                    .With("TransactionId", transaction->GetId());
             }
         }
 
@@ -379,10 +377,9 @@ public:
         for (auto* transaction : transactions) {
             auto it = TransactionToReferencedLeases_.find(transaction);
             if (it == TransactionToReferencedLeases_.end()) {
-                YT_LOG_ALERT("Transaction is referencing a lease according to a lease-to-transactions map but is not referencing any lease according to the transaction-to-lease map "
-                    "(LeaseId: %v, TransactionId: %v)",
-                    lease->GetId(),
-                    transaction->GetId());
+                YT_TLOG_ALERT("Transaction is referencing a lease according to a lease-to-transactions map but is not referencing any lease according to the transaction-to-lease map")
+                    .With("LeaseId", lease->GetId())
+                    .With("TransactionId", transaction->GetId());
             } else {
                 auto& leases = it->second;
                 if (leases.erase(lease)) {
@@ -390,10 +387,9 @@ public:
                         TransactionToReferencedLeases_.erase(it);
                     }
                 } else {
-                    YT_LOG_ALERT("Transaction is referencing a lease according to a lease-to-transactions map but is not referencing that lease according to the transaction-to-lease map "
-                        "(LeaseId: %v, TransactionId: %v)",
-                        lease->GetId(),
-                        transaction->GetId());
+                    YT_TLOG_ALERT("Transaction is referencing a lease according to a lease-to-transactions map but is not referencing that lease according to the transaction-to-lease map")
+                        .With("LeaseId", lease->GetId())
+                        .With("TransactionId", transaction->GetId());
                 }
             }
         }
@@ -845,22 +841,20 @@ public:
             auto parentType = TypeFromId(parent->GetId());
 
             if (IsSystemTransactionType(transactionObjectType) && !IsSystemTransactionType(parentType)) {
-                YT_LOG_ALERT("An attempt to create a system transaction nested inside of non-system parent was made "
-                    "(ParentId: %v, ParentType: %v, RequestedChildType: %v, HintId: %v)",
-                    parent->GetId(),
-                    parentType,
-                    transactionObjectType,
-                    hintId);
+                YT_TLOG_ALERT("An attempt to create a system transaction nested inside of non-system parent was made")
+                    .With("ParentId", parent->GetId())
+                    .With("ParentType", parentType)
+                    .With("RequestedChildType", transactionObjectType)
+                    .With("HintId", hintId);
                 transactionObjectType = EObjectType::NestedTransaction;
             }
 
             if (!IsSystemTransactionType(transactionObjectType) && IsSystemTransactionType(parentType)) {
-                YT_LOG_ALERT("An attempt to create a non-system transaction nested inside of system parent was made "
-                    "(ParentId: %v, ParentType: %v, RequestedChildType: %v, HintId: %v)",
-                    parent->GetId(),
-                    parentType,
-                    transactionObjectType,
-                    hintId);
+                YT_TLOG_ALERT("An attempt to create a non-system transaction nested inside of system parent was made")
+                    .With("ParentId", parent->GetId())
+                    .With("ParentType", parentType)
+                    .With("RequestedChildType", transactionObjectType)
+                    .With("HintId", hintId);
                 transactionObjectType = EObjectType::SystemNestedTransaction;
             }
         }
@@ -885,7 +879,8 @@ public:
         // COMPAT(shakurov): this is a hotfix. Replace TryInsert with Insert and remove TryInsert altogether.
         auto [transaction, inserted] = TransactionMap_.TryInsert(transactionId, std::move(transactionHolder));
         if (!inserted) {
-            YT_LOG_ALERT("Skipped duplicate transaction start (TransactionId: %v)", transactionId);
+            YT_TLOG_ALERT("Skipped duplicate transaction start")
+                .With("TransactionId", transactionId);
             return transaction;
         }
 
@@ -972,21 +967,21 @@ public:
 
         YT_LOG_ACCESS("StartTransaction", transaction);
 
-        YT_LOG_DEBUG("Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
-            "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v, "
-            "MirroredToSequoia: %v)",
-            transactionId,
-            GetObjectId(parent),
-            MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, auto prerequisiteTransaction) {
-                FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
-            }),
-            replicatedToCellTags,
-            transaction->GetTimeout(),
-            transaction->GetDeadline(),
-            user->GetName(),
-            title,
-            time,
-            IsCypressTransactionMirroredToSequoia(transactionId));
+        YT_TLOG_DEBUG("Transaction started")
+            .With("TransactionId", transactionId)
+            .With("ParentId", GetObjectId(parent))
+            .With("PrerequisiteTransactionIds", MakeFormattableView(
+                transaction->PrerequisiteTransactions(),
+                [] (auto* builder, auto prerequisiteTransaction) {
+                    FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
+                }))
+            .With("ReplicatedToCellTags", replicatedToCellTags)
+            .With("Timeout", transaction->GetTimeout())
+            .With("Deadline", transaction->GetDeadline())
+            .With("User", user->GetName())
+            .With("Title", title)
+            .With("WallTime", time)
+            .With("MirroredToSequoia", IsCypressTransactionMirroredToSequoia(transactionId));
 
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
 
@@ -1070,8 +1065,8 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            YT_LOG_DEBUG("Transaction is already committed (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Transaction is already committed")
+                .With("TransactionId", transactionId);
             return;
         }
 
@@ -1129,9 +1124,9 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectIdComparer());
         for (auto* nestedTransaction : nestedTransactions) {
-            YT_LOG_DEBUG("Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
-                nestedTransaction->GetId(),
-                transactionId);
+            YT_TLOG_DEBUG("Aborting nested transaction on parent commit")
+                .With("TransactionId", nestedTransaction->GetId())
+                .With("ParentId", transactionId);
             TTransactionAbortOptions options{
                 .Force = true,
             };
@@ -1218,13 +1213,11 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG(
-            "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %v@%v, WallTime: %v)",
-            transactionId,
-            user->GetName(),
-            options.CommitTimestamp,
-            options.CommitTimestampClusterTag,
-            time);
+        YT_TLOG_DEBUG("Transaction committed")
+            .With("TransactionId", transactionId)
+            .With("User", user->GetName())
+            .WithFormat("CommitTimestamp", "%v@%v", options.CommitTimestamp, options.CommitTimestampClusterTag)
+            .With("WallTime", time);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
@@ -1258,8 +1251,8 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Aborted) {
-            YT_LOG_DEBUG("Transaction is already aborted (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Transaction is already aborted")
+                .With("TransactionId", transactionId);
             return;
         }
 
@@ -1351,12 +1344,12 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, User: %v, Force: %v, Title: %v, WallTime: %v)",
-            transactionId,
-            user->GetName(),
-            options.Force,
-            transaction->GetTitle(),
-            time);
+        YT_TLOG_DEBUG("Transaction aborted")
+            .With("TransactionId", transactionId)
+            .With("User", user->GetName())
+            .With("Force", options.Force)
+            .With("Title", transaction->GetTitle())
+            .With("WallTime", time);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
@@ -1401,14 +1394,14 @@ public:
             }
 
             if (transactionToCheck == transaction) {
-                YT_LOG_ALERT("Unexpected transaction state encountered while replicating (TransactionId: %v, TransactionState: %v)",
-                    transaction->GetId(),
-                    state);
+                YT_TLOG_ALERT("Unexpected transaction state encountered while replicating")
+                    .With("TransactionId", transaction->GetId())
+                    .With("TransactionState", state);
             } else {
-                YT_LOG_ALERT("Unexpected ancestor transaction state encountered while replicating (TransactionId: %v, AncestorTransactionId: %v, AncestorTransactionState: %v)",
-                    transaction->GetId(),
-                    transactionToCheck->GetId(),
-                    state);
+                YT_TLOG_ALERT("Unexpected ancestor transaction state encountered while replicating")
+                    .With("TransactionId", transaction->GetId())
+                    .With("AncestorTransactionId", transactionToCheck->GetId())
+                    .With("AncestorTransactionState", state);
             }
         };
 
@@ -1456,17 +1449,17 @@ public:
                 effectiveTransactionId = MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag());
                 effectiveParentTransactionId = MakeExternalizedTransactionId(parentTransactionId, multicellManager->GetCellTag());
 
-                YT_LOG_DEBUG("Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
-                    transactionId,
-                    parentTransactionId,
-                    cellTags,
-                    effectiveTransactionId,
-                    effectiveParentTransactionId);
+                YT_TLOG_DEBUG("Externalizing transaction")
+                    .With("TransactionId", transactionId)
+                    .With("ParentTransactionId", parentTransactionId)
+                    .With("DstCellTags", cellTags)
+                    .With("ExternalizedTransactionId", effectiveTransactionId)
+                    .With("ExternalizedParentTransactionId", effectiveParentTransactionId);
             } else {
-                YT_LOG_DEBUG("Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTags: %v)",
-                    transactionId,
-                    parentTransactionId,
-                    cellTags);
+                YT_TLOG_DEBUG("Replicating transaction")
+                    .With("TransactionId", transactionId)
+                    .With("ParentTransactionId", parentTransactionId)
+                    .With("DstCellTags", cellTags);
             }
 
             // NB: Technically, an externalized transaction *is* foreign, with its native cell being this one.
@@ -1956,14 +1949,14 @@ public:
         }
 
         if (!transaction->GetBarrierCookies().empty()) {
-            YT_LOG_DEBUG("Adding transaction to barriers (TransactionId: %v, BarrierTags: %v)",
-                transaction->GetId(),
-                MakeShrunkFormattableView(
-                    transaction->GetBarrierCookies(),
-                    [] (auto* builder, const auto& pair) {
-                        builder->AppendFormat("%v", pair.first);
-                    },
-                    /*limit*/ 100));
+            YT_TLOG_DEBUG("Adding transaction to barriers")
+                .With("TransactionId", transaction->GetId())
+                .With("BarrierTags", MakeShrunkFormattableView(
+                        transaction->GetBarrierCookies(),
+                        [] (auto* builder, const auto& pair) {
+                            builder->AppendFormat("%v", pair.first);
+                        },
+                        /*limit*/ 100));
         }
 
         if (!IsRecovery()) {
@@ -1988,12 +1981,10 @@ public:
             transaction->SetTransientState(ETransactionState::TransientCommitPrepared);
         }
 
-        YT_LOG_DEBUG(
-            "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v@%v)",
-            transaction->GetId(),
-            persistent,
-            options.PrepareTimestamp,
-            options.PrepareTimestampClusterTag);
+        YT_TLOG_DEBUG("Transaction commit prepared")
+            .With("TransactionId", transaction->GetId())
+            .With("Persistent", persistent)
+            .WithFormat("PrepareTimestamp", "%v@%v", options.PrepareTimestamp, options.PrepareTimestampClusterTag);
     }
 
     void PrepareTransactionAbort(
@@ -2022,8 +2013,8 @@ public:
 
         transaction->SetTransientState(ETransactionState::TransientAbortPrepared);
 
-        YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
-            transaction->GetId());
+        YT_TLOG_DEBUG("Transaction abort prepared")
+            .With("TransactionId", transaction->GetId());
     }
 
     void CommitTransaction(
@@ -2092,9 +2083,8 @@ public:
         for (const auto& protoId : context->Request().prerequisite_transaction_ids()) {
             auto transactionId = FromProto<TTransactionId>(protoId);
             if (IsSystemTransactionType(TypeFromId(transactionId))) {
-                YT_LOG_ALERT("Attempt to use system transaction as a prerequisite for Cypress one "
-                    "(SystemTransactionId: %v)",
-                    transactionId);
+                YT_TLOG_ALERT("Attempt to use system transaction as a prerequisite for Cypress one")
+                    .With("SystemTransactionId", transactionId);
                 THROW_ERROR_EXCEPTION("System transactions cannot be prerequisites for Cypress ones")
                     .With("system_transaction_id", transactionId);
             } else {
@@ -2105,9 +2095,8 @@ public:
         auto parentId = FromProto<TTransactionId>(context->Request().parent_id());
         if (parentId) {
             if (IsSystemTransactionType(TypeFromId(parentId))) {
-                YT_LOG_ALERT("Attempt to use system transaction as parent for Cypress one "
-                    "(SystemTransactionId: %v)",
-                    parentId);
+                YT_TLOG_ALERT("Attempt to use system transaction as parent for Cypress one")
+                    .With("SystemTransactionId", parentId);
                 THROW_ERROR_EXCEPTION("System transactions cannot be parent for Cypress ones")
                     .With("system_transaction_id", parentId);
             } else {
@@ -2116,13 +2105,10 @@ public:
         }
 
         if (mirroredSample && nonMirroredSample) {
-            YT_LOG_ALERT(
-                "Attempt to start Cypress transaction which depends on both mirrored and "
-                "non-mirrored transaction (MirroredTransactionId: %v, "
-                "NonMirroredTransactionId: %v, Title: %v)",
-                mirroredSample,
-                nonMirroredSample,
-                YT_OPTIONAL_FROM_PROTO(context->Request(), title));
+            YT_TLOG_ALERT("Attempt to start Cypress transaction which depends on both mirrored and non-mirrored transaction")
+                .With("MirroredTransactionId", mirroredSample)
+                .With("NonMirroredTransactionId", nonMirroredSample)
+                .With("Title", YT_OPTIONAL_FROM_PROTO(context->Request(), title));
             THROW_ERROR_EXCEPTION(
                 "Cypress transaction cannot depend on both mirrored and non-mirrored "
                 "transactions at the same time")
@@ -2144,10 +2130,8 @@ public:
                 return;
             }
 
-            YT_LOG_WARNING(
-                "Mirroring to Sequoia is enabled but non-mirrored Cypress transaction is "
-                "started (TransactionId: %v)",
-                nonMirroredTransactionId);
+            YT_TLOG_WARNING("Mirroring to Sequoia is enabled but non-mirrored Cypress transaction is started")
+                .With("TransactionId", nonMirroredTransactionId);
         }
 
         auto hydraRequest = BuildStartCypressTransactionRequest(
@@ -2380,10 +2364,9 @@ public:
         }
 
         auto commitTimestamp = timestampOrError.Value();
-        YT_LOG_DEBUG("Commit timestamp generated for transaction "
-            "(TransactionId: %v, CommitTimestamp: %v)",
-            transactionId,
-            commitTimestamp);
+        YT_TLOG_DEBUG("Commit timestamp generated for transaction")
+            .With("TransactionId", transactionId)
+            .With("CommitTimestamp", commitTimestamp);
 
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
             return CommitCypressTransactionInSequoia(
@@ -2866,8 +2849,8 @@ private:
             const auto& userName = request->user();
             user = securityManager->FindUserByName(userName, true /*activeLifeStageOnly*/);
             if (!IsObjectAlive(user)) {
-                YT_LOG_ALERT("Foreign transaction user not found, falling back to root (User: %v)",
-                    userName);
+                YT_TLOG_ALERT("Foreign transaction user not found, falling back to root")
+                    .With("User", userName);
                 user = securityManager->GetRootUser();
             }
         }
@@ -2919,10 +2902,9 @@ private:
 
         if (GetDynamicConfig()->ForbidTransactionActionsForCypressTransactions) {
             if (transaction->IsCypressTransaction() && !request->actions().empty()) {
-                YT_LOG_ALERT(
-                    "Transaction is Cypress but has actions (TransactionId: %v, TransactionActionCount: %v)",
-                    transaction->GetId(),
-                    request->actions_size());
+                YT_TLOG_ALERT("Transaction is Cypress but has actions")
+                    .With("TransactionId", transaction->GetId())
+                    .With("TransactionActionCount", request->actions_size());
                 THROW_ERROR_EXCEPTION("Cypress transactions cannot have transaction actions");
             }
         }
@@ -2931,9 +2913,9 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             auto& action = transaction->Actions().emplace_back(std::move(data));
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
-                transactionId,
-                action.Type);
+            YT_TLOG_DEBUG("Transaction action registered")
+                .With("TransactionId", transactionId)
+                .With("ActionType", action.Type);
         }
     }
 
@@ -3108,8 +3090,9 @@ private:
                 prerequisiteTransactionIds,
                 FromProto<NTransactionClient::TTimestamp>(request->commit_timestamp()));
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to commit transaction, aborting (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Failed to commit transaction, aborting")
+                .With("TransactionId", transactionId)
+                .With(ex);
 
             TTransactionAbortOptions abortOptions{
                 .Force = true,
@@ -3217,11 +3200,9 @@ private:
             try {
                 MaterializeCypressTransactionReplica(&subrequest);
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT(
-                    ex,
-                    "Failed to prepare Cypress transaction replica materialization "
-                    "(TransactionId: %v)",
-                    FromProto<TTransactionId>(subrequest.id()));
+                YT_TLOG_ALERT("Failed to prepare Cypress transaction replica materialization")
+                    .With("TransactionId", FromProto<TTransactionId>(subrequest.id()))
+                    .With(ex);
             }
         }
     }
@@ -3329,8 +3310,9 @@ private:
         try {
             HydraReturnBoomerang(request);
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT(ex, "Error during boomerang transaction action execution (SequoiaTransactionId: %v)",
-                sequoiaTransaction->GetId());
+            YT_TLOG_ALERT("Error during boomerang transaction action execution")
+                .With("SequoiaTransactionId", sequoiaTransaction->GetId())
+                .With(ex);
         }
     }
 
@@ -3428,16 +3410,16 @@ private:
 
         auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_DEBUG(
-                "Requested to revoke leases for non-existent transaction, ignored (TransactionId: %v)",
-                transactionId);
+            YT_TLOG_DEBUG("Requested to revoke leases for non-existent transaction, ignored")
+                .With("TransactionId", transactionId);
             return;
         }
 
         auto transactionFinisherGuard = Finally([&] {
             const auto& transactionFinisher = Bootstrap_->GetTransactionFinisher();
             if (!finishRequest) {
-                YT_LOG_ALERT("Lease revocation without payload (TransactionId: %v)", transactionId);
+                YT_TLOG_ALERT("Lease revocation without payload")
+                    .With("TransactionId", transactionId);
                 return;
             }
 
@@ -3503,12 +3485,10 @@ private:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
 
         auto revokeTransaction = [&] (TTransaction* transaction) {
-            YT_LOG_DEBUG(
-                "Revoking leases for transaction "
-                "(TransactionId: %v, TransactionLeaseCount: %v, SuccessorTransactionLeaseCount: %v)",
-                transaction->GetId(),
-                transaction->LeaseCellIds().size(),
-                transaction->GetSuccessorTransactionLeaseCount());
+            YT_TLOG_DEBUG("Revoking leases for transaction")
+                .With("TransactionId", transaction->GetId())
+                .With("TransactionLeaseCount", transaction->LeaseCellIds().size())
+                .With("SuccessorTransactionLeaseCount", transaction->GetSuccessorTransactionLeaseCount());
 
             transaction->SetTransactionLeasesState(ETransactionLeasesState::Revoking);
 
@@ -3587,10 +3567,9 @@ private:
                 return multicellManager->FindLocalMasterIssuedLeaseIds(CellTagFromId(cellId));
             }
             default: {
-                YT_LOG_ALERT(
-                    "Cell of unknown type requested to handle transaction leases (CellId: %v, CellType: %v)",
-                    cellId,
-                    cellType);
+                YT_TLOG_ALERT("Cell of unknown type requested to handle transaction leases")
+                    .With("CellId", cellId)
+                    .With("CellType", cellType);
                 return nullptr;
             }
         }
@@ -3752,8 +3731,8 @@ private:
         const auto& barrierCookies = transaction->GetBarrierCookies();
         // Logging and validation, that can be removed once barriers are stable.
         if (!barrierCookies.empty()) {
-            YT_LOG_DEBUG("Attempting to remove transaction from barriers (TransactionId: %v)",
-                transaction->GetId());
+            YT_TLOG_DEBUG("Attempting to remove transaction from barriers")
+                .With("TransactionId", transaction->GetId());
 
             std::vector<std::string_view> registeredBarrierTags;
             std::vector<std::string_view> unpreparedBarrierTags;
@@ -3768,9 +3747,9 @@ private:
             YT_VERIFY(registeredBarrierTags.empty() || unpreparedBarrierTags.empty());
 
             if (!registeredBarrierTags.empty()) {
-                YT_LOG_DEBUG("Removing transaction from barriers (TransactionId: %v, BarrierTags: %v)",
-                    transaction->GetId(),
-                    MakeShrunkFormattableView(registeredBarrierTags, TDefaultFormatter(), /*limit*/ 100));
+                YT_TLOG_DEBUG("Removing transaction from barriers")
+                    .With("TransactionId", transaction->GetId())
+                    .With("BarrierTags", MakeShrunkFormattableView(registeredBarrierTags, TDefaultFormatter(), /*limit*/ 100));
             }
         }
 
@@ -3788,8 +3767,8 @@ private:
                 it->second.Remove(cookie);
 
                 if (it->second.Empty()) {
-                    YT_LOG_DEBUG("Barrier is empty, removing (BarrierTag: %v)",
-                        tag);
+                    YT_TLOG_DEBUG("Barrier is empty, removing")
+                        .With("BarrierTag", tag);
                     TagToBarrier_.erase(it);
                 }
             }
@@ -3854,9 +3833,9 @@ public:
             if (dependentTransaction->GetPersistentState() != ETransactionState::Active) {
                 continue;
             }
-            YT_LOG_DEBUG("Aborting dependent transaction (DependentTransactionId: %v, PrerequisiteTransactionId: %v)",
-                dependentTransaction->GetId(),
-                transaction->GetId());
+            YT_TLOG_DEBUG("Aborting dependent transaction")
+                .With("DependentTransactionId", dependentTransaction->GetId())
+                .With("PrerequisiteTransactionId", transaction->GetId());
             TTransactionAbortOptions options{
                 .Force = true,
             };
@@ -3944,10 +3923,9 @@ private:
         };
         IteratePredecessorTransactions(transaction, accountTransactionLease);
 
-        YT_LOG_DEBUG(
-            "Transaction lease registered (TransactionId: %v, CellId: %v)",
-            transaction->GetId(),
-            cellId);
+        YT_TLOG_DEBUG("Transaction lease registered")
+            .With("TransactionId", transaction->GetId())
+            .With("CellId", cellId);
 
         return true;
     }
@@ -3973,11 +3951,10 @@ private:
         };
         IteratePredecessorTransactions(transaction, BIND(discountTransactionLease));
 
-        YT_LOG_DEBUG(
-            "Transaction lease unregistered (TransactionId: %v, CellId: %v, SuccessorLeaseCount: %v)",
-            transaction->GetId(),
-            cellId,
-            transaction->GetSuccessorTransactionLeaseCount());
+        YT_TLOG_DEBUG("Transaction lease unregistered")
+            .With("TransactionId", transaction->GetId())
+            .With("CellId", cellId)
+            .With("SuccessorLeaseCount", transaction->GetSuccessorTransactionLeaseCount());
 
         return true;
     }
@@ -4095,9 +4072,9 @@ private:
             BarrierTimestampStartMap_[now] += 1;
         }
 
-        YT_LOG_DEBUG("Waiting for barriers (BarrierCount: %v, TagsAssociatedWithPresentBarriers: %v)",
-            std::ssize(barriers),
-            tagsAssociatedWithPresentBarriers);
+        YT_TLOG_DEBUG("Waiting for barriers")
+            .With("BarrierCount", std::ssize(barriers))
+            .With("TagsAssociatedWithPresentBarriers", tagsAssociatedWithPresentBarriers);
 
         auto updateMetrics = BIND([this, this_ = MakeStrong(this), start = now] {
             auto guard = Guard(BarrierProfilingLock_);
@@ -4203,7 +4180,8 @@ private:
                 continue;
             }
 
-            YT_LOG_ALERT("Found a stuck transaction; aborting (TransactionId: %v)", id);
+            YT_TLOG_ALERT("Found a stuck transaction; aborting")
+                .With("TransactionId", id);
 
             StuckTransactions_.push_back(id);
         }
@@ -4227,7 +4205,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        YT_LOG_DEBUG("Restoring transaction barriers");
+        YT_TLOG_DEBUG("Restoring transaction barriers");
 
         for (auto [id, transaction] : TransactionMap_) {
             if (!IsObjectAlive(transaction)) {
@@ -4256,7 +4234,7 @@ private:
 
     void ClearBarriers(TError error = TError(BarrierAbandonedError))
     {
-        YT_LOG_DEBUG("Clearing transaction barriers");
+        YT_TLOG_DEBUG("Clearing transaction barriers");
 
         auto guard = WriterGuard(BarrierLock_);
 
@@ -4520,11 +4498,9 @@ private:
         }
 
         if (transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active) {
-            YT_LOG_ALERT(
-                "Attempted to subscribe to lease revocation for a transaction in active leasing state "
-                "(TransactionId: %v, LeasesState: %v)",
-                transaction->GetId(),
-                transaction->GetTransactionLeasesState());
+            YT_TLOG_ALERT("Attempted to subscribe to lease revocation for a transaction in active leasing state")
+                .With("TransactionId", transaction->GetId())
+                .With("LeasesState", transaction->GetTransactionLeasesState());
             return OKFuture;
         }
 
@@ -4570,10 +4546,9 @@ private:
 
         auto* transaction = FindTransaction(leaseId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_DEBUG(
-                "Unknown lease was revoked, ignored (LeaseId: %v, CellId: %v)",
-                leaseId,
-                cellId);
+            YT_TLOG_DEBUG("Unknown lease was revoked, ignored")
+                .With("LeaseId", leaseId)
+                .With("CellId", cellId);
             return;
         }
 
@@ -4588,18 +4563,16 @@ private:
         }
         auto* cellLeaseTransactionIds = FindCellLeaseTransactionIds(cellId);
         if (!cellLeaseTransactionIds) {
-            YT_LOG_DEBUG(
-                "Lease was revoked on missing cell, ignored (LeaseId: %v, CellId: %v)",
-                leaseId,
-                cellId);
+            YT_TLOG_DEBUG("Lease was revoked on missing cell, ignored")
+                .With("LeaseId", leaseId)
+                .With("CellId", cellId);
             return;
         }
 
         if (!UnregisterTransactionLease(transaction, cellId, cellLeaseTransactionIds)) {
-            YT_LOG_DEBUG(
-                "Unregistered lease was revoked, ignored (LeaseId: %v, CellId: %v)",
-                leaseId,
-                cellId);
+            YT_TLOG_DEBUG("Unregistered lease was revoked, ignored")
+                .With("LeaseId", leaseId)
+                .With("CellId", cellId);
         }
     }
 
@@ -4686,9 +4659,9 @@ private:
 
             auto newDelay = newConfig->Testing->PreparedTransactionsBarrierDelay;
             if (newDelay != PreparedTransactionsBarrierDelay_) {
-                YT_LOG_INFO("Setting prepared transaction barrier delay (PreviousDelay: %v, NewDelay: %v)",
-                    PreparedTransactionsBarrierDelay_,
-                    newDelay);
+                YT_TLOG_INFO("Setting prepared transaction barrier delay")
+                    .With("PreviousDelay", PreparedTransactionsBarrierDelay_)
+                    .With("NewDelay", newDelay);
                 PreparedTransactionsBarrierDelay_ = newDelay;
             }
         }
