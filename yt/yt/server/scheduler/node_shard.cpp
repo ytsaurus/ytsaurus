@@ -1016,12 +1016,13 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
             auto updateResult = WaitFor(ManagerHost_->GetStrategy()->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
-                YT_TLOG_WARNING("Resetting node state")
+                static constexpr auto Message = "Node tags update failed"_sb;
+                YT_TLOG_WARNING(Message)
                     .With("NodeId", nodeId)
                     .With("Address", address)
                     .With("Tags", tags)
                     .With(updateResult);
-                auto error = TError("Node tags update failed")
+                auto error = TError(Message)
                     .With("node_id", nodeId)
                     .With("address", address)
                     .With("tags", tags)
