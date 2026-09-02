@@ -517,10 +517,13 @@ void TJob::Start() noexcept
         try {
             slot->ValidateEnabled();
         } catch (const std::exception& ex) {
-            auto error = TError("Can not start job")
+            static constexpr auto Message = "Cannot start job"_sb;
+            YT_TLOG_WARNING(Message)
+                .With("AbortReason", EAbortReason::UserSlotDisabled)
+                .With(ex);
+            auto error = TError(Message)
                 .With("abort_reason", EAbortReason::UserSlotDisabled)
                 .With(ex);
-            YT_LOG_WARNING(error);
             Abort(std::move(error));
             return;
         }
@@ -1924,7 +1927,9 @@ void TJob::DoInterrupt(
             InterruptionDeadline_ = now + timeout;
         }
     } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Failed to interrupt job via job prober service; graceful job phase check scheduled (Tmeout: %v)", timeout);
+        YT_TLOG_INFO("Failed to interrupt job via job prober service; graceful job phase check scheduled")
+            .With("Timeout", timeout)
+            .With(ex);
 
         TError error(ex);
         TDelayedExecutor::Submit(
@@ -2646,8 +2651,7 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
     ValidateJobPhase(EJobPhase::RunningExtraGpuCheckCommand);
 
-    YT_TLOG_FATAL_IF(!Error_ || Error_->IsOK(), "Job error is not set during running extra GPU check")
-        .With("Error", Error_);
+    YT_TLOG_FATAL_IF(!Error_ || Error_->IsOK(), "Job error is not set during running extra GPU check");
 
     auto initialError = std::move(*Error_);
 
@@ -2656,14 +2660,14 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
         Error_ = {};
         JobResultExtension_.reset();
 
+        YT_TLOG_WARNING("Extra GPU check command executed after job failure is also failed")
+            .With(error);
+
         auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
             .With(error)
             .With(initialError)
             .With("job_id", GetId())
             .With("operation_id", GetOperationId());
-
-        YT_TLOG_WARNING("Extra GPU check command executed after job failure is also failed")
-            .With(checkError);
         Finalize(std::move(checkError));
     } else {
         YT_TLOG_DEBUG("Extra GPU check command finished");
@@ -3071,9 +3075,8 @@ void TJob::Cleanup()
                     .With(ex);
             }
         } else {
-            YT_LOG_WARNING(
-                "Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
-                DisableSandboxCleanupEnv);
+            YT_TLOG_WARNING("Sandbox cleanup is disabled by an environment variable; should be used for testing purposes only")
+                .With("Variable", DisableSandboxCleanupEnv);
         }
     }
 
@@ -4461,11 +4464,10 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
     try {
         statisticsNode = ConvertTo<IMapNodePtr>(StatisticsYson_);
     } catch (const std::exception& ex) {
-        YT_LOG_WARNING(
-            TError(ex),
-            "Failed to convert statistics to map node (JobId: %v, OperationId: %v)",
-            GetId(),
-            GetOperationId());
+        YT_TLOG_WARNING("Failed to convert statistics to map node")
+            .With("JobId", GetId())
+            .With("OperationId", GetOperationId())
+            .With(ex);
         return;
     }
 
@@ -4491,11 +4493,10 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
                 continue;
             }
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(
-                TError(ex),
-                "Error looking for statistics node (SensorName: %v, Path: %v)",
-                sensorName,
-                sensor->Path);
+            YT_TLOG_DEBUG("Error looking for statistics node")
+                .With("SensorName", sensorName)
+                .With("Path", sensor->Path)
+                .With(ex);
             continue;
         }
 

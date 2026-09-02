@@ -710,13 +710,13 @@ private:
 
             if (!agentDescriptor) {
                 if (controllerAgentConnectorPool->GetEpoch() == context->Epoch) {
-                    YT_LOG_ERROR(
-                        "Descriptor not found but epoch didn't change (OperationId: %v, AllocationId: %v, IncarnationId %v)",
-                        operationId,
-                        allocationId,
-                        incarnationId);
+                    static constexpr auto Message = "Descriptor not found but epoch did not change"_sb;
+                    YT_TLOG_ERROR(Message)
+                        .With("OperationId", operationId)
+                        .With("AllocationId", allocationId)
+                        .With("IncarnationId", incarnationId);
 
-                    auto error = TError("Descriptor not found but epoch didn't change")
+                    auto error = TError(Message)
                         .With("abort_reason", EAbortReason::Other);
                     allocation->Abort(error);
                 }

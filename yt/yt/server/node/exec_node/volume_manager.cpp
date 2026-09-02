@@ -426,8 +426,8 @@ public:
         auto errorOrResults = WaitFor(AllSet(initLocationResults));
 
         if (!errorOrResults.IsOK()) {
-            auto wrappedError = TError("Failed to initialize layer locations").With(errorOrResults);
-            YT_LOG_WARNING(wrappedError);
+            YT_TLOG_WARNING("Proceeding with partially initialized layer locations")
+                .With(errorOrResults);
         }
 
         auto tmpfsExecutor = CreatePortoExecutor(

@@ -250,15 +250,20 @@ public:
             return;
         }
 
-        auto alert = TError(NExecNode::EErrorCode::JobEnvironmentDisabled, "Job environment is disabled").With(std::move(error));
-        YT_LOG_ERROR(alert);
+        static constexpr auto Message = "Job environment is disabled"_sb;
+        YT_TLOG_ERROR(Message)
+            .With(error);
+
+        auto alert = TError(NExecNode::EErrorCode::JobEnvironmentDisabled, Message)
+            .With(error);
 
         Alert_.Store(alert);
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         auto dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
 
-        YT_LOG_FATAL_IF(dynamicConfig->AbortOnJobsDisabled, alert);
+        YT_TLOG_FATAL_IF(dynamicConfig->AbortOnJobsDisabled, Message)
+            .With(error);
 
         if (dynamicConfig->EnableJobEnvironmentResurrection) {
             YT_UNUSED_FUTURE(BIND(&TSlotManager::OnJobEnvironmentDisabled, Bootstrap_->GetSlotManager())
@@ -314,7 +319,9 @@ protected:
                     it->second.Process->Kill(SIGKILL);
                 } catch (const std::exception& ex) {
                     // If we failed to kill container we ignore it for now.
-                    YT_LOG_WARNING(TError(ex), "Failed to kill container properly (SlotIndex: %v)", slotIndex);
+                    YT_TLOG_WARNING("Failed to kill container properly")
+                        .With("SlotIndex", slotIndex)
+                        .With(ex);
                 }
             }
 
@@ -675,12 +682,11 @@ public:
                 };
 
                 if (!error.IsOK()) {
-                    YT_LOG_WARNING(
-                        error,
-                        "Command failed (JobId: %v, Stderr: %Qv, Stdout: %Qv)",
-                        jobId,
-                        instanceResult.Stderr,
-                        instanceResult.Stdout);
+                    YT_TLOG_WARNING("Command failed")
+                        .With("JobId", jobId)
+                        .With("Stderr", instanceResult.Stderr)
+                        .With("Stdout", instanceResult.Stdout)
+                        .With(error);
 
                     error.Add("stdout", TruncateString(instanceResult.Stdout, MaxCommandOutputSizeInError));
                     error.Add("stderr", TruncateString(instanceResult.Stderr, MaxCommandOutputSizeInError));
