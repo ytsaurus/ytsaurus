@@ -757,6 +757,9 @@ void TMessageBatcherSettings::Register(TRegistrar registrar)
         .Default(NYTree::TSize(1'000));
     registrar.Parameter("max_bytes_per_batch", &TThis::MaxBytesPerBatch)
         .Default(NYTree::TSize(10_MB));
+    registrar.Parameter("max_keys_per_batch", &TThis::MaxKeysPerBatch)
+        .Default()
+        .GreaterThan(NYTree::TSize(0));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

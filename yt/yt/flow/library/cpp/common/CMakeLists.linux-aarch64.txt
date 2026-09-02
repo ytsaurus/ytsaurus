@@ -58,6 +58,7 @@ target_link_libraries(library-cpp-common PUBLIC
   cpp-yt-memory
   cpp-yt-misc
   library-cpp-iterator
+  cpp-containers-absl
   cpp-containers-insert_only_concurrent_cache
   cpp-string_utils-levenshtein_diff
 )

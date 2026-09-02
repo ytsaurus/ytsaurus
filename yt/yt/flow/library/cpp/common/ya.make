@@ -80,6 +80,7 @@ PEERDIR(
     library/cpp/yt/memory
     library/cpp/yt/misc
     library/cpp/iterator
+    library/cpp/containers/absl
     library/cpp/containers/insert_only_concurrent_cache
     library/cpp/string_utils/levenshtein_diff
 )

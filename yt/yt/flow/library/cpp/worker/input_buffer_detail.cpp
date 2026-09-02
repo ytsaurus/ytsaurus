@@ -167,7 +167,7 @@ TInputBuffer::TInputBuffer(
     , ComputationId_(std::move(computationId))
     , FinalizerPoolInvoker_(finalizerPoolInvoker)
     , SerializedInvoker_(CreateSerializedInvoker(finalizerPoolInvoker, "InputBuffer"))
-    , BatchLimiter_(dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch)
+    , BatchLimiter_(dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch, dynamicSpec->MaxKeysPerBatch)
     , BatchDuration_(dynamicSpec->BatchDuration)
     , EpochCycleTracker_(std::move(epochCycleTracker))
     , TimeProvider_(std::move(timeProvider))
@@ -214,7 +214,10 @@ void TInputBuffer::Reconfigure(TDynamicComputationSpecPtr dynamicSpec)
 void TInputBuffer::DoReconfigure(TDynamicComputationSpecPtr dynamicSpec)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(SerializedInvoker_);
-    BatchLimiter_ = TMessageBatchLimiter(dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch);
+    BatchLimiter_ = TMessageBatchLimiter(
+        dynamicSpec->MaxRowsPerBatch,
+        dynamicSpec->MaxBytesPerBatch,
+        dynamicSpec->MaxKeysPerBatch);
     BatchDuration_ = dynamicSpec->BatchDuration;
 }
 

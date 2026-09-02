@@ -2,10 +2,13 @@
 
 #include "public.h"
 
+#include "key.h"
 #include "message.h"
 #include "timer.h"
 
 #include <yt/yt/core/concurrency/nonblocking_batcher.h>
+
+#include <library/cpp/containers/absl/flat_hash_set.h>
 
 #include <deque>
 
@@ -16,7 +19,10 @@ namespace NYT::NFlow {
 class TMessageBatchLimiter
 {
 public:
-    explicit TMessageBatchLimiter(i64 maxRowsPerBatch, i64 maxBytesPerBatch);
+    explicit TMessageBatchLimiter(
+        i64 maxRowsPerBatch,
+        i64 maxBytesPerBatch,
+        std::optional<i64> maxKeysPerBatch = std::nullopt);
 
     bool IsFull() const;
 
@@ -34,6 +40,8 @@ private:
     i64 CurrentByteSize_ = 0;
     i64 MaxRowsPerBatch_;
     i64 MaxBytesPerBatch_;
+    std::optional<i64> MaxKeysPerBatch_;
+    absl::flat_hash_set<TKey, ::THash<TKey>, ::TEqualTo<TKey>> Keys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
