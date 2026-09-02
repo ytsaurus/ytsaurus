@@ -21,6 +21,10 @@ using namespace NConcurrency;
 
 void Initialize(int argc, const char** argv)
 {
+    if (GetEnv("GRPC_DNS_RESOLVER").empty()) {
+        SetEnv("GRPC_DNS_RESOLVER", "native");
+    }
+
     ForbidContextSwitchInFutureHandler();
 
     MaybeWarnSlowBuild();
