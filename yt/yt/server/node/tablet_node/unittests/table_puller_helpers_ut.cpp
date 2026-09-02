@@ -394,6 +394,18 @@ TEST(TBannedReplicaTrackerTest, SyncReplicas)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+TEST(TIterationTimeTrackerTest, TestSimple)
+{
+    TIterationTimeTracker tracker(/*previousIterationWeight*/ 4, /*currentIterationWeight*/ 1, TDuration::Seconds(5));
+    TInstant now = TInstant::Now();
+    EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now), TDuration::Seconds(5));
+    EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now + TDuration::Seconds(5)), TDuration::Seconds(5));
+    EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now + TDuration::Seconds(10)), TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NTabletNode
 

@@ -313,7 +313,7 @@ TDuration TIterationTimeTracker::CalculateSmoothedIterationDuration(TInstant cur
 
         int weightSum = PreviousIterationWeight_ + CurrentIterationWeight_;
         auto weigthedElapsedTime = elapsedTime * CurrentIterationWeight_;
-        auto weigthedPreviousTime = SmoothedItetationDuration_ * CurrentIterationWeight_;
+        auto weigthedPreviousTime = SmoothedItetationDuration_ * PreviousIterationWeight_;
 
         SmoothedItetationDuration_ = (weigthedElapsedTime + weigthedPreviousTime) / weightSum;
     }
