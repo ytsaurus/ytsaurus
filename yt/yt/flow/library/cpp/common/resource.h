@@ -1,6 +1,6 @@
 #pragma once
 
-#include "file_source.h"
+#include "file_provider.h"
 #include "public.h"
 #include "resource_controller.h"
 #include "spec_validation.h"
@@ -16,12 +16,12 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An immutable complete set of exact named file-source revisions.
+//! An immutable complete set of exact named file-provider revisions.
 struct TFileSnapshot
     : public NYTree::TYsonStruct
 {
     TFileSnapshotId Id;
-    THashMap<TFileSourceId, TFileSourceRevisionPtr> FileSources;
+    THashMap<TFileProviderId, TFileProviderRevisionPtr> FileProviders;
 
     REGISTER_YSON_STRUCT(TFileSnapshot);
 

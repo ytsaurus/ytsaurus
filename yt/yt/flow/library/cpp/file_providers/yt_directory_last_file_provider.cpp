@@ -1,4 +1,4 @@
-#include "yt_directory_last_file_source.h"
+#include "yt_directory_last_file_provider.h"
 
 #include <yt/yt/flow/library/cpp/common/registry.h>
 
@@ -31,23 +31,23 @@ bool IsSupportedChildType(EObjectType type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYTDirectoryLastFileSourceParameters::Register(TRegistrar registrar)
+void TYTDirectoryLastFileProviderParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path);
 }
 
-void TYTDirectoryLastFileSourceDynamicParameters::Register(TRegistrar registrar)
+void TYTDirectoryLastFileProviderDynamicParameters::Register(TRegistrar registrar)
 {
     registrar.Parameter("pinned_file_name", &TThis::PinnedFileName)
         .Default();
     registrar.Postprocessor([] (TThis* parameters) {
         if (parameters->PinnedFileName) {
-            ValidateFileSourceName(*parameters->PinnedFileName);
+            ValidateFileProviderName(*parameters->PinnedFileName);
         }
     });
 }
 
-TFuture<TFileSourceRevisionPtr> TYTDirectoryLastFileSource::Discover()
+TFuture<TFileProviderRevisionPtr> TYTDirectoryLastFileProvider::Discover()
 {
     auto directoryPath = GetParameters()->Path;
     auto pinnedFileName = GetDynamicParameters()->PinnedFileName;
@@ -56,7 +56,7 @@ TFuture<TFileSourceRevisionPtr> TYTDirectoryLastFileSource::Discover()
         : GetContext()->PipelinePath.GetCluster();
     THROW_ERROR_EXCEPTION_UNLESS(
         cluster,
-        "Pipeline path must have a cluster to resolve YT directory file source path %v",
+        "Pipeline path must have a cluster to resolve YT directory file provider path %v",
         directoryPath);
     auto client = GetContext()->ClientsCache->GetClient(*cluster);
 
@@ -91,20 +91,20 @@ TFuture<TFileSourceRevisionPtr> TYTDirectoryLastFileSource::Discover()
         "Pinned YT directory child %Qv does not exist",
         *pinnedFileName);
     if (!selectedName) {
-        return MakeFuture<TFileSourceRevisionPtr>(nullptr);
+        return MakeFuture<TFileProviderRevisionPtr>(nullptr);
     }
 
     auto childPath = directoryPath;
     childPath.SetCluster(*cluster);
     childPath.SetPath(YPathJoin(directoryPath.GetPath(), *selectedName));
-    return DiscoverYTFileSource(
+    return DiscoverYTFileProvider(
         GetContext(),
-        TypeName<TYTDirectoryLastFileSource>(),
+        TypeName<TYTDirectoryLastFileProvider>(),
         childPath);
 }
 
-TFuture<void> TYTDirectoryLastFileSource::Download(
-    const TFileSourceRevisionPtr& revision,
+TFuture<void> TYTDirectoryLastFileProvider::Download(
+    const TFileProviderRevisionPtr& revision,
     const std::string& stagingDirectory)
 {
     return DownloadYTFile(GetContext(), revision, stagingDirectory);
@@ -112,7 +112,7 @@ TFuture<void> TYTDirectoryLastFileSource::Download(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_FLOW_DEFINE_FILE_SOURCE(TYTDirectoryLastFileSource);
+YT_FLOW_DEFINE_FILE_PROVIDER(TYTDirectoryLastFileProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

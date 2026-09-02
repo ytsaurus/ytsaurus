@@ -9,8 +9,8 @@ namespace NYT::NFlow {
 void TFileResourceValidator::Validate(const TResourceSpec& spec)
 {
     THROW_ERROR_EXCEPTION_UNLESS(
-        !spec.FileSources.empty(),
-        "File resource must configure at least one file source");
+        !spec.FileProviders.empty(),
+        "File resource must configure at least one file provider");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/file_sources/yt_directory_last_file_source.h>
-#include <yt/yt/flow/library/cpp/file_sources/yt_file_source.h>
+#include <yt/yt/flow/library/cpp/file_providers/yt_directory_last_file_provider.h>
+#include <yt/yt/flow/library/cpp/file_providers/yt_file_provider.h>
 
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/cache/cache.h>
@@ -49,37 +49,37 @@ private:
     const IClientPtr Client_;
 };
 
-TDynamicFileSourceContextPtr MakeDirectoryDynamicContext(
+TDynamicFileProviderContextPtr MakeDirectoryDynamicContext(
     std::optional<std::string> pinnedFileName = std::nullopt)
 {
-    auto parameters = New<TYTDirectoryLastFileSourceDynamicParameters>();
+    auto parameters = New<TYTDirectoryLastFileProviderDynamicParameters>();
     parameters->PinnedFileName = std::move(pinnedFileName);
 
-    auto spec = New<TDynamicFileSourceSpec>();
+    auto spec = New<TDynamicFileProviderSpec>();
     spec->Parameters = ConvertToNode(parameters)->AsMap();
 
-    auto context = New<TDynamicFileSourceContext>();
-    context->DynamicFileSourceSpec = std::move(spec);
+    auto context = New<TDynamicFileProviderContext>();
+    context->DynamicFileProviderSpec = std::move(spec);
     return context;
 }
 
-TYTDirectoryLastFileSourcePtr MakeDirectorySource(
+TYTDirectoryLastFileProviderPtr MakeDirectoryProvider(
     const IClientPtr& client,
     std::optional<std::string> pinnedFileName = std::nullopt)
 {
-    auto parameters = New<TYTDirectoryLastFileSourceParameters>();
+    auto parameters = New<TYTDirectoryLastFileProviderParameters>();
     parameters->Path = "//versions";
 
-    auto spec = New<TFileSourceSpec>();
-    spec->FileSourceClassName = TypeName<TYTDirectoryLastFileSource>();
+    auto spec = New<TFileProviderSpec>();
+    spec->FileProviderClassName = TypeName<TYTDirectoryLastFileProvider>();
     spec->Parameters = ConvertToNode(parameters)->AsMap();
 
-    auto context = New<TFileSourceContext>();
-    context->SourceSpec = std::move(spec);
+    auto context = New<TFileProviderContext>();
+    context->ProviderSpec = std::move(spec);
     context->ClientsCache = New<TDirectoryTestClientsCache>(client);
     context->PipelinePath = "//pipeline";
     context->PipelinePath.SetCluster("primary");
-    return New<TYTDirectoryLastFileSource>(
+    return New<TYTDirectoryLastFileProvider>(
         std::move(context),
         MakeDirectoryDynamicContext(std::move(pinnedFileName)));
 }
@@ -117,7 +117,7 @@ INodePtr MakeTableNode(TObjectId objectId, TRevision contentRevision)
             .Item("type").Value(EObjectType::Table)
             .Item("dynamic").Value(false)
             .Item("content_revision").Value(contentRevision)
-            .Item("schema").Value(GetYTFileSourceBlobTableSchema())
+            .Item("schema").Value(GetYTFileProviderBlobTableSchema())
         .EndAttributes()
         .Entity();
     // clang-format on
@@ -173,7 +173,7 @@ void ExpectDiscovery(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYTDirectoryLastFileSourceTest, SelectsLexicographicallyGreatestBlobTableChild)
+TEST(TYTDirectoryLastFileProviderTest, SelectsLexicographicallyGreatestBlobTableChild)
 {
     auto tableId = MakeTableId(1);
     auto client = New<testing::StrictMock<TMockClient>>();
@@ -187,18 +187,18 @@ TEST(TYTDirectoryLastFileSourceTest, SelectsLexicographicallyGreatestBlobTableCh
         "//versions/002",
         tableId,
         MakeTableNode(tableId, TRevision{2}));
-    auto source = MakeDirectorySource(client);
+    auto provider = MakeDirectoryProvider(client);
 
-    auto revision = WaitFor(source->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
 
     ASSERT_TRUE(revision);
     EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_blob_table:v1:"));
     EXPECT_EQ(
-        revision->Locator->GetChildValueOrThrow<EYTFileSourceObjectKind>("object_kind"),
-        EYTFileSourceObjectKind::BlobTable);
+        revision->Locator->GetChildValueOrThrow<EYTFileProviderObjectKind>("object_kind"),
+        EYTFileProviderObjectKind::BlobTable);
 }
 
-TEST(TYTDirectoryLastFileSourceTest, AlsoSelectsCypressFileChildren)
+TEST(TYTDirectoryLastFileProviderTest, AlsoSelectsCypressFileChildren)
 {
     auto fileId = MakeFileId(2);
     auto client = New<testing::StrictMock<TMockClient>>();
@@ -211,16 +211,16 @@ TEST(TYTDirectoryLastFileSourceTest, AlsoSelectsCypressFileChildren)
         "//versions/002",
         fileId,
         MakeFileNode(fileId, TRevision{3}, 10));
-    auto source = MakeDirectorySource(client);
+    auto provider = MakeDirectoryProvider(client);
 
-    auto revision = WaitFor(source->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
 
     ASSERT_TRUE(revision);
     EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_file:v1:"));
     EXPECT_FALSE(revision->Locator->FindChild("basename"));
 }
 
-TEST(TYTDirectoryLastFileSourceTest, DynamicPinSelectsExactChildAndCanBeCleared)
+TEST(TYTDirectoryLastFileProviderTest, DynamicPinSelectsExactChildAndCanBeCleared)
 {
     testing::InSequence sequence;
     auto firstTableId = MakeTableId(3);
@@ -248,24 +248,24 @@ TEST(TYTDirectoryLastFileSourceTest, DynamicPinSelectsExactChildAndCanBeCleared)
         "//versions/002",
         secondTableId,
         MakeTableNode(secondTableId, TRevision{2}));
-    auto source = MakeDirectorySource(client);
+    auto provider = MakeDirectoryProvider(client);
 
     EXPECT_EQ(
-        WaitFor(source->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
+        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
         secondTableId);
 
-    source->Reconfigure(MakeDirectoryDynamicContext("001"));
+    provider->Reconfigure(MakeDirectoryDynamicContext("001"));
     EXPECT_EQ(
-        WaitFor(source->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
+        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
         firstTableId);
 
-    source->Reconfigure(MakeDirectoryDynamicContext());
+    provider->Reconfigure(MakeDirectoryDynamicContext());
     EXPECT_EQ(
-        WaitFor(source->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
+        WaitFor(provider->Discover()).ValueOrThrow()->Locator->GetChildValueOrThrow<TObjectId>("object_id"),
         secondTableId);
 }
 
-TEST(TYTDirectoryLastFileSourceTest, UnsupportedLinkDoesNotMaskGreatestSupportedChild)
+TEST(TYTDirectoryLastFileProviderTest, UnsupportedLinkDoesNotMaskGreatestSupportedChild)
 {
     auto tableId = MakeTableId(5);
     auto client = New<testing::StrictMock<TMockClient>>();
@@ -278,17 +278,17 @@ TEST(TYTDirectoryLastFileSourceTest, UnsupportedLinkDoesNotMaskGreatestSupported
         "//versions/001",
         tableId,
         MakeTableNode(tableId, TRevision{1}));
-    auto source = MakeDirectorySource(client);
+    auto provider = MakeDirectoryProvider(client);
 
-    auto revision = WaitFor(source->Discover()).ValueOrThrow();
+    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
 
     ASSERT_TRUE(revision);
     EXPECT_EQ(
-        revision->Locator->GetChildValueOrThrow<EYTFileSourceObjectKind>("object_kind"),
-        EYTFileSourceObjectKind::BlobTable);
+        revision->Locator->GetChildValueOrThrow<EYTFileProviderObjectKind>("object_kind"),
+        EYTFileProviderObjectKind::BlobTable);
 }
 
-TEST(TYTDirectoryLastFileSourceTest, EmptyOrUnsupportedDirectoryHasNoRevision)
+TEST(TYTDirectoryLastFileProviderTest, EmptyOrUnsupportedDirectoryHasNoRevision)
 {
     auto client = New<testing::StrictMock<TMockClient>>();
     EXPECT_CALL(*client, ListNode(TYPath("//versions"), _))
@@ -296,20 +296,20 @@ TEST(TYTDirectoryLastFileSourceTest, EmptyOrUnsupportedDirectoryHasNoRevision)
             {"nested", EObjectType::MapNode},
         })))))
         .WillOnce(testing::Return(MakeFuture(ConvertToYsonString(MakeDirectoryListing({})))));
-    auto source = MakeDirectorySource(client);
+    auto provider = MakeDirectoryProvider(client);
 
-    EXPECT_FALSE(WaitFor(source->Discover()).ValueOrThrow());
-    EXPECT_FALSE(WaitFor(source->Discover()).ValueOrThrow());
+    EXPECT_FALSE(WaitFor(provider->Discover()).ValueOrThrow());
+    EXPECT_FALSE(WaitFor(provider->Discover()).ValueOrThrow());
 }
 
-TEST(TYTDirectoryLastFileSourceTest, DynamicPinMustNameExistingSupportedChild)
+TEST(TYTDirectoryLastFileProviderTest, DynamicPinMustNameExistingSupportedChild)
 {
     auto client = New<testing::StrictMock<TMockClient>>();
     EXPECT_CALL(*client, ListNode(TYPath("//versions"), _))
         .WillOnce(testing::Return(MakeFuture(ConvertToYsonString(MakeDirectoryListing({
             {"001", EObjectType::Table},
         })))));
-    auto missing = MakeDirectorySource(client, "missing");
+    auto missing = MakeDirectoryProvider(client, "missing");
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(missing->Discover()).ValueOrThrow(),
         "does not exist");
@@ -318,30 +318,30 @@ TEST(TYTDirectoryLastFileSourceTest, DynamicPinMustNameExistingSupportedChild)
         .WillOnce(testing::Return(MakeFuture(ConvertToYsonString(MakeDirectoryListing({
             {"nested", EObjectType::MapNode},
         })))));
-    auto unsupported = MakeDirectorySource(client, "nested");
+    auto unsupported = MakeDirectoryProvider(client, "nested");
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(unsupported->Discover()).ValueOrThrow(),
         "must be a Cypress file or a BLOB table");
 
-    auto invalidParameters = New<TYTDirectoryLastFileSourceDynamicParameters>();
+    auto invalidParameters = New<TYTDirectoryLastFileProviderDynamicParameters>();
     EXPECT_THROW_WITH_SUBSTRING(
         invalidParameters->Load(ConvertTo<IMapNodePtr>(TYsonString(TStringBuf(
             R"({pinned_file_name="../bad";})")))),
         "single normal path component");
 }
 
-TEST(TYTDirectoryLastFileSourceTest, SharesBlobTableObjectIdFamilyWithYTFileSource)
+TEST(TYTDirectoryLastFileProviderTest, SharesBlobTableObjectIdFamilyWithYTFileProvider)
 {
     auto objectId = MakeTableId(6);
     auto revision = TRevision{42};
-    auto file = MakeYTBlobTableFileSourceRevision(
-        TypeName<TYTFileSource>(),
+    auto file = MakeYTBlobTableFileProviderRevision(
+        TypeName<TYTFileProvider>(),
         TRichYPath("<cluster=primary>//versions/001"),
         "primary",
         objectId,
         revision);
-    auto directory = MakeYTBlobTableFileSourceRevision(
-        TypeName<TYTDirectoryLastFileSource>(),
+    auto directory = MakeYTBlobTableFileProviderRevision(
+        TypeName<TYTDirectoryLastFileProvider>(),
         TRichYPath("<cluster=primary>//versions/001"),
         "primary",
         objectId,

@@ -1,4 +1,4 @@
-#include "file_source.h"
+#include "file_provider.h"
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -10,7 +10,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateFileSourceName(TStringBuf name)
+void ValidateFileProviderName(TStringBuf name)
 {
     const auto path = std::string(name);
     THROW_ERROR_EXCEPTION_UNLESS(
@@ -21,26 +21,36 @@ void ValidateFileSourceName(TStringBuf name)
             name.find('/') == TStringBuf::npos &&
             name.find('\\') == TStringBuf::npos &&
             name.find('\0') == TStringBuf::npos,
-        "File source name %Qv must be a single normal path component",
+        "File provider name %Qv must be a single normal path component",
         name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFileSourceSpec::Register(TRegistrar registrar)
+void TFileProviderSpec::Register(TRegistrar registrar)
 {
-    registrar.Parameter("file_source_class_name", &TThis::FileSourceClassName)
+    registrar.Parameter("file_provider_class_name", &TThis::FileProviderClassName)
         .NonEmpty();
     registrar.Parameter("parameters", &TThis::Parameters)
         .DefaultCtor([] {
             return GetEphemeralNodeFactory()->CreateMap();
         })
         .ResetOnLoad();
+    registrar.Parameter("postprocess_command", &TThis::PostprocessCommand)
+        .Default();
+    registrar.Parameter("postprocess_timeout", &TThis::PostprocessTimeout)
+        .GreaterThan(TDuration::Zero())
+        .Default(TDuration::Minutes(1));
+    registrar.Postprocessor([] (TThis* spec) {
+        THROW_ERROR_EXCEPTION_IF(
+            spec->PostprocessCommand && spec->PostprocessCommand->empty(),
+            "File provider postprocess command must be nonempty");
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicFileSourceSpec::Register(TRegistrar registrar)
+void TDynamicFileProviderSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("parameters", &TThis::Parameters)
         .DefaultCtor([] {
@@ -51,9 +61,9 @@ void TDynamicFileSourceSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TFileSourceRevision::Register(TRegistrar registrar)
+void TFileProviderRevision::Register(TRegistrar registrar)
 {
-    registrar.Parameter("file_source_class_name", &TThis::FileSourceClassName)
+    registrar.Parameter("file_provider_class_name", &TThis::FileProviderClassName)
         .NonEmpty();
     registrar.Parameter("object_id", &TThis::ObjectId);
     registrar.Parameter("display_version", &TThis::DisplayVersion)
@@ -68,10 +78,10 @@ void TFileSourceRevision::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* revision) {
         THROW_ERROR_EXCEPTION_IF(
             revision->ObjectId.Underlying().empty(),
-            "File source revision object id must be nonempty");
+            "File provider revision object id must be nonempty");
         THROW_ERROR_EXCEPTION_IF(
             revision->Size && *revision->Size < 0,
-            "File source revision size must be nonnegative");
+            "File provider revision size must be nonnegative");
     });
 }
 

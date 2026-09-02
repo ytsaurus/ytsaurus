@@ -3,10 +3,10 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
-    file_source_base.cpp
-    GLOBAL local_file_source.cpp
-    GLOBAL yt_directory_last_file_source.cpp
-    GLOBAL yt_file_source.cpp
+    file_provider_base.cpp
+    GLOBAL local_file_provider.cpp
+    GLOBAL yt_directory_last_file_provider.cpp
+    GLOBAL yt_file_provider.cpp
 )
 
 PEERDIR(

@@ -24,68 +24,70 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateFileSourceName(TStringBuf name);
+void ValidateFileProviderName(TStringBuf name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileSourceSpec
+struct TFileProviderSpec
     : public NYTree::TYsonStruct
 {
-    // Registered #IFileSource implementation used by this resource.
-    std::string FileSourceClassName;
+    // Registered #IFileProvider implementation used by this resource.
+    std::string FileProviderClassName;
     NYTree::IMapNodePtr Parameters;
+    std::optional<std::string> PostprocessCommand;
+    TDuration PostprocessTimeout;
 
-    REGISTER_YSON_STRUCT(TFileSourceSpec);
+    REGISTER_YSON_STRUCT(TFileProviderSpec);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFileSourceSpec);
+DEFINE_REFCOUNTED_TYPE(TFileProviderSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicFileSourceSpec
+struct TDynamicFileProviderSpec
     : public NYTree::TYsonStruct
 {
-    // Source-specific parameters used to select future revisions during discovery.
+    // Provider-specific parameters used to select future revisions during discovery.
     NYTree::IMapNodePtr Parameters;
 
-    REGISTER_YSON_STRUCT(TDynamicFileSourceSpec);
+    REGISTER_YSON_STRUCT(TDynamicFileProviderSpec);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicFileSourceSpec);
+DEFINE_REFCOUNTED_TYPE(TDynamicFileProviderSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileSourceRevision
+struct TFileProviderRevision
     : public NYTree::TYsonStruct
 {
-    // Registered #IFileSource implementation that interprets |Locator|.
-    std::string FileSourceClassName;
+    // Registered #IFileProvider implementation that interprets |Locator|.
+    std::string FileProviderClassName;
     // Stable object identity; equal values guarantee byte-identical downloaded files.
     NFileStorage::TFileStorageObjectId ObjectId;
     // Human-readable version for diagnostics; it does not participate in content identity.
     std::string DisplayVersion;
-    // Expected downloaded payload size, when the source can determine it during discovery.
+    // Expected downloaded payload size, when the provider can determine it during discovery.
     std::optional<i64> Size;
-    // Source-specific coordinates of this exact revision.
+    // Provider-specific coordinates of this exact revision.
     NYTree::IMapNodePtr Locator;
 
-    REGISTER_YSON_STRUCT(TFileSourceRevision);
+    REGISTER_YSON_STRUCT(TFileProviderRevision);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFileSourceRevision);
+DEFINE_REFCOUNTED_TYPE(TFileProviderRevision);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFileSourceContext
+struct TFileProviderContext
     : public TRefCounted
 {
-    TFileSourceSpecPtr SourceSpec;
+    TFileProviderSpecPtr ProviderSpec;
     IPipelineAuthenticatorPtr PipelineAuthenticator;
     NClient::NCache::IClientsCachePtr ClientsCache;
     NHttp::IClientPtr HttpClient;
@@ -94,38 +96,38 @@ struct TFileSourceContext
     NLogging::TLogger Logger;
 };
 
-DEFINE_REFCOUNTED_TYPE(TFileSourceContext);
+DEFINE_REFCOUNTED_TYPE(TFileProviderContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicFileSourceContext
+struct TDynamicFileProviderContext
     : public TRefCounted
 {
-    TDynamicFileSourceSpecPtr DynamicFileSourceSpec;
+    TDynamicFileProviderSpecPtr DynamicFileProviderSpec;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicFileSourceContext);
+DEFINE_REFCOUNTED_TYPE(TDynamicFileProviderContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IFileSource
+struct IFileProvider
     : public virtual TRefCounted
-    , public virtual TReconfigurable<TDynamicFileSourceContext>
+    , public virtual TReconfigurable<TDynamicFileProviderContext>
 {
     YT_FLOW_REGISTER_PARAMETERS(NYTree::TYsonStruct);
     YT_FLOW_REGISTER_DYNAMIC_PARAMETERS(NYTree::TYsonStruct);
 
     using TValidator = TNoopSpecValidator;
 
-    virtual TFuture<TFileSourceRevisionPtr> Discover() = 0;
+    virtual TFuture<TFileProviderRevisionPtr> Discover() = 0;
 
     // Materializes exactly |revision|; current dynamic parameters must not reselect its version.
     virtual TFuture<void> Download(
-        const TFileSourceRevisionPtr& revision,
+        const TFileProviderRevisionPtr& revision,
         const std::string& stagingDirectory) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IFileSource);
+DEFINE_REFCOUNTED_TYPE(IFileProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

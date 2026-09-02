@@ -73,7 +73,7 @@ struct TFileResourceSnapshot
 {
     TFileResourceSnapshot(
         TIntrusivePtr<TData> data,
-        TMaterializedFileSourceSnapshotPtr fileSources,
+        TMaterializedFileProviderSnapshotPtr fileProviders,
         TResourceRevisionPtr deliveryRevision,
         TIntrusivePtr<TFileResourceAccessorState> accessorState = nullptr,
         TIntrusivePtr<TFileResourceLifetimeAnchor> lifetimeAnchor = nullptr)
@@ -83,15 +83,15 @@ struct TFileResourceSnapshot
         , AccessorState(accessorState
                 ? std::move(accessorState)
                 : New<TFileResourceAccessorState>())
-        , FileSources(std::move(fileSources))
+        , FileProviders(std::move(fileProviders))
         , Data(std::move(data))
         , DeliveryRevision(std::move(deliveryRevision))
     { }
 
     const TIntrusivePtr<TFileResourceLifetimeAnchor> LifetimeAnchor;
     const TIntrusivePtr<TFileResourceAccessorState> AccessorState;
-    // #Data is destroyed before #FileSources, so its destructor may still inspect cached input.
-    const TMaterializedFileSourceSnapshotPtr FileSources;
+    // #Data is destroyed before #FileProviders, so its destructor may still inspect cached input.
+    const TMaterializedFileProviderSnapshotPtr FileProviders;
     const TIntrusivePtr<TData> Data;
     TResourceRevisionPtr DeliveryRevision;
 };
@@ -114,9 +114,9 @@ public:
     const TData& operator*() const;
     const TData* operator->() const;
 
-    const TFileSourceRevisionPtr& GetSourceRevision(const TFileSourceId& id) const;
-    const std::string& GetRootPath(const TFileSourceId& id) const;
-    const TMaterializedFileSourceSnapshotPtr& GetFileSources() const;
+    const TFileProviderRevisionPtr& GetProviderRevision(const TFileProviderId& id) const;
+    const std::string& GetRootPath(const TFileProviderId& id) const;
+    const TMaterializedFileProviderSnapshotPtr& GetFileProviders() const;
     TFileSnapshotId GetFileSnapshotId() const;
     i64 GetDeliveryRevisionId() const;
 
@@ -154,7 +154,7 @@ public:
     TAccessor Lock() const;
 
 protected:
-    virtual TDataPtr Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources) = 0;
+    virtual TDataPtr Initialize(const TMaterializedFileProviderSnapshotPtr& fileProviders) = 0;
     virtual void Validate(const TDataPtr& data);
 
 private:
@@ -204,7 +204,7 @@ private:
         const TResourceRevisionPtr& target,
         const TFileSnapshotPtr& fileSnapshot,
         ui64 attemptGeneration,
-        const TErrorOr<TMaterializedFileSourceSnapshotPtr>& result);
+        const TErrorOr<TMaterializedFileProviderSnapshotPtr>& result);
     void ValidateSnapshot(const TFileSnapshotPtr& fileSnapshot) const;
     void CompletePreparation(
         ESnapshotRole role,

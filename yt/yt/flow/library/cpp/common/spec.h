@@ -1,6 +1,6 @@
 #pragma once
 
-#include "file_source.h"
+#include "file_provider.h"
 #include "public.h"
 #include "yt_path_option.h"
 
@@ -68,7 +68,7 @@ struct TResourceSpec
 {
     std::string ResourceClassName;
     NYTree::IMapNodePtr Parameters;
-    THashMap<TFileSourceId, TFileSourceSpecPtr> FileSources;
+    THashMap<TFileProviderId, TFileProviderSpecPtr> FileProviders;
     THashMap<TResourceId, TResourceDescriptionPtr> Dependencies;
     THashMap<std::string, ssize_t> RequiredCapabilities;
     bool PreloadRequired{};
@@ -951,11 +951,11 @@ struct TDynamicResourceSpec
     : public NYTree::TYsonStruct
 {
     NYTree::IMapNodePtr Parameters;
-    THashMap<TFileSourceId, TDynamicFileSourceSpecPtr> FileSources;
-    //! Controller-side discovery period for every named file source.
-    TDuration FileSourceDiscoverPeriod;
-    //! Worker-side retry period for preparing a delivered file-source target.
-    TDuration FileSourceUpdateRetryPeriod;
+    THashMap<TFileProviderId, TDynamicFileProviderSpecPtr> FileProviders;
+    //! Controller-side discovery period for every named file provider.
+    TDuration FileProviderDiscoverPeriod;
+    //! Worker-side retry period for preparing a delivered file-provider target.
+    TDuration FileProviderUpdateRetryPeriod;
     //! Minimum interval between selecting new file snapshots for this resource.
     TDuration FileSnapshotMinCreationPeriod;
     //! Maximum number of file snapshots retained in controller state.
