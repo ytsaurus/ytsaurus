@@ -925,9 +925,9 @@ class TestYqlAgent(TestQueriesYqlSimpleBase):
         write_file("//tmp/dir/second_file", b"twede")
 
         self._test_simple_query("""
-            pragma folder("tt", "yt://{}/tmp");
+            pragma folder("tt", "yt://primary/tmp");
             select FileContent("tt/first_file") as first, FileContent("tt/dir/second_file") as second;
-        """.format(self.Env.get_http_proxy_address()), [{'first': 'eerste', 'second': 'twede'}])
+        """, [{'first': 'eerste', 'second': 'twede'}])
 
     @authors("apollo1321")
     def test_config_defaults(self, query_tracker, yql_agent):

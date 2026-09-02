@@ -343,7 +343,6 @@ class TestUdfRegistry(TestQueriesYqlBase):
     @pytest.mark.timeout(120)
     def test_udf_meta(self, query_tracker, yql_agent):
         cluster = yql_agent.yql_agent.env.id
-        addresss = yql_agent.yql_agent.env.get_http_proxy_address()
 
         with raises_yt_error("Query of type \"udf_meta\" must not be indexed"):
             self.start_query(
@@ -396,7 +395,7 @@ class TestUdfRegistry(TestQueriesYqlBase):
                     {
                         "CustomUdfPrefix": "",
                         "Modules": ["SimpleUdf"],
-                        "FileAlias": f"yt://{addresss}//sys/yql_agent/udfs/libsimple_udf.so",
+                        "FileAlias": "yt://primary//sys/yql_agent/udfs/libsimple_udf.so",
                     }
                 ],
                 "Udfs": AnyThing(),
