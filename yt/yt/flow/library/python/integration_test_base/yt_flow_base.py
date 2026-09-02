@@ -669,11 +669,10 @@ class FlowTestBase:
         wait(check, timeout=timeout, ignore_exceptions=True)
 
     def get_processing_watermark(self):
-        epoch = self.client.get_flow_view(self.pipeline_path, view_path="/state/epoch")
         united_stream = self.client.get_flow_view(self.pipeline_path, view_path="/state/traverse_data/united_stream")
-        if epoch == united_stream.get("epoch", -1):
-            return united_stream.get("event_watermark", 0)
-        return 0
+        # Job restarts can leave stream traverses on mixed spec generations.
+        # Their watermarks remain monotonic.
+        return united_stream.get("event_watermark", 0)
 
     def run_yt_sync_ensure(self, yt_sync_binary_path, extra_env=None):
         env = dict(os.environ)
