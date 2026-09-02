@@ -875,10 +875,9 @@ TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
             }
 
             auto storeId = doGenerateId();
-            YT_LOG_ALERT("Dynamic store id pool is empty, falling back to local "
-                "dynamic store id generation. Reads from map-reduce may not see "
-                "some recent data (NewStoreId: %v)",
-                storeId);
+            YT_TLOG_ALERT("Dynamic store id pool is empty, falling back to local dynamic store id generation; "
+                "reads from map-reduce may not see some recent data")
+                .With("NewStoreId", storeId);
 
             return storeId;
         }

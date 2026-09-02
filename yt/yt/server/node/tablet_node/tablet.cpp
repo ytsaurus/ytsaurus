@@ -3124,13 +3124,13 @@ i64 TTablet::Lock(ETabletLockType lockType)
 
 i64 TTablet::Unlock(ETabletLockType lockType)
 {
-    YT_LOG_FATAL_IF(TabletLockCount_[lockType] <= 0 || TotalTabletLockCount_ <= 0,
-        "Attempted to unlock tablet with nonpositive lock count "
-        "(%v, LockType: %lv, TotalTabletLockCount: %v, LockCountPerType: %v)",
-        GetLoggingTags(),
-        lockType,
-        TotalTabletLockCount_,
-        MakeFormattableView(
+    YT_TLOG_FATAL_IF(
+        TabletLockCount_[lockType] <= 0 || TotalTabletLockCount_ <= 0,
+        "Attempted to unlock tablet with nonpositive lock count")
+        .With(GetLoggingTags())
+        .With("LockType", lockType)
+        .With("TotalTabletLockCount", TotalTabletLockCount_)
+        .With("LockCountPerType", MakeFormattableView(
             TEnumTraits<ETabletLockType>::GetDomainValues(),
             [&] (auto* builder, auto lockType) {
                 builder->AppendFormat("%lv: %v", lockType, TabletLockCount_[lockType]);
@@ -3187,10 +3187,10 @@ void TTablet::PushDynamicStoreIdToPool(
     YT_VERIFY(storeId);
     DynamicStoreIdPool_.push_back(storeId);
 
-    YT_LOG_DEBUG("Dynamic store id added to pool (%v, StoreId: %v, Reason: %lv)",
-        LoggingTags_,
-        storeId,
-        reservationReason);
+    YT_TLOG_DEBUG("Dynamic store id added to pool")
+        .With(LoggingTags_)
+        .With("StoreId", storeId)
+        .With("Reason", reservationReason);
 
     if (reservationReason) {
         ++ReservedDynamicStoreIdCount_[*reservationReason];
@@ -3208,9 +3208,9 @@ TDynamicStoreId TTablet::PopDynamicStoreIdFromPool()
 void TTablet::ReleaseReservedDynamicStoreId(
     EDynamicStoreIdReservationReason reason)
 {
-    YT_LOG_DEBUG("Reserved dynamic store id released from pool (%v, Reason: %lv)",
-        LoggingTags_,
-        reason);
+    YT_TLOG_DEBUG("Reserved dynamic store id released from pool")
+        .With(LoggingTags_)
+        .With("Reason", reason);
 
     YT_VERIFY(ReservedDynamicStoreIdCount_[reason] > 0);
     --ReservedDynamicStoreIdCount_[reason];

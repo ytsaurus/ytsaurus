@@ -1926,16 +1926,17 @@ private:
         reshardRedirectionHint->NewTabletPivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->new_tablet_pivot_keys());
         reshardRedirectionHint->NewTabletsMountRevision = FromProto<NHydra::TRevision>(request->new_tablets_mount_revision());
 
-        YT_LOG_DEBUG("Set reshard redirection hint for tablets (TabletId: %v, "
-            "ReshardRedirectionHint: [OldTabletIds: %v, OldTabletMountRevisions: %llx, "
-            "NewTabletIds: %v, NewTabletsMountRevision: %llx])",
-            MakeFormattableView(oldTabletSnapshots, [] (auto* builder, const auto& tabletSnapshot) {
+        YT_TLOG_DEBUG("Set reshard redirection hint for tablets")
+            .With("TabletIds", MakeFormattableView(oldTabletSnapshots, [] (auto* builder, const auto& tabletSnapshot) {
                 builder->AppendFormat("%v", tabletSnapshot->TabletId);
-            }),
-            reshardRedirectionHint->OldTabletIds,
-            reshardRedirectionHint->OldTabletMountRevisions,
-            reshardRedirectionHint->NewTabletIds,
-            reshardRedirectionHint->NewTabletsMountRevision);
+            }))
+            .WithFormat(
+                "ReshardRedirectionHint",
+                "{OldTabletIds: %v, OldTabletMountRevisions: %llx, NewTabletIds: %v, NewTabletsMountRevision: %llx}",
+                reshardRedirectionHint->OldTabletIds,
+                reshardRedirectionHint->OldTabletMountRevisions,
+                reshardRedirectionHint->NewTabletIds,
+                reshardRedirectionHint->NewTabletsMountRevision);
 
         for (auto& oldTabletSnapshot : oldTabletSnapshots) {
             oldTabletSnapshot->ReshardRedirectionHint = reshardRedirectionHint;
@@ -2362,10 +2363,10 @@ private:
             case ETabletState::Frozen: {
                 auto state = tablet->GetState();
                 if (IsInUnmountWorkflow(state)) {
-                    YT_LOG_INFO("Improper tablet state transition requested, ignored (CurrentState %v, RequestedState: %v, %v)",
-                        state,
-                        requestedState,
-                        tablet->GetLoggingTags());
+                    YT_TLOG_INFO("Improper tablet state transition requested, ignored")
+                        .With("CurrentState", state)
+                        .With("RequestedState", requestedState)
+                        .With(tablet->GetLoggingTags());
                     return;
                 }
 
@@ -3819,25 +3820,22 @@ private:
 
             chaosData->CurrentReplicationRowIndexes.Store(currentReplicationRowIndexes);
 
-            YT_LOG_DEBUG("Write pulled rows %v (TabletId: %v, TransactionId: %v, ReplicationProgress: %v, "
-                "ReplicationRowIndexes: %v, NewReplicationRound: %v)",
-                inCommit ? "committed" : "serialized",
-                tabletId,
-                transaction->GetId(),
-                static_cast<NChaosClient::TReplicationProgress>(*progress),
-                currentReplicationRowIndexes,
-                replicationRound + 1);
+            YT_TLOG_DEBUG("Write pulled rows finished")
+                .With("InCommit", inCommit)
+                .With("TabletId", tabletId)
+                .With("TransactionId", transaction->GetId())
+                .With("ReplicationProgress", static_cast<NChaosClient::TReplicationProgress>(*progress))
+                .With("ReplicationRowIndexes", currentReplicationRowIndexes)
+                .With("NewReplicationRound", replicationRound + 1);
         } else {
-            YT_LOG_ALERT("Skip writing pulled rows due to not strictly advanced progress %v "
-                "(TabletId: %v, TransactionId: %v, NewReplicationProgress: %v, TabletProgress: %v, "
-                "ReplicationRowIndexes: %v, NewReplicationRound: %v)",
-                inCommit ? "committed" : "serialized",
-                tabletId,
-                transaction->GetId(),
-                static_cast<NChaosClient::TReplicationProgress>(*progress),
-                static_cast<NChaosClient::TReplicationProgress>(*tabletProgress),
-                currentReplicationRowIndexes,
-                replicationRound + 1);
+            YT_TLOG_ALERT("Skip writing pulled rows due to not strictly advanced progress")
+                .With("InCommit", inCommit)
+                .With("TabletId", tabletId)
+                .With("TransactionId", transaction->GetId())
+                .With("NewReplicationProgress", static_cast<NChaosClient::TReplicationProgress>(*progress))
+                .With("TabletProgress", static_cast<NChaosClient::TReplicationProgress>(*tabletProgress))
+                .With("ReplicationRowIndexes", currentReplicationRowIndexes)
+                .With("NewReplicationRound", replicationRound + 1);
         }
 
 

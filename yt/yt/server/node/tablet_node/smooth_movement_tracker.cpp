@@ -276,12 +276,11 @@ public:
         }
 
         if (newStage) {
-            YT_LOG_DEBUG("Scheduling smooth movement stage change "
-                "(%v, Role: %v, OldStage: % v, NewStage: %v)",
-                tablet->GetLoggingTags(),
-                movementData.GetRole(),
-                movementData.GetStage(),
-                *newStage);
+            YT_TLOG_DEBUG("Scheduling smooth movement stage change")
+                .With(tablet->GetLoggingTags())
+                .With("Role", movementData.GetRole())
+                .With("OldStage", movementData.GetStage())
+                .With("NewStage", *newStage);
 
             movementData.SetStageChangeScheduled(true);
 
@@ -429,11 +428,12 @@ public:
             this message.
          */
 
-        YT_LOG_FATAL_UNLESS(reasons.empty(),
+        YT_TLOG_FATAL_UNLESS(
+            reasons.empty(),
             "Please ensure that the added persistent feature works well with smooth "
-            "tablet movement. Refer to the place of code where this message is located "
-            "to see all necessary requirements. Failure reason: %v",
-            reasons);
+            "tablet movement; refer to the place of code where this message is located "
+            "to see all necessary requirements")
+            .With("Reasons", reasons);
     }
 
     void OnReignChanged(TReign previousReign) override

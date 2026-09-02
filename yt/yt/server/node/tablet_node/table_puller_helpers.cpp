@@ -236,9 +236,9 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
                 continue;
             }
 
-            YT_LOG_DEBUG("Found sync replica corresponding history item (ReplicaId %v, HistoryItem: %v)",
-                replicaId,
-                historyItem);
+            YT_TLOG_DEBUG("Found sync replica corresponding history item")
+                .With("ReplicaId", replicaId)
+                .With("HistoryItem", historyItem);
 
             // Pull from (past) sync replica until it changed mode or we became sync.
             // AsyncToSync -> SyncToAsync transition is possible, so check the previous state
