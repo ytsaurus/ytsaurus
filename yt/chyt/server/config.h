@@ -431,6 +431,8 @@ struct TQuerySettings
 
     bool InferDynamicTableRangesFromPivotKeys;
 
+    bool EnableFullResultWrite;
+
     TConversionSettingsPtr Conversion;
 
     TCompositeSettingsPtr Composite;

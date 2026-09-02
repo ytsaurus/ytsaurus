@@ -19,6 +19,14 @@ message TReqExecuteQuery
     optional int64 row_count_limit = 2;
     optional NYT.NProto.TGuid query_id = 3;
     optional NYT.NProto.TGuid parent_transaction_id = 4;
+    optional TFullResultOptions full_result_options = 5;
+}
+
+message TFullResultOptions
+{
+    optional string table_path_prefix = 1;
+    optional string cluster = 2;
+    optional int64 expiration_timeout_milliseconds = 3;
 }
 
 message TRspExecuteQuery
@@ -26,6 +34,7 @@ message TRspExecuteQuery
     optional NYT.NProto.TGuid query_id = 1;
     optional NYT.NProto.TError error = 2;
     repeated bool is_truncated = 3;
+    repeated bytes full_result = 4;
     // Attachments contain wire-encoded data.
 }
 
