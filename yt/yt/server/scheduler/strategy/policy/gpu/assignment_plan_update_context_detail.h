@@ -59,6 +59,7 @@ public:
     const TOperationMap& Operations() const override;
     const TNodeMap& Nodes() const override;
     const TGpuPlanUpdateStatisticsPtr& GetStatistics() const override;
+    bool IsAssignmentPreemptionAllowed(const TAssignmentPtr& assignment) const override;
 
     TAssignmentPtr AddPlannedAssignment(
         std::string allocationGroupName,

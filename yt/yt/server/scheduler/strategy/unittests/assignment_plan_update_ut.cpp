@@ -158,6 +158,11 @@ public:
         return GpuPlanUpdateStatistic_;
     }
 
+    bool IsAssignmentPreemptionAllowed(const TAssignmentPtr& assignment) const override
+    {
+        return !assignment->Reviving && Operations_.contains(assignment->OperationId);
+    }
+
     TJobResources GetAvailableOperationLimits(const TOperationPtr& operation) const override
     {
         return GetOrDefault(OperationIdToLimit_, operation->GetId(), TJobResources::Infinite());
@@ -189,6 +194,8 @@ public:
         const std::string& preemptionDescription,
         TOperationId preemptedForOperationId = {}) override
     {
+        YT_VERIFY(IsAssignmentPreemptionAllowed(assignment));
+
         (*PreemptedAssignments_)[assignment->Node->GetId()].insert(assignment);
 
         AssignmentHandler_.PreemptAssignment(
@@ -1289,6 +1296,27 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimplePreemption)
     EXPECT_TRUE(operations[1]->Assignments().empty());
 
     EXPECT_EQ(2, std::ssize(node->Assignments()));
+}
+
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestDoNotPreemptAssignmentOfMissingOperation)
+{
+    auto nodes = CreateSingleModuleTestNodes();
+    auto runningOperation = CreateSimpleTestOperation(/*gpuCount*/ 8);
+
+    DoAllocationAssignmentPlanUpdate({runningOperation}, nodes);
+
+    ASSERT_EQ(1, std::ssize(runningOperation->Assignments()));
+    auto runningAssignment = *runningOperation->Assignments().begin();
+    runningAssignment->Preemptible = true;
+
+    auto contender = CreateSimpleTestOperation(/*gpuCount*/ 1);
+    contender->SetStarving(true);
+
+    DoAllocationAssignmentPlanUpdate({contender}, nodes);
+
+    EXPECT_TRUE(GetNodePreemptedAssignments(nodes[0]).empty());
+    EXPECT_TRUE(contender->Assignments().empty());
+    EXPECT_TRUE(runningOperation->Assignments().contains(runningAssignment));
 }
 
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestNotEnoughPreemptibleAssignments)

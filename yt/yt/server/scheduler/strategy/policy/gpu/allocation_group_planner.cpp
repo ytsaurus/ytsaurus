@@ -227,7 +227,7 @@ TPreemptiveAllocationGroupPlanner::TPreemptiveAllocationGroupPlanner(
     for (auto* node : *availableNodes) {
         auto& nodeState = NodeStates_[node];
         for (const auto& assignment : node->Assignments()) {
-            if (assignment->Reviving) {
+            if (!Context_->IsAssignmentPreemptionAllowed(assignment)) {
                 continue;
             }
 

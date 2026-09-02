@@ -159,6 +159,11 @@ const TGpuPlanUpdateStatisticsPtr& TAssignmentPlanUpdateContext::GetStatistics()
     return Statistics_;
 }
 
+bool TAssignmentPlanUpdateContext::IsAssignmentPreemptionAllowed(const TAssignmentPtr& assignment) const
+{
+    return !assignment->Reviving && SchedulableOperations_.contains(assignment->OperationId);
+}
+
 TAssignmentPtr TAssignmentPlanUpdateContext::AddPlannedAssignment(
     std::string allocationGroupName,
     TJobResourcesWithQuota resourceUsage,
@@ -181,6 +186,8 @@ void TAssignmentPlanUpdateContext::PreemptAssignment(
     const std::string& preemptionDescription,
     TOperationId preemptedForOperationId)
 {
+    YT_VERIFY(IsAssignmentPreemptionAllowed(assignment));
+
     IncreaseOperationUsage(assignment->Operation, -assignment->ResourceUsage);
     AssignmentHandler_.PreemptAssignment(
         assignment,
