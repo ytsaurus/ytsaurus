@@ -15,7 +15,11 @@ namespace NYT::NChunkPools {
 struct TPushBasedShuffleChunkPoolOptions
 {
     int PartitionCount = 0;
+
+    //! Sort readers retain the decompressed partition payload for the job lifetime, so
+    //! uncompressed data size tracks their memory footprint better than data weight.
     i64 TargetUncompressedDataSizePerJob = 0;
+
     i64 MaxDataSliceCountPerJob = 0;
 
     //! Compressed size over uncompressed size, as elsewhere in YT, so within (0, 1];

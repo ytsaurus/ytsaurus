@@ -204,12 +204,12 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, RegressingExactStatisticsAborts)
             .CompressedDataSize = 2,
             .UncompressedDataSize = 2,
             .RecordCount = 1,
-            .RowCount = 2,
+            .RowCount = 3,
         });
 
         try {
             pool->UpdateChunkWriteSession(chunkId, {
-                .DataWeight = 1,
+                .DataWeight = 2,
                 .CompressedDataSize = 2,
                 .UncompressedDataSize = 2,
                 .RecordCount = 2,
@@ -575,6 +575,25 @@ TEST_F(TPushBasedShuffleChunkPoolDeathTest, SealEstimateOverflowAborts)
         } catch (...) {
         }
     }, "rhs > 0");
+}
+
+TEST_F(TPushBasedShuffleChunkPoolDeathTest, SealWithEmptyRecordsAborts)
+{
+    EXPECT_DEATH({
+        auto pool = CreatePool(
+            /*partitionCount*/ 1,
+            /*targetUncompressedDataSizePerJob*/ 1000,
+            /*maxDataSliceCountPerJob*/ 10,
+            GetTestLogger());
+        auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
+        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
+
+        // A sealed chunk cannot hold records without occupying compressed bytes.
+        try {
+            pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(5));
+        } catch (...) {
+        }
+    }, "missingCompressedDataSize >= missingRecordCount");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1100,25 +1119,6 @@ TEST_F(TPushBasedShuffleChunkPoolTest, ExtrapolationKeepsOneBytePerRecord)
 
     EXPECT_EQ(100, chunkSlice->UpperLimit().RowIndex);
     EXPECT_EQ(100, chunkSlice->GetUncompressedDataSize());
-}
-
-TEST_F(TPushBasedShuffleChunkPoolDeathTest, SealWithEmptyRecordsAborts)
-{
-    EXPECT_DEATH({
-        auto pool = CreatePool(
-            /*partitionCount*/ 1,
-            /*targetUncompressedDataSizePerJob*/ 1000,
-            /*maxDataSliceCountPerJob*/ 10,
-            GetTestLogger());
-        auto chunkId = MakeRandomId(EObjectType::JournalChunk, TCellTag(0x42));
-        pool->RegisterChunkWriteSession(/*partitionIndex*/ 0, chunkId, {});
-
-        // A sealed chunk cannot hold records without occupying compressed bytes.
-        try {
-            pool->FinishChunkWriteSessionFromSeal(chunkId, MakeSealSummary(5));
-        } catch (...) {
-        }
-    }, "missingCompressedDataSize >= missingRecordCount");
 }
 
 TEST_F(TPushBasedShuffleChunkPoolTest, RestoresOptions)
