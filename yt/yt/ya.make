@@ -4,7 +4,6 @@ RECURSE(
     client
     core
     experiments
-    flow
     gpuagent
     library
     python

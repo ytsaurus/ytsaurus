@@ -1,3 +1,0 @@
-RECURSE(
-    flow_server
-)
