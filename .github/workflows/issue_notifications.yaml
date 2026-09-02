@@ -9,23 +9,10 @@ permissions: {}
 jobs:
   telegram:
     name: Telegram
-    runs-on: ubuntu-latest
-    steps:
-      - name: Send telegram message
-        shell: bash
-        env:
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_NOTIFICATIONS_CHAT_ID }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          NOTIFICATION_TITLE: ${{ github.event.issue.title }}
-          NOTIFICATION_URL: ${{ github.event.issue.html_url }}
-        run: |
-          printf -v message 'New issue in %s: %s\n%s' \
-            "$REPOSITORY" "$NOTIFICATION_TITLE" "$NOTIFICATION_URL"
-
-          curl --fail --silent --show-error --output /dev/null \
-            --request POST \
-            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=${message}" \
-            --data-urlencode 'link_preview_options={"is_disabled":true}' \
-            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"
+    uses: ./.github/workflows/send_telegram_notification.yaml
+    with:
+      notification_type: issue
+      runner: ubuntu-latest
+    secrets:
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_NOTIFICATIONS_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
