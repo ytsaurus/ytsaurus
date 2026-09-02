@@ -154,6 +154,11 @@ bool TCompositeElementMock::IsStepFunctionForGangOperationsEnabled() const
     return true;
 }
 
+bool TCompositeElementMock::IsFifoChildrenReorderingForGuaranteeUtilizationEnabled() const
+{
+    return FifoChildrenReorderingForGuaranteeUtilizationEnabled_;
+}
+
 bool TCompositeElementMock::CanAcceptFreeVolume() const
 {
     return IntegralGuaranteesConfig_->CanAcceptFreeVolume;
@@ -207,6 +212,11 @@ void TCompositeElementMock::SetMode(ESchedulingMode mode)
 void TCompositeElementMock::SetPromisedGuaranteeFairShareComputationEnabled(bool enabled)
 {
     PromisedGuaranteeFairShareComputationEnabled_ = enabled;
+}
+
+void TCompositeElementMock::SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(bool enabled)
+{
+    FifoChildrenReorderingForGuaranteeUtilizationEnabled_ = enabled;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
