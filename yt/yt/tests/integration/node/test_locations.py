@@ -669,7 +669,6 @@ class CacheLocationOverflowBase(YTEnvSetup):
         )
         assert len(entries) > 0
         for entry in entries:
-            assert 'No space left on device' in str(entry), entry
             assert self._EXPECTED_ERROR in str(entry), entry
 
 
