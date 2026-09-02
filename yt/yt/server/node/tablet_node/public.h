@@ -212,6 +212,7 @@ DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
 DECLARE_REFCOUNTED_CLASS(TContainerCpuThrottlingTracker)
 DECLARE_REFCOUNTED_CLASS(TLogDropTracker)
 
+DECLARE_REFCOUNTED_CLASS(TCompactionHintFetchThrottlers)
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetchPipeline);
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetcher)
 
