@@ -426,9 +426,8 @@ void CheckBundleSnapshotInvariants(const TBundleSnapshotPtr& bundleSnapshot)
 
     for (const auto& [id, tablet] : bundleSnapshot->Bundle->Tablets) {
         YT_VERIFY(tablet->Table);
-        bool tabletListedInTable = std::any_of(
-            tablet->Table->Tablets.begin(),
-            tablet->Table->Tablets.end(),
+        bool tabletListedInTable = std::ranges::any_of(
+            tablet->Table->Tablets,
             [&id] (const auto& tablet) {
                 return tablet->Id == id;
             });
@@ -2029,7 +2028,7 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
 
             EmplaceOrCrash(nodeStatistics, address, std::move(statistics));
         } catch (const TErrorException& ex) {
-            YT_TLOG_ERROR("Failed to get \"statistics\" or \"tablet_slots\" attribute for node")
+            YT_TLOG_ERROR("Failed to get node statistics or tablet slots attribute")
                 .With("NodeAddress", address)
                 .With(ex);
         }
