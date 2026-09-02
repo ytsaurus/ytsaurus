@@ -1155,8 +1155,8 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
         diskThrottlingResult.MemoryOvercommit &&
         ChunkStoreHost_->CanPassSessionOutOfTurn(chunkId))
     {
-        YT_LOG_WARNING("Session passed out of turn with possible overcommit (Chunkd: %v)",
-            chunkId);
+        YT_TLOG_WARNING("Session passed out of turn with possible overcommit")
+            .With("ChunkId", chunkId);
         diskThrottlingResult.Enabled = false;
     }
 
@@ -1211,14 +1211,14 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
         ChunkStore_->ChangeLocationMedium(this, oldDescriptor->GetIndex());
     }
 
-    YT_LOG_INFO("Location medium descriptor %v (LocationId: %v, LocationUuid: %v, LocationIndex: %v, MediumName: %v, MediumIndex: %v, Priority: %v)",
-        onInitialize ? "set" : "changed",
-        GetId(),
-        GetUuid(),
-        GetIndex(),
-        newDescriptor->Name(),
-        newDescriptor->GetIndex(),
-        newDescriptor->GetPriority());
+    YT_TLOG_INFO("Location medium descriptor updated")
+        .With("OnInitialize", onInitialize)
+        .With("LocationId", GetId())
+        .With("LocationUuid", GetUuid())
+        .With("LocationIndex", GetIndex())
+        .With("MediumName", newDescriptor->Name())
+        .With("MediumIndex", newDescriptor->GetIndex())
+        .With("Priority", newDescriptor->GetPriority());
 }
 
 const TChunkStorePtr& TChunkLocation::GetChunkStore() const
@@ -1590,10 +1590,10 @@ bool TStoreLocation::IsFull() const
     auto full = available < watermark;
     auto expected = !full;
     if (Full_.compare_exchange_strong(expected, full)) {
-        YT_LOG_DEBUG("Location is %v full (AvailableSpace: %v, WatermarkSpace: %v)",
-            full ? "now" : "no longer",
-            available,
-            watermark);
+        YT_TLOG_DEBUG("Location fullness changed")
+            .With("Full", full)
+            .With("AvailableSpace", available)
+            .With("WatermarkSpace", watermark);
     }
     return full;
 }
@@ -1961,19 +1961,19 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(TChunkId chunkId
         }
         // EXT4 specific thing.
         // See https://bugs.launchpad.net/ubuntu/+source/linux/+bug/317781
-        YT_LOG_WARNING("Chunk meta file %v is empty, removing chunk files",
-            metaFileName);
+        YT_TLOG_WARNING("Chunk meta file is empty, removing chunk files")
+            .With("MetaFileName", metaFileName);
         NFS::Remove(dataFileName);
         NFS::Remove(metaFileName);
     } else if (!hasMeta && hasData) {
-        YT_LOG_WARNING("Chunk meta file %v is missing, moving data file %v to trash",
-            metaFileName,
-            dataFileName);
+        YT_TLOG_WARNING("Chunk meta file is missing, moving data file to trash")
+            .With("MetaFileName", metaFileName)
+            .With("DataFileName", dataFileName);
         NFS::Replace(dataFileName, trashDataFileName);
     } else if (!hasData && hasMeta) {
-        YT_LOG_WARNING("Chunk data file %v is missing, moving meta file %v to trash",
-            dataFileName,
-            metaFileName);
+        YT_TLOG_WARNING("Chunk data file is missing, moving meta file to trash")
+            .With("DataFileName", dataFileName)
+            .With("MetaFileName", metaFileName);
         NFS::Replace(metaFileName, trashMetaFileName);
     }
     return {};
@@ -2020,9 +2020,9 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairJournalChunk(TChunkId chun
 
         return descriptor;
     } else if (!hasData && hasIndex) {
-        YT_LOG_WARNING("Journal data file %v is missing, moving index file %v to trash",
-            dataFileName,
-            indexFileName);
+        YT_TLOG_WARNING("Journal data file is missing, moving index file to trash")
+            .With("DataFileName", dataFileName)
+            .With("IndexFileName", indexFileName);
         NFS::Replace(indexFileName, trashIndexFileName);
     }
 

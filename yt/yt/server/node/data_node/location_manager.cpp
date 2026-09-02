@@ -226,7 +226,8 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk
         for (const auto& diskId : unlinkedDiskIds) {
             YT_UNUSED_FUTURE(RecoverDisk(diskId)
                 .Apply(BIND([] (const TError& result) {
-                    YT_LOG_INFO_IF(!result.IsOK(), result);
+                    YT_TLOG_INFO_IF(!result.IsOK(), "Failed to recover unlinked disk")
+                        .With(result);
                 })));
         }
     }
@@ -387,7 +388,8 @@ void TLocationHealthChecker::OnLocationsHealthCheck()
 
     // Fast path.
     if (!hotSwapEnabled.IsOK()) {
-        YT_LOG_DEBUG(hotSwapEnabled);
+        YT_TLOG_DEBUG("Failed to get hot swap state")
+            .With(hotSwapEnabled);
         return;
     }
 

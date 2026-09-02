@@ -1464,15 +1464,14 @@ private:
         ToProto(jobResultExt->mutable_shallow_merge_validation_error(), ShallowMergeValidationError_);
         ToProto(jobResultExt->mutable_chunk_meta_validation_error(), ChunkMetaValidationError_);
 
-        auto validateError = [this, this_ = MakeStrong(this)] (auto error, auto message) {
-            if (!error.IsOK()) {
-                YT_LOG_ALERT(error, "%v", message);
-                THROW_ERROR error;
-            }
-        };
-
-        validateError(ShallowMergeValidationError_, "Shallow merge validation failed");
-        validateError(ChunkMetaValidationError_, "Chunk meta validation failed");
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(ShallowMergeValidationError_, "Shallow merge validation failed");
+            THROW_ERROR_EXCEPTION_IF_FAILED(ChunkMetaValidationError_, "Chunk meta validation failed");
+        } catch (const std::exception& ex) {
+            YT_TLOG_ALERT("Validation failed")
+                .With(ex);
+            throw;
+        }
     }
 
     TFuture<void> DoRun() override
@@ -2928,11 +2927,16 @@ private:
             if (replicaOrError.IsOK()) {
                 succeededWriters.push_back(writers[index]);
             } else {
-                auto error = TError("Tail replica writer failed")
+                static constexpr auto Message = "Tail replica writer failed"_sb;
+
+                YT_TLOG_WARNING(Message)
+                    .With("TailChunkId", TailChunkId_)
+                    .With("WriterIndex", index)
+                    .With(replicaOrError);
+                auto error = TError(Message)
                     .With("tail_chunk_id", TailChunkId_)
                     .With("writer_index", index)
                     .With(replicaOrError);
-                YT_LOG_WARNING(error);
                 writerErrors.push_back(std::move(error));
             }
         }

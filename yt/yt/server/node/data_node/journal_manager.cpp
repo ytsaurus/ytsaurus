@@ -312,16 +312,16 @@ private:
     {
         auto dumpChunkIds = [&] (const THashSet<TChunkId>& chunkIds, const std::string& action) {
             for (auto chunkId : chunkIds) {
-                YT_LOG_INFO("Replay may %v journal chunk (ChunkId: %v, FirstRelevantVersion: %v)",
-                    action,
-                    chunkId,
-                    GetFirstRelevantVersion(chunkId));
+                YT_TLOG_INFO("Replay may affect journal chunk")
+                    .With("Action", action)
+                    .With("ChunkId", chunkId)
+                    .With("FirstRelevantVersion", GetFirstRelevantVersion(chunkId));
             }
         };
 
-        dumpChunkIds(CreateChunkIds_, "create");
-        dumpChunkIds(AppendChunkIds_, "append to");
-        dumpChunkIds(RemoveChunkIds_, "remove");
+        dumpChunkIds(CreateChunkIds_, "Create");
+        dumpChunkIds(AppendChunkIds_, "Append");
+        dumpChunkIds(RemoveChunkIds_, "Remove");
     }
 
     void FlushSplitChangelogs()
@@ -431,10 +431,10 @@ private:
         }
 
         if (recordCount != record.Header.RecordId) {
-            YT_LOG_FATAL("Journal chunk %v has %v records while multiplexed changelog has relevant records starting from %v",
-                record.Header.ChunkId,
-                recordCount,
-                record.Header.RecordId);
+            YT_TLOG_FATAL("Journal chunk is shorter than the relevant records in the multiplexed changelog")
+                .With("ChunkId", record.Header.ChunkId)
+                .With("RecordCount", recordCount)
+                .With("FirstRelevantRecordId", record.Header.RecordId);
         }
 
         if (record.Header.Type == EMultiplexedRecordType::Skip) {

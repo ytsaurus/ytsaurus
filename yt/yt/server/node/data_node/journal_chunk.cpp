@@ -182,12 +182,16 @@ TFuture<std::vector<TBlock>> TJournalChunk::OnBlockRangeReadFromDisk(
         std::ssize(alreadyReadBlocks) + blockCount == std::ssize(blockCookies));
 
     if (!blocksOrError.IsOK()) {
-        auto error = TError("Error occured while reading block range %v:%v of journal chunk %v",
+        auto error = TError("Error occured while reading %v blocks starting from block %v of journal chunk %v",
+            blockCount,
             firstBlockIndex,
-            firstBlockIndex + blockCount,
             Id_)
             .With(blocksOrError);
-        YT_LOG_DEBUG(error);
+        YT_TLOG_DEBUG("Error reading block range of journal chunk")
+            .With("ChunkId", Id_)
+            .With("FirstBlockIndex", firstBlockIndex)
+            .With("BlockCount", blockCount)
+            .With(blocksOrError);
 
         if (!blockCookies.empty()) {
             // Just try to propagate error to each cookie, even if some had already been set.
@@ -249,11 +253,14 @@ void TJournalChunk::OnBlockReadFromDiskForPrecache(
     YT_VERIFY(precachedBlockInfo.Cookie->IsActive());
 
     if (!blocksOrError.IsOK()) {
+        YT_TLOG_DEBUG("Error reading block of chunk for precache")
+            .With("ChunkId", Id_)
+            .With("BlockIndex", precachedBlockInfo.BlockIndex)
+            .With(blocksOrError);
         auto error = TError("Error occured while reading block %v of chunk %v for precache",
             precachedBlockInfo.BlockIndex,
             Id_)
             .With(blocksOrError);
-        YT_LOG_DEBUG(error);
 
         precachedBlockInfo.Cookie->SetBlock(std::move(error));
         return;
@@ -527,10 +534,10 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 readBytesEstimate);
             if (!memoryGuardOrError.IsOK()) {
                 Location_->ReportThrottledRead();
-                auto error = TError("Read session aborted due to memory pressure");
-                YT_LOG_DEBUG(error);
+                static constexpr auto Message = "Read session aborted due to memory pressure"_sb;
+                YT_TLOG_DEBUG(Message);
 
-                session->Promise.TrySet(std::move(error));
+                session->Promise.TrySet(TError(Message));
                 return;
             }
 
