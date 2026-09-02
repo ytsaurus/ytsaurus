@@ -3,6 +3,7 @@
 #include "alien_cluster_client_cache.h"
 #include "backing_store_cleaner.h"
 #include "chunk_replica_cache_pinger.h"
+#include "compaction_hint_fetching.h"
 #include "compression_dictionary_builder.h"
 #include "compression_dictionary_manager.h"
 #include "error_manager.h"
@@ -255,6 +256,9 @@ public:
                 Throttlers_[kind] = throttler;
             }
         }
+
+        CompactionHintFetchThrottlers_ = New<TCompactionHintFetchThrottlers>(
+            GetTabletNodeDynamicConfig()->StoreCompactor->CompactionHintFetchers);
 
         auto selfAddress = NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort);
         DistributedThrottlerManager_ = CreateDistributedThrottlerManager(
@@ -538,6 +542,11 @@ public:
             : Throttlers_[it->second];
     }
 
+    const TCompactionHintFetchThrottlersPtr& GetCompactionHintFetchThrottlers() const override
+    {
+        return CompactionHintFetchThrottlers_;
+    }
+
     const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() const override
     {
         return DistributedThrottlerManager_;
@@ -640,6 +649,7 @@ private:
 
     TEnumIndexedArray<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedArray<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+    TCompactionHintFetchThrottlersPtr CompactionHintFetchThrottlers_;
     IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
     IMediumThrottlerManagerFactoryPtr MediumThrottlerManagerFactory_;
 
@@ -685,6 +695,9 @@ private:
                 LegacyRawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
             }
         }
+
+        CompactionHintFetchThrottlers_->Reconfigure(
+            tabletNodeConfig->StoreCompactor->CompactionHintFetchers);
 
         TableReplicatorThreadPool_->SetThreadCount(
             tabletNodeConfig->TabletManager->ReplicatorThreadPoolSize.value_or(

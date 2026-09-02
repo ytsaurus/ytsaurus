@@ -175,7 +175,7 @@ void TStoreBackgroundActivityOrchidConfig::Register(TRegistrar registrar)
 void TCompactionHintFetcherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("periodic_executor", &TThis::PeriodicExecutor)
-        .Default({.Period = TDuration::Seconds(5)});
+        .Default({.Period = TDuration::Seconds(1)});
     registrar.Parameter("request_throttler", &TThis::RequestThrottler)
         .DefaultCtor([] { return TThroughputThrottlerConfig::Create(/*limit*/ 300); });
 }
