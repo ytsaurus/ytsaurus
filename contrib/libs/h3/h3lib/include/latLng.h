@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2021 Uber Technologies, Inc.
+ * Copyright 2016-2021, 2026 Uber Technologies, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,9 +32,17 @@
 /** epsilon of ~0.1mm in radians */
 #define EPSILON_RAD (EPSILON_DEG * M_PI_180)
 
+typedef enum {
+    NORMALIZE_NONE = 0,  // Do not normalize
+    NORMALIZE_EAST = 1,  // Normalize negative numbers to the east
+    NORMALIZE_WEST = 2   // Normalize positive numbers to the west
+} LongitudeNormalization;
+
 void setGeoDegs(LatLng *p, double latDegs, double lngDegs);
 double constrainLat(double lat);
 double constrainLng(double lng);
+double normalizeLng(const double lng,
+                    const LongitudeNormalization normalization);
 
 bool geoAlmostEqual(const LatLng *p1, const LatLng *p2);
 bool geoAlmostEqualThreshold(const LatLng *p1, const LatLng *p2,
@@ -44,8 +52,5 @@ bool geoAlmostEqualThreshold(const LatLng *p1, const LatLng *p2,
 
 double _posAngleRads(double rads);
 void _setGeoRads(LatLng *p, double latRads, double lngRads);
-double _geoAzimuthRads(const LatLng *p1, const LatLng *p2);
-void _geoAzDistanceRads(const LatLng *p1, double az, double distance,
-                        LatLng *p2);
 
 #endif
