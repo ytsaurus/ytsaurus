@@ -2941,7 +2941,7 @@ TCGQueryGenerator Profile(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     const TJoinProfilerRegistry& joinProfilerRegistry,
-    TQueryFoldingProfilerOptions options,
+    const TQueryFoldingProfilerOptions& options,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
     const NWebAssembly::TModuleBytecode& sdk)

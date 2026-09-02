@@ -111,14 +111,10 @@ void ProfileForBothExecutionBackends(
     TCGVariables* variables,
     TJoinProfilerRegistry joinProfilerRegistry)
 {
-    TQueryFoldingProfilerOptions nativeOptions;
-    nativeOptions.ExecutionBackend = EExecutionBackend::Native;
-    Profile(query, id, variables, joinProfilerRegistry, nativeOptions)();
+    Profile(query, id, variables, joinProfilerRegistry, {.ExecutionBackend = EExecutionBackend::Native})();
 
     if (EnableWebAssemblyInUnitTests()) {
-        TQueryFoldingProfilerOptions webAssemblyOptions;
-        webAssemblyOptions.ExecutionBackend = EExecutionBackend::WebAssembly;
-        Profile(query, id, variables, joinProfilerRegistry, webAssemblyOptions)();
+        Profile(query, id, variables, joinProfilerRegistry, {.ExecutionBackend = EExecutionBackend::WebAssembly})();
     }
 }
 
