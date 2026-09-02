@@ -58,7 +58,7 @@ public:
         }
 
         YT_TLOG_DEBUG("Loaded chunks")
-            .With("Location", locationUuid)
+            .With("LocationUuid", locationUuid)
             .With("Count", Chunks_.size())
             .With("ElapsedTime", timer.GetElapsedTime());
     }
@@ -108,7 +108,7 @@ public:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_TLOG_DEBUG("Starting load test")
-            .With("Location", Location_->GetId());
+            .With("LocationId", Location_->GetId());
 
         // Override max write rate for current location.
         mediumConfig = CloneYsonStruct(mediumConfig);
@@ -116,7 +116,7 @@ public:
             mediumConfig->MaxWriteRate = static_cast<i64>(dwpd * mediumConfig->DWPDFactor);
 
             YT_TLOG_DEBUG("Setting MaxWriteRate for io test")
-                .With("Location", Location_->GetId())
+                .With("LocationId", Location_->GetId())
                 .With("DWPD", dwpd)
                 .With("DWPDFactor", mediumConfig->DWPDFactor)
                 .With("MaxWriteRate", mediumConfig->MaxWriteRate);
@@ -157,7 +157,7 @@ public:
 
         if (ScheduledAt_ || session) {
             YT_TLOG_DEBUG("Stopping load test")
-                .With("Location", Location_->GetId());
+                .With("LocationId", Location_->GetId());
         }
 
         if (session && session->Loader) {
@@ -179,7 +179,7 @@ public:
         YT_VERIFY(!ScheduledAt_);
 
         YT_TLOG_DEBUG("Scheduled load test")
-            .With("Location", Location_->GetId())
+            .With("LocationId", Location_->GetId())
             .With("ScheduledTime", scheduledTime);
 
         ScheduledAt_ = scheduledTime;
@@ -264,7 +264,7 @@ private:
         }
 
         YT_TLOG_DEBUG("Starting test stage")
-            .With("Location", Location_->GetId())
+            .With("LocationId", Location_->GetId())
             .With("Stage", stage);
 
         auto config = NYTree::CloneYsonStruct(Session_->MediumConfig);
@@ -276,7 +276,7 @@ private:
             config->WindowPeriod = config->VerificationWindowPeriod;
 
             YT_TLOG_DEBUG("Verification stage parameters")
-                .With("Location", Location_->GetId())
+                .With("LocationId", Location_->GetId())
                 .With("SegmentSize", config->SegmentSize)
                 .With("InitialWindowSize", config->InitialWindowSize)
                 .With("InitialSlowStartThreshold", config->InitialSlowStartThreshold)
@@ -385,7 +385,7 @@ private:
 
         if (Session_->RoundsCount > config->MaxEstimateCongestions || estimateDuration > config->EstimateTimeLimit) {
             YT_TLOG_DEBUG("Estimate stage finished")
-                .With("Location", Location_->GetId())
+                .With("LocationId", Location_->GetId())
                 .With("EstimateDuration", estimateDuration)
                 .With("RoundsCount", Session_->RoundsCount)
                 .With("BestRoundDuration", Session_->BestRoundDuration)
@@ -412,7 +412,7 @@ private:
         auto verifyStageDuration = now - Session_->LastCongested;
 
         YT_TLOG_WARNING("Setting test results")
-            .With("Location", Location_->GetId())
+            .With("LocationId", Location_->GetId())
             .With("OverallDuration", overallDuration)
             .With("VerifyStageDuration", verifyStageDuration)
             .With("DiskReadRate", statistics.DiskReadRate)
@@ -462,7 +462,7 @@ public:
                 ChunkStore_,
                 location,
                 Invoker_,
-                Logger().WithTag("Location", location->GetId()));
+                Logger().WithTag("LocationId", location->GetId()));
         }
 
         ProbesExecutor_->Start();
@@ -514,7 +514,7 @@ private:
 
             if (location->Running() && location->GetRunningTime() > config->TestingTimeHardLimit) {
                 YT_TLOG_WARNING("Cancel stuck tests")
-                    .With("Location", location->GetId())
+                    .With("LocationId", location->GetId())
                     .With("RunningTime", location->GetRunningTime())
                     .With("TestingTimeHardLimit", config->TestingTimeHardLimit);
                 location->Stop();
