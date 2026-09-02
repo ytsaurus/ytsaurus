@@ -269,14 +269,18 @@ TFuture<IVolumePtr> TNbdVolumeFactory::GetOrCreateVolume(
     auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
     auto nbdServer = Bootstrap_->GetNbdServer();
     if (!nbdServer || !nbdConfig || !nbdConfig->Enabled) {
-        auto error = TError("NBD server is not present")
+        static constexpr auto Message = "NBD server is not present"_sb;
+        YT_TLOG_ERROR(Message)
+            .With("DeviceId", deviceId)
+            .With("JobId", jobId)
+            .With("Path", artifactKey.data_source().path())
+            .With("Filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()));
+
+        auto error = TError(Message)
             .With("device_id", deviceId)
             .With("job_id", jobId)
             .With("path", artifactKey.data_source().path())
             .With("filesystem", FromProto<ELayerFilesystem>(artifactKey.filesystem()));
-
-        YT_TLOG_ERROR("Failed to get or create RO NBD volume")
-            .With(error);
         return MakeFuture<IVolumePtr>(std::move(error));
     }
 
@@ -709,13 +713,16 @@ TFuture<IBlockDevicePtr> TNbdVolumeFactory::CreateRWChunkNbdDevice(
 
     auto nbdConfig = DynamicConfigManager_->GetConfig()->ExecNode->Nbd;
     if (!nbdConfig || !nbdConfig->Enabled || !nbdConfig->ReadWriteEnabled) {
-        auto error = TError("RW NBD disks are disabled")
+        static constexpr auto Message = "RW NBD disks are disabled"_sb;
+        YT_TLOG_ERROR(Message)
+            .With("DeviceId", options.DeviceId)
+            .With("JobId", options.JobId)
+            .With("Size", options.DeviceSize);
+
+        auto error = TError(Message)
             .With("device_id", options.DeviceId)
             .With("job_id", options.JobId)
             .With("size", options.DeviceSize);
-
-        YT_TLOG_ERROR("Failed to create RW NBD volume")
-            .With(error);
         return MakeFuture<IBlockDevicePtr>(std::move(error));
     }
 
@@ -1291,13 +1298,11 @@ TLayerPtr TLayerCache::FindLayerInTmpfs(const TArtifactKey& artifactKey, const T
     auto findLayer = [&] (TTmpfsLayerCachePtr& tmpfsCache, const std::string& cacheName) -> TLayerPtr {
         auto tmpfsLayer = tmpfsCache->FindLayer(artifactKey);
         if (tmpfsLayer) {
-            YT_LOG_DEBUG_IF(
-                tag,
-                "Found layer in %v tmpfs cache (LayerId: %v, ArtifactPath: %v, Tag: %v)",
-                cacheName,
-                tmpfsLayer->GetMeta().Id,
-                artifactKey.data_source().path(),
-                tag);
+            YT_TLOG_DEBUG_IF(tag, "Found layer in tmpfs cache")
+                .With("CacheName", cacheName)
+                .With("LayerId", tmpfsLayer->GetMeta().Id)
+                .With("ArtifactPath", artifactKey.data_source().path())
+                .With("Tag", tag);
             return tmpfsLayer;
         }
         return nullptr;

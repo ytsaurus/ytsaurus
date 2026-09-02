@@ -441,9 +441,9 @@ public:
                 }));
 
         if (!VolumeManager_) {
-            auto error = TError("Failed to prepare non-root volumes since volume manager is not initialized");
-            YT_LOG_WARNING(error);
-            return MakeFuture<std::vector<TVolumeResultPtr>>(std::move(error));
+            static constexpr auto Message = "Failed to prepare non-root volumes since volume manager is not initialized"_sb;
+            YT_TLOG_WARNING(Message);
+            return MakeFuture<std::vector<TVolumeResultPtr>>(TError(Message));
         }
 
         auto userSandboxPath = GetSandboxPath(ESandboxKind::User, rootVolume, testRootFs);
@@ -513,9 +513,9 @@ public:
         VerifyEnabled();
 
         if (!VolumeManager_) {
-            auto error = TError("Failed to link volumes since volume manager is not initialized");
-            YT_LOG_WARNING(error);
-            return MakeFuture<void>(std::move(error));
+            static constexpr auto Message = "Failed to link volumes since volume manager is not initialized"_sb;
+            YT_TLOG_WARNING(Message);
+            return MakeFuture<void>(TError(Message));
         }
 
         if (!Bootstrap_->GetConfig()->ExecNode->SlotManager->EnableNonRootVolumes) {

@@ -64,14 +64,16 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 /*throwOnFailedCommand*/ true));
 
         if (!testFileResultOrError.IsOK()) {
-            auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to verify GPU check binary")
+            static constexpr auto Message = "Failed to verify GPU check binary"_sb;
+            YT_TLOG_INFO(Message)
+                .With("CheckType", Context_.Type)
+                .With("Path", Context_.Options.BinaryPath)
+                .With(testFileResultOrError);
+
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, Message)
                 .With("check_type", Context_.Type)
                 .With("path", Context_.Options.BinaryPath)
                 .With(std::move(testFileResultOrError));
-
-            YT_LOG_INFO(error);
-
-            THROW_ERROR error;
         }
 
         YT_TLOG_INFO("GPU check command successfully verified");
@@ -94,13 +96,14 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 /*throwOnFailedCommand*/ true));
 
         if (!resultOrError.IsOK()) {
-            auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to run setup commands for GPU check")
+            static constexpr auto Message = "Failed to run setup commands for GPU check"_sb;
+            YT_TLOG_INFO(Message)
+                .With("CheckType", Context_.Type)
+                .With(resultOrError);
+
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, Message)
                 .With("check_type", Context_.Type)
                 .With(std::move(resultOrError));
-
-            YT_LOG_INFO(error);
-
-            THROW_ERROR error;
         }
 
         YT_TLOG_INFO("GPU check setup commands successfully executed");
@@ -172,14 +175,14 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
         const auto& gpuCheckResult = result.Value().front();
 
         if (gpuCheckResult.Error.IsOK()) {
-            YT_LOG_INFO("GPU check command completed (Stdout: %Qv, Stderr: %Qv)",
-                gpuCheckResult.Stdout,
-                gpuCheckResult.Stderr);
+            YT_TLOG_INFO("GPU check command completed")
+                .With("Stdout", gpuCheckResult.Stdout)
+                .With("Stderr", gpuCheckResult.Stderr);
         } else {
             error = gpuCheckResult.Error;
-            YT_LOG_INFO("GPU check command failed (Stdout: %Qv, Stderr: %Qv)",
-                gpuCheckResult.Stdout,
-                gpuCheckResult.Stderr);
+            YT_TLOG_INFO("GPU check command failed")
+                .With("Stdout", gpuCheckResult.Stdout)
+                .With("Stderr", gpuCheckResult.Stderr);
         }
 
         if (!gpuCheckResult.Stderr.empty()) {
