@@ -54,9 +54,7 @@ TEST(TStrategyTreeConfigPolicyKindTest, GpuPolicyKindRejectsOtherModes)
 
 TEST(TStrategyTreeConfigPolicyKindTest, ClassicPolicyKindAllowsAnyMode)
 {
-    // The reverse pairing is legal: with the classic policy kind the classic policy is primary and the
-    // GPU policy is only the dry-run side-car, which degrades to noop in the allocating mode. Switching
-    // a tree out of the GPU policy leaves exactly this state.
+    // Under the classic policy kind the GPU policy is merely a side-car, so any of its modes is legal.
     for (auto mode : TEnumTraits<EGpuSchedulingPolicyMode>::GetDomainValues()) {
         auto config = ParseTreeConfig(Format("{policy_kind=classic;gpu_scheduling_policy={mode=%lv}}", mode));
 
