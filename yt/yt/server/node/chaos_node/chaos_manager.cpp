@@ -839,7 +839,7 @@ private:
         BindReplicationCardToRtt(replicationCard);
 
         auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-        ReplicationCardWatcher_->RegisterReplicationCard(replicationCardId, clientReplicationCard, timestamp);
+        ReplicationCardWatcher_->RegisterObject(replicationCardId, clientReplicationCard, timestamp);
 
         return replicationCardId;
     }
@@ -1159,7 +1159,7 @@ private:
         YT_TLOG_DEBUG("Replication card removed")
             .With("ReplicationCardId", replicationCardId);
 
-        ReplicationCardWatcher_->OnReplicationCardRemoved(replicationCardId);
+        ReplicationCardWatcher_->OnObjectRemoved(replicationCardId);
     }
 
     void HydraChaosNodeRemoveReplicationCard(NChaosNode::NProto::TReqRemoveReplicationCard *request)
@@ -1209,7 +1209,7 @@ private:
         YT_TLOG_DEBUG("Replication card removed")
             .With("ReplicationCardId", replicationCardId);
 
-        ReplicationCardWatcher_->OnReplicationCardRemoved(replicationCardId);
+        ReplicationCardWatcher_->OnObjectRemoved(replicationCardId);
     }
 
     void HydraChaosNodeRemoveMigratedReplicationCards(NChaosNode::NProto::TReqRemoveMigratedReplicationCards* request)
@@ -2116,7 +2116,7 @@ private:
 
             if (replicationCardCreated) {
                 auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-                ReplicationCardWatcher_->RegisterReplicationCard(
+                ReplicationCardWatcher_->RegisterObject(
                     replicationCardId,
                     clientReplicationCard,
                     NullTimestamp);
@@ -2166,7 +2166,7 @@ private:
             replicationCardIds.emplace_back(replicationCardId, replicationCard->Migration().ImmigratedToCellId);
         }
 
-        ReplicationCardWatcher_->OnReplicationCardMigrated(replicationCardIds);
+        ReplicationCardWatcher_->OnObjectsMigrated(replicationCardIds);
     }
 
     void MigrateReplicationCard(TReplicationCard* replicationCard)
@@ -3629,20 +3629,25 @@ private:
 
             auto cardTimestamp = std::max(timestamp, replicationCard->GetCurrentTimestamp());
             auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-            ReplicationCardWatcher_->OnReplicationCardUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
+            ReplicationCardWatcher_->OnObjectUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
         }
     }
 
-    static std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> ConvertNodeCardsToClientCardsForWatcher(
+    static std::vector<IReplicationCardsWatcher::TSnapshot> ConvertNodeCardsToClientCardsForWatcher(
         const TEntityMap<TReplicationCard>& replicationCardsMap)
     {
-        std::vector<std::pair<TReplicationCardId, TReplicationCardPtr>> convertedCards;
+        std::vector<IReplicationCardsWatcher::TSnapshot> convertedCards;
         for (const auto& [cardId, card] : replicationCardsMap) {
             if (card->GetState() == EReplicationCardState::Migrated) {
                 continue;
             }
 
-            convertedCards.emplace_back(cardId, card->ConvertToClientCard(MinimalFetchOptions));
+            auto clientCard = card->ConvertToClientCard(MinimalFetchOptions);
+            convertedCards.push_back(IReplicationCardsWatcher::TSnapshot{
+                .ObjectId = cardId,
+                .Object = clientCard,
+                .CacheTimestamp = clientCard->CurrentTimestamp,
+            });
         }
 
         return convertedCards;

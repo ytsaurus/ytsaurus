@@ -546,7 +546,7 @@ private:
             cacheTimestamp);
 
         const auto& replicationCardWatcher = Slot_->GetReplicationCardsWatcher();
-        replicationCardWatcher->WatchReplicationCard(
+        replicationCardWatcher->WatchObject(
             replicationCardId,
             cacheTimestamp,
             CreateReplicationCardWatcherCallbacks(std::move(context)));
