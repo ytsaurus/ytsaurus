@@ -6252,7 +6252,9 @@ private:
 
                 UpdateChunkCount(chunk, +1);
 
-                if (RecomputeHistoricallyNonVital_ && !IsDurabilityRequiredForChunk(chunk, chunk->GetAggregatedRequisitionIndex())) {
+                if (RecomputeHistoricallyNonVital_ &&
+                    !IsDurabilityRequiredForChunk(chunk, chunk->GetAggregatedRequisitionIndex()))
+                {
                     chunk->SetHistoricallyNonVital(true);
                 }
             }
