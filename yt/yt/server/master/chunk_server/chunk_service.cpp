@@ -447,14 +447,14 @@ private:
                     auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk, /*includeUnapproved*/ true)
                         .ValueOrThrow();
 
-                    if (!IsObjectAlive(chunk)) {
+                    if (!IsObjectAlive(ephemeralChunk)) {
                         subresponse->set_missing(true);
                         continue;
                     }
 
                     BuildChunkSpec(
                         Bootstrap_,
-                        chunk.Get(),
+                        ephemeralChunk.Get(),
                         replicas,
                         rowIndex,
                         /*tabletIndex*/ {},
