@@ -227,16 +227,20 @@ public:
         } catch (const std::exception& ex) {
             failed = true;
 
-            auto error = TError(ex)
+            static constexpr auto Message = "Compression dictionary building failed"_sb;
+            auto error = TError(Message)
                 .With("tablet_id", TabletId_)
-                .With("background_activity", ETabletBackgroundActivity::DictionaryBuilding);
+                .With("background_activity", ETabletBackgroundActivity::DictionaryBuilding)
+                .With(ex);
             tabletSnapshot->TabletRuntimeData->Errors
                 .BackgroundErrors[ETabletBackgroundActivity::DictionaryBuilding].Store(error);
 
             OnSessionFailed(tablet, /*backoff*/ true);
 
-            YT_TLOG_ERROR("Compression dictionary building failed")
-                .With(error);
+            YT_TLOG_ERROR(Message)
+                .With("TabletId", TabletId_)
+                .With("BackgroundActivity", ETabletBackgroundActivity::DictionaryBuilding)
+                .With(ex);
         }
 
         readerProfiler->Update(
@@ -755,11 +759,10 @@ private:
                     columnInfo.Dictionary,
                     storage));
             } catch (const std::exception& ex) {
-                auto error = TError("Trained compression dictionary cannot be digested; skipping it")
-                    .With("column_id", columnId)
-                    .With("dictionary_size", columnInfo.Dictionary.Size())
+                YT_TLOG_ALERT("Trained compression dictionary cannot be digested; skipping it")
+                    .With("ColumnId", columnId)
+                    .With("DictionarySize", columnInfo.Dictionary.Size())
                     .With(ex);
-                YT_LOG_ALERT(error);
                 continue;
             }
 

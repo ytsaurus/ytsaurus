@@ -1308,21 +1308,16 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             hunkChunkDiskSpace = getDiskSpace(hunkChunkWriter, tabletSnapshot->Settings.HunkWriterOptions);
         }
 
-        YT_LOG_DEBUG("Sorted store flushed (StoreId: %v, StoreChunkId: %v, StoreChunkDiskSpace: %v%v, RowsInStore %v, FoundCacheRows: %v, DiscardedCacheRows: %v, FailedByMemoryCacheRows: %v)",
-            store->GetId(),
-            storeChunkWriter->GetChunkId(),
-            getDiskSpace(storeWriter, tabletSnapshot->Settings.StoreWriterOptions),
-            MakeFormatterWrapper([&] (auto* builder) {
-                if (hunkChunkPayloadWriter->HasHunks()) {
-                    builder->AppendFormat(", HunkChunkId: %v, HunkChunkDiskSpace: %v",
-                        hunkChunkPayloadWriter->GetChunkId(),
-                        getDiskSpace(hunkChunkWriter, tabletSnapshot->Settings.HunkWriterOptions));
-                }
-            }),
-            rowsInStore,
-            cacheUpdateStatistics.FoundRows,
-            cacheUpdateStatistics.DiscardedRows,
-            cacheUpdateStatistics.FailedByMemoryRows);
+        YT_TLOG_DEBUG("Sorted store flushed")
+            .With("StoreId", store->GetId())
+            .With("StoreChunkId", storeChunkWriter->GetChunkId())
+            .With("StoreChunkDiskSpace", getDiskSpace(storeWriter, tabletSnapshot->Settings.StoreWriterOptions))
+            .WithIf(hunkChunkId.has_value(), "HunkChunkId", hunkChunkId)
+            .WithIf(hunkChunkDiskSpace.has_value(), "HunkChunkDiskSpace", hunkChunkDiskSpace)
+            .With("RowsInStore", rowsInStore)
+            .With("FoundCacheRows", cacheUpdateStatistics.FoundRows)
+            .With("DiscardedCacheRows", cacheUpdateStatistics.DiscardedRows)
+            .With("FailedByMemoryCacheRows", cacheUpdateStatistics.FailedByMemoryRows);
 
         TStoreFlushResult result;
 
