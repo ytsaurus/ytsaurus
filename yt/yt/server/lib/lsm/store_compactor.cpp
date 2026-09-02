@@ -476,6 +476,15 @@ private:
         const auto* tablet = eden->GetTablet();
         auto mountConfig = tablet->GetMountConfig();
 
+        auto maxPartitionTimestamp = MinTimestamp;
+        if (mountConfig->MaxOldEdenChunkPartitioningLag) {
+            for (const auto& partition : tablet->Partitions()) {
+                for (const auto& store : partition->Stores()) {
+                    maxPartitionTimestamp = std::max(maxPartitionTimestamp, store->GetMaxTimestamp());
+                }
+            }
+        }
+
         std::vector<TStore*> candidates;
 
         EStoreCompactionReason finalistCompactionReason;
@@ -490,6 +499,13 @@ private:
             auto compactionReason = GetStoreCompactionReason(candidate);
             if (compactionReason != EStoreCompactionReason::None) {
                 finalistCompactionReason = compactionReason;
+                finalists.push_back(candidate->GetId());
+            } else if (ShouldPartitionEdenStoreByTimestamp(
+                candidate,
+                maxPartitionTimestamp,
+                mountConfig->MaxOldEdenChunkPartitioningLag))
+            {
+                finalistCompactionReason = EStoreCompactionReason::OldEdenChunk;
                 finalists.push_back(candidate->GetId());
             }
 
@@ -1028,6 +1044,20 @@ private:
         return std::min(
             config->MaxOverlappingStoreCount,
             config->CriticalOverlappingStoreCount.value_or(config->MaxOverlappingStoreCount));
+    }
+
+    static bool ShouldPartitionEdenStoreByTimestamp(
+        const TStore* store,
+        TTimestamp maxPartitionTimestamp,
+        std::optional<TDuration> maxTimestampLag)
+    {
+        if (!maxTimestampLag || maxPartitionTimestamp == MinTimestamp) {
+            return false;
+        }
+
+        auto minTimestamp = store->GetMinTimestamp();
+        return minTimestamp < maxPartitionTimestamp &&
+            TimestampDiffToDuration(minTimestamp, maxPartitionTimestamp).second > *maxTimestampLag;
     }
 };
 

@@ -262,6 +262,9 @@ struct TCustomTableMountConfig
     int MinPartitioningStoreCount;
     i64 MaxPartitioningDataSize;
     int MaxPartitioningStoreCount;
+    // If set, Eden chunk stores whose min timestamp lags behind the max
+    // timestamp of partition chunks by more than this duration are forcibly partitioned
+    std::optional<TDuration> MaxOldEdenChunkPartitioningLag;
 
     int MinCompactionStoreCount;
     int MaxCompactionStoreCount;
