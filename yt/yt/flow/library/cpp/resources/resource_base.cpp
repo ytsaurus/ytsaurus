@@ -1,70 +1,123 @@
 #include "resource_base.h"
 
+#include "file_provider_postprocessor.h"
+
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/file_storage/file_storage.h>
 
+#include <yt/yt/core/crypto/crypto.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <algorithm>
 
 namespace NYT::NFlow {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMaterializedFileSource::TMaterializedFileSource(
-    TFileSourceRevisionPtr revision,
+std::string GetFileProviderIdentityDigest(
+    const TResourceId& resourceId,
+    const TFileProviderId& providerId,
+    const TFileProviderRevisionPtr& revision)
+{
+    NCrypto::TSha256Hasher hasher;
+    hasher.Append(Format("%Qv-%Qv-%Qv",
+        resourceId.Underlying(),
+        providerId.Underlying(),
+        revision->ObjectId.Underlying()));
+    return hasher.GetHexDigestLowerCase();
+}
+
+NFileStorage::TFileStorageObjectId GetFileProviderDownloadObjectId(
+    const TResourceId& resourceId,
+    const TFileProviderId& providerId,
+    const TFileProviderRevisionPtr& revision)
+{
+    return NFileStorage::TFileStorageObjectId(Format("%v-%v-%v-original-%v",
+        resourceId.Underlying(),
+        providerId.Underlying(),
+        revision->ObjectId.Underlying(),
+        GetFileProviderIdentityDigest(resourceId, providerId, revision)));
+}
+
+NFileStorage::TFileStorageObjectId GetFileProviderPostprocessObjectId(
+    const TResourceId& resourceId,
+    const TFileProviderId& providerId,
+    const TFileProviderRevisionPtr& revision,
+    const TFileProviderSpecPtr& providerSpec)
+{
+    YT_VERIFY(providerSpec->PostprocessCommand);
+
+    NCrypto::TSha256Hasher hasher;
+    hasher.Append(*providerSpec->PostprocessCommand);
+    return NFileStorage::TFileStorageObjectId(Format("%v-%v-%v-postprocess-%v-%v",
+        resourceId.Underlying(),
+        providerId.Underlying(),
+        revision->ObjectId.Underlying(),
+        hasher.GetHexDigestLowerCase(),
+        GetFileProviderIdentityDigest(resourceId, providerId, revision)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMaterializedFileProvider::TMaterializedFileProvider(
+    TFileProviderRevisionPtr revision,
     NFileStorage::IFileStorageObjectPtr storageObject)
     : Revision_(std::move(revision))
     , StorageObject_(std::move(storageObject))
     , RootPath_(StorageObject_->GetPath())
 { }
 
-const TFileSourceRevisionPtr& TMaterializedFileSource::GetRevision() const
+const TFileProviderRevisionPtr& TMaterializedFileProvider::GetRevision() const
 {
     return Revision_;
 }
 
-const std::string& TMaterializedFileSource::GetRootPath() const
+const std::string& TMaterializedFileProvider::GetRootPath() const
 {
     return RootPath_;
 }
 
-TMaterializedFileSourceSnapshot::TMaterializedFileSourceSnapshot(
+TMaterializedFileProviderSnapshot::TMaterializedFileProviderSnapshot(
     TFileSnapshotPtr fileSnapshot,
-    THashMap<TFileSourceId, TMaterializedFileSourcePtr> fileSources)
+    THashMap<TFileProviderId, TMaterializedFileProviderPtr> fileProviders)
     : FileSnapshot_(std::move(fileSnapshot))
-    , FileSources_(std::move(fileSources))
+    , FileProviders_(std::move(fileProviders))
 { }
 
-const TFileSnapshotPtr& TMaterializedFileSourceSnapshot::GetFileSnapshot() const
+const TFileSnapshotPtr& TMaterializedFileProviderSnapshot::GetFileSnapshot() const
 {
     return FileSnapshot_;
 }
 
-const THashMap<TFileSourceId, TMaterializedFileSourcePtr>& TMaterializedFileSourceSnapshot::GetFileSources() const
+const THashMap<TFileProviderId, TMaterializedFileProviderPtr>& TMaterializedFileProviderSnapshot::GetFileProviders() const
 {
-    return FileSources_;
+    return FileProviders_;
 }
 
-const TMaterializedFileSourcePtr& TMaterializedFileSourceSnapshot::GetFileSource(const TFileSourceId& id) const
+const TMaterializedFileProviderPtr& TMaterializedFileProviderSnapshot::GetFileProvider(const TFileProviderId& id) const
 {
-    auto it = FileSources_.find(id);
+    auto it = FileProviders_.find(id);
     THROW_ERROR_EXCEPTION_UNLESS(
-        it != FileSources_.end(),
-        "Unknown materialized file source %Qv",
+        it != FileProviders_.end(),
+        "Unknown materialized file provider %Qv",
         id);
     return it->second;
 }
 
-const TMaterializedFileSourcePtr& TMaterializedFileSourceSnapshot::GetOnlyFileSource() const
+const TMaterializedFileProviderPtr& TMaterializedFileProviderSnapshot::GetOnlyFileProvider() const
 {
     THROW_ERROR_EXCEPTION_UNLESS(
-        FileSources_.size() == 1,
-        "Expected exactly one materialized file source, got %v",
-        FileSources_.size());
-    return FileSources_.begin()->second;
+        FileProviders_.size() == 1,
+        "Expected exactly one materialized file provider, got %v",
+        FileProviders_.size());
+    return FileProviders_.begin()->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,129 +129,168 @@ TResourceBase::TResourceBase(TResourceContextPtr context, TDynamicResourceContex
     , DynamicParameters_(TRegistry::Get()->ParseResourceDynamicParameters(context->ResourceSpec, dynamicContext->DynamicResourceSpec))
     , Logger(Context_->Logger)
 {
-    for (const auto& [name, sourceSpec] : Context_->ResourceSpec->FileSources) {
-        auto sourceContext = New<TFileSourceContext>();
-        sourceContext->SourceSpec = sourceSpec;
-        sourceContext->ClientsCache = Context_->ClientsCache;
-        sourceContext->PipelinePath = Context_->PipelinePath;
-        sourceContext->Invoker = Context_->Invoker;
-        sourceContext->Logger = Context_->Logger
-            .WithTag("Component", "FileSource")
-            .WithTag("FileSource", name);
+    for (const auto& [name, providerSpec] : Context_->ResourceSpec->FileProviders) {
+        auto providerContext = New<TFileProviderContext>();
+        providerContext->ProviderSpec = providerSpec;
+        providerContext->ClientsCache = Context_->ClientsCache;
+        providerContext->PipelinePath = Context_->PipelinePath;
+        providerContext->Invoker = Context_->Invoker;
+        providerContext->Logger = Context_->Logger
+            .WithTag("Component", "FileProvider")
+            .WithTag("FileProvider", name);
 
-        auto dynamicSourceContext = New<TDynamicFileSourceContext>();
-        dynamicSourceContext->DynamicFileSourceSpec = GetOrDefault(
-            dynamicContext->DynamicResourceSpec->FileSources,
+        auto dynamicProviderContext = New<TDynamicFileProviderContext>();
+        dynamicProviderContext->DynamicFileProviderSpec = GetOrDefault(
+            dynamicContext->DynamicResourceSpec->FileProviders,
             name,
-            New<TDynamicFileSourceSpec>());
+            New<TDynamicFileProviderSpec>());
         EmplaceOrCrash(
-            FileSources_,
+            FileProviders_,
             name,
-            TRegistry::Get()->CreateFileSource(sourceContext, dynamicSourceContext));
+            TRegistry::Get()->CreateFileProvider(providerContext, dynamicProviderContext));
     }
 
     SubscribeReconfigured(BIND([this] (const TDynamicResourceContextPtr& dynamicContext) {
         DynamicContext_ = dynamicContext;
         DynamicParameters_ = TRegistry::Get()->ParseResourceDynamicParameters(Context_->ResourceSpec, dynamicContext->DynamicResourceSpec);
-        for (const auto& [name, source] : FileSources_) {
-            auto dynamicSourceContext = New<TDynamicFileSourceContext>();
-            dynamicSourceContext->DynamicFileSourceSpec = GetOrDefault(
-                dynamicContext->DynamicResourceSpec->FileSources,
+        for (const auto& [name, provider] : FileProviders_) {
+            auto dynamicProviderContext = New<TDynamicFileProviderContext>();
+            dynamicProviderContext->DynamicFileProviderSpec = GetOrDefault(
+                dynamicContext->DynamicResourceSpec->FileProviders,
                 name,
-                New<TDynamicFileSourceSpec>());
-            source->Reconfigure(dynamicSourceContext);
+                New<TDynamicFileProviderSpec>());
+            provider->Reconfigure(dynamicProviderContext);
         }
     }));
 }
 
-TFuture<TMaterializedFileSourcePtr> TResourceBase::MaterializeFileSource(
+TFuture<TMaterializedFileProviderPtr> TResourceBase::MaterializeFileProvider(
     const TFileSnapshotPtr& fileSnapshot,
-    const TFileSourceId& id) const
+    const TFileProviderId& id) const
 {
-    THROW_ERROR_EXCEPTION_UNLESS(fileSnapshot, "Cannot materialize a file source without a file snapshot");
-    auto sourceIt = FileSources_.find(id);
+    THROW_ERROR_EXCEPTION_UNLESS(fileSnapshot, "Cannot materialize a file provider without a file snapshot");
+    auto providerIt = FileProviders_.find(id);
     THROW_ERROR_EXCEPTION_UNLESS(
-        sourceIt != FileSources_.end(),
-        "File source %Qv is not configured for resource %Qv",
+        providerIt != FileProviders_.end(),
+        "File provider %Qv is not configured for resource %Qv",
         id,
         Context_->ResourceId);
-    auto revisionIt = fileSnapshot->FileSources.find(id);
+    auto revisionIt = fileSnapshot->FileProviders.find(id);
     THROW_ERROR_EXCEPTION_UNLESS(
-        revisionIt != fileSnapshot->FileSources.end(),
-        "File snapshot %v has no file source %Qv",
+        revisionIt != fileSnapshot->FileProviders.end(),
+        "File snapshot %v has no file provider %Qv",
         fileSnapshot->Id,
         id);
 
-    const auto& sourceSpec = GetOrCrash(Context_->ResourceSpec->FileSources, id);
+    const auto& providerSpec = GetOrCrash(Context_->ResourceSpec->FileProviders, id);
     const auto& revision = revisionIt->second;
     THROW_ERROR_EXCEPTION_UNLESS(
         revision,
-        "File snapshot %v has null file source %Qv",
+        "File snapshot %v has null file provider %Qv",
         fileSnapshot->Id,
         id);
     THROW_ERROR_EXCEPTION_UNLESS(
-        revision->FileSourceClassName == sourceSpec->FileSourceClassName,
-        "File snapshot source %Qv class %Qv differs from configured class %Qv",
+        revision->FileProviderClassName == providerSpec->FileProviderClassName,
+        "File snapshot provider %Qv class %Qv differs from configured class %Qv",
         id,
-        revision->FileSourceClassName,
-        sourceSpec->FileSourceClassName);
+        revision->FileProviderClassName,
+        providerSpec->FileProviderClassName);
     THROW_ERROR_EXCEPTION_UNLESS(
         Context_->FileStorage,
-        "Resource cannot materialize file source %Qv because file storage is unavailable in this process",
+        "Resource cannot materialize file provider %Qv because file storage is unavailable in this process",
         id);
 
-    return Context_->FileStorage->GetOrCreate(
-        revision->ObjectId,
+    auto rawObjectFuture = Context_->FileStorage->GetOrCreate(
+        GetFileProviderDownloadObjectId(Context_->ResourceId, id, revision),
         revision->Size,
-        [source = sourceIt->second, revision] (const std::string& directory) {
-            return source->Download(revision, directory);
-        })
+        [provider = providerIt->second, revision] (const std::string& directory) {
+            return provider->Download(revision, directory);
+        });
+    TFuture<NFileStorage::IFileStorageObjectPtr> storageObjectFuture;
+    if (!providerSpec->PostprocessCommand) {
+        storageObjectFuture = std::move(rawObjectFuture);
+    } else {
+        storageObjectFuture = rawObjectFuture.Apply(BIND([
+            providerId = id,
+            revision,
+            providerSpec,
+            objectId = GetFileProviderPostprocessObjectId(Context_->ResourceId, id, revision, providerSpec),
+            fileStorage = Context_->FileStorage,
+            invoker = Context_->Invoker,
+            logger = Logger
+        ] (NFileStorage::IFileStorageObjectPtr rawObject) {
+            return fileStorage->GetOrCreate(
+                objectId,
+                std::nullopt,
+                [
+                    providerId,
+                    revision,
+                    providerSpec,
+                    rawObject = std::move(rawObject),
+                    invoker,
+                    logger
+                ] (const std::string& directory) {
+                    return BIND(
+                        &PostprocessFileProvider,
+                        providerId,
+                        revision,
+                        providerSpec,
+                        rawObject,
+                        directory,
+                        logger)
+                        .AsyncVia(invoker)
+                        .Run();
+                });
+        }).AsyncVia(Context_->Invoker));
+    }
+
+    return storageObjectFuture
         .Apply(BIND([revision] (NFileStorage::IFileStorageObjectPtr storageObject) {
-            return New<TMaterializedFileSource>(revision, std::move(storageObject));
+            return New<TMaterializedFileProvider>(revision, std::move(storageObject));
         }))
         .ToUncancelable();
 }
 
-TFuture<TMaterializedFileSourceSnapshotPtr> TResourceBase::MaterializeFileSources(
+TFuture<TMaterializedFileProviderSnapshotPtr> TResourceBase::MaterializeFileProviders(
     const TFileSnapshotPtr& fileSnapshot,
-    const std::vector<TFileSourceId>& ids) const
+    const std::vector<TFileProviderId>& ids) const
 {
-    THROW_ERROR_EXCEPTION_UNLESS(fileSnapshot, "Cannot materialize file sources without a file snapshot");
+    THROW_ERROR_EXCEPTION_UNLESS(fileSnapshot, "Cannot materialize file providers without a file snapshot");
 
-    std::vector<TFileSourceId> requestedIds = ids;
+    std::vector<TFileProviderId> requestedIds = ids;
     if (requestedIds.empty()) {
         THROW_ERROR_EXCEPTION_UNLESS(
-            fileSnapshot->FileSources.size() == FileSources_.size(),
-            "File snapshot %v has %v file sources while resource %Qv configures %v",
+            fileSnapshot->FileProviders.size() == FileProviders_.size(),
+            "File snapshot %v has %v file providers while resource %Qv configures %v",
             fileSnapshot->Id,
-            fileSnapshot->FileSources.size(),
+            fileSnapshot->FileProviders.size(),
             Context_->ResourceId,
-            FileSources_.size());
-        requestedIds.reserve(FileSources_.size());
-        for (const auto& [id, _] : FileSources_) {
+            FileProviders_.size());
+        requestedIds.reserve(FileProviders_.size());
+        for (const auto& [id, _] : FileProviders_) {
             requestedIds.push_back(id);
         }
         std::sort(requestedIds.begin(), requestedIds.end());
     }
 
-    THashSet<TFileSourceId> uniqueIds;
-    std::vector<TFuture<TMaterializedFileSourcePtr>> futures;
+    THashSet<TFileProviderId> uniqueIds;
+    std::vector<TFuture<TMaterializedFileProviderPtr>> futures;
     futures.reserve(requestedIds.size());
     for (const auto& id : requestedIds) {
-        THROW_ERROR_EXCEPTION_UNLESS(uniqueIds.insert(id).second, "File source %Qv was requested more than once", id);
-        futures.push_back(MaterializeFileSource(fileSnapshot, id));
+        THROW_ERROR_EXCEPTION_UNLESS(uniqueIds.insert(id).second, "File provider %Qv was requested more than once", id);
+        futures.push_back(MaterializeFileProvider(fileSnapshot, id));
     }
 
     return AllSucceeded(std::move(futures))
         .Apply(BIND([
             fileSnapshot,
             requestedIds = std::move(requestedIds)
-        ] (const std::vector<TMaterializedFileSourcePtr>& materialized) {
-            THashMap<TFileSourceId, TMaterializedFileSourcePtr> fileSources;
+        ] (const std::vector<TMaterializedFileProviderPtr>& materialized) {
+            THashMap<TFileProviderId, TMaterializedFileProviderPtr> fileProviders;
             for (int index = 0; index < std::ssize(requestedIds); ++index) {
-                EmplaceOrCrash(fileSources, requestedIds[index], materialized[index]);
+                EmplaceOrCrash(fileProviders, requestedIds[index], materialized[index]);
             }
-            return New<TMaterializedFileSourceSnapshot>(fileSnapshot, std::move(fileSources));
+            return New<TMaterializedFileProviderSnapshot>(fileSnapshot, std::move(fileProviders));
         }))
         .ToUncancelable();
 }

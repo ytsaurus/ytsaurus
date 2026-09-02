@@ -38,10 +38,25 @@ class TestFileResourceLifecycle(FlowTestBase):
         self.output_queue = f"{self.work_yt_path}/output_queue"
         run_yt_sync("primary", self.work_yt_path)
 
-    def prepare_pipeline(self, source_class_name, source_path, source_parameters=None):
-        return self.prepare_named_pipeline({"file": (source_class_name, source_path, source_parameters or {})})
+    def prepare_pipeline(
+        self,
+        provider_class_name,
+        provider_path,
+        provider_parameters=None,
+        provider_spec=None,
+    ):
+        return self.prepare_named_pipeline(
+            {
+                "file": (
+                    provider_class_name,
+                    provider_path,
+                    provider_parameters or {},
+                    provider_spec or {},
+                )
+            }
+        )
 
-    def prepare_named_pipeline(self, file_sources):
+    def prepare_named_pipeline(self, file_providers):
         source = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline.yson")
         config = get_yson_config(source)
         computation = config["spec"]["computations"]["enricher"]
@@ -52,17 +67,20 @@ class TestFileResourceLifecycle(FlowTestBase):
             }
         )
         computation["sinks"]["queue"]["parameters"]["queue_path"] = f"<cluster=primary>{self.output_queue}"
-        configured_sources = {}
-        for name, source in file_sources.items():
-            source_class_name, source_path, *extra = source
-            parameters = {"path": source_path}
+        configured_providers = {}
+        for name, provider in file_providers.items():
+            provider_class_name, provider_path, *extra = provider
+            parameters = {"path": provider_path}
             if extra:
                 parameters.update(extra[0])
-            configured_sources[name] = {
-                "file_source_class_name": source_class_name,
+            configured_provider = {
+                "file_provider_class_name": provider_class_name,
                 "parameters": parameters,
             }
-        config["spec"]["resources"]["text"]["file_sources"] = configured_sources
+            if len(extra) > 1:
+                configured_provider.update(extra[1])
+            configured_providers[name] = configured_provider
+        config["spec"]["resources"]["text"]["file_providers"] = configured_providers
         self.patch_config(config)
         return self.dump_config_to_log_dir(config, "pipeline.yson")
 
@@ -213,7 +231,7 @@ class TestFileResourceLifecycle(FlowTestBase):
         return next((snapshot_id for snapshot_id in active_ids if snapshot_id != excluded_id), None)
 
     def snapshot_state_counts(self, state):
-        counts = self.resource_view().get("file_sources", {}).get("file_snapshot_state_counts", {})
+        counts = self.resource_view().get("file_providers", {}).get("file_snapshot_state_counts", {})
         suffix = f"/{state}"
         return {int(key.split("/", 1)[0]): count for key, count in counts.items() if key.endswith(suffix)}
 
@@ -225,7 +243,7 @@ class TestFileResourceLifecycle(FlowTestBase):
     def test_yt_file_update_and_snapshot_metrics(self):
         file_path = f"{self.work_yt_path}/file"
         self.publish_blob_revision(file_path, "001", {"file": b"first"})
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(
@@ -276,7 +294,7 @@ class TestFileResourceLifecycle(FlowTestBase):
     def test_cypress_file_update(self):
         file_path = f"{self.work_yt_path}/cypress-file"
         self.write_cypress_file(file_path, b"first")
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(
@@ -296,7 +314,7 @@ class TestFileResourceLifecycle(FlowTestBase):
         self.client.unmount_table(self.input_queue, sync=True)
         self.client.reshard_table(self.input_queue, tablet_count=2, sync=True)
         self.client.mount_table(self.input_queue, sync=True)
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, cache_paths, worker_overrides = self.make_node_config(workers_count=2)
         worker_overrides[1]["worker"]["file_storage"].update(
             {
@@ -372,8 +390,8 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.publish_blob_revision(path, "001", {"file": value})
         pipeline = self.prepare_named_pipeline(
             {
-                "left": ("NYT::NFlow::TYTFileSource", f"<cluster=primary>{left_path}"),
-                "right": ("NYT::NFlow::TYTFileSource", f"<cluster=primary>{right_path}"),
+                "left": ("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{left_path}"),
+                "right": ("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{right_path}"),
             }
         )
         node_config, _, worker_overrides = self.make_node_config()
@@ -395,7 +413,7 @@ class TestFileResourceLifecycle(FlowTestBase):
         payload_size = 64 * 1024 * 1024
         file_path = f"{self.work_yt_path}/large-file"
         self.write_blob_file(file_path, b"x" * payload_size)
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config(
             soft_size_limit=payload_size,
             hard_size_limit=payload_size + 16 * 1024 * 1024,
@@ -410,11 +428,11 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.wait_output("large", f"size:{payload_size}")
 
     @pytest.mark.authors(["mikari"])
-    def test_yt_file_source_materializes_all_blob_table_files(self):
+    def test_yt_file_provider_materializes_all_blob_table_files(self):
         table_path = f"{self.work_yt_path}/files"
         self.write_blob_table(table_path, {"a": b"left", "b": b"right"})
         pipeline = self.prepare_pipeline(
-            "NYT::NFlow::TYTFileSource",
+            "NYT::NFlow::TYTFileProvider",
             f"<cluster=primary>{table_path}",
         )
         node_config, _, worker_overrides = self.make_node_config()
@@ -433,7 +451,7 @@ class TestFileResourceLifecycle(FlowTestBase):
         self.client.create("map_node", directory)
         self.write_blob_table(f"{directory}/001", {"file": b"first"})
         pipeline = self.prepare_pipeline(
-            "NYT::NFlow::TYTDirectoryLastFileSource",
+            "NYT::NFlow::TYTDirectoryLastFileProvider",
             f"<cluster=primary>{directory}",
         )
         node_config, _, worker_overrides = self.make_node_config()
@@ -451,7 +469,7 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.client.set_pipeline_dynamic_spec(
                 self.pipeline_path,
                 {"file": {"parameters": {"pinned_file_name": "001"}}},
-                spec_path="/resources/text/file_sources",
+                spec_path="/resources/text/file_providers",
             )
             self.wait_for_updated_output("pinned", "first")
 
@@ -459,7 +477,7 @@ class TestFileResourceLifecycle(FlowTestBase):
     def test_yt_file_cache_survives_restart_and_cleans_old_revision(self):
         file_path = f"{self.work_yt_path}/file"
         self.publish_blob_revision(file_path, "001", {"file": b"first"})
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, cache_paths, worker_overrides = self.make_node_config(soft_size_limit=6, hard_size_limit=32)
 
         with self.start_flow_process_federation(
@@ -488,7 +506,7 @@ class TestFileResourceLifecycle(FlowTestBase):
     @pytest.mark.authors(["mikari"])
     def test_local_file_download_error_is_reported_and_retried(self):
         local_path = os.path.abspath(os.path.join(self.path_to_flow_logs, "missing-local-file"))
-        pipeline = self.prepare_pipeline("NYT::NFlow::TLocalFileSource", local_path)
+        pipeline = self.prepare_pipeline("NYT::NFlow::TLocalFileProvider", local_path)
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(
@@ -504,7 +522,7 @@ class TestFileResourceLifecycle(FlowTestBase):
     @pytest.mark.authors(["mikari"])
     def test_missing_and_corrupt_yt_file_report_errors_and_recover(self):
         file_path = f"{self.work_yt_path}/missing"
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(
@@ -512,7 +530,7 @@ class TestFileResourceLifecycle(FlowTestBase):
             pipeline_binary_args={"--config": pipeline},
             worker_node_config_overrides=worker_overrides,
         ):
-            self.wait_for_pipeline_description_error("File source discovery failed")
+            self.wait_for_pipeline_description_error("File provider discovery failed")
 
             self.publish_blob_revision(file_path, "001", {"file": b"valid"})
             valid = self.wait_for_updated_output("valid", "valid")
@@ -532,7 +550,7 @@ class TestFileResourceLifecycle(FlowTestBase):
     def test_capacity_error_keeps_previous_revision(self):
         file_path = f"{self.work_yt_path}/file"
         self.publish_blob_revision(file_path, "001", {"file": b"ok"})
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileProvider", f"<cluster=primary>{file_path}")
         node_config, _, worker_overrides = self.make_node_config(soft_size_limit=4, hard_size_limit=8)
 
         with self.start_flow_process_federation(
@@ -550,7 +568,7 @@ class TestFileResourceLifecycle(FlowTestBase):
             assert preserved["file_snapshot_id"] == valid["file_snapshot_id"]
 
     @pytest.mark.authors(["mikari"])
-    def test_archive_with_two_files(self):
+    def test_archive_postprocessing_with_two_files(self):
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode="w") as output:
             for name, value in (("a.txt", b"left"), ("b.txt", b"right")):
@@ -560,7 +578,12 @@ class TestFileResourceLifecycle(FlowTestBase):
 
         file_path = f"{self.work_yt_path}/files.tar"
         self.write_blob_file(file_path, archive.getvalue(), filename="files.tar")
-        pipeline = self.prepare_pipeline("NYT::NFlow::TYTFileSource", f"<cluster=primary>{file_path}")
+        postprocess_command = '/usr/bin/tar -xf "$YT_FLOW_RESOURCE_PATH/files.tar" -C "$YT_FLOW_POSTPROCESSING_PATH"'
+        pipeline = self.prepare_pipeline(
+            "NYT::NFlow::TYTFileProvider",
+            f"<cluster=primary>{file_path}",
+            provider_spec={"postprocess_command": postprocess_command},
+        )
         node_config, _, worker_overrides = self.make_node_config()
 
         with self.start_flow_process_federation(

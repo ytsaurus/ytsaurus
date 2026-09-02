@@ -10,50 +10,50 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TMaterializedFileSource);
+DECLARE_REFCOUNTED_CLASS(TMaterializedFileProvider);
 
-//! One exact file-source revision pinned in local file storage.
-class TMaterializedFileSource
+//! One exact file-provider revision pinned in local file storage.
+class TMaterializedFileProvider
     : public TRefCounted
 {
 public:
-    TMaterializedFileSource(
-        TFileSourceRevisionPtr revision,
+    TMaterializedFileProvider(
+        TFileProviderRevisionPtr revision,
         NFileStorage::IFileStorageObjectPtr storageObject);
 
-    const TFileSourceRevisionPtr& GetRevision() const;
+    const TFileProviderRevisionPtr& GetRevision() const;
     const std::string& GetRootPath() const;
 
 private:
-    const TFileSourceRevisionPtr Revision_;
+    const TFileProviderRevisionPtr Revision_;
     const NFileStorage::IFileStorageObjectPtr StorageObject_;
     const std::string RootPath_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TMaterializedFileSource);
+DEFINE_REFCOUNTED_TYPE(TMaterializedFileProvider);
 
-DECLARE_REFCOUNTED_CLASS(TMaterializedFileSourceSnapshot);
+DECLARE_REFCOUNTED_CLASS(TMaterializedFileProviderSnapshot);
 
-//! An immutable file snapshot with its named materialized sources.
-class TMaterializedFileSourceSnapshot
+//! An immutable file snapshot with its named materialized providers.
+class TMaterializedFileProviderSnapshot
     : public TRefCounted
 {
 public:
-    TMaterializedFileSourceSnapshot(
+    TMaterializedFileProviderSnapshot(
         TFileSnapshotPtr fileSnapshot,
-        THashMap<TFileSourceId, TMaterializedFileSourcePtr> fileSources);
+        THashMap<TFileProviderId, TMaterializedFileProviderPtr> fileProviders);
 
     const TFileSnapshotPtr& GetFileSnapshot() const;
-    const THashMap<TFileSourceId, TMaterializedFileSourcePtr>& GetFileSources() const;
-    const TMaterializedFileSourcePtr& GetFileSource(const TFileSourceId& id) const;
-    const TMaterializedFileSourcePtr& GetOnlyFileSource() const;
+    const THashMap<TFileProviderId, TMaterializedFileProviderPtr>& GetFileProviders() const;
+    const TMaterializedFileProviderPtr& GetFileProvider(const TFileProviderId& id) const;
+    const TMaterializedFileProviderPtr& GetOnlyFileProvider() const;
 
 private:
     const TFileSnapshotPtr FileSnapshot_;
-    const THashMap<TFileSourceId, TMaterializedFileSourcePtr> FileSources_;
+    const THashMap<TFileProviderId, TMaterializedFileProviderPtr> FileProviders_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TMaterializedFileSourceSnapshot);
+DEFINE_REFCOUNTED_TYPE(TMaterializedFileProviderSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,15 +114,15 @@ public:
 
 protected:
     //! Materializes one exact named file revision from a delivered file snapshot.
-    TFuture<TMaterializedFileSourcePtr> MaterializeFileSource(
+    TFuture<TMaterializedFileProviderPtr> MaterializeFileProvider(
         const TFileSnapshotPtr& fileSnapshot,
-        const TFileSourceId& id) const;
+        const TFileProviderId& id) const;
 
     //! Materializes the requested named revisions as one immutable input snapshot.
-    //! An empty |names| list means every source declared by the resource spec.
-    TFuture<TMaterializedFileSourceSnapshotPtr> MaterializeFileSources(
+    //! An empty |names| list means every provider declared by the resource spec.
+    TFuture<TMaterializedFileProviderSnapshotPtr> MaterializeFileProviders(
         const TFileSnapshotPtr& fileSnapshot,
-        const std::vector<TFileSourceId>& ids = {}) const;
+        const std::vector<TFileProviderId>& ids = {}) const;
 
     //! Reports queue activity for this resource to the resource manager.
     /*!
@@ -155,7 +155,7 @@ private:
     TAtomicIntrusivePtr<TDynamicResourceContext> DynamicContext_;
     const NYTree::TYsonStructPtr Parameters_;
     TAtomicIntrusivePtr<NYTree::TYsonStruct> DynamicParameters_;
-    THashMap<TFileSourceId, IFileSourcePtr> FileSources_;
+    THashMap<TFileProviderId, IFileProviderPtr> FileProviders_;
 
 protected:
     NLogging::TLogger Logger;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "file_source_base.h"
+#include "file_provider_base.h"
 
 #include <yt/yt/client/cypress_client/public.h>
 #include <yt/yt/client/hydra/public.h>
@@ -11,90 +11,90 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EYTFileSourceObjectKind,
+DEFINE_ENUM(EYTFileProviderObjectKind,
     ((CypressFile) (0))
     ((BlobTable)   (1))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TYTFileSourceLocator);
+DECLARE_REFCOUNTED_STRUCT(TYTFileProviderLocator);
 
-struct TYTFileSourceLocator
+struct TYTFileProviderLocator
     : public NYTree::TYsonStruct
 {
     std::string Cluster;
     NYPath::TYPath ObjectPath;
     NObjectClient::TObjectId ObjectId;
     NHydra::TRevision Revision;
-    EYTFileSourceObjectKind ObjectKind = EYTFileSourceObjectKind::CypressFile;
+    EYTFileProviderObjectKind ObjectKind = EYTFileProviderObjectKind::CypressFile;
 
-    REGISTER_YSON_STRUCT(TYTFileSourceLocator);
+    REGISTER_YSON_STRUCT(TYTFileProviderLocator);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYTFileSourceLocator);
+DEFINE_REFCOUNTED_TYPE(TYTFileProviderLocator);
 
-NTableClient::TTableSchemaPtr GetYTFileSourceBlobTableSchema();
+NTableClient::TTableSchemaPtr GetYTFileProviderBlobTableSchema();
 
-TFileSourceRevisionPtr MakeYTFileSourceRevision(
-    TStringBuf fileSourceClassName,
+TFileProviderRevisionPtr MakeYTFileProviderRevision(
+    TStringBuf fileProviderClassName,
     const NYPath::TRichYPath& originalPath,
     const std::string& cluster,
     NObjectClient::TObjectId objectId,
     NHydra::TRevision revision,
     i64 size);
 
-TFileSourceRevisionPtr MakeYTBlobTableFileSourceRevision(
-    TStringBuf fileSourceClassName,
+TFileProviderRevisionPtr MakeYTBlobTableFileProviderRevision(
+    TStringBuf fileProviderClassName,
     const NYPath::TRichYPath& originalPath,
     const std::string& cluster,
     NObjectClient::TObjectId objectId,
     NHydra::TRevision contentRevision);
 
-TFuture<TFileSourceRevisionPtr> DiscoverYTFileSource(
-    const TFileSourceContextPtr& context,
-    TStringBuf fileSourceClassName,
+TFuture<TFileProviderRevisionPtr> DiscoverYTFileProvider(
+    const TFileProviderContextPtr& context,
+    TStringBuf fileProviderClassName,
     const NYPath::TRichYPath& path);
 
 TFuture<void> DownloadYTFile(
-    const TFileSourceContextPtr& context,
-    const TFileSourceRevisionPtr& revision,
+    const TFileProviderContextPtr& context,
+    const TFileProviderRevisionPtr& revision,
     const std::string& stagingDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TYTFileSourceParameters
+struct TYTFileProviderParameters
     : public virtual NYTree::TYsonStruct
 {
     NYPath::TRichYPath Path;
 
-    REGISTER_YSON_STRUCT(TYTFileSourceParameters);
+    REGISTER_YSON_STRUCT(TYTFileProviderParameters);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYTFileSourceParameters);
+DEFINE_REFCOUNTED_TYPE(TYTFileProviderParameters);
 
-DECLARE_REFCOUNTED_CLASS(TYTFileSource);
+DECLARE_REFCOUNTED_CLASS(TYTFileProvider);
 
-class TYTFileSource
-    : public TFileSourceBase
+class TYTFileProvider
+    : public TFileProviderBase
 {
 public:
-    YT_FLOW_EXTEND_PARAMETERS(TYTFileSourceParameters, TFileSourceBase);
+    YT_FLOW_EXTEND_PARAMETERS(TYTFileProviderParameters, TFileProviderBase);
 
-    using TFileSourceBase::TFileSourceBase;
+    using TFileProviderBase::TFileProviderBase;
 
-    TFuture<TFileSourceRevisionPtr> Discover() override;
+    TFuture<TFileProviderRevisionPtr> Discover() override;
 
     TFuture<void> Download(
-        const TFileSourceRevisionPtr& revision,
+        const TFileProviderRevisionPtr& revision,
         const std::string& stagingDirectory) override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TYTFileSource);
+DEFINE_REFCOUNTED_TYPE(TYTFileProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

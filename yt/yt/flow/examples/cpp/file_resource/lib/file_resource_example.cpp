@@ -16,10 +16,10 @@ TTextData::TTextData(std::string text)
     : Text(std::move(text))
 { }
 
-TTextDataPtr TTextFileResource::Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources)
+TTextDataPtr TTextFileResource::Initialize(const TMaterializedFileProviderSnapshotPtr& fileProviders)
 {
     TVector<TFsPath> entries;
-    TFsPath(fileSources->GetOnlyFileSource()->GetRootPath()).List(entries);
+    TFsPath(fileProviders->GetOnlyFileProvider()->GetRootPath()).List(entries);
     THROW_ERROR_EXCEPTION_UNLESS(
         entries.size() == 1 && entries.front().IsFile(),
         "Text file resource expects exactly one regular file in its materialized root");

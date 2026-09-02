@@ -547,7 +547,7 @@ void TResourceSpec::Register(TRegistrar registrar)
             return GetEphemeralNodeFactory()->CreateMap();
         })
         .ResetOnLoad();
-    registrar.Parameter("file_sources", &TThis::FileSources)
+    registrar.Parameter("file_providers", &TThis::FileProviders)
         .Default();
     registrar.Parameter("dependencies", &TThis::Dependencies)
         .Default();
@@ -879,12 +879,12 @@ void TDynamicResourceSpec::Register(TRegistrar registrar)
             return GetEphemeralNodeFactory()->CreateMap();
         })
         .ResetOnLoad();
-    registrar.Parameter("file_sources", &TThis::FileSources)
+    registrar.Parameter("file_providers", &TThis::FileProviders)
         .Default();
-    registrar.Parameter("file_source_discover_period", &TThis::FileSourceDiscoverPeriod)
+    registrar.Parameter("file_provider_discover_period", &TThis::FileProviderDiscoverPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(30));
-    registrar.Parameter("file_source_update_retry_period", &TThis::FileSourceUpdateRetryPeriod)
+    registrar.Parameter("file_provider_update_retry_period", &TThis::FileProviderUpdateRetryPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Minutes(1));
     registrar.Parameter("file_snapshot_min_creation_period", &TThis::FileSnapshotMinCreationPeriod)
@@ -1469,7 +1469,7 @@ void CollectAndValidateYTPaths(const TPipelineSpecPtr& spec)
     }
 }
 
-void ValidateControllerResourceFileSources(const TPipelineSpecPtr& spec)
+void ValidateControllerResourceFileProviders(const TPipelineSpecPtr& spec)
 {
     THashSet<TResourceId> visited;
     std::vector<TResourceId> pending;
@@ -1494,9 +1494,9 @@ void ValidateControllerResourceFileSources(const TPipelineSpecPtr& spec)
         }
         const auto& resourceSpec = resourceIt->second;
         THROW_ERROR_EXCEPTION_IF(
-            !resourceSpec->FileSources.empty(),
-            "File-source-backed resource %Qv cannot be loaded on the controller; "
-            "named file sources are worker-only",
+            !resourceSpec->FileProviders.empty(),
+            "File-provider-backed resource %Qv cannot be loaded on the controller; "
+            "named file providers are worker-only",
             resourceId);
         for (const auto& [dependencyId, _] : resourceSpec->Dependencies) {
             pending.push_back(dependencyId);
@@ -1527,7 +1527,7 @@ std::vector<TYTPathClaim> CollectPipelineYTPaths(const TPipelineSpecPtr& spec)
 
 void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
 {
-    ValidateControllerResourceFileSources(spec);
+    ValidateControllerResourceFileProviders(spec);
 
     for (const auto& [streamId, streamSpec] : spec->Streams) {
         try {
@@ -1941,8 +1941,8 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
 
     for (const auto& [resourceId, resourceSpec] : spec->Resources) {
         try {
-            for (const auto& [fileSourceId, _] : resourceSpec->FileSources) {
-                ValidateFileSourceName(fileSourceId.Underlying());
+            for (const auto& [fileProviderId, _] : resourceSpec->FileProviders) {
+                ValidateFileProviderName(fileProviderId.Underlying());
             }
             TRegistry::Get()->ValidateResourceSpec(resourceSpec);
         } catch (const std::exception& ex) {
@@ -1989,8 +1989,8 @@ void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& dynamicSpec)
 {
     for (const auto& [resourceId, resourceSpec] : dynamicSpec->Resources) {
         try {
-            for (const auto& [fileSourceId, _] : resourceSpec->FileSources) {
-                ValidateFileSourceName(fileSourceId.Underlying());
+            for (const auto& [fileProviderId, _] : resourceSpec->FileProviders) {
+                ValidateFileProviderName(fileProviderId.Underlying());
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(ex)

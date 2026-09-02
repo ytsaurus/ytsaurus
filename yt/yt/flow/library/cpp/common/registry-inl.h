@@ -86,21 +86,21 @@ struct TDynamicUnitedParameters<T>
     { }
 };
 
-template <std::derived_from<IFileSource> T>
-struct TFileSourceUnitedParameters
+template <std::derived_from<IFileProvider> T>
+struct TFileProviderUnitedParameters
     : public T::TParameters
 {
-    REGISTER_YSON_STRUCT(TFileSourceUnitedParameters);
+    REGISTER_YSON_STRUCT(TFileProviderUnitedParameters);
 
     static void Register(TRegistrar /*registrar*/)
     { }
 };
 
-template <std::derived_from<IFileSource> T>
-struct TDynamicFileSourceUnitedParameters
+template <std::derived_from<IFileProvider> T>
+struct TDynamicFileProviderUnitedParameters
     : public T::TDynamicParameters
 {
-    REGISTER_YSON_STRUCT(TDynamicFileSourceUnitedParameters);
+    REGISTER_YSON_STRUCT(TDynamicFileProviderUnitedParameters);
 
     static void Register(TRegistrar /*registrar*/)
     { }
@@ -284,24 +284,24 @@ void TRegistry::RegisterResource()
             .ValidateSpec = [] (const TResourceSpec& spec) {
                 T::TValidator::Validate(spec);
             },
-            .SupportsFileSourceDiscovery = T::TController::SupportsFileSourceDiscovery,
+            .SupportsFileProviderDiscovery = T::TController::SupportsFileProviderDiscovery,
         });
 }
 
 template <class T>
-void TRegistry::RegisterFileSource()
+void TRegistry::RegisterFileProvider()
 {
-    static_assert(std::is_base_of_v<IFileSource, T>);
+    static_assert(std::is_base_of_v<IFileProvider, T>);
 
     ValidateParametersTypes<T>();
 
     EmplaceDescriptorOrCrash<T>(
-        TypeNameToFileSourceDescriptor_,
-        TFileSourceDescriptor{
-            .Factory = &New<T, const TFileSourceContextPtr&, const TDynamicFileSourceContextPtr&>,
-            .ParametersFactory = &New<TFileSourceUnitedParameters<T>>,
-            .DynamicParametersFactory = &New<TDynamicFileSourceUnitedParameters<T>>,
-            .ValidateSpec = [] (const TFileSourceSpec& spec) {
+        TypeNameToFileProviderDescriptor_,
+        TFileProviderDescriptor{
+            .Factory = &New<T, const TFileProviderContextPtr&, const TDynamicFileProviderContextPtr&>,
+            .ParametersFactory = &New<TFileProviderUnitedParameters<T>>,
+            .DynamicParametersFactory = &New<TDynamicFileProviderUnitedParameters<T>>,
+            .ValidateSpec = [] (const TFileProviderSpec& spec) {
                 T::TValidator::Validate(spec);
             },
         });

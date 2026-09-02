@@ -11,7 +11,7 @@ PEERDIR(
     yt/yt/client/cache
     yt/yt/client/unittests/mock
     yt/yt/flow/library/cpp/common/unittests/mock
-    yt/yt/flow/library/cpp/file_sources
+    yt/yt/flow/library/cpp/file_providers
     yt/yt/flow/library/cpp/file_storage
     yt/yt/flow/library/cpp/resources/file
 )

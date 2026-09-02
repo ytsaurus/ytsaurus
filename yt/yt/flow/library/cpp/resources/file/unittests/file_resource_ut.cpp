@@ -3,18 +3,23 @@
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 #include <yt/yt/flow/library/cpp/resources/file/file_resource.h>
 
+#include <yt/yt/flow/library/cpp/resources/file_provider_postprocessor.h>
+
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/init_context.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/resource_manager.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/state.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
-#include <yt/yt/flow/library/cpp/file_sources/file_source_base.h>
+#include <yt/yt/flow/library/cpp/file_providers/file_provider_base.h>
 #include <yt/yt/flow/library/cpp/file_storage/file_storage.h>
 #include <yt/yt/flow/library/cpp/misc/versioned_value.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
+
+#include <yt/yt/core/crypto/crypto.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -24,6 +29,9 @@
 #include <util/system/type_name.h>
 
 #include <algorithm>
+#include <cerrno>
+#include <csignal>
+#include <cstdlib>
 #include <deque>
 
 namespace NYT::NFlow {
@@ -37,12 +45,12 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFakeFileSourceParameters
+struct TFakeFileProviderParameters
     : public virtual TYsonStruct
 {
     std::string Prefix;
 
-    REGISTER_YSON_STRUCT(TFakeFileSourceParameters);
+    REGISTER_YSON_STRUCT(TFakeFileProviderParameters);
 
     static void Register(TRegistrar registrar)
     {
@@ -51,12 +59,12 @@ struct TFakeFileSourceParameters
     }
 };
 
-struct TFakeFileSourceDynamicParameters
+struct TFakeFileProviderDynamicParameters
     : public virtual TYsonStruct
 {
     std::optional<std::string> PinnedContentId;
 
-    REGISTER_YSON_STRUCT(TFakeFileSourceDynamicParameters);
+    REGISTER_YSON_STRUCT(TFakeFileProviderDynamicParameters);
 
     static void Register(TRegistrar registrar)
     {
@@ -70,34 +78,34 @@ struct TFakeFileSourceDynamicParameters
     }
 };
 
-class TFakeFileSource
-    : public TFileSourceBase
+class TFakeFileProvider
+    : public TFileProviderBase
 {
 public:
-    YT_FLOW_EXTEND_PARAMETERS(TFakeFileSourceParameters, TFileSourceBase);
-    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TFakeFileSourceDynamicParameters, TFileSourceBase);
+    YT_FLOW_EXTEND_PARAMETERS(TFakeFileProviderParameters, TFileProviderBase);
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TFakeFileProviderDynamicParameters, TFileProviderBase);
 
-    using TFileSourceBase::TFileSourceBase;
+    using TFileProviderBase::TFileProviderBase;
 
-    TFuture<TFileSourceRevisionPtr> Discover() override
+    TFuture<TFileProviderRevisionPtr> Discover() override
     {
         auto pinnedContentId = GetDynamicParameters()->PinnedContentId;
-        TErrorOr<TFileSourceRevisionPtr> result;
+        TErrorOr<TFileProviderRevisionPtr> result;
         TFuture<void> gate = OKFuture;
         {
             auto guard = Guard(Lock_);
             const auto& prefix = GetParameters()->Prefix;
             ++DiscoverCounts_[prefix];
             if (pinnedContentId) {
-                auto revision = New<TFileSourceRevision>();
-                revision->FileSourceClassName = TypeName<TFakeFileSource>();
+                auto revision = New<TFileProviderRevision>();
+                revision->FileProviderClassName = TypeName<TFakeFileProvider>();
                 revision->ObjectId = NFileStorage::TFileStorageObjectId(*pinnedContentId);
                 revision->DisplayVersion = *pinnedContentId;
                 result = std::move(revision);
             } else {
                 auto& results = DiscoverResults_[prefix];
                 if (results.empty()) {
-                    result = TFileSourceRevisionPtr{};
+                    result = TFileProviderRevisionPtr{};
                 } else {
                     result = results.front();
                     if (results.size() > 1) {
@@ -120,7 +128,7 @@ public:
     }
 
     TFuture<void> Download(
-        const TFileSourceRevisionPtr& revision,
+        const TFileProviderRevisionPtr& revision,
         const std::string& stagingDirectory) override
     {
         TFuture<void> gate = OKFuture;
@@ -177,7 +185,7 @@ public:
         DiscoverCounts_.clear();
         DiscoverResults_.clear();
         DiscoveryGates_.clear();
-        DiscoverResults_["payload"].push_back(TFileSourceRevisionPtr{});
+        DiscoverResults_["payload"].push_back(TFileProviderRevisionPtr{});
     }
 
     static void Block(const std::string& contentId)
@@ -229,8 +237,8 @@ public:
         const std::string& contentId,
         const std::string& prefix = "payload")
     {
-        auto revision = New<TFileSourceRevision>();
-        revision->FileSourceClassName = TypeName<TFakeFileSource>();
+        auto revision = New<TFileProviderRevision>();
+        revision->FileProviderClassName = TypeName<TFakeFileProvider>();
         revision->ObjectId = NFileStorage::TFileStorageObjectId(contentId);
         revision->DisplayVersion = contentId;
 
@@ -241,7 +249,7 @@ public:
     static void PushNullDiscovery(const std::string& prefix = "payload")
     {
         auto guard = Guard(Lock_);
-        DiscoverResults_[prefix].push_back(TFileSourceRevisionPtr{});
+        DiscoverResults_[prefix].push_back(TFileProviderRevisionPtr{});
     }
 
     static void SetDiscoveryGate(const std::string& contentId, TFuture<void> gate)
@@ -264,21 +272,21 @@ private:
     static TPromise<void> DownloadGate_;
     static TPromise<void> DownloadStarted_;
     static THashMap<std::string, int> DiscoverCounts_;
-    static THashMap<std::string, std::deque<TErrorOr<TFileSourceRevisionPtr>>> DiscoverResults_;
+    static THashMap<std::string, std::deque<TErrorOr<TFileProviderRevisionPtr>>> DiscoverResults_;
     static THashMap<std::string, TFuture<void>> DiscoveryGates_;
 };
 
-NThreading::TSpinLock TFakeFileSource::Lock_;
-THashMap<std::string, int> TFakeFileSource::DownloadCounts_;
-THashMap<std::string, int> TFakeFileSource::CompletedDownloadCounts_;
-std::string TFakeFileSource::BlockedContentId_;
-TPromise<void> TFakeFileSource::DownloadGate_ = NewPromise<void>();
-TPromise<void> TFakeFileSource::DownloadStarted_ = NewPromise<void>();
-THashMap<std::string, int> TFakeFileSource::DiscoverCounts_;
-THashMap<std::string, std::deque<TErrorOr<TFileSourceRevisionPtr>>> TFakeFileSource::DiscoverResults_;
-THashMap<std::string, TFuture<void>> TFakeFileSource::DiscoveryGates_;
+NThreading::TSpinLock TFakeFileProvider::Lock_;
+THashMap<std::string, int> TFakeFileProvider::DownloadCounts_;
+THashMap<std::string, int> TFakeFileProvider::CompletedDownloadCounts_;
+std::string TFakeFileProvider::BlockedContentId_;
+TPromise<void> TFakeFileProvider::DownloadGate_ = NewPromise<void>();
+TPromise<void> TFakeFileProvider::DownloadStarted_ = NewPromise<void>();
+THashMap<std::string, int> TFakeFileProvider::DiscoverCounts_;
+THashMap<std::string, std::deque<TErrorOr<TFileProviderRevisionPtr>>> TFakeFileProvider::DiscoverResults_;
+THashMap<std::string, TFuture<void>> TFakeFileProvider::DiscoveryGates_;
 
-YT_FLOW_DEFINE_FILE_SOURCE(TFakeFileSource);
+YT_FLOW_DEFINE_FILE_PROVIDER(TFakeFileProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -306,10 +314,38 @@ private:
     const std::string Path_;
 };
 
+void MakeTreeWritable(const TFsPath& path)
+{
+    if (!path.Exists()) {
+        return;
+    }
+
+    TFileStat stat(path, /*nofollow*/ true);
+    if (stat.IsSymlink()) {
+        return;
+    }
+
+    YT_VERIFY(Chmod(path.GetPath().c_str(), stat.Mode | S_IRUSR | S_IWUSR | S_IXUSR) == 0);
+    if (stat.IsDir()) {
+        TVector<TFsPath> children;
+        path.List(children);
+        for (const auto& child : children) {
+            MakeTreeWritable(child);
+        }
+    }
+}
+
 class TFakeFileStorage
     : public NFileStorage::IFileStorage
 {
 public:
+    ~TFakeFileStorage() override
+    {
+        for (const auto& directory : Directories_) {
+            MakeTreeWritable(TFsPath(directory->Name()));
+        }
+    }
+
     TFuture<NFileStorage::IFileStorageObjectPtr> GetOrCreate(
         NFileStorage::TFileStorageObjectId id,
         NFileStorage::TFileStorageFiller filler) override
@@ -326,8 +362,9 @@ public:
         }
 
         auto directory = std::make_unique<TTempDir>();
-        auto object = New<TFakeStorageObject>(id, directory->Name());
-        auto path = directory->Name();
+        auto path = (TFsPath(directory->Name()) / "payload").GetPath();
+        TFsPath(path).MkDir();
+        auto object = New<TFakeStorageObject>(id, path);
         auto promise = NewPromise<NFileStorage::IFileStorageObjectPtr>();
         auto future = promise.ToFuture().ToUncancelable();
         {
@@ -363,6 +400,33 @@ private:
     std::vector<std::unique_ptr<TTempDir>> Directories_;
     THashMap<std::string, NFileStorage::IFileStorageObjectPtr> Objects_;
     THashMap<std::string, TFuture<NFileStorage::IFileStorageObjectPtr>> Inflight_;
+};
+
+struct TRealFileStorageFixture
+{
+    TTempDir Root;
+    TActionQueuePtr Queue = New<TActionQueue>();
+    IStatusProfilerPtr StatusProfiler = CreateSyncStatusProfiler();
+
+    ~TRealFileStorageFixture()
+    {
+        MakeTreeWritable(TFsPath(Root.Name()));
+    }
+
+    NFileStorage::IFileStoragePtr MakeStorage() const
+    {
+        auto config = New<NFileStorage::TFileStorageConfig>();
+        config->Path = Root.Name();
+        config->SoftSizeLimit = 1_MB;
+        config->HardSizeLimit = 2_MB;
+        config->CleanupPeriod = TDuration::Hours(1);
+        return NFileStorage::CreateFileStorage(
+            std::move(config),
+            Queue->GetInvoker(),
+            NLogging::TLogger("FileResourceRealFileStorageTest"),
+            {},
+            StatusProfiler);
+    }
 };
 
 class TThrowingFileStorage
@@ -404,18 +468,18 @@ class TTestFileResource
 public:
     using TFileResourceBase::TFileResourceBase;
 
-    TFuture<TMaterializedFileSourcePtr> MaterializeOne(
+    TFuture<TMaterializedFileProviderPtr> MaterializeOne(
         const TFileSnapshotPtr& fileSnapshot,
-        const TFileSourceId& id) const
+        const TFileProviderId& id) const
     {
-        return MaterializeFileSource(fileSnapshot, id);
+        return MaterializeFileProvider(fileSnapshot, id);
     }
 
-    TFuture<TMaterializedFileSourceSnapshotPtr> MaterializeMany(
+    TFuture<TMaterializedFileProviderSnapshotPtr> MaterializeMany(
         const TFileSnapshotPtr& fileSnapshot,
-        const std::vector<TFileSourceId>& ids) const
+        const std::vector<TFileProviderId>& ids) const
     {
-        return MaterializeFileSources(fileSnapshot, ids);
+        return MaterializeFileProviders(fileSnapshot, ids);
     }
 
     static void Reset()
@@ -487,11 +551,11 @@ public:
     }
 
 protected:
-    TTestStatePtr Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources) override
+    TTestStatePtr Initialize(const TMaterializedFileProviderSnapshotPtr& fileProviders) override
     {
-        if (fileSources->GetFileSources().size() == 1) {
-            const auto& fileSource = fileSources->GetOnlyFileSource();
-            auto path = TFsPath(fileSource->GetRootPath()).Child("artifact").GetPath();
+        if (fileProviders->GetFileProviders().size() == 1) {
+            const auto& fileProvider = fileProviders->GetOnlyFileProvider();
+            auto path = TFsPath(fileProvider->GetRootPath()).Child("artifact").GetPath();
             auto input = TFileInput(TString(path));
             auto contents = input.ReadAll();
             std::string value(contents.data(), contents.size());
@@ -509,9 +573,9 @@ protected:
             return New<TTestState>(std::move(value), std::move(path));
         }
 
-        std::vector<TFileSourceId> ids;
-        ids.reserve(fileSources->GetFileSources().size());
-        for (const auto& [id, _] : fileSources->GetFileSources()) {
+        std::vector<TFileProviderId> ids;
+        ids.reserve(fileProviders->GetFileProviders().size());
+        for (const auto& [id, _] : fileProviders->GetFileProviders()) {
             ids.push_back(id);
         }
         std::sort(ids.begin(), ids.end());
@@ -519,7 +583,7 @@ protected:
         std::string value;
         std::string firstPath;
         for (const auto& id : ids) {
-            auto path = TFsPath(fileSources->GetFileSource(id)->GetRootPath()).Child("artifact").GetPath();
+            auto path = TFsPath(fileProviders->GetFileProvider(id)->GetRootPath()).Child("artifact").GetPath();
             auto input = TFileInput(TString(path));
             auto contents = input.ReadAll();
             if (!value.empty()) {
@@ -623,42 +687,42 @@ YT_FLOW_DEFINE_RESOURCE(TTestFileResourceWithDirectController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFileSourceSpecPtr MakeFileSourceSpec(
+TFileProviderSpecPtr MakeFileProviderSpec(
     std::string prefix,
-    std::string fileSourceClassName = TypeName<TFakeFileSource>())
+    std::string fileProviderClassName = TypeName<TFakeFileProvider>())
 {
-    auto spec = New<TFileSourceSpec>();
-    spec->FileSourceClassName = std::move(fileSourceClassName);
+    auto spec = New<TFileProviderSpec>();
+    spec->FileProviderClassName = std::move(fileProviderClassName);
     spec->Parameters = ConvertTo<IMapNodePtr>(TYsonString(Format("{prefix=%Qv;}", prefix)));
     return spec;
 }
 
-TResourceSpecPtr MakeNamedResourceSpec(const THashMap<std::string, std::string>& fileSources)
+TResourceSpecPtr MakeNamedResourceSpec(const THashMap<std::string, std::string>& fileProviders)
 {
     auto spec = New<TResourceSpec>();
     spec->ResourceClassName = TypeName<TTestFileResource>();
     spec->Parameters = GetEphemeralNodeFactory()->CreateMap();
-    for (const auto& [name, prefix] : fileSources) {
-        spec->FileSources[TFileSourceId(name)] = MakeFileSourceSpec(prefix);
+    for (const auto& [name, prefix] : fileProviders) {
+        spec->FileProviders[TFileProviderId(name)] = MakeFileProviderSpec(prefix);
     }
     return spec;
 }
 
 TResourceSpecPtr MakeResourceSpec(
-    std::string fileSourceClassName = TypeName<TFakeFileSource>(),
+    std::string fileProviderClassName = TypeName<TFakeFileProvider>(),
     std::string prefix = "payload")
 {
     auto spec = MakeNamedResourceSpec({{"file", std::move(prefix)}});
-    spec->FileSources.at(TFileSourceId("file"))->FileSourceClassName = std::move(fileSourceClassName);
+    spec->FileProviders.at(TFileProviderId("file"))->FileProviderClassName = std::move(fileProviderClassName);
     return spec;
 }
 
-TFileSourceRevisionPtr MakeSourceRevision(
+TFileProviderRevisionPtr MakeProviderRevision(
     const std::string& contentId,
-    std::string fileSourceClassName = TypeName<TFakeFileSource>())
+    std::string fileProviderClassName = TypeName<TFakeFileProvider>())
 {
-    auto revision = New<TFileSourceRevision>();
-    revision->FileSourceClassName = std::move(fileSourceClassName);
+    auto revision = New<TFileProviderRevision>();
+    revision->FileProviderClassName = std::move(fileProviderClassName);
     revision->ObjectId = NFileStorage::TFileStorageObjectId(contentId);
     revision->DisplayVersion = contentId;
     return revision;
@@ -666,26 +730,26 @@ TFileSourceRevisionPtr MakeSourceRevision(
 
 TResourceRevisionPtr MakeNamedTarget(
     i64 deliveryRevisionId,
-    const THashMap<std::string, std::string>& fileSources)
+    const THashMap<std::string, std::string>& fileProviders)
 {
     auto target = New<TResourceRevision>();
     target->RevisionId = deliveryRevisionId;
     target->ActiveFileSnapshot = New<TFileSnapshot>();
     target->ActiveFileSnapshot->Id = TFileSnapshotId(deliveryRevisionId);
-    for (const auto& [name, contentId] : fileSources) {
-        target->ActiveFileSnapshot->FileSources[TFileSourceId(name)] = MakeSourceRevision(contentId);
+    for (const auto& [name, contentId] : fileProviders) {
+        target->ActiveFileSnapshot->FileProviders[TFileProviderId(name)] = MakeProviderRevision(contentId);
     }
     return target;
 }
 
 TFileSnapshotPtr MakeNamedFileSnapshot(
     i64 snapshotId,
-    const THashMap<std::string, std::string>& fileSources)
+    const THashMap<std::string, std::string>& fileProviders)
 {
     auto fileSnapshot = New<TFileSnapshot>();
     fileSnapshot->Id = TFileSnapshotId(snapshotId);
-    for (const auto& [name, contentId] : fileSources) {
-        fileSnapshot->FileSources[TFileSourceId(name)] = MakeSourceRevision(contentId);
+    for (const auto& [name, contentId] : fileProviders) {
+        fileSnapshot->FileProviders[TFileProviderId(name)] = MakeProviderRevision(contentId);
     }
     return fileSnapshot;
 }
@@ -720,7 +784,7 @@ TResourceRevisionPtr MakeMalformedTarget(i64 deliveryRevisionId)
 TResourceRevisionPtr MakeClassMismatchTarget(i64 deliveryRevisionId)
 {
     auto target = MakeTarget(deliveryRevisionId, "mismatched");
-    target->ActiveFileSnapshot->FileSources.at(TFileSourceId("file"))->FileSourceClassName = "mismatched-source";
+    target->ActiveFileSnapshot->FileProviders.at(TFileProviderId("file"))->FileProviderClassName = "mismatched-provider";
     return target;
 }
 
@@ -731,13 +795,13 @@ const TFileSnapshotPtr& GetLatestFileSnapshot(const TResourceRevisionPtr& target
         : target->ActiveFileSnapshot;
 }
 
-TDynamicFileSourceSpecPtr MakeDynamicFileSourceSpec(
+TDynamicFileProviderSpecPtr MakeDynamicFileProviderSpec(
     std::optional<std::string> pinnedContentId = std::nullopt)
 {
-    auto parameters = New<TFakeFileSourceDynamicParameters>();
+    auto parameters = New<TFakeFileProviderDynamicParameters>();
     parameters->PinnedContentId = std::move(pinnedContentId);
 
-    auto spec = New<TDynamicFileSourceSpec>();
+    auto spec = New<TDynamicFileProviderSpec>();
     spec->Parameters = ConvertToNode(parameters)->AsMap();
     return spec;
 }
@@ -754,14 +818,14 @@ TDynamicResourceContextPtr MakeNamedDynamicContext(
     auto context = New<TDynamicResourceContext>();
     context->DynamicResourceSpec = New<TDynamicResourceSpec>();
     context->DynamicResourceSpec->Parameters = GetEphemeralNodeFactory()->CreateMap();
-    context->DynamicResourceSpec->FileSourceDiscoverPeriod = discoverPeriod;
-    context->DynamicResourceSpec->FileSourceUpdateRetryPeriod = updateRetryPeriod;
+    context->DynamicResourceSpec->FileProviderDiscoverPeriod = discoverPeriod;
+    context->DynamicResourceSpec->FileProviderUpdateRetryPeriod = updateRetryPeriod;
     context->DynamicResourceSpec->FileSnapshotMinCreationPeriod = fileSnapshotMinCreationPeriod;
     context->DynamicResourceSpec->FileSnapshotCatalogMaxEntries = fileSnapshotCatalogMaxEntries;
     context->DynamicResourceSpec->FileSnapshotRolloutWarningPeriod = fileSnapshotRolloutWarningPeriod;
     for (const auto& [name, contentId] : pinnedContentIds) {
-        context->DynamicResourceSpec->FileSources[TFileSourceId(name)] =
-            MakeDynamicFileSourceSpec(contentId);
+        context->DynamicResourceSpec->FileProviders[TFileProviderId(name)] =
+            MakeDynamicFileProviderSpec(contentId);
     }
     context->TargetRevision = std::move(target);
     return context;
@@ -802,7 +866,7 @@ private:
 TIntrusivePtr<TResourceControllerBase> MakeNamedController(
     const IInvokerPtr& invoker,
     IStatusProfilerPtr statusProfiler,
-    const THashMap<std::string, std::string>& fileSources,
+    const THashMap<std::string, std::string>& fileProviders,
     TDuration discoverPeriod = TDuration::MilliSeconds(10),
     NProfiling::TProfiler profiler = {},
     const THashMap<std::string, std::string>& pinnedContentIds = {},
@@ -813,7 +877,7 @@ TIntrusivePtr<TResourceControllerBase> MakeNamedController(
 {
     auto context = New<TResourceControllerContext>();
     context->ResourceId = TResourceId("test");
-    context->ResourceSpec = MakeNamedResourceSpec(fileSources);
+    context->ResourceSpec = MakeNamedResourceSpec(fileProviders);
     context->Invoker = invoker;
     static const auto timeProvider = New<TFakeTimeProvider>();
     context->TimeProvider = timeProvider;
@@ -859,6 +923,35 @@ TTestFileResourcePtr MakeResource(
         ->As<TTestFileResource>();
 }
 
+TTestFileResourcePtr MakePostprocessedResource(
+    const IInvokerPtr& invoker,
+    TResourceRevisionPtr target,
+    std::string command,
+    TDuration timeout = TDuration::Minutes(1),
+    NFileStorage::IFileStoragePtr fileStorage = New<TFakeFileStorage>(),
+    IStatusProfilerPtr statusProfiler = CreateSyncStatusProfiler(),
+    TDuration updateRetryPeriod = TDuration::MilliSeconds(100))
+{
+    auto context = New<TResourceContext>();
+    context->ResourceId = TResourceId("test");
+    context->ResourceSpec = MakeResourceSpec();
+    context->ResourceSpec->FileProviders.at(TFileProviderId("file"))->PostprocessCommand = std::move(command);
+    context->ResourceSpec->FileProviders.at(TFileProviderId("file"))->PostprocessTimeout = timeout;
+    context->Invoker = invoker;
+    context->Logger = NLogging::TLogger("PostprocessedFileResourceTest");
+    context->StatusProfiler = std::move(statusProfiler);
+    context->FileStorage = std::move(fileStorage);
+
+    return TRegistry::Get()
+        ->CreateResource(
+            context,
+            MakeNamedDynamicContext(
+                std::move(target),
+                TDuration::MilliSeconds(10),
+                updateRetryPeriod))
+        ->As<TTestFileResource>();
+}
+
 const TIncarnationId DefaultWorkerIncarnationId(TGuid::Create());
 
 TWorkerStatusPtr MakeWorkerStatus(
@@ -873,7 +966,7 @@ TWorkerStatusPtr MakeWorkerStatus(
 
 TTestFileResourcePtr MakeNamedResource(
     const IInvokerPtr& invoker,
-    const THashMap<std::string, std::string>& fileSources,
+    const THashMap<std::string, std::string>& fileProviders,
     TResourceRevisionPtr target = nullptr,
     NFileStorage::IFileStoragePtr fileStorage = New<TFakeFileStorage>(),
     IStatusProfilerPtr statusProfiler = CreateSyncStatusProfiler(),
@@ -881,7 +974,7 @@ TTestFileResourcePtr MakeNamedResource(
 {
     auto context = New<TResourceContext>();
     context->ResourceId = TResourceId("test");
-    context->ResourceSpec = MakeNamedResourceSpec(fileSources);
+    context->ResourceSpec = MakeNamedResourceSpec(fileProviders);
     context->Invoker = invoker;
     context->Logger = NLogging::TLogger("NamedFileResourceTest");
     context->StatusProfiler = std::move(statusProfiler);
@@ -934,54 +1027,113 @@ class TFileResourceTest
 protected:
     void SetUp() override
     {
-        TFakeFileSource::Reset();
+        TFakeFileProvider::Reset();
         TTestFileResource::Reset();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TFileResourceTest, RegistryValidatesSource)
+TEST_F(TFileResourceTest, RegistryValidatesProvider)
 {
     EXPECT_NO_THROW(TRegistry::Get()->ValidateResourceSpec(MakeResourceSpec()));
 
     EXPECT_THROW_WITH_SUBSTRING(
-        TRegistry::Get()->ValidateResourceSpec(MakeResourceSpec("missing-source")),
-        "file source");
+        TRegistry::Get()->ValidateResourceSpec(MakeResourceSpec("missing-provider")),
+        "file provider");
     EXPECT_THROW_WITH_SUBSTRING(
-        TRegistry::Get()->ValidateResourceSpec(MakeResourceSpec(TypeName<TFakeFileSource>(), "")),
+        TRegistry::Get()->ValidateResourceSpec(MakeResourceSpec(TypeName<TFakeFileProvider>(), "")),
         "prefix");
 }
 
-TEST_F(TFileResourceTest, RegistryRejectsNamedSourcesForDirectResourceController)
+TEST_F(TFileResourceTest, FileProviderPostprocessSpecValidation)
+{
+    auto parsed = ConvertTo<TFileProviderSpecPtr>(TYsonString(Format("{file_provider_class_name=%Qv;parameters={prefix=payload;};postprocess_command=\"/bin/true\";}",
+        TypeName<TFakeFileProvider>())));
+    EXPECT_EQ(parsed->PostprocessCommand, "/bin/true");
+    EXPECT_EQ(parsed->PostprocessTimeout, TDuration::Minutes(1));
+
+    auto withoutCommand = ConvertTo<TFileProviderSpecPtr>(TYsonString(Format("{file_provider_class_name=%Qv;parameters={prefix=payload;};postprocess_timeout=\"2m\";}",
+        TypeName<TFakeFileProvider>())));
+    EXPECT_FALSE(withoutCommand->PostprocessCommand);
+    EXPECT_EQ(withoutCommand->PostprocessTimeout, TDuration::Minutes(2));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TFileProviderSpecPtr>(TYsonString(Format("{file_provider_class_name=%Qv;parameters={prefix=payload;};postprocess_command=\"\";}",
+        TypeName<TFakeFileProvider>()))),
+        "must be nonempty");
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TFileProviderSpecPtr>(TYsonString(Format("{file_provider_class_name=%Qv;parameters={prefix=payload;};postprocess_timeout=0;}",
+        TypeName<TFakeFileProvider>()))),
+        "Expected >");
+}
+
+TEST_F(TFileResourceTest, RawAndProcessedCacheIdentitiesDoNotAlias)
+{
+    auto queue = New<TActionQueue>();
+    auto storage = New<TFakeFileStorage>();
+    const std::string command = R"(
+/bin/cat "$YT_FLOW_RESOURCE_PATH/artifact" > "$YT_FLOW_POSTPROCESSING_PATH/artifact"
+)";
+    auto processed = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "raw"),
+        command,
+        TDuration::Seconds(5),
+        storage);
+    WaitFor(processed->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_EQ(processed->Lock()->Value, "payload:raw");
+    processed.Reset();
+
+    NCrypto::TSha256Hasher commandHasher;
+    commandHasher.Append(command);
+    NCrypto::TSha256Hasher identityHasher;
+    identityHasher.Append(Format("%Qv-%Qv-%Qv",
+        TStringBuf("test"),
+        TStringBuf("file"),
+        TStringBuf("raw")));
+    auto collidingObjectId = Format("test-file-raw-postprocess-%v-%v",
+        commandHasher.GetHexDigestLowerCase(),
+        identityHasher.GetHexDigestLowerCase());
+    auto raw = MakeResource(
+        queue->GetInvoker(),
+        MakeTarget(2, collidingObjectId),
+        storage);
+
+    WaitFor(raw->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_EQ(raw->Lock()->Value, Format("payload:%v", collidingObjectId));
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount(collidingObjectId), 1);
+}
+
+TEST_F(TFileResourceTest, RegistryRejectsNamedProvidersForDirectResourceController)
 {
     auto spec = MakeNamedResourceSpec({{"file", "payload"}});
     spec->ResourceClassName = TypeName<TTestFileResourceWithDirectController>();
 
     EXPECT_THROW_WITH_SUBSTRING(
         TRegistry::Get()->ValidateResourceSpec(spec),
-        "does not support file source discovery");
+        "does not support file provider discovery");
 }
 
-TEST_F(TFileResourceTest, RegistryValidatesNamedSources)
+TEST_F(TFileResourceTest, RegistryValidatesNamedProviders)
 {
-    auto parsed = ConvertTo<TResourceSpecPtr>(TYsonString(Format("{resource_class_name=%Qv;parameters={};file_sources={"
-        "left={file_source_class_name=%Qv;parameters={prefix=left;};};"
-        "right={file_source_class_name=%Qv;parameters={prefix=right;};};};}",
+    auto parsed = ConvertTo<TResourceSpecPtr>(TYsonString(Format("{resource_class_name=%Qv;parameters={};file_providers={"
+        "left={file_provider_class_name=%Qv;parameters={prefix=left;};};"
+        "right={file_provider_class_name=%Qv;parameters={prefix=right;};};};}",
         TypeName<TTestFileResource>(),
-        TypeName<TFakeFileSource>(),
-        TypeName<TFakeFileSource>())));
-    EXPECT_EQ(parsed->FileSources.size(), 2);
+        TypeName<TFakeFileProvider>(),
+        TypeName<TFakeFileProvider>())));
+    EXPECT_EQ(parsed->FileProviders.size(), 2);
     EXPECT_NO_THROW(TRegistry::Get()->ValidateResourceSpec(parsed));
 
     EXPECT_NO_THROW(TRegistry::Get()->ValidateResourceSpec(
         MakeNamedResourceSpec({{"left", "left"}, {"right", "right"}})));
 
     auto missingClass = MakeNamedResourceSpec({{"left", "left"}});
-    missingClass->FileSources[TFileSourceId("left")]->FileSourceClassName = "missing-source";
+    missingClass->FileProviders[TFileProviderId("left")]->FileProviderClassName = "missing-provider";
     EXPECT_THROW_WITH_SUBSTRING(
         TRegistry::Get()->ValidateResourceSpec(missingClass),
-        "file source");
+        "file provider");
 
     auto emptyParameters = MakeNamedResourceSpec({{"left", ""}});
     EXPECT_THROW_WITH_SUBSTRING(
@@ -997,10 +1149,10 @@ TEST_F(TFileResourceTest, RegistryValidatesNamedSources)
 
     EXPECT_THROW_WITH_SUBSTRING(
         TRegistry::Get()->ValidateResourceSpec(MakeNamedResourceSpec({})),
-        "at least one file source");
+        "at least one file provider");
 }
 
-TEST_F(TFileResourceTest, RegistryValidatesDynamicNamedSources)
+TEST_F(TFileResourceTest, RegistryValidatesDynamicNamedProviders)
 {
     auto pipelineSpec = New<TPipelineSpec>();
     pipelineSpec->Resources[TResourceId("resource")] =
@@ -1012,26 +1164,26 @@ TEST_F(TFileResourceTest, RegistryValidatesDynamicNamedSources)
             ConvertTo<IMapNodePtr>(TYsonString(dynamicSpec)));
     };
 
-    EXPECT_TRUE(validate(R"({resources={resource={file_sources={left={parameters={pinned_content_id=left-v2;};};};};};})").empty());
+    EXPECT_TRUE(validate(R"({resources={resource={file_providers={left={parameters={pinned_content_id=left-v2;};};};};};})").empty());
 
-    auto unknownSourceErrors = validate(
-        R"({resources={resource={file_sources={right={parameters={};};};};};})");
-    ASSERT_FALSE(unknownSourceErrors.empty());
-    EXPECT_THAT(ToString(unknownSourceErrors[0]), ::testing::HasSubstr("does not exist in static spec"));
+    auto unknownProviderErrors = validate(
+        R"({resources={resource={file_providers={right={parameters={};};};};};})");
+    ASSERT_FALSE(unknownProviderErrors.empty());
+    EXPECT_THAT(ToString(unknownProviderErrors[0]), ::testing::HasSubstr("does not exist in static spec"));
 
     auto invalidParametersErrors = validate(
-        R"({resources={resource={file_sources={left={parameters={pinned_content_id="";};};};};};})");
+        R"({resources={resource={file_providers={left={parameters={pinned_content_id="";};};};};};})");
     ASSERT_FALSE(invalidParametersErrors.empty());
     EXPECT_THAT(ToString(invalidParametersErrors[0]), ::testing::HasSubstr("must be nonempty"));
 
     auto unrecognizedParametersErrors = validate(
-        R"({resources={resource={file_sources={left={parameters={unknown=1;};};};};};})");
+        R"({resources={resource={file_providers={left={parameters={unknown=1;};};};};};})");
     ASSERT_FALSE(unrecognizedParametersErrors.empty());
     EXPECT_THAT(ToString(unrecognizedParametersErrors[0]), ::testing::HasSubstr("unknown"));
 
     auto invalidDynamicPipelineSpec = New<TDynamicPipelineSpec>();
     auto invalidDynamicResourceSpec = New<TDynamicResourceSpec>();
-    invalidDynamicResourceSpec->FileSources[TFileSourceId("../left")] = New<TDynamicFileSourceSpec>();
+    invalidDynamicResourceSpec->FileProviders[TFileProviderId("../left")] = New<TDynamicFileProviderSpec>();
     invalidDynamicPipelineSpec->Resources[TResourceId("resource")] = invalidDynamicResourceSpec;
     EXPECT_THROW_WITH_SUBSTRING(
         ValidateDynamicPipelineSpec(invalidDynamicPipelineSpec),
@@ -1044,10 +1196,10 @@ TEST_F(TFileResourceTest, FileSnapshotProtocolRoundTrips)
     revision->RevisionId = 17;
     revision->ActiveFileSnapshot = New<TFileSnapshot>();
     revision->ActiveFileSnapshot->Id = TFileSnapshotId(3);
-    revision->ActiveFileSnapshot->FileSources[TFileSourceId("left")] = MakeSourceRevision("left-v1");
+    revision->ActiveFileSnapshot->FileProviders[TFileProviderId("left")] = MakeProviderRevision("left-v1");
     revision->PreparingFileSnapshot = New<TFileSnapshot>();
     revision->PreparingFileSnapshot->Id = TFileSnapshotId(4);
-    revision->PreparingFileSnapshot->FileSources[TFileSourceId("left")] = MakeSourceRevision("left-v2");
+    revision->PreparingFileSnapshot->FileProviders[TFileProviderId("left")] = MakeProviderRevision("left-v2");
 
     auto roundTrippedRevision = ConvertTo<TResourceRevisionPtr>(ConvertToNode(revision));
     ASSERT_TRUE(roundTrippedRevision->ActiveFileSnapshot);
@@ -1093,7 +1245,7 @@ TEST_F(TFileResourceTest, FileSnapshotProtocolRoundTrips)
 
 TEST_F(TFileResourceTest, NamedControllerPublishesOnlyCompleteSnapshots)
 {
-    TFakeFileSource::PushDiscoveryRevision("left-v1", "left");
+    TFakeFileProvider::PushDiscoveryRevision("left-v1", "left");
 
     auto queue = New<TActionQueue>();
     auto statusProfiler = CreateSyncStatusProfiler();
@@ -1106,17 +1258,17 @@ TEST_F(TFileResourceTest, NamedControllerPublishesOnlyCompleteSnapshots)
 
     WaitForPredicate(
         [] {
-            return TFakeFileSource::GetDiscoverCount("left") > 0 &&
-                TFakeFileSource::GetDiscoverCount("right") > 0;
+            return TFakeFileProvider::GetDiscoverCount("left") > 0 &&
+                TFakeFileProvider::GetDiscoverCount("right") > 0;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_FALSE(controller->BuildTargetRevision());
-    EXPECT_TRUE(statusProfiler->GetStatus().Errors.contains("/file_sources/right/discovery"));
+    EXPECT_TRUE(statusProfiler->GetStatus().Errors.contains("/file_providers/right/discovery"));
 
-    TFakeFileSource::PushDiscoveryRevision("right-v1", "right");
+    TFakeFileProvider::PushDiscoveryRevision("right-v1", "right");
     WaitForPredicate(
         [&] {
             return static_cast<bool>(controller->BuildTargetRevision());
@@ -1129,29 +1281,29 @@ TEST_F(TFileResourceTest, NamedControllerPublishesOnlyCompleteSnapshots)
     const auto target = controller->BuildTargetRevision();
     EXPECT_FALSE(target->ActiveFileSnapshot);
     ASSERT_TRUE(target->PreparingFileSnapshot);
-    EXPECT_EQ(target->PreparingFileSnapshot->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying(), "left-v1");
-    EXPECT_EQ(target->PreparingFileSnapshot->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying(), "right-v1");
-    EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_sources/right/discovery"));
+    EXPECT_EQ(target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(), "left-v1");
+    EXPECT_EQ(target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(), "right-v1");
+    EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_providers/right/discovery"));
 
-    TFakeFileSource::PushDiscoveryRevision("left-v2", "left");
+    TFakeFileProvider::PushDiscoveryRevision("left-v2", "left");
     WaitForPredicate(
         [&] {
             auto updated = controller->BuildTargetRevision();
             return updated &&
-                GetLatestFileSnapshot(updated)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying() == "left-v2";
+                GetLatestFileSnapshot(updated)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "left-v2";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_EQ(
-        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v1");
 }
 
 TEST_F(TFileResourceTest, NamedControllerKeepsOwnSpecWhenDiscoveryFails)
 {
-    TFakeFileSource::SetDiscoveryError("file");
+    TFakeFileProvider::SetDiscoveryError("file");
 
     auto queue = New<TActionQueue>();
     auto controller = MakeNamedController(
@@ -1168,7 +1320,7 @@ TEST_F(TFileResourceTest, NamedControllerKeepsOwnSpecWhenDiscoveryFails)
     controller->Init(nullptr);
 
     WaitForPredicate([] {
-        return TFakeFileSource::GetDiscoverCount("file") > 0;
+        return TFakeFileProvider::GetDiscoverCount("file") > 0;
     });
 
     auto target = controller->BuildTargetRevision();
@@ -1180,7 +1332,7 @@ TEST_F(TFileResourceTest, NamedControllerKeepsOwnSpecWhenDiscoveryFails)
 
 TEST_F(TFileResourceTest, NamedControllerPromotesOnlyAuthoritativeCurrentValidatedSnapshot)
 {
-    TFakeFileSource::PushDiscoveryRevision("v1", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file");
 
     auto queue = New<TActionQueue>();
     auto stateManager = New<TStateManagerMock>();
@@ -1244,7 +1396,7 @@ TEST_F(TFileResourceTest, NamedControllerPromotesOnlyAuthoritativeCurrentValidat
     auto restoredStateManager = New<TStateManagerMock>();
     restoredStateManager->SetStorage(stateManager->GetStorage());
     controller.Reset();
-    TFakeFileSource::SetDiscoveryError("file");
+    TFakeFileProvider::SetDiscoveryError("file");
     auto restored = MakeNamedController(
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
@@ -1260,7 +1412,7 @@ TEST_F(TFileResourceTest, NamedControllerPromotesOnlyAuthoritativeCurrentValidat
 
 TEST_F(TFileResourceTest, NamedControllerRateLimitsPreparingSnapshotReplacement)
 {
-    TFakeFileSource::PushDiscoveryRevision("v1", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file");
 
     auto queue = New<TActionQueue>();
     auto controller = MakeNamedController(
@@ -1285,11 +1437,11 @@ TEST_F(TFileResourceTest, NamedControllerRateLimitsPreparingSnapshotReplacement)
         });
     const auto firstSnapshotId = target->PreparingFileSnapshot->Id;
 
-    const auto discoverCount = TFakeFileSource::GetDiscoverCount("file");
-    TFakeFileSource::PushDiscoveryRevision("v2", "file");
+    const auto discoverCount = TFakeFileProvider::GetDiscoverCount("file");
+    TFakeFileProvider::PushDiscoveryRevision("v2", "file");
     WaitForPredicate(
         [&] {
-            return TFakeFileSource::GetDiscoverCount("file") >= discoverCount + 2;
+            return TFakeFileProvider::GetDiscoverCount("file") >= discoverCount + 2;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -1300,7 +1452,7 @@ TEST_F(TFileResourceTest, NamedControllerRateLimitsPreparingSnapshotReplacement)
     ASSERT_TRUE(target->PreparingFileSnapshot);
     EXPECT_EQ(target->PreparingFileSnapshot->Id, firstSnapshotId);
     EXPECT_EQ(
-        target->PreparingFileSnapshot->FileSources.at(TFileSourceId("file"))->ObjectId.Underlying(),
+        target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("file"))->ObjectId.Underlying(),
         "v1");
 
     auto dynamicContext = New<TDynamicResourceControllerContext>();
@@ -1325,13 +1477,13 @@ TEST_F(TFileResourceTest, NamedControllerRateLimitsPreparingSnapshotReplacement)
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_EQ(
-        target->PreparingFileSnapshot->FileSources.at(TFileSourceId("file"))->ObjectId.Underlying(),
+        target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("file"))->ObjectId.Underlying(),
         "v2");
 }
 
 TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlots)
 {
-    TFakeFileSource::PushDiscoveryRevision("v1", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file");
 
     auto queue = New<TActionQueue>();
     auto stateManager = New<TStateManagerMock>();
@@ -1371,13 +1523,13 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
     EXPECT_FALSE(target->PreparingFileSnapshot);
     const auto activeId = target->ActiveFileSnapshot->Id;
 
-    TFakeFileSource::PushDiscoveryRevision("v2", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v2", "file");
     WaitForPredicate(
         [&] {
             target = controller->BuildTargetRevision();
             return target &&
                 target->PreparingFileSnapshot &&
-                target->PreparingFileSnapshot->FileSources.at(TFileSourceId("file"))->ObjectId.Underlying() == "v2";
+                target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("file"))->ObjectId.Underlying() == "v2";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -1385,7 +1537,7 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
         });
     const auto supersededPreparingId = target->PreparingFileSnapshot->Id;
 
-    TFakeFileSource::PushDiscoveryRevision("v3", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v3", "file");
     WaitForPredicate(
         [&] {
             target = controller->BuildTargetRevision();
@@ -1400,9 +1552,9 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
 
     EXPECT_EQ(target->ActiveFileSnapshot->Id, activeId);
     EXPECT_EQ(
-        target->PreparingFileSnapshot->FileSources.at(TFileSourceId("file"))->ObjectId.Underlying(),
+        target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("file"))->ObjectId.Underlying(),
         "v3");
-    auto view = controller->GetView()->GetChildOrThrow("file_sources")->AsMap();
+    auto view = controller->GetView()->GetChildOrThrow("file_providers")->AsMap();
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("known_file_snapshot_count"), 2);
     EXPECT_EQ(view->GetChildValueOrThrow<TFileSnapshotId>("active_file_snapshot_id"), activeId);
     EXPECT_EQ(
@@ -1417,7 +1569,7 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
     auto restoredStateManager = New<TStateManagerMock>();
     restoredStateManager->SetStorage(stateManager->GetStorage());
     controller.Reset();
-    TFakeFileSource::SetDiscoveryError("file");
+    TFakeFileProvider::SetDiscoveryError("file");
     auto restored = MakeNamedController(
         queue->GetInvoker(),
         CreateSyncStatusProfiler(),
@@ -1434,7 +1586,7 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
     ASSERT_TRUE(target->PreparingFileSnapshot);
     EXPECT_EQ(target->ActiveFileSnapshot->Id, activeId);
     EXPECT_EQ(restored->GetView()
-            ->GetChildOrThrow("file_sources")
+            ->GetChildOrThrow("file_providers")
             ->AsMap()
             ->GetChildValueOrThrow<i64>("known_file_snapshot_count"),
         2);
@@ -1442,7 +1594,7 @@ TEST_F(TFileResourceTest, NamedControllerBoundsSnapshotCatalogAndKeepsCurrentSlo
 
 TEST_F(TFileResourceTest, NamedControllerDropsPreparingWhenDiscoveryReturnsToActive)
 {
-    TFakeFileSource::PushDiscoveryRevision("v1", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file");
 
     auto queue = New<TActionQueue>();
     auto controller = MakeNamedController(
@@ -1473,7 +1625,7 @@ TEST_F(TFileResourceTest, NamedControllerDropsPreparingWhenDiscoveryReturnsToAct
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
     ASSERT_TRUE(controller->BuildTargetRevision()->ActiveFileSnapshot);
 
-    TFakeFileSource::PushDiscoveryRevision("v2", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v2", "file");
     WaitForPredicate(
         [&] {
             target = controller->BuildTargetRevision();
@@ -1484,7 +1636,7 @@ TEST_F(TFileResourceTest, NamedControllerDropsPreparingWhenDiscoveryReturnsToAct
             .Period = TDuration::MilliSeconds(5),
         });
 
-    TFakeFileSource::PushDiscoveryRevision("v1", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file");
     WaitForPredicate(
         [&] {
             target = controller->BuildTargetRevision();
@@ -1495,14 +1647,14 @@ TEST_F(TFileResourceTest, NamedControllerDropsPreparingWhenDiscoveryReturnsToAct
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_EQ(
-        target->ActiveFileSnapshot->FileSources.at(TFileSourceId("file"))->ObjectId.Underlying(),
+        target->ActiveFileSnapshot->FileProviders.at(TFileProviderId("file"))->ObjectId.Underlying(),
         "v1");
 }
 
 TEST_F(TFileResourceTest, NamedControllerRetainsLastCompleteSnapshotAcrossFailures)
 {
-    TFakeFileSource::PushDiscoveryRevision("left-v1", "left");
-    TFakeFileSource::PushDiscoveryRevision("right-v1", "right");
+    TFakeFileProvider::PushDiscoveryRevision("left-v1", "left");
+    TFakeFileProvider::PushDiscoveryRevision("right-v1", "right");
 
     auto queue = New<TActionQueue>();
     auto statusProfiler = CreateSyncStatusProfiler();
@@ -1521,38 +1673,38 @@ TEST_F(TFileResourceTest, NamedControllerRetainsLastCompleteSnapshotAcrossFailur
             .Period = TDuration::MilliSeconds(5),
         });
 
-    auto discoverCount = TFakeFileSource::GetDiscoverCount("right");
-    TFakeFileSource::PushNullDiscovery("right");
+    auto discoverCount = TFakeFileProvider::GetDiscoverCount("right");
+    TFakeFileProvider::PushNullDiscovery("right");
     WaitForPredicate(
         [&] {
-            return TFakeFileSource::GetDiscoverCount("right") >= discoverCount + 2;
+            return TFakeFileProvider::GetDiscoverCount("right") >= discoverCount + 2;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_EQ(
-        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v1");
-    EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_sources/right/discovery"));
+    EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_providers/right/discovery"));
 
-    TFakeFileSource::SetDiscoveryError("right");
+    TFakeFileProvider::SetDiscoveryError("right");
     WaitForPredicate(
         [&] {
-            return statusProfiler->GetStatus().Errors.contains("/file_sources/right/discovery");
+            return statusProfiler->GetStatus().Errors.contains("/file_providers/right/discovery");
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
     EXPECT_EQ(
-        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(controller->BuildTargetRevision())->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v1");
 }
 
 TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning)
 {
-    TFakeFileSource::PushDiscoveryRevision("v1", "file");
+    TFakeFileProvider::PushDiscoveryRevision("v1", "file");
 
     auto queue = New<TActionQueue>();
     auto stateManager = New<TStateManagerMock>();
@@ -1622,7 +1774,7 @@ TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning
     restored->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
     ASSERT_TRUE(statusProfiler->GetStatus().Errors.contains("/file_snapshot_rollout"));
 
-    auto view = restored->GetView()->GetChildOrThrow("file_sources")->AsMap();
+    auto view = restored->GetView()->GetChildOrThrow("file_providers")->AsMap();
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_instance_count"), 1);
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_converged_instance_count"), 0);
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_uninitialized_instance_count"), 1);
@@ -1639,14 +1791,14 @@ TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning
     status->PreparingFileSnapshot->Error = TError();
     status->LiveAccessorCounts[TFileSnapshotId(activeSnapshotId.Underlying() + 1)] = 2;
     restored->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
-    view = restored->GetView()->GetChildOrThrow("file_sources")->AsMap();
+    view = restored->GetView()->GetChildOrThrow("file_providers")->AsMap();
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_blocking_accessor_count"), 2);
 
     status->ActiveFileSnapshotId = activeSnapshotId;
     status->PreparingFileSnapshot.Reset();
     restored->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
     EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_snapshot_rollout"));
-    view = restored->GetView()->GetChildOrThrow("file_sources")->AsMap();
+    view = restored->GetView()->GetChildOrThrow("file_providers")->AsMap();
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_converged_instance_count"), 1);
 
     auto oldTargetStatus = New<TWorkerResourceStatus>();
@@ -1662,7 +1814,7 @@ TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning
         nullptr,
         17);
     ASSERT_TRUE(statusProfiler->GetStatus().Errors.contains("/file_snapshot_rollout"));
-    view = restored->GetView()->GetChildOrThrow("file_sources")->AsMap();
+    view = restored->GetView()->GetChildOrThrow("file_providers")->AsMap();
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_instance_count"), 2);
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_converged_instance_count"), 1);
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_lagging_instance_count"), 1);
@@ -1675,7 +1827,7 @@ TEST_F(TFileResourceTest, NamedControllerReportsAndClearsPersistedRolloutWarning
     restored->CollectStatuses({}, nullptr, 17);
     EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_snapshot_rollout"));
     EXPECT_EQ(restored->GetView()
-            ->GetChildOrThrow("file_sources")
+            ->GetChildOrThrow("file_providers")
             ->AsMap()
             ->GetChildValueOrThrow<i64>("rollout_instance_count"),
         0);
@@ -1702,7 +1854,7 @@ TEST_F(TFileResourceTest, NamedControllerAggregatesAndDropsWorkerSnapshotState)
     status->LiveAccessorCounts[TFileSnapshotId(8)] = 1;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
 
-    auto view = controller->GetView()->GetChildOrThrow("file_sources")->AsMap();
+    auto view = controller->GetView()->GetChildOrThrow("file_providers")->AsMap();
     auto fileSnapshotStateCounts = view->GetChildOrThrow("file_snapshot_state_counts")->AsMap();
     EXPECT_EQ(
         fileSnapshotStateCounts->GetChildValueOrThrow<i64>(
@@ -1725,7 +1877,7 @@ TEST_F(TFileResourceTest, NamedControllerAggregatesAndDropsWorkerSnapshotState)
         1);
 
     controller->CollectStatuses({}, nullptr, 17);
-    view = controller->GetView()->GetChildOrThrow("file_sources")->AsMap();
+    view = controller->GetView()->GetChildOrThrow("file_providers")->AsMap();
     EXPECT_TRUE(view->GetChildOrThrow("file_snapshot_state_counts")->AsMap()->GetChildren().empty());
     EXPECT_TRUE(view->GetChildOrThrow("live_accessor_counts")->AsMap()->GetChildren().empty());
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("unknown_file_snapshot_count"), 0);
@@ -1734,14 +1886,14 @@ TEST_F(TFileResourceTest, NamedControllerAggregatesAndDropsWorkerSnapshotState)
     status->ResourceInstanceId = TResourceInstanceId(TGuid::Create());
     status->ResourceIncarnationGeneration = 0;
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
-    view = controller->GetView()->GetChildOrThrow("file_sources")->AsMap();
+    view = controller->GetView()->GetChildOrThrow("file_providers")->AsMap();
     EXPECT_EQ(view->GetChildValueOrThrow<i64>("rollout_instance_count"), 1);
 }
 
-TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileSourceRevisions)
+TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileProviderRevisions)
 {
-    TFakeFileSource::PushDiscoveryRevision("left-v1", "left");
-    TFakeFileSource::PushDiscoveryRevision("right-v1", "right");
+    TFakeFileProvider::PushDiscoveryRevision("left-v1", "left");
+    TFakeFileProvider::PushDiscoveryRevision("right-v1", "right");
 
     auto queue = New<TActionQueue>();
     auto controller = MakeNamedController(
@@ -1774,13 +1926,13 @@ TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileSourceRevisi
     ASSERT_TRUE(target->ActiveFileSnapshot);
     const auto activeId = target->ActiveFileSnapshot->Id;
 
-    TFakeFileSource::PushDiscoveryRevision("left-v2", "left");
+    TFakeFileProvider::PushDiscoveryRevision("left-v2", "left");
     WaitForPredicate(
         [&] {
             target = controller->BuildTargetRevision();
             return target &&
                 target->PreparingFileSnapshot &&
-                target->PreparingFileSnapshot->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying() == "left-v2";
+                target->PreparingFileSnapshot->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "left-v2";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -1795,27 +1947,27 @@ TEST_F(TFileResourceTest, NamedControllerCountsHistoricalAppliedFileSourceRevisi
     controller->CollectStatuses({{"worker", MakeWorkerStatus(status)}}, nullptr, 17);
 
     auto counts = controller->GetView()
-        ->GetChildOrThrow("file_sources")
+        ->GetChildOrThrow("file_providers")
         ->AsMap()
-        ->GetChildOrThrow("file_source_revision_state_counts")
+        ->GetChildOrThrow("file_provider_revision_state_counts")
         ->AsMap();
     EXPECT_EQ(counts->GetChildValueOrThrow<i64>(
-        Format("%v/%v/%v", TFileSourceId("left"), NFileStorage::TFileStorageObjectId("left-v1"), FormatEnum(EFileSnapshotState::Active))),
+        Format("%v/%v/%v", TFileProviderId("left"), NFileStorage::TFileStorageObjectId("left-v1"), FormatEnum(EFileSnapshotState::Active))),
         1);
     EXPECT_EQ(counts->GetChildValueOrThrow<i64>(
-        Format("%v/%v/%v", TFileSourceId("left"), NFileStorage::TFileStorageObjectId("left-v2"), FormatEnum(EFileSnapshotState::Preparing))),
+        Format("%v/%v/%v", TFileProviderId("left"), NFileStorage::TFileStorageObjectId("left-v2"), FormatEnum(EFileSnapshotState::Preparing))),
         1);
     EXPECT_EQ(counts->GetChildValueOrThrow<i64>(
-        Format("%v/%v/%v", TFileSourceId("right"), NFileStorage::TFileStorageObjectId("right-v1"), FormatEnum(EFileSnapshotState::Active))),
+        Format("%v/%v/%v", TFileProviderId("right"), NFileStorage::TFileStorageObjectId("right-v1"), FormatEnum(EFileSnapshotState::Active))),
         1);
     EXPECT_FALSE(counts->FindChild(
-        Format("%v/%v/%v", TFileSourceId("right"), NFileStorage::TFileStorageObjectId("right-v1"), FormatEnum(EFileSnapshotState::Preparing))));
+        Format("%v/%v/%v", TFileProviderId("right"), NFileStorage::TFileStorageObjectId("right-v1"), FormatEnum(EFileSnapshotState::Preparing))));
 }
 
 TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsAcrossCompatibleSpecChanges)
 {
-    TFakeFileSource::PushDiscoveryRevision("left-v1", "left");
-    TFakeFileSource::PushDiscoveryRevision("right-v1", "right");
+    TFakeFileProvider::PushDiscoveryRevision("left-v1", "left");
+    TFakeFileProvider::PushDiscoveryRevision("right-v1", "right");
 
     auto queue = New<TActionQueue>();
     auto stateManager = New<TStateManagerMock>();
@@ -1840,8 +1992,8 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsAcrossCompatibleSpecCh
     stateManager->Sync();
     controller.Reset();
 
-    TFakeFileSource::SetDiscoveryError("left");
-    TFakeFileSource::SetDiscoveryError("right");
+    TFakeFileProvider::SetDiscoveryError("left");
+    TFakeFileProvider::SetDiscoveryError("right");
     auto restoredStateManager = New<TStateManagerMock>();
     restoredStateManager->SetStorage(stateManager->GetStorage());
     auto restored = MakeNamedController(
@@ -1852,10 +2004,10 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsAcrossCompatibleSpecCh
     restored->Init(restoredStateManager->CreateContext());
     ASSERT_TRUE(restored->BuildTargetRevision());
     EXPECT_EQ(
-        GetLatestFileSnapshot(restored->BuildTargetRevision())->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(restored->BuildTargetRevision())->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
         "left-v1");
     EXPECT_EQ(
-        GetLatestFileSnapshot(restored->BuildTargetRevision())->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(restored->BuildTargetRevision())->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v1");
     auto changedStateManager = New<TStateManagerMock>();
     changedStateManager->SetStorage(stateManager->GetStorage());
@@ -1867,7 +2019,7 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotsAcrossCompatibleSpecCh
     changed->Init(changedStateManager->CreateContext());
     ASSERT_TRUE(changed->BuildTargetRevision());
     EXPECT_EQ(
-        GetLatestFileSnapshot(changed->BuildTargetRevision())->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(changed->BuildTargetRevision())->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
         "left-v1");
     auto incompatibleStateManager = New<TStateManagerMock>();
     incompatibleStateManager->SetStorage(stateManager->GetStorage());
@@ -1891,13 +2043,13 @@ TEST_F(TFileResourceTest, NamedControllerReconfiguresDirectDiscoverPeriod)
     controller->Init(nullptr);
     WaitForPredicate(
         [] {
-            return TFakeFileSource::GetDiscoverCount("left") > 0;
+            return TFakeFileProvider::GetDiscoverCount("left") > 0;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
-    auto discoverCount = TFakeFileSource::GetDiscoverCount("left");
+    auto discoverCount = TFakeFileProvider::GetDiscoverCount("left");
 
     auto dynamicContext = New<TDynamicResourceControllerContext>();
     dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
@@ -1908,7 +2060,7 @@ TEST_F(TFileResourceTest, NamedControllerReconfiguresDirectDiscoverPeriod)
 
     WaitForPredicate(
         [&] {
-            return TFakeFileSource::GetDiscoverCount("left") >= discoverCount + 2;
+            return TFakeFileProvider::GetDiscoverCount("left") >= discoverCount + 2;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -1918,7 +2070,7 @@ TEST_F(TFileResourceTest, NamedControllerReconfiguresDirectDiscoverPeriod)
 
 TEST_F(TFileResourceTest, NamedControllerAppliesDynamicPinImmediately)
 {
-    TFakeFileSource::PushDiscoveryRevision("latest-v1", "left");
+    TFakeFileProvider::PushDiscoveryRevision("latest-v1", "left");
 
     auto queue = New<TActionQueue>();
     auto controller = MakeNamedController(
@@ -1931,7 +2083,7 @@ TEST_F(TFileResourceTest, NamedControllerAppliesDynamicPinImmediately)
         [&] {
             auto target = controller->BuildTargetRevision();
             return target &&
-                GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying() == "latest-v1";
+                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "latest-v1";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -1951,7 +2103,7 @@ TEST_F(TFileResourceTest, NamedControllerAppliesDynamicPinImmediately)
         [&] {
             auto target = controller->BuildTargetRevision();
             return target &&
-                GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying() == "pinned-v1";
+                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "pinned-v1";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -1961,10 +2113,10 @@ TEST_F(TFileResourceTest, NamedControllerAppliesDynamicPinImmediately)
 
 TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
 {
-    TFakeFileSource::PushDiscoveryRevision("left-v0", "left");
-    TFakeFileSource::PushDiscoveryRevision("right-v0", "right");
+    TFakeFileProvider::PushDiscoveryRevision("left-v0", "left");
+    TFakeFileProvider::PushDiscoveryRevision("right-v0", "right");
     auto rightGate = NewPromise<void>();
-    TFakeFileSource::SetDiscoveryGate("right-v1", rightGate.ToFuture());
+    TFakeFileProvider::SetDiscoveryGate("right-v1", rightGate.ToFuture());
 
     auto queue = New<TActionQueue>();
     auto stateManager = New<TStateManagerMock>();
@@ -1978,16 +2130,16 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
         [&] {
             auto target = controller->BuildTargetRevision();
             return target &&
-                GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying() == "left-v0" &&
-                GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying() == "right-v0";
+                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "left-v0" &&
+                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying() == "right-v0";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
 
-    auto leftDiscoverCount = TFakeFileSource::GetDiscoverCount("left");
-    auto rightDiscoverCount = TFakeFileSource::GetDiscoverCount("right");
+    auto leftDiscoverCount = TFakeFileProvider::GetDiscoverCount("left");
+    auto rightDiscoverCount = TFakeFileProvider::GetDiscoverCount("right");
     auto dynamicContext = New<TDynamicResourceControllerContext>();
     dynamicContext->DynamicResourceSpec = MakeNamedDynamicContext(
         nullptr,
@@ -1999,8 +2151,8 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
 
     WaitForPredicate(
         [&] {
-            return TFakeFileSource::GetDiscoverCount("left") > leftDiscoverCount &&
-                TFakeFileSource::GetDiscoverCount("right") > rightDiscoverCount;
+            return TFakeFileProvider::GetDiscoverCount("left") > leftDiscoverCount &&
+                TFakeFileProvider::GetDiscoverCount("right") > rightDiscoverCount;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2014,10 +2166,10 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
     auto pendingTarget = controller->BuildTargetRevision();
     ASSERT_TRUE(pendingTarget);
     EXPECT_EQ(
-        GetLatestFileSnapshot(pendingTarget)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(pendingTarget)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
         "left-v0");
     EXPECT_EQ(
-        GetLatestFileSnapshot(pendingTarget)->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(pendingTarget)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v0");
 
     stateManager->Sync();
@@ -2034,10 +2186,10 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
     auto restoredTarget = restored->BuildTargetRevision();
     ASSERT_TRUE(restoredTarget);
     EXPECT_EQ(
-        GetLatestFileSnapshot(restoredTarget)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(restoredTarget)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
         "left-v0");
     EXPECT_EQ(
-        GetLatestFileSnapshot(restoredTarget)->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(restoredTarget)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying(),
         "right-v0");
 
     rightGate.Set();
@@ -2045,8 +2197,8 @@ TEST_F(TFileResourceTest, NamedControllerPublishesMultipleDynamicPinsAtomically)
         [&] {
             auto target = restored->BuildTargetRevision();
             return target &&
-                GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying() == "left-v1" &&
-                GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("right"))->ObjectId.Underlying() == "right-v1";
+                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "left-v1" &&
+                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("right"))->ObjectId.Underlying() == "right-v1";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2058,10 +2210,10 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
 {
     auto staleGate = NewPromise<void>();
     auto pinnedGate = NewPromise<void>();
-    TFakeFileSource::SetDiscoveryGate("stale", staleGate.ToFuture());
-    TFakeFileSource::SetDiscoveryGate("pinned", pinnedGate.ToFuture());
-    TFakeFileSource::PushDiscoveryRevision("initial", "left");
-    TFakeFileSource::PushDiscoveryRevision("stale", "left");
+    TFakeFileProvider::SetDiscoveryGate("stale", staleGate.ToFuture());
+    TFakeFileProvider::SetDiscoveryGate("pinned", pinnedGate.ToFuture());
+    TFakeFileProvider::PushDiscoveryRevision("initial", "left");
+    TFakeFileProvider::PushDiscoveryRevision("stale", "left");
 
     auto queue = New<TActionQueue>();
     auto controller = MakeNamedController(
@@ -2074,7 +2226,7 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
         [&] {
             auto target = controller->BuildTargetRevision();
             return target &&
-                GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying() == "initial";
+                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "initial";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2082,7 +2234,7 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
         });
     WaitForPredicate(
         [] {
-            return TFakeFileSource::GetDiscoverCount("left") >= 2;
+            return TFakeFileProvider::GetDiscoverCount("left") >= 2;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2101,7 +2253,7 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
     staleGate.Set();
     WaitForPredicate(
         [] {
-            return TFakeFileSource::GetDiscoverCount("left") >= 3;
+            return TFakeFileProvider::GetDiscoverCount("left") >= 3;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2109,7 +2261,7 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
         });
     ASSERT_EQ(
         GetLatestFileSnapshot(controller->BuildTargetRevision())
-            ->FileSources.at(TFileSourceId("left"))
+            ->FileProviders.at(TFileProviderId("left"))
             ->ObjectId.Underlying(),
         "initial");
 
@@ -2118,7 +2270,7 @@ TEST_F(TFileResourceTest, NamedControllerDiscardsDiscoveryStartedBeforeDynamicPi
         [&] {
             auto target = controller->BuildTargetRevision();
             return target &&
-                GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying() == "pinned";
+                GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying() == "pinned";
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -2153,7 +2305,7 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotAcrossDynamicPinChange)
     stateManager->Sync();
     controller.Reset();
 
-    TFakeFileSource::SetDiscoveryError("left");
+    TFakeFileProvider::SetDiscoveryError("left");
     auto restoredStateManager = New<TStateManagerMock>();
     restoredStateManager->SetStorage(stateManager->GetStorage());
     auto restored = MakeNamedController(
@@ -2165,7 +2317,7 @@ TEST_F(TFileResourceTest, NamedControllerRestoresSnapshotAcrossDynamicPinChange)
     auto target = restored->BuildTargetRevision();
     ASSERT_TRUE(target);
     EXPECT_EQ(
-        GetLatestFileSnapshot(target)->FileSources.at(TFileSourceId("left"))->ObjectId.Underlying(),
+        GetLatestFileSnapshot(target)->FileProviders.at(TFileProviderId("left"))->ObjectId.Underlying(),
         "pinned-v1");
 }
 
@@ -2282,15 +2434,255 @@ TEST_F(TFileResourceTest, InitialLoadPublishesState)
 
     auto accessor = resource->Lock();
     EXPECT_EQ(accessor->Value, "payload:v1");
-    EXPECT_EQ(accessor.GetSourceRevision(TFileSourceId("file"))->ObjectId.Underlying(), "v1");
+    EXPECT_EQ(accessor.GetProviderRevision(TFileProviderId("file"))->ObjectId.Underlying(), "v1");
     EXPECT_EQ(accessor.GetDeliveryRevisionId(), 1);
     EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 1);
     EXPECT_EQ(resource->GetRevisionState().TargetRevisionId, 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v1"), 1);
     EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:v1"), 1);
 }
 
-TEST_F(TFileResourceTest, AccessorRejectsUnknownFileSource)
+TEST_F(TFileResourceTest, PostprocessingUsesSanitizedEnvironmentAndDerivedCache)
+{
+    const std::string command = R"(
+test "$PATH" = "/usr/bin:/bin"
+test "$LANG" = "C"
+test "$LC_ALL" = "C"
+test "$TZ" = "UTC"
+test "$PWD" = "$YT_FLOW_POSTPROCESSING_PATH"
+test -z "${YT_FLOW_POSTPROCESS_TEST_SECRET+x}"
+/bin/cat "$YT_FLOW_RESOURCE_PATH/artifact" > "$YT_FLOW_POSTPROCESSING_PATH/artifact"
+/usr/bin/printf ':processed' >> "$YT_FLOW_POSTPROCESSING_PATH/artifact"
+)";
+
+    setenv("YT_FLOW_POSTPROCESS_TEST_SECRET", "must-not-leak", 1);
+    auto envGuard = Finally([] {
+        unsetenv("YT_FLOW_POSTPROCESS_TEST_SECRET");
+    });
+
+    auto queue = New<TActionQueue>();
+    auto storage = New<TFakeFileStorage>();
+
+    auto rawResource = MakeResource(queue->GetInvoker(), MakeTarget(1, "v1"), storage);
+    WaitFor(rawResource->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_EQ(rawResource->Lock()->Value, "payload:v1");
+    rawResource.Reset();
+
+    auto statusProfiler = CreateSyncStatusProfiler();
+    auto first = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        command,
+        TDuration::Seconds(5),
+        storage,
+        statusProfiler);
+    auto firstLoadResult = WaitFor(first->Load({}).WithTimeout(TDuration::Seconds(5)));
+    ASSERT_TRUE(firstLoadResult.IsOK())
+        << ToString(statusProfiler->GetStatus().Errors.at("/file_update"));
+    EXPECT_EQ(first->Lock()->Value, "payload:v1:processed");
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v1"), 1);
+    first.Reset();
+
+    auto cached = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        command,
+        TDuration::Hours(1),
+        storage);
+    WaitFor(cached->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_EQ(cached->Lock()->Value, "payload:v1:processed");
+    cached.Reset();
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v1"), 1);
+
+    auto changed = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        command + R"(/usr/bin/printf ':changed' >> "$YT_FLOW_POSTPROCESSING_PATH/artifact"
+)",
+        TDuration::Seconds(5),
+        storage);
+    WaitFor(changed->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_EQ(changed->Lock()->Value, "payload:v1:processed:changed");
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v1"), 1);
+}
+
+TEST_F(TFileResourceTest, ChangedPostprocessCommandReusesRealFileStorageDownload)
+{
+    TRealFileStorageFixture storageFixture;
+    auto storage = storageFixture.MakeStorage();
+    auto queue = New<TActionQueue>();
+    auto statusProfiler = CreateSyncStatusProfiler();
+    const std::string command = R"(
+/bin/cat "$YT_FLOW_RESOURCE_PATH/artifact" > "$YT_FLOW_POSTPROCESSING_PATH/artifact"
+/usr/bin/printf ':first' >> "$YT_FLOW_POSTPROCESSING_PATH/artifact"
+)";
+
+    auto first = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        command,
+        TDuration::Seconds(5),
+        storage,
+        statusProfiler);
+    auto firstLoad = WaitFor(first->Load({}).WithTimeout(TDuration::Seconds(10)));
+    auto status = statusProfiler->GetStatus();
+    auto updateError = status.Errors.find("/file_update");
+    ASSERT_TRUE(firstLoad.IsOK())
+        << "Download count: " << TFakeFileProvider::GetDownloadCount("v1")
+        << ", update error: " << (updateError == status.Errors.end() ? "missing" : ToString(updateError->second));
+    EXPECT_EQ(first->Lock()->Value, "payload:v1:first");
+    first.Reset();
+
+    auto changed = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        command + R"(/usr/bin/printf ':changed' >> "$YT_FLOW_POSTPROCESSING_PATH/artifact"
+)",
+        TDuration::Seconds(5),
+        storage,
+        statusProfiler);
+    WaitFor(changed->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+    EXPECT_EQ(changed->Lock()->Value, "payload:v1:first:changed");
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v1"), 1);
+
+    changed.Reset();
+    storage.Reset();
+}
+
+TEST_F(TFileResourceTest, PostprocessFailureRetainsPreviousSnapshotAndRecovers)
+{
+    const std::string command = R"(
+if /bin/grep -q bad "$YT_FLOW_RESOURCE_PATH/artifact"; then
+    /usr/bin/printf 'postprocess boom\n' >&2
+    exit 42
+fi
+/bin/cp "$YT_FLOW_RESOURCE_PATH/artifact" "$YT_FLOW_POSTPROCESSING_PATH/artifact"
+)";
+
+    auto queue = New<TActionQueue>();
+    auto statusProfiler = CreateSyncStatusProfiler();
+    auto resource = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        command,
+        TDuration::Seconds(5),
+        New<TFakeFileStorage>(),
+        statusProfiler,
+        TDuration::Hours(1));
+    WaitFor(resource->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+
+    resource->Reconfigure(MakeDynamicContext(
+        MakeTarget(2, "bad"),
+        TDuration::Hours(1).MilliSeconds()));
+    WaitForPredicate([&] {
+        return statusProfiler->GetStatus().Errors.contains("/file_update");
+    });
+
+    const auto error = ToString(statusProfiler->GetStatus().Errors.at("/file_update"));
+    EXPECT_THAT(error, ::testing::HasSubstr("phase"));
+    EXPECT_THAT(error, ::testing::HasSubstr("exit"));
+    EXPECT_THAT(error, ::testing::HasSubstr("exit_code"));
+    EXPECT_THAT(error, ::testing::HasSubstr("42"));
+    EXPECT_THAT(error, ::testing::HasSubstr("postprocess boom"));
+    EXPECT_THAT(error, ::testing::HasSubstr("command_digest"));
+    EXPECT_EQ(resource->Lock()->Value, "payload:v1");
+    EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 1);
+
+    resource->Reconfigure(MakeDynamicContext(MakeTarget(3, "v3")));
+    WaitForAppliedRevision(resource, 3);
+    EXPECT_EQ(resource->Lock()->Value, "payload:v3");
+    EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_update"));
+}
+
+TEST_F(TFileResourceTest, PostprocessHelperCrashDoesNotKillWorker)
+{
+    auto queue = New<TActionQueue>();
+    auto statusProfiler = CreateSyncStatusProfiler();
+    auto resource = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        "ulimit -c 0; /bin/kill -ABRT $$",
+        TDuration::Seconds(5),
+        New<TFakeFileStorage>(),
+        statusProfiler,
+        TDuration::Hours(1));
+
+    auto loadFuture = resource->Load({});
+    WaitForPredicate([&] {
+        return statusProfiler->GetStatus().Errors.contains("/file_update");
+    });
+
+    EXPECT_FALSE(loadFuture.IsSet());
+    const auto error = ToString(statusProfiler->GetStatus().Errors.at("/file_update"));
+    EXPECT_THAT(error, ::testing::HasSubstr("signal"));
+    EXPECT_THAT(error, ::testing::HasSubstr("command_digest"));
+}
+
+TEST_F(TFileResourceTest, PostprocessBoundsAndDrainsOutput)
+{
+    const std::string command = R"(
+/bin/dd if=/dev/zero bs=1048576 count=8 2>/dev/null | /usr/bin/tr '\0' x
+/usr/bin/printf 'STDOUT_MARKER\n'
+/bin/dd if=/dev/zero bs=1048576 count=8 2>/dev/null | /usr/bin/tr '\0' y >&2
+/usr/bin/printf 'STDERR_MARKER\n' >&2
+exit 7
+)";
+
+    auto queue = New<TActionQueue>();
+    auto statusProfiler = CreateSyncStatusProfiler();
+    auto resource = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        command,
+        TDuration::Seconds(5),
+        New<TFakeFileStorage>(),
+        statusProfiler,
+        TDuration::Hours(1));
+
+    auto loadFuture = resource->Load({});
+    WaitForPredicate([&] {
+        return statusProfiler->GetStatus().Errors.contains("/file_update");
+    });
+
+    EXPECT_FALSE(loadFuture.IsSet());
+    const auto error = ToString(statusProfiler->GetStatus().Errors.at("/file_update"));
+    EXPECT_THAT(error, ::testing::HasSubstr("STDOUT_MARKER"));
+    EXPECT_THAT(error, ::testing::HasSubstr("STDERR_MARKER"));
+    EXPECT_LT(error.size(), 40_KB);
+}
+
+TEST_F(TFileResourceTest, PostprocessInfiniteOutputHonorsTimeout)
+{
+    const std::string command = R"(
+/usr/bin/yes stdout &
+/usr/bin/yes stderr >&2 &
+wait
+)";
+
+    auto queue = New<TActionQueue>();
+    auto statusProfiler = CreateSyncStatusProfiler();
+    auto resource = MakePostprocessedResource(
+        queue->GetInvoker(),
+        MakeTarget(1, "v1"),
+        command,
+        TDuration::MilliSeconds(50),
+        New<TFakeFileStorage>(),
+        statusProfiler,
+        TDuration::Hours(1));
+
+    auto loadFuture = resource->Load({});
+    WaitForPredicate([&] {
+        return statusProfiler->GetStatus().Errors.contains("/file_update");
+    });
+
+    EXPECT_FALSE(loadFuture.IsSet());
+    const auto error = ToString(statusProfiler->GetStatus().Errors.at("/file_update"));
+    EXPECT_THAT(error, ::testing::HasSubstr("timeout"));
+    EXPECT_THAT(error, ::testing::HasSubstr("command_digest"));
+    EXPECT_LT(error.size(), 40_KB);
+}
+
+TEST_F(TFileResourceTest, AccessorRejectsUnknownFileProvider)
 {
     auto queue = New<TActionQueue>();
     auto resource = MakeResource(queue->GetInvoker(), MakeTarget(1, "v1"));
@@ -2298,8 +2690,8 @@ TEST_F(TFileResourceTest, AccessorRejectsUnknownFileSource)
 
     auto accessor = resource->Lock();
     EXPECT_THROW_WITH_SUBSTRING(
-        accessor.GetRootPath(TFileSourceId("missing")),
-        "Unknown materialized file source");
+        accessor.GetRootPath(TFileProviderId("missing")),
+        "Unknown materialized file provider");
 }
 
 TEST_F(TFileResourceTest, AccessorAssignmentsPreserveLiveCount)
@@ -2326,7 +2718,7 @@ TEST_F(TFileResourceTest, AccessorAssignmentsPreserveLiveCount)
 
 TEST_F(TFileResourceTest, RolloutPreparesActiveBeforePreparing)
 {
-    TFakeFileSource::Block("active-v1");
+    TFakeFileProvider::Block("active-v1");
 
     auto queue = New<TActionQueue>();
     auto resource = MakeResource(
@@ -2337,9 +2729,9 @@ TEST_F(TFileResourceTest, RolloutPreparesActiveBeforePreparing)
             MakeFileSnapshot(11, "preparing-v1")));
 
     auto loadFuture = resource->Load({});
-    WaitFor(TFakeFileSource::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("preparing-v1"), 0);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("preparing-v1"), 0);
     auto downloadingState = resource->GetRevisionState();
     ASSERT_TRUE(downloadingState.PreparingFileSnapshot);
     EXPECT_EQ(downloadingState.PreparingFileSnapshot->State, EFileSnapshotState::Preparing);
@@ -2347,7 +2739,7 @@ TEST_F(TFileResourceTest, RolloutPreparesActiveBeforePreparing)
         downloadingState.PreparingFileSnapshot->PreparationStage,
         EFileSnapshotPreparationStage::Materializing);
 
-    TFakeFileSource::Unblock();
+    TFakeFileProvider::Unblock();
     WaitFor(loadFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
     WaitForPredicate(
         [&] {
@@ -2365,8 +2757,8 @@ TEST_F(TFileResourceTest, RolloutPreparesActiveBeforePreparing)
     EXPECT_EQ(state.ActiveFileSnapshotId, TFileSnapshotId(10));
     EXPECT_EQ(state.PreparingFileSnapshot->State, EFileSnapshotState::Validated);
     EXPECT_EQ(resource->Lock().GetFileSnapshotId(), TFileSnapshotId(10));
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("active-v1"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("preparing-v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("active-v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("preparing-v1"), 1);
 }
 
 TEST_F(TFileResourceTest, UnavailableActiveSnapshotDoesNotBlockPreparingSnapshot)
@@ -2387,8 +2779,8 @@ TEST_F(TFileResourceTest, UnavailableActiveSnapshotDoesNotBlockPreparingSnapshot
 
     EXPECT_FALSE(loadFuture.IsSet());
     EXPECT_EQ(resource->GetRevisionState().ActiveFileSnapshotId, std::nullopt);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("download-failure"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("v2"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("download-failure"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v2"), 1);
 
     resource->Reconfigure(MakeDynamicContext(
         MakeRolloutTarget(2, MakeFileSnapshot(11, "v2")),
@@ -2401,7 +2793,7 @@ TEST_F(TFileResourceTest, UnavailableActiveSnapshotDoesNotBlockPreparingSnapshot
 
 TEST_F(TFileResourceTest, RolloutReportsPreparationAndActivationStages)
 {
-    TFakeFileSource::Block("v2");
+    TFakeFileProvider::Block("v2");
     TTestFileResource::BlockInitialization("payload:v2");
     TTestFileResource::BlockValidation("payload:v2");
 
@@ -2416,7 +2808,7 @@ TEST_F(TFileResourceTest, RolloutReportsPreparationAndActivationStages)
     WaitFor(resource->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
     std::optional<TTestFileResource::TAccessor> oldAccessor(resource->Lock());
 
-    WaitFor(TFakeFileSource::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
     WaitForPreparingState(
         resource,
@@ -2424,7 +2816,7 @@ TEST_F(TFileResourceTest, RolloutReportsPreparationAndActivationStages)
         EFileSnapshotState::Preparing,
         EFileSnapshotPreparationStage::Materializing);
 
-    TFakeFileSource::Unblock();
+    TFakeFileProvider::Unblock();
     WaitFor(TTestFileResource::GetInitializationStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
     WaitForPreparingState(
@@ -2494,7 +2886,7 @@ TEST_F(TFileResourceTest, RolloutPromotesValidatedPreparingWithoutRepeatingPrepa
     EXPECT_EQ(resource->Lock().GetFileSnapshotId(), TFileSnapshotId(10));
     EXPECT_EQ(resource->Lock().GetDeliveryRevisionId(), 2);
     EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:v1"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v1"), 1);
 }
 
 TEST_F(TFileResourceTest, RolloutKeepsAppliedSnapshotWhileTargetActiveFails)
@@ -2559,7 +2951,7 @@ TEST_F(TFileResourceTest, RolloutKeepsAppliedSnapshotWhenTargetHasNoActiveSnapsh
     EXPECT_EQ(resource->Lock().GetFileSnapshotId(), TFileSnapshotId(10));
 }
 
-TEST_F(TFileResourceTest, NamedSourcesInitializeAsOneSnapshot)
+TEST_F(TFileResourceTest, NamedProvidersInitializeAsOneSnapshot)
 {
     auto queue = New<TActionQueue>();
     auto resource = MakeNamedResource(
@@ -2572,14 +2964,29 @@ TEST_F(TFileResourceTest, NamedSourcesInitializeAsOneSnapshot)
     auto accessor = resource->Lock();
     EXPECT_EQ(accessor->Value, "left=left:left-v1;right=right:right-v1");
     EXPECT_EQ(accessor.GetDeliveryRevisionId(), 1);
-    EXPECT_EQ(accessor.GetSourceRevision(TFileSourceId("left"))->ObjectId.Underlying(), "left-v1");
-    EXPECT_EQ(accessor.GetSourceRevision(TFileSourceId("right"))->ObjectId.Underlying(), "right-v1");
-    EXPECT_TRUE(TFsPath(accessor.GetRootPath(TFileSourceId("left"))).Child("artifact").Exists());
-    EXPECT_TRUE(TFsPath(accessor.GetRootPath(TFileSourceId("right"))).Child("artifact").Exists());
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("left-v1"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("right-v1"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDiscoverCount("left"), 0);
-    EXPECT_EQ(TFakeFileSource::GetDiscoverCount("right"), 0);
+    EXPECT_EQ(accessor.GetProviderRevision(TFileProviderId("left"))->ObjectId.Underlying(), "left-v1");
+    EXPECT_EQ(accessor.GetProviderRevision(TFileProviderId("right"))->ObjectId.Underlying(), "right-v1");
+    EXPECT_TRUE(TFsPath(accessor.GetRootPath(TFileProviderId("left"))).Child("artifact").Exists());
+    EXPECT_TRUE(TFsPath(accessor.GetRootPath(TFileProviderId("right"))).Child("artifact").Exists());
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("left-v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("right-v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDiscoverCount("left"), 0);
+    EXPECT_EQ(TFakeFileProvider::GetDiscoverCount("right"), 0);
+}
+
+TEST_F(TFileResourceTest, NamedProviderCacheIdentityPreservesFieldBoundaries)
+{
+    auto queue = New<TActionQueue>();
+    auto resource = MakeNamedResource(
+        queue->GetInvoker(),
+        {{"a", "left"}, {"a-b", "right"}},
+        MakeNamedTarget(1, {{"a", "b-c"}, {"a-b", "c"}}));
+
+    WaitFor(resource->Load({}).WithTimeout(TDuration::Seconds(5))).ThrowOnError();
+
+    EXPECT_EQ(resource->Lock()->Value, "a=left:b-c;a-b=right:c");
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("b-c"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("c"), 1);
 }
 
 TEST_F(TFileResourceTest, MaterializesOneAndExplicitSubset)
@@ -2595,43 +3002,43 @@ TEST_F(TFileResourceTest, MaterializesOneAndExplicitSubset)
             1,
             {{"left", "left-v1"}, {"right", "right-v1"}, {"unused", "unused-v1"}}));
 
-    auto left = WaitFor(resource->MaterializeOne(fileSnapshot, TFileSourceId("left"))).ValueOrThrow();
+    auto left = WaitFor(resource->MaterializeOne(fileSnapshot, TFileProviderId("left"))).ValueOrThrow();
     EXPECT_EQ(left->GetRevision()->ObjectId.Underlying(), "left-v1");
 
     auto subset = WaitFor(resource->MaterializeMany(
         fileSnapshot,
-        {TFileSourceId("left"), TFileSourceId("right")}))
+        {TFileProviderId("left"), TFileProviderId("right")}))
         .ValueOrThrow();
-    EXPECT_EQ(subset->GetFileSources().size(), 2);
-    EXPECT_TRUE(subset->GetFileSources().contains(TFileSourceId("left")));
-    EXPECT_TRUE(subset->GetFileSources().contains(TFileSourceId("right")));
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("left-v1"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("right-v1"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("unused-v1"), 0);
+    EXPECT_EQ(subset->GetFileProviders().size(), 2);
+    EXPECT_TRUE(subset->GetFileProviders().contains(TFileProviderId("left")));
+    EXPECT_TRUE(subset->GetFileProviders().contains(TFileProviderId("right")));
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("left-v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("right-v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("unused-v1"), 0);
 
     EXPECT_THROW_WITH_SUBSTRING(
-        static_cast<void>(resource->MaterializeOne(fileSnapshot, TFileSourceId("missing"))),
+        static_cast<void>(resource->MaterializeOne(fileSnapshot, TFileProviderId("missing"))),
         "is not configured");
     EXPECT_THROW_WITH_SUBSTRING(
         static_cast<void>(resource->MaterializeMany(
             fileSnapshot,
-            {TFileSourceId("left"), TFileSourceId("left")})),
+            {TFileProviderId("left"), TFileProviderId("left")})),
         "requested more than once");
 
     auto nullSnapshot = MakeNamedFileSnapshot(2, {{"left", "left-v1"}});
-    nullSnapshot->FileSources[TFileSourceId("left")] = nullptr;
+    nullSnapshot->FileProviders[TFileProviderId("left")] = nullptr;
     EXPECT_THROW_WITH_SUBSTRING(
-        static_cast<void>(resource->MaterializeOne(nullSnapshot, TFileSourceId("left"))),
-        "null file source");
+        static_cast<void>(resource->MaterializeOne(nullSnapshot, TFileProviderId("left"))),
+        "null file provider");
 
     auto mismatchedSnapshot = MakeNamedFileSnapshot(3, {{"left", "left-v1"}});
-    mismatchedSnapshot->FileSources[TFileSourceId("left")]->FileSourceClassName = "mismatched-source";
+    mismatchedSnapshot->FileProviders[TFileProviderId("left")]->FileProviderClassName = "mismatched-provider";
     EXPECT_THROW_WITH_SUBSTRING(
-        static_cast<void>(resource->MaterializeOne(mismatchedSnapshot, TFileSourceId("left"))),
+        static_cast<void>(resource->MaterializeOne(mismatchedSnapshot, TFileProviderId("left"))),
         "differs from configured class");
 }
 
-TEST_F(TFileResourceTest, NamedSourcesNeverPublishPartialInitialization)
+TEST_F(TFileResourceTest, NamedProvidersNeverPublishPartialInitialization)
 {
     auto queue = New<TActionQueue>();
     auto resource = MakeNamedResource(
@@ -2663,7 +3070,7 @@ TEST_F(TFileResourceTest, NamedSourcesNeverPublishPartialInitialization)
     EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 2);
 }
 
-TEST_F(TFileResourceTest, NamedSourcesReuseEqualTupleAndReinitializeChangedTuple)
+TEST_F(TFileResourceTest, NamedProvidersReuseEqualTupleAndReinitializeChangedTuple)
 {
     auto queue = New<TActionQueue>();
     auto resource = MakeNamedResource(
@@ -2687,9 +3094,9 @@ TEST_F(TFileResourceTest, NamedSourcesReuseEqualTupleAndReinitializeChangedTuple
         MakeNamedTarget(3, {{"left", "left-v1"}, {"right", "right-v2"}})));
     WaitForAppliedRevision(resource, 3);
     EXPECT_EQ(resource->Lock()->Value, "left=left:left-v1;right=right:right-v2");
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("left-v1"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("right-v1"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("right-v2"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("left-v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("right-v1"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("right-v2"), 1);
 }
 
 TEST_F(TFileResourceTest, ChangedTargetSpecKeepsActiveFileSnapshot)
@@ -2708,7 +3115,7 @@ TEST_F(TFileResourceTest, ChangedTargetSpecKeepsActiveFileSnapshot)
     WaitForAppliedRevision(resource, 2);
 
     EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:same"), 1);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("same"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("same"), 1);
     EXPECT_EQ(oldAccessor.GetDeliveryRevisionId(), 1);
     EXPECT_EQ(resource->Lock().GetDeliveryRevisionId(), 2);
 }
@@ -2730,7 +3137,7 @@ TEST_F(TFileResourceTest, ReconfigureKeepsValidatedPreparingSnapshot)
         return state.PreparingFileSnapshot &&
             state.PreparingFileSnapshot->State == EFileSnapshotState::Validated;
     });
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("v2"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v2"), 1);
     EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:v2"), 1);
 
     resource->Reconfigure(MakeDynamicContext(MakeRolloutTarget(
@@ -2743,7 +3150,7 @@ TEST_F(TFileResourceTest, ReconfigureKeepsValidatedPreparingSnapshot)
     ASSERT_TRUE(state.PreparingFileSnapshot);
     EXPECT_EQ(state.PreparingFileSnapshot->SnapshotId, TFileSnapshotId(2));
     EXPECT_EQ(state.PreparingFileSnapshot->State, EFileSnapshotState::Validated);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("v2"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v2"), 1);
     EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:v2"), 1);
 }
 
@@ -2755,19 +3162,19 @@ TEST_F(TFileResourceTest, ReconfigureKeepsInFlightPreparingSnapshot)
         MakeRolloutTarget(1, MakeFileSnapshot(1, "v1")));
     WaitFor(resource->Load({})).ThrowOnError();
 
-    TFakeFileSource::Block("v2");
+    TFakeFileProvider::Block("v2");
     resource->Reconfigure(MakeDynamicContext(MakeRolloutTarget(
         2,
         MakeFileSnapshot(1, "v1"),
         MakeFileSnapshot(2, "v2"))));
-    WaitFor(TFakeFileSource::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
 
     resource->Reconfigure(MakeDynamicContext(MakeRolloutTarget(
         3,
         MakeFileSnapshot(1, "v1"),
         MakeFileSnapshot(2, "v2"))));
-    TFakeFileSource::Unblock();
+    TFakeFileProvider::Unblock();
     WaitForPredicate([&] {
         auto state = resource->GetRevisionState();
         return state.PreparingFileSnapshot &&
@@ -2775,11 +3182,11 @@ TEST_F(TFileResourceTest, ReconfigureKeepsInFlightPreparingSnapshot)
     });
 
     EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 3);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("v2"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("v2"), 1);
     EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:v2"), 1);
 }
 
-TEST_F(TFileResourceTest, NamedSourceTargetMustMatchConfiguredSnapshotExactly)
+TEST_F(TFileResourceTest, NamedProviderTargetMustMatchConfiguredSnapshotExactly)
 {
     auto queue = New<TActionQueue>();
     auto statusProfiler = CreateSyncStatusProfiler();
@@ -2809,10 +3216,10 @@ TEST_F(TFileResourceTest, NamedSourceTargetMustMatchConfiguredSnapshotExactly)
     WaitFor(loadFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 
-TEST_F(TFileResourceTest, NamedSourceTargetRejectsClassMismatch)
+TEST_F(TFileResourceTest, NamedProviderTargetRejectsClassMismatch)
 {
     auto target = MakeNamedTarget(1, {{"file", "v1"}});
-    target->ActiveFileSnapshot->FileSources[TFileSourceId("file")]->FileSourceClassName = "mismatched-source";
+    target->ActiveFileSnapshot->FileProviders[TFileProviderId("file")]->FileProviderClassName = "mismatched-provider";
 
     auto queue = New<TActionQueue>();
     auto statusProfiler = CreateSyncStatusProfiler();
@@ -2838,7 +3245,7 @@ TEST_F(TFileResourceTest, NamedSourceTargetRejectsClassMismatch)
         ::testing::HasSubstr("differs from configured class"));
 }
 
-TEST_F(TFileResourceTest, NamedSourceDirectRetryPeriodReconfigurationTriggersRetry)
+TEST_F(TFileResourceTest, NamedProviderDirectRetryPeriodReconfigurationTriggersRetry)
 {
     auto queue = New<TActionQueue>();
     auto statusProfiler = CreateSyncStatusProfiler();
@@ -2860,7 +3267,7 @@ TEST_F(TFileResourceTest, NamedSourceDirectRetryPeriodReconfigurationTriggersRet
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("download-failure-once"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("download-failure-once"), 1);
 
     resource->Reconfigure(MakeNamedDynamicContext(
         target,
@@ -2868,7 +3275,7 @@ TEST_F(TFileResourceTest, NamedSourceDirectRetryPeriodReconfigurationTriggersRet
         TDuration::MilliSeconds(1)));
     WaitFor(loadFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("download-failure-once"), 2);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("download-failure-once"), 2);
     EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_update"));
 }
 
@@ -2894,7 +3301,7 @@ TEST_F(TFileResourceTest, UnchangedTargetRetriesAndClearsUpdateError)
 
     WaitFor(loadFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
     EXPECT_EQ(resource->Lock()->Value, "payload:download-failure-once");
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("download-failure-once"), 2);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("download-failure-once"), 2);
     EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_update"));
 }
 
@@ -2919,18 +3326,18 @@ TEST_F(TFileResourceTest, DynamicRetryPeriodReconfigurationTriggersRetry)
             .IterationCount = 100,
             .Period = TDuration::MilliSeconds(5),
         });
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("download-failure-once"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("download-failure-once"), 1);
 
     resource->Reconfigure(MakeDynamicContext(target, 1));
     WaitFor(loadFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("download-failure-once"), 2);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("download-failure-once"), 2);
     EXPECT_FALSE(statusProfiler->GetStatus().Errors.contains("/file_update"));
 }
 
 TEST_F(TFileResourceTest, PendingSnapshotStateIsCollectedBeforeInitialLoadCompletes)
 {
-    TFakeFileSource::Block("v1");
+    TFakeFileProvider::Block("v1");
 
     auto queue = New<TActionQueue>();
     auto managerContext = New<TResourceManagerContext>();
@@ -2946,7 +3353,7 @@ TEST_F(TFileResourceTest, PendingSnapshotStateIsCollectedBeforeInitialLoadComple
         {{TResourceId("test"), MakeTarget(1, "v1")}});
     auto loadFuture = manager->Load(TResourceId("test"));
 
-    WaitFor(TFakeFileSource::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
     auto statuses = manager->CollectResourceStatuses();
     ASSERT_TRUE(statuses.contains(TResourceId("test")));
@@ -2960,7 +3367,7 @@ TEST_F(TFileResourceTest, PendingSnapshotStateIsCollectedBeforeInitialLoadComple
         statuses[TResourceId("test")]->PreparingFileSnapshot->PreparationStage,
         EFileSnapshotPreparationStage::Materializing);
 
-    TFakeFileSource::Unblock();
+    TFakeFileProvider::Unblock();
     WaitFor(loadFuture.WithTimeout(TDuration::Seconds(5))).ThrowOnError();
 }
 
@@ -3160,7 +3567,7 @@ TEST_F(TFileResourceTest, EqualContentSkipsReinitialization)
     auto accessor = resource->Lock();
     EXPECT_EQ(accessor.GetDeliveryRevisionId(), 2);
     EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 2);
-    EXPECT_EQ(TFakeFileSource::GetDownloadCount("same"), 1);
+    EXPECT_EQ(TFakeFileProvider::GetDownloadCount("same"), 1);
     EXPECT_EQ(TTestFileResource::GetInitializeCount("payload:same"), 1);
 }
 
@@ -3193,7 +3600,7 @@ TEST_F(TFileResourceTest, InitialFailureCanRecoverOnNewTarget)
     auto loadFuture = resource->Load({});
 
     WaitForPredicate([] {
-        return TFakeFileSource::GetDownloadCount("download-failure") >= 1;
+        return TFakeFileProvider::GetDownloadCount("download-failure") >= 1;
     });
     EXPECT_FALSE(loadFuture.IsSet());
 
@@ -3207,13 +3614,13 @@ TEST_F(TFileResourceTest, InitialFailureCanRecoverOnNewTarget)
 
 TEST_F(TFileResourceTest, SupersededCandidateIsNotPublished)
 {
-    TFakeFileSource::Block("v1");
+    TFakeFileProvider::Block("v1");
 
     auto queue = New<TActionQueue>();
     auto resource = MakeResource(queue->GetInvoker(), MakeTarget(1, "v1"));
     auto loadFuture = resource->Load({});
 
-    WaitFor(TFakeFileSource::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
     EXPECT_FALSE(loadFuture.IsSet());
 
@@ -3226,10 +3633,10 @@ TEST_F(TFileResourceTest, SupersededCandidateIsNotPublished)
     EXPECT_EQ(accessor.GetDeliveryRevisionId(), 2);
     EXPECT_EQ(resource->GetRevisionState().AppliedRevisionId, 2);
 
-    TFakeFileSource::Unblock();
+    TFakeFileProvider::Unblock();
     WaitForPredicate(
         [] {
-            return TFakeFileSource::GetCompletedDownloadCount("v1") == 1;
+            return TFakeFileProvider::GetCompletedDownloadCount("v1") == 1;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
@@ -3241,13 +3648,13 @@ TEST_F(TFileResourceTest, SupersededCandidateIsNotPublished)
 
 TEST_F(TFileResourceTest, ResourceCanBeDestroyedWhileDownloadIsPending)
 {
-    TFakeFileSource::Block("v1");
+    TFakeFileProvider::Block("v1");
 
     auto queue = New<TActionQueue>();
     auto resource = MakeResource(queue->GetInvoker(), MakeTarget(1, "v1"));
     auto loadFuture = resource->Load({});
 
-    WaitFor(TFakeFileSource::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
+    WaitFor(TFakeFileProvider::GetDownloadStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
 
     auto weakResource = MakeWeak(resource);
@@ -3271,10 +3678,10 @@ TEST_F(TFileResourceTest, ResourceCanBeDestroyedWhileDownloadIsPending)
         });
     EXPECT_FALSE(WaitFor(loadFuture).IsOK());
 
-    TFakeFileSource::Unblock();
+    TFakeFileProvider::Unblock();
     WaitForPredicate(
         [] {
-            return TFakeFileSource::GetCompletedDownloadCount("v1") == 1;
+            return TFakeFileProvider::GetCompletedDownloadCount("v1") == 1;
         },
         TWaitForPredicateOptions{
             .IterationCount = 100,
