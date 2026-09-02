@@ -118,7 +118,7 @@ bool TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TryApplyR
     TInstant timestamp,
     EStoreCompactionReason reason)
 {
-    YT_TLOG_DEBUG("Candidate store compaction hint lsm response provided")
+    YT_TLOG_DEBUG("Candidate store compaction hint LSM response provided")
         .With(Store_->GetTablet()->LoggingTags())
         .With("StoreId", Store_->GetId())
         .With("StoreCompactionHintKind", Hint_->StoreCompactionHintKind_)
@@ -135,7 +135,7 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
             std::bind_front(DoRecalculateStoreCompactionHint<Kind>, store.get()),
             {&store, 1});
 
-        YT_TLOG_DEBUG_IF(recalculated, "Store compaction hint lsm response was made")
+        YT_TLOG_DEBUG_IF(recalculated, "Store compaction hint LSM response was made")
             .With(store->GetTablet()->LoggingTags())
             .With("StoreId", store->GetId())
             .With("StoreCompactionHintKind", StoreCompactionHintKind_)
@@ -226,7 +226,7 @@ void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::T
     EStoreCompactionReason reason,
     ui64 storeSubset)
 {
-    YT_TLOG_DEBUG("Candidate partition compaction hint lsm response provided")
+    YT_TLOG_DEBUG("Candidate partition compaction hint LSM response provided")
         .With(Partition_->GetTablet()->LoggingTags())
         .With("PartitionId", Partition_->GetId())
         .With("PartitionCompactionHintKind", Hint_->StoreCompactionHintKind_)
@@ -268,7 +268,7 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
             std::bind_front(DoRecalculatePartitionCompactionHint<Kind>, partition),
             partition->Stores());
 
-        YT_TLOG_DEBUG_IF(recalculated, "Partition compaction hint lsm response was made")
+        YT_TLOG_DEBUG_IF(recalculated, "Partition compaction hint LSM response was made")
             .With(partition->GetTablet()->LoggingTags())
             .With("PartitionId", partition->GetId())
             .With("PartitionCompactionHintKind", PartitionCompactionHintKind_)
@@ -342,7 +342,6 @@ bool TPartitionCompactionHints::RecalculateHints(TPartition* partition)
 
     return recalculated;
 }
-
 
 bool TPartitionCompactionHints::IsCompactionAllowed(
     const TPartitionCompactionHint& hint,
