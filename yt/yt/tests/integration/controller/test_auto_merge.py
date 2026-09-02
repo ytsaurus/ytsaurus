@@ -27,7 +27,7 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
     NUM_MASTERS = 1
-    NUM_NODES = 4
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
