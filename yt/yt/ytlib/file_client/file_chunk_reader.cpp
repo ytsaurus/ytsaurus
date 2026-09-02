@@ -319,7 +319,7 @@ private:
         SequentialBlockFetcher_->Start();
 
         YT_TLOG_DEBUG("File chunk reader opened")
-            .With("Blocks", FormatBlocks(blockIndex, blockIndex + blockCount - 1))
+            .With("Blocks", FormatBlockIndexRange(blockIndex, blockIndex + blockCount - 1))
             .With("SelectedSize", selectedSize);
     }
 

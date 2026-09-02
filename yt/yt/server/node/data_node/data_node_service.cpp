@@ -549,7 +549,7 @@ private:
             "FlushBlocks: %v, Medium: %v, "
             "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
             populateCache,
             flushBlocks,
             location->GetMediumName(),
@@ -646,7 +646,7 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
             targetDescriptor,
             ioConsumed,
@@ -1454,7 +1454,7 @@ private:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v, IoConsumed: %v, IoFairShareWeight: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1),
+            FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1),
             populateCache,
             workloadDescriptor,
             YT_OPTIONAL_FROM_PROTO(*request, io_consumed),

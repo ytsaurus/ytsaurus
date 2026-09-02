@@ -350,8 +350,8 @@ bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Format blocks as [start:end] or [block] depending on interval size.
-std::string FormatBlocks(int startBlockIndex, int endBlockIndex);
+//! Formats a block index range as |[start-end]|, or as |[index]| for a single block.
+std::string FormatBlockIndexRange(int startBlockIndex, int endBlockIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
