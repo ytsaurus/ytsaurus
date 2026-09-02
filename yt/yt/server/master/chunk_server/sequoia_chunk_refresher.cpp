@@ -201,17 +201,13 @@ public:
         const auto& sequoiaReplicasConfig = GetDynamicConfig()->SequoiaChunkReplicas;
         if (std::ssize(LocationsAwaitingRefresh_) > sequoiaReplicasConfig->MaxLocationsAwaitingRefresh) {
             if (!Status_.GlobalRefreshEnabled) {
-                YT_LOG_ALERT(
-                    "Too many locations awaiting Sequoia location refresh, can not trigger global Sequoia chunk refresh "
-                    "LocationsAwaitingRefresh: %v, MaxLocationsAwaitingRefresh: %v",
-                    LocationsAwaitingRefresh_.size(),
-                    sequoiaReplicasConfig->MaxLocationsAwaitingRefresh);
+                YT_TLOG_ALERT("Too many locations awaiting Sequoia location refresh, cannot trigger global Sequoia chunk refresh")
+                    .With("LocationsAwaitingRefresh", LocationsAwaitingRefresh_.size())
+                    .With("MaxLocationsAwaitingRefresh", sequoiaReplicasConfig->MaxLocationsAwaitingRefresh);
             } else {
-                YT_LOG_WARNING(
-                    "Too many locations awaiting Sequoia location refresh, will trigger global Sequoia chunk refresh "
-                    "LocationsAwaitingRefresh: %v, MaxLocationsAwaitingRefresh: %v",
-                    LocationsAwaitingRefresh_.size(),
-                    sequoiaReplicasConfig->MaxLocationsAwaitingRefresh);
+                YT_TLOG_WARNING("Too many locations awaiting Sequoia location refresh, will trigger global Sequoia chunk refresh")
+                    .With("LocationsAwaitingRefresh", LocationsAwaitingRefresh_.size())
+                    .With("MaxLocationsAwaitingRefresh", sequoiaReplicasConfig->MaxLocationsAwaitingRefresh);
                 StartNewGlobalRefreshEpoch(guard);
             }
         }
@@ -472,23 +468,19 @@ private:
     {
         for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
             if (shards[shardIndex].Active != Status_.Shards[shardIndex].Active) {
-                YT_LOG_DEBUG(
-                    "Aborting iteration, shard active mismatch "
-                    "(ExecutorName: %Qv, ShardIndex: %v, RefreshIterationShardActive: %v, ActualShardActive: %v)",
-                    executorName,
-                    shardIndex,
-                    shards[shardIndex].Active,
-                    Status_.Shards[shardIndex].Active);
+                YT_TLOG_DEBUG("Aborting iteration, shard active mismatch")
+                    .With("ExecutorName", executorName)
+                    .With("ShardIndex", shardIndex)
+                    .With("RefreshIterationShardActive", shards[shardIndex].Active)
+                    .With("ActualShardActive", Status_.Shards[shardIndex].Active);
                 return true;
             }
             if (shards[shardIndex].Epoch != Status_.Shards[shardIndex].Epoch) {
-                YT_LOG_DEBUG(
-                    "Aborting iteration, shard epoch mismatch "
-                    "(ExecutorName: %Qv,ShardIndex: %v, RefreshIterationEpoch: %v, ActualShardEpoch: %v)",
-                    executorName,
-                    shardIndex,
-                    shards[shardIndex].Epoch,
-                    Status_.Shards[shardIndex].Epoch);
+                YT_TLOG_DEBUG("Aborting iteration, shard epoch mismatch")
+                    .With("ExecutorName", executorName)
+                    .With("ShardIndex", shardIndex)
+                    .With("RefreshIterationEpoch", shards[shardIndex].Epoch)
+                    .With("ActualShardEpoch", Status_.Shards[shardIndex].Epoch);
                 return true;
             }
         }
@@ -970,12 +962,11 @@ private:
                                 .With("MaxFailedAttemptsAllowed", MaxUnsuccessfulLocationRefreshAttempts_);
                             return;
                         }
-                        YT_LOG_ALERT("Sequoia location refresh failed for location, can not trigger new global Sequoia chunk refresh "
-                            "(NodeId: %v, LocationIndex: %v, FailedAttempts: %v, MaxFailedAttemptsAllowed: %v)",
-                            location.NodeId,
-                            location.LocationIndex,
-                            location.FailedAttempts,
-                            MaxUnsuccessfulLocationRefreshAttempts_);
+                        YT_TLOG_ALERT("Sequoia location refresh failed for location, cannot trigger new global Sequoia chunk refresh")
+                            .With("NodeId", location.NodeId)
+                            .With("LocationIndex", location.LocationIndex)
+                            .With("FailedAttempts", location.FailedAttempts)
+                            .With("MaxFailedAttemptsAllowed", MaxUnsuccessfulLocationRefreshAttempts_);
                     }
                 }
 

@@ -614,27 +614,17 @@ public:
         auto counters = requestProfilingManager->GetCounters(context->GetAuthenticationIdentity().UserTag, context->GetMethod());
         counters->AutomatonForwardingRequestCounter.Increment();
 
-        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
-            "TargetPath: %v, %v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
-            context->GetRequestId(),
-            forwardedRequestId,
-            context->GetService(),
-            context->GetMethod(),
-            targetPathRewrite,
-            MakeFormatterWrapper([&] (auto* builder) {
-                if (!additionalPathRewrites.empty()) {
-                    builder->AppendFormat("AdditionalPaths: %v, ", additionalPathRewrites);
-                }
-            }),
-            MakeFormatterWrapper([&] (auto* builder) {
-                if (!additionalPathRewrites.empty()) {
-                    builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", prerequisiteRevisionPathRewrites);
-                }
-            }),
-            context->GetAuthenticationIdentity(),
-            isMutating,
-            ForwardedCellTag_,
-            peerKind);
+        YT_TLOG_DEBUG("Forwarding object request")
+            .WithFormat("RequestId", "%v -> %v", context->GetRequestId(), forwardedRequestId)
+            .With("Service", context->GetService())
+            .With("Method", context->GetMethod())
+            .With("TargetPath", targetPathRewrite)
+            .WithIf(!additionalPathRewrites.empty(), "AdditionalPaths", additionalPathRewrites)
+            .WithIf(!prerequisiteRevisionPathRewrites.empty(), "PrerequisiteRevisionPaths", prerequisiteRevisionPathRewrites)
+            .With("AuthenticationIdentity", context->GetAuthenticationIdentity())
+            .With("Mutating", isMutating)
+            .With("CellTag", ForwardedCellTag_)
+            .With("PeerKind", peerKind);
 
         batchReq->Invoke().Subscribe(
             BIND([
@@ -2033,17 +2023,15 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     batchReq->AddRequestMessage(std::move(forwardedRequestMessage));
     SetAuthenticationIdentity(batchReq, identity);
 
-    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, %v, Mutating: %v, "
-        "CellTag: %v, ChannelKind: %v)",
-        requestId,
-        batchReq->GetRequestId(),
-        header.service(),
-        header.method(),
-        ypathExt.target_path(),
-        identity,
-        ypathExt.mutating(),
-        cellTag,
-        peerKind);
+    YT_TLOG_DEBUG("Forwarding object request")
+        .WithFormat("RequestId", "%v -> %v", requestId, batchReq->GetRequestId())
+        .With("Service", header.service())
+        .With("Method", header.method())
+        .With("Path", ypathExt.target_path())
+        .With("AuthenticationIdentity", identity)
+        .With("Mutating", ypathExt.mutating())
+        .With("CellTag", cellTag)
+        .With("ChannelKind", peerKind);
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         if (!batchRspOrError.IsOK()) {

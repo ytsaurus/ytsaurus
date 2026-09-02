@@ -1316,34 +1316,25 @@ public:
             AttachToChunkList(chunkList, {chunk});
         }
 
-        YT_LOG_DEBUG(
-            "Chunk created "
-            "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, Medium: %v, "
-            "RequisitionIndex: %v, ReplicationFactor: %v, ErasureCodec: %v, Movable: %v, Vital: %v%v%v)",
-            chunk->GetId(),
-            GetObjectId(chunkList),
-            transaction->GetId(),
-            account->GetName(),
-            medium->GetName(),
-            requisitionIndex,
-            replicationFactor,
-            erasureCodecId,
-            movable,
-            vital,
-            MakeFormatterWrapper([&] (auto* builder) {
-                if (isJournal) {
-                    builder->AppendFormat(", ReadQuorum: %v, WriteQuorum: %v, Overlayed: %v",
-                        readQuorum,
-                        writeQuorum,
-                        overlayed);
-                }
-            }),
-            MakeFormatterWrapper([&] (auto* builder) {
-                if (consistentReplicaPlacementHash != NullConsistentReplicaPlacementHash) {
-                    builder->AppendFormat(", ConsistentReplicaPlacementHash: %x",
-                        consistentReplicaPlacementHash);
-                }
-            }));
+        YT_TLOG_DEBUG("Chunk created")
+            .With("ChunkId", chunk->GetId())
+            .With("ChunkListId", GetObjectId(chunkList))
+            .With("TransactionId", transaction->GetId())
+            .With("Account", account->GetName())
+            .With("Medium", medium->GetName())
+            .With("RequisitionIndex", requisitionIndex)
+            .With("ReplicationFactor", replicationFactor)
+            .With("ErasureCodec", erasureCodecId)
+            .With("Movable", movable)
+            .With("Vital", vital)
+            .WithIf(isJournal, "ReadQuorum", readQuorum)
+            .WithIf(isJournal, "WriteQuorum", writeQuorum)
+            .WithIf(isJournal, "Overlayed", overlayed)
+            .WithFormatIf(
+                consistentReplicaPlacementHash != NullConsistentReplicaPlacementHash,
+                "ConsistentReplicaPlacementHash",
+                "%x",
+                consistentReplicaPlacementHash);
 
         return chunk;
     }
@@ -1399,9 +1390,11 @@ public:
                 /*validateChunkMeta*/ false);
 
             if (!result.IsOK()) {
+                YT_TLOG_DEBUG("Chunk validation failed")
+                    .With("ChunkId", chunkId)
+                    .With(result);
                 auto error = TError("Chunk %v validation failed", chunkId)
                     .With(result);
-                YT_LOG_DEBUG(error);
                 batchConfirmErrors.emplace(requestId, error);
                 continue;
             }
@@ -5572,7 +5565,8 @@ private:
                 try {
                     (this->*handler)(&subrequest, subresponse);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(TError(errorMessage).With(ex));
+                    YT_TLOG_DEBUG("Failed to execute subrequest")
+                        .With(TError(errorMessage).With(ex));
                     if (subresponse) {
                         ToProto(subresponse->mutable_error(), TError(ex));
                     }
@@ -7493,12 +7487,11 @@ private:
                 if (isUnknown) {
                     ++DestroyedReplicaCount_;
                 }
-                YT_LOG_DEBUG(
-                    "%v removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
-                    isUnknown ? "Unknown chunk added," : "Destroyed chunk",
-                    nodeId,
-                    node->GetDefaultAddress(),
-                    chunkIdWithIndexes);
+                YT_TLOG_DEBUG("Chunk removal scheduled")
+                    .With("ChunkUnknown", isUnknown)
+                    .With("NodeId", nodeId)
+                    .With("Address", node->GetDefaultAddress())
+                    .With("ChunkId", chunkIdWithIndexes);
             }
             return nullptr;
         }
@@ -7551,12 +7544,11 @@ private:
             --DestroyedReplicaCount_;
         }
         // NB: Chunk could already be a zombie but we still need to remove the replica.
-        YT_LOG_DEBUG(
-            "%v replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
-            isDestroyed ? "Destroyed chunk" : "Chunk",
-            chunkIdWithIndex,
-            node->GetDefaultAddress(),
-            nodeId);
+        YT_TLOG_DEBUG("Chunk replica removed from location")
+            .With("Destroyed", isDestroyed)
+            .With("ChunkId", chunkIdWithIndex)
+            .With("Address", node->GetDefaultAddress())
+            .With("NodeId", nodeId);
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         if (!chunk) {
@@ -8037,7 +8029,9 @@ private:
                 auto processResponse = [&] (const TIntrusivePtr<TObjectServiceProxy::TRspExecuteBatch>& rsp, int index, TStringBuf name) {
                     auto currentRspOrError = rsp->GetResponse<TYPathProxy::TRspGet>(index);
                     if (!currentRspOrError.IsOK()) {
-                        YT_LOG_WARNING(currentRspOrError, "Failed to get local cell statistics (StatiscicsName: %v)", name);
+                        YT_TLOG_WARNING("Failed to get local cell statistics")
+                            .With("StatisticsName", name)
+                            .With(currentRspOrError);
                         return;
                     }
                     auto response = ConvertTo<INodePtr>(TYsonString{currentRspOrError.Value()->value()});

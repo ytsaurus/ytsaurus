@@ -1702,11 +1702,11 @@ private:
             }
 
             if (GetCellarTypeFromCellId(cellId) != cellarType) {
-                YT_LOG_DEBUG("Cell with unexpected cellar type is running (Address: %v, CellId: %v, CellarType: %v, CellarType: %v)",
-                    address,
-                    cellId,
-                    GetCellarTypeFromCellId(cellId),
-                    cellarType);
+                YT_TLOG_DEBUG("Cell with unexpected cellar type is running")
+                    .With("Address", address)
+                    .With("CellId", cellId)
+                    .With("ActualCellarType", GetCellarTypeFromCellId(cellId))
+                    .With("ExpectedCellarType", cellarType);
                 requestRemoveSlot(cellId);
                 continue;
             }
@@ -1721,12 +1721,11 @@ private:
             }
 
             if (CountVotingPeers(cell) > 1 && slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId) {
-                YT_LOG_DEBUG(
-                    "Invalid peer id for cell: %v instead of %v (Address: %v, CellId: %v)",
-                    slotInfo.peer_id(),
-                    peerId,
-                    address,
-                    cellId);
+                YT_TLOG_DEBUG("Invalid peer id for cell")
+                    .With("ReportedPeerId", slotInfo.peer_id())
+                    .With("ExpectedPeerId", peerId)
+                    .With("Address", address)
+                    .With("CellId", cellId);
                 requestRemoveSlot(cellId);
                 continue;
             }
@@ -2284,10 +2283,10 @@ private:
 
         auto* transaction = cell->GetPrerequisiteTransaction(peerId);
 
-        YT_LOG_DEBUG("Aborting cell prerequisite transaction (CellId: %v, PeerId: %v, transactionId: %v)",
-            cell->GetId(),
-            peerId,
-            GetObjectId(transaction));
+        YT_TLOG_DEBUG("Aborting cell prerequisite transaction")
+            .With("CellId", cell->GetId())
+            .With("PeerId", peerId)
+            .With("TransactionId", GetObjectId(transaction));
 
         if (!transaction) {
             return;

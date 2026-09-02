@@ -3221,9 +3221,9 @@ void TChunkReplicator::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& ol
     auto updateToggle = [&] (bool* currentValue, bool newValue, void (TChunkReplicator::*scheduleGlobal)(), std::string what) {
         if (newValue != *currentValue) {
             *currentValue = newValue;
-            YT_LOG_INFO("%v %v",
-                what,
-                newValue ? "enabled" : "disabled");
+            YT_TLOG_INFO("Chunk replicator activity toggled")
+                .With("Activity", what)
+                .With("Enabled", newValue);
             if (newValue) {
                 (this->*scheduleGlobal)();
             }
@@ -3342,9 +3342,9 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
     int gotOnline = nodeTracker->GetOnlineNodeCount();
     if (gotOnline < needOnline) {
         if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
-            YT_LOG_INFO("Chunk replicator disabled: too few online nodes, needed >= %v but got %v",
-                needOnline,
-                gotOnline);
+            YT_TLOG_INFO("Chunk replicator disabled: too few online nodes")
+                .With("NeededOnlineNodeCount", needOnline)
+                .With("OnlineNodeCount", gotOnline);
         }
         return false;
     }
@@ -3359,9 +3359,9 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
         double gotFraction = static_cast<double>(gotLostChunkCount) / gotChunkCount;
         if (gotFraction > needFraction) {
             if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
-                YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, fraction needed <= %v but got %v",
-                    needFraction,
-                    gotFraction);
+                YT_TLOG_INFO("Chunk replicator disabled: lost chunk fraction is too high")
+                    .With("MaxLostChunkFraction", needFraction)
+                    .With("LostChunkFraction", gotFraction);
             }
             return false;
         }
@@ -3369,9 +3369,9 @@ bool TChunkReplicator::ComputeReplicatorEnablement() const
 
     if (gotLostChunkCount > needLostChunkCount) {
         if (!ReplicatorEnabled_ || *ReplicatorEnabled_) {
-            YT_LOG_INFO("Chunk replicator disabled: too many lost chunks, needed <= %v but got %v",
-                needLostChunkCount,
-                gotLostChunkCount);
+            YT_TLOG_INFO("Chunk replicator disabled: absolute number of lost chunks is too high")
+                .With("MaxLostChunkCount", needLostChunkCount)
+                .With("LostChunkCount", gotLostChunkCount);
         }
         return false;
     }
