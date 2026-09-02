@@ -3056,35 +3056,35 @@ NLogging::TLoggingTagList TSchedulingPolicy::BuildElementLoggingTags(
     const TPoolTreeSnapshotPtr& treeSnapshot,
     const TPoolTreeElement* element) const
 {
-    if (element->GetType() == ESchedulerElementType::Operation) {
-        const auto* operationElement = static_cast<const TPoolTreeOperationElement*>(element);
-        const auto& treeSnapshotState = GetPoolTreeSnapshotState(treeSnapshot);
-        const auto& operationState = treeSnapshot->IsElementEnabled(operationElement)
-            ? treeSnapshotState->GetEnabledOperationState(operationElement)
-            : treeSnapshotState->GetOperationState(operationElement);
-        const auto& operationSharedState = treeSnapshot->IsElementEnabled(operationElement)
-            ? treeSnapshotState->GetEnabledOperationSharedState(operationElement)
-            : treeSnapshotState->GetOperationSharedState(operationElement);
-        const auto& attributes = treeSnapshot->IsElementEnabled(element)
-            ? treeSnapshotState->StaticAttributesList().AttributesOf(element)
-            : TStaticAttributes{};
-        auto minNeededResourcesWithDiskQuotaUnsatisfiedCount = operationSharedState->GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount();
-
-        return NLogging::TLoggingTagList()
-            .With("PreemptibleRunningAllocations", operationSharedState->GetPreemptibleAllocationCount())
-            .With(
-                "AggressivelyPreemptibleRunningAllocations",
-                operationSharedState->GetAggressivelyPreemptibleAllocationCount())
-            .With("PreemptionStatusStatistics", operationSharedState->GetPreemptionStatusStatistics())
-            .With("SchedulingIndex", attributes.SchedulingIndex)
-            .With("SchedulingPriority", attributes.SchedulingPriority)
-            .With("DeactivationReasons", operationSharedState->GetDeactivationReasons())
-            .With("MinNeededResourcesUnsatisfiedCount", minNeededResourcesWithDiskQuotaUnsatisfiedCount)
-            .With("SchedulingSegment", operationState->SchedulingSegment)
-            .With("SchedulingSegmentModule", operationState->SchedulingSegmentModule);
+    if (element->GetType() != ESchedulerElementType::Operation) {
+        return {};
     }
 
-    return {};
+    const auto* operationElement = static_cast<const TPoolTreeOperationElement*>(element);
+    const auto& treeSnapshotState = GetPoolTreeSnapshotState(treeSnapshot);
+    const auto& operationState = treeSnapshot->IsElementEnabled(operationElement)
+        ? treeSnapshotState->GetEnabledOperationState(operationElement)
+        : treeSnapshotState->GetOperationState(operationElement);
+    const auto& operationSharedState = treeSnapshot->IsElementEnabled(operationElement)
+        ? treeSnapshotState->GetEnabledOperationSharedState(operationElement)
+        : treeSnapshotState->GetOperationSharedState(operationElement);
+    const auto& attributes = treeSnapshot->IsElementEnabled(element)
+        ? treeSnapshotState->StaticAttributesList().AttributesOf(element)
+        : TStaticAttributes{};
+    auto minNeededResourcesWithDiskQuotaUnsatisfiedCount = operationSharedState->GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount();
+
+    return NLogging::TLoggingTagList()
+        .With("PreemptibleRunningAllocations", operationSharedState->GetPreemptibleAllocationCount())
+        .With(
+            "AggressivelyPreemptibleRunningAllocations",
+            operationSharedState->GetAggressivelyPreemptibleAllocationCount())
+        .With("PreemptionStatusStatistics", operationSharedState->GetPreemptionStatusStatistics())
+        .With("SchedulingIndex", attributes.SchedulingIndex)
+        .With("SchedulingPriority", attributes.SchedulingPriority)
+        .With("DeactivationReasons", operationSharedState->GetDeactivationReasons())
+        .With("MinNeededResourcesUnsatisfiedCount", minNeededResourcesWithDiskQuotaUnsatisfiedCount)
+        .With("SchedulingSegment", operationState->SchedulingSegment)
+        .With("SchedulingSegmentModule", operationState->SchedulingSegmentModule);
 }
 
 void TSchedulingPolicy::InitPersistentState(INodePtr persistentState)
