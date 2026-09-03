@@ -97,6 +97,7 @@ message TTaskExecutorConfig {
     optional TYtAccessProviderConfig YtAccessProvider = 31;
     optional TYtTvmConfig YtTvm = 32;
     optional TFmrConfig Fmr = 33;
+    optional string UdfBridgePath = 34; // Path to udf_bridge executable for out-of-process UDF isolation
 }
 
 message TSolomonAgentConnectionConfig {
