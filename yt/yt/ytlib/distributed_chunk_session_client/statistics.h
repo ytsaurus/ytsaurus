@@ -133,12 +133,12 @@ using TControllerSessionProgress = std::variant<
 
 void FormatValue(
     TStringBuilderBase* builder,
-    const TSessionSealSummary& summary,
+    const TDistributedChunkSessionProgress& progress,
     TStringBuf spec);
 
 void FormatValue(
     TStringBuilderBase* builder,
-    const TDistributedChunkSessionProgress& progress,
+    const TSessionSealSummary& summary,
     TStringBuf spec);
 
 void PrintTo(

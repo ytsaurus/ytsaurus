@@ -591,7 +591,7 @@ private:
                 OnSessionTerminated(slotCookie, sessionId, &entry);
             },
             [&] (const TSessionCloseFailed& closeFailed) {
-                YT_TLOG_DEBUG("Session close failed, recovering terminal progress from master")
+                YT_TLOG_WARNING("Session close failed, recovering terminal progress from master")
                     .With("SlotCookie", slotCookie)
                     .With("SessionId", sessionId)
                     .With(closeFailed.Underlying());
@@ -686,16 +686,14 @@ private:
 
         // NB: A synchronous throw would escape a bare invoker post and terminate the
         // process, so it is reported as an ordinary seal failure.
-        auto sealScheduled = [&] {
-            try {
-                return SendChunkSealRequest_(chunkId);
-            } catch (const std::exception& ex) {
-                return MakeFuture<void>(TError(ex));
-            }
-        }();
+        TFuture<void> sealScheduled;
+        try {
+            sealScheduled = SendChunkSealRequest_(chunkId);
+        } catch (const std::exception& ex) {
+            sealScheduled = MakeFuture<void>(TError(ex));
+        }
 
-        sealScheduled
-            .Subscribe(BIND_NO_PROPAGATE(
+        sealScheduled.Subscribe(BIND_NO_PROPAGATE(
                 &TDistributedChunkSessionPool::OnChunkSealScheduled,
                 MakeStrong(this),
                 slotCookie,
@@ -712,8 +710,9 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
+        auto& entry = GetOrCrash(GetOrCrash(Slots_, slotCookie).Sessions, sessionId);
+
         if (error.IsOK()) {
-            auto& entry = GetOrCrash(GetOrCrash(Slots_, slotCookie).Sessions, sessionId);
             entry.SealRetryBackoff.reset();
             StartTerminalRecovery(slotCookie, sessionId, &entry);
 
@@ -724,7 +723,6 @@ private:
             return;
         }
 
-        auto& entry = GetOrCrash(GetOrCrash(Slots_, slotCookie).Sessions, sessionId);
         auto& sealRetryBackoff = entry.SealRetryBackoff;
         if (!sealRetryBackoff) {
             sealRetryBackoff.emplace(Config_->ChunkSealRetryBackoff);

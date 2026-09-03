@@ -65,7 +65,7 @@ protected:
     }
 
     IDistributedChunkSessionSealMonitorPtr CreateMonitor(
-        TSealSummaryFetchCallback fetchSealSummaries,
+        TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
         TDistributedChunkSessionSealMonitorConfigPtr config = CreateConfig())
     {
         return CreateDistributedChunkSessionSealMonitor(

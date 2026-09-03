@@ -11,7 +11,7 @@ namespace NYT::NDistributedChunkSessionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSealSummaryFetchCallback =
+using TDistributedChunkSessionSealSummaryFetchCallback =
     TCallback<TFuture<std::vector<TSessionSealSummaryWithChunkId>>(
         std::vector<NChunkClient::TChunkId>)>;
 
@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionSealMonitor)
 
 IDistributedChunkSessionSealMonitorPtr CreateDistributedChunkSessionSealMonitor(
     TDistributedChunkSessionSealMonitorConfigPtr config,
-    TSealSummaryFetchCallback fetchSealSummaries,
+    TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
     IInvokerPtr invoker,
     NLogging::TLogger logger = DistributedChunkSessionLogger());
 
