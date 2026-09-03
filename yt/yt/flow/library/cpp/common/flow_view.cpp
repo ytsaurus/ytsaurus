@@ -219,6 +219,8 @@ bool TPartition::IsWorking() const
 void TJob::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_id", &TThis::JobId);
+    registrar.Parameter("generation", &TThis::Generation)
+        .Default();
 
     registrar.Parameter("worker_address", &TThis::WorkerAddress);
     registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)

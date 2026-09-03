@@ -876,6 +876,35 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TJobBalancerTest, JobGenerationIncreasesOnRecreation)
+{
+    Reset();
+    PrepareBalancerTest(/*workerCount*/ 1, {{/*PartitionCount*/ 1, {}}});
+    DistributeJobs();
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    ASSERT_EQ(layout->Partitions.size(), 1u);
+    const auto partitionId = layout->Partitions.begin()->first;
+    const auto& partition = layout->Partitions.at(partitionId);
+    ASSERT_TRUE(partition->CurrentJobId);
+    const auto oldJobId = *partition->CurrentJobId;
+    const auto oldGeneration = layout->Jobs.at(oldJobId)->Generation;
+    EXPECT_GT(oldGeneration.Underlying(), 0u);
+
+    FlowView->State->StartMutation();
+    layout->RemoveJob(oldJobId, EJobFinishReason::Rebalanced);
+    FlowView->State->CommitMutation();
+
+    DistributeJobs();
+
+    const auto& newPartition = layout->Partitions.at(partitionId);
+    ASSERT_TRUE(newPartition->CurrentJobId);
+    EXPECT_NE(*newPartition->CurrentJobId, oldJobId);
+    EXPECT_GT(layout->Jobs.at(*newPartition->CurrentJobId)->Generation, oldGeneration);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TJobManagerTest, PrepareNewComputation)
 {
     auto spec = New<TPipelineSpec>();
@@ -1663,6 +1692,7 @@ TEST_F(TJobBalancerTest, GracefulShutdownErrorJobCompletesOnTargetWorker)
         for (const auto& [partitionId, partition] : layout->Partitions) {
             auto job = New<TJob>();
             job->JobId = TJobId(TGuid::Create());
+            job->Generation = TUniqueSeqNo(1);
             job->WorkerAddress = GetWorkerAddress(0);
             job->WorkerIncarnationId = FlowView->State->Workers.at(GetWorkerAddress(0))->IncarnationId;
             job->PartitionId = partitionId;
@@ -1715,6 +1745,7 @@ TEST_F(TJobBalancerTest, GracefulShutdownErrorJobCompletesOnTargetWorker)
         const auto& newJob = layout->Jobs.at(*partition->CurrentJobId);
         EXPECT_EQ(newJob->WorkerAddress, GetWorkerAddress(1))
             << "New job must be on the target worker after graceful rebalance";
+        EXPECT_GT(newJob->Generation, TUniqueSeqNo(1));
     }
 }
 

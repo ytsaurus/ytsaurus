@@ -115,6 +115,8 @@ struct TJob
     : public NYTree::TYsonStruct
 {
     TJobId JobId;
+    //! Monotonically increasing fencing token; every subsequently created job for the same partition has a greater value.
+    TUniqueSeqNo Generation;
     std::string WorkerAddress;
     TIncarnationId WorkerIncarnationId;
     TPartitionId PartitionId;
