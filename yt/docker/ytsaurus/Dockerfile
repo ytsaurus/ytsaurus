@@ -273,7 +273,7 @@ ARG CRIO_VERSION
 ADD --chmod=644 https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/Release.key \
             /etc/apt/keyrings/kubernetes-apt-keyring.asc
 
-ADD --chmod=644 https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/Release.key \
+ADD --chmod=644 https://downloadcontent.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/Release.key \
             /etc/apt/keyrings/cri-o-apt-keyring.asc
 
 # Install CRI-O, see https://cri-o.io/
@@ -286,7 +286,7 @@ deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io
 EOF
 
 cat <<EOF >/etc/apt/sources.list.d/cri-o.list
-deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/ /
+deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://downloadcontent.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/ /
 EOF
 
 export DEBIAN_FRONTEND=noninteractive
