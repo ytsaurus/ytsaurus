@@ -1009,14 +1009,13 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
 
             YT_ELEMENT_LOG_DETAILED(
                 operationElement,
-                "Allocation is forcefully preemptible because it is running on a node in a different scheduling segment or module "
-                "(AllocationId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v, Module: %v)",
-                allocation->GetId(),
-                operationElement->GetId(),
-                operationState->SchedulingSegment,
-                NodeSchedulingSegment_,
-                NNodeTrackerClient::GetDefaultAddress(SchedulingHeartbeatContext_->GetNodeDescriptor()->Addresses),
-                SchedulingHeartbeatContext_->GetNodeDescriptor()->DataCenter);
+                "Allocation is forcefully preemptible because it is running on a node in a different scheduling segment or module")
+                .With("AllocationId", allocation->GetId())
+                .With("OperationId", operationElement->GetId())
+                .With("OperationSegment", operationState->SchedulingSegment)
+                .With("NodeSegment", NodeSchedulingSegment_)
+                .With("Address", NNodeTrackerClient::GetDefaultAddress(SchedulingHeartbeatContext_->GetNodeDescriptor()->Addresses))
+                .With("Module", SchedulingHeartbeatContext_->GetNodeDescriptor()->DataCenter);
 
             forcefullyPreemptibleAllocations->insert(allocation.Get());
         }
@@ -1561,24 +1560,17 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
 {
     YT_VERIFY(IsActive(element));
 
-    YT_ELEMENT_LOG_DETAILED(
-        element,
-        "Trying to schedule allocation "
-        "(SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v, "
-        "UsageDiscount: %v, StageType: %v)",
-        DynamicAttributesOf(element).SatisfactionRatio,
-        SchedulingHeartbeatContext_->GetNodeDescriptor()->Id,
-        FormatResourceUsage(SchedulingHeartbeatContext_->ResourceUsage(), SchedulingHeartbeatContext_->ResourceLimits()),
-        FormatResources(SchedulingHeartbeatContext_->GetDiscount()),
-        GetStageType());
+    YT_ELEMENT_LOG_DETAILED(element, "Trying to schedule allocation")
+        .With("SatisfactionRatio", DynamicAttributesOf(element).SatisfactionRatio)
+        .With("NodeId", SchedulingHeartbeatContext_->GetNodeDescriptor()->Id)
+        .With("NodeResourceUsage", FormatResourceUsage(SchedulingHeartbeatContext_->ResourceUsage(), SchedulingHeartbeatContext_->ResourceLimits()))
+        .With("UsageDiscount", FormatResources(SchedulingHeartbeatContext_->GetDiscount()))
+        .With("StageType", GetStageType());
 
     auto deactivateOperationElement = [&] (EDeactivationReason reason) {
-        YT_ELEMENT_LOG_DETAILED(
-            element,
-            "Failed to schedule allocation, operation deactivated "
-            "(DeactivationReason: %v, NodeResourceUsage: %v)",
-            FormatEnum(reason),
-            FormatResourceUsage(SchedulingHeartbeatContext_->ResourceUsage(), SchedulingHeartbeatContext_->ResourceLimits()));
+        YT_ELEMENT_LOG_DETAILED(element, "Failed to schedule allocation, operation deactivated")
+            .With("DeactivationReason", FormatEnum(reason))
+            .With("NodeResourceUsage", FormatResourceUsage(SchedulingHeartbeatContext_->ResourceUsage(), SchedulingHeartbeatContext_->ResourceLimits()));
 
         DeactivateOperation(element, reason);
     };
@@ -1618,19 +1610,14 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TPoolTreeOperationElement* 
 
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool> unsatisfiedResources;
     if (!HasAllocationsSatisfyingResourceLimits(element, &unsatisfiedResources)) {
-        YT_ELEMENT_LOG_DETAILED(
-            element,
-            "No pending allocations can satisfy available resources on node ("
-            "FreeAllocationResources: %v, DiskResources: %v, DiscountResources: %v, "
-            "MinNeededResources: %v, GroupedNeededResources: %v, UnsatisfiedResources: %v, "
-            "Address: %v)",
-            FormatResources(SchedulingHeartbeatContext_->GetNodeFreeResourcesWithoutDiscount()),
-            SchedulingHeartbeatContext_->DiskResources(),
-            FormatResources(SchedulingHeartbeatContext_->GetDiscount()),
-            FormatResources(element->AggregatedMinNeededAllocationResources()),
-            element->GroupedNeededResources(),
-            unsatisfiedResources,
-            NNodeTrackerClient::GetDefaultAddress(SchedulingHeartbeatContext_->GetNodeDescriptor()->Addresses));
+        YT_ELEMENT_LOG_DETAILED(element, "No pending allocations can satisfy available resources on node")
+            .With("FreeAllocationResources", FormatResources(SchedulingHeartbeatContext_->GetNodeFreeResourcesWithoutDiscount()))
+            .With("DiskResources", SchedulingHeartbeatContext_->DiskResources())
+            .With("DiscountResources", FormatResources(SchedulingHeartbeatContext_->GetDiscount()))
+            .With("MinNeededResources", FormatResources(element->AggregatedMinNeededAllocationResources()))
+            .With("GroupedNeededResources", element->GroupedNeededResources())
+            .With("UnsatisfiedResources", unsatisfiedResources)
+            .With("Address", NNodeTrackerClient::GetDefaultAddress(SchedulingHeartbeatContext_->GetNodeDescriptor()->Addresses));
 
         OnMinNeededResourcesUnsatisfied(
             element,
