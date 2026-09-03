@@ -3,11 +3,15 @@
 import pytest
 
 from yt.yt.flow.library.python.companion.computation import (
+    AddMessageOptions,
     BatchFunction,
     Computation,
+    MessageIdSuffix,
+    MessageIdSuffixMode,
     RootCollector,
     RowFunction,
     SourceComputation,
+    TransformResult,
 )
 from yt.yt.flow.library.python.companion.context import (
     ReadOnlyExternalStateError,
@@ -111,6 +115,80 @@ class TestRootCollector:
 
         results = collector.collect_results()
         assert len(results) == 2
+
+    def test_add_message_options_recorded(self):
+        collector = RootCollector()
+        output = collector.set_parent_ids("msg-1")
+        output.add_message(
+            Message(message_id="out-1"),
+            AddMessageOptions(
+                distribute=False,
+                message_id_suffix=MessageIdSuffix.payload_hash(),
+            ),
+        )
+
+        result = collector.collect_results()[0]
+        assert result.distribute == [False]
+        assert result.message_id_suffixes[0].mode == MessageIdSuffixMode.PAYLOAD_HASH
+
+    def test_user_defined_message_id_suffix_must_not_be_empty(self):
+        with pytest.raises(ValueError, match="must not be empty"):
+            MessageIdSuffix.user_defined("")
+
+    @pytest.mark.parametrize(
+        "factory, message",
+        [
+            (lambda: MessageIdSuffix.user_defined(b"key"), "value must be a str"),
+            (lambda: AddMessageOptions(distribute=1), "distribute must be a bool"),
+            (lambda: AddMessageOptions(message_id_suffix=None), "message_id_suffix must be a MessageIdSuffix"),
+        ],
+    )
+    def test_message_id_suffix_options_validate_types(self, factory, message):
+        with pytest.raises(TypeError, match=message):
+            factory()
+
+    def test_add_message_validates_options_before_mutating_result(self):
+        collector = RootCollector()
+        output = collector.set_parent_ids("msg-1")
+
+        with pytest.raises(TypeError, match="options must be AddMessageOptions or bool"):
+            output.add_message(Message(message_id="out-1"), None)
+
+        assert collector.collect_results()[0].messages == []
+
+    def test_message_id_suffix_serialized(self):
+        from yt.yt.flow.library.python.companion._proto_compat import ensure_proto_imports
+        from yt.yt.flow.library.python.companion.context import ResponseContext
+        from yt.yt.flow.library.python.companion.proto_mapper import map_process_batch_response
+        from yt.yt.flow.library.python.companion.stream import StreamIdsMapping, StreamSpecs
+
+        ensure_proto_imports()
+        from yt.flow.library.cpp.companion.proto import companion_service_pb2
+        from yt.flow.library.cpp.common.proto import message_pb2
+
+        class ProtoModule:
+            TMessage = message_pb2.TMessage
+            TMessageIdSuffix = companion_service_pb2.TMessageIdSuffix
+            TNewTimer = companion_service_pb2.TNewTimer
+            TResponseData = companion_service_pb2.TResponseData
+            TState = companion_service_pb2.TState
+            TStateItem = companion_service_pb2.TStateItem
+
+        result = TransformResult(
+            parent_ids=["msg-1"],
+            messages=[Message(message_id="out-1")],
+            distribute=[True],
+            message_id_suffixes=[MessageIdSuffix.user_defined("semantic-key")],
+        )
+        data = map_process_batch_response(
+            StreamSpecs(StreamIdsMapping(), []),
+            ResponseContext(transform_results=[result]),
+            ProtoModule,
+        )
+
+        suffix = data.output[0].message_id_suffixes[0]
+        assert suffix.mode == companion_service_pb2.TMessageIdSuffix.MIS_USER_DEFINED
+        assert suffix.user_defined == b"semantic-key"
 
     def test_add_timer(self):
         collector = RootCollector()

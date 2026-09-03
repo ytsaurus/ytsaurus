@@ -34,17 +34,27 @@ public interface OutputCollector {
      * @param message The message to be added
      */
     default void addMessage(Message message) {
-        addMessage(message, true);
+        addMessage(message, AddMessageOptions.defaults());
     }
 
     /**
      * Adds a message to the output collector.
      *
      * @param message    The message to be added
+     * @param options Options controlling output distribution and message ID generation.
+     */
+    void addMessage(Message message, AddMessageOptions options);
+
+    /**
+     * Adds a message with an explicit distribute flag.
+     *
+     * @param message    The message to be added.
      * @param distribute If false, the message is not published downstream but is still counted
      *                   by the watermark generator. Used by source computations.
      */
-    void addMessage(Message message, boolean distribute);
+    default void addMessage(Message message, boolean distribute) {
+        addMessage(message, AddMessageOptions.builder().setDistribute(distribute).build());
+    }
 
     /**
      * Adds a timer to the output collector.

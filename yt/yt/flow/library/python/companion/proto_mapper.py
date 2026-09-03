@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 from yt.common import parts_to_uuid, uuid_to_parts
 
+from .computation import MessageIdSuffixMode
 from .context import RequestContext, ResponseContext
 from .job import Job
 from .row import (
@@ -421,6 +422,22 @@ def map_process_batch_response(stream_specs: StreamSpecs, response: ResponseCont
 
         for distribute in transform_result.distribute:
             group.distribute.append(distribute)
+
+        if transform_result.message_id_suffixes and len(transform_result.message_id_suffixes) != len(
+            transform_result.messages
+        ):
+            raise ValueError("Message ID suffixes count must match output messages count")
+
+        if any(suffix.mode != MessageIdSuffixMode.SEQUENCE_NUMBER for suffix in transform_result.message_id_suffixes):
+            for suffix in transform_result.message_id_suffixes:
+                proto_suffix = group.message_id_suffixes.add()
+                if suffix.mode == MessageIdSuffixMode.SEQUENCE_NUMBER:
+                    proto_suffix.mode = proto_module.TMessageIdSuffix.MIS_SEQUENCE_NUMBER
+                elif suffix.mode == MessageIdSuffixMode.PAYLOAD_HASH:
+                    proto_suffix.mode = proto_module.TMessageIdSuffix.MIS_PAYLOAD_HASH
+                else:
+                    proto_suffix.mode = proto_module.TMessageIdSuffix.MIS_USER_DEFINED
+                    proto_suffix.user_defined = suffix.value.encode("utf-8")
 
         for timer in transform_result.timers:
             group.timers.append(timer_to_proto(timer, TNewTimerProto))

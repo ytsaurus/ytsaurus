@@ -89,6 +89,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message_batcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message_migration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/output_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/payload_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/payload_validation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/payload.cpp

@@ -525,7 +525,11 @@ IOutputCollectorPtr TRootOutputCollector::SetParents(
     return New<TOutputCollector>(MakeStrong(this), New<TMessageParents>(messages, timers, visits));
 }
 
-void TRootOutputCollector::AddMessage(TMessage&& message, const TMessageParentsConstPtr& parents, bool distribute)
+void TRootOutputCollector::AddMessage(
+    TMessage&& message,
+    const TMessageParentsConstPtr& parents,
+    const TOutputMessageIdSuffix& messageIdSuffix,
+    bool distribute)
 {
     if (!distribute && !SupportsDistribute_) {
         // Non-source computations cannot advance the watermark from a dropped message, so a
@@ -533,7 +537,7 @@ void TRootOutputCollector::AddMessage(TMessage&& message, const TMessageParentsC
         // out of the output but still let it advance the watermark — handled below.)
         return;
     }
-    auto setterResult = MetaSetter_->Fill(message, parents);
+    auto setterResult = MetaSetter_->Fill(message, parents, messageIdSuffix);
     Result_.OutputMessages.push_back(std::move(message));
     if (SupportsDistribute_) {
         Result_.OutputMessagesDistribute.push_back(distribute);
@@ -571,9 +575,9 @@ IOutputCollectorPtr TOutputCollector::SetParents(
     return RootCollector_->SetParents(messages, timers, visits);
 }
 
-void TOutputCollector::AddMessage(TMessage&& message, bool distribute)
+void TOutputCollector::DoAddMessage(TMessage&& message, TAddMessageOptions options)
 {
-    RootCollector_->AddMessage(std::move(message), Parents_, distribute);
+    RootCollector_->AddMessage(std::move(message), Parents_, options.MessageIdSuffix, options.Distribute);
 }
 
 void TOutputCollector::AddTimer(TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp)

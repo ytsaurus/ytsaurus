@@ -3,7 +3,10 @@
 import pytest
 
 from yt.yt.flow.library.python.companion.computation import (
+    AddMessageOptions,
     Computation,
+    MessageIdSuffix,
+    RootCollector,
     RowFunction,
 )
 from yt.yt.flow.library.python.companion.context import PipelineContext
@@ -26,6 +29,7 @@ class PassthroughFunction(RowFunction):
 def _get_modules():
     try:
         from yt.yt.flow.library.python.companion._proto_compat import ensure_proto_imports
+
         ensure_proto_imports()
         from yt.flow.library.cpp.companion.proto import (
             companion_service_pb2 as cs_pb2,
@@ -36,6 +40,7 @@ def _get_modules():
         )
         from yt_proto.yt.core.misc.proto import guid_pb2
         import grpc
+
         return cs_pb2, cs_grpc, msg_pb2, guid_pb2, grpc
     except ImportError:
         pytest.skip("Proto/gRPC modules not available")
@@ -91,15 +96,15 @@ class TestServerLifecycle:
         from yt.yt.flow.library.python.companion.server import GrpcServerExecution
 
         ctx = PipelineContext()
-        ctx.register_computation(Computation(
-            computation_id="before_start", process_function=PassthroughFunction()))
+        ctx.register_computation(Computation(computation_id="before_start", process_function=PassthroughFunction()))
 
         server = GrpcServerExecution(ctx, port=0)
         server.start_async()
         try:
             with pytest.raises(RuntimeError, match="frozen"):
-                ctx.register_computation(Computation(
-                    computation_id="after_start", process_function=PassthroughFunction()))
+                ctx.register_computation(
+                    Computation(computation_id="after_start", process_function=PassthroughFunction())
+                )
         finally:
             server.stop()
 
@@ -282,3 +287,28 @@ class TestResourceExecuteErrorResponse:
         assert response.request_id == request.request_id
         assert response.status == cs_pb2.RES_ERROR
         assert "companion bug" in response.error.message
+
+
+class TestProtoModule:
+    def test_serializes_non_default_message_id_suffix(self):
+        cs_pb2, _, _, _, _ = _get_modules()
+        from yt.yt.flow.library.python.companion.context import ResponseContext
+        from yt.yt.flow.library.python.companion.job import JobContext
+        from yt.yt.flow.library.python.companion.proto_mapper import map_process_batch_response
+        from yt.yt.flow.library.python.companion.server import CompanionServiceServicer
+        from yt.yt.flow.library.python.companion.stream import StreamIdsMapping, StreamSpecs
+
+        servicer = CompanionServiceServicer(PipelineContext(), JobContext())
+        collector = RootCollector()
+        collector.set_parent_ids("msg-1").add_message(
+            Message(message_id="out-1"),
+            AddMessageOptions(message_id_suffix=MessageIdSuffix.payload_hash()),
+        )
+
+        data = map_process_batch_response(
+            StreamSpecs(StreamIdsMapping(), []),
+            ResponseContext(transform_results=collector.collect_results()),
+            servicer._build_proto_module(),
+        )
+
+        assert data.output[0].message_id_suffixes[0].mode == cs_pb2.TMessageIdSuffix.MIS_PAYLOAD_HASH

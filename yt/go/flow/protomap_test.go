@@ -554,6 +554,38 @@ func TestResponseDataToProtoCopiesDistributeFlags(t *testing.T) {
 	require.Equal(t, []bool{true, false}, data.GetOutput()[0].GetDistribute())
 }
 
+func TestResponseDataToProtoCopiesMessageIDSuffixes(t *testing.T) {
+	runtime, _ := processBatch(t, &companion.TReqProcessBatch{})
+
+	b, err := runtime.MessageBuilder("clicks")
+	require.NoError(t, err)
+	first, err := b.Finish()
+	require.NoError(t, err)
+	second, err := b.Finish()
+	require.NoError(t, err)
+	userDefined, err := UserDefinedMessageIDSuffix("semantic-key")
+	require.NoError(t, err)
+
+	data, err := ResponseDataToProto(runtime, []OutputGroup{{
+		ParentIDs: []string{"m-1"},
+		Messages:  []Message{first, second},
+		MessageIDSuffixes: []MessageIDSuffix{
+			PayloadHashMessageIDSuffix(),
+			userDefined,
+		},
+	}})
+	require.NoError(t, err)
+	require.Equal(t,
+		companion.TMessageIdSuffix_MIS_PAYLOAD_HASH,
+		data.GetOutput()[0].GetMessageIdSuffixes()[0].GetMode())
+	require.Equal(t,
+		companion.TMessageIdSuffix_MIS_USER_DEFINED,
+		data.GetOutput()[0].GetMessageIdSuffixes()[1].GetMode())
+	require.Equal(t,
+		[]byte("semantic-key"),
+		data.GetOutput()[0].GetMessageIdSuffixes()[1].GetUserDefined())
+}
+
 func TestResponseDataToProtoRejectsGroupWithoutParents(t *testing.T) {
 	runtime, _ := processBatch(t, &companion.TReqProcessBatch{})
 

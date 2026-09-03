@@ -233,7 +233,11 @@ public:
         const std::vector<TInputTimerConstPtr>& timers,
         const std::vector<TInputVisitConstPtr>& visits);
 
-    void AddMessage(TMessage&& message, const TMessageParentsConstPtr& parents, bool distribute);
+    void AddMessage(
+        TMessage&& message,
+        const TMessageParentsConstPtr& parents,
+        const TOutputMessageIdSuffix& messageIdSuffix,
+        bool distribute);
     void AddTimer(TTimer&& timer, const TMessageParentsConstPtr& parents);
 
     TTransformResult CollectResult();
@@ -241,8 +245,7 @@ public:
 private:
     const TComputationSpecPtr Spec_;
     const IMetaSetterPtr MetaSetter_;
-    //! Whether AddMessage() accepts |distribute| = false. Only source computations
-    //! support it; other computations throw if asked to drop a message via this flag.
+    //! Whether messages with |distribute| = false remain available for watermark handling.
     const bool SupportsDistribute_;
     TTransformResult Result_;
 };
@@ -261,12 +264,13 @@ public:
         const std::vector<TInputMessageConstPtr>& messages,
         const std::vector<TInputTimerConstPtr>& timers,
         const std::vector<TInputVisitConstPtr>& visits) override;
-    void AddMessage(TMessage&& message, bool distribute) override;
     void AddTimer(TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp = {}) override;
     void AddTimer(const TStreamId& streamId, TSystemTimestamp triggerTimestamp, std::optional<TSystemTimestamp> eventTimestamp = {}) override;
     void AddTimer(TTimer&& timer) override;
 
 private:
+    void DoAddMessage(TMessage&& message, TAddMessageOptions options) override;
+
     const TRootOutputCollectorPtr RootCollector_;
     const TMessageParentsConstPtr Parents_;
 };
