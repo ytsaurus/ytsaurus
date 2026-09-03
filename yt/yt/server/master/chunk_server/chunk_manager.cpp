@@ -5370,7 +5370,7 @@ private:
                 // COMPAT(theevilbird)
                 if (GetDynamicConfig()->SetEmptyRequisitionIndexOnImport) {
                     const auto& objectManager = Bootstrap_->GetObjectManager();
-                    chunk->SetLocalRequisitionIndex(EmptyChunkRequisitionIndex, GetChunkRequisitionRegistry(), objectManager);
+                    chunk->SetLocalRequisitionIndex(EmptyChunkRequisitionIndex, GetChunkRequisitionRegistry(), objectManager, /*forceAggregatedRequisitionUpdate*/ true);
                 }
 
                 if (importData.has_chunk_schema_id()) {
