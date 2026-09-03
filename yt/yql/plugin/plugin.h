@@ -142,6 +142,10 @@ struct IYqlPlugin
 
     virtual NYTree::IMapNodePtr GetOrchidNode() const;
 
+    //! Returns false if the plugin cannot execute queries right now,
+    //! e.g. there are no healthy workers to offload queries to.
+    virtual bool IsReady() const;
+
     virtual void RegisterQuery(TQueryId queryId) = 0;
     virtual void UnregisterQuery(TQueryId queryId) = 0;
 
