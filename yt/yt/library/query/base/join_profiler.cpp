@@ -537,7 +537,7 @@ EJoinSubqueryMode GetJoinSubqueryMode(const TJoinClause& joinClause, const NLogg
     if (joinClause.Predicate) {
         auto keyColumns = joinClause.Schema.GetKeyColumns();
 
-        auto dummyInClause = New<TInExpression>(foreignEquations, nullptr);
+        auto dummyInClause = New<TInExpression>(foreignEquations, /*values*/ nullptr);
         auto dummyWhereClause = MakeAndExpression(std::move(dummyInClause), joinClause.Predicate);
         auto signature = GetExpressionConstraintSignature(std::move(dummyWhereClause), keyColumns);
         auto score = GetConstraintSignatureScore(signature);
