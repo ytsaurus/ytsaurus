@@ -44,8 +44,8 @@ void FetchTableSchemasForCluster(
 {
     auto client = queryContext->Client(cluster);
     // TableSchemaCache may be not configured.
-    const auto& tableSchemaCache = cluster
-        ? TTableSchemaCachePtr{}
+    auto tableSchemaCache = cluster
+        ? queryContext->Host->GetTableSchemaCache(client->GetNativeConnection())
         : queryContext->Host->GetTableSchemaCache();
 
     THashMap<TObjectId, std::vector<TTablePtr>> schemaIdToTables;

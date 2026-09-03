@@ -80,6 +80,8 @@ public:
         TDuration timeout);
 
     const TTableSchemaCachePtr& GetTableSchemaCache() const;
+    TTableSchemaCachePtr GetTableSchemaCache(
+        const NApi::NNative::IConnectionPtr& connection) const;
 
     const NObjectClient::TObjectAttributeCachePtr& GetObjectAttributeCache() const;
 

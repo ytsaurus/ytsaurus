@@ -1,6 +1,7 @@
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
 from yt_commands import authors, create, get_driver, raises_yt_error, remove, write_table
+from yt.common import wait
 
 from base import ClickHouseTestBase, Clique
 
@@ -9,7 +10,7 @@ import threading
 
 @authors("a-romanov")
 class TestClickHouseCrossCluster(ClickHouseTestBase):
-    NUM_REMOTE_CLUSTERS = 1
+    NUM_REMOTE_CLUSTERS = 2
     NUM_TEST_PARTITIONS = 1
 
     def test_static_table_join(self):
@@ -111,3 +112,83 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
 
             thread.join()
             assert result == rows
+
+    def test_remote_schema_cache(self):
+        remote_driver = get_driver(cluster="remote_0")
+        schema = [{"name": "key", "type": "int64"}]
+        rows = [{"key": 1}]
+        create("table", "//tmp/schema_cache", attributes={"schema": schema}, driver=remote_driver)
+        write_table("//tmp/schema_cache", rows, driver=remote_driver)
+
+        patch = {
+            "yt": {
+                "table_schema_cache": {
+                    "capacity": 10 * 1024**2,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=patch) as clique:
+            hit_counter = clique.get_profiler().counter(
+                "clickhouse/yt/table_schema_cache/hit",
+                tags={"remote_cluster": "remote_0"})
+
+            before = hit_counter.get_delta()
+            assert clique.make_query("select * from `remote_0://tmp/schema_cache`") == rows
+            wait(lambda: hit_counter.get_delta() == before)
+
+            assert clique.make_query("select * from `remote_0://tmp/schema_cache`") == rows
+            wait(lambda: hit_counter.get_delta() > before)
+
+    def test_set_operations_over_three_clusters(self):
+        schema = [{"name": "key", "type": "int64"}]
+        table_path = "//tmp/set_operations"
+
+        create("table", table_path, attributes={"schema": schema})
+        write_table(table_path, [{"key": 1}, {"key": 2}])
+
+        remote_0_driver = get_driver(cluster="remote_0")
+        create("table", table_path, attributes={"schema": schema}, driver=remote_0_driver)
+        write_table(table_path, [{"key": 2}, {"key": 3}], driver=remote_0_driver)
+
+        remote_1_driver = get_driver(cluster="remote_1")
+        create("table", table_path, attributes={"schema": schema}, driver=remote_1_driver)
+        write_table(table_path, [{"key": 2}, {"key": 4}], driver=remote_1_driver)
+
+        with Clique(1) as clique:
+            assert clique.make_query(f"""
+                select key from (
+                    select key from `{table_path}`
+                    union all
+                    select key from `remote_0:{table_path}`
+                    union all
+                    select key from `remote_1:{table_path}`
+                ) order by key
+            """) == [
+                {"key": 1},
+                {"key": 2},
+                {"key": 2},
+                {"key": 2},
+                {"key": 3},
+                {"key": 4},
+            ]
+
+            assert clique.make_query(f"""
+                select key from (
+                    select key from `{table_path}`
+                    intersect distinct
+                    select key from `remote_0:{table_path}`
+                    intersect distinct
+                    select key from `remote_1:{table_path}`
+                ) order by key
+            """) == [{"key": 2}]
+
+            assert clique.make_query(f"""
+                select key from (
+                    select key from `{table_path}`
+                    except distinct
+                    select key from `remote_0:{table_path}`
+                    except distinct
+                    select key from `remote_1:{table_path}`
+                ) order by key
+            """) == [{"key": 1}]
