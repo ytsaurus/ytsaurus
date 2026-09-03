@@ -437,10 +437,14 @@ class AuthenticationPreflightTest(unittest.TestCase):
         self.assertEqual(
             logslice.preflight_failure_class(self.fixture["error"]),
             "authentication_unavailable")
-        self.assertIsNone(logslice.preflight_failure_class(
-            "ssh true failed: Connection timed out"))
-        self.assertIsNone(logslice.preflight_failure_class(
-            "requested component base was not found"))
+        other_outcomes = [
+            "ssh true failed: Connection timed out",
+            "not_retained: requested window predates the oldest rotation",
+            "no_match: inspected rotations contain no matching records",
+            "requested component base was not found",
+        ]
+        for outcome in other_outcomes:
+            self.assertIsNone(logslice.preflight_failure_class(outcome))
 
     def test_preflight_record_preserves_scope_and_inspects_no_rotations(self):
         stderr = io.StringIO()
@@ -452,6 +456,7 @@ class AuthenticationPreflightTest(unittest.TestCase):
                 self.fixture["window_end"])
         output = stderr.getvalue()
         self.assertIn("status=authentication_unavailable", output)
+        self.assertIn("subsystem=" + self.fixture["subsystem"], output)
         self.assertIn("host=" + self.fixture["host"], output)
         self.assertIn("component=" + self.fixture["component"], output)
         self.assertIn("rotations_inspected=0", output)
@@ -480,6 +485,7 @@ class AuthenticationPreflightTest(unittest.TestCase):
         discover.assert_not_called()
         output = stderr.getvalue()
         self.assertIn("status=authentication_unavailable", output)
+        self.assertIn("subsystem=" + fixture["subsystem"], output)
         self.assertIn("component=" + fixture["component"], output)
         self.assertIn("rotations_inspected=0", output)
 
