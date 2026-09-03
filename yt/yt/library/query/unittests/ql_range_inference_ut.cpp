@@ -1479,7 +1479,7 @@ TEST_F(TRefineKeyRangeTest, Yt28005)
                 .SetRequired(true),
         });
 
-        auto inferredRanges = GetPrunedRanges(
+        GetPrunedRanges(
             nullptr,
             schema,
             schema->GetKeyColumns(),
@@ -1488,7 +1488,7 @@ TEST_F(TRefineKeyRangeTest, Yt28005)
             rowBuffer,
             columnEvaluatorCache,
             GetBuiltinRangeExtractors(),
-            TQueryOptions{.RangeExpansionLimit = 200000},
+            TQueryOptions{.RangeExpansionLimit = 200'000},
             GetDefaultMemoryChunkProvider(),
             /*forceLightRangeInference*/ false);
 
@@ -1520,7 +1520,7 @@ TEST_F(TRefineKeyRangeTest, Yt28005)
             rowBuffer,
             columnEvaluatorCache,
             GetBuiltinRangeExtractors(),
-            TQueryOptions{.RangeExpansionLimit = 200000},
+            TQueryOptions{.RangeExpansionLimit = 200'000},
             GetDefaultMemoryChunkProvider(),
             /*forceLightRangeInference*/ false);
 

@@ -2,6 +2,7 @@
 #include "public.h"
 #include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
+#include <yt/yt/flow/library/cpp/common/output_collector.h>
 #include <yt/yt/flow/library/cpp/common/timer.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -12,6 +13,7 @@
 namespace NYT::NFlow::NProto::NCompanion {
 
 class TCompanionResourceInstanceReference;
+class TMessageIdSuffix;
 
 } // namespace NYT::NFlow::NProto::NCompanion
 
@@ -42,6 +44,13 @@ void ToProto(
 void FromProto(
     TCompanionResourceInstanceReference* reference,
     const NProto::NCompanion::TCompanionResourceInstanceReference& protoReference);
+
+void ToProto(
+    NProto::NCompanion::TMessageIdSuffix* protoSuffix,
+    const TOutputMessageIdSuffix& suffix);
+
+TOutputMessageIdSuffix FromProto(
+    const NProto::NCompanion::TMessageIdSuffix& protoSuffix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,6 +146,8 @@ struct TCompanionResponseGroup
     std::vector<TMessage> Messages;
     //! Per-message distribute flag, aligned with Messages. Empty means "distribute all".
     std::vector<bool> Distribute;
+    //! Per-message message ID suffix selector, aligned with Messages.
+    std::vector<TOutputMessageIdSuffix> MessageIdSuffixes;
     std::vector<TNewTimer> Timers;
     std::vector<TMessageId> ParentIds;
 };

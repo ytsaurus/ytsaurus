@@ -3,6 +3,7 @@ package tech.ytsaurus.flow.internal.computation;
 import java.util.List;
 
 import org.jspecify.annotations.Nullable;
+import tech.ytsaurus.flow.computation.AddMessageOptions;
 import tech.ytsaurus.flow.computation.OutputCollector;
 import tech.ytsaurus.flow.computation.TransformResult;
 import tech.ytsaurus.flow.row.Message;
@@ -34,12 +35,12 @@ public class DefaultOutputCollector implements OutputCollector {
     }
 
     /**
-     * @see OutputCollector#addMessage(Message, boolean)
+     * @see OutputCollector#addMessage(Message, AddMessageOptions)
      */
     @Override
-    public void addMessage(Message message, boolean distribute) {
+    public void addMessage(Message message, AddMessageOptions options) {
         ensureRegistered();
-        transformResult.addMessage(message, distribute);
+        transformResult.addMessage(message, options);
     }
 
     /**

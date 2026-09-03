@@ -5,6 +5,9 @@ Source: [yt/yt/core/concurrency/config.h]({{source-root}}/yt/yt/core/concurrency
 
 #|
 || **Parameter** | **Description** ||
+|| `fiber_stack_sizes` | **Type**: `THashMap<`[NYT::NConcurrency::EExecutionStackKind](./all_yson_structs#NYT_NConcurrency_EExecutionStackKind)`, unsigned long>`
+**Default value**: `{}`
+ ||
 || `fiber_stack_pool_sizes` | **Type**: `THashMap<`[NYT::NConcurrency::EExecutionStackKind](./all_yson_structs#NYT_NConcurrency_EExecutionStackKind)`, int>`
 **Default value**: `{}`
  ||

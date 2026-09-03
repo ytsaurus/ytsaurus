@@ -33,7 +33,6 @@ target_link_libraries(restricted-boost-graph PUBLIC
   restricted-boost-array
   restricted-boost-assert
   restricted-boost-bimap
-  restricted-boost-bind
   restricted-boost-concept_check
   restricted-boost-config
   restricted-boost-container_hash
@@ -48,6 +47,7 @@ target_link_libraries(restricted-boost-graph PUBLIC
   restricted-boost-move
   restricted-boost-mpl
   restricted-boost-multi_index
+  restricted-boost-multiprecision
   restricted-boost-optional
   restricted-boost-parameter
   restricted-boost-preprocessor

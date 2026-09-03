@@ -129,6 +129,7 @@ public:
     double GetSpecifiedResourceFlowRatio() const override;
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
+    bool IsFifoChildrenReorderingForGuaranteeUtilizationEnabled() const override;
     bool CanAcceptFreeVolume() const override;
     bool ShouldDistributeFreeVolumeAmongChildren() const override;
     bool ShouldComputePromisedGuaranteeFairShare() const override;
@@ -141,12 +142,14 @@ public:
 
     void SetMode(ESchedulingMode mode);
     void SetPromisedGuaranteeFairShareComputationEnabled(bool enabled);
+    void SetFifoChildrenReorderingForGuaranteeUtilizationEnabled(bool enabled);
 
 private:
     std::vector<TElementMockPtr> Children_;
 
     ESchedulingMode Mode_ = ESchedulingMode::FairShare;
     bool PromisedGuaranteeFairShareComputationEnabled_ = false;
+    bool FifoChildrenReorderingForGuaranteeUtilizationEnabled_ = false;
 };
 
 using TCompositeElementMockPtr = TIntrusivePtr<TCompositeElementMock>;
@@ -220,6 +223,7 @@ struct TTestFairShareUpdateOptions
     TInstant Now = TInstant::Now();
     std::optional<TInstant> PreviousUpdateTime;
     bool EnableStepFunctionForGangOperations = false;
+    bool EnableFifoChildrenReorderingForGuaranteeUtilization = false;
     bool EnableImprovedFairShareByFitFactorComputation = false;
     // TODO(ignat): delete this option if no necessity will be found on production clusters.
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;

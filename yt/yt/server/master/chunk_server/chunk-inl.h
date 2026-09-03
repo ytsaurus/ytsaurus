@@ -180,16 +180,18 @@ inline TChunkRequisitionIndex TChunk::GetLocalRequisitionIndex() const
     return LocalRequisitionIndex_;
 }
 
+// COMPAT(theevilbird)
 inline void TChunk::SetLocalRequisitionIndex(
     TChunkRequisitionIndex requisitionIndex,
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::IObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager,
+    bool forceAggregatedRequisitionUpdate)
 {
     registry->Unref(LocalRequisitionIndex_, objectManager);
     LocalRequisitionIndex_ = requisitionIndex;
     registry->Ref(LocalRequisitionIndex_);
 
-    UpdateAggregatedRequisitionIndex(registry, objectManager);
+    UpdateAggregatedRequisitionIndex(registry, objectManager, forceAggregatedRequisitionUpdate);
 }
 
 inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(
@@ -219,12 +221,14 @@ inline void TChunk::SetExternalRequisitionIndex(
     UpdateAggregatedRequisitionIndex(registry, objectManager);
 }
 
+// COMPAT(theevilbird)
 inline void TChunk::UpdateAggregatedRequisitionIndex(
     TChunkRequisitionRegistry* registry,
-    const NObjectServer::IObjectManagerPtr& objectManager)
+    const NObjectServer::IObjectManagerPtr& objectManager,
+    bool forceAggregatedRequisitionUpdate)
 {
     auto requisition = ComputeAggregatedRequisition(registry);
-    if (requisition.GetAllEntryCount() == 0) {
+    if (!forceAggregatedRequisitionUpdate && requisition.GetAllEntryCount() == 0) {
         // This doesn't mean the chunk is no longer needed; this may be a
         // temporary contingency. The aggregated requisition should never
         // be made empty as this may confuse the replicator.
@@ -241,7 +245,7 @@ inline void TChunk::UpdateAggregatedRequisitionIndex(
 
 inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const
 {
-    const auto Logger = ChunkServerLogger;
+    const auto& Logger = ChunkServerLogger;
     YT_LOG_ALERT_IF(
         AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex,
         "Chunk has empty requisition "
@@ -260,7 +264,7 @@ inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkReq
 
 inline TChunkRequisitionIndex TChunk::GetAggregatedRequisitionIndex() const
 {
-    const auto Logger = ChunkServerLogger;
+    const auto& Logger = ChunkServerLogger;
     YT_LOG_ALERT_IF(
         AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex,
         "Chunk has empty requisition "
@@ -283,7 +287,7 @@ inline const TChunkReplication& TChunk::GetAggregatedReplication(const TChunkReq
 
     const auto& replication = registry->GetReplication(AggregatedRequisitionIndex_);
 
-    const auto Logger = ChunkServerLogger;
+    const auto& Logger = ChunkServerLogger;
     YT_LOG_ALERT_IF(
         !replication.IsValid(),
         "Chunk has invalid replication "

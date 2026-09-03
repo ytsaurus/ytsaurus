@@ -28,6 +28,23 @@
 #include "latLng.h"
 
 /**
+ * Width of the bounding box, in rads
+ * @param  bbox Bounding box to inspect
+ * @return      width, in rads
+ */
+double bboxWidthRads(const BBox *bbox) {
+    return bboxIsTransmeridian(bbox) ? bbox->east - bbox->west + M_2PI
+                                     : bbox->east - bbox->west;
+}
+
+/**
+ * Height of the bounding box
+ * @param  bbox Bounding box to inspect
+ * @return      height, in rads
+ */
+double bboxHeightRads(const BBox *bbox) { return bbox->north - bbox->south; }
+
+/**
  * Whether the given bounding box crosses the antimeridian
  * @param  bbox Bounding box to inspect
  * @return      is transmeridian
@@ -40,10 +57,10 @@ bool bboxIsTransmeridian(const BBox *bbox) { return bbox->east < bbox->west; }
  * @param center Output center coordinate
  */
 void bboxCenter(const BBox *bbox, LatLng *center) {
-    center->lat = (bbox->north + bbox->south) / 2.0;
+    center->lat = (bbox->north + bbox->south) * 0.5;
     // If the bbox crosses the antimeridian, shift east 360 degrees
     double east = bboxIsTransmeridian(bbox) ? bbox->east + M_2PI : bbox->east;
-    center->lng = constrainLng((east + bbox->west) / 2.0);
+    center->lng = constrainLng((east + bbox->west) * 0.5);
 }
 
 /**
@@ -63,6 +80,56 @@ bool bboxContains(const BBox *bbox, const LatLng *point) {
 }
 
 /**
+ * Whether two bounding boxes overlap
+ * @param  a First bounding box
+ * @param  b Second bounding box
+ * @return   Whether the bounding boxes overlap
+ */
+bool bboxOverlapsBBox(const BBox *a, const BBox *b) {
+    // Check whether latitude coords overlap
+    if (a->north < b->south || a->south > b->north) {
+        return false;
+    }
+
+    // Check whether longitude coords overlap, accounting for transmeridian
+    // bboxes
+    LongitudeNormalization aNormalization;
+    LongitudeNormalization bNormalization;
+    bboxNormalization(a, b, &aNormalization, &bNormalization);
+
+    if (normalizeLng(a->east, aNormalization) <
+            normalizeLng(b->west, bNormalization) ||
+        normalizeLng(a->west, aNormalization) >
+            normalizeLng(b->east, bNormalization)) {
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Whether one bounding box contains another
+ * @param  a First bounding box
+ * @param  b Second bounding box
+ * @return   Whether a contains b
+ */
+bool bboxContainsBBox(const BBox *a, const BBox *b) {
+    // Check whether latitude coords are contained
+    if (a->north < b->north || a->south > b->south) {
+        return false;
+    }
+    // Check whether longitude coords are contained
+    // Account for transmeridian bboxes
+    LongitudeNormalization aNormalization;
+    LongitudeNormalization bNormalization;
+    bboxNormalization(a, b, &aNormalization, &bNormalization);
+    return normalizeLng(a->west, aNormalization) <=
+               normalizeLng(b->west, bNormalization) &&
+           normalizeLng(a->east, aNormalization) >=
+               normalizeLng(b->east, bNormalization);
+}
+
+/**
  * Whether two bounding boxes are strictly equal
  * @param  b1 Bounding box 1
  * @param  b2 Bounding box 2
@@ -71,6 +138,16 @@ bool bboxContains(const BBox *bbox, const LatLng *point) {
 bool bboxEquals(const BBox *b1, const BBox *b2) {
     return b1->north == b2->north && b1->south == b2->south &&
            b1->east == b2->east && b1->west == b2->west;
+}
+
+CellBoundary bboxToCellBoundary(const BBox *bbox) {
+    // Convert bbox to cell boundary, CCW vertex order
+    CellBoundary bboxBoundary = {.numVerts = 4,
+                                 .verts = {{bbox->north, bbox->east},
+                                           {bbox->north, bbox->west},
+                                           {bbox->south, bbox->west},
+                                           {bbox->south, bbox->east}}};
+    return bboxBoundary;
 }
 
 /**
@@ -174,4 +251,61 @@ H3Error lineHexEstimate(const LatLng *origin, const LatLng *destination,
     if (estimate == 0) estimate = 1;
     *out = estimate;
     return E_SUCCESS;
+}
+
+/**
+ * Scale a given bounding box by some factor. Scales both width and height
+ * by the factor, rather than scaling area, which will scale at scale^2.
+ * Note that this function is meant to handle bounding boxes and scales,
+ * within a reasonable domain, and does not guarantee reasonable results for
+ * extreme values.
+ * @param bbox Bounding box to scale, in-place
+ * @param scale Scale factor
+ */
+void scaleBBox(BBox *bbox, double scale) {
+    double width = bboxWidthRads(bbox);
+    double height = bboxHeightRads(bbox);
+    double widthBuffer = (width * scale - width) * 0.5;
+    double heightBuffer = (height * scale - height) * 0.5;
+    // Scale north and south, clamping to latitude domain
+    bbox->north += heightBuffer;
+    if (bbox->north > M_PI_2) bbox->north = M_PI_2;
+    bbox->south -= heightBuffer;
+    if (bbox->south < -M_PI_2) bbox->south = -M_PI_2;
+    // Scale east and west, clamping to longitude domain
+    bbox->east += widthBuffer;
+    if (bbox->east > M_PI) bbox->east -= M_2PI;
+    if (bbox->east < -M_PI) bbox->east += M_2PI;
+    bbox->west -= widthBuffer;
+    if (bbox->west > M_PI) bbox->west -= M_2PI;
+    if (bbox->west < -M_PI) bbox->west += M_2PI;
+}
+
+/**
+ * Determine the longitude normalization scheme for two bounding boxes, either
+ * or both of which might cross the antimeridian. The goal is to transform
+ * longitudes in one or both boxes so that they are in the same frame of
+ * reference and can be operated on with standard Cartesian functions.
+ * @param a              First bounding box
+ * @param b              Second bounding box
+ * @param aNormalization Output: Normalization for longitudes in the first box
+ * @param bNormalization Output: Normalization for longitudes in the second box
+ */
+void bboxNormalization(const BBox *a, const BBox *b,
+                       LongitudeNormalization *aNormalization,
+                       LongitudeNormalization *bNormalization) {
+    bool aIsTransmeridian = bboxIsTransmeridian(a);
+    bool bIsTransmeridian = bboxIsTransmeridian(b);
+    bool aToBTrendsEast = a->west - b->east < b->west - a->east;
+    // If neither is transmeridian, no normalization.
+    // If both are transmeridian, normalize east by convention.
+    // If one is transmeridian and one is not, normalize toward the other.
+    *aNormalization = !aIsTransmeridian  ? NORMALIZE_NONE
+                      : bIsTransmeridian ? NORMALIZE_EAST
+                      : aToBTrendsEast   ? NORMALIZE_EAST
+                                         : NORMALIZE_WEST;
+    *bNormalization = !bIsTransmeridian  ? NORMALIZE_NONE
+                      : aIsTransmeridian ? NORMALIZE_EAST
+                      : aToBTrendsEast   ? NORMALIZE_WEST
+                                         : NORMALIZE_EAST;
 }

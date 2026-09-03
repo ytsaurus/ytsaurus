@@ -168,17 +168,17 @@ public:
         const TDynamicResourceSpecPtr& dynamicSpec);
 
     template <class T>
-    void RegisterFileSource();
+    void RegisterFileProvider();
 
-    IFileSourcePtr CreateFileSource(
-        const TFileSourceContextPtr& context,
-        const TDynamicFileSourceContextPtr& dynamicContext);
+    IFileProviderPtr CreateFileProvider(
+        const TFileProviderContextPtr& context,
+        const TDynamicFileProviderContextPtr& dynamicContext);
 
-    NYTree::TYsonStructPtr ParseFileSourceParameters(const TFileSourceSpecPtr& spec);
+    NYTree::TYsonStructPtr ParseFileProviderParameters(const TFileProviderSpecPtr& spec);
 
-    NYTree::TYsonStructPtr ParseDynamicFileSourceParameters(
-        const TFileSourceSpecPtr& spec,
-        const TDynamicFileSourceSpecPtr& dynamicSpec);
+    NYTree::TYsonStructPtr ParseDynamicFileProviderParameters(
+        const TFileProviderSpecPtr& spec,
+        const TDynamicFileProviderSpecPtr& dynamicSpec);
 
     template <class T>
     void RegisterExternalStateManager();
@@ -238,7 +238,7 @@ public:
     void ValidateSourceSpec(const TSourceSpecPtr& spec) const;
     void ValidateSinkSpec(const TSinkSpecPtr& spec) const;
     void ValidateResourceSpec(const TResourceSpecPtr& spec) const;
-    void ValidateFileSourceSpec(const TFileSourceSpecPtr& spec) const;
+    void ValidateFileProviderSpec(const TFileProviderSpecPtr& spec) const;
     void ValidateStreamSpec(const TStreamSpecPtr& spec) const;
     void ValidateExternalStateManagerSpec(const TExternalStateManagerSpecPtr& spec) const;
     void ValidateExternalStateJoinerSpec(const TExternalStateJoinerSpecPtr& spec) const;
@@ -317,18 +317,18 @@ private:
         TParametersFactory ParametersFactory;
         TParametersFactory DynamicParametersFactory;
         std::function<void(const TResourceSpec&)> ValidateSpec;
-        bool SupportsFileSourceDiscovery = false;
+        bool SupportsFileProviderDiscovery = false;
     };
 
-    struct TFileSourceDescriptor
+    struct TFileProviderDescriptor
     {
-        std::function<IFileSourcePtr(
-            const TFileSourceContextPtr& context,
-            const TDynamicFileSourceContextPtr& dynamicContext)>
+        std::function<IFileProviderPtr(
+            const TFileProviderContextPtr& context,
+            const TDynamicFileProviderContextPtr& dynamicContext)>
             Factory;
         TParametersFactory ParametersFactory;
         TParametersFactory DynamicParametersFactory;
-        std::function<void(const TFileSourceSpec&)> ValidateSpec;
+        std::function<void(const TFileProviderSpec&)> ValidateSpec;
     };
 
     struct TExternalStateManagerDescriptor
@@ -367,7 +367,7 @@ private:
     THashMap<std::string, TSourceDescriptor> TypeNameToSourceDescriptor_;
     THashMap<std::string, TSinkDescriptor> TypeNameToSinkDescriptor_;
     THashMap<std::string, TResourceDescriptor> TypeNameToResourceDescriptor_;
-    THashMap<std::string, TFileSourceDescriptor> TypeNameToFileSourceDescriptor_;
+    THashMap<std::string, TFileProviderDescriptor> TypeNameToFileProviderDescriptor_;
     THashMap<std::string, TExternalStateManagerDescriptor> TypeNameToExternalStateManagerDescriptor_;
     THashMap<std::string, TExternalStateJoinerDescriptor> TypeNameToExternalStateJoinerDescriptor_;
     THashMap<std::string, TPayloadMigrationFunction> TypeNameToPayloadMigrationFunction_;
@@ -381,7 +381,7 @@ private:
     const TSourceDescriptor& GetSourceDescriptor(TStringBuf typeName) const;
     const TSinkDescriptor& GetSinkDescriptor(TStringBuf typeName) const;
     const TResourceDescriptor& GetResourceDescriptor(TStringBuf typeName) const;
-    const TFileSourceDescriptor& GetFileSourceDescriptor(TStringBuf typeName) const;
+    const TFileProviderDescriptor& GetFileProviderDescriptor(TStringBuf typeName) const;
     const TExternalStateManagerDescriptor& GetExternalStateManagerDescriptor(TStringBuf typeName) const;
     const TExternalStateJoinerDescriptor& GetExternalStateJoinerDescriptor(TStringBuf typeName) const;
     const TYsonMessageDescriptor& GetYsonMessageDescriptor(TStringBuf typeName) const;
@@ -443,9 +443,9 @@ private:
         ::NYT::NFlow::TRegistry::Get()->RegisterResource<type>(); \
     })
 
-#define YT_FLOW_DEFINE_FILE_SOURCE(type)                            \
-    YT_STATIC_INITIALIZER({                                         \
-        ::NYT::NFlow::TRegistry::Get()->RegisterFileSource<type>(); \
+#define YT_FLOW_DEFINE_FILE_PROVIDER(type)                            \
+    YT_STATIC_INITIALIZER({                                           \
+        ::NYT::NFlow::TRegistry::Get()->RegisterFileProvider<type>(); \
     })
 
 #define YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(type)                           \

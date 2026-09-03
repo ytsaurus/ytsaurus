@@ -793,6 +793,7 @@ struct TYtConfig
     TGuid InstanceId;
     TString CliqueAlias;
     i64 CliqueIncarnation;
+    NYPath::TYPath OrchidRoot;
     //! Address override when entering discovery group.
     std::optional<TString> Address;
     //! Clique size for better profiling.

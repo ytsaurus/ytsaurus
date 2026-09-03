@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.computation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.row.Message;
@@ -18,6 +19,7 @@ public class TransformResult implements YTreeConvertible {
     private final List<String> parentIds;
     private @Nullable List<Message> messages;
     private @Nullable List<Boolean> distribute;
+    private @Nullable List<MessageIdSuffix> messageIdSuffixes;
     private @Nullable List<NewTimer> timers;
 
     /**
@@ -35,7 +37,7 @@ public class TransformResult implements YTreeConvertible {
      * @param message The message to be added.
      */
     public void addMessage(Message message) {
-        addMessage(message, true);
+        addMessage(message, AddMessageOptions.defaults());
     }
 
     /**
@@ -45,12 +47,25 @@ public class TransformResult implements YTreeConvertible {
      * @param distribute Whether the message should be published downstream.
      */
     public void addMessage(Message message, boolean distribute) {
+        addMessage(message, AddMessageOptions.builder().setDistribute(distribute).build());
+    }
+
+    /**
+     * Adds a message to the result with explicit options.
+     *
+     * @param message The message to be added.
+     * @param options Options controlling output distribution and message ID generation.
+     */
+    public void addMessage(Message message, AddMessageOptions options) {
+        Objects.requireNonNull(options, "options");
         if (messages == null) {
             messages = new ArrayList<>(1);
             this.distribute = new ArrayList<>(1);
+            this.messageIdSuffixes = new ArrayList<>(1);
         }
         messages.add(message);
-        this.distribute.add(distribute);
+        this.distribute.add(options.isDistribute());
+        this.messageIdSuffixes.add(options.getMessageIdSuffix());
     }
 
     /**
@@ -65,10 +80,12 @@ public class TransformResult implements YTreeConvertible {
         if (this.messages == null) {
             this.messages = new ArrayList<>(messages.size());
             this.distribute = new ArrayList<>(messages.size());
+            this.messageIdSuffixes = new ArrayList<>(messages.size());
         }
         this.messages.addAll(messages);
         for (int i = 0; i < messages.size(); ++i) {
             this.distribute.add(true);
+            this.messageIdSuffixes.add(MessageIdSuffix.sequenceNumber());
         }
     }
 
@@ -90,6 +107,10 @@ public class TransformResult implements YTreeConvertible {
 
     public List<Boolean> getDistribute() {
         return distribute == null ? List.of() : distribute;
+    }
+
+    public List<MessageIdSuffix> getMessageIdSuffixes() {
+        return messageIdSuffixes == null ? List.of() : messageIdSuffixes;
     }
 
     public List<NewTimer> getTimers() {

@@ -127,7 +127,7 @@ H3Error H3_EXPORT(areNeighborCells)(H3Index origin, H3Index destination,
  * destination
  * @param origin The origin H3 hexagon index
  * @param destination The destination H3 hexagon index
- * @return The directed edge H3Index, or H3_NULL on failure.
+ * @param out Output: The directed edge H3Index.
  */
 H3Error H3_EXPORT(cellsToDirectedEdge)(H3Index origin, H3Index destination,
                                        H3Index *out) {
@@ -151,7 +151,7 @@ H3Error H3_EXPORT(cellsToDirectedEdge)(H3Index origin, H3Index destination,
 /**
  * Returns the origin hexagon from the directed edge H3Index
  * @param edge The edge H3 index
- * @return The origin H3 hexagon index, or H3_NULL on failure
+ * @param out Output: The origin H3 hexagon index
  */
 H3Error H3_EXPORT(getDirectedEdgeOrigin)(H3Index edge, H3Index *out) {
     if (H3_GET_MODE(edge) != H3_DIRECTEDEDGE_MODE) {
@@ -167,7 +167,7 @@ H3Error H3_EXPORT(getDirectedEdgeOrigin)(H3Index edge, H3Index *out) {
 /**
  * Returns the destination hexagon from the directed edge H3Index
  * @param edge The edge H3 index
- * @return The destination H3 hexagon index, or H3_NULL on failure
+ * @param out Output: The destination H3 hexagon index
  */
 H3Error H3_EXPORT(getDirectedEdgeDestination)(H3Index edge, H3Index *out) {
     Direction direction = H3_GET_RESERVED_BITS(edge);
@@ -290,5 +290,24 @@ H3Error H3_EXPORT(directedEdgeToBoundary)(H3Index edge, CellBoundary *cb) {
     } else {
         _faceIjkToCellBoundary(&fijk, res, startVertex, 2, cb);
     }
+    return E_SUCCESS;
+}
+
+/**
+ * Returns the directed edge with origin and destination cells reversed.
+ * @param edge The H3 directed edge index
+ * @param out Output: The reversed directed edge index
+ */
+H3Error H3_EXPORT(reverseDirectedEdge)(H3Index edge, H3Index *out) {
+    H3Index origin, destination;
+    H3Error err;
+
+    err = H3_EXPORT(getDirectedEdgeOrigin)(edge, &origin);
+    if (err) return err;
+    err = H3_EXPORT(getDirectedEdgeDestination)(edge, &destination);
+    if (err) return err;
+    err = H3_EXPORT(cellsToDirectedEdge)(destination, origin, out);
+    if (err) return err;
+
     return E_SUCCESS;
 }

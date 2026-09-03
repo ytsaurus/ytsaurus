@@ -119,6 +119,7 @@ SRCS(
     chaos_client/banned_replica_tracker.cpp
     chaos_client/chaos_cell_channel_factory.cpp
     chaos_client/chaos_cell_directory_synchronizer.cpp
+    chaos_client/chaos_leases_watcher.cpp
     chaos_client/chaos_object_channel_factory.cpp
     chaos_client/chaos_residency_cache.cpp
     chaos_client/config.cpp
@@ -386,7 +387,9 @@ SRCS(
     push_based_shuffle_client/session_provider.cpp
     push_based_shuffle_client/partition_reader.cpp
     push_based_shuffle_client/shuffle_writer.cpp
+    push_based_shuffle_client/shuffle_writer_adapter.cpp
     push_based_shuffle_client/sort_reader.cpp
+    push_based_shuffle_client/sort_reader_adapter.cpp
     push_based_shuffle_client/sorted_merging_reader.cpp
 
     query_client/executor.cpp

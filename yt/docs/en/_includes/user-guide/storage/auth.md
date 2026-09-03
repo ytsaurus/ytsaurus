@@ -8,7 +8,7 @@ For token authentication, the token authenticates a user. A username sent separa
 
 The `YT_USER` environment variable is not a shared setting for all clients. Support depends on the client library and connection method.
 
-The table describes regular user authentication. Privileged user impersonation settings are not equivalent to `YT_USER`.
+The table describes regular user authentication.
 
 | Client or connection method | `YT_USER` support | How the user is selected |
 | --- | --- | --- |

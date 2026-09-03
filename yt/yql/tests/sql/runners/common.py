@@ -64,4 +64,5 @@ def add_table_clusters(suite, config, data_path=DATA_PATH):
         for c in sorted(clusters):
             mapping = cfg_message.Yt.ClusterMapping.add()
             mapping.Name = c
+            mapping.Cluster = c
     return patch

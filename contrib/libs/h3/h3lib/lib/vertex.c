@@ -71,13 +71,15 @@ static H3Error vertexRotations(H3Index cell, int *out) {
         PentagonDirectionFaces dirFaces;
         // We never hit the end condition
         int p = 0;
-        for (; p < NUM_PENTAGONS; p++) {
+        // Don't use a for loop here, for coverage reasons.
+        while (ALWAYS(p < NUM_PENTAGONS)) {
             if (pentagonDirectionFaces[p].baseCell == baseCell) {
                 dirFaces = pentagonDirectionFaces[p];
                 break;
             }
+            p++;
         }
-        if (p == NUM_PENTAGONS) {
+        if (NEVER(p == NUM_PENTAGONS)) {
             return E_FAILED;
         }
 
@@ -205,6 +207,7 @@ static const int revNeighborDirectionsHex[NUM_DIGITS] = {
  * H3_NULL if the vertex is invalid
  * @param cell    Cell to get the vertex for
  * @param vertexNum Number (index) of the vertex to calculate
+ * @param out Output: The vertex index
  */
 H3Error H3_EXPORT(cellToVertex)(H3Index cell, int vertexNum, H3Index *out) {
     int cellIsPentagon = H3_EXPORT(isPentagon)(cell);

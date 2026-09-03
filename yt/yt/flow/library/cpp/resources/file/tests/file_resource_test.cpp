@@ -6,11 +6,9 @@
 #include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
 
 #include <util/folder/path.h>
-#include <util/folder/tempdir.h>
 #include <util/stream/file.h>
 #include <util/string/join.h>
 #include <util/system/fstat.h>
-#include <util/system/shellcommand.h>
 
 namespace NYT::NFlow::NFileResourceTest {
 
@@ -24,29 +22,6 @@ std::string ReadFile(const TFsPath& path)
     return std::string(value.data(), value.size());
 }
 
-std::string ReadArchive(const TFsPath& archive)
-{
-    TTempDir directory;
-    TShellCommand command("tar", {"-xf", archive.GetPath(), "-C", directory.Name()});
-    command.Run().Wait();
-    auto exitCode = command.GetExitCode();
-    THROW_ERROR_EXCEPTION_UNLESS(
-        exitCode.Defined() && *exitCode == 0,
-        "Failed to unpack test file resource archive %Qv",
-        archive.GetPath())
-        .With("stderr", command.GetError());
-
-    TVector<TFsPath> entries;
-    TFsPath(directory.Name()).List(entries);
-    Sort(entries, [] (const auto& lhs, const auto& rhs) {
-        return lhs.GetPath() < rhs.GetPath();
-    });
-    THROW_ERROR_EXCEPTION_UNLESS(
-        entries.size() == 2 && entries[0].IsFile() && entries[1].IsFile(),
-        "Test file resource archive must contain exactly two regular files");
-    return Format("%v|%v", ReadFile(entries[0]), ReadFile(entries[1]));
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,11 +30,11 @@ TTextData::TTextData(std::string text)
     : Text(std::move(text))
 { }
 
-TTextDataPtr TTestFileResource::Initialize(const TMaterializedFileSourceSnapshotPtr& fileSources)
+TTextDataPtr TTestFileResource::Initialize(const TMaterializedFileProviderSnapshotPtr& fileProviders)
 {
-    if (fileSources->GetFileSources().size() == 1) {
+    if (fileProviders->GetFileProviders().size() == 1) {
         TVector<TFsPath> entries;
-        TFsPath(fileSources->GetOnlyFileSource()->GetRootPath()).List(entries);
+        TFsPath(fileProviders->GetOnlyFileProvider()->GetRootPath()).List(entries);
         Sort(entries, [] (const auto& lhs, const auto& rhs) {
             return lhs.GetPath() < rhs.GetPath();
         });
@@ -83,15 +58,12 @@ TTextDataPtr TTestFileResource::Initialize(const TMaterializedFileSourceSnapshot
         if (size >= 64_MB) {
             return New<TTextData>(Format("size:%v", size));
         }
-        if (std::string(file.Basename()).ends_with(".tar")) {
-            return New<TTextData>(ReadArchive(file));
-        }
         return New<TTextData>(ReadFile(file));
     }
 
-    std::vector<TFileSourceId> ids;
-    ids.reserve(fileSources->GetFileSources().size());
-    for (const auto& [id, _] : fileSources->GetFileSources()) {
+    std::vector<TFileProviderId> ids;
+    ids.reserve(fileProviders->GetFileProviders().size());
+    for (const auto& [id, _] : fileProviders->GetFileProviders()) {
         ids.push_back(id);
     }
     Sort(ids);
@@ -100,10 +72,10 @@ TTextDataPtr TTestFileResource::Initialize(const TMaterializedFileSourceSnapshot
     values.reserve(ids.size());
     for (const auto& id : ids) {
         TVector<TFsPath> entries;
-        TFsPath(fileSources->GetFileSource(id)->GetRootPath()).List(entries);
+        TFsPath(fileProviders->GetFileProvider(id)->GetRootPath()).List(entries);
         THROW_ERROR_EXCEPTION_UNLESS(
             entries.size() == 1 && entries.front().IsFile(),
-            "Test file source %Qv expects exactly one regular file in its materialized root",
+            "Test file provider %Qv expects exactly one regular file in its materialized root",
             id);
         values.push_back(ReadFile(entries.front()));
     }

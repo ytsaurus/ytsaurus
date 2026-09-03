@@ -51,7 +51,7 @@
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/yt/core/net/local_address.h>
+#include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
@@ -112,8 +112,6 @@ static const std::vector<std::string> DiscoveryAttributes{
     "clique_id",
     "clique_incarnation",
 };
-
-static const TString SysClickHouse = "//sys/clickhouse";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1286,7 +1284,11 @@ private:
 
     void CreateOrchidNode()
     {
-        const auto& host = NNet::GetLocalHostName();
+        if (Config_->OrchidRoot.empty()) {
+            return;
+        }
+
+        const auto& host = *Config_->Address;
         NApi::TCreateNodeOptions options;
         options.Recursive = true;
         options.Force = true;
@@ -1294,7 +1296,7 @@ private:
         attributes->Set("remote_addresses", GetLocalAddresses({{"default", host}}, Ports_.Rpc));
         options.Attributes = std::move(attributes);
 
-        auto path = SysClickHouse + "/orchids/" + ToString(Config_->CliqueId) + "/" + ToString(InstanceCookie_);
+        auto path = Format("%v/%v", Config_->OrchidRoot, InstanceCookie_);
 
         WaitFor(RootClient_->CreateNode(path, EObjectType::Orchid, options))
             .ThrowOnError();

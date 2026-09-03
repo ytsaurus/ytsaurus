@@ -22,11 +22,14 @@ DECLARE_REFCOUNTED_STRUCT(TChaosReplicationCardUpdatesBatcherDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardsWatcher)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardsWatcherClient)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardWatcherCallbacks)
+DECLARE_REFCOUNTED_STRUCT(IChaosLeasesWatcher)
+DECLARE_REFCOUNTED_STRUCT(IChaosLeaseWatcherCallbacks)
 DECLARE_REFCOUNTED_STRUCT(TChaosCellDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_STRUCT(TChaosResidencyCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TChaosResidencyCacheDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TChaosObjectChannelConfig)
 DECLARE_REFCOUNTED_STRUCT(TReplicationCardsWatcherConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosLeasesWatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

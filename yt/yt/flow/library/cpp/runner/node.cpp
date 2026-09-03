@@ -184,7 +184,7 @@ private:
     NHttp::IServerPtr HttpServer_;
     NHttp::IClientPtr HttpClient_;
     NHttp::IClientPtr HttpsClient_;
-    NHttp::IClientPtr FileSourceHttpClient_;
+    NHttp::IClientPtr FileProviderHttpClient_;
 
     NProfiling::TSolomonProxyPtr SolomonProxy_;
 
@@ -341,9 +341,9 @@ private:
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig(), HttpPoller_);
         HttpClient_ = NHttp::CreateClient(Config_->HttpClientConfig, HttpPoller_);
         HttpsClient_ = NHttps::CreateClient(Config_->HttpsClientConfig, HttpPoller_);
-        auto fileSourceHttpClientConfig = CloneYsonStruct(Config_->HttpsClientConfig);
-        fileSourceHttpClientConfig->AllowHttp = true;
-        FileSourceHttpClient_ = NHttps::CreateClient(fileSourceHttpClientConfig, HttpPoller_);
+        auto fileProviderHttpClientConfig = CloneYsonStruct(Config_->HttpsClientConfig);
+        fileProviderHttpClientConfig->AllowHttp = true;
+        FileProviderHttpClient_ = NHttps::CreateClient(fileProviderHttpClientConfig, HttpPoller_);
 
         Config_->SolomonExporter->InstanceTags["pipeline_path"] = Config_->Path;
         Config_->SolomonExporter->InstanceTags["pipeline_cluster"] = Config_->ClusterUrl;
@@ -619,7 +619,7 @@ private:
             ControllerYTConnector_,
             PersistedStateManager_,
             PipelineAuthenticator_,
-            FileSourceHttpClient_,
+            FileProviderHttpClient_,
             Config_->IgnoreSingletonsDynamicConfig,
             GetFlowTablesCellTag(),
             ControllerStatusProfiler_);

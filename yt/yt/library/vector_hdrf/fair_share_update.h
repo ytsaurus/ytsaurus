@@ -85,6 +85,10 @@ struct TSchedulableAttributes
 
     std::optional<int> FifoIndex;
 
+    //! Position actually used during this fair share update, set only when the children of a FIFO pool were
+    //! reordered to improve guarantee utilization. Empty means the update used |FifoIndex| as is.
+    std::optional<int> EffectiveFifoIndex;
+
     TResourceVector GetGuaranteeShare() const;
 
     const TDetailedFairShare& GetFairShare(EFairShareType type = EFairShareType::Regular) const;
@@ -207,6 +211,11 @@ public:
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
     virtual bool IsStepFunctionForGangOperationsEnabled() const = 0;
+
+    //! Allows a FIFO pool to reorder its children so that the ones fitting into its strong guarantee
+    //! are considered first. Only affects the order used during the fair share update.
+    virtual bool IsFifoChildrenReorderingForGuaranteeUtilizationEnabled() const = 0;
+
     virtual bool CanAcceptFreeVolume() const = 0;
     virtual bool ShouldDistributeFreeVolumeAmongChildren() const = 0;
 
@@ -249,6 +258,9 @@ private:
     void ComputePromisedGuaranteeFairShare(TFairShareUpdateContext* context) override;
 
     void PrepareFifoPool();
+
+    void ReorderFifoChildrenForGuaranteeUtilization(TFairShareUpdateContext* context);
+    std::vector<TElement*> GetReorderedFifoChildrenForGuaranteeUtilization() const;
 
     double GetMinChildWeight() const;
 
@@ -370,6 +382,7 @@ struct TFairShareUpdateOptions
     TDuration IntegralSmoothPeriod;
 
     bool EnableStepFunctionForGangOperations = false;
+    bool EnableFifoChildrenReorderingForGuaranteeUtilization = false;
     bool EnableImprovedFairShareByFitFactorComputation = false;
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
     bool EnableFastFifoFairShareByFitFactorComputation = false;
@@ -411,6 +424,7 @@ struct TFairShareUpdateContext
 
     std::vector<TPool*> RelaxedPools;
     std::vector<TPool*> BurstPools;
+    std::vector<TCompositeElement*> FifoPools;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

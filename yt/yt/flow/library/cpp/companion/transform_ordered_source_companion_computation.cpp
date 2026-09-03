@@ -133,7 +133,12 @@ void TTransformOrderedSourceCompanionComputation::DoProcess(
         auto groupOutput = output->SetParents(groupParents, {}, {});
         for (int index = 0; index < std::ssize(group.Messages); ++index) {
             const bool distribute = group.Distribute.empty() || group.Distribute[index];
-            groupOutput->AddMessage(std::move(group.Messages[index]), distribute);
+            groupOutput->AddMessage(
+                std::move(group.Messages[index]),
+                TAddMessageOptions{
+                    .Distribute = distribute,
+                    .MessageIdSuffix = std::move(group.MessageIdSuffixes[index]),
+                });
         }
     }
 

@@ -665,7 +665,7 @@ private:
             }
 
             YT_TLOG_DEBUG("Enqueuing blocks for replication")
-                .With("Blocks", FormatBlocks(currentBlockIndex, currentBlockIndex + std::ssize(writeBlocks) - 1));
+                .With("Blocks", FormatBlockIndexRange(currentBlockIndex, currentBlockIndex + std::ssize(writeBlocks) - 1));
 
             auto writeResult = writer->WriteBlocks(writeBlocksOptions, workloadDescriptor, writeBlocks);
             if (!writeResult) {

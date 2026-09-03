@@ -312,6 +312,7 @@ class CompanionServiceServicer:
 
         pm = ProtoModule()
         pm.TResponseData = self._proto.TResponseData
+        pm.TMessageIdSuffix = self._proto.TMessageIdSuffix
         pm.TNewTimer = self._proto.TNewTimer
         pm.TState = self._proto.TState
         pm.TStateItem = self._proto.TStateItem

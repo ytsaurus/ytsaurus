@@ -33,7 +33,7 @@ class TestFileResource(FlowTestBase):
         self.output_queue = f"{self.work_yt_path}/output_queue"
         run_yt_sync("primary", self.work_yt_path)
 
-    def prepare_pipeline(self, source_path):
+    def prepare_pipeline(self, provider_path):
         source = yatest.common.source_path(f"{yatest.common.context.project_path}/../pipeline-yt-file.yson")
         config = get_yson_config(source)
         reader = config["spec"]["computations"]["reader"]
@@ -47,10 +47,10 @@ class TestFileResource(FlowTestBase):
         )
         computation["sinks"]["queue"]["parameters"]["queue_path"] = f"<cluster=primary>{self.output_queue}"
         resource_spec = config["spec"]["resources"]["text"]
-        resource_spec["file_sources"]["file"]["parameters"]["path"] = source_path
+        resource_spec["file_providers"]["file"]["parameters"]["path"] = provider_path
         config.setdefault("dynamic_spec", {}).setdefault("resources", {})["text"] = {
-            "file_source_discover_period": 100,
-            "file_source_update_retry_period": 100,
+            "file_provider_discover_period": 100,
+            "file_provider_update_retry_period": 100,
             "file_snapshot_min_creation_period": 100,
         }
         self.patch_config(config)

@@ -252,7 +252,7 @@ public:
             "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
             "FlushBlocks: %v, CumulativeBlockSize: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
             populateCache,
             flushBlocks,
             cumulativeBlockSize);
@@ -293,7 +293,7 @@ public:
         context->SetRequestInfo(
             "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v",
             chunkId,
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
             cumulativeBlockSize,
             targetDescriptor);
 

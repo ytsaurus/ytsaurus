@@ -210,14 +210,18 @@ func (mr *client) writeFileToTmpDir(
 
 	writeErrCh := make(chan error, 1)
 	go func() {
-		_, err = io.Copy(w, r)
-		writeErrCh <- err
+		_, writeErr := io.Copy(w, r)
+		writeErrCh <- writeErr
 	}()
 
 	select {
 	case <-ctx.Done():
+		<-writeErrCh
+		_ = w.Close()
+		return tmpPath, ctx.Err()
 	case err = <-writeErrCh:
 		if err != nil {
+			_ = w.Close()
 			return
 		}
 	}

@@ -2,7 +2,7 @@
 
 #include "computation.h"
 #include "computation_controller.h"
-#include "file_source.h"
+#include "file_provider.h"
 #include "process_function.h"
 #include "resource.h"
 #include "resource_controller.h"
@@ -190,25 +190,25 @@ NYTree::TYsonStructPtr TRegistry::ParseResourceDynamicParameters(
     return dynamicParameters;
 }
 
-IFileSourcePtr TRegistry::CreateFileSource(
-    const TFileSourceContextPtr& context,
-    const TDynamicFileSourceContextPtr& dynamicContext)
+IFileProviderPtr TRegistry::CreateFileProvider(
+    const TFileProviderContextPtr& context,
+    const TDynamicFileProviderContextPtr& dynamicContext)
 {
-    return GetFileSourceDescriptor(context->SourceSpec->FileSourceClassName).Factory(context, dynamicContext);
+    return GetFileProviderDescriptor(context->ProviderSpec->FileProviderClassName).Factory(context, dynamicContext);
 }
 
-NYTree::TYsonStructPtr TRegistry::ParseFileSourceParameters(const TFileSourceSpecPtr& spec)
+NYTree::TYsonStructPtr TRegistry::ParseFileProviderParameters(const TFileProviderSpecPtr& spec)
 {
-    auto parameters = GetFileSourceDescriptor(spec->FileSourceClassName).ParametersFactory();
+    auto parameters = GetFileProviderDescriptor(spec->FileProviderClassName).ParametersFactory();
     parameters->Load(spec->Parameters);
     return parameters;
 }
 
-NYTree::TYsonStructPtr TRegistry::ParseDynamicFileSourceParameters(
-    const TFileSourceSpecPtr& spec,
-    const TDynamicFileSourceSpecPtr& dynamicSpec)
+NYTree::TYsonStructPtr TRegistry::ParseDynamicFileProviderParameters(
+    const TFileProviderSpecPtr& spec,
+    const TDynamicFileProviderSpecPtr& dynamicSpec)
 {
-    auto dynamicParameters = GetFileSourceDescriptor(spec->FileSourceClassName).DynamicParametersFactory();
+    auto dynamicParameters = GetFileProviderDescriptor(spec->FileProviderClassName).DynamicParametersFactory();
     if (dynamicParameters && dynamicSpec->Parameters) {
         dynamicParameters->Load(dynamicSpec->Parameters);
     }
@@ -386,18 +386,18 @@ void TRegistry::ValidateResourceSpec(const TResourceSpecPtr& spec) const
     }
     const auto& descriptor = GetResourceDescriptor(typeName);
     THROW_ERROR_EXCEPTION_UNLESS(
-        spec->FileSources.empty() || descriptor.SupportsFileSourceDiscovery,
-        "Resource %Qv declares file sources, but its controller does not support file source discovery; derive the controller from TResourceControllerBase",
+        spec->FileProviders.empty() || descriptor.SupportsFileProviderDiscovery,
+        "Resource %Qv declares file providers, but its controller does not support file provider discovery; derive the controller from TResourceControllerBase",
         typeName);
     descriptor.ValidateSpec(*spec);
-    for (const auto& [_, fileSourceSpec] : spec->FileSources) {
-        ValidateFileSourceSpec(fileSourceSpec);
+    for (const auto& [_, fileProviderSpec] : spec->FileProviders) {
+        ValidateFileProviderSpec(fileProviderSpec);
     }
 }
 
-void TRegistry::ValidateFileSourceSpec(const TFileSourceSpecPtr& spec) const
+void TRegistry::ValidateFileProviderSpec(const TFileProviderSpecPtr& spec) const
 {
-    const auto& descriptor = GetFileSourceDescriptor(spec->FileSourceClassName);
+    const auto& descriptor = GetFileProviderDescriptor(spec->FileProviderClassName);
     descriptor.ValidateSpec(*spec);
 
     auto parameters = descriptor.ParametersFactory();
@@ -640,13 +640,13 @@ std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IM
 
     for (const auto& [resourceId, resourceSpec] : pipelineSpec->Resources) {
         try {
-            for (const auto& [name, fileSourceSpec] : resourceSpec->FileSources) {
-                ValidateFileSourceSpec(fileSourceSpec);
+            for (const auto& [name, fileProviderSpec] : resourceSpec->FileProviders) {
+                ValidateFileProviderSpec(fileProviderSpec);
                 ValidateParameters(
                     "static_pipeline_spec",
-                    Format("/resources/%v/file_sources/%v/parameters", resourceId, name),
-                    GetFileSourceDescriptor(fileSourceSpec->FileSourceClassName).ParametersFactory,
-                    fileSourceSpec->Parameters,
+                    Format("/resources/%v/file_providers/%v/parameters", resourceId, name),
+                    GetFileProviderDescriptor(fileProviderSpec->FileProviderClassName).ParametersFactory,
+                    fileProviderSpec->Parameters,
                     &errors,
                     unrecognized);
             }
@@ -806,14 +806,14 @@ std::vector<TError> TRegistry::ValidateDynamicPipelineSpecParseability(const TPi
                     GetClosestNames(resourceId, GetKeys(pipelineSpec->Resources))));
             continue;
         }
-        for (const auto& [fileSourceId, _] : dynamicResourceSpec->FileSources) {
-            if (!resourceSpecIt->second->FileSources.contains(fileSourceId)) {
+        for (const auto& [fileProviderId, _] : dynamicResourceSpec->FileProviders) {
+            if (!resourceSpecIt->second->FileProviders.contains(fileProviderId)) {
                 errors.push_back(TError(
-                    "Dynamic spec contains file source %Qv in resource %Qv "
+                    "Dynamic spec contains file provider %Qv in resource %Qv "
                     "that does not exist in static spec. Closest existing names: %v",
-                    fileSourceId,
+                    fileProviderId,
                     resourceId,
-                    GetClosestNames(fileSourceId, GetKeys(resourceSpecIt->second->FileSources))));
+                    GetClosestNames(fileProviderId, GetKeys(resourceSpecIt->second->FileProviders))));
             }
         }
     }
@@ -834,16 +834,16 @@ std::vector<TError> TRegistry::ValidateDynamicPipelineSpecParseability(const TPi
                 &errors,
                 unrecognized);
 
-            for (const auto& [fileSourceId, fileSourceSpec] : resourceSpec->FileSources) {
-                auto dynamicFileSourceSpecIt = dynamicResourceSpec->FileSources.find(fileSourceId);
-                if (dynamicFileSourceSpecIt == dynamicResourceSpec->FileSources.end()) {
+            for (const auto& [fileProviderId, fileProviderSpec] : resourceSpec->FileProviders) {
+                auto dynamicFileProviderSpecIt = dynamicResourceSpec->FileProviders.find(fileProviderId);
+                if (dynamicFileProviderSpecIt == dynamicResourceSpec->FileProviders.end()) {
                     continue;
                 }
                 ValidateParameters(
                     "dynamic_pipeline_spec",
-                    Format("/resources/%v/file_sources/%v/parameters", resourceId, fileSourceId),
-                    GetFileSourceDescriptor(fileSourceSpec->FileSourceClassName).DynamicParametersFactory,
-                    dynamicFileSourceSpecIt->second->Parameters,
+                    Format("/resources/%v/file_providers/%v/parameters", resourceId, fileProviderId),
+                    GetFileProviderDescriptor(fileProviderSpec->FileProviderClassName).DynamicParametersFactory,
+                    dynamicFileProviderSpecIt->second->Parameters,
                     &errors,
                     unrecognized);
             }
@@ -915,9 +915,9 @@ const TRegistry::TResourceDescriptor& TRegistry::GetResourceDescriptor(TStringBu
     return GetDescriptor("resource", TypeNameToResourceDescriptor_, typeName);
 }
 
-const TRegistry::TFileSourceDescriptor& TRegistry::GetFileSourceDescriptor(TStringBuf typeName) const
+const TRegistry::TFileProviderDescriptor& TRegistry::GetFileProviderDescriptor(TStringBuf typeName) const
 {
-    return GetDescriptor("file source", TypeNameToFileSourceDescriptor_, typeName);
+    return GetDescriptor("file provider", TypeNameToFileProviderDescriptor_, typeName);
 }
 
 const TRegistry::TExternalStateManagerDescriptor& TRegistry::GetExternalStateManagerDescriptor(TStringBuf typeName) const

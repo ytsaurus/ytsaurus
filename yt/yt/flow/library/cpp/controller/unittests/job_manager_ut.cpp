@@ -343,12 +343,12 @@ TEST_F(TJobManagerTest, ReportsAndClearsInsufficientWorkers)
     EXPECT_TRUE(StatusProfiler->GetStatus().Errors.empty());
 }
 
-TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileSources)
+TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileProviders)
 {
     const TResourceId resourceId("file_resource");
     auto spec = New<TPipelineSpec>();
     auto resourceSpec = MakeSimpleResourceSpec();
-    resourceSpec->FileSources[TFileSourceId("file")] = New<TFileSourceSpec>();
+    resourceSpec->FileProviders[TFileProviderId("file")] = New<TFileProviderSpec>();
     spec->Resources[resourceId] = resourceSpec;
 
     auto computationSpec = CreateGenericComputationSpec<TSimpleComputation>();
@@ -358,10 +358,10 @@ TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileSources)
 
     EXPECT_THROW_WITH_SUBSTRING(
         ValidatePipelineSpec(spec),
-        "named file sources are worker-only");
+        "named file providers are worker-only");
 }
 
-TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileSourceDependency)
+TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileProviderDependency)
 {
     const TResourceId parentId("parent");
     const TResourceId fileResourceId("file_resource");
@@ -370,7 +370,7 @@ TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileSourceDepe
     parentSpec->Dependencies[fileResourceId] = New<TResourceDescription>();
     spec->Resources[parentId] = parentSpec;
     auto fileResourceSpec = MakeSimpleResourceSpec();
-    fileResourceSpec->FileSources[TFileSourceId("file")] = New<TFileSourceSpec>();
+    fileResourceSpec->FileProviders[TFileProviderId("file")] = New<TFileProviderSpec>();
     spec->Resources[fileResourceId] = fileResourceSpec;
 
     auto computationSpec = CreateGenericComputationSpec<TSimpleComputation>();
@@ -380,7 +380,7 @@ TEST_F(TJobManagerTest, PipelineSpecRejectsControllerRequiredNamedFileSourceDepe
 
     EXPECT_THROW_WITH_SUBSTRING(
         ValidatePipelineSpec(spec),
-        "named file sources are worker-only");
+        "named file providers are worker-only");
 }
 
 TEST_F(TJobManagerTest, ResourceControllerFeedbackIsFencedByWorkerIncarnation)
@@ -451,7 +451,7 @@ TEST_F(TJobManagerTest, OnlyChangedDynamicResourceSpecBumpsPublishedRevision)
 
     auto changedDynamicSpec = CloneYsonStruct(unrelatedDynamicSpec);
     auto dynamicResourceSpec = New<TDynamicResourceSpec>();
-    dynamicResourceSpec->FileSourceDiscoverPeriod = TDuration::Seconds(31);
+    dynamicResourceSpec->FileProviderDiscoverPeriod = TDuration::Seconds(31);
     changedDynamicSpec->Resources[resourceId] = std::move(dynamicResourceSpec);
     JobManager->Reconfigure(changedDynamicSpec);
     JobManager->UpdateResourceControllers(FlowView);
@@ -486,7 +486,7 @@ TEST_F(TJobManagerTest, RestoresPublishedResourceRevisionAfterRestartAndEarlyRec
 
     auto changedDynamicSpec = CloneYsonStruct(dynamicSpec);
     auto dynamicResourceSpec = New<TDynamicResourceSpec>();
-    dynamicResourceSpec->FileSourceDiscoverPeriod = TDuration::Seconds(31);
+    dynamicResourceSpec->FileProviderDiscoverPeriod = TDuration::Seconds(31);
     changedDynamicSpec->Resources[resourceId] = std::move(dynamicResourceSpec);
     JobManager->Reconfigure(changedDynamicSpec);
     JobManager->UpdateResourceControllers(FlowView);

@@ -547,6 +547,8 @@ struct TStrategyTreeConfig
     bool EnableGuaranteePriorityScheduling;
 
     bool EnableStepFunctionForGangOperations;
+    //! Hard gate: turns FIFO children reordering off tree-wide no matter what the pools ask for.
+    bool EnableFifoChildrenReorderingForGuaranteeUtilization;
     bool EnableImprovedFairShareByFitFactorComputation;
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap;
     bool EnableFastFifoFairShareByFitFactorComputation;

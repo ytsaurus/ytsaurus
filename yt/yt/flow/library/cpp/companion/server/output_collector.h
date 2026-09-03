@@ -38,8 +38,6 @@ public:
         const std::vector<TInputTimerConstPtr>& timers,
         const std::vector<TInputVisitConstPtr>& visits) override;
 
-    void AddMessage(TMessage&& message, bool distribute = true) override;
-
     void AddTimer(
         TSystemTimestamp triggerTimestamp,
         std::optional<TSystemTimestamp> eventTimestamp = {}) override;
@@ -53,6 +51,8 @@ public:
     std::vector<TOutputGroup> TakeGroups();
 
 private:
+    void DoAddMessage(TMessage&& message, TAddMessageOptions options) override;
+
     struct TRecorder final
     {
         std::vector<TOutputGroup> Groups;

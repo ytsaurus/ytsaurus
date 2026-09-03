@@ -65,7 +65,7 @@ public:
             .With("ReplicationCardId", replicationCardId)
             .With("Timestamp", timestamp);
 
-        ReplicationCardsWatcher_->OnReplicationCardUpdated(replicationCardId, replicationCard, timestamp);
+        ReplicationCardsWatcher_->OnObjectUpdated(replicationCardId, replicationCard, timestamp);
         ChaosCache_->TryRemove(GetKey(replicationCardId));
     }
 
@@ -74,7 +74,7 @@ public:
         YT_TLOG_DEBUG("Replication card deleted")
             .With("ReplicationCardId", replicationCardId);
 
-        ReplicationCardsWatcher_->OnReplicationCardRemoved(replicationCardId);
+        ReplicationCardsWatcher_->OnObjectRemoved(replicationCardId);
         ChaosCache_->TryRemove(GetKey(replicationCardId));
     }
 
@@ -88,8 +88,8 @@ public:
 
     void OnNothingChanged(TReplicationCardId replicationCardId) override
     {
-        if (ReplicationCardsWatcher_->GetLastSeenWatchers(replicationCardId) + ExpirationDelay_ < TInstant::Now() &&
-            ReplicationCardsWatcher_->TryUnregisterReplicationCard(replicationCardId))
+        if (ReplicationCardsWatcher_->GetLastSeenWatchersTime(replicationCardId) + ExpirationDelay_ < TInstant::Now() &&
+            ReplicationCardsWatcher_->TryUnregisterObject(replicationCardId))
         {
             if (auto owner = Owner_.Lock()) {
                 owner->StopWatchingReplicationCard(replicationCardId);
@@ -339,12 +339,12 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, WatchReplicationCard)
         replicationCardId,
         cacheTimestamp);
 
-    auto state = ReplicationCardsWatcher_->WatchReplicationCard(
+    auto state = ReplicationCardsWatcher_->WatchObject(
         replicationCardId,
         cacheTimestamp,
         CreateReplicationCardWatcherCallbacks(context),
         /*allowUnregistered*/ true);
-    if (state != EReplicationCardWatherState::Deleted) {
+    if (state != EObjectWatcherState::Deleted) {
         ReplicationCardsWatcherClient_->WatchReplicationCard(replicationCardId);
     }
 }

@@ -15,7 +15,7 @@ SRCS(
     distributing_tracker.cpp
     dyntable_lease.cpp
     external_state_manager.cpp
-    file_source.cpp
+    file_provider.cpp
     flow_core_build_info.cpp
     flow_core_version.cpp
     flow_view.cpp
@@ -28,6 +28,7 @@ SRCS(
     message_batcher.cpp
     message_migration.cpp
     message.cpp
+    output_collector.cpp
     payload_converter.cpp
     payload_validation.cpp
     payload.cpp

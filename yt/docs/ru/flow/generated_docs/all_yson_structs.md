@@ -118,7 +118,7 @@
 
 {% include [_](./NYT_NFlow_TDynamicExternalStateManagerSpec.md) %}
 
-{% include [_](./NYT_NFlow_TDynamicFileSourceSpec.md) %}
+{% include [_](./NYT_NFlow_TDynamicFileProviderSpec.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicInputStoreSpec.md) %}
 
@@ -210,7 +210,7 @@
 
 {% include [_](./NYT_NFlow_TFetcherInJoinerSpec.md) %}
 
-{% include [_](./NYT_NFlow_TFileSourceSpec.md) %}
+{% include [_](./NYT_NFlow_TFileProviderSpec.md) %}
 
 {% include [_](./NYT_NFlow_TFlowNodeConfig.md) %}
 

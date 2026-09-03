@@ -1926,6 +1926,8 @@ private:
                             .IntegralPoolCapacitySaturationPeriod = config->IntegralGuarantees->PoolCapacitySaturationPeriod,
                             .IntegralSmoothPeriod = config->IntegralGuarantees->SmoothPeriod,
                             .EnableStepFunctionForGangOperations = config->EnableStepFunctionForGangOperations,
+                            .EnableFifoChildrenReorderingForGuaranteeUtilization =
+                                config->EnableFifoChildrenReorderingForGuaranteeUtilization,
                             .EnableImprovedFairShareByFitFactorComputation = config->EnableImprovedFairShareByFitFactorComputation,
                             .EnableImprovedFairShareByFitFactorComputationDistributionGap =
                                 config->EnableImprovedFairShareByFitFactorComputationDistributionGap,
@@ -3292,7 +3294,11 @@ private:
             })
             .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                 fluent
-                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fifo_sort_parameters", pool->GetFifoSortParameters());
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "fifo_sort_parameters", pool->GetFifoSortParameters())
+                    .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                        filter,
+                        "fifo_children_reordering_for_guarantee_utilization_enabled",
+                        pool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
             })
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "abc", pool->GetConfig()->Abc)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "full_path", pool->GetFullPath(/*explicitOnly*/ false, /*withTreeId*/ false))
@@ -3459,6 +3465,7 @@ private:
             .Item("slot_index").Value(element->GetSlotIndex())
             .Item("start_time").Value(element->GetStartTime())
             .OptionalItem("fifo_index", element->Attributes().FifoIndex)
+            .OptionalItem("effective_fifo_index", element->Attributes().EffectiveFifoIndex)
             .Item("grouped_needed_resources").Value(element->GroupedNeededResources())
             // COMPAT(eshcherbin)
             .Item("detailed_min_needed_job_resources").BeginList()

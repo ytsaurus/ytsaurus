@@ -7,6 +7,7 @@
 #include <yt/yt/server/scheduler/strategy/resource_tree.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
+
 #include <yt/yt/server/scheduler/common/exec_node.h>
 
 #include <yt/yt/ytlib/chunk_client/proto/medium_directory.pb.h>

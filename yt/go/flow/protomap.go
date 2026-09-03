@@ -276,6 +276,9 @@ func groupToProto(result OutputGroup, streams StreamSpecs) (*companion.TResponse
 	if len(result.ParentIDs) == 0 {
 		return nil, errNoParentIDs
 	}
+	if len(result.MessageIDSuffixes) > 0 && len(result.MessageIDSuffixes) != len(result.Messages) {
+		return nil, xerrors.Errorf("message ID suffixes count must match output messages count")
+	}
 
 	group := &companion.TResponseData_TGroup{
 		Messages:   make([]*common.TMessage, 0, len(result.Messages)),
@@ -294,6 +297,23 @@ func groupToProto(result OutputGroup, streams StreamSpecs) (*companion.TResponse
 			return nil, xerrors.Errorf("message %d: %w", i, err)
 		}
 		group.Messages = append(group.Messages, protoMessage)
+	}
+
+	if len(result.MessageIDSuffixes) > 0 {
+		group.MessageIdSuffixes = make([]*companion.TMessageIdSuffix, 0, len(result.MessageIDSuffixes))
+		for _, suffix := range result.MessageIDSuffixes {
+			protoSuffix := &companion.TMessageIdSuffix{}
+			switch suffix.mode {
+			case MessageIDSuffixSequenceNumber:
+				protoSuffix.Mode = companion.TMessageIdSuffix_MIS_SEQUENCE_NUMBER.Enum()
+			case MessageIDSuffixPayloadHash:
+				protoSuffix.Mode = companion.TMessageIdSuffix_MIS_PAYLOAD_HASH.Enum()
+			case MessageIDSuffixUserDefined:
+				protoSuffix.Mode = companion.TMessageIdSuffix_MIS_USER_DEFINED.Enum()
+				protoSuffix.UserDefined = []byte(suffix.value)
+			}
+			group.MessageIdSuffixes = append(group.MessageIdSuffixes, protoSuffix)
+		}
 	}
 
 	for _, timer := range result.Timers {

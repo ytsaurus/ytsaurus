@@ -29,6 +29,7 @@
 #include "alloc.h"
 #include "baseCells.h"
 #include "bbox.h"
+#include "cellsToMultiPoly.h"
 #include "faceijk.h"
 #include "h3Assert.h"
 #include "h3Index.h"
@@ -36,7 +37,6 @@
 #include "latLng.h"
 #include "linkedGeo.h"
 #include "polygon.h"
-#include "vertexGraph.h"
 
 /*
  * Return codes from gridDiskUnsafe and related functions.
@@ -332,6 +332,103 @@ H3Error H3_EXPORT(gridDiskDistancesSafe)(H3Index origin, int k, H3Index *out,
         return err;
     }
     return _gridDiskDistancesInternal(origin, k, out, distances, maxIdx, 0);
+}
+
+/**
+ * Maximum number of cells that result from the gridRing algorithm with the
+ * given k.
+ *
+ * @param   k   k value, k >= 0.
+ * @param out   size in indexes
+ */
+H3Error H3_EXPORT(maxGridRingSize)(int k, int64_t *out) {
+    if (k < 0) {
+        return E_DOMAIN;
+    }
+    if (k == 0) {
+        *out = 1;
+        return E_SUCCESS;
+    }
+    *out = 6 * (int64_t)k;
+    return E_SUCCESS;
+}
+
+/**
+ * Returns the "hollow" ring of hexagons at exactly grid distance k from
+ * the origin hexagon. In particular, k=0 returns just the origin hexagon.
+ *
+ * Elements of the output array may be left zero, as can happen when crossing a
+ * pentagon.
+ *
+ * @param origin Origin location.
+ * @param k k >= 0
+ * @param out Array which must be of size 6 * k (or 1 if k == 0)
+ * @return 0 if successful; nonzero otherwise.
+ */
+H3Error H3_EXPORT(gridRing)(H3Index origin, int k, H3Index *out) {
+    // Optimistically try the faster gridDiskUnsafe algorithm first
+    const H3Error failed = H3_EXPORT(gridRingUnsafe)(origin, k, out);
+    if (!failed) {
+        return E_SUCCESS;
+    }
+    // Fast algo failed, fall back to slower, correct algo
+    // and also wipe out array because contents untrustworthy
+    memset(out, 0, 6 * k * sizeof(H3Index));
+    return _gridRingInternal(origin, k, out);
+}
+
+/**
+ * Internal algorithm for the safe but slow version of gridRing
+ *
+ * This function uses _gridDiskDistancesInternal to get all cells up to distance
+ * k, then filters those results to include only cells exactly at distance k.
+ *
+ * @param origin Origin cell.
+ * @param k Exact distance to filter for.
+ * @param out Array which must be of size 6 * k (or 1 if k == 0). This is where
+ * the final filtered results will be placed.
+ * @return H3Error indicating success or failure.
+ */
+H3Error _gridRingInternal(H3Index origin, int k, H3Index *out) {
+    // Short-circuit on 'identity' ring
+    if (k == 0) {
+        out[0] = origin;
+        return E_SUCCESS;
+    }
+
+    int64_t maxIdx;
+    H3Error err = H3_EXPORT(maxGridDiskSize)(k, &maxIdx);
+    if (err) {
+        return err;
+    }
+
+    H3Index *disk_out = H3_MEMORY(calloc)(maxIdx, sizeof(H3Index));
+    if (!disk_out) {
+        return E_MEMORY_ALLOC;
+    }
+    int *disk_distances = H3_MEMORY(calloc)(maxIdx, sizeof(int));
+    if (!disk_distances) {
+        H3_MEMORY(free)(disk_out);
+        return E_MEMORY_ALLOC;
+    }
+
+    err = _gridDiskDistancesInternal(origin, k, disk_out, disk_distances,
+                                     maxIdx, 0);
+    if (err) {
+        H3_MEMORY(free)(disk_out);
+        H3_MEMORY(free)(disk_distances);
+        return err;
+    }
+
+    int current_idx = 0;
+    for (int64_t i = 0; i < maxIdx; ++i) {
+        if (disk_out[i] != 0 && disk_distances[i] == k) {
+            out[current_idx++] = disk_out[i];
+        }
+    }
+    H3_MEMORY(free)(disk_out);
+    H3_MEMORY(free)(disk_distances);
+    return E_SUCCESS;
 }
 
 /**
@@ -690,6 +787,9 @@ H3Error H3_EXPORT(gridDisksUnsafe)(H3Index *h3Set, int length, int k,
  * @return 0 if successful; nonzero otherwise.
  */
 H3Error H3_EXPORT(gridRingUnsafe)(H3Index origin, int k, H3Index *out) {
+    if (k < 0) {
+        return E_DOMAIN;
+    }
     // Short-circuit on 'identity' ring
     if (k == 0) {
         out[0] = origin;
@@ -755,9 +855,8 @@ H3Error H3_EXPORT(gridRingUnsafe)(H3Index origin, int k, H3Index *out) {
     // failure.
     if (lastIndex != origin) {
         return E_PENTAGON;
-    } else {
-        return E_SUCCESS;
     }
+    return E_SUCCESS;
 }
 
 /**
@@ -774,8 +873,9 @@ H3Error H3_EXPORT(gridRingUnsafe)(H3Index origin, int k, H3Index *out) {
  */
 H3Error H3_EXPORT(maxPolygonToCellsSize)(const GeoPolygon *geoPolygon, int res,
                                          uint32_t flags, int64_t *out) {
-    if (flags != 0) {
-        return E_OPTION_INVALID;
+    H3Error flagErr = validatePolygonFlags(flags);
+    if (flagErr) {
+        return flagErr;
     }
     // Get the bounding box for the GeoJSON-like struct
     BBox bbox;
@@ -836,12 +936,13 @@ H3Error _getEdgeHexagons(const GeoLoop *geoloop, int64_t numHexagons, int res,
         }
         for (int64_t j = 0; j < numHexesEstimate; j++) {
             LatLng interpolate;
+            double invNumHexesEst = 1.0 / numHexesEstimate;
             interpolate.lat =
-                (origin.lat * (numHexesEstimate - j) / numHexesEstimate) +
-                (destination.lat * j / numHexesEstimate);
+                (origin.lat * (numHexesEstimate - j) * invNumHexesEst) +
+                (destination.lat * j * invNumHexesEst);
             interpolate.lng =
-                (origin.lng * (numHexesEstimate - j) / numHexesEstimate) +
-                (destination.lng * j / numHexesEstimate);
+                (origin.lng * (numHexesEstimate - j) * invNumHexesEst) +
+                (destination.lng * j * invNumHexesEst);
             H3Index pointHex;
             H3Error e = H3_EXPORT(latLngToCell)(&interpolate, res, &pointHex);
             if (e) {
@@ -890,8 +991,9 @@ H3Error _getEdgeHexagons(const GeoLoop *geoloop, int64_t numHexagons, int res,
  */
 H3Error H3_EXPORT(polygonToCells)(const GeoPolygon *geoPolygon, int res,
                                   uint32_t flags, H3Index *out) {
-    if (flags != 0) {
-        return E_OPTION_INVALID;
+    H3Error flagErr = validatePolygonFlags(flags);
+    if (flagErr) {
+        return flagErr;
     }
     // One of the goals of the polygonToCells algorithm is that two adjacent
     // polygons with zero overlap have zero overlapping hexagons. That the
@@ -1064,87 +1166,6 @@ H3Error H3_EXPORT(polygonToCells)(const GeoPolygon *geoPolygon, int res,
 }
 
 /**
- * Internal: Create a vertex graph from a set of hexagons. It is the
- * responsibility of the caller to call destroyVertexGraph on the populated
- * graph, otherwise the memory in the graph nodes will not be freed.
- * @private
- * @param h3Set    Set of hexagons
- * @param numHexes Number of hexagons in the set
- * @param graph    Output graph
- */
-H3Error h3SetToVertexGraph(const H3Index *h3Set, const int numHexes,
-                           VertexGraph *graph) {
-    CellBoundary vertices;
-    LatLng *fromVtx;
-    LatLng *toVtx;
-    VertexNode *edge;
-    if (numHexes < 1) {
-        // We still need to init the graph, or calls to destroyVertexGraph will
-        // fail
-        initVertexGraph(graph, 0, 0);
-        return E_SUCCESS;
-    }
-    int res = H3_GET_RESOLUTION(h3Set[0]);
-    const int minBuckets = 6;
-    // TODO: Better way to calculate/guess?
-    int numBuckets = numHexes > minBuckets ? numHexes : minBuckets;
-    initVertexGraph(graph, numBuckets, res);
-    // Iterate through every hexagon
-    for (int i = 0; i < numHexes; i++) {
-        H3Error boundaryErr = H3_EXPORT(cellToBoundary)(h3Set[i], &vertices);
-        if (boundaryErr) {
-            // Destroy vertex graph as caller will not know to do so.
-            destroyVertexGraph(graph);
-            return boundaryErr;
-        }
-        // iterate through every edge
-        for (int j = 0; j < vertices.numVerts; j++) {
-            fromVtx = &vertices.verts[j];
-            toVtx = &vertices.verts[(j + 1) % vertices.numVerts];
-            // If we've seen this edge already, it will be reversed
-            edge = findNodeForEdge(graph, toVtx, fromVtx);
-            if (edge != NULL) {
-                // If we've seen it, drop it. No edge is shared by more than 2
-                // hexagons, so we'll never see it again.
-                removeVertexNode(graph, edge);
-            } else {
-                // Add a new node for this edge
-                addVertexNode(graph, fromVtx, toVtx);
-            }
-        }
-    }
-    return E_SUCCESS;
-}
-
-/**
- * Internal: Create a LinkedGeoPolygon from a vertex graph. It is the
- * responsibility of the caller to call destroyLinkedMultiPolygon on the
- * populated linked geo structure, or the memory for that structure will not be
- * freed.
- * @private
- * @param graph Input graph
- * @param out   Output polygon
- */
-void _vertexGraphToLinkedGeo(VertexGraph *graph, LinkedGeoPolygon *out) {
-    *out = (LinkedGeoPolygon){0};
-    LinkedGeoLoop *loop;
-    VertexNode *edge;
-    LatLng nextVtx;
-    // Find the next unused entry point
-    while ((edge = firstVertexNode(graph)) != NULL) {
-        loop = addNewLinkedLoop(out);
-        // Walk the graph to get the outline
-        do {
-            addLinkedCoord(loop, &edge->from);
-            nextVtx = edge->to;
-            // Remove frees the node, so we can't use edge after this
-            removeVertexNode(graph, edge);
-            edge = findNodeForVertex(graph, &nextVtx);
-        } while (edge);
-    }
-}
-
-/**
  * Create a LinkedGeoPolygon describing the outline(s) of a set of  hexagons.
  * Polygon outlines will follow GeoJSON MultiPolygon order: Each polygon will
  * have one outer loop, which is first in the list, followed by any holes.
@@ -1153,10 +1174,8 @@ void _vertexGraphToLinkedGeo(VertexGraph *graph, LinkedGeoPolygon *out) {
  * the populated linked geo structure, or the memory for that structure will not
  * be freed.
  *
- * It is expected that all hexagons in the set have the same resolution and
- * that the set contains no duplicates. Behavior is undefined if duplicates
- * or multiple resolutions are present, and the algorithm may produce
- * unexpected or invalid output.
+ * All cells in the set must be valid, have the same resolution, and contain
+ * no duplicates. Returns an error if these conditions are not met.
  *
  * @param h3Set    Set of hexagons
  * @param numHexes Number of hexagons in set
@@ -1165,16 +1184,49 @@ void _vertexGraphToLinkedGeo(VertexGraph *graph, LinkedGeoPolygon *out) {
 H3Error H3_EXPORT(cellsToLinkedMultiPolygon)(const H3Index *h3Set,
                                              const int numHexes,
                                              LinkedGeoPolygon *out) {
-    VertexGraph graph;
-    H3Error err = h3SetToVertexGraph(h3Set, numHexes, &graph);
+    GeoMultiPolygon mpoly;
+    H3Error err = H3_EXPORT(cellsToMultiPolygon)(h3Set, numHexes, &mpoly);
     if (err) {
         return err;
     }
-    _vertexGraphToLinkedGeo(&graph, out);
-    destroyVertexGraph(&graph);
-    H3Error normalizeResult = normalizeMultiPolygon(out);
-    if (normalizeResult) {
-        H3_EXPORT(destroyLinkedMultiPolygon)(out);
+    err = geoMultiPolygonToLinkedGeoPolygon(&mpoly, out);
+    H3_EXPORT(destroyGeoMultiPolygon)(&mpoly);
+    return err;
+}
+
+/**
+ * Free all allocated memory for a GeoLoop. The caller is
+ * responsible for freeing memory allocated to input GeoLoop struct.
+ */
+void destroyGeoLoop(GeoLoop *loop) {
+    H3_MEMORY(free)(loop->verts);
+    loop->verts = NULL;
+    loop->numVerts = 0;
+}
+
+/**
+ * Free all allocated memory for a GeoPolygon. The caller is
+ * responsible for freeing memory allocated to input GeoPolygon struct.
+ */
+void destroyGeoPolygon(GeoPolygon *poly) {
+    destroyGeoLoop(&poly->geoloop);
+    for (int i = 0; i < poly->numHoles; i++) {
+        destroyGeoLoop(&poly->holes[i]);
     }
-    return normalizeResult;
+    H3_MEMORY(free)(poly->holes);
+    poly->holes = NULL;
+    poly->numHoles = 0;
+}
+
+/**
+ * Free all allocated memory for a GeoMultiPolygon. The caller is
+ * responsible for freeing memory allocated to input GeoMultiPolygon struct.
+ */
+void H3_EXPORT(destroyGeoMultiPolygon)(GeoMultiPolygon *mpoly) {
+    for (int i = 0; i < mpoly->numPolygons; i++) {
+        destroyGeoPolygon(&mpoly->polygons[i]);
+    }
+    H3_MEMORY(free)(mpoly->polygons);
+    mpoly->polygons = NULL;
+    mpoly->numPolygons = 0;
 }

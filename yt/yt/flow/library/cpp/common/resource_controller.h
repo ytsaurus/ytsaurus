@@ -68,7 +68,7 @@ struct IResourceController
     : public TRefCounted
     , public virtual TReconfigurable<TDynamicResourceControllerContext>
 {
-    static constexpr bool SupportsFileSourceDiscovery = false;
+    static constexpr bool SupportsFileProviderDiscovery = false;
 
     // Provide TParameter[Ptr] aliases. It is type of spec `Parameters` field.
     // This type is used in resource registration for future parsing.

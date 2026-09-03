@@ -76,7 +76,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/distributing_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/dyntable_lease.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/external_state_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/file_source.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/file_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/flow_core_build_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/flow_core_version.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/flow_view.cpp
@@ -89,6 +89,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message_batcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message_migration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/message.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/output_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/payload_converter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/payload_validation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/payload.cpp

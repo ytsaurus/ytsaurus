@@ -198,8 +198,13 @@ void TTransformCompanionComputation::DoProcess(
         }
 
         auto groupOutput = output->SetParents(groupParents, groupTimerParents, groupVisitParents);
-        for (auto& message : group.Messages) {
-            groupOutput->AddMessage(std::move(message));
+        for (int index = 0; index < std::ssize(group.Messages); ++index) {
+            groupOutput->AddMessage(
+                std::move(group.Messages[index]),
+                TAddMessageOptions{
+                    .Distribute = group.Distribute[index],
+                    .MessageIdSuffix = std::move(group.MessageIdSuffixes[index]),
+                });
         }
         for (const auto& companionTimer : group.Timers) {
             if (companionTimer.StreamId) {

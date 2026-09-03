@@ -312,6 +312,8 @@ TInflightStreamTraverseDataPtr MergeInflightTraverseData(
 
     for (i64 i = 1; i < std::ssize(inflights); ++i) {
         const auto& part = inflights[i];
+        merged->Empty = merged->Empty && part->Empty;
+        merged->Suspended = merged->Suspended && part->Suspended;
         if (part->MinSystemTimestamp) {
             if (merged->MinSystemTimestamp) {
                 merged->MinSystemTimestamp = std::min(*merged->MinSystemTimestamp, *part->MinSystemTimestamp);

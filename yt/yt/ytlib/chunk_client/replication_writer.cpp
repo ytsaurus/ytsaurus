@@ -789,7 +789,7 @@ private:
         }
 
         YT_TLOG_DEBUG("Block group added")
-            .With("Blocks", FormatBlocks(
+            .With("Blocks", FormatBlockIndexRange(
                 CurrentGroup_->GetStartBlockIndex(),
                 CurrentGroup_->GetEndBlockIndex()));
 
@@ -910,7 +910,7 @@ private:
             }
 
             YT_TLOG_DEBUG("Window shifted")
-                .With("Blocks", FormatBlocks(group->GetStartBlockIndex(), group->GetEndBlockIndex()))
+                .With("Blocks", FormatBlockIndexRange(group->GetStartBlockIndex(), group->GetEndBlockIndex()))
                 .With("Size", group->GetSize());
 
             WindowSlots_->Release(group->GetSize());
@@ -1052,6 +1052,7 @@ private:
         SetRequestWorkloadDescriptor(req, Config_->WorkloadDescriptor);
         ToProto(req->mutable_session_id(), SessionId_);
         req->set_sync_on_close(Config_->SyncOnClose);
+        req->set_use_direct_io(isOffshore ? false : Config_->UseDirectIO);
         req->set_disable_send_blocks(disableSendBlocks);
         req->set_use_probe_put_blocks(isOffshore ? false : Config_->UseProbePutBlocks);
         req->set_preallocate_disk_space(isOffshore ? false : Config_->PreallocateDiskSpace);
@@ -1294,7 +1295,7 @@ private:
         int lastBlockIndex = BlockCount_ - 1;
 
         YT_TLOG_DEBUG("Blocks added")
-            .With("Blocks", FormatBlocks(firstBlockIndex, lastBlockIndex))
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, lastBlockIndex))
             .With("Size", GetByteSize(blocks));
     }
 
@@ -1498,7 +1499,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
         auto throttle = ShouldThrottle(node->GetDefaultAddress(), writer);
 
         YT_TLOG_DEBUG("Ready to put blocks")
-            .With("Blocks", FormatBlocks(GetStartBlockIndex(), GetEndBlockIndex()))
+            .With("Blocks", FormatBlockIndexRange(GetStartBlockIndex(), GetEndBlockIndex()))
             .With("Address", node->GetDefaultAddress())
             .With("Size", Size_)
             .With("Throttle", throttle)
@@ -1540,7 +1541,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
             writer->AccountTraffic(Size_, node->GetDescriptor());
 
             YT_TLOG_DEBUG("Blocks are put")
-                .With("Blocks", FormatBlocks(GetStartBlockIndex(), GetEndBlockIndex()))
+                .With("Blocks", FormatBlockIndexRange(GetStartBlockIndex(), GetEndBlockIndex()))
                 .With("Address", node->GetDefaultAddress());
         } else {
             if (rspOrError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) && !writer->StateError_.IsSet()) {
@@ -1580,7 +1581,7 @@ void TGroup::SendGroup(
         const auto& srcNode = srcNodes[i % srcNodes.size()];
 
         YT_TLOG_DEBUG("Sending blocks")
-            .With("Blocks", FormatBlocks(GetStartBlockIndex(), GetEndBlockIndex()))
+            .With("Blocks", FormatBlockIndexRange(GetStartBlockIndex(), GetEndBlockIndex()))
             .With("SrcAddress", srcNode->GetDefaultAddress())
             .With("DstAddress", dstNode->GetDefaultAddress())
             .With("Size", Size_)
@@ -1619,7 +1620,7 @@ void TGroup::SendGroup(
 
             if (srcNode->IsNetThrottling()) {
                 YT_TLOG_DEBUG("Blocks are not sent, because of net throttling")
-                    .With("Blocks", FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()))
+                    .With("Blocks", FormatBlockIndexRange(FirstBlockIndex_, GetEndBlockIndex()))
                     .With("SrcAddress", srcNode->GetDefaultAddress())
                     .With("DstAddress", dstNode->GetDefaultAddress());
                 continue;
@@ -1630,7 +1631,7 @@ void TGroup::SendGroup(
             writer->AccountTraffic(Size_, srcNode->GetDescriptor(), dstNode->GetDescriptor());
 
             YT_TLOG_DEBUG("Blocks are sent")
-                .With("Blocks", FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()))
+                .With("Blocks", FormatBlockIndexRange(FirstBlockIndex_, GetEndBlockIndex()))
                 .With("SrcAddress", srcNode->GetDefaultAddress())
                 .With("DstAddress", dstNode->GetDefaultAddress());
         } else {
@@ -1699,7 +1700,7 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
     }
 
     YT_TLOG_DEBUG("Processing blocks")
-        .With("Blocks", FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()));
+        .With("Blocks", FormatBlockIndexRange(FirstBlockIndex_, GetEndBlockIndex()));
 
     std::vector<TNodePtr> nodesWithPossibleToSendBlocks;
     bool emptyNodeFound = false;
