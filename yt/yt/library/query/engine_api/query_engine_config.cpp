@@ -32,6 +32,10 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("expression_builder_version", &TThis::ExpressionBuilderVersion)
         .Optional();
 
+    registrar.Parameter("max_projection_count", &TThis::MaxProjectionCount)
+        .GreaterThan(0)
+        .Default(DefaultMaxProjectionCount);
+
     registrar.Parameter("codegen_optimization_level", &TThis::OptimizationLevel)
         .Optional();
 
