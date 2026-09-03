@@ -239,12 +239,9 @@ void TSchedulingPolicy::UnregisterOperation(const TPoolTreeOperationElement* ele
     auto it = GetIteratorOrCrash(DisabledOperations_, element->GetOperationId());
     const auto& operation = it->second;
 
-    // NB(yaishenka): DisableOperation(true) removes all assignments before UnregisterOperation.
-    // However, if DisableOperation(false) was called (e.g. controller agent failure) and the
-    // operation was never re-enabled, Reviving assignments may remain.
-    for (const auto& assignment : GetItems(operation->Assignments())) {
-        RemoveAssignment(assignment);
-    }
+    // NB(yaishenka): All assignments are necessarily removed in DisableOperation(true),
+    // which is always called before UnregisterOperation.
+    YT_VERIFY(operation->Assignments().empty());
 
     DisabledOperations_.erase(it);
 
@@ -329,18 +326,28 @@ void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, boo
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    auto operationIt = EnabledOperations_.find(element->GetOperationId());
-    if (operationIt == EnabledOperations_.end()) {
-        YT_LOG_DEBUG("Operation was not enabled (OperationId: %v)", element->GetOperationId());
-        return;
+    auto operationId = element->GetOperationId();
+
+    TOperationPtr operation;
+    bool wasEnabled = false;
+    if (auto operationIt = EnabledOperations_.find(operationId); operationIt != EnabledOperations_.end()) {
+        wasEnabled = true;
+        operation = operationIt->second;
+        EnabledOperations_.erase(operationIt);
+
+        EmplaceOrCrash(DisabledOperations_, operationId, operation);
+
+        operation->SetEnabled(false);
+    } else {
+        // NB(yaishenka): The operation may have never been enabled: revival registers its
+        // allocations, assignments and hierarchical resource usage while the operation still sits
+        // in DisabledOperations_, and the operation may finish before EnableOperation runs.
+        // All of that still has to be released below.
+        operation = GetOrCrash(DisabledOperations_, operationId);
+
+        YT_LOG_DEBUG("Disabling operation that was never enabled (OperationId: %v)",
+            operationId);
     }
-
-    auto operation = operationIt->second;
-    EnabledOperations_.erase(operationIt);
-
-    EmplaceOrCrash(DisabledOperations_, operation->GetId(), operation);
-
-    operation->SetEnabled(false);
 
     if (markAsNonAlive) {
         // NB(yaishenka): Do not preempt - allocations are already aborted by strategy.
@@ -360,11 +367,24 @@ void TSchedulingPolicy::DisableOperation(TPoolTreeOperationElement* element, boo
 
     DropPendingAllocationsForOperation(operation);
     operation->RemoveAllAllocations();
-    element->ReleaseResources(markAsNonAlive);
 
-    YT_LOG_DEBUG("Operation disabled (OperationId: %v, MarkAsNonAlive: %v)",
-        operation->GetId(),
-        markAsNonAlive);
+    // NB(yaishenka): A dry-run policy must not mutate the real resource tree. In this mode the
+    // classic policy is the main one and releases the element's resources itself; symmetrically,
+    // a dry-run policy never adds usage, since RegisterAllocationsFromRevivedOperation is only
+    // called on the main policy.
+    if (Config_->Mode != EGpuSchedulingPolicyMode::DryRun) {
+        element->ReleaseResources(markAsNonAlive);
+    }
+
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationDisabled, TreeId_)
+        .Item("operation_id").Value(operationId)
+        .Item("mark_as_non_alive").Value(markAsNonAlive)
+        .Item("was_enabled").Value(wasEnabled);
+
+    YT_LOG_DEBUG("Operation disabled (OperationId: %v, MarkAsNonAlive: %v, WasEnabled: %v)",
+        operationId,
+        markAsNonAlive,
+        wasEnabled);
 }
 
 void TSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
@@ -372,6 +392,10 @@ void TSchedulingPolicy::RegisterAllocationsFromRevivedOperation(
     std::vector<TAllocationPtr> allocations)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+    // NB(yaishenka): ReviveAllocation adds usage to the resource tree, which a dry-run policy must
+    // never do. DisableOperation relies on this: it skips ReleaseResources in dry-run mode.
+    YT_VERIFY(Config_->Mode != EGpuSchedulingPolicyMode::DryRun);
 
     auto operation = GetOrCrash(DisabledOperations_, element->GetOperationId());
 
@@ -408,6 +432,12 @@ void TSchedulingPolicy::ReviveAllocation(
                 .AllocationGroupName = allocation->AllocationGroupName(),
             });
 
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AllocationRevived, TreeId_)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("allocation_id").Value(allocationId)
+            .Item("node_id").Value(nodeId)
+            .Item("orphan").Value(true);
+
         YT_LOG_DEBUG("Allocation revived as orphan (OperationId: %v, AllocationId: %v, NodeId: %v)",
             operation->GetId(),
             allocationId,
@@ -441,6 +471,12 @@ void TSchedulingPolicy::ReviveAllocation(
         auto allocationState = New<TAllocationState>(allocationId, nodeId, newAssignment, resourceUsage);
         newAssignment->AddAllocation(allocationState);
     }
+
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::AllocationRevived, TreeId_)
+        .Item("operation_id").Value(operation->GetId())
+        .Item("allocation_id").Value(allocationId)
+        .Item("node_id").Value(nodeId)
+        .Item("orphan").Value(false);
 
     YT_LOG_DEBUG(
         "Allocation revived (OperationId: %v, AllocationId: %v, AssignmentId: %v, NodeId: %v)",

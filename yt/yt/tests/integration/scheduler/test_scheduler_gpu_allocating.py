@@ -31,7 +31,8 @@ from yt.test_helpers import are_almost_equal
 
 from yt_gpu_scheduler_helpers import (
     get_operation_from_gpu_policy_orchid, get_node_from_gpu_policy_orchid, get_operation_gpu_assignments_from_gpu_policy_orchid,
-    wait_for_operations_in_gpu_policy_orchid, wait_for_assignments_in_gpu_policy_orchid, check_assignment_from_gpu_policy_orchid, check_operation_from_gpu_policy_orchid,
+    wait_for_operations_in_gpu_policy_orchid, wait_for_operation_registered_in_gpu_policy_orchid,
+    wait_for_assignments_in_gpu_policy_orchid, check_assignment_from_gpu_policy_orchid, check_operation_from_gpu_policy_orchid,
     check_gpu_allocations_from_gpu_policy_orchid, wait_for_gpu_allocations_empty_in_gpu_policy_orchid,
     wait_for_allocation_preempted, wait_for_gpu_event, read_gpu_events, is_default_guid,
 )
@@ -2785,6 +2786,12 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
 
         wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == self.NUM_NODES)
 
+    def _scheduler_log_file(self):
+        return self.path_to_run + "/logs/scheduler-0.json.log"
+
+    def _scheduler_address(self):
+        return ls("//sys/scheduler/instances")[0]
+
     @authors("yaishenka")
     def test_revival_rescues_reviving_assignment(self):
         # Scenario: operation with a running GPU allocation, controller agent restarts.
@@ -3378,6 +3385,255 @@ class TestAllocationGpuSchedulingPolicyRevival(YTEnvSetup):
         # nothing has to be preempted
         assert len(get_operation_gpu_assignments_from_gpu_policy_orchid(reviving_operation)) == 1
         assert len(get_operation_gpu_assignments_from_gpu_policy_orchid(contender)) == 0
+
+    @authors("yaishenka")
+    def test_abort_during_revival_before_operation_is_enabled(self):
+        # The delay parks FinishOperationMaterialization before EnableOperation, so the abort lands
+        # while the revived operation is still in DisabledOperations_ with its allocation's usage
+        # already on the resource tree element. That usage must be released even though the
+        # operation was never enabled.
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            spec={"testing": {"delay_inside_materialize_scheduler": {"duration": 2000, "type": "async"}}},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+        original_allocation_id = list(get_operation_from_gpu_policy_orchid(op)["allocations"].keys())[0]
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        # The scheduler is back, but the operation reaches the policy orchid only once it has been
+        # re-registered in the tree.
+        wait_for_operation_registered_in_gpu_policy_orchid(op)
+
+        # The revived allocation is registered, so its usage already sits on the resource tree
+        # element, while FinishOperationMaterialization is still parked before EnableOperation.
+        wait(lambda: original_allocation_id in get_operation_from_gpu_policy_orchid(op)["allocations"])
+        assert not get_operation_from_gpu_policy_orchid(op)["enabled"]
+
+        op.abort()
+
+        wait_operation_unregistered(op.id)
+
+        # The teardown must have taken the never-enabled branch. Without this the test would also
+        # pass if the parked window closed early and the enabled branch ran instead - that branch
+        # worked before the fix, so it would cover nothing.
+        event = wait_for_gpu_event(scheduler_log_file, from_barrier, "operation_disabled", op=op)
+        assert not event["was_enabled"]
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="gpu") + "/resource_usage/gpu") == 0)
+
+        # The scheduler is still alive and still schedules: a fresh operation gets its assignment.
+        # NB: the tree is pinned explicitly — an unpinned operation started this soon after the
+        # restart was observed to register in "default" only.
+        another_op = run_sleeping_vanilla(
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+        wait_for_assignments_in_gpu_policy_orchid(another_op, assignment_count=1, exactly=True)
+
+        another_op.abort()
+        wait_operation_unregistered(another_op.id)
+
+    @authors("yaishenka")
+    def test_controller_agent_restart_during_revival_before_operation_is_enabled(self):
+        # The same parked window, but the operation is disabled with markAsNonAlive=false
+        # (controller agent disconnect) instead of being unregistered. The never-enabled operation
+        # already owns a revived assignment and its resource usage, so the teardown must mark the
+        # assignment Reviving and drop the allocation state. Otherwise the next revival adds the
+        # usage a second time and trips YT_VERIFY(assignment->Reviving) in ReviveAllocation.
+
+        # The parked window has to outlast the scheduler noticing the agent is gone, which is
+        # governed by this timeout (10s by default in tests). Shortening it keeps the materialization
+        # delay - paid again on every materialization - small.
+        update_scheduler_config("controller_agent_tracker/heartbeat_timeout", 3000)
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            spec={"testing": {"delay_inside_materialize_scheduler": {"duration": 8000, "type": "async"}}},
+        )
+
+        wait_for_operation_registered_in_gpu_policy_orchid(op)
+        wait(lambda: len(get_operation_gpu_assignments_from_gpu_policy_orchid(op)) == 1)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+        allocation_id = list(get_operation_from_gpu_policy_orchid(op)["allocations"].keys())[0]
+
+        # Both revivals below revive from this snapshot: the controller agent is not restarted
+        # until the block further down, so it keeps serving the same one.
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait_for_operation_registered_in_gpu_policy_orchid(op)
+        wait(lambda: allocation_id in get_operation_from_gpu_policy_orchid(op)["allocations"])
+        assert not get_operation_from_gpu_policy_orchid(op)["enabled"]
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            # DisableOperation(markAsNonAlive=false) on the never-enabled operation: the assignment
+            # survives marked Reviving and the allocation state is dropped. The enabled branch does
+            # exactly the same to the assignment, so the operation has to be checked to be still
+            # disabled on every poll - otherwise a closed parked window would go unnoticed.
+            def assignment_is_reviving():
+                assert not get_operation_from_gpu_policy_orchid(op)["enabled"]
+                assignments = get_operation_gpu_assignments_from_gpu_policy_orchid(op)
+                return len(assignments) == 1 and assignments[0]["reviving"]
+
+            wait(assignment_is_reviving)
+            assert get_operation_from_gpu_policy_orchid(op)["allocations"] == {}
+
+        # The second revival rescues the same assignment instead of adding another one.
+        wait(lambda: get_operation_from_gpu_policy_orchid(op)["enabled"])
+
+        assignments = get_operation_gpu_assignments_from_gpu_policy_orchid(op)
+        assert len(assignments) == 1
+        assert not assignments[0]["reviving"]
+        assert assignments[0]["allocation_id"] == allocation_id
+
+        # The revived usage is accounted once.
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="gpu") + "/resource_usage/gpu") == 1)
+
+        op.abort()
+        wait_operation_unregistered(op.id)
+
+    @authors("yaishenka")
+    def test_revival_into_tree_where_operation_is_not_running(self):
+        # No race here. RegisterAllocationsFromRevivedOperation is gated on HasOperation while
+        # EnableOperation is gated on HasRunningOperation, so an operation that is registered in the
+        # GPU tree but not running in its pool gets the revived allocation's usage on its resource
+        # tree element and is never enabled. Materialization still happens because the operation is
+        # running in the second tree.
+
+        create_pool("limited", pool_tree="gpu")
+
+        op = run_sleeping_vanilla(
+            spec={
+                "pool_trees": ["default", "gpu"],
+                "scheduling_options_per_pool_tree": {"gpu": {"pool": "limited"}},
+            },
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+        allocation_id = list(get_operation_from_gpu_policy_orchid(op)["allocations"].keys())[0]
+
+        op.wait_for_fresh_snapshot()
+
+        # Closing the pool for new running operations only takes effect on admission, so the
+        # operation keeps running until the restart re-admits it - and then it cannot be.
+        set("//sys/pool_trees/gpu/limited/@max_running_operation_count", 0)
+        wait(lambda: get(scheduler_orchid_pool_path("limited", tree="gpu") + "/max_running_operation_count") == 0)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait_for_operation_registered_in_gpu_policy_orchid(op)
+        wait(lambda: allocation_id in get_operation_from_gpu_policy_orchid(op)["allocations"])
+
+        # Permanently disabled in this tree: nothing will ever enable it, so the revived usage on
+        # the resource tree element is released only by DisableOperation on unregistration.
+        # NB: the pool's orchid usage cannot be used here, it does not account a pending operation.
+        assert not get_operation_from_gpu_policy_orchid(op)["enabled"]
+        assert get_operation_from_gpu_policy_orchid(op)["allocations"][allocation_id]["resource_usage"]["gpu"] == 1
+
+        op.abort()
+
+        wait_operation_unregistered(op.id)
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="gpu") + "/resource_usage/gpu") == 0)
+
+        # The scheduler survived and still schedules in this tree.
+        another_op = run_sleeping_vanilla(
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+        wait_for_assignments_in_gpu_policy_orchid(another_op, assignment_count=1, exactly=True)
+
+        another_op.abort()
+        wait_operation_unregistered(another_op.id)
+
+    @authors("yaishenka")
+    def test_abort_during_revival_with_orphan_allocation(self):
+        # ReviveAllocation takes its orphan branch when the allocation's node is not registered in
+        # the policy: the usage still lands on the resource tree element, but the allocation is
+        # parked in PendingRevivedAllocations_ with no assignment. Reaching that state on an
+        # operation that is never enabled is what exercises DropPendingAllocationsForOperation in
+        # the never-enabled teardown.
+
+        # Expire the banned node's lease quickly, so it leaves the policy within the revival delay.
+        # NB: node_reconnection_timeout is a pool tree option, setting it here would do nothing.
+        update_scheduler_config("node_registration_timeout", 1000)
+        update_scheduler_config("node_heartbeat_timeout", 1000)
+
+        nodes = list(ls("//sys/cluster_nodes"))
+
+        op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            spec={
+                "testing": {
+                    "delay_inside_register_allocations_from_revived_operation": 5000,
+                    "delay_inside_materialize_scheduler": {"duration": 5000, "type": "async"},
+                },
+                "scheduling_tag_filter": nodes[0],
+            },
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=1, exactly=True)
+        wait(lambda: len(get_operation_from_gpu_policy_orchid(op)["allocations"]) == 1)
+
+        operation = get_operation_from_gpu_policy_orchid(op)
+        target_node = operation["assignments"][0]["node_address"]
+        allocation_id = list(operation["allocations"].keys())[0]
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        # Revival is parked by the delay; drop the node so that ReviveAllocation cannot find it.
+        # Allocation updates for the still-disabled operation are postponed, so the orphan state
+        # survives until the abort below.
+        set_node_banned(target_node, True, wait_for_master=True, wait_for_scheduler=True)
+
+        wait_for_operation_registered_in_gpu_policy_orchid(op)
+        wait(lambda: allocation_id in get_operation_from_gpu_policy_orchid(op)["allocations"])
+
+        # Orphan: usage on the element, no assignment, and still parked before EnableOperation.
+        # The orchid cannot tell this apart from a lost ban race, where the node was found, an
+        # assignment was created and UnregisterNode then removed it - hence the event.
+        event = wait_for_gpu_event(
+            scheduler_log_file, from_barrier, "allocation_revived", op=op, allocation_id=allocation_id)
+        assert event["orphan"]
+
+        wait_for_assignments_in_gpu_policy_orchid(op, assignment_count=0, exactly=True)
+        assert not get_operation_from_gpu_policy_orchid(op)["enabled"]
+        assert get_operation_from_gpu_policy_orchid(op)["allocations"][allocation_id]["resource_usage"]["gpu"] == 1
+
+        op.abort()
+
+        wait_operation_unregistered(op.id)
+
+        set_node_banned(target_node, False, wait_for_master=True, wait_for_scheduler=True)
+
+        # The scheduler survived and still schedules.
+        another_op = run_sleeping_vanilla(
+            spec={"pool_trees": ["gpu"]},
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+        wait_for_assignments_in_gpu_policy_orchid(another_op, assignment_count=1, exactly=True)
+
+        another_op.abort()
+        wait_operation_unregistered(another_op.id)
 
 ##################################################################
 

@@ -26,10 +26,12 @@ DEFINE_ENUM(EGpuAssignmentPlanningStage,
 DEFINE_ENUM(EGpuSchedulingLogEventType,
     (OperationRegistered)
     (OperationUnregistered)
+    (OperationDisabled)
     (AssignmentAdded)
     (AssignmentPreempted)
     (AllocationScheduled)
     (AllocationPreempted)
+    (AllocationRevived)
     (OperationBoundToModule)
     (ModulesInfo)
     (NodesInfo)
