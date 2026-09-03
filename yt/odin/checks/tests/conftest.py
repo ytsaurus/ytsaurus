@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from yt_odin.test_helpers import yt_env, yt_env_two_clusters  # noqa
+from yt_odin.test_helpers import yt_env, yt_env_two_clusters, yt_env_with_tagged_memory_profiling  # noqa
 
 pytest_plugins = [
     "yt_odin.test_helpers",

@@ -808,6 +808,7 @@ class TestJobProxyJobApi(YTEnvSetup):
 
 class TestJobProxyMemoryProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True

@@ -422,6 +422,8 @@ class YTEnvSetup(object):
 
     DELTA_LOCAL_YT_CONFIG = {}
 
+    ENABLE_TCMALLOC_PROFILING = False
+
     USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
     USE_SLOT_USER_ID = None  # If set explicitly, overrides USE_PORTO.
     JOB_ENVIRONMENT_TYPE = None  # "porto", "cri"
@@ -749,6 +751,9 @@ class YTEnvSetup(object):
 
         local_yt_config = {}
         cls._apply_effective_config_patch(local_yt_config, "DELTA_LOCAL_YT_CONFIG", index)
+
+        if not cls.get_param("ENABLE_TCMALLOC_PROFILING", index):
+            local_yt_config.setdefault("tcmalloc_profile_sampling_rate", 0)
 
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,

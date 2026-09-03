@@ -2500,6 +2500,8 @@ def init_singletons(config, yt_config):
     })
     set_at(config, "address_resolver/localhost_fqdn", yt_config.fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
+    if yt_config.tcmalloc_profile_sampling_rate is not None:
+        set_at(config, "tcmalloc/profile_sampling_rate", yt_config.tcmalloc_profile_sampling_rate)
     set_at(config, "enable_ref_counted_tracker_profiling", yt_config.enable_resource_tracking)
     set_at(config, "resource_tracker/enable", yt_config.enable_resource_tracking)
     if yt_config.mock_tvm_id is not None:
