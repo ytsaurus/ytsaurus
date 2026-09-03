@@ -20,6 +20,7 @@ using namespace NApi;
 using ::testing::_;
 using ::testing::InSequence;
 using ::testing::Return;
+using ::testing::StartsWith;
 using ::testing::StrictMock;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,7 +150,7 @@ TEST(TWaitPipelineStateTest, AttachesLastErrorWhenWaitDeadlineExpires)
             TDuration::Seconds(1));
         ADD_FAILURE() << "WaitPipelineState did not throw";
     } catch (const TErrorException& ex) {
-        EXPECT_EQ(ex.Error().GetMessage(), "Wait timed out");
+        EXPECT_THAT(ex.Error().GetMessage(), StartsWith("Timed out after"));
         ASSERT_EQ(ex.Error().InnerErrors().size(), 1u);
         EXPECT_EQ(ex.Error().InnerErrors()[0].GetMessage(), "State request failed at the deadline");
     }
@@ -168,7 +169,64 @@ TEST(TWaitPipelineStateTest, ZeroWaitDoesNotIssueRequest)
             "//tmp/pipeline",
             EPipelineState::Stopped,
             TDuration::Zero()),
-        "Wait timed out");
+        "Timed out after 0 seconds waiting for pipeline state \"stopped\"; "
+        "the pipeline is still in state \"unknown\"");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError WaitPipelineStateUntilTimeout(EPipelineState targetState, EPipelineState observedState)
+{
+    auto client = New<StrictMock<TMockClient>>();
+    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
+        .WillRepeatedly(Return(MakeFuture(TPipelineState{.State = observedState})));
+
+    try {
+        WaitPipelineState(client, "//tmp/pipeline", targetState, TDuration::Seconds(2));
+    } catch (const TErrorException& ex) {
+        return ex.Error();
+    }
+    ADD_FAILURE() << "WaitPipelineState did not throw";
+    return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TWaitPipelineStateTest, ReportsStatesAndTimeoutWhenWaitDeadlineExpires)
+{
+    auto error = WaitPipelineStateUntilTimeout(EPipelineState::Working, EPipelineState::Pausing);
+
+    EXPECT_EQ(
+        error.GetMessage(),
+        "Timed out after 2 seconds waiting for pipeline state \"working\"; "
+        "the pipeline is still in state \"pausing\"");
+    EXPECT_EQ(error.Attributes().Get<std::string>("target_state"), "working");
+    EXPECT_EQ(error.Attributes().Get<std::string>("last_observed_state"), "pausing");
+    EXPECT_EQ(error.Attributes().Get<TDuration>("timeout"), TDuration::Seconds(2));
+}
+
+TEST(TWaitPipelineStateTest, HintsAtNonGracefulUpdateWhenDrainStalls)
+{
+    auto error = WaitPipelineStateUntilTimeout(EPipelineState::Stopped, EPipelineState::Draining);
+
+    EXPECT_EQ(
+        error.GetMessage(),
+        "Timed out after 2 seconds waiting for pipeline state \"stopped\"; "
+        "the pipeline is still in state \"draining\"; "
+        "if it cannot drain (for example, its jobs fail every epoch), "
+        "set YT_FLOW_GRACEFUL_UPDATE=0 to pause the pipeline instead of stopping it; "
+        "see the hotfix constraints in the release documentation before doing so");
+}
+
+TEST(TWaitPipelineStateTest, NoHintWhenDrainingIsNotBlockingStop)
+{
+    // The post-start wait can also observe Draining, but there pausing is not the escape.
+    auto error = WaitPipelineStateUntilTimeout(EPipelineState::Working, EPipelineState::Draining);
+
+    EXPECT_EQ(
+        error.GetMessage(),
+        "Timed out after 2 seconds waiting for pipeline state \"working\"; "
+        "the pipeline is still in state \"draining\"");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

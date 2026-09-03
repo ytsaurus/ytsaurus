@@ -116,6 +116,33 @@ void WaitRelativelySmallTime(TInstant activityStart, TDuration minWait, TDuratio
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TError MakeWaitPipelineStateTimeoutError(
+    EPipelineState targetState,
+    EPipelineState lastObservedState,
+    TDuration waitTimeout)
+{
+    // A graceful update stops the pipeline before installing the new specs, so a pipeline that
+    // cannot drain blocks the very update that would fix it; pausing skips the drain.
+    constexpr TStringBuf GracefulUpdateHint =
+        "; if it cannot drain (for example, its jobs fail every epoch), "
+        "set YT_FLOW_GRACEFUL_UPDATE=0 to pause the pipeline instead of stopping it; "
+        "see the hotfix constraints in the release documentation before doing so";
+
+    const bool drainStalled =
+        targetState == EPipelineState::Stopped &&
+        lastObservedState == EPipelineState::Draining;
+
+    return TError(
+        "Timed out after %v seconds waiting for pipeline state %Qlv; the pipeline is still in state %Qlv%v",
+        waitTimeout.Seconds(),
+        targetState,
+        lastObservedState,
+        drainStalled ? GracefulUpdateHint : TStringBuf())
+        .With("target_state", targetState)
+        .With("last_observed_state", lastObservedState)
+        .With("timeout", waitTimeout);
+}
+
 static void WaitPipelineState(
     NApi::IClientPtr client,
     const TYPath& root,
@@ -158,8 +185,7 @@ static void WaitPipelineState(
         while (true) {
             const auto now = TInstant::Now();
             if (now >= deadline) {
-                THROW_ERROR_EXCEPTION("Wait timed out")
-                    .With("timeout", waitTimeout)
+                THROW_ERROR MakeWaitPipelineStateTimeoutError(targetState, currentState, waitTimeout)
                     .WithIf(!lastError.IsOK(), lastError);
             }
 

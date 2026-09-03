@@ -30,6 +30,17 @@ If the hotfix also changes the table configuration in {{product-name}}, follow t
 
 A release also relies on `FlowCoreTarget` to keep processes built from a different commit out of the pipeline — see [Protection against zombie processes](../../../flow/release/flow-core-target.md).
 
+## Recovering from a bad spec {#recovery-from-bad-spec}
+
+If the pipeline jobs fail every epoch (for example, because of an error in the static spec), the pipeline cannot drain and stays in the `Draining` state, while by default an update first stops the pipeline and only then uploads the new spec. A fix cannot be rolled out the usual way in this situation — the launch fails on timeout with an error like `Timed out after ... waiting for pipeline state "stopped"`.
+
+The same error appears when the pipeline simply takes longer than the timeout to drain (a large backlog, a source that has not gone empty yet). Before disabling the drain, confirm from the job logs that the pipeline really cannot drain: pausing leaves intermediate messages in the queues, which is exactly what draining exists to avoid.
+
+Roll out the fix in two steps:
+
+1. Run the update with `YT_FLOW_GRACEFUL_UPDATE=0`: the pipeline is paused instead of stopped, and the new spec is applied without draining. This update is subject to the [hotfix](#hotfix) constraints, including the ban on changing the topology and the stream schemas, so make only the changes that bring the jobs back to a working state.
+2. Once the jobs work again and the pipeline is able to drain, roll out the topology and stream schema changes with a regular update that drains.
+
 ## See also
 
 - [Initial deployment](../../../flow/release/launch-vanilla.md)
