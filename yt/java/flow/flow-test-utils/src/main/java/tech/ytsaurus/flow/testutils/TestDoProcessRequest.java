@@ -12,6 +12,7 @@ import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.Timer;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.flow.state.ExternalState;
 import tech.ytsaurus.flow.state.InternalState;
 import tech.ytsaurus.flow.state.JoinedExternalStateDescriptor;
@@ -140,7 +141,9 @@ public class TestDoProcessRequest {
         ) {
             joinedExternalStates
                     .computeIfAbsent(descriptor.getName(), name -> new HashMap<>())
-                    .put(key, new ExternalState(value));
+                    .put(key, new ExternalState(
+                            CodecRegistry.getInstance().getPayloadCodec()
+                                    .codecFor(value.getSchema()).encode(value)));
             return this;
         }
 

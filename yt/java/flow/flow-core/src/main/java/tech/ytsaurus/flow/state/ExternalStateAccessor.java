@@ -25,14 +25,16 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
 
     /**
      * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException if a value is stored and the holder has no schema.
      */
     @Override
     public Optional<Payload> get() {
         ExternalState state = statesHolder.get(key.getRow());
-        if (state == null || state.isReset() || state.getValue() == null) {
+        if (state == null || state.isReset()) {
             return Optional.empty();
         }
-        return Optional.of(state.getValue());
+        return Optional.of(state.decode(statesHolder.valueCodec()));
     }
 
     /**
@@ -48,12 +50,14 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
 
     /**
      * {@inheritDoc}
+     *
+     * @throws UnsupportedOperationException if the holder has no schema.
      */
     @Override
     public void set(Payload value) {
         statesHolder.set(
                 key.getRow(),
-                new ExternalState(false, value)
+                new ExternalState(statesHolder.encodeValue(value))
         );
     }
 

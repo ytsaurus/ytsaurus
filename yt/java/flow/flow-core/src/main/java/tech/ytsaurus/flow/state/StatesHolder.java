@@ -3,11 +3,14 @@ package tech.ytsaurus.flow.state;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.protobuf.ByteString;
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.PayloadBuilder;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeConvertible;
@@ -36,6 +39,10 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      * Memoized empty payload returned by {@link #emptyStatePayload}.
      */
     private @Nullable Payload emptyStatePayload;
+    /**
+     * Memoized codec bound to {@link #stateSchema}, returned by {@link #valueCodec}.
+     */
+    private @Nullable ByteStringCodec<Payload> valueCodec;
 
     public StatesHolder(
             String name,
@@ -182,6 +189,35 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
                             .formatted(name)
             );
         }
+    }
+
+    /**
+     * Encodes a payload into the wire bytes stored for it.
+     *
+     * @param value payload to encode.
+     * @return Wire bytes of the state value.
+     * @throws UnsupportedOperationException if this holder has no schema.
+     */
+    ByteString encodeValue(Payload value) {
+        return valueCodec().encode(value);
+    }
+
+    /**
+     * Memoized payload codec bound to this holder's state schema, used to (de)code the wire
+     * bytes of row-format external states.
+     *
+     * @return Codec bound to the state schema.
+     * @throws UnsupportedOperationException if this holder has no schema.
+     */
+    ByteStringCodec<Payload> valueCodec() {
+        if (stateSchema == null) {
+            throw new UnsupportedOperationException(
+                    "State '" + name + "' has no schema for its values");
+        }
+        if (valueCodec == null) {
+            valueCodec = CodecRegistry.getInstance().getPayloadCodec().codecFor(stateSchema);
+        }
+        return valueCodec;
     }
 
     /**

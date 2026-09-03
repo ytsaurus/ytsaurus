@@ -178,8 +178,7 @@ class ProtoStateAccessorTest {
     @Test
     void mapperRoundTripsProtoFormat() {
         var codecRegistry = CodecRegistry.getInstance();
-        var mapper = new ExternalStateProtoMapper(
-                KEY_SCHEMA, codecRegistry.getKeyCodec(), codecRegistry.getPayloadCodec());
+        var mapper = new ExternalStateProtoMapper(KEY_SCHEMA, codecRegistry.getKeyCodec());
 
         var protoState = TState.newBuilder()
                 .setName(STATE_NAME)
@@ -211,8 +210,7 @@ class ProtoStateAccessorTest {
     @Test
     void mapperSendsEmptyMessagePayload() {
         var codecRegistry = CodecRegistry.getInstance();
-        var mapper = new ExternalStateProtoMapper(
-                KEY_SCHEMA, codecRegistry.getKeyCodec(), codecRegistry.getPayloadCodec());
+        var mapper = new ExternalStateProtoMapper(KEY_SCHEMA, codecRegistry.getKeyCodec());
 
         var holder = protoHolder();
         // An all-default message serializes to zero bytes; it must still be sent.

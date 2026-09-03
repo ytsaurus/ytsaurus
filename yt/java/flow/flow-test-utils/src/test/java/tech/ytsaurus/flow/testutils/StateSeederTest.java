@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.PayloadBuilder;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.flow.state.ExternalState;
 import tech.ytsaurus.flow.state.InternalState;
 import tech.ytsaurus.flow.state.StateAccessor;
@@ -47,7 +48,7 @@ class StateSeederTest {
     }
 
     @Test
-    void capturesExternalSetAsPayload() {
+    void capturesExternalSetAsWireBytes() {
         var value = new PayloadBuilder(STATE_SCHEMA).set("count", 7L).finish();
 
         var seed = StateSeeder.capture(
@@ -56,7 +57,9 @@ class StateSeederTest {
         assertEquals(CapturedSeed.Kind.EXTERNAL, seed.kind());
         var state = assertInstanceOf(ExternalState.class, seed.state());
         assertFalse(state.isReset());
-        assertEquals(7L, state.getValue().get("count", Long.class));
+        var decoded = CodecRegistry.getInstance().getPayloadCodec()
+                .codecFor(STATE_SCHEMA).decode(state.getValue());
+        assertEquals(7L, decoded.get("count", Long.class));
     }
 
     @Test

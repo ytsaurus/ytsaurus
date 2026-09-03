@@ -20,6 +20,7 @@ import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.PayloadBuilder;
 import tech.ytsaurus.flow.row.Timer;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -82,7 +83,9 @@ class StateDescriptorTest {
         var joinedHolder = new StatesHolder<ExternalState>(JOINED_STATE, keySchema, joinedStateSchema);
         joinedHolder.set(
                 joinedKey.getRow(),
-                new ExternalState(new PayloadBuilder(joinedStateSchema).set("count", 42L).finish())
+                new ExternalState(CodecRegistry.getInstance().getPayloadCodec()
+                        .codecFor(joinedStateSchema)
+                        .encode(new PayloadBuilder(joinedStateSchema).set("count", 42L).finish()))
         );
         joined.put(JOINED_STATE, joinedHolder);
 
