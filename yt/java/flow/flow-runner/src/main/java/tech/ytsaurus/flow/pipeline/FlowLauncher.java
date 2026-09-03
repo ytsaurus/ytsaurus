@@ -9,8 +9,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import org.jspecify.annotations.Nullable;
@@ -179,37 +183,67 @@ public class FlowLauncher {
     /** Ships every companion jar into {@code worker.local_files}. */
     private void shipCompanionJars(YTreeMapNode worker) {
         YTreeMapNode localFiles = getOrCreateMap(worker, "local_files");
+        // Seed with the user's own entries so a discovered jar never overwrites them.
+        Set<String> usedNames = new HashSet<>(localFiles.asMap().keySet());
         for (Path jar : discoverCompanionJars()) {
-            String inJobName = Path.of(COMPANION_JARS_DIR, jar.getFileName().toString()).toString();
+            String fileName = jar.getFileName().toString();
+            String inJobName = Path.of(COMPANION_JARS_DIR, fileName).toString();
+            // Distinct jars may share a file name (e.g. two subprojects both emitting proto.jar);
+            // ship each under a distinct in-job name so the classpath glob picks all of them up.
+            for (int index = 2; !usedNames.add(inJobName); index++) {
+                inJobName = Path.of(COMPANION_JARS_DIR, index + "-" + fileName).toString();
+            }
             localFiles.put(inJobName, YTree.stringNode(jar.toAbsolutePath().toString()));
         }
         log.info("Shipping {} companion jars under {}", localFiles.asMap().size(), COMPANION_JARS_DIR);
     }
 
-    /** Enumerates the companion jars from the runner's {@code java.library.path} directories. */
+    /**
+     * Enumerates the companion jars to ship into the vanilla job: the jars under the runner's
+     * {@code java.library.path} directories, or, when there are none, the jar entries of
+     * {@code java.class.path}.
+     */
     protected List<Path> discoverCompanionJars() {
-        String libPath = System.getProperty("java.library.path", "");
-        List<Path> jars = new ArrayList<>();
-        for (String entry : libPath.split(File.pathSeparator)) {
-            if (entry.isEmpty()) {
-                continue;
-            }
-            Path dir = Paths.get(entry).toAbsolutePath();
-            if (!Files.isDirectory(dir)) {
-                continue;
-            }
-            try (Stream<Path> stream = Files.list(dir)) {
-                stream.filter(p -> p.getFileName().toString().endsWith(".jar")).forEach(jars::add);
+        return discoverCompanionJars(
+                System.getProperty("java.library.path", ""),
+                System.getProperty("java.class.path", ""));
+    }
+
+    /**
+     * The ya-built runner keeps every jar flat under the {@code java.library.path} directories, so
+     * they are preferred; a plain {@code java -cp ...} launch has no such directories, so the jar
+     * entries of {@code java.class.path} are shipped instead. Visible for tests.
+     */
+    static List<Path> discoverCompanionJars(String libraryPath, String classPath) {
+        Set<Path> jars = new LinkedHashSet<>();
+        pathEntries(libraryPath).filter(Files::isDirectory).forEach(dir -> {
+            try (Stream<Path> files = Files.list(dir)) {
+                files.filter(FlowLauncher::isJar).forEach(jars::add);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
+        });
+        if (jars.isEmpty()) {
+            pathEntries(classPath).filter(FlowLauncher::isJar).filter(Files::isRegularFile).forEach(jars::add);
         }
         if (jars.isEmpty()) {
             throw new IllegalStateException(
-                    "No companion jars found under java.library.path=" + libPath
+                    "No companion jars found under java.library.path=" + libraryPath
+                            + " or on java.class.path=" + classPath
                             + "; cannot ship the Java companion into the vanilla job");
         }
-        return jars;
+        return new ArrayList<>(jars);
+    }
+
+    /** The non-empty entries of a path-separated list, as absolute paths. */
+    private static Stream<Path> pathEntries(String pathList) {
+        return Arrays.stream(pathList.split(File.pathSeparator))
+                .filter(entry -> !entry.isEmpty())
+                .map(entry -> Paths.get(entry).toAbsolutePath());
+    }
+
+    private static boolean isJar(Path path) {
+        return path.getFileName().toString().endsWith(".jar");
     }
 
     /** Sets {@code task.layers} and {@code task.system_layer_path}; an empty layer list drops both. */

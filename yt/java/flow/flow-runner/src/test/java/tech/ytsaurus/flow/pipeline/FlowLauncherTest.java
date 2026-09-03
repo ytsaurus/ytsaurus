@@ -140,6 +140,92 @@ class FlowLauncherTest {
     }
 
     @Test
+    void testShipsCollidingJarNamesUnderDistinctNames() {
+        // Two subprojects may both emit e.g. proto.jar; neither copy may be silently dropped.
+        launcher = new FlowLauncher(env) {
+            @Override
+            protected List<Path> discoverCompanionJars() {
+                return List.of(Path.of("/a/proto.jar"), Path.of("/b/proto.jar"));
+            }
+        };
+
+        enrich();
+
+        Map<String, YTreeNode> localFiles = worker().getOrThrow("local_files").asMap();
+        assertEquals(2, localFiles.size());
+        assertEquals(
+                "/a/proto.jar",
+                localFiles.get(FlowLauncher.COMPANION_JARS_DIR + "/proto.jar").stringValue());
+        assertEquals(
+                "/b/proto.jar",
+                localFiles.get(FlowLauncher.COMPANION_JARS_DIR + "/2-proto.jar").stringValue());
+    }
+
+    @Test
+    void testKeepsUserSuppliedLocalFileOnNameCollision() {
+        launcher = new FlowLauncher(env) {
+            @Override
+            protected List<Path> discoverCompanionJars() {
+                return List.of(Path.of("/build/lib/proto.jar"));
+            }
+        };
+        worker().put("local_files", YTree.mapBuilder()
+                .key(FlowLauncher.COMPANION_JARS_DIR + "/proto.jar").value("/user/own-proto.jar")
+                .buildMap());
+
+        enrich();
+
+        Map<String, YTreeNode> localFiles = worker().getOrThrow("local_files").asMap();
+        assertEquals(2, localFiles.size());
+        assertEquals(
+                "/user/own-proto.jar",
+                localFiles.get(FlowLauncher.COMPANION_JARS_DIR + "/proto.jar").stringValue());
+        assertEquals(
+                "/build/lib/proto.jar",
+                localFiles.get(FlowLauncher.COMPANION_JARS_DIR + "/2-proto.jar").stringValue());
+    }
+
+    @Test
+    void testDiscoversJarsFromLibraryPathDirectories() throws IOException {
+        Path libDir = Files.createDirectory(tempDir.resolve("lib"));
+        Path libJar = Files.createFile(libDir.resolve("flow-core.jar"));
+        Path classpathJar = Files.createFile(tempDir.resolve("app.jar"));
+
+        List<Path> jars = FlowLauncher.discoverCompanionJars(libDir.toString(), classpathJar.toString());
+
+        // The classpath is ignored while the library path holds jars.
+        assertEquals(List.of(libJar.toAbsolutePath()), jars);
+    }
+
+    @Test
+    void testFallsBackToClasspathJarsForPlainLaunch() throws IOException {
+        Path appJar = Files.createFile(tempDir.resolve("app.jar"));
+        Path depJar = Files.createFile(tempDir.resolve("dep.jar"));
+        Path classesDir = Files.createDirectory(tempDir.resolve("classes"));
+        String classPath = String.join(
+                File.pathSeparator,
+                appJar.toString(),
+                classesDir.toString(),
+                depJar.toString(),
+                appJar.toString());
+
+        List<Path> jars = FlowLauncher.discoverCompanionJars("", classPath);
+
+        // Class directories are skipped and repeated entries collapse; the jar order survives.
+        assertEquals(List.of(appJar.toAbsolutePath(), depJar.toAbsolutePath()), jars);
+    }
+
+    @Test
+    void testDiscoveryFailsWithoutAnyJars() throws IOException {
+        Path classesDir = Files.createDirectory(tempDir.resolve("classes"));
+
+        var error = assertThrows(
+                IllegalStateException.class,
+                () -> FlowLauncher.discoverCompanionJars("", classesDir.toString()));
+        assertTrue(error.getMessage().contains("java.class.path"));
+    }
+
+    @Test
     void testAppliesPortoLayersFromConfigToBothTasks() {
         enrich();
 
