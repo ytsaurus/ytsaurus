@@ -226,7 +226,8 @@ def start(master_count=1,
           enable_auth=False,
           create_admin_user=False,
           enable_multidaemon=False,
-          address_resolver_config=None):
+          address_resolver_config=None,
+          tcmalloc_profile_sampling_rate=None):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -344,6 +345,7 @@ def start(master_count=1,
         create_admin_user=create_admin_user,
         address_resolver_config=address_resolver_config,
         enable_multidaemon=enable_multidaemon,
+        tcmalloc_profile_sampling_rate=tcmalloc_profile_sampling_rate,
     )
 
     environment = YTInstance(
