@@ -39,7 +39,7 @@ TChaosReplicaDescriptor GenerateDefaultReplica(
         .Path = path,
         .Mode = mode,
         .ContentType = contentType,
-        .ReplicationProgressTimestamp = MinTimestamp
+        .ReplicationProgressTimestamp = MinTimestamp,
     };
 }
 
@@ -110,7 +110,7 @@ TReplicationCardPtr CreateReplicationCard(std::span<TChaosReplicaDescriptor> rep
 
         replicaInfo.ReplicationProgress = TReplicationProgress{
             .Segments = {{EmptyKey(), replica.ReplicationProgressTimestamp}},
-            .UpperKey = MaxKey()
+            .UpperKey = MaxKey(),
         };
 
         replicaInfo.History.push_back(TReplicaHistoryItem{
@@ -129,7 +129,7 @@ TReplicationCardPtr CreateReplicationCard(std::span<TChaosReplicaDescriptor> rep
 TEST(TQueueReplicaSelectorTest, PreferLocal)
 {
     TLogger logger;
-    TQueueReplicaSelector queueReplicaSelector(logger, std::nullopt, false);
+    TQueueReplicaSelector queueReplicaSelector(logger, /*replicaBanDuration*/ std::nullopt, /*forceSameClusterQueue*/ false);
 
     auto replicationCardId = GenerateReplicationCardId();
     auto replicas = GenerateDefaultReplicas();
@@ -168,7 +168,7 @@ TEST(TQueueReplicaSelectorTest, PreferLocal)
 TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
 {
     TLogger logger;
-    TQueueReplicaSelector queueReplicaSelector(logger, 1, true);
+    TQueueReplicaSelector queueReplicaSelector(logger, /*replicaBanDuration*/ 1, /*forceSameClusterQueue*/ true);
     auto& bannedReplicaTracker = queueReplicaSelector.GetBannedReplicaTracker();
 
     auto replicationCardId = GenerateReplicationCardId();
@@ -259,7 +259,7 @@ TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
     }
 
     bannedReplicaTracker.SyncReplicas(replicationCard);
-    ASSERT_TRUE(!bannedReplicaTracker.IsReplicaBanned(asyncQueueReplicaId));
+    ASSERT_FALSE(bannedReplicaTracker.IsReplicaBanned(asyncQueueReplicaId));
 
     {
         auto result = queueReplicaSelector.PickQueueReplica(
@@ -279,7 +279,7 @@ TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
 TEST(TQueueReplicaSelectorTest, BanReplicas)
 {
     TLogger logger;
-    TQueueReplicaSelector queueReplicaSelector(logger, 1, false);
+    TQueueReplicaSelector queueReplicaSelector(logger, /*replicaBanDuration*/ 1, /*forceSameClusterQueue*/ false);
     auto& bannedReplicaTracker = queueReplicaSelector.GetBannedReplicaTracker();
 
     auto replicationCardId = GenerateReplicationCardId();
@@ -326,21 +326,21 @@ TEST(TQueueReplicaSelectorTest, BanReplicas)
             /*extraSameDcQueueClusters*/ {},
             now);
 
-        ASSERT_TRUE(result.IsOK());
-        EXPECT_EQ(selectedReplicaId, std::get<0>(result.Value()));
-        EXPECT_EQ(NullTimestamp, std::get<2>(result.Value()));
+        ASSERT_TRUE(repeatedResult.IsOK());
+        EXPECT_EQ(selectedReplicaId, std::get<0>(repeatedResult.Value()));
+        EXPECT_EQ(NullTimestamp, std::get<2>(repeatedResult.Value()));
     }
 
     // Ban selected queue. Only one remains.
     bannedReplicaTracker.BanReplica(selectedReplicaId, TError());
     auto lastReplica = queueReplicaSelector.PickQueueReplica(
         asyncDataReplicaId,
-            replicationCard,
-            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
-            /*extraSameDcQueueClusters*/ {},
-            now);
+        replicationCard,
+        replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+        /*extraSameDcQueueClusters*/ {},
+        now);
 
-    ASSERT_TRUE(result.IsOK());
+    ASSERT_TRUE(lastReplica.IsOK());
     auto lastQueueReplicaId = std::get<0>(lastReplica.Value());
     EXPECT_NE(selectedReplicaId, lastQueueReplicaId);
     EXPECT_EQ(NullTimestamp, std::get<2>(lastReplica.Value()));
@@ -349,10 +349,10 @@ TEST(TQueueReplicaSelectorTest, BanReplicas)
     bannedReplicaTracker.BanReplica(lastQueueReplicaId, TError());
     auto noneReplica = queueReplicaSelector.PickQueueReplica(
         asyncDataReplicaId,
-            replicationCard,
-            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
-            /*extraSameDcQueueClusters*/ {},
-            now);
+        replicationCard,
+        replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+        /*extraSameDcQueueClusters*/ {},
+        now);
 
     ASSERT_FALSE(noneReplica.IsOK());
 }
@@ -362,7 +362,7 @@ TEST(TQueueReplicaSelectorTest, BanReplicas)
 TEST(TBannedReplicaTrackerTest, SyncReplicas)
 {
     TLogger logger;
-    TBannedReplicaTracker bannedReplicaTracker(logger, 1);
+    TBannedReplicaTracker bannedReplicaTracker(logger, /*replicaBanDuration*/ 1);
 
     auto replicationCardId = GenerateReplicationCardId();
     auto replicas = GenerateDefaultReplicas();
@@ -372,7 +372,7 @@ TEST(TBannedReplicaTrackerTest, SyncReplicas)
     EXPECT_EQ(3, std::ssize(bannedReplicaTracker.GetBannedReplicas()));
 
     TReplicaId asyncQueueReplicaId;
-    for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+    for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
         if (replicaInfo.Mode == ETableReplicaMode::Async &&
             replicaInfo.ContentType == ETableReplicaContentType::Queue)
         {
@@ -381,7 +381,7 @@ TEST(TBannedReplicaTrackerTest, SyncReplicas)
         }
     }
 
-    auto asyncQueueReplicaInfo = replicationCard->Replicas[asyncQueueReplicaId];
+    auto asyncQueueReplicaInfo = GetOrCrash(replicationCard->Replicas, asyncQueueReplicaId);
 
     EraseOrCrash(replicationCard->Replicas, asyncQueueReplicaId);
     bannedReplicaTracker.SyncReplicas(replicationCard);
@@ -394,14 +394,14 @@ TEST(TBannedReplicaTrackerTest, SyncReplicas)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-TEST(TIterationTimeTrackerTest, TestSimple)
+TEST(TIterationTimeTrackerTest, Simple)
 {
     TIterationTimeTracker tracker(/*previousIterationWeight*/ 4, /*currentIterationWeight*/ 1, TDuration::Seconds(5));
-    TInstant now = TInstant::Now();
+    auto now = TInstant::Now();
     EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now), TDuration::Seconds(5));
     EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now + TDuration::Seconds(5)), TDuration::Seconds(5));
     EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now + TDuration::Seconds(10)), TDuration::Seconds(5));
+    EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now + TDuration::Seconds(20)), TDuration::Seconds(6));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -7,6 +7,7 @@ namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NLogging;
 
@@ -47,7 +48,7 @@ void TBannedReplicaTracker::SyncReplicas(const TReplicationCardPtr& replicationC
             IsReplicaEnabled(replicaInfo.State) &&
             !BannedReplicas_.contains(replicaId))
         {
-            EmplaceOrCrash(BannedReplicas_, replicaId, TBanInfo{0, TError()});
+            EmplaceOrCrash(BannedReplicas_, replicaId, TBanInfo{});
         }
     }
 
@@ -84,7 +85,7 @@ const T& ChooseReplica(const std::vector<T>& candidates, const TReplicaInfo& sel
 }
 
 TQueueReplicaSelector::TQueueReplicaSelector(
-    NLogging::TLogger logger,
+    TLogger logger,
     std::optional<int> replicaBanDuration,
     bool forceSameClusterQueue)
     : Logger(logger)
@@ -148,10 +149,10 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
         // NB: Allow this since sync replica could be catching up.
     }
 
-    auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
-        std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> candidates;
-        std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> sameDcCandidates;
-        std::optional<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> lastFetchedCandidate;
+    auto findFreshQueueReplica = [&] () -> std::tuple<TReplicaId, TReplicaInfo*> {
+        std::vector<std::tuple<TReplicaId, TReplicaInfo*>> candidates;
+        std::vector<std::tuple<TReplicaId, TReplicaInfo*>> sameDcCandidates;
+        std::optional<std::tuple<TReplicaId, TReplicaInfo*>> lastFetchedCandidate;
 
         bool isSelfReplicaInLastEra = oldestTimestamp >= selfReplica->History.back().Timestamp;
 
@@ -169,8 +170,7 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
 
             if (selfReplica->ContentType == ETableReplicaContentType::Data) {
                 if (ForceSameClusterQueue_ && isSelfReplicaInLastEra) {
-                    if (selfReplica->ClusterName == replicaInfo.ClusterName)
-                    {
+                    if (selfReplica->ClusterName == replicaInfo.ClusterName) {
                         return {replicaId, &replicaInfo};
                     } else if (extraSameDcQueueClusters.contains(replicaInfo.ClusterName)) {
                         sameDcCandidates.emplace_back(replicaId, &replicaInfo);
@@ -215,8 +215,8 @@ TQueueReplicaSelector::TReplicaOrError TQueueReplicaSelector::PickQueueReplica(
         return {};
     };
 
-    auto findSyncQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
-        std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp>> candidates;
+    auto findSyncQueueReplica = [&] () -> std::tuple<TReplicaId, TReplicaInfo*, TTimestamp> {
+        std::vector<std::tuple<TReplicaId, TReplicaInfo*, TTimestamp>> candidates;
         for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
             if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
                 continue;
@@ -300,7 +300,7 @@ TBannedReplicaTracker& TQueueReplicaSelector::GetBannedReplicaTracker()
 TIterationTimeTracker::TIterationTimeTracker(int previousIterationWeight, int currentIterationWeight, TDuration initialDuration)
     : PreviousIterationWeight_(previousIterationWeight)
     , CurrentIterationWeight_(currentIterationWeight)
-    , SmoothedItetationDuration_(initialDuration)
+    , SmoothedIterationDuration_(initialDuration)
 {
     YT_VERIFY(PreviousIterationWeight_ >= 0);
     YT_VERIFY(CurrentIterationWeight_ > 0);
@@ -312,15 +312,15 @@ TDuration TIterationTimeTracker::CalculateSmoothedIterationDuration(TInstant cur
         auto elapsedTime = currentIterationInstant - LastIterationInstant_;
 
         int weightSum = PreviousIterationWeight_ + CurrentIterationWeight_;
-        auto weigthedElapsedTime = elapsedTime * CurrentIterationWeight_;
-        auto weigthedPreviousTime = SmoothedItetationDuration_ * PreviousIterationWeight_;
+        auto weightedElapsedTime = elapsedTime * CurrentIterationWeight_;
+        auto weightedPreviousTime = SmoothedIterationDuration_ * PreviousIterationWeight_;
 
-        SmoothedItetationDuration_ = (weigthedElapsedTime + weigthedPreviousTime) / weightSum;
+        SmoothedIterationDuration_ = (weightedElapsedTime + weightedPreviousTime) / weightSum;
     }
 
     LastIterationInstant_ = currentIterationInstant;
 
-    return SmoothedItetationDuration_;
+    return SmoothedIterationDuration_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
