@@ -89,6 +89,14 @@ In the response:
 
 ## Advanced features { #additional }
 
+### User impersonation { #user_impersonation }
+
+HTTP clients can ask the proxy to execute a request on behalf of another {{product-name}} user by passing the `X-YT-User-Name` header. The request must still include valid authentication credentials, for example an `Authorization: OAuth <token>` or `Authorization: Bearer <token>` header.
+
+Impersonation is accepted only if the authenticated user is allowed to impersonate other users. In a typical cluster this is limited to superusers and specially whitelisted service users. If the authenticated user is not allowed to impersonate, or is banned, the proxy rejects the request with an authentication error.
+
+When impersonation succeeds, authorization checks and command execution use the user from `X-YT-User-Name`. The `get_current_user` command therefore returns the impersonated user.
+
 ### Compression { #compression }
 
 You can use compression when transmitting data via an HTTP proxy. The proxy selects a codec for incoming data based on the `Content-Encoding` header and for outgoing data based on the `Accept-Encoding` header. Possible codecs are listed in the table.
