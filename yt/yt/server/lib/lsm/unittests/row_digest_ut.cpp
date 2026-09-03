@@ -122,7 +122,7 @@ TTableSchemaPtr CreateSchemaForFillKind(EDigestFillKind fillKind)
 TStoreCompactionHint CreateHint(EStoreCompactionReason reason, TInstant timestamp = TInstant::Zero())
 {
     // Being used only for logging.
-    static auto tablet = New<TTablet>();
+    static const auto tablet = New<TTablet>();
     static TStore store;
     store.SetTablet(tablet.Get());
 
@@ -316,7 +316,7 @@ struct TAggregateConfigParams
     TDuration MaxDataTtl;
 
     // Expected TTL timestamp for the "100 rows × 3 versions" data pattern.
-    TInstant ExpectedTtlTimestamp3Versions() const
+    TInstant GetExpectedTtlTimestampFor3Versions() const
     {
         if (MinDataVersions == 1) {
             return StartDate + MinDataTtl + TDuration::Hours(3);
@@ -436,7 +436,7 @@ TEST_P(TAggregateRowDigestTest, SingleStoreTtlCleanupExpected)
     EXPECT_EQ(ssize(hint->StoreIds()), 1);
     EXPECT_NEAR(
         hint->GetTimestamp().GetValue(),
-        GetParam().ExpectedTtlTimestamp3Versions().GetValue(),
+        GetParam().GetExpectedTtlTimestampFor3Versions().GetValue(),
         Accuracy.GetValue());
 }
 
@@ -510,7 +510,7 @@ TEST_P(TAggregateRowDigestTest, TwoStoresOldThenNewPrefixOfOne)
     EXPECT_EQ(ssize(hint->StoreIds()), 1);
     EXPECT_NEAR(
         hint->GetTimestamp().GetValue(),
-        GetParam().ExpectedTtlTimestamp3Versions().GetValue(),
+        GetParam().GetExpectedTtlTimestampFor3Versions().GetValue(),
         Accuracy.GetValue());
 }
 
@@ -550,7 +550,7 @@ TEST_P(TAggregateRowDigestTest, FiveStoresMaxStoreCountEqualFiveHintFires)
     EXPECT_EQ(ssize(hint->StoreIds()), 1);
     EXPECT_NEAR(
         hint->GetTimestamp().GetValue(),
-        GetParam().ExpectedTtlTimestamp3Versions().GetValue(),
+        GetParam().GetExpectedTtlTimestampFor3Versions().GetValue(),
         TDuration::Hours(2).GetValue());
 }
 

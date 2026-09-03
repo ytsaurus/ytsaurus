@@ -106,7 +106,7 @@ TEST_F(TBoundedPriorityQueueTest, RandomSequences)
 
     TBoundedPriorityQueue<int> priorityQueue(10);
     for (int num : randomData) {
-        priorityQueue.Insert(num, static_cast<int>(num));
+        priorityQueue.Insert(num, num);
     }
 
     double lastValue = std::numeric_limits<double>::max();

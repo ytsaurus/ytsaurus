@@ -118,7 +118,7 @@ bool TStoreCompactionHint::TStoreCompactionHintRecalculationFinalizer::TryApplyR
     TInstant timestamp,
     EStoreCompactionReason reason)
 {
-    YT_LOG_DEBUG("Candidate store compaction hint lsm response provided "
+    YT_LOG_DEBUG("Candidate store compaction hint LSM response provided "
         "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v)",
         Store_->GetTablet()->GetLoggingTag(),
         Store_->GetId(),
@@ -137,7 +137,7 @@ bool TStoreCompactionHint::RecalculateHint(const std::unique_ptr<TStore>& store)
             {&store, 1});
 
         YT_LOG_DEBUG_IF(recalculated,
-            "Store compaction hint lsm response was made "
+            "Store compaction hint LSM response was made "
             "(%v, StoreId: %v, StoreCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v)",
             store->GetTablet()->GetLoggingTag(),
             store->GetId(),
@@ -229,7 +229,7 @@ void TPartitionCompactionHint::TPartitionCompactionHintRecalculationFinalizer::T
     EStoreCompactionReason reason,
     ui64 storeSubset)
 {
-    YT_LOG_DEBUG("Candidate partition compaction hint lsm response provided "
+    YT_LOG_DEBUG("Candidate partition compaction hint LSM response provided "
         "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, StoreSubset: %v)",
         Partition_->GetTablet()->GetLoggingTag(),
         Partition_->GetId(),
@@ -273,7 +273,7 @@ bool TPartitionCompactionHint::RecalculateHint(TPartition* partition)
             partition->Stores());
 
         YT_LOG_DEBUG_IF(recalculated,
-            "Partition compaction hint lsm response was made "
+            "Partition compaction hint LSM response was made "
             "(%v, PartitionId: %v, PartitionCompactionHintKind: %v, Timestamp: %v, Reason: %v, Revision: %v, StoreIds: %v)",
             partition->GetTablet()->GetLoggingTag(),
             partition->GetId(),
@@ -348,7 +348,6 @@ bool TPartitionCompactionHints::RecalculateHints(TPartition* partition)
 
     return recalculated;
 }
-
 
 bool TPartitionCompactionHints::IsCompactionAllowed(
     const TPartitionCompactionHint& hint,

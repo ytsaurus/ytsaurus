@@ -1538,6 +1538,13 @@ void TTablet::AsyncLoad(TLoadContext& context)
         auto effectiveSettings = RawSettings_.BuildEffectiveSettings(&errors, nullptr);
         Settings_.MountConfig = effectiveSettings.MountConfig;
         Settings_.TabletBalancerConfig = effectiveSettings.TabletBalancerConfig;
+
+        if (!errors.empty()) {
+            auto error = TError("Errors occurred while deserializing tablet config")
+                << TErrorAttribute("tablet_id", GetId())
+                << errors;
+            RuntimeData_->Errors.ConfigError.Store(std::move(error));
+        }
     }
 
     Load(context, PivotKey_);

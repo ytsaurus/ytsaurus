@@ -267,7 +267,6 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
-    // Used for forcing iteration by request by |RequestBalancing|.
     THashSet<TGlobalGroupTag> GroupsToReshardOnNextIteration_;
     IActionManagerPtr ActionManager_;
     IClusterStateProviderPtr ClusterStateProvider_;
@@ -1308,7 +1307,7 @@ void TTabletBalancer::RequestBalancing(
 
         auto group = tabletIt->second->Table->GetBalancingGroup();
         if (!group) {
-            YT_LOG_DEBUG("No group for tablet for on-demand balancing (BundleName: %v, TabletId: %v)",
+            YT_LOG_DEBUG("Tablet has no balancing group; skipping on-demand balancing (BundleName: %v, TabletId: %v)",
                 balancingRequest.BundleName,
                 tabletId);
             continue;

@@ -90,7 +90,7 @@ class TOverloadReporter
     : public IOverloadReporter
 {
 public:
-    TOverloadReporter(IBootstrap* const bootstrap)
+    explicit TOverloadReporter(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Logger(TabletNodeLogger().WithTag("OverloadReporter"))
         , Config_(Bootstrap_->GetTabletNodeDynamicConfig()->OverloadReporter)
@@ -159,12 +159,12 @@ private:
         const TTabletBalancerServiceProxy::TErrorOrRspRequestBalancingPtr& rspOrError) const
     {
         if (rspOrError.IsOK()) {
-            YT_LOG_DEBUG("Successfully sent balancing request caused by tablets overload "
+            YT_LOG_DEBUG("Successfully sent balancing request for overloaded tablets "
                 "(BundleName: %v, TabletCount: %v)",
                 bundleName,
                 tabletIds.size());
         } else {
-            YT_LOG_DEBUG(rspOrError, "Failed to send balancing request caused by tablets overload "
+            YT_LOG_DEBUG(rspOrError, "Failed to send balancing request for overloaded tablets "
                 "(BundleName: %v, TabletCount: %v)",
                 bundleName,
                 tabletIds.size());
@@ -205,7 +205,7 @@ private:
             }
         }
 
-        for (const auto& [bundleName, tabletIds] : bundleToTabletIds) {
+        for (auto& [bundleName, tabletIds] : bundleToTabletIds) {
             TTabletBalancerServiceProxy proxy(Bootstrap_->GetConnection()->GetTabletBalancerChannel());
             auto req = proxy.RequestBalancing();
 
@@ -218,7 +218,7 @@ private:
             req->Invoke().Subscribe(BIND(
                 &TOverloadReporter::LogTabletBalancerResponse,
                 MakeWeak(this),
-                std::move(bundleName),
+                bundleName,
                 std::move(tabletIds)));
         }
 
@@ -417,7 +417,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOverloadReporterPtr CreateOverloadReporter(IBootstrap* const bootstrap)
+IOverloadReporterPtr CreateOverloadReporter(IBootstrap* bootstrap)
 {
     return New<TOverloadReporter>(bootstrap);
 }

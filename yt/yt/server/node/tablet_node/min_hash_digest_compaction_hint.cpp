@@ -146,7 +146,7 @@ private:
         Store_->GetTablet()->GetMinHashDigestCache()->Insert(
             Store_->GetChunkId(),
             minHashDigest,
-            minHashDigest->GetWeight());
+            minHashDigest->ComputeWeight());
 
         FinishFetch(std::move(minHashDigest));
     }
