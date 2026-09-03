@@ -199,8 +199,9 @@ def report_authentication_preflight(host, component, start, end):
     details.
     """
     eprint(
-        "preflight_result status=authentication_unavailable host={} "
-        "component={} window_start={} window_end={} rotations_inspected=0"
+        "preflight_result status=authentication_unavailable "
+        "subsystem=logslice host={} component={} window_start={} "
+        "window_end={} rotations_inspected=0"
         .format(host, component, start or "open", end or "open"))
     eprint(
         "summary timezone=unknown window_start={} window_end={} files=0 "
