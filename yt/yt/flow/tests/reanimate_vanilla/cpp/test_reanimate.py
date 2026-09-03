@@ -77,21 +77,19 @@ class TestReanimateVanillaCpp(FlowTestBase):
         config_path = self.prepare_pipeline_config()
 
         cache_path = f"{self.work_yt_path}/vanilla_cache/files"
-        upload_temp_path = f"{self.work_yt_path}/vanilla_upload"
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": config_path},
             use_vanilla_jobs=True,
             vanilla_secret_env=[SECRET_ENV],
             additional_env={SECRET_ENV: SECRET_VALUE},
-            vanilla_config_patch={"cache_path": cache_path, "upload_temp_path": upload_temp_path},
+            vanilla_config_patch={"cache_path": cache_path},
         ):
             self.wait_pipeline_state("working", timeout=300)
 
-            # The files went through the custom cache, staged in the explicit temp dir: the cache
-            # holds the blobs, while the staging dir was used (it got created) and holds only
-            # throwaways, all removed after being copied into the cache.
+            # The files went through the custom cache, staged in its parent: the cache holds the
+            # blobs, while the staging dir holds only throwaways, all removed after being copied in.
             assert len(self.client.list(cache_path)) > 0
-            assert self.client.list(upload_temp_path) == []
+            assert self.client.list(f"{self.work_yt_path}/vanilla_cache") == ["files"]
 
             # The staged node's expiration timeout must follow the blob neither into the cache nor
             # into the durable copy reanimate depends on.
