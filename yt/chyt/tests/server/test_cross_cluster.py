@@ -11,7 +11,28 @@ import threading
 @authors("a-romanov")
 class TestClickHouseCrossCluster(ClickHouseTestBase):
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 1
+    NUM_TEST_PARTITIONS = 5
+
+    NUM_NODES_REMOTE_0 = 2
+    NUM_NODES_REMOTE_1 = 2
+
+    NUM_SCHEDULERS_REMOTE_0 = 0
+    NUM_SCHEDULERS_REMOTE_1 = 0
+
+    NUM_DISCOVERY_SERVERS_REMOTE_0 = 0
+    NUM_DISCOVERY_SERVERS_REMOTE_1 = 0
+
+    ENABLE_HTTP_PROXY_REMOTE_0 = False
+    ENABLE_HTTP_PROXY_REMOTE_1 = False
+
+    ENABLE_CHYT_HTTP_PROXIES_REMOTE_0 = False
+    ENABLE_CHYT_HTTP_PROXIES_REMOTE_1 = False
+
+    NUM_CYPRESS_PROXIES_REMOTE_0 = 0
+    NUM_CYPRESS_PROXIES_REMOTE_1 = 0
+
+    USE_DYNAMIC_TABLES_REMOTE_0 = False
+    USE_DYNAMIC_TABLES_REMOTE_1 = False
 
     def test_static_table_join(self):
         remote_driver = get_driver(cluster="remote_0")
