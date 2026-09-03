@@ -87,6 +87,8 @@ std::string MakeRandomString(size_t stringSize)
     return randomString;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<void> WriteOpaqueRecord(
     const IDistributedChunkWriterPtr& writer,
     TSharedRef record)
