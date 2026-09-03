@@ -4,12 +4,36 @@ from yt_env_setup import (
 from yt.common import YtError
 
 from yt_commands import (
-    authors, sync_create_cells,
-    create, create_domestic_medium, create_s3_medium, set, remove, exists,
-    copy, move, get_singular_chunk_id, wait, get, concatenate,
-    get_account_disk_space_limit, set_account_disk_space_limit,
-    write_table, read_table, sync_mount_table, sync_unmount_table, insert_rows, sync_flush_table,
-    map, raises_yt_error, select_rows, lookup_rows, print_debug, write_file, read_file)
+    authors,
+    sync_create_cells,
+    create,
+    create_domestic_medium,
+    create_s3_medium,
+    set,
+    remove,
+    exists,
+    copy,
+    move,
+    get_singular_chunk_id,
+    wait,
+    get,
+    concatenate,
+    get_account_disk_space_limit,
+    set_account_disk_space_limit,
+    write_table,
+    read_table,
+    sync_mount_table,
+    sync_unmount_table,
+    insert_rows,
+    sync_flush_table,
+    map,
+    raises_yt_error,
+    select_rows,
+    lookup_rows,
+    print_debug,
+    write_file,
+    read_file,
+)
 
 import time
 import pytest
@@ -99,7 +123,7 @@ class TestS3MediumBase(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "chunk_manager": {
-            "allow_multiple_erasure_parts_per_node": True
+            "allow_multiple_erasure_parts_per_node": True,
         },
         "logging": {
             "abort_on_alert": False,
@@ -164,10 +188,7 @@ class TestS3MediumBase(YTEnvSetup):
 
     @classmethod
     def get_buckets(cls):
-        return (
-            {medium["bucket"] for medium in cls.S3_MEDIA if "bucket" in medium}
-            | builtins.set(cls.EXTRA_BUCKETS)
-        )
+        return {medium["bucket"] for medium in cls.S3_MEDIA if "bucket" in medium} | builtins.set(cls.EXTRA_BUCKETS)
 
     @classmethod
     def get_s3_medium(cls, index=0):
@@ -194,10 +215,11 @@ class TestS3MediumBase(YTEnvSetup):
     @classmethod
     def setup_s3_client(cls):
         cls.S3_CLIENT = boto3.client(
-            service_name='s3',
+            service_name="s3",
             endpoint_url=cls.AWS_ENDPOINT_URL,
             aws_access_key_id=cls.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=cls.AWS_SECRET_ACCESS_KEY)
+            aws_secret_access_key=cls.AWS_SECRET_ACCESS_KEY,
+        )
 
     @classmethod
     def teardown_s3_client(cls):
@@ -211,7 +233,7 @@ class TestS3MediumBase(YTEnvSetup):
         try:
             cls.S3_CLIENT.create_bucket(Bucket=bucket)
         except ClientError as e:
-            if e.response['Error']['Code'] != 'BucketAlreadyOwnedByYou':
+            if e.response["Error"]["Code"] != "BucketAlreadyOwnedByYou":
                 raise
 
     @classmethod
@@ -219,9 +241,9 @@ class TestS3MediumBase(YTEnvSetup):
         assert cls.S3_CLIENT is not None
 
         try:
-            objects = cls.S3_CLIENT.list_objects_v2(Bucket=bucket).get('Contents', [])
+            objects = cls.S3_CLIENT.list_objects_v2(Bucket=bucket).get("Contents", [])
             for obj in objects:
-                cls.S3_CLIENT.delete_object(Bucket=bucket, Key=obj['Key'])
+                cls.S3_CLIENT.delete_object(Bucket=bucket, Key=obj["Key"])
             cls.S3_CLIENT.delete_bucket(Bucket=bucket)
         except ClientError as e:
             print_debug(f"Failed to clear bucket {bucket} due to error: {e}")
@@ -234,7 +256,7 @@ class TestS3MediumBase(YTEnvSetup):
             cls.S3_CLIENT.head_object(Bucket=bucket, Key=key)
             return True
         except ClientError as e:
-            if e.response['Error']['Code'] == '404':
+            if e.response["Error"]["Code"] == "404":
                 return False
             raise
 
@@ -244,9 +266,9 @@ class TestS3MediumBase(YTEnvSetup):
 
         try:
             response = cls.S3_CLIENT.get_object(Bucket=bucket, Key=key)
-            return response['Body'].read()
+            return response["Body"].read()
         except ClientError as e:
-            if e.response['Error']['Code'] == '404':
+            if e.response["Error"]["Code"] == "404":
                 return None
             raise
 
@@ -309,7 +331,10 @@ class TestS3MediumBase(YTEnvSetup):
 
         # NB(achulkov2): I don't remember the specifics, but some cleanup/setup logic clears these configs, so we need to set them again.
         for i in range(len(self.S3_MEDIA)):
-            set(f"//sys/media/{self.get_s3_medium_name(i)}/@config", self.get_s3_medium_config(i))
+            set(
+                f"//sys/media/{self.get_s3_medium_name(i)}/@config",
+                self.get_s3_medium_config(i),
+            )
 
         # Wait for medium directory synchronizer to do its thing.
         # TODO(achulkov2): This can be removed once/if we return medium directory entries along with chunk specs during fetch.
@@ -336,10 +361,24 @@ class TestS3Medium(TestS3MediumBase):
         write_table("<append=%true>//tmp/t", {"c": "d"})
 
         many_blocks = [{f"row_{i}": f"value_{i}"} for i in range(1000)]
-        write_table("<append=%true>//tmp/t", many_blocks, table_writer={"block_size": 64, "min_part_size": 6 * MB})
+        write_table(
+            "<append=%true>//tmp/t",
+            many_blocks,
+            table_writer={
+                "block_size": 64,
+                "min_part_size": 6 * MB,
+            },
+        )
 
         multiple_parts = [{"key": self.make_random_string(length=MB // 2)} for i in range(25)]
-        write_table("<append=%true>//tmp/t", multiple_parts, table_writer={"block_size": 3 * MB, "min_part_size": 6 * MB})
+        write_table(
+            "<append=%true>//tmp/t",
+            multiple_parts,
+            table_writer={
+                "block_size": 3 * MB,
+                "min_part_size": 6 * MB,
+            },
+        )
 
         assert read_table("//tmp/t", verbose=False) == [{"a": "b"}, {"c": "d"}] + many_blocks + multiple_parts
 
@@ -359,7 +398,8 @@ class TestS3Medium(TestS3MediumBase):
                 command="cat",
                 in_="//tmp/in",
                 out="//tmp/out",
-                spec={"max_failed_job_count": 1})
+                spec={"max_failed_job_count": 1},
+            )
 
     @authors("achulkov2")
     def test_files_simple(self):
@@ -437,7 +477,9 @@ class TestS3Medium(TestS3MediumBase):
             "table",
             "//tmp/in1",
             attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}],
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                ],
                 "primary_medium": self.get_s3_medium_name(),
             },
         )
@@ -447,7 +489,9 @@ class TestS3Medium(TestS3MediumBase):
             "table",
             "//tmp/in2",
             attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}],
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                ],
                 "primary_medium": self.get_s3_medium_name(),
             },
         )
@@ -457,7 +501,9 @@ class TestS3Medium(TestS3MediumBase):
             "table",
             "//tmp/out",
             attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}],
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                ],
                 "primary_medium": self.get_s3_medium_name(),
             },
         )
@@ -499,7 +545,15 @@ class TestS3Medium(TestS3MediumBase):
             {"name": "i", "type": "int64"},
         ]
 
-        create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name(), "dynamic": True, "schema": schema})
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "primary_medium": self.get_s3_medium_name(),
+                "dynamic": True,
+                "schema": schema,
+            },
+        )
 
         sync_mount_table("//tmp/t")
 
@@ -507,13 +561,21 @@ class TestS3Medium(TestS3MediumBase):
         insert_rows("//tmp/t", [{"s": "b", "i": 1}, {"s": "c", "i": 2}])
 
         # For ordered tables this requires offshore data gateway to be enabled, since only replication reader can discover replicas if seed list is empty.
-        assert select_rows("s, i from [//tmp/t] order by i limit 100") == [{"s": "b", "i": 1}, {"s": "c", "i": 2}, {"s": "a", "i": 3}]
+        assert select_rows("s, i from [//tmp/t] order by i limit 100") == [
+            {"s": "b", "i": 1},
+            {"s": "c", "i": 2},
+            {"s": "a", "i": 3},
+        ]
         if sorted:
             assert lookup_rows("//tmp/t", [{"s": "b"}]) == [{"s": "b", "i": 1}]
 
         sync_flush_table("//tmp/t")
 
-        assert select_rows("s, i from [//tmp/t] order by i limit 100") == [{"s": "b", "i": 1}, {"s": "c", "i": 2}, {"s": "a", "i": 3}]
+        assert select_rows("s, i from [//tmp/t] order by i limit 100") == [
+            {"s": "b", "i": 1},
+            {"s": "c", "i": 2},
+            {"s": "a", "i": 3},
+        ]
         if sorted:
             assert lookup_rows("//tmp/t", [{"s": "b"}]) == [{"s": "b", "i": 1}]
         assert read_table("//tmp/t") == [{"s": "a", "i": 3}, {"s": "b", "i": 1}, {"s": "c", "i": 2}]
@@ -522,7 +584,9 @@ class TestS3Medium(TestS3MediumBase):
         requisition = get(f"#{chunk_id}/@requisition")
 
         if len(requisition) != len(conditions_per_medium):
-            print_debug(f"Requisition length {len(requisition)} does not match expected length {len(conditions_per_medium)}")
+            print_debug(
+                f"Requisition length {len(requisition)} does not match expected length {len(conditions_per_medium)}"
+            )
             return False
 
         for entry in requisition:
@@ -533,7 +597,9 @@ class TestS3Medium(TestS3MediumBase):
 
             for condition, expected_value in conditions_per_medium[entry["medium"]].items():
                 if entry[condition] != expected_value:
-                    print_debug(f"Condition {condition}={expected_value} is not satisfied for medium {medium}, equal to {entry[condition]} instead")
+                    print_debug(
+                        f"Condition {condition}={expected_value} is not satisfied for medium {medium}, equal to {entry[condition]} instead"
+                    )
                     return False
 
         return True
@@ -548,7 +614,9 @@ class TestS3Medium(TestS3MediumBase):
             for condition, value in replication_status.items():
                 expected_value = conditions_per_medium[medium].get(condition, False)
                 if value != expected_value:
-                    print_debug(f"Condition {condition}={expected_value} is not satisfied for medium {medium}, equal to {value} instead")
+                    print_debug(
+                        f"Condition {condition}={expected_value} is not satisfied for medium {medium}, equal to {value} instead"
+                    )
                     return False
         return True
 
@@ -561,7 +629,7 @@ class TestS3Medium(TestS3MediumBase):
         print_debug(t_media)
 
         t_media["default"] = {"replication_factor": 3, "data_parts_only": False}
-        with pytest.raises(YtError, match='Cannot change media if offshore media is involved'):
+        with pytest.raises(YtError, match="Cannot change media if offshore media is involved"):
             set("//tmp/t/@media", t_media)
 
     @authors("achulkov2")
@@ -569,7 +637,7 @@ class TestS3Medium(TestS3MediumBase):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t", {"a": "b"})
 
-        with pytest.raises(YtError, match='Cannot change media if offshore media is involved'):
+        with pytest.raises(YtError, match="Cannot change media if offshore media is involved"):
             set("//tmp/t/@primary_medium", "default")
 
     @authors("achulkov2")
@@ -612,7 +680,7 @@ class TestS3Medium(TestS3MediumBase):
         create("table", "//tmp/f", attributes={"primary_medium": "s3_read_only"})
         record1 = {"x": 1, "y": "b"}
 
-        with pytest.raises(YtError, match='without a configured bucket'):
+        with pytest.raises(YtError, match="without a configured bucket"):
             write_table("//tmp/f", [record1])
 
     @authors("achulkov2")
@@ -621,7 +689,14 @@ class TestS3Medium(TestS3MediumBase):
         # ways to configure a table to have non-null erasure codec *and* a replication policy on an offshore medium.
         # It looks like it could be done in theory, but there might be caveats that we don't see right now.
         # TODO(achulkov2): Make an attempt to forbid it properly.
-        create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name(), "erasure_codec": "isa_reed_solomon_3_3"})
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "primary_medium": self.get_s3_medium_name(),
+                "erasure_codec": "isa_reed_solomon_3_3",
+            },
+        )
 
         # For now, just check that one cannot actually create such chunks.
         with raises_yt_error("Erasure chunks cannot be placed on offshore media"):
@@ -636,15 +711,20 @@ class TestS3Medium(TestS3MediumBase):
 
         sorted_input = [{"key": i, "value": f"hello_{i}"} for i in range(100)]
 
-        create("table", f"<append=%true>{INPUT_TABLE}", attributes={
-            "primary_medium": self.get_s3_medium_name(),
-            "dynamic": True,
-            "in_memory_mode": "uncompressed",
-            "chunk_writer": {"block_size": 1},
-            "schema": [
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}
-            ]})
+        create(
+            "table",
+            f"<append=%true>{INPUT_TABLE}",
+            attributes={
+                "primary_medium": self.get_s3_medium_name(),
+                "dynamic": True,
+                "in_memory_mode": "uncompressed",
+                "chunk_writer": {"block_size": 1},
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            },
+        )
 
         sync_mount_table(INPUT_TABLE)
         insert_rows(INPUT_TABLE, sorted_input)
