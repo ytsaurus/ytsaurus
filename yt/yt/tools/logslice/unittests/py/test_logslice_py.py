@@ -82,6 +82,21 @@ def _find_auth_preflight_fixture():
             "authentication_unavailable.json")
 
 
+def _find_preexecution_fixture():
+    relative_path = (
+        "yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_58972/"
+        "preexecution_failure.json")
+    try:
+        import yatest.common
+        return yatest.common.source_path(relative_path)
+    except ImportError:
+        return os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "fixtures",
+            "ytadminreq_58972",
+            "preexecution_failure.json")
+
+
 def _ssh_localhost_works():
     try:
         return subprocess.run(
@@ -433,19 +448,6 @@ class AuthenticationPreflightTest(unittest.TestCase):
         with open(_find_auth_preflight_fixture()) as stream:
             self.fixture = json.load(stream)
 
-    def test_exact_gateway_failure_has_distinct_preflight_class(self):
-        self.assertEqual(
-            logslice.preflight_failure_class(self.fixture["error"]),
-            "authentication_unavailable")
-        other_outcomes = [
-            "ssh true failed: Connection timed out",
-            "not_retained: requested window predates the oldest rotation",
-            "no_match: inspected rotations contain no matching records",
-            "requested component base was not found",
-        ]
-        for outcome in other_outcomes:
-            self.assertIsNone(logslice.preflight_failure_class(outcome))
-
     def test_preflight_record_preserves_scope_and_inspects_no_rotations(self):
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
@@ -472,9 +474,8 @@ class AuthenticationPreflightTest(unittest.TestCase):
         ]
         stderr = io.StringIO()
         with mock.patch.object(logslice.sys, "argv", argv), \
-                mock.patch.object(
-                    logslice.Ssh, "connect",
-                    side_effect=SystemExit(fixture["error"])), \
+                mock.patch.object(logslice, "ssh_access_preflight",
+                                  return_value="authentication_unavailable"), \
                 mock.patch.object(logslice, "resolve_logslice") as resolve, \
                 mock.patch.object(
                     logslice, "discover_component_candidates") as discover, \
@@ -483,11 +484,198 @@ class AuthenticationPreflightTest(unittest.TestCase):
                 logslice.main(), logslice.OPERATIONAL_FAILURE_EXIT)
         resolve.assert_not_called()
         discover.assert_not_called()
-        output = stderr.getvalue()
-        self.assertIn("status=authentication_unavailable", output)
-        self.assertIn("subsystem=" + fixture["subsystem"], output)
-        self.assertIn("component=" + fixture["component"], output)
-        self.assertIn("rotations_inspected=0", output)
+        result = json.loads(stderr.getvalue().splitlines()[-1])
+        self.assertEqual(result["result"], "access_unavailable")
+        self.assertEqual(
+            result["failure_class"],
+            "authentication_unavailable")
+        self.assertFalse(result["log_read"])
+
+
+class PreexecutionContractTest(unittest.TestCase):
+    def test_ticket_fixture_reports_access_unavailable_before_selection(self):
+        with open(_find_preexecution_fixture()) as stream:
+            fixture = json.load(stream)
+        argv = ["logslice.py"] + fixture["invocation"]["script_arguments"]
+        stderr = io.StringIO()
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.dict(os.environ, {}, clear=True), \
+                mock.patch.object(logslice, "ssh_access_preflight",
+                                  return_value="ssh_noninteractive_check_failed"), \
+                mock.patch.object(logslice, "resolve_logslice") as resolve, \
+                contextlib.redirect_stderr(stderr):
+            exit_code = logslice.main()
+
+        self.assertEqual(exit_code, logslice.OPERATIONAL_FAILURE_EXIT)
+        resolve.assert_not_called()
+        result = json.loads(stderr.getvalue().splitlines()[-1])
+        self.assertEqual(result["outcome"], "failed")
+        self.assertEqual(result["result"], "access_unavailable")
+        self.assertNotIn("schema", result)
+        self.assertNotIn("request", result)
+        self.assertNotIn("stages", result)
+        self.assertEqual(result["requested_component"], "node")
+        self.assertIsNone(result["selected_component"])
+        self.assertIsNone(result["selected_base"])
+        self.assertFalse(result["log_read"])
+        self.assertIsNone(result["gaps"])
+        rendered = json.dumps(result, sort_keys=True)
+        self.assertNotIn("SSH_AUTH_SOCK", rendered)
+        self.assertNotIn("not_retained", rendered)
+
+    def test_non_agent_auth_satisfies_real_preflight(self):
+        run = mock.Mock(return_value=mock.Mock(returncode=0))
+        with mock.patch.dict(os.environ, {}, clear=True):
+            ssh = logslice.Ssh(
+                "host", control_socket="/tmp/caller-owned-control-socket")
+        self.assertIsNone(logslice.ssh_access_preflight(ssh, run=run))
+        command = run.call_args.args[0]
+        self.assertIn("ControlPath=/tmp/caller-owned-control-socket", command)
+        self.assertIn("BatchMode=yes", command)
+        self.assertEqual(command[-2:], ["host", "true"])
+
+    def test_failed_noninteractive_check_fails_preflight(self):
+        run = mock.Mock(return_value=mock.Mock(returncode=255))
+        ssh = logslice.Ssh(
+            "host", control_socket="/tmp/stale-control-socket")
+        self.assertEqual(
+            logslice.ssh_access_preflight(ssh, run=run),
+            "ssh_noninteractive_check_failed",
+        )
+
+    def test_persisted_default_control_path_is_used_by_preflight(self):
+        run = mock.Mock(return_value=mock.Mock(returncode=0))
+        default_path = logslice.resolve_control_path(environ={})
+        with mock.patch.dict(os.environ, {}, clear=True):
+            ssh = logslice.Ssh("host")
+        self.assertIsNone(logslice.ssh_access_preflight(ssh, run=run))
+        self.assertEqual(ssh._control_path, default_path)
+        self.assertIn("ControlPath=" + default_path, run.call_args.args[0])
+
+    def _run_no_match(self, coverage, slice_result=None):
+        argv = [
+            "logslice.py", "vla4-5603-sessions-003-tab-markov.vla.yp-c.yandex.net",
+            "--type", "info", "-t", "2026-07-22 13:00:00",
+            "-e", "2026-07-22 15:00:00",
+        ]
+        log_file = logslice.parse_log_name("node.log")
+        if slice_result is None:
+            slice_result = logslice.PipelineResult(
+                returncode=1, operational_returncode=0,
+                stdout="", stderr="")
+        stderr = io.StringIO()
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "ssh_access_preflight",
+                                  return_value=None), \
+                mock.patch.object(logslice, "resolve_logslice",
+                                  return_value="/bin/true"), \
+                mock.patch.object(logslice.Ssh, "connect"), \
+                mock.patch.object(logslice.Ssh, "copy_binary"), \
+                mock.patch.object(logslice.Ssh, "run", return_value="+0300\n"), \
+                mock.patch.object(logslice.Ssh, "run_pipeline_result",
+                                  return_value=slice_result), \
+                mock.patch.object(logslice, "discover_component_candidates",
+                                  return_value=(["node"], ["logs"])), \
+                mock.patch.object(logslice, "discover_series", return_value=[
+                    ("live", "node", [log_file])]), \
+                mock.patch.object(logslice, "select_log_files", return_value=(
+                    [log_file], [("live", "node", 1, [log_file])], coverage)), \
+                contextlib.redirect_stderr(stderr):
+            exit_code = logslice.main()
+        return exit_code, json.loads(stderr.getvalue().splitlines()[-1])
+
+    def test_partial_coverage_no_match_is_not_definitive(self):
+        coverage = [(
+            logslice.parse_user_time("2026-07-22 13:05:00"),
+            logslice.parse_user_time("2026-07-22 15:00:00"),
+        )]
+        exit_code, result = self._run_no_match(coverage)
+        self.assertEqual(exit_code, logslice.COVERAGE_INCOMPLETE_EXIT)
+        self.assertEqual(result["gaps"], [{
+            "log_type": "info",
+            "start": "2026-07-22 13:00:00",
+            "end": "2026-07-22 13:05:00",
+        }])
+        self.assertEqual(result["outcome"], "partial")
+        self.assertEqual(result["result"], "coverage_incomplete")
+
+    def test_full_coverage_no_match_is_definitive(self):
+        coverage = [(
+            logslice.parse_user_time("2026-07-22 13:00:00"),
+            logslice.parse_user_time("2026-07-22 15:00:00"),
+        )]
+        exit_code, result = self._run_no_match(coverage)
+        self.assertEqual(exit_code, logslice.GLOBAL_NO_MATCH_EXIT)
+        self.assertEqual(result["outcome"], "success")
+        self.assertEqual(result["result"], "no_matches")
+        self.assertEqual(result["gaps"], [])
+
+    def test_pipeline_operational_failure_does_not_claim_log_read(self):
+        coverage = [(
+            logslice.parse_user_time("2026-07-22 13:00:00"),
+            logslice.parse_user_time("2026-07-22 15:00:00"),
+        )]
+        failure = logslice.PipelineResult(
+            returncode=255, operational_returncode=255,
+            stdout="", stderr="ssh transport failed")
+        exit_code, result = self._run_no_match(coverage, failure)
+        self.assertEqual(exit_code, logslice.OPERATIONAL_FAILURE_EXIT)
+        self.assertEqual(result["outcome"], "failed")
+        self.assertEqual(result["result"], "operational_failure")
+        self.assertFalse(result["log_read"])
+
+    def test_post_preflight_route_failure_ends_with_json_result(self):
+        argv = [
+            "logslice.py", "vla4-5603-sessions-003-tab-markov.vla.yp-c.yandex.net",
+            "--type", "info", "-t", "2026-07-22 13:00:00",
+            "-e", "2026-07-22 15:00:00",
+        ]
+        stderr = io.StringIO()
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "ssh_access_preflight",
+                                  return_value=None), \
+                mock.patch.object(logslice, "resolve_logslice",
+                                  return_value="/bin/true"), \
+                mock.patch.object(logslice.Ssh, "connect"), \
+                mock.patch.object(logslice.Ssh, "copy_binary"), \
+                mock.patch.object(logslice.Ssh, "run", return_value="+0300\n"), \
+                mock.patch.object(logslice, "discover_component_candidates",
+                                  return_value=(["push-client"], ["logs"])), \
+                contextlib.redirect_stderr(stderr):
+            exit_code = logslice.main()
+
+        self.assertEqual(exit_code, logslice.OPERATIONAL_FAILURE_EXIT)
+        result = json.loads(stderr.getvalue().splitlines()[-1])
+        self.assertEqual(result["outcome"], "failed")
+        self.assertEqual(result["result"], "operational_failure")
+        self.assertIsNone(result["selected_component"])
+        self.assertFalse(result["log_read"])
+
+    def test_subprocess_failure_ends_with_json_result(self):
+        argv = [
+            "logslice.py", "vla4-5603-sessions-003-tab-markov.vla.yp-c.yandex.net",
+            "--type", "info", "-t", "2026-07-22 13:00:00",
+            "-e", "2026-07-22 15:00:00",
+        ]
+        stderr = io.StringIO()
+        failure = subprocess.CalledProcessError(1, ["ya", "make"])
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "ssh_access_preflight",
+                                  return_value=None), \
+                mock.patch.object(logslice, "resolve_logslice",
+                                  side_effect=failure), \
+                contextlib.redirect_stderr(stderr):
+            exit_code = logslice.main()
+
+        self.assertEqual(exit_code, logslice.OPERATIONAL_FAILURE_EXIT)
+        result = json.loads(stderr.getvalue().splitlines()[-1])
+        self.assertEqual(result["outcome"], "failed")
+        self.assertEqual(result["result"], "operational_failure")
+        self.assertFalse(result["log_read"])
+
+    def test_gaps_are_unknown_without_authoritative_source(self):
+        result = logslice.make_execution_result()
+        self.assertIsNone(result["gaps"])
 
 
 class ParseUserTimeTest(unittest.TestCase):
@@ -557,6 +745,17 @@ class ParseUserTimeTest(unittest.TestCase):
         expected_utc = datetime(2019, 9, 19, 11, 46, 4, 848360, tzinfo=timezone.utc)
         self.assertEqual(got.replace(tzinfo=None),
                          expected_utc.astimezone().replace(tzinfo=None))
+
+    def test_iso_utc_is_normalized_to_remote_timezone(self):
+        self.assertEqual(
+            logslice.parse_server_time(
+                "2019-09-19T11:46:04.848360Z", "+0300"),
+            self.datetime(2019, 9, 19, 14, 46, 4, 848360),
+        )
+
+    def test_iso_utc_is_unresolved_without_remote_timezone(self):
+        self.assertIsNone(logslice.parse_server_time(
+            "2019-09-19T11:46:04.848360Z", "unknown"))
 
     def test_partial_fields_are_rejected(self):
         # Half-written time fields and a fraction without seconds are not parsed
@@ -1035,7 +1234,7 @@ def _select(ssh, start, end, archive_dir=ARCHIVE_DIR):
     end_time = logslice.parse_user_time(end) if end else None
     series = logslice.discover_series(
         ssh, "debug", start_time, end_time, archive_dir)
-    selected, _ = logslice.select_log_files(
+    selected, _, _ = logslice.select_log_files(
         ssh, "/tmp/logslice", series, start_time, end_time)
     return selected
 
@@ -1067,6 +1266,14 @@ class ArchiveParsingTest(unittest.TestCase):
 
 
 class ComponentRoutingTest(unittest.TestCase):
+    def test_legacy_tablet_node_hostname_maps_to_node_base(self):
+        self.assertEqual(
+            logslice.infer_host_component(
+                "vla4-5603-sessions-003-tab-markov.vla.yp-c.yandex.net"
+            ),
+            ("tablet-node", "node"),
+        )
+
     def test_tablet_node_hostname_maps_to_node_base(self):
         self.assertEqual(
             logslice.infer_host_component(
@@ -1264,6 +1471,128 @@ class ArchiveDiscoveryTest(unittest.TestCase):
 
 
 class ArchiveSelectionTest(unittest.TestCase):
+    def _coverage(self, start, end):
+        ssh = _make_ssh()
+        start_time = logslice.parse_user_time(start)
+        end_time = logslice.parse_user_time(end)
+        series = logslice.discover_series(
+            ssh, "debug", start_time, end_time, ARCHIVE_DIR)
+        selected, _, coverage = logslice.select_log_files(
+            ssh, "/tmp/logslice", series, start_time, end_time)
+        gaps = logslice.find_coverage_gaps(
+            start_time, end_time, {"debug": coverage})
+        return selected, gaps
+
+    def test_full_window_bounds_have_no_gaps(self):
+        selected, gaps = self._coverage(
+            "2026-06-19 10:15", "2026-06-19 11:45")
+        self.assertTrue(selected)
+        self.assertEqual(gaps, [])
+
+    def test_archive_live_gap_is_reported(self):
+        start_time = logslice.parse_user_time("2026-06-19 10:45")
+        end_time = logslice.parse_user_time("2026-06-19 11:15")
+        intervals = [
+            (logslice.parse_user_time("2026-06-19 10:30"),
+             logslice.parse_user_time("2026-06-19 11:00")),
+            (logslice.parse_user_time("2026-06-19 11:05"),
+             logslice.parse_user_time("2026-06-19 11:30")),
+        ]
+        self.assertEqual(
+            logslice.find_coverage_gaps(
+                start_time, end_time, {"debug": intervals}),
+            [{
+                "log_type": "debug",
+                "start": "2026-06-19 11:00:00",
+                "end": "2026-06-19 11:05:00",
+            }],
+        )
+
+    def test_missing_middle_rotation_is_reported(self):
+        successor = "master.debug.log.2026-06-19_11-30.zst"
+        ssh = FakeSsh(
+            {ARCHIVE_DAY: [ARCH_EARLY, successor]},
+            {
+                ARCHIVE_DAY + "/" + ARCH_EARLY: ((10, 0), (10, 30)),
+                ARCHIVE_DAY + "/" + successor: ((11, 0), (11, 30)),
+            },
+        )
+        start_time = logslice.parse_user_time("2026-06-19 10:15")
+        end_time = logslice.parse_user_time("2026-06-19 11:15")
+        files = [
+            logslice.parse_log_name(name, ARCHIVE_DAY)
+            for name in [ARCH_EARLY, successor]
+        ]
+
+        selected, _, coverage = logslice.select_log_files(
+            ssh, "/tmp/logslice", [("archive", "master", files)],
+            start_time, end_time)
+
+        self.assertEqual(selected, files)
+        self.assertEqual(
+            logslice.find_coverage_gaps(
+                start_time, end_time, {"debug": coverage}),
+            [{
+                "log_type": "debug",
+                "start": "2026-06-19 10:30:00",
+                "end": "2026-06-19 11:00:00",
+            }],
+        )
+
+    def test_selected_file_does_not_hide_missing_window_prefix(self):
+        selected, gaps = self._coverage(
+            "2026-06-19 09:45", "2026-06-19 10:15")
+        self.assertTrue(selected)
+        self.assertEqual(gaps, [{
+            "log_type": "debug",
+            "start": "2026-06-19 09:45:00",
+            "end": "2026-06-19 10:00:00",
+        }])
+
+    def test_selected_file_does_not_hide_missing_window_suffix(self):
+        selected, gaps = self._coverage(
+            "2026-06-19 11:45", "2026-06-19 12:15")
+        self.assertTrue(selected)
+        self.assertEqual(gaps, [{
+            "log_type": "debug",
+            "start": "2026-06-19 12:00:00",
+            "end": "2026-06-19 12:15:00",
+        }])
+
+    def test_short_gap_between_rotations_is_ignored(self):
+        start_time = logslice.parse_user_time("2026-06-19 10:45")
+        end_time = logslice.parse_user_time("2026-06-19 11:15")
+        intervals = [
+            (logslice.parse_user_time("2026-06-19 10:30:00"),
+             logslice.parse_user_time("2026-06-19 11:00:00")),
+            (logslice.parse_user_time("2026-06-19 11:00:59"),
+             logslice.parse_user_time("2026-06-19 11:30:00")),
+        ]
+        self.assertEqual(
+            logslice.find_coverage_gaps(
+                start_time, end_time, {"debug": intervals}),
+            [],
+        )
+
+    def test_one_minute_gap_between_rotations_is_reported(self):
+        start_time = logslice.parse_user_time("2026-06-19 10:45")
+        end_time = logslice.parse_user_time("2026-06-19 11:15")
+        intervals = [
+            (logslice.parse_user_time("2026-06-19 10:30:00"),
+             logslice.parse_user_time("2026-06-19 11:00:00")),
+            (logslice.parse_user_time("2026-06-19 11:01:00"),
+             logslice.parse_user_time("2026-06-19 11:30:00")),
+        ]
+        self.assertEqual(
+            logslice.find_coverage_gaps(
+                start_time, end_time, {"debug": intervals}),
+            [{
+                "log_type": "debug",
+                "start": "2026-06-19 11:00:00",
+                "end": "2026-06-19 11:01:00",
+            }],
+        )
+
     def test_pure_archive_window_selects_only_archive(self):
         selected = _select(_make_ssh(), "2026-06-19 10:05", "2026-06-19 10:25")
         self.assertEqual(_names_with_dirs(selected),
