@@ -14,11 +14,9 @@ import tech.ytsaurus.flow.internal.request.mapper.MessageProtoMapper;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.Timer;
-import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.flow.row.codec.InternalStateValueCodec;
 import tech.ytsaurus.flow.row.codec.KeyCodec;
-import tech.ytsaurus.flow.row.codec.PayloadCodec;
 import tech.ytsaurus.flow.rpc.TJobInfo;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
 import tech.ytsaurus.flow.rpc.TState;
@@ -63,7 +61,7 @@ public class ProtobufRequestConverter {
 
     /**
      * Overrides the {@link CodecRegistry} used to (de)serialize message keys, timer keys,
-     * internal-state keys/values, and external-state keys/values.
+     * internal-state keys/values, and external-state keys.
      * <p>
      * Test-only override; defaults to {@link CodecRegistry#getInstance()}, which is the
      * JVM-wide registry resolved via {@code ServiceLoader<CodecRegistryProvider>}. Production
@@ -126,14 +124,12 @@ public class ProtobufRequestConverter {
         builder.addAllExternalStates(convertExternalStatesToProto(
                 externalStates,
                 externalStateSchemas,
-                codecRegistry.getKeyCodec(),
-                codecRegistry.getPayloadCodec()
+                codecRegistry.getKeyCodec()
         ));
         builder.addAllJoinedExternalStates(convertExternalStatesToProto(
                 joinedExternalStates,
                 externalStateSchemas,
-                codecRegistry.getKeyCodec(),
-                codecRegistry.getPayloadCodec()
+                codecRegistry.getKeyCodec()
         ));
         builder.addAllTimers(convertTimersToProto(timers, codecRegistry.getKeyCodec()));
 
@@ -345,16 +341,14 @@ public class ProtobufRequestConverter {
     }
 
     /**
-     * Converts external states to proto format.
-     * Every state that carries a value must have a schema declared on the harness.
-     * Uses the supplied codecs so that custom {@link KeyCodec} / {@link PayloadCodec}
-     * registrations are honoured on the wire.
+     * Converts external states to proto format. State values are already wire bytes; every
+     * state that carries one must have a schema declared on the harness. Uses the supplied
+     * {@link KeyCodec} so that custom registrations are honoured on the wire.
      */
     private static List<TState> convertExternalStatesToProto(
             Map<String, Map<Payload, ExternalState>> externalStates,
             Map<String, TableSchema> externalStateSchemas,
-            KeyCodec keyCodec,
-            PayloadCodec payloadCodec
+            KeyCodec keyCodec
     ) {
         var result = new ArrayList<TState>();
 
@@ -372,12 +366,6 @@ public class ProtobufRequestConverter {
                 stateBuilder.setSchema(YsonUtils.protoFromYTree(valueSchema.toYTree()));
             }
 
-            // Bind the payload codec to the per-state schema once: the schema is the same for
-            // all items inside a single TState message. Items without a stored value (resets or
-            // null payloads) do not need a bound codec.
-            ByteStringCodec<Payload> boundValueCodec =
-                    valueSchema != null ? payloadCodec.codecFor(valueSchema) : null;
-
             var stateItems = new ArrayList<TStateItem>(stateValuesMap.size());
             for (var stateEntry : stateValuesMap.entrySet()) {
                 TStateItem.Builder itemBuilder = TStateItem.newBuilder()
@@ -385,10 +373,10 @@ public class ProtobufRequestConverter {
                         .setReset(stateEntry.getValue().isReset());
                 if (!stateEntry.getValue().isReset() && stateEntry.getValue().getValue() != null) {
                     Objects.requireNonNull(
-                            boundValueCodec,
+                            valueSchema,
                             () -> "External state '" + stateName + "' has values but no schema"
                     );
-                    itemBuilder.setState(boundValueCodec.encode(stateEntry.getValue().getValue()));
+                    itemBuilder.setState(stateEntry.getValue().getValue());
                 }
                 stateItems.add(itemBuilder.build());
             }

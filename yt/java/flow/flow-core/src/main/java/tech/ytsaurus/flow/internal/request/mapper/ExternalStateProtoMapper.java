@@ -9,10 +9,7 @@ import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.flow.row.Payload;
-import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 import tech.ytsaurus.flow.row.codec.KeyCodec;
-import tech.ytsaurus.flow.row.codec.PayloadCodec;
 import tech.ytsaurus.flow.rpc.TState;
 import tech.ytsaurus.flow.rpc.TStateItem;
 import tech.ytsaurus.flow.state.ExternalState;
@@ -29,23 +26,20 @@ public class ExternalStateProtoMapper {
 
     private final @Nullable TableSchema keySchema;
     private final KeyCodec keyCodec;
-    private final PayloadCodec valueCodec;
 
     /**
-     * Creates a mapper with the supplied schema and codecs.
+     * Creates a mapper with the supplied schema and key codec. State values are carried as
+     * undecoded wire bytes, so no payload codec is involved.
      *
-     * @param keySchema  table schema describing state entry keys
-     * @param keyCodec   codec used to (de)serialize state entry keys
-     * @param valueCodec factory of codecs used to (de)serialize state entry payload values
+     * @param keySchema table schema describing state entry keys
+     * @param keyCodec  codec used to (de)serialize state entry keys
      */
     public ExternalStateProtoMapper(
             @Nullable TableSchema keySchema,
-            KeyCodec keyCodec,
-            PayloadCodec valueCodec
+            KeyCodec keyCodec
     ) {
         this.keySchema = keySchema;
         this.keyCodec = keyCodec;
-        this.valueCodec = valueCodec;
     }
 
     /**
@@ -68,16 +62,13 @@ public class ExternalStateProtoMapper {
                 continue;
             }
             // The schema may be empty for a reset-only state (see companion_service.proto). Defer the
-            // schema requirement and codec binding until a non-reset item that actually needs them.
+            // schema requirement until a non-reset item that actually needs it.
             TableSchema stateSchema = protoState.getSchema().isEmpty()
                     ? null
                     : TableSchema.fromYTree(YsonUtils.yTreeFromProto(protoState.getSchema()));
             var stateHolder = states.computeIfAbsent(
                     protoState.getName(), name -> new StatesHolder<>(name, keySchema, stateSchema)
             );
-            // Bound lazily to the per-state schema on the first non-reset item: the schema is the
-            // same for all items inside a single TState message.
-            ByteStringCodec<Payload> boundValueCodec = null;
             for (var stateItem : protoState.getStateItemsList()) {
                 UnversionedRow key = keyCodec.decode(stateItem.getKey());
                 if (stateItem.getReset()) {
@@ -91,13 +82,7 @@ public class ExternalStateProtoMapper {
                                     .formatted(protoState.getName(), jobId, requestId)
                     );
                 }
-                if (boundValueCodec == null) {
-                    boundValueCodec = valueCodec.codecFor(stateSchema);
-                }
-                stateHolder.load(
-                        key,
-                        new ExternalState(boundValueCodec.decode(stateItem.getState()))
-                );
+                stateHolder.load(key, new ExternalState(stateItem.getState()));
             }
         }
         return states;
@@ -143,8 +128,6 @@ public class ExternalStateProtoMapper {
                 statesHolder.getStateSchema(), "External state must have a schema"
         );
         stateBuilder.setSchema(YsonUtils.protoFromYTree(stateSchema.toYTree()));
-        // Bind the payload codec to the per-state schema once.
-        ByteStringCodec<Payload> boundValueCodec = valueCodec.codecFor(stateSchema);
         var modifiedStates = statesHolder.getModifiedStates();
         var stateItems = new ArrayList<TStateItem>(modifiedStates.size());
         for (var entry : modifiedStates.entrySet()) {
@@ -155,7 +138,7 @@ public class ExternalStateProtoMapper {
                     .setReset(state.isReset());
             if (!state.isReset()) {
                 Objects.requireNonNull(state.getValue(), "Non-reset state must have value");
-                stateItemBuilder.setState(boundValueCodec.encode(state.getValue()));
+                stateItemBuilder.setState(state.getValue());
             }
             stateItems.add(stateItemBuilder.build());
         }

@@ -78,7 +78,7 @@ public class RequestProtoMapper {
 
         // External states.
         var externalStateMapper = new ExternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec(), codecs.getPayloadCodec()
+                keySchema, codecs.getKeyCodec()
         );
         builder.setExternalStates(
                 externalStateMapper.fromProto(request.getExternalStatesList(), jobId, requestId)

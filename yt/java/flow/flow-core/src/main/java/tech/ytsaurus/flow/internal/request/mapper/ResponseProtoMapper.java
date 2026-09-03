@@ -96,8 +96,7 @@ public class ResponseProtoMapper {
         // External states.
         var externalStateMapper = new ExternalStateProtoMapper(
                 /*keySchema not needed for toProto*/ null,
-                codecs.getKeyCodec(),
-                codecs.getPayloadCodec()
+                codecs.getKeyCodec()
         );
         var externalProtoStates = new ArrayList<tech.ytsaurus.flow.rpc.TState>();
         for (var namedState : response.getExternalStates().values()) {
@@ -173,7 +172,7 @@ public class ResponseProtoMapper {
 
         // External states.
         var externalStateMapper = new ExternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec(), codecs.getPayloadCodec()
+                keySchema, codecs.getKeyCodec()
         );
         var externalStates = externalStateMapper.fromProto(
                 responseData.getExternalStatesList(), jobId, requestId
