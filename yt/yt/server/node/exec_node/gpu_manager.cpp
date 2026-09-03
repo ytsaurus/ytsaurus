@@ -226,8 +226,7 @@ void TGpuManager::Start()
         YT_TLOG_INFO("No GPU driver layer directory specified");
     }
 
-    // NB(severovv): If initial discovery yields no devices, GPU support stays disabled until restart.
-    // Late discovery from an initially empty device set is intentionally unsupported.
+    // NB(severovv): Late discovery from an initially empty device set is unsupported; GPU support stays disabled until restart.
     if (gpuInfos.empty()) {
         return;
     }
