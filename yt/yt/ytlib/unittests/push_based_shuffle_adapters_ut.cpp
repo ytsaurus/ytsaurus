@@ -75,6 +75,11 @@ public:
         WritePromise_.Set();
     }
 
+    void SetWriteFailed(TError error)
+    {
+        WritePromise_.Set(std::move(error));
+    }
+
 private:
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
@@ -245,6 +250,35 @@ TEST(ShuffleWriterAdapter, NullRowIsRejected)
     EXPECT_FALSE(adapter->Write(TRange<TUnversionedRow>(rows)));
     EXPECT_FALSE(adapter->GetReadyEvent().GetOrCrash().IsOK());
     EXPECT_TRUE(underlyingWriter->GetRows().empty());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(ShuffleWriterAdapter, FailedWriteIsSticky)
+{
+    auto schema = MakeSchema();
+    auto underlyingWriter = New<TMockShuffleWriter>();
+    auto adapter = CreateShuffleWriterAdapter(underlyingWriter, schema);
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto row = rowBuffer->AllocateUnversioned(1);
+    row[0] = MakeUnversionedStringValue("a", /*id*/ 0);
+
+    std::vector<TUnversionedRow> rows{row};
+    EXPECT_FALSE(adapter->Write(TRange<TUnversionedRow>(rows)));
+
+    underlyingWriter->SetWriteFailed(TError("Shuffle writer failed"));
+    EXPECT_FALSE(adapter->GetReadyEvent().GetOrCrash().IsOK());
+
+    // The failure of the underlying write sticks just like a rejected batch.
+    EXPECT_FALSE(adapter->Write(TRange<TUnversionedRow>(rows)));
+    EXPECT_FALSE(adapter->GetReadyEvent().GetOrCrash().IsOK());
+    EXPECT_EQ(std::ssize(underlyingWriter->GetRows()), 1);
+
+    auto closeResult = adapter->Close();
+    ASSERT_TRUE(closeResult.IsSet());
+    EXPECT_FALSE(closeResult.GetOrCrash().IsOK());
+    EXPECT_FALSE(underlyingWriter->IsClosed());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

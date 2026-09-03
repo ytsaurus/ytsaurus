@@ -64,7 +64,11 @@ public:
 
     TFuture<void> Close() override
     {
-        if (ReadyEvent_.IsSet() && !ReadyEvent_.GetOrCrash().IsOK()) {
+        // The shuffle writer requires serialized calls, so the caller must have waited for
+        // the last write.
+        YT_VERIFY(ReadyEvent_.IsSet());
+
+        if (!ReadyEvent_.GetOrCrash().IsOK()) {
             return ReadyEvent_;
         }
 
@@ -119,6 +123,7 @@ private:
 
     TFuture<void> ReadyEvent_ = OKFuture;
 
+    // The number of columns is bounded. Keep it as a member to avoid allocations.
     std::vector<bool> WrittenIds_;
 
     //! Logical mapper output: every row is counted once, no matter how many physical
