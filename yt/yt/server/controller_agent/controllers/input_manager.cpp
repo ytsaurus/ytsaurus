@@ -249,6 +249,7 @@ void TInputCluster::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, UnavailableInputChunkIds_);
     PHOENIX_REGISTER_FIELD(6, PathToInputTables_);
 }
+
 PHOENIX_DEFINE_TYPE(TInputCluster);
 
 TLogger TInputCluster::GetLogger() const
@@ -1611,6 +1612,7 @@ void TInputManager::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(7, Clusters_);
     PHOENIX_REGISTER_FIELD(8, ClusterResolver_);
 }
+
 PHOENIX_DEFINE_TYPE(TInputManager);
 
 ////////////////////////////////////////////////////////////////////////////////
