@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <algorithm>
+
 namespace NYT::NFlow::NCompanionServer {
 
 using NYT::FromProto;
@@ -114,6 +116,7 @@ void SerializeProcessBatchResponse(
         THROW_ERROR_EXCEPTION_IF(group.ParentIds.empty(),
             "Output group without parent ids");
         YT_VERIFY(group.Distribute.size() == group.Messages.size());
+        YT_VERIFY(group.MessageIdSuffixes.empty() || group.MessageIdSuffixes.size() == group.Messages.size());
 
         auto* protoGroup = data->add_output();
         for (const auto& message : group.Messages) {
@@ -125,6 +128,17 @@ void SerializeProcessBatchResponse(
         {
             for (auto distribute : group.Distribute) {
                 protoGroup->add_distribute(distribute);
+            }
+        }
+        if (std::any_of(
+            group.MessageIdSuffixes.begin(),
+            group.MessageIdSuffixes.end(),
+            [] (const auto& suffix) {
+                return suffix.GetMode() != TOutputMessageIdSuffix::EMode::SequenceNumber;
+            }))
+        {
+            for (const auto& suffix : group.MessageIdSuffixes) {
+                NCompanion::ToProto(protoGroup->add_message_id_suffixes(), suffix);
             }
         }
         for (const auto& timer : group.Timers) {

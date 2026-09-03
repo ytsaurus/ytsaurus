@@ -2,8 +2,10 @@
 
 from ._api import Pipeline  # noqa: F401
 from .computation import (  # noqa: F401
+    AddMessageOptions,
     BatchFunction,
     Computation,
+    MessageIdSuffix,
     RowFunction,
     SourceComputation,
 )

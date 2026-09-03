@@ -6,7 +6,8 @@ RootCollector, TransformResult, function protocols.
 import inspect
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, List, Optional
+from enum import Enum
+from typing import Any, List, Optional, Union
 
 from .row import ExtendedMessage, Message, NewTimer, Timer, Visit
 
@@ -64,6 +65,59 @@ class BatchFunction(ABC):
         pass
 
 
+# ---------- Output message options ----------
+
+
+class MessageIdSuffixMode(Enum):
+    SEQUENCE_NUMBER = "sequence_number"
+    PAYLOAD_HASH = "payload_hash"
+    USER_DEFINED = "user_defined"
+
+
+@dataclass(frozen=True)
+class MessageIdSuffix:
+    """Selects how a Swift computation identifies sibling output messages."""
+
+    mode: MessageIdSuffixMode = MessageIdSuffixMode.SEQUENCE_NUMBER
+    value: str = ""
+
+    def __post_init__(self):
+        if not isinstance(self.mode, MessageIdSuffixMode):
+            raise TypeError("mode must be a MessageIdSuffixMode")
+        if not isinstance(self.value, str):
+            raise TypeError("value must be a str")
+        if self.mode == MessageIdSuffixMode.USER_DEFINED and not self.value:
+            raise ValueError("User-defined output message ID suffix must not be empty")
+        if self.mode != MessageIdSuffixMode.USER_DEFINED and self.value:
+            raise ValueError("Only a user-defined message ID suffix may have a value")
+
+    @classmethod
+    def sequence_number(cls) -> "MessageIdSuffix":
+        return cls()
+
+    @classmethod
+    def payload_hash(cls) -> "MessageIdSuffix":
+        return cls(mode=MessageIdSuffixMode.PAYLOAD_HASH)
+
+    @classmethod
+    def user_defined(cls, value: str) -> "MessageIdSuffix":
+        return cls(mode=MessageIdSuffixMode.USER_DEFINED, value=value)
+
+
+@dataclass(frozen=True)
+class AddMessageOptions:
+    """Options for adding an output message."""
+
+    distribute: bool = True
+    message_id_suffix: MessageIdSuffix = field(default_factory=MessageIdSuffix.sequence_number)
+
+    def __post_init__(self):
+        if not isinstance(self.distribute, bool):
+            raise TypeError("distribute must be a bool")
+        if not isinstance(self.message_id_suffix, MessageIdSuffix):
+            raise TypeError("message_id_suffix must be a MessageIdSuffix")
+
+
 # ---------- TransformResult ----------
 
 
@@ -75,6 +129,8 @@ class TransformResult:
     messages: List[Message] = field(default_factory=list)
     # Per-message distribute flag, kept in lockstep with messages.
     distribute: List[bool] = field(default_factory=list)
+    # Per-message message ID suffix selector, kept in lockstep with messages.
+    message_id_suffixes: List[MessageIdSuffix] = field(default_factory=list)
     timers: List[NewTimer] = field(default_factory=list)
 
 
@@ -85,7 +141,13 @@ class OutputCollector(ABC):
     """Interface for collecting output messages."""
 
     @abstractmethod
-    def add_message(self, message: Message, distribute: bool = True): ...
+    def add_message(
+        self,
+        message: Message,
+        options: Union[AddMessageOptions, bool] = AddMessageOptions(),
+        *,
+        distribute: Optional[bool] = None,
+    ): ...
 
     def add_timer(self, trigger_timestamp: int, event_timestamp: int = 0, stream_id: Optional[str] = None): ...
 
@@ -99,9 +161,25 @@ class DefaultOutputCollector(OutputCollector):
         self._root_collector = root_collector
         self._result = result
 
-    def add_message(self, message: Message, distribute: bool = True):
+    def add_message(
+        self,
+        message: Message,
+        options: Union[AddMessageOptions, bool] = AddMessageOptions(),
+        *,
+        distribute: Optional[bool] = None,
+    ):
+        if isinstance(options, bool):
+            options = AddMessageOptions(distribute=options)
+        if not isinstance(options, AddMessageOptions):
+            raise TypeError("options must be AddMessageOptions or bool")
+        if distribute is not None:
+            options = AddMessageOptions(
+                distribute=distribute,
+                message_id_suffix=options.message_id_suffix,
+            )
         self._result.messages.append(message)
-        self._result.distribute.append(distribute)
+        self._result.distribute.append(options.distribute)
+        self._result.message_id_suffixes.append(options.message_id_suffix)
 
     def add_timer(self, trigger_timestamp: int, event_timestamp: int = 0, stream_id: Optional[str] = None):
         self._result.timers.append(

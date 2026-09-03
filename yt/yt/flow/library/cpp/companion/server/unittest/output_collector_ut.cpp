@@ -35,7 +35,12 @@ TEST(TGroupingOutputCollectorTest, GroupsByParents)
     {
         auto child = root->SetParents({message}, {}, {});
         child->AddMessage(MakeOutputMessage(1));
-        child->AddMessage(MakeOutputMessage(2), /*distribute*/ false);
+        child->AddMessage(
+            MakeOutputMessage(2),
+            TAddMessageOptions{
+                .Distribute = false,
+                .MessageIdSuffix = TOutputMessageIdSuffix::FromUserDefined("semantic-key"),
+            });
     }
     {
         auto child = root->SetParents({}, {timer}, {});
@@ -53,6 +58,11 @@ TEST(TGroupingOutputCollectorTest, GroupsByParents)
     EXPECT_EQ(groups[0].ParentIds, std::vector<TMessageId>{message->MessageId});
     ASSERT_EQ(std::ssize(groups[0].Messages), 2);
     EXPECT_EQ(groups[0].Distribute, (std::vector<bool>{true, false}));
+    const std::vector expectedSuffixes{
+        TOutputMessageIdSuffix::FromSequenceNumber(),
+        TOutputMessageIdSuffix::FromUserDefined("semantic-key"),
+    };
+    EXPECT_EQ(groups[0].MessageIdSuffixes, expectedSuffixes);
 
     EXPECT_EQ(groups[1].ParentIds, std::vector<TMessageId>{timer->MessageId});
     ASSERT_EQ(std::ssize(groups[1].Timers), 1);

@@ -80,7 +80,32 @@ classDiagram
 
 В `Process` (`IBatchProcessFunction`) и `ProcessKey` у `output` не проставлены родительские сообщения — проставляйте их сами через `output->SetParents(...)`; в поэлементных методах `IProcessFunction` (`ProcessMessage` / `ProcessTimer` / `ProcessVisit`) они уже проставлены на соответствующую сущность.
 
-Флаг `distribute` в `output->AddMessage(message, distribute)` повторяет семантику `OutputCollector` у `Computation`: для source сообщение с `distribute = false` не публикуется, но всё равно учитывается при оценке [вотермарка](../../../flow/concepts/glossary.md#timestamps-and-watermarks); для остальных `Computation` сообщение с `distribute = false` просто отбрасывается.
+Поле `Distribute` в `TAddMessageOptions` повторяет семантику `OutputCollector` у `Computation`: для source сообщение с `Distribute = false` не публикуется, но всё равно учитывается при оценке [вотермарка](../../../flow/concepts/glossary.md#timestamps-and-watermarks); для остальных `Computation` такое сообщение просто отбрасывается.
+
+### Суффикс message id в Swift {#message-id-suffixes}
+
+В Swift-режиме суффикс производного message id можно выбрать через `TAddMessageOptions`:
+
+```cpp
+output->AddMessage(std::move(message));
+output->AddMessage(
+    std::move(hashedMessage),
+    TAddMessageOptions{
+        .MessageIdSuffix = TOutputMessageIdSuffix::FromPayloadHash(),
+    });
+output->AddMessage(
+    std::move(keyedMessage),
+    TAddMessageOptions{
+        .Distribute = false,
+        .MessageIdSuffix = TOutputMessageIdSuffix::FromUserDefined(semanticKey),
+    });
+```
+
+- С options по умолчанию или с `FromSequenceNumber()` используется текущий порядковый номер сообщения для пары «родительский message id, выходной стрим».
+- `FromPayloadHash()` использует 128-битный CityHash от канонического wire-представления payload. Одинаковые payload одного родителя и стрима получают одинаковый message id; теоретическая коллизия хеша возможна.
+- `FromUserDefined(...)` принимает непустой пользовательский суффикс. Flow кодирует его отдельным лексикографическим компонентом, поэтому он не может выдать себя за суффикс порядкового номера. Пользователь отвечает за его стабильность и уникальность среди разных логических сообщений одного родителя и стрима.
+
+Хеш и пользовательский суффикс поддерживаются только Swift-компьютейшенами. Они позволяют не связывать идентичность сообщения с порядком эмита, но не отменяют [требование детерминированности Swift](../../../flow/concepts/swift.md#determinism): одинаковый message id всё равно должен обозначать один и тот же логический вывод.
 
 {% note warning %}
 

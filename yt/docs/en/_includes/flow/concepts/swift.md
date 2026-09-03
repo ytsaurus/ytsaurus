@@ -40,6 +40,8 @@ Breaking determinism when updating a pipeline without a [drain](../../../flow/co
 
 There can be exceptions to this rule, driven by the pipeline’s business logic specifics. But the developer of the business logic must clearly understand why they’re implementing them and what mechanisms ensure the pipeline’s overall result stays correct.
 
+By default, Flow appends the derived message’s sequence number to its message ID. If two replays of a Swift computation emit different messages at the same position, those messages get the same message ID. This can cause data loss or duplicates; if the messages have different keys, it can also violate Flow’s internal invariants. In C++, Java, Python, and Go, output options can remove emission order from message identity by selecting a payload hash or user-defined suffix (see the [C++ API description](../../../flow/cpp/process-functions.md#message-id-suffixes)). This prevents that particular ID collision only when the semantic suffix is stable; it doesn’t make a nondeterministic computation deterministic.
+
 ## Swift computation classes {#classes}
 
 Flow implements two base Swift classes:

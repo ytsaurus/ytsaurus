@@ -28,6 +28,7 @@ SRCS(
     message_batcher.cpp
     message_migration.cpp
     message.cpp
+    output_collector.cpp
     payload_converter.cpp
     payload_validation.cpp
     payload.cpp

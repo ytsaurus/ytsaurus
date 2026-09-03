@@ -24,7 +24,7 @@
 
 ## Использование {#usage}
 
-Логика фильтрации переносится в функцию обработки: вместо отдельного шага фильтрации сообщение эмитится с нужным флагом через перегрузку `OutputCollector.addMessage(Message, boolean)`.
+Логика фильтрации переносится в функцию обработки: вместо отдельного шага фильтрации сообщение эмитится с нужным `AddMessageOptions`.
 
 {% list tabs %}
 
@@ -42,7 +42,7 @@
                           .set("hit_id", hit.getHitId())
                           .set("hit_payload", hit.getHitPayload())
                           .finish(),
-                  distribute
+                  AddMessageOptions.builder().setDistribute(distribute).build()
           );
       }
   }
@@ -61,7 +61,7 @@
                   .set("hit_id", hit.hitId)
                   .set("hit_payload", hit.hitPayload)
                   .finish(),
-              distribute
+              AddMessageOptions.builder().setDistribute(distribute).build()
           )
       }
   }

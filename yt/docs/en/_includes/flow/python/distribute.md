@@ -27,7 +27,7 @@ If you don’t set the flag, it defaults to `True`, and the message is published
 You move the filtering logic to the processing function: instead of a separate filtering step, you emit the message with the required flag.
 
 ```python
-from yt.yt.flow.library.python.companion.computation import RowFunction
+from yt.yt.flow.library.python.companion.computation import AddMessageOptions, RowFunction
 
 
 class HitParsingFunction(RowFunction):
@@ -37,7 +37,10 @@ class HitParsingFunction(RowFunction):
         builder.set("hit_payload", message.payload["hit_payload"])
         # Duplicates are emitted but not published further.
         is_duplicate = message.payload["hit_payload"] == "duplicate_payload"
-        output.add_message(builder.finish(), distribute=not is_duplicate)
+        output.add_message(
+            builder.finish(),
+            AddMessageOptions(distribute=not is_duplicate),
+        )
 ```
 
 ## Registering a source-computation {#registration}

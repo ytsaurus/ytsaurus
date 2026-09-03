@@ -82,7 +82,32 @@ classDiagram
 
 In `Process` (`IBatchProcessFunction`) and `ProcessKey`, the `output` doesn’t have parent messages set — you must set them yourself via `output->SetParents(...)`. In the element-wise methods of `IProcessFunction` (`ProcessMessage`, `ProcessTimer`, `ProcessVisit`), they’re already set for the corresponding entity.
 
-The `distribute` flag in `output->AddMessage(message, distribute)` mirrors the `OutputCollector` semantics in `Computation`: for source, a message with `distribute = false` isn’t published but is still considered when evaluating the [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks); for other `Computation` types, a message with `distribute = false` is simply discarded.
+The `Distribute` field in `TAddMessageOptions` mirrors the `OutputCollector` semantics in `Computation`: for source, a message with `Distribute = false` isn’t published but is still considered when evaluating the [watermark](../../../flow/concepts/glossary.md#timestamps-and-watermarks); for other `Computation` types, such a message is simply discarded.
+
+### Message ID suffixes in Swift {#message-id-suffixes}
+
+In Swift mode, you can select the derived message ID suffix in `TAddMessageOptions`:
+
+```cpp
+output->AddMessage(std::move(message));
+output->AddMessage(
+    std::move(hashedMessage),
+    TAddMessageOptions{
+        .MessageIdSuffix = TOutputMessageIdSuffix::FromPayloadHash(),
+    });
+output->AddMessage(
+    std::move(keyedMessage),
+    TAddMessageOptions{
+        .Distribute = false,
+        .MessageIdSuffix = TOutputMessageIdSuffix::FromUserDefined(semanticKey),
+    });
+```
+
+- With default options, or with `FromSequenceNumber()`, Flow uses the current message sequence number for the parent message ID and output stream pair.
+- `FromPayloadHash()` uses a 128-bit CityHash of the canonical payload wire representation. Equal payloads with the same parent and stream get the same message ID; a hash collision is theoretically possible.
+- `FromUserDefined(...)` accepts a non-empty user-defined suffix. Flow encodes it as a separate lexicographic component, so it cannot impersonate a sequence-number suffix. The caller is responsible for keeping it stable and unique among distinct logical messages with the same parent and stream.
+
+Payload hashes and user-defined suffixes are supported only by Swift computations. They let message identity be independent of emission order, but they don’t remove the [Swift determinism requirement](../../../flow/concepts/swift.md#determinism): the same message ID must still denote the same logical output.
 
 {% note warning %}
 
