@@ -28,11 +28,15 @@ get_built_tool_path(
   cpp_styleguide
 )
 
-set(ANTLR_PACKAGE_NAME NJsonPathGenerated)
+set(ANTLR_AST_NAME TJsonPathParserAST)
 
 set(ANTLR_PACKAGE_NAME NJsonPathGenerated)
 
-set(LEXER_PARSER_NAMESPACE NALP)
+set(ANTLR_AST_NAME TJsonPathParserAST)
+
+set(ANTLR_PACKAGE_NAME NJsonPathGenerated)
+
+set(ANTLR_PARSER_NAME JsonPathParser)
 
 set(PROTOBUF_HEADER_PATH yql/essentials/parser/proto_ast/gen/jsonpath)
 
@@ -46,28 +50,26 @@ target_compile_options(proto_ast-gen-jsonpath PRIVATE
 )
 
 target_include_directories(proto_ast-gen-jsonpath PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/antlr4_cpp_runtime/src
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/codegen/templates/Cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/codegen/templates/protobuf
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/v4/tool/templates/codegen/Java
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/v4/tool/templates/codegen/Cpp
 )
 
 target_link_libraries(proto_ast-gen-jsonpath PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  public-issue-protos
   contrib-libs-protobuf
-)
-
-target_proto_messages(proto_ast-gen-jsonpath PRIVATE
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.proto
+  parser-proto_ast-antlr4
+  public-issue-protos
 )
 
 target_sources(proto_ast-gen-jsonpath PRIVATE
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.pb.cc
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.cpp
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathLexer.cpp
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/codegen/templates/Cpp/Cpp.stg
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/codegen/templates/protobuf/protobuf.stg
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/v4/tool/templates/codegen/Java/Java.stg
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/v4/tool/templates/codegen/Cpp/Cpp.stg
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/v4/tool/templates/codegen/Cpp/Files.stg
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.h
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathLexer.h
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.pb.h
@@ -75,16 +77,21 @@ target_sources(proto_ast-gen-jsonpath PRIVATE
 
 
 configure_file(
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/org/antlr/codegen/templates/protobuf/protobuf.stg.in
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/codegen/templates/protobuf/protobuf.stg
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/org/antlr/v4/tool/templates/codegen/Java/Java.stg.in
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/v4/tool/templates/codegen/Java/Java.stg
 )
 
 configure_file(
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/org/antlr/codegen/templates/Cpp/Cpp.stg.in
-  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/codegen/templates/Cpp/Cpp.stg
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/org/antlr/v4/tool/templates/codegen/Cpp/Cpp.stg.in
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/v4/tool/templates/codegen/Cpp/Cpp.stg
 )
 
-run_antlr(
+configure_file(
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/org/antlr/v4/tool/templates/codegen/Cpp/Files.stg.in
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/org/antlr/v4/tool/templates/codegen/Cpp/Files.stg
+)
+
+run_antlr4(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.proto
   WORKING_DIRECTORY
@@ -93,13 +100,35 @@ run_antlr(
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/JsonPath.g
   -lib
   .
-  -fo
+  -no-listener
+  -o
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath
-  -language
-  protobuf
+  -Dlanguage=Java
 )
 
-run_antlr(
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.pb.h
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.pb.cc
+  DEPENDS
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.proto
+  ${TOOL_protoc_bin}
+  ${TOOL_cpp_styleguide_bin}
+  WORKING_DIRECTORY
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath
+  COMMAND
+  ${TOOL_protoc_bin}
+  -I=${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath
+  -I=${PROJECT_SOURCE_DIR}
+  -I=${PROJECT_BINARY_DIR}
+  -I=${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  --cpp_out=${PROJECT_BINARY_DIR}
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}
+  --plugin=protoc-gen-cpp_styleguide=${PROJECT_BINARY_DIR}/contrib/tools/protoc/plugins/cpp_styleguide/cpp_styleguide
+  ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.proto
+)
+
+run_antlr4(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathParser.cpp
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath/JsonPathLexer.cpp
@@ -109,23 +138,19 @@ run_antlr(
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath
   ANTLER_ARGS
   ${PROJECT_SOURCE_DIR}/yql/essentials/minikql/jsonpath/JsonPath.g
+  -no-listener
+  -package
+  NALP
   -lib
   .
-  -fo
+  -o
   ${PROJECT_BINARY_DIR}/yql/essentials/parser/proto_ast/gen/jsonpath
 )
 
-target_proto_outs(proto_ast-gen-jsonpath
-  --cpp_out=${PROJECT_BINARY_DIR}/
-  --cpp_styleguide_out=:${PROJECT_BINARY_DIR}/
-)
 
-target_proto_addincls(proto_ast-gen-jsonpath
-  ./
-  ${PROJECT_SOURCE_DIR}/
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-  ${PROJECT_BINARY_DIR}
-  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
-)
+if(NOT CMAKE_CROSSCOMPILING)
+  add_dependencies(proto_ast-gen-jsonpath
+    protoc
+    cpp_styleguide
+  )
+endif()

@@ -12,24 +12,21 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(antlr4)
-
-add_library(essentials-parser-common)
+add_library(parser-common-antlr4)
 
 
-target_link_libraries(essentials-parser-common PUBLIC
-  linux-headers-generic::linux-headers-generic
+target_link_libraries(parser-common-antlr4 PUBLIC
   contrib-libs-cxxsupp
   yutil
-  essentials-public-issue
-  essentials-core-issue
+  contrib-libs-antlr4_cpp_runtime
+  essentials-parser-common
 )
 
-target_sources(essentials-parser-common PRIVATE
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/error.cpp
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/error.h
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/issue.h
+target_sources(parser-common-antlr4 PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/antlr4/depth_limiting_listener.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/antlr4/error_listener.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/antlr4/depth_limiting_listener.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/antlr4/error_listener.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/antlr4/lexer_tokens_collector.h
 )
 

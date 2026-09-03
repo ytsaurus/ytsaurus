@@ -12,49 +12,6 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-cmake_minimum_required(VERSION 3.15)
-if (POLICY CMP0132)
-  cmake_policy(SET CMP0132 NEW)
-endif()
-
-project(YT LANGUAGES C CXX ASM)
-
-if(" ${PROJECT_SOURCE_DIR}" STREQUAL " ${PROJECT_BINARY_DIR}")
-  message(FATAL_ERROR "
-FATAL: In-source builds are not allowed.
-       You should create a separate directory for build files.
-")
-endif()
-
-set(BUILD_SHARED_LIBS Off)
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_EXTENSIONS Off)
-set(YT_MAX_LINK_JOBS 5 CACHE STRING "Maximum parallel link jobs for Ninja generator")
-set_property(GLOBAL PROPERTY JOB_POOLS link_jobs=${YT_MAX_LINK_JOBS})
-set(CMAKE_JOB_POOL_LINK link_jobs)
-
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_BINARY_DIR} ${PROJECT_SOURCE_DIR}/cmake)
-include_directories(${PROJECT_SOURCE_DIR} ${PROJECT_BINARY_DIR})
-list(APPEND CMAKE_CTEST_ARGUMENTS "--output-on-failure")
-enable_testing()
-
-# Disable 'empty CUDA_ARCHITECTURES not allowed' warning
-# Can't set it in cuda.cmake because of CMake policy subdirectory stack rules
-cmake_policy(SET CMP0104 OLD)
-
-include(cmake/global_flags.cmake)
-include(cmake/global_vars.cmake)
-include(cmake/FindIDN.cmake)
-include(cmake/antlr4.cmake)
-include(cmake/archive.cmake)
-include(cmake/bison.cmake)
-include(cmake/common.cmake)
-include(cmake/fbs.cmake)
-include(cmake/llvm-tools.cmake)
-include(cmake/protobuf.cmake)
-include(cmake/shared_libs.cmake)
-
-
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
   include(CMakeLists.darwin-x86_64.txt)
 elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")

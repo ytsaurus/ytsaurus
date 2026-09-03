@@ -14,22 +14,20 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(antlr4)
-
-add_library(essentials-parser-common)
+add_library(parser-proto_ast-antlr4)
 
 
-target_link_libraries(essentials-parser-common PUBLIC
+target_link_libraries(parser-proto_ast-antlr4 PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  essentials-public-issue
-  essentials-core-issue
+  parser-common-antlr4
+  essentials-parser-proto_ast
+  contrib-libs-antlr4_cpp_runtime
 )
 
-target_sources(essentials-parser-common PRIVATE
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/error.cpp
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/error.h
-  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/common/issue.h
+target_sources(parser-proto_ast-antlr4 PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/antlr4/proto_ast_antlr4.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/proto_ast/antlr4/proto_ast_antlr4.h
 )
 
