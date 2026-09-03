@@ -475,6 +475,7 @@ private:
 
         auto path = GetChangelogPath(Config_->Path, id);
         RemoveChangelogFiles(path);
+        TryRemove(id, /*forbidResurrection*/ true);
 
         YT_TLOG_INFO("Local changelog removed")
             .With("ChangelogId", id)
