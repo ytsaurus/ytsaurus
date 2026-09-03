@@ -349,8 +349,6 @@ void TVanillaConfig::Register(TRegistrar registrar)
     registrar.Parameter("cache_path", &TThis::CachePath)
         .NonEmpty()
         .Default(TString(VanillaFileCachePath));
-    registrar.Parameter("upload_temp_path", &TThis::UploadTempPath)
-        .Default();
 
     registrar.Parameter("max_failed_job_count", &TThis::MaxFailedJobCount)
         .Default(10000);
@@ -527,12 +525,7 @@ void LaunchInVanillaJob(
                 }
                 return persist
                     ? NYPath::TYPath(Format("%v/%v", filesDir, fileName))
-                    : EnsureFileInCache(
-                        runtimeClient,
-                        localPath,
-                        canonical.MD5,
-                        vanillaConfig->CachePath,
-                        vanillaConfig->UploadTempPath);
+                    : EnsureFileInCache(runtimeClient, localPath, canonical.MD5, vanillaConfig->CachePath);
             });
     };
 
@@ -592,12 +585,7 @@ void LaunchInVanillaJob(
 
     THashSet<std::string> keepNames;
     for (const auto& [fileName, file] : canonicalFiles) {
-        auto pipelineCachePath = EnsureFileInCache(
-            pipelineClient,
-            file.LocalPath,
-            file.MD5,
-            vanillaConfig->CachePath,
-            vanillaConfig->UploadTempPath);
+        auto pipelineCachePath = EnsureFileInCache(pipelineClient, file.LocalPath, file.MD5, vanillaConfig->CachePath);
         NApi::TCopyNodeOptions copyOptions;
         copyOptions.Recursive = true;
         copyOptions.Force = true;
@@ -656,12 +644,7 @@ std::string StartFlowVanillaOperation(const TFlowVanillaOptions& options)
     auto resolveFile = [&] (const std::string& localPath) {
         auto [it, inserted] = resolvedFiles.try_emplace(localPath);
         if (inserted) {
-            it->second = EnsureFileInCache(
-                client,
-                localPath,
-                ComputeLocalFileMD5(localPath),
-                cacheDir,
-                options.UploadTempPath);
+            it->second = EnsureFileInCache(client, localPath, ComputeLocalFileMD5(localPath), cacheDir);
         }
         return it->second;
     };
