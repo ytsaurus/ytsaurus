@@ -38,7 +38,7 @@ class StateSeederTest {
     void capturesInternalSetAsSerializedBytes() {
         // raw(...) uses identity serialization, so the captured bytes are exactly what was set.
         var seed = StateSeeder.capture(
-                StateDescriptors.raw("word-state-raw"), key(), acc -> acc.set(new byte[]{1, 2, 3}));
+                StateDescriptors.raw("word-state-raw"), key(), acc -> acc.set(new byte[]{1, 2, 3}), null);
 
         assertEquals(CapturedSeed.Kind.INTERNAL, seed.kind());
         var state = assertInstanceOf(InternalState.class, seed.state());
@@ -51,7 +51,7 @@ class StateSeederTest {
         var value = new PayloadBuilder(STATE_SCHEMA).set("count", 7L).finish();
 
         var seed = StateSeeder.capture(
-                StateDescriptors.external("/state"), key(), acc -> acc.set(value));
+                StateDescriptors.external("/state"), key(), acc -> acc.set(value), STATE_SCHEMA);
 
         assertEquals(CapturedSeed.Kind.EXTERNAL, seed.kind());
         var state = assertInstanceOf(ExternalState.class, seed.state());
@@ -62,7 +62,7 @@ class StateSeederTest {
     @Test
     void capturesInternalClearAsReset() {
         var seed = StateSeeder.capture(
-                StateDescriptors.raw("word-state-raw"), key(), StateAccessor::clear);
+                StateDescriptors.raw("word-state-raw"), key(), StateAccessor::clear, null);
 
         assertEquals(CapturedSeed.Kind.INTERNAL, seed.kind());
         assertTrue(seed.state().isReset());
@@ -71,7 +71,7 @@ class StateSeederTest {
     @Test
     void capturesExternalClearAsReset() {
         var seed = StateSeeder.capture(
-                StateDescriptors.external("/state"), key(), StateAccessor::clear);
+                StateDescriptors.external("/state"), key(), StateAccessor::clear, STATE_SCHEMA);
 
         assertEquals(CapturedSeed.Kind.EXTERNAL, seed.kind());
         assertTrue(seed.state().isReset());
@@ -82,7 +82,7 @@ class StateSeederTest {
         // A yson descriptor must produce non-identity bytes: proves capture() runs the real codec
         // rather than storing the value raw.
         var seed = StateSeeder.capture(
-                StateDescriptors.yson("count-state", Long.class), key(), acc -> acc.set(42L));
+                StateDescriptors.yson("count-state", Long.class), key(), acc -> acc.set(42L), null);
 
         assertEquals(CapturedSeed.Kind.INTERNAL, seed.kind());
         var state = assertInstanceOf(InternalState.class, seed.state());
