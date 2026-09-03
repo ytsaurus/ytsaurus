@@ -136,6 +136,9 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("verbose_logging_objects", &TThis::VerboseLoggingObjects)
         .Default();
+    registrar.Parameter("multi_consumer_select_batch_size", &TThis::MultiConsumerSelectBatchSize)
+        .GreaterThan(0)
+        .Default(10'000);
 
     registrar.Postprocessor([] (TQueueControllerDynamicConfig* config) {
         if (config->TrimmingPeriod && config->TrimmingPeriod->GetValue() <= 0) {
