@@ -302,6 +302,7 @@ def get_clock_config():
 
 def get_timestamp_provider_config():
     return {
+        "cluster_connection": {},
         "timestamp_provider": {
             "soft_backoff_time": 100,
             "hard_backoff_time": 100,

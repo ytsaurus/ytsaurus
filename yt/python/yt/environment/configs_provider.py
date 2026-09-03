@@ -86,6 +86,8 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir)
 
@@ -760,6 +762,8 @@ def _build_timestamp_provider_configs(yt_config,
                                       multidaemon_config_output,
                                       master_connection_configs,
                                       clock_connection_config,
+                                      discovery_configs,
+                                      cypress_proxy_rpc_ports,
                                       ports_generator,
                                       logs_dir):
     configs = []
@@ -783,6 +787,18 @@ def _build_timestamp_provider_configs(yt_config,
         })
 
         init_cypress_annotations(config, index)
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                discovery_configs,
+                None,  # timestamp provider addresses
+                [],  # master cache addresses
+                [],  # chaos cache addresses
+                cypress_proxy_rpc_ports,
+                config_template=config["cluster_connection"])
 
         # COMPAT(aleksandra-zh)
         set_at(config, "timestamp_provider/addresses",
