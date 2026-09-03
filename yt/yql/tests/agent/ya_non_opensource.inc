@@ -5,18 +5,17 @@ PEERDIR(
 
     library/python/ydb/federated_topic_client
 
+    logbroker/public/api/admin
     logbroker/tools/lib/recipe_helpers
 
     yql/tools/yqlworker/interface/proto
-
-    yt/yql/tests/common/test_framework
 
     yt/yt/flow/yandex/extensions/monium/python
 )
 
 TEST_SRCS(
-    test_ytflow.py
     test_qtworker.py
+    test_ytflow_non_opensource.py
 )
 
 DEPENDS(
@@ -25,13 +24,9 @@ DEPENDS(
 
     logbroker/config-manager/bin
 
-    yt/yql/tests/agent/throwing_udf
-    yt/yql/tools/ytflow_worker
-
     yt/yql/tools/qtworker
     yql/essentials/tools/udf_resolver
     yql/essentials/tools/udf_dep_stub
-    yql/essentials/udfs/common/datetime2
 )
 
 DATA(
