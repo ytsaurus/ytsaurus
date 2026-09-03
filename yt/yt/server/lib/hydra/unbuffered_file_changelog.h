@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NHydra {
@@ -119,6 +121,7 @@ IUnbufferedFileChangelogPtr CreateUnbufferedFileChangelog(
     NIO::IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     std::string fileName,
+    const TWorkloadDescriptor& workloadDescriptor,
     TFileChangelogConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
