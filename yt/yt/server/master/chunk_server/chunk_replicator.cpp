@@ -841,9 +841,8 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
         mediumStatistics.UnsafelyPlacedReplica);
 
     if (targetNodes.empty()) {
-        YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-            "No target nodes were allocated while trying to replicate chunk (ChunkId: %v)",
-            chunk->GetId());
+        YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "No target nodes were allocated while trying to replicate chunk")
+            .With("ChunkId", chunk->GetId());
         return EMisscheduleReason::NoTargetNodes;
     }
 
@@ -855,9 +854,8 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     }
 
     if (targetReplicas.empty()) {
-        YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-            "All target nodes allocated are dead while trying to replicate chunk (ChunkId: %v)",
-            chunk->GetId());
+        YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "All target nodes allocated are dead while trying to replicate chunk")
+            .With("ChunkId", chunk->GetId());
         return EMisscheduleReason::NoTargetReplicas;
     }
 
@@ -883,11 +881,10 @@ EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     }
 
     if (std::ssize(targetNodes) != replicasNeeded) {
-        YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-            "Insufficient nodes allocated while trying to replicate chunk (ChunkId: %v, ReplicasNeeded: %v, NodesAllocated: %v)",
-            replicasNeeded,
-            std::ssize(targetNodes),
-            chunk->GetId());
+        YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Insufficient nodes allocated while trying to replicate chunk")
+            .With("ChunkId", chunk->GetId())
+            .With("ReplicasNeeded", replicasNeeded)
+            .With("NodesAllocated", std::ssize(targetNodes));
         return EMisscheduleReason::InsufficientTargetReplicas;
     }
 
@@ -1360,10 +1357,9 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                         medium->AsDomestic(),
                         nodeId,
                         replicas);
-                    YT_VERBOSE_LOG_CHUNK_EVENT(chunk.Get(),
-                        "Misschedule reason when scheduling a job (ChunkId: %v, Reason: %v)",
-                        chunkIdWithIndex,
-                        misscheduleReason);
+                    YT_VERBOSE_LOG_CHUNK_EVENT(chunk.Get(), "Misschedule reason when scheduling a job")
+                        .With("ChunkId", chunkIdWithIndex)
+                        .With("Reason", misscheduleReason);
                     if (misscheduleReason == EMisscheduleReason::None) {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
@@ -1671,9 +1667,8 @@ void TChunkReplicator::RefreshChunk(
 
     auto wasLostVital = LostVitalChunks_.contains(chunk);
 
-    YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-        "Refreshing chunk (ChunkId: %v)",
-        chunkId);
+    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Refreshing chunk")
+        .With("ChunkId", chunkId);
 
     chunk->OnRefresh();
 
@@ -1686,10 +1681,9 @@ void TChunkReplicator::RefreshChunk(
 
     auto allMediaStatistics = ChunkStatisticsCalculator_->ComputeChunkStatistics(chunk, chunkReplicas);
 
-    YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-        "Computed chunk statistics on refresh (ChunkId: %v, Status: %v)",
-        chunk->GetId(),
-        allMediaStatistics.Status);
+    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Computed chunk statistics on refresh")
+        .With("ChunkId", chunk->GetId())
+        .With("Status", allMediaStatistics.Status);
 
     auto durabilityRequired = IsDurabilityRequired(chunk, chunkReplicas);
 
@@ -2050,11 +2044,10 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         : std::nullopt;
     auto enqueued = GetChunkRefreshScanner(chunk)->EnqueueChunk({chunk, /*errorCount*/ 0}, adjustedDelay);
 
-    YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-        "Chunk refresh scheduled (ChunkId: %v, Delay: %v, Enqueued: %v)",
-        chunk->GetId(),
-        delay,
-        enqueued);
+    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Chunk refresh scheduled")
+        .With("ChunkId", chunk->GetId())
+        .With("Delay", delay)
+        .With("Enqueued", enqueued);
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
@@ -2196,11 +2189,10 @@ void TChunkReplicator::OnRefresh()
                         .With("WaitTime", waitTime)
                         .With("AllowedWaitTime", allowedWaitTime);
                 } else {
-                    YT_VERBOSE_LOG_CHUNK_EVENT(chunk,
-                        "Chunk has been dequeued from refresh queue (ChunkId: %v, WaitTime: %v, AllowedWaitTime: %v)",
-                        chunk->GetId(),
-                        waitTime,
-                        allowedWaitTime);
+                    YT_VERBOSE_LOG_CHUNK_EVENT(chunk, "Chunk has been dequeued from refresh queue")
+                        .With("ChunkId", chunk->GetId())
+                        .With("WaitTime", waitTime)
+                        .With("AllowedWaitTime", allowedWaitTime);
                 }
             }
 
