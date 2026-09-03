@@ -24,6 +24,7 @@ in-script time handling only needs to be good enough to pick the right files.
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shlex
@@ -31,7 +32,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 
 REMOTE_DIR = "/tmp"
@@ -51,6 +52,8 @@ CONTROL_PATH_ENV = "LOGSLICE_SSH_CONTROL_PATH"
 CONTROL_PERSIST_ENV = "LOGSLICE_SSH_CONTROL_PERSIST"
 GLOBAL_NO_MATCH_EXIT = 3
 OPERATIONAL_FAILURE_EXIT = 2
+COVERAGE_INCOMPLETE_EXIT = 4
+LOG_ROTATION_GAP_TOLERANCE = timedelta(minutes=1)
 LOG_TYPES = ("debug", "info", "error")
 
 # Path of this script inside Arcadia, used both to locate the binary and to
@@ -61,6 +64,44 @@ BUILD_TARGET = "yt/yt/tools/logslice/bin"
 
 def eprint(*args):
     print(*args, file=sys.stderr)
+
+
+def resolve_control_path(control_socket=None, environ=None):
+    """Resolve ControlPath exactly as the SSH runner does."""
+    environ = os.environ if environ is None else environ
+    return control_socket \
+        or environ.get(CONTROL_PATH_ENV) \
+        or os.path.join(tempfile.gettempdir(), "logslice_ssh_%r@%h:%p")
+
+
+def make_execution_result(component=None):
+    """Create the machine-readable result before remote access."""
+    return {
+        "outcome": "failed",
+        "result": "not_started",
+        "requested_component": component,
+        "selected_component": None,
+        "selected_base": None,
+        "selected_files": [],
+        "gaps": None,
+        "log_read": False,
+    }
+
+
+def emit_execution_result(result):
+    eprint(json.dumps(result, sort_keys=True))
+
+
+def mark_access_unavailable(result, failure_class):
+    result["outcome"] = "failed"
+    result["result"] = "access_unavailable"
+    result["failure_class"] = failure_class
+    return result
+
+
+def ssh_access_preflight(ssh, run=subprocess.run):
+    """Verify real non-interactive SSH access before local binary work."""
+    return ssh.check_access(run=run)
 
 
 def describe_exit_code(returncode):
@@ -159,26 +200,6 @@ def slice_failure_class(returncode, stderr):
     if returncode > 128:
         return "signal"
     return "command"
-
-
-def preflight_failure_class(error):
-    """Classify failures that happen before remote log discovery starts.
-
-    Keep this deliberately narrow: only authentication failures receive the
-    structured ``authentication_unavailable`` outcome. Transport and other SSH
-    failures retain the existing diagnostic instead of being relabelled as an
-    authentication problem.
-    """
-    text = str(error).lower()
-    authentication_markers = (
-        "ssh_auth_sock does not exist",
-        "permission denied (publickey",
-        "agent refused operation",
-        "no identities available",
-    )
-    if any(marker in text for marker in authentication_markers):
-        return "authentication_unavailable"
-    return None
 
 
 def requested_component(host, override):
@@ -326,9 +347,8 @@ class Ssh:
             control_persist = int(os.environ.get(
                 CONTROL_PERSIST_ENV, CONTROL_PERSIST_DEFAULT))
         self._control_persist = control_persist
-        self._control_path = control_socket \
-            or os.environ.get(CONTROL_PATH_ENV) \
-            or os.path.join(tempfile.gettempdir(), "logslice_ssh_%r@%h:%p")
+        self._connect_timeout = connect_timeout
+        self._control_path = resolve_control_path(control_socket)
         self._base_opts = [
             "-o", "ControlMaster=auto",
             "-o", "ControlPath=" + self._control_path,
@@ -336,6 +356,23 @@ class Ssh:
             "-o", "StrictHostKeyChecking=no",
             "-o", "ConnectTimeout={}".format(connect_timeout),
         ]
+
+    def check_access(self, run=subprocess.run):
+        """Run a real BatchMode connection check with the configured options."""
+        cmd = ["ssh"] + self._base_opts + [
+            "-o", "BatchMode=yes", self.host, "true"]
+        try:
+            result = run(
+                cmd,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=self._connect_timeout + 5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return "ssh_noninteractive_check_failed"
+        if result.returncode != 0:
+            return "ssh_noninteractive_check_failed"
+        return None
 
     def connect(self):
         """Establishes the master connection (this is where the key touch
@@ -779,8 +816,25 @@ MONTH_BY_NAME = {name.lower(): i + 1 for i, name in enumerate(
     ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])}
 
+ISO_UTC_RE = re.compile(
+    r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})"
+    r"(?:\.(\d+))?Z$")
+TIME_OF_DAY_RE = re.compile(r"^(\d{2}):(\d{2})(?::(\d{2}))?$")
 
-def parse_user_time(text):
+
+def parse_utc_offset(text):
+    """Parse ``date +%z`` output into a timedelta, or return None."""
+    match = re.match(r"^([+-])(\d{2})(\d{2})$", text or "")
+    if not match:
+        return None
+    hours, minutes = int(match.group(2)), int(match.group(3))
+    if hours > 23 or minutes > 59:
+        return None
+    offset = timedelta(hours=hours, minutes=minutes)
+    return offset if match.group(1) == "+" else -offset
+
+
+def parse_user_time(text, utc_offset=None):
     """Parses a -t/-e value into a naive local datetime for file selection.
 
     Mirrors the common formats understood by logslice. Returns None if the
@@ -789,17 +843,19 @@ def parse_user_time(text):
     if not text:
         return None
     if text.lower() == "now":
-        return datetime.now()
+        if utc_offset is None:
+            return datetime.now()
+        return datetime.now(timezone.utc).astimezone(
+            timezone(utc_offset)).replace(tzinfo=None)
 
     # ISO UTC "2019-09-19T11:46:04.848360Z" -> compare against local times.
-    iso = re.match(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})"
-                   r"(?:\.(\d+))?Z$", text)
+    iso = ISO_UTC_RE.match(text)
     if iso:
-        from datetime import timezone
         y, mo, d, h, mi, s = (int(iso.group(i)) for i in range(1, 7))
         micro = int((iso.group(7) or "0").ljust(6, "0")[:6])
         utc = datetime(y, mo, d, h, mi, s, micro, tzinfo=timezone.utc)
-        return utc.astimezone().replace(tzinfo=None)
+        target_timezone = timezone(utc_offset) if utc_offset is not None else None
+        return utc.astimezone(target_timezone).replace(tzinfo=None)
 
     # Local timestamp at a flexible level of detail: a bare date "YYYY-MM-DD",
     # or with a progressively finer time-of-day suffix " HH", " HH:MM",
@@ -824,9 +880,13 @@ def parse_user_time(text):
             return None
 
     # "HH:MM" or "HH:MM:SS" -> today's date.
-    tod = re.match(r"^(\d{2}):(\d{2})(?::(\d{2}))?$", text)
+    tod = TIME_OF_DAY_RE.match(text)
     if tod:
-        now = datetime.now()
+        if utc_offset is None:
+            now = datetime.now()
+        else:
+            now = datetime.now(timezone.utc).astimezone(
+                timezone(utc_offset)).replace(tzinfo=None)
         return now.replace(hour=int(tod.group(1)), minute=int(tod.group(2)),
                            second=int(tod.group(3) or 0), microsecond=0)
 
@@ -842,6 +902,23 @@ def parse_user_time(text):
                             int(web.group(6)))
 
     return None
+
+
+def parse_server_time(text, server_timezone):
+    """Parse a request bound in the timezone used by remote ``--info``.
+
+    UTC, ``now``, and time-only forms need a verified remote UTC offset. Full
+    local timestamps already name server-local wall time and remain usable when
+    the offset probe is unavailable.
+    """
+    utc_offset = parse_utc_offset(server_timezone)
+    stripped = text.strip()
+    needs_offset = stripped.lower() == "now" \
+        or ISO_UTC_RE.match(stripped) is not None \
+        or TIME_OF_DAY_RE.match(stripped) is not None
+    if needs_offset and utc_offset is None:
+        return None
+    return parse_user_time(text, utc_offset=utc_offset)
 
 
 def split_time_range(text):
@@ -1073,6 +1150,8 @@ def infer_host_component(host):
             "exec": "exec-node",
         }[node.group("role")]
         return role, "node"
+    if re.search(r"(?:^|-)tab(?:-|$)", short):
+        return "tablet-node", "node"
     if re.search(r"(?:^|-)master-cache(?:-|$)", short):
         return "master-cache", "master-cache"
     if re.search(r"(?:^|-)rpc(?:-proxy)?(?:-|$)", short):
@@ -1201,7 +1280,8 @@ def discover_series(ssh, log_type, start_time, end_time, archive_dir,
 def select_log_files(ssh, remote_bin, series, start_time, end_time):
     """Selects the overlapping files from every series independently and returns
     the flat oldest -> newest list, plus a per-series ``(origin, base, total,
-    selected)`` summary for logging.
+    selected)`` summary for logging and authoritative per-file timestamp
+    intervals when every selected file yielded ``logslice --info`` metadata.
 
     Selecting each series on its own is what makes a window that straddles the
     archive/live boundary work: each binary search runs over a single monotonic
@@ -1211,11 +1291,65 @@ def select_log_files(ssh, remote_bin, series, start_time, end_time):
     timestamped."""
     selected = []
     summary = []
+    intervals = []
+    bounds_authoritative = True
     for origin, base, files in series:
-        sel = FileSelector(ssh, remote_bin, files).select(start_time, end_time)
+        selector = FileSelector(ssh, remote_bin, files)
+        sel = selector.select(start_time, end_time)
         summary.append((origin, base, len(files), sel))
         selected.extend(sel)
-    return selected, summary
+        for log_file in sel:
+            first_record, last_record = selector.info(files.index(log_file))
+            if first_record is None or last_record is None:
+                bounds_authoritative = False
+            else:
+                intervals.append((first_record, last_record))
+    coverage = None
+    if selected and bounds_authoritative and intervals:
+        coverage = sorted(intervals)
+    return selected, summary, coverage
+
+
+def find_coverage_gaps(start_time, end_time, type_coverages,
+                       rotation_gap_tolerance=LOG_ROTATION_GAP_TOLERANCE):
+    """Return uncovered ranges from authoritative per-file timestamp bounds.
+
+    Small gaps between adjacent rotations are normal while one file is closed
+    and the next is opened.  They are ignored when they are shorter than
+    ``rotation_gap_tolerance``.  Gaps at the requested window boundaries are
+    always reported because they cannot be attributed to log rotation.
+    """
+    if start_time is None or end_time is None or not type_coverages:
+        return None
+
+    gaps = []
+    for log_type, intervals in sorted(type_coverages.items()):
+        if not intervals:
+            return None
+        covered_until = start_time
+        has_coverage = False
+        for first_record, last_record in sorted(intervals):
+            if last_record < covered_until:
+                continue
+            if first_record > covered_until:
+                gap = first_record - covered_until
+                if not has_coverage or gap >= rotation_gap_tolerance:
+                    gaps.append({
+                        "log_type": log_type,
+                        "start": covered_until.isoformat(sep=" "),
+                        "end": min(first_record, end_time).isoformat(sep=" "),
+                    })
+            covered_until = max(covered_until, last_record)
+            has_coverage = True
+            if covered_until >= end_time:
+                break
+        if covered_until < end_time:
+            gaps.append({
+                "log_type": log_type,
+                "start": covered_until.isoformat(sep=" "),
+                "end": end_time.isoformat(sep=" "),
+            })
+    return gaps
 
 
 ########################################################################
@@ -1255,7 +1389,7 @@ def split_argv(argv):
     return argv, []
 
 
-def main():
+def _run_main(context):
     left, grep_args = split_argv(sys.argv[1:])
 
     parser = argparse.ArgumentParser(
@@ -1358,28 +1492,36 @@ def main():
     except ValueError as ex:
         parser.error(str(ex))
 
+    execution_result = make_execution_result(args.component)
+    context["result"] = execution_result
     ssh = Ssh(
         args.host,
         args.verbose,
         control_socket=args.control_socket,
         control_persist=args.control_persist,
         connect_timeout=args.connect_timeout)
-    try:
-        ssh.connect()
-    except SystemExit as error:
-        if preflight_failure_class(error) == "authentication_unavailable":
-            report_authentication_preflight(
-                args.host,
-                requested_component(args.host, args.component),
-                args.start,
-                args.end)
-            return OPERATIONAL_FAILURE_EXIT
-        raise
+    access_failure = ssh_access_preflight(ssh)
+    if access_failure is not None:
+        emit_execution_result(mark_access_unavailable(
+            execution_result, access_failure))
+        return OPERATIONAL_FAILURE_EXIT
 
     local_bin = resolve_logslice(args.logslice)
     ssh.copy_binary(local_bin, REMOTE_BIN)
     server_timezone = ssh.run(
         ["date", "+%z"], check=False, warn_on_error=True).strip() or "unknown"
+    start_time = parse_server_time(args.start, server_timezone) \
+        if args.start else None
+    end_time = parse_server_time(args.end, server_timezone) \
+        if args.end else None
+    if args.start and start_time is None:
+        eprint("Warning: could not normalize start time {!r} to remote "
+               "timezone {}; log coverage remains unresolved."
+               .format(args.start, server_timezone))
+    if args.end and end_time is None:
+        eprint("Warning: could not normalize end time {!r} to remote "
+               "timezone {}; log coverage remains unresolved."
+               .format(args.end, server_timezone))
 
     # The archive (older, time-named files) is searched alongside the live logs;
     # discover_series returns them oldest -> newest and select_log_files selects
@@ -1402,20 +1544,25 @@ def main():
         route = resolve_component_route(args.host, args.component, candidates)
     except ValueError as error:
         sys.exit(str(error))
+    execution_result["selected_component"] = route["component"]
+    execution_result["selected_base"] = route["base"]
     for line in routing_metadata(route, roots):
         eprint(line)
 
     selected = []
     selected_paths = []
+    type_coverages = {}
     for log_type in log_types:
         series = discover_series(
             ssh, log_type, start_time, end_time, archive_dir,
             component=route["base"])
         if not series:
             eprint("Found 0 {} log files on {}.".format(log_type, args.host))
+            type_coverages[log_type] = None
             continue
-        type_selected, summary = select_log_files(
+        type_selected, summary, coverage = select_log_files(
             ssh, REMOTE_BIN, series, start_time, end_time)
+        type_coverages[log_type] = coverage
         for origin, base, total, sel in summary:
             eprint("Found {} {} log file(s) for component '{}' ({})."
                    .format(total, log_type, base, origin))
@@ -1425,6 +1572,10 @@ def main():
         for log_file in type_selected:
             selected.append((log_type, log_file))
             selected_paths.append(log_file.path)
+
+    execution_result["selected_files"] = selected_paths
+    gaps = find_coverage_gaps(start_time, end_time, type_coverages)
+    execution_result["gaps"] = gaps
 
     results = []
     outputs = []
@@ -1443,6 +1594,8 @@ def main():
         completed = ssh.run_pipeline_result(head, stages, capture=True)
         status = classify_slice_result(
             completed.returncode, completed.stdout, completed.stderr)
+        if status != "failed":
+            execution_result["log_read"] = True
         result = {
             "type": log_type,
             "file": path,
@@ -1468,6 +1621,11 @@ def main():
         sys.stdout.write(merge_timestamped_outputs(outputs))
 
     exit_code = slice_exit_code(results)
+    definitive_no_match = exit_code == GLOBAL_NO_MATCH_EXIT \
+        and execution_result["log_read"] \
+        and gaps == []
+    if exit_code == GLOBAL_NO_MATCH_EXIT and not definitive_no_match:
+        exit_code = COVERAGE_INCOMPLETE_EXIT
     matched = sum(item["match_count"] for item in results
                   if item["status"] == "matched")
     failure_class = "none"
@@ -1479,12 +1637,45 @@ def main():
         failure_class = ",".join(failed_classes)
     elif exit_code == GLOBAL_NO_MATCH_EXIT:
         failure_class = "global_no_match"
+    elif exit_code == COVERAGE_INCOMPLETE_EXIT:
+        failure_class = "coverage_incomplete"
+    if exit_code == 0:
+        execution_result["outcome"] = "success"
+        execution_result["result"] = "matched"
+    elif exit_code == GLOBAL_NO_MATCH_EXIT:
+        execution_result["outcome"] = "success"
+        execution_result["result"] = "no_matches"
+    elif exit_code == COVERAGE_INCOMPLETE_EXIT:
+        execution_result["outcome"] = "partial"
+        execution_result["result"] = "coverage_incomplete"
+    else:
+        execution_result["outcome"] = "failed"
+        execution_result["result"] = "operational_failure"
+        execution_result["failure_class"] = failure_class
     eprint(
         "summary timezone={} window_start={} window_end={} files={} "
         "matches={} failure_class={} exit_code={}".format(
             server_timezone, args.start or "open", args.end or "open",
             len(selected_paths), matched, failure_class, exit_code))
+    emit_execution_result(execution_result)
     return exit_code
+
+
+def main():
+    context = {}
+    try:
+        return _run_main(context)
+    except (SystemExit, OSError, subprocess.SubprocessError) as error:
+        result = context.get("result")
+        if result is None:
+            raise
+        message = str(error)
+        if message:
+            eprint(message)
+        result["outcome"] = "failed"
+        result["result"] = "operational_failure"
+        emit_execution_result(result)
+        return OPERATIONAL_FAILURE_EXIT
 
 
 if __name__ == "__main__":
