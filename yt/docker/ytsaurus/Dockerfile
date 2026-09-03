@@ -9,8 +9,8 @@ ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
 # Args for base-server-crio
-ARG K8S_VERSION="v1.34"
-ARG CRIO_VERSION="v1.34"
+ARG K8S_VERSION="v1.36"
+ARG CRIO_VERSION="v1.36"
 
 # Args for odin.
 ARG PYTHON_RUNTIME_VERSION="3.11"
