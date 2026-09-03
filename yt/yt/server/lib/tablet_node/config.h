@@ -117,6 +117,9 @@ DEFINE_REFCOUNTED_TYPE(TMinHashDigestConfig)
 struct TCompactionHintsConfig
     : public NYTree::TYsonStruct
 {
+    // Minimum total compressed size of stores selected for compaction by digest hints.
+    i64 MinCompactionDataSize;
+
     TRowDigestConfigPtr RowDigest;
     TMinHashDigestConfigPtr MinHashDigest;
 
