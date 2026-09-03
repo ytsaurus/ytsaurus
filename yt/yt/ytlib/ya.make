@@ -387,7 +387,9 @@ SRCS(
     push_based_shuffle_client/session_provider.cpp
     push_based_shuffle_client/partition_reader.cpp
     push_based_shuffle_client/shuffle_writer.cpp
+    push_based_shuffle_client/shuffle_writer_adapter.cpp
     push_based_shuffle_client/sort_reader.cpp
+    push_based_shuffle_client/sort_reader_adapter.cpp
     push_based_shuffle_client/sorted_merging_reader.cpp
 
     query_client/executor.cpp

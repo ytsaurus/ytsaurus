@@ -29,6 +29,7 @@ SRCS(
     permission_cache_ut.cpp
     protobuf_helpers_ut.cpp
     push_based_partition_reader_ut.cpp
+    push_based_shuffle_adapters_ut.cpp
     push_based_shuffle_record_format_ut.cpp
     push_based_sorted_merging_reader_ut.cpp
     replication_reader_ut.cpp
