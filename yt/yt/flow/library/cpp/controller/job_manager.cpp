@@ -568,6 +568,7 @@ public:
 
                 auto newJob = New<TJob>();
                 newJob->JobId = TJobId(TGuid::Create());
+                newJob->Generation = TUniqueSeqNo(Context_->VersionProvider->GenerateVersion().Underlying());
                 newJob->WorkerAddress = targetWorkerIt->second->RpcAddress;
                 newJob->WorkerIncarnationId = targetWorkerIt->second->IncarnationId;
                 newJob->PartitionId = partition->PartitionId;
@@ -964,6 +965,7 @@ public:
             }
             auto job = New<TJob>();
             job->JobId = TJobId(TGuid::Create());
+            job->Generation = TUniqueSeqNo(Context_->VersionProvider->GenerateVersion().Underlying());
             job->WorkerAddress = worker->RpcAddress;
             job->WorkerIncarnationId = worker->IncarnationId;
             job->PartitionId = partitionId;

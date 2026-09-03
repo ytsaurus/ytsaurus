@@ -126,6 +126,7 @@ public:
         context->Invoker = BalancerQueue->GetInvoker();
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
+        context->VersionProvider = TestVersionProvider();
         context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = NController::CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
     }
