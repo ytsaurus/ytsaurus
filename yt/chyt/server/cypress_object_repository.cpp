@@ -395,6 +395,7 @@ void TCypressObjectRepository::WriteMaterializedView(
         }
 
         host->GetMaterializedViewCoordinator()->InitializeProgress(
+            client,
             transaction,
             resultOrError.Value(),
             config.SourceType,

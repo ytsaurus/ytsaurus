@@ -104,6 +104,8 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_after_refresh_query", &TThis::ThrowExceptionAfterRefreshQuery)
         .Default(false);
+    registrar.Parameter("throw_exception_after_refresh_commit", &TThis::ThrowExceptionAfterRefreshCommit)
+        .Default(false);
     registrar.Parameter("subquery_allocation_size", &TThis::SubqueryAllocationSize)
         .Default(0);
 
@@ -124,6 +126,8 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("source_generate_call_breakpoint", &TThis::SourceGenerateCallBreakpoint)
         .Default();
     registrar.Parameter("drop_table_breakpoint", &TThis::DropTableBreakpoint)
+        .Default();
+    registrar.Parameter("materialized_view_consumer_commit_breakpoint", &TThis::MaterializedViewConsumerCommitBreakpoint)
         .Default();
 }
 
@@ -545,6 +549,8 @@ void TMaterializedViewsConfig::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("query_timeout", &TThis::QueryTimeout)
         .Default(TDuration::Minutes(20));
+    registrar.Parameter("table_mount_timeout", &TThis::TableMountTimeout)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
         .Default(TDuration::Minutes(30));
 }
