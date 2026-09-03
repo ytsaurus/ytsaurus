@@ -317,7 +317,9 @@ public class TestComputationHarness {
         }
 
         /**
-         * Adds a single external state schema entry.
+         * Adds a single external state schema entry. Required for every external state the
+         * request seeds with a value: the schema describes those values on the wire, as the
+         * worker's {@code TState} does.
          *
          * @param name   the external state name
          * @param schema the table schema for the external state

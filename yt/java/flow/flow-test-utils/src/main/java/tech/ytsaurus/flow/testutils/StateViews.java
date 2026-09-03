@@ -4,7 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 
-import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
@@ -93,8 +92,7 @@ record StateViews(StateView all, StateView modified) {
         var result = new LinkedHashMap<String, StatesHolder<ExternalState>>(states.size());
         for (var entry : states.entrySet()) {
             var name = entry.getKey();
-            var holder = new StatesHolder<ExternalState>(
-                    name, null, externalSchema(name, externalStateSchemas, entry.getValue()));
+            var holder = new StatesHolder<ExternalState>(name, null, externalStateSchemas.get(name));
             entry.getValue().forEach(holder::load);
             result.put(name, holder);
         }
@@ -111,26 +109,5 @@ record StateViews(StateView all, StateView modified) {
             result.put(entry.getKey(), holder);
         }
         return result;
-    }
-
-    /**
-     * Resolves the schema for an external state: the user-provided schema wins, otherwise it is
-     * derived from the first stored non-reset payload.
-     */
-    private static @Nullable TableSchema externalSchema(
-            String name,
-            Map<String, TableSchema> externalStateSchemas,
-            Map<UnversionedRow, ExternalState> states
-    ) {
-        TableSchema schema = externalStateSchemas.get(name);
-        if (schema != null) {
-            return schema;
-        }
-        for (var value : states.values()) {
-            if (!value.isReset() && value.getValue() != null) {
-                return value.getValue().getSchema();
-            }
-        }
-        return null;
     }
 }

@@ -7,7 +7,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.google.protobuf.ByteString;
-import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.TGuid;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -347,7 +346,7 @@ public class ProtobufRequestConverter {
 
     /**
      * Converts external states to proto format.
-     * Derives schema from the first non-reset state value, falling back to user-provided schemas.
+     * Every state that carries a value must have a schema declared on the harness.
      * Uses the supplied codecs so that custom {@link KeyCodec} / {@link PayloadCodec}
      * registrations are honoured on the wire.
      */
@@ -368,12 +367,7 @@ public class ProtobufRequestConverter {
             }
             TState.Builder stateBuilder = TState.newBuilder().setName(stateName);
 
-            // Resolve the schema: derive from the first non-reset state with a non-null
-            // payload, otherwise fall back to the user-provided schemas.
-            TableSchema valueSchema = firstNonResetSchema(stateValuesMap);
-            if (valueSchema == null) {
-                valueSchema = externalStateSchemas.get(stateName);
-            }
+            TableSchema valueSchema = externalStateSchemas.get(stateName);
             if (valueSchema != null) {
                 stateBuilder.setSchema(YsonUtils.protoFromYTree(valueSchema.toYTree()));
             }
@@ -392,7 +386,7 @@ public class ProtobufRequestConverter {
                 if (!stateEntry.getValue().isReset() && stateEntry.getValue().getValue() != null) {
                     Objects.requireNonNull(
                             boundValueCodec,
-                            "External state value codec was not bound (missing schema)"
+                            () -> "External state '" + stateName + "' has values but no schema"
                     );
                     itemBuilder.setState(boundValueCodec.encode(stateEntry.getValue().getValue()));
                 }
@@ -452,14 +446,5 @@ public class ProtobufRequestConverter {
         }
         stateBuilder.addAllStateItems(stateItems);
         return stateBuilder.build();
-    }
-
-    private static @Nullable TableSchema firstNonResetSchema(Map<Payload, ExternalState> stateValuesMap) {
-        for (var stateValue : stateValuesMap.values()) {
-            if (!stateValue.isReset() && stateValue.getValue() != null) {
-                return stateValue.getValue().getSchema();
-            }
-        }
-        return null;
     }
 }
