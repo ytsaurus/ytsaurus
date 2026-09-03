@@ -21,6 +21,8 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -238,6 +240,8 @@ TQueryContext::TQueryContext(
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
         ReadTransactionId = secondaryQueryHeader->ReadTransactionId;
         SnapshotLocks = secondaryQueryHeader->SnapshotLocks;
+        RemoteReadTransactionIds = secondaryQueryHeader->RemoteReadTransactionIds;
+        RemoteSnapshotLocks = secondaryQueryHeader->RemoteSnapshotLocks;
         DynamicTableReadTimestamp = secondaryQueryHeader->DynamicTableReadTimestamp;
         WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
         CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
@@ -339,6 +343,53 @@ const NNative::IClientPtr& TQueryContext::Client() const
     }
 
     return Client_;
+}
+
+NNative::IClientPtr TQueryContext::Client(const std::optional<std::string>& cluster) const
+{
+    if (!cluster) {
+        return Client();
+    }
+
+    {
+        auto readerGuard = ReaderGuard(ClientLock_);
+        if (auto it = RemoteClients_.find(*cluster); it != RemoteClients_.end()) {
+            return it->second;
+        }
+    }
+
+    auto remoteClient = Host->CreateClient(User, cluster);
+    auto writerGuard = WriterGuard(ClientLock_);
+    return RemoteClients_.emplace(*cluster, std::move(remoteClient)).first->second;
+}
+
+TTransactionId TQueryContext::GetReadTransactionId(const std::optional<std::string>& cluster) const
+{
+    if (!cluster) {
+        return ReadTransactionId;
+    }
+    auto it = RemoteReadTransactionIds.find(*cluster);
+    return it == RemoteReadTransactionIds.end() ? NullTransactionId : it->second;
+}
+
+std::vector<std::pair<std::string, NNative::IClientPtr>> TQueryContext::GetRemoteClients() const
+{
+    // A secondary query reads chunk specs prepared by the initial query and may
+    // never resolve the corresponding table metadata itself. In that case the
+    // client cache is still empty, while the remote transactions transmitted in
+    // the secondary query header are the authoritative list of remote clusters.
+    for (const auto& [cluster, transactionId] : RemoteReadTransactionIds) {
+        Y_UNUSED(transactionId);
+        Client(cluster);
+    }
+
+    auto readerGuard = ReaderGuard(ClientLock_);
+    std::vector<std::pair<std::string, NNative::IClientPtr>> clients;
+    clients.reserve(RemoteClients_.size());
+    for (const auto& [cluster, client] : RemoteClients_) {
+        clients.emplace_back(cluster, client);
+    }
+    return clients;
 }
 
 TQuerySettingsPtr TQueryContext::GetContextSettings(DB::ContextPtr context) const
@@ -588,6 +639,136 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         }
     }
 
+    return result;
+}
+
+std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttributesSnapshot(
+    const std::vector<TYPath>& paths,
+    const std::string& cluster)
+{
+    if (QueryKind == EQueryKind::NoQuery) {
+        THROW_ERROR_EXCEPTION("Cross-cluster reads are not supported outside a SELECT query")
+            .With("cluster", cluster);
+    }
+    if (ParentTransactionId) {
+        THROW_ERROR_EXCEPTION("Cross-cluster reads cannot use a parent transaction")
+            .With("cluster", cluster)
+            .With("parent_transaction_id", ParentTransactionId);
+    }
+
+    auto& snapshot = RemoteObjectAttributesSnapshots_[cluster];
+    std::vector<TYPath> pathsToFetch;
+    for (const auto& path : paths) {
+        if (!snapshot.contains(path)) {
+            pathsToFetch.push_back(path);
+        }
+    }
+    SortUnique(pathsToFetch);
+
+    if (!pathsToFetch.empty()) {
+        auto client = Client(cluster);
+        auto& locks = RemoteSnapshotLocks[cluster];
+
+        if (QueryKind == EQueryKind::InitialQuery) {
+            auto transactionIt = InitialRemoteReadTransactions_.find(cluster);
+            if (transactionIt == InitialRemoteReadTransactions_.end()) {
+                auto transaction = WaitFor(client->StartNativeTransaction(ETransactionType::Master))
+                    .ValueOrThrow();
+                RemoteReadTransactionIds[cluster] = transaction->GetId();
+                transactionIt = InitialRemoteReadTransactions_.emplace(cluster, std::move(transaction)).first;
+                YT_TLOG_INFO("Remote query read transaction initialized")
+                    .With("Cluster", cluster)
+                    .With("ReadTransactionId", transactionIt->second->GetId());
+            }
+
+            std::vector<TYPath> pathsToLock;
+            for (const auto& path : pathsToFetch) {
+                if (!locks.contains(path)) {
+                    pathsToLock.push_back(path);
+                }
+            }
+            auto lockResults = WaitFor(DoAcquireSnapshotLocksAsync(
+                pathsToLock,
+                client,
+                transactionIt->second->GetId(),
+                Logger))
+                .ValueOrThrow();
+            for (const auto& [index, path] : SEnumerate(pathsToLock)) {
+                if (lockResults[index].IsOK()) {
+                    locks.emplace(path, lockResults[index].Value());
+                } else {
+                    snapshot.emplace(path, TError(lockResults[index]));
+                }
+            }
+        }
+
+        auto transactionIt = RemoteReadTransactionIds.find(cluster);
+        if (transactionIt == RemoteReadTransactionIds.end()) {
+            THROW_ERROR_EXCEPTION("Missing remote read transaction in secondary query")
+                .With("cluster", cluster);
+        }
+
+        std::vector<TYPath> fetchablePaths;
+        std::vector<TYPath> resolvedPaths;
+        for (const auto& path : pathsToFetch) {
+            if (snapshot.contains(path)) {
+                continue;
+            }
+            auto lockIt = locks.find(path);
+            if (lockIt == locks.end() || !lockIt->second.NodeId) {
+                snapshot.emplace(path, TError("Missing snapshot lock for remote table %v", path));
+                continue;
+            }
+            fetchablePaths.push_back(path);
+            resolvedPaths.push_back(Format("#%v", lockIt->second.NodeId));
+        }
+
+        std::vector<NSecurityClient::TPermissionKey> permissionKeys;
+        permissionKeys.reserve(fetchablePaths.size());
+        for (const auto& path : fetchablePaths) {
+            permissionKeys.push_back(NSecurityClient::TPermissionKey{
+                .Path = path,
+                .User = User,
+                .Permission = EPermission::Read,
+                .Columns = std::nullopt,
+                .CallerIsRlsAware = true,
+            });
+        }
+
+        auto permissionResultsFuture = client->GetNativeConnection()->GetPermissionCache()->GetMany(permissionKeys);
+        TTransactionalOptions transactionalOptions;
+        transactionalOptions.TransactionId = transactionIt->second;
+        auto attributesFuture = Host->GetObjectAttributesDirect(
+            resolvedPaths,
+            /*revisions*/ {},
+            client,
+            *SessionSettings->CypressReadOptions,
+            transactionalOptions);
+
+        WaitFor(AllSucceeded(std::vector({permissionResultsFuture.AsVoid(), attributesFuture.AsVoid()})))
+            .ThrowOnError();
+        auto permissionResults = WaitFor(permissionResultsFuture).ValueOrThrow();
+        auto attributes = WaitFor(attributesFuture).ValueOrThrow();
+        for (const auto& [index, path] : SEnumerate(fetchablePaths)) {
+            if (!permissionResults[index].IsOK()) {
+                snapshot.emplace(path, TError(permissionResults[index]));
+            } else {
+                snapshot.emplace(path, std::move(attributes[index]));
+            }
+        }
+    }
+
+    std::vector<TErrorOr<IAttributeDictionaryPtr>> result;
+    result.reserve(paths.size());
+    for (const auto& path : paths) {
+        result.push_back(GetOrCrash(snapshot, path));
+        if (result.back().IsOK() && Host->GetConfig()->CheckChytBanned &&
+            result.back().Value()->Get<bool>("chyt_banned", false))
+        {
+            THROW_ERROR_EXCEPTION("Table %Qv is banned via \"chyt_banned\" attribute", path)
+                .With("cluster", cluster);
+        }
+    }
     return result;
 }
 
