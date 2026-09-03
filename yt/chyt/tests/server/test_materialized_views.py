@@ -2,9 +2,11 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
-from yt_commands import (abort_transaction, authors, create, create_user, exists, get, lock, ls, move,
-                         raises_yt_error, read_table, remove, retry, start_transaction, sync_mount_table,
-                         wait, write_table)
+from yt_commands import (abort_transaction, advance_consumer, authors, create, create_user, exists, get, insert_rows,
+                         list_queue_consumer_registrations, lock, ls, move, raises_yt_error, read_table, remove,
+                         retry, select_rows, set, start_transaction, sync_mount_table, sync_unmount_table,
+                         unregister_queue_consumer, wait, write_table)
+from yt_queue_agent_test_base import TestQueueAgentBase as _QueueAgentTestBase
 
 import yt.yson as yson
 
@@ -12,7 +14,16 @@ import threading
 import time
 
 
-class TestMaterializedViews(ClickHouseTestBase):
+class MaterializedViewsTestBase:
+    DELTA_CHYT_CONFIG = {
+        "yt": {
+            "election_manager": {
+                "lock_path": "//tmp/chyt_materialized_views_leader_lock",
+                "lock_acquisition_period": 300,
+            },
+        },
+    }
+
     SCHEMA = [
         {"name": "key", "type": "int64"},
         {"name": "value", "type": "string"},
@@ -50,6 +61,15 @@ class TestMaterializedViews(ClickHouseTestBase):
             for key in ("object_id", "next_row_index", "total_row_count")
         }
 
+
+class ClickHouseQueueAgentTestBase(_QueueAgentTestBase):
+    # NB: ClickHouseTestBase forwards test_name/run_id, which TestQueueAgentBase.setup_class does not accept.
+    @classmethod
+    def setup_class(cls, test_name=None, run_id=None):
+        super().setup_class()
+
+
+class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
     @authors("buyval01")
     def test_lifecycle(self):
         rows = [{"key": i, "value": str(i)} for i in range(3)]
@@ -80,7 +100,7 @@ class TestMaterializedViews(ClickHouseTestBase):
                 "next_row_index": 0,
                 "total_row_count": 0,
             }
-            assert partition["last_update"]
+            assert not partition.get("last_update")
             assert partition["last_error"] == ""
             assert persisted_progress["last_error"] == ""
 
@@ -159,17 +179,33 @@ class TestMaterializedViews(ClickHouseTestBase):
                 clique.make_query(create_dictionary_query.format("mv"))
 
         remove("//tmp/source")
+        sorted_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
         create("table", "//tmp/source", attributes={
             "dynamic": True,
-            "schema": self.SCHEMA,
+            "schema": sorted_schema,
             "enable_dynamic_store_read": True,
         })
         sync_mount_table("//tmp/source")
         with Clique(1) as clique:
-            with raises_yt_error(message_pattern="source table must be static"):
+            with raises_yt_error(message_pattern="dynamic source must be an ordered table"):
                 clique.make_query(
                     'CREATE MATERIALIZED VIEW dynamic_mv TO "//tmp/target" '
                     'AS SELECT key, value FROM "//tmp/source"')
+
+            create("table", "//tmp/source_without_dynamic_store_read", attributes={
+                "dynamic": True,
+                "schema": self.SCHEMA,
+                "enable_dynamic_store_read": False,
+            })
+            sync_mount_table("//tmp/source_without_dynamic_store_read")
+            with raises_yt_error(message_pattern="dynamic source must have enable_dynamic_store_read"):
+                clique.make_query(
+                    'CREATE MATERIALIZED VIEW dynamic_mv TO "//tmp/target" '
+                    'AS SELECT key, value FROM "//tmp/source_without_dynamic_store_read"',
+                    settings={"chyt.dynamic_table.enable_dynamic_store_read": 0})
 
         remove("//tmp/source")
         create("table", "//tmp/source", attributes={"schema": self.SCHEMA})
@@ -226,7 +262,7 @@ class TestMaterializedViews(ClickHouseTestBase):
                 "next_row_index": 2,
                 "total_row_count": 2,
             }
-            assert partition["last_update"]
+            assert not partition.get("last_update")
             assert partition["last_error"] == ""
             assert read_table("//tmp/target") == []
 
@@ -340,7 +376,7 @@ class TestMaterializedViews(ClickHouseTestBase):
                 "next_row_index": 0,
                 "total_row_count": 0,
             }
-            assert empty_partition["last_update"]
+            assert not empty_partition.get("last_update")
             assert get_refresh_query_count() == refresh_query_count
             move("//tmp/source_directory/empty_part", "//tmp/empty_part")
             wait(lambda: empty_part_id not in get_partitions())
@@ -381,13 +417,13 @@ class TestMaterializedViews(ClickHouseTestBase):
             }
 
             move("//tmp/source_directory/part", "//tmp/detached_part")
-            wait(lambda: set(get_partitions()) == {initial_id})
+            wait(lambda: get_partitions().keys() == {initial_id})
 
             move("//tmp/detached_part", "//tmp/source_directory/part")
             reattached_part_id = get("//tmp/source_directory/part/@id")
             wait(lambda: read_table("//tmp/target") == (rows + appended_rows) * 2)
             wait(lambda: get_refresh_query_count() == 6)
-            assert set(get_partitions()) == {initial_id, reattached_part_id}
+            assert get_partitions().keys() == {initial_id, reattached_part_id}
             assert get_partitions()[reattached_part_id] == {
                 "object_id": reattached_part_id,
                 "next_row_index": 3,
@@ -496,7 +532,7 @@ class TestMaterializedViews(ClickHouseTestBase):
                 'AS SELECT key, accurateCast(value, \'Int64\') AS value FROM "//tmp/source"')
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
-            initial_last_update = get(progress_path)["partitions"][0]["last_update"]
+            initial_last_update = get(progress_path)["partitions"][0].get("last_update")
 
             write_table("//tmp/source", [{"key": 1, "value": "not-an-integer"}])
 
@@ -508,7 +544,7 @@ class TestMaterializedViews(ClickHouseTestBase):
             progress = get(progress_path)
             partition = progress["partitions"][0]
             assert partition["next_row_index"] == 0
-            assert partition["last_update"] == initial_last_update
+            assert partition.get("last_update") == initial_last_update
             assert partition["last_error"] == ""
 
             expected_rows = [{"key": 2, "value": 42}]
@@ -540,7 +576,7 @@ class TestMaterializedViews(ClickHouseTestBase):
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
             target_id = get("//tmp/target/@id")
-            initial_last_update = get(progress_path)["partitions"][0]["last_update"]
+            initial_last_update = get(progress_path)["partitions"][0].get("last_update")
 
             write_table("//tmp/source", [{"key": 1, "value": "new-1"}])
             wait(
@@ -560,7 +596,7 @@ class TestMaterializedViews(ClickHouseTestBase):
             assert read_table("//tmp/target") == []
             partition = get(progress_path)["partitions"][0]
             assert partition["next_row_index"] == 0
-            assert partition["last_update"] == initial_last_update
+            assert partition.get("last_update") == initial_last_update
 
     @authors("buyval01")
     def test_database_scoping(self):
@@ -620,3 +656,230 @@ class TestMaterializedViews(ClickHouseTestBase):
             assert exists(statement_path)
             persisted_config = yson.loads(yson.get_bytes(get(statement_path + "/@value")))
             assert persisted_config["target_path"] == "//tmp/target2"
+
+
+class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, ClickHouseQueueAgentTestBase):
+    def _create_queue_source(self, partition_count=1):
+        remove("//tmp/source")
+        self._create_queue(
+            "//tmp/source",
+            partition_count=partition_count,
+            enable_timestamp_column=False,
+            enable_cumulative_data_weight_column=False,
+            schema=self.SCHEMA,
+            enable_dynamic_store_read=True)
+
+    @authors("buyval01")
+    def test_queue_consumer_is_initialized_by_coordinator(self):
+        self._create_queue_source()
+        config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
+
+        with Clique(1, config_patch=config_patch) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+
+            wait(lambda: get(progress_path + "/queue_consumer_initialized"))
+            wait(lambda: get(consumer_path + "/@tablet_state") == "mounted")
+            wait(lambda: len(list_queue_consumer_registrations(
+                queue_path="//tmp/source",
+                consumer_path=consumer_path,
+            )) == 1)
+            registrations = list_queue_consumer_registrations(
+                queue_path="//tmp/source",
+                consumer_path=consumer_path,
+            )
+            assert len(registrations) == 1
+            assert registrations[0]["vital"]
+
+    @authors("buyval01")
+    def test_queue_consumer_initialization_is_recovered_from_progress(self):
+        self._create_queue_source()
+        config_patch = {"yt": {"materialized_views": {"scan_period": 3000}}}
+
+        with Clique(1, config_patch=config_patch) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+
+            wait(lambda: get(progress_path + "/queue_consumer_initialized"), timeout=10)
+            unregister_queue_consumer("//tmp/source", consumer_path)
+            set(progress_path + "/queue_consumer_initialized", False)
+
+            rows = [{"key": 1, "value": "new"}]
+            insert_rows("//tmp/source", rows)
+
+            wait(lambda: get(progress_path + "/queue_consumer_initialized"), timeout=10)
+            wait(
+                lambda: len(list_queue_consumer_registrations(
+                    queue_path="//tmp/source",
+                    consumer_path=consumer_path,
+                )) == 1,
+                timeout=10)
+            wait(lambda: read_table("//tmp/target") == rows, timeout=10)
+
+    @authors("buyval01")
+    def test_missing_queue_consumer_fails_refresh(self):
+        self._create_queue_source()
+        config_patch = {"yt": {"materialized_views": {"scan_period": 3000}}}
+
+        with Clique(1, config_patch=config_patch) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+
+            wait(lambda: get(progress_path + "/queue_consumer_initialized"), timeout=10)
+            unregister_queue_consumer("//tmp/source", consumer_path)
+            sync_unmount_table(consumer_path)
+            remove(consumer_path)
+
+            rows = [{"key": 1, "value": "new"}]
+            insert_rows("//tmp/source", rows)
+
+            wait(lambda: get(progress_path + "/last_error"), timeout=10)
+            assert not exists(consumer_path)
+            assert read_table("//tmp/target") == []
+
+    @authors("buyval01")
+    def test_background_refresh_from_queue(self):
+        self._create_queue_source(partition_count=2)
+        insert_rows("//tmp/source", [
+            {"$tablet_index": 0, "key": 0, "value": "initial-0"},
+            {"$tablet_index": 1, "key": 1, "value": "initial-1"},
+        ])
+        expected_rows = [
+            {"key": 2, "value": "new-2"},
+            {"key": 3, "value": "new-3"},
+            {"key": 4, "value": "new-4"},
+            {"key": 5, "value": "new-5"},
+        ]
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "dynamic_table": {
+                        "enable_dynamic_store_read": False,
+                    },
+                },
+                "materialized_views": {
+                    "scan_period": 100,
+                    "max_rows_per_refresh": 1,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            clique.make_query(
+                self.CREATE_MV_QUERY,
+                settings={"chyt.dynamic_table.enable_dynamic_store_read": 1})
+            assert clique.make_query(self.SELECT_MV_QUERY) == []
+
+            persisted_config = yson.loads(yson.get_bytes(get(self._statement_path(clique) + "/@value")))
+            assert persisted_config["source_type"] == "queue"
+
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress = get(clique.materialized_views_path + "/progress/" + view_id)
+            assert sorted(
+                (partition["partition_index"], partition["next_row_index"], partition["total_row_count"])
+                for partition in progress["partitions"]
+            ) == [(0, 1, 1), (1, 1, 1)]
+
+            insert_rows("//tmp/source", [
+                {"$tablet_index": 0, **expected_rows[0]},
+                {"$tablet_index": 1, **expected_rows[1]},
+                {"$tablet_index": 0, **expected_rows[2]},
+                {"$tablet_index": 1, **expected_rows[3]},
+            ])
+            wait(lambda: sorted(read_table("//tmp/target"), key=lambda row: row["key"]) == expected_rows)
+
+            progress = get(clique.materialized_views_path + "/progress/" + view_id)
+            assert sorted(
+                (partition["partition_index"], partition["next_row_index"])
+                for partition in progress["partitions"]
+            ) == [(0, 3), (1, 3)]
+
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+            wait(lambda: sorted(
+                row["offset"]
+                for row in select_rows("[offset] from [{}]".format(consumer_path))
+            ) == [3, 3])
+
+    @authors("buyval01")
+    def test_queue_consumer_recovers_after_master_commit(self):
+        self._create_queue_source()
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "testing": {
+                        "throw_exception_after_refresh_commit": True,
+                    },
+                },
+                "materialized_views": {
+                    "scan_period": 100,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+            rows = [{"key": 1, "value": "new"}]
+            insert_rows("//tmp/source", rows)
+
+            wait(lambda: read_table("//tmp/target") == rows)
+            wait(lambda: [
+                row["offset"]
+                for row in select_rows("[offset] from [{}]".format(consumer_path))
+            ] == [1])
+            time.sleep(1)
+            assert read_table("//tmp/target") == rows
+
+    @authors("buyval01")
+    def test_delayed_refresh_does_not_overwrite_consumer_offset(self):
+        self._create_queue_source()
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "testing": {
+                        "materialized_view_consumer_commit_breakpoint":
+                            get_breakpoint_node("consumer_commit"),
+                    },
+                },
+                "materialized_views": {
+                    "scan_period": 10000,
+                    "max_rows_per_refresh": 1,
+                },
+            },
+        }
+
+        with Clique(1, config_patch=config_patch) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+
+            insert_rows("//tmp/source", [
+                {"key": 1, "value": "first"},
+                {"key": 2, "value": "second"},
+            ])
+            wait_breakpoint("consumer_commit")
+            try:
+                progress = get(progress_path)
+                assert progress["partitions"][0]["next_row_index"] == 1
+                advance_consumer(
+                    consumer_path,
+                    "//tmp/source",
+                    partition_index=0,
+                    old_offset=0,
+                    new_offset=2)
+            finally:
+                release_breakpoint("consumer_commit")
+
+            wait(lambda: get(progress_path)["last_error"] != "", timeout=3)
+            assert [
+                row["offset"]
+                for row in select_rows("[offset] from [{}]".format(consumer_path))
+            ] == [2]

@@ -32,6 +32,7 @@ struct TTable
     //! Thus, OperandIndex is always 0 or 1.
     int OperandIndex = 0;
     bool Dynamic = false;
+    bool EnableDynamicStoreRead = false;
     bool IsPartitioned = false;
     //! Total row count in the table from row_count attribute. Make sense only for static tables.
     std::optional<i64> RowCount;

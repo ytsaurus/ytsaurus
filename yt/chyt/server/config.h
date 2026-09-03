@@ -154,6 +154,7 @@ struct TTestingSettings
     bool ThrowExceptionInSubquery;
     bool ThrowExceptionInWriterFinish;
     bool ThrowExceptionAfterRefreshQuery;
+    bool ThrowExceptionAfterRefreshCommit;
     i64 SubqueryAllocationSize;
 
     bool HangControlInvoker;
@@ -167,6 +168,7 @@ struct TTestingSettings
     std::optional<NYPath::TYPath> ListDirsBreakpoint;
     std::optional<NYPath::TYPath> SourceGenerateCallBreakpoint;
     std::optional<NYPath::TYPath> DropTableBreakpoint;
+    std::optional<NYPath::TYPath> MaterializedViewConsumerCommitBreakpoint;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 
@@ -692,6 +694,7 @@ struct TMaterializedViewsConfig
     TDuration ScanPeriod;
     i64 MaxRowsPerRefresh;
     TDuration QueryTimeout;
+    TDuration TableMountTimeout;
     TDuration TransactionTimeout;
 
     REGISTER_YSON_STRUCT(TMaterializedViewsConfig);

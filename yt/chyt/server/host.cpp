@@ -1027,6 +1027,8 @@ private:
     {
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
+        connectionOptions.CreateQueueConsumerRegistrationManager =
+            Config_->CypressObjectRepository && Config_->MaterializedViews;
 
         Connection_ = NApi::NNative::CreateConnection(
             ConnectionConfig_,

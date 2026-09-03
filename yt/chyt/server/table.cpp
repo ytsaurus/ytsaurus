@@ -126,6 +126,7 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
     ObjectId = attributes->Get<TObjectId>("id");
     Type = TypeFromId(ObjectId);
     Dynamic = attributes->Get<bool>("dynamic", false);
+    EnableDynamicStoreRead = attributes->Get<bool>("enable_dynamic_store_read", false);
     ExternalCellTag = attributes->Get<bool>("external")
         ? attributes->Get<TCellTag>("external_cell_tag")
         : CellTagFromId(ObjectId);
