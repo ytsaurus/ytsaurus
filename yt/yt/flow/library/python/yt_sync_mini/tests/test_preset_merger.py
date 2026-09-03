@@ -6,6 +6,7 @@ from yt.yt.flow.library.python.yt_sync_mini.yt_sync_mini import (
     LOCAL_PRESETS,
     _deep_merge,
     _resolve_attributes,
+    _table_attributes,
 )
 from yt.yt.flow.library.python.pipeline_tables import (
     PIPELINE_QUEUES_PRESET,
@@ -298,3 +299,13 @@ def test_mini_bootstrap_sets_no_erasure(name):
     attrs = _resolve_attributes(presets[name], LOCAL_PRESETS)
     assert attrs.get("erasure_codec", "none") == "none"
     assert attrs.get("hunk_erasure_codec", "none") == "none"
+
+
+@pytest.mark.parametrize("name", sorted({**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}))
+def test_mini_bootstrap_writes_no_replication_log_attribute(name):
+    """`replication_log` is a directive for yt_sync's chaos path, where it sizes the replication
+    log created next to a data replica. The tables bootstrapped here have no logs at all, so it
+    must not reach Cypress as an attribute of the table itself."""
+    presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
+    attrs = _table_attributes(name, [], presets[name])
+    assert "replication_log" not in attrs
