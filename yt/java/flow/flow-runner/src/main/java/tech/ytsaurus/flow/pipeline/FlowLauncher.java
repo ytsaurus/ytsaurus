@@ -164,7 +164,7 @@ public class FlowLauncher {
 
     /**
      * Enriches the {@code vanilla} section of the pipeline config: ships companion jars into the
-     * worker and applies the JDK porto layers to both worker and controller tasks.
+     * worker and applies the JDK porto layers to the worker and to a declared controller task.
      */
     void enrichVanilla(YTreeMapNode vanilla) {
         if (!vanilla.get("enable").map(YTreeNode::boolValue).orElse(false)) {
@@ -175,9 +175,12 @@ public class FlowLauncher {
         shipCompanionJars(worker);
         applyLayersAndSystemLayer(worker);
 
-        // Layers are applied to both tasks; jar shipping stays worker-only.
-        YTreeMapNode controller = getOrCreateMap(vanilla, "controller");
-        applyLayersAndSystemLayer(controller);
+        // An absent controller section is preserved: flow_server defaults it, while a map
+        // created here would lack the required "count".
+        vanilla.get("controller")
+                .filter(YTreeNode::isMapNode)
+                .map(YTreeNode::mapNode)
+                .ifPresent(this::applyLayersAndSystemLayer);
     }
 
     /** Ships every companion jar into {@code worker.local_files}. */

@@ -114,6 +114,12 @@ class FlowLauncherTest {
         return config.mapNode().getOrThrow("vanilla").mapNode().getOrThrow("controller").mapNode();
     }
 
+    /** Declares a minimal controller task in the config, as a hand-written spec would. */
+    private void declareController() {
+        config.mapNode().getOrThrow("vanilla").mapNode()
+                .put("controller", YTree.mapBuilder().key("count").value(1).buildMap());
+    }
+
     private YTreeMapNode companionResource() {
         return config.mapNode()
                 .getOrThrow("spec").mapNode()
@@ -227,6 +233,8 @@ class FlowLauncherTest {
 
     @Test
     void testAppliesPortoLayersFromConfigToBothTasks() {
+        declareController();
+
         enrich();
 
         for (YTreeMapNode task : List.of(controller(), worker())) {
@@ -367,6 +375,7 @@ class FlowLauncherTest {
 
     @Test
     void testLayerAndJdkOverridesForHostJdkTest() {
+        declareController();
         env.setVar(FlowLauncher.ENV_VAR_JDK_BIN_PATH, "/usr/bin/java");
         env.setVar(FlowLauncher.ENV_VAR_JDK_LAYERS, "[]");
 
@@ -378,6 +387,25 @@ class FlowLauncherTest {
             assertFalse(task.containsKey("system_layer_path"));
         }
         assertEquals("/usr/bin/java", companionParameters().getOrThrow("jdk_bin_path").stringValue());
+    }
+
+    @Test
+    void testAbsentControllerSectionStaysAbsent() {
+        enrich();
+
+        assertFalse(config.mapNode().getOrThrow("vanilla").mapNode().containsKey("controller"));
+        assertTrue(worker().containsKey("layers"));
+    }
+
+    @Test
+    void testAbsentControllerSectionStaysAbsentWithHostJdk() {
+        env.setVar(FlowLauncher.ENV_VAR_JDK_BIN_PATH, "/usr/bin/java");
+        env.setVar(FlowLauncher.ENV_VAR_JDK_LAYERS, "[]");
+
+        enrich();
+
+        assertFalse(config.mapNode().getOrThrow("vanilla").mapNode().containsKey("controller"));
+        assertFalse(worker().containsKey("layers"));
     }
 
     @Entity
