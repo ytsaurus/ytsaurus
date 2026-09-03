@@ -15,3 +15,11 @@ func NewTestClient(t testing.TB, c *yt.Config) (yt.Client, error) {
 
 	return NewClient(c)
 }
+
+func NewGRPCTestClient(t testing.TB, c *yt.Config) (yt.Client, error) {
+	if os.Getenv("YT_PROXY") == "" {
+		t.Skip("Skipping testing as there is no local yt.")
+	}
+
+	return NewGRPCClient(c)
+}
