@@ -83,6 +83,7 @@ public class TestComputationHarness {
      */
     public TestDoProcessResponse doProcess(TestDoProcessRequest request) {
         var streamContext = pipelineContextSnapshot.getStreamContext();
+        request.seedStates(externalStateSchemas);
         var protoRequest = requestConverter.createProcessBatch(
                 request.getComputationId(),
                 request.getMessages(),

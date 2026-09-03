@@ -4,6 +4,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import org.jspecify.annotations.Nullable;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.state.ExternalState;
 import tech.ytsaurus.flow.state.InternalState;
@@ -34,16 +36,22 @@ final class StateSeeder {
      * resulting raw state.
      *
      * @param <T> state value type.
+     * @param stateSchema the state's schema as declared on the harness; {@code null} for an
+     *                    internal state or an undeclared external one.
      * @throws IllegalStateException if the mutation produced neither an internal nor external state.
      */
     static <T> CapturedSeed capture(
             StateDescriptor<T> descriptor,
             Payload key,
-            Consumer<StateAccessor<T>> op
+            Consumer<StateAccessor<T>> op,
+            @Nullable TableSchema stateSchema
     ) {
         var internalHolders = new HashMap<String, StatesHolder<InternalState>>();
         var externalHolders = new HashMap<String, StatesHolder<ExternalState>>();
-        var backend = new SnapshotStateBackend(internalHolders, externalHolders, Map.of(), null);
+        var stateSchemas = stateSchema == null
+                ? Map.<String, TableSchema>of()
+                : Map.of(descriptor.getName(), stateSchema);
+        var backend = new SnapshotStateBackend(internalHolders, externalHolders, stateSchemas, null);
 
         StateAccessor<T> accessor = backend.accessor(descriptor, key);
         op.accept(accessor);

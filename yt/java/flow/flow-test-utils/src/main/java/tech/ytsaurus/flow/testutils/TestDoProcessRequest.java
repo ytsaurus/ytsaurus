@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import org.jspecify.annotations.Nullable;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.Timer;
@@ -24,6 +25,7 @@ public class TestDoProcessRequest {
     private final Map<String, Map<Payload, ExternalState>> externalStates;
     private final Map<String, Map<Payload, ExternalState>> joinedExternalStates;
     private final Map<String, Map<Payload, InternalState>> internalStates;
+    private final List<Consumer<Map<String, TableSchema>>> stateSeeds;
     private final Map<String, Long> watermarks;
 
     TestDoProcessRequest(
@@ -33,6 +35,7 @@ public class TestDoProcessRequest {
             Map<String, Map<Payload, ExternalState>> externalStates,
             Map<String, Map<Payload, ExternalState>> joinedExternalStates,
             Map<String, Map<Payload, InternalState>> internalStates,
+            List<Consumer<Map<String, TableSchema>>> stateSeeds,
             Map<String, Long> watermarks
     ) {
         this.computationId = computationId;
@@ -41,6 +44,7 @@ public class TestDoProcessRequest {
         this.externalStates = externalStates;
         this.joinedExternalStates = joinedExternalStates;
         this.internalStates = internalStates;
+        this.stateSeeds = stateSeeds;
         this.watermarks = watermarks;
     }
 
@@ -76,6 +80,17 @@ public class TestDoProcessRequest {
         return watermarks;
     }
 
+    /**
+     * Runs the seeded state mutations against {@code externalStateSchemas}, the schemas declared
+     * on the harness, filling {@link #getInternalStates} and {@link #getExternalStates}. Seeding
+     * waits for this call because the schemas belong to the harness, not to the request.
+     */
+    void seedStates(Map<String, TableSchema> externalStateSchemas) {
+        for (var seed : stateSeeds) {
+            seed.accept(externalStateSchemas);
+        }
+    }
+
     public static class Builder {
         private @Nullable String computationId;
         private List<ExtendedMessage> messages = new ArrayList<>();
@@ -83,6 +98,7 @@ public class TestDoProcessRequest {
         private final Map<String, Map<Payload, ExternalState>> externalStates = new HashMap<>();
         private final Map<String, Map<Payload, ExternalState>> joinedExternalStates = new HashMap<>();
         private final Map<String, Map<Payload, InternalState>> internalStates = new HashMap<>();
+        private final List<Consumer<Map<String, TableSchema>>> stateSeeds = new ArrayList<>();
         private Map<String, Long> watermarks = Collections.emptyMap();
 
         public Builder setComputationId(String computationId) {
@@ -143,15 +159,28 @@ public class TestDoProcessRequest {
         }
 
         /**
-         * Seeds the request maps with the raw state captured for {@code op} (a {@code set} or
-         * {@code clear}), routing it to the internal or external map per its kind.
+         * Defers {@code op} (a {@code set} or {@code clear}) to {@link #seedStates}, when the
+         * state's schema is known.
          */
         private <T> void applyStateMutation(
                 StateDescriptor<T> descriptor,
                 Payload key,
                 Consumer<StateAccessor<T>> op
         ) {
-            var seed = StateSeeder.capture(descriptor, key, op);
+            stateSeeds.add(schemas -> seedState(descriptor, key, op, schemas.get(descriptor.getName())));
+        }
+
+        /**
+         * Seeds the request maps with the raw state captured for {@code op}, routing it to the
+         * internal or external map per its kind.
+         */
+        private <T> void seedState(
+                StateDescriptor<T> descriptor,
+                Payload key,
+                Consumer<StateAccessor<T>> op,
+                @Nullable TableSchema stateSchema
+        ) {
+            var seed = StateSeeder.capture(descriptor, key, op, stateSchema);
             String name = descriptor.getName();
             switch (seed.kind()) {
                 case INTERNAL -> internalStates
@@ -178,7 +207,14 @@ public class TestDoProcessRequest {
 
         public TestDoProcessRequest build() {
             return new TestDoProcessRequest(
-                    computationId, messages, timers, externalStates, joinedExternalStates, internalStates, watermarks);
+                    computationId,
+                    messages,
+                    timers,
+                    externalStates,
+                    joinedExternalStates,
+                    internalStates,
+                    stateSeeds,
+                    watermarks);
         }
     }
 }
