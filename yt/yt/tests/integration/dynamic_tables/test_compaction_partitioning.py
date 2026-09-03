@@ -1392,6 +1392,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         self._create_simple_table(
             table,
             chunk_reader={
+                # Simulated meta fetch failure is implemented in the remote reader only.
+                "prefer_local_replicas": False,
                 "chunk_meta_cache_failure_probability": 1.0,
             },
             mount_config={
