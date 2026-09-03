@@ -243,20 +243,25 @@ private:
 
         FetchTables();
 
-        bool hasRemoteInputs = AnyOf(InputTables_, [] (const TTablePtr& table) {
-            return table->Path.GetCluster().has_value();
-        });
-        if (Config_->UseColumnarStatistics && !hasRemoteInputs) {
-            auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-                Invoker_,
-                Client_,
-                TColumnarStatisticsFetcher::TOptions{
-                    .Config = Config_->ColumnarStatisticsFetcher,
-                    .NodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory(),
-                    .Mode = (NeedTableStatistics_ ? EColumnarStatisticsFetcherMode::FromNodes : EColumnarStatisticsFetcherMode::FromMaster),
-                    .AggregatePerTableStatistics = NeedTableStatistics_,
-                    .Logger = Logger,
-                });
+        if (Config_->UseColumnarStatistics) {
+            THashMap<std::optional<std::string>, TColumnarStatisticsFetcherPtr> columnarStatisticsFetchers;
+            auto getColumnarStatisticsFetcher = [&] (const std::optional<std::string>& cluster) {
+                auto& fetcher = columnarStatisticsFetchers[cluster];
+                if (!fetcher) {
+                    auto client = QueryContext_->Client(cluster);
+                    fetcher = New<TColumnarStatisticsFetcher>(
+                        Invoker_,
+                        client,
+                        TColumnarStatisticsFetcher::TOptions{
+                            .Config = Config_->ColumnarStatisticsFetcher,
+                            .NodeDirectory = client->GetNativeConnection()->GetNodeDirectory(),
+                            .Mode = (NeedTableStatistics_ ? EColumnarStatisticsFetcherMode::FromNodes : EColumnarStatisticsFetcherMode::FromMaster),
+                            .AggregatePerTableStatistics = NeedTableStatistics_,
+                            .Logger = Logger,
+                        });
+                }
+                return fetcher;
+            };
 
             YT_VERIFY(OperandSchemas_.size() == ResultStripes_.size());
             for (const auto& [resultStripe, schema] : Zip(ResultStripes_, OperandSchemas_)) {
@@ -266,22 +271,46 @@ private:
                     NonexistentColumnName);
                 for (auto& inputDataSlice : resultStripe->DataSlices()) {
                     for (auto& inputChunkSlice : inputDataSlice->ChunkSlices) {
-                        columnarStatisticsFetcher->AddChunk(inputChunkSlice->GetInputChunk(), columnStableNames);
+                        const auto& inputChunk = inputChunkSlice->GetInputChunk();
+                        auto tableIndex = inputChunk->GetTableIndex();
+                        YT_VERIFY(tableIndex < std::ssize(InputTables_));
+                        getColumnarStatisticsFetcher(InputTables_[tableIndex]->Path.GetCluster())
+                            ->AddChunk(inputChunk, columnStableNames);
                     }
                 }
             }
 
-            WaitFor(columnarStatisticsFetcher->Fetch())
+            std::vector<TFuture<void>> fetchFutures;
+            fetchFutures.reserve(columnarStatisticsFetchers.size());
+            for (const auto& [_, fetcher] : columnarStatisticsFetchers) {
+                fetchFutures.push_back(fetcher->Fetch());
+            }
+            WaitFor(AllSucceeded(fetchFutures))
                 .ThrowOnError();
-            columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
-            if (NeedTableStatistics_ && !columnarStatisticsFetcher->GetTableStatistics().empty()) {
-                TableStatistics_.emplace();
-                for (const auto& tableStatistics : columnarStatisticsFetcher->GetTableStatistics()) {
-                    if (tableStatistics.GetColumnCount() == 0) {
-                        TableStatistics_ = std::nullopt;
-                        break;
+
+            for (const auto& [_, fetcher] : columnarStatisticsFetchers) {
+                fetcher->ApplyColumnSelectivityFactors();
+            }
+
+            if (NeedTableStatistics_) {
+                bool foundTableStatistics = false;
+                TColumnarStatistics aggregateTableStatistics;
+                for (const auto& [cluster, fetcher] : columnarStatisticsFetchers) {
+                    for (const auto& [tableIndex, tableStatistics] : Enumerate(fetcher->GetTableStatistics())) {
+                        YT_VERIFY(tableIndex < InputTables_.size());
+                        if (InputTables_[tableIndex]->Path.GetCluster() != cluster) {
+                            continue;
+                        }
+                        if (tableStatistics.GetColumnCount() == 0) {
+                            TableStatistics_ = std::nullopt;
+                            return;
+                        }
+                        aggregateTableStatistics += tableStatistics;
+                        foundTableStatistics = true;
                     }
-                    (*TableStatistics_) += tableStatistics;
+                }
+                if (foundTableStatistics) {
+                    TableStatistics_ = std::move(aggregateTableStatistics);
                 }
             }
         }

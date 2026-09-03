@@ -43,6 +43,15 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
                 {"key": 2, "local_value": "local-2", "remote_value": "remote-2"},
             ]
 
+            description = clique.make_query(
+                "describe table `remote_0://tmp/remote`",
+                settings={
+                    "chyt.conversion.low_cardinality.mode": "from_statistics",
+                    "chyt.conversion.low_cardinality.threshold": 10,
+                })
+            value_column = next(column for column in description if column["name"] == "value")
+            assert value_column["type"].startswith("LowCardinality")
+
     def test_rejects_unsupported_remote_table_operations(self):
         remote_driver = get_driver(cluster="remote_0")
         schema = [{"name": "key", "type": "int64"}]
