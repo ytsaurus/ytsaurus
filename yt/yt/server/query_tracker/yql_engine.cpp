@@ -301,7 +301,12 @@ private:
             return;
         }
 
-        if (rspOrError.FindMatching(NYqlClient::EErrorCode::RequestThrottled) || rspOrError.FindMatching(NYqlClient::EErrorCode::YqlAgentBanned)) {
+        if (rspOrError.FindMatching({
+            NYqlClient::EErrorCode::RequestThrottled,
+            NYqlClient::EErrorCode::YqlAgentBanned,
+            NYqlClient::EErrorCode::YqlAgentNotReady,
+        }))
+        {
             {
                 auto guard = Guard(QueryStateSpinLock_);
                 QueryState_ = EYqlQueryState::Throttled;

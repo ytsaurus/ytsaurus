@@ -42,6 +42,10 @@ struct IYqlAgent
     virtual NYqlClient::NProto::TRspGetQueryProgress GetQueryProgress(TQueryId queryId) = 0;
 
     virtual NYqlClient::NProto::TRspGetYqlAgentInfo GetYqlAgentInfo() = 0;
+
+    //! Returns false if the agent cannot execute queries right now,
+    //! e.g. its YQL plugin has no healthy workers yet.
+    virtual bool IsReady() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IYqlAgent)
