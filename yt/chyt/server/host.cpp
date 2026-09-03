@@ -594,6 +594,27 @@ public:
         return TableSchemaCache_;
     }
 
+    TTableSchemaCachePtr GetTableSchemaCache(const NNative::IConnectionPtr& connection) const
+    {
+        if (!TableSchemaCache_) {
+            return nullptr;
+        }
+
+        auto guard = Guard(RemoteTableSchemaCachesLock_);
+        auto& cache = RemoteTableSchemaCaches_[connection];
+        if (!cache) {
+            auto clusterName = connection->GetClusterName().value_or("unknown");
+            cache = New<TTableSchemaCache>(
+                Config_->TableSchemaCache,
+                ClickHouseYtProfiler()
+                    .WithPrefix("/table_schema_cache")
+                    .WithTag("remote_cluster", clusterName));
+            YT_TLOG_INFO("Remote table schema cache created")
+                .With("Cluster", clusterName);
+        }
+        return cache;
+    }
+
     const TObjectAttributeCachePtr& GetObjectAttributeCache() const
     {
         return TableAttributeCache_;
@@ -1073,6 +1094,8 @@ private:
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
     TTableSchemaCachePtr TableSchemaCache_;
     TChunkSpecCachePtr ChunkSpecCache_;
+    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RemoteTableSchemaCachesLock_);
+    mutable THashMap<NNative::IConnectionPtr, TTableSchemaCachePtr> RemoteTableSchemaCaches_;
 
     std::vector<std::string> TableAttributesToFetch_;
 
@@ -1472,6 +1495,11 @@ void THost::InvalidateCachedObjectAttributesGlobally(
 const TTableSchemaCachePtr& THost::GetTableSchemaCache() const
 {
     return Impl_->GetTableSchemaCache();
+}
+
+TTableSchemaCachePtr THost::GetTableSchemaCache(const NNative::IConnectionPtr& connection) const
+{
+    return Impl_->GetTableSchemaCache(connection);
 }
 
 const TObjectAttributeCachePtr& THost::GetObjectAttributeCache() const
