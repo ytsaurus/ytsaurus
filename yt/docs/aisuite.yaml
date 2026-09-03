@@ -1,5 +1,6 @@
 rules:
   - yt/docs/AGENTS.md
+  - yt/docs/ai/artifacts/kb/target-audience.md
 
 skills:
   - yt/docs/ai/artifacts/skills
