@@ -1,7 +1,5 @@
 # Release notes
 
-> Note: This page is only available in English.
-
 Thanks to multiple outside contributors for the active participation in {{product-name}} development.
 
 
