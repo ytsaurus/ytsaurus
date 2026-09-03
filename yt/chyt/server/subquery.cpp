@@ -226,8 +226,12 @@ private:
 
     std::vector<TTableReadSpec> TableReadSpecs_;
 
-    TMasterChunkSpecFetcherPtr MasterChunkSpecFetcher_;
-    TTabletChunkSpecFetcherPtr TabletChunkSpecFetcher_;
+    struct TChunkSpecFetchers
+    {
+        TMasterChunkSpecFetcherPtr Master;
+        TTabletChunkSpecFetcherPtr Tablet;
+    };
+    THashMap<std::optional<std::string>, TChunkSpecFetchers> ChunkSpecFetchers_;
 
     TLogger Logger;
 
@@ -239,7 +243,10 @@ private:
 
         FetchTables();
 
-        if (Config_->UseColumnarStatistics) {
+        bool hasRemoteInputs = AnyOf(InputTables_, [] (const TTablePtr& table) {
+            return table->Path.GetCluster().has_value();
+        });
+        if (Config_->UseColumnarStatistics && !hasRemoteInputs) {
             auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
                 Invoker_,
                 Client_,
@@ -645,51 +652,56 @@ private:
 
     void InitializeChunkSpecFetchers()
     {
-        MasterChunkSpecFetcher_ = New<TMasterChunkSpecFetcher>(
-            Client_,
-            Client_->GetNativeConnection()->GetNodeDirectory(),
-            Invoker_,
-            TMasterChunkSpecFetcherOptions{
-                .MasterReadOptions = *QueryContext_->SessionSettings->FetchChunksReadOptions,
-                .MaxChunksPerFetch = Config_->MaxChunksPerFetch,
-                .MaxChunksPerLocateRequest = Config_->MaxChunksPerLocateRequest,
-                .FetchRequestInitializer = [=, this] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex) {
-                    req->set_fetch_all_meta_extensions(false);
+        for (const auto& table : InputTables_) {
+            auto cluster = table->Path.GetCluster();
+            if (ChunkSpecFetchers_.contains(cluster)) {
+                continue;
+            }
+
+            auto client = QueryContext_->Client(cluster);
+            auto& fetchers = ChunkSpecFetchers_[cluster];
+            fetchers.Master = New<TMasterChunkSpecFetcher>(
+                client,
+                client->GetNativeConnection()->GetNodeDirectory(),
+                Invoker_,
+                TMasterChunkSpecFetcherOptions{
+                    .MasterReadOptions = *QueryContext_->SessionSettings->FetchChunksReadOptions,
+                    .MaxChunksPerFetch = Config_->MaxChunksPerFetch,
+                    .MaxChunksPerLocateRequest = Config_->MaxChunksPerLocateRequest,
+                    .FetchRequestInitializer = [=, this] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex) {
+                        req->set_fetch_all_meta_extensions(false);
+                        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                        req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                        req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
+                        if (!QueryContext_->SessionSettings->DynamicTable->EnableDynamicStoreRead) {
+                            req->set_omit_dynamic_stores(true);
+                        }
+                        if (InputTables_[tableIndex]->ExternalTransactionId) {
+                            SetTransactionId(req, InputTables_[tableIndex]->ExternalTransactionId);
+                        } else {
+                            SetTransactionId(req, QueryContext_->GetReadTransactionId(cluster));
+                        }
+                        SetSuppressAccessTracking(req, true);
+                        SetSuppressExpirationTimeoutRenewal(req, true);
+                    },
+                },
+                Logger);
+
+            TTabletChunkSpecFetcher::TOptions options{
+                .Client = client,
+                .RowBuffer = RowBuffer_,
+                .InitializeFetchRequest = [=, this] (TTabletChunkSpecFetcher::TRequest* req) {
+                    req->set_fetch_all_meta_extensions(true);
                     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                     req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
                     req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
                     if (!QueryContext_->SessionSettings->DynamicTable->EnableDynamicStoreRead) {
                         req->set_omit_dynamic_stores(true);
                     }
-                    if (InputTables_[tableIndex]->ExternalTransactionId) {
-                        SetTransactionId(req, InputTables_[tableIndex]->ExternalTransactionId);
-                    } else {
-                        SetTransactionId(req, TransactionId_);
-                    }
-                    SetSuppressAccessTracking(req, true);
-                    SetSuppressExpirationTimeoutRenewal(req, true);
-                },
-            },
-            Logger);
-
-        TTabletChunkSpecFetcher::TOptions options{
-            .Client = Client_,
-            .RowBuffer = RowBuffer_,
-            .InitializeFetchRequest = [=, this] (TTabletChunkSpecFetcher::TRequest* req) {
-                req->set_fetch_all_meta_extensions(true);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
-                if (!QueryContext_->SessionSettings->DynamicTable->EnableDynamicStoreRead) {
-                    req->set_omit_dynamic_stores(true);
                 }
-            }
-        };
-
-        TabletChunkSpecFetcher_ = New<TTabletChunkSpecFetcher>(
-            std::move(options),
-            Invoker_,
-            Logger);
+            };
+            fetchers.Tablet = New<TTabletChunkSpecFetcher>(std::move(options), Invoker_, Logger);
+        }
     }
 
     void AddTableForFetching(const TTablePtr& table, int tableIndex)
@@ -699,13 +711,13 @@ private:
             QueryContext_->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::None &&
             table->TableMountInfo->MountedTablets.size() == table->TableMountInfo->Tablets.size())
         {
-            TabletChunkSpecFetcher_->Add(
+            ChunkSpecFetchers_.at(table->Path.GetCluster()).Tablet->Add(
                 FromObjectId(table->ObjectId),
                 table->ChunkCount,
                 tableIndex,
                 table->Path.GetNewRanges(table->Comparator));
         } else {
-            MasterChunkSpecFetcher_->Add(
+            ChunkSpecFetchers_.at(table->Path.GetCluster()).Master->Add(
                 table->ObjectId,
                 table->ExternalCellTag,
                 // XXX(achulkov2, babenko): YT-11825
@@ -754,6 +766,7 @@ private:
                     /*omittedInaccessibleColumns*/ {},
                     /*columnRenameDescriptors*/ {});
             }
+            dataSource->SetClusterName(NScheduler::TClusterName(table->Path.GetCluster()));
 
             dataSource->SetRlsReadSpec(
                 TRlsReadSpec::BuildFromRowLevelAclAndTableSchema(
@@ -776,25 +789,25 @@ private:
                 .With("Breakpoint", *breakpointFilename);
         }
 
-        std::vector<TFuture<void>> asyncResults = {
-            MasterChunkSpecFetcher_->Fetch(),
-            TabletChunkSpecFetcher_->Fetch()
-        };
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& [_, fetchers] : ChunkSpecFetchers_) {
+            asyncResults.push_back(fetchers.Master->Fetch());
+            asyncResults.push_back(fetchers.Tablet->Fetch());
+        }
 
         WaitFor(AllSucceeded(asyncResults))
             .ThrowOnError();
 
         int chunkCount = 0;
-        for (auto& chunkSpec : Concatenate(
-            MasterChunkSpecFetcher_->ChunkSpecs(),
-            TabletChunkSpecFetcher_->ChunkSpecs()))
-        {
-            chunkCount++;
-            auto tableIndex = chunkSpec.table_index();
+        for (auto& [_, fetchers] : ChunkSpecFetchers_) {
+            for (auto& chunkSpec : Concatenate(fetchers.Master->ChunkSpecs(), fetchers.Tablet->ChunkSpecs())) {
+                chunkCount++;
+                auto tableIndex = chunkSpec.table_index();
 
-            // Table indices will be properly reassigned later by JoinTableReadSpecs.
-            chunkSpec.set_table_index(0);
-            TableReadSpecs_[tableIndex].DataSliceDescriptors.emplace_back(TDataSliceDescriptor(std::move(chunkSpec)));
+                // Table indices will be properly reassigned later by JoinTableReadSpecs.
+                chunkSpec.set_table_index(0);
+                TableReadSpecs_[tableIndex].DataSliceDescriptors.emplace_back(TDataSliceDescriptor(std::move(chunkSpec)));
+            }
         }
 
         YT_TLOG_INFO("Chunk specs fetched")

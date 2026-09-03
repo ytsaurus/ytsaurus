@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
@@ -147,11 +149,60 @@ void ValidateReadPermissions(
     for (const auto& table : tables) {
         // TODO(dakovalkov): in theory, we should validate permissions only if attributes
         // were received through the cache.
-        auto tablePath = TRichYPath(queryContext->GetNodeIdOrPath(table->GetPath()));
+        auto tablePath = table->Path.GetCluster()
+            ? TRichYPath(table->GetPath())
+            : TRichYPath(queryContext->GetNodeIdOrPath(table->GetPath()));
         tablePath.SetColumns(columnNames);
         tablePathsWithColumns.emplace_back(std::move(tablePath));
     }
-    auto rowLevelAclPerTable = queryContext->Host->ValidateTableReadPermissionsAndGetRowLevelAcl(tablePathsWithColumns, queryContext->User);
+    std::vector<THost::TRowLevelAcl> rowLevelAclPerTable(tables.size());
+    THashMap<std::optional<std::string>, std::vector<int>> clusterToTableIndices;
+    for (const auto& [index, table] : SEnumerate(tables)) {
+        clusterToTableIndices[table->Path.GetCluster()].push_back(index);
+    }
+    for (const auto& [cluster, indices] : clusterToTableIndices) {
+        std::vector<TRichYPath> paths;
+        paths.reserve(indices.size());
+        for (int index : indices) {
+            paths.push_back(tablePathsWithColumns[index]);
+        }
+
+        if (!cluster) {
+            auto results = queryContext->Host->ValidateTableReadPermissionsAndGetRowLevelAcl(paths, queryContext->User);
+            for (const auto& [resultIndex, tableIndex] : SEnumerate(indices)) {
+                rowLevelAclPerTable[tableIndex] = std::move(results[resultIndex]);
+            }
+            continue;
+        }
+
+        std::vector<NSecurityClient::TPermissionKey> keys;
+        keys.reserve(paths.size());
+        for (const auto& path : paths) {
+            keys.push_back(NSecurityClient::TPermissionKey{
+                .Path = path.GetPath(),
+                .User = queryContext->User,
+                .Permission = EPermission::Read,
+                .Columns = path.GetColumns(),
+                .CallerIsRlsAware = true,
+            });
+        }
+        auto results = WaitFor(queryContext->Client(cluster)->GetNativeConnection()->GetPermissionCache()->GetMany(keys))
+            .ValueOrThrow();
+        std::vector<TError> errors;
+        for (const auto& [resultIndex, tableIndex] : SEnumerate(indices)) {
+            if (!results[resultIndex].IsOK()) {
+                errors.push_back(TError(results[resultIndex])
+                    .With("cluster", *cluster)
+                    .With("path", paths[resultIndex]));
+            } else {
+                rowLevelAclPerTable[tableIndex] = results[resultIndex].Value().RowLevelAcl;
+            }
+        }
+        if (!errors.empty()) {
+            THROW_ERROR_EXCEPTION("Error validating permissions for user %Qv on cluster %Qv", queryContext->User, *cluster)
+                .With(std::move(errors));
+        }
+    }
     for (const auto& [index, table] : SEnumerate(tables)) {
         auto rowLevelAcl = std::move(rowLevelAclPerTable[index]);
         if (rowLevelAcl) {
@@ -851,6 +902,17 @@ public:
         if (!context) {
             THROW_ERROR_EXCEPTION("Context has expired (TStorageDistributor::startup)");
         }
+
+        if (context->hasInsertionTable() || QueryContext_->CreatedTablePath.has_value()) {
+            for (const auto& table : Tables_) {
+                if (table->Path.GetCluster()) {
+                    THROW_ERROR_EXCEPTION("Cross-cluster tables are supported only in SELECT queries")
+                        .With("cluster", *table->Path.GetCluster())
+                        .With("path", table->Path.GetPath());
+                }
+            }
+        }
+
         auto storageContext = QueryContext_->GetOrRegisterStorageContext(this, context);
 
         std::vector<std::string> columnNames;
@@ -1118,6 +1180,11 @@ public:
         }
         const auto& table = Tables_.front();
         auto& path = table->Path;
+        if (path.GetCluster()) {
+            THROW_ERROR_EXCEPTION("Writing to a cross-cluster table is not supported")
+                .With("cluster", *path.GetCluster())
+                .With("path", path.GetPath());
+        }
 
         bool overwrite = !path.GetAppend(/*defaultValue*/ true);
 
@@ -1253,6 +1320,9 @@ public:
         }
 
         const auto& table = Tables_.back();
+        if (table->Path.GetCluster()) {
+            return std::nullopt;
+        }
 
         auto* selectWithUnion = query.select->as<DB::ASTSelectWithUnionQuery>();
         if (selectWithUnion->list_of_selects->children.size() != 1) {

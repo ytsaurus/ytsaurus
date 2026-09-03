@@ -732,6 +732,26 @@ public:
         return ClientCache_->Get(identity, options);
     }
 
+    NApi::NNative::IClientPtr CreateClient(
+        const std::string& user,
+        const std::optional<std::string>& cluster) const
+    {
+        if (!cluster) {
+            return CreateClient(user);
+        }
+
+        auto connection = WaitFor(NApi::NNative::InsistentGetRemoteConnection(
+            Connection_,
+            *cluster,
+            NApi::NNative::EInsistentGetRemoteConnectionMode::Sync))
+            .ValueOrThrow();
+        connection->GetNodeDirectorySynchronizer()->Start();
+
+        auto identity = NRpc::TAuthenticationIdentity(user);
+        auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
+        return connection->CreateNativeClient(options);
+    }
+
     void HandleSigint()
     {
         ++SigintCounter_;
@@ -1449,6 +1469,13 @@ NApi::NNative::IClientPtr THost::GetDictionariesClient() const
 NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
 {
     return Impl_->CreateClient(user);
+}
+
+NApi::NNative::IClientPtr THost::CreateClient(
+    const std::string& user,
+    const std::optional<std::string>& cluster) const
+{
+    return Impl_->CreateClient(user, cluster);
 }
 
 TFuture<void> THost::GetIdleFuture() const

@@ -37,13 +37,16 @@ using namespace NStatisticPath;
 
 namespace {
 
-void FetchTableSchemas(TQueryContext* queryContext, const std::vector<TTablePtr>& tables)
+void FetchTableSchemasForCluster(
+    TQueryContext* queryContext,
+    const std::vector<TTablePtr>& tables,
+    const std::optional<std::string>& cluster)
 {
-    auto timerGuard = queryContext->CreateStatisticsTimerGuard("/fetch_table_schemas"_SP);
-
-    const auto& client = queryContext->Client();
+    auto client = queryContext->Client(cluster);
     // TableSchemaCache may be not configured.
-    const auto& tableSchemaCache = queryContext->Host->GetTableSchemaCache();
+    const auto& tableSchemaCache = cluster
+        ? TTableSchemaCachePtr{}
+        : queryContext->Host->GetTableSchemaCache();
 
     THashMap<TObjectId, std::vector<TTablePtr>> schemaIdToTables;
     for (const auto& table : tables) {
@@ -111,6 +114,19 @@ void FetchTableSchemas(TQueryContext* queryContext, const std::vector<TTablePtr>
 
     for (const auto& table : tables) {
         table->Comparator = table->Schema->ToComparator();
+    }
+}
+
+void FetchTableSchemas(TQueryContext* queryContext, const std::vector<TTablePtr>& tables)
+{
+    auto timerGuard = queryContext->CreateStatisticsTimerGuard("/fetch_table_schemas"_SP);
+
+    THashMap<std::optional<std::string>, std::vector<TTablePtr>> clusterToTables;
+    for (const auto& table : tables) {
+        clusterToTables[table->Path.GetCluster()].push_back(table);
+    }
+    for (const auto& [cluster, clusterTables] : clusterToTables) {
+        FetchTableSchemasForCluster(queryContext, clusterTables, cluster);
     }
 }
 
@@ -220,13 +236,24 @@ std::vector<TTablePtr> FetchTables(
     YT_TLOG_INFO("Fetching tables")
         .With("PathCount", richPaths.size());
 
-    std::vector<TYPath> paths;
-    paths.reserve(richPaths.size());
-    for (const auto& path: richPaths) {
-        paths.emplace_back(path.GetPath());
+    std::vector<TErrorOr<IAttributeDictionaryPtr>> attributesOrErrors(richPaths.size());
+    THashMap<std::optional<std::string>, std::vector<int>> clusterToPathIndices;
+    for (const auto& [index, path] : SEnumerate(richPaths)) {
+        clusterToPathIndices[path.GetCluster()].push_back(index);
     }
-
-    auto attributesOrErrors = queryContext->GetObjectAttributesSnapshot(paths);
+    for (const auto& [cluster, indices] : clusterToPathIndices) {
+        std::vector<TYPath> paths;
+        paths.reserve(indices.size());
+        for (int index : indices) {
+            paths.push_back(richPaths[index].GetPath());
+        }
+        auto clusterAttributes = cluster
+            ? queryContext->GetObjectAttributesSnapshot(paths, *cluster)
+            : queryContext->GetObjectAttributesSnapshot(paths);
+        for (const auto& [resultIndex, pathIndex] : SEnumerate(indices)) {
+            attributesOrErrors[pathIndex] = std::move(clusterAttributes[resultIndex]);
+        }
+    }
 
     int dynamicTableCount = 0;
 
@@ -264,6 +291,12 @@ std::vector<TTablePtr> FetchTables(
             continue;
         }
 
+        if (path.GetCluster() && attributes->Get<bool>("dynamic", false)) {
+            THROW_ERROR_EXCEPTION("Cross-cluster reads support static tables only")
+                .With("cluster", *path.GetCluster())
+                .With("path", path.GetPath());
+        }
+
         if (attributes->Get<bool>("dynamic", false) &&
             enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))
         {
@@ -283,7 +316,12 @@ std::vector<TTablePtr> FetchTables(
             ++dynamicTableCount;
         }
 
-        if (auto it = queryContext->SnapshotLocks.find(path.GetPath()); it != queryContext->SnapshotLocks.end()) {
+        if (auto cluster = path.GetCluster()) {
+            const auto& locks = GetOrCrash(queryContext->RemoteSnapshotLocks, *cluster);
+            if (auto it = locks.find(path.GetPath()); it != locks.end()) {
+                table->ExternalTransactionId = it->second.ExternalTransactionId;
+            }
+        } else if (auto it = queryContext->SnapshotLocks.find(path.GetPath()); it != queryContext->SnapshotLocks.end()) {
             table->ExternalTransactionId = it->second.ExternalTransactionId;
         }
     }
