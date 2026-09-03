@@ -407,6 +407,65 @@ class TestKafkaProxy(KafkaProxyBase):
 
         _check_rows(rows_count)
 
+    @authors("panesher")
+    def test_same_key_same_partition_and_order(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = "primary://tmp/queue"
+
+        TestKafkaProxy._create_kafka_queue(queue_path, tablet_count=5)
+
+        address = self.Env.get_kafka_proxy_address()
+        p = Producer(get_producer_config(address, token))
+        serializer = StringSerializer("utf_8")
+
+        keys = [f"key_{i}" for i in range(10)]
+        repeats = 5
+
+        for seq in range(repeats):
+            for key in keys:
+                p.poll(0.0)
+                p.produce(topic=queue_path,
+                          key=serializer(key),
+                          value=serializer(f"{seq}"),
+                          on_delivery=_fail_on_error)
+            p.flush()
+        p.flush()
+
+        def _check():
+            rows = select_rows("key, value, [$tablet_index], [$row_index] from [//tmp/queue]")
+            if len(rows) != len(keys) * repeats:
+                return False
+
+            # Same key must always land on the same tablet (partition).
+            key_to_tablet = {}
+            for row in rows:
+                tablet_index = row["$tablet_index"]
+                if row["key"] in key_to_tablet:
+                    assert key_to_tablet[row["key"]] == tablet_index, \
+                        f"Key '{row['key']}' landed on tablets {key_to_tablet[row['key']]} and {tablet_index}"
+                else:
+                    key_to_tablet[row["key"]] = tablet_index
+
+            # Within a partition messages are ordered by row index, so per key
+            # the produce order must be preserved.
+            rows.sort(key=lambda row: (row["$tablet_index"], row["$row_index"]))
+            key_to_values = {}
+            for row in rows:
+                key_to_values.setdefault(row["key"], []).append(row["value"])
+
+            for key, values in key_to_values.items():
+                assert values == [f"{seq}" for seq in range(repeats)], \
+                    f"Key '{key}' has out-of-order values {values}"
+
+            return True
+
+        wait(_check)
+
     @authors("apachee")
     def test_fetch(self):
         username = "u"
