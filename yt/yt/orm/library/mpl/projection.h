@@ -10,7 +10,7 @@ template <class TProjected, TProjected Constant>
 struct TConstantProjection
 {
     template <class TValue>
-    TProjected operator()(const TValue&)
+    TProjected operator()(const TValue&) const
     {
         return Constant;
     }
