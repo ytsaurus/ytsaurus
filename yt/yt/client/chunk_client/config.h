@@ -374,7 +374,8 @@ struct TReplicationWriterConfig
     //! If |true| then the chunk is fsynced to disk upon closing.
     bool SyncOnClose;
 
-    bool EnableDirectIO;
+    //! Will write with DirectIO (unless disabled via location config).
+    bool UseDirectIO;
 
     //! If |true| then the chunk is finished as soon as MinUploadReplicationFactor chunks are written.
     bool EnableEarlyFinish;
