@@ -206,6 +206,7 @@ jobs:
     needs:
       - start-vm
       - clear-caches
+    if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.clear-caches.result == 'success' }}
     runs-on: ${{ needs.start-vm.outputs.label }}
     timeout-minutes: 120
     steps:
