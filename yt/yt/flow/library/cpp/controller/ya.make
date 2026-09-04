@@ -30,6 +30,7 @@ PEERDIR(
     library/cpp/containers/concurrent_hash_set
     library/cpp/getopt
     library/cpp/yson/node
+    library/cpp/yt/containers
     library/cpp/yt/memory
     yt/yt/core
     yt/yt/flow/library/cpp/pipeline_helpers/flow_execute

@@ -1023,6 +1023,22 @@ bool TDynamicThrottlerSpec::ClientConfigEquals(const TDynamicThrottlerSpec& othe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TEvenLoadThresholds::Register(TRegistrar registrar)
+{
+    registrar.Parameter("spread", &TThis::Spread)
+        .Default();
+    registrar.Parameter("ratio", &TThis::Ratio)
+        .Default();
+    registrar.Postprocessor([] (TThis* thresholds) {
+        if (thresholds->Ratio && *thresholds->Ratio < 1.0) {
+            THROW_ERROR_EXCEPTION("Even-load ratio threshold must be at least 1 (Ratio: %v)",
+                *thresholds->Ratio);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("balancer_type", &TThis::BalancerType)
@@ -1043,11 +1059,14 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("rebalance_count_exceeded_allowed", &TThis::RebalanceCountExceedAllowed)
         .Default(1.2);
+    registrar.Parameter("rebalance_even_load_thresholds", &TThis::RebalanceEvenLoadThresholds)
+        .Default();
     registrar.Parameter("rebalance_min_cpu_spread", &TThis::RebalanceMinCpuSpread)
-        .Default(1.0);
+        .Default();
     registrar.Parameter("rebalance_min_cpu_ratio", &TThis::RebalanceMinCpuRatio)
-        .GreaterThanOrEqual(1.0)
-        .Default(1.2);
+        .Default();
+    registrar.Parameter("balance_weights", &TThis::BalanceWeights)
+        .Default({{EBalanceResource::Cpu, 1.0}, {EBalanceResource::Memory, 0.0}});
     registrar.Parameter("disable_even_load_gate", &TThis::DisableEvenLoadGate)
         .Default();
     registrar.Parameter("async_balancing", &TThis::AsyncBalancing)
@@ -1065,6 +1084,38 @@ void TDynamicJobBalancerSpec::Register(TRegistrar registrar)
             spec->BalancerType = *spec->UseCpuAwareBalancer
                 ? EJobBalancerType::CpuAware
                 : EJobBalancerType::Greedy;
+        }
+
+        // Handle the deprecated flat CPU thresholds: they feed the CPU entry of the per-resource map
+        // unless that entry already sets the same field explicitly.
+        if (spec->RebalanceMinCpuSpread || spec->RebalanceMinCpuRatio) {
+            auto& thresholds = spec->RebalanceEvenLoadThresholds[EBalanceResource::Cpu];
+            if (!thresholds) {
+                thresholds = New<TEvenLoadThresholds>();
+            }
+            if (!thresholds->Spread) {
+                thresholds->Spread = spec->RebalanceMinCpuSpread;
+            }
+            if (!thresholds->Ratio) {
+                thresholds->Ratio = spec->RebalanceMinCpuRatio;
+            }
+            if (thresholds->Ratio && *thresholds->Ratio < 1.0) {
+                THROW_ERROR_EXCEPTION("Even-load ratio threshold must be at least 1 (Ratio: %v)",
+                    *thresholds->Ratio);
+            }
+        }
+
+        double balanceWeightSum = 0.0;
+        for (const auto& [resource, weight] : spec->BalanceWeights) {
+            if (weight < 0.0) {
+                THROW_ERROR_EXCEPTION("Balance weight must be non-negative (Resource: %Qlv, Weight: %v)",
+                    resource,
+                    weight);
+            }
+            balanceWeightSum += weight;
+        }
+        if (balanceWeightSum <= 0.0) {
+            THROW_ERROR_EXCEPTION("Balance weights must have a positive sum");
         }
     });
 }

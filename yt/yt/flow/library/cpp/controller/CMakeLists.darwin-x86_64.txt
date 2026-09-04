@@ -34,6 +34,7 @@ target_link_libraries(library-cpp-controller PUBLIC
   cpp-containers-concurrent_hash_set
   library-cpp-getopt
   cpp-yson-node
+  cpp-yt-containers
   cpp-yt-memory
   yt-yt-core
   cpp-pipeline_helpers-flow_execute
