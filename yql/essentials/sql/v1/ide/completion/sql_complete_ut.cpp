@@ -63,6 +63,7 @@ using ECandidateKind::PragmaName;
 using ECandidateKind::TableName;
 using ECandidateKind::TypeName;
 using ECandidateKind::UnknownName;
+using ECandidateKind::ViewName;
 
 TLexerSupplier MakePureLexerSupplier() {
     NSQLTranslationV1::TLexers lexers;
@@ -109,6 +110,8 @@ ISqlCompletionEngine::TPtr MakeSqlCompletionEngineUT() {
                     "meta": { "type": "Table", "columns": {} }
                 }},
                 "prod": { "type": "Folder", "entries": {
+                    "events": { "type": "Table", "columns": {} },
+                    "recent_events": { "type": "View" }
                 }},
                 ".sys": { "type": "Folder", "entries": {
                     "status": { "type": "Table", "columns": {} }
@@ -413,6 +416,22 @@ Y_UNIT_TEST(DropObject) {
     auto engine = MakeSqlCompletionEngineUT();
     UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "DROP TABLE "), expected);
     UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "DROP VIEW "), expected);
+
+    UNIT_ASSERT_VALUES_EQUAL(
+        Complete(engine, "DROP TABLE `prod/#`"),
+        (TVector<TCandidate>{{.Kind = TableName, .Content = "events"}}));
+    UNIT_ASSERT_VALUES_EQUAL(
+        Complete(engine, "DROP VIEW `prod/#`"),
+        (TVector<TCandidate>{{.Kind = ViewName, .Content = "recent_events"}}));
+    UNIT_ASSERT_VALUES_EQUAL(
+        Complete(engine, "DROP VIEW IF EXISTS `prod/#`"),
+        (TVector<TCandidate>{{.Kind = ViewName, .Content = "recent_events"}}));
+    UNIT_ASSERT_VALUES_EQUAL(
+        Complete(engine, "SELECT * FROM `prod/#`"),
+        (TVector<TCandidate>{
+            {.Kind = TableName, .Content = "events"},
+            {.Kind = ViewName, .Content = "recent_events"},
+        }));
 }
 
 Y_UNIT_TEST(Explain) {
