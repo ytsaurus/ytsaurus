@@ -919,7 +919,7 @@ class TestChaos(ChaosTestBase):
         wait(_try_insert_rows)
         assert lookup_rows("//tmp/t", [{"key": 1}]) == values
 
-    @authors("savrus")
+    @authors("savrus", "osidorkin")
     def test_replication_progress(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
@@ -948,23 +948,35 @@ class TestChaos(ChaosTestBase):
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
 
-        orchid = get("#{0}/orchid".format(tablet_id))
+        def _check():
+            tablet_orchid = get(f"#{tablet_id}/orchid")
+            if tablet_orchid["prepared_write_pulled_rows_transaction_id"] != "0-0-0-0":
+                return False
+
+            if tablet_orchid["prepared_advance_replication_progress_transaction_id"] != "0-0-0-0":
+                return False
+
+            return tablet_orchid["table_puller"]["iteration_skip_reason"] == "self_replica_is_disabled"
+
+        wait(_check)
+
+        orchid = get(f"#{tablet_id}/orchid")
         progress = orchid["replication_progress"]
 
         sync_unmount_table("//tmp/t")
-        assert get("#{0}/@replication_progress".format(tablet_id)) == progress
+        assert get(f"#{tablet_id}/@replication_progress") == progress
 
         sync_mount_table("//tmp/t")
-        orchid = get("#{0}/orchid".format(tablet_id))
+        orchid = get(f"#{tablet_id}/orchid")
         assert orchid["replication_progress"] == progress
 
-        cell_id = get("#{0}/@cell_id".format(tablet_id))
+        cell_id = get(f"#{tablet_id}/@cell_id")
         build_snapshot(cell_id=cell_id)
-        peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        peer = get(f"//sys/tablet_cells/{cell_id}/@peers/0/address")
         set_node_banned(peer, True)
         wait_for_cells([cell_id], decommissioned_addresses=[peer])
 
-        orchid = get("#{0}/orchid".format(tablet_id))
+        orchid = get(f"#{tablet_id}/orchid")
         assert orchid["replication_progress"] == progress
 
     @authors("savrus")
