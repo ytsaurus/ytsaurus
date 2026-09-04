@@ -1209,12 +1209,12 @@ public:
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta) override
     {
         YT_VERIFY(chunk->IsNative());
+        YT_VERIFY(chunk->IsDiskSizeFinal());
 
         ComputeChunkResourceDelta(
             chunk,
             requisition,
             delta,
-            delta * chunk->GetMasterMemoryUsage(),
             [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 chunkMasterMemory, bool committed) {
                 account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += chunkMasterMemory;
 
@@ -1227,27 +1227,6 @@ public:
                 }
 
                 IncreaseLocalAndClusterAccountStatistics(account, statisticsDelta);
-            });
-    }
-
-    void UpdateChunkMasterMemoryUsage(const TChunk* chunk, i64 masterMemoryUsageDelta) override
-    {
-        if (masterMemoryUsageDelta == 0) {
-            return;
-        }
-
-        YT_VERIFY(chunk->IsNative());
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& requisition = chunk->GetAggregatedRequisition(chunkManager->GetChunkRequisitionRegistry());
-
-        ComputeChunkResourceDelta(
-            chunk,
-            requisition,
-            /*delta*/ 0,
-            masterMemoryUsageDelta,
-            [&] (TAccount* account, int /*mediumIndex*/, i64 /*chunkCount*/, i64 /*diskSpace*/, i64 chunkMasterMemoryUsage, bool /*committed*/) {
-                account->DetailedMasterMemoryUsage()[EMasterMemoryType::Chunks] += chunkMasterMemoryUsage;
             });
     }
 
@@ -1393,7 +1372,7 @@ public:
             transactionUsage->SetChunkCount(transactionUsage->GetChunkCount() + chunkCount);
         };
 
-        ComputeChunkResourceDelta(chunk, requisition, delta, delta * chunk->GetMasterMemoryUsage(), chargeTransaction);
+        ComputeChunkResourceDelta(chunk, requisition, delta, chargeTransaction);
     }
 
     void ResetMasterMemoryUsage(TCypressNode* node)
@@ -3256,12 +3235,7 @@ private:
     }
 
     template <class T>
-    void ComputeChunkResourceDelta(
-        const TChunk* chunk,
-        const TChunkRequisition& requisition,
-        i64 delta,
-        i64 chunkMasterMemoryUsageDelta,
-        T&& doCharge)
+    void ComputeChunkResourceDelta(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta, T&& doCharge)
     {
         auto chunkDiskSpace = chunk->GetDiskSpace();
         auto erasureCodec = chunk->GetErasureCodec();
@@ -3269,6 +3243,7 @@ private:
         const TAccount* lastAccount = nullptr;
         auto lastMediumIndex = GenericMediumIndex;
         i64 lastDiskSpace = 0;
+        auto chunkMasterMemoryUsageDelta = delta * chunk->GetMasterMemoryUsage();
 
         for (const auto& entry : requisition.AllEntries()) {
             auto account = entry.Account;
@@ -3738,7 +3713,7 @@ private:
 
             if (chunk->IsDiskSizeFinal()) {
                 auto requisition = chunk->GetAggregatedRequisition(requisitionRegistry);
-                ComputeChunkResourceDelta(chunk, requisition, +1, chunk->GetMasterMemoryUsage(), chargeAccount);
+                ComputeChunkResourceDelta(chunk, requisition, +1, chargeAccount);
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }
 
@@ -3885,7 +3860,7 @@ private:
             }
 
             auto requisition = chunk->GetAggregatedRequisition(requisitionRegistry);
-            ComputeChunkResourceDelta(chunk, requisition, +1, chunk->GetMasterMemoryUsage(), chargeAccount);
+            ComputeChunkResourceDelta(chunk, requisition, +1, chargeAccount);
         }
 
         // Master table schema memory usage is recalculated separately.
