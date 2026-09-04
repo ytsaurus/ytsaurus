@@ -2688,7 +2688,8 @@ public:
             replicaLagLimit,
             replicaDescriptors,
             GetDynamicConfig()->JournalRpcTimeout,
-            Bootstrap_->GetNodeChannelFactory());
+            Bootstrap_->GetNodeChannelFactory(),
+            TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
     }
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry() override

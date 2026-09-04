@@ -5,10 +5,10 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/config.h>
-#include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/helpers.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
 
-#include <yt/yt/ytlib/push_based_shuffle_client/config.h>
+#include <yt/yt/ytlib/shuffle_client/config.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -23,7 +23,7 @@ using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
-using namespace NPushBasedShuffleClient;
+using namespace NShuffleClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,14 +206,14 @@ public:
         , Transaction_(std::move(transaction))
         , Client_(std::move(client))
     {
+        YT_VERIFY(pushConfig);
+
         YT_TLOG_DEBUG("Initializing push-based shuffle")
             .With("Account", account)
             .With("Medium", medium)
             .With("ReplicationFactor", replicationFactor);
 
-        // SetDefaults() is required here; New<>() does not apply YSON defaults.
         auto writerOptions = New<TJournalChunkWriterOptions>();
-        writerOptions->SetDefaults();
         writerOptions->ReplicationFactor = replicationFactor;
         // Derive read/write quorums from the replication factor so that the read
         // and write quorums always intersect; the default 2/2 quorums are unsafe
@@ -223,21 +223,12 @@ public:
         writerOptions->WriteQuorum = quorums.WriteQuorum;
 
         // The journal writer config (sequencer batch/flush knobs) and pool config (e.g.
-        // max_active_sessions_per_slot) come from the handle's push config when set; otherwise
-        // defaults. The quorums above stay derived from the replication factor regardless.
-        TJournalChunkWriterConfigPtr writerConfig;
-        TDistributedChunkSessionPoolConfigPtr poolConfig;
-        if (pushConfig) {
-            writerConfig = pushConfig->JournalWriterConfig;
-            poolConfig = pushConfig->SessionPoolConfig;
-        } else {
-            writerConfig = New<TJournalChunkWriterConfig>();
-            writerConfig->SetDefaults();
-            poolConfig = New<TDistributedChunkSessionPoolConfig>();
-            poolConfig->SetDefaults();
-        }
+        // max_active_sessions_per_slot) come from the handle's push config. The quorums above
+        // stay derived from the replication factor regardless.
+        auto writerConfig = pushConfig->JournalWriter;
+        auto poolConfig = pushConfig->SessionPool;
+
         auto controllerConfig = New<TDistributedChunkSessionControllerConfig>();
-        controllerConfig->SetDefaults();
         controllerConfig->Account = std::move(account);
         controllerConfig->MediumName = std::move(medium);
 
