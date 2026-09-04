@@ -113,7 +113,11 @@ bool TCompactionHintConfigChange::IsConfigChanged(
     const auto& oldCompactionHint = (*oldConfig->CompactionHints).*compactionHintField;
     const auto& newCompactionHint = (*newConfig->CompactionHints).*compactionHintField;
 
-    return !oldRetentionConfig->IsEqual(*newRetentionConfig) ||
+    bool minCompactionDataSizeChanged =
+        oldConfig->CompactionHints->MinCompactionDataSize != newConfig->CompactionHints->MinCompactionDataSize;
+
+    return minCompactionDataSizeChanged ||
+        !oldRetentionConfig->IsEqual(*newRetentionConfig) ||
         !oldCompactionHint->AreCompactionSettingsEqual(newCompactionHint);
 }
 
@@ -388,6 +392,7 @@ void TStoreCompactionHintController::StopEpoch(TSortedChunkStore* store)
 void TStoreCompactionHintController::StartEpoch(TSortedChunkStore* store)
 {
     const auto& config = store->GetTablet()->GetSettings().MountConfig;
+
     SetDeterminedState(
         store,
         TCompactionHintConfigChange(config, config, GetStoreCompactionHintKind()).AsOnlyEnableConfigChange(),
@@ -400,7 +405,7 @@ void TStoreCompactionHintController::OnMountConfigUpdated(TSortedChunkStore* sto
 
     SetDeterminedState(
         store,
-        /*configChange*/ {oldConfig, store->GetTablet()->GetSettings().MountConfig, GetStoreCompactionHintKind()},
+        TCompactionHintConfigChange(oldConfig, store->GetTablet()->GetSettings().MountConfig, GetStoreCompactionHintKind()),
         /*isInBadState*/ store->GetStoreState() != EStoreState::Persistent);
 }
 

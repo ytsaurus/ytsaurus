@@ -22,10 +22,14 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
         .BuildRecalculationFinalizer(partition);
 
     auto mountConfig = partition->GetTablet()->GetMountConfig();
+    i64 minCompactionDataSize = mountConfig->CompactionHints->MinCompactionDataSize;
     const auto& minHashDigestConfig = mountConfig->CompactionHints->MinHashDigest;
 
     const auto& stores = recalculationFinalizer.Stores();
-    if (stores.empty() || ssize(stores) > minHashDigestConfig->MaxStoreCount) {
+    if (stores.empty() ||
+        ssize(stores) > minHashDigestConfig->MaxStoreCount ||
+        partition->GetCompressedDataSize() < minCompactionDataSize)
+    {
         return;
     }
 
@@ -35,18 +39,26 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
         : EMinHashWriteSimilarityMode::Primary;
 
     TMinHashDigestPtr cumulativeDigest;
+    i64 cumulativeDataSize = 0;
 
     for (int prefixLength = 1; prefixLength <= ssize(stores); ++prefixLength) {
-        auto majorTimestamp = prefixLength == ssize(stores)
-            ? TInstant::Max()
-            : TInstant::Seconds(UnixTimeFromTimestamp(stores[prefixLength]->GetMinTimestamp()));
+        auto* store = stores[prefixLength - 1];
+        cumulativeDataSize += store->GetCompressedDataSize();
 
         const auto& currentDigest = std::get<TMinHashDigestPtr>(
-            stores[prefixLength - 1]->CompactionHints().Payloads()[EStoreCompactionHintKind::MinHashDigest]);
+            store->CompactionHints().Payloads()[EStoreCompactionHintKind::MinHashDigest]);
 
         cumulativeDigest = prefixLength == 1
             ? currentDigest
             : TMinHashDigest::Merge(cumulativeDigest, currentDigest);
+
+        if (cumulativeDataSize < minCompactionDataSize) {
+            continue;
+        }
+
+        auto majorTimestamp = prefixLength == ssize(stores)
+            ? TInstant::Max()
+            : TInstant::Seconds(UnixTimeFromTimestamp(stores[prefixLength]->GetMinTimestamp()));
 
         if (auto timestamp = cumulativeDigest->CalculateWriteDeleteSimilarityTimestamp(minHashDigestConfig->WriteDeleteSimilarity);
             timestamp && timestamp < majorTimestamp.Seconds())
@@ -73,6 +85,10 @@ void DoRecalculatePartitionCompactionHint<EPartitionCompactionHintKind::MinHashD
     ui64 storeSubsetCount = 1ULL << ssize(stores);
 
     for (ui64 storeSubset = 1; storeSubset < storeSubsetCount; ++storeSubset) {
+        if (recalculationFinalizer.CalculateStoreSubsetDataSize(storeSubset) < minCompactionDataSize) {
+            continue;
+        }
+
         cumulativeDigest = nullptr;
 
         for (int index = 0; index < ssize(stores); ++index) {

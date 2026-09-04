@@ -119,6 +119,10 @@ void TMinHashDigestConfig::Register(TRegistrar registrar)
 
 void TCompactionHintsConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("min_compaction_data_size", &TThis::MinCompactionDataSize)
+        .GreaterThanOrEqual(0)
+        .Default(8_MB);
+
     registrar.Parameter("row_digest", &TThis::RowDigest)
         .DefaultNew();
     registrar.Parameter("min_hash_digest", &TThis::MinHashDigest)

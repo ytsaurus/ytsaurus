@@ -31,6 +31,15 @@ from time import sleep, time
 class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "mount_config_template_patch": {
+                "compaction_hints": {
+                    "min_compaction_data_size": 0,
+                },
+            },
+        },
+    }
 
     def _update_compaction_hint_fetcher_config(self, name, period, limit=300):
         update_nodes_dynamic_config({
@@ -1400,6 +1409,55 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         wait(_check_compaction_hint)
 
+    @authors("dave11ar")
+    def test_timestamp_row_digest_small_store(self):
+        sync_create_cells(1)
+
+        table = "//tmp/t"
+        self._create_simple_table(
+            table,
+            mount_config={
+                "compaction_hints": {
+                    "min_compaction_data_size": 1 << 30,
+                    "row_digest": {
+                        "enable_non_aggregates": True,
+                        "max_obsolete_timestamp_ratio": 1,
+                    },
+                },
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+            },
+            compression_codec="none",
+        )
+
+        sync_mount_table(table)
+        for _ in range(10):
+            insert_rows(table, [{"key": 1, "value": "v"}])
+        sync_flush_table(table)
+
+        tablet_id = get(f"{table}/@tablets/0/tablet_id")
+        chunk_id = get_singular_chunk_id(table)
+        store_orchid_path = f"//sys/tablets/{tablet_id}/orchid/partitions/0/stores/{chunk_id}"
+
+        def _check_compaction_hint(reason):
+            store_orchid = get(store_orchid_path)
+
+            hint = store_orchid["compaction_hints"]["versioned_row_digest"]
+            lsm_hint = hint["lsm_compaction_hint"]
+
+            return (
+                hint["state"] == "active"
+                and lsm_hint["lsm_response_revision"] != 0
+                and lsm_hint["lsm_response_revision"] == lsm_hint["node_object_revision"]
+                and lsm_hint["reason"] == "none"
+            )
+
+        wait(lambda: _check_compaction_hint("none"))
+
+        set(f"{table}/@mount_config/compaction_hints/min_compaction_data_size", 0)
+        remount_table(table)
+
+        wait(lambda: _check_compaction_hint("ttl_cleanup_expected"))
+
     @authors("alexelexa")
     def test_performance_counters(self):
         sync_create_cells(1)
@@ -1558,7 +1616,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert len(compacted_tables) == (1 if starving_tables_tasks_ratio == 0.0 else 2)
 
     @authors("dave11ar")
-    def test_aggregate_digest_simple(self):
+    def test_aggregate_digest_min_compaction_data_size(self):
         sync_create_cells(1)
         table = "//tmp/t"
         self._create_simple_table(
@@ -1569,6 +1627,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             ],
             mount_config={
                 "compaction_hints": {
+                    "min_compaction_data_size": 1 << 30,
                     "row_digest": {
                         "enable_aggregates": True,
                     }
@@ -1593,15 +1652,13 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         sleep(5)
         assert len(get(f"{table}/@chunk_ids")) == 2
 
-        set(f"{table}/@mount_config/compaction_hints/row_digest", {
-            "enable_aggregates": True,
-        })
+        set(f"{table}/@mount_config/compaction_hints/min_compaction_data_size", 0)
         remount_table(table)
 
         wait(lambda: len(get(f"{table}/@chunk_ids")) == 1)
 
     @authors("dave11ar")
-    def test_simple_min_hash_digest(self):
+    def test_min_hash_digest_min_compaction_data_size(self):
         sync_create_cells(1)
 
         self._update_compaction_hint_fetcher_config("min_hash_digest", 1, 0)
@@ -1614,6 +1671,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 "min_data_ttl": 0,
                 "dynamic_store_auto_flush_period": yson.YsonEntity(),
                 "compaction_hints": {
+                    "min_compaction_data_size": 1 << 30,
                     "min_hash_digest": {
                         "enable" : True,
                     },
@@ -1637,6 +1695,12 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert len(get(f"{table}/@chunk_ids")) == 2
 
         self._update_compaction_hint_fetcher_config("min_hash_digest", 1, 300)
+
+        sleep(5)
+        assert len(get(f"{table}/@chunk_ids")) == 2
+
+        set(f"{table}/@mount_config/compaction_hints/min_compaction_data_size", 0)
+        remount_table(table)
 
         wait(lambda: len(get(f"{table}/@chunk_ids")) == 0)
 
