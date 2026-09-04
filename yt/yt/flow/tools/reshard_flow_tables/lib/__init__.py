@@ -653,11 +653,37 @@ def plan_partition_transactions_table(computations, path, tablet_count):
     return plan_partition_table(computations, f"{path}/partition_transactions", tablet_count)
 
 
-def plan_leases_table(computations, path, tablet_count):
+def plan_leases_table(client, computations, path, tablet_count, infer_unused=True):
+    table = f"{path}/leases"
     # Same write profile as partition_transactions -- tiny rows rewritten at a high rate, keyed by
     # farm_hash(key) -- so spread it over the same width. A single tablet cannot compact the lease
     # churn of every partition and hits "too many overlapping stores, writes disabled" (code 1703).
-    return plan_partition_table(computations, f"{path}/leases", tablet_count)
+    full_width = plan_partition_table(computations, table, tablet_count)
+    if not infer_unused:
+        return full_width
+
+    # The election backend belongs to the controller process config and is not part of the
+    # pipeline spec available to this tool, so whether the table is in use is inferred from its
+    # contents. A dyntable-backed controller rewrites the pipeline-wide deadline row
+    # ("", "expiration") every cycle (TDyntableLeases::TouchLeaseDeadline) and nothing deletes it,
+    # so once such a controller has led the pipeline the table never becomes empty again, not even
+    # when the pipeline is stopped and every partition row has been revoked. Until then a single
+    # tablet is enough, and the tablets an earlier run spread over an unused table are taken back.
+    # After switching the backend rerun the tool: the table stays empty until the first controller
+    # with the dyntable backend leads the pipeline. `--table leases` bypasses this inference and
+    # always plans the full width.
+    try:
+        empty = not list(client.select_rows(f"* FROM [{table}] LIMIT 1"))
+    except Exception as ex:
+        # Fail open: an unmounted table, or a chaos table with no in-sync data replica right now,
+        # only means the table is not known to be empty, and shrinking is cheap only when we are
+        # sure. Aborting here would leave every other table of the run un-resharded too.
+        logging.warning(f"Cannot tell whether {table} is empty, planning the full width: {ex}")
+        return full_width
+    if empty:
+        logging.info(f"Plan a single tablet for {table} because it is empty")
+        return table, {"tablet_count": 1, "uniform": True}
+    return full_width
 
 
 def reshard_tables(args):
@@ -729,7 +755,7 @@ def plan_pipeline_tables(client, args):
     if args.table is None or args.table == "partition_transactions":
         plans.append(plan_partition_transactions_table(computations, path, tablet_count))
     if args.table is None or args.table == "leases":
-        plans.append(plan_leases_table(computations, path, tablet_count))
+        plans.append(plan_leases_table(client, computations, path, tablet_count, infer_unused=args.table is None))
     return [plan for plan in plans if plan is not None]
 
 
