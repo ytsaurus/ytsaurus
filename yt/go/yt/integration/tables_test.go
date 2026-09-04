@@ -487,6 +487,10 @@ type testTimeTypes struct {
 	D1 schema.Datetime
 	D2 schema.Timestamp
 	D3 schema.Interval
+	D4 schema.Date32
+	D5 schema.Datetime64
+	D6 schema.Timestamp64
+	D7 schema.Interval64
 }
 
 func TestTimeTables(t *testing.T) {
@@ -495,7 +499,7 @@ func TestTimeTables(t *testing.T) {
 	env := yttest.New(t)
 
 	rows := []testTimeTypes{
-		{D0: 1, D1: 2, D2: 3, D3: 4},
+		{D0: 1, D1: 2, D2: 3, D3: 4, D4: -1, D5: -2, D6: -3, D7: -4},
 	}
 
 	path := env.TmpPath()

@@ -50,10 +50,14 @@ const (
 	typeYSON Type = "yson"
 	TypeNull Type = "null"
 
-	TypeDate      Type = "date"
-	TypeDatetime  Type = "datetime"
-	TypeTimestamp Type = "timestamp"
-	TypeInterval  Type = "interval"
+	TypeDate        Type = "date"
+	TypeDatetime    Type = "datetime"
+	TypeTimestamp   Type = "timestamp"
+	TypeInterval    Type = "interval"
+	TypeDate32      Type = "date32"
+	TypeDatetime64  Type = "datetime64"
+	TypeTimestamp64 Type = "timestamp64"
+	TypeInterval64  Type = "interval64"
 )
 
 type SortOrder string

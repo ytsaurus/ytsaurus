@@ -158,6 +158,14 @@ func ytTypeFor(typ reflect.Type) (ytTyp schema.Type, err error) {
 		return schema.TypeTimestamp, nil
 	case typ == reflect.TypeOf(schema.Interval(0)):
 		return schema.TypeInterval, nil
+	case typ == reflect.TypeOf(schema.Date32(0)):
+		return schema.TypeDate32, nil
+	case typ == reflect.TypeOf(schema.Datetime64(0)):
+		return schema.TypeDatetime64, nil
+	case typ == reflect.TypeOf(schema.Timestamp64(0)):
+		return schema.TypeTimestamp64, nil
+	case typ == reflect.TypeOf(schema.Interval64(0)):
+		return schema.TypeInterval64, nil
 	}
 
 	switch typ.Kind() {
