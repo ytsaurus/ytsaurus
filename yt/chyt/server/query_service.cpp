@@ -66,6 +66,7 @@ struct TRowset
 {
     TSharedRef Rowset;
     i64 TotalRowCount;
+    bool IsTruncated;
 };
 
 template <class TRequest>
@@ -242,7 +243,7 @@ private:
             if (!Request_->has_row_count_limit()) {
                 return false;
             }
-            return std::ssize(rowset) >= Request_->row_count_limit();
+            return std::ssize(rowset) > Request_->row_count_limit();
         };
         while (!rowCountLimitExceeded() && executor.pull(block)) {
             if (!block) {
@@ -253,14 +254,15 @@ private:
             rowset.insert(rowset.end(), capturedRows.begin(), capturedRows.end());
         }
 
-        if (rowCountLimitExceeded()) {
+        bool isTruncated = rowCountLimitExceeded();
+        if (isTruncated) {
             rowset.resize(Request_->row_count_limit());
         }
 
         auto totalRowCount = std::ssize(rowset);
 
         auto wireRowset = ConvertToWireRowset(schema, rowset);
-        Result_.emplace_back(TRowset{wireRowset, totalRowCount});
+        Result_.emplace_back(TRowset{wireRowset, totalRowCount, isTruncated});
         BlockIO_.onFinish();
     }
 
@@ -361,6 +363,7 @@ private:
             std::vector<TSharedRef> attachments;
             for (auto& rowset : rowsetsOrError.Value()) {
                 attachments.push_back(std::move(rowset.Rowset));
+                response->add_incomplete(rowset.IsTruncated);
             }
             response->Attachments() = std::move(attachments);
         } else {

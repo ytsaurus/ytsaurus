@@ -25,6 +25,7 @@ message TRspExecuteQuery
 {
     optional NYT.NProto.TGuid query_id = 1;
     optional NYT.NProto.TError error = 2;
+    repeated bool incomplete = 3;
     // Attachments contain wire-encoded data.
 }
 
