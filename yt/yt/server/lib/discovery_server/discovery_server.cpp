@@ -55,7 +55,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetGroupMeta));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListGroups));
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
+            .SetPooled(false));
     }
 
     void Initialize()
@@ -186,7 +187,8 @@ public:
         , GroupManager_(std::move(groupManager))
         , GossipBatchSize_(config->GossipBatchSize)
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip)
+            .SetPooled(false));
     }
 
     void Initialize()
