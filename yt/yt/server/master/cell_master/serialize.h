@@ -219,6 +219,7 @@ DEFINE_ENUM(EMasterReign,
     ((AggregateStateType)                                           (3344))  // buyval01
     ((LogicalHunkDataWeight)                                        (3345))  // akozhikhov
     ((DeprecateArbitraryDataVersionSettings)                        (3346))  // sabdenovch
+    ((NoSuchYPathMethod)                                            (3347))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

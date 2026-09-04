@@ -1814,7 +1814,7 @@ class TestCrossCellCopy(YTEnvSetup):
                     next_dst_path = f"{current_dst_path}/{child_node}"
                     paths_to_check.append([next_src_path, next_dst_path])
             except YtError as err:
-                if err.contains_code(yt_error_codes.NoSuchMethod):
+                if err.contains_code(yt_error_codes.NoSuchYPathMethod):
                     continue
                 else:
                     raise err
@@ -1895,7 +1895,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
                     paths_to_check.append(f"{next_path}/{child_node}")
             except YtError as err:
-                if err.contains_code(yt_error_codes.NoSuchMethod):
+                if err.contains_code(yt_error_codes.NoSuchYPathMethod):
                     continue
                 else:
                     raise err
