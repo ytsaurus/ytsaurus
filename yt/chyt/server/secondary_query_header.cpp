@@ -20,6 +20,10 @@ void TSecondaryQueryHeader::Register(TRegistrar registrar)
     registrar.Parameter("span_context", &TSecondaryQueryHeader::SpanContext);
 
     registrar.Parameter("snapshot_locks", &TThis::SnapshotLocks);
+    registrar.Parameter("remote_read_transaction_ids", &TThis::RemoteReadTransactionIds)
+        .Default();
+    registrar.Parameter("remote_snapshot_locks", &TThis::RemoteSnapshotLocks)
+        .Default();
     registrar.Parameter("dynamic_table_read_timestamp", &TThis::DynamicTableReadTimestamp);
     registrar.Parameter("read_transaction_id", &TThis::ReadTransactionId);
 

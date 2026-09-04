@@ -573,6 +573,27 @@ public:
         return TableSchemaCache_;
     }
 
+    TTableSchemaCachePtr GetTableSchemaCache(const NNative::IConnectionPtr& connection) const
+    {
+        if (!TableSchemaCache_) {
+            return nullptr;
+        }
+
+        auto guard = Guard(RemoteTableSchemaCachesLock_);
+        auto& cache = RemoteTableSchemaCaches_[connection];
+        if (!cache) {
+            auto clusterName = connection->GetClusterName().value_or("unknown");
+            cache = New<TTableSchemaCache>(
+                Config_->TableSchemaCache,
+                ClickHouseYtProfiler()
+                    .WithPrefix("/table_schema_cache")
+                    .WithTag("remote_cluster", clusterName));
+            YT_TLOG_INFO("Remote table schema cache created")
+                .With("Cluster", clusterName);
+        }
+        return cache;
+    }
+
     const TObjectAttributeCachePtr& GetObjectAttributeCache() const
     {
         return TableAttributeCache_;
@@ -728,6 +749,26 @@ public:
         auto identity = NRpc::TAuthenticationIdentity(user);
         auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
         return ClientCache_->Get(identity, options);
+    }
+
+    NApi::NNative::IClientPtr CreateClient(
+        const std::string& user,
+        const std::optional<std::string>& cluster) const
+    {
+        if (!cluster) {
+            return CreateClient(user);
+        }
+
+        auto connection = WaitFor(NApi::NNative::InsistentGetRemoteConnection(
+            Connection_,
+            *cluster,
+            NApi::NNative::EInsistentGetRemoteConnectionMode::Sync))
+            .ValueOrThrow();
+        connection->GetNodeDirectorySynchronizer()->Start();
+
+        auto identity = NRpc::TAuthenticationIdentity(user);
+        auto options = NApi::NNative::TClientOptions::FromAuthenticationIdentity(identity);
+        return connection->CreateNativeClient(options);
     }
 
     void HandleSigint()
@@ -999,6 +1040,8 @@ private:
     TObjectAttributeCachePtr TableAttributeCache_;
     NTableClient::TTableColumnarStatisticsCachePtr TableColumnarStatisticsCache_;
     TTableSchemaCachePtr TableSchemaCache_;
+    mutable YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RemoteTableSchemaCachesLock_);
+    mutable THashMap<NNative::IConnectionPtr, TTableSchemaCachePtr> RemoteTableSchemaCaches_;
 
     std::vector<std::string> TableAttributesToFetch_;
 
@@ -1365,6 +1408,11 @@ const TTableSchemaCachePtr& THost::GetTableSchemaCache() const
     return Impl_->GetTableSchemaCache();
 }
 
+TTableSchemaCachePtr THost::GetTableSchemaCache(const NNative::IConnectionPtr& connection) const
+{
+    return Impl_->GetTableSchemaCache(connection);
+}
+
 const TObjectAttributeCachePtr& THost::GetObjectAttributeCache() const
 {
     return Impl_->GetObjectAttributeCache();
@@ -1453,6 +1501,13 @@ NApi::NNative::IClientPtr THost::GetDictionariesClient() const
 NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
 {
     return Impl_->CreateClient(user);
+}
+
+NApi::NNative::IClientPtr THost::CreateClient(
+    const std::string& user,
+    const std::optional<std::string>& cluster) const
+{
+    return Impl_->CreateClient(user, cluster);
 }
 
 TFuture<void> THost::GetIdleFuture() const

@@ -101,6 +101,9 @@ public:
     //! For fully consistent read under the transaction a node id from the lock should be used instead of a node path.
     //! Can contain an empty TObjectLock object if the lock is acquired asynchronously.
     THashMap<NYPath::TYPath, TObjectLock> SnapshotLocks;
+    //! Independent read transactions and snapshot locks for explicitly addressed remote clusters.
+    THashMap<std::string, NTransactionClient::TTransactionId> RemoteReadTransactionIds;
+    THashMap<std::string, THashMap<NYPath::TYPath, TObjectLock>> RemoteSnapshotLocks;
     //! DynamicTableReadTimestamp is used for dynamic tables if snapshot locks are taken.
     NTransactionClient::TTimestamp DynamicTableReadTimestamp = NTransactionClient::AsyncLastCommittedTimestamp;
     //! WriteTransactionId is the id of the query transaction in which all write operations should be performed.
@@ -156,6 +159,11 @@ public:
     static TQueryContextPtr CreateFake(THost* host, NApi::NNative::IClientPtr client);
 
     const NApi::NNative::IClientPtr& Client() const;
+    NApi::NNative::IClientPtr Client(const std::optional<std::string>& cluster) const;
+
+    NTransactionClient::TTransactionId GetReadTransactionId(
+        const std::optional<std::string>& cluster) const;
+    std::vector<std::pair<std::string, NApi::NNative::IClientPtr>> GetRemoteClients() const;
 
     TQuerySettingsPtr GetContextSettings(DB::ContextPtr context) const;
 
@@ -176,6 +184,9 @@ public:
 
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributesSnapshot(
         const std::vector<NYPath::TYPath>& paths);
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributesSnapshot(
+        const std::vector<NYPath::TYPath>& paths,
+        const std::string& cluster);
     void DeleteObjectAttributesFromSnapshot(const std::vector<NYPath::TYPath>& paths);
 
     // Transactionality
@@ -268,6 +279,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClientLock_);
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
+    mutable THashMap<std::string, NApi::NNative::IClientPtr> RemoteClients_;
 
     //! Spinlock controlling select query context map.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
@@ -278,6 +290,7 @@ private:
     //! InitialQueryReadTransaction and InitialQueryWriteTransaction are initialized
     //! only on the initiator to ping the transactions during the query execution.
     NApi::NNative::ITransactionPtr InitialQueryReadTransaction_;
+    THashMap<std::string, NApi::NNative::ITransactionPtr> InitialRemoteReadTransactions_;
     NApi::NNative::ITransactionPtr InitialQueryWriteTransaction_;
 
     struct TTransactionWithTimestamp
@@ -286,6 +299,9 @@ private:
         NTransactionClient::TTimestamp Timestamp;
     };
     TFuture<TTransactionWithTimestamp> ReadTransactionFuture_;
+
+    THashMap<std::string, THashMap<NYPath::TYPath, TErrorOr<NYTree::IAttributeDictionaryPtr>>>
+        RemoteObjectAttributesSnapshots_;
 
     TSecondaryQueryReadTaskPullerPtr ReadTaskPuller_;
 

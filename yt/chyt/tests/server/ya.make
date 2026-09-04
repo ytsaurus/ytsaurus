@@ -57,6 +57,7 @@ TEST_SRCS(
     test_columnar_read.py
     test_common.py
     test_composite.py
+    test_cross_cluster.py
     test_ddl.py
     test_dynamic_tables.py
     test_http_proxy.py
