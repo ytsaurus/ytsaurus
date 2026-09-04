@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/lsm/compaction_hints.h>
 
+#include <yt/yt/core/misc/backoff_strategy.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,7 +55,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NLsm::TStoreCompactionHint::TPayload, Payload);
 
 public:
-    explicit TCompactionHintFetchPipeline(TSortedChunkStore* store);
+    TCompactionHintFetchPipeline(
+        TSortedChunkStore* store,
+        const TExponentialBackoffOptions& retryBackoffOptions);
 
     // Add the pipeline to the fetcher queue. Called externally when the pipeline is created.
     void Enqueue();
@@ -78,6 +82,8 @@ protected:
     void SubscribeWithErrorHandling(const TFutureType<T>& future, THandler&& handler);
 
 private:
+    TBackoffStrategy RetryBackoff_;
+
     virtual void DoFetch() = 0;
 
     IInvokerPtr GetEpochAutomatonInvoker() const;
@@ -114,6 +120,8 @@ public:
     void Stop();
 
     void Reconfigure(const TCompactionHintFetcherConfigPtr& config);
+
+    const TExponentialBackoffOptions& GetRetryBackoffOptions() const;
 
     void EnqueuePipeline(const TCompactionHintFetchPipelinePtr& pipeline);
 

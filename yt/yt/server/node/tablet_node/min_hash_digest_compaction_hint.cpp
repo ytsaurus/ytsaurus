@@ -154,9 +154,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetchPipelinePtr CreateMinHashDigestFetchPipeline(TSortedChunkStore* store)
+TCompactionHintFetchPipelinePtr CreateMinHashDigestFetchPipeline(
+    TSortedChunkStore* store,
+    const TExponentialBackoffOptions& retryBackoffOptions)
 {
-    return New<TMinHashDigestFetchPipeline>(store);
+    return New<TMinHashDigestFetchPipeline>(store, retryBackoffOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

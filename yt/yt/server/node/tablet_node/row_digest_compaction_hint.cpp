@@ -62,9 +62,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompactionHintFetchPipelinePtr CreateRowDigestFetchPipeline(TSortedChunkStore* store)
+TCompactionHintFetchPipelinePtr CreateRowDigestFetchPipeline(
+    TSortedChunkStore* store,
+    const TExponentialBackoffOptions& retryBackoffOptions)
 {
-    return New<TRowDigestFetchPipeline>(store);
+    return New<TRowDigestFetchPipeline>(store, retryBackoffOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
