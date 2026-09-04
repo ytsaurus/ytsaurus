@@ -800,13 +800,6 @@ void TSourceController::UpdateMigrationState(
     }
 }
 
-bool TSourceController::IsV1MigrationAllowed(
-    const std::string& sourceClassName,
-    bool allowV1Migration)
-{
-    return allowV1Migration && sourceClassName == TypeName<TSource>();
-}
-
 TSystemTimestamp TSourceController::ExtractTimestamp(
     const INodePtr& node,
     const TTableTimestampLocatorSpecPtr& locator)
@@ -1254,9 +1247,7 @@ void TSourceController::ReconcileDistributingTable(TListedTables listed)
     auto* state = State_.Get();
     UpdateMigrationState(
         state,
-        IsV1MigrationAllowed(
-            GetContext()->SourceSpec->SourceClassName,
-            GetDynamicParameters()->AllowV1Migration),
+        GetDynamicParameters()->AllowV1Migration,
         listed.Tables,
         GetContext()->PublicLogger);
 

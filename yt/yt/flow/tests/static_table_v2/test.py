@@ -419,7 +419,6 @@ class Test(FlowTestBase):
         assert stopped_output == full_expected[: len(stopped_output)]
         assert len(stopped_output) < MIGRATION_EVENT_COUNT
 
-        self.set_source_class(V2_SOURCE_CLASS)
         self.update_source_dynamic_parameters(
             allow_v1_migration=False,
             desired_table_process_time="2m",
@@ -439,7 +438,6 @@ class Test(FlowTestBase):
         draining = self.wait_source_mode("draining")
 
         self.stop_pipeline()
-        self.set_source_class(V1_SOURCE_CLASS)
         self.update_source_dynamic_parameters(allow_v1_migration=False)
         self.client.start_pipeline(self.pipeline_path)
         self.wait_pipeline_state("working", timeout=180)
