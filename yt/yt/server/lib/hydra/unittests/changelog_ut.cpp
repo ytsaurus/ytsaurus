@@ -142,6 +142,23 @@ TEST_F(TChangelogTest, Truncate)
     CheckRecords(records, 0, NewRecordCount);
 }
 
+TEST_F(TChangelogTest, RemovedChangelogCannotBeOpenedFromCache)
+{
+    WaitFor(Changelog_->Close())
+        .ThrowOnError();
+    Changelog_.Reset();
+
+    WaitFor(ChangelogStore_->RemoveChangelog(/*id*/ 0))
+        .ThrowOnError();
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(ChangelogStore_->OpenChangelog(/*id*/ 0)).ValueOrThrow(),
+        "No such changelog");
+
+    Changelog_ = WaitFor(ChangelogStore_->CreateChangelog(/*id*/ 0, /*meta*/ {}))
+        .ValueOrThrow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChangelogTestNoAutoFlush
