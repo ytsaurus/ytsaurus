@@ -615,6 +615,29 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TSpecTest, WatermarkGeneratorRequiresSourceStream)
+{
+    TStringBuf specYson(R""""(
+        {
+            computations = {
+                c = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    watermark_strategy = {
+                        watermark_generator = {};
+                    };
+                };
+            };
+        }
+    )"""");
+    auto spec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    EXPECT_THROW_WITH_SUBSTRING(
+        { ValidatePipelineSpec(spec); },
+        "\"watermark_generator\" requires at least one source stream");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TSpecTest, DuplicateOutputStreamIds)
 {
     TStringBuf specYson(R""""(

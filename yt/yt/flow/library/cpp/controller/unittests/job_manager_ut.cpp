@@ -983,7 +983,6 @@ public:
             computationSpec->InputStreamIds.clear();
             computationSpec->KeyVisitorStreams["input"] = New<TKeyVisitorStreamSpec>();
         }
-
         auto dynamicSpec = New<TDynamicPipelineSpec>();
         dynamicSpec->JobManager->AsyncBalancing = false;
         for (const auto& computationId : {TComputationId("healthy"), TComputationId("broken")}) {

@@ -9,8 +9,8 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 **Default value**: `false`
 Use `SourceWatermark` for `EventWatermark` generation. This option completely disables all heuristics for determining `EventWatermark`. Use it strictly when the input stream contains special markers with `EventWatermark`. ||
 || `out_of_orderness_bound` | **Type**: [TDuration](./all_yson_structs#TDuration)
-**Default value**: `1m`
-The upper bound on possible event reordering, used for estimating `EventWatermark`. ||
+**Default value**: `0`
+The upper bound on possible event reordering, used for estimating `EventWatermark`. Event reordering is not accounted for by default. ||
 || `idle_partitions` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TIdlePartitionsSpec](./all_yson_structs#NYT_NFlow_TIdlePartitionsSpec)`>`
 Heuristic settings for ignoring partitions with zero write throughput. ||
 {% if audience == "internal" %}|| `unavailable_partition_groups` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TUnavailablePartitionGroupsSpec](./all_yson_structs#NYT_NFlow_TUnavailablePartitionGroupsSpec)`>`
