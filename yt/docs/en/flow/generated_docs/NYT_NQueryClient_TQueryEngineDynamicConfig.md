@@ -16,6 +16,9 @@ Source: [yt/yt/library/query/engine_api/query_engine_config.h]({{source-root}}/y
  ||
 || `expression_builder_version` | **Type**: `std::optional<int>`
  ||
+|| `max_projection_count` | **Type**: `int`
+**Default value**: `1024`
+ ||
 || `codegen_optimization_level` | **Type**: `std::optional<`[NYT::NCodegen::EOptimizationLevel](./all_yson_structs#NYT_NCodegen_EOptimizationLevel)`>`
  ||
 || `allow_udf_object_code_cache` | **Type**: `std::optional<bool>`

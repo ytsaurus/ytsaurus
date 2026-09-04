@@ -1120,6 +1120,80 @@ TEST(TSpecTest, ComputeAllowedInputStreams)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TSpecTest, BalanceWeightsDefaults)
+{
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf("{}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 1.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 0.0);
+}
+
+TEST(TSpecTest, BalanceWeightsParsing)
+{
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{balance_weights = {cpu = 3.0; memory = 1.0}}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 3.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 1.0);
+
+    // The provided entries merge into the default map per key: unmentioned resources keep their
+    // default weights.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{balance_weights = {memory = 1.0}}")));
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Cpu), 1.0);
+    EXPECT_EQ(spec->BalanceWeights.at(EBalanceResource::Memory), 1.0);
+}
+
+TEST(TSpecTest, BalanceWeightsValidation)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {cpu = -1.0; memory = 1.0}}"))),
+        "must be non-negative");
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {cpu = 0.0; memory = 0.0}}"))),
+        "positive sum");
+
+    // An empty map merges nothing and keeps the defaults.
+    EXPECT_NO_THROW(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {}}"))));
+
+    EXPECT_ANY_THROW(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{balance_weights = {disk = 1.0}}"))));
+}
+
+TEST(TSpecTest, EvenLoadThresholdsLegacyAliases)
+{
+    // The flat CPU thresholds of older specs feed the CPU entry of the per-resource map.
+    auto spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{rebalance_min_cpu_spread = 1000.0; rebalance_min_cpu_ratio = 1.5}")));
+    const auto& cpu = spec->RebalanceEvenLoadThresholds.at(EBalanceResource::Cpu);
+    EXPECT_EQ(cpu->Spread, 1000.0);
+    EXPECT_EQ(cpu->Ratio, 1.5);
+    EXPECT_FALSE(spec->RebalanceEvenLoadThresholds.contains(EBalanceResource::Memory));
+
+    // An explicit per-resource field wins over the alias; the other field still comes from the alias.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+        "{rebalance_min_cpu_spread = 1000.0; rebalance_min_cpu_ratio = 1.5;"
+        " rebalance_even_load_thresholds = {cpu = {spread = 7.0}}}")));
+    const auto& mixed = spec->RebalanceEvenLoadThresholds.at(EBalanceResource::Cpu);
+    EXPECT_EQ(mixed->Spread, 7.0);
+    EXPECT_EQ(mixed->Ratio, 1.5);
+
+    // Without the aliases the map stays untouched.
+    spec = ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf("{}")));
+    EXPECT_TRUE(spec->RebalanceEvenLoadThresholds.empty());
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ConvertTo<TDynamicJobBalancerSpecPtr>(TYsonStringBuf(TStringBuf(
+            "{rebalance_min_cpu_ratio = 0.5}"))),
+        "at least 1");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TSpecValidateParseabilityTest, Simple)
 {
     auto pipelineSpecConfigString = TYsonString(TStringBuf(R""""(

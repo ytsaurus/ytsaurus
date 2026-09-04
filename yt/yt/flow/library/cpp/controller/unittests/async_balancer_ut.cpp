@@ -20,6 +20,18 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Test helper: the per-resource even-load thresholds entry, created on first use.
+static TEvenLoadThresholdsPtr GetOrInsertEvenLoadThresholds(const TDynamicJobManagerSpecPtr& spec, EBalanceResource resource)
+{
+    auto& entry = spec->RebalanceEvenLoadThresholds[resource];
+    if (!entry) {
+        entry = New<TEvenLoadThresholds>();
+    }
+    return entry;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Fake storage handler. Enough for this test since there's no recovery after restart.
 class TStorageHandler : public TPersistedStateStorageHandlerBase<std::string>
 {
@@ -738,7 +750,7 @@ TEST_F(TAsyncBalancer, FastRebalanceSuppressedWhenSpreadSmall)
                 "partition_count_half_delay" = 3600000000;
             }
         )"""")));
-    DynamicSpec->JobManager->RebalanceMinCpuSpread = 1000000000.0;
+    GetOrInsertEvenLoadThresholds(DynamicSpec->JobManager, EBalanceResource::Cpu)->Spread = 1000000000.0;
     JobManager->Reconfigure(DynamicSpec);
 
     for (int i = 0; i < 20 && !(ExecutingPartitionCount() > 0 && PlacedJobCount() >= ExecutingPartitionCount()); ++i) {
@@ -817,7 +829,7 @@ TEST_F(TAsyncBalancer, FastRebalanceStrayStillPlacedWhenSpreadSmall)
                 "partition_count_half_delay" = 3600000000;
             }
         )"""")));
-    DynamicSpec->JobManager->RebalanceMinCpuSpread = 1000000000.0;
+    GetOrInsertEvenLoadThresholds(DynamicSpec->JobManager, EBalanceResource::Cpu)->Spread = 1000000000.0;
     JobManager->Reconfigure(DynamicSpec);
 
     for (int i = 0; i < 20 && !(ExecutingPartitionCount() > 0 && PlacedJobCount() >= ExecutingPartitionCount()); ++i) {

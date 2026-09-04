@@ -1043,6 +1043,31 @@ DEFINE_ENUM(EJobBalancerType,
     (ResourceQueue)
 );
 
+//! Worker resources the CpuAware balancer can balance by.
+DEFINE_ENUM(EBalanceResource,
+    (Cpu)
+    (Memory)
+);
+
+DECLARE_REFCOUNTED_STRUCT(TEvenLoadThresholds)
+
+//! Per-resource thresholds of the even-load gate. Unset fields fall back to per-resource
+//! defaults in the balancer.
+struct TEvenLoadThresholds
+    : public NYTree::TYsonStruct
+{
+    //! Minimal max-min gap of the per-worker usage, in the resource's own units.
+    std::optional<double> Spread;
+    //! Minimal max/min ratio of the per-worker usage.
+    std::optional<double> Ratio;
+
+    REGISTER_YSON_STRUCT(TEvenLoadThresholds);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TEvenLoadThresholds);
+
 struct TDynamicJobBalancerSpec
     : public NYTree::TYsonStruct
 {
@@ -1056,8 +1081,18 @@ struct TDynamicJobBalancerSpec
     TDuration RebalanceActionMaxTime;
     TDuration RebalanceSyncPeriod;
     double RebalanceCountExceedAllowed{};
-    double RebalanceMinCpuSpread{};
-    double RebalanceMinCpuRatio{};
+    //! Even-load gate thresholds per resource; only weighted resources are consulted.
+    THashMap<EBalanceResource, TEvenLoadThresholdsPtr> RebalanceEvenLoadThresholds;
+    //! Deprecated: the CPU entry of #RebalanceEvenLoadThresholds. Kept so that live dynamic specs
+    //! setting these keys keep working; an explicit per-resource threshold takes precedence.
+    std::optional<double> RebalanceMinCpuSpread;
+    std::optional<double> RebalanceMinCpuRatio;
+    //! Relative importance of each resource for the CpuAware balancer. Provided entries merge into
+    //! the default {cpu: 1.0, memory: 0.0} per key; weights are normalized before use, so only
+    //! ratios matter. Note that rebalance_target_deviation thresholds apply to the normalized
+    //! weighted mix: weighting a second resource in proportionally shrinks the first one's
+    //! contribution, making the balancer correspondingly more tolerant to its imbalance.
+    THashMap<EBalanceResource, double> BalanceWeights;
     // Test-only: when set to true, the even-load gate is bypassed and rebalancing always runs.
     std::optional<bool> DisableEvenLoadGate;
     bool AsyncBalancing{};
