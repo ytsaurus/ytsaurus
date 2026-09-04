@@ -2924,7 +2924,7 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
             in_="//tmp/t_in4",
             out="//tmp/t_out4",
             command="cat",
-            mode="ordered",
+            ordered=True,
             spec={
                 "max_failed_job_count": 1,
                 "mapper": {
