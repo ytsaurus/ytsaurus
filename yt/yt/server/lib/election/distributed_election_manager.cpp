@@ -479,7 +479,7 @@ private:
             return false;
         }
 
-        YT_TLOG_DEBUG("Candidate has quorum (PeerId: %v, VoteWeight: %v, QuorumWeight: %v)")
+        YT_TLOG_DEBUG("Candidate has quorum")
             .With("PeerId", candidateId)
             .With("VoteWeight", voteWeight)
             .With("QuorumWeight", quorumWeight);
