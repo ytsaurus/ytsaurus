@@ -10,6 +10,7 @@ TEST_SRCS(
     conftest.py
     test_simple.py
     test_udfs.py
+    test_ytflow.py
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
@@ -17,7 +18,11 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 DEPENDS(
     yt/yt/packages/tests_package
     yt/yql/agent/bin
+    yt/yql/tests/agent/throwing_udf
     yt/yql/tools/mrjob
+    yt/yql/tools/ytflow_worker
+
+    yql/essentials/udfs/common/datetime2
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file
     yql/essentials/udfs/common/python/python3_small
@@ -28,14 +33,15 @@ DEPENDS(
 )
 
 PEERDIR(
+    library/python/port_manager
     yql/library/langver/python
     yql/essentials/providers/common/proto
     yt/yt/tests/conftest_lib
     yt/python/yt/environment/components/yql_agent
+    yt/yql/tests/common/test_framework
 )
 
 IF (NOT OPENSOURCE)
-    INCLUDE(ya_ytflow.inc)
     INCLUDE(ya_non_opensource.inc)
 ENDIF()
 
