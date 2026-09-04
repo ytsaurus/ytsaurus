@@ -9,13 +9,14 @@
 
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/cluster_resources.h>
-#include <yt/yt/server/master/security_server/detailed_master_memory.h>
 
 #include <yt/yt/server/master/tablet_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/server/lib/misc/assert_sizeof.h>
+
+#include <yt/yt/server/lib/security_server/detailed_master_memory.h>
 
 #include <yt/yt/ytlib/cypress_client/public.h>
 

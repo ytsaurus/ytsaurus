@@ -2,22 +2,25 @@
 
 #include "public.h"
 
-#include <yt/yt/server/master/cell_master/public.h>
-
-#include <yt/yt/server/master/cypress_server/public.h>
-
 #include <yt/yt/core/yson/public.h>
 
+#include <yt/yt/core/ytree/public.h>
+
 #include <library/cpp/yt/containers/enum_indexed_array.h>
+
+#include <library/cpp/yt/misc/property.h>
 
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(aleksandra-zh): rename to TMasterMemory.
 class TDetailedMasterMemory
 {
 public:
+    using TMasterMemoryArray = TEnumIndexedArray<EMasterMemoryType, i64>;
+
+    DEFINE_BYREF_RW_PROPERTY(TMasterMemoryArray, DetailedMasterMemory);
+
     i64 operator[](EMasterMemoryType type) const;
     i64& operator[](EMasterMemoryType type);
 
@@ -39,19 +42,10 @@ public:
 
     i64 GetTotal() const;
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-    void Save(NCypressServer::TSerializeNodeContext& context) const;
-    void Load(NCypressServer::TMaterializeNodeContext& context);
-
     friend void Serialize(const TDetailedMasterMemory& detailedMasterMemory, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TDetailedMasterMemory& detailedMasterMemory, NYTree::INodePtr node);
 
     friend void FormatValue(TStringBuilderBase* builder, const TDetailedMasterMemory& detailedMasterMemory, TStringBuf spec);
-
-private:
-    TEnumIndexedArray<EMasterMemoryType, i64> DetailedMasterMemory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

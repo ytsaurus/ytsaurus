@@ -4,7 +4,7 @@
 #include "sequoia_session.h"
 #include "sequoia_tree_visitor.h"
 
-#include <yt/yt/server/master/security_server/detailed_master_memory.h>
+#include <yt/yt/server/lib/security_server/detailed_master_memory.h>
 
 #include <yt/yt/server/lib/security_server/helpers.h>
 

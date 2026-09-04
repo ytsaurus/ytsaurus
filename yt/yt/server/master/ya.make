@@ -316,7 +316,6 @@ SRCS(
     security_server/cluster_resources.cpp
     security_server/config.cpp
     security_server/cypress_integration.cpp
-    security_server/detailed_master_memory.cpp
     security_server/group_proxy.cpp
     security_server/group.cpp
     security_server/helpers.cpp

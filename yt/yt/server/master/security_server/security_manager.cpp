@@ -7,7 +7,6 @@
 #include "account_resource_usage_lease_proxy.h"
 #include "acl.h"
 #include "config.h"
-#include "detailed_master_memory.h"
 #include "group.h"
 #include "group_proxy.h"
 #include "network_project.h"
@@ -65,6 +64,7 @@
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/server/lib/security_server/detailed_master_memory.h>
 #include <yt/yt/server/lib/security_server/helpers.h>
 
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
