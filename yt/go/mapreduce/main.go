@@ -65,6 +65,8 @@ func JobMain() int {
 		return 3
 	}
 
+	defer startJobProfiler()()
+
 	outs := make([]io.Closer, args.nOutputPipes)
 
 	switch job := state.Job.(type) {
