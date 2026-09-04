@@ -1,6 +1,7 @@
 RECURSE(
     fmrrun
     mrjob
+    ytflow_worker
     ytrun
 )
 
@@ -15,7 +16,6 @@ IF (NOT OPENSOURCE)
         udf_admin
         ytfilerun
         ytflowrun
-        ytflow_worker
         qtworker
         qtworker/full
     )
