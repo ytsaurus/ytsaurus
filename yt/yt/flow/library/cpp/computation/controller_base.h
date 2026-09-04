@@ -14,57 +14,53 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TNodesByAvailabilityGroup = THashMap<std::string, std::vector<TNodeTraverseDataPtr>>;
+using TNodesByAvailabilityGroupBySource = THashMap<TStreamId, TNodesByAvailabilityGroup>;
+using TSuppressedAvailabilityGroupsBySource = THashMap<TStreamId, THashSet<std::string>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSystemTimestamp GetPartitionEventWatermark(
     const TNodeTraverseDataPtr& node,
-    const TComputationSpecPtr& spec);
+    const TComputationSpecPtr& spec,
+    const TStreamId& sourceStreamId);
 
 void HideEventWatermarkInplace(
     const TNodeTraverseDataPtr& node,
     const TSystemTimestamp& updateTime,
-    const TComputationSpecPtr& spec);
+    const TComputationSpecPtr& spec,
+    const TStreamId& sourceStreamId);
 
-//! |suppressedGroups|, when given, receives the groups this call suppressed: their watermark is hidden
-//! here, and callers may stop publishing their errors too. A group every partition of which is
-//! unavailable is suppressed only while the caps allow it, so the set is empty whenever those groups
-//! still gate the pipeline.
+//! |suppressedGroups|, when given, receives the groups this call suppressed within its source domain:
+//! their watermark is hidden here, and callers may stop publishing their errors too. A group every
+//! partition of which is unavailable is suppressed only while that domain's caps allow it, so the set
+//! is empty whenever those groups still gate the pipeline.
 std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRule(
-    const THashMap<std::string, std::vector<TNodeTraverseDataPtr>>& nodesByAvailabilityGroup,
+    const TNodesByAvailabilityGroup& nodesByAvailabilityGroup,
+    const TStreamId& sourceStreamId,
     const TComputationSpecPtr& spec,
     const NProfiling::TSensorsOwner& sensorsOwner,
     const NLogging::TLogger& logger,
     THashSet<std::string>* suppressedGroups = nullptr);
 
-std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
-    const std::vector<TNodeTraverseDataPtr>& nodes,
-    const TComputationSpecPtr& spec,
-    const NProfiling::TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger,
-    const IStatusErrorStatePtr& watermarkStallErrorState);
-
-std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
-    const std::vector<TNodeTraverseDataPtr>& nodes,
-    const TComputationSpecPtr& spec,
-    const NProfiling::TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger);
-
 std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
-    const THashMap<std::string, std::vector<TNodeTraverseDataPtr>>& nodesByAvailabilityGroup,
+    const TNodesByAvailabilityGroupBySource& nodesByAvailabilityGroupBySource,
     const TComputationSpecPtr& spec,
     const NProfiling::TSensorsOwner& sensorsOwner,
     const NLogging::TLogger& logger,
     const IStatusErrorStatePtr& watermarkStallErrorState,
-    THashSet<std::string>* suppressedGroups = nullptr);
+    TSuppressedAvailabilityGroupsBySource* suppressedGroupsBySource = nullptr);
 
 std::optional<TSystemTimestamp> GetPartitionLastIdleTimestamp(
     const TNodeTraverseDataPtr& traverseData,
     const TComputationSpecPtr& spec,
+    const TStreamId& sourceStreamId,
     // Return true even if emptiness is not stable.
     bool relaxed = false);
 
 std::optional<TSystemTimestamp> GetPartitionLastUnavailableTimestamp(
     const TNodeTraverseDataPtr& traverseData,
-    const TComputationSpecPtr& spec,
-    const NLogging::TLogger& logger);
+    const TStreamId& sourceStreamId);
 
 THashMap<TStreamId, TStreamTraverseDataMetricsPtr> ComputeStreamMetrics(
     const std::vector<TNodeTraverseDataPtr>& traverseData,
@@ -139,9 +135,9 @@ protected:
     const NLogging::TLogger Logger;
 
 protected:
-    virtual THashMap<std::string, std::vector<TNodeTraverseDataPtr>> GetNodesByAvailabilityGroup(
+    virtual TNodesByAvailabilityGroupBySource GetNodesByAvailabilityGroupBySource(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
-        const TFlowViewPtr& flowView);
+        const TFlowViewPtr& flowView) = 0;
     virtual std::optional<TNodeTraverseDataPtr> GetFuturePartitionsNodeTraverseData(const TFlowViewPtr& flowView);
 
     //! Availability groups the last traverse suppressed: the pipeline neither waits for their watermark
@@ -149,7 +145,7 @@ protected:
     //! unavailable group is suppressed at all.
     //! Null until this process has completed a traverse, which is not the same as "nothing is
     //! suppressed": a controller that has just taken over knows nothing yet.
-    const std::optional<THashSet<std::string>>& GetSuppressedAvailabilityGroups() const;
+    const std::optional<TSuppressedAvailabilityGroupsBySource>& GetSuppressedAvailabilityGroupsBySource() const;
 
     IComputationController::TParametersPtr GetParametersBase() const final;
     IComputationController::TDynamicParametersPtr GetDynamicParametersBase() const final;
@@ -160,7 +156,7 @@ private:
     const NProfiling::TSensorsOwner SensorsOwner_;
     //! Persistent error state raised while too many idle source partitions gate the watermark.
     const IStatusErrorStatePtr IdlePartitionsWatermarkStallErrorState_;
-    std::optional<THashSet<std::string>> SuppressedAvailabilityGroups_;
+    std::optional<TSuppressedAvailabilityGroupsBySource> SuppressedAvailabilityGroupsBySource_;
     TAtomicIntrusivePtr<TDynamicComputationControllerContext> DynamicContext_;
     TAtomicIntrusivePtr<IComputationController::TDynamicParameters> DynamicParameters_;
 };

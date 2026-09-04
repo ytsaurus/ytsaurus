@@ -6,10 +6,13 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/controller/job_manager.h>
 
+#include <yt/yt/flow/library/cpp/computation/computation_base.h>
 #include <yt/yt/flow/library/cpp/computation/universal_controller.h>
 
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
+#include <yt/yt/flow/library/cpp/connectors/common/source_base.h>
+#include <yt/yt/flow/library/cpp/connectors/common/source_controller_base.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -100,6 +103,85 @@ YT_FLOW_DEFINE_SINK(TSecondChannelCountSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashMap<TStreamId, THashMap<TKey, std::string>> SourceAvailabilityGroupsForTest;
+THashMap<TStreamId, THashSet<std::string>> SuppressedSourceGroupsForTest;
+
+class TSuppressionTestSourceController
+    : public TSourceControllerBase
+{
+public:
+    using TSourceControllerBase::TSourceControllerBase;
+
+    std::optional<THashMap<TKey, IMapNodePtr>> ListKeys() override
+    {
+        THashMap<TKey, IMapNodePtr> keys;
+        for (const auto& key : GetKeys(SourceAvailabilityGroupsForTest.at(GetContext()->SourceStreamId))) {
+            keys[key] = GetEphemeralNodeFactory()->CreateMap();
+        }
+        return keys;
+    }
+
+    std::string GetGroup(const TKey& key) override
+    {
+        return SourceAvailabilityGroupsForTest.at(GetContext()->SourceStreamId).at(key);
+    }
+
+    void ProcessSuppressedGroups(const THashSet<std::string>& groups) override
+    {
+        SuppressedSourceGroupsForTest[GetContext()->SourceStreamId] = groups;
+    }
+};
+
+class TSuppressionTestSource
+    : public TSourceBase
+{
+public:
+    using TSourceController = TSuppressionTestSourceController;
+    using TSourceBase::TSourceBase;
+
+    void Init(IInitContextPtr /*initContext*/) override
+    { }
+
+    void Terminate() override
+    { }
+
+    void Sync() override
+    { }
+
+    void Commit() override
+    { }
+
+    TFuture<std::vector<TMessageBatch>> GetNextBatch(const TMessageBatcherSettingsPtr& /*batcherSettings*/) override
+    {
+        return MakeFuture(std::vector<TMessageBatch>());
+    }
+
+    void MarkPublished(const TSourceMessageBatchCookie& /*cookie*/) override
+    { }
+
+    void MarkPersisted(const TSourceMessageBatchCookie& /*cookie*/) override
+    { }
+
+    TInflightStreamTraverseDataPtr BuildInflight() override
+    {
+        return New<TInflightStreamTraverseData>();
+    }
+
+    std::optional<TSystemTimestamp> GetPersistedEventWatermark() override
+    {
+        return std::nullopt;
+    }
+
+    std::optional<TSystemTimestamp> GetReadEventWatermark() override
+    {
+        return std::nullopt;
+    }
+};
+
+YT_FLOW_DEFINE_SOURCE(TSuppressionTestSource);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Fake storage handler. Enough for this test since there's no recovery after restart.
 class TStorageHandler : public TPersistedStateStorageHandlerBase<std::string>
 {
@@ -128,7 +210,11 @@ public:
     TComputationId ComputationId = "computation";
     TIntrusivePtr<TFakeVersionProvider> VersionProvider = New<TFakeVersionProvider>(InitialTimestamp.Underlying());
 
-    void Prepare(ssize_t numWorkers, bool withSink = false, bool withSecondSink = false)
+    void Prepare(
+        ssize_t numWorkers,
+        bool withSink = false,
+        bool withSecondSink = false,
+        const std::vector<TStreamId>& sourceStreamIds = {})
     {
         Spec = New<TPipelineSpec>();
         DynamicSpec = New<TDynamicPipelineSpec>();
@@ -140,6 +226,16 @@ public:
         Spec->Computations[ComputationId]->InputStreamIds.insert("input_stream");
         Spec->Computations[ComputationId]->OutputStreamIds.insert("output_stream");
         Spec->Computations[ComputationId]->TimerStreams["timer_stream"] = New<TTimerSpec>();
+        if (!sourceStreamIds.empty()) {
+            Spec->Computations[ComputationId]->InputStreamIds.clear();
+            Spec->Computations[ComputationId]->TimerStreams.clear();
+            for (const auto& streamId : sourceStreamIds) {
+                auto sourceSpec = New<TSourceSpec>();
+                sourceSpec->SourceClassName = TypeName<TSuppressionTestSource>();
+                Spec->Computations[ComputationId]->SourceStreams[streamId] = std::move(sourceSpec);
+                Spec->Computations[ComputationId]->StreamsDependency["output_stream"].insert(streamId);
+            }
+        }
         if (withSink) {
             Spec->Computations[ComputationId]->Sinks["sink"] = New<TSinkSpec>();
             Spec->Computations[ComputationId]->Sinks["sink"]->SinkClassName = TypeName<TChannelCountSink>();
@@ -198,9 +294,11 @@ public:
 
     //! Persist controller state (as the real controller does via SyncJobManagerState) and rebuild
     //! the job manager from it, emulating leader failover / static-spec change.
-    void RecreateJobManager()
+    void RecreateJobManager(bool persistCurrentState = true)
     {
-        FlowView->State->JobManagerState = JobManager->GetState();
+        if (persistCurrentState) {
+            FlowView->State->JobManagerState = JobManager->GetState();
+        }
         auto context = New<TJobManagerContext>();
         context->Invoker = GetCurrentInvoker();
         context->MainCycleInvoker = GetCurrentInvoker();
@@ -208,6 +306,20 @@ public:
         context->VersionProvider = VersionProvider;
         context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
+    }
+
+    void RestorePartitioningState(const TIntrusivePtr<TUniversalComputationControllerPartitioningState>& partitioningState)
+    {
+        auto jobManagerState = JobManager->GetState();
+        jobManagerState->Computations[ComputationId]["/partitioning/v0"] = ConvertToYsonString(partitioningState);
+        FlowView->State->JobManagerState = std::move(jobManagerState);
+        RecreateJobManager(/*persistCurrentState*/ false);
+    }
+
+    TUniversalComputationDynamicPartitionSpecPtr GetUniversalDynamicPartitionSpec(const TPartitionId& partitionId)
+    {
+        const auto& dynamicPartitionSpec = FlowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
+        return ConvertTo<TUniversalComputationDynamicPartitionSpecPtr>(dynamicPartitionSpec->ComputationPartitionSpec);
     }
 
     void SetFeedback(double cpuUsage, double memUsage, double messagesPerSecond, double bytesPerSecond)
@@ -235,6 +347,8 @@ public:
 
     void Reset()
     {
+        SourceAvailabilityGroupsForTest.clear();
+        SuppressedSourceGroupsForTest.clear();
         FlowView = New<TFlowView>();
         PersistedControl = New<TPersistedStateControl<std::string>>(StorageHandler);
         FlowView->State->AttachToControl(PersistedControl);
@@ -545,6 +659,132 @@ TEST_F(TPartitioning, RecreateOnNonWidestSinkChannelCountChange)
     FlowView->State->CommitMutation();
     // Tracking only the widest sink would miss this; per-sink tracking detects it and recreates.
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TPartitioning, MigratesLegacySuppressionForNewSourcePartition)
+{
+    const auto sourceKey = MakeUintKey(1);
+    SourceAvailabilityGroupsForTest["first"][sourceKey] = "down";
+    Prepare(1, false, false, {"first"});
+
+    auto partitioningState = New<TUniversalComputationControllerPartitioningState>();
+    partitioningState->SuppressedAvailabilityGroups = {"first-down"};
+    RestorePartitioningState(partitioningState);
+
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+
+    EXPECT_EQ(SuppressedSourceGroupsForTest.at("first"), THashSet<std::string>{"down"});
+    auto& partitions = FlowView->State->ExecutionSpec->Layout->Partitions;
+    ASSERT_EQ(partitions.size(), 1u);
+    const auto& partition = partitions.begin()->second;
+    EXPECT_EQ(SplitUniversalPartitionKey(*partition->SourceKey), std::pair(TStreamId("first"), sourceKey));
+    EXPECT_TRUE(GetUniversalDynamicPartitionSpec(partition->PartitionId)->AvailabilityGroupUnavailable);
+
+    auto persistedState = ConvertTo<IMapNodePtr>(
+        JobManager->GetState()->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_TRUE(persistedState->GetChildValueOrThrow<THashSet<std::string>>("suppressed_availability_groups").empty());
+    auto suppressedGroupsBySource = persistedState->GetChildValueOrThrow<TSuppressedAvailabilityGroupsBySource>(
+        "suppressed_availability_groups_by_source");
+    EXPECT_EQ(
+        suppressedGroupsBySource.at("first"),
+        THashSet<std::string>{"down"});
+}
+
+TEST_F(TPartitioning, RestoresStructuredSuppressionForExistingSourcePartition)
+{
+    const auto sourceKey = MakeUintKey(1);
+    SourceAvailabilityGroupsForTest["first"][sourceKey] = "down";
+    Prepare(1, false, false, {"first"});
+
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+
+    EXPECT_TRUE(SuppressedSourceGroupsForTest.at("first").empty());
+    auto& partitions = FlowView->State->ExecutionSpec->Layout->Partitions;
+    ASSERT_EQ(partitions.size(), 1u);
+    const auto partitionId = partitions.begin()->second->PartitionId;
+    EXPECT_FALSE(GetUniversalDynamicPartitionSpec(partitionId)->AvailabilityGroupUnavailable);
+
+    auto partitioningState = New<TUniversalComputationControllerPartitioningState>();
+    partitioningState->SuppressedAvailabilityGroupsBySource = TSuppressedAvailabilityGroupsBySource{
+        {"first", {"down"}},
+    };
+    RestorePartitioningState(partitioningState);
+
+    SuppressedSourceGroupsForTest.clear();
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+
+    EXPECT_EQ(SuppressedSourceGroupsForTest.at("first"), THashSet<std::string>{"down"});
+    ASSERT_EQ(partitions.size(), 1u);
+    ASSERT_TRUE(partitions.contains(partitionId));
+    EXPECT_TRUE(GetUniversalDynamicPartitionSpec(partitionId)->AvailabilityGroupUnavailable);
+}
+
+TEST_F(TPartitioning, SourceTraverseIgnoresStaleRangePartition)
+{
+    const TStreamId sourceStreamId("source");
+    const auto sourceKey = MakeUintKey(1);
+    SourceAvailabilityGroupsForTest[sourceStreamId][sourceKey] = "default";
+    Prepare(1, false, false, {sourceStreamId});
+    Spec->Computations.at(ComputationId)->WatermarkStrategy->WatermarkGenerator = New<TWatermarkGeneratorSpec>();
+
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+
+    auto& partitions = FlowView->State->ExecutionSpec->Layout->Partitions;
+    ASSERT_EQ(partitions.size(), 1u);
+    const auto sourcePartitionId = partitions.begin()->first;
+    ASSERT_TRUE(partitions.begin()->second->SourceKey);
+
+    auto stalePartition = New<TPartition>();
+    stalePartition->PartitionId = TPartitionId(TPartitionId::TUnderlying::Create());
+    stalePartition->ComputationId = ComputationId;
+    stalePartition->State = EPartitionState::Interrupting;
+    stalePartition->StateEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+    stalePartition->StateTimestamp = TInstant::Seconds(FlowView->State->CurrentTimestamp.Underlying());
+    const auto [lowerKey, upperKey] = UniversalKeyRange();
+    stalePartition->LowerKey = lowerKey;
+    stalePartition->UpperKey = upperKey;
+
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->Layout->CreatePartition(stalePartition);
+    FlowView->State->CommitMutation();
+
+    auto setTraverseData = [&] (const TPartitionId& partitionId, TSystemTimestamp watermark) {
+        auto node = New<TNodeTraverseData>();
+        node->ReportTime = watermark;
+        for (const auto& streamId : {sourceStreamId, TStreamId("output_stream")}) {
+            auto stream = New<TStreamTraverseData>();
+            stream->Epoch = FlowView->State->ExecutionSpec->GetEpoch();
+            stream->State = EStreamState::Active;
+            stream->SystemWatermark = watermark;
+            stream->EventWatermark = watermark;
+            stream->InflightMetrics = New<TInflightMetrics>();
+            node->Streams[streamId] = std::move(stream);
+        }
+        auto fromPartitionTraverseData = New<TFromPartitionTraverseData>();
+        fromPartitionTraverseData->Node = std::move(node);
+        auto partitionStatus = New<TPartitionJobStatus>();
+        partitionStatus->LastTraverseData = std::move(fromPartitionTraverseData);
+        FlowView->Feedback->PartitionJobStatuses[partitionId] = std::move(partitionStatus);
+    };
+    const auto sourceWatermark = TSystemTimestamp(100);
+    setTraverseData(sourcePartitionId, sourceWatermark);
+    setTraverseData(stalePartition->PartitionId, TSystemTimestamp(10));
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    const auto& computationTraverse = FlowView->State->TraverseData->Computations.at(ComputationId);
+    EXPECT_EQ(computationTraverse->Streams.at(sourceStreamId)->EventWatermark, sourceWatermark);
+    EXPECT_EQ(computationTraverse->Streams.at("output_stream")->EventWatermark, sourceWatermark);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

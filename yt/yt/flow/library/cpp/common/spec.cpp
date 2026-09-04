@@ -106,7 +106,7 @@ void TWatermarkGeneratorSpec::Register(TRegistrar registrar)
     registrar.Parameter("use_source_watermark", &TThis::UseSourceWatermark)
         .Default(false);
     registrar.Parameter("out_of_orderness_bound", &TThis::OutOfOrdernessBound)
-        .Default(TDuration::Minutes(1));
+        .Default(TDuration::Zero());
     registrar.Parameter("idle_partitions", &TThis::IdlePartitions)
         .Default();
     registrar.Parameter("unavailable_partition_groups", &TThis::UnavailablePartitionGroups)
@@ -432,6 +432,10 @@ void TComputationSpec::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* computationSpec) {
         // All validations are placed in ValidatePipelineSpec().
+
+        if (!computationSpec->SourceStreams.empty() && !computationSpec->WatermarkStrategy->WatermarkGenerator) {
+            computationSpec->WatermarkStrategy->WatermarkGenerator = New<TWatermarkGeneratorSpec>();
+        }
 
         for (const auto& timerStreamId : GetKeys(computationSpec->TimerStreams)) {
             if (!computationSpec->StreamsDependency.contains(timerStreamId)) {
@@ -1542,6 +1546,12 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
     // Validate computation specs.
     for (const auto& [computationId, computationSpec] : spec->Computations) {
         try {
+            THROW_ERROR_EXCEPTION_IF(
+                computationSpec->SourceStreams.empty() &&
+                    computationSpec->WatermarkStrategy &&
+                    computationSpec->WatermarkStrategy->WatermarkGenerator,
+                "\"watermark_generator\" requires at least one source stream");
+
             ValidateGroupBySchema(computationSpec->GroupBySchema);
             if (!computationSpec->KeyVisitorStreams.empty()) {
                 const auto& columns = computationSpec->GroupBySchema->Columns();

@@ -8,6 +8,42 @@ using namespace NYT::NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+std::string MakeLegacyAvailabilityGroupName(const TAvailabilityGroupOrigin& origin)
+{
+    return Format("%v-%v", origin.StreamId, origin.Group);
+}
+
+} // namespace
+
+THashMap<TStreamId, THashSet<std::string>> MigrateLegacySuppressedAvailabilityGroups(
+    const THashSet<std::string>& legacySuppressedAvailabilityGroups,
+    const std::vector<TAvailabilityGroupOrigin>& currentOrigins)
+{
+    THashMap<std::string, TAvailabilityGroupOrigin> originsByKey;
+    THashSet<std::string> ambiguousKeys;
+
+    for (const auto& origin : currentOrigins) {
+        auto [it, inserted] = originsByKey.emplace(MakeLegacyAvailabilityGroupName(origin), origin);
+        if (!inserted && it->second != origin) {
+            ambiguousKeys.insert(it->first);
+        }
+    }
+
+    for (const auto& key : ambiguousKeys) {
+        originsByKey.erase(key);
+    }
+
+    THashMap<TStreamId, THashSet<std::string>> groupsByStream;
+    for (const auto& availabilityGroup : legacySuppressedAvailabilityGroups) {
+        if (const auto* origin = originsByKey.FindPtr(availabilityGroup)) {
+            groupsByStream[origin->StreamId].insert(origin->Group);
+        }
+    }
+    return groupsByStream;
+}
+
 TBlockedStreamComputer::TBlockedStreamComputer(
     const TFlowViewPtr& flowView,
     const THashSet<TPartitionId>& interruptingPartitions,

@@ -7,21 +7,93 @@
 
 #include <library/cpp/iterator/concatenate.h>
 
+#include <iterator>
+
 namespace NYT::NFlow {
 
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+struct TPartitionRuleCounters
+{
+    i64 Detected = 0;
+    i64 Ignored = 0;
+};
+
+struct TPartitionRuleResult
+{
+    std::vector<TNodeTraverseDataPtr> Nodes;
+    TPartitionRuleCounters Counters;
+};
+
+void UpdateIdlePartitionsObservability(
+    const TPartitionRuleCounters& counters,
+    const TPartitionRuleCounters& stallCounters,
+    i64 stalledPartitionCount,
+    const TComputationSpecPtr& spec,
+    const TSensorsOwner& sensorsOwner,
+    const IStatusErrorStatePtr& watermarkStallErrorState)
+{
+    struct TIdlePartitionsSensors
+    {
+        TProfiler Profiler;
+        TGauge Detected = Profiler.Gauge("/idle_partitions_detected");
+        TGauge Ignored = Profiler.Gauge("/idle_partitions_ignored");
+    };
+
+    auto& sensors = sensorsOwner.Get<TIdlePartitionsSensors>();
+    sensors.Detected.Update(counters.Detected);
+    sensors.Ignored.Update(counters.Ignored);
+
+    if (stalledPartitionCount == 0) {
+        watermarkStallErrorState->ClearError();
+        return;
+    }
+
+    watermarkStallErrorState->SetError(TError(
+        "Watermark cannot advance because too many source partitions are idle")
+            .With("idle_partitions", stallCounters.Detected)
+            .With("total_partitions", stalledPartitionCount)
+            .With("watermark_gating_partitions", stallCounters.Detected - stallCounters.Ignored)
+            .With("max_ratio", spec->WatermarkStrategy->WatermarkGenerator->IdlePartitions->MaxRatio));
+}
+
+void UpdateLateDataPartitionsSensors(
+    const TPartitionRuleCounters& counters,
+    const TSensorsOwner& sensorsOwner)
+{
+    struct TLateDataPartitionsSensors
+    {
+        TProfiler Profiler;
+        TGauge Detected = Profiler.Gauge("/late_data_partitions_detected");
+        TGauge Ignored = Profiler.Gauge("/late_data_partitions_ignored");
+    };
+
+    auto& sensors = sensorsOwner.Get<TLateDataPartitionsSensors>();
+    sensors.Detected.Update(counters.Detected);
+    sensors.Ignored.Update(counters.Ignored);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSystemTimestamp GetPartitionEventWatermark(
     const TNodeTraverseDataPtr& node,
-    const TComputationSpecPtr& spec)
+    const TComputationSpecPtr& spec,
+    const TStreamId& sourceStreamId)
 {
     TSystemTimestamp partitionWatermark = InfinitySystemTimestamp;
     for (const auto& [streamId, stream] : node->Streams) {
-        if (!spec->InputStreamIds.contains(streamId)) {
-            partitionWatermark = std::min(partitionWatermark, stream->EventWatermark);
+        if (spec->InputStreamIds.contains(streamId) ||
+            (spec->SourceStreams.contains(streamId) && streamId != sourceStreamId))
+        {
+            continue;
         }
+        partitionWatermark = std::min(partitionWatermark, stream->EventWatermark);
     }
     return partitionWatermark;
 }
@@ -29,10 +101,13 @@ TSystemTimestamp GetPartitionEventWatermark(
 void HideEventWatermarkInplace(
     const TNodeTraverseDataPtr& node,
     const TSystemTimestamp& updateTime,
-    const TComputationSpecPtr& spec)
+    const TComputationSpecPtr& spec,
+    const TStreamId& sourceStreamId)
 {
     for (const auto& [streamId, stream] : node->Streams) {
-        if (spec->InputStreamIds.contains(streamId)) {
+        if (spec->InputStreamIds.contains(streamId) ||
+            (spec->SourceStreams.contains(streamId) && streamId != sourceStreamId))
+        {
             continue;
         }
         const ui64 delay = spec->WatermarkStrategy->WatermarkGenerator->OutOfOrdernessBound.Seconds();
@@ -43,7 +118,8 @@ void HideEventWatermarkInplace(
 }
 
 std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRule(
-    const THashMap<std::string, std::vector<TNodeTraverseDataPtr>>& nodesByAvailabilityGroup,
+    const TNodesByAvailabilityGroup& nodesByAvailabilityGroup,
+    const TStreamId& sourceStreamId,
     const TComputationSpecPtr& spec,
     const TSensorsOwner& sensorsOwner,
     const NLogging::TLogger& logger,
@@ -60,7 +136,6 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
     };
 
     const auto& Logger = logger;
-
     if (!spec->WatermarkStrategy->WatermarkGenerator->UnavailablePartitionGroups) {
         std::vector<TNodeTraverseDataPtr> nodes;
         for (const auto& [_, group] : nodesByAvailabilityGroup) {
@@ -85,7 +160,9 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
         for (const auto& traverseData : nodes) {
             auto& statistics = availabilityGroupStatistics[availabilityGroup];
             statistics.TotalPartitions += 1;
-            const auto lastUnavailableTimestamp = GetPartitionLastUnavailableTimestamp(traverseData, spec, logger);
+            const auto lastUnavailableTimestamp = GetPartitionLastUnavailableTimestamp(
+                traverseData,
+                sourceStreamId);
             if (lastUnavailableTimestamp.has_value()) {
                 statistics.UnavailablePartitions += 1;
 
@@ -99,13 +176,15 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
     THashMap<std::string, std::vector<TNodeTraverseDataPtr>> nodesOfFullyUnavailableGroups; // {availabilityGroup: [nodes...], ...}
     int unavailableGroupCount = 0;
     for (const auto& [availabilityGroup, statistics] : availabilityGroupStatistics) {
-        auto& sensors = sensorsOwner.Get<TAvailabilityGroupSensors>(availabilityGroup);
+        // Availability group labels are part of the monitoring schema.
+        std::string displayName = Format("%v-%v", sourceStreamId, availabilityGroup);
+        auto& sensors = sensorsOwner.Get<TAvailabilityGroupSensors>(displayName);
         sensors.UnavailablePartitions.Update(statistics.UnavailablePartitions);
 
         bool groupIsFullyUnavailable = false;
         if (statistics.UnavailablePartitions == statistics.TotalPartitions) {
             YT_TLOG_WARNING("Availability group is unavailable (all partitions of group are unavailable)")
-                .With("AvailabilityGroup", availabilityGroup)
+                .With("AvailabilityGroup", displayName)
                 .With("TotalPartitions", statistics.TotalPartitions);
             groupIsFullyUnavailable = true;
             unavailableGroupCount += 1;
@@ -152,26 +231,24 @@ std::vector<TNodeTraverseDataPtr> ApplyAvailabilityGroupsEventWatermarkComputeRu
     for (const auto& [availabilityGroup, nodes] : nodesOfFullyUnavailableGroups) {
         const auto updateTimestamp = availabilityGroupMinUpdateTimestamp.at(availabilityGroup);
         for (const auto& node : nodes) {
-            HideEventWatermarkInplace(node, updateTimestamp, spec);
+            HideEventWatermarkInplace(
+                node,
+                updateTimestamp,
+                spec,
+                sourceStreamId);
         }
     }
     return allNodes;
 }
 
-std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
-    const std::vector<TNodeTraverseDataPtr>& nodes,
-    const TComputationSpecPtr& spec,
-    const TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger,
-    const IStatusErrorStatePtr& watermarkStallErrorState)
-{
-    struct TIdlePartitionsSensors
-    {
-        TProfiler Profiler;
-        TGauge Detected = Profiler.Gauge("/idle_partitions_detected");
-        TGauge Ignored = Profiler.Gauge("/idle_partitions_ignored");
-    };
+namespace {
 
+std::pair<TPartitionRuleResult, bool> ApplyIdlePartitionsRule(
+    std::vector<TNodeTraverseDataPtr> nodes,
+    const TComputationSpecPtr& spec,
+    const NLogging::TLogger& logger,
+    const TStreamId& sourceStreamId)
+{
     struct TIdlePartitionsStatistics
     {
         i64 TotalPartitions = 0;
@@ -182,13 +259,9 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
 
     const auto& Logger = logger;
     const auto& idleSpec = spec->WatermarkStrategy->WatermarkGenerator->IdlePartitions;
-    auto& sensors = sensorsOwner.Get<TIdlePartitionsSensors>();
 
     if (!idleSpec) {
-        sensors.Detected.Update(0);
-        sensors.Ignored.Update(0);
-        watermarkStallErrorState->ClearError();
-        return nodes;
+        return {TPartitionRuleResult{.Nodes = std::move(nodes)}, false};
     }
 
     TIdlePartitionsStatistics statistics;
@@ -198,13 +271,13 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
     std::vector<TNodeTraverseDataPtr> preparedNodes;
 
     for (const auto& node : nodes) {
-        auto lastIdleTimestamp = GetPartitionLastIdleTimestamp(node, spec);
+        auto lastIdleTimestamp = GetPartitionLastIdleTimestamp(node, spec, sourceStreamId);
         if (lastIdleTimestamp.has_value()) {
             statistics.Detected++;
             if (statistics.Ignored < statistics.IgnoreLimit) {
                 statistics.Ignored++;
                 auto preparedNode = NYTree::CloneYsonStruct(node);
-                HideEventWatermarkInplace(preparedNode, *lastIdleTimestamp, spec);
+                HideEventWatermarkInplace(preparedNode, *lastIdleTimestamp, spec, sourceStreamId);
                 preparedNodes.push_back(preparedNode);
             } else {
                 preparedNodes.push_back(node);
@@ -213,9 +286,6 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
             preparedNodes.push_back(node);
         }
     }
-
-    sensors.Detected.Update(statistics.Detected);
-    sensors.Ignored.Update(statistics.Ignored);
 
     std::string result;
     if (statistics.Detected == 0) {
@@ -240,38 +310,26 @@ std::vector<TNodeTraverseDataPtr> ApplyIdlePartitionsRule(
             .With("Result", result);
     }
 
-    // When the idle fraction exceeds |MaxRatio| (so some idle partitions cannot be ignored) but stays
-    // below 100%, the remaining idle partitions gate the watermark. The all-idle case is handled
-    // elsewhere, so warn the pipeline owner only about this partial-idle stall. The status-profiler
-    // error state is a persistent leaf: it is raised while the stall holds and cleared otherwise, and
-    // its own break/recover logging (wired to the public logger) surfaces the message to the owner.
-    if (statistics.Detected > statistics.IgnoreLimit && statistics.Detected < statistics.TotalPartitions) {
-        watermarkStallErrorState->SetError(TError(
-            "Watermark cannot advance because too many source partitions are idle")
-                .With("idle_partitions", statistics.Detected)
-                .With("total_partitions", statistics.TotalPartitions)
-                .With("watermark_gating_partitions", statistics.Detected - statistics.Ignored)
-                .With("max_ratio", idleSpec->MaxRatio));
-    } else {
-        watermarkStallErrorState->ClearError();
-    }
-
-    return preparedNodes;
+    const bool partialIdleStall = statistics.Detected > statistics.IgnoreLimit &&
+        statistics.Detected < statistics.TotalPartitions;
+    return {
+        TPartitionRuleResult{
+            .Nodes = std::move(preparedNodes),
+            .Counters = {
+                .Detected = statistics.Detected,
+                .Ignored = statistics.Ignored,
+            },
+        },
+        partialIdleStall,
+    };
 }
 
-std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
-    const std::vector<TNodeTraverseDataPtr>& nodes,
+TPartitionRuleResult ApplyLateDataPartitionsRule(
+    std::vector<TNodeTraverseDataPtr> nodes,
     const TComputationSpecPtr& spec,
-    const TSensorsOwner& sensorsOwner,
-    const NLogging::TLogger& logger)
+    const NLogging::TLogger& logger,
+    const TStreamId& sourceStreamId)
 {
-    struct TLateDataPartitionsSensors
-    {
-        TProfiler Profiler;
-        TGauge Detected = Profiler.Gauge("/late_data_partitions_detected");
-        TGauge Ignored = Profiler.Gauge("/late_data_partitions_ignored");
-    };
-
     struct TLateDataPartitionsStatistics
     {
         i64 TotalPartitions = 0;
@@ -288,18 +346,14 @@ std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
 
     const auto& Logger = logger;
     const auto& lateDataSpec = spec->WatermarkStrategy->WatermarkGenerator->LateDataPartitions;
-    auto& sensors = sensorsOwner.Get<TLateDataPartitionsSensors>();
 
-    if ((spec->OutputStreamIds.empty() && spec->SourceStreams.empty()) || !lateDataSpec || nodes.empty())
-    {
-        sensors.Detected.Update(0);
-        sensors.Ignored.Update(0);
-        return nodes;
+    if (!lateDataSpec || nodes.empty()) {
+        return {.Nodes = std::move(nodes)};
     }
 
     std::vector<std::pair<TSystemTimestamp, TNodeTraverseDataPtr>> partitionWatermarks;
     for (const auto& node : nodes) {
-        auto partitionWatermark = GetPartitionEventWatermark(node, spec);
+        auto partitionWatermark = GetPartitionEventWatermark(node, spec, sourceStreamId);
         partitionWatermarks.push_back({partitionWatermark, node});
     }
 
@@ -321,15 +375,13 @@ std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
     YT_VERIFY(lateDataSpec->Value > IgnoreInflightWatermarkPercentile || statistics.PercentileIndex == statistics.TotalPartitions);
 
     if (statistics.PercentileIndex == statistics.TotalPartitions) {
-        sensors.Detected.Update(0);
-        sensors.Ignored.Update(0);
         YT_TLOG_DEBUG("LateDataPartitions rule summary")
             .With("Enabled", true)
             .With("TotalPartitions", statistics.TotalPartitions)
             .With("Detected", 0)
             .With("Ignored", 0)
             .With("Result", "all_ignored_by_percentile");
-        return nodes;
+        return {.Nodes = std::move(nodes)};
     }
 
     statistics.PercentileWatermark = partitionWatermarks[statistics.PercentileIndex].first;
@@ -343,7 +395,7 @@ std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
         if (watermark < statistics.ThresholdWatermark) {
             statistics.Detected++;
             auto preparedNode = NYTree::CloneYsonStruct(node);
-            HideEventWatermarkInplace(preparedNode, statistics.EffectiveWatermark, spec);
+            HideEventWatermarkInplace(preparedNode, statistics.EffectiveWatermark, spec, sourceStreamId);
             preparedNodes.push_back(preparedNode);
             statistics.Ignored++;
             auto delay = TDuration::Seconds(statistics.PercentileWatermark.Underlying() - watermark.Underlying());
@@ -352,9 +404,6 @@ std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
             preparedNodes.push_back(node);
         }
     }
-
-    sensors.Detected.Update(statistics.Detected);
-    sensors.Ignored.Update(statistics.Ignored);
     std::string result = statistics.Ignored > 0 ? "applied" : "no_late_partitions";
 
     if (statistics.Detected != 0) {
@@ -374,33 +423,71 @@ std::vector<TNodeTraverseDataPtr> ApplyLateDataPartitionsRule(
             .With("Result", result);
     }
 
-    return preparedNodes;
+    return {
+        .Nodes = std::move(preparedNodes),
+        .Counters = {
+            .Detected = statistics.Detected,
+            .Ignored = statistics.Ignored,
+        },
+    };
 }
 
+} // namespace
+
 std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
-    const THashMap<std::string, std::vector<TNodeTraverseDataPtr>>& nodesByAvailabilityGroup,
+    const TNodesByAvailabilityGroupBySource& nodesByAvailabilityGroupBySource,
     const TComputationSpecPtr& spec,
     const TSensorsOwner& sensorsOwner,
     const NLogging::TLogger& logger,
     const IStatusErrorStatePtr& watermarkStallErrorState,
-    THashSet<std::string>* suppressedGroups)
+    TSuppressedAvailabilityGroupsBySource* suppressedGroupsBySource)
 {
-    if (!spec->WatermarkStrategy->WatermarkGenerator) {
-        std::vector<TNodeTraverseDataPtr> allNodes;
-        for (const auto& [_, nodes] : nodesByAvailabilityGroup) {
-            allNodes.insert(allNodes.end(), nodes.begin(), nodes.end());
-        }
-        return allNodes;
+    if (suppressedGroupsBySource) {
+        suppressedGroupsBySource->clear();
     }
+    std::vector<TNodeTraverseDataPtr> preparedNodes;
+    TPartitionRuleCounters idleCounters;
+    TPartitionRuleCounters idleStallCounters;
+    i64 stalledPartitionCount = 0;
+    TPartitionRuleCounters lateDataCounters;
+    for (const auto& [sourceStreamId, nodesByAvailabilityGroup] : nodesByAvailabilityGroupBySource) {
+        THashSet<std::string> sourceSuppressedGroups;
+        auto sourceNodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
+            nodesByAvailabilityGroup,
+            sourceStreamId,
+            spec,
+            sensorsOwner,
+            logger,
+            suppressedGroupsBySource ? &sourceSuppressedGroups : nullptr);
+        if (suppressedGroupsBySource && !sourceSuppressedGroups.empty()) {
+            (*suppressedGroupsBySource)[sourceStreamId] = std::move(sourceSuppressedGroups);
+        }
 
-    const auto nodes = ApplyAvailabilityGroupsEventWatermarkComputeRule(
-        nodesByAvailabilityGroup,
+        auto [afterIdle, partialIdleStall] = ApplyIdlePartitionsRule(std::move(sourceNodes), spec, logger, sourceStreamId);
+        idleCounters.Detected += afterIdle.Counters.Detected;
+        idleCounters.Ignored += afterIdle.Counters.Ignored;
+        if (partialIdleStall) {
+            idleStallCounters.Detected += afterIdle.Counters.Detected;
+            idleStallCounters.Ignored += afterIdle.Counters.Ignored;
+            stalledPartitionCount += std::ssize(afterIdle.Nodes);
+        }
+
+        auto afterLateData = ApplyLateDataPartitionsRule(std::move(afterIdle.Nodes), spec, logger, sourceStreamId);
+        lateDataCounters.Detected += afterLateData.Counters.Detected;
+        lateDataCounters.Ignored += afterLateData.Counters.Ignored;
+        preparedNodes.insert(
+            preparedNodes.end(),
+            std::make_move_iterator(afterLateData.Nodes.begin()),
+            std::make_move_iterator(afterLateData.Nodes.end()));
+    }
+    UpdateIdlePartitionsObservability(
+        idleCounters,
+        idleStallCounters,
+        stalledPartitionCount,
         spec,
         sensorsOwner,
-        logger,
-        suppressedGroups);
-    const auto afterIdle = ApplyIdlePartitionsRule(nodes, spec, sensorsOwner, logger, watermarkStallErrorState);
-    auto preparedNodes = ApplyLateDataPartitionsRule(afterIdle, spec, sensorsOwner, logger);
+        watermarkStallErrorState);
+    UpdateLateDataPartitionsSensors(lateDataCounters, sensorsOwner);
 
     return preparedNodes;
 }
@@ -408,6 +495,7 @@ std::vector<TNodeTraverseDataPtr> ApplyEventWatermarkComputeRule(
 std::optional<TSystemTimestamp> GetPartitionLastIdleTimestamp(
     const TNodeTraverseDataPtr& traverseData,
     const TComputationSpecPtr& spec,
+    const TStreamId& sourceStreamId,
     bool relaxed)
 {
     const auto& watermarkSpec = spec->WatermarkStrategy->WatermarkGenerator;
@@ -416,6 +504,9 @@ std::optional<TSystemTimestamp> GetPartitionLastIdleTimestamp(
     // 2) Input streams should be completed.
     // 3) Source streams should have zero inflight for some time.
     for (const auto& [streamId, stream] : traverseData->Streams) {
+        if (spec->SourceStreams.contains(streamId) && streamId != sourceStreamId) {
+            continue;
+        }
         if (stream->InflightMetrics->Count != 0) {
             return std::nullopt;
         }
@@ -430,16 +521,12 @@ std::optional<TSystemTimestamp> GetPartitionLastIdleTimestamp(
 
     TSystemTimestamp idleTimestamp = traverseData->ReportTime;
 
-    for (const auto& [streamId, source] : spec->SourceStreams) {
-        auto stream = traverseData->Streams.at(streamId);
-        auto inflightMetrics = stream->InflightMetrics;
-
-        if (inflightMetrics->IdleDuration && watermarkSpec->IdlePartitions) {
-            THROW_ERROR_EXCEPTION_UNLESS(inflightMetrics->LastIdleTimestamp, "LastIdleTimestamp must not be nullopt if IdleDuration is set");
-            idleTimestamp = std::min(idleTimestamp, *inflightMetrics->LastIdleTimestamp);
-            if (!relaxed && *inflightMetrics->IdleDuration < watermarkSpec->IdlePartitions->Duration) {
-                return std::nullopt;
-            }
+    const auto& inflightMetrics = traverseData->Streams.at(sourceStreamId)->InflightMetrics;
+    if (inflightMetrics->IdleDuration && watermarkSpec->IdlePartitions) {
+        THROW_ERROR_EXCEPTION_UNLESS(inflightMetrics->LastIdleTimestamp, "LastIdleTimestamp must not be nullopt if IdleDuration is set");
+        idleTimestamp = std::min(idleTimestamp, *inflightMetrics->LastIdleTimestamp);
+        if (!relaxed && *inflightMetrics->IdleDuration < watermarkSpec->IdlePartitions->Duration) {
+            return std::nullopt;
         }
     }
 
@@ -448,28 +535,9 @@ std::optional<TSystemTimestamp> GetPartitionLastIdleTimestamp(
 
 std::optional<TSystemTimestamp> GetPartitionLastUnavailableTimestamp(
     const TNodeTraverseDataPtr& traverseData,
-    const TComputationSpecPtr& spec,
-    const NLogging::TLogger& logger)
+    const TStreamId& sourceStreamId)
 {
-    if (spec->SourceStreams.size() == 0) {
-        return std::nullopt;
-    }
-
-    for (const auto& [streamId, source] : spec->SourceStreams) {
-        auto stream = traverseData->Streams.at(streamId);
-        auto inflightMetrics = stream->InflightMetrics;
-
-        if (!inflightMetrics->UnavailableTimestamp) {
-            return std::nullopt;
-        }
-
-        YT_VERIFY(spec->SourceStreams.size() == 1);
-        return *inflightMetrics->UnavailableTimestamp;
-    }
-
-    const auto& Logger = logger;
-    YT_TLOG_FATAL("Unreachable point reached in GetPartitionLastUnavailableTimestamp()");
-    Y_UNREACHABLE();
+    return traverseData->Streams.at(sourceStreamId)->InflightMetrics->UnavailableTimestamp;
 }
 
 THashMap<TStreamId, TStreamTraverseDataMetricsPtr> ComputeStreamMetrics(
@@ -673,15 +741,19 @@ TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartit
         "Check that source partition filters are well-formed and not over-restrictive",
         GetComputationId());
 
-    auto nodesByAvailabilityGroup = GetNodesByAvailabilityGroup(traverseData, flowView);
-    THashSet<std::string> suppressedAvailabilityGroups;
-    auto preparedTraverseData = ApplyEventWatermarkComputeRule(
-        nodesByAvailabilityGroup,
-        GetSpec(),
-        SensorsOwner_,
-        Logger,
-        IdlePartitionsWatermarkStallErrorState_,
-        &suppressedAvailabilityGroups);
+    TSuppressedAvailabilityGroupsBySource suppressedAvailabilityGroupsBySource;
+    std::vector<TNodeTraverseDataPtr> preparedTraverseData;
+    if (!GetSpec()->SourceStreams.empty() && GetSpec()->WatermarkStrategy->WatermarkGenerator) {
+        preparedTraverseData = ApplyEventWatermarkComputeRule(
+            GetNodesByAvailabilityGroupBySource(traverseData, flowView),
+            GetSpec(),
+            SensorsOwner_,
+            Logger,
+            IdlePartitionsWatermarkStallErrorState_,
+            &suppressedAvailabilityGroupsBySource);
+    } else {
+        preparedTraverseData = GetValues(traverseData);
+    }
     if (futurePartitionsTraverse.has_value()) {
         preparedTraverseData.push_back(*futurePartitionsTraverse);
     }
@@ -692,13 +764,13 @@ TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartit
     // Published only once every step above has succeeded. Suppression silences a group's errors, and a
     // traverse whose result is discarded hides no watermark, so publishing early would leave the pipeline
     // waiting for a group with the errors that explain the wait already muted.
-    SuppressedAvailabilityGroups_ = std::move(suppressedAvailabilityGroups);
+    SuppressedAvailabilityGroupsBySource_ = std::move(suppressedAvailabilityGroupsBySource);
     return result;
 }
 
-const std::optional<THashSet<std::string>>& TComputationControllerBase::GetSuppressedAvailabilityGroups() const
+const std::optional<TSuppressedAvailabilityGroupsBySource>& TComputationControllerBase::GetSuppressedAvailabilityGroupsBySource() const
 {
-    return SuppressedAvailabilityGroups_;
+    return SuppressedAvailabilityGroupsBySource_;
 }
 
 std::optional<TNodeTraverseDataPtr> TComputationControllerBase::GetFuturePartitionsNodeTraverseData(
@@ -727,14 +799,5 @@ void TComputationControllerBase::Sync()
 
 void TComputationControllerBase::Commit()
 { }
-
-THashMap<std::string, std::vector<TNodeTraverseDataPtr>> TComputationControllerBase::GetNodesByAvailabilityGroup(
-    const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
-    const TFlowViewPtr& /*flowView*/)
-{
-    return {{"default", GetValues(traverseData)}};
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
