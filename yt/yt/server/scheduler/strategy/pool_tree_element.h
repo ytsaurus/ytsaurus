@@ -1131,15 +1131,17 @@ TAttributes& GetSchedulerElementAttributesFromVector(std::vector<TAttributes>& v
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YT_ELEMENT_LOG_DETAILED(schedulerElement, ...) \
-    do { \
-        const auto& Logger = schedulerElement->GetLogger(); \
-        if (schedulerElement->AreDetailedLogsEnabled()) { \
-            YT_LOG_DEBUG(__VA_ARGS__); \
-        } else { \
-            YT_LOG_TRACE(__VA_ARGS__); \
-        } \
-    } while(false)
+//! NB: #schedulerElement is bound in the |if| initializer so it is evaluated once; both the
+//! logger and the level come from it.
+#define YT_ELEMENT_LOG_DETAILED(schedulerElement, message) \
+    if (auto&& schedulerElement__ = (schedulerElement); false) \
+    { } else \
+        YT_TLOG_EVENT( \
+            schedulerElement__->GetLogger(), \
+            schedulerElement__->AreDetailedLogsEnabled() \
+                ? ::NYT::NLogging::ELogLevel::Debug \
+                : ::NYT::NLogging::ELogLevel::Trace, \
+            message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
