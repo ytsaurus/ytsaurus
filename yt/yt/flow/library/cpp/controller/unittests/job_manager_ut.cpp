@@ -1062,6 +1062,171 @@ TEST_F(TTraverseIsolationTest, UnknownExecutionSpecComputationIsIgnored)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInputSystemWatermarkTest
+    : public TJobManagerTest
+{
+public:
+    void PreparePipeline()
+    {
+        auto spec = New<TPipelineSpec>();
+        auto producerSpec = CreateGenericComputationSpec<TSimpleComputation>();
+        producerSpec->InputStreamIds.clear();
+        producerSpec->KeyVisitorStreams["source"] = New<TKeyVisitorStreamSpec>();
+        producerSpec->OutputStreamIds.insert("stream");
+        spec->Computations["producer"] = std::move(producerSpec);
+
+        auto consumerSpec = CreateGenericComputationSpec<TSimpleComputation>();
+        consumerSpec->InputStreamIds = {"stream"};
+        spec->Computations["consumer"] = std::move(consumerSpec);
+
+        auto dynamicSpec = New<TDynamicPipelineSpec>();
+        dynamicSpec->JobManager->AsyncBalancing = false;
+        for (const auto& computationId : {TComputationId("producer"), TComputationId("consumer")}) {
+            dynamicSpec->Computations[computationId] = New<TDynamicComputationSpec>();
+            dynamicSpec->Computations[computationId]->Parameters->AddChild(
+                "desired_partition_count",
+                NYTree::ConvertToNode(2u));
+        }
+
+        Prepare(spec, dynamicSpec);
+        FlowView->State->CurrentTimestamp = TSystemTimestamp(1000);
+        FlowView->State->StartMutation();
+        JobManager->DoPartitioning(FlowView);
+    }
+
+    void SetPartitionTraverseData(
+        const TComputationId& computationId,
+        const std::vector<i64>& epochs,
+        const std::vector<TSystemTimestamp>& watermarks)
+    {
+        std::vector<TPartitionId> partitionIds;
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->ComputationId == computationId) {
+                partitionIds.push_back(partitionId);
+            }
+        }
+        Sort(partitionIds);
+
+        ASSERT_EQ(partitionIds.size(), epochs.size());
+        ASSERT_EQ(partitionIds.size(), watermarks.size());
+
+        for (size_t index = 0; index < partitionIds.size(); ++index) {
+            const auto& partitionId = partitionIds[index];
+            auto traverseData = New<TFromPartitionTraverseData>();
+            traverseData->Node = New<TNodeTraverseData>();
+            const auto& extendedSpec = GetOrCrash(
+                FlowView->State->ExecutionSpec->ExtendedPipelineSpec->GetValue()->Computations,
+                computationId);
+            for (const auto& streamId : extendedSpec->AllStreamIds) {
+                auto stream = New<TStreamTraverseData>();
+                stream->Epoch = epochs[index];
+                stream->SystemWatermark = watermarks[index];
+                stream->EventWatermark = watermarks[index];
+                traverseData->Node->Streams[streamId] = std::move(stream);
+            }
+
+            auto status = New<TPartitionJobStatus>();
+            status->LastTraverseData = std::move(traverseData);
+            FlowView->Feedback->PartitionJobStatuses[partitionId] = std::move(status);
+        }
+    }
+
+    TSystemTimestamp GetComputationStreamWatermark(
+        const TComputationId& computationId,
+        const TStreamId& streamId)
+    {
+        return GetOrCrash(
+            GetOrCrash(FlowView->State->TraverseData->Computations, computationId)->Streams,
+            streamId)
+            ->SystemWatermark;
+    }
+};
+
+TEST_F(TInputSystemWatermarkTest, AdvancesWithMixedOlderEpochs)
+{
+    PreparePipeline();
+    const auto currentEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+    ASSERT_GT(currentEpoch, 4);
+
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("producer", {currentEpoch - 1, currentEpoch - 2}, {TSystemTimestamp(450), TSystemTimestamp(250)}));
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("consumer", {currentEpoch - 3, currentEpoch - 4}, {TSystemTimestamp(400), TSystemTimestamp(300)}));
+    FlowView->State->TraverseData->InputSystemWatermark = TSystemTimestamp(100);
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_TRUE(FlowView->EphemeralState->TraverseUncoveredComputations.empty());
+    EXPECT_EQ(GetComputationStreamWatermark("producer", "stream"), TSystemTimestamp(250));
+    EXPECT_EQ(GetComputationStreamWatermark("consumer", "stream"), TSystemTimestamp(300));
+    EXPECT_EQ(FlowView->State->TraverseData->UnitedOutputStream->SystemWatermark, TSystemTimestamp(250));
+    EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(250));
+}
+
+TEST_F(TInputSystemWatermarkTest, DoesNotRetreatWithMixedOlderEpochs)
+{
+    PreparePipeline();
+    const auto currentEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+    ASSERT_GT(currentEpoch, 4);
+
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("producer", {currentEpoch - 1, currentEpoch - 2}, {TSystemTimestamp(450), TSystemTimestamp(250)}));
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("consumer", {currentEpoch - 3, currentEpoch - 4}, {TSystemTimestamp(400), TSystemTimestamp(300)}));
+    FlowView->State->TraverseData->InputSystemWatermark = TSystemTimestamp(275);
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(275));
+}
+
+TEST_F(TInputSystemWatermarkTest, DoesNotAdvanceWithoutFullPartitionCoverage)
+{
+    PreparePipeline();
+    const auto currentEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("producer", {currentEpoch - 1, currentEpoch - 2}, {TSystemTimestamp(450), TSystemTimestamp(250)}));
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("consumer", {currentEpoch - 3, currentEpoch - 4}, {TSystemTimestamp(400), TSystemTimestamp(300)}));
+    FlowView->State->TraverseData->InputSystemWatermark = TSystemTimestamp(100);
+
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId == TComputationId("consumer")) {
+            FlowView->State->ExecutionSpec->Layout->UpdatePartition(
+                partitionId,
+                EPartitionState::Interrupted,
+                currentEpoch,
+                TInstant::Now());
+            break;
+        }
+    }
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_EQ(FlowView->EphemeralState->TraverseUncoveredComputations, THashSet<TComputationId>{"consumer"});
+    EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(100));
+}
+
+TEST_F(TInputSystemWatermarkTest, DoesNotAdvanceWithoutPartitionTraverseData)
+{
+    PreparePipeline();
+    const auto currentEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("producer", {currentEpoch - 1, currentEpoch - 2}, {TSystemTimestamp(450), TSystemTimestamp(250)}));
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("consumer", {currentEpoch - 3, currentEpoch - 4}, {TSystemTimestamp(400), TSystemTimestamp(300)}));
+    FlowView->State->TraverseData->InputSystemWatermark = TSystemTimestamp(100);
+
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId == TComputationId("consumer")) {
+            ASSERT_EQ(partition->State, EPartitionState::Executing);
+            GetOrCrash(FlowView->Feedback->PartitionJobStatuses, partitionId)->LastTraverseData = nullptr;
+            break;
+        }
+    }
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_TRUE(FlowView->EphemeralState->TraverseUncoveredComputations.empty());
+    EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(100));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TJobBalancerTest, NoCpuMetrics)
 {
     auto runTest = [&] (size_t workerCount, const std::vector<int>& partitionCounts) {
