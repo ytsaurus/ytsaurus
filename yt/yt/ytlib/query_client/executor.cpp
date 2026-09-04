@@ -781,6 +781,9 @@ private:
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(query);
 
+        auto bottomResultSchema = bottomQueryPattern->GetTableSchema();
+        auto bottomQueryFingerprint = InferName(bottomQueryPattern, {.OmitValues = true});
+
         int splitCount = std::ssize(groupedDataSplits);
 
         // Track all subquery statistics futures so we can collect all
@@ -793,7 +796,9 @@ private:
 
         auto evaluateBottom = [
             &,
-            bottomQueryPattern = bottomQueryPattern,
+            bottomQueryPattern = std::move(bottomQueryPattern),
+            bottomResultSchema = std::move(bottomResultSchema),
+            bottomQueryFingerprint = std::move(bottomQueryFingerprint),
             groupedDataSplits = std::move(groupedDataSplits),
             prefetchedJoinRowsets = std::move(prefetchedJoinRowsets),
             subqueryIndex = 0] () mutable -> TEvaluateResult
@@ -815,6 +820,8 @@ private:
 
             auto result = Delegate(
                 bottomQuery,
+                bottomResultSchema,
+                bottomQueryFingerprint,
                 externalCGInfo,
                 options,
                 requestFeatureFlags,
@@ -901,7 +908,7 @@ private:
                 statistics = CoordinateAndExecuteWithShuffle(
                     splitCount,
                     query->GroupClause->GroupItems.size(),
-                    evaluateBottom,
+                    std::move(evaluateBottom),
                     evaluateMiddle,
                     getEvaluateTop(newFrontQuery),
                     MemoryChunkProvider_);
@@ -913,7 +920,7 @@ private:
                     query->Offset,
                     query->Limit,
                     options.AdaptiveOrderedSchemafulReader,
-                    evaluateBottom,
+                    std::move(evaluateBottom),
                     getEvaluateTop(frontQuery),
                     subplanHolders);
             }
@@ -965,6 +972,8 @@ private:
 
     TEvaluateResult Delegate(
         TConstQueryPtr query,
+        const TTableSchemaPtr& resultSchema,
+        const std::string& queryFingerprint,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
@@ -1018,18 +1027,19 @@ private:
 
         req->Attachments() = prefetchedJoinRowsets;
 
-        auto queryFingerprint = InferName(query, {.OmitValues = true});
-        YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
-            "RequestSize: %v)",
+        YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, SerializationTime: %v, RequestSize: %v)",
             queryFingerprint,
-            *query->GetReadSchema(),
-            *query->GetTableSchema(),
             serializationTime,
             req->ByteSize());
 
+        YT_LOG_DEBUG_IF(options.VerboseLogging,
+            "Sending subquery schemas (ReadSchema: %v, ResultSchema: %v)",
+            *query->GetReadSchema(),
+            *resultSchema);
+
         auto resultReader = New<TQueryResponseReader>(
             query->Id,
-            query->GetTableSchema(),
+            resultSchema,
             config->SelectRowsResponseCodec,
             MemoryChunkProvider_,
             MemoryUsageTracker_,
