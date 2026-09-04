@@ -626,14 +626,14 @@ TBlobChunkBase::FindLastEntryWithinReadGap(
 
         if (readGapSize > Location_->GetCoalescedReadMaxGapSize()) {
             YT_TLOG_DEBUG("Stopping run due to large gap")
-                .With("GapBlocks", FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex + 1))
+                .With("GapBlocks", FormatBlockIndexRange(previousEntry->BlockIndex + 1, entry.BlockIndex + 1))
                 .WithFormat("GapBlockOffsets", "[%v,%v)", previousEntry->EndOffset, entry.BeginOffset)
                 .With("GapBlockCount", entry.BlockIndex - previousEntry->BlockIndex - 1)
                 .With("GapSize", readGapSize);
             break;
         } else if (readGapSize > 0) {
             YT_TLOG_DEBUG("Coalesced read gap")
-                .With("GapBlocks", FormatBlocks(previousEntry->BlockIndex + 1, entry.BlockIndex))
+                .With("GapBlocks", FormatBlockIndexRange(previousEntry->BlockIndex + 1, entry.BlockIndex))
                 .WithFormat("GapBlockOffsets", "[%v,%v)", previousEntry->EndOffset, entry.BeginOffset)
                 .With("GapBlockCount", entry.BlockIndex - previousEntry->BlockIndex - 1)
                 .With("GapSize", readGapSize);
@@ -689,7 +689,7 @@ TFuture<void> TBlobChunkBase::ReadBlocks(
 {
     YT_TLOG_DEBUG("Started reading blob chunk blocks")
         .With("ChunkId", Id_)
-        .With("Blocks", FormatBlocks(
+        .With("Blocks", FormatBlockIndexRange(
             readBlocksRequest.FirstBlockIndex,
             readBlocksRequest.FirstBlockIndex + readBlocksRequest.BlocksToRead - 1))
         .With("LocationId", Location_->GetId())
@@ -1115,7 +1115,7 @@ void TBlobChunkBase::OnBlocksRead(
 
     YT_TLOG_DEBUG("Finished reading blob chunk blocks")
         .With("ChunkId", Id_)
-        .With("Blocks", FormatBlocks(firstBlockIndex, firstBlockIndex + blocksToRead - 1))
+        .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blocksToRead - 1))
         .With("LocationId", Location_->GetId())
         .With("LocationUuid", Location_->GetUuid())
         .With("LocationIndex", Location_->GetIndex())

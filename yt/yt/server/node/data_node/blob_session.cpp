@@ -237,7 +237,7 @@ private:
         auto totalSize = GetByteSize(blocks);
 
         YT_TLOG_DEBUG("Started writing blocks")
-            .With("Blocks", FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1))
+            .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1))
             .With("TotalSize", totalSize);
 
         TWallTimer timer;
@@ -255,7 +255,7 @@ private:
                 auto time = timer.GetElapsedTime();
 
                 YT_TLOG_DEBUG("Finished writing blocks")
-                    .With("Blocks", FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1))
+                    .With("Blocks", FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1))
                     .With("Time", time);
 
                 auto& performanceCounters = Location_->GetPerformanceCounters();

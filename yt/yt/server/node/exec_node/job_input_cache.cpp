@@ -319,7 +319,7 @@ TFuture<std::vector<TBlock>> TJobInputCache::ReadBlocks(
     auto annotation = Format(
         "Proxying read via exec node (ChunkId: %v, Blocks: %v)",
         chunkId,
-        FormatBlocks(firstBlockIndex, firstBlockIndex + blockCount - 1));
+        FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1));
     options.ClientOptions.WorkloadDescriptor.Annotations.push_back(std::move(annotation));
     options.ClientOptions.MemoryUsageTracker = BlockMemoryTracker_;
 

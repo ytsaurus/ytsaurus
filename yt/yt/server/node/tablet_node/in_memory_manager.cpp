@@ -666,7 +666,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     if (preThrottledBytes) {
         YT_TLOG_DEBUG("Preliminary throttling of network bandwidth for preload")
-            .With("Blocks", FormatBlocks(startBlockIndex, endBlockIndex))
+            .With("Blocks", FormatBlockIndexRange(startBlockIndex, endBlockIndex))
             .With("Bytes", preThrottledBytes);
 
         WaitFor(networkThrottler->Throttle(*preThrottledBytes))
@@ -686,7 +686,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         int readBlockCount = compressedBlocks.size();
         YT_TLOG_DEBUG("Finished reading chunk blocks")
-            .With("Blocks", FormatBlocks(blockIndex, blockIndex + readBlockCount - 1));
+            .With("Blocks", FormatBlockIndexRange(blockIndex, blockIndex + readBlockCount - 1));
 
         for (const auto& compressedBlock : compressedBlocks) {
             compressedDataSize += compressedBlock.Size();
@@ -705,7 +705,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
             case EInMemoryMode::Uncompressed: {
                 YT_TLOG_DEBUG("Decompressing chunk blocks")
-                    .With("Blocks", FormatBlocks(blockIndex, blockIndex + readBlockCount - 1))
+                    .With("Blocks", FormatBlockIndexRange(blockIndex, blockIndex + readBlockCount - 1))
                     .With("Codec", compressionCodec->GetId());
 
                 std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;

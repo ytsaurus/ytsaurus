@@ -1621,7 +1621,7 @@ private:
             YT_TLOG_DEBUG("Writing journal replica")
                 .With("Address", node->Descriptor.GetDefaultAddress())
                 .With("ChunkId", CurrentChunkSession_->Id)
-                .With("Blocks", FormatBlocks(
+                .With("Blocks", FormatBlockIndexRange(
                     node->FirstPendingBlockIndex,
                     node->FirstPendingBlockIndex + flushRowCount - 1))
                 .WithFormat("Rows", "%v-%v", node->FirstPendingRowIndex, node->FirstPendingRowIndex + flushRowCount - 1)
@@ -1672,7 +1672,7 @@ private:
             YT_TLOG_DEBUG("Journal replica written")
                 .With("Address", node->Descriptor.GetDefaultAddress())
                 .With("ChunkId", session->Id)
-                .With("Blocks", FormatBlocks(
+                .With("Blocks", FormatBlockIndexRange(
                     node->FirstPendingBlockIndex,
                     node->FirstPendingBlockIndex + flushRowCount - 1))
                 .WithFormat("Rows", "%v-%v", node->FirstPendingRowIndex, node->FirstPendingRowIndex + flushRowCount - 1)

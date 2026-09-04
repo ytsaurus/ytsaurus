@@ -151,7 +151,7 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     if (duplicateBlockCount > 0) {
         YT_TLOG_DEBUG("Skipped duplicate blocks")
             .With("ChunkId", SessionId_.ChunkId)
-            .With("Blocks", FormatBlocks(startBlockIndex, startBlockIndex + duplicateBlockCount - 1));
+            .With("Blocks", FormatBlockIndexRange(startBlockIndex, startBlockIndex + duplicateBlockCount - 1));
     }
 
     i64 payloadSize = 0;

@@ -3407,7 +3407,7 @@ public:
         , EstimatedSize_(options.EstimatedSize)
     {
         YT_TLOG_DEBUG("Will read block range")
-            .With("Blocks", FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
+            .With("Blocks", FormatBlockIndexRange(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
     }
 
     TFuture<std::vector<TBlock>> Run()
@@ -3502,13 +3502,13 @@ private:
         req->SetResponseHeavy(true);
         if (SessionOptions_.Cookie) {
             req->SetRequestInfo("Blocks: %v, EstimatedSize: %v, BytesThrottled: %v, Cookie: %x",
-                FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
+                FormatBlockIndexRange(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
                 EstimatedSize_,
                 DataBytesThrottled_,
                 *SessionOptions_.Cookie);
         } else {
             req->SetRequestInfo("Blocks: %v, EstimatedSize: %v, BytesThrottled: %v",
-                FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
+                FormatBlockIndexRange(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
                 EstimatedSize_,
                 DataBytesThrottled_);
         }
@@ -3602,7 +3602,7 @@ private:
 
         YT_TLOG_DEBUG("Finished processing block response")
             .With("PeerId", peerId)
-            .With("BlocksReceived", FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + blocksReceived - 1))
+            .With("BlocksReceived", FormatBlockIndexRange(FirstBlockIndex_, FirstBlockIndex_ + blocksReceived - 1))
             .With("BytesReceived", bytesReceived);
 
         if (ShouldThrottle(peerId, DataBytesReceived_ > DataBytesThrottled_)) {
@@ -3623,7 +3623,7 @@ private:
     void OnSessionSucceeded()
     {
         YT_TLOG_DEBUG("Some blocks are fetched")
-            .With("Blocks", FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
+            .With("Blocks", FormatBlockIndexRange(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1));
 
         AccountExtraMediumBandwidth(DataBytesThrottled_);
 
