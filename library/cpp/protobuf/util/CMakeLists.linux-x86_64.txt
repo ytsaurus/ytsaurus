@@ -23,7 +23,7 @@ target_link_libraries(cpp-protobuf-util PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  contrib-libs-protobuf
+  cpp-protobuf-runtime
   library-cpp-binsaver
   protobuf-util-proto
   cpp-string_utils-base64
@@ -35,6 +35,7 @@ target_sources(cpp-protobuf-util PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/util/path.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/util/pb_io.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/util/simple_reflection.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/util/stream_adaptors.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/util/walk.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/util/iterators.h
   ${PROJECT_SOURCE_DIR}/library/cpp/protobuf/util/pb_utils.h
