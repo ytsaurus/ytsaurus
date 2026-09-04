@@ -73,6 +73,23 @@ DEFINE_ENUM(EPullerErrorKind,
     (UnableToPickQueueReplica)
 );
 
+DEFINE_ENUM(EPullerSkipReason,
+    (Unknown)
+    (NoTabletSnapshot)
+    (NoReplicationCard)
+    (OutdatedReplicationCard)
+    (NotActiveServant)
+    (NoSelfReplica)
+    (WrongSelfReplicaPath)
+    (SelfReplicaIsDisabled)
+    (TransactionNotSerialized)
+    (Reconfiguring)
+    (EraChanged)
+    (NotAsync)
+    (Failed)
+    (None)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline static constexpr int TabletRowsPerRead = 1000;
@@ -236,6 +253,7 @@ public:
                         .Item("estimated_overdraft_duration")
                             .Value(ReplicationThrottler_->GetEstimatedOverdraftDuration())
                     .EndMap()
+                .Item("iteration_skip_reason").Value(SkipReason_.load())
             .EndMap();
     }
 
@@ -271,6 +289,7 @@ private:
     TIterationTimeTracker ReplicationIterationTimeTracker_;
 
     TPeriodicExecutorPtr ReplicationExecutor_;
+    std::atomic<EPullerSkipReason> SkipReason_ = EPullerSkipReason::Unknown;
 
     void UpdatePullerErrors(TTabletErrors& tabletErrors, TError currentPullError)
     {
@@ -318,22 +337,30 @@ private:
         try {
             tabletSnapshot = TabletSnapshotStore_->FindTabletSnapshot(TabletId_, MountRevision_);
             if (!tabletSnapshot) {
+                SkipReason_.store(EPullerSkipReason::NoTabletSnapshot);
+
                 THROW_ERROR_EXCEPTION("No tablet snapshot is available")
                     .With(HardErrorAttribute);
             }
 
             auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Acquire();
             if (!replicationCard) {
+                SkipReason_.store(EPullerSkipReason::NoReplicationCard);
+
                 THROW_ERROR_EXCEPTION("No replication card");
             }
 
             auto snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
             if (snapshotEra == InvalidReplicationEra) {
+                SkipReason_.store(EPullerSkipReason::OutdatedReplicationCard);
+
                 YT_TLOG_DEBUG("Will not pull rows since replication era is not known yet");
                 return;
             }
 
             if (replicationCard->Era < snapshotEra) {
+                SkipReason_.store(EPullerSkipReason::OutdatedReplicationCard);
+
                 // This can happen right after snapshot loading when old replication card is fetched from cache.
                 YT_TLOG_DEBUG("Will not pull rows since replication card is outdated")
                     .With("ReplicationCardEra", replicationCard->Era)
@@ -342,12 +369,16 @@ private:
             }
 
             if (!tabletSnapshot->TabletRuntimeData->SmoothMovementData.IsActiveServant) {
+                SkipReason_.store(EPullerSkipReason::NotActiveServant);
+
                 YT_TLOG_DEBUG("Will not pull rows since tablet servant is not active");
                 return;
             }
 
             auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
             if (!selfReplica) {
+                SkipReason_.store(EPullerSkipReason::NoSelfReplica);
+
                 THROW_ERROR_EXCEPTION("Table unable to identify self replica in replication card")
                     .With("upstream_replica_id", tabletSnapshot->UpstreamReplicaId)
                     .With(HardErrorAttribute);
@@ -356,6 +387,8 @@ private:
             auto localConnection = ReplicatorClientCache_.GetLocalClient()->GetNativeConnection();
             const auto& clusterName = localConnection->GetClusterName().value();
             if (!IsReplicaLocationValid(selfReplica, tabletSnapshot->TablePath, clusterName)) {
+                SkipReason_.store(EPullerSkipReason::WrongSelfReplicaPath);
+
                 THROW_ERROR_EXCEPTION("Upstream replica id corresponds to another table")
                     .With("upstream_replica_id", tabletSnapshot->UpstreamReplicaId)
                     .With("table_path", tabletSnapshot->TablePath)
@@ -366,6 +399,8 @@ private:
             }
 
             if (IsReplicaDisabled(selfReplica->State)) {
+                SkipReason_.store(EPullerSkipReason::SelfReplicaIsDisabled);
+
                 YT_TLOG_DEBUG("Will not pull rows since replica is not enabled")
                     .With("ReplicaState", selfReplica->State);
                 return;
@@ -375,6 +410,8 @@ private:
             if (auto delayedLocklessRowCount = tabletSnapshot->TabletRuntimeData->DelayedLocklessRowCount.load();
                 delayedLocklessRowCount > 0)
             {
+                SkipReason_.store(EPullerSkipReason::TransactionNotSerialized);
+
                 YT_TLOG_DEBUG("Will not pull rows since some transactions are not serialized yet")
                     .With("DelayedLocklessRowCount", delayedLocklessRowCount);
                 return;
@@ -382,6 +419,8 @@ private:
 
             auto replicationRound = tabletSnapshot->TabletChaosData->ReplicationRound.load();
             if (replicationRound < ReplicationRound_) {
+                SkipReason_.store(EPullerSkipReason::TransactionNotSerialized);
+
                 YT_TLOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet")
                     .With("ReplicationRound", replicationRound);
                 return;
@@ -389,12 +428,16 @@ private:
             ReplicationRound_ = replicationRound;
 
             if (auto pullRowsTransactionId = tabletSnapshot->TabletChaosData->PreparedWritePulledRowsTransactionId.Load()) {
+                SkipReason_.store(EPullerSkipReason::TransactionNotSerialized);
+
                 YT_TLOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet")
                     .With("TransactionId", pullRowsTransactionId);
                 return;
             }
 
             if (auto advanceTransactionId = tabletSnapshot->TabletChaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+                SkipReason_.store(EPullerSkipReason::TransactionNotSerialized);
+
                 YT_TLOG_DEBUG("Will not pull rows since previous advance transaction is not fully serialized yet")
                     .With("TransactionId", advanceTransactionId);
                 return;
@@ -405,6 +448,8 @@ private:
             if (writeMode == ETabletWriteMode::Pull) {
                 configGuard = ChaosAgent_->TryGetConfigLockGuard();
                 if (!configGuard) {
+                    SkipReason_.store(EPullerSkipReason::Reconfiguring);
+
                     YT_TLOG_DEBUG("Tablet is being reconfigured right now, skipping replication iteration");
                     return;
                 }
@@ -416,6 +461,8 @@ private:
             }
 
             if (snapshotEra != tabletSnapshot->TabletRuntimeData->ReplicationEra.load()) {
+                SkipReason_.store(EPullerSkipReason::EraChanged);
+
                 YT_TLOG_DEBUG("Skipping pull rows iteration since snapshot era has changed")
                     .With("SnapshotEra", snapshotEra)
                     .With("ReplicationEra", tabletSnapshot->TabletRuntimeData->ReplicationEra.load());
@@ -423,6 +470,8 @@ private:
             }
 
             if (writeMode != ETabletWriteMode::Pull) {
+                SkipReason_.store(EPullerSkipReason::NotAsync);
+
                 YT_TLOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling")
                     .With("WriteMode", writeMode);
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
@@ -433,11 +482,15 @@ private:
             auto replicationProgress = tabletSnapshot->TabletRuntimeData->ReplicationProgress.Acquire();
 
             if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, LastReplicationProgressAdvance_)) {
+                SkipReason_.store(EPullerSkipReason::TransactionNotSerialized);
+
                 YT_TLOG_DEBUG("Skipping chaos agent iteration because last progress advance is not there yet")
                     .With("TabletReplicationProgress", static_cast<TReplicationProgress>(*replicationProgress))
                     .With("LastReplicationProgress", LastReplicationProgressAdvance_);
                 return;
             }
+
+            SkipReason_.store(EPullerSkipReason::None);
 
             if (auto newProgress = MaybeAdvanceReplicationProgress(selfReplica, replicationProgress)) {
                 if (!IsReplicationProgressGreaterOrEqual(*newProgress, LastReplicationProgressAdvance_)) {
@@ -475,6 +528,10 @@ private:
 
             UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
         } catch (const std::exception& ex) {
+            if (SkipReason_.load() == EPullerSkipReason::None) {
+                SkipReason_.store(EPullerSkipReason::Failed);
+            }
+
             QueueReplicaSelector_.ResetLastPulledFromReplicaId();
             auto error = TError(ex);
             YT_TLOG_ERROR("Error pulling rows, backing off")
