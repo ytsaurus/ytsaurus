@@ -45,17 +45,25 @@ public:
         auto predicate = attributes->Find<std::string>("predicate");
         auto evaluatedColumnsSchema = attributes->Find<TTableSchemaPtr>("evaluated_columns_schema");
 
-        auto mountInfos = WaitFor(AllSucceeded(std::vector{
-                Client_->Connection_->GetTableMountCache()->GetTableInfo(tablePath),
-                Client_->Connection_->GetTableMountCache()->GetTableInfo(indexTablePath),
+        NApi::TGetNodeOptions getNodeOptions;
+        getNodeOptions.Attributes = {"id", "schema"};
+        getNodeOptions.ReadFrom = EMasterChannelKind::Cache;
+
+        auto tablesMetadata = WaitFor(AllSucceeded(std::vector{
+                Client_->GetNode(tablePath, getNodeOptions),
+                Client_->GetNode(indexTablePath, getNodeOptions),
             }))
             .ValueOrThrow();
 
+        auto tableNode = ConvertToNode(tablesMetadata[0]);
+        auto indexTableNode = ConvertToNode(tablesMetadata[1]);
 
-        auto indexTableSchema = mountInfos[1]->Schemas[ETableSchemaKind::Primary];
+        auto tableSchema = tableNode->Attributes().Get<TTableSchema>("schema");
+        auto indexTableSchema = indexTableNode->Attributes().Get<TTableSchema>("schema");
 
-        auto tableId = mountInfos[0]->TableId;
-        auto indexTableId = mountInfos[1]->TableId;
+        auto tableId = tableNode->Attributes().Get<TTableId>("id");
+        auto indexTableId = indexTableNode->Attributes().Get<TTableId>("id");
+
         auto tableType = TypeFromId(tableId);
 
         if (tableType != TypeFromId(indexTableId)) {
@@ -100,8 +108,8 @@ public:
 
         ValidateIndexSchema(
             kind,
-            *mountInfos[0]->Schemas[ETableSchemaKind::Primary],
-            *indexTableSchema,
+            tableSchema,
+            indexTableSchema,
             predicate,
             evaluatedColumnsSchema,
             unfoldedColumns);
