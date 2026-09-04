@@ -175,12 +175,28 @@ void TStoreBackgroundActivityOrchidConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TExponentialBackoffOptions TCompactionHintFetcherConfig::DefaultRetryBackoff{
+    .InvocationCount = std::numeric_limits<int>::max(),
+    .MinBackoff = TDuration::Seconds(5),
+    .MaxBackoff = TDuration::Minutes(5),
+    .BackoffMultiplier = 2.0,
+};
+
 void TCompactionHintFetcherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("periodic_executor", &TThis::PeriodicExecutor)
         .Default({.Period = TDuration::Seconds(1)});
     registrar.Parameter("request_throttler", &TThis::RequestThrottler)
         .DefaultCtor([] { return TThroughputThrottlerConfig::Create(/*limit*/ 300); });
+    registrar.Parameter("retry_backoff", &TThis::RetryBackoff)
+        .Default(DefaultRetryBackoff);
+
+    registrar.Postprocessor([] (TThis* config) {
+        THROW_ERROR_EXCEPTION_UNLESS(
+            config->RetryBackoff.InvocationCount == std::numeric_limits<int>::max(),
+            "\"invocation_count\" must be equal to %v",
+            std::numeric_limits<int>::max());
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

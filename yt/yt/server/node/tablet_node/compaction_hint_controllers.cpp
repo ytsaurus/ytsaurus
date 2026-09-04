@@ -1,5 +1,6 @@
 #include "compaction_hint_controllers.h"
 #include "compaction_hint_fetching.h"
+#include "config.h"
 #include "tablet.h"
 #include "sorted_chunk_store.h"
 #include "chunk_view_size_compaction_hint.h"
@@ -127,15 +128,20 @@ TCompactionHintFetchPipelinePtr BuildFetchPipeline(
     TSortedChunkStore* store,
     NLsm::EStoreCompactionHintKind kind)
 {
+    const auto& fetcher = store->GetTablet()->GetCompactionHintFetcher(kind);
+    const auto& retryBackoffOptions = fetcher
+        ? fetcher->GetRetryBackoffOptions()
+        : TCompactionHintFetcherConfig::DefaultRetryBackoff;
+
     switch (kind) {
         case NLsm::EStoreCompactionHintKind::ChunkViewTooNarrow:
-            return CreateChunkViewSizeFetchPipeline(store);
+            return CreateChunkViewSizeFetchPipeline(store, retryBackoffOptions);
 
         case NLsm::EStoreCompactionHintKind::VersionedRowDigest:
-            return CreateRowDigestFetchPipeline(store);
+            return CreateRowDigestFetchPipeline(store, retryBackoffOptions);
 
         case NLsm::EStoreCompactionHintKind::MinHashDigest:
-            return CreateMinHashDigestFetchPipeline(store);
+            return CreateMinHashDigestFetchPipeline(store, retryBackoffOptions);
 
         default:
             YT_TLOG_FATAL("Building fetching pipeline of store compaction hint is not supported")
