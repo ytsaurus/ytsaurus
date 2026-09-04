@@ -145,7 +145,9 @@ func decodeGeneric(r *Reader, v *any) error {
 			panic("invalid decoder state")
 		}
 	default:
-		panic("invalid decoder state")
+		// Reachable from valid tokenization when a value is expected but absent,
+		// e.g. an attributes node with no value ("{k=<a=1>}" or "<a=1>").
+		return &SyntaxError{Message: "unexpected end of value while decoding"}
 	}
 
 	return nil
@@ -160,7 +162,7 @@ func decodeMap(r *Reader, v *map[string]any) error {
 	switch e {
 	case EventLiteral:
 		if r.currentType != TypeEntity {
-			panic("invalid decoder state")
+			return &TypeError{UserType: genericMapType, YSONType: r.currentType}
 		}
 	case EventBeginMap:
 		m := make(map[string]any)
@@ -190,7 +192,7 @@ func decodeMap(r *Reader, v *map[string]any) error {
 			panic("invalid decoder state")
 		}
 	default:
-		panic("invalid decoder state")
+		return &TypeError{UserType: genericMapType, YSONType: r.currentType}
 	}
 
 	return nil
