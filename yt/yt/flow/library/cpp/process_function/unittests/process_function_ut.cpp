@@ -119,6 +119,25 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Fills the columns of the output stream by hand instead of emitting a YSON message -- the
+//! shape of a source that owns its output schema.
+class TRawColumnFunction
+    : public IProcessFunction
+{
+public:
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        auto builder = context->MakeOutputMessageBuilder();
+        builder.Payload().Set(GetColumnValue<std::string>(message, "text"), "value");
+        output->AddMessage(builder.Finish());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Whole-batch variant of TSplitFunction: overrides Process to split every message in the
 //! epoch's batch.
 class TBatchSplitFunction
@@ -437,6 +456,28 @@ TEST(TProcessFunctionTest, SourceFunctionEmitsWords)
     EXPECT_EQ(GetColumnValue<std::string>(output->GetMessages()[0].Message, "word"), "hello");
     EXPECT_EQ(GetColumnValue<std::string>(output->GetMessages()[1].Message, "word"), "world");
     EXPECT_EQ(GetColumnValue<std::string>(output->GetMessages()[2].Message, "word"), "flow");
+}
+
+TEST(TProcessFunctionTest, RawSchemaStreamTakesItsColumns)
+{
+    auto context = TTestRuntimeContextBuilder()
+        .RegisterStream(
+            "values",
+            ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(R"([{name=value;type=string}])"))))
+        .Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto inputSchema = ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(
+        R"([{name=text;type=string}])")));
+    auto message = MakeTestMessage("input", MakeKey<ui64>(0), inputSchema, [] (TMessageBuilder& builder) {
+        builder.Payload().Set(std::string("flow"), "text");
+    });
+
+    New<TRawColumnFunction>()->ProcessMessage(message, output, context);
+
+    ASSERT_EQ(std::ssize(output->GetMessages()), 1);
+    EXPECT_EQ(output->GetMessages()[0].Message.StreamId, TStreamId("values"));
+    EXPECT_EQ(GetColumnValue<std::string>(output->GetMessages()[0].Message, "value"), "flow");
 }
 
 TEST(TProcessFunctionTest, EpochUniqueSeqNoIsExposedWhenPublished)
