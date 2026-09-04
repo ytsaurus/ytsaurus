@@ -346,6 +346,19 @@ double TOrderedSourceBase::GetOfferedCount() const
     return OfferedCount_.GetTotal();
 }
 
+std::optional<TSystemTimestamp> TOrderedSourceBase::GetLastPersistedWriteTimestamp() const
+{
+    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
+    return State_->LastPersistedWriteTimestamp;
+}
+
+bool TOrderedSourceBase::AreOffsetsEquivalent(const TOffset& lhs, const TOffset& rhs) const
+{
+    return lhs == rhs ||
+        ConvertOffsetToLexicographicallyComparableString(lhs) ==
+        ConvertOffsetToLexicographicallyComparableString(rhs);
+}
+
 void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
@@ -544,7 +557,10 @@ TFuture<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::GetNextBatch(
 
     std::optional<TOffset> offsetLimitExclusive;
     if (IsDraining()) {
-        if (NextReadOffset_ >= State_->PublishedOffsetExclusive) {
+        const bool publishedOffsetReached =
+            NextReadOffset_ >= State_->PublishedOffsetExclusive ||
+            AreOffsetsEquivalent(NextReadOffset_, State_->PublishedOffsetExclusive);
+        if (publishedOffsetReached) {
             return MakeFuture<std::vector<ISource::TMessageBatch>>({});
         } else {
             offsetLimitExclusive = State_->PublishedOffsetExclusive;
@@ -636,7 +652,7 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
     const bool wasEmptyRecently = State_->CommittedOffsetExclusive == State_->MaxOffsetExclusive &&
         State_->MaxOffsetIsConfirmed;
     inflight->Empty = wasEmptyRecently && IsFinite();
-    inflight->Suspended = State_->CommittedOffsetExclusive == State_->PublishedOffsetExclusive &&
+    inflight->Suspended = AreOffsetsEquivalent(State_->CommittedOffsetExclusive, State_->PublishedOffsetExclusive) &&
         (IsDraining() || inflight->Empty);
 
     const i64 offsetLag = DoGetEstimatedRowsAtOffset(State_->MaxOffsetExclusive) - DoGetEstimatedRowsAtOffset(State_->CommittedOffsetExclusive);
