@@ -407,15 +407,15 @@ public:
         traverseData->UnitedOutputStream = MergeStreamTraverseData(ConcatVectors(outputStreams, completedStream), EInflightMerge::Sum, /*allowPartial*/ true);
         auto unitedInputStream = MergeStreamTraverseData(ConcatVectors(inputStreams, completedStream), EInflightMerge::None);
 
-        if (unitedInputStream->Epoch == flowView->State->ExecutionSpec->GetEpoch() && traverseData->UnitedOutputStream->Epoch == flowView->State->ExecutionSpec->GetEpoch()) {
-            auto newWatermark = std::min(traverseData->UnitedOutputStream->SystemWatermark, unitedInputStream->SystemWatermark);
-            if (traverseData->InputSystemWatermark > newWatermark) {
-                YT_TLOG_WARNING("Possible data loss: system has events below InputSystemWatermark.")
-                    .With("InputSystemWatermark", traverseData->InputSystemWatermark)
-                    .With("ComputedWatermark", newWatermark);
-            }
-            traverseData->InputSystemWatermark = std::max(newWatermark, traverseData->InputSystemWatermark);
+        // A partition id keeps its range, and its reported watermark is a durable monotone frontier.
+        // With full current-layout coverage above, an older-epoch report can only lower this minimum.
+        auto newWatermark = std::min(traverseData->UnitedOutputStream->SystemWatermark, unitedInputStream->SystemWatermark);
+        if (traverseData->InputSystemWatermark > newWatermark) {
+            YT_TLOG_WARNING("Possible data loss: system has events below InputSystemWatermark.")
+                .With("InputSystemWatermark", traverseData->InputSystemWatermark)
+                .With("ComputedWatermark", newWatermark);
         }
+        traverseData->InputSystemWatermark = std::max(newWatermark, traverseData->InputSystemWatermark);
 
         traverseData->UnitedStream = MergeStreamTraverseData(
             ConcatVectors(sourceStreams, timerStreams, keyVisitorStreams, outputStreams, completedStream),
