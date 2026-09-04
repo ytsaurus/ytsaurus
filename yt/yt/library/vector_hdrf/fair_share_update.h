@@ -269,6 +269,7 @@ private:
     TChildSuggestionShares GetChildSuggestionSharesNormal(double fitFactor);
 
     void ComputeImprovedFairShareByFitFactor(const std::vector<TVectorPiecewiseLinearFunction>& childrenFunctions);
+    void ComputeFastFifoFairShareByFitFactor();
 
     friend class TPool;
     friend class TRootElement;
@@ -371,6 +372,7 @@ struct TFairShareUpdateOptions
     bool EnableStepFunctionForGangOperations = false;
     bool EnableImprovedFairShareByFitFactorComputation = false;
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap = false;
+    bool EnableFastFifoFairShareByFitFactorComputation = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

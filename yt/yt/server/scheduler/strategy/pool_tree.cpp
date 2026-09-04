@@ -1931,6 +1931,8 @@ private:
                             .EnableImprovedFairShareByFitFactorComputation = config->EnableImprovedFairShareByFitFactorComputation,
                             .EnableImprovedFairShareByFitFactorComputationDistributionGap =
                                 config->EnableImprovedFairShareByFitFactorComputationDistributionGap,
+                            .EnableFastFifoFairShareByFitFactorComputation =
+                                config->EnableFastFifoFairShareByFitFactorComputation,
                         },
                         fairShareUpdateResult.ResourceLimits,
                         now,

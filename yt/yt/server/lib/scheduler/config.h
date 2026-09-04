@@ -550,6 +550,7 @@ struct TStrategyTreeConfig
     bool EnableStepFunctionForGangOperations;
     bool EnableImprovedFairShareByFitFactorComputation;
     bool EnableImprovedFairShareByFitFactorComputationDistributionGap;
+    bool EnableFastFifoFairShareByFitFactorComputation;
 
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
