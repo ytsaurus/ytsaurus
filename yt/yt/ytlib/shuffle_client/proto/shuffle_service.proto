@@ -21,8 +21,9 @@ message TReqStartShuffle
     // schemaful: the schema is the single source of the column name-to-id
     // mapping shared by writers and readers.
     optional NYT.NTableClient.NProto.TTableSchemaExt schema = 7;
-    // YSON-serialized TPushShuffleConfig; push-based only.
-    optional bytes push_config = 8;
+    reserved 8;
+    // YSON-serialized TShuffleConfig.
+    optional bytes config = 9;
 }
 
 message TRspStartShuffle

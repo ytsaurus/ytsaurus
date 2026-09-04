@@ -6,13 +6,15 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/library/erasure/impl/public.h>
 
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/rpc/public.h>
-
-#include <yt/yt/library/erasure/impl/public.h>
 
 namespace NYT::NJournalClient {
 
@@ -73,7 +75,8 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
     i64 replicaLagLimit,
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration requestTimeout,
-    NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
+    NNodeTrackerClient::INodeChannelFactoryPtr channelFactory,
+    TWorkloadDescriptor workloadDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

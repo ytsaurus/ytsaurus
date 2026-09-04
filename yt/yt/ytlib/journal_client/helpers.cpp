@@ -548,7 +548,8 @@ public:
         i64 replicaLagLimit,
         std::vector<TChunkReplicaDescriptor> replicas,
         TDuration requestTimeout,
-        INodeChannelFactoryPtr channelFactory)
+        INodeChannelFactoryPtr channelFactory,
+        TWorkloadDescriptor workloadDescriptor)
         : TQuorumSessionBase(
             chunkId,
             std::move(replicas),
@@ -558,6 +559,7 @@ public:
         , Overlayed_(overlayed)
         , CodecId_(codecId)
         , ReplicaLagLimit_(replicaLagLimit)
+        , WorkloadDescriptor_(std::move(workloadDescriptor))
     { }
 
     TFuture<TChunkQuorumInfo> Run()
@@ -572,6 +574,7 @@ private:
     const bool Overlayed_;
     const NErasure::ECodec CodecId_;
     const i64 ReplicaLagLimit_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
 
     struct TChunkMetaResult
     {
@@ -626,7 +629,7 @@ private:
             // Request chunk meta.
             {
                 auto req = proxy.GetChunkMeta();
-                SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+                SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
                 ToProto(req->mutable_chunk_id(), partChunkId);
                 req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
                 req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
@@ -639,7 +642,7 @@ private:
             // Request header block.
             if (Overlayed_) {
                 auto req = proxy.GetBlockRange();
-                SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+                SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
                 ToProto(req->mutable_chunk_id(), partChunkId);
                 req->set_first_block_index(0);
                 req->set_block_count(1);
@@ -851,7 +854,8 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
     i64 replicaLagLimit,
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration requestTimeout,
-    INodeChannelFactoryPtr channelFactory)
+    INodeChannelFactoryPtr channelFactory,
+    TWorkloadDescriptor workloadDescriptor)
 {
     return
         New<TComputeQuorumInfoSession>(
@@ -862,7 +866,8 @@ TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
             replicaLagLimit,
             std::move(replicas),
             requestTimeout,
-            std::move(channelFactory))
+            std::move(channelFactory),
+            std::move(workloadDescriptor))
         ->Run();
 }
 
