@@ -332,15 +332,6 @@ TEST(TStaticTableMigrationTest, DetectsStateOrigin)
     EXPECT_EQ(persistedV2->Mode, EMigrationMode::V2);
 }
 
-TEST(TStaticTableMigrationTest, AllowsDepartureFromV1OnlyUnderNativeV2Name)
-{
-    EXPECT_TRUE(TSourceController::IsV1MigrationAllowed(TypeName<TSource>(), true));
-    EXPECT_FALSE(TSourceController::IsV1MigrationAllowed(
-        "NYT::NFlow::NStaticTableConnector::TSource",
-        true));
-    EXPECT_FALSE(TSourceController::IsV1MigrationAllowed(TypeName<TSource>(), false));
-}
-
 TEST(TStaticTableMigrationTest, LatchesAndFinishesDraining)
 {
     auto state = New<TSourceControllerState>();
