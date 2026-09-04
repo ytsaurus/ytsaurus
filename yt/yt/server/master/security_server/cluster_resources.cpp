@@ -168,7 +168,7 @@ void TClusterResources::Save(NCellMaster::TSaveContext& context) const
     Save(context, TabletCount_);
     Save(context, TabletStaticMemory_);
     Save(context, ChunkHostCellMasterMemory_);
-    Save(context, DetailedMasterMemory_);
+    Save(context, DetailedMasterMemory_.DetailedMasterMemory());
 }
 
 void TClusterResources::Load(NCellMaster::TLoadContext& context)
@@ -180,7 +180,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     Load(context, TabletCount_);
     Load(context, TabletStaticMemory_);
     Load(context, ChunkHostCellMasterMemory_);
-    Load(context, DetailedMasterMemory_);
+    Load(context, DetailedMasterMemory_.DetailedMasterMemory());
 }
 
 void TClusterResources::Save(NCypressServer::TSerializeNodeContext& context) const
@@ -196,7 +196,7 @@ void TClusterResources::Save(NCypressServer::TSerializeNodeContext& context) con
     Save(context, TabletCount_);
     Save(context, TabletStaticMemory_);
     Save(context, ChunkHostCellMasterMemory_);
-    Save(context, DetailedMasterMemory_);
+    Save(context, DetailedMasterMemory_.DetailedMasterMemory());
 }
 
 void TClusterResources::Load(NCypressServer::TMaterializeNodeContext& context)
@@ -213,7 +213,7 @@ void TClusterResources::Load(NCypressServer::TMaterializeNodeContext& context)
     Load(context, TabletCount_);
     Load(context, TabletStaticMemory_);
     Load(context, ChunkHostCellMasterMemory_);
-    Load(context, DetailedMasterMemory_);
+    Load(context, DetailedMasterMemory_.DetailedMasterMemory());
 }
 
 TClusterResources& TClusterResources::operator+=(const TClusterResources& other)

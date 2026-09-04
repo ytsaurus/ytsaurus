@@ -4,8 +4,6 @@
 
 #include <yt/yt/core/ytree/serialize.h>
 
-#include <yt/yt/server/master/cell_master/serialize.h>
-
 #include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
 
 #include <library/cpp/yt/misc/cast.h>
@@ -116,30 +114,6 @@ i64 TDetailedMasterMemory::GetTotal() const
         sum += DetailedMasterMemory_[type];
     }
     return sum;
-}
-
-void TDetailedMasterMemory::Save(NCellMaster::TSaveContext& context) const
-{
-    using NYT::Save;
-    Save(context, DetailedMasterMemory_);
-}
-
-void TDetailedMasterMemory::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, DetailedMasterMemory_);
-}
-
-void TDetailedMasterMemory::Save(NCypressServer::TSerializeNodeContext& context) const
-{
-    using NYT::Save;
-    Save(context, DetailedMasterMemory_);
-}
-
-void TDetailedMasterMemory::Load(NCypressServer::TMaterializeNodeContext& context)
-{
-    using NYT::Load;
-    Load(context, DetailedMasterMemory_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
