@@ -678,6 +678,85 @@ class PreexecutionContractTest(unittest.TestCase):
         self.assertIsNone(result["gaps"])
 
 
+class ArchiveDirRoutingTest(unittest.TestCase):
+    """main() must hand discovery the archive root of the routed service, and an
+    explicit --archive-dir must reach discovery instead of being dropped."""
+
+    def _archive_dir_seen(self, host, extra_argv=()):
+        argv = [
+            "logslice.py", host, "--type", "info",
+            "-t", "2026-07-22 13:00:00", "-e", "2026-07-22 15:00:00",
+        ]
+        argv.extend(extra_argv)
+        log_file = logslice.parse_log_name("node.log")
+        coverage = [(
+            logslice.parse_user_time("2026-07-22 13:00:00"),
+            logslice.parse_user_time("2026-07-22 15:00:00"),
+        )]
+        seen = []
+
+        def candidates(ssh, log_type, start_time, end_time, archive_dir):
+            seen.append(archive_dir)
+            return ["node", "scheduler"], ["logs"]
+
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "ssh_access_preflight",
+                                  return_value=None), \
+                mock.patch.object(logslice, "resolve_logslice",
+                                  return_value="/bin/true"), \
+                mock.patch.object(logslice.Ssh, "connect"), \
+                mock.patch.object(logslice.Ssh, "copy_binary"), \
+                mock.patch.object(logslice.Ssh, "run", return_value="+0300\n"), \
+                mock.patch.object(logslice.Ssh, "run_pipeline_result",
+                                  return_value=logslice.PipelineResult(
+                                      returncode=1, operational_returncode=0,
+                                      stdout="", stderr="")), \
+                mock.patch.object(logslice, "discover_component_candidates",
+                                  side_effect=candidates), \
+                mock.patch.object(logslice, "discover_series", return_value=[
+                    ("live", "node", [log_file])]), \
+                mock.patch.object(logslice, "select_log_files", return_value=(
+                    [log_file], [("live", "node", 1, [log_file])], coverage)), \
+                contextlib.redirect_stderr(io.StringIO()):
+            logslice.main()
+        self.assertEqual(len(seen), 1)
+        return seen[0]
+
+    def test_scheduler_host_reaches_the_scheduler_archive(self):
+        self.assertEqual(
+            self._archive_dir_seen("sas8-9668-scheduler-watt.sas.yp-c.yandex.net"),
+            "/yt/scheduler-logs-archive")
+
+    def test_master_host_keeps_the_master_archive(self):
+        self.assertEqual(
+            self._archive_dir_seen("m001-zeno.vla.yp-c.yandex.net"),
+            "/yt/master-logs-archive")
+
+    def test_archiveless_role_reaches_no_archive(self):
+        self.assertIsNone(self._archive_dir_seen(
+            "vla4-5603-sessions-003-tab-markov.vla.yp-c.yandex.net"))
+
+    def test_explicit_archive_dir_is_honored_on_an_archiveless_route(self):
+        # Previously dropped on the floor for every non-master route.
+        self.assertEqual(
+            self._archive_dir_seen(
+                "vla4-5603-sessions-003-tab-markov.vla.yp-c.yandex.net",
+                ["--archive-dir", "/yt/exe-node-logs-archive"]),
+            "/yt/exe-node-logs-archive")
+
+    def test_explicit_archive_dir_overrides_the_derived_root(self):
+        self.assertEqual(
+            self._archive_dir_seen(
+                "sas8-9668-scheduler-watt.sas.yp-c.yandex.net",
+                ["--archive-dir", "/yt/elsewhere-logs-archive"]),
+            "/yt/elsewhere-logs-archive")
+
+    def test_empty_archive_dir_disables_the_archive(self):
+        self.assertIsNone(self._archive_dir_seen(
+            "sas8-9668-scheduler-watt.sas.yp-c.yandex.net",
+            ["--archive-dir", ""]))
+
+
 class ParseUserTimeTest(unittest.TestCase):
     """Covers every format parse_user_time accepts. These mirror the formats of
     logslice/lib/time_parser.h, since logslice.py forwards the raw -t/-e string
@@ -1344,6 +1423,24 @@ class ComponentRoutingTest(unittest.TestCase):
             ("clock", "clock"),
         )
 
+    def test_scheduler_hostname_maps_to_scheduler_base(self):
+        self.assertEqual(
+            logslice.infer_host_component(
+                "sas8-9668-scheduler-watt.sas.yp-c.yandex.net"
+            ),
+            ("scheduler", "scheduler"),
+        )
+
+    def test_scheduler_hostname_resolves_scheduler_route(self):
+        route = logslice.resolve_component_route(
+            "sas8-9668-scheduler-watt.sas.yp-c.yandex.net",
+            None,
+            ["push-client", "scheduler"],
+        )
+        self.assertEqual(route["role"], "scheduler")
+        self.assertEqual(route["component"], "scheduler")
+        self.assertEqual(route["base"], "scheduler")
+
     def test_master_candidate_selection_beats_more_numerous_sidecar(self):
         parsed = [
             logslice.parse_log_name("master-vla2-1217.debug.log"),
@@ -1415,13 +1512,39 @@ class ComponentRoutingTest(unittest.TestCase):
             ],
         )
 
-    def test_master_archive_is_only_used_for_master_routes(self):
-        self.assertTrue(logslice.should_use_master_archive(
-            "m001-zeno.vla.yp-c.yandex.net", None))
-        self.assertFalse(logslice.should_use_master_archive(
+    def test_archive_root_is_selected_per_role(self):
+        self.assertEqual(
+            logslice.archive_dir_for_route(
+                "m001-zeno.vla.yp-c.yandex.net", None),
+            "/yt/master-logs-archive")
+        self.assertEqual(
+            logslice.archive_dir_for_route(
+                "sas8-9668-scheduler-watt.sas.yp-c.yandex.net", None),
+            "/yt/scheduler-logs-archive")
+
+    def test_roles_without_an_archive_select_no_root(self):
+        # master-cache only looks like a master base; nodes keep no archive that
+        # this tool knows about yet.
+        self.assertIsNone(logslice.archive_dir_for_route(
             "sas5-5383-tab-node-ada.sas.yp-c.yandex.net", None))
-        self.assertFalse(logslice.should_use_master_archive(
+        self.assertIsNone(logslice.archive_dir_for_route(
             "master-cache-0a42-zeno-9d1f.vla.yp-c.yandex.net", None))
+        self.assertIsNone(logslice.archive_dir_for_route(
+            "master-cache-0a42-zeno-9d1f.vla.yp-c.yandex.net", "master-cache"))
+
+    def test_explicit_component_selects_its_archive_root(self):
+        # A location-suffixed base keeps its role, so --component still reaches
+        # the archive on a host whose name does not route.
+        self.assertEqual(
+            logslice.archive_dir_for_route(
+                "mystery-pod.sas.yp-c.yandex.net", "master-vla2-1217"),
+            "/yt/master-logs-archive")
+        self.assertEqual(
+            logslice.archive_dir_for_route(
+                "mystery-pod.sas.yp-c.yandex.net", "scheduler"),
+            "/yt/scheduler-logs-archive")
+        self.assertIsNone(logslice.archive_dir_for_route(
+            "mystery-pod.sas.yp-c.yandex.net", "node-vla5-6094"))
 
 
 class ArchiveDayDirsTest(unittest.TestCase):
