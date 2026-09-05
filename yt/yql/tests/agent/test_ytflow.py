@@ -59,6 +59,8 @@ def get_test_id(request):
 
 
 class TestYtflowBase(TestQueueAgentBase):
+    ENABLE_MULTIDAEMON = True
+
     NUM_MASTERS = 1
     NUM_DISCOVERY_SERVERS = 1
     NUM_NODES = 3
@@ -486,7 +488,7 @@ pragma Ytflow.WorkerMemoryLimit = "1G";
 
 
 class TestYtflow(TestYtflowBase):
-    NUM_TEST_PARTITIONS = 16
+    NUM_TEST_PARTITIONS = 8
 
     @authors("ngc224")
     @pytest.mark.timeout(180)

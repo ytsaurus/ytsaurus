@@ -1,8 +1,9 @@
 from conftest_lib.conftest_queries import *  # noqa
+from conftest_lib.conftest_queries import QueryTracker, update_query_tracker_environment
 
 from common import merge_old_dynconfig_into_new_static
 
-from yt_commands import (get, set, create, write_file)
+from yt_commands import (get, set, create, write_file, exists)
 
 from yt.environment.components.yql_agent import YqlAgent as YqlAgentComponent
 
@@ -14,6 +15,7 @@ from google.protobuf.text_format import Parse, MessageToString
 
 import yql.essentials.providers.common.proto.gateways_config_pb2 as gateways_config_pb2
 
+import contextlib
 import datetime
 import os
 import shutil
@@ -41,15 +43,6 @@ class YqlAgent():
         initial_dynamic_config = config.get("initial_dynamic_config")
         if initial_dynamic_config is not None:
             self.apply_dynamic_config(initial_dynamic_config)
-
-    def __enter__(self):
-        self.yql_agent.run()
-        self.yql_agent.wait()
-        self.yql_agent.init()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.yql_agent.stop()
 
     def render_gateways_conf(self, env):
         gateways_text = self.yql_agent.render_gateways_conf()
@@ -145,18 +138,7 @@ def setup_udf_registry(cls, yql_agent, udfs):
     wait_for_udf_meta_update(client, meta)
 
 
-@pytest.fixture
-def yql_agent(request):
-    cls = request.cls
-    count = getattr(cls, "NUM_YQL_AGENTS", 1)
-
-    libraries = {}
-    if hasattr(cls, "YQL_TEST_LIBRARY"):
-        test_lib_path = os.path.join(cls.Env.configs_path, "test_lib.sql")
-        libraries["test"] = test_lib_path
-        with open(test_lib_path, "w") as fp:
-            fp.write(getattr(cls, "YQL_TEST_LIBRARY"))
-
+def build_yql_agent_config(cls):
     config = {}
     config["modify_yql_agent_config"] = getattr(cls, "modify_yql_agent_config", None)
     config["max_supported_yql_version"] = getattr(cls, "MAX_YQL_VERSION", None)
@@ -166,8 +148,7 @@ def yql_agent(request):
     config["dynamic_config_update_period"] = getattr(cls, "DYNAMIC_CONFIG_UPDATE_PERIOD", "1s")
     config["initial_dynamic_config"] = getattr(cls, "YQL_AGENT_INITIAL_DYNAMIC_CONFIG", None)
 
-    use_qtworker = getattr(cls, "YQL_QTWORKER", False)
-    if use_qtworker:
+    if getattr(cls, "YQL_QTWORKER", False):
         if config.get("subprocess_count"):
             raise YtError("YQL_QTWORKER and YQL_SUBPROCESS_COUNT cannot be set together")
         config["enable_qtworker"] = True
@@ -182,15 +163,76 @@ def yql_agent(request):
             "yql/essentials/tools/udf_dep_stub/libyql_udf_dep_stub.so")
         config["qtworker_skip_instances"] = getattr(cls, "YQL_QTWORKER_SKIP_INSTANCES", None)
 
-    with YqlAgent(cls.Env, cls.remote_envs, count, libraries, config) as yql_agent:
-        update_yql_agent_environment(cls, yql_agent)
-        copy_yql_configs_to_test_folder(yql_agent.yql_agent)
+    return config
+
+
+QT_STATE_BUNDLE = "query_tracker"
+
+
+def _query_tracker_state_object_ids():
+    ids = []
+    for path in ("//sys/users/query_tracker", "//sys/users/yql_agent",
+                 "//sys/access_control_object_namespaces/queries"):
+        if exists(path):
+            ids.append(get(path + "/@id"))
+    bundle = "//sys/tablet_cell_bundles/" + QT_STATE_BUNDLE
+    if exists(bundle):
+        attrs = get(bundle + "/@", attributes=["id", "tablet_cell_ids", "areas"])
+        ids += [attrs["id"], *attrs["tablet_cell_ids"]]
+        ids += [area["id"] for area in attrs["areas"].values()]
+    return ids
+
+
+# Class-scoped: start the yql-agent + qtworker and the query-tracker once and reuse across methods.
+@pytest.fixture(scope="class")
+def yql_env(request):
+    cls = request.cls
+
+    libraries = {}
+    if hasattr(cls, "YQL_TEST_LIBRARY"):
+        test_lib_path = os.path.join(cls.Env.configs_path, "test_lib.sql")
+        libraries["test"] = test_lib_path
+        with open(test_lib_path, "w") as fp:
+            fp.write(getattr(cls, "YQL_TEST_LIBRARY"))
+
+    config = build_yql_agent_config(cls)
+
+    with contextlib.ExitStack() as stack:
+        # Spawn the agent + qtworker first so the warmup overlaps query-tracker setup below.
+        agent = YqlAgent(cls.Env, cls.remote_envs, getattr(cls, "NUM_YQL_AGENTS", 1), libraries, config)
+        stack.callback(agent.yql_agent.stop)
+        agent.yql_agent.run()
+
+        qt = stack.enter_context(QueryTracker(cls.Env, getattr(cls, "NUM_QUERY_TRACKERS", 1),
+                                              dedicated_tablet_cell_bundle=QT_STATE_BUNDLE))
+        update_query_tracker_environment(cls, qt)
+
+        # Block on the agent only now; its init() probe query needs the query-tracker up.
+        agent.yql_agent.wait()
+        agent.yql_agent.init()
+
+        update_yql_agent_environment(cls, agent)
+        copy_yql_configs_to_test_folder(agent.yql_agent)
 
         udfs = getattr(cls, "YQL_UDF_REGISTRY", {})
         if udfs:
-            if not use_qtworker:
+            if not config.get("enable_qtworker"):
                 raise YtError("YQL_UDF_REGISTRY requires YQL_QTWORKER to be set")
+            setup_udf_registry(cls, agent, udfs)
 
-            setup_udf_registry(cls, yql_agent, udfs)
+        cls._cleanup_ignore_object_ids = \
+            getattr(cls, "_cleanup_ignore_object_ids", []) + _query_tracker_state_object_ids()
 
-        yield yql_agent
+        yield qt, agent
+
+
+# Thin pass-throughs so the existing tests keep requesting `query_tracker` / `yql_agent` unchanged;
+# both resolve to the single class-scoped `yql_env` above.
+@pytest.fixture(scope="class")
+def query_tracker(yql_env):
+    return yql_env[0]
+
+
+@pytest.fixture(scope="class")
+def yql_agent(yql_env):
+    return yql_env[1]

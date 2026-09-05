@@ -59,9 +59,14 @@ ELSE()
     )
 ENDIF()
 
-FORK_SUBTESTS()
-SPLIT_FACTOR(64)
+FORK_TESTS()
+SPLIT_FACTOR(16)
 
 ENV(YT_LOCAL=1)
+
+# Undo YT_DISABLE_MULTIDAEMON=true set by YaMakeBoilerplateForTests.txt so this suite can run the
+# cluster as a single multidaemon process (TestQueriesYqlBase sets ENABLE_MULTIDAEMON = True).
+# An empty value reads as falsy in yt_env_setup, unlike "false".
+ENV(YT_DISABLE_MULTIDAEMON=)
 
 END()

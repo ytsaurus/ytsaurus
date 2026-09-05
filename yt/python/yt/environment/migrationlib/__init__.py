@@ -43,6 +43,15 @@ def _mount_table(client, path):
     client.mount_table(path, sync=True)
 
 
+def _mount_tables(client, tables_path, table_names):
+    for table in table_names:
+        client.mount_table(ypath_join(tables_path, table), sync=False)
+    for table in table_names:
+        _wait_for_predicate(
+            lambda table=table: client.get(ypath_join(tables_path, table) + "/@tablet_state") == "mounted",
+            "table {} becomes mounted".format(table))
+
+
 def _swap_table(client, target, source, version, mount=True):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False
@@ -442,12 +451,7 @@ class Migration(object):
         client.set(tables_path + "/@version", version)
 
         if mount:
-            for table_name in table_infos.keys():
-                client.mount_table(ypath_join(tables_path, table_name), sync=False)
-            for table_name in table_infos.keys():
-                _wait_for_predicate(
-                    lambda: client.get(ypath_join(tables_path, table_name) + "/@tablet_state") == "mounted",
-                    "table {} becomes mounted".format(table_name))
+            _mount_tables(client, tables_path, table_infos)
 
     def _transform(self, client, transform_begin, transform_end, force, retransform, tables_path, shard_count, pool):
         # TODO(bystrovserg): Mount tables back in case we fail to transform
@@ -607,7 +611,11 @@ class Migration(object):
                 table_info.attributes["tablet_cell_bundle"] = override_tablet_cell_bundle
             if not client.exists(table_path):
                 table_info.create_dynamic_table(client, table_path)
-            table_info.alter_table(client, table_path, shard_count)
+            # Alter without mounting so all tables can be mounted concurrently below;
+            # a synchronous per-table mount here serializes startup (each mount waits).
+            table_info.alter_table(client, table_path, shard_count, mount=False)
+
+        _mount_tables(client, tables_path, table_infos)
 
         client.set(tables_path + "/@version", target_version)
 

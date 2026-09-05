@@ -1,5 +1,5 @@
 from yt_commands import (
-    sync_create_cells, sync_remove_tablet_cells, ls, set, get)
+    sync_remove_tablet_cells, ls, set, get)
 
 from yt.common import wait
 
@@ -36,10 +36,13 @@ pytest_plugins = [
 
 
 class QueryTracker:
-    def __init__(self, env, count):
-        sync_create_cells(1)
+    def __init__(self, env, count, dedicated_tablet_cell_bundle=None):
         self.query_tracker = QueryTrackerComponent()
-        self.query_tracker.prepare(env, config={"count": count, "native_client_supported": True})
+        self.query_tracker.prepare(env, config={
+            "count": count,
+            "native_client_supported": True,
+            "dedicated_tablet_cell_bundle": dedicated_tablet_cell_bundle,
+        })
 
     def __enter__(self):
         self.query_tracker.run()

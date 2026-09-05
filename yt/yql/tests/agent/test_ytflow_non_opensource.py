@@ -326,7 +326,7 @@ pragma Ytflow.LogbrokerWriteCompressionLevel = "{self.LOGBROKER_COMPRESSION_LEVE
 
 
 class TestYtflowLogbroker(TestYtflowExtraProvidersBase):
-    NUM_TEST_PARTITIONS = 16
+    NUM_TEST_PARTITIONS = 8
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
@@ -720,7 +720,7 @@ select * from $stream;
 
 
 class TestYtflowSolomon(TestYtflowExtraProvidersBase):
-    NUM_TEST_PARTITIONS = 16
+    NUM_TEST_PARTITIONS = 8
 
     @authors("artemmashin")
     @pytest.mark.timeout(180)
