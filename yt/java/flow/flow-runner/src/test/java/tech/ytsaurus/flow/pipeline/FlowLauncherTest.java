@@ -6,6 +6,7 @@ import java.io.UncheckedIOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -406,6 +407,42 @@ class FlowLauncherTest {
 
         assertFalse(config.mapNode().getOrThrow("vanilla").mapNode().containsKey("controller"));
         assertFalse(worker().containsKey("layers"));
+    }
+
+    @Test
+    void testDeleteExtendedConfigRemovesTheTempDir() throws IOException {
+        Path extendedConfig = launcher.writeExtendedConfig(config);
+        assertTrue(Files.exists(extendedConfig));
+
+        FlowLauncher.deleteExtendedConfig(extendedConfig);
+
+        assertFalse(Files.exists(extendedConfig));
+        assertFalse(Files.exists(extendedConfig.getParent()));
+        // Deleting an already-removed config is a no-op.
+        FlowLauncher.deleteExtendedConfig(extendedConfig);
+    }
+
+    @Test
+    void testLaunchRemovesTheTempDirAfterFlowServerExits() throws Exception {
+        List<Path> written = new ArrayList<>();
+        FlowLauncher recording = new FlowLauncher(env) {
+            @Override
+            protected List<Path> discoverCompanionJars() {
+                return List.of(Path.of("/build/lib/flow-runner.jar"));
+            }
+
+            @Override
+            Path writeExtendedConfig(YTreeNode pipelineConfig) throws IOException {
+                Path path = super.writeExtendedConfig(pipelineConfig);
+                written.add(path);
+                return path;
+            }
+        };
+
+        assertEquals(0, recording.launch(pipelinePath, "/bin/true", Map.of(), List.of()));
+
+        assertEquals(1, written.size());
+        assertFalse(Files.exists(written.get(0).getParent()));
     }
 
     @Entity

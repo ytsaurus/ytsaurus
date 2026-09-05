@@ -100,29 +100,37 @@ public class FlowLauncher {
         String flowBinAbs = Paths.get(flowBin).toAbsolutePath().toString();
 
         YTreeNode pipelineConfig = buildExtendedConfig(configPath, streams);
-        String extendedConfigPath = writeExtendedConfig(pipelineConfig).toString();
-
-        List<String> command = new ArrayList<>(List.of(flowBinAbs, "--config", extendedConfigPath));
-        command.addAll(flowServerFlags);
-        log.info("Launching {}", command);
-
-        Process flowServer = new ProcessBuilder(command)
-                .inheritIO()
-                .start();
-        // flow_server mutates the cluster, so it must not outlive the runner watching its exit code.
-        Thread terminator = new Thread(flowServer::destroy, "flow-server-terminator");
-        Runtime.getRuntime().addShutdownHook(terminator);
+        Path extendedConfig = writeExtendedConfig(pipelineConfig);
         try {
-            return flowServer.waitFor();
-        } catch (InterruptedException e) {
-            flowServer.destroy();
-            throw e;
-        } finally {
+            List<String> command = new ArrayList<>(List.of(flowBinAbs, "--config", extendedConfig.toString()));
+            command.addAll(flowServerFlags);
+            log.info("Launching {}", command);
+
+            Process flowServer = new ProcessBuilder(command)
+                    .inheritIO()
+                    .start();
+            // flow_server mutates the cluster, so it must not outlive the runner watching its exit code.
+            // The JVM halts once the hook returns, so the config is deleted here too; flow_server
+            // reads it once at startup, so deleting it is safe even after an async destroy.
+            Thread terminator = new Thread(() -> {
+                flowServer.destroy();
+                deleteExtendedConfig(extendedConfig);
+            }, "flow-server-terminator");
+            Runtime.getRuntime().addShutdownHook(terminator);
             try {
-                Runtime.getRuntime().removeShutdownHook(terminator);
-            } catch (IllegalStateException alreadyShuttingDown) {
-                // Shutdown already started; the hook does the job.
+                return flowServer.waitFor();
+            } catch (InterruptedException e) {
+                flowServer.destroy();
+                throw e;
+            } finally {
+                try {
+                    Runtime.getRuntime().removeShutdownHook(terminator);
+                } catch (IllegalStateException alreadyShuttingDown) {
+                    // Shutdown already started; the hook does the job.
+                }
             }
+        } finally {
+            deleteExtendedConfig(extendedConfig);
         }
     }
 
@@ -376,7 +384,8 @@ public class FlowLauncher {
         return new PortoLayersConfig(jdkLayer, systemLayerPath);
     }
 
-    private Path writeExtendedConfig(YTreeNode pipelineConfig) throws IOException {
+    /** Writes the enriched config into a fresh temp dir. Visible for tests. */
+    Path writeExtendedConfig(YTreeNode pipelineConfig) throws IOException {
         Path dir = Files.createTempDirectory("flow_runner_");
         Path path = dir.resolve("extended-pipeline.yson");
         // YTreeTextSerializer decodes every string node through a Java String,
@@ -389,6 +398,17 @@ public class FlowLauncher {
         }
         Files.writeString(path, sb.toString(), StandardCharsets.UTF_8);
         return path;
+    }
+
+    /** Removes the config written by {@link #writeExtendedConfig} together with its temp dir. Visible for tests. */
+    static void deleteExtendedConfig(Path extendedConfig) {
+        try {
+            Files.deleteIfExists(extendedConfig);
+            Files.deleteIfExists(extendedConfig.getParent());
+        } catch (IOException e) {
+            // Best effort: a leftover temp dir is litter, not a launch failure.
+            log.warn("Failed to delete temp config dir {}", extendedConfig.getParent(), e);
+        }
     }
 
     /** Resolved YT porto layer config from {@code yt-porto-layers.yson}. */
