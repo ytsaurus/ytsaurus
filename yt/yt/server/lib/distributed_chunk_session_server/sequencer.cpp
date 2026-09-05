@@ -182,8 +182,6 @@ public:
             if (PendingWriteCount_ == std::numeric_limits<int>::max()) {
                 return MakeFuture<void>(TError("Too many pending distributed chunk session writes"));
             }
-            // NB: Accounting is checked before the record is submitted, so the record that
-            // would overflow the session counters is the one that gets refused.
             if (auto error = TryAccumulateProgress(
                     &AcceptedProgress_,
                     statistics,
@@ -410,8 +408,6 @@ private:
             })));
     }
 
-    //! A failed writer must not be used any more, so the session cannot stay open: without
-    //! this the sequencer would keep answering pings until the next write or close.
     void OnWriterFailed(const TError& error)
     {
         YT_TLOG_DEBUG("Journal chunk writer failed, closing session")

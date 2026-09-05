@@ -67,8 +67,6 @@ struct TOwnedWorkloadSetting
 {
     TYPath Path;
     INodePtr ServiceValue;
-    //! Compares values, so spelling out the value the service would stamp anyway is not a
-    //! deviation.
     bool DiffersFromService = false;
 };
 
@@ -125,9 +123,7 @@ TShuffleConfigPtr BuildShuffleConfig(
     bool usePushBasedShuffle)
 {
     auto config = New<TShuffleConfig>();
-    // Keeping the unrecognized options rather than throwing on them: a caller may legitimately
-    // be newer than this coordinator, and failing the request would take its production down.
-    // They are still worth a warning, since a typo otherwise runs on defaults unnoticed.
+    // NB: A caller newer than this coordinator must keep working.
     config->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
     config->Load(configNode);
 
