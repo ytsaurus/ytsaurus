@@ -3500,18 +3500,15 @@ private:
 
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
-        if (SessionOptions_.Cookie) {
-            req->SetRequestInfo("Blocks: %v, EstimatedSize: %v, BytesThrottled: %v, Cookie: %x",
-                FormatBlockIndexRange(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
-                EstimatedSize_,
-                DataBytesThrottled_,
-                *SessionOptions_.Cookie);
-        } else {
-            req->SetRequestInfo("Blocks: %v, EstimatedSize: %v, BytesThrottled: %v",
-                FormatBlockIndexRange(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
-                EstimatedSize_,
-                DataBytesThrottled_);
-        }
+        req->Annotate()
+            .With("Blocks", FormatBlockIndexRange(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1))
+            .With("EstimatedSize", EstimatedSize_)
+            .With("BytesThrottled", DataBytesThrottled_)
+            .WithFormatIf(
+                SessionOptions_.Cookie.has_value(),
+                "Cookie",
+                "%x",
+                SessionOptions_.Cookie.value_or(0));
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3817,24 +3814,17 @@ private:
 
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
-        if (SessionOptions_.Cookie) {
-            req->SetRequestInfo(
-                "ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v, Cookie: %x",
-                ChunkId_,
-                ExtensionTags_,
-                PartitionTags_,
-                WorkloadDescriptor_,
-                true,
-                *SessionOptions_.Cookie);
-        } else {
-            req->SetRequestInfo(
-                "ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v",
-                ChunkId_,
-                ExtensionTags_,
-                PartitionTags_,
-                WorkloadDescriptor_,
-                true);
-        }
+        req->Annotate()
+            .With("ChunkId", ChunkId_)
+            .With("ExtensionTags", ExtensionTags_)
+            .With("PartitionTags", PartitionTags_)
+            .With("Workload", WorkloadDescriptor_)
+            .With("EnableThrottling", true)
+            .WithFormatIf(
+                SessionOptions_.Cookie.has_value(),
+                "Cookie",
+                "%x",
+                SessionOptions_.Cookie.value_or(0));
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -4330,26 +4320,18 @@ private:
 
         auto req = proxy.LookupRows();
         req->SetResponseHeavy(true);
-        if (SessionOptions_.Cookie) {
-            req->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
-                "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v, Cookie: %x",
-                ChunkId_,
-                SessionOptions_.ReadSessionId,
-                WorkloadDescriptor_,
-                true,
-                Options_->EnableHashChunkIndex,
-                schemaRequested,
-                *SessionOptions_.Cookie);
-        } else {
-            req->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
-                "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v",
-                ChunkId_,
-                SessionOptions_.ReadSessionId,
-                WorkloadDescriptor_,
-                true,
-                Options_->EnableHashChunkIndex,
-                schemaRequested);
-        }
+        req->Annotate()
+            .With("ChunkId", ChunkId_)
+            .With("ReadSessionId", SessionOptions_.ReadSessionId)
+            .With("Workload", WorkloadDescriptor_)
+            .With("PopulateCache", true)
+            .With("EnableHashChunkIndex", Options_->EnableHashChunkIndex)
+            .With("ContainsSchema", schemaRequested)
+            .WithFormatIf(
+                SessionOptions_.Cookie.has_value(),
+                "Cookie",
+                "%x",
+                SessionOptions_.Cookie.value_or(0));
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -4870,20 +4852,16 @@ private:
         auto blockIndexes = std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
         req->SetResponseHeavy(true);
-        if (queuedBatch.Session->SessionOptions_.Cookie) {
-            req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, Cookie: %x",
-                ChunkId_,
-                MakeCompactIntervalView(blockIndexes),
-                blockIndexes.size(),
-                queuedBatch.Session->SessionOptions_.WorkloadDescriptor,
-                *queuedBatch.Session->SessionOptions_.Cookie);
-        } else {
-            req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
-                ChunkId_,
-                MakeCompactIntervalView(blockIndexes),
-                blockIndexes.size(),
-                queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
-        }
+        req->Annotate()
+            .With("ChunkId", ChunkId_)
+            .With("Blocks", MakeCompactIntervalView(blockIndexes))
+            .With("BlockCount", blockIndexes.size())
+            .With("Workload", queuedBatch.Session->SessionOptions_.WorkloadDescriptor)
+            .WithFormatIf(
+                queuedBatch.Session->SessionOptions_.Cookie.has_value(),
+                "Cookie",
+                "%x",
+                queuedBatch.Session->SessionOptions_.Cookie.value_or(0));
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_block_indexes(), std::move(blockIndexes));
         req->SetAcknowledgementTimeout(std::nullopt);
@@ -4913,22 +4891,16 @@ private:
         auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         std::sort(blockIndexes.begin(), blockIndexes.end());
 
-        if (queuedBatch.Session->SessionOptions_.Cookie) {
-            req->SetRequestInfo("ChunkId: %v, Blocks: %v, "
-                "PopulateCache: %v, Workload: %v, Cookie: %x",
-                ChunkId_,
-                MakeCompactIntervalView(blockIndexes),
-                ReaderConfig_->PopulateCache,
-                queuedBatch.Session->SessionOptions_.WorkloadDescriptor,
-                *queuedBatch.Session->SessionOptions_.Cookie);
-        } else {
-            req->SetRequestInfo("ChunkId: %v, Blocks: %v, "
-                "PopulateCache: %v, Workload: %v",
-                ChunkId_,
-                MakeCompactIntervalView(blockIndexes),
-                ReaderConfig_->PopulateCache,
-                queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
-        }
+        req->Annotate()
+            .With("ChunkId", ChunkId_)
+            .With("Blocks", MakeCompactIntervalView(blockIndexes))
+            .With("PopulateCache", ReaderConfig_->PopulateCache)
+            .With("Workload", queuedBatch.Session->SessionOptions_.WorkloadDescriptor)
+            .WithFormatIf(
+                queuedBatch.Session->SessionOptions_.Cookie.has_value(),
+                "Cookie",
+                "%x",
+                queuedBatch.Session->SessionOptions_.Cookie.value_or(0));
 
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);

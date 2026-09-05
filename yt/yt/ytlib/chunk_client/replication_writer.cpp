@@ -1418,11 +1418,10 @@ void TGroup::ProbePutBlocks(const TReplicationWriterPtr& writer, const IChunkWri
         auto req = proxy.ProbePutBlocks();
         req->set_cumulative_block_size(CumulativeBlockSize_);
         ToProto(req->mutable_session_id(), writer->SessionId_);
-        req->SetRequestInfo(
-            "Node: %v, RequestedCumulativeBlockSize: %v, SessionId: %v",
-            node->GetIndex(),
-            CumulativeBlockSize_,
-            writer->SessionId_);
+        req->Annotate()
+            .With("Node", node->GetIndex())
+            .With("RequestedCumulativeBlockSize", CumulativeBlockSize_)
+            .With("SessionId", writer->SessionId_);
         SetRequestIoConsumed(req, options.ClientOptions, writer->Config_->IoConsumedReportWindow);
         SetRequestIoFairShareWeight(req, options.ClientOptions, writer->Config_->IoFairShareWeight);
         auto rspOrError = WaitFor(req->Invoke());
