@@ -429,14 +429,14 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LaunchInVanillaJob(
+TVanillaOperationHandle LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
     const TVanillaConfigPtr& vanillaConfig,
     const NClient::NCache::IClientsCachePtr& clientsCache)
 {
     if (!vanillaConfig->Enable) {
-        return;
+        return {};
     }
 
     // The vault is only assembled right before the operation starts, i.e. after the binary has been
@@ -604,6 +604,11 @@ void LaunchInVanillaJob(
     WriteVanillaOperationSpec(pipelineClient, pipelinePath.GetPath(), persistSpec);
 
     PruneVanillaFiles(pipelineClient, filesDir, keepNames);
+
+    return TVanillaOperationHandle{
+        .Client = runtimeClient,
+        .OperationId = operationId,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

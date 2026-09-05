@@ -25,6 +25,90 @@ using ::testing::StrictMock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TWaitPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
+{
+    auto client = New<StrictMock<TMockClient>>();
+    auto operationId = NScheduler::TOperationId(TGuid::FromString("1-2-3-4"));
+
+    // The controller log tail opens on the log table's row count.
+    EXPECT_CALL(*client, GetTabletInfos(_, _, _))
+        .WillOnce(Return(MakeFuture(std::vector<TTabletInfo>{TTabletInfo{}})));
+    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
+        .WillRepeatedly(Return(MakeFuture<TPipelineState>(TError("Cannot connect to pipeline controller leader"))));
+    EXPECT_CALL(*client, GetOperation(NScheduler::TOperationIdOrAlias{operationId}, _))
+        .WillOnce([] (const NScheduler::TOperationIdOrAlias&, const TGetOperationOptions&) {
+            TOperation operation;
+            operation.State = NScheduler::EOperationState::Aborted;
+            return MakeFuture(operation);
+        });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitPipeline(
+            client,
+            NYPath::TRichYPath("//tmp/pipeline"),
+            TDuration::Hours(1),
+            TVanillaOperationHandle{.Client = client, .OperationId = operationId}),
+        "Vanilla operation 1-2-3-4 is aborted");
+}
+
+TEST(TRunPipelineTest, FailsOnceTheVanillaOperationIsTerminal)
+{
+    auto client = New<StrictMock<TMockClient>>();
+    auto operationId = NScheduler::TOperationId(TGuid::FromString("1-2-3-4"));
+
+    EXPECT_CALL(*client, NodeExists("//tmp/pipeline", _))
+        .WillRepeatedly(Return(MakeFuture(true)));
+    EXPECT_CALL(*client, GetTabletInfos(_, _, _))
+        .WillOnce(Return(MakeFuture(std::vector<TTabletInfo>{TTabletInfo{}})));
+    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
+        .WillRepeatedly(Return(MakeFuture<TPipelineState>(TError("Cannot connect to pipeline controller leader"))));
+    EXPECT_CALL(*client, GetOperation(NScheduler::TOperationIdOrAlias{operationId}, _))
+        .WillOnce([] (const NScheduler::TOperationIdOrAlias&, const TGetOperationOptions&) {
+            TOperation operation;
+            operation.State = NScheduler::EOperationState::Failed;
+            return MakeFuture(operation);
+        });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        RunPipeline(
+            client,
+            "//tmp/pipeline",
+            New<TPipelineSpec>(),
+            New<TDynamicPipelineSpec>(),
+            /*setFlowCoreTarget*/ false,
+            /*graceful*/ true,
+            TDuration::Hours(1),
+            /*enablePipelineCreation*/ false,
+            /*enablePipelineStopOrPause*/ true,
+            TVanillaOperationHandle{.Client = client, .OperationId = operationId}),
+        "Vanilla operation 1-2-3-4 is failed");
+}
+
+TEST(TWaitPipelineTest, KeepsWaitingWhenTheVanillaOperationLookupFails)
+{
+    auto client = New<StrictMock<TMockClient>>();
+    auto operationId = NScheduler::TOperationId(TGuid::FromString("1-2-3-4"));
+
+    EXPECT_CALL(*client, GetTabletInfos(_, _, _))
+        .WillOnce(Return(MakeFuture(std::vector<TTabletInfo>{TTabletInfo{}})));
+
+    InSequence sequence;
+    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
+        .WillOnce(Return(MakeFuture<TPipelineState>(TError("Cannot connect to pipeline controller leader"))));
+    EXPECT_CALL(*client, GetOperation(NScheduler::TOperationIdOrAlias{operationId}, _))
+        .WillOnce(Return(MakeFuture<TOperation>(TError("Scheduler is unavailable"))));
+    EXPECT_CALL(*client, GetPipelineState("//tmp/pipeline", _))
+        .WillOnce(Return(MakeFuture(TPipelineState{.State = EPipelineState::Completed})));
+
+    WaitPipeline(
+        client,
+        NYPath::TRichYPath("//tmp/pipeline"),
+        TDuration::Hours(1),
+        TVanillaOperationHandle{.Client = client, .OperationId = operationId});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(TWaitPipelineStateTest, PassesExplicitRequestTimeout)
 {
     auto client = New<StrictMock<TMockClient>>();

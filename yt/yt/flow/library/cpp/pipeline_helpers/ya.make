@@ -11,6 +11,7 @@ PEERDIR(
 
     yt/yt/flow/library/cpp/pipeline_helpers/flow_execute
     yt/yt/flow/library/cpp/common
+    yt/yt/flow/library/cpp/vanilla
 
     yt/yt/client
     yt/yt/core

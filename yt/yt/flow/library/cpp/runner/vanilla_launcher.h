@@ -2,6 +2,8 @@
 
 #include <yt/yt/flow/library/cpp/runner/public.h>
 
+#include <yt/yt/flow/library/cpp/pipeline_helpers/pipeline.h>
+
 #include <yt/yt/client/cache/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -139,7 +141,7 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
 //! |pipelinePath| must carry the cluster annotation (`<cluster=...>/path/to/pipeline`).
 //! |clientsCache| supplies the clients for the pipeline, runtime and prior-operation clusters.
 //! Called by TSimpleRunnerProgram when the runner config contains a "vanilla" block.
-void LaunchInVanillaJob(
+TVanillaOperationHandle LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
     const TVanillaConfigPtr& vanilla,
