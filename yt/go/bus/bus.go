@@ -174,6 +174,23 @@ func newMessagePacket(id guid.GUID, data [][]byte, flags packetFlags, computeCRC
 	}
 }
 
+func newAckPacket(id guid.GUID) busMsg {
+	hdr := fixedHeader{
+		typ:       packetAck,
+		flags:     packetFlagsNone,
+		partCount: 0,
+		packetID:  id,
+		checksum:  0,
+		signature: packetSignature,
+	}
+
+	return busMsg{
+		fixHeader: hdr,
+		varHeader: variableHeader{},
+		parts:     nil,
+	}
+}
+
 func newSSLAckPacket(id guid.GUID) busMsg {
 	hdr := fixedHeader{
 		typ:       packetSSLAck,
@@ -226,6 +243,10 @@ type Bus struct {
 	logger  log.Logger
 	once    sync.Once
 	closed  atomic.Bool
+
+	// isServer marks the bus of an accepted connection; a peer disconnect
+	// is a normal event there and is not logged as an error.
+	isServer bool
 }
 
 func NewBus(conn net.Conn, options Options) *Bus {
@@ -291,13 +312,31 @@ func (c *Bus) Send(packetID guid.GUID, packetData [][]byte, opts *busSendOptions
 	return nil
 }
 
+func (c *Bus) sendAck(packetID guid.GUID) error {
+	packet := newAckPacket(packetID)
+	l, err := packet.writeTo(c.conn)
+	if err != nil {
+		c.logger.Error("Unable to send ack", log.Error(err))
+		return err
+	}
+
+	c.logger.Trace("Ack sent",
+		log.String("id", packetID.String()),
+		log.Any("bytes", l))
+
+	return nil
+}
+
 func (c *Bus) Receive() (busMsg, error) {
 	packet, err := c.receive()
 	if err != nil {
-		if !c.closed.Load() || !errors.Is(err, net.ErrClosed) {
-			c.logger.Error("Receive error", log.Error(err))
-		} else {
+		switch {
+		case c.closed.Load() && errors.Is(err, net.ErrClosed):
 			c.logger.Trace("Unable to receive from closed connection", log.Error(err))
+		case c.isServer && errors.Is(err, io.EOF):
+			c.logger.Debug("Connection closed by peer", log.Error(err))
+		default:
+			c.logger.Error("Receive error", log.Error(err))
 		}
 		return busMsg{}, err
 	}
