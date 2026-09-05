@@ -48,6 +48,16 @@ void FromProto(TMemberInfo* memberInfo, const NProto::TMemberInfo& protoMemberIn
     memberInfo->Revision = protoMemberInfo.revision();
 }
 
+void FromProto(TMemberInfo* memberInfo, NProto::TMemberInfo&& protoMemberInfo)
+{
+    memberInfo->Id = NYT::FromProto<TMemberId>(std::move(*protoMemberInfo.mutable_id()));
+    memberInfo->Priority = protoMemberInfo.priority();
+    if (protoMemberInfo.has_attributes()) {
+        memberInfo->Attributes = NYTree::FromProto(std::move(*protoMemberInfo.mutable_attributes()));
+    }
+    memberInfo->Revision = protoMemberInfo.revision();
+}
+
 void ToProto(NProto::TGroupMeta* protoGroupMeta, const TGroupMeta& groupMeta)
 {
     protoGroupMeta->set_member_count(groupMeta.MemberCount);
