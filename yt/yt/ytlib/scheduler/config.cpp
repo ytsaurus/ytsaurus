@@ -2751,6 +2751,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_step_function_for_gang_operations", &TThis::EnableStepFunctionForGangOperations)
         .Default(true);
 
+    registrar.Parameter("enable_fifo_children_reordering_for_guarantee_utilization", &TThis::EnableFifoChildrenReorderingForGuaranteeUtilization)
+        .Default();
+
     registrar.Parameter("metering_tags", &TThis::MeteringTags)
         .Default();
 

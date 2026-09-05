@@ -4865,6 +4865,64 @@ class TestFifoPools(YTEnvSetup):
         set("//sys/pool_trees/default/fifo/@enable_step_function_for_gang_operations", True)
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op.id) + "/detailed_fair_share/total/cpu"), 0.0))
 
+    @authors("yaishenka")
+    def test_fifo_children_reordering_for_guarantee_utilization(self):
+        update_pool_tree_config_option("default", "enable_step_function_for_gang_operations", True)
+        update_pool_tree_config_option("default", "enable_fifo_children_reordering_for_guarantee_utilization", True)
+
+        create_pool("fifo", attributes={"mode": "fifo", "strong_guarantee_resources": {"cpu": 6.0}})
+        create_pool("competitor", attributes={"strong_guarantee_resources": {"cpu": 4.0}})
+
+        # Claims everything the FIFO pool does not, so that pool can rely on nothing beyond its guarantee.
+        competitor_op = run_sleeping_vanilla(job_count=10, task_patch={"cpu_limit": 1.0}, spec={"pool": "competitor"})
+
+        # Demands more than the 6 CPU guarantee, so the pool's fit factor never reaches the gangs behind it.
+        blocking_op = run_sleeping_vanilla(
+            job_count=7, task_patch={"cpu_limit": 1.0}, spec={"pool": "fifo", "is_gang": True})
+        time.sleep(0.1)
+        first_fitting_op = run_sleeping_vanilla(
+            job_count=3, task_patch={"cpu_limit": 1.0}, spec={"pool": "fifo", "is_gang": True})
+        time.sleep(0.1)
+        second_fitting_op = run_sleeping_vanilla(
+            job_count=3, task_patch={"cpu_limit": 1.0}, spec={"pool": "fifo", "is_gang": True})
+
+        def get_operation_fair_share(op):
+            return get(scheduler_orchid_operation_path(op.id) + "/detailed_fair_share/total/cpu", default=None)
+
+        def get_pool_fair_share(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/detailed_fair_share/total/cpu", default=None)
+
+        # The blocking gang leaves the whole guarantee unused, and the competitor does not pick the
+        # remainder up either: the FIFO pool's fair share function jumps over the share it is offered, so
+        # half the cluster simply stays idle.
+        wait(lambda: are_almost_equal(get_operation_fair_share(competitor_op), 0.5))
+        wait(lambda: are_almost_equal(get_operation_fair_share(first_fitting_op), 0.0))
+        wait(lambda: are_almost_equal(get_operation_fair_share(second_fitting_op), 0.0))
+        assert are_almost_equal(get_pool_fair_share("fifo"), 0.0)
+
+        reordering_path = scheduler_orchid_pool_path("fifo") + "/fifo_children_reordering_for_guarantee_utilization_enabled"
+        assert not get(reordering_path)
+
+        set("//sys/pool_trees/default/fifo/@enable_fifo_children_reordering_for_guarantee_utilization", True)
+        wait(lambda: get(reordering_path))
+
+        # The two gangs that fit are considered ahead of it, and the guarantee is used in full.
+        wait(lambda: are_almost_equal(get_pool_fair_share("fifo"), 0.6))
+        wait(lambda: are_almost_equal(get_operation_fair_share(first_fitting_op), 0.3))
+        wait(lambda: are_almost_equal(get_operation_fair_share(second_fitting_op), 0.3))
+        assert are_almost_equal(get_operation_fair_share(blocking_op), 0.0)
+        assert are_almost_equal(get_operation_fair_share(competitor_op), 0.4)
+
+        # The canonical FIFO order is untouched, so the order the update actually used is only visible
+        # through the effective index.
+        def get_indices(op):
+            path = scheduler_orchid_operation_path(op.id)
+            return get(path + "/fifo_index", default=None), get(path + "/effective_fifo_index", default=None)
+
+        assert get_indices(blocking_op) == (0, 2)
+        assert get_indices(first_fitting_op) == (1, 0)
+        assert get_indices(second_fitting_op) == (2, 1)
+
     @authors("eshcherbin", "ignat")
     def test_max_schedulable_element_count_in_fifo_pool(self):
         update_pool_tree_config_option("default", "max_schedulable_element_count_in_fifo_pool", 1)
