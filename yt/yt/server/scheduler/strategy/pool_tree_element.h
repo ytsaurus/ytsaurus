@@ -930,7 +930,8 @@ public:
         const TDiskResources& availableDiskResources,
         TDuration timeLimit,
         const std::string& treeId,
-        std::optional<std::string> allocationGroupName = {});
+        std::optional<std::string> allocationGroupName = {},
+        TAllocationId allocationId = {});
     void OnScheduleAllocationFailed(
         const NPolicy::ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         const std::string& treeId,

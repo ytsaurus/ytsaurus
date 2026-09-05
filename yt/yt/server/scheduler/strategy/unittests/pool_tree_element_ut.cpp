@@ -96,6 +96,11 @@ public:
         return 0;
     }
 
+    NObjectClient::TCellTag GetPrimaryMasterCellTag() const override
+    {
+        return NObjectClient::TCellTag(0);
+    }
+
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return NodeShardInvokers_;
@@ -280,7 +285,8 @@ public:
         const std::string& treeId,
         const NYPath::TYPath& poolPath,
         std::optional<TDuration> waitingForResourcesOnNodeTimeout,
-        std::optional<std::string> allocationGroupName), (override));
+        std::optional<std::string> allocationGroupName,
+        TAllocationId allocationId), (override));
 
     MOCK_METHOD(void, OnNonscheduledAllocationAborted, (TAllocationId, EAbortReason, TControllerEpoch), (override));
 

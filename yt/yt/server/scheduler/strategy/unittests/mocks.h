@@ -80,6 +80,11 @@ public:
         return 0;
     }
 
+    NObjectClient::TCellTag GetPrimaryMasterCellTag() const override
+    {
+        return NObjectClient::TCellTag(0);
+    }
+
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return NodeShardInvokers_;

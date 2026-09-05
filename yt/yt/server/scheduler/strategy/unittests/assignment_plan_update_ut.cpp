@@ -4,12 +4,14 @@
 
 #include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update.h>
 #include <yt/yt/server/scheduler/strategy/policy/gpu/assignment_plan_update_context_detail.h>
+#include <yt/yt/server/scheduler/strategy/policy/gpu/helpers.h>
 
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 #include <yt/yt/server/scheduler/strategy/pool_tree_snapshot.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
@@ -31,6 +33,8 @@ static inline constexpr i64 GB = 1000 * 1000 * 1000;
 static const THashSet<std::string> TestModules{"ALA", "BEG", "EVN"};
 
 static const std::string TestAllocationGroupName{"task"};
+
+static const std::string TestTreeId{"test-tree"};
 
 static const TJobResources UnitResources = [] {
     TJobResources resources;
@@ -133,14 +137,13 @@ public:
         const TOperationMap& operations,
         const TNodeMap& nodes,
         THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>>* preemptedAssignments,
-        THashMap<TAssignmentPtr, TPreemptionInfo>* preemptionInfo,
-        NLogging::TLogger logger)
+        THashMap<TAssignmentPtr, TPreemptionInfo>* preemptionInfo)
         : Operations_(operations)
         , Nodes_(nodes)
         , PreemptedAssignments_(preemptedAssignments)
         , PreemptionInfo_(preemptionInfo)
         , GpuPlanUpdateStatistic_(New<TGpuPlanUpdateStatistics>())
-        , AssignmentHandler_(logger)
+        , AssignmentHandler_(TestTreeId)
     { }
 
     const TOperationMap& Operations() const override
@@ -168,6 +171,11 @@ public:
         return false;
     }
 
+    NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType) const override
+    {
+        return NGpu::LogStructuredGpuEventFluently(eventType, TestTreeId);
+    }
+
     void SetAvailableLimitForOperation(const TOperationPtr& operation, const TJobResources& limit)
     {
         EmplaceOrCrash(OperationIdToLimit_, operation->GetId(), limit);
@@ -180,7 +188,14 @@ public:
         TNode* node,
         bool preemptible = false) override
     {
-        return AssignmentHandler_.AddPlannedAssignment(std::move(allocationGroupName), resourceUsage, operation, node, preemptible);
+        auto assignmentId = AllocationIdGenerator_.Generate(node->GetId());
+        return AssignmentHandler_.AddPlannedAssignment(
+            assignmentId,
+            std::move(allocationGroupName),
+            resourceUsage,
+            operation,
+            node,
+            preemptible);
     }
 
     void PreemptAssignment(
@@ -217,6 +232,7 @@ private:
 
     const TGpuPlanUpdateStatisticsPtr GpuPlanUpdateStatistic_;
     TAssignmentHandler AssignmentHandler_;
+    const TAllocationIdGenerator AllocationIdGenerator_{NObjectClient::TCellTag(0)};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -505,8 +521,7 @@ protected:
             operationsMap,
             nodesMap,
             &PreemptedAssignments_,
-            &PreemptionInfo_,
-            Logger);
+            &PreemptionInfo_);
         DoAllocationAssignmentPlanUpdate(&context, std::move(config), now);
     }
 
@@ -2530,7 +2545,7 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOpportunisticOperationLimits)
     auto nodesMap = MakeNodeMap(nodes);
     THashMap<NNodeTrackerClient::TNodeId, THashSet<TAssignmentPtr>> preemptedAssignments;
     THashMap<TAssignmentPtr, TPreemptionInfo> preemptionInfo;
-    TTestAssignmentPlanUpdateContext context(operationsMap, nodesMap, &preemptedAssignments, &preemptionInfo, Logger);
+    TTestAssignmentPlanUpdateContext context(operationsMap, nodesMap, &preemptedAssignments, &preemptionInfo);
 
     // NB(severovv): here limits only apply to extra allocations, normal allocation is ignored
     context.SetAvailableLimitForOperation(operations[0], UnitResources * 3);
@@ -2637,9 +2652,11 @@ TEST_F(TOperationNotInPoolTreeTest, TestAssignmentPlanUpdateForAbsentOperation)
     auto nodesMap = MakeNodeMap(nodes);
     auto treeSnapshot = CreateEmptyTreeSnapshot();
 
-    TAssignmentHandler assignmentHandler(Logger);
+    TAssignmentHandler assignmentHandler(TestTreeId);
     TAssignmentPlanUpdateContext context(
+        TAllocationIdGenerator(NObjectClient::TCellTag(0)),
         Logger,
+        TestTreeId,
         operationsMap,
         nodesMap,
         treeSnapshot,

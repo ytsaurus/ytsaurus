@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -53,6 +55,8 @@ struct IStrategyHost
     virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const = 0;
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
+
+    virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() const = 0;
 
     virtual std::string FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
