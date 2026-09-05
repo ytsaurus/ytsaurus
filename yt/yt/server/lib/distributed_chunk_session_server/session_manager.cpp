@@ -153,7 +153,7 @@ private:
         {
             auto guard = WriterGuard(SequencerMapLock_);
             EraseOrCrash(StartingSessions_, sessionId);
-            EmplaceOrCrash(Sequencers_, sessionId, std::pair(sequencer, std::move(lease)));
+            EmplaceOrCrash(Sequencers_, sessionId, std::pair(sequencer, lease));
         }
 
         // NB: A sequencer that closed between the insert and this subscription is still
@@ -166,6 +166,12 @@ private:
         YT_TLOG_INFO("Sequencer started")
             .With("SessionId", sessionId)
             .With("SessionTimeout", sessionTimeout);
+
+        // NB: The lease may have expired before the entry became visible, in which case its
+        // handler found nothing in Sequencers_ and gave up; re-check now that it is published.
+        if (!TLeaseManager::RenewLease(lease)) {
+            OnSequencerLeaseExpired(sessionId);
+        }
     }
 
     IDistributedChunkSessionSequencerPtr FindSequencer(TSessionId sessionId) const
