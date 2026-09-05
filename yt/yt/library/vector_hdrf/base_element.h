@@ -31,6 +31,8 @@ public:
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
 
+    bool IsFifoChildrenReorderingForGuaranteeUtilizationEnabled() const override;
+
     bool CanAcceptFreeVolume() const override;
 
     bool ShouldDistributeFreeVolumeAmongChildren() const override;

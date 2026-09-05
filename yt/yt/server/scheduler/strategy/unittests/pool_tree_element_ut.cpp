@@ -872,6 +872,57 @@ TEST_F(TPoolTreeElementTest, TestSatisfactionRatio)
     }
 }
 
+TEST_F(TPoolTreeElementTest, TestFifoChildrenReorderingForGuaranteeUtilizationIsInherited)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(10);
+    nodeResources.SetMemory(100);
+
+    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
+
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+
+    // Only the subtree root specifies the option, everything below it inherits.
+    auto subtreeRootConfig = New<TPoolConfig>();
+    subtreeRootConfig->EnableFifoChildrenReorderingForGuaranteeUtilization = true;
+    auto subtreeRoot = CreateTestPool(strategyHost.Get(), "SubtreeRoot", std::move(subtreeRootConfig));
+    subtreeRoot->AttachParent(rootElement.Get());
+
+    auto childPool = CreateTestPool(strategyHost.Get(), "ChildPool");
+    childPool->AttachParent(subtreeRoot.Get());
+
+    auto grandchildPool = CreateTestPool(strategyHost.Get(), "GrandchildPool");
+    grandchildPool->AttachParent(childPool.Get());
+
+    auto unrelatedPool = CreateTestPool(strategyHost.Get(), "UnrelatedPool");
+    unrelatedPool->AttachParent(rootElement.Get());
+
+    {
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+        EXPECT_TRUE(subtreeRoot->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_TRUE(childPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_TRUE(grandchildPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+
+        EXPECT_FALSE(rootElement->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_FALSE(unrelatedPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+    }
+
+    {
+        // An explicit setting wins over the inherited one and is itself inherited further down.
+        auto childPoolConfig = New<TPoolConfig>();
+        childPoolConfig->EnableFifoChildrenReorderingForGuaranteeUtilization = false;
+        childPool->SetConfig(std::move(childPoolConfig));
+
+        DoFairShareUpdate(strategyHost.Get(), rootElement);
+
+        EXPECT_TRUE(subtreeRoot->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_FALSE(childPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+        EXPECT_FALSE(grandchildPool->GetEffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled());
+    }
+}
+
 TEST_F(TPoolTreeElementTest, TestResourceLimits)
 {
     TJobResourcesWithQuota nodeResources;

@@ -198,6 +198,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(double, EffectiveFairShareStarvationTolerance, 1.0);
     DEFINE_BYVAL_RO_PROPERTY(TDuration, EffectiveFairShareStarvationTimeout);
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveAggressiveStarvationEnabled, false);
+    DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveFifoChildrenReorderingForGuaranteeUtilizationEnabled, false);
     DEFINE_BYVAL_RO_PROPERTY(std::optional<TDuration>, EffectiveWaitingForResourcesOnNodeTimeout);
 
     DEFINE_BYVAL_RO_PROPERTY(TPoolTreeElement*, LowestStarvingAncestor, nullptr);
@@ -520,6 +521,10 @@ public:
     bool HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const final;
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
+    bool IsFifoChildrenReorderingForGuaranteeUtilizationEnabled() const override;
+
+    //! Empty means the value is inherited from the closest ancestor that specifies one.
+    virtual std::optional<bool> GetSpecifiedFifoChildrenReorderingForGuaranteeUtilizationEnabled() const;
 
     //! Post fair share update methods.
     void UpdateStarvationStatuses(TInstant now, bool enablePoolStarvation) override;
@@ -695,6 +700,7 @@ public:
     TIntegralResourcesState& IntegralResourcesState() override;
 
     bool IsStepFunctionForGangOperationsEnabled() const override;
+    std::optional<bool> GetSpecifiedFifoChildrenReorderingForGuaranteeUtilizationEnabled() const override;
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
 

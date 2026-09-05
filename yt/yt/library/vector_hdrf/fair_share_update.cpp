@@ -414,6 +414,7 @@ void TCompositeElement::UpdateCumulativeAttributes(TFairShareUpdateContext* cont
 
     if (GetMode() == ESchedulingMode::Fifo) {
         PrepareFifoPool();
+        context->FifoPools.push_back(this);
     }
 }
 
@@ -436,8 +437,115 @@ void TCompositeElement::PrepareFifoPool()
             this));
 
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-        SortedChildren_[childIndex]->Attributes().FifoIndex = childIndex;
+        auto& attributes = SortedChildren_[childIndex]->Attributes();
+        attributes.FifoIndex = childIndex;
+        // NB: Attributes survive between updates, so the effective order of the previous one must not leak
+        // into an update that does not reorder anything.
+        attributes.EffectiveFifoIndex.reset();
     }
+}
+
+//! Reorders the children of a FIFO pool so that the ones fitting into its strong guarantee are considered
+//! first. Without this, a large pending gang at the head pins the pool's fit factor below the point where
+//! the children behind it are reached, and the whole guarantee is left unused.
+//!
+//! Only |SortedChildren_| is affected. |FifoIndex| is left as |PrepareFifoPool| set it, so the externally
+//! visible FIFO order does not change; the order this update actually used is reported through
+//! |EffectiveFifoIndex|.
+void TCompositeElement::ReorderFifoChildrenForGuaranteeUtilization(TFairShareUpdateContext* context)
+{
+    if (!context->Options.EnableStepFunctionForGangOperations ||
+        !IsStepFunctionForGangOperationsEnabled() ||
+        !context->Options.EnableFifoChildrenReorderingForGuaranteeUtilization ||
+        !IsFifoChildrenReorderingForGuaranteeUtilizationEnabled())
+    {
+        return;
+    }
+
+    if (Dominates(TResourceVector::Epsilon(), Attributes().StrongGuaranteeShare)) {
+        return;
+    }
+
+    auto reorderedChildren = GetReorderedFifoChildrenForGuaranteeUtilization();
+    if (reorderedChildren == SortedChildren_) {
+        return;
+    }
+
+    const auto& Logger = GetLogger();
+
+    YT_TLOG_DEBUG("Reordered FIFO pool children to improve guarantee utilization")
+        .With("StrongGuaranteeShare", Attributes().StrongGuaranteeShare)
+        .With("PreviousHeadChildId", SortedChildren_.front()->GetId())
+        .With("HeadChildId", reorderedChildren.front()->GetId());
+
+    SortedChildren_ = std::move(reorderedChildren);
+
+    // NB: |FifoIndex| keeps the canonical order, so the effective one is exposed separately.
+    for (int childIndex = 0; childIndex < std::ssize(SortedChildren_); ++childIndex) {
+        SortedChildren_[childIndex]->Attributes().EffectiveFifoIndex = childIndex;
+    }
+}
+
+//! Walks the children in their FIFO order and greedily accepts those fitting into the strong guarantee,
+//! deferring pending gangs that do not fit.
+std::vector<TElement*> TCompositeElement::GetReorderedFifoChildrenForGuaranteeUtilization() const
+{
+    YT_VERIFY(GetMode() == ESchedulingMode::Fifo);
+
+    const auto& guaranteeShare = Attributes().StrongGuaranteeShare;
+
+    std::vector<TElement*> reorderedChildren;
+    reorderedChildren.reserve(SortedChildren_.size());
+    std::vector<TElement*> deferredChildren;
+
+    auto acceptedDemandShare = TResourceVector::Zero();
+
+    // NB: An operation whose demand exceeds its own limits share can never reach full demand, so counting
+    // the raw demand share would reserve guarantee that then sits idle.
+    auto getLimitedDemandShare = [] (const TOperationElement* operation) {
+        const auto& attributes = operation->Attributes();
+
+        // NB: A gang runs either all of its allocations or none of them, so a gang whose limits share does
+        // not cover its demand share cannot get any fair share at all: its fair share by fit factor jumps
+        // to the full demand, and the limit keeps the fit factor strictly below that jump.
+        if (operation->IsGangLike() && !Dominates(attributes.LimitsShare, attributes.DemandShare)) {
+            return TResourceVector::Zero();
+        }
+
+        return TResourceVector::Min(attributes.DemandShare, attributes.LimitsShare);
+    };
+
+    // Set once a non-gang that does not fit is reached. Everything behind such a child keeps its original
+    // position, so no child is ever deferred past it.
+    bool reorderingStopped = false;
+
+    for (auto* child : SortedChildren_) {
+        auto* operation = child->AsOperation();
+        YT_VERIFY(operation);
+
+        auto limitedDemandShare = getLimitedDemandShare(operation);
+
+        // A running gang is never deferred: it is accepted even when it does not fit.
+        bool running = child->GetResourceUsageAtUpdate() != TJobResources();
+        bool fits = Dominates(guaranteeShare + TResourceVector::Epsilon(), acceptedDemandShare + limitedDemandShare);
+        bool shouldDefer = reorderingStopped || (operation->IsGangLike() && !running && !fits);
+
+        if (shouldDefer) {
+            deferredChildren.push_back(child);
+            continue;
+        }
+
+        if (!fits && !operation->IsGangLike()) {
+            reorderingStopped = true;
+        }
+
+        reorderedChildren.push_back(child);
+        acceptedDemandShare += limitedDemandShare;
+    }
+
+    reorderedChildren.insert(reorderedChildren.end(), deferredChildren.begin(), deferredChildren.end());
+
+    return reorderedChildren;
 }
 
 //! Element's strong guarantee can be split into several priority tiers which impact the guarantee adjustment process.
@@ -1669,6 +1777,14 @@ void TFairShareUpdateExecutor::Run()
     RootElement_->UpdateCumulativeAttributes(Context_);
     ConsumeAndRefillIntegralPools();
     RootElement_->ValidateAndAdjustSpecifiedGuarantees(Context_);
+
+    // NB: This must happen before the integral passes. They prepare and cache fair share functions for the
+    // whole subtree of each integral pool and reset only the integral pool itself, so a FIFO pool nested
+    // inside such a subtree would keep a function built from the old order while the top-down pass indexes
+    // the new one. Here nothing is prepared yet.
+    for (auto* fifoPool : Context_->FifoPools) {
+        fifoPool->ReorderFifoChildrenForGuaranteeUtilization(Context_);
+    }
 
     UpdateBurstPoolIntegralShares();
     UpdateRelaxedPoolIntegralShares();
