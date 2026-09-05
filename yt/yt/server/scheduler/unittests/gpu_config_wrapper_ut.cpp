@@ -62,7 +62,6 @@ TEST(TGpuSchedulingPolicyConfigWrapperTest, PerModuleShareToNetworkPriority)
 
 TEST(TGpuSchedulingPolicyConfigWrapperTest, PerModuleShareToNetworkPriorityValidation)
 {
-    // Shares must be strictly ascending inside a per-module table too.
     EXPECT_THROW(
         ParseGpuSchedulingPolicyConfig(
             "{module_configs = {VLA = {module_share_to_network_priority = ["
