@@ -147,7 +147,7 @@ private:
     {
         const auto& groupId = request->group_id();
         auto leaseTimeout = FromProto<TDuration>(request->lease_timeout());
-        auto memberInfo = FromProto<TMemberInfo>(request->member_info());
+        auto memberInfo = FromProto<TMemberInfo>(std::move(*request->mutable_member_info()));
 
         context->SetRequestInfo("GroupId: %v, MemberId: %v, LeaseTimeout: %v",
             groupId,
@@ -211,8 +211,8 @@ private:
         context->SetRequestInfo("MemberCount: %v", request->members().size());
 
         std::vector<TGossipMemberInfo> membersBatch;
-        for (const auto& protoMember : request->members()) {
-            membersBatch.push_back(FromProto<TGossipMemberInfo>(protoMember));
+        for (auto& protoMember : *request->mutable_members()) {
+            membersBatch.push_back(FromProto<TGossipMemberInfo>(std::move(protoMember)));
             if (std::ssize(membersBatch) >= GossipBatchSize_) {
                 GroupManager_->ProcessGossip(membersBatch);
                 membersBatch.clear();

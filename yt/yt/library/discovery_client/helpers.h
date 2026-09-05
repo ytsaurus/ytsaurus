@@ -53,6 +53,7 @@ bool IsRetriableDiscoveryServerError(const TError& error);
 
 void ToProto(NProto::TMemberInfo* protoMemberInfo, const TMemberInfo& MemberInfo);
 void FromProto(TMemberInfo* memberInfo, const NProto::TMemberInfo& protoMemberInfo);
+void FromProto(TMemberInfo* memberInfo, NProto::TMemberInfo&& protoMemberInfo);
 
 void ToProto(NProto::TGroupMeta* protoGroupMeta, const TGroupMeta& groupMeta);
 void FromProto(TGroupMeta* groupMeta, const NProto::TGroupMeta& protoGroupMeta);
