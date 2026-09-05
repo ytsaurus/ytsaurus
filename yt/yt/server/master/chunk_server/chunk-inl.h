@@ -247,14 +247,14 @@ inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkReq
 {
     const auto& Logger = ChunkServerLogger;
     YT_LOG_ALERT_IF(
-        AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex,
+        AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex && IsNative(),
         "Chunk has empty requisition "
         "(ChunkId: %v)",
         GetId());
 
     const auto& requisition = registry->GetRequisition(AggregatedRequisitionIndex_);
     YT_LOG_ALERT_IF(
-        requisition.GetAllEntryCount() == 0,
+        requisition.GetAllEntryCount() == 0 && IsNative(),
         "Chunk has requisition with zero entry count "
         "(ChunkId: %v)",
         GetId());
@@ -266,7 +266,7 @@ inline TChunkRequisitionIndex TChunk::GetAggregatedRequisitionIndex() const
 {
     const auto& Logger = ChunkServerLogger;
     YT_LOG_ALERT_IF(
-        AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex,
+        AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex && IsNative(),
         "Chunk has empty requisition "
         "(ChunkId: %v)",
         GetId());
