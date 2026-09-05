@@ -2121,6 +2121,9 @@ class YTEnvSetup(object):
                     ids += [attrs["id"], *attrs["tablet_cell_ids"]]
                     ids += [area["id"] for area in attrs["areas"].values()]
 
+            # Registered by class-scoped fixtures to survive per-method cleanup.
+            ids += getattr(self, "_cleanup_ignore_object_ids", [])
+
             return ids
 
         test_cleanup.cleanup_objects(
