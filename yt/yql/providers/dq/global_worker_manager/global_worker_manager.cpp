@@ -914,7 +914,6 @@ private:
         }
 
         MarkDirty(count);
-        TryResume();
     }
 
     void DecrLiteralQueries(const TString& clusterName) {

@@ -204,6 +204,7 @@ message TTaskData {
     optional TUserRoles UserRoles = 30;
     optional string DefaultTranslationCluster = 31;
     optional string Runner = 32;
+    optional string Host = 33;
 }
 
 message TTaskError {
