@@ -267,9 +267,7 @@ public:
 
         i64 missingRecordCount = summary.RecordCount - session.Progress.RecordCount;
         // NB: Sealed compressed data size accounts for on-disk padding, so it may exceed
-        // the sequencer-reported size even when the seal brings no new records. Such a
-        // difference is expected and is dropped, since there are no records to attribute
-        // it to and the already emitted slices carry the reported sizes.
+        // the sequencer-reported size even when the seal brings no new records.
         i64 missingCompressedDataSize =
             summary.PhysicalCompressedDataSize - session.Progress.CompressedDataSize;
 
