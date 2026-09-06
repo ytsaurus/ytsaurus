@@ -1,5 +1,6 @@
 package tech.ytsaurus.flow.pipeline;
 
+import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -16,8 +17,10 @@ import tech.ytsaurus.ysontree.YTreeNode;
  * the stream schemas. It only ever adds what is missing, so a hand-written spec always wins. The Go
  * counterpart is {@code runner.Enrich}; the C++ one is {@code NYT::NFlow::TSimpleSpecBuilder}.
  *
- * <p>Also validates that every Java companion resource declares a {@code main_class}: the class the
- * worker starts the companion with is set in the pipeline spec, not derived.
+ * <p>For a vanilla launch it also completes every Java companion resource (the shipped classpath
+ * and the java binary of the resolved job environment) and validates that each one declares a
+ * {@code main_class}: the class the worker starts the companion with is set in the pipeline spec,
+ * not derived.
  */
 public final class PipelineSpecEnricher {
 
@@ -31,6 +34,8 @@ public final class PipelineSpecEnricher {
     private static final String KEY_RESOURCE_CLASS_NAME = "resource_class_name";
     private static final String KEY_PARAMETERS = "parameters";
     private static final String KEY_MAIN_CLASS = "main_class";
+    private static final String KEY_CLASSPATH = "classpath";
+    private static final String KEY_JDK_BIN_PATH = "jdk_bin_path";
 
     private PipelineSpecEnricher() {
     }
@@ -92,6 +97,41 @@ public final class PipelineSpecEnricher {
                                 + " set main_class in the pipeline spec")
                                 .formatted(entry.getKey()));
             }
+        }
+    }
+
+    /**
+     * Completes every companion resource under {@code spec.resources} for the vanilla launch: the
+     * classpath of the shipped jars and the java binary resolved by the job environment. Every
+     * other resource key, including the hand-written {@code main_class}, survives.
+     */
+    static void patchCompanionResources(YTreeMapNode spec, JobEnvironment environment) {
+        Map<String, YTreeMapNode> companions = javaCompanionResources(spec);
+        if (companions.isEmpty()) {
+            return;
+        }
+        YTreeMapNode resources = spec.getOrThrow(KEY_RESOURCES).mapNode();
+        for (Map.Entry<String, YTreeMapNode> entry : companions.entrySet()) {
+            YTreeMapNode resource = entry.getValue();
+            YTreeMapNode oldParameters = resource.get(KEY_PARAMETERS)
+                    .filter(YTreeNode::isMapNode)
+                    .map(YTreeNode::mapNode)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Missing parameters in TJavaCompanionManager resource"));
+
+            String handWrittenBinPath = oldParameters.get(KEY_JDK_BIN_PATH)
+                    .map(YTreeNode::stringValue)
+                    .orElse(null);
+
+            YTreeMapNode newParameters = oldParameters.toMapBuilder()
+                    .key(KEY_CLASSPATH).value(CompanionJars.COMPANION_JARS_DIR + File.separator + "*")
+                    .key(KEY_JDK_BIN_PATH).value(environment.resolveJdkBinPath(handWrittenBinPath))
+                    .buildMap();
+
+            resources.put(entry.getKey(), resource.toMapBuilder()
+                    .key(KEY_PARAMETERS).value(newParameters)
+                    .buildMap());
+            log.info("Completed java companion resource {} for the vanilla launch", entry.getKey());
         }
     }
 
