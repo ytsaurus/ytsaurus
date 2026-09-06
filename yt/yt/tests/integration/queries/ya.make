@@ -1,5 +1,9 @@
 PY3_LIBRARY()
 
+PY_SRCS(
+    __init__.py
+)
+
 TEST_SRCS(
     base.py
     test_environment.py
