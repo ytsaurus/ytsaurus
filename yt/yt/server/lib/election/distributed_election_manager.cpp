@@ -763,7 +763,7 @@ void TDistributedElectionManager::CancelContext()
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (EpochContext_) {
-        EpochContext_->CancelableContext->Cancel(TError(NYT::EErrorCode::Canceled, "Election epoch canceled"));
+        EpochContext_->CancelableContext->Cancel(TError(NRpc::EErrorCode::TransientFailure, "Election epoch canceled"));
     }
     EpochContext_.Reset();
 }
