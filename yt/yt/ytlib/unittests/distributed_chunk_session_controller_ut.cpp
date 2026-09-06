@@ -162,7 +162,7 @@ public:
     bool IsFinishSessionCaptured()
     {
         auto guard = Guard(Lock_);
-        return static_cast<bool>(CapturedFinishSession_);
+        return CapturedFinishSession_ != nullptr;
     }
 
     void ReleaseFinishSession()
@@ -413,7 +413,7 @@ protected:
         auto deadline = TInstant::Now() + TDuration::Seconds(30);
         while (!predicate()) {
             if (TInstant::Now() > deadline) {
-                THROW_ERROR_EXCEPTION("Timed out: %v", message);
+                THROW_ERROR_EXCEPTION("Timed out waiting for %v", message);
             }
             Sleep(TDuration::MilliSeconds(10));
         }

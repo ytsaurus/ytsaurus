@@ -1,10 +1,10 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/config.h>
+#include <yt/yt/ytlib/distributed_chunk_session_client/seal_summary_fetcher.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_controller.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_reader.h>
-#include <yt/yt/ytlib/distributed_chunk_session_client/seal_summary_fetcher.h>
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_writer.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -578,7 +578,7 @@ TEST_F(TDistributedChunkSessionTest, MasterSealSummaryFetchWaitsForThrottler)
 
     auto sealSummaries = WaitFor(fetchFuture)
         .ValueOrThrow();
-    ASSERT_EQ(sealSummaries.size(), 1u);
+    ASSERT_EQ(std::ssize(sealSummaries), 1);
 
     EXPECT_EQ(sealSummaries[0].ChunkId, chunkInfo.ChunkId);
     EXPECT_EQ(sealSummaries[0].Summary.RecordCount, RecordCount);
@@ -627,7 +627,7 @@ TEST_F(TDistributedChunkSessionTest, MasterSealSummaryFetchOmitsMissingChunk)
         {chunkInfo.ChunkId, missingChunkId}))
         .ValueOrThrow();
 
-    ASSERT_EQ(sealSummaries.size(), 1u);
+    ASSERT_EQ(std::ssize(sealSummaries), 1);
     EXPECT_EQ(sealSummaries[0].ChunkId, chunkInfo.ChunkId);
     EXPECT_EQ(sealSummaries[0].Summary.RecordCount, RecordCount);
 }
@@ -1250,14 +1250,16 @@ TEST_F(TDistributedChunkSessionTest, PoolRetryCreatesSeveralChunksForOneSlot)
         ActionQueue_->GetInvoker(),
         /*sealMonitor*/ nullptr);
 
-    auto first = WaitFor(pool->GetSession(0)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(0, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(0))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(0, first.SessionId))
+        .ValueOrThrow();
 
     EXPECT_NE(first.SessionId, second.SessionId);
     auto chunks = WaitFor(pool->GetSlotChunks(0))
         .ValueOrThrow();
 
-    EXPECT_EQ(chunks.size(), 2u);
+    EXPECT_EQ(std::ssize(chunks), 2);
 }
 
 TEST_F(TDistributedChunkSessionTest, FinalizeSlotEventuallySealsAllChunks)
@@ -1279,8 +1281,10 @@ TEST_F(TDistributedChunkSessionTest, FinalizeSlotEventuallySealsAllChunks)
         ActionQueue_->GetInvoker(),
         /*sealMonitor*/ nullptr);
 
-    auto first = WaitFor(pool->GetSession(0)).ValueOrThrow();
-    auto second = WaitFor(pool->GetSession(0, first.SessionId)).ValueOrThrow();
+    auto first = WaitFor(pool->GetSession(0))
+        .ValueOrThrow();
+    auto second = WaitFor(pool->GetSession(0, first.SessionId))
+        .ValueOrThrow();
 
     auto firstWriter = CreateDistributedChunkWriter(
         first.SequencerNode,
@@ -1428,7 +1432,8 @@ TEST_F(TDistributedChunkSessionTest, SealedDetectedViaProbe)
 
     std::vector<TSharedRef> records;
     while (true) {
-        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        auto readResult = WaitFor(reader->Read())
+            .ValueOrThrow();
         records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
         if (readResult.Finished) {
             break;
@@ -1472,7 +1477,8 @@ TEST_F(TDistributedChunkSessionTest, SetAllWritersFinishedNoCount)
 
     std::vector<TSharedRef> records;
     while (true) {
-        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        auto readResult = WaitFor(reader->Read())
+            .ValueOrThrow();
         records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
         if (readResult.Finished) {
             break;
@@ -1514,7 +1520,8 @@ TEST_F(TDistributedChunkSessionTest, BoundedReaderRespectsRangeEnd)
 
     std::vector<TSharedRef> records;
     while (true) {
-        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        auto readResult = WaitFor(reader->Read())
+            .ValueOrThrow();
         records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
         if (readResult.Finished) {
             break;
@@ -1553,7 +1560,8 @@ TEST_F(TDistributedChunkSessionTest, ChunkShorterThanRange)
 
     std::vector<TSharedRef> records;
     while (true) {
-        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        auto readResult = WaitFor(reader->Read())
+            .ValueOrThrow();
         records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
         if (readResult.Finished) {
             break;
@@ -1578,7 +1586,8 @@ TEST_F(TDistributedChunkSessionTest, EmptyRange)
         ActionQueue_->GetInvoker());
     reader->SetAllWritersFinished(5, chunkInfo.CompressedDataSize);
 
-    auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+    auto readResult = WaitFor(reader->Read())
+        .ValueOrThrow();
     EXPECT_TRUE(readResult.Records.empty());
     EXPECT_TRUE(readResult.Finished);
 }
@@ -1588,7 +1597,8 @@ TEST_F(TDistributedChunkSessionTest, EmptyChunk)
     WriterOptions_->WriteQuorum = 2;
 
     auto session = StartChunkSession();
-    WaitFor(session.Controller->Close()).ThrowOnError();
+    WaitFor(session.Controller->Close())
+        .ThrowOnError();
     SealChunk(session.ChunkId);
 
     auto reader = CreateDistributedChunkSessionReader(
@@ -1603,7 +1613,8 @@ TEST_F(TDistributedChunkSessionTest, EmptyChunk)
         ActionQueue_->GetInvoker());
     reader->SetAllWritersFinished(0, 0);
 
-    auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+    auto readResult = WaitFor(reader->Read())
+        .ValueOrThrow();
     EXPECT_TRUE(readResult.Records.empty());
     EXPECT_TRUE(readResult.Finished);
 
@@ -1631,7 +1642,8 @@ TEST_F(TDistributedChunkSessionTest, Phase2DoesNotProbe)
     auto replicaProgressQueriesBefore = stats->ActiveReplicaProgressQueryCount.load();
 
     while (true) {
-        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        auto readResult = WaitFor(reader->Read())
+            .ValueOrThrow();
         if (readResult.Finished) {
             break;
         }
@@ -1657,7 +1669,8 @@ TEST_F(TDistributedChunkSessionTest, NoQuorumInfoWhenCountProvided)
     reader->SetAllWritersFinished(RecordCount, chunkInfo.CompressedDataSize);
 
     while (true) {
-        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        auto readResult = WaitFor(reader->Read())
+            .ValueOrThrow();
         if (readResult.Finished) {
             break;
         }
@@ -1706,7 +1719,8 @@ TEST_F(TDistributedChunkSessionTest, SlowWriterDoesNotExhaustBudget)
 
     std::vector<TSharedRef> records;
     while (true) {
-        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        auto readResult = WaitFor(reader->Read())
+            .ValueOrThrow();
         records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
         if (readResult.Finished) {
             break;
@@ -1759,7 +1773,8 @@ TEST_F(TDistributedChunkSessionTest, SetAllWritersFinishedMidRead)
 
     std::vector<TSharedRef> records;
     while (true) {
-        auto readResult = WaitFor(reader->Read()).ValueOrThrow();
+        auto readResult = WaitFor(reader->Read())
+            .ValueOrThrow();
         records.insert(records.end(), readResult.Records.begin(), readResult.Records.end());
         if (readResult.Finished) {
             break;

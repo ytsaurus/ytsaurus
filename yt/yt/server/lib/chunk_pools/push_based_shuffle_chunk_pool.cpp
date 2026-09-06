@@ -544,6 +544,10 @@ private:
         }
 
     private:
+        TPushBasedShuffleChunkPool* Owner_ = nullptr;
+        bool IsCompleted_ = false;
+        TJobBuilder Builder_;
+
         void AppendRangeAndUpdateCounters(TChunkRange range)
         {
             if (Builder_.Ranges.empty()) {
@@ -556,13 +560,23 @@ private:
             }
         }
 
-        TPushBasedShuffleChunkPool* Owner_ = nullptr;
-        bool IsCompleted_ = false;
-        TJobBuilder Builder_;
-
         PHOENIX_DECLARE_FRIEND();
         PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOutput, 0x2f5dc106);
     };
+
+    TPushBasedShuffleChunkPoolOptions Options_;
+    TSerializableLogger Logger;
+
+    TProgressCounterPtr JobCounter_ = New<TProgressCounter>();
+    TProgressCounterPtr DataSliceCounter_ = New<TProgressCounter>();
+
+    std::vector<TIntrusivePtr<TOutput>> Outputs_;
+
+    i64 FinishedSessionCount_ = 0;
+    bool JobsFinalized_ = false;
+
+    THashMap<TChunkId, TChunkWriteSessionState> Sessions_;
+    TDistributedChunkSessionProgress ObservedStatistics_;
 
     void ApplyExactProgress(
         TChunkWriteSessionState* session,
@@ -631,20 +645,6 @@ private:
             output->CheckCompleted();
         }
     }
-
-    TPushBasedShuffleChunkPoolOptions Options_;
-    TSerializableLogger Logger;
-
-    TProgressCounterPtr JobCounter_ = New<TProgressCounter>();
-    TProgressCounterPtr DataSliceCounter_ = New<TProgressCounter>();
-
-    std::vector<TIntrusivePtr<TOutput>> Outputs_;
-
-    i64 FinishedSessionCount_ = 0;
-    bool JobsFinalized_ = false;
-
-    THashMap<TChunkId, TChunkWriteSessionState> Sessions_;
-    TDistributedChunkSessionProgress ObservedStatistics_;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPushBasedShuffleChunkPool, 0x9a83b742);

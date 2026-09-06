@@ -92,15 +92,15 @@ TDistributedChunkSessionProgress operator-(
     const TDistributedChunkSessionProgress& lhs,
     const TDistributedChunkSessionProgress& rhs);
 
-//! Requires nonnegative |progress| with |progress.RecordCount| > 0,
-//! |prefixRecordCount| in [0, |progress.RecordCount|], and nonempty records.
-//! Both halves keep nonempty records and sum to |progress|.
+//! Requires nonnegative #progress with #progress.RecordCount > 0,
+//! #prefixRecordCount in [0, #progress.RecordCount], and nonempty records.
+//! Both halves keep nonempty records and sum to #progress.
 std::pair<TDistributedChunkSessionProgress, TDistributedChunkSessionProgress> Split(
     const TDistributedChunkSessionProgress& progress,
     i64 prefixRecordCount);
 
-//! Requires nonnegative |sample| with |sample.RecordCount| > 0 and nonempty records,
-//! |recordCount| nonnegative, and |compressedDataSize| at least |recordCount|.
+//! Requires nonnegative #sample with #sample.RecordCount > 0 and nonempty records,
+//! #recordCount nonnegative, and #compressedDataSize at least #recordCount.
 //! Compressed data size is taken verbatim rather than extrapolated, so that the seal
 //! total is reproduced exactly; the remaining components keep nonempty records.
 TDistributedChunkSessionProgress Extrapolate(

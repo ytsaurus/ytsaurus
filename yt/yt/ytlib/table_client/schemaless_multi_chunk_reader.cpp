@@ -512,7 +512,7 @@ private:
 
     std::atomic<bool> Finished_ = false;
 
-    TConcurrentTimer<TWallTimer> ReadTimer_{false /*start*/};
+    TConcurrentTimer<TWallTimer> ReadTimer_{/*start*/ false};
 
     void OnReaderSwitched();
 };
