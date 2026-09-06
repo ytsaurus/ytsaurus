@@ -158,12 +158,13 @@ private:
     void OnResponse(const TError& result)
     {
         if (!result.IsOK()) {
-            auto error = TError("Error sending transaction actions")
+            static constexpr auto Message = "Error sending transaction actions"_sb;
+            YT_TLOG_DEBUG(Message)
+                .With("CellId", CellId_)
+                .With(result);
+            THROW_ERROR_EXCEPTION(Message)
                 .With("cell_id", CellId_)
                 .With(result);
-            YT_TLOG_DEBUG("Error sending transaction actions")
-                .With(error);
-            THROW_ERROR(error);
         }
 
         YT_TLOG_DEBUG("Transaction actions sent successfully");
