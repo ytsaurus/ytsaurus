@@ -1650,8 +1650,9 @@ private:
                         auto error = TError("Failed to execute %v iteration", name).With(ex);
                         activityContext.FailedIterations.Increment();
                         activityContext.ErrorState->SetError(error);
-                        YT_TLOG_EVENT(Logger, getLogLevel(error), "")
-                            .With(error);
+                        YT_TLOG_EVENT(Logger, getLogLevel(error), "Iteration failed")
+                            .With("Name", name)
+                            .With(ex);
                     }
                     TDelayedExecutor::WaitForDuration(period);
                 }

@@ -813,7 +813,8 @@ private:
             node->GetDefaultAddress())
             .With(error);
         YT_TLOG_ERROR("Node failed")
-            .With(wrappedError);
+            .With("Address", node->GetDefaultAddress())
+            .With(error);
 
         if (Config_->BanFailedNodes) {
             BannedNodeAddresses_.push_back(node->GetDefaultAddress());

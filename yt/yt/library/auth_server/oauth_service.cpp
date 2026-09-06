@@ -115,12 +115,13 @@ private:
 
         if (!result.IsOK()) {
             OAuthCallErrors_.Increment();
-            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "OAuth call failed")
+            static constexpr auto Message = "OAuth call failed"_sb;
+            YT_TLOG_WARNING(Message)
+                .With("CallId", callId)
+                .With(result);
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials, Message)
                 .With(result)
                 .With("call_id", callId);
-            YT_TLOG_WARNING("OAuth call failed")
-                .With(error);
-            THROW_ERROR(error);
         }
 
         const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();

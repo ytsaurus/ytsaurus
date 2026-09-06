@@ -567,12 +567,13 @@ public:
             }
             return response;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to get query progress")
+            static constexpr auto Message = "Failed to get query progress"_sb;
+            YT_TLOG_INFO(Message)
+                .With("QueryId", queryId)
+                .With(ex);
+            THROW_ERROR_EXCEPTION(Message)
                 .With("query_id", queryId)
                 .With(ex);
-            YT_TLOG_INFO("YQL plugin call failed")
-                .With(error);
-            THROW_ERROR error;
         }
     }
 
@@ -981,12 +982,13 @@ private:
                 error.ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to abort query")
+            static constexpr auto Message = "Failed to abort query"_sb;
+            YT_TLOG_INFO(Message)
+                .With("QueryId", queryId)
+                .With(ex);
+            THROW_ERROR_EXCEPTION(Message)
                 .With("query_id", queryId)
                 .With(ex);
-            YT_TLOG_INFO("YQL plugin call failed")
-                .With(error);
-            THROW_ERROR error;
         }
     }
 

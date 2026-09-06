@@ -156,12 +156,13 @@ protected:
         CallTime_.Record(timer.GetElapsedTime());
 
         if (!result.IsOK()) {
-            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "YC authentication call failed")
+            static constexpr auto Message = "YC authentication call failed"_sb;
+            YT_TLOG_WARNING(Message)
+                .With("CallId", callId)
+                .With(result);
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials, Message)
                 .With(result)
                 .With("call_id", callId);
-            YT_TLOG_WARNING("YC authentication call failed")
-                .With(error);
-            THROW_ERROR(error);
         }
 
         const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();

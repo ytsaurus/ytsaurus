@@ -1670,21 +1670,26 @@ bool TSourceController::CheckDistributingTable()
                 State_->Inited = true;
                 CheckDistributingTableErrorState_->ClearError();
             } catch (const std::exception& ex) {
-                auto error = TError("Failed to update distributing table").With(ex);
+                static constexpr auto Message = "Failed to update distributing table"_sb;
+                auto error = TError(Message)
+                    .With(ex);
                 YT_TLOG_EVENT(
                     GetContext()->PublicLogger,
                     ELogLevel::Error,
-                    "Failed to update distributing table")
-                    .With(error);
+                    Message)
+                    .With(ex);
                 CheckDistributingTableErrorState_->SetError(error);
             }
         } else {
-            auto error = TError("Failed to get tables").With(TablesFuture_.GetOrCrash());
+            static constexpr auto Message = "Failed to get tables"_sb;
+            const auto& tablesError = TablesFuture_.GetOrCrash();
+            auto error = TError(Message)
+                .With(tablesError);
             YT_TLOG_EVENT(
                 GetContext()->PublicLogger,
                 ELogLevel::Error,
-                "Failed to get tables")
-                .With(error);
+                Message)
+                .With(tablesError);
             CheckDistributingTableErrorState_->SetError(error);
         }
         TablesFuture_ = {};

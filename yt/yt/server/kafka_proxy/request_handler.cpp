@@ -564,10 +564,11 @@ private:
         auto authenticator = AuthenticationManager_->GetTokenAuthenticator();
         auto authResultOrError = WaitFor(authenticator->Authenticate(TTokenCredentials{.Token = std::move(token)}));
         if (!authResultOrError.IsOK()) {
-            auto error = TError("Failed to authenticate user")
+            static constexpr auto Message = "Failed to authenticate user"_sb;
+            auto error = TError(Message)
                 .With(authResultOrError);
-            YT_TLOG_DEBUG("Failed to authenticate user")
-                .With(error);
+            YT_TLOG_DEBUG(Message)
+                .With(authResultOrError);
             fillError(ToString(error));
             return response;
         }
