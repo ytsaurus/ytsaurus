@@ -36,7 +36,7 @@
 #include <yt/yt/library/re2/re2.h>
 
 #include <library/cpp/iterator/zip.h>
-
+#include <library/cpp/timezone_conversion/convert.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/hash_set.h>
@@ -64,11 +64,29 @@ namespace {
 // Appended to a path so GetNode returns the node itself without redirecting through a final symlink
 // to its target (see Cypress link redirects).
 constexpr TStringBuf NoFollowSymlinkSuffix = "&";
+const re2::RE2 ExplicitTimezoneSuffixPattern(
+    R"([Tt ].*(?:[Zz]|[+-][0-9]{2}:?(?:[0-9]{2})?)$)");
 
 template <class TContextPtr>
 IClientPtr CreateClient(const TContextPtr& context, const TRichYPath& path)
 {
     return context->ClientsCache->GetClient(*path.GetCluster());
+}
+
+bool HasExplicitTimezone(TStringBuf timestamp)
+{
+    return re2::RE2::PartialMatch(timestamp, ExplicitTimezoneSuffixPattern);
+}
+
+TInstant InterpretTimestampInTimezone(TInstant instant, const std::string& timezone)
+{
+    const auto civilTime = NDatetime::ToCivilTime(instant, NDatetime::GetUtcTimeZone());
+    const auto result = NDatetime::ToAbsoluteTime(civilTime, NDatetime::GetTimeZone(timezone));
+    THROW_ERROR_EXCEPTION_IF(
+        result == TInstant::Max(),
+        "Timestamp is out of range in timezone %Qv",
+        timezone);
+    return result;
 }
 
 } // namespace
@@ -809,12 +827,17 @@ TSystemTimestamp TSourceController::ExtractTimestamp(
 
     TInstant instant;
     switch (locator->Format) {
-        case ETimestampFormat::Iso8601:
+        case ETimestampFormat::Iso8601: {
             THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::String, "Expected string for iso8601 timestamp, got %v", timestampNode->GetType());
-            if (TInstant::TryParseIso8601(timestampNode->AsString()->GetValue(), instant)) {
+            const auto& timestampString = timestampNode->AsString()->GetValue();
+            if (TInstant::TryParseIso8601(timestampString, instant)) {
+                if (!HasExplicitTimezone(timestampString) && locator->Timezone) {
+                    instant = InterpretTimestampInTimezone(instant, *locator->Timezone);
+                }
                 return TSystemTimestamp(instant.Seconds());
             }
-            THROW_ERROR_EXCEPTION("Cannot parse timestamp string %Qv as iso8601", timestampNode->AsString()->GetValue());
+            THROW_ERROR_EXCEPTION("Cannot parse timestamp string %Qv as iso8601", timestampString);
+        }
         case ETimestampFormat::Seconds:
             THROW_ERROR_EXCEPTION_UNLESS(timestampNode->GetType() == ENodeType::Uint64, "Expected ui64 for seconds timestamp, got %v", timestampNode->GetType());
             instant = TInstant::Seconds(timestampNode->AsUint64()->GetValue());

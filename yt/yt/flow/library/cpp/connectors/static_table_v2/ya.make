@@ -9,6 +9,7 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/timezone_conversion
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/connectors/common
     yt/yt/flow/library/cpp/resources
