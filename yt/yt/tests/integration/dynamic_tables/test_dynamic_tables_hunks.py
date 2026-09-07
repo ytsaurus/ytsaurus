@@ -1937,20 +1937,47 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert statistics["chunk_count"] == 1
         assert statistics["referenced_regular_disk_space"] == 344
 
+        store_chunk_ids_before_compaction = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+
         set("//tmp/t/@forced_compaction_revision", 1)
         remount_table("//tmp/t")
-        wait(lambda: get("//tmp/t/@chunk_row_count") == 3)
-        wait(lambda: get("//tmp/t/@chunk_count") == 4)
 
-        statistics = get(f"#{root_chunk_list_id}/@statistics")
-        assert statistics["row_count"] == 3
-        assert statistics["chunk_count"] == 2
-        assert statistics["hunk_data_weight"] == 320
-        assert statistics["hunk_data_size"] == 344
-        assert statistics["hunk_erasure_disk_space"] == 0
-        statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
-        assert statistics["chunk_count"] == 2
-        assert statistics["referenced_regular_disk_space"] == 344
+        expected_compaction_state = {
+            "store_chunks_replaced": True,
+            "root_statistics": {
+                "row_count": 3,
+                "chunk_count": 2,
+                "hunk_data_weight": 320,
+                "hunk_data_size": 344,
+                "hunk_erasure_disk_space": 0,
+            },
+            "hunk_root_statistics": {
+                "chunk_count": 2,
+                "referenced_regular_disk_space": 344,
+            },
+        }
+
+        def _get_compaction_state():
+            store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+            root_statistics = get(f"#{root_chunk_list_id}/@statistics")
+            hunk_root_statistics = get(f"#{hunk_root_chunk_list_id}/@statistics")
+            return {
+                "store_chunks_replaced": store_chunk_ids_before_compaction.isdisjoint(store_chunk_ids),
+                "root_statistics": {
+                    key: root_statistics[key]
+                    for key in expected_compaction_state["root_statistics"]
+                },
+                "hunk_root_statistics": {
+                    key: hunk_root_statistics[key]
+                    for key in expected_compaction_state["hunk_root_statistics"]
+                },
+            }
+
+        wait(
+            lambda: _get_compaction_state() == expected_compaction_state,
+            error_message=lambda: "Unexpected state after compaction: {}".format(
+                _get_compaction_state()),
+        )
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("hunk_erasure_codec", ["none", "isa_reed_solomon_6_3"])
