@@ -54,7 +54,7 @@ public:
 
     TTwoLevelCache(NProfiling::TProfiler profiler);
 
-    virtual ~TTwoLevelCache() = default;
+    ~TTwoLevelCache() override = default;
 
     void Reconfigure(i64 capacity, i64 compressedCapacity);
 

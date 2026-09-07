@@ -494,7 +494,7 @@ private:
                 streamData.RawBytesRate.Update(
                     static_cast<double>(isInput ? usage.CumulativeByteOut : usage.CumulativeByteIn),
                     now);
-                double measured = streamData.PushDemand.GetRate(now).value_or(0.0);
+                double measured = streamData.PushDemand.GetLastRate().value_or(0.0);
                 double baseline = baselineDemand(streamId, computationId, inflationPerMessage);
                 double demand = std::max(measured, baseline);
                 i64 inflightCount = usage.CumulativeCountIn - usage.CumulativeCountOut;
@@ -613,7 +613,7 @@ private:
 
             double totalInputRawRate = 0;
             for (auto& [streamId, streamData] : jobState.Input.Streams) {
-                totalInputRawRate += streamData.RawBytesRate.GetRate(now).value_or(0.0);
+                totalInputRawRate += streamData.RawBytesRate.GetLastRate().value_or(0.0);
             }
 
             for (auto& [streamId, streamMeasurements] : outputMeasurements) {
@@ -623,7 +623,7 @@ private:
                     // input demand through its measured production ratio, so an input
                     // speedup (or a cold input backlog) opens the output budget in
                     // the same tick, one epoch before the drain can show it.
-                    double producedRawRate = streamMeasurements.StreamData->RawBytesRate.GetRate(now).value_or(0.0);
+                    double producedRawRate = streamMeasurements.StreamData->RawBytesRate.GetLastRate().value_or(0.0);
                     // The cap only guards against a degenerate ratio when the input
                     // rate measurement is vanishingly small.
                     double ratio = totalInputRawRate > 0
@@ -639,7 +639,7 @@ private:
             }
 
             for (auto& [streamId, streamData] : jobState.Output.Streams) {
-                double producedRawRate = streamData.RawBytesRate.GetRate(now).value_or(0.0);
+                double producedRawRate = streamData.RawBytesRate.GetLastRate().value_or(0.0);
                 streamData.IORatioGauge.Update(totalInputRawRate > 0 ? producedRawRate / totalInputRawRate : 0.0);
             }
         }

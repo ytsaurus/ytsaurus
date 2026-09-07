@@ -20,10 +20,17 @@ void TSimpleEmaCounter::Inc(double count, TInstant now)
     Counter_.Update(Total_, now);
 }
 
-std::optional<double> TSimpleEmaCounter::GetRate(TInstant now) const
+std::optional<double> TSimpleEmaCounter::GetLastRate() const
 {
-    auto rate = Counter_.GetRate(0, now);
-    return rate;
+    if (!Counter_.LastTimestamp) {
+        return {};
+    }
+    return Counter_.GetRate(0, *Counter_.LastTimestamp);
+}
+
+std::optional<double> TSimpleEmaCounter::GetDecayedRate(TInstant now) const
+{
+    return Counter_.GetRate(0, now);
 }
 
 double TSimpleEmaCounter::GetTotal() const

@@ -208,6 +208,10 @@ void TOrderedSourceBase::TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclu
         SourceTotalCount_.Inc(deltaRows * State_->AvgOffsetCountSize);
         SourceTotalBytes_.Inc(deltaRows * State_->AvgOffsetByteSize);
     } else if (newMaxOffsetExclusive == State_->MaxOffsetExclusive) {
+        if (confirmed) {
+            SourceTotalCount_.Inc(0);
+            SourceTotalBytes_.Inc(0);
+        }
         State_->MaxOffsetIsConfirmed |= confirmed;
     }
 }
@@ -675,8 +679,8 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
         inflight->InflightMetrics->LastIdleTimestamp = TSystemTimestamp(State_->LastIdleInstant.Seconds());
     }
 
-    inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetRate();
-    inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetRate();
+    inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetLastRate();
+    inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetLastRate();
     if (auto backlogRate = EstimateBacklogRate()) {
         inflight->InflightMetrics->NewCountPerSec = std::max(
             inflight->InflightMetrics->NewCountPerSec.value_or(0),
@@ -685,10 +689,10 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
             inflight->InflightMetrics->NewBytesPerSec.value_or(0),
             std::max(0.0, backlogRate->BytesPerSecond));
     }
-    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetRate();
-    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetRate();
-    inflight->InflightMetrics->ProcessedCountPerSec = PersistedCount_.GetRate();
-    inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetRate();
+    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetDecayedRate();
+    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetDecayedRate();
+    inflight->InflightMetrics->ProcessedCountPerSec = PersistedCount_.GetDecayedRate();
+    inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetDecayedRate();
 
     if (State_->LastUnavailableInstant) {
         const auto threshold = GetDynamicParameters()->UnavailableThreshold;
