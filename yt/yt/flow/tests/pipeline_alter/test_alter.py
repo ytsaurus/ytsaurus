@@ -30,8 +30,12 @@ def generate_data(event_count, tablet_count, prefix="payload"):
     return result
 
 
+MESSAGE_CLASS = "TDataMessage"
+RENAMED_MESSAGE_CLASS = "TRenamedDataMessage"
+
 TABLET_COUNT = 5
 INPUT_DATA = generate_data(EVENT_COUNT, TABLET_COUNT)
+RENAMED_DATA = generate_data(TABLET_COUNT * 4, TABLET_COUNT, prefix="renamed_payload")
 EXPECTED_DATA = [row["data"] for row in INPUT_DATA]
 EXPECTED_DATA.sort()
 
@@ -62,7 +66,7 @@ class TestComputation(FlowTestBase):
         batching_write_rows(INPUT_DATA, lambda batch: self.client.insert_rows(self.input_queue, batch), 100)
         batching_write_rows(INPUT_DATA_ALT, lambda batch: self.client.insert_rows(self.input_queue_alt, batch), 100)
 
-    def prepare_pipeline_config(self, cpu_aware, finite=True):
+    def prepare_pipeline_config(self, cpu_aware, finite=True, with_passthrough=False):
         pipeline_config = get_yson_config(PIPELINE_CONFIG_PATH)
 
         pipeline_config["spec"]["computations"]["reader"]["source_streams"]["queue"]["parameters"].update(
@@ -79,6 +83,30 @@ class TestComputation(FlowTestBase):
                 "producer_path": f"<cluster=primary>{self.producer}",
             }
         )
+
+        # A message class rename is only observable on a stream that is handed from one
+        # computation to another, so this scenario grows a passthrough downstream of "data" and
+        # moves the reader's sink onto it. It is built only here: a live consumer of "data" would
+        # otherwise keep the source-change tests' retired partitions from ever completing.
+        if with_passthrough:
+            reader = pipeline_config["spec"]["computations"]["reader"]
+            reader["parameters"]["message_class_name"] = MESSAGE_CLASS
+            pipeline_config["spec"]["streams"]["data"]["class_name"] = MESSAGE_CLASS
+            sinks = reader.pop("sinks")
+            sinks["queue"]["input_stream_ids"] = ["passthrough_out"]
+            pipeline_config["spec"]["computations"]["passthrough"] = {
+                "computation_class_name": "NYT::NFlow::TPassthroughComputation",
+                "group_by_schema": [
+                    {"name": "hash", "expression": "farm_hash(data)", "type": "uint64", "required": True},
+                    {"name": "data", "type": "string"},
+                ],
+                "input_stream_ids": ["data"],
+                "output_stream_ids": ["passthrough_out"],
+                "sinks": sinks,
+            }
+            pipeline_config["spec"]["streams"]["passthrough_out"] = {
+                "schema": [{"name": "data", "type": "string"}],
+            }
 
         pipeline_config["dynamic_spec"]["job_manager"]["use_cpu_aware_balancer"] = cpu_aware
 
@@ -114,12 +142,18 @@ class TestComputation(FlowTestBase):
             pytest.param(1, 1, "stop", False, "source_stream", id="1c_1w_stop_source_stream"),
             pytest.param(1, 1, "stop", False, "sink", id="1c_1w_stop_sink"),
             pytest.param(1, 1, "stop", False, "pipeline_stream", id="1c_1w_stop_pipeline_stream"),
+            pytest.param(1, 1, "stop", False, "yson_message", id="1c_1w_stop_yson_message"),
         ],
     )
     def test_rename(self, workers_count, controllers_count, update_type, cpu_aware, rename_target):
         assert update_type == "pause" or update_type == "stop"
         self.prepare_environment()
-        pipeline_config_path = self.prepare_pipeline_config(cpu_aware)
+        # An infinite source keeps the pipeline out of the terminal "completed" state, so the
+        # rename actually has messages to carry afterwards.
+        yson_message = rename_target == "yson_message"
+        pipeline_config_path = self.prepare_pipeline_config(
+            cpu_aware, finite=not yson_message, with_passthrough=yson_message
+        )
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": pipeline_config_path},
             workers_count=workers_count,
@@ -169,6 +203,10 @@ class TestComputation(FlowTestBase):
                 reader["output_stream_ids"] = ["data_renamed"]
                 reader["sinks"]["queue"]["input_stream_ids"] = ["data_renamed"]
                 rename_in_streams_dependency(reader, "data", "data_renamed")
+            elif rename_target == "yson_message":
+                static_spec["streams"]["data"]["class_name"] = RENAMED_MESSAGE_CLASS
+                reader = static_spec["computations"]["reader"]
+                reader["parameters"]["message_class_name"] = RENAMED_MESSAGE_CLASS
             else:
                 raise AssertionError(f"unknown rename_target {rename_target}")
 
@@ -178,9 +216,23 @@ class TestComputation(FlowTestBase):
                 self.client.set_pipeline_spec(self.pipeline_path, static_spec)
             self.client.set_pipeline_dynamic_spec(self.pipeline_path, dynamic_spec)
 
+            if yson_message:
+                batching_write_rows(RENAMED_DATA, lambda batch: self.client.insert_rows(self.input_queue, batch), 100)
+
             # start again.
             self.client.start_pipeline(self.pipeline_path)
             self.wait_pipeline_state(["working", "completed"], timeout=180)
+
+            if yson_message:
+                # The rows enqueued while stopped can only reach the sink through the renamed
+                # message class, so their arrival is what proves the rename took effect.
+                expected_renamed = {row["data"] for row in RENAMED_DATA}
+                wait(
+                    lambda: expected_renamed
+                    <= {row["data"] for row in self.client.select_rows(f"data from [{self.output_queue}]")},
+                    timeout=180,
+                )
+                return
 
             # Wait for complete and done.
             self.wait_pipeline_state("completed", timeout=180)
