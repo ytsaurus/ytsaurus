@@ -518,11 +518,11 @@ THashMap<TStreamId, TInflightMetricsPtr> TInputBuffer::DoGetInflightMetrics() co
         metrics->ByteSize = streamState.NotPersistedByteSize;
         metrics->ReadyCount = std::ssize(streamState.Messages);
         metrics->ReadyByteSize = streamState.ReadyByteSize;
-        metrics->OfferedCountPerSec = streamState.OfferedMessagesRate.GetRate(now);
-        metrics->OfferedBytesPerSec = streamState.OfferedBytesRate.GetRate(now);
+        metrics->OfferedCountPerSec = streamState.OfferedMessagesRate.GetDecayedRate(now);
+        metrics->OfferedBytesPerSec = streamState.OfferedBytesRate.GetDecayedRate(now);
 
-        metrics->ProcessedCountPerSec = streamState.PersistedMessagesRate.GetRate(now);
-        metrics->ProcessedBytesPerSec = streamState.PersistedBytesRate.GetRate(now);
+        metrics->ProcessedCountPerSec = streamState.PersistedMessagesRate.GetDecayedRate(now);
+        metrics->ProcessedBytesPerSec = streamState.PersistedBytesRate.GetDecayedRate(now);
         result.emplace(streamId, std::move(metrics));
     }
     return result;

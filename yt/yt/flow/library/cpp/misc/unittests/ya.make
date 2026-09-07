@@ -3,6 +3,7 @@ GTEST()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
+    counter_ut.cpp
     identifier_ut.cpp
     compact_unversioned_owning_row_ut.cpp
     cow_tree_ut.cpp

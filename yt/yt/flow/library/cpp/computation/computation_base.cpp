@@ -834,7 +834,8 @@ TBlockedTimeAccountant::TBlockedTimeAccountant(TInstant startTime)
 
 void TBlockedTimeAccountant::Account(TInstant now, TDuration window, const std::vector<TBlockedLimit>& blocked)
 {
-    double elapsed = LastUpdate_ ? (now - *LastUpdate_).SecondsFloat() : 0.0;
+    const auto previousUpdate = LastUpdate_.value_or(StartTime_);
+    const double elapsed = LastUpdate_ ? (now - previousUpdate).SecondsFloat() : 0.0;
     if (!LastUpdate_) {
         Lifetime_.Update(0, StartTime_);
     }
@@ -842,28 +843,31 @@ void TBlockedTimeAccountant::Account(TInstant now, TDuration window, const std::
     Lifetime_.SetWindow(window);
     Lifetime_.Inc(elapsed, now);
 
+    THashSet<std::pair<TStringBuf, TStreamId>> blockedPairs;
     for (const auto& [limitType, streamId] : blocked) {
+        blockedPairs.emplace(limitType, streamId);
         auto [it, inserted] = Counters_[std::string(limitType)].try_emplace(streamId, window);
         if (inserted) {
-            // A counter measuring from its own creation would report the share of
-            // its own lifetime, so a job that starts blocking after an hour of
-            // work would look blocked all along. Anchoring it at the job start
-            // keeps every counter spanning the same interval as the lifetime one.
+            // Preserve the common warm-up origin, including known idle history.
             it->second.Update(0, StartTime_);
+            it->second.Update(0, previousUpdate);
         }
-        it->second.SetWindow(window);
-        it->second.Inc(elapsed, now);
+    }
+    for (auto& [limitType, streamCounters] : Counters_) {
+        for (auto& [streamId, counter] : streamCounters) {
+            counter.SetWindow(window);
+            counter.Inc(blockedPairs.contains(std::pair<TStringBuf, TStreamId>{limitType, streamId}) ? elapsed : 0, now);
+        }
     }
 }
 
 void TBlockedTimeAccountant::FillShares(
-    TInstant now,
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>* limits) const
 {
     for (const auto& [limitType, streamCounters] : Counters_) {
         for (const auto& [streamId, counter] : streamCounters) {
             // A stream that never blocked must not conjure a limit entry.
-            if (auto share = GetShare(counter, now); share > 0) {
+            if (auto share = GetShare(counter); share > 0) {
                 (*limits)[limitType][streamId].BlockedTimeShare = share;
             }
         }
@@ -874,10 +878,10 @@ void TBlockedTimeAccountant::FillShares(
 //! counters warm up from zero over their first window, and the ratio cancels that
 //! warm-up, so a job blocked all along reports ~1 instead of ~0.86. Until the
 //! rates are available at all, the same ratio is taken over the totals.
-double TBlockedTimeAccountant::GetShare(const TSimpleEmaCounter& blocked, TInstant now) const
+double TBlockedTimeAccountant::GetShare(const TSimpleEmaCounter& blocked) const
 {
-    auto blockedRate = blocked.GetRate(now);
-    auto lifetimeRate = Lifetime_.GetRate(now);
+    auto blockedRate = blocked.GetLastRate();
+    auto lifetimeRate = Lifetime_.GetLastRate();
     if (blockedRate && lifetimeRate && *lifetimeRate > 0) {
         return std::min(*blockedRate / *lifetimeRate, 1.0);
     }
@@ -918,7 +922,7 @@ bool TUniversalComputationBase::UpdateStatus(
             entityLimitStatus.Used = count;
         }
     }
-    BlockedTimeAccountant_.FillShares(TInstant::Now(), &outputLimits);
+    BlockedTimeAccountant_.FillShares(&outputLimits);
     {
         auto guard = Guard(LimitsLock_);
         InputLimits_ = std::move(inputLimits);

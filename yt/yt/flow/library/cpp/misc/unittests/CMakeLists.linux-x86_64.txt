@@ -61,6 +61,7 @@ target_link_options(yt-flow-library-cpp-misc-unittests PRIVATE
 )
 
 target_sources(yt-flow-library-cpp-misc-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/counter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/identifier_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/compact_unversioned_owning_row_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/misc/unittests/cow_tree_ut.cpp

@@ -402,14 +402,11 @@ public:
 
     explicit TBlockedTimeAccountant(TInstant startTime);
 
-    //! Charges the time since the previous call to |blocked|. Call once per epoch;
-    //! |window| is re-read every call to follow the dynamic spec. Counters left
-    //! uncharged need no upkeep: their rate decays on read, from the instant they
-    //! were last charged.
+    //! Accounts the elapsed blocked and idle time for every known limit and stream.
     void Account(TInstant now, TDuration window, const std::vector<TBlockedLimit>& blocked);
 
     //! Writes the nonzero shares into |limits|, keyed as #TJobStatus::OutputLimits is.
-    void FillShares(TInstant now, THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>* limits) const;
+    void FillShares(THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>* limits) const;
 
 private:
     const TInstant StartTime_;
@@ -418,7 +415,7 @@ private:
     TSimpleEmaCounter Lifetime_;
     std::optional<TInstant> LastUpdate_;
 
-    double GetShare(const TSimpleEmaCounter& blocked, TInstant now) const;
+    double GetShare(const TSimpleEmaCounter& blocked) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

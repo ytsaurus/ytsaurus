@@ -84,7 +84,7 @@ DEFINE_REFCOUNTED_TYPE(TComputationContext);
 
 struct TDynamicComputationContextBase
 {
-    i64 SpecGeneration;
+    i64 SpecGeneration = 0;
     TDynamicComputationSpecPtr DynamicComputationSpec;
     TDynamicPartitionSpecPtr DynamicPartitionSpec;
     THashMap<TThrottlerId, TDynamicThrottlerSpecPtr> Throttlers;
