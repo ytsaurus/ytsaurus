@@ -1182,11 +1182,11 @@ struct TDynamicBufferStateManagerSpec
         THashMap<TWorkerGroupId, NYTree::TSize> WorkerGroupFairSharePoolOverrides;
         NYTree::TSize JobGuarantee;
         NYTree::TSize JobLimit;
-        //! Cap on how much buffered time a limit may represent. In the v1 formula
-        //! the limit is capped by demand × max_duration directly; in the v2
-        //! strategy it is the drain cap (demand × max_duration, raised by the
-        //! announced backlog for cold starts) and also bounds the measured
-        //! epoch-cycle estimate against mis-measured cycles.
+        //! Cap on how much buffered time a limit may represent. In v2 it also caps
+        //! the measured epoch-cycle estimate. A producing output may probe up to
+        //! its equal share of half FairSharePool because producer epochs do not
+        //! reveal the downstream acknowledgement period. JobLimit and the worker
+        //! pool remain hard bounds.
         TDuration MaxDuration;
         THashMap<TComputationId, THashMap<TStreamId, NYTree::TSize>> JobOverrides;
 
@@ -1211,9 +1211,12 @@ struct TDynamicBufferStateManagerSpec
     TOneSideBufferSpecPtr InputBuffer;
     TOneSideBufferSpecPtr OutputBuffer;
 
-    //! V2 strategy: target floor = gain_epochs × demand × epoch cycle (the
+    //! V2 strategy: target floor = v2_gain_epochs × demand × epoch cycle (the
     //! bandwidth-delay product, BDP), issued gradually (used + headroom, growth
-    //! gated on utilization), capped by demand × max_duration, Σissued ≤ pool.
+    //! gated on utilization). The demand × max_duration cap is raised by announced
+    //! input backlog or, for a producing output, by its equal share of half the
+    //! worker pool; demand-backed limits are allocated before speculative probes.
+    //! Σissued ≤ pool on both sides.
     bool EnableV2{};
     //! Target buffered time as a count of epochs (the BDP floor is this many
     //! epochs of demand): headroom for speed and latency spikes.

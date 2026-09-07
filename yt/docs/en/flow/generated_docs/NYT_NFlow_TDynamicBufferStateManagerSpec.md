@@ -11,15 +11,6 @@ Frequency of buffer size recalculation. ||
 || `demand_window` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1m`
 Time window over which the utilization of a single buffer is estimated. ||
-|| `epoch_cycle_window_samples` | **Type**: `int`
-**Default value**: `16`
- ||
-|| `max_rate_estimator_buckets` | **Type**: `int`
-**Default value**: `8`
- ||
-|| `warmup_refresh_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
-**Default value**: `30s`
- ||
 || `input_buffer` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicBufferStateManagerSpec::TOneSideBufferSpec](./all_yson_structs#NYT_NFlow_TDynamicBufferStateManagerSpec_TOneSideBufferSpec)`>`
 **Default value**: `{}`
 Input buffer settings. ||
@@ -28,24 +19,42 @@ Input buffer settings. ||
 Output buffer settings. ||
 || `enable_v2` | **Type**: `bool`
 **Default value**: `false`
- ||
-|| `v2_gain_epochs` | **Type**: `double`
-**Default value**: `2.0`
- ||
-|| `v2_use_offered_rate` | **Type**: `bool`
-**Default value**: `true`
- ||
-|| `v2_floor` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
-**Default value**: `2Mi`
- ||
-|| `v2_headroom_growth_factor` | **Type**: `double`
-**Default value**: `2.0`
- ||
-|| `v2_high_utilization_threshold` | **Type**: `double`
-**Default value**: `0.65`
- ||
-|| `v2_publish_threshold` | **Type**: `double`
-**Default value**: `0.25`
- ||
+Enables the v2 buffer-sizing strategy: limit = peak usage + headroom, with a `v2_gain_epochs × demand × epoch` bandwidth-delay-product floor. The `demand × max_duration` cap is raised by announced input backlog or, for a producing output, to an equal share of half `fair_share_pool` because producer epochs do not reveal the downstream acknowledgement period. Demand-backed limits are allocated before speculative output probes. On both sides, Σ(limits) ≤ `fair_share_pool` including other streams' in-flight bytes; `job_limit` remains the per-stream bound. Streams with `job_overrides` remain fully outside the pool as in v1, so worker buffer memory should cover `fair_share_pool` plus the actual in-flight bytes of overridden streams. Disabled by default; the previous v1 formula is used instead. ||
 |#
 
+
+{% cut "**Additional parameters**" %}
+
+
+#|
+|| `epoch_cycle_window_samples` | **Type**: `int`
+**Default value**: `16`
+Number of samples in the window used to estimate the median job epoch cycle. ||
+|| `max_rate_estimator_buckets` | **Type**: `int`
+**Default value**: `8`
+Number of buckets in the windowed-max drain-rate estimator; changing it resets the estimate. ||
+|| `warmup_refresh_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `30s`
+How often a job polls the converged warmup state for persistence. ||
+|| `v2_gain_epochs` | **Type**: `double`
+**Default value**: `2.0`
+Minimum buffer target in units of job epochs, used as a bandwidth-delay-product floor. Applies only when `enable_v2` is set. ||
+|| `v2_use_offered_rate` | **Type**: `bool`
+**Default value**: `true`
+Whether announced backlog rate contributes to demand. Disable it when a producer systematically overstates its offered rate. Applies only when `enable_v2` is set. ||
+|| `v2_floor` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
+**Default value**: `2Mi`
+Minimum grant for a stream with backlog; it must fit the largest message. Applies only when `enable_v2` is set. ||
+|| `v2_headroom_growth_factor` | **Type**: `double`
+**Default value**: `2.0`
+Headroom growth factor per management tick while utilization is high. Applies only when `enable_v2` is set. ||
+|| `v2_high_utilization_threshold` | **Type**: `double`
+**Default value**: `0.65`
+Utilization threshold above which headroom grows; below half this value headroom decays. Applies only when `enable_v2` is set. ||
+|| `v2_publish_threshold` | **Type**: `double`
+**Default value**: `0.25`
+Suppress a new limit when its relative increase is smaller than this value; decreases are always published. Applies only when `enable_v2` is set. ||
+|#
+
+
+{% endcut %}

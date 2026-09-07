@@ -10,7 +10,7 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 Pool size for distribution using the FairShare algorithm based on utilization. ||
 || `worker_group_fair_share_pool_overrides` | **Type**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TWorkerGroupIdTag, NYT::TStrongTypedefOptions{true}>, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
 **Default value**: `{}`
- ||
+Replaces `fair_share_pool` for workers in the listed [worker groups](../concepts/worker_groups.md), for installations where some workers have substantially more memory. A worker in several listed groups uses the maximum value, so the pool reflects the memory actually available to that worker. ||
 || `job_guarantee` | **Type**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Default value**: `5Mi`
 Minimum buffer size for a single job. ||
@@ -19,7 +19,7 @@ Minimum buffer size for a single job. ||
 Maximum buffer size for a single job. ||
 || `max_duration` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1m`
-Consider that the buffer does not need to be held longer than necessary for the max_duration of the job (speed is estimated heuristically). ||
+Assume that a buffer need not hold more than `max_duration` of job work (the rate is estimated heuristically). With `enable_v2`, it also caps the measured job epoch-cycle estimate. A producing output may probe up to its equal share of half `fair_share_pool` because producer epochs do not reveal the downstream acknowledgement period. `job_limit` and the worker pool remain hard bounds. ||
 || `job_overrides` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, `[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>>`
 **Default value**: `{}`
 Ability to manually override the buffer size for a computation stream. ||
