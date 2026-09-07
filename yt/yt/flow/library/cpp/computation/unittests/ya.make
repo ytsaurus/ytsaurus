@@ -14,6 +14,7 @@ SRCS(
     static_table_key_visitor_joiner_ut.cpp
     key_visitor_store_ut.cpp
     key_visitor_ut.cpp
+    lineage_accumulator_ut.cpp
     late_data_partitions_ut.cpp
     message_filter_ut.cpp
     meta_setter_ut.cpp

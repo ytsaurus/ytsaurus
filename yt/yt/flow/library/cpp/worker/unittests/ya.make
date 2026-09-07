@@ -7,6 +7,7 @@ SRCS(
     file_storage_ut.cpp
     input_buffer_ut.cpp
     job_tracker_ut.cpp
+    lineage_tracker_ut.cpp
     message_distributor_ut.cpp
     traced_invoker_ut.cpp
 )

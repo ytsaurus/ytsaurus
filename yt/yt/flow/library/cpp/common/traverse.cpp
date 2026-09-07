@@ -88,6 +88,18 @@ void TInflightMetrics::Register(TRegistrar registrar)
         .Default();
 }
 
+void TStreamRate::Register(TRegistrar registrar)
+{
+    registrar.Parameter("count_per_second", &TThis::CountPerSecond)
+        .Default();
+    registrar.Parameter("bytes_per_second", &TThis::BytesPerSecond)
+        .Default();
+    registrar.Parameter("input_count_per_second", &TThis::InputCountPerSecond)
+        .Default();
+    registrar.Parameter("input_bytes_per_second", &TThis::InputBytesPerSecond)
+        .Default();
+}
+
 void InPlaceMergeInflightMetrics(
     const TInflightMetricsPtr& current,
     const TInflightMetricsPtr& other,

@@ -5,6 +5,7 @@
 #include "job_state/job_init_context.h"
 #include "job_state/state_manager.h"
 #include "key_visitor.h"
+#include "lineage_accumulator.h"
 #include "universal_controller.h"
 
 #include <yt/yt/flow/library/cpp/common/computation.h>
@@ -224,9 +225,15 @@ public:
         std::vector<TMessageParentsConstPtr> OutputMessagesParentMessageIds;
         std::vector<TTimer> OutputTimers;
         std::vector<TMessageParentsConstPtr> OutputTimersParentMessageIds;
+        TLineageDelta LineageDelta;
     };
 
-    TRootOutputCollector(TComputationSpecPtr spec, IMetaSetterPtr metaSetter, bool supportsDistribute = false);
+    //! Set |collectLineage| to false when output publication is deferred beyond this collector.
+    TRootOutputCollector(
+        TComputationSpecPtr spec,
+        IMetaSetterPtr metaSetter,
+        bool supportsDistribute = false,
+        bool collectLineage = true);
 
     [[nodiscard]] IOutputCollectorPtr SetParents(
         const std::vector<TInputMessageConstPtr>& messages,
@@ -247,6 +254,9 @@ private:
     const IMetaSetterPtr MetaSetter_;
     //! Whether messages with |distribute| = false remain available for watermark handling.
     const bool SupportsDistribute_;
+    //! Swift ordered source counts only outputs accepted after delay and deduplication.
+    const bool CollectLineage_;
+    TLineageAccumulator LineageAccumulator_;
     TTransformResult Result_;
 };
 
@@ -504,6 +514,7 @@ protected:
 
     TRunIterationGuard StartRunIteration(const IComputationRunContextPtr& context);
     IRetryableTransactionPtr PrepareTransaction(const IComputationRunContextPtr& context);
+    void AddLineageDelta(TLineageDelta delta);
     void Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction);
     void FinishRunIteration();
 

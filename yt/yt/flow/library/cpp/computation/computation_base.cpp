@@ -32,6 +32,7 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/inflight_tracker.h>
 #include <yt/yt/flow/library/cpp/common/input_context.h>
+#include <yt/yt/flow/library/cpp/common/job_lineage_tracker.h>
 #include <yt/yt/flow/library/cpp/common/message_batcher.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/sink.h>
@@ -511,10 +512,15 @@ std::vector<TStreamId> TComputationBase::BuildTopologicalStreamOrder(TComputatio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRootOutputCollector::TRootOutputCollector(TComputationSpecPtr spec, IMetaSetterPtr metaSetter, bool supportsDistribute)
+TRootOutputCollector::TRootOutputCollector(
+    TComputationSpecPtr spec,
+    IMetaSetterPtr metaSetter,
+    bool supportsDistribute,
+    bool collectLineage)
     : Spec_(std::move(spec))
     , MetaSetter_(std::move(metaSetter))
     , SupportsDistribute_(supportsDistribute)
+    , CollectLineage_(collectLineage)
 { }
 
 IOutputCollectorPtr TRootOutputCollector::SetParents(
@@ -538,6 +544,9 @@ void TRootOutputCollector::AddMessage(
         return;
     }
     auto setterResult = MetaSetter_->Fill(message, parents, messageIdSuffix);
+    if (distribute && CollectLineage_) {
+        LineageAccumulator_.Add(message, setterResult.ActualParentMessageIds);
+    }
     Result_.OutputMessages.push_back(std::move(message));
     if (SupportsDistribute_) {
         Result_.OutputMessagesDistribute.push_back(distribute);
@@ -548,6 +557,9 @@ void TRootOutputCollector::AddMessage(
 void TRootOutputCollector::AddTimer(TTimer&& timer, const TMessageParentsConstPtr& parents)
 {
     auto setterResult = MetaSetter_->Fill(timer, parents);
+    if (CollectLineage_) {
+        LineageAccumulator_.Add(timer, setterResult.ActualParentMessageIds);
+    }
     Result_.OutputTimers.push_back(std::move(timer));
     Result_.OutputTimersParentMessageIds.push_back(std::move(setterResult.ActualParentMessageIds));
 }
@@ -557,6 +569,9 @@ TRootOutputCollector::TTransformResult TRootOutputCollector::CollectResult()
     YT_VERIFY(Result_.OutputMessages.size() == Result_.OutputMessagesParentMessageIds.size());
     YT_VERIFY(!SupportsDistribute_ || Result_.OutputMessages.size() == Result_.OutputMessagesDistribute.size());
     YT_VERIFY(Result_.OutputTimers.size() == Result_.OutputTimersParentMessageIds.size());
+    if (CollectLineage_) {
+        Result_.LineageDelta = LineageAccumulator_.Finish();
+    }
     return std::exchange(Result_, TTransformResult{});
 }
 
@@ -1528,7 +1543,16 @@ IRetryableTransactionPtr TUniversalComputationBase::PrepareTransaction(const ICo
     return GetTransactionManager()->CreateTransaction();
 }
 
-void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction)
+void TUniversalComputationBase::AddLineageDelta(TLineageDelta delta)
+{
+    if (const auto& tracker = GetContext()->JobLineageTracker) {
+        tracker->Add(std::move(delta));
+    }
+}
+
+void TUniversalComputationBase::Commit(
+    IComputationRunContextPtr context,
+    IRetryableTransactionPtr transaction)
 {
     YT_VERIFY(transaction);
     std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
@@ -1556,6 +1580,9 @@ void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetry
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Commit"));
         WaitFor(GetTransactionManager()->CommitTransaction(transaction)).ThrowOnError();
+        if (const auto& tracker = GetContext()->JobLineageTracker) {
+            tracker->Commit();
+        }
     }
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("PostCommit"));

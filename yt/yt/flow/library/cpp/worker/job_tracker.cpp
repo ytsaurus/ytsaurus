@@ -5,6 +5,7 @@
 #include "input_manager.h"
 #include "job.h"
 #include "job_spec.h"
+#include "lineage_tracker.h"
 
 #include "message_distributor.h"
 #include "traced_invoker.h"
@@ -214,6 +215,7 @@ public:
     explicit TJobTracker(TJobTrackerContextPtr context)
         : Context_(std::move(context))
         , ExecutionSpec_(New<TExecutionSpec>())
+        , LineageTracker_(New<TLineageTracker>())
         , BufferStateManager_(CreateBufferStateManager(
             Context_->ControlInvoker,
             Context_->JobDirectory,
@@ -301,6 +303,11 @@ public:
         YT_ASSERT_THREAD_AFFINITY(Control);
 
         return ResourceManager_->GetPreloadedStates();
+    }
+
+    TLineageRates GetLineageRates(TInstant now) override
+    {
+        return LineageTracker_->GetRates(now);
     }
 
     void Reconfigure(
@@ -489,6 +496,7 @@ private:
     i64 ExecutionSpecGeneration_ = -1;
     THashMap<TJobId, TDynamicJobSpecPtr> DynamicJobSpecs_;
 
+    const TLineageTrackerPtr LineageTracker_;
     const IBufferStateManagerPtr BufferStateManager_;
     const IColumnEvaluatorCachePtr EvaluatorCache_;
     const IFairShareThreadPoolPtr JobControlThreadPool_;
@@ -676,6 +684,7 @@ private:
                 .WithTag("computation_id", jobSpec->Partition->ComputationId.Underlying())
                 .WithPrefix("/computation")
                 .WithPrefix("/job_state_cache"));
+        jobContext->LineageTracker = LineageTracker_;
 
         auto externalMetricsReporter = New<TExternalPerformanceMetricsReporter>();
         jobContext->ExternalMetricsReporter = externalMetricsReporter;

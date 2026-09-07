@@ -195,6 +195,8 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             DoSync(tx);
             YT_TLOG_INFO("Transaction prepared");
         }
+        AddLineageInputs(&processResult.LineageDelta, GetSpec(), unprocessedInputs, inputTimers, inputVisits);
+        AddLineageDelta(std::move(processResult.LineageDelta));
         Commit(context, tx);
 
         context->MarkPersisted(unprocessedInputs);

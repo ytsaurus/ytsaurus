@@ -67,6 +67,36 @@ struct TStreamTraverseData
 
 DEFINE_REFCOUNTED_TYPE(TStreamTraverseData);
 
+struct TStreamRate
+    : public NYTree::TYsonStructLite
+{
+    std::optional<double> CountPerSecond;
+    std::optional<double> BytesPerSecond;
+    std::optional<double> InputCountPerSecond;
+    std::optional<double> InputBytesPerSecond;
+
+    REGISTER_YSON_STRUCT_LITE(TStreamRate);
+
+    static void Register(TRegistrar registrar);
+};
+
+struct TLineageDeltaValue
+{
+    double Count{};
+    double ByteSize{};
+    double InputCount{};
+    double InputByteSize{};
+};
+
+//! Paired input totals and attributed output totals per committed epoch, keyed by computation-local streams.
+using TLineageDelta = THashMap<TStreamId, THashMap<TStreamId, TLineageDeltaValue>>;
+
+//! Paired input and attributed output rates with the same decay, keyed by pipeline-global streams.
+using TLineageRates = THashMap<TStreamId, THashMap<TStreamId, TStreamRate>>;
+
+constexpr auto LineageRateDecayTime = TDuration::Minutes(10);
+constexpr auto LineageRateRetentionTime = TDuration::Minutes(50);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStreamTraverseDataPtr MakeCompletedStreamTraverseData(

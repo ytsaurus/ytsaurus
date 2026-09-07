@@ -7,6 +7,7 @@
 #include "distributing_tracker.h"
 #include "external_metrics_reporter.h"
 #include "flow_view.h"
+#include "job_lineage_tracker.h"
 #include "partition_buffer_state.h"
 #include "spec_validation.h"
 #include "stream_inflight_limits.h"
@@ -61,6 +62,8 @@ struct TComputationContextBase
     NYT::NHttp::IClientPtr HttpClient;
     NYT::NHttp::IClientPtr HttpsClient;
     NYT::NConcurrency::IPollerPtr Poller;
+
+    IJobLineageTrackerPtr JobLineageTracker;
 
     //! Raw channel provider to the controller's distributed-throttler service.
     //! TComputationBase uses it to build its IDistributedThrottlerFactory.

@@ -15,6 +15,7 @@ SRCS(
     job_balancer_result.cpp
     job_manager.cpp
     lease_manager.cpp
+    lineage_rate_aggregator.cpp
     persisted_state_manager.cpp
     private.cpp
     state_access.cpp

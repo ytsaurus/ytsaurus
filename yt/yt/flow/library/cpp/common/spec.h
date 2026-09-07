@@ -1296,6 +1296,7 @@ struct TDynamicControllerConnectorSpec
     TDuration ControllerWaitTimeout;
     TDuration ControllerDiscoverPeriod;
     TDuration ControllerHeartbeatPeriod;
+    TDuration WorkerStatisticsReportPeriod;
     TDuration ControllerHeartbeatRpcTimeout;
     TDuration ControllerHeartbeatFailureBackoff;
 

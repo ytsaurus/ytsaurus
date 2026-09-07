@@ -82,6 +82,7 @@ static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionSpec);
 DECLARE_REFCOUNTED_STRUCT(IPartitionBufferState);
+DECLARE_REFCOUNTED_STRUCT(IJobLineageTracker);
 
 struct TMessageMeta;
 struct TMessage;
@@ -200,6 +201,7 @@ DECLARE_REFCOUNTED_STRUCT(TAggregatedNodeInputMetrics);
 DECLARE_REFCOUNTED_STRUCT(TJobStatus);
 DECLARE_REFCOUNTED_STRUCT(TMessageDistributorStatus);
 DECLARE_REFCOUNTED_STRUCT(TWorkerResourceStatus);
+DECLARE_REFCOUNTED_STRUCT(TWorkerStatistics);
 DECLARE_REFCOUNTED_STRUCT(TWorkerStatus);
 DECLARE_REFCOUNTED_STRUCT(TWorkerSpec);
 DECLARE_REFCOUNTED_STRUCT(TPartitionJobStatus);

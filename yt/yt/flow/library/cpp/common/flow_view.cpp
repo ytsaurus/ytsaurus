@@ -555,6 +555,14 @@ void TWorkerResourceStatus::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TWorkerStatistics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("lineage_rates", &TThis::LineageRates)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TWorkerStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("worker_incarnation_id", &TThis::WorkerIncarnationId)
@@ -568,6 +576,8 @@ void TWorkerStatus::Register(TRegistrar registrar)
     registrar.Parameter("resource_statuses", &TThis::ResourceStatuses)
         .Default();
     registrar.Parameter("preloaded_resource_states", &TThis::PreloadedResourceStates)
+        .Default();
+    registrar.Parameter("statistics", &TThis::Statistics)
         .Default();
 }
 
@@ -1364,6 +1374,8 @@ void TFlowEphemeralState::Register(TRegistrar registrar)
     registrar.Parameter("pipeline_path", &TThis::PipelinePath)
         .Default();
     registrar.Parameter("traverse_uncovered_computations", &TThis::TraverseUncoveredComputations)
+        .Default();
+    registrar.Parameter("lineage_rates", &TThis::LineageRates)
         .Default();
     registrar.Parameter("resource_controller_views", &TThis::ResourceControllerViews)
         .Default();

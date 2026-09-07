@@ -13,6 +13,7 @@
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/misc/configurable_singleton_def.h>
+#include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -56,6 +57,8 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = WorkerLogger;
+
+constexpr auto WorkerStatisticsReportJitter = TDuration::Seconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +256,7 @@ private:
     TInstant ConnectionTime_ = TInstant::Zero();
     TIncarnationId ConnectionIncarnationId_;
     ui64 HeartbeatSeqNo_ = 0;
+    TInstant NextWorkerStatisticsReportAt_ = TInstant::Zero();
     IChannelPtr ControllerChannel_;
     //! Mirror of ControllerChannel_ for out-of-thread readers (e.g. job
     //! throttler clients). Must be updated whenever ControllerChannel_ changes.
@@ -407,6 +411,7 @@ private:
 
         Connected_ = true;
         ConnectionTime_ = TInstant::Now();
+        NextWorkerStatisticsReportAt_ = TInstant::Zero();
 
         YT_TLOG_INFO("Worker connected")
             .With("RpcAddress", NodeInfo_->RpcAddress)
@@ -518,6 +523,15 @@ private:
         workerStatus->Errors = std::move(RootStatusProfiler_->GetStatus().Errors);
         workerStatus->ResourceStatuses = JobTracker_->GetResourceStatuses();
         workerStatus->PreloadedResourceStates = JobTracker_->GetPreloadedStates();
+        auto now = TInstant::Now();
+        if (NextWorkerStatisticsReportAt_ <= now) {
+            auto statistics = New<TWorkerStatistics>();
+            statistics->LineageRates = JobTracker_->GetLineageRates(now);
+            workerStatus->Statistics = std::move(statistics);
+
+            NextWorkerStatisticsReportAt_ =
+                now + GetControllerConnectorSpec()->WorkerStatisticsReportPeriod + RandomDuration(WorkerStatisticsReportJitter);
+        }
         request->set_worker_status(ToProto(ConvertToYsonString(workerStatus)));
 
         return request;

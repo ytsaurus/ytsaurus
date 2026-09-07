@@ -5,6 +5,7 @@
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/flow/library/cpp/common/public.h>
+#include <yt/yt/flow/library/cpp/common/traverse.h>
 
 #include <yt/yt/client/api/public.h>
 #include <yt/yt/client/cache/cache.h>
@@ -67,6 +68,8 @@ struct IJobTracker
     virtual THashMap<TResourceId, TWorkerResourceStatusPtr> GetResourceStatuses() = 0;
 
     virtual THashMap<TResourceId, EPreloadedResourceState> GetPreloadedStates() = 0;
+
+    virtual TLineageRates GetLineageRates(TInstant now) = 0;
 
     virtual void Reconfigure(
         TExecutionSpecPtr executionSpec,
