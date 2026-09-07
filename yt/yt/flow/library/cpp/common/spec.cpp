@@ -105,7 +105,8 @@ void TStreamSpec::Register(TRegistrar registrar)
 
 bool operator==(const TStreamSpec& lhs, const TStreamSpec& rhs)
 {
-    return (lhs.Schema && rhs.Schema ? *lhs.Schema == *rhs.Schema : lhs.Schema == rhs.Schema) &&
+    return lhs.ClassName == rhs.ClassName &&
+        (lhs.Schema && rhs.Schema ? *lhs.Schema == *rhs.Schema : lhs.Schema == rhs.Schema) &&
         lhs.MigrationFunction == rhs.MigrationFunction;
 }
 
