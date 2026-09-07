@@ -2989,14 +2989,178 @@ TEST(TSpecYTPathOwnershipTest, UnsetEmbeddedExclusiveWritePathsOk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TPipelineSpecTest, ComputationIdMustNotContainColon)
+struct TDeclarationSpecCase
 {
-    // The colon is reserved for the "resource:<id>" keys of resource-controller states.
-    auto badYson = TYsonStringBuf(R"({computations = {"resource:x" = {computation_class_name = "Foo"}}})");
-    EXPECT_THROW(ConvertTo<TPipelineSpecPtr>(badYson), NYT::TErrorException);
+    TStringBuf EntityKind;
+    TStringBuf SpecTemplate;
+    bool Dynamic;
+};
 
-    auto okYson = TYsonStringBuf(R"({computations = {x = {computation_class_name = "Foo"}}})");
-    EXPECT_NO_THROW(ConvertTo<TPipelineSpecPtr>(okYson));
+void DeserializeDeclarationSpec(const TDeclarationSpecCase& testCase, TStringBuf id)
+{
+    auto specYson = std::string(testCase.SpecTemplate);
+    specYson.replace(specYson.find("%v"), 2, id.data(), id.size());
+    if (testCase.Dynamic) {
+        ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(specYson));
+    } else {
+        ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(specYson));
+    }
+}
+
+TEST(TPipelineSpecTest, DeclarationIdsRejectReservedSeparators)
+{
+    const std::vector<TDeclarationSpecCase> testCases = {
+        {"computation", R"({computations = {"%v" = {computation_class_name = "Foo"}}})", false},
+        {"stream", R"({streams = {"%v" = {schema = []}}})", false},
+        {"resource", R"({resources = {"%v" = {resource_class_name = "Foo"}}})", false},
+        {"timer stream", R"({computations = {c = {computation_class_name = "Foo"; timer_streams = {"%v" = {}}}}})", false},
+        {"key visitor stream", R"({computations = {c = {computation_class_name = "Foo"; key_visitor_streams = {"%v" = {}}}}})", false},
+        {"sink", R"({computations = {c = {computation_class_name = "Foo"; sinks = {"%v" = {}}}}})", false},
+        {"file provider", R"({resources = {r = {resource_class_name = "Foo"; file_providers = {"%v" = {file_provider_class_name = "Foo"}}}}})", false},
+        {"throttler", R"({throttlers = {"%v" = {}}})", true},
+        {"quota class", R"({throttlers = {t = {classes = {"%v" = {}}}}})", true},
+    };
+
+    for (const auto& testCase : testCases) {
+        SCOPED_TRACE(testCase.EntityKind);
+        EXPECT_NO_THROW(DeserializeDeclarationSpec(testCase, "valid-id_1"));
+
+        for (auto invalidId : {TStringBuf("invalid/id"), TStringBuf("invalid:id")}) {
+            EXPECT_THROW_WITH_SUBSTRING(
+                DeserializeDeclarationSpec(testCase, invalidId),
+                Format("Invalid %v ID %Qv", testCase.EntityKind, invalidId));
+        }
+    }
+}
+
+enum class EDeclarationLocation
+{
+    Computation,
+    Stream,
+    Resource,
+    TimerStream,
+    KeyVisitorStream,
+    Sink,
+    FileProvider,
+    Throttler,
+    QuotaClass,
+};
+
+void ValidateProgrammaticDeclaration(EDeclarationLocation location, TStringBuf id)
+{
+    auto pipelineSpec = New<TPipelineSpec>();
+    auto dynamicPipelineSpec = New<TDynamicPipelineSpec>();
+
+    switch (location) {
+        case EDeclarationLocation::Computation:
+            pipelineSpec->Computations[TComputationId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::Stream:
+            pipelineSpec->Streams[TStreamId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::Resource:
+            pipelineSpec->Resources[TResourceId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::TimerStream: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->TimerStreams[TStreamId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::KeyVisitorStream: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->KeyVisitorStreams[TStreamId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::Sink: {
+            auto computationSpec = New<TComputationSpec>();
+            computationSpec->Sinks[TSinkId(std::string(id))] = nullptr;
+            pipelineSpec->Computations[TComputationId("c")] = std::move(computationSpec);
+            break;
+        }
+        case EDeclarationLocation::FileProvider: {
+            auto resourceSpec = New<TResourceSpec>();
+            resourceSpec->FileProviders[TFileProviderId(std::string(id))] = nullptr;
+            pipelineSpec->Resources[TResourceId("r")] = std::move(resourceSpec);
+            break;
+        }
+        case EDeclarationLocation::Throttler:
+            dynamicPipelineSpec->Throttlers[TThrottlerId(std::string(id))] = nullptr;
+            break;
+        case EDeclarationLocation::QuotaClass: {
+            auto throttlerSpec = New<TDynamicThrottlerSpec>();
+            throttlerSpec->Classes[TQuotaClassId(std::string(id))] = nullptr;
+            dynamicPipelineSpec->Throttlers[TThrottlerId("t")] = std::move(throttlerSpec);
+            break;
+        }
+    }
+
+    if (location == EDeclarationLocation::Throttler || location == EDeclarationLocation::QuotaClass) {
+        ValidateDynamicPipelineSpec(dynamicPipelineSpec);
+    } else {
+        ValidatePipelineSpec(pipelineSpec);
+    }
+}
+
+TEST(TPipelineSpecTest, ProgrammaticDeclarationIdsRejectReservedSeparators)
+{
+    const std::vector<std::pair<EDeclarationLocation, TStringBuf>> testCases = {
+        {EDeclarationLocation::Computation, "computation"},
+        {EDeclarationLocation::Stream, "stream"},
+        {EDeclarationLocation::Resource, "resource"},
+        {EDeclarationLocation::TimerStream, "timer stream"},
+        {EDeclarationLocation::KeyVisitorStream, "key visitor stream"},
+        {EDeclarationLocation::Sink, "sink"},
+        {EDeclarationLocation::FileProvider, "file provider"},
+        {EDeclarationLocation::Throttler, "throttler"},
+        {EDeclarationLocation::QuotaClass, "quota class"},
+    };
+
+    for (const auto& [location, entityKind] : testCases) {
+        SCOPED_TRACE(entityKind);
+        for (auto invalidId : {TStringBuf("invalid/id"), TStringBuf("invalid:id")}) {
+            EXPECT_THROW_WITH_SUBSTRING(
+                ValidateProgrammaticDeclaration(location, invalidId),
+                Format("Invalid %v ID %Qv", entityKind, invalidId));
+        }
+    }
+}
+
+TEST(TPipelineSpecTest, SourceStreamIdMayContainSlash)
+{
+    auto pipelineSpec = ConvertTo<TPipelineSpecPtr>(TYsonStringBuf(R"(
+        {
+            computations = {
+                reader = {
+                    computation_class_name = "NYT::NFlow::TNullComputation";
+                    group_by_schema = [];
+                    output_stream_ids = [out];
+                    streams_dependency = {out = ["yabs-rt/topic"]};
+                    source_streams = {
+                        "yabs-rt/topic" = {
+                            source_class_name = "NYT::NFlow::TNullSource";
+                        };
+                    };
+                };
+            };
+            streams = {out = {schema = []}};
+        }
+    )"));
+    EXPECT_NO_THROW(ValidatePipelineSpec(pipelineSpec));
+
+    auto dynamicSpecNode = ConvertTo<IMapNodePtr>(TYsonStringBuf(R"(
+        {
+            computations = {
+                reader = {
+                    source_streams = {"yabs-rt/topic" = {}};
+                };
+            };
+        }
+    )"));
+    auto dynamicPipelineSpec = ConvertTo<TDynamicPipelineSpecPtr>(dynamicSpecNode);
+    EXPECT_NO_THROW(ValidateDynamicPipelineSpec(dynamicPipelineSpec));
+    EXPECT_TRUE(TRegistry::Get()->ValidateDynamicPipelineSpecParseability(pipelineSpec, dynamicSpecNode).empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

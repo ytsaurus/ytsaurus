@@ -28,6 +28,59 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void ValidateUserDefinedEntityId(TStringBuf entityKind, TStringBuf id)
+{
+    THROW_ERROR_EXCEPTION_IF(
+        id.find('/') != TStringBuf::npos || id.find(':') != TStringBuf::npos,
+        "Invalid %v ID %Qv: '/' and ':' are reserved separators",
+        entityKind,
+        id);
+}
+
+template <class TMap>
+void ValidateDeclarationIds(TStringBuf entityKind, const TMap& declarations)
+{
+    for (const auto& [id, _] : declarations) {
+        ValidateUserDefinedEntityId(entityKind, id.Underlying());
+    }
+}
+
+void ValidatePipelineDeclarationIds(const TPipelineSpec* spec)
+{
+    ValidateDeclarationIds("computation", spec->Computations);
+    ValidateDeclarationIds("stream", spec->Streams);
+    ValidateDeclarationIds("resource", spec->Resources);
+
+    for (const auto& [_, computationSpec] : spec->Computations) {
+        ValidateDeclarationIds("timer stream", computationSpec->TimerStreams);
+        ValidateDeclarationIds("key visitor stream", computationSpec->KeyVisitorStreams);
+        ValidateDeclarationIds("sink", computationSpec->Sinks);
+    }
+
+    for (const auto& [_, resourceSpec] : spec->Resources) {
+        ValidateDeclarationIds("file provider", resourceSpec->FileProviders);
+    }
+}
+
+void ValidateThrottlerIds(const TDynamicPipelineSpec* spec)
+{
+    ValidateDeclarationIds("throttler", spec->Throttlers);
+}
+
+void ValidateDynamicPipelineDeclarationIds(const TDynamicPipelineSpec* spec)
+{
+    ValidateThrottlerIds(spec);
+    for (const auto& [_, throttlerSpec] : spec->Throttlers) {
+        ValidateDeclarationIds("quota class", throttlerSpec->Classes);
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStreamId MakeGlobalStreamId(const TComputationId& computationId, const TStreamId& localStreamId, const TComputationSpecPtr& spec)
 {
     if (spec->InputStreamIds.contains(localStreamId) || spec->OutputStreamIds.contains(localStreamId)) {
@@ -593,13 +646,7 @@ void TPipelineSpec::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* spec) {
-        for (const auto& [computationId, computationSpec] : spec->Computations) {
-            // The colon is reserved: resource-controller states live in the computation-state
-            // namespace under "resource:<id>" keys.
-            THROW_ERROR_EXCEPTION_IF(computationId.Underlying().find(':') != std::string::npos,
-                "Computation id %Qv must not contain a colon",
-                computationId);
-        }
+        ValidatePipelineDeclarationIds(spec);
     });
 }
 
@@ -944,6 +991,7 @@ void TDynamicThrottlerSpec::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* spec) {
         for (const auto& [classId, _] : spec->Classes) {
+            ValidateUserDefinedEntityId("quota class", classId.Underlying());
             ValidateQuotaClassName(classId.Underlying());
         }
 
@@ -1333,6 +1381,10 @@ void TDynamicPipelineSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("flow_view_cache_codec", &TThis::FlowViewCacheCodec)
         .Default(NCompression::ECodec::Zstd_2);
+
+    registrar.Postprocessor([] (TThis* spec) {
+        ValidateThrottlerIds(spec);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1582,6 +1634,8 @@ std::vector<TYTPathClaim> CollectPipelineYTPaths(const TPipelineSpecPtr& spec)
 
 void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
 {
+    ValidatePipelineDeclarationIds(spec.Get());
+
     ValidateControllerResourceFileProviders(spec);
 
     for (const auto& [streamId, streamSpec] : spec->Streams) {
@@ -2048,6 +2102,8 @@ void ValidateQuotaClassWeight(double weight)
 
 void ValidateDynamicPipelineSpec(const TDynamicPipelineSpecPtr& dynamicSpec)
 {
+    ValidateDynamicPipelineDeclarationIds(dynamicSpec.Get());
+
     for (const auto& [resourceId, resourceSpec] : dynamicSpec->Resources) {
         try {
             for (const auto& [fileProviderId, _] : resourceSpec->FileProviders) {
