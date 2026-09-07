@@ -71,10 +71,8 @@ DBPoco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
             TTraceContextPtr traceContext;
 
             switch (context->getClientInfo().query_kind) {
-                case DB::ClientInfo::QueryKind::NO_QUERY: {
+                case DB::ClientInfo::QueryKind::NO_QUERY:
                     THROW_ERROR_EXCEPTION("Attempt to process an uninitialized query object");
-                    break;
-                }
                 case DB::ClientInfo::QueryKind::INITIAL_QUERY: {
                     traceContext = New<TTraceContext>(TSpanContext{.TraceId = TTraceId::Create()}, "TcpHandler");
                     queryId = traceContext->GetTraceId();
