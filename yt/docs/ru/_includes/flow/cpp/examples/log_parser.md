@@ -14,7 +14,7 @@
 
 Результат трансформации — стрим `records` — материализуется в {{product-name}}, как у `TTransformComputation`, поэтому требований к детерминированности трансформации нет: после рестарта Flow дораспределяет уже материализованные сообщения с ранее назначенными им `MessageId`, а не вычисляет их заново.
 
-Наследоваться от класса по-прежнему можно: так написан пример [Proto Parser](../../../../flow/cpp/examples/proto_parser.md) — на хелпере `TProtoTransformOrderedSourceComputation<TProto>` поверх `TTransformOrderedSourceComputation`. Валидатор спеки у адаптера тот же, что у базового класса: непустой `group_by_schema`, таймеры, key-visitor-стримы и `external_state_managers` отвергаются в любом варианте (полный [список ограничений](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)).
+Пример [Proto Parser](../../../../flow/cpp/examples/proto_parser.md) использует тот же режим исполнения через переиспользуемую базу process function: `TProtoLogParserFunction` наследуется от `TProtoParsingProcessFunctionBase<TLogRecordProto>` и запускается под `TProcessFunctionTransformOrderedSourceComputation`. Валидатор спеки у адаптера-хоста тот же, что у базового класса компьютейшена: непустой `group_by_schema`, таймеры, key-visitor-стримы и `external_state_managers` отвергаются (полный [список ограничений](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)).
 
 ### Спека компьютейшена parser
 
