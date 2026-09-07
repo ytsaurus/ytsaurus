@@ -9,8 +9,8 @@ ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
 # Args for base-server-crio
-ARG K8S_VERSION="v1.34"
-ARG CRIO_VERSION="v1.34"
+ARG K8S_VERSION="v1.36"
+ARG CRIO_VERSION="v1.36"
 
 # Args for odin.
 ARG PYTHON_RUNTIME_VERSION="3.11"
@@ -300,7 +300,7 @@ EOF
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 update -q --error-on=any
-apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 install -y cri-tools cri-o
+apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 install -y --no-install-recommends cri-tools cri-o
 EOT
 
 ##########################################################################################
