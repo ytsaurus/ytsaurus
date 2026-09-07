@@ -1372,7 +1372,7 @@ private:
         program->SetMaxLanguageVersion(MaxYqlLangVersion_);
         if (auto version = settingsMap.FindPtr("yql_version")) {
             TLangVersion parsedVersion;
-            if (ParseLangVersion(version->AsString(), parsedVersion)) {
+            if (ParseLangVersion(version->AsString(), parsedVersion) && NYql::IsValidLangVersion(parsedVersion)) {
                 program->SetLanguageVersion(parsedVersion);
             } else {
                 ythrow yexception() << Format("Invalid YQL language version (Version: %v)", version->AsString());
