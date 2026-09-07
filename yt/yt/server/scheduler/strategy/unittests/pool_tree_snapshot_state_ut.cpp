@@ -93,7 +93,6 @@ protected:
         auto allocation = New<TAllocationState>(
             allocationId,
             node->GetId(),
-            MakeWeak(assignment),
             UnitResources);
         assignment->AddAllocation(allocation);
         return allocation;
@@ -107,7 +106,6 @@ protected:
         auto allocation = New<TAllocationState>(
             allocationId,
             nodeId,
-            /*assignment*/ TWeakPtr<TAssignment>{},
             UnitResources);
         operation->AddOrphanAllocation(allocation);
         return allocation;
@@ -123,7 +121,7 @@ TEST_F(TPoolTreeSnapshotStateTest, AllocationSnapshotInheritsPreemptibilityFromA
     auto assignment = AddPreliminaryAssignment(operation, node, /*preemptible*/ true);
     auto allocation = RealizeAssignment(node, assignment);
 
-    auto info = allocation->BuildSnapshotInfo(operation->GetId());
+    auto info = operation->BuildAllocationSnapshotInfo(allocation->GetId());
     EXPECT_EQ(allocation->GetId(), info.AllocationId);
     EXPECT_EQ(operation->GetId(), info.OperationId);
     EXPECT_EQ(node->GetId(), info.NodeId);
@@ -136,7 +134,7 @@ TEST_F(TPoolTreeSnapshotStateTest, OrphanAllocationSnapshotIsNotPreemptible)
     auto nodeId = NNodeTrackerClient::TNodeId(42);
     auto allocation = AddOrphanAllocation(operation, nodeId);
 
-    auto info = allocation->BuildSnapshotInfo(operation->GetId());
+    auto info = operation->BuildAllocationSnapshotInfo(allocation->GetId());
     EXPECT_EQ(allocation->GetId(), info.AllocationId);
     EXPECT_EQ(operation->GetId(), info.OperationId);
     EXPECT_EQ(nodeId, info.NodeId);
@@ -165,10 +163,10 @@ TEST_F(TPoolTreeSnapshotStateTest, OperationSnapshotIncludesOrphanAllocations)
         realizedAllocation->GetId(),
         orphanAllocation->GetId()));
 
-    auto realizedInfo = realizedAllocation->BuildSnapshotInfo(operation->GetId());
+    auto realizedInfo = operation->BuildAllocationSnapshotInfo(realizedAllocation->GetId());
     EXPECT_TRUE(realizedInfo.Preemptible);
 
-    auto orphanInfo = orphanAllocation->BuildSnapshotInfo(operation->GetId());
+    auto orphanInfo = operation->BuildAllocationSnapshotInfo(orphanAllocation->GetId());
     EXPECT_FALSE(orphanInfo.Preemptible);
 }
 
@@ -252,7 +250,7 @@ TEST_F(TPoolTreeSnapshotStateTest, PoolTreeSnapshotStateAggregatesAllMaps)
     EmplaceOrCrash(
         allocationStates,
         allocation->GetId(),
-        allocation->BuildSnapshotInfo(operation->GetId()));
+        operation->BuildAllocationSnapshotInfo(allocation->GetId()));
 
     TNodeSnapshotStateMap nodeStates;
     EmplaceOrCrash(nodeStates, node->GetId(), node->BuildSnapshotInfo());
