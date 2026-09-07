@@ -183,7 +183,7 @@ private:
 
             (result.IsOK() ? LookupsSucceeded : LookupsFailed).Increment();
 
-            if (result.GetCode() == NHiveClient::EErrorCode::UnknownCell &&
+            if (result.FindMatching(NHiveClient::EErrorCode::UnknownCell) &&
                 groundClient->GetNativeConnection()->IsTerminated())
             {
                 return TError(EErrorCode::SequoiaRetriableError, "Sequoia Ground connection was probably reconfigured")
@@ -245,7 +245,7 @@ private:
         return groundClient
             ->SelectRows(builder.Build(), options)
             .Apply(BIND([groundClient] (const TErrorOr<TSelectRowsResult>& result) -> TErrorOr<TSelectRowsResult> {
-                if (result.GetCode() == NHiveClient::EErrorCode::UnknownCell &&
+                if (result.FindMatching(NHiveClient::EErrorCode::UnknownCell) &&
                     groundClient->GetNativeConnection()->IsTerminated())
                 {
                     return TError(EErrorCode::SequoiaRetriableError, "Sequoia connection was probably reconfigured")
