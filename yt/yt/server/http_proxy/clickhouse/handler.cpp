@@ -1344,6 +1344,9 @@ void TClickHouseHandler::HandleRequest(
         auto adjuctQueryCountCallback = BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser());
         ControlInvoker_->Invoke(BIND(adjuctQueryCountCallback, +1));
         auto queryCountGuard = Finally(BIND(adjuctQueryCountCallback, -1).Via(ControlInvoker_));
+        auto structuredLogGuard = Finally([&] {
+            context->LogStructuredRequest();
+        });
 
         try {
             context->ProcessRequest();
@@ -1351,8 +1354,6 @@ void TClickHouseHandler::HandleRequest(
             YT_TLOG_INFO("Request failed with unexpected error")
                 .With(ex);
         }
-
-        context->LogStructuredRequest();
     }
 }
 
