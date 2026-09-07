@@ -20,6 +20,7 @@ struct TTableTimestampLocatorSpec
 {
     std::string Attribute;
     ETimestampFormat Format{};
+    std::optional<std::string> Timezone;
 
     REGISTER_YSON_STRUCT(TTableTimestampLocatorSpec);
 
