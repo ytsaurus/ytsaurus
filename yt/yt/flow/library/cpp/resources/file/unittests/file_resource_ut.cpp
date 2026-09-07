@@ -1140,7 +1140,7 @@ TEST_F(TFileResourceTest, RegistryValidatesNamedProviders)
         TRegistry::Get()->ValidateResourceSpec(emptyParameters),
         "prefix");
 
-    auto invalidName = MakeNamedResourceSpec({{"../left", "left"}});
+    auto invalidName = MakeNamedResourceSpec({{"..", "left"}});
     auto invalidPipelineSpec = New<TPipelineSpec>();
     invalidPipelineSpec->Resources[TResourceId("resource")] = invalidName;
     EXPECT_THROW_WITH_SUBSTRING(
