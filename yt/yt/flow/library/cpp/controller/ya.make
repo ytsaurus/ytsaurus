@@ -38,6 +38,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/controller/describe
     yt/yt/flow/library/cpp/distributed_throttler
     yt/yt/flow/library/cpp/misc
+    yt/yt/flow/library/cpp/partitioning
     yt/yt/flow/library/cpp/tables
     yt/yt/flow/library/cpp/client
     yt/yt/library/cypress_election

@@ -1,4 +1,4 @@
-#include "universal_controller_helpers.h"
+#include "partitioning_helpers.h"
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 
@@ -7,42 +7,6 @@ namespace NYT::NFlow {
 using namespace NYT::NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-std::string MakeLegacyAvailabilityGroupName(const TAvailabilityGroupOrigin& origin)
-{
-    return Format("%v-%v", origin.StreamId, origin.Group);
-}
-
-} // namespace
-
-THashMap<TStreamId, THashSet<std::string>> MigrateLegacySuppressedAvailabilityGroups(
-    const THashSet<std::string>& legacySuppressedAvailabilityGroups,
-    const std::vector<TAvailabilityGroupOrigin>& currentOrigins)
-{
-    THashMap<std::string, TAvailabilityGroupOrigin> originsByKey;
-    THashSet<std::string> ambiguousKeys;
-
-    for (const auto& origin : currentOrigins) {
-        auto [it, inserted] = originsByKey.emplace(MakeLegacyAvailabilityGroupName(origin), origin);
-        if (!inserted && it->second != origin) {
-            ambiguousKeys.insert(it->first);
-        }
-    }
-
-    for (const auto& key : ambiguousKeys) {
-        originsByKey.erase(key);
-    }
-
-    THashMap<TStreamId, THashSet<std::string>> groupsByStream;
-    for (const auto& availabilityGroup : legacySuppressedAvailabilityGroups) {
-        if (const auto* origin = originsByKey.FindPtr(availabilityGroup)) {
-            groupsByStream[origin->StreamId].insert(origin->Group);
-        }
-    }
-    return groupsByStream;
-}
 
 TBlockedStreamComputer::TBlockedStreamComputer(
     const TFlowViewPtr& flowView,
@@ -63,6 +27,12 @@ void TBlockedStreamComputer::AddInterruptingPartition(const TPartitionId& partit
     auto partition = GetOrCrash(executionSpec->Layout->Partitions, partitionId);
     auto computationSpec = GetOrCrash(executionSpec->PipelineSpec->GetValue()->Computations, partition->ComputationId);
     if (computationSpec->DistributionOrdering == EDistributionOrdering::Relaxed || computationSpec->OutputStreamIds.empty()) {
+        return;
+    }
+    if (!partition->SourceKey && (!partition->LowerKey || !partition->UpperKey)) {
+        YT_TLOG_WARNING("Ignoring malformed interrupting partition as a blocked-stream source")
+            .With("ComputationId", partition->ComputationId)
+            .With("PartitionId", partitionId);
         return;
     }
 
@@ -147,6 +117,20 @@ THashSet<TStreamId> TBlockedStreamComputer::GetBlockedStreams(const TKey& lower,
 THashSet<TStreamId> TBlockedStreamComputer::GetBlockedStreams(const TKey& sourceKey) const
 {
     return GetOrDefault(BlockingKeys_, sourceKey);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::pair<TPartitionId, TKeyRange>> GetSortedPartitionRanges(
+    const THashMap<TPartitionId, TKeyRange>& partitionRanges)
+{
+    std::vector<std::pair<TPartitionId, TKeyRange>> sortedRanges(
+        partitionRanges.begin(),
+        partitionRanges.end());
+    Sort(sortedRanges, [] (const auto& lhs, const auto& rhs) {
+        return std::tie(lhs.second, lhs.first) < std::tie(rhs.second, rhs.first);
+    });
+    return sortedRanges;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

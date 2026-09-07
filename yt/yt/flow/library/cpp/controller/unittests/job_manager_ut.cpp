@@ -188,6 +188,7 @@ struct TThrowingTraverseComputationController
 
     TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& /*traverseData*/,
+        const TNodeTraverseDataPtr& /*currentTraverseData*/,
         const TFlowViewPtr& /*flowView*/) override
     {
         THROW_ERROR_EXCEPTION("Injected traverse failure");
@@ -1047,6 +1048,27 @@ TEST_F(TTraverseIsolationTest, FailingComputationDoesNotFreezeOthers)
 
     EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("healthy")), TSystemTimestamp(100));
     EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("broken")), TSystemTimestamp(50));
+}
+
+TEST_F(TTraverseIsolationTest, SuccessfulComputationDoesNotRegressWatermark)
+{
+    PrepareTwoComputations();
+    FlowView->State->TraverseData->Computations[TComputationId("healthy")] =
+        MakeInputNode(/*epoch*/ 1, TSystemTimestamp(100));
+    FlowView->State->TraverseData->Computations[TComputationId("broken")] =
+        MakeInputNode(/*epoch*/ 0, TSystemTimestamp(50));
+
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId != TComputationId("healthy")) {
+            continue;
+        }
+        FlowView->Feedback->PartitionJobStatuses.at(partitionId)->LastTraverseData->Node =
+            MakeInputNode(/*epoch*/ 1, TSystemTimestamp(50));
+    }
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("healthy")), TSystemTimestamp(100));
 }
 
 TEST_F(TTraverseIsolationTest, FailingComputationWithoutPreviousDataAborts)

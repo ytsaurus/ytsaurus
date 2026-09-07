@@ -70,7 +70,6 @@ target_sources(library-cpp-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/swift_ordered_source_computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/transform_computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/transform_ordered_source_computation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/universal_controller_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/universal_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/watermark_aligner.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/watermark_generator.cpp

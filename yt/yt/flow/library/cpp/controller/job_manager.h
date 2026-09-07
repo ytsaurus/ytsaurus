@@ -35,6 +35,8 @@ DEFINE_REFCOUNTED_TYPE(TJobManagerContext);
 struct IJobManager
     : public TRefCounted
 {
+    virtual void BeginIteration() = 0;
+
     virtual void CheckCompletedPartitions(const TFlowViewPtr& flowView) = 0;
     virtual void RemoveFailedJobs(const TFlowViewPtr& flowView) = 0;
 

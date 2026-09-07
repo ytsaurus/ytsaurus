@@ -42,6 +42,7 @@ target_link_libraries(library-cpp-controller PUBLIC
   cpp-controller-describe
   library-cpp-distributed_throttler
   library-cpp-misc
+  library-cpp-partitioning
   library-cpp-tables
   library-cpp-client
   yt-library-cypress_election

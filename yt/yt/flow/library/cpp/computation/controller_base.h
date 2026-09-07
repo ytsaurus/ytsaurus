@@ -97,32 +97,9 @@ public:
 
     const TComputationId& GetComputationId() const;
 
-    void InterruptPartition(const TFlowViewPtr& flowView, const TPartitionId& partitionId);
-
-    // Like #InterruptPartition, but retires the partition for good: its source-key state is erased
-    // rather than preserved for a possible recreation.
-    void CompletePartition(const TFlowViewPtr& flowView, const TPartitionId& partitionId);
-
-    void CreateSourcePartition(
-        const TFlowViewPtr& flowView,
-        const TKey& sourceKey,
-        const NYTree::IMapNodePtr& dynamicComputationPartitionSpec);
-
-    void CreateRangePartition(
-        const TFlowViewPtr& flowView,
-        const TKey& lowerKey,
-        const TKey& upperKey,
-        const NYTree::IMapNodePtr& dynamicComputationPartitionSpec);
-
-    //! Replaces the computation-owned part of the partition's dynamic spec; the
-    //! job-manager-owned fields (e.g. FinishAfterCurrentEpoch) are carried over.
-    void UpdateDynamicPartitionSpec(
-        const TFlowViewPtr& flowView,
-        const TPartitionId& partitionId,
-        const NYTree::IMapNodePtr& dynamicComputationPartitionSpec);
-
     TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
+        const TNodeTraverseDataPtr& currentTraverseData,
         const TFlowViewPtr& flowView) override;
 
     double ComputePartitionWeight(const TPartitionId& partitionId, const TFlowViewPtr& flowView) override;

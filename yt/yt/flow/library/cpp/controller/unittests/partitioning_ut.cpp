@@ -5,16 +5,16 @@
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/controller/job_manager.h>
+#include <yt/yt/flow/library/cpp/controller/state_manager.h>
 
-#include <yt/yt/flow/library/cpp/computation/computation_base.h>
 #include <yt/yt/flow/library/cpp/computation/universal_controller.h>
 
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.h>
 #include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
-#include <yt/yt/flow/library/cpp/connectors/common/source_base.h>
-#include <yt/yt/flow/library/cpp/connectors/common/source_controller_base.h>
+#include <yt/yt/flow/library/cpp/connectors/random/source.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+#include <yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.h>
 
 #include <util/system/type_name.h>
 
@@ -29,8 +29,8 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Target-queue partition count reported by the test sink controller below. The test mutates it
-//! between partitioning cycles to emulate a queue reshard.
+//! Target-queue partition count reported by the test sink controller below. A negative value means
+//! that the count is not available yet.
 std::atomic<i64> SinkChannelCountForTest{5};
 
 class TChannelCountSinkController
@@ -41,7 +41,8 @@ public:
 
     std::optional<i64> GetReceiverChannelCount() override
     {
-        return SinkChannelCountForTest.load();
+        auto count = SinkChannelCountForTest.load();
+        return count >= 0 ? std::optional(count) : std::nullopt;
     }
 };
 
@@ -78,7 +79,8 @@ public:
 
     std::optional<i64> GetReceiverChannelCount() override
     {
-        return SecondSinkChannelCountForTest.load();
+        auto count = SecondSinkChannelCountForTest.load();
+        return count >= 0 ? std::optional(count) : std::nullopt;
     }
 };
 
@@ -103,82 +105,127 @@ YT_FLOW_DEFINE_SINK(TSecondChannelCountSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TStreamId, THashMap<TKey, std::string>> SourceAvailabilityGroupsForTest;
-THashMap<TStreamId, THashSet<std::string>> SuppressedSourceGroupsForTest;
-
-class TSuppressionTestSourceController
-    : public TSourceControllerBase
+class TNullChannelCountSinkController
+    : public TSinkControllerBase
 {
 public:
-    using TSourceControllerBase::TSourceControllerBase;
+    using TSinkControllerBase::TSinkControllerBase;
 
-    std::optional<THashMap<TKey, IMapNodePtr>> ListKeys() override
+    std::optional<i64> GetReceiverChannelCount() override
     {
-        THashMap<TKey, IMapNodePtr> keys;
-        for (const auto& key : GetKeys(SourceAvailabilityGroupsForTest.at(GetContext()->SourceStreamId))) {
-            keys[key] = GetEphemeralNodeFactory()->CreateMap();
-        }
-        return keys;
+        return std::nullopt;
     }
+};
 
-    std::string GetGroup(const TKey& key) override
+class TNullChannelCountSink
+    : public TOrderedBatchingAsyncSinkBase
+{
+public:
+    using TSinkController = TNullChannelCountSinkController;
+
+    using TOrderedBatchingAsyncSinkBase::TOrderedBatchingAsyncSinkBase;
+
+    void DoInit(const std::string& /*producerId*/) override
+    { }
+
+    TFuture<void> DoDistribute(const std::vector<TOutputMessageConstPtr>& /*messages*/, i64 /*seqNo*/) override
     {
-        return SourceAvailabilityGroupsForTest.at(GetContext()->SourceStreamId).at(key);
+        return OKFuture;
+    }
+};
+
+YT_FLOW_DEFINE_SINK(TNullChannelCountSink);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TStatefulSourceTestState
+{
+    std::vector<std::string> Events;
+    int ListKeysCallCount = 0;
+    int GetGroupCallCount = 0;
+    THashMap<TStreamId, THashMap<TKey, TExtendedSourcePartitionStatusPtr>> ReceivedPartitionStatuses;
+    THashSet<TStreamId> OmittedSourceStreams;
+    THashSet<std::string> SuppressedGroups;
+    TSuppressedAvailabilityGroupsBySource SuppressedGroupsBySource;
+
+    void ResetObservation()
+    {
+        Events.clear();
+        ListKeysCallCount = 0;
+        GetGroupCallCount = 0;
+        ReceivedPartitionStatuses.clear();
+        SuppressedGroups.clear();
+        SuppressedGroupsBySource.clear();
+    }
+};
+
+TStatefulSourceTestState StatefulSourceTestState;
+
+class TStatefulPartitioningSourceController
+    : public TRandomSourceController
+{
+public:
+    using TRandomSourceController::TRandomSourceController;
+
+    void ProcessPartitionStatuses(const THashMap<TKey, TExtendedSourcePartitionStatusPtr>& statuses) override
+    {
+        StatefulSourceTestState.Events.push_back("statuses");
+        StatefulSourceTestState.ReceivedPartitionStatuses[GetGlobalStreamId()] = statuses;
     }
 
     void ProcessSuppressedGroups(const THashSet<std::string>& groups) override
     {
-        SuppressedSourceGroupsForTest[GetContext()->SourceStreamId] = groups;
+        StatefulSourceTestState.Events.push_back("suppressed_groups");
+        StatefulSourceTestState.SuppressedGroups = groups;
+        StatefulSourceTestState.SuppressedGroupsBySource[GetContext()->SourceStreamId] = groups;
+    }
+
+    std::optional<THashMap<TKey, IMapNodePtr>> ListKeys() override
+    {
+        StatefulSourceTestState.Events.push_back("list_keys");
+        ++StatefulSourceTestState.ListKeysCallCount;
+
+        const auto globalStreamId = GetGlobalStreamId();
+        if (StatefulSourceTestState.OmittedSourceStreams.contains(globalStreamId)) {
+            return THashMap<TKey, IMapNodePtr>{};
+        }
+
+        auto activeSourceSpec = GetEphemeralNodeFactory()->CreateMap();
+        const auto* receivedStatuses =
+            StatefulSourceTestState.ReceivedPartitionStatuses.FindPtr(globalStreamId);
+        activeSourceSpec->AddChild(
+            "marker",
+            ConvertToNode(receivedStatuses && !receivedStatuses->empty() ? "after_status" : "initial"));
+        return THashMap<TKey, IMapNodePtr>{{MakeKey(0), std::move(activeSourceSpec)}};
+    }
+
+    std::string GetGroup(const TKey& /*key*/) override
+    {
+        StatefulSourceTestState.Events.push_back("get_group");
+        ++StatefulSourceTestState.GetGroupCallCount;
+        return "group";
+    }
+
+private:
+    TStreamId GetGlobalStreamId() const
+    {
+        const auto& context = GetContext();
+        return MakeGlobalStreamId(
+            context->ComputationId,
+            context->SourceStreamId,
+            context->ComputationSpec);
     }
 };
 
-class TSuppressionTestSource
-    : public TSourceBase
+class TStatefulPartitioningSource
+    : public TRandomSource
 {
 public:
-    using TSourceController = TSuppressionTestSourceController;
-    using TSourceBase::TSourceBase;
-
-    void Init(IInitContextPtr /*initContext*/) override
-    { }
-
-    void Terminate() override
-    { }
-
-    void Sync() override
-    { }
-
-    void Commit() override
-    { }
-
-    TFuture<std::vector<TMessageBatch>> GetNextBatch(const TMessageBatcherSettingsPtr& /*batcherSettings*/) override
-    {
-        return MakeFuture(std::vector<TMessageBatch>());
-    }
-
-    void MarkPublished(const TSourceMessageBatchCookie& /*cookie*/) override
-    { }
-
-    void MarkPersisted(const TSourceMessageBatchCookie& /*cookie*/) override
-    { }
-
-    TInflightStreamTraverseDataPtr BuildInflight() override
-    {
-        return New<TInflightStreamTraverseData>();
-    }
-
-    std::optional<TSystemTimestamp> GetPersistedEventWatermark() override
-    {
-        return std::nullopt;
-    }
-
-    std::optional<TSystemTimestamp> GetReadEventWatermark() override
-    {
-        return std::nullopt;
-    }
+    using TSourceController = TStatefulPartitioningSourceController;
+    using TRandomSource::TRandomSource;
 };
 
-YT_FLOW_DEFINE_SOURCE(TSuppressionTestSource);
+YT_FLOW_DEFINE_SOURCE(TStatefulPartitioningSource);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -208,34 +255,46 @@ public:
     TPipelineSpecPtr Spec;
     TDynamicPipelineSpecPtr DynamicSpec;
     TComputationId ComputationId = "computation";
+    TComputationId SecondComputationId = "second_computation";
     TIntrusivePtr<TFakeVersionProvider> VersionProvider = New<TFakeVersionProvider>(InitialTimestamp.Underlying());
 
     void Prepare(
         ssize_t numWorkers,
         bool withSink = false,
         bool withSecondSink = false,
-        const std::vector<TStreamId>& sourceStreamIds = {})
+        bool withSecondComputation = false,
+        bool withStatefulSource = false,
+        bool withNonUintKey = false,
+        bool withSecondStatefulSource = false,
+        bool withNullChannelCountSink = false)
     {
         Spec = New<TPipelineSpec>();
         DynamicSpec = New<TDynamicPipelineSpec>();
 
         Spec->Computations[ComputationId] = New<TComputationSpec>();
         Spec->Computations[ComputationId]->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
-        Spec->Computations[ComputationId]->GroupBySchema = New<NTableClient::TTableSchema>(std::vector<NTableClient::TColumnSchema>{
-            NTableClient::TColumnSchema("hash", NTableClient::EValueType::Uint64).SetRequired(true)});
-        Spec->Computations[ComputationId]->InputStreamIds.insert("input_stream");
+        Spec->Computations[ComputationId]->GroupBySchema = New<NTableClient::TTableSchema>(
+            std::vector<NTableClient::TColumnSchema>{withNonUintKey
+                    ? NTableClient::TColumnSchema("key", NTableClient::EValueType::String).SetRequired(true)
+                    : NTableClient::TColumnSchema("hash", NTableClient::EValueType::Uint64).SetRequired(true)});
+        if (withNonUintKey) {
+            Spec->Computations[ComputationId]->ExperimentalEnableNonUintKey = true;
+        }
+        if (withStatefulSource) {
+            auto addSource = [&] (const TStreamId& streamId) {
+                auto sourceSpec = New<TSourceSpec>();
+                sourceSpec->SourceClassName = TypeName<TStatefulPartitioningSource>();
+                Spec->Computations[ComputationId]->SourceStreams[streamId] = std::move(sourceSpec);
+            };
+            addSource("source_stream");
+            if (withSecondStatefulSource) {
+                addSource("second_source_stream");
+            }
+        } else {
+            Spec->Computations[ComputationId]->InputStreamIds.insert("input_stream");
+        }
         Spec->Computations[ComputationId]->OutputStreamIds.insert("output_stream");
         Spec->Computations[ComputationId]->TimerStreams["timer_stream"] = New<TTimerSpec>();
-        if (!sourceStreamIds.empty()) {
-            Spec->Computations[ComputationId]->InputStreamIds.clear();
-            Spec->Computations[ComputationId]->TimerStreams.clear();
-            for (const auto& streamId : sourceStreamIds) {
-                auto sourceSpec = New<TSourceSpec>();
-                sourceSpec->SourceClassName = TypeName<TSuppressionTestSource>();
-                Spec->Computations[ComputationId]->SourceStreams[streamId] = std::move(sourceSpec);
-                Spec->Computations[ComputationId]->StreamsDependency["output_stream"].insert(streamId);
-            }
-        }
         if (withSink) {
             Spec->Computations[ComputationId]->Sinks["sink"] = New<TSinkSpec>();
             Spec->Computations[ComputationId]->Sinks["sink"]->SinkClassName = TypeName<TChannelCountSink>();
@@ -243,6 +302,11 @@ public:
         if (withSecondSink) {
             Spec->Computations[ComputationId]->Sinks["sink_b"] = New<TSinkSpec>();
             Spec->Computations[ComputationId]->Sinks["sink_b"]->SinkClassName = TypeName<TSecondChannelCountSink>();
+        }
+        if (withNullChannelCountSink) {
+            Spec->Computations[ComputationId]->Sinks["sink_without_topology"] = New<TSinkSpec>();
+            Spec->Computations[ComputationId]->Sinks["sink_without_topology"]->SinkClassName =
+                TypeName<TNullChannelCountSink>();
         }
 
         DynamicSpec->JobManager->AsyncBalancing = false;
@@ -254,6 +318,13 @@ public:
                     "partition_count_half_delay" = 0;
                 }
             )"""")));
+        if (withStatefulSource) {
+            DynamicSpec->Computations[ComputationId]->SourceStreams["source_stream"] = New<TDynamicSourceSpec>();
+            if (withSecondStatefulSource) {
+                DynamicSpec->Computations[ComputationId]->SourceStreams["second_source_stream"] =
+                    New<TDynamicSourceSpec>();
+            }
+        }
         if (withSink) {
             // Pin the partition count so the sink's channel count is the only thing that can drive
             // a recreation.
@@ -266,6 +337,14 @@ public:
             [{name="value"; type="string";};]
         )"""")));
         Spec->Streams["output_stream"] = streamSpec;
+        if (withSecondComputation) {
+            auto secondComputationSpec = CloneYsonStruct(Spec->Computations[ComputationId]);
+            secondComputationSpec->OutputStreamIds = {"second_output_stream"};
+            Spec->Computations[SecondComputationId] = std::move(secondComputationSpec);
+            DynamicSpec->Computations[SecondComputationId] = CloneYsonStruct(
+                DynamicSpec->Computations[ComputationId]);
+            Spec->Streams["second_output_stream"] = CloneYsonStruct(streamSpec);
+        }
 
         FlowView->State->ExecutionSpec->PipelineSpec->TrySetValue(Spec, VersionProvider);
         FlowView->State->ExecutionSpec->DynamicPipelineSpec->TrySetValue(DynamicSpec, VersionProvider);
@@ -278,6 +357,7 @@ public:
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
         context->VersionProvider = VersionProvider;
         context->StatusProfiler = CreateSyncStatusProfiler();
+        context->VersionProvider = VersionProvider;
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
         FlowView->CurrentSpec->TrySetValue(Spec, VersionProvider);
 
@@ -294,9 +374,9 @@ public:
 
     //! Persist controller state (as the real controller does via SyncJobManagerState) and rebuild
     //! the job manager from it, emulating leader failover / static-spec change.
-    void RecreateJobManager(bool persistCurrentState = true)
+    void RecreateJobManager(bool syncState = true)
     {
-        if (persistCurrentState) {
+        if (syncState) {
             FlowView->State->JobManagerState = JobManager->GetState();
         }
         auto context = New<TJobManagerContext>();
@@ -305,39 +385,61 @@ public:
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
         context->VersionProvider = VersionProvider;
         context->StatusProfiler = CreateSyncStatusProfiler();
+        context->VersionProvider = VersionProvider;
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
-    }
-
-    void RestorePartitioningState(const TIntrusivePtr<TUniversalComputationControllerPartitioningState>& partitioningState)
-    {
-        auto jobManagerState = JobManager->GetState();
-        jobManagerState->Computations[ComputationId]["/partitioning/v0"] = ConvertToYsonString(partitioningState);
-        FlowView->State->JobManagerState = std::move(jobManagerState);
-        RecreateJobManager(/*persistCurrentState*/ false);
-    }
-
-    TUniversalComputationDynamicPartitionSpecPtr GetUniversalDynamicPartitionSpec(const TPartitionId& partitionId)
-    {
-        const auto& dynamicPartitionSpec = FlowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
-        return ConvertTo<TUniversalComputationDynamicPartitionSpecPtr>(dynamicPartitionSpec->ComputationPartitionSpec);
     }
 
     void SetFeedback(double cpuUsage, double memUsage, double messagesPerSecond, double bytesPerSecond)
     {
         for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
-            auto& partitionJobStatus = FlowView->Feedback->PartitionJobStatuses[partitionId];
-            partitionJobStatus = New<TPartitionJobStatus>();
-            auto& jobStatus = partitionJobStatus->CurrentJobStatus;
-            jobStatus = New<TJobStatus>();
-
-            jobStatus->PerformanceMetrics->CpuUsage10m = cpuUsage;
-            jobStatus->PerformanceMetrics->MemoryUsage10m = memUsage;
-
-            auto metrics = New<TNodeInputMetrics>();
-            metrics->Global.MessagesPerSecond = messagesPerSecond;
-            metrics->Global.BytesPerSecond = bytesPerSecond;
-            jobStatus->InputMetrics = std::move(metrics);
+            SetPartitionFeedback(partitionId, cpuUsage, memUsage, messagesPerSecond, bytesPerSecond);
         }
+    }
+
+    void SetComputationFeedback(
+        const TComputationId& computationId,
+        double cpuUsage,
+        double memUsage,
+        double messagesPerSecond,
+        double bytesPerSecond)
+    {
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->ComputationId == computationId) {
+                SetPartitionFeedback(partitionId, cpuUsage, memUsage, messagesPerSecond, bytesPerSecond);
+            }
+        }
+    }
+
+    void SetPartitionFeedback(
+        const TPartitionId& partitionId,
+        double cpuUsage,
+        double memUsage,
+        double messagesPerSecond,
+        double bytesPerSecond)
+    {
+        auto& partitionJobStatus = FlowView->Feedback->PartitionJobStatuses[partitionId];
+        partitionJobStatus = New<TPartitionJobStatus>();
+        auto& jobStatus = partitionJobStatus->CurrentJobStatus;
+        jobStatus = New<TJobStatus>();
+
+        jobStatus->PerformanceMetrics->CpuUsage10m = cpuUsage;
+        jobStatus->PerformanceMetrics->MemoryUsage10m = memUsage;
+
+        auto metrics = New<TNodeInputMetrics>();
+        metrics->Global.MessagesPerSecond = messagesPerSecond;
+        metrics->Global.BytesPerSecond = bytesPerSecond;
+        jobStatus->InputMetrics = std::move(metrics);
+    }
+
+    ssize_t GetExecutingPartitionCount(const TComputationId& computationId) const
+    {
+        ssize_t result = 0;
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->ComputationId == computationId && partition->State == EPartitionState::Executing) {
+                ++result;
+            }
+        }
+        return result;
     }
 
     void SetUp() override
@@ -347,8 +449,6 @@ public:
 
     void Reset()
     {
-        SourceAvailabilityGroupsForTest.clear();
-        SuppressedSourceGroupsForTest.clear();
         FlowView = New<TFlowView>();
         PersistedControl = New<TPersistedStateControl<std::string>>(StorageHandler);
         FlowView->State->AttachToControl(PersistedControl);
@@ -361,6 +461,15 @@ public:
     {
         ++FlowView->State->CurrentTimestamp.Underlying();
     }
+
+    void RunPartitioning()
+    {
+        JobManager->BeginIteration();
+        FlowView->State->StartMutation();
+        JobManager->DoPartitioning(FlowView);
+        FlowView->State->CommitMutation();
+        JobManager->Commit(FlowView);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -368,376 +477,373 @@ public:
 TEST_F(TPartitioning, FirstPartitioning)
 {
     Prepare(1);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    ui64 minCount = TUniversalComputationController::DefaultMinInputPartitionCount;
+    RunPartitioning();
+    ui64 minCount = NPartitioning::TPartitioningCoordinator::DefaultMinInputPartitionCount;
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), minCount);
 
     Reset();
     Prepare(10);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
+    RunPartitioning();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
 }
 
-TEST_F(TPartitioning, MaxPartitionCountLimit)
+TEST_F(TPartitioning, MalformedPartitionIsInterruptedWithoutBlockingRangeLookup)
 {
-    Prepare(30);
-    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
-        TYsonString(TStringBuf(R""""(
-            {
-                "partition_count_double_delay" = 0;
-                "partition_count_half_delay" = 0;
-                "max_partition_count" = 25;
-            }
-        )"""")));
-    JobManager->Reconfigure(DynamicSpec);
+    Prepare(1);
 
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 25u);
-
-    // Verify that a subsequent DoPartitioning does not cause any mutations.
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 25u);
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
-}
-
-TEST_F(TPartitioning, VeryLowMax)
-{
-    Prepare(30);
-    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
-        TYsonString(TStringBuf(R""""(
-            {
-                "partition_count_double_delay" = 0;
-                "partition_count_half_delay" = 0;
-                "max_partition_count" = 1;
-            }
-        )"""")));
-    JobManager->Reconfigure(DynamicSpec);
-
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
-
-    // Verify that a subsequent DoPartitioning does not cause any mutations.
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
-}
-
-TEST_F(TPartitioning, VeryHighMin)
-{
-    Prepare(30);
-    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
-        TYsonString(TStringBuf(R""""(
-            {
-                "partition_count_double_delay" = 0;
-                "partition_count_half_delay" = 0;
-                "min_partition_count" = 30000;
-            }
-        )"""")));
-    JobManager->Reconfigure(DynamicSpec);
-
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30000u);
-
-    // Verify that a subsequent DoPartitioning does not cause any mutations.
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30000u);
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
-}
-
-TEST_F(TPartitioning, WrongMinMax)
-{
-    Prepare(10);
-    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
-        TYsonString(TStringBuf(R""""(
-            {
-                "partition_count_double_delay" = 0;
-                "partition_count_half_delay" = 0;
-                "min_partition_count" = 100;
-                "max_partition_count" = 10;
-            }
-        )"""")));
-    EXPECT_THROW(JobManager->Reconfigure(DynamicSpec), TErrorException);
-}
-
-TEST_F(TPartitioning, Repartitioning)
-{
-    Prepare(10);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    AdvanceClock();
-
-    double maxCpuUsage = TUniversalComputationController::DefaultDesiredAveragePartitionCpuLoad;
-    SetFeedback(maxCpuUsage * 2, 0, 0, 0);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u); // 10 old and 20 new.
-
-    AdvanceClock();
-
-    double maxMemUsage = TUniversalComputationController::DefaultDesiredAveragePartitionMemoryUsed;
-    SetFeedback(maxCpuUsage, maxMemUsage * 2, 0, 0);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 70u); // 30 old and 40 new.
-
-    AdvanceClock();
-
-    double maxMessages = TUniversalComputationController::DefaultDesiredAveragePartitionMessagesPerSecond;
-    SetFeedback(maxCpuUsage, maxMemUsage, maxMessages * 2, 0);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 150u); // 70 old and 80 new.
-
-    AdvanceClock();
-
-    double maxBytes = TUniversalComputationController::DefaultDesiredAveragePartitionBytesPerSecond;
-    SetFeedback(maxCpuUsage, maxMemUsage, maxMessages, maxBytes * 2);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 310u); // 150 old and 160 new.
-
-    AdvanceClock();
-
-    SetFeedback(maxCpuUsage, maxMemUsage, maxMessages, maxBytes);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 310u);
-}
-
-TEST_F(TPartitioning, FirstPassAfterFailoverKeepsTheCooldown)
-{
-    Prepare(10);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    RecreateJobManager();
-
-    double maxCpuUsage = TUniversalComputationController::DefaultDesiredAveragePartitionCpuLoad;
-    SetFeedback(maxCpuUsage * 2, 0, 0, 0);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    AdvanceClock();
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u);
-}
-
-TEST_F(TPartitioning, ResumeRearmsTheCooldown)
-{
-    Prepare(10);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    double maxCpuUsage = TUniversalComputationController::DefaultDesiredAveragePartitionCpuLoad;
-    SetFeedback(maxCpuUsage * 2, 0, 0, 0);
-
-    AdvanceClock();
-    VersionProvider->SetUnixTime(FlowView->State->CurrentTimestamp.Underlying());
-    FlowView->State->StartMutation();
-    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Paused, VersionProvider);
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    AdvanceClock();
-    VersionProvider->SetUnixTime(FlowView->State->CurrentTimestamp.Underlying());
-    FlowView->State->StartMutation();
-    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, VersionProvider);
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    AdvanceClock();
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u);
-}
-
-TEST_F(TPartitioning, RecreateOnSinkChannelCountChange)
-{
-    SinkChannelCountForTest = 5;
-    Prepare(10, /*withSink*/ true);
-
-    // desired_partition_count is pinned, so the proposed count never changes: the only trigger for a
-    // recreation here is a change in the sink's target-queue partition count (YTFLOW-572).
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    // No channel-count change: a subsequent partitioning must not recreate anything.
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
-
-    // The target queue was resharded: partitions must be recreated so fresh producer ids are
-    // generated (10 old partitions interrupted + 10 new).
-    SinkChannelCountForTest = 7;
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
-}
-
-TEST_F(TPartitioning, PersistSinkChannelCountAcrossRecreation)
-{
-    SinkChannelCountForTest = 5;
-    Prepare(10, /*withSink*/ true);
-
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    // The target queue is resharded AND the job manager is recreated (leader failover / static-spec
-    // change) before the next partitioning. The last channel count is restored from persisted state,
-    // so the change is still detected and partitions are recreated to regenerate producer ids.
-    SinkChannelCountForTest = 7;
-    RecreateJobManager();
-
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    // In-memory tracking would have lost the previous count on recreation and missed this; with a
-    // persisted value the change is detected and partitions are recreated (10 interrupted + 10 new).
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
-}
-
-TEST_F(TPartitioning, RecreateOnNonWidestSinkChannelCountChange)
-{
-    // Sink "sink" is the widest (5), "sink_b" is narrower (3). The producer-id decision must track
-    // every sink, not just the widest — otherwise a reshard of "sink_b" (with the max unchanged)
-    // would be missed.
-    SinkChannelCountForTest = 5;
-    SecondSinkChannelCountForTest = 3;
-    Prepare(10, /*withSink*/ true, /*withSecondSink*/ true);
-
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
-
-    // Reshard only the narrower sink, keeping it below the widest so the max is unchanged (5).
-    SecondSinkChannelCountForTest = 4;
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-    // Tracking only the widest sink would miss this; per-sink tracking detects it and recreates.
-    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TPartitioning, MigratesLegacySuppressionForNewSourcePartition)
-{
-    const auto sourceKey = MakeUintKey(1);
-    SourceAvailabilityGroupsForTest["first"][sourceKey] = "down";
-    Prepare(1, false, false, {"first"});
-
-    auto partitioningState = New<TUniversalComputationControllerPartitioningState>();
-    partitioningState->SuppressedAvailabilityGroups = {"first-down"};
-    RestorePartitioningState(partitioningState);
-
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-
-    EXPECT_EQ(SuppressedSourceGroupsForTest.at("first"), THashSet<std::string>{"down"});
-    auto& partitions = FlowView->State->ExecutionSpec->Layout->Partitions;
-    ASSERT_EQ(partitions.size(), 1u);
-    const auto& partition = partitions.begin()->second;
-    EXPECT_EQ(SplitUniversalPartitionKey(*partition->SourceKey), std::pair(TStreamId("first"), sourceKey));
-    EXPECT_TRUE(GetUniversalDynamicPartitionSpec(partition->PartitionId)->AvailabilityGroupUnavailable);
-
-    auto persistedState = ConvertTo<IMapNodePtr>(
-        JobManager->GetState()->Computations.at(ComputationId).at("/partitioning/v0"));
-    EXPECT_TRUE(persistedState->GetChildValueOrThrow<THashSet<std::string>>("suppressed_availability_groups").empty());
-    auto suppressedGroupsBySource = persistedState->GetChildValueOrThrow<TSuppressedAvailabilityGroupsBySource>(
-        "suppressed_availability_groups_by_source");
-    EXPECT_EQ(
-        suppressedGroupsBySource.at("first"),
-        THashSet<std::string>{"down"});
-}
-
-TEST_F(TPartitioning, RestoresStructuredSuppressionForExistingSourcePartition)
-{
-    const auto sourceKey = MakeUintKey(1);
-    SourceAvailabilityGroupsForTest["first"][sourceKey] = "down";
-    Prepare(1, false, false, {"first"});
-
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
-
-    EXPECT_TRUE(SuppressedSourceGroupsForTest.at("first").empty());
-    auto& partitions = FlowView->State->ExecutionSpec->Layout->Partitions;
-    ASSERT_EQ(partitions.size(), 1u);
-    const auto partitionId = partitions.begin()->second->PartitionId;
-    EXPECT_FALSE(GetUniversalDynamicPartitionSpec(partitionId)->AvailabilityGroupUnavailable);
-
-    auto partitioningState = New<TUniversalComputationControllerPartitioningState>();
-    partitioningState->SuppressedAvailabilityGroupsBySource = TSuppressedAvailabilityGroupsBySource{
-        {"first", {"down"}},
+    auto makeMalformedPartition = [&] (EPartitionState state) {
+        auto partition = New<TPartition>();
+        partition->PartitionId = TPartitionId(TPartitionId::TUnderlying::Create());
+        partition->ComputationId = ComputationId;
+        partition->State = state;
+        partition->StateEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+        partition->StateTimestamp = TInstant::Now();
+        return partition;
     };
-    RestorePartitioningState(partitioningState);
+    auto malformedPartition = makeMalformedPartition(EPartitionState::Executing);
+    auto restoredMalformedPartition = makeMalformedPartition(EPartitionState::Interrupting);
 
-    SuppressedSourceGroupsForTest.clear();
+    JobManager->BeginIteration();
     FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->Layout->CreatePartition(malformedPartition);
+    FlowView->State->ExecutionSpec->Layout->CreatePartition(restoredMalformedPartition);
     JobManager->DoPartitioning(FlowView);
     FlowView->State->CommitMutation();
+    JobManager->Commit(FlowView);
 
-    EXPECT_EQ(SuppressedSourceGroupsForTest.at("first"), THashSet<std::string>{"down"});
-    ASSERT_EQ(partitions.size(), 1u);
-    ASSERT_TRUE(partitions.contains(partitionId));
-    EXPECT_TRUE(GetUniversalDynamicPartitionSpec(partitionId)->AvailabilityGroupUnavailable);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(malformedPartition->PartitionId)->State,
+        EPartitionState::Interrupting);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(restoredMalformedPartition->PartitionId)->State,
+        EPartitionState::Interrupting);
+
+    RunPartitioning();
+
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(malformedPartition->PartitionId)->State,
+        EPartitionState::Interrupting);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(restoredMalformedPartition->PartitionId)->State,
+        EPartitionState::Interrupting);
+}
+
+TEST_F(TPartitioning, RepartitioningCooldownIsSharedAcrossComputations)
+{
+    Prepare(10, /*withSink*/ false, /*withSecondSink*/ false, /*withSecondComputation*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 10);
+    ASSERT_EQ(GetExecutingPartitionCount(SecondComputationId), 10);
+
+    DynamicSpec->Computations[ComputationId]->Parameters->AddChild(
+        "desired_partition_count",
+        ConvertToNode(20));
+    DynamicSpec->Computations[SecondComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 1200000;
+                "partition_count_half_delay" = 0;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+
+    FlowView->State->CurrentTimestamp.Underlying() += TDuration::Minutes(11).Seconds();
+    SetComputationFeedback(
+        SecondComputationId,
+        NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionCpuLoad * 2,
+        0,
+        0,
+        0);
+
+    for (int iteration = 0; iteration < 2; ++iteration) {
+        JobManager->BeginIteration();
+        FlowView->State->StartMutation();
+        JobManager->DoPartitioning(FlowView);
+        FlowView->State->CommitMutation();
+        JobManager->Commit(FlowView);
+    }
+
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 20);
+    EXPECT_EQ(GetExecutingPartitionCount(SecondComputationId), 20);
+}
+
+TEST_F(TPartitioning, LiveSourceSuppressionPrecedesSingleSnapshotAndUpdatesActiveSpec)
+{
+    StatefulSourceTestState = {};
+    Prepare(
+        1,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+
+    const auto& [partitionId, partition] = *FlowView->State->ExecutionSpec->Layout->Partitions.begin();
+    ASSERT_TRUE(partition->SourceKey);
+    auto watermarkGenerator = New<TWatermarkGeneratorSpec>();
+    watermarkGenerator->UnavailablePartitionGroups = New<TUnavailablePartitionGroupsSpec>();
+    watermarkGenerator->UnavailablePartitionGroups->MaxUnavailableGroups = 1;
+    watermarkGenerator->UnavailablePartitionGroups->MinAvailableGroups = 0;
+    Spec->Computations[ComputationId]->WatermarkStrategy->WatermarkGenerator =
+        std::move(watermarkGenerator);
+
+    auto jobStatus = New<TPartitionJobStatus>();
+    jobStatus->LastPartitionStatus = GetEphemeralNodeFactory()->CreateMap();
+    jobStatus->LastPartitionStatus->AddChild(
+        "active_source_status",
+        GetEphemeralNodeFactory()->CreateMap());
+    jobStatus->LastTraverseData = MakeCompletedPartitionTraverseData(
+        FlowView->State->ExecutionSpec->GetEpoch(),
+        FlowView->State->CurrentTimestamp,
+        FlowView->State->ExecutionSpec->ExtendedPipelineSpec->GetValue()->Computations.at(ComputationId));
+    jobStatus->LastTraverseData->Node->Streams.at("source_stream")->InflightMetrics->UnavailableTimestamp =
+        FlowView->State->CurrentTimestamp;
+    FlowView->Feedback->PartitionJobStatuses[partitionId] = std::move(jobStatus);
+
+    FlowView->State->StartMutation();
+    JobManager->AggregateTraverseData(FlowView);
+    FlowView->State->CommitMutation();
+
+    auto staleTraverse = CloneYsonStruct(
+        FlowView->Feedback->PartitionJobStatuses.at(partitionId)->LastTraverseData);
+    staleTraverse->Node->ReportTime = TSystemTimestamp(0);
+    staleTraverse->Node->Streams.at("source_stream")->InflightMetrics->UnavailableTimestamp.reset();
+    FlowView->Feedback->PartitionJobStatuses.at(partitionId)->LastTraverseData = std::move(staleTraverse);
+    FlowView->State->StartMutation();
+    JobManager->AggregateTraverseData(FlowView);
+    FlowView->State->CommitMutation();
+
+    StatefulSourceTestState.ResetObservation();
+    RunPartitioning();
+
+    EXPECT_EQ(
+        StatefulSourceTestState.Events,
+        (std::vector<std::string>{"statuses", "suppressed_groups", "list_keys", "get_group"}));
+    EXPECT_EQ(StatefulSourceTestState.SuppressedGroups, THashSet<std::string>{"group"});
+    EXPECT_EQ(StatefulSourceTestState.ListKeysCallCount, 1);
+    EXPECT_EQ(StatefulSourceTestState.GetGroupCallCount, 1);
+    const auto& dynamicPartitionSpec = FlowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
+    ASSERT_TRUE(dynamicPartitionSpec);
+    const auto activeSourceSpec = dynamicPartitionSpec->ComputationPartitionSpec->GetChildOrThrow("active_source")->AsMap();
+    EXPECT_EQ(activeSourceSpec->GetChildValueOrThrow<std::string>("marker"), "after_status");
+    EXPECT_TRUE(dynamicPartitionSpec->ComputationPartitionSpec->GetChildValueOrThrow<bool>(
+        "availability_group_unavailable"));
+
+    const auto persistedState = JobManager->GetState();
+    auto restoredState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        persistedState->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_TRUE(restoredState->SuppressedAvailabilityGroups.empty());
+    EXPECT_EQ(
+        restoredState->SuppressedAvailabilityGroupsBySource.at("source_stream"),
+        THashSet<std::string>{"group"});
+}
+
+TEST_F(TPartitioning, SourcePartitionStatusesAreDemultiplexedExactly)
+{
+    StatefulSourceTestState = {};
+    Prepare(
+        1,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true,
+        /*withNonUintKey*/ false,
+        /*withSecondStatefulSource*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 2u);
+
+    struct TExpectedStatus
+    {
+        TKey LocalKey;
+        EPartitionState PartitionState;
+        std::string Marker;
+    };
+
+    THashMap<TStreamId, TExpectedStatus> expectedStatuses;
+    std::vector<std::pair<TPartitionId, TKey>> sourcePartitions;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        ASSERT_TRUE(partition->SourceKey);
+        sourcePartitions.emplace_back(partitionId, *partition->SourceKey);
+    }
+
+    const auto& computationSpec = Spec->Computations.at(ComputationId);
+    FlowView->State->StartMutation();
+    for (const auto& [partitionId, sourceKey] : sourcePartitions) {
+        auto [localStreamId, localKey] = SplitUniversalPartitionKey(sourceKey);
+        const auto globalStreamId = MakeGlobalStreamId(ComputationId, localStreamId, computationSpec);
+        const auto partitionState = localStreamId == TStreamId("source_stream")
+            ? EPartitionState::Completing
+            : EPartitionState::Completed;
+        const auto marker = Format("status-for-%v", globalStreamId);
+
+        FlowView->State->ExecutionSpec->Layout->UpdatePartition(
+            partitionId,
+            partitionState,
+            FlowView->State->ExecutionSpec->GetEpoch(),
+            TInstant::Now());
+
+        auto activeSourceStatus = GetEphemeralNodeFactory()->CreateMap();
+        activeSourceStatus->AddChild("marker", ConvertToNode(marker));
+        auto partitioningStatus = New<TComputationPartitionStatus>();
+        partitioningStatus->ActiveSourceStatus = std::move(activeSourceStatus);
+        auto jobStatus = New<TPartitionJobStatus>();
+        jobStatus->LastPartitionStatus = ConvertTo<IMapNodePtr>(partitioningStatus);
+        FlowView->Feedback->PartitionJobStatuses[partitionId] = std::move(jobStatus);
+
+        EmplaceOrCrash(
+            expectedStatuses,
+            globalStreamId,
+            TExpectedStatus{
+                .LocalKey = std::move(localKey),
+                .PartitionState = partitionState,
+                .Marker = marker,
+            });
+    }
+    FlowView->State->CommitMutation();
+
+    StatefulSourceTestState.ResetObservation();
+    RunPartitioning();
+
+    ASSERT_EQ(StatefulSourceTestState.ReceivedPartitionStatuses.size(), 2u);
+    for (const auto& [globalStreamId, expected] : expectedStatuses) {
+        const auto& statuses = StatefulSourceTestState.ReceivedPartitionStatuses.at(globalStreamId);
+        ASSERT_EQ(statuses.size(), 1u);
+        const auto& status = statuses.at(expected.LocalKey);
+        ASSERT_TRUE(status);
+        EXPECT_EQ(status->PartitionState, expected.PartitionState);
+        ASSERT_TRUE(status->PartitionStatus);
+        EXPECT_EQ(
+            status->PartitionStatus->GetChildValueOrThrow<std::string>("marker"),
+            expected.Marker);
+    }
+}
+
+TEST_F(TPartitioning, SourceDynamicSpecContainsBlockedOutputStreams)
+{
+    StatefulSourceTestState = {};
+    Prepare(
+        1,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    const auto& [partitionId, partition] = *FlowView->State->ExecutionSpec->Layout->Partitions.begin();
+
+    auto interruptingPartition = CloneYsonStruct(partition);
+    interruptingPartition->PartitionId = TPartitionId(TPartitionId::TUnderlying::Create());
+    interruptingPartition->CurrentJobId.reset();
+    interruptingPartition->State = EPartitionState::Interrupting;
+    interruptingPartition->StateEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+    interruptingPartition->StateTimestamp = TInstant::Now();
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->Layout->CreatePartition(std::move(interruptingPartition));
+    FlowView->State->CommitMutation();
+
+    RunPartitioning();
+
+    const auto& dynamicPartitionSpec =
+        FlowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
+    ASSERT_TRUE(dynamicPartitionSpec->ComputationPartitionSpec);
+    auto partitioningSpec = ConvertTo<IComputation::TDynamicPartitionSpecPtr>(
+        dynamicPartitionSpec->ComputationPartitionSpec);
+    EXPECT_EQ(
+        partitioningSpec->BlockedOutputStreams,
+        THashSet<TStreamId>{TStreamId("output_stream")});
+    EXPECT_EQ(
+        ConvertTo<THashSet<TStreamId>>(
+            dynamicPartitionSpec->ComputationPartitionSpec->GetChildOrThrow("blocked_output_streams")),
+        THashSet<TStreamId>{TStreamId("output_stream")});
+}
+
+TEST_F(TPartitioning, DisappearedSourcePartitionCompletesThenIsRemoved)
+{
+    StatefulSourceTestState = {};
+    Prepare(
+        1,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    const auto partitionId = FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+    const auto& partition = FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId);
+    ASSERT_EQ(partition->State, EPartitionState::Executing);
+
+    StatefulSourceTestState.OmittedSourceStreams.insert(MakeGlobalStreamId(
+        ComputationId,
+        TStreamId("source_stream"),
+        Spec->Computations.at(ComputationId)));
+    RunPartitioning();
+
+    const auto& completingPartition =
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(partitionId);
+    EXPECT_EQ(completingPartition->State, EPartitionState::Completing);
+    const auto& dynamicPartitionSpec =
+        FlowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
+    ASSERT_TRUE(dynamicPartitionSpec->ComputationPartitionSpec);
+    auto partitioningSpec = ConvertTo<IComputation::TDynamicPartitionSpecPtr>(
+        dynamicPartitionSpec->ComputationPartitionSpec);
+    ASSERT_TRUE(partitioningSpec->ActiveSource);
+    EXPECT_TRUE(partitioningSpec->ActiveSource->GetChildren().empty());
+
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->Layout->UpdatePartition(
+        partitionId,
+        EPartitionState::Completed,
+        FlowView->State->ExecutionSpec->GetEpoch(),
+        TInstant::Now());
+    FlowView->State->CommitMutation();
+
+    RunPartitioning();
+    EXPECT_FALSE(FlowView->State->ExecutionSpec->Layout->Partitions.contains(partitionId));
+}
+
+TEST_F(TPartitioning, SourcePartitioningIgnoresDesiredPartitionCount)
+{
+    StatefulSourceTestState = {};
+    Prepare(
+        20,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true);
+
+    DynamicSpec->Computations[ComputationId]->Parameters->AddChild(
+        "desired_partition_count",
+        ConvertToNode(20));
+    JobManager->Reconfigure(DynamicSpec);
+
+    RunPartitioning();
+
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    const auto partitionId = FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+
+    RunPartitioning();
+
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    EXPECT_TRUE(FlowView->State->ExecutionSpec->Layout->Partitions.contains(partitionId));
 }
 
 TEST_F(TPartitioning, SourceTraverseIgnoresStaleRangePartition)
 {
-    const TStreamId sourceStreamId("source");
-    const auto sourceKey = MakeUintKey(1);
-    SourceAvailabilityGroupsForTest[sourceStreamId][sourceKey] = "default";
-    Prepare(1, false, false, {sourceStreamId});
-    Spec->Computations.at(ComputationId)->WatermarkStrategy->WatermarkGenerator = New<TWatermarkGeneratorSpec>();
+    StatefulSourceTestState = {};
+    Prepare(
+        1,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true);
 
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
+    RunPartitioning();
 
     auto& partitions = FlowView->State->ExecutionSpec->Layout->Partitions;
     ASSERT_EQ(partitions.size(), 1u);
@@ -761,7 +867,11 @@ TEST_F(TPartitioning, SourceTraverseIgnoresStaleRangePartition)
     auto setTraverseData = [&] (const TPartitionId& partitionId, TSystemTimestamp watermark) {
         auto node = New<TNodeTraverseData>();
         node->ReportTime = watermark;
-        for (const auto& streamId : {sourceStreamId, TStreamId("output_stream")}) {
+        for (const auto& streamId : {
+                TStreamId("source_stream"),
+                TStreamId("output_stream"),
+                TStreamId("timer_stream")})
+        {
             auto stream = New<TStreamTraverseData>();
             stream->Epoch = FlowView->State->ExecutionSpec->GetEpoch();
             stream->State = EStreamState::Active;
@@ -783,8 +893,691 @@ TEST_F(TPartitioning, SourceTraverseIgnoresStaleRangePartition)
     JobManager->AggregateTraverseData(FlowView);
 
     const auto& computationTraverse = FlowView->State->TraverseData->Computations.at(ComputationId);
-    EXPECT_EQ(computationTraverse->Streams.at(sourceStreamId)->EventWatermark, sourceWatermark);
+    EXPECT_EQ(computationTraverse->Streams.at("source_stream")->EventWatermark, sourceWatermark);
     EXPECT_EQ(computationTraverse->Streams.at("output_stream")->EventWatermark, sourceWatermark);
+}
+
+TEST_F(TPartitioning, MaxPartitionCountLimit)
+{
+    Prepare(30);
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+                "max_partition_count" = 25;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 25u);
+
+    // Verify that a subsequent DoPartitioning does not cause any mutations.
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 25u);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
+}
+
+TEST_F(TPartitioning, VeryLowMax)
+{
+    Prepare(30);
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+                "max_partition_count" = 1;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+
+    // Verify that a subsequent DoPartitioning does not cause any mutations.
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
+}
+
+TEST_F(TPartitioning, VeryHighMin)
+{
+    Prepare(30);
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+                "min_partition_count" = 30000;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30000u);
+
+    // Verify that a subsequent DoPartitioning does not cause any mutations.
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30000u);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
+}
+
+TEST_F(TPartitioning, WrongMinMax)
+{
+    Prepare(10);
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+                "min_partition_count" = 100;
+                "max_partition_count" = 10;
+            }
+        )"""")));
+    EXPECT_THROW(JobManager->Reconfigure(DynamicSpec), TErrorException);
+}
+
+TEST_F(TPartitioning, Repartitioning)
+{
+    Prepare(10);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    AdvanceClock();
+
+    double maxCpuUsage = NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionCpuLoad;
+    SetFeedback(maxCpuUsage * 2, 0, 0, 0);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u); // 10 old and 20 new.
+
+    AdvanceClock();
+
+    double maxMemUsage = NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionMemoryUsed;
+    SetFeedback(maxCpuUsage, maxMemUsage * 2, 0, 0);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 70u); // 30 old and 40 new.
+
+    AdvanceClock();
+
+    double maxMessages = NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionMessagesPerSecond;
+    SetFeedback(maxCpuUsage, maxMemUsage, maxMessages * 2, 0);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 150u); // 70 old and 80 new.
+
+    AdvanceClock();
+
+    double maxBytes = NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionBytesPerSecond;
+    SetFeedback(maxCpuUsage, maxMemUsage, maxMessages, maxBytes * 2);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 310u); // 150 old and 160 new.
+
+    AdvanceClock();
+
+    SetFeedback(maxCpuUsage, maxMemUsage, maxMessages, maxBytes);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 310u);
+}
+
+TEST_F(TPartitioning, FirstPassAfterFailoverKeepsTheCooldown)
+{
+    Prepare(10);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    RecreateJobManager();
+
+    double maxCpuUsage = NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionCpuLoad;
+    SetFeedback(maxCpuUsage * 2, 0, 0, 0);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    AdvanceClock();
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u);
+}
+
+TEST_F(TPartitioning, ResumeRearmsTheCooldown)
+{
+    Prepare(10);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    double maxCpuUsage = NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionCpuLoad;
+    SetFeedback(maxCpuUsage * 2, 0, 0, 0);
+
+    AdvanceClock();
+    VersionProvider->SetUnixTime(FlowView->State->CurrentTimestamp.Underlying());
+    JobManager->BeginIteration();
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Paused, VersionProvider);
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    JobManager->Commit(FlowView);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    AdvanceClock();
+    VersionProvider->SetUnixTime(FlowView->State->CurrentTimestamp.Underlying());
+    JobManager->BeginIteration();
+    FlowView->State->StartMutation();
+    FlowView->State->ExecutionSpec->PipelineState->TrySetValue(EPipelineState::Working, VersionProvider);
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->CommitMutation();
+    JobManager->Commit(FlowView);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    AdvanceClock();
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 30u);
+}
+
+TEST_F(TPartitioning, RecreateOnSinkChannelCountChange)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(10, /*withSink*/ true);
+
+    // desired_partition_count is pinned, so the proposed count never changes: the only trigger for a
+    // recreation here is a change in the sink's target-queue partition count (YTFLOW-572).
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    // No channel-count change: a subsequent partitioning must not recreate anything.
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
+
+    // The target queue was resharded: partitions must be recreated so fresh producer ids are
+    // generated (10 old partitions interrupted + 10 new).
+    SinkChannelCountForTest = 7;
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+}
+
+TEST_F(TPartitioning, SinkTopologyChangeUsesFreshProposedPartitionCount)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(10, /*withSink*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 10);
+
+    // Unpin the count and keep the ordinary growth cooldown closed. The reshard still forces one
+    // recreation, which must use the fresh sink-based proposal (7 channels * multiplier 3).
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 1200000;
+                "partition_count_half_delay" = 0;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+    AdvanceClock();
+    SinkChannelCountForTest = 7;
+
+    RunPartitioning();
+
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 21);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 31u);
+}
+
+TEST_F(TPartitioning, DelayedFirstSinkChannelCountDoesNotRecreate)
+{
+    SinkChannelCountForTest = -1;
+    Prepare(10, /*withSink*/ true);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    SinkChannelCountForTest = 5;
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
+
+    const auto stateAfterFirstSinkChannelCount = JobManager->GetState();
+    auto coordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        stateAfterFirstSinkChannelCount->Computations.at(
+            TComputationId(TStateManager::PartitioningStateComputationId))
+            .at("/v1"));
+    auto computationState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        stateAfterFirstSinkChannelCount->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_NE(computationState->SinkChannelCounts->GetVersion(), TVersion(0));
+    EXPECT_EQ(
+        coordinatorState->Computations.at(ComputationId)->LastAppliedSinkTopologyVersion,
+        computationState->SinkChannelCounts->GetVersion());
+
+    SinkChannelCountForTest = 7;
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+}
+
+TEST_F(TPartitioning, UsesLastKnownWidestSinkCountWhenAnotherSinkChanges)
+{
+    SinkChannelCountForTest = 7;
+    SecondSinkChannelCountForTest = 3;
+    Prepare(10, /*withSink*/ true, /*withSecondSink*/ true);
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+
+    RunPartitioning();
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 21);
+
+    SinkChannelCountForTest = -1;
+    SecondSinkChannelCountForTest = 4;
+    RunPartitioning();
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 21);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 42u);
+
+    const auto state = JobManager->GetState();
+    auto computationState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        state->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_EQ(
+        computationState->SinkChannelCounts->GetValue(),
+        (THashMap<TSinkId, i64>{{TSinkId("sink"), 7}, {TSinkId("sink_b"), 4}}));
+}
+
+TEST_F(TPartitioning, LateFirstSinkChannelCountTriggersRecreation)
+{
+    SinkChannelCountForTest = 5;
+    SecondSinkChannelCountForTest = -1;
+    Prepare(10, /*withSink*/ true, /*withSecondSink*/ true);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    const auto initialState = JobManager->GetState();
+    const auto initialComputationState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        initialState->Computations.at(ComputationId).at("/partitioning/v0"));
+    const auto initialSinkTopologyVersion = initialComputationState->SinkChannelCounts->GetVersion();
+
+    SecondSinkChannelCountForTest = 3;
+    RunPartitioning();
+
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 10);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+    const auto state = JobManager->GetState();
+    auto coordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        state->Computations.at(TComputationId(TStateManager::PartitioningStateComputationId)).at("/v1"));
+    auto computationState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        state->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_NE(computationState->SinkChannelCounts->GetVersion(), initialSinkTopologyVersion);
+    EXPECT_EQ(
+        coordinatorState->Computations.at(ComputationId)->LastAppliedSinkTopologyVersion,
+        computationState->SinkChannelCounts->GetVersion());
+    EXPECT_EQ(
+        computationState->SinkChannelCounts->GetValue(),
+        (THashMap<TSinkId, i64>{{TSinkId("sink"), 5}, {TSinkId("sink_b"), 3}}));
+}
+
+TEST_F(TPartitioning, NullSinkChannelCountDoesNotBlockSinkTopologyVersioning)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(
+        10,
+        /*withSink*/ true,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ false,
+        /*withNonUintKey*/ false,
+        /*withSecondStatefulSource*/ false,
+        /*withNullChannelCountSink*/ true);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    const auto initialState = JobManager->GetState();
+    auto computationState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        initialState->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_NE(computationState->SinkChannelCounts->GetVersion(), TVersion(0));
+    EXPECT_EQ(
+        computationState->SinkChannelCounts->GetValue(),
+        (THashMap<TSinkId, i64>{{TSinkId("sink"), 5}}));
+
+    SinkChannelCountForTest = 7;
+    RunPartitioning();
+
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+}
+
+TEST_F(TPartitioning, UsesAvailableSinkCountForSizing)
+{
+    SinkChannelCountForTest = 7;
+    SecondSinkChannelCountForTest = -1;
+    Prepare(10, /*withSink*/ true, /*withSecondSink*/ true);
+    DynamicSpec->Computations[ComputationId]->Parameters = ConvertTo<IMapNodePtr>(
+        TYsonString(TStringBuf(R""""(
+            {
+                "partition_count_double_delay" = 0;
+                "partition_count_half_delay" = 0;
+            }
+        )"""")));
+    JobManager->Reconfigure(DynamicSpec);
+
+    RunPartitioning();
+
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 21);
+    const auto state = JobManager->GetState();
+    auto computationState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        state->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_NE(computationState->SinkChannelCounts->GetVersion(), TVersion(0));
+    EXPECT_EQ(
+        computationState->SinkChannelCounts->GetValue(),
+        (THashMap<TSinkId, i64>{{TSinkId("sink"), 7}}));
+}
+
+TEST_F(TPartitioning, PersistSinkTopologyAcrossRecreation)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(10, /*withSink*/ true);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    // The target queue is resharded AND the job manager is recreated (leader failover / static-spec
+    // change) before the next partitioning. The controller's topology version and the coordinator's
+    // applied version are restored independently, so the change still forces producer-id regeneration.
+    SinkChannelCountForTest = 7;
+    RecreateJobManager();
+
+    RunPartitioning();
+    // In-memory-only tracking would miss this; persisted versions recreate 10 interrupted + 10 new.
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+}
+
+TEST_F(TPartitioning, PersistsSinkTopologyAcknowledgementWithRecreation)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(10, /*withSink*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    SinkChannelCountForTest = 7;
+    JobManager->BeginIteration();
+    FlowView->State->StartMutation();
+    JobManager->DoPartitioning(FlowView);
+    FlowView->State->JobManagerState = JobManager->GetState();
+    FlowView->State->CommitMutation();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+
+    RecreateJobManager(/*syncState*/ false);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
+}
+
+TEST_F(TPartitioning, InitializesMissingAppliedSinkTopologyVersionWithoutRecreation)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(10, /*withSink*/ true);
+
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    auto persistedState = JobManager->GetState();
+    persistedState->Computations.erase(TComputationId(TStateManager::PartitioningStateComputationId));
+    FlowView->State->JobManagerState = std::move(persistedState);
+
+    RecreateJobManager(/*syncState*/ false);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->GetUpdated(), 0);
+
+    const auto restoredState = JobManager->GetState();
+    const auto& coordinatorDomain = restoredState->Computations.at(
+        TComputationId(TStateManager::PartitioningStateComputationId));
+    auto coordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        coordinatorDomain.at("/v1"));
+    auto computationState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        restoredState->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_NE(computationState->SinkChannelCounts->GetVersion(), TVersion(0));
+    EXPECT_EQ(
+        coordinatorState->Computations.at(ComputationId)->LastAppliedSinkTopologyVersion,
+        computationState->SinkChannelCounts->GetVersion());
+}
+
+TEST_F(TPartitioning, LoadsLegacySinkTopologyStateWithoutAutomaticMigration)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(10, /*withSink*/ true);
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    auto persistedState = JobManager->GetState();
+    persistedState->Computations[ComputationId]["/partitioning/v0"] = TYsonString(TStringBuf(R""""(
+        {
+            "last_sink_channel_counts" = {
+                "sink" = 5;
+            };
+        }
+    )""""));
+    persistedState->Computations.erase(TComputationId(TStateManager::PartitioningStateComputationId));
+    FlowView->State->JobManagerState = std::move(persistedState);
+
+    SinkChannelCountForTest = 7;
+    RecreateJobManager(/*syncState*/ false);
+    RunPartitioning();
+
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+    const auto upgradedState = JobManager->GetState();
+    const auto& serializedComputationState =
+        upgradedState->Computations.at(ComputationId).at("/partitioning/v0");
+    auto computationState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        serializedComputationState);
+    EXPECT_EQ(
+        computationState->SinkChannelCounts->GetValue(),
+        (THashMap<TSinkId, i64>{{TSinkId("sink"), 7}}));
+}
+
+TEST_F(TPartitioning, CleansRemovedComputationState)
+{
+    Prepare(
+        10,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ true);
+
+    RunPartitioning();
+
+    auto persistedState = JobManager->GetState();
+    Spec->Computations.erase(SecondComputationId);
+    DynamicSpec->Computations.erase(SecondComputationId);
+    FlowView->State->JobManagerState = std::move(persistedState);
+    RecreateJobManager(/*syncState*/ false);
+
+    const auto cleanedState = JobManager->GetState();
+    const auto& coordinatorDomain = cleanedState->Computations.at(
+        TComputationId(TStateManager::PartitioningStateComputationId));
+    auto coordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        coordinatorDomain.at("/v1"));
+    EXPECT_TRUE(coordinatorState->Computations.contains(ComputationId));
+    EXPECT_FALSE(coordinatorState->Computations.contains(SecondComputationId));
+}
+
+TEST_F(TPartitioning, MigratesLegacySuppressedAvailabilityGroupsInComputationState)
+{
+    StatefulSourceTestState = {};
+    auto partitioningState = New<TUniversalComputationControllerPartitioningState>();
+    partitioningState->SuppressedAvailabilityGroups.insert("source_stream-group");
+    FlowView->State->JobManagerState->Computations[ComputationId]["/partitioning/v0"] =
+        ConvertToYsonString(partitioningState);
+
+    Prepare(
+        1,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true);
+
+    RunPartitioning();
+
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    const auto& partitionId = FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+    const auto& dynamicPartitionSpec =
+        FlowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
+    ASSERT_TRUE(dynamicPartitionSpec);
+    EXPECT_TRUE(dynamicPartitionSpec->ComputationPartitionSpec->GetChildValueOrThrow<bool>(
+        "availability_group_unavailable"));
+
+    const auto persistedState = JobManager->GetState();
+    auto restoredState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        persistedState->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_TRUE(restoredState->SuppressedAvailabilityGroups.empty());
+    EXPECT_EQ(
+        restoredState->SuppressedAvailabilityGroupsBySource.at("source_stream"),
+        THashSet<std::string>{"group"});
+}
+
+TEST_F(TPartitioning, RestoresStructuredSuppressionForSourcePartition)
+{
+    StatefulSourceTestState = {};
+    auto partitioningState = New<TUniversalComputationControllerPartitioningState>();
+    partitioningState->SuppressedAvailabilityGroupsBySource = {
+        {TStreamId("source_stream"), {"group"}},
+    };
+    FlowView->State->JobManagerState->Computations[ComputationId]["/partitioning/v0"] =
+        ConvertToYsonString(partitioningState);
+
+    Prepare(
+        1,
+        /*withSink*/ false,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ true);
+
+    RunPartitioning();
+
+    EXPECT_EQ(StatefulSourceTestState.SuppressedGroups, THashSet<std::string>{"group"});
+    EXPECT_EQ(
+        StatefulSourceTestState.SuppressedGroupsBySource.at("source_stream"),
+        THashSet<std::string>{"group"});
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    const auto partitionId = FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+    const auto& dynamicPartitionSpec =
+        FlowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
+    ASSERT_TRUE(dynamicPartitionSpec);
+    EXPECT_TRUE(dynamicPartitionSpec->ComputationPartitionSpec->GetChildValueOrThrow<bool>(
+        "availability_group_unavailable"));
+
+    const auto persistedState = JobManager->GetState();
+    auto restoredState = ConvertTo<TUniversalComputationControllerPartitioningStatePtr>(
+        persistedState->Computations.at(ComputationId).at("/partitioning/v0"));
+    EXPECT_TRUE(restoredState->SuppressedAvailabilityGroups.empty());
+    EXPECT_EQ(
+        restoredState->SuppressedAvailabilityGroupsBySource.at("source_stream"),
+        THashSet<std::string>{"group"});
+}
+
+TEST_F(TPartitioning, RecreateOnNonWidestSinkChannelCountChange)
+{
+    // Sink "sink" is the widest (5), "sink_b" is narrower (3). The producer-id decision must track
+    // every sink, not just the widest — otherwise a reshard of "sink_b" (with the max unchanged)
+    // would be missed.
+    SinkChannelCountForTest = 5;
+    SecondSinkChannelCountForTest = 3;
+    Prepare(10, /*withSink*/ true, /*withSecondSink*/ true);
+
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    // Reshard only the narrower sink, keeping it below the widest so the max is unchanged (5).
+    SecondSinkChannelCountForTest = 4;
+    RunPartitioning();
+    // Tracking only the widest sink would miss this; per-sink tracking detects it and recreates.
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+}
+
+TEST_F(TPartitioning, FailedPersistenceDoesNotAcknowledgeSinkTopologyVersion)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(10, /*withSink*/ true);
+    RunPartitioning();
+    ASSERT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
+
+    const auto initialState = JobManager->GetState();
+    const auto initialCoordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        initialState->Computations.at(TComputationId(TStateManager::PartitioningStateComputationId)).at("/v1"));
+    const auto initialVersion =
+        initialCoordinatorState->Computations.at(ComputationId)->LastAppliedSinkTopologyVersion;
+    ASSERT_TRUE(initialVersion);
+
+    SinkChannelCountForTest = 7;
+    auto failedFlowView = FlowView->CopyPtr();
+    failedFlowView->State = failedFlowView->State->Clone();
+    failedFlowView->EphemeralState = CloneYsonStruct(failedFlowView->EphemeralState);
+    JobManager->BeginIteration();
+    failedFlowView->State->StartMutation();
+    JobManager->DoPartitioning(failedFlowView);
+
+    JobManager->BeginIteration();
+    const auto stateAfterSkippedIteration = JobManager->GetState();
+    const auto coordinatorStateAfterSkippedIteration =
+        ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        stateAfterSkippedIteration->Computations.at(
+            TComputationId(TStateManager::PartitioningStateComputationId))
+            .at("/v1"));
+    EXPECT_EQ(
+        coordinatorStateAfterSkippedIteration->Computations.at(ComputationId)->LastAppliedSinkTopologyVersion,
+        initialVersion);
+    RunPartitioning();
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 20u);
+    const auto committedState = JobManager->GetState();
+    const auto committedCoordinatorState = ConvertTo<NPartitioning::TPartitioningCoordinatorStatePtr>(
+        committedState->Computations.at(TComputationId(TStateManager::PartitioningStateComputationId)).at("/v1"));
+    EXPECT_NE(
+        committedCoordinatorState->Computations.at(ComputationId)->LastAppliedSinkTopologyVersion,
+        initialVersion);
+}
+
+TEST_F(TPartitioning, SinkTopologyChangeWaitsForNonUintRangePivots)
+{
+    SinkChannelCountForTest = 5;
+    Prepare(
+        10,
+        /*withSink*/ true,
+        /*withSecondSink*/ false,
+        /*withSecondComputation*/ false,
+        /*withStatefulSource*/ false,
+        /*withNonUintKey*/ true);
+    RunPartitioning();
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 1);
+    const auto initialPartitionId = FlowView->State->ExecutionSpec->Layout->Partitions.begin()->first;
+
+    SinkChannelCountForTest = 7;
+    RunPartitioning();
+
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 1u);
+    ASSERT_EQ(GetExecutingPartitionCount(ComputationId), 1);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(initialPartitionId)->State,
+        EPartitionState::Executing);
+
+    SetFeedback(0, 0, 0, 0);
+    FlowView->Feedback->PartitionJobStatuses.at(initialPartitionId)
+        ->CurrentJobStatus->InputMetrics->Global.Pivots = {
+        MakeKey(TStringBuf("a")),
+        MakeKey(TStringBuf("b")),
+        MakeKey(TStringBuf("c")),
+        MakeKey(TStringBuf("d")),
+        MakeKey(TStringBuf("e")),
+        MakeKey(TStringBuf("f")),
+        MakeKey(TStringBuf("g")),
+        MakeKey(TStringBuf("h")),
+        MakeKey(TStringBuf("i")),
+    };
+    RunPartitioning();
+
+    EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 11u);
+    EXPECT_EQ(GetExecutingPartitionCount(ComputationId), 10);
+    EXPECT_EQ(
+        FlowView->State->ExecutionSpec->Layout->Partitions.at(initialPartitionId)->State,
+        EPartitionState::Interrupting);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -793,7 +1586,7 @@ TEST_F(TPartitioning, SourceTraverseIgnoresStaleRangePartition)
 // the value grows instantly (attack) but shrinks only with the release time constant.
 TEST(TPartitionCountPeakHold, ReleaseEnvelope)
 {
-    using TController = TUniversalComputationController;
+    using TController = NPartitioning::TPartitioningCoordinator;
 
     // Instant attack: any growth returns the target regardless of elapsed time / release half-delay.
     EXPECT_EQ(TController::ApplyPeakHoldRelease(100.0, 200.0, TDuration::Zero(), TDuration::Minutes(200)), 200.0);
@@ -849,18 +1642,14 @@ TEST_F(TPartitioning, PartitionCountHalfDelayDoesNotBlockGrowth)
         )"""")));
     JobManager->Reconfigure(DynamicSpec);
 
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
+    RunPartitioning();
     EXPECT_EQ(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
 
     AdvanceClock();
 
-    double maxCpuUsage = TUniversalComputationController::DefaultDesiredAveragePartitionCpuLoad;
+    double maxCpuUsage = NPartitioning::TPartitioningCoordinator::DefaultDesiredAveragePartitionCpuLoad;
     SetFeedback(maxCpuUsage * 4, 0, 0, 0);
-    FlowView->State->StartMutation();
-    JobManager->DoPartitioning(FlowView);
-    FlowView->State->CommitMutation();
+    RunPartitioning();
     // Attack is instant even with a 1h half_delay: the count grows right away.
     EXPECT_GT(FlowView->State->ExecutionSpec->Layout->Partitions.size(), 10u);
 }

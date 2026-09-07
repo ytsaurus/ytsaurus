@@ -12,27 +12,31 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(serializer)
-add_subdirectory(delta_codecs)
-add_subdirectory(client)
-add_subdirectory(native_client)
-add_subdirectory(companion)
-add_subdirectory(common)
-add_subdirectory(misc)
-add_subdirectory(file_storage)
-add_subdirectory(computation)
-add_subdirectory(distributed_throttler)
-add_subdirectory(resources)
-add_subdirectory(tables)
-add_subdirectory(connectors)
-add_subdirectory(runner)
-add_subdirectory(vanilla)
-add_subdirectory(worker)
-add_subdirectory(buffers)
-add_subdirectory(pipeline_helpers)
-add_subdirectory(controller)
-add_subdirectory(partitioning)
-add_subdirectory(process_function)
-add_subdirectory(parsers)
-add_subdirectory(file_providers)
-add_subdirectory(multiplexer)
+add_subdirectory(unittests)
+
+add_library(library-cpp-partitioning)
+
+
+target_compile_options(library-cpp-partitioning PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
+)
+
+target_link_libraries(library-cpp-partitioning PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-iterator
+  library-cpp-common
+)
+
+target_sources(library-cpp-partitioning PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/input_partitioning.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/partitioning/partitioning_helpers.cpp
+)
+

@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/computation/controller_base.h>
+#include <yt/yt/flow/library/cpp/computation/universal_controller.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 namespace NYT::NFlow {
@@ -12,6 +13,42 @@ using namespace NLogging;
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TAvailabilityGroupHelpersTest, MigratesLegacySuppressionBySource)
+{
+    auto groupsByStream = MigrateLegacySuppressedAvailabilityGroups(
+        {"first-down", "second-vla"},
+        {
+            {.StreamId = "first", .Group = "down"},
+            {.StreamId = "second", .Group = "vla"},
+        });
+
+    EXPECT_EQ(groupsByStream.at("first"), THashSet<std::string>{"down"});
+    EXPECT_EQ(groupsByStream.at("second"), THashSet<std::string>{"vla"});
+}
+
+TEST(TAvailabilityGroupHelpersTest, IgnoresAmbiguousLegacySuppression)
+{
+    EXPECT_TRUE(MigrateLegacySuppressedAvailabilityGroups(
+        {"a-b-c"},
+        {
+            {.StreamId = "a-b", .Group = "c"},
+            {.StreamId = "a", .Group = "b-c"},
+        })
+            .empty());
+}
+
+TEST(TAvailabilityGroupHelpersTest, DuplicateOriginsAreNotAmbiguous)
+{
+    const TAvailabilityGroupOrigin origin{.StreamId = "first", .Group = "down"};
+    auto groupsByStream = MigrateLegacySuppressedAvailabilityGroups(
+        {"first-down"},
+        {origin, origin});
+
+    EXPECT_EQ(groupsByStream.at("first"), THashSet<std::string>{"down"});
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

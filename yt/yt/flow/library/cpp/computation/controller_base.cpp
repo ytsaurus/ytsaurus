@@ -665,78 +665,28 @@ const TComputationId& TComputationControllerBase::GetComputationId() const
     return Context_->ComputationId;
 }
 
-void TComputationControllerBase::InterruptPartition(const TFlowViewPtr& flowView, const TPartitionId& partitionId)
-{
-    flowView->State->ExecutionSpec->Layout->UpdatePartition(partitionId, EPartitionState::Interrupting, flowView->State->ExecutionSpec->GetEpoch(), TInstant::Now());
-}
-
-void TComputationControllerBase::CompletePartition(const TFlowViewPtr& flowView, const TPartitionId& partitionId)
-{
-    flowView->State->ExecutionSpec->Layout->UpdatePartition(partitionId, EPartitionState::Completing, flowView->State->ExecutionSpec->GetEpoch(), TInstant::Now());
-}
-
-void TComputationControllerBase::CreateSourcePartition(
-    const TFlowViewPtr& flowView,
-    const TKey& sourceKey,
-    const NYTree::IMapNodePtr& dynamicPartitionSpec)
-{
-    auto partition = New<TPartition>();
-    partition->PartitionId = TPartitionId(TPartitionId::TUnderlying::Create());
-    partition->ComputationId = GetComputationId();
-    partition->State = EPartitionState::Executing;
-    partition->StateEpoch = flowView->State->ExecutionSpec->GetEpoch();
-    partition->StateTimestamp = TInstant::Now();
-    partition->SourceKey = sourceKey;
-    flowView->State->ExecutionSpec->Layout->CreatePartition(partition);
-    UpdateDynamicPartitionSpec(flowView, partition->PartitionId, dynamicPartitionSpec);
-}
-
-void TComputationControllerBase::CreateRangePartition(
-    const TFlowViewPtr& flowView,
-    const TKey& lowerKey,
-    const TKey& upperKey,
-    const NYTree::IMapNodePtr& dynamicPartitionSpec)
-{
-    auto partition = New<TPartition>();
-    partition->PartitionId = TPartitionId(TPartitionId::TUnderlying::Create());
-    partition->ComputationId = GetComputationId();
-    partition->State = EPartitionState::Executing;
-    partition->StateEpoch = flowView->State->ExecutionSpec->GetEpoch();
-    partition->StateTimestamp = TInstant::Now();
-    partition->LowerKey = lowerKey;
-    partition->UpperKey = upperKey;
-    flowView->State->ExecutionSpec->Layout->CreatePartition(partition);
-    UpdateDynamicPartitionSpec(flowView, partition->PartitionId, dynamicPartitionSpec);
-}
-
-void TComputationControllerBase::UpdateDynamicPartitionSpec(
-    const TFlowViewPtr& flowView,
-    const TPartitionId& partitionId,
-    const NYTree::IMapNodePtr& dynamicComputationPartitionSpec)
-{
-    // The iteration owns a deep clone of the ephemeral state, so in-place
-    // mutation is safe; the job-manager-owned fields are left untouched.
-    const auto& spec = flowView->EphemeralState->GetPartitionState(partitionId)->DynamicPartitionSpec;
-    // TODO: Improve perf.
-    if (spec->ComputationPartitionSpec &&
-        (spec->ComputationPartitionSpec == dynamicComputationPartitionSpec ||
-            AreNodesEqual(spec->ComputationPartitionSpec, dynamicComputationPartitionSpec)))
-    {
-        return;
-    }
-    spec->ComputationPartitionSpec = dynamicComputationPartitionSpec;
-    YT_TLOG_INFO("Update dynamic partition spec")
-        .With("PartitionId", partitionId)
-        .With("NewDynamicPartitionSpec", ConvertToYsonString(spec, NYson::EYsonFormat::Text));
-}
-
 TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartitionTraverseData(
     const THashMap<TPartitionId, TNodeTraverseDataPtr>& traverseData,
+    const TNodeTraverseDataPtr& currentTraverseData,
     const TFlowViewPtr& flowView)
 {
+    THashMap<TPartitionId, TNodeTraverseDataPtr> relevantTraverseData;
+    const bool usesSourcePartitioning = !GetSpec()->SourceStreams.empty();
+    auto& partitions = flowView->State->ExecutionSpec->Layout->Partitions;
+    for (const auto& [partitionId, node] : traverseData) {
+        const auto& partition = GetOrCrash(partitions, partitionId);
+        const bool matchesCurrentPartitioning = usesSourcePartitioning
+            ? partition->SourceKey.has_value()
+            : partition->LowerKey.has_value() && partition->UpperKey.has_value();
+        // An opposite-shaped interrupting partition may outlive an input/source spec transition.
+        if (matchesCurrentPartitioning) {
+            relevantTraverseData.emplace(partitionId, node);
+        }
+    }
+
     auto futurePartitionsTraverse = GetFuturePartitionsNodeTraverseData(flowView);
     THROW_ERROR_EXCEPTION_IF(
-        traverseData.empty() && !futurePartitionsTraverse,
+        relevantTraverseData.empty() && !futurePartitionsTraverse,
         "Computation %Qv has no partitions to process (neither current nor future). "
         "Check that source partition filters are well-formed and not over-restrictive",
         GetComputationId());
@@ -745,21 +695,23 @@ TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartit
     std::vector<TNodeTraverseDataPtr> preparedTraverseData;
     if (!GetSpec()->SourceStreams.empty() && GetSpec()->WatermarkStrategy->WatermarkGenerator) {
         preparedTraverseData = ApplyEventWatermarkComputeRule(
-            GetNodesByAvailabilityGroupBySource(traverseData, flowView),
+            GetNodesByAvailabilityGroupBySource(relevantTraverseData, flowView),
             GetSpec(),
             SensorsOwner_,
             Logger,
             IdlePartitionsWatermarkStallErrorState_,
             &suppressedAvailabilityGroupsBySource);
     } else {
-        preparedTraverseData = GetValues(traverseData);
+        preparedTraverseData = GetValues(relevantTraverseData);
     }
     if (futurePartitionsTraverse.has_value()) {
         preparedTraverseData.push_back(*futurePartitionsTraverse);
     }
     auto result = New<TProcessPartitionTraverseDataResult>();
     result->StreamMetrics = ComputeStreamMetrics(preparedTraverseData, GetSpec());
-    result->MergedTraverseData = MergeNodeTraverseData(preparedTraverseData);
+    result->AcceptedTraverseData = AdvanceNodeTraverseData(
+        currentTraverseData,
+        MergeNodeTraverseData(preparedTraverseData));
 
     // Published only once every step above has succeeded. Suppression silences a group's errors, and a
     // traverse whose result is discarded hides no watermark, so publishing early would leave the pipeline

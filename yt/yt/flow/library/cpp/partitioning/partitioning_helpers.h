@@ -8,18 +8,6 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAvailabilityGroupOrigin
-{
-    TStreamId StreamId;
-    std::string Group;
-
-    bool operator==(const TAvailabilityGroupOrigin&) const = default;
-};
-
-THashMap<TStreamId, THashSet<std::string>> MigrateLegacySuppressedAvailabilityGroups(
-    const THashSet<std::string>& legacySuppressedAvailabilityGroups,
-    const std::vector<TAvailabilityGroupOrigin>& currentOrigins);
-
 //! New executing partitions must not produce output streams
 //! which are not completely processed by overlapping interrupting partitions.
 //! This class memorizes interrupting partitions for one computation
@@ -56,6 +44,12 @@ private:
     // For source keys. Schema: {sourceKey: blockingStreams, ...}.
     THashMap<TKey, THashSet<TStreamId>> BlockingKeys_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns range partitions in deterministic range-and-id order.
+std::vector<std::pair<TPartitionId, TKeyRange>> GetSortedPartitionRanges(
+    const THashMap<TPartitionId, TKeyRange>& partitionRanges);
 
 ////////////////////////////////////////////////////////////////////////////////
 

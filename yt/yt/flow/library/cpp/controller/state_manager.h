@@ -13,6 +13,8 @@ class TStateManager
     : public TRefCounted
 {
 public:
+    static constexpr TStringBuf PartitioningStateComputationId = "controller:partitioning";
+
     explicit TStateManager(TJobManagerStatePtr remoteState);
 
     IInitContextPtr CreateContext(const TComputationId& computationId, std::string prefix = "");
@@ -21,6 +23,10 @@ public:
     //! under a "resource:<id>" key; spec validation forbids colons in computation ids, so the
     //! key cannot collide with one.
     IInitContextPtr CreateResourceContext(const TResourceId& resourceId, std::string prefix = "");
+
+    //! Context for pipeline-wide partitioning state. Its reserved computation id cannot collide
+    //! with a user computation because spec validation forbids colons in computation ids.
+    IInitContextPtr CreatePartitioningContext(std::string prefix = "");
 
     void Sync();
 

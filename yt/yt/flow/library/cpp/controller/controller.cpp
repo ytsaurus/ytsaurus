@@ -939,6 +939,8 @@ private:
 
     void DoScheduling(const TFlowViewPtr& flowView)
     {
+        JobManager_->BeginIteration();
+
         auto checkLeases = [&] {
             LeaseManager_->CheckLeases(flowView);
         };

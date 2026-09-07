@@ -15,6 +15,7 @@
 #include <yt/yt/flow/library/cpp/common/state.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+#include <yt/yt/flow/library/cpp/partitioning/partitioning_coordinator.h>
 
 #include <yt/yt/flow/library/cpp/client/public.h>
 
@@ -69,7 +70,6 @@ public:
         THROW_ERROR_EXCEPTION_UNLESS(State_, "Initial JobManagerState cannot be null");
 
         THashSet<TWorkerGroupId> workerGroups;
-        auto computationControllerCommonContext = New<TComputationControllerCommonContext>();
 
         // Collect the controller-side required resources across all computations and load them
         // once. LoadRequiredResources also drives the always-on resources, so it is called even
@@ -88,10 +88,11 @@ public:
         for (const auto& [computationId, spec] : Spec_->Computations) {
             const auto dynamicSpec = GetOrDefault(DynamicSpec_->Computations, computationId, New<TDynamicComputationSpec>());
             workerGroups.insert(spec->WorkerGroup);
-            auto context = New<TComputationControllerContext>(computationControllerCommonContext);
+            auto context = New<TComputationControllerContext>();
             context->ComputationSpec = spec;
             context->ComputationId = computationId;
             context->TimeProvider = Context_->TimeProvider;
+            context->VersionProvider = Context_->VersionProvider;
             context->Profiler = WithPipelineRelatedTags(
                 ControllerProfiler()
                     .WithPrefix("/computation")
@@ -119,7 +120,8 @@ public:
                 .With("ComputationId", computationId);
             try {
                 auto controller = TRegistry::Get()->CreateComputationController(context, dynamicContext);
-                controller->Init(StateManager_->CreateContext(computationId));
+                auto initContext = StateManager_->CreateContext(computationId);
+                controller->Init(initContext);
                 ComputationControllers_[computationId] = controller;
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to create computation controller")
@@ -127,6 +129,12 @@ public:
                     .With(ex);
             }
         }
+
+        PartitioningCoordinator_ = New<NPartitioning::TPartitioningCoordinator>(
+            ComputationControllers_,
+            StateManager_->CreatePartitioningContext(),
+            Logger(),
+            PublicControllerLogger());
 
         for (const auto& [resourceId, resourceSpec] : Spec_->Resources) {
             auto resourceControllerContext = New<TResourceControllerContext>();
@@ -191,6 +199,11 @@ public:
                 balanceSynchronizer->StopBalancing();
             }
         }
+    }
+
+    void BeginIteration() override
+    {
+        PartitioningCoordinator_->BeginIteration();
     }
 
     void Reconfigure(TDynamicPipelineSpecPtr dynamicSpec) override
@@ -268,8 +281,12 @@ public:
         }
         {
             THashSet<TComputationId> uncoveredComputations;
-            for (const auto& [computationId, controller] : ComputationControllers_) {
-                if (!controller->IsFullCoverage(groupedPartitions[computationId], flowView)) {
+            for (const auto& [computationId, _] : ComputationControllers_) {
+                if (!PartitioningCoordinator_->IsFullCoverage(
+                    computationId,
+                    groupedPartitions[computationId],
+                    flowView))
+                {
                     YT_TLOG_INFO("Computation does not have full coverage")
                         .With("ComputationId", computationId);
                     uncoveredComputations.insert(computationId);
@@ -334,9 +351,9 @@ public:
             auto computationSpec = GetOrCrash(spec->Computations, computationId);
             auto& current = traverseData->Computations[computationId];
             try {
-                auto processTraverseDataResult = GetOrCrash(ComputationControllers_, computationId)->ProcessPartitionTraverseData(nodes, flowView);
+                auto processTraverseDataResult = GetOrCrash(ComputationControllers_, computationId)->ProcessPartitionTraverseData(nodes, current, flowView);
                 flowView->EphemeralState->StreamTraverseDataMetrics[computationId] = processTraverseDataResult->StreamMetrics;
-                current = AdvanceNodeTraverseData(current, processTraverseDataResult->MergedTraverseData);
+                current = processTraverseDataResult->AcceptedTraverseData;
             } catch (const std::exception& ex) {
                 // One failing computation must not abort the whole aggregation - that freezes the
                 // traverse (stream metrics, watermarks) of the entire pipeline. Reuse the previous
@@ -795,19 +812,7 @@ public:
 
 
         ssize_t oldUpdated = layout->GetUpdated();
-        {
-            THashMap<TComputationId, std::vector<TPartitionId>> partitions;
-            for (const auto& [partitionId, partition] : layout->Partitions) {
-                if (ComputationControllers_.count(partition->ComputationId) > 0) {
-                    partitions[partition->ComputationId].push_back(partitionId);
-                } else if (partition->State == EPartitionState::Executing || partition->State == EPartitionState::Completing || partition->State == EPartitionState::Interrupting) {
-                    layout->UpdatePartition(partitionId, EPartitionState::Interrupted, flowView->State->ExecutionSpec->GetEpoch(), TInstant::Now());
-                }
-            }
-            for (auto& [computationId, controller] : ComputationControllers_) {
-                controller->DoPartitioning(partitions[computationId], flowView);
-            }
-        }
+        PartitioningCoordinator_->DoPartitioning(flowView);
         ssize_t updated = layout->GetUpdated() - oldUpdated;
 
         const auto& partitionJobStatuses = flowView->Feedback->PartitionJobStatuses;
@@ -1085,6 +1090,7 @@ public:
 
     void Commit(const TFlowViewPtr& flowView) override
     {
+        PartitioningCoordinator_->Commit();
         for (const auto& [computationId, controller] : ComputationControllers_) {
             controller->UpdateWatermarkState(flowView->State->ExecutionSpec->WatermarkState->GetValue());
             controller->Commit();
@@ -1103,6 +1109,7 @@ private:
     const IResourceManagerPtr ResourceManager_;
 
     THashMap<TComputationId, IComputationControllerPtr> ComputationControllers_;
+    NPartitioning::TPartitioningCoordinatorPtr PartitioningCoordinator_;
     THashMap<TWorkerGroupId, IStatusErrorStatePtr> InsufficientWorkersErrorStates_;
 
     struct TResourceControllerEntry

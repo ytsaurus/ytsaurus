@@ -92,18 +92,6 @@ struct TNullComputationController
         TDynamicComputationControllerContextPtr /*dynamicContext*/)
     { }
 
-    bool IsFullCoverage(
-        const std::vector<TPartitionId>& /*computationPartitions*/,
-        const TFlowViewPtr& /*flowView*/) override
-    {
-        return {};
-    }
-
-    void DoPartitioning(
-        const std::vector<TPartitionId>& /*computationPartitions*/,
-        const TFlowViewPtr& /*flowView*/) override
-    { }
-
     double ComputePartitionWeight(const TPartitionId& /*partitionId*/, const TFlowViewPtr& /*flowView*/) override
     {
         return 1.0;
@@ -111,9 +99,25 @@ struct TNullComputationController
 
     TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& /*traverseData*/,
+        const TNodeTraverseDataPtr& /*currentTraverseData*/,
         const TFlowViewPtr& /*flowView*/) override
     {
         return New<TProcessPartitionTraverseDataResult>();
+    }
+
+    TPartitioningTopology DescribePartitioningTopology() override
+    {
+        return {.Value = TPartitioningTopology::TRange{}};
+    }
+
+    TPartitioningDescription DescribePartitioning(
+        const TPartitioningStatus& /*status*/) override
+    {
+        return {
+            .Value = TPartitioningDescription::TRange{
+                .SinkTopologyVersion = TVersion(0),
+            },
+        };
     }
 
     void Init(IInitContextPtr /*initContext*/) override
