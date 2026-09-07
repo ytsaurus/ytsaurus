@@ -233,7 +233,7 @@ bool AddFilterToQuery(
 void FormatExplain(DB::IQueryPlanStep::FormatSettings& settings, DB::Pipes pipes)
 {
     String prefix(settings.offset + settings.indent, settings.indent_char);
-    for (auto & pipe : pipes) {
+    for (auto& pipe : pipes) {
         DB::QueryPipeline pipeline(std::move(pipe));
         DB::PullingPipelineExecutor executor(pipeline);
 
@@ -243,7 +243,7 @@ void FormatExplain(DB::IQueryPlanStep::FormatSettings& settings, DB::Pipes pipes
                 continue;
             }
 
-            const auto & col = chunk.getColumns().front();
+            const auto& col = chunk.getColumns().front();
             size_t numRows = col->size();
 
             for (size_t row = 0; row < numRows; ++row) {
