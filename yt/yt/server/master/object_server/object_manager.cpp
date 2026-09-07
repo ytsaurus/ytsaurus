@@ -466,6 +466,22 @@ public:
 
     void Invoke(const IYPathServiceContextPtr& context) override
     {
+        try {
+            GuardedInvoke(context);
+        } catch (const std::exception& ex) {
+            if (context->IsReplied()) {
+                YT_LOG_ALERT(
+                    ex,
+                    "Exception caught while forwarding remote request but the context is already replied (RequestId: %v)",
+                    context->GetRequestId());
+            } else {
+                context->Reply(ex);
+            }
+        }
+    }
+
+    void GuardedInvoke(const IYPathServiceContextPtr& context)
+    {
         auto* mutationContext = TryGetCurrentMutationContext();
         if (mutationContext) {
             mutationContext->SetResponseKeeperSuppressed(true);
