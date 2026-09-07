@@ -981,6 +981,8 @@ class TestNodePendingRestart(TestNodePendingRestartBase):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
+        if self.USE_SEQUOIA:
+            wait(lambda: len(get(f"#{chunk_id}/@unapproved_sequoia_replicas")) == 0)
 
         nodes = get(f"#{chunk_id}/@stored_replicas")
         for node in nodes[:2]:
