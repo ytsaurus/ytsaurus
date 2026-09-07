@@ -4,11 +4,14 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/ytree/exception_helpers.h>
+
 namespace NYT::NCypressProxy {
 
 using namespace NApi;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,10 +21,7 @@ TInvokeResult TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
     try {
         BeforeInvoke(context);
         if (!DoInvoke(context)) {
-            THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::NoSuchMethod,
-                "%Qv method is not supported",
-                context->GetMethod());
+            ThrowMethodNotSupported(context->GetMethod());
         }
     } catch (const std::exception& ex) {
         error = ex;
