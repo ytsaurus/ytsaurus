@@ -24,7 +24,6 @@ class TClusterResources;
 class TAccountStatistics;
 class TRequestStatisticsUpdate;
 class TUserStatistics;
-class TDetailedMasterMemory;
 
 } // namespace NProto
 
@@ -95,8 +94,6 @@ class TClusterResourceLimits;
 class TViolatedClusterResourceLimits;
 struct TChunkMergerCriteria;
 
-class TDetailedMasterMemory;
-
 struct TUserWorkload;
 
 constexpr int TypicalSecurityTagCount = 16;
@@ -123,14 +120,6 @@ DECLARE_REFCOUNTED_CLASS(TRequestTracker)
 DEFINE_ENUM(EUserWorkloadType,
     (Read)
     (Write)
-);
-
-DEFINE_ENUM(EMasterMemoryType,
-    ((Nodes)          (0))
-    ((Chunks)         (1))
-    ((Attributes)     (2))
-    ((Tablets)        (3))
-    ((Schemas)        (4))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

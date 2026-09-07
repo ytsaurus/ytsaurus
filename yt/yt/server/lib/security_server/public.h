@@ -10,10 +10,20 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TDetailedMasterMemory;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPermissionCheckTarget;
 struct TPermissionCheckBasicOptions;
 struct TPermissionCheckResult;
 struct TPermissionCheckResponse;
+
+class TDetailedMasterMemory;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +51,14 @@ DEFINE_ENUM(EAccessControlEvent,
 DEFINE_ENUM(EAccessDenialReason,
     (DeniedByAce)
     (NoAllowingAce)
+);
+
+DEFINE_ENUM(EMasterMemoryType,
+    ((Nodes)          (0))
+    ((Chunks)         (1))
+    ((Attributes)     (2))
+    ((Tablets)        (3))
+    ((Schemas)        (4))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
