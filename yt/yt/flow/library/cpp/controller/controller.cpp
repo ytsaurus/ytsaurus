@@ -5,6 +5,7 @@
 #include "config.h"
 #include "job_manager.h"
 #include "lease_manager.h"
+#include "lineage_rate_aggregator.h"
 #include "persisted_state_manager.h"
 #include "throttler_host.h"
 #include "worker.h"
@@ -534,6 +535,8 @@ public:
         flowState->CurrentTimestamp = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ true))
             .ValueOrThrow();
 
+        LineageRateAggregator_.Update(flowView);
+
         if (!UpdateSpecs(flowView, spec, dynamicSpec)) {
             YT_TLOG_WARNING("No job manager, fast stop");
             auto context = New<TJobManagerContext>();
@@ -634,6 +637,15 @@ public:
         if (JobManager_) {
             JobManager_->Commit(flowView);
         }
+    }
+
+    void AddWorkerStatistics(
+        TIncarnationId workerIncarnationId,
+        TWorkerStatisticsPtr statistics)
+    {
+        LineageRateAggregator_.AddWorkerRates(
+            workerIncarnationId,
+            std::move(statistics->LineageRates));
     }
 
     void UpdateMetrics(const TFlowViewPtr& flowView)
@@ -746,6 +758,7 @@ private:
     const IThrottlerHostPtr ThrottlerHost_;
     const ILeaseManagerPtr LeaseManager_;
     IJobManagerPtr JobManager_;
+    TLineageRateAggregator LineageRateAggregator_;
 
     TMutationMetrics MutationMetrics_;
     THashMap<TStreamId, TStreamMetrics> StreamMetrics_;
@@ -1377,8 +1390,19 @@ public:
     void RegisterWorkerStatus(TStringBuf workerAddress, TWorkerStatusPtr status) override
     {
         EnsureIsLeader();
+        if (status->Statistics) {
+            if (status->WorkerIncarnationId) {
+                if (auto leader = WeakLeader_.Lock()) {
+                    leader->AddWorkerStatistics(
+                        *status->WorkerIncarnationId,
+                        std::move(status->Statistics));
+                }
+            }
+            status->Statistics.Reset();
+        }
+
         auto guard = Guard(FreshStatusesLock_);
-        FreshWorkerStatuses_[std::string(workerAddress)] = status;
+        FreshWorkerStatuses_[std::string(workerAddress)] = std::move(status);
     }
 
 private:

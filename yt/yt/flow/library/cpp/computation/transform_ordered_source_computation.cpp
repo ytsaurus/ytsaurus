@@ -111,8 +111,10 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
 
         const THashMap<TStreamId, TSystemTimestamp> inputWatermarks{{*ActiveSourceStreamId_, partitionReadWatermark}};
 
+        TLineageDelta inputLineageDelta;
         i64 skippedCount = 0;
         for (auto& sourceBatch : sourceMessageBatches) {
+            AddLineageInputs(&inputLineageDelta, GetSpec(), sourceBatch.Messages, {}, {});
             RegisterInputBeforeProcessing(sourceBatch.Messages, {}, {}, inputWatermarks);
             if (Filter_->IsEnabled()) {
                 auto [kept, skipped] = Filter_->Partition(std::move(sourceBatch.Messages));
@@ -192,6 +194,8 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Sync"));
             DoSync(tx);
         }
+        AddLineageDelta(std::move(inputLineageDelta));
+        AddLineageDelta(std::move(processResult.LineageDelta));
         Commit(context, tx);
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_}));

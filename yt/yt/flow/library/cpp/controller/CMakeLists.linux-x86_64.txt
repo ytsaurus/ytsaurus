@@ -68,6 +68,7 @@ target_sources(library-cpp-controller PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_balancer_result.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/lease_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/lineage_rate_aggregator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/persisted_state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/state_access.cpp

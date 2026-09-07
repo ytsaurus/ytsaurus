@@ -1358,6 +1358,9 @@ void TDynamicControllerConnectorSpec::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("controller_heartbeat_period", &TThis::ControllerHeartbeatPeriod)
         .Default(TDuration::Seconds(1));
+    registrar.Parameter("worker_statistics_report_period", &TThis::WorkerStatisticsReportPeriod)
+        .Default(TDuration::Seconds(30))
+        .GreaterThan(TDuration::Zero());
     registrar.Parameter("controller_heartbeat_rpc_timeout", &TThis::ControllerHeartbeatRpcTimeout)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("controller_heartbeat_failure_backoff", &TThis::ControllerHeartbeatFailureBackoff)
@@ -1850,6 +1853,9 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
     }
 
     THashMap<TStreamId, TComputationId> streamProducers;
+    auto publicStreamIds = GetKeys(spec->Streams);
+    THashSet<TStreamId> globalStreamIds(publicStreamIds.begin(), publicStreamIds.end());
+
     // Fill stream producers.
     for (const auto& [computationId, computationSpec] : spec->Computations) {
         THashSet<TStreamId> sourceStreamIds;
@@ -1875,6 +1881,17 @@ void ValidatePipelineSpec(const TPipelineSpecPtr& spec)
         {
             if (!localStreamIds.insert(streamId).second) {
                 THROW_ERROR_EXCEPTION("Stream %Qv is registered twice in computation %Qv",
+                    streamId,
+                    computationId);
+            }
+        }
+
+        for (const auto& streamId : Concatenate(sourceStreamIds, timerStreamIds, keyVisitorStreamIds)) {
+            auto globalStreamId = MakeGlobalStreamId(computationId, streamId, computationSpec);
+            if (!globalStreamIds.insert(globalStreamId).second) {
+                THROW_ERROR_EXCEPTION(
+                    "Global stream id %Qv of stream %Qv in computation %Qv is registered twice",
+                    globalStreamId,
                     streamId,
                     computationId);
             }

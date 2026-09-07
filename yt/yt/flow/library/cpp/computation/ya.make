@@ -11,6 +11,7 @@ SRCS(
     key_visitor.cpp
     static_table_key_visitor_joiner.cpp
     key_visitor_store.cpp
+    lineage_accumulator.cpp
     message_filter.cpp
     meta_setter.cpp
     ordered_source_computation_base.cpp

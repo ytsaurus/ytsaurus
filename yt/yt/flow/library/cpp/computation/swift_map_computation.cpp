@@ -193,6 +193,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
 
         std::vector<TSwiftMapComputationOutputMessagePtr> outputMessages;
         std::vector<TMessageParentsConstPtr> outputParents;
+        TLineageDelta lineageDelta;
         {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Process"));
             RegisterInputBeforeProcessing(unprocessedInputs, inputTimers, inputVisits);
@@ -207,6 +208,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             PreloadKeyStates(inputContext);
             DoProcess(inputContext, outputCollector->SetParents(inputContext->GetMessages(), inputContext->GetTimers(), inputContext->GetVisits()));
             auto result = outputCollector->CollectResult();
+            lineageDelta = std::move(result.LineageDelta);
             TimerStore_->Unregister(inputTimers);
             TimerStore_->Register(std::move(result.OutputTimers));
             const auto& streamSpecStorage = GetContext()->StreamSpecStorage;
@@ -309,6 +311,8 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
 
         // May be empty to enforce lease check.
         auto tx = PrepareTransaction(context);
+        AddLineageInputs(&lineageDelta, GetSpec(), unprocessedInputs, inputTimers, inputVisits);
+        AddLineageDelta(std::move(lineageDelta));
         Commit(context, tx);
 
         const auto now = WaitForFast(generateReportTimeFuture).ValueOrThrow().Timestamp;

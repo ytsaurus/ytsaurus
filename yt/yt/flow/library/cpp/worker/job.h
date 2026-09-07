@@ -44,6 +44,7 @@ struct TJobContext
     TLoadThroughputThrottlerPtr LoadThroughputThrottler;
     TComputationStreamSpecStoragePtr StreamSpecStorage;
     TJobStateCachePtr JobStateCache;
+    TLineageTrackerPtr LineageTracker;
     IExternalPerformanceMetricsReporterPtr ExternalMetricsReporter;
     NYT::NHttp::IClientPtr HttpClient;
     NYT::NHttp::IClientPtr HttpsClient;

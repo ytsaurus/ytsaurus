@@ -71,6 +71,7 @@ target_sources(yt-flow-library-cpp-controller-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/dyntable_election_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/job_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/lineage_rate_aggregator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/partitioning_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/resource_balancer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/state_manager_ut.cpp

@@ -10,6 +10,7 @@ SRCS(
     controller_ut.cpp
     dyntable_election_manager_ut.cpp
     job_manager_ut.cpp
+    lineage_rate_aggregator_ut.cpp
     partitioning_ut.cpp
     resource_balancer_ut.cpp
     state_manager_ut.cpp
