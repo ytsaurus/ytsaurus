@@ -19,12 +19,12 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
  ||
 || `computations` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TComputationSpec](./all_yson_structs#NYT_NFlow_TComputationSpec)`>>`
 **Default value**: `{}`
-A named enumeration of all pipeline nodes. Keys must not contain `/` or `:`. ||
+A named enumeration of all pipeline nodes. Keys must match `[0-9A-Za-z_-]+`. ||
 || `resources` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceSpec](./all_yson_structs#NYT_NFlow_TResourceSpec)`>>`
 **Default value**: `{}`
-A named enumeration of all resources. Keys must not contain `/` or `:`. ||
+A named enumeration of all resources. Keys must match `[0-9A-Za-z_-]+`. ||
 || `streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TStreamSpec](./all_yson_structs#NYT_NFlow_TStreamSpec)`>>`
 **Default value**: `{}`
-A named enumeration of all data streams. Keys must not contain `/` or `:`. ||
+A named enumeration of all data streams. Keys must match `[0-9A-Za-z_-]+`. ||
 |#
 

@@ -16,7 +16,7 @@
  ||
 || `throttlers` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TThrottlerIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicThrottlerSpec](./all_yson_structs#NYT_NFlow_TDynamicThrottlerSpec)`>>`
 **Значение по умолчанию**: `{}`
-Набор именованных распределённых троттлеров, общих для всех `Computation` пайплайна. Ключи являются id троттлеров и не должны содержать `/` или `:`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). ||
+Набор именованных распределённых троттлеров, общих для всех `Computation` пайплайна. Ключи являются id троттлеров и должны соответствовать `[0-9A-Za-z_-]+`. Подробнее в разделе [Distributed Throttler](../concepts/distributed_throttler.md). ||
 || `job_manager` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicJobManagerSpec](./all_yson_structs#NYT_NFlow_TDynamicJobManagerSpec)`>`
 **Значение по умолчанию**: `{}`
 Настройки `JobManager`. ||

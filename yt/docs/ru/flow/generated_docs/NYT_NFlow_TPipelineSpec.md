@@ -19,12 +19,12 @@
  ||
 || `computations` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TComputationIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TComputationSpec](./all_yson_structs#NYT_NFlow_TComputationSpec)`>>`
 **Значение по умолчанию**: `{}`
-Именованное перечисление всех узлов пайплайна. Ключи не должны содержать `/` и `:`. ||
+Именованное перечисление всех узлов пайплайна. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `resources` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceSpec](./all_yson_structs#NYT_NFlow_TResourceSpec)`>>`
 **Значение по умолчанию**: `{}`
-Именованное перечисление всех ресурсов. Ключи не должны содержать `/` и `:`. ||
+Именованное перечисление всех ресурсов. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TStreamSpec](./all_yson_structs#NYT_NFlow_TStreamSpec)`>>`
 **Значение по умолчанию**: `{}`
-Именованное перечисление всех потоков данных. Ключи не должны содержать `/` и `:`. ||
+Именованное перечисление всех потоков данных. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 |#
 
