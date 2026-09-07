@@ -151,8 +151,9 @@ private:
         TUpdateSchedulingSegmentsContext* context) const;
 
     void CollectCurrentResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const;
-    void ResetOperationModuleAssignments(TUpdateSchedulingSegmentsContext* context) const;
     void CollectFairResourceAmountPerSegment(TUpdateSchedulingSegmentsContext* context) const;
+    void LogOperationFairShareTransitions(TUpdateSchedulingSegmentsContext* context) const;
+    void ResetOperationModuleAssignments(TUpdateSchedulingSegmentsContext* context) const;
     void AssignOperationsToModules(TUpdateSchedulingSegmentsContext* context) const;
 
     void ValidateInfinibandClusterTags(TUpdateSchedulingSegmentsContext* context) const;
