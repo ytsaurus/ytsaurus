@@ -1,28 +1,51 @@
+import logging
+import sys
+
 import pytest
+import yt.wrapper as yt
 
 from yt.yt.flow.tools.reshard_flow_tables.lib import (
     TMP_SUFFIX,
+    ReshardRequest,
+    planned_tablet_count,
+    uniform_pivot_keys,
     apply_reshard_plans,
     current_tablet_count,
+    get_args,
     reshard_timer_table,
     get_reshard_targets,
     recreate_replication_log,
     reshard_mounted_table,
+    reshard_tables,
 )
+
+HASH_SCHEMA = [{"name": "hash", "type": "uint64", "sort_order": "ascending"}]
 
 
 class FakeClient:
-    def __init__(self, attributes=None):
+    def __init__(self, attributes=None, proxy=None):
+        self.config = {"proxy": {"url": proxy}}
         self.attributes = attributes or {}
+        for path, value in self.attributes.items():
+            if path.endswith("/@replicas"):
+                for replica in value.values():
+                    replica.setdefault("state", "enabled")
+                    replica.setdefault("mode", "sync")
+                    replica.setdefault("replica_reached_last_own_era", True)
         self.calls = []
         self.created_replicas = 0
 
     # Attributes every dynamic table carries. Spelling them out at each call site would only add
     # noise to tests that are not about the tablet layout.
-    DEFAULT_ATTRIBUTES = {"@sorted": True, "@pivot_keys": [[]], "@tablet_count": 1}
+    DEFAULT_ATTRIBUTES = {"@sorted": True, "@schema": HASH_SCHEMA, "@tablet_count": 1}
 
     def get(self, path):
         if path not in self.attributes:
+            if path.endswith("/@pivot_keys"):
+                count = self.attributes.get(
+                    path.removesuffix("pivot_keys") + "tablet_count", 2 if "_log" in path else 1
+                )
+                return uniform_pivot_keys(count, HASH_SCHEMA)
             default = self.DEFAULT_ATTRIBUTES.get(path.rpartition("/")[2])
             if default is not None:
                 return default
@@ -74,6 +97,7 @@ class FakeClient:
                 "cluster_name": attributes["cluster_name"],
                 "replica_path": attributes["replica_path"],
                 "content_type": attributes["content_type"],
+                "mode": attributes["mode"],
                 "state": "enabled" if attributes.get("enabled") else "disabled",
                 "replica_reached_last_own_era": self.newborn_confirms_era(),
             }
@@ -152,7 +176,7 @@ def test_reshard_mounted_table_unmounts_reshards_and_mounts():
 
     assert client.calls == [
         ("unmount", "//pipeline/states"),
-        ("reshard", "//pipeline/states", {"tablet_count": 5, "uniform": True}),
+        ("reshard", "//pipeline/states", {"pivot_keys": uniform_pivot_keys(5, HASH_SCHEMA)}),
         ("mount", "//pipeline/states"),
     ]
 
@@ -167,7 +191,7 @@ class FailingReshardClient(FakeClient):
 
     def reshard_table(self, table, sync, **kwargs):
         super().reshard_table(table, sync, **kwargs)
-        if self.failing_table in (None, table) and kwargs.get("tablet_count") == 5:
+        if self.failing_table in (None, table) and planned_tablet_count(kwargs) == 5:
             raise RuntimeError('Tablet cell bundle "yacs-prestable" is over tablet count limit')
 
 
@@ -187,7 +211,7 @@ def test_failed_reshard_restores_the_previous_layout():
 
     assert client.calls == [
         ("unmount", "//pipeline/states"),
-        ("reshard", "//pipeline/states", {"tablet_count": 5, "uniform": True}),
+        ("reshard", "//pipeline/states", {"pivot_keys": uniform_pivot_keys(5, HASH_SCHEMA)}),
         # A failed reshard_table(sync=True) does not mean the mutation was rejected -- it also
         # raises when the wait that follows it times out -- so the rollback reshards regardless.
         ("unmount", "//pipeline/states"),
@@ -221,7 +245,7 @@ def test_an_interrupted_reshard_restores_the_table():
     class InterruptedClient(FakeClient):
         def reshard_table(self, table, sync, **kwargs):
             super().reshard_table(table, sync, **kwargs)
-            if kwargs.get("tablet_count") == 5:
+            if planned_tablet_count(kwargs) == 5:
                 raise KeyboardInterrupt
 
     client = InterruptedClient(
@@ -308,7 +332,7 @@ def test_a_failing_chaos_replica_is_restored_on_its_own_cluster():
     # The healthy replica took the new layout and stayed mounted...
     assert clients["pythia"].calls == [
         ("unmount", crt),
-        ("reshard", crt, {"tablet_count": 5, "uniform": True}),
+        ("reshard", crt, {"pivot_keys": uniform_pivot_keys(5, HASH_SCHEMA)}),
         ("mount", crt),
     ]
     assert clients["pythia"].attributes[f"{crt}/@tablet_state"] == "mounted"
@@ -364,7 +388,7 @@ def test_failed_mount_restores_the_previous_layout():
 
     assert client.calls == [
         ("unmount", "//pipeline/states"),
-        ("reshard", "//pipeline/states", {"tablet_count": 5, "uniform": True}),
+        ("reshard", "//pipeline/states", {"pivot_keys": uniform_pivot_keys(5, HASH_SCHEMA)}),
         ("failed mount", "//pipeline/states"),
         ("unmount", "//pipeline/states"),
         ("reshard", "//pipeline/states", {"pivot_keys": [[], ["b"]]}),
@@ -378,7 +402,7 @@ def test_a_failed_rollback_still_reports_the_original_error():
     # reporting -- the rollback failure must not shadow it.
     class DoomedClient(FakeClient):
         def reshard_table(self, table, sync, **kwargs):
-            raise RuntimeError("over tablet count limit" if kwargs.get("tablet_count") == 5 else "rollback is broken")
+            raise RuntimeError("over tablet count limit" if planned_tablet_count(kwargs) == 5 else "rollback is broken")
 
         def mount_table(self, table, sync):
             raise RuntimeError("mount is broken too")
@@ -404,9 +428,9 @@ def test_plans_run_smallest_growth_first():
         }
     )
     plans = [
-        ("//pipeline/grows_a_lot", {"tablet_count": 50, "uniform": True}),
-        ("//pipeline/grows_a_bit", {"tablet_count": 20, "uniform": True}),
-        ("//pipeline/shrinks", {"tablet_count": 10, "uniform": True}),
+        ("//pipeline/grows_a_lot", {"pivot_keys": uniform_pivot_keys(50, HASH_SCHEMA)}),
+        ("//pipeline/grows_a_bit", {"pivot_keys": uniform_pivot_keys(20, HASH_SCHEMA)}),
+        ("//pipeline/shrinks", {"pivot_keys": uniform_pivot_keys(10, HASH_SCHEMA)}),
     ]
 
     apply_reshard_plans(client, plans)
@@ -415,6 +439,39 @@ def test_plans_run_smallest_growth_first():
         "//pipeline/shrinks",
         "//pipeline/grows_a_bit",
         "//pipeline/grows_a_lot",
+    ]
+
+
+def test_dry_run_logs_before_after_without_mutating_tables(caplog, monkeypatch):
+    client = FakeClient(
+        {
+            "//pipeline/states/@type": "table",
+            "//pipeline/states/@tablet_count": 3,
+        }
+    )
+    monkeypatch.setattr(yt, "YtClient", lambda **kwargs: client)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "reshard_flow_tables",
+            "--external-table",
+            "//pipeline/states",
+            "--tablet-count",
+            "5",
+            "--dry-run",
+        ],
+    )
+
+    with caplog.at_level(logging.INFO):
+        reshard_tables(get_args())
+
+    assert client.calls == []
+    assert [
+        record.getMessage() for record in caplog.records if record.funcName in ("apply_reshard_plans", "log_table_plan")
+    ] == [
+        "//pipeline/states: 3 => 5 tablets (+2, reshard, boundaries changed)",
+        "Dry run: no tables will be modified",
     ]
 
 
@@ -466,7 +523,7 @@ def test_recreate_replication_log_swaps_it():
             f"{log}/@schema": [{"name": "key", "type": "string"}],
             f"{log}/@tablet_cell_bundle": "bigb",
             f"{log}/@primary_medium": "ssd_blobs",
-            f"{log}/@tablet_state": "frozen",
+            f"{log}/@tablet_state": "mounted",
         }
     )
 
@@ -539,7 +596,7 @@ def test_also_chaos_replication_logs_recreates_the_log_after_data_reshard():
             FakeClient(
                 {
                     f"{log}/@schema": [],
-                    f"{log}/@tablet_state": "frozen",
+                    f"{log}/@tablet_state": "mounted",
                 }
             ),
         )
@@ -621,7 +678,7 @@ def test_stale_tmp_table_without_replica_is_removed():
     log_client = FakeClient(
         {
             f"{log}/@schema": [],
-            f"{log}/@tablet_state": "frozen",
+            f"{log}/@tablet_state": "mounted",
             f"{tmp}/@tablet_state": "frozen",
         }
     )
@@ -745,7 +802,7 @@ def test_birth_race_retries_the_newborn_log():
     log_client = FakeClient(
         {
             f"{log}/@schema": [],
-            f"{log}/@tablet_state": "frozen",
+            f"{log}/@tablet_state": "mounted",
         }
     )
 
@@ -776,7 +833,7 @@ def test_plain_external_table_is_resharded_without_a_log():
 
     assert client.calls == [
         ("unmount", table),
-        ("reshard", table, {"tablet_count": 7, "uniform": True}),
+        ("reshard", table, {"pivot_keys": uniform_pivot_keys(7, HASH_SCHEMA)}),
         ("mount", table),
     ]
 
@@ -796,7 +853,8 @@ def test_every_replica_cluster_gets_its_log_recreated():
             FakeClient(
                 {
                     f"{log}/@schema": [],
-                    f"{log}/@tablet_state": "frozen",
+                    f"{log}/@tablet_count": 3,
+                    f"{log}/@tablet_state": "mounted",
                 }
             ),
         )
@@ -972,3 +1030,431 @@ def test_unmounted_canonical_log_without_a_tmp_brings_one_up_first():
         ("unmount", tmp),
         ("remove", tmp),
     ]
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_plain_table_plan_logs_growth_shrink_and_unchanged(caplog, dry_run):
+    client = FakeClient(
+        {
+            f"//pipeline/{name}/@{attribute}": value
+            for name, count in (("grow", 1), ("shrink", 5), ("same", 3))
+            for attribute, value in (("type", "table"), ("tablet_count", count))
+        },
+        proxy="zeno",
+    )
+    plans = [(f"//pipeline/{name}", {"pivot_keys": [[], ["a"], ["b"]]}) for name in ("grow", "shrink", "same")]
+
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(client, plans, dry_run=dry_run)
+
+    assert [
+        record.getMessage()
+        for record in caplog.records
+        if record.funcName in ("log_table_plan", "log_replication_plan")
+    ] == [
+        "zeno://pipeline/shrink: 5 => 3 tablets (-2, reshard, boundaries changed)",
+        "zeno://pipeline/same: 3 => 3 tablets (+0, reshard, boundaries changed)",
+        "zeno://pipeline/grow: 1 => 3 tablets (+2, reshard, boundaries changed)",
+    ]
+    if dry_run:
+        assert client.calls == []
+    else:
+        assert [(kind, path) for kind, path, *_ in client.calls] == [
+            (kind, f"//pipeline/{name}")
+            for name in ("shrink", "same", "grow")
+            for kind in ("unmount", "reshard", "mount")
+        ]
+
+
+@pytest.mark.parametrize("also_logs", [False, True])
+@pytest.mark.parametrize("log_state", ["canonical", "temporary", "both"])
+def test_chaos_dry_run_logs_each_cluster_without_mutations(caplog, monkeypatch, also_logs, log_state):
+    table = "//pipeline/states"
+    log = f"{table}_log"
+    replicas = {}
+    clients = {}
+    for cluster, data_count, log_count in (("pythia", 2, 7), ("zeno", 8, 3)):
+        attributes = {f"{table}/@tablet_count": data_count}
+        replicas[f"data-{cluster}"] = {
+            "cluster_name": cluster,
+            "replica_path": table,
+            "content_type": "data",
+        }
+        for suffix in ("", TMP_SUFFIX):
+            if (suffix == "" and log_state == "temporary") or (suffix and log_state == "canonical"):
+                continue
+            path = f"{log}{suffix}"
+            attributes[f"{path}/@tablet_count"] = log_count
+            attributes[f"{path}/@tablet_state"] = "mounted"
+            replicas[f"queue-{cluster}{suffix}"] = {
+                "cluster_name": cluster,
+                "replica_path": path,
+                "content_type": "queue",
+            }
+        clients[cluster] = FakeClient(attributes, proxy=cluster)
+    client = FakeClient({f"{table}/@type": "chaos_replicated_table", f"{table}/@replicas": replicas})
+
+    def fail_timestamp():
+        pytest.fail("Dry-run must not generate a replication barrier timestamp")
+
+    monkeypatch.setattr(client, "generate_timestamp", fail_timestamp)
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(
+            client,
+            [(table, {"pivot_keys": [[], [1], [2], [3], [4]]})],
+            also_chaos_replication_logs=also_logs,
+            make_client=clients.__getitem__,
+            dry_run=True,
+        )
+
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.funcName in ("log_table_plan", "log_replication_plan")
+    ]
+    expected = [
+        "zeno://pipeline/states: 8 => 5 tablets (-3, reshard, boundaries changed)",
+        "pythia://pipeline/states: 2 => 5 tablets (+3, reshard, boundaries changed)",
+    ]
+    if also_logs:
+        for cluster, count in (("pythia", 7), ("zeno", 3)):
+            if log_state == "temporary":
+                expected.append(f"{cluster}:{log}: absent => 3 tablets (recreate)")
+            else:
+                expected.append(f"{cluster}:{log}: {count} => 3 tablets ({3 - count:+d}, recreate, boundaries changed)")
+            if log_state != "canonical":
+                expected.append(f"{cluster}:{log}{TMP_SUFFIX}: {count} => 0 tablets (remove temporary log)")
+    assert messages == expected
+    assert client.calls == []
+    assert all(replica_client.calls == [] for replica_client in clients.values())
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+@pytest.mark.parametrize("same_boundaries", [False, True])
+def test_analyze_layout_once_and_skip_exact_matches(caplog, dry_run, same_boundaries):
+    from collections import Counter
+
+    table = "//pipeline/states"
+    old = [[], [10]]
+    target = old if same_boundaries else [[], [20]]
+
+    class ReadOnceClient(FakeClient):
+        def __init__(self):
+            super().__init__({f"{table}/@type": "table", f"{table}/@pivot_keys": old})
+            self.reads = Counter()
+
+        def get(self, path):
+            self.reads[path] += 1
+            assert self.reads[path] == 1, f"Repeated analysis: {path}"
+            assert not self.calls, f"Analysis after mutation: {path}"
+            return super().get(path)
+
+    client = ReadOnceClient()
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(client, [(table, {"pivot_keys": target})], dry_run=dry_run)
+
+    if dry_run or same_boundaries:
+        assert client.calls == []
+    else:
+        assert client.calls == [("unmount", table), ("reshard", table, {"pivot_keys": target}), ("mount", table)]
+    assert ("already OK, boundaries unchanged" in caplog.text) == same_boundaries
+    assert ("boundaries changed" in caplog.text) == (not same_boundaries)
+    assert "2 => 2 tablets" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "column_type, expected",
+    [
+        ("uint64", [[], [2**64 // 3], [2**65 // 3]]),
+        ("int8", [[], [-43], [42]]),
+    ],
+)
+def test_uniform_boundaries_match_native_rounding(column_type, expected):
+    schema = [{"name": "hash", "type": column_type, "sort_order": "ascending"}]
+    assert uniform_pivot_keys(3, schema) == expected
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_uniform_reshard_skips_matching_boundaries(caplog, dry_run):
+    table = "//pipeline/partition_states"
+    client = FakeClient({f"{table}/@type": "table", f"{table}/@pivot_keys": uniform_pivot_keys(3, HASH_SCHEMA)})
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(client, [(table, {"tablet_count": 3, "uniform": True})], dry_run=dry_run)
+    assert client.calls == []
+    assert "already OK" in caplog.text
+
+
+@pytest.mark.parametrize("compact", [False, True])
+def test_computation_counts_include_shared_tablets_and_first_computation(caplog, compact):
+    from yt.yt.flow.tools.reshard_flow_tables.lib import plan_computation_key_table
+
+    table = "//pipeline/states"
+    schema = [
+        {
+            "name": "deduplication_message_key" if compact else "computation_id",
+            "type": "string",
+            "sort_order": "ascending",
+        }
+    ]
+    client = FakeClient({f"{table}/@type": "table", f"{table}/@schema": schema, f"{table}/@pivot_keys": [[]]})
+    request = plan_computation_key_table(["a", "b"], {}, table, 2, compact_key=compact)
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(client, [request], dry_run=True)
+    assert "1 => 4 tablets" in caplog.text
+    assert "computation_id='a': 1 => 2 tablets" in caplog.text
+    assert "computation_id='b': 1 => 2 tablets" in caplog.text
+    assert client.calls == []
+
+
+def test_removed_computation_reports_remaining_shared_shard(caplog):
+    table = "//pipeline/states"
+    schema = [{"name": "computation_id", "type": "string", "sort_order": "ascending"}]
+    client = FakeClient(
+        {
+            f"{table}/@type": "table",
+            f"{table}/@schema": schema,
+            f"{table}/@pivot_keys": [[], ["a", [1]], ["old"], ["old", [1]]],
+        }
+    )
+    request = ReshardRequest(table, {"pivot_keys": [[]]}, ("a",))
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(client, [request], dry_run=True)
+    assert "computation_id='a': 2 => 1 tablets" in caplog.text
+    assert "computation_id='old': 2 => 1 tablets" in caplog.text
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_matching_chaos_logs_are_not_recreated(caplog, dry_run):
+    from collections import Counter
+
+    table, log = "//pipeline/states", "//pipeline/states_log"
+    client = FakeClient(
+        {
+            f"{table}/@type": "chaos_replicated_table",
+            f"{table}/@replicas": {
+                "data": {"cluster_name": "zeno", "replica_path": table, "content_type": "data"},
+                "queue": {"cluster_name": "zeno", "replica_path": log, "content_type": "queue"},
+            },
+        }
+    )
+
+    class ReadOnceClient(FakeClient):
+        def __init__(self):
+            super().__init__(
+                {
+                    f"{table}/@pivot_keys": [[], [10]],
+                    f"{log}/@pivot_keys": [[]],
+                    f"{log}/@tablet_state": "mounted",
+                    f"{log}/@schema": HASH_SCHEMA,
+                },
+                proxy="zeno",
+            )
+            self.reads = Counter()
+
+        def get(self, path):
+            self.reads[path] += 1
+            if not path.endswith(("/@replicas", "/@tablet_state")):
+                assert self.reads[path] == 1, path
+            return super().get(path)
+
+    replica = ReadOnceClient()
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(
+            client,
+            [(table, {"pivot_keys": [[], [10]]})],
+            also_chaos_replication_logs=True,
+            make_client=lambda cluster: replica,
+            dry_run=dry_run,
+        )
+    assert client.calls == replica.calls == []
+    assert caplog.text.count("already OK") == 2
+
+
+@pytest.mark.parametrize("target_key, unchanged", [(b"a", True), ("b", False)])
+def test_boundary_comparison_normalizes_string_encoding(caplog, target_key, unchanged):
+    table = "//pipeline/states"
+    client = FakeClient({f"{table}/@type": "table", f"{table}/@pivot_keys": [[], ["a"]]})
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(client, [(table, {"pivot_keys": [[], [target_key]]})])
+    assert (client.calls == []) == unchanged
+
+
+def test_boundary_comparison_preserves_signedness():
+    from yt.wrapper import yson
+
+    table = "//pipeline/states"
+    client = FakeClient({f"{table}/@type": "table", f"{table}/@pivot_keys": [[], [1]]})
+    apply_reshard_plans(client, [(table, {"pivot_keys": [[], [yson.YsonUint64(1)]]})])
+    assert len(client.calls) == 3
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_matching_canonical_log_only_retires_temporary_log(caplog, dry_run):
+    table, log = "//pipeline/states", "//pipeline/states_log"
+    tmp = f"{log}{TMP_SUFFIX}"
+    client = FakeClient(
+        {
+            f"{table}/@type": "chaos_replicated_table",
+            f"{table}/@replicas": {
+                "data": {
+                    "cluster_name": "zeno",
+                    "replica_path": table,
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                },
+                "queue": {"cluster_name": "zeno", "replica_path": log, "content_type": "queue", "state": "enabled"},
+                "tmp": {"cluster_name": "zeno", "replica_path": tmp, "content_type": "queue", "state": "enabled"},
+            },
+        }
+    )
+    replica = FakeClient(
+        {
+            f"{table}/@pivot_keys": [[], [10]],
+            f"{log}/@pivot_keys": [[]],
+            f"{log}/@tablet_state": "mounted",
+            f"{log}/@schema": HASH_SCHEMA,
+            f"{tmp}/@tablet_state": "frozen",
+        },
+        proxy="zeno",
+    )
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(
+            client,
+            [(table, {"pivot_keys": [[], [10]]})],
+            also_chaos_replication_logs=True,
+            make_client=lambda cluster: replica,
+            dry_run=dry_run,
+        )
+    if dry_run:
+        assert client.calls == replica.calls == []
+    else:
+        assert replica.calls == [("freeze", tmp), ("unmount", tmp), ("remove", tmp)]
+        assert client.calls == [("alter_table_replica", "tmp", False), ("remove", "#tmp")]
+    assert caplog.text.count("already OK") == 2
+
+
+def test_chaos_execution_does_not_repeat_layout_analysis():
+    from collections import Counter
+
+    table, log = "//pipeline/states", "//pipeline/states_log"
+    clients = []
+
+    class StrictClient(FakeClient):
+        def __init__(self, attributes):
+            super().__init__(attributes)
+            self.reads = Counter()
+            clients.append(self)
+
+        def get(self, path):
+            executing = any(client.calls for client in clients)
+            if executing:
+                assert path.endswith(("/@replicas", "/@tablet_state")), f"Repeated layout analysis: {path}"
+            else:
+                self.reads[path] += 1
+                if not path.endswith(("/@replicas", "/@tablet_state")):
+                    assert self.reads[path] == 1, f"Repeated planning read: {path}"
+            return super().get(path)
+
+    client = StrictClient(
+        {
+            f"{table}/@type": "chaos_replicated_table",
+            f"{table}/@replicas": {
+                "data": {
+                    "cluster_name": "zeno",
+                    "replica_path": table,
+                    "content_type": "data",
+                    "replication_lag_timestamp": 10**18,
+                },
+                "queue": {"cluster_name": "zeno", "replica_path": log, "content_type": "queue", "state": "enabled"},
+            },
+        }
+    )
+    replica = StrictClient(
+        {
+            f"{table}/@pivot_keys": [[]],
+            f"{log}/@pivot_keys": [[], [15]],
+            f"{log}/@tablet_state": "mounted",
+            f"{log}/@schema": HASH_SCHEMA,
+        }
+    )
+    target = [[], [10], [20], [30]]
+    apply_reshard_plans(
+        client, [(table, {"pivot_keys": target})], also_chaos_replication_logs=True, make_client=lambda cluster: replica
+    )
+    assert replica.calls[:3] == [("unmount", table), ("reshard", table, {"pivot_keys": target}), ("mount", table)]
+    assert [call[2] for call in replica.calls if call[0] == "create"] == [f"{log}{TMP_SUFFIX}", log]
+
+
+@pytest.mark.parametrize("with_temporary", [False, True])
+@pytest.mark.parametrize("failure", ["frozen", "disabled", "unconfirmed", "async", "changed_after_plan"])
+def test_exact_log_boundaries_do_not_hide_unhealthy_canonical(caplog, with_temporary, failure):
+    from yt.yt.flow.tools.reshard_flow_tables.lib import prepare_replication_log, execute_replication_log
+
+    table, log = "//pipeline/states", "//pipeline/states_log"
+    tmp = f"{log}{TMP_SUFFIX}"
+    replicas = {
+        "data": {
+            "cluster_name": "zeno",
+            "replica_path": table,
+            "content_type": "data",
+            "replication_lag_timestamp": 10**18,
+        },
+        "queue": {
+            "cluster_name": "zeno",
+            "replica_path": log,
+            "content_type": "queue",
+            "state": "disabled" if failure == "disabled" else "enabled",
+            "mode": "async" if failure == "async" else "sync",
+            "replica_reached_last_own_era": failure != "unconfirmed",
+        },
+    }
+    attributes = {
+        f"{log}/@schema": HASH_SCHEMA,
+        f"{log}/@pivot_keys": [[]],
+        f"{log}/@tablet_state": "frozen" if failure == "frozen" else "mounted",
+    }
+    if with_temporary:
+        replicas["tmp"] = {"cluster_name": "zeno", "replica_path": tmp, "content_type": "queue"}
+        attributes[f"{tmp}/@tablet_state"] = "mounted"
+    client, replica = FakeClient(
+        {f"{table}/@type": "chaos_replicated_table", f"{table}/@replicas": replicas}
+    ), FakeClient(attributes)
+    plan = prepare_replication_log(client, table, "zeno", log, [[]], make_client=lambda cluster: replica)
+    if failure == "changed_after_plan":
+        replica.attributes[f"{log}/@tablet_state"] = "frozen"
+    with caplog.at_level(logging.INFO):
+        execute_replication_log(plan, sleep=lambda seconds: None)
+    canonical_mount = replica.calls.index(("mount", log))
+    temporary_freeze = replica.calls.index(("freeze", tmp))
+    assert canonical_mount < temporary_freeze
+    assert ("create", "replication_log_table", log, {"dynamic": True, "schema": HASH_SCHEMA}) in replica.calls
+    assert replica.attributes[f"{log}/@tablet_state"] == "mounted"
+    assert "not ready; recovering" in caplog.text
+
+
+def test_temporary_only_log_reports_per_computation_creation_and_removal(caplog):
+    table, log = "//pipeline/states", "//pipeline/states_log"
+    tmp = f"{log}{TMP_SUFFIX}"
+    client = FakeClient(
+        {
+            f"{table}/@type": "chaos_replicated_table",
+            f"{table}/@replicas": {
+                "tmp": {"cluster_name": "zeno", "replica_path": tmp, "content_type": "queue"},
+            },
+        }
+    )
+    schema = [{"name": "computation_id", "type": "string", "sort_order": "ascending"}]
+    replica = FakeClient(
+        {f"{tmp}/@tablet_state": "mounted", f"{tmp}/@schema": schema, f"{tmp}/@pivot_keys": [[], ["a", [1]], ["b"]]},
+        proxy="zeno",
+    )
+    request = ReshardRequest(table, {"pivot_keys": [[], ["a", [1]], ["b"], ["b", [1]]]}, ("a", "b"))
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(
+            client, [request], also_chaos_replication_logs=True, make_client=lambda cluster: replica, dry_run=True
+        )
+    assert "zeno://pipeline/states_log: computation_id='a': 0 => 1 tablets" in caplog.text
+    assert "zeno://pipeline/states_log: computation_id='b': 0 => 1 tablets" in caplog.text
+    assert "zeno://pipeline/states_log.reshard_tmp: computation_id='a': 2 => 0 tablets" in caplog.text
+    assert "zeno://pipeline/states_log.reshard_tmp: computation_id='b': 1 => 0 tablets" in caplog.text
+    assert client.calls == replica.calls == []

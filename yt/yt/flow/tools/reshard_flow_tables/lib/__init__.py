@@ -4,7 +4,9 @@ import logging
 import sys
 import time
 
+from bisect import bisect_left, bisect_right
 from collections import defaultdict
+from dataclasses import dataclass
 
 import yt.wrapper as yt
 from yt.wrapper import yson
@@ -12,10 +14,21 @@ from yt.wrapper.default_config import get_default_config, update_config_from_env
 
 from yt.ypath.rich import RichYPath
 
-EPILOG = """Examples:
+EPILOG = """The plan reports old and new tablet counts for each physical table. Tables with
+identical pivot keys are left untouched, even without --dry-run. Tables keyed by
+computation_id also report how many tablets intersect each computation's key range;
+a shared tablet counts toward every computation it covers. Compact input keys are
+handled in the same way.
+
+Examples:
 
 {0} --proxy zeno \\
     --pipeline-path //path/on/zeno
+
+# Preview the same changes without modifying tables:
+{0} --proxy zeno \\
+    --pipeline-path //path/on/zeno \\
+    --dry-run
 
 # Everything at once: the pipeline tables (data replicas + replication logs) plus the
 # replication logs of external state tables:
@@ -75,6 +88,11 @@ def get_args():
         " Handled exactly like a pipeline data table: a plain dynamic table is resharded in"
         " place, a chaos table's data replicas are resharded, and with"
         " --also-chaos-replication-logs its replication log is recreated too",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="show tablet count changes for each physical table and selected replication log without modifying tables",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="enable debug output")
 
@@ -234,6 +252,125 @@ COPIED_LOG_ATTRIBUTES = [
 TMP_SUFFIX = ".reshard_tmp"
 
 
+@dataclass
+class ReplicationLogPlan:
+    client: object
+    table: str
+    cluster: str
+    path: str
+    log_client: object
+    pivots: list
+    attached: dict
+    canonical_replica: dict
+    states: dict
+    attributes: dict
+    canonical: "TableReshardPlan | None"
+    temporary: "TableReshardPlan | None"
+
+    @functools.cached_property
+    def canonical_unchanged(self):
+        return (
+            self.canonical is not None
+            and self.canonical.unchanged
+            and self.path in self.attached
+            and self.states[self.path] == "mounted"
+            and replica_ready(self.canonical_replica)
+        )
+
+    @functools.cached_property
+    def unchanged(self):
+        return self.canonical_unchanged and self.temporary is None and f"{self.path}{TMP_SUFFIX}" not in self.attached
+
+
+def prepare_replication_log(
+    client, table, log_cluster, log_path, log_pivot_keys, make_client=None, replicas=None, computation_ids=()
+):
+    log_client = (make_client or _replica_cluster_client)(log_cluster)
+    tmp_path = f"{log_path}{TMP_SUFFIX}"
+    if replicas is None:
+        replicas = dict(get_replication_log_replicas(client, table))
+    attached = {
+        str(replica["replica_path"]): replica_id
+        for replica_id, replica in replicas.items()
+        if replica["content_type"] == "queue"
+        and str(replica["cluster_name"]) == log_cluster
+        and str(replica["replica_path"]) in (log_path, tmp_path)
+    }
+    if not attached:
+        raise RuntimeError(f"replication log {log_cluster}:{log_path} of {table} has no attached replica to recreate")
+    states = {}
+    layouts = {}
+    for path in (log_path, tmp_path):
+        states[path] = log_client.get(f"{path}/@tablet_state") if log_client.exists(f"{path}/@tablet_state") else None
+        if states[path] is not None:
+            layouts[path] = read_layout(log_client, path)
+    source_path = log_path if states[log_path] is not None else tmp_path
+    schema = log_client.get(f"{source_path}/@schema")
+    attributes = {"dynamic": True, "schema": schema}
+    for name in COPIED_LOG_ATTRIBUTES:
+        if log_client.exists(f"{source_path}/@{name}"):
+            attributes[name] = log_client.get(f"{source_path}/@{name}")
+    table_plans = {
+        path: TableReshardPlan(log_client, path, layout, {"pivot_keys": log_pivot_keys}, schema, computation_ids)
+        for path, layout in layouts.items()
+    }
+    return ReplicationLogPlan(
+        client,
+        table,
+        log_cluster,
+        log_path,
+        log_client,
+        log_pivot_keys,
+        attached,
+        dict(replicas.get(attached.get(log_path), {})),
+        states,
+        attributes,
+        table_plans.get(log_path),
+        table_plans.get(tmp_path),
+    )
+
+
+def replica_ready(replica):
+    return (
+        replica.get("state") == "enabled"
+        and replica.get("mode") == "sync"
+        and bool(replica.get("replica_reached_last_own_era"))
+    )
+
+
+def log_replication_plan(plan):
+    if plan.canonical is not None:
+        log_table_plan(
+            plan.canonical,
+            "recreate" if not plan.canonical.unchanged else "finish interrupted log swap",
+            unchanged=plan.canonical_unchanged,
+        )
+    else:
+        logging.info(f"{plan.cluster}:{plan.path}: absent => {len(plan.pivots)} tablets (recreate)")
+        creation = TableReshardPlan(
+            plan.log_client,
+            plan.path,
+            {"pivot_keys": []},
+            {"pivot_keys": plan.pivots},
+            plan.attributes["schema"],
+            plan.temporary.computation_ids,
+        )
+        log_computation_diffs(creation, f"{plan.cluster}:{plan.path}")
+    if plan.temporary is not None:
+        current = planned_tablet_count(plan.temporary.previous_layout)
+        name = f"{plan.cluster}:{plan.temporary.table}"
+        logging.info(f"{name}: {current} => 0 tablets (remove temporary log)")
+        removal = TableReshardPlan(
+            plan.log_client,
+            plan.temporary.table,
+            plan.temporary.previous_layout,
+            {"pivot_keys": []},
+            plan.temporary.schema,
+            plan.temporary.computation_ids,
+        )
+        log_computation_diffs(removal, name)
+
+
 def recreate_replication_log(
     client,
     table,
@@ -244,51 +381,26 @@ def recreate_replication_log(
     sleep=time.sleep,
     confirm_timeout=240.0,
     attach_attempts=5,
+    dry_run=False,
 ):
-    """Replace the replication log of a CRT with a fresh one of `tablet_count` tablets.
+    """Analyze a log swap once and optionally execute it, retaining interrupted-swap recovery."""
+    plan = prepare_replication_log(client, table, log_cluster, log_path, log_pivot_keys, make_client)
+    log_replication_plan(plan)
+    if not dry_run:
+        execute_replication_log(plan, sleep, confirm_timeout, attach_attempts)
 
-    A written-to replication log cannot be resharded in place, and the only sync log of a
-    replication card can be neither disabled nor removed (a new era would leave the card with
-    no sync log), so the swap goes through a temporary log: attach a second log, retire the old one,
-    attach the final log at the original path, retire the temporary one. Writes stay available the
-    whole time — they simply land in whichever sync log is active; retiring a log freezes
-    it first and waits until every data replica passes a barrier timestamp taken after the
-    freeze, so nothing is lost.
 
-    Takes the canonical |log_cluster|:|log_path| rather than a replica, so a rerun resumes whatever
-    the previous run left behind: the swap is driven by which of the two logs the card currently
-    carries. The cluster is half of a log's identity — a CRT holds one log per replica cluster and
-    they all share a path, so matching on the path alone picks an arbitrary one of them."""
-    make_client = make_client or _replica_cluster_client
-    log_client = make_client(log_cluster)
+def execute_replication_log(plan, sleep=time.sleep, confirm_timeout=240.0, attach_attempts=5):
+    client, table = plan.client, plan.table
+    log_cluster, log_path, log_client = plan.cluster, plan.path, plan.log_client
+    log_pivot_keys, attributes = plan.pivots, plan.attributes
     tmp_path = f"{log_path}{TMP_SUFFIX}"
+    canonical_replica_id = plan.attached.get(log_path)
+    tmp_replica_id = plan.attached.get(tmp_path)
+    states = dict(plan.states)
 
     def tablet_state(path):
-        # None when there is no table at the path at all, which a rerun must tell apart from an
-        # unmounted one: the attribute is absent exactly when the node is.
-        if not log_client.exists(f"{path}/@tablet_state"):
-            return None
-        return log_client.get(f"{path}/@tablet_state")
-
-    attached = {
-        str(attached_replica["replica_path"]): attached_replica_id
-        for attached_replica_id, attached_replica in get_replication_log_replicas(client, table)
-        if str(attached_replica["cluster_name"]) == log_cluster
-        and str(attached_replica["replica_path"]) in (log_path, tmp_path)
-    }
-    canonical_replica_id = attached.get(log_path)
-    tmp_replica_id = attached.get(tmp_path)
-    if canonical_replica_id is None and tmp_replica_id is None:
-        raise RuntimeError(f"replication log {log_cluster}:{log_path} of {table} has no attached replica to recreate")
-
-    # A resumed run reads the layout off whichever log is actually there: mid-swap the canonical
-    # one is already gone and only the temporary log is left to copy the attributes from.
-    source_path = log_path if tablet_state(log_path) is not None else tmp_path
-    schema = log_client.get(f"{source_path}/@schema")
-    attributes = {"dynamic": True, "schema": schema}
-    for name in COPIED_LOG_ATTRIBUTES:
-        if log_client.exists(f"{source_path}/@{name}"):
-            attributes[name] = log_client.get(f"{source_path}/@{name}")
+        return states.get(path)
 
     def replica_state(some_replica_id):
         return client.get(f"{table}/@replicas").get(some_replica_id, {}).get("state")
@@ -296,6 +408,7 @@ def recreate_replication_log(
     def attach_log(path):
         logging.info(f"Creating log {log_cluster}:{path} with {len(log_pivot_keys)} tablets...")
         log_client.create("replication_log_table", path, attributes=attributes)
+        states[path] = "unmounted"
         # A replication log can only be resharded while it is still empty, and — being a sorted
         # table — only by explicit pivot keys; reshard between create and mount.
         log_client.reshard_table(path, pivot_keys=log_pivot_keys, sync=True)
@@ -326,6 +439,7 @@ def recreate_replication_log(
         # upstream_replica_id and repairs them the same way).
         log_client.alter_table(path, upstream_replica_id=new_replica_id)
         log_client.mount_table(path, sync=True)
+        states[path] = "mounted"
         wait_until(
             lambda: replica_state(new_replica_id) == "enabled",
             f"log replica {log_cluster}:{path} of {table} to enable",
@@ -344,6 +458,7 @@ def recreate_replication_log(
         if state != "unmounted":
             log_client.unmount_table(path, sync=True)
         log_client.remove(path)
+        states[path] = None
 
     def detach_log(some_replica_id, path):
         client.alter_table_replica(some_replica_id, enabled=False)
@@ -366,6 +481,7 @@ def recreate_replication_log(
             timeout=1800.0,
             sleep=sleep,
         )
+        states[path] = "frozen"
         barrier_timestamp = client.generate_timestamp()
         wait_until(
             lambda: data_replicas_past_barrier(client, table, barrier_timestamp),
@@ -399,19 +515,36 @@ def recreate_replication_log(
                 retire_log(new_replica_id, path)
         raise RuntimeError(f"log {log_cluster}:{path} failed to confirm its era after {attach_attempts} attempts")
 
-    if canonical_replica_id is not None and tablet_state(log_path) in (None, "unmounted"):
-        # A run that died inside attach_log leaves a replica the card believes in over a table that
-        # never attached to it: the replica is created before the table is altered and mounted. Such
-        # a log carries no writes and can never freeze, so retiring it the normal way would block on
-        # the freeze for the full timeout — and would do so after retiring the temporary log, which
-        # is the one actually serving. Discard it and let the resume branch rebuild it instead.
-        logging.warning(f"Log {log_cluster}:{log_path} is attached but not mounted; discarding it")
-        if tmp_replica_id is None:
-            # The card may not be left without a sync log, and one that never attached does not
-            # count as such, so the temporary log has to come up before this one goes away.
+    def ready(replica_id, path):
+        if replica_id is None:
+            return False
+        replica = client.get(f"{table}/@replicas").get(replica_id, {})
+        states[path] = log_client.get(f"{path}/@tablet_state") if log_client.exists(f"{path}/@tablet_state") else None
+        return states[path] == "mounted" and replica_ready(replica)
+
+    canonical_ready = ready(canonical_replica_id, log_path)
+    if plan.canonical is not None and plan.canonical.unchanged and canonical_ready:
+        if tmp_replica_id is not None:
+            retire_log(tmp_replica_id, tmp_path)
+        else:
             drop_table(tmp_path)
+        return
+
+    if canonical_replica_id is not None and not canonical_ready:
+        logging.warning(f"Log {log_cluster}:{log_path} is not ready; recovering it before retiring the temporary log")
+        if not ready(tmp_replica_id, tmp_path):
+            if tmp_replica_id is not None:
+                if tablet_state(tmp_path) in (None, "unmounted"):
+                    detach_log(tmp_replica_id, tmp_path)
+                else:
+                    retire_log(tmp_replica_id, tmp_path)
+            else:
+                drop_table(tmp_path)
             tmp_replica_id = attach_healthy_log(tmp_path)
-        detach_log(canonical_replica_id, log_path)
+        if tablet_state(log_path) in (None, "unmounted"):
+            detach_log(canonical_replica_id, log_path)
+        else:
+            retire_log(canonical_replica_id, log_path)
         canonical_replica_id = None
 
     if canonical_replica_id is None:
@@ -469,61 +602,152 @@ def read_layout(client, table):
     return {"tablet_count": client.get(f"{table}/@tablet_count")}
 
 
-def reshard_one_table(client, table, **reshard_kwargs):
-    """unmount -> reshard -> mount, leaving the table mounted whatever happens.
+@dataclass
+class ReshardRequest:
+    table: str
+    parameters: dict
+    computation_ids: tuple = ()
 
-    A failure used to strand the table unmounted, and an unmounted internal table is not a failed
-    release but a dead pipeline: workers get "has no mounted tablets" (code 1702) on every commit
-    against it, and a stop issued afterwards drains forever. Losing the reshard is acceptable,
-    losing the pipeline is not."""
-    previous_layout = read_layout(client, table)
+
+@dataclass
+class TableReshardPlan:
+    client: object
+    table: str
+    previous_layout: dict
+    layout: dict
+    schema: list
+    computation_ids: tuple = ()
+
+    @functools.cached_property
+    def unchanged(self):
+        return layout_identity(self.previous_layout) == layout_identity(self.layout)
+
+    @functools.cached_property
+    def delta(self):
+        return planned_tablet_count(self.layout) - planned_tablet_count(self.previous_layout)
+
+
+def layout_identity(layout):
+    # Preserve signed/unsigned key types, but ignore YSON attributes on values.
+    return yson.dumps(dict(layout), yson_format="binary", ignore_inner_attributes=True)
+
+
+def uniform_pivot_keys(tablet_count, schema):
+    column = schema[0]
+    column_type = column.get("type", column.get("type_v3"))
+    if column.get("sort_order") != "ascending" or column_type not in (
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+    ):
+        raise ValueError("Uniform reshard requires an ascending integral first key column")
+    unsigned = column_type.startswith("u")
+    bits = int(column_type.removeprefix("u").removeprefix("int"))
+    lower = 0 if unsigned else -(2 ** (bits - 1))
+    value_type = yson.YsonUint64 if unsigned else int
+    # Match TClient::PickUniformPivotKeys: divide after multiplying, without rounding the step.
+    return [[]] + [[value_type(lower + (2**bits * i) // tablet_count)] for i in range(1, tablet_count)]
+
+
+def prepare_table_reshard(client, request):
+    previous_layout = read_layout(client, request.table)
+    schema = client.get(f"{request.table}/@schema")
+    layout = dict(request.parameters)
+    if "pivot_keys" not in layout:
+        count = layout["tablet_count"]
+        if count <= 0:
+            raise ValueError("Tablet count must be positive")
+        if "pivot_keys" in previous_layout:
+            if not layout.get("uniform"):
+                raise ValueError("Sorted tables require explicit pivot keys or uniform resharding")
+            layout = {"pivot_keys": uniform_pivot_keys(count, schema)}
+        else:
+            layout = {"tablet_count": count}
+    return TableReshardPlan(client, request.table, previous_layout, layout, schema, request.computation_ids)
+
+
+def computation_tablet_counts(pivots, computations, compact=False):
+    def encode(value):
+        return value.encode("utf-8") if isinstance(value, str) else bytes(value)
+
+    # A pivot with trailing columns lies after the computation's prefix boundary.
+    boundaries = [(bool(key), encode(key[0]) if key else b"", len(key) > 1) for key in pivots]
+    counts = {}
+    for computation in computations:
+        encoded = encode(computation)
+        lower = encoded + b"\0" if compact else encoded
+        upper = encoded + (b"\1" if compact else b"\0")
+        first = max(0, bisect_right(boundaries, (True, lower, False)) - 1)
+        last = bisect_left(boundaries, (True, upper, False))
+        counts[computation] = last - first
+    return counts
+
+
+def log_table_plan(plan, action="reshard", unchanged=None):
+    proxy = plan.client.config["proxy"]["url"]
+    name = f"{proxy}:{plan.table}" if proxy else plan.table
+    current = planned_tablet_count(plan.previous_layout)
+    target = planned_tablet_count(plan.layout)
+    if unchanged is None:
+        unchanged = plan.unchanged
+    status = "already OK, boundaries unchanged" if unchanged else action
+    if not plan.unchanged and "pivot_keys" in plan.layout:
+        status += ", boundaries changed"
+    logging.info(f"{name}: {current} => {target} tablets ({target - current:+d}, {status})")
+    log_computation_diffs(plan, name)
+
+
+def log_computation_diffs(plan, name):
+    if "pivot_keys" not in plan.layout or not plan.schema:
+        return
+    column = plan.schema[0]
+    compact = column["name"] == "deduplication_message_key"
+    if column["name"] != "computation_id" and not compact:
+        return
+    computations = set(plan.computation_ids)
+    for layout in (plan.previous_layout, plan.layout):
+        for key in layout["pivot_keys"]:
+            if key:
+                value = key[0].encode("utf-8") if isinstance(key[0], str) else bytes(key[0])
+                computations.add(value.split(b"\0", 1)[0].decode("utf-8") if compact else value.decode("utf-8"))
+    computations = sorted(computations)
+    before = computation_tablet_counts(plan.previous_layout["pivot_keys"], computations, compact)
+    after = computation_tablet_counts(plan.layout["pivot_keys"], computations, compact)
+    for computation in computations:
+        logging.info(f"{name}: computation_id={computation!r}: {before[computation]} => {after[computation]} tablets")
+
+
+def execute_table_reshard(plan):
+    if plan.unchanged:
+        return
+    client, table = plan.client, plan.table
     try:
-        # The unmount belongs inside the rollback too: unmount_table(sync=True) is make_request
-        # plus a separate wait for the tablets, so a timeout raises over a table that is already
-        # unmounted -- the very state this function exists to keep the pipeline out of.
         client.unmount_table(table, sync=True)
-        client.reshard_table(table, sync=True, **reshard_kwargs)
+        client.reshard_table(table, sync=True, **plan.layout)
         client.mount_table(table, sync=True)
     except BaseException:
-        # BaseException, not Exception: every one of these calls blocks for up to
-        # tablets_ready_timeout (30 minutes), and an operator who gives up and hits Ctrl+C in that
-        # window would otherwise walk away leaving the table unmounted -- the exact outcome this
-        # function exists to prevent.
+        # A failed synchronous operation may already have applied its mutation.
         logging.error(f"Resharding {table} failed, restoring its previous layout")
-        restore(client, table, previous_layout)
+        restore(client, table, plan.previous_layout)
         raise
 
 
-def reshard_mounted_table(client, table, also_chaos_replication_logs=False, make_client=None, **reshard_kwargs):
-    for target_client, target_table in get_reshard_targets(
-        client, table, make_client=make_client, warn_logs=not also_chaos_replication_logs
-    ):
-        logging.info(f"Resharding {target_table}...")
-        reshard_one_table(target_client, target_table, **reshard_kwargs)
-        logging.info(f"Finished resharding {target_table}")
-    if not also_chaos_replication_logs:
-        return
-    # The log shares the key space of its data table; give it half the data width (the same
-    # rule of thumb yt_sync applies when creating pipeline logs).
-    pivot_keys = reshard_kwargs.get("pivot_keys")
-    if pivot_keys:
-        log_pivot_keys = pivot_keys[::2]
-    else:
-        log_pivot_keys = uniform_uint64_pivot_keys(max(1, reshard_kwargs.get("tablet_count", 1) // 2))
-    # Fold a leftover *.reshard_tmp into the log it belongs to instead of skipping it: once a
-    # previous run has retired the canonical log, the temporary one is the ONLY log on the card, and
-    # skipping it would leave the swap half-done forever. recreate_replication_log resumes it.
-    # A CRT holds one log per replica cluster and they share a path, so a log is identified by the
-    # pair: keying by the path alone collapses them into one and leaves every cluster but one
-    # un-resharded, silently.
-    log_keys = set()
-    for _, replica in get_replication_log_replicas(client, table):
-        replica_path = str(replica["replica_path"])
-        if replica_path.endswith(TMP_SUFFIX):
-            replica_path = replica_path[: -len(TMP_SUFFIX)]
-        log_keys.add((str(replica["cluster_name"]), replica_path))
-    for log_cluster, log_path in sorted(log_keys):
-        recreate_replication_log(client, table, log_cluster, log_path, log_pivot_keys, make_client=make_client)
+def reshard_one_table(client, table, dry_run=False, **reshard_kwargs):
+    plan = prepare_table_reshard(client, ReshardRequest(table, reshard_kwargs))
+    log_table_plan(plan)
+    if not dry_run:
+        execute_table_reshard(plan)
+
+
+def reshard_mounted_table(
+    client, table, also_chaos_replication_logs=False, make_client=None, dry_run=False, **reshard_kwargs
+):
+    apply_reshard_plans(client, [(table, reshard_kwargs)], also_chaos_replication_logs, make_client, dry_run)
 
 
 def planned_tablet_count(reshard_kwargs):
@@ -532,8 +756,6 @@ def planned_tablet_count(reshard_kwargs):
 
 
 def current_tablet_count(client, table, make_client=None):
-    """Width of the widest reshard target of |table|: a chaos replicated table owns no tablets
-    itself, its replicas do."""
     return max(
         (
             target_client.get(f"{target_table}/@tablet_count")
@@ -545,31 +767,63 @@ def current_tablet_count(client, table, make_client=None):
     )
 
 
-def apply_reshard_plans(client, plans, also_chaos_replication_logs=False, make_client=None):
-    """Run |plans| -- (table, reshard_kwargs) pairs -- smallest growth first.
-
-    The tablet count of a tablet cell bundle is a hard limit and every table of a pipeline shares
-    one bundle, so a fixed order lets a growing table eat the budget a later one needs -- and the
-    tables that would have RELEASED tablets never get their turn, because they are at the end of
-    the list. Ordering by delta spends what the shrinking tables free before asking for more."""
-    ordered = sorted(
-        (
-            (table, reshard_kwargs, current_tablet_count(client, table, make_client=make_client))
-            for table, reshard_kwargs in plans
-        ),
-        key=lambda plan: planned_tablet_count(plan[1]) - plan[2],
-    )
-    for table, reshard_kwargs, current in ordered:
-        target = planned_tablet_count(reshard_kwargs)
-        logging.info(f"Planned: {table} {current} -> {target} tablets ({target - current:+d})")
-    for table, reshard_kwargs, _ in ordered:
-        reshard_mounted_table(
-            client,
-            table,
-            also_chaos_replication_logs=also_chaos_replication_logs,
-            make_client=make_client,
-            **reshard_kwargs,
+def apply_reshard_plans(client, plans, also_chaos_replication_logs=False, make_client=None, dry_run=False):
+    """Analyze once, log the resulting layouts, then optionally apply them, smallest growth first."""
+    make_client = make_client or _replica_cluster_client
+    data_plans = []
+    log_plans = []
+    for request in plans:
+        if not isinstance(request, ReshardRequest):
+            request = ReshardRequest(*request)
+        table = request.table
+        if client.get(f"{table}/@type") != "chaos_replicated_table":
+            data_plans.append(prepare_table_reshard(client, request))
+            continue
+        replicas = client.get(f"{table}/@replicas")
+        logs = set()
+        for replica in replicas.values():
+            cluster, path = str(replica["cluster_name"]), str(replica["replica_path"])
+            if replica["content_type"] == "data":
+                data_plans.append(
+                    prepare_table_reshard(
+                        make_client(cluster), ReshardRequest(path, request.parameters, request.computation_ids)
+                    )
+                )
+            elif also_chaos_replication_logs:
+                logs.add((cluster, path.removesuffix(TMP_SUFFIX)))
+            else:
+                logging.warning(
+                    f"Skipping replication log {cluster}:{path}; use --also-chaos-replication-logs to recreate it"
+                )
+        pivots = request.parameters.get("pivot_keys")
+        log_pivots = (
+            pivots[::2] if pivots else uniform_uint64_pivot_keys(max(1, request.parameters.get("tablet_count", 1) // 2))
         )
+        for cluster, path in sorted(logs):
+            log_plans.append(
+                prepare_replication_log(
+                    client,
+                    table,
+                    cluster,
+                    path,
+                    log_pivots,
+                    make_client=make_client,
+                    replicas=replicas,
+                    computation_ids=request.computation_ids,
+                )
+            )
+    data_plans.sort(key=lambda plan: plan.delta)
+    for plan in data_plans:
+        log_table_plan(plan)
+    for plan in log_plans:
+        log_replication_plan(plan)
+    if dry_run:
+        logging.info("Dry run: no tables will be modified")
+        return
+    for plan in data_plans:
+        execute_table_reshard(plan)
+    for plan in log_plans:
+        execute_replication_log(plan)
 
 
 def plan_computation_key_table(computations, source_keys, table, tablet_count, compact_key=False):
@@ -599,7 +853,7 @@ def plan_computation_key_table(computations, source_keys, table, tablet_count, c
                     pivot_keys.append(build_compact_input_message_pivot_key(computation_id, i))
                 else:
                     pivot_keys.append([computation_id, yson.YsonList([yson.YsonUint64(i)])])
-    return table, {"pivot_keys": pivot_keys}
+    return ReshardRequest(table, {"pivot_keys": pivot_keys}, tuple(computations))
 
 
 def plan_partition_table(computations, table, tablet_count):
@@ -700,7 +954,12 @@ def reshard_tables(args):
         # An external table has no computations, so it is resharded to --tablet-count tablets
         # uniformly (over its leading hash key column), just like a pipeline partition table.
         plans.append((external_table, {"tablet_count": args.tablet_count, "uniform": True}))
-    apply_reshard_plans(client, plans, also_chaos_replication_logs=args.also_chaos_replication_logs)
+    apply_reshard_plans(
+        client,
+        plans,
+        also_chaos_replication_logs=args.also_chaos_replication_logs,
+        dry_run=args.dry_run,
+    )
 
 
 def plan_pipeline_tables(client, args):
