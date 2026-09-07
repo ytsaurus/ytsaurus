@@ -1196,7 +1196,10 @@ private:
 
     bool MustProduceSingleJob() const
     {
-        return JobSizeConstraints_->IsExplicitJobCount() && JobSizeConstraints_->GetJobCount() == 1;
+        // Pivot keys define job boundaries explicitly and thus win over the requested job count.
+        return Options_.PivotKeys.empty() &&
+            JobSizeConstraints_->IsExplicitJobCount() &&
+            JobSizeConstraints_->GetJobCount() == 1;
     }
 };
 
