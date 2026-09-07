@@ -32,6 +32,7 @@ PEERDIR(
     yql/essentials/core/progress_merger
     yql/essentials/providers/common/proto
     yql/essentials/public/issue
+    yql/essentials/public/langver
     yql/essentials/public/udf/service/exception_policy
     yql/essentials/parser/pg_wrapper
     yql/essentials/utils/log

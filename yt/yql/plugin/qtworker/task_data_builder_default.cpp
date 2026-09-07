@@ -5,6 +5,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
 
+#include <yql/essentials/public/langver/yql_langver.h>
+
 #include <contrib/libs/protobuf/src/google/protobuf/text_format.h>
 
 namespace NYT::NYqlPlugin {
@@ -89,6 +91,10 @@ public:
         }
 
         if (auto version = settingsMap->FindChildValue<TString>("yql_version")) {
+            NYql::TLangVersion parsedVersion;
+            if (!NYql::ParseLangVersion(*version, parsedVersion) || !NYql::IsValidLangVersion(parsedVersion)) {
+                ythrow yexception() << "Invalid YQL language version (Version: " << *version << ")";
+            }
             data.SetLangVer(*version);
         } else if (context.DefaultYqlLangVersion) {
             data.SetLangVer(*context.DefaultYqlLangVersion);
