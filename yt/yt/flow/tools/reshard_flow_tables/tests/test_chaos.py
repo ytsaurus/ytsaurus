@@ -1458,3 +1458,29 @@ def test_temporary_only_log_reports_per_computation_creation_and_removal(caplog)
     assert "zeno://pipeline/states_log.reshard_tmp: computation_id='a': 2 => 0 tablets" in caplog.text
     assert "zeno://pipeline/states_log.reshard_tmp: computation_id='b': 1 => 0 tablets" in caplog.text
     assert client.calls == replica.calls == []
+
+
+@pytest.mark.parametrize(
+    "flags, applies, warns", [([], True, True), (["--commit"], True, False), (["--dry-run"], False, False)]
+)
+def test_cli_commit_transition(caplog, monkeypatch, flags, applies, warns):
+    client = FakeClient({"//pipeline/states/@type": "table", "//pipeline/states/@tablet_count": 3})
+    monkeypatch.setattr(yt, "YtClient", lambda **kwargs: client)
+    monkeypatch.setattr(
+        sys, "argv", ["reshard_flow_tables", "--external-table", "//pipeline/states", "--tablet-count", "5"] + flags
+    )
+    with caplog.at_level(logging.WARNING):
+        reshard_tables(get_args())
+    assert bool(client.calls) == applies
+    warnings = [record.getMessage() for record in caplog.records if "Running without --commit" in record.getMessage()]
+    assert bool(warnings) == warns
+    if warns:
+        assert "future version" in warnings[0]
+        assert "--dry-run" in warnings[0]
+
+
+def test_cli_commit_and_dry_run_are_mutually_exclusive(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["reshard_flow_tables", "--external-table", "//table", "--commit", "--dry-run"])
+    with pytest.raises(SystemExit) as error:
+        get_args()
+    assert error.value.code == 2

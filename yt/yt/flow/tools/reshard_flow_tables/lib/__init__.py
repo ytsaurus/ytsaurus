@@ -20,10 +20,14 @@ computation_id also report how many tablets intersect each computation's key ran
 a shared tablet counts toward every computation it covers. Compact input keys are
 handled in the same way.
 
+Pass --commit to apply changes or --dry-run to preview them. For compatibility,
+running without either flag still applies changes and emits a warning; a future
+version will default to dry-run.
+
 Examples:
 
 {0} --proxy zeno \\
-    --pipeline-path //path/on/zeno
+    --pipeline-path //path/on/zeno --commit
 
 # Preview the same changes without modifying tables:
 {0} --proxy zeno \\
@@ -36,7 +40,7 @@ Examples:
     --pipeline-path //home/project/pipeline \\
     --also-chaos-replication-logs \\
     --external-table //home/project/profiles \\
-    --external-table //home/project/counters
+    --external-table //home/project/counters --commit
 """.format(sys.argv[0])
 
 
@@ -89,7 +93,13 @@ def get_args():
         " place, a chaos table's data replicas are resharded, and with"
         " --also-chaos-replication-logs its replication log is recreated too",
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--commit",
+        action="store_true",
+        help="apply the planned changes explicitly (currently also the default)",
+    )
+    mode.add_argument(
         "--dry-run",
         action="store_true",
         help="show tablet count changes for each physical table and selected replication log without modifying tables",
@@ -944,6 +954,13 @@ def reshard_tables(args):
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s", level=logging.DEBUG if args.verbose else logging.INFO
     )
+
+    if not args.commit and not args.dry_run:
+        logging.warning(
+            "Running without --commit or --dry-run currently applies changes. "
+            "In a future version, it will only show the plan. "
+            "Pass --commit to keep applying changes, or --dry-run to preview them."
+        )
 
     client = yt.YtClient(proxy=args.proxy, config=_make_client_config())
 
