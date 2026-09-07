@@ -461,6 +461,14 @@ void TInputBuffer::DoAcknowledge(
         TOnProcessedCallbackHash>
         messageIdsByCallback;
 
+    struct TProcessedStreamCounters
+    {
+        i64 Count = 0;
+        i64 Bytes = 0;
+    };
+
+    THashMap<TStreamId, TProcessedStreamCounters> processedByStream;
+
     MakePrefetcher()
         .Add([] (const TMessageId& messageId) {
             messageId.Prefetch();
@@ -479,10 +487,9 @@ void TInputBuffer::DoAcknowledge(
             auto& streamState = GetOrCrash(StreamStates_, messageState.StreamId);
             if (reportProcessed) {
                 MessageProcessingTimer_.Record(now - messageState.RegisterTime);
-                streamState.PersistedMessagesCounter.Increment(1);
-                streamState.PersistedBytesCounter.Increment(messageState.ByteSize);
-                streamState.PersistedMessagesRate.Inc(1, now);
-                streamState.PersistedBytesRate.Inc(messageState.ByteSize, now);
+                auto& counters = processedByStream[messageState.StreamId];
+                ++counters.Count;
+                counters.Bytes += messageState.ByteSize;
             }
 
             --streamState.NotPersistedMessageCount;
@@ -491,6 +498,15 @@ void TInputBuffer::DoAcknowledge(
 
             MessageStatesMap_.erase(it);
         });
+
+    // EMA counters accept only one cumulative update per timestamp.
+    for (const auto& [streamId, counters] : processedByStream) {
+        auto& streamState = GetOrCrash(StreamStates_, streamId);
+        streamState.PersistedMessagesCounter.Increment(counters.Count);
+        streamState.PersistedBytesCounter.Increment(counters.Bytes);
+        streamState.PersistedMessagesRate.Inc(counters.Count, now);
+        streamState.PersistedBytesRate.Inc(counters.Bytes, now);
+    }
 
     FinalizerPoolInvoker_->Invoke(BIND([jobId = JobId_, messageIdsByCallback = std::move(messageIdsByCallback)] () mutable {
         for (auto& [callback, callbackMessageIds] : messageIdsByCallback) {
