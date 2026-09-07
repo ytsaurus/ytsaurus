@@ -1043,44 +1043,44 @@ private:
             EMasterChannelKind::Leader,
             taskPart.DestinationObject.ExternalCellTag));
 
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        SetTransactionId(batchReq, taskPart.UploadTransaction->GetId());
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-
         auto chunkListIds = GetChunkListIds(taskPart);
 
-        auto mainReq = batchReq->add_attach_chunk_trees_subrequests();
+        auto mainReq = proxy.AttachChunkTrees();
+        GenerateMutationId(mainReq);
+        SetSuppressUpstreamSync(&mainReq->Header(), true);
+
         ToProto(mainReq->mutable_parent_id(), chunkListIds[EChunkListContentType::Main]);
         for (const auto* chunkSpec : taskPart.ChunkSpecsToExport) {
             *mainReq->add_child_ids() = chunkSpec->chunk_id();
         }
         mainReq->set_request_statistics(true);
 
+        std::vector<TFuture<TChunkServiceProxy::TRspAttachChunkTreesPtr>> reqFutures;
+        reqFutures.push_back(mainReq->Invoke());
+
         if (taskPart.ShouldExportHunkChunks()) {
-            auto hunkReq = batchReq->add_attach_chunk_trees_subrequests();
+            auto hunkReq = proxy.AttachChunkTrees();
+            GenerateMutationId(hunkReq);
+            SetSuppressUpstreamSync(&hunkReq->Header(), true);
 
             ToProto(hunkReq->mutable_parent_id(), chunkListIds[EChunkListContentType::Hunk]);
             for (auto hunkChunkId : *taskPart.HunkChunkIdsToExport) {
                 ToProto(hunkReq->add_child_ids(), hunkChunkId);
             }
             hunkReq->set_request_statistics(true);
+
+            reqFutures.push_back(hunkReq->Invoke());
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto responsesOrError = WaitFor(AllSucceeded(std::move(reqFutures)));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            responsesOrError,
             "Error attaching chunks to %v",
             taskPart.DestinationObject.GetPath());
 
-        const auto& batchRsp = batchRspOrError.Value();
-
-        const auto& mainRsp = batchRsp->attach_chunk_trees_subresponses(0);
-        taskPart.DataStatistics = mainRsp.statistics();
-        if (taskPart.ShouldExportHunkChunks()) {
-            YT_VERIFY(batchRsp->attach_chunk_trees_subresponses_size() == 2);
-            const auto& hunkRsp = batchRsp->attach_chunk_trees_subresponses(1);
-            taskPart.DataStatistics += hunkRsp.statistics();
+        taskPart.DataStatistics = {};
+        for (const auto& response : responsesOrError.Value()) {
+            taskPart.DataStatistics += response->statistics();
         }
 
         YT_TLOG_DEBUG("Finished chunk upload")
