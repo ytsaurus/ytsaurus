@@ -57,16 +57,16 @@
 Произвольные параметры для `Computation` и `ComputationController` ||
 || `timer_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
 **Значение по умолчанию**: `{}`
-Настройки всех `timer` потоков. Ключи не должны содержать `/` и `:`. ||
+Настройки всех `timer` потоков. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `key_visitor_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TKeyVisitorStreamSpec)`>>`
 **Значение по умолчанию**: `{}`
-Настройки всех `key_visitor` потоков. Ключи не должны содержать `/` и `:`. ||
+Настройки всех `key_visitor` потоков. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `source_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSourceSpec](./all_yson_structs#NYT_NFlow_TSourceSpec)`>>`
 **Значение по умолчанию**: `{}`
 Настройки всех `source` потоков. ||
 || `sinks` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TSinkIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSinkSpec](./all_yson_structs#NYT_NFlow_TSinkSpec)`>>`
 **Значение по умолчанию**: `{}`
-Настройки всех `sink`. Ключи не должны содержать `/` и `:`. ||
+Настройки всех `sink`. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `external_state_managers` | **Тип**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TExternalStateManagerSpec](./all_yson_structs#NYT_NFlow_TExternalStateManagerSpec)`>>`
 **Значение по умолчанию**: `{}`
 Декларативное объявление [external state](../cpp/state.md#external-state) менеджеров для этого `Computation`. Ключ — имя клиента, на которое подписывается `Computation` через `IJobInitContext::InitExternalStateClient` (должен начинаться с `/`, например `/state`); значение содержит имя класса менеджера и его параметры. ||

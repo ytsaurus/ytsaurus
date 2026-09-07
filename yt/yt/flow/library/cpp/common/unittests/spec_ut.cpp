@@ -3002,8 +3002,10 @@ struct TDeclarationSpecCase
 
 void DeserializeDeclarationSpec(const TDeclarationSpecCase& testCase, TStringBuf id)
 {
+    static constexpr TStringBuf IdPlaceholder = R"("%v")";
+
     auto specYson = std::string(testCase.SpecTemplate);
-    specYson.replace(specYson.find("%v"), 2, id.data(), id.size());
+    specYson.replace(specYson.find(IdPlaceholder), IdPlaceholder.size(), Format("%Qv", id));
     if (testCase.Dynamic) {
         ConvertTo<TDynamicPipelineSpecPtr>(TYsonStringBuf(specYson));
     } else {
@@ -3011,7 +3013,7 @@ void DeserializeDeclarationSpec(const TDeclarationSpecCase& testCase, TStringBuf
     }
 }
 
-TEST(TPipelineSpecTest, DeclarationIdsRejectReservedSeparators)
+TEST(TPipelineSpecTest, DeclarationIdsMustMatchAllowedPattern)
 {
     const std::vector<TDeclarationSpecCase> testCases = {
         {"computation", R"({computations = {"%v" = {computation_class_name = "Foo"}}})", false},
@@ -3027,12 +3029,37 @@ TEST(TPipelineSpecTest, DeclarationIdsRejectReservedSeparators)
 
     for (const auto& testCase : testCases) {
         SCOPED_TRACE(testCase.EntityKind);
-        EXPECT_NO_THROW(DeserializeDeclarationSpec(testCase, "valid-id_1"));
+        for (auto validId : {
+                TStringBuf("0"),
+                TStringBuf("A"),
+                TStringBuf("_"),
+                TStringBuf("-"),
+                TStringBuf("_a"),
+                TStringBuf("a_"),
+                TStringBuf("-a"),
+                TStringBuf("a-"),
+                TStringBuf("valid-ID_09")})
+        {
+            EXPECT_NO_THROW(DeserializeDeclarationSpec(testCase, validId));
+        }
 
-        for (auto invalidId : {TStringBuf("invalid/id"), TStringBuf("invalid:id")}) {
+        for (auto invalidId : {
+                TStringBuf(),
+                TStringBuf("."),
+                TStringBuf("a.b"),
+                TStringBuf("a/b"),
+                TStringBuf("a:b"),
+                TStringBuf("a b"),
+                TStringBuf("a+"),
+                TStringBuf("a\\b"),
+                TStringBuf("a\xC3\xA9")})
+        {
             EXPECT_THROW_WITH_SUBSTRING(
                 DeserializeDeclarationSpec(testCase, invalidId),
                 Format("Invalid %v ID %Qv", testCase.EntityKind, invalidId));
+            EXPECT_THROW_WITH_SUBSTRING(
+                DeserializeDeclarationSpec(testCase, invalidId),
+                "expected a non-empty ID matching [0-9A-Za-z_-]+");
         }
     }
 }
@@ -3107,7 +3134,7 @@ void ValidateProgrammaticDeclaration(EDeclarationLocation location, TStringBuf i
     }
 }
 
-TEST(TPipelineSpecTest, ProgrammaticDeclarationIdsRejectReservedSeparators)
+TEST(TPipelineSpecTest, ProgrammaticDeclarationIdsMustMatchAllowedPattern)
 {
     const std::vector<std::pair<EDeclarationLocation, TStringBuf>> testCases = {
         {EDeclarationLocation::Computation, "computation"},
@@ -3123,10 +3150,23 @@ TEST(TPipelineSpecTest, ProgrammaticDeclarationIdsRejectReservedSeparators)
 
     for (const auto& [location, entityKind] : testCases) {
         SCOPED_TRACE(entityKind);
-        for (auto invalidId : {TStringBuf("invalid/id"), TStringBuf("invalid:id")}) {
+        for (auto invalidId : {
+                TStringBuf(),
+                TStringBuf("."),
+                TStringBuf("a.b"),
+                TStringBuf("a/b"),
+                TStringBuf("a:b"),
+                TStringBuf("a b"),
+                TStringBuf("a+"),
+                TStringBuf("a\\b"),
+                TStringBuf("a\xC3\xA9")})
+        {
             EXPECT_THROW_WITH_SUBSTRING(
                 ValidateProgrammaticDeclaration(location, invalidId),
                 Format("Invalid %v ID %Qv", entityKind, invalidId));
+            EXPECT_THROW_WITH_SUBSTRING(
+                ValidateProgrammaticDeclaration(location, invalidId),
+                "expected a non-empty ID matching [0-9A-Za-z_-]+");
         }
     }
 }

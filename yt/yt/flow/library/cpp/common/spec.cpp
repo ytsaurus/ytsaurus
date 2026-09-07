@@ -32,11 +32,15 @@ namespace {
 
 void ValidateUserDefinedEntityId(TStringBuf entityKind, TStringBuf id)
 {
+    static constexpr TStringBuf AllowedCharacters =
+        "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_-";
+
     THROW_ERROR_EXCEPTION_IF(
-        id.find('/') != TStringBuf::npos || id.find(':') != TStringBuf::npos,
-        "Invalid %v ID %Qv: '/' and ':' are reserved separators",
+        id.empty() || id.find_first_not_of(AllowedCharacters) != TStringBuf::npos,
+        "Invalid %v ID %Qv: expected a non-empty ID matching %v",
         entityKind,
-        id);
+        id,
+        "[0-9A-Za-z_-]+");
 }
 
 template <class TMap>
