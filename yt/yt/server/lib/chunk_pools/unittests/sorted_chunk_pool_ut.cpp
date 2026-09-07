@@ -130,8 +130,8 @@ protected:
     {
         Options_.JobSizeConstraints = CreateExplicitJobSizeConstraints(
             CanAdjustDataWeightPerJob_,
-            /*isExplicitJobCount*/ false,
-            /*jobCount*/ 0,
+            IsExplicitJobCount_,
+            ExplicitJobCount_,
             DataWeightPerJob_,
             PrimaryDataWeightPerJob_,
             CompressedDataSizePerJob_,
@@ -969,6 +969,8 @@ protected:
     TSortedChunkPoolOptions Options_;
 
     bool CanAdjustDataWeightPerJob_ = false;
+    bool IsExplicitJobCount_ = false;
+    int ExplicitJobCount_ = 0;
     i64 DataWeightPerJob_;
     i64 PrimaryDataWeightPerJob_ = Inf64;
     i64 CompressedDataSizePerJob_;
@@ -3833,6 +3835,35 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys2)
     CheckEverything(stripeLists);
 }
 
+TEST_F(TSortedChunkPoolTest, PivotKeysWinOverExplicitJobCount)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    IsExplicitJobCount_ = true;
+    ExplicitJobCount_ = 1;
+    InitTables(
+        /*isForeign*/ {false},
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+    InitPrimaryComparator(1);
+    InitJobConstraints();
+
+    auto chunkA = CreateChunk(BuildRow({2}), BuildRow({5}), 0);
+    Options_.SortedJobOptions.PivotKeys = std::vector<TLegacyKey>{BuildRow({2}), BuildRow({4})};
+
+    CreateChunkPool();
+
+    AddDataSlice(chunkA);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(2u, stripeLists.size());
+
+    CheckEverything(stripeLists);
+}
 
 TEST_F(TSortedChunkPoolTest, SuspendFinishResumeTest)
 {
