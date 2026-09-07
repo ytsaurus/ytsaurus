@@ -888,6 +888,348 @@ TEST_F(TBufferManagerTest, StalledStreamKeepsItsResidentBytesLimit)
     EXPECT_GE(output->GetLimitBytes(), resident);
 }
 
+// The input/output ratio fast path estimates steady output demand without a
+// downstream acknowledgement. Filling that estimate's grants must still keep
+// probing: the ratio cannot reveal catch-up capacity while the output is capped.
+TEST_F(TBufferManagerTest, SaturatedOutputKeepsProbingWithStableInputRatio)
+{
+    constexpr i64 Rate = 1_MB;
+    constexpr i64 OfferedRate = 8_MB;
+    constexpr i64 JobLimit = 128_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Minutes(15);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(JobLimit);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(256_MB);
+
+    auto manager = CreateManager();
+    auto states = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("input"), TStreamId("output")));
+    auto input = states.Input.at(TStreamId("input"));
+    auto output = states.Output.at(TStreamId("output"));
+
+    TStreamUsage inputUsage;
+    TStreamUsage usage;
+    input->SetOfferedInflatedBytesPerSecond(Rate);
+    for (int second = 0; second < 60; ++second) {
+        inputUsage.CumulativeByteIn += Rate;
+        inputUsage.CumulativeByteOut = inputUsage.CumulativeByteIn;
+        input->Update(inputUsage);
+        usage.CumulativeByteIn += Rate;
+        usage.CumulativeByteOut = usage.CumulativeByteIn;
+        output->Update(usage);
+        Manage(manager);
+    }
+
+    input->SetOfferedInflatedBytesPerSecond(OfferedRate);
+    Manage(manager);
+    EXPECT_GE(output->GetLimitBytes(), 2 * OfferedRate);
+
+    for (int second = 0; second < 120; ++second) {
+        if (output->IsUsageWithinLimits(usage) && usage.CumulativeByteIn - usage.CumulativeByteOut < JobLimit) {
+            inputUsage.CumulativeByteIn += Rate;
+            inputUsage.CumulativeByteOut = inputUsage.CumulativeByteIn;
+            input->Update(inputUsage);
+            usage.CumulativeByteIn += Rate;
+            output->Update(usage);
+        }
+        Manage(manager);
+    }
+
+    EXPECT_GT(output->GetLimitBytes(), 64_MB);
+    EXPECT_LE(output->GetLimitBytes(), JobLimit);
+
+    usage.CumulativeByteOut = usage.CumulativeByteIn;
+    input->SetOfferedInflatedBytesPerSecond(0);
+    output->Update(usage);
+    for (int second = 0; second < 180; ++second) {
+        Manage(manager);
+    }
+    EXPECT_LE(output->GetLimitBytes(), static_cast<i64>(Spec_->V2Floor));
+}
+
+// A sparse output may keep probing past demand * max_duration across
+// acknowledgement cycles, but only within its share of half the worker pool.
+// Inactive siblings do not dilute that share; normal decay releases the probe.
+TEST_F(TBufferManagerTest, SparseOutputProbeUsesHalfPoolShareAndShrinks)
+{
+    constexpr i64 Rate = 1_MB;
+    constexpr i64 JobLimit = 64_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(2);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(JobLimit);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(128_MB);
+
+    auto manager = CreateManager();
+    std::vector<TStreamId> outputStreamIds = {TStreamId("output")};
+    for (int index = 0; index < 15; ++index) {
+        outputStreamIds.push_back(TStreamId(Format("inactive_%v", index)));
+    }
+    auto output = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("input"), outputStreamIds))
+        .Output.at(TStreamId("output"));
+    output->SetOfferedRawRate(Rate, 0);
+
+    TStreamUsage usage;
+    for (int second = 0; second < 30; ++second) {
+        while (output->IsUsageWithinLimits(usage) && usage.CumulativeByteIn < JobLimit) {
+            usage.CumulativeByteIn += 1_MB;
+            output->Update(usage);
+        }
+        Manage(manager);
+    }
+
+    EXPECT_GT(output->GetLimitBytes(), 4 * Rate * Spec_->OutputBuffer->MaxDuration.Seconds());
+    EXPECT_LE(output->GetLimitBytes(), JobLimit);
+
+    usage.CumulativeByteOut = usage.CumulativeByteIn;
+    output->SetOfferedRawRate(0, 0);
+    output->Update(usage);
+    for (int second = 0; second < 180; ++second) {
+        Manage(manager);
+    }
+    EXPECT_LE(output->GetLimitBytes(), static_cast<i64>(Spec_->V2Floor));
+}
+
+TEST_F(TBufferManagerTest, HighDemandOutputIsNotCappedAtEqualProbeShare)
+{
+    constexpr i64 Pool = 64_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(2);
+    Spec_->OutputBuffer->JobGuarantee = NYTree::TSize(0);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(Pool);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(Pool);
+
+    auto manager = CreateManager();
+    auto states = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("input"), {TStreamId("thin"), TStreamId("fat")}));
+    auto thin = states.Output.at(TStreamId("thin"));
+    auto fat = states.Output.at(TStreamId("fat"));
+    thin->SetOfferedRawRate(1_MB, 0);
+    fat->SetOfferedRawRate(30_MB, 0);
+    TStreamUsage usage{
+        .CumulativeByteIn = 1_MB,
+    };
+    thin->Update(usage);
+    fat->Update(usage);
+
+    Manage(manager);
+
+    EXPECT_GT(fat->GetLimitBytes(), Pool / 2);
+    EXPECT_LE(thin->GetLimitBytes() + fat->GetLimitBytes(), Pool);
+}
+
+TEST_F(TBufferManagerTest, DemandBackedOutputIsAllocatedBeforeSpeculativeProbes)
+{
+    constexpr i64 Pool = 64_MB;
+    constexpr i64 ProbeResident = 4_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(2);
+    Spec_->OutputBuffer->JobGuarantee = NYTree::TSize(0);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(Pool);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(Pool);
+
+    auto manager = CreateManager();
+    auto probeStates = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("probe_input"), {TStreamId("probe_a"), TStreamId("probe_b")}));
+    TStreamUsage probeUsage{
+        .CumulativeByteIn = ProbeResident,
+    };
+    for (const auto& [streamId, output] : probeStates.Output) {
+        output->Update(probeUsage);
+    }
+    Manage(manager);
+
+    auto healthy = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("healthy_input"), TStreamId("healthy_output")))
+        .Output.at(TStreamId("healthy_output"));
+    healthy->SetOfferedRawRate(40_MB, 0);
+    Manage(manager);
+
+    EXPECT_EQ(healthy->GetLimitBytes(), Pool - 2 * ProbeResident);
+}
+
+TEST_F(TBufferManagerTest, DemandBackedOversubscriptionMayScaleBelowV2Floor)
+{
+    constexpr i64 Pool = 4_MB;
+    Spec_->V2Floor = NYTree::TSize(3_MB);
+    Spec_->OutputBuffer->JobGuarantee = NYTree::TSize(0);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(Pool);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(Pool);
+
+    auto manager = CreateManager();
+    auto outputs = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("input"), {TStreamId("output_a"), TStreamId("output_b")}))
+        .Output;
+
+    Manage(manager);
+
+    EXPECT_EQ(outputs.at(TStreamId("output_a"))->GetLimitBytes(), Pool / 2);
+    EXPECT_EQ(outputs.at(TStreamId("output_b"))->GetLimitBytes(), Pool / 2);
+}
+
+// Speculative output probes share at most half the output pool.
+TEST_F(TBufferManagerTest, OutputProbesStayWithinHalfWorkerPool)
+{
+    constexpr int OutputCount = 16;
+    constexpr i64 Pool = 64_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Seconds(2);
+    Spec_->OutputBuffer->JobGuarantee = NYTree::TSize(0);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(64_MB);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(Pool);
+
+    std::vector<TStreamId> outputStreamIds;
+    for (int index = 0; index < OutputCount; ++index) {
+        outputStreamIds.push_back(TStreamId(Format("output_%v", index)));
+    }
+    auto manager = CreateManager();
+    auto states = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("input"), outputStreamIds));
+    THashMap<TStreamId, TStreamUsage> usages;
+    for (int second = 0; second < 30; ++second) {
+        for (const auto& [streamId, output] : states.Output) {
+            auto& usage = usages[streamId];
+            while (output->IsUsageWithinLimits(usage)) {
+                usage.CumulativeByteIn += 1_MB;
+                output->Update(usage);
+            }
+        }
+        Manage(manager);
+
+        i64 issued = 0;
+        i64 resident = 0;
+        for (const auto& [streamId, output] : states.Output) {
+            EXPECT_LE(output->GetLimitBytes(), static_cast<i64>(Spec_->OutputBuffer->JobLimit));
+            issued += output->GetLimitBytes();
+            const auto& usage = usages.at(streamId);
+            resident += usage.CumulativeByteIn - usage.CumulativeByteOut;
+        }
+        EXPECT_LE(issued, Pool / 2);
+        // Admission checks happen before adding a message, so each output may
+        // overshoot its grant by at most the one-MiB test message.
+        EXPECT_LE(resident, Pool / 2 + OutputCount * 1_MB);
+    }
+}
+
+TEST_F(TBufferManagerTest, SubByteSpeculativeGrowthDoesNotAdmitAtEquality)
+{
+    constexpr i64 Pool = 20;
+    Spec_->V2Floor = NYTree::TSize(1);
+    Spec_->OutputBuffer->JobGuarantee = NYTree::TSize(0);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(Pool);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(Pool);
+
+    auto manager = CreateManager();
+    auto outputs = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(
+            TStreamId("input"),
+            {TStreamId("resident"), TStreamId("probe_a"), TStreamId("probe_b")}))
+        .Output;
+
+    TStreamUsage residentUsage{
+        .CumulativeByteIn = 10,
+    };
+    outputs.at(TStreamId("resident"))->Update(residentUsage);
+    TStreamUsage probeUsage{
+        .CumulativeByteIn = 1,
+    };
+    outputs.at(TStreamId("probe_a"))->Update(probeUsage);
+    outputs.at(TStreamId("probe_b"))->Update(probeUsage);
+
+    Manage(manager);
+
+    EXPECT_FALSE(outputs.at(TStreamId("probe_a"))->IsUsageWithinLimits(probeUsage));
+    EXPECT_FALSE(outputs.at(TStreamId("probe_b"))->IsUsageWithinLimits(probeUsage));
+}
+
+// Outputs stalled before later jobs arrive may consume only the speculative
+// half of the pool; demand-backed capacity remains available to the late job.
+TEST_F(TBufferManagerTest, StalledOutputsLeavePoolForLateDemandBackedOutput)
+{
+    constexpr int StalledCount = 6;
+    constexpr i64 Pool = 64_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->OutputBuffer->MaxDuration = TDuration::Minutes(15);
+    Spec_->OutputBuffer->JobGuarantee = NYTree::TSize(0);
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(Pool);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(Pool);
+
+    auto manager = CreateManager();
+    std::vector<TStreamLimitUsageStatePtr> stalledOutputs;
+    std::vector<TStreamUsage> stalledUsages(StalledCount);
+    for (int index = 0; index < StalledCount; ++index) {
+        auto outputStreamId = TStreamId(Format("stalled_output_%v", index));
+        stalledOutputs.push_back(manager->RegisterJob(
+            TJobId(TGuid::Create()),
+            CreateJobSpec(TStreamId(Format("stalled_input_%v", index)), outputStreamId))
+                .Output.at(outputStreamId));
+
+        auto& output = stalledOutputs.back();
+        auto& usage = stalledUsages[index];
+        for (int second = 0; second < 30; ++second) {
+            while (output->IsUsageWithinLimits(usage)) {
+                usage.CumulativeByteIn += 1_MB;
+                output->Update(usage);
+            }
+            Manage(manager);
+        }
+    }
+
+    i64 stalledResident = 0;
+    for (const auto& usage : stalledUsages) {
+        stalledResident += usage.CumulativeByteIn - usage.CumulativeByteOut;
+    }
+    EXPECT_LE(
+        stalledResident - StalledCount * static_cast<i64>(Spec_->V2Floor),
+        Pool / 2 + StalledCount * 1_MB);
+
+    auto healthy = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("healthy_input"), TStreamId("healthy_output")))
+        .Output.at(TStreamId("healthy_output"));
+    healthy->SetOfferedRawRate(40_MB, 0);
+    Manage(manager);
+
+    EXPECT_GE(healthy->GetLimitBytes(), Pool / 4);
+}
+
+// The input side does know its extraction cycle and keeps the explicit
+// demand * max_duration safety cap.
+TEST_F(TBufferManagerTest, InputProbeStillRespectsMaxDuration)
+{
+    constexpr i64 Rate = 1_MB;
+    Spec_->V2Floor = NYTree::TSize(1_MB);
+    Spec_->InputBuffer->MaxDuration = TDuration::Seconds(2);
+    Spec_->InputBuffer->JobLimit = NYTree::TSize(64_MB);
+    Spec_->InputBuffer->FairSharePool = NYTree::TSize(128_MB);
+
+    auto manager = CreateManager();
+    auto input = manager->RegisterJob(
+        TJobId(TGuid::Create()),
+        CreateJobSpec(TStreamId("input"), TStreamId("output")))
+        .Input.at(TStreamId("input"));
+    input->SetOfferedInflatedBytesPerSecond(Rate);
+
+    TStreamUsage usage;
+    for (int second = 0; second < 30; ++second) {
+        while (input->IsUsageWithinLimits(usage)) {
+            usage.CumulativeByteIn += 1_MB;
+            input->Update(usage);
+        }
+        Manage(manager);
+    }
+
+    EXPECT_LE(input->GetLimitBytes(), Rate * Spec_->InputBuffer->MaxDuration.Seconds());
+}
+
 // The output demand follows the job's current input demand through the measured
 // production ratio: an input speedup opens the output budget the same tick, an
 // epoch before the output drain would show it.
@@ -921,6 +1263,46 @@ TEST_F(TBufferManagerTest, RatioFastPathFollowsInputStep)
         tick(200'000'000, 10'000'000);
     }
     EXPECT_GE(output->GetLimitBytes(), static_cast<i64>(2.0 * warmOutputLimit));
+}
+
+TEST_F(TBufferManagerTest, RatioFastPathIncludesPerMessageMemory)
+{
+    constexpr i64 MessagesPerSecond = 1000;
+    constexpr i64 InputRawBytesPerSecond = 1000;
+    constexpr i64 OutputRawBytesPerSecond = 1000;
+    constexpr i64 InputInflatedBytesPerSecond =
+        InputRawBytesPerSecond + MessagesPerSecond * InputMessageExtraTechnicalMemoryCost;
+    constexpr i64 OutputInflatedBytesPerSecond =
+        OutputRawBytesPerSecond + MessagesPerSecond * OutputMessageExtraTechnicalMemoryCost;
+
+    Spec_->OutputBuffer->JobLimit = NYTree::TSize(128_MB);
+    Spec_->OutputBuffer->FairSharePool = NYTree::TSize(256_MB);
+    auto manager = CreateManager();
+    auto states = manager->RegisterJob(TJobId(TGuid::Create()), CreateJobSpec(TStreamId("input"), TStreamId("output")));
+    auto input = states.Input.at(TStreamId("input"));
+    auto output = states.Output.at(TStreamId("output"));
+
+    TStreamUsage inputUsage;
+    TStreamUsage outputUsage;
+    for (int second = 0; second < 60; ++second) {
+        inputUsage.CumulativeByteIn += InputRawBytesPerSecond;
+        inputUsage.CumulativeByteOut = inputUsage.CumulativeByteIn;
+        inputUsage.CumulativeCountIn += MessagesPerSecond;
+        inputUsage.CumulativeCountOut = inputUsage.CumulativeCountIn;
+        input->Update(inputUsage);
+
+        outputUsage.CumulativeByteIn += OutputRawBytesPerSecond;
+        outputUsage.CumulativeByteOut = outputUsage.CumulativeByteIn;
+        outputUsage.CumulativeCountIn += MessagesPerSecond;
+        outputUsage.CumulativeCountOut = outputUsage.CumulativeCountIn;
+        output->Update(outputUsage);
+        Manage(manager);
+    }
+
+    input->SetOfferedInflatedBytesPerSecond(10 * InputInflatedBytesPerSecond);
+    Manage(manager);
+
+    EXPECT_GE(output->GetLimitBytes(), 20 * OutputInflatedBytesPerSecond - 1);
 }
 
 // A steady pipeline with jittery instantaneous signals must persist a STABLE

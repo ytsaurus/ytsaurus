@@ -48,13 +48,13 @@ private:
     struct TStreamData
     {
         TStreamLimitUsageStatePtr LimitUsageState;
-        i64 InflationPerMessage = 0;
         //! Input side only: fed by the input buffer, window managed here.
         TOfferedRateEstimatorPtr OfferedRateEstimator;
         TSimpleEmaCounter PushDemand;
-        // Raw (non-inflated) bytes rate: drained bytes for input streams, produced
-        // bytes for output streams; feeds the shadow I/O ratio.
+        //! Raw bytes rate: drained for inputs, produced for outputs; feeds /io_ratio.
         TSimpleEmaCounter RawBytesRate;
+        //! Output side only: produced inflated bytes rate for the I/O ratio fast path.
+        std::optional<TSimpleEmaCounter> ProducedInflatedBytesRate;
         TStreamUsage LastReportedUsage;
 
         NProfiling::TGauge LimitBytesGauge;
@@ -84,9 +84,8 @@ private:
         //! Headroom above the used peak; what probes beyond measured demand.
         i64 Headroom = 0;
         i64 IssuedLimit = -1;
-        //! Demand seen at the last headroom growth; growth requires demand to keep
-        //! rising (STARTUP-exit rule of TCP BBR, Bottleneck Bandwidth and
-        //! Round-trip propagation time), so a saturated bottleneck stops probing.
+        //! Demand seen at the last headroom growth. Input probing requires demand
+        //! growth; output probing may also grow when the previous grant becomes resident.
         double LastProbeDemand = 0;
         //! Warm-start demand floor: keeps the seeded sizing (demandFloor and drain cap)
         //! effective until the max-rate estimator produces its first own value —
@@ -128,6 +127,10 @@ private:
         double UsedInflatedBytes = 0;
         double PendingInflatedBytes = 0;
         double EpochCycleSeconds = 0;
+        i64 WantedLimit = 0;
+        i64 DemandBackedWantedLimit = 0;
+        double SpeculativeResident = 0;
+        double ResidentAwareSpeculativeWantedLimit = 0;
     };
 
 public:
@@ -163,14 +166,14 @@ public:
             .WithPrefix("/buffer_state/computations");
         auto seedSide = [&] (const auto& specStreamIds, i64 guarantee, bool isInput, TStringBuf sidePrefix) {
             TSideState side;
-            i64 inflation = SideInflation(isInput);
             for (const auto& streamId : specStreamIds) {
                 auto& streamData = side.Streams[streamId];
-                streamData.LimitUsageState = New<TStreamLimitUsageState>(inflation);
+                streamData.LimitUsageState = New<TStreamLimitUsageState>(SideInflation(isInput));
                 streamData.LimitUsageState->SetLimitBytes(guarantee);
-                streamData.InflationPerMessage = inflation;
                 if (isInput) {
                     streamData.OfferedRateEstimator = New<TOfferedRateEstimator>(demandWindow);
+                } else {
+                    streamData.ProducedInflatedBytesRate.emplace(demandWindow);
                 }
                 streamData.PushDemand.SetWindow(demandWindow);
                 streamData.RawBytesRate.SetWindow(demandWindow);
@@ -372,6 +375,7 @@ public:
             for (auto& [streamId, streamData] : jobState.Output.Streams) {
                 streamData.PushDemand.SetWindow(demandWindow);
                 streamData.RawBytesRate.SetWindow(demandWindow);
+                streamData.ProducedInflatedBytesRate->SetWindow(demandWindow);
             }
         }
     }
@@ -494,6 +498,11 @@ private:
                 streamData.RawBytesRate.Update(
                     static_cast<double>(isInput ? usage.CumulativeByteOut : usage.CumulativeByteIn),
                     now);
+                if (!isInput) {
+                    streamData.ProducedInflatedBytesRate->Update(
+                        static_cast<double>(usage.CumulativeByteIn) + usage.CumulativeCountIn * inflationPerMessage,
+                        now);
+                }
                 double measured = streamData.PushDemand.GetLastRate().value_or(0.0);
                 double baseline = baselineDemand(streamId, computationId, inflationPerMessage);
                 double demand = std::max(measured, baseline);
@@ -612,8 +621,10 @@ private:
             }
 
             double totalInputRawRate = 0;
+            double totalInputInflatedRate = 0;
             for (auto& [streamId, streamData] : jobState.Input.Streams) {
                 totalInputRawRate += streamData.RawBytesRate.GetLastRate().value_or(0.0);
+                totalInputInflatedRate += streamData.PushDemand.GetLastRate().value_or(0.0);
             }
 
             for (auto& [streamId, streamMeasurements] : outputMeasurements) {
@@ -623,18 +634,18 @@ private:
                     // input demand through its measured production ratio, so an input
                     // speedup (or a cold input backlog) opens the output budget in
                     // the same tick, one epoch before the drain can show it.
-                    double producedRawRate = streamMeasurements.StreamData->RawBytesRate.GetLastRate().value_or(0.0);
+                    double producedInflatedRate = streamMeasurements.StreamData->ProducedInflatedBytesRate->GetLastRate().value_or(0.0);
                     // The cap only guards against a degenerate ratio when the input
                     // rate measurement is vanishingly small.
-                    double ratio = totalInputRawRate > 0
-                        ? std::min(producedRawRate / totalInputRawRate, MaxSaneIORatio)
+                    double ratio = totalInputInflatedRate > 0
+                        ? std::min(producedInflatedRate / totalInputInflatedRate, MaxSaneIORatio)
                         : 0.0;
                     streamMeasurements.Baseline = std::max(streamMeasurements.Baseline, ratio * jobInputDemand);
                 }
                 // The output side reuses the INPUT epoch cycle as a proxy (the
                 // output drain cycle is a different downstream process): it only
-                // raises the BDP floor, boxed by the used peak and max_duration,
-                // so precision does not matter.
+                // raises the BDP floor. Resident-driven probing is separately
+                // bounded by a share of the worker pool, so precision is not critical.
                 planStream(streamMeasurements, issuance, DynamicSpec_->OutputBuffer, /*isInput*/ false, epochCycleSeconds, &totalOutputDemand);
             }
 
@@ -663,14 +674,28 @@ private:
         const double highUtilization = DynamicSpec_->V2HighUtilizationThreshold;
         const double publishThreshold = DynamicSpec_->V2PublishThreshold;
 
+        const std::array<double, 2> fullPoolBySide = {
+            static_cast<double>(EffectiveFairSharePool(DynamicSpec_->InputBuffer)),
+            static_cast<double>(EffectiveFairSharePool(DynamicSpec_->OutputBuffer)),
+        };
+        auto isProbingOutput = [] (const TStreamPlan& entry) {
+            return !entry.IsInput &&
+                !entry.OverrideLimit.has_value() &&
+                std::max(entry.PeakInflightBytes, entry.UsedInflatedBytes) > 0;
+        };
+        i64 outputProbeStreamCount = 0;
+        for (const auto& entry : plans) {
+            if (isProbingOutput(entry)) {
+                ++outputProbeStreamCount;
+            }
+        }
+
         // Pass 1: per-stream wanted limit = max(used peak + headroom, demandFloor)
         // clamped to [streamFloor, min(jobLimit, drainCap)].
-        std::array<double, 2> wantedTotalBySide = {0.0, 0.0};
+        std::array<double, 2> demandBackedWantedTotalBySide = {0.0, 0.0};
         // In-flight bytes already committed per side: non-evictable, so a stream's
         // limit may not exceed the pool room the other streams' in-flight leaves.
         std::array<double, 2> usedBySide = {0.0, 0.0};
-        std::vector<i64> wantedLimits;
-        wantedLimits.reserve(plans.size());
         for (auto& entry : plans) {
             auto& issuance = *entry.Issuance;
             const i64 jobLimit = std::max<i64>((*entry.Spec)->JobGuarantee, (*entry.Spec)->JobLimit);
@@ -678,14 +703,21 @@ private:
             i64 demandFloor = static_cast<i64>(std::min<double>(
                 gainEpochs * entry.Demand * entry.EpochCycleSeconds,
                 static_cast<double>(jobLimit)));
-            // Drain-time budget: never buffer more than |max_duration| seconds of
-            // demand. Raised by the announced backlog so a cold stream can admit
-            // its pending offers to bootstrap.
-            const i64 drainCap = static_cast<i64>(std::min<double>(
+            const size_t side = entry.IsInput ? 0 : 1;
+            // Sparse outputs keep probing across acknowledgement cycles. Limit
+            // their speculative aggregate to half the output pool, leaving the
+            // other half available for measured demand and newly arriving jobs.
+            const double fairShareProbe = isProbingOutput(entry) && outputProbeStreamCount > 0
+                ? fullPoolBySide[side] / (2 * outputProbeStreamCount)
+                : 0.0;
+            const i64 demandDrainCap = static_cast<i64>(std::min<double>(
                 static_cast<double>(jobLimit),
                 std::max(
                     entry.Demand * (*entry.Spec)->MaxDuration.SecondsFloat(),
                     entry.PendingInflatedBytes)));
+            const i64 drainCap = static_cast<i64>(std::min<double>(
+                static_cast<double>(jobLimit),
+                std::max<double>(demandDrainCap, fairShareProbe)));
             i64 streamFloor = entry.HasBacklog ? std::min<i64>(floor, jobLimit) : 0;
 
             const i64 issuedPrev = issuance.IssuedLimit >= 0
@@ -699,12 +731,10 @@ private:
             const double utilization = activeBytes / std::max<double>(issuedPrev, 1.0);
             if (utilization > highUtilization) {
                 // Grow while the sender announces more backlog than the current
-                // headroom (credit-by-announced-demand; only input streams carry an
-                // announced backlog, so output streams grow on the demand rule
-                // alone) or while grants demonstrably convert into drain-rate
-                // growth. The drain cap below bounds how far a standing bottleneck
-                // can inflate the buffer.
+                // headroom, an output's resident bytes exceed its current headroom,
+                // or grants demonstrably convert into drain-rate growth.
                 if (entry.PendingInflatedBytes > static_cast<double>(issuance.Headroom) ||
+                    (!entry.IsInput && activeBytes > static_cast<double>(issuance.Headroom)) ||
                     entry.Demand > issuance.LastProbeDemand * 1.25 ||
                     issuance.LastProbeDemand == 0)
                 {
@@ -723,20 +753,18 @@ private:
             // would be self-confirming (a limit set from measurements taken under
             // that same limit can never discover growth) — headroom above the used
             // peak is what probes beyond it.
-            i64 wanted;
             if (entry.OverrideLimit.has_value()) {
                 // Overrides win outright, as in the v1 formula: no clamps, no probing.
-                wanted = static_cast<i64>(*entry.OverrideLimit);
+                entry.WantedLimit = static_cast<i64>(*entry.OverrideLimit);
             } else if (!entry.HasBacklog) {
                 // No pending data and nothing in flight: hold no reservation at all.
-                wanted = 0;
+                entry.WantedLimit = 0;
             } else {
-                wanted = std::clamp<i64>(
+                entry.WantedLimit = std::clamp<i64>(
                     std::max<i64>(static_cast<i64>(activeBytes) + issuance.Headroom, demandFloor),
                     streamFloor,
                     std::min(jobLimit, std::max(drainCap, streamFloor)));
             }
-            wantedLimits.push_back(wanted);
             // Overrides live entirely outside the pool budget (v1 semantics):
             // neither their paper-sized limits nor their resident in-flight count
             // against the fair share — an overridden latency-bound writer
@@ -744,29 +772,89 @@ private:
             // starves every fair-share neighbour on the worker. The operator
             // budgets override memory on top of the pool, as v1 always did.
             if (!entry.OverrideLimit.has_value()) {
-                usedBySide[entry.IsInput ? 0 : 1] += entry.UsedInflatedBytes;
-                wantedTotalBySide[entry.IsInput ? 0 : 1] += static_cast<double>(wanted);
+                entry.DemandBackedWantedLimit = std::min<i64>(
+                    entry.WantedLimit,
+                    std::max(demandDrainCap, streamFloor));
+                usedBySide[side] += entry.UsedInflatedBytes;
+                demandBackedWantedTotalBySide[side] += static_cast<double>(entry.DemandBackedWantedLimit);
             }
         }
 
-        // Pass 2: enforce Σ(fair-share issued) ≤ pool per side by proportional
-        // trimming, then publish with hysteresis.
-        const std::array<double, 2> fullPoolBySide = {
-            static_cast<double>(EffectiveFairSharePool(DynamicSpec_->InputBuffer)),
-            static_cast<double>(EffectiveFairSharePool(DynamicSpec_->OutputBuffer)),
-        };
-        for (size_t i = 0; i < plans.size(); ++i) {
-            auto& entry = plans[i];
+        std::array<double, 2> demandBackedScale{};
+        for (size_t side = 0; side < fullPoolBySide.size(); ++side) {
+            const double demandBackedTotal = demandBackedWantedTotalBySide[side];
+            // An oversubscribed pool may scale a stream below V2Floor; admission
+            // then degrades to fresh-offer-at-a-time rather than breaching the pool.
+            demandBackedScale[side] = demandBackedTotal > fullPoolBySide[side]
+                ? fullPoolBySide[side] / demandBackedTotal
+                : 1.0;
+        }
+        const double outputRemainingPool = std::max(
+            fullPoolBySide[1] - demandBackedWantedTotalBySide[1],
+            0.0);
+
+        double outputSpeculativeResident = 0.0;
+        double outputSpeculativeGrowthWanted = 0.0;
+        for (auto& entry : plans) {
+            if (entry.IsInput || entry.OverrideLimit.has_value()) {
+                continue;
+            }
+
+            const double demandBackedIssued =
+                entry.DemandBackedWantedLimit * demandBackedScale[1];
+            entry.SpeculativeResident = std::max(
+                entry.UsedInflatedBytes - demandBackedIssued,
+                0.0);
+            const double speculativeWanted =
+                entry.WantedLimit - entry.DemandBackedWantedLimit;
+            outputSpeculativeResident += entry.SpeculativeResident;
+            outputSpeculativeGrowthWanted += std::max(
+                speculativeWanted - entry.SpeculativeResident,
+                0.0);
+        }
+
+        // Resident bytes cannot be evicted when a later output reduces the equal
+        // probe share. Charge them to the speculative half before admitting more.
+        const double outputSpeculativeRoom = std::max(
+            fullPoolBySide[1] / 2 - outputSpeculativeResident,
+            0.0);
+        const double outputSpeculativeGrowthScale =
+            outputSpeculativeGrowthWanted > outputSpeculativeRoom
+            ? outputSpeculativeRoom / outputSpeculativeGrowthWanted
+            : 1.0;
+
+        double outputSpeculativeWantedTotal = 0.0;
+        for (auto& entry : plans) {
+            if (entry.IsInput || entry.OverrideLimit.has_value()) {
+                continue;
+            }
+
+            const double speculativeWanted =
+                entry.WantedLimit - entry.DemandBackedWantedLimit;
+            entry.ResidentAwareSpeculativeWantedLimit =
+                std::min(speculativeWanted, entry.SpeculativeResident) +
+                std::max(speculativeWanted - entry.SpeculativeResident, 0.0) *
+                    outputSpeculativeGrowthScale;
+            outputSpeculativeWantedTotal += entry.ResidentAwareSpeculativeWantedLimit;
+        }
+
+        const double outputSpeculativeScale = outputSpeculativeWantedTotal > outputRemainingPool
+            ? outputRemainingPool / outputSpeculativeWantedTotal
+            : 1.0;
+
+        // Pass 2: allocate demand-backed limits before speculative output probes,
+        // enforce the side pools, then publish with hysteresis.
+        for (auto& entry : plans) {
             auto& issuance = *entry.Issuance;
             const size_t side = entry.IsInput ? 0 : 1;
-            i64 wanted = wantedLimits[i];
-            if (!entry.OverrideLimit.has_value() && wantedTotalBySide[side] > fullPoolBySide[side]) {
-                // The trim may go below the per-stream floor: on an oversubscribed
-                // pool admission degrades to fresh-offer-at-a-time rather than
-                // letting the sum breach the pool.
-                wanted = static_cast<i64>(wanted * (fullPoolBySide[side] / wantedTotalBySide[side]));
-            }
+            i64 wanted = entry.WantedLimit;
             if (!entry.OverrideLimit.has_value()) {
+                double scaledWanted = entry.DemandBackedWantedLimit * demandBackedScale[side];
+                if (!entry.IsInput) {
+                    scaledWanted += entry.ResidentAwareSpeculativeWantedLimit * outputSpeculativeScale;
+                }
+                wanted = static_cast<i64>(scaledWanted);
+
                 // Bound Σused (not just Σissued) by the pool: a stream stuck holding
                 // in-flight it cannot drain must not let its neighbours admit on top
                 // of it. This caps growth to the room the others' in-flight leaves;
@@ -774,6 +862,17 @@ private:
                 // share.
                 const double poolRoom = fullPoolBySide[side] - (usedBySide[side] - entry.UsedInflatedBytes);
                 wanted = std::min<i64>(wanted, std::max<i64>(static_cast<i64>(poolRoom), 0));
+
+                const double speculativeWanted =
+                    entry.WantedLimit - entry.DemandBackedWantedLimit;
+                if (!entry.IsInput &&
+                    speculativeWanted > entry.SpeculativeResident &&
+                    wanted == static_cast<i64>(entry.UsedInflatedBytes))
+                {
+                    // Equality admits a full output epoch; a sub-byte speculative
+                    // share must stay below resident usage after rounding.
+                    wanted = std::max<i64>(wanted - 1, 0);
+                }
             }
 
             const i64 issuedPrev = issuance.IssuedLimit >= 0
