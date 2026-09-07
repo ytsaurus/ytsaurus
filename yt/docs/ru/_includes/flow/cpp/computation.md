@@ -209,17 +209,17 @@ private:
 
 Хелпер `NYT::NFlow::TProtoTransformOrderedSourceComputation<TProto>` (`yt/yt/flow/library/cpp/parsers/proto.h`) снимает с пользователя ручной парсинг `Protobuf` — аналог `TProtoSwiftSourceComputation<TProto>` для `TSwiftOrderedSourceComputation`.
 
-`DoProcessMessage` реализован за пользователя: он читает строковую колонку `parameters/data_column` сырого сообщения `source` (по умолчанию `"data"`) и разбирает её в `TProto`. Пользователь переопределяет один из хуков:
+`DoProcessMessage` реализован за пользователя: он читает из сырого сообщения `source` строковую колонку, имя которой задано параметром `parameters/data_column` (по умолчанию `"data"`), и разбирает её в `TProto`. Пользователь переопределяет один из хуков:
 
 * `DoProcessProto(TProto&& proto, IOutputCollectorPtr output)` — на успешный разбор, без доступа к исходному сообщению;
 * `DoProcessProto(const TInputMessageConstPtr& inputMessage, TProto&& proto, IOutputCollectorPtr output)` — та же ситуация, но с доступом к исходному сообщению `source`;
-* `DoProcessUnparsed(const TInputMessageConstPtr& inputMessage, TError error, IOutputCollectorPtr output)` — значение колонки `data_column` отсутствует (`null`) либо `Protobuf`-разбор бросил исключение; по умолчанию перебрасывает `error` дальше, поведение можно переопределить (например, чтобы молча отбросить невалидные сообщения). Пустая, но присутствующая строка — не то же самое, что отсутствующее значение: она успешно разбирается в сообщение со значениями по умолчанию, если у `TProto` нет обязательных полей, и в этом случае попадает в `DoProcessProto`, а не в `DoProcessUnparsed`.
+* `DoProcessUnparsed(const TInputMessageConstPtr& inputMessage, TError error, IOutputCollectorPtr output)` — колонка, имя которой задано параметром `data_column`, отсутствует (`null`) либо `Protobuf`-разбор бросил исключение; по умолчанию перебрасывает `error` дальше, поведение можно переопределить (например, чтобы молча отбросить невалидные сообщения). Пустая, но присутствующая строка — не то же самое, что отсутствующее значение: она успешно разбирается в сообщение со значениями по умолчанию, если у `TProto` нет обязательных полей, и в этом случае попадает в `DoProcessProto`, а не в `DoProcessUnparsed`.
 
 Ответственность за ошибку разделена: ошибка самого разбора маршрутизируется в `DoProcessUnparsed`, а исключение из `DoProcessProto` пробрасывается наружу и прерывает эпоху — ничего не коммитится. К моменту такого исключения стейт мог быть уже частично изменён, и эту мутацию нельзя молча проглотить как «неразобранное» сообщение.
 
 Собственный стейт заводится так же, как у `TTransformOrderedSourceComputation`, — через `TMutableStateKeyClient<T>` в `DoInit`; ключ для `GetState` — это `inputMessage->Key`, поэтому стейтовому компьютейшену подходит хук `DoProcessProto(const TInputMessageConstPtr&, TProto&&, IOutputCollectorPtr)`.
 
-Пример — `NYT::NFlow::NExample::TProtoLogParserComputation` из [`examples/cpp/proto_parser`]({{source-root}}/yt/yt/flow/examples/cpp/proto_parser): разбирает `TLogRecordProto`, эмитит `TLogRecordMessage` (`level`, `text`, `seen_at_level`) и ведёт стейт `TLevelCountsState` — счётчик записей каждого уровня по партиции источника. Счётчик неидемпотентен к повторной обработке и корректен ровно потому, что стейт коммитится в одной транзакции со смещением `source`. Подробнее — в разделе [Proto Parser](../../../flow/cpp/examples/proto_parser.md).
+Пример process function с тем же способом разбора — `NYT::NFlow::NExample::TProtoLogParserFunction` из [`examples/cpp/proto_parser`]({{source-root}}/yt/yt/flow/examples/cpp/proto_parser). Она наследуется от `TProtoParsingProcessFunctionBase<TLogRecordProto>` и запускается под `TProcessFunctionTransformOrderedSourceComputation`: разбирает `TLogRecordProto`, эмитит `TLogRecordMessage` (`level`, `text`, `seen_at_level`) и ведёт стейт `TLevelCountsState` — счётчик записей каждого уровня по партиции источника. Счётчик неидемпотентен к повторной обработке и корректен ровно потому, что стейт коммитится в одной транзакции со смещением `source`. Подробнее — в разделе [Proto Parser](../../../flow/cpp/examples/proto_parser.md).
 
 ## TSwiftMapComputation
 
