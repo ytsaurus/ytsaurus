@@ -12,14 +12,33 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(engine)
-add_subdirectory(base)
-add_subdirectory(misc)
-add_subdirectory(proto)
-add_subdirectory(engine_api)
-add_subdirectory(row_comparer_api)
-add_subdirectory(secondary_index)
-add_subdirectory(row_comparer)
+find_package(linux-headers-generic REQUIRED)
+
 add_subdirectory(unittests)
-add_subdirectory(distributed)
-add_subdirectory(portable_engine)
+
+add_library(library-query-portable_engine)
+
+
+target_compile_options(library-query-portable_engine PRIVATE
+  -Wdeprecated-this-capture
+  -Wimplicit-fallthrough
+  -Wparentheses
+  -Wno-logical-op-parentheses
+  -Wno-bitwise-op-parentheses
+  -Wswitch
+  -Wreturn-type
+)
+
+target_link_libraries(library-query-portable_engine PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  yt-yt-client
+  library-query-base
+)
+
+target_sources(library-query-portable_engine PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/portable_engine/registry.cpp
+)
+
