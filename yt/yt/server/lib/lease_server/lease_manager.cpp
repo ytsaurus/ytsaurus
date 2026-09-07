@@ -268,6 +268,14 @@ public:
         return Decommission_ && LeaseMap_.empty();
     }
 
+    void Reconfigure(TLeaseManagerDynamicConfigPtr dynamicConfig) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        AutomatonInvoker_->Invoke(
+            BIND(&TLeaseManager::DoReconfigure, MakeWeak(this), std::move(dynamicConfig)));
+    }
+
     IServicePtr GetRpcService() override
     {
         return this;
@@ -369,6 +377,17 @@ private:
 
         for (auto [leaseId, lease] : LeaseMap_) {
             lease->SetTransientRefCounter(0);
+        }
+    }
+
+    void DoReconfigure(TLeaseManagerDynamicConfigPtr dynamicConfig)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        Config_->ApplyDynamicInplace(*dynamicConfig);
+
+        if (LeaseRemovalExecutor_) {
+            LeaseRemovalExecutor_->SetPeriod(Config_->LeaseRemovalPeriod);
         }
     }
 
