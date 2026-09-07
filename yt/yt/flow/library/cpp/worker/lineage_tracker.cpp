@@ -152,10 +152,10 @@ TLineageRates TLineageTracker::DoGetRates(TInstant now)
                 continue;
             }
             auto& rate = result[outputIt->first][parentIt->first];
-            rate.CountPerSecond = parentIt->second.CountCounter.GetRate(now);
-            rate.BytesPerSecond = parentIt->second.ByteCounter.GetRate(now);
-            rate.InputCountPerSecond = parentIt->second.InputCountCounter.GetRate(now);
-            rate.InputBytesPerSecond = parentIt->second.InputByteCounter.GetRate(now);
+            rate.CountPerSecond = parentIt->second.CountCounter.GetDecayedRate(now);
+            rate.BytesPerSecond = parentIt->second.ByteCounter.GetDecayedRate(now);
+            rate.InputCountPerSecond = parentIt->second.InputCountCounter.GetDecayedRate(now);
+            rate.InputBytesPerSecond = parentIt->second.InputByteCounter.GetDecayedRate(now);
             ++parentIt;
         }
         if (parentCounters.empty()) {
