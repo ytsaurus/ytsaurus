@@ -26,7 +26,6 @@ SRCS(
     swift_ordered_source_computation.cpp
     transform_computation.cpp
     transform_ordered_source_computation.cpp
-    universal_controller_helpers.cpp
     universal_controller.cpp
     watermark_aligner.cpp
     watermark_generator.cpp

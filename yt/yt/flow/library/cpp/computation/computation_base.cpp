@@ -635,23 +635,8 @@ void TUniversalComputationOrchidState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUniversalComputationDynamicPartitionSpec::Register(TRegistrar registrar)
-{
-    registrar.Parameter("active_source", &TThis::ActiveSource)
-        .Default();
-    registrar.Parameter("blocked_output_streams", &TThis::BlockedOutputStreams)
-        .Default();
-    registrar.Parameter("availability_group_unavailable", &TThis::AvailabilityGroupUnavailable)
-        .Default(false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TUniversalComputationPartitionStatus::Register(TRegistrar registrar)
-{
-    registrar.Parameter("active_source_status", &TThis::ActiveSourceStatus)
-        .Default();
-}
+void TUniversalComputationBase::TExtendedDynamicParameters::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -809,7 +794,7 @@ TComputationStatusPtr TUniversalComputationBase::GetStatus()
     }
 
     {
-        auto partitionStatus = New<TUniversalComputationPartitionStatus>();
+        auto partitionStatus = New<TComputationPartitionStatus>();
         if (ActiveSource_) {
             partitionStatus->ActiveSourceStatus = ActiveSource_->GetPartitionStatus();
         }
@@ -1624,7 +1609,7 @@ void TUniversalComputationBase::FinishRunIteration()
 
 TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::CheckOutputLimits(
     const TDynamicComputationSpecPtr& dynamicSpec,
-    const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec)
+    const IComputation::TDynamicPartitionSpecPtr& dynamicPartitionSpec)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 

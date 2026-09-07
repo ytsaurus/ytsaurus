@@ -246,6 +246,8 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicExternalStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateJoinerSpec);
 
+DECLARE_REFCOUNTED_STRUCT(TPartitioningSpec);
+
 DECLARE_REFCOUNTED_STRUCT(TComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TPipelineSpec);
 
@@ -345,10 +347,10 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicSinkControllerContext);
 DECLARE_REFCOUNTED_STRUCT(ISinkController);
 
 DECLARE_REFCOUNTED_STRUCT(TProcessPartitionTraverseDataResult);
-DECLARE_REFCOUNTED_STRUCT(TComputationControllerCommonContext);
 DECLARE_REFCOUNTED_STRUCT(TComputationControllerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationControllerContext);
 DECLARE_REFCOUNTED_STRUCT(IComputationController);
+DECLARE_REFCOUNTED_STRUCT(TComputationPartitionStatus);
 
 DECLARE_REFCOUNTED_STRUCT(TResourceContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceContext);

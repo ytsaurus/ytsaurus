@@ -311,39 +311,6 @@ DEFINE_REFCOUNTED_TYPE(TUniversalComputationOrchidState);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUniversalComputationDynamicPartitionSpec
-    : public TComputationBase::TDynamicPartitionSpec
-{
-public:
-    NYTree::IMapNodePtr ActiveSource;
-    THashSet<TStreamId> BlockedOutputStreams;
-    //! Every partition of this partition's availability group is unavailable, as decided by the last
-    //! traverse. Passed to the source so it can stop publishing errors, never to be acted upon otherwise.
-    bool AvailabilityGroupUnavailable{};
-
-    REGISTER_YSON_STRUCT(TUniversalComputationDynamicPartitionSpec);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TUniversalComputationDynamicPartitionSpec);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TUniversalComputationPartitionStatus
-    : public NYTree::TYsonStruct
-{
-    std::optional<NYTree::IMapNodePtr> ActiveSourceStatus;
-
-    REGISTER_YSON_STRUCT(TUniversalComputationPartitionStatus);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TUniversalComputationPartitionStatus);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Shared state for tracker callbacks: holds two pending deques and a Finished flag.
 // Callbacks capture a strong pointer and push under the spinlock; if Finished is set
 // (set in the destructor of TUniversalComputationBase) they do nothing, avoiding
@@ -423,11 +390,20 @@ private:
 class TUniversalComputationBase
     : public TComputationBase
 {
+private:
+    struct TExtendedDynamicParameters
+        : public virtual TComputationBase::TDynamicParameters
+        , public virtual TPartitioningSpec
+    {
+        REGISTER_YSON_STRUCT(TExtendedDynamicParameters);
+
+        static void Register(TRegistrar registrar);
+    };
+
 public:
     using TComputationController = TUniversalComputationController;
 
-    YT_FLOW_EXTEND_DYNAMIC_PARTITION_SPEC(TUniversalComputationDynamicPartitionSpec);
-
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TExtendedDynamicParameters);
     YT_FLOW_EXTEND_SPEC_VALIDATION(ValidateSpec);
 
     struct TCheckOutputLimitsResult
@@ -533,7 +509,7 @@ protected:
 
     TCheckOutputLimitsResult CheckOutputLimits(
         const TDynamicComputationSpecPtr& dynamicSpec,
-        const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec);
+        const IComputation::TDynamicPartitionSpecPtr& dynamicPartitionSpec);
     void InitBufferWarmupState();
     void RefreshBufferWarmupState();
 

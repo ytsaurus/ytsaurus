@@ -167,6 +167,21 @@ DEFINE_REFCOUNTED_TYPE(TComputationStatus);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Worker-to-controller status of the computation-owned part of a partition.
+struct TComputationPartitionStatus
+    : public NYTree::TYsonStruct
+{
+    std::optional<NYTree::IMapNodePtr> ActiveSourceStatus;
+
+    REGISTER_YSON_STRUCT(TComputationPartitionStatus);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TComputationPartitionStatus);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_BIT_ENUM(EWatchComputationReconfigure,
     ((Never)                    (0x00))
     ((SpecGeneration)           (0x01))
@@ -201,6 +216,12 @@ private:
     struct TDynamicPartitionSpecBase
         : public virtual NYTree::TYsonStruct
     {
+        NYTree::IMapNodePtr ActiveSource;
+        THashSet<TStreamId> BlockedOutputStreams;
+        //! Every partition of this partition's availability group is unavailable, as decided by the last
+        //! traverse. Passed to the source so it can stop publishing errors, never to be acted upon otherwise.
+        bool AvailabilityGroupUnavailable{};
+
         REGISTER_YSON_STRUCT(TDynamicPartitionSpecBase);
 
         static void Register(TRegistrar registrar);

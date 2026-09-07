@@ -25,7 +25,6 @@ SRCS(
     swift_map_validation_ut.cpp
     timer_store_ut.cpp
     transform_ordered_source_validation_ut.cpp
-    universal_controller_helpers_ut.cpp
     watermark_generator_ut.cpp
 )
 

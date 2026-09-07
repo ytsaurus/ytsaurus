@@ -23,6 +23,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/connectors/random
     yt/yt/flow/library/cpp/computation
     yt/yt/flow/library/cpp/common
+    yt/yt/flow/library/cpp/partitioning
     yt/yt/library/query/engine
     yt/yt/client/unittests/mock
     yt/yt/core/test_framework

@@ -585,6 +585,44 @@ bool ResolveUseCompactInputMessages(const TComputationSpecPtr& spec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPartitioningSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("desired_partition_count", &TThis::DesiredPartitionCount)
+        .Default();
+    registrar.Parameter("min_partition_count", &TThis::MinPartitionCount)
+        .Default();
+    registrar.Parameter("max_partition_count", &TThis::MaxPartitionCount)
+        .Default();
+    registrar.Parameter("sink_channel_multiplier", &TThis::SinkChannelMultiplier)
+        .Default();
+    registrar.Parameter("desired_average_partition_cpu_load", &TThis::DesiredAveragePartitionCpuLoad)
+        .Default();
+    registrar.Parameter("desired_average_partition_memory_used", &TThis::DesiredAveragePartitionMemoryUsed)
+        .Default();
+    registrar.Parameter("desired_average_partition_messages_per_second", &TThis::DesiredAveragePartitionMessagesPerSecond)
+        .Default();
+    registrar.Parameter("desired_average_partition_bytes_per_second", &TThis::DesiredAveragePartitionBytesPerSecond)
+        .Default();
+    registrar.Parameter("desired_average_partition_timer_count", &TThis::DesiredAveragePartitionTimerCount)
+        .Default();
+    registrar.Parameter("allowed_partition_count_deviation", &TThis::AllowedPartitionCountDeviation)
+        .InRange(1.01, 100)
+        .Default();
+    registrar.Parameter("partition_count_double_delay", &TThis::PartitionCountDoubleDelay)
+        .Default();
+    registrar.Parameter("partition_count_half_delay", &TThis::PartitionCountHalfDelay)
+        .Default();
+    registrar.Postprocessor([] (TThis* arg) {
+        if (arg->MinPartitionCount && arg->MaxPartitionCount && *arg->MinPartitionCount > *arg->MaxPartitionCount) {
+            THROW_ERROR_EXCEPTION("\"min_partition_count\" must be less than or equal to \"max_partition_count\": got %v > %v",
+                *arg->MinPartitionCount,
+                *arg->MaxPartitionCount);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TResourceDescription::Register(TRegistrar registrar)
 {
     registrar.Parameter("alias", &TThis::Alias)

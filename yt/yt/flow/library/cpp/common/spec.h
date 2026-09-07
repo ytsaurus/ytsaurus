@@ -541,6 +541,31 @@ DEFINE_REFCOUNTED_TYPE(TDynamicStateJoinerSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPartitioningSpec
+    : public virtual NYTree::TYsonStruct
+{
+    std::optional<int> DesiredPartitionCount;
+    std::optional<int> MinPartitionCount;
+    std::optional<int> MaxPartitionCount;
+    std::optional<int> SinkChannelMultiplier;
+    std::optional<double> DesiredAveragePartitionCpuLoad;
+    std::optional<double> DesiredAveragePartitionMemoryUsed;
+    std::optional<double> DesiredAveragePartitionMessagesPerSecond;
+    std::optional<double> DesiredAveragePartitionBytesPerSecond;
+    std::optional<double> DesiredAveragePartitionTimerCount;
+    std::optional<double> AllowedPartitionCountDeviation;
+    std::optional<TDuration> PartitionCountDoubleDelay;
+    std::optional<TDuration> PartitionCountHalfDelay;
+
+    REGISTER_YSON_STRUCT(TPartitioningSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitioningSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TComputationSpec
     : public NYTree::TYsonStruct
 {

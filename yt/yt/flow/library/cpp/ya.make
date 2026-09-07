@@ -17,6 +17,7 @@ RECURSE(
     misc
     multiplexer
     parsers
+    partitioning
     process_function
     tables
     vanilla
