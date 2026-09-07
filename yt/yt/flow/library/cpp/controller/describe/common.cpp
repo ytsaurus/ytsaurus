@@ -434,6 +434,7 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
     auto layout = flowView->State->ExecutionSpec->Layout;
     auto spec = flowView->State->ExecutionSpec->PipelineSpec->GetValue();
     auto dynamicSpec = flowView->State->ExecutionSpec->DynamicPipelineSpec->GetValue();
+    auto pipelineState = flowView->State->ExecutionSpec->PipelineState->GetValue();
 
     TDescribeTraitsContext describeTraitsContext{.PipelinePath = flowView->EphemeralState->PipelinePath};
 
@@ -490,11 +491,13 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
         }
         FillJobFailErrors(jobFailErrors, computationDescription.Messages, &computationDescription.Status);
         FillRetryableErrors(retryableErrors, computationDescription.Messages, &computationDescription.Status);
-        FillPartitionsWithoutJob(
-            intermediatePartitions,
-            flowView->Feedback->UpdateTime,
-            computationDescription.Messages,
-            &computationDescription.Status);
+        if (pipelineState == EPipelineState::Working || pipelineState == EPipelineState::Draining) {
+            FillPartitionsWithoutJob(
+                intermediatePartitions,
+                flowView->Feedback->UpdateTime,
+                computationDescription.Messages,
+                &computationDescription.Status);
+        }
 
         // Specs and group by schema.
         {
