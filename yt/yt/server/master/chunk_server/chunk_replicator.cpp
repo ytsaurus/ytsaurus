@@ -2022,11 +2022,11 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk, std::optional<TDurati
         return;
     }
 
-    if (!ShouldProcessChunk(chunk)) {
+    if (!IsObjectAlive(chunk)) {
         return;
     }
 
-    if (!IsObjectAlive(chunk)) {
+    if (!ShouldProcessChunk(chunk)) {
         return;
     }
 
