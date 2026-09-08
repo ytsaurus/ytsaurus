@@ -16,9 +16,7 @@ from .yt_sync import run_yt_sync
 
 PIPELINE_CONFIG_PATH = yatest.common.source_path(f"{yatest.common.context.project_path}/pipeline.yson")
 
-REANIMATE_BINARY = yatest.common.binary_path(
-    "yt/yt/flow/tools/reanimate_vanilla_operation/reanimate_vanilla_operation"
-)
+REANIMATE_BINARY = yatest.common.binary_path("yt/yt/flow/tools/reanimate_vanilla_operation/reanimate_vanilla_operation")
 
 _TERMINAL_STATES = ("completed", "failed", "aborted")
 
@@ -113,7 +111,9 @@ class TestReanimateVanillaPython(FlowTestPythonBase):
             pipeline_binary_args={"--config": config_path},
             use_vanilla_jobs=True,
             vanilla_secret_env=[SECRET_ENV],
-            additional_env={SECRET_ENV: SECRET_VALUE},
+            # The runner is not kept attached: the operation is aborted below on purpose, which an
+            # attached runner reports as a failed pipeline.
+            additional_env={SECRET_ENV: SECRET_VALUE, "YT_FLOW_WAIT": "0"},
         ):
             self.wait_pipeline_state("working", timeout=600)
 

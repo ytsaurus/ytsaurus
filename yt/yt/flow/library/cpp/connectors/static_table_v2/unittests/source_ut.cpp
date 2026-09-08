@@ -332,15 +332,6 @@ TEST(TStaticTableMigrationTest, DetectsStateOrigin)
     EXPECT_EQ(persistedV2->Mode, EMigrationMode::V2);
 }
 
-TEST(TStaticTableMigrationTest, AllowsDepartureFromV1OnlyUnderNativeV2Name)
-{
-    EXPECT_TRUE(TSourceController::IsV1MigrationAllowed(TypeName<TSource>(), true));
-    EXPECT_FALSE(TSourceController::IsV1MigrationAllowed(
-        "NYT::NFlow::NStaticTableConnector::TSource",
-        true));
-    EXPECT_FALSE(TSourceController::IsV1MigrationAllowed(TypeName<TSource>(), false));
-}
-
 TEST(TStaticTableMigrationTest, LatchesAndFinishesDraining)
 {
     auto state = New<TSourceControllerState>();
@@ -1335,6 +1326,96 @@ TEST(TStaticTableSourceTest, ExtractTimestamp)
         // clang-format off
         auto node = NYT::NYTree::BuildYsonNodeFluently()
             .BeginAttributes()
+                .Item("test_timestamp").Value("2021-01-01T00:00:00")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+
+        auto result = TSourceController::ExtractTimestamp(node, locator);
+        EXPECT_EQ(result.Underlying(), 1609459200u);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
+                .Item("test_timestamp").Value("2021-01-01T00:00:00")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+        locator->Timezone = "Europe/Moscow";
+
+        auto result = TSourceController::ExtractTimestamp(node, locator);
+        EXPECT_EQ(result.Underlying(), 1609448400u);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
+                .Item("test_timestamp").Value("2021-01-01")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+        locator->Timezone = "Europe/Moscow";
+
+        auto result = TSourceController::ExtractTimestamp(node, locator);
+        EXPECT_EQ(result.Underlying(), 1609448400u);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
+                .Item("test_timestamp").Value("1970-01-01T00:00:00")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+        locator->Timezone = "Europe/Moscow";
+
+        EXPECT_THROW(
+            TSourceController::ExtractTimestamp(node, locator),
+            NYT::TErrorException);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
+                .Item("test_timestamp").Value("2021-01-01T00:00:00+02:00")
+            .EndAttributes()
+            .Entity();
+        // clang-format on
+
+        auto locator = New<TTableTimestampLocatorSpec>();
+        locator->Attribute = "test_timestamp";
+        locator->Format = ETimestampFormat::Iso8601;
+        locator->Timezone = "Europe/Moscow";
+
+        auto result = TSourceController::ExtractTimestamp(node, locator);
+        EXPECT_EQ(result.Underlying(), 1609452000u);
+    }
+
+    {
+        // clang-format off
+        auto node = NYT::NYTree::BuildYsonNodeFluently()
+            .BeginAttributes()
                 .Item("test_timestamp").Value(42)
             .EndAttributes()
             .Entity();
@@ -1418,6 +1499,22 @@ TEST(TStaticTableSourceTest, ExtractTimestamp)
             TSourceController::ExtractTimestamp(node, locator),
             NYT::TErrorException);
     }
+}
+
+TEST(TStaticTableSourceTest, TimestampLocatorTimezoneValidation)
+{
+    EXPECT_NO_THROW(ConvertTo<TTableTimestampLocatorSpecPtr>(TYsonString(TStringBuf(
+        "{attribute=test_timestamp;timezone=\"Europe/Moscow\";}"))));
+
+    EXPECT_THROW(
+        ConvertTo<TTableTimestampLocatorSpecPtr>(TYsonString(TStringBuf(
+            "{attribute=test_timestamp;timezone=\"Invalid/Timezone\";}"))),
+        NYT::TErrorException);
+
+    EXPECT_THROW(
+        ConvertTo<TTableTimestampLocatorSpecPtr>(TYsonString(TStringBuf(
+            "{attribute=test_timestamp;format=seconds;timezone=\"Europe/Moscow\";}"))),
+        NYT::TErrorException);
 }
 
 TEST(TStaticTableSourceTest, CreateThrottlerConfig)

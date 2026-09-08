@@ -24,15 +24,33 @@ using NPhoenix::TPersistenceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobProfile
+class TJobProfile
 {
-    NScheduler::EProfilingBinary ProfilingBinary;
-    NScheduler::EProfilerType ProfilerType;
+public:
+    TJobProfile() = default;
+    TJobProfile(
+        NScheduler::EProfilingBinary profilingBinary,
+        NScheduler::EProfilerType profilerType,
+        double profilingProbability,
+        TString blob = {});
 
-    TString Blob;
-    double ProfilingProbability;
+    DEFINE_BYVAL_RO_PROPERTY(
+        NScheduler::EProfilingBinary,
+        ProfilingBinary,
+        NScheduler::EProfilingBinary::JobProxy);
+    DEFINE_BYVAL_RO_PROPERTY(
+        NScheduler::EProfilerType,
+        ProfilerType,
+        NScheduler::EProfilerType::Cpu);
+    DEFINE_BYVAL_RO_PROPERTY(double, ProfilingProbability, 0);
+    DEFINE_BYREF_RO_PROPERTY(TString, Blob);
 
+public:
     std::string GetType() const;
+
+private:
+    friend void ToProto(NProto::TJobProfile* protoProfile, const TJobProfile& profile);
+    friend void FromProto(TJobProfile* profile, const NProto::TJobProfile& protoProfile);
 };
 
 void ToProto(NProto::TJobProfile* protoProfile, const TJobProfile& profile);

@@ -2133,6 +2133,7 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
+    ENABLE_TCMALLOC_PROFILING = True
 
     def enable_allocation_tags(self, proxy):
         set(f"//sys/{proxy}/@config", {

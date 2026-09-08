@@ -77,6 +77,8 @@ def wait_for_proto_dynamic_config_update(client, expected_modification_times):
 
 
 class TestQueriesYqlBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     NUM_NODES = 3
     NUM_YQL_AGENTS = 1
     NUM_MASTERS = 1

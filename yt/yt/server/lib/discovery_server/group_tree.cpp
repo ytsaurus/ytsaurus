@@ -7,6 +7,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/interned_attributes.h>
 #include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/ytree/exception_helpers.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -451,9 +452,7 @@ public:
                 internedKey == EInternedAttributeKey::Type ||
                 internedKey == EInternedAttributeKey::MemberCount)
             {
-                THROW_ERROR_EXCEPTION(
-                    NRpc::EErrorCode::NoSuchMethod,
-                    "Method List is not supported");
+                NYTree::ThrowMethodNotSupported("List");
             } else {
                 THROW_ERROR_EXCEPTION(
                     NYTree::EErrorCode::ResolveError,
@@ -515,7 +514,7 @@ public:
             memberAttributeKey == LastAttributesUpdateTimeAttribute)
         {
             THROW_ERROR_EXCEPTION(
-                NRpc::EErrorCode::NoSuchMethod,
+                NYTree::EErrorCode::NoSuchYPathMethod,
                 "Attribute %Qv is not listable",
                 memberAttributeKey);
         }

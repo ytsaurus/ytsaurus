@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/re2/re2.h>
 
+#include <library/cpp/timezone_conversion/civil.h>
+
 namespace NYT::NFlow::NStaticTableConnectorV2 {
 
 using namespace NYTree;
@@ -17,6 +19,21 @@ void TTableTimestampLocatorSpec::Register(TRegistrar registrar)
     registrar.Parameter("attribute", &TThis::Attribute);
     registrar.Parameter("format", &TThis::Format)
         .Default(ETimestampFormat::Iso8601);
+    registrar.Parameter("timezone", &TThis::Timezone)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* spec) {
+        if (!spec->Timezone) {
+            return;
+        }
+
+        THROW_ERROR_EXCEPTION_UNLESS(
+            spec->Format == ETimestampFormat::Iso8601,
+            "Parameter %Qv can only be used with %Qv timestamp format",
+            "timezone",
+            FormatEnum(ETimestampFormat::Iso8601));
+        NDatetime::GetTimeZone(*spec->Timezone);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

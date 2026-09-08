@@ -4,7 +4,7 @@ import yql.library.langver.python as langver
 
 from yt.environment.helpers import assert_items_equal
 
-from yt_commands import (authors, create, create_user, sync_mount_table, get_driver,
+from yt_commands import (authors, create, create_user, sync_create_cells, sync_mount_table, get_driver,
                          write_table, insert_rows, alter_table, raises_yt_error,
                          write_file, create_pool, wait, get, set, ls, list_operations,
                          get_operation, issue_token, create_group)
@@ -176,8 +176,6 @@ class TestMetrics(TestQueriesYqlSimpleBase):
 
 
 class TestSimpleQueriesYql(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 4
-
     @authors("max42")
     def test_simple(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
@@ -253,8 +251,6 @@ class TestLibs(TestQueriesYqlSimpleBase):
 
 
 class TestTypes(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 4
-
     @authors("a-romanov")
     def test_datetime_types(self, query_tracker, yql_agent):
         self._test_simple_query("""
@@ -412,7 +408,6 @@ class TestYqlAgentBan(TestQueriesYqlSimpleBase):
 
 
 class TestYqlAgentDynConfig(TestQueriesYqlSimpleBase, TestUpdateYqlAgentDynamicConfigMixin):
-    NUM_TEST_PARTITIONS = 16
     CLASS_TEST_LIMIT = 30 * 60
     NUM_YQL_AGENTS = 1
 
@@ -615,8 +610,6 @@ class TestYqlAgentInitialDynConfig(TestQueriesYqlSimpleBase, TestUpdateYqlAgentD
 
 
 class TestComplexQueriesYql(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 4
-
     @authors("mpereskokova")
     def test_count(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
@@ -680,8 +673,6 @@ class TestComplexQueriesYql(TestQueriesYqlSimpleBase):
 
 
 class TestExecutionModesYql(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 16
-
     @authors("aleksandr.gaev")
     def test_validate(self, query_tracker, yql_agent):
         create("table", "//tmp/t1", attributes={
@@ -739,8 +730,6 @@ class TestExecutionModesYql(TestQueriesYqlSimpleBase):
 
 
 class TestYqlPlugin(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 4
-
     @authors("mpereskokova")
     def test_default_cluster_read(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
@@ -758,6 +747,7 @@ class TestYqlPlugin(TestQueriesYqlSimpleBase):
             "dynamic": True,
             "enable_dynamic_store_read": True,
         })
+        sync_create_cells(1)
         sync_mount_table("//tmp/t")
 
         rows = [{"a": 42, "b": 43, "c": "test"}]
@@ -775,6 +765,7 @@ class TestYqlPlugin(TestQueriesYqlSimpleBase):
             "dynamic": True,
             "enable_dynamic_store_read": True,
         })
+        sync_create_cells(1)
         sync_mount_table("//tmp/t")
 
         rows = [{"a": 42, "b": 43, "c": "test"}]
@@ -869,8 +860,6 @@ class TestPartialYqlAgentsOverload(TestQueriesYqlSimpleBase):
 
 
 class TestYqlAgent(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 16
-
     @authors("mpereskokova")
     @pytest.mark.timeout(180)
     def test_progress(self, query_tracker, yql_agent):
@@ -994,7 +983,6 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlSimpleBase):
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 4
     CLASS_TEST_LIMIT = 1800
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
 
@@ -1146,8 +1134,6 @@ class TestQueriesYqlAuth(TestQueriesYqlAuthBase):
 
 
 class TestQueriesYqlWithSecrets(TestQueriesYqlAuthBase):
-    NUM_TEST_PARTITIONS = 8
-
     @authors("ngc224")
     @pytest.mark.timeout(180)
     @pytest.mark.parametrize(
@@ -1524,6 +1510,7 @@ class TestYqlColumnOrderParametrize(TestQueriesYqlSimpleBase):
             "enable_dynamic_store_read": True,
         })
         if dynamic:
+            sync_create_cells(1)
             sync_mount_table("//tmp/t")
             insert_rows("//tmp/t", [{"a": 42, "b": "foo", "c": 2.0}])
         else:
@@ -1603,6 +1590,7 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlSimpleBase):
             "dynamic": True,
             "enable_dynamic_store_read": True,
         })
+        sync_create_cells(1)
         sync_mount_table("//tmp/t1")
         insert_rows("//tmp/t1", [{"a": 42, "b": "foo", "c": 2.0}])
 
@@ -1636,6 +1624,7 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlSimpleBase):
             "dynamic": True,
             "enable_dynamic_store_read": True,
         })
+        sync_create_cells(1)
         sync_mount_table("//tmp/t1")
         insert_rows("//tmp/t1", [{"a": 42, "b": "foo", "c": 2.0}, {"a": 43, "b": "xyz", "c": 3.0}, {"a": 44, "b": "uvw", "c": 4.0}])
 
@@ -2091,8 +2080,6 @@ class TestMaxYqlVersionConfigAttrWithProcesses(TestMaxYqlVersionConfigAttr):
 
 @authors("a-romanov")
 class TestsDDL(TestQueriesYqlSimpleBase):
-    NUM_TEST_PARTITIONS = 3
-
     def test_simple_create_table(self, query_tracker, yql_agent):
         self._test_simple_query("create table `//tmp/t1` (xyz Text, abc Int32 not null, uvw Date null);", None)
         self._test_simple_query("$p = process `//tmp/t1`; select FormatType(TypeOf($p)) as type;", [{'type': "List<Struct<'abc':Int32,'uvw':Date?,'xyz':Utf8?>>"}])
@@ -2246,7 +2233,6 @@ class TestStackOverflowWithProcesses(TestStackOverflow):
 @authors("a-romanov")
 class TestCrossClusterQueriesYql(TestQueriesYqlSimpleBase):
     NUM_REMOTE_CLUSTERS = 1
-    NUM_TEST_PARTITIONS = 3
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {

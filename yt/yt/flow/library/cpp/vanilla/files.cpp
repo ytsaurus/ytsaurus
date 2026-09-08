@@ -95,7 +95,6 @@ template <class TFill>
 NYPath::TYPath EnsureInCache(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& cacheDir,
-    const NYPath::TYPath& uploadTempDir,
     const TString& md5,
     TFill&& fill)
 {
@@ -111,11 +110,10 @@ NYPath::TYPath EnsureInCache(
         return cached.Path;
     }
 
-    // PutFileToCache copies the node into the cache, so this upload node is a throwaway. Stage it
-    // outside the cache — which has no top-level cleanup of its own — and drop it once it has been
-    // copied in. Without an explicit staging dir, use the cache's parent (under //tmp, with its own
-    // TTL, for the default cache).
-    auto uploadDir = uploadTempDir.empty() ? cacheDir.substr(0, cacheDir.rfind('/')) : uploadTempDir;
+    // PutFileToCache copies the node into the cache, so this upload node is a throwaway. Stage it in
+    // the cache's parent (under //tmp, with its own cleanup, for the default cache), not inside the
+    // cache, and drop it once it has been copied in.
+    auto uploadDir = cacheDir.substr(0, cacheDir.rfind('/'));
     auto tempPath = Format("%v/upload_%v", uploadDir, TGuid::Create());
     auto fileOptions = MakeUploadFileOptions(client);
     WaitFor(client->CreateNode(tempPath, NObjectClient::EObjectType::File, fileOptions)).ThrowOnError();
@@ -192,17 +190,12 @@ NYPath::TYPath EnsureCypressFileInCache(
         char buffer[33];
         md5 = hasher.End(buffer);
     }
-    return EnsureInCache(
-        destClient,
-        cacheDir,
-        /*uploadTempDir*/ {},
-        md5,
-        [&] (const NApi::IFileWriterPtr& writer) {
-            auto reader = WaitFor(srcClient->CreateFileReader(srcPath)).ValueOrThrow();
-            while (auto block = WaitFor(reader->Read()).ValueOrThrow()) {
-                WaitFor(writer->Write(block)).ThrowOnError();
-            }
-        });
+    return EnsureInCache(destClient, cacheDir, md5, [&] (const NApi::IFileWriterPtr& writer) {
+        auto reader = WaitFor(srcClient->CreateFileReader(srcPath)).ValueOrThrow();
+        while (auto block = WaitFor(reader->Read()).ValueOrThrow()) {
+            WaitFor(writer->Write(block)).ThrowOnError();
+        }
+    });
 }
 
 } // namespace
@@ -230,10 +223,9 @@ NYPath::TYPath EnsureFileInCache(
     const NApi::IClientPtr& client,
     const std::string& localPath,
     const TString& md5,
-    const NYPath::TYPath& cacheDir,
-    const NYPath::TYPath& uploadTempDir)
+    const NYPath::TYPath& cacheDir)
 {
-    return EnsureInCache(client, cacheDir, uploadTempDir, md5, [&] (const NApi::IFileWriterPtr& writer) {
+    return EnsureInCache(client, cacheDir, md5, [&] (const NApi::IFileWriterPtr& writer) {
         StreamLocalFile(writer, localPath);
     });
 }

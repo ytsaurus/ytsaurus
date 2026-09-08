@@ -219,6 +219,7 @@ public:
         context->Invoker = GetCurrentInvoker();
         context->MainCycleInvoker = GetCurrentInvoker();
         context->PipelinePath = NYPath::TRichYPath::Parse("<cluster=pipeline_cluster>//pipeline/path");
+        context->VersionProvider = TestVersionProvider();
         context->StatusProfiler = CreateSyncStatusProfiler();
         JobManager = CreateJobManager(context, Spec, DynamicSpec, FlowView->State->JobManagerState, /*authenticator*/ nullptr);
         FlowView->CurrentSpec->TrySetValue(Spec, TestVersionProvider());
@@ -502,19 +503,49 @@ TEST_W(TDescribeTest, WarnsOnPartitionStuckWithoutJob)
         return GetOrCrash(computations, TComputationId("Computation_1"));
     };
 
-    // A partition that has just lost its job is mid-rebalance, not stuck.
-    FlowView->Feedback->UpdateTime = TInstant::Now();
-    FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime = FlowView->Feedback->UpdateTime;
-    EXPECT_EQ(describe().Status, ELogLevel::Info);
+    for (auto pipelineState : {EPipelineState::Working, EPipelineState::Draining}) {
+        FlowView->State->StartMutation();
+        FlowView->State->ExecutionSpec->PipelineState->TrySetValue(pipelineState, TestVersionProvider());
+        FlowView->State->CommitMutation();
 
-    // Minutes later it is, and the computation must stop reporting itself as healthy.
-    FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime =
-        FlowView->Feedback->UpdateTime - TDuration::Minutes(5);
-    auto description = describe();
-    EXPECT_EQ(description.Status, ELogLevel::Warning)
-        << ConvertToYsonString(description, EYsonFormat::Text).ToString();
-    EXPECT_TRUE(MessagesContain(description.Messages, "have had no job"))
-        << ConvertToYsonString(description.Messages, EYsonFormat::Text).ToString();
+        // A partition that has just lost its job is mid-rebalance, not stuck.
+        FlowView->Feedback->UpdateTime = TInstant::Now();
+        FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime = FlowView->Feedback->UpdateTime;
+        EXPECT_EQ(describe().Status, ELogLevel::Info);
+
+        // Minutes later it is, and the computation must stop reporting itself as healthy.
+        FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime =
+            FlowView->Feedback->UpdateTime - TDuration::Minutes(5);
+        auto description = describe();
+        EXPECT_EQ(description.Status, ELogLevel::Warning)
+            << ConvertToYsonString(description, EYsonFormat::Text).ToString();
+        EXPECT_TRUE(MessagesContain(description.Messages, "have had no job"))
+            << ConvertToYsonString(description.Messages, EYsonFormat::Text).ToString();
+    }
+}
+
+TEST_W(TDescribeTest, DoesNotWarnOnPartitionsWithoutJobsWhenPipelineIsInactive)
+{
+    Prepare();
+
+    auto strandedPartitionId = StripJobOfSomePartition(FlowView, TComputationId("Computation_1"));
+    ASSERT_TRUE(strandedPartitionId.has_value());
+
+    FlowView->Feedback->UpdateTime = TInstant::Now();
+    FlowView->Feedback->PartitionJobStatuses[*strandedPartitionId]->CurrentJobStatusUpdateTime = TInstant::Zero();
+
+    for (auto pipelineState : {EPipelineState::Paused, EPipelineState::Stopped}) {
+        FlowView->State->StartMutation();
+        FlowView->State->ExecutionSpec->PipelineState->TrySetValue(pipelineState, TestVersionProvider());
+        FlowView->State->CommitMutation();
+
+        auto computations = MakeComputationDescriptions(FlowView, GetComputationPartitionIntermediateDescriptions(FlowView));
+        const auto& description = GetOrCrash(computations, TComputationId("Computation_1"));
+        EXPECT_EQ(description.Status, ELogLevel::Info)
+            << ConvertToYsonString(description, EYsonFormat::Text).ToString();
+        EXPECT_FALSE(MessagesContain(description.Messages, "have had no job"))
+            << ConvertToYsonString(description.Messages, EYsonFormat::Text).ToString();
+    }
 }
 
 TEST_W(TDescribeTest, RegisterStreams)

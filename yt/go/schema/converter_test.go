@@ -167,6 +167,26 @@ func TestConvertType(t *testing.T) {
 			expected:  TypeAny,
 		},
 		{
+			name:      "date32 type",
+			valueType: ptr.Int32(0x1010),
+			expected:  TypeDate32,
+		},
+		{
+			name:      "datetime64 type",
+			valueType: ptr.Int32(0x1011),
+			expected:  TypeDatetime64,
+		},
+		{
+			name:      "timestamp64 type",
+			valueType: ptr.Int32(0x1012),
+			expected:  TypeTimestamp64,
+		},
+		{
+			name:      "interval64 type",
+			valueType: ptr.Int32(0x1013),
+			expected:  TypeInterval64,
+		},
+		{
 			name:      "unknown type",
 			valueType: ptr.Int32(0xFFFF),
 			expected:  TypeAny,

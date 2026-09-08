@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -26,6 +28,7 @@ public:
     void Start();
 
     void InitializeProgress(
+        const NApi::NNative::IClientPtr& client,
         const NApi::ITransactionPtr& transaction,
         NObjectClient::TObjectId viewId,
         EMaterializedViewSourceType sourceType,

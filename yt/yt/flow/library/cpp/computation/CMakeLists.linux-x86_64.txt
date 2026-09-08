@@ -58,6 +58,7 @@ target_sources(library-cpp-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/key_visitor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/static_table_key_visitor_joiner.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/key_visitor_store.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/lineage_accumulator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/message_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/meta_setter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/ordered_source_computation_base.cpp
@@ -73,7 +74,6 @@ target_sources(library-cpp-computation PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/swift_ordered_source_computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/transform_computation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/transform_ordered_source_computation.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/universal_controller_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/universal_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/watermark_aligner.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/watermark_generator.cpp

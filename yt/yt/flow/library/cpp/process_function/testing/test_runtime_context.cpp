@@ -69,6 +69,16 @@ TWatermarkStatePtr MakeWatermarkState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::RegisterStream(
+    const TStreamId& streamId,
+    TTableSchemaPtr schema)
+{
+    auto spec = New<TStreamSpec>();
+    spec->Schema = std::move(schema);
+    EmplaceOrCrash(Streams_, streamId, std::move(spec));
+    return *this;
+}
+
 TTestRuntimeContextBuilder& TTestRuntimeContextBuilder::SetWatermark(const TStreamId& streamId, TSystemTimestamp value)
 {
     Watermarks_[streamId] = value;

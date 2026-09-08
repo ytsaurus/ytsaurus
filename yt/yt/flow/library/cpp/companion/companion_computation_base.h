@@ -37,6 +37,10 @@ void AddJoinedExternalStates(
     const THashMap<std::string, ICompanionStateAdapterPtr>& joiners,
     const IInputContextPtr& input);
 
+//! Rejects an external state manager with ``auto_preload = %false``: companion states are
+//! shipped with the batch, so the companion cannot preload on demand.
+void ValidateExternalStateManagersAutoPreload(const TComputationSpec& spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A CRTP base class template that provides common companion computation functionality.

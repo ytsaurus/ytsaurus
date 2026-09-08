@@ -477,6 +477,7 @@ type (
 		batchSize     int
 		retryCount    uint64
 		createOptions *CreateNodeOptions
+		computeMD5    bool
 
 		buffer *bytes.Buffer
 		err    error
@@ -504,6 +505,15 @@ func WithWriteFileCreateOptions(options *CreateNodeOptions) WriteFileOption {
 	}
 }
 
+// WithWriteFileComputeMD5 enables server-side MD5 calculation for the file.
+//
+// Appending is only allowed if the file has already been written with MD5 calculation.
+func WithWriteFileComputeMD5(computeMD5 bool) WriteFileOption {
+	return func(w *fileWriter) {
+		w.computeMD5 = computeMD5
+	}
+}
+
 func (w *fileWriter) Write(p []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
@@ -511,7 +521,7 @@ func (w *fileWriter) Write(p []byte) (int, error) {
 
 	w.buffer.Write(p)
 	if w.buffer.Len() >= w.batchSize {
-		if err := w.flush(); err != nil {
+		if err := w.writeBatch(); err != nil {
 			return 0, err
 		}
 	}
@@ -522,9 +532,14 @@ func (w *fileWriter) flush() error {
 	if w.buffer.Len() == 0 {
 		return nil
 	}
+	return w.writeBatch()
+}
 
+func (w *fileWriter) writeBatch() error {
 	w.err = writeBatchWithRetries(w.ctx, w.yc, w.retryCount, func(attemptTx Tx) error {
-		return attemptTx.(rawFileWriter).WriteFileRaw(w.ctx, w.path, &WriteFileOptions{}, w.buffer)
+		return attemptTx.(rawFileWriter).WriteFileRaw(w.ctx, w.path, &WriteFileOptions{
+			ComputeMD5: w.computeMD5,
+		}, w.buffer)
 	})
 	if w.err != nil {
 		return w.err

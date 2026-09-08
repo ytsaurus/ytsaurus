@@ -10,7 +10,11 @@
 
 #include <yt/yt/flow/library/cpp/common/checksum.h>
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/authenticator.h>
+
+#include <yt/yt/flow/library/cpp/connectors/common/ordered_batching_async_sink_base.h>
+#include <yt/yt/flow/library/cpp/connectors/common/sink_controller_base.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -69,6 +73,41 @@ private:
 };
 
 YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "TestLogger");
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::atomic<i64> ControllerTestSinkChannelCount{5};
+
+class TControllerTestSinkController
+    : public TSinkControllerBase
+{
+public:
+    using TSinkControllerBase::TSinkControllerBase;
+
+    std::optional<i64> GetReceiverChannelCount() override
+    {
+        return ControllerTestSinkChannelCount.load();
+    }
+};
+
+class TControllerTestSink
+    : public TOrderedBatchingAsyncSinkBase
+{
+public:
+    using TSinkController = TControllerTestSinkController;
+
+    using TOrderedBatchingAsyncSinkBase::TOrderedBatchingAsyncSinkBase;
+
+    void DoInit(const std::string& /*producerId*/) override
+    { }
+
+    TFuture<void> DoDistribute(const std::vector<TOutputMessageConstPtr>& /*messages*/, i64 /*seqNo*/) override
+    {
+        return OKFuture;
+    }
+};
+
+YT_FLOW_DEFINE_SINK(TControllerTestSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +183,12 @@ private:
 struct TPersistedStateManagerLocalState
     : public TRefCounted
 {
+    struct TPartitionLayoutSummary
+    {
+        int Executing = 0;
+        int Interrupting = 0;
+    };
+
     void CheckImportantVersions(const TPipelineImportantVersionsPtr& expectedVersions)
     {
         auto actual = MakePipelineImportantVersions(FlowView->State, Spec);
@@ -167,6 +212,10 @@ struct TPersistedStateManagerLocalState
     TVersionedPipelineSpecPtr Spec = New<TVersionedPipelineSpec>();
     TVersionedDynamicPipelineSpecPtr DynamicSpec = New<TVersionedDynamicPipelineSpec>();
     TVersionedFlowCoreTargetPtr FlowCoreTarget = New<TVersionedFlowCoreTarget>();
+    bool ObserveSinkTopologyRetry = false;
+    bool SinkTopologyPersistenceFailureInjected = false;
+    std::optional<TPartitionLayoutSummary> LastPersistedPartitionLayout;
+    std::vector<TPartitionLayoutSummary> SinkTopologyPersistenceAttempts;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +243,26 @@ public:
             .WillRepeatedly(
                 [state = PersistedStateManagerLocalState] (const TFlowStatePtr& flowState, const TPipelineImportantVersionsPtr& expectedVersions) {
                     auto guard = Guard(state->Lock);
+                    TPersistedStateManagerLocalState::TPartitionLayoutSummary summary;
+                    for (const auto& [_, partition] : flowState->ExecutionSpec->Layout->Partitions) {
+                        if (partition->State == EPartitionState::Executing) {
+                            ++summary.Executing;
+                        } else if (partition->State == EPartitionState::Interrupting) {
+                            ++summary.Interrupting;
+                        }
+                    }
+                    state->LastPersistedPartitionLayout = summary;
+                    if (state->ObserveSinkTopologyRetry) {
+                        if (state->SinkTopologyPersistenceFailureInjected || summary.Interrupting > 0) {
+                            state->SinkTopologyPersistenceAttempts.push_back(summary);
+                        }
+                        if (!state->SinkTopologyPersistenceFailureInjected && summary.Interrupting > 0) {
+                            state->SinkTopologyPersistenceFailureInjected = true;
+                            THROW_ERROR_EXCEPTION(
+                                NFlow::EErrorCode::SpecVersionMismatch,
+                                "Injected flow state persistence failure");
+                        }
+                    }
                     flowState->CommitMutation();
                     state->CheckImportantVersions(expectedVersions);
                     state->FlowView->State = CloneYsonStruct(flowState);
@@ -414,6 +483,102 @@ public:
     NRpc::IServerPtr LocalServer;
     std::unique_ptr<TControllerServiceProxy> ControllerServiceProxy;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TControllerTest, FailedPersistenceRetriesSinkTopologyRecreation)
+{
+    ControllerConfig->WarmUpTime = TDuration::Zero();
+    ControllerConfig->SchedulerPeriod = TDuration::MilliSeconds(10);
+    ControllerTestSinkChannelCount = 5;
+
+    auto schema = New<NTableClient::TTableSchema>(std::vector<NTableClient::TColumnSchema>{
+        NTableClient::TColumnSchema("hash", NTableClient::EValueType::Uint64).SetRequired(true)});
+    auto spec = New<TPipelineSpec>();
+    auto computationSpec = New<TComputationSpec>();
+    computationSpec->ComputationClassName = "NYT::NFlow::TPassthroughComputation";
+    computationSpec->GroupBySchema = schema;
+    computationSpec->InputStreamIds.insert("input_stream");
+    computationSpec->OutputStreamIds.insert("output_stream");
+    computationSpec->Sinks["sink"] = New<TSinkSpec>();
+    computationSpec->Sinks["sink"]->SinkClassName = TypeName<TControllerTestSink>();
+    spec->Computations["computation"] = computationSpec;
+    for (const auto& streamId : {TStreamId("input_stream"), TStreamId("output_stream")}) {
+        spec->Streams[streamId] = New<TStreamSpec>();
+        spec->Streams[streamId]->ClassName = "FakeClassName";
+        spec->Streams[streamId]->Schema = schema;
+    }
+
+    auto dynamicSpec = New<TDynamicPipelineSpec>();
+    dynamicSpec->TargetState = EPipelineState::Working;
+    dynamicSpec->JobManager->AsyncBalancing = false;
+    dynamicSpec->Computations["computation"] = New<TDynamicComputationSpec>();
+    dynamicSpec->Computations["computation"]->Parameters->AddChild(
+        "desired_partition_count",
+        ConvertToNode(10));
+
+    auto versionProvider = New<TFakeVersionProvider>(1);
+    const auto& state = PersistedStateManagerLocalState;
+    state->FlowView->State->AttachToControl(state->PersistedMasterControl);
+    state->PersistedMasterControl->Recover();
+    state->Spec->TrySetValue(spec, versionProvider);
+    state->DynamicSpec->TrySetValue(dynamicSpec, versionProvider);
+    state->FlowView->State->ExecutionSpec->PipelineSpec = CloneYsonStruct(state->Spec);
+    state->FlowView->State->ExecutionSpec->ExtendedPipelineSpec->TrySetValue(
+        BuildExtendedPipelineSpec(spec),
+        versionProvider);
+    state->FlowView->State->ExecutionSpec->DynamicPipelineSpec = CloneYsonStruct(state->DynamicSpec);
+    state->FlowView->State->ExecutionSpec->PipelineState->TrySetValue(
+        EPipelineState::Working,
+        versionProvider);
+
+    Prepare();
+
+    ExecuteViaControlQueue([&] {
+        StartLeadingAndWaitReady();
+
+        auto waitFor = [&] (auto&& predicate) {
+            const auto deadline = TInstant::Now() + TDuration::Seconds(60);
+            while (!predicate() && TInstant::Now() < deadline) {
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }
+            return predicate();
+        };
+
+        if (!waitFor([&] {
+                auto guard = Guard(state->Lock);
+                return state->LastPersistedPartitionLayout &&
+                    state->LastPersistedPartitionLayout->Executing == 10 &&
+                    state->LastPersistedPartitionLayout->Interrupting == 0;
+            })) {
+            StopLeading();
+            FAIL() << "Initial partition layout was not persisted";
+        }
+
+        {
+            auto guard = Guard(state->Lock);
+            state->ObserveSinkTopologyRetry = true;
+        }
+        ControllerTestSinkChannelCount = 7;
+
+        if (!waitFor([&] {
+                auto guard = Guard(state->Lock);
+                return state->SinkTopologyPersistenceAttempts.size() >= 2;
+            })) {
+            StopLeading();
+            FAIL() << "Sink topology persistence retry was not observed";
+        }
+
+        StopLeading();
+
+        auto guard = Guard(state->Lock);
+        ASSERT_GE(state->SinkTopologyPersistenceAttempts.size(), 2u);
+        for (int index = 0; index < 2; ++index) {
+            EXPECT_EQ(state->SinkTopologyPersistenceAttempts[index].Executing, 10);
+            EXPECT_EQ(state->SinkTopologyPersistenceAttempts[index].Interrupting, 10);
+        }
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

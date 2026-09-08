@@ -15,7 +15,11 @@ public:
 
     void Inc(double count = 1, TInstant now = TInstant::Now());
 
-    std::optional<double> GetRate(TInstant now = TInstant::Now()) const;
+    // Returns the smoothed rate at the last Update/Inc timestamp; unchanged between updates.
+    std::optional<double> GetLastRate() const;
+
+    // Returns the smoothed rate decayed to |now|, assuming no increments since the last update.
+    std::optional<double> GetDecayedRate(TInstant now = TInstant::Now()) const;
 
     double GetTotal() const;
 

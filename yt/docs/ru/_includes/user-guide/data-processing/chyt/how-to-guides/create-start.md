@@ -91,7 +91,7 @@
 - Веб-интерфейс
 
   1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-  1. Нажмите ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui), или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
+  1. Нажмите ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui), или кнопку **Edit speclet** на вкладке **Speclet** на [Панели вкладок](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
   1. В открывшемся окне настроек, в поле _Pool_ введите название вычислительного пула.
   1. Для завершения нажмите кнопку **Confirm**.
 
@@ -150,7 +150,7 @@
 - Веб-интерфейс
 
   1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-  1. Нажмите ![start](../../../../../../images/start-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
+  1. Нажмите ![start](../../../../../../_images/start-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
   1. Убедитесь, что:
 
       - параметр `Health` перешёл в состояние `Pending` и через некоторое время сменился на `Good`,
@@ -159,7 +159,7 @@
       Посмотреть статусы этих параметров можно в интерфейсе клики — в блоке с [характеристиками](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
   1. Проверьте работоспособность клики. Для этого сделайте тестовый запрос в интерфейсе **Query Tracker**:
 
-      - нажмите ![sql](../../../../../../images/sql-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu);
+      - нажмите ![sql](../../../../../../_images/sql-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu);
       - в открывшемся окне введите и выполните SQL-запрос.
 
 - CLI
@@ -247,7 +247,7 @@
 - Веб-интерфейс
 
   1. Откройте интерфейс клики, как описано в разделе [Как перейти в интерфейс клики](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where).
-  1. Нажмите ![stop](../../../../../../images/stop-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
+  1. Нажмите ![stop](../../../../../../_images/stop-btn.png){width=24 height=24} в правом верхнем углу, в блоке [Кнопки действий](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu).
   1. Убедитесь, что:
 
       - параметр `Health` перешёл в состояние `Pending` и через некоторое время сменился на `Failed`,

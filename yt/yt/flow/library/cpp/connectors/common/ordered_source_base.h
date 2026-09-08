@@ -203,6 +203,7 @@ protected:
     double GetSourceTotalCount() const;
     double GetSourceTotalBytes() const;
     double GetOfferedCount() const;
+    std::optional<TSystemTimestamp> GetLastPersistedWriteTimestamp() const;
 
 public:
     enum class EMessageState
@@ -265,6 +266,7 @@ private:
     std::vector<TPartitionInfoUpdate> DelayedPartitionInfoUpdates_;
 
 private:
+    bool AreOffsetsEquivalent(const TOffset& lhs, const TOffset& rhs) const;
     void TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclusive, bool confirmed);
     std::vector<TMessageBatch> PrepareMessages(std::vector<TRecord>&& records);
     void FlushDelayedPartitionInfoUpdates();

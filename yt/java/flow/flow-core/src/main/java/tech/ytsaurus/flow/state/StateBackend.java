@@ -12,7 +12,7 @@ public interface StateBackend {
      * @return internal state holder.
      * @throws IllegalArgumentException if the state name is not configured in the computation spec.
      */
-    StatesHolder<InternalState> getOrCreateInternalStateHolder(String stateName);
+    StatesHolder getOrCreateInternalStateHolder(String stateName);
 
     /**
      * Returns the external state holder configured for the given state name.
@@ -21,7 +21,7 @@ public interface StateBackend {
      * @return external state holder.
      * @throws NullPointerException if the external state is not configured.
      */
-    StatesHolder<ExternalState> getExternalStateHolder(String stateName);
+    StatesHolder getExternalStateHolder(String stateName);
 
     /**
      * Returns the read-only joined external state holder configured for the given state name.
@@ -31,5 +31,5 @@ public interface StateBackend {
      * @return joined external state holder.
      * @throws IllegalArgumentException if the joined external state is not configured.
      */
-    StatesHolder<ExternalState> getJoinedExternalStateHolder(String stateName);
+    StatesHolder getJoinedExternalStateHolder(String stateName);
 }

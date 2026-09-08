@@ -13,6 +13,7 @@ SRCS(
     job_spec.cpp
     job_tracker.cpp
     job.cpp
+    lineage_tracker.cpp
     message_distributor.cpp
     message_distributor_detail.cpp
     message_service.cpp

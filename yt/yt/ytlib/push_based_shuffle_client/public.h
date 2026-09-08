@@ -18,8 +18,6 @@ DECLARE_REFCOUNTED_STRUCT(TPartitionReaderConfig)
 DECLARE_REFCOUNTED_STRUCT(ISortReader)
 DECLARE_REFCOUNTED_STRUCT(TSortReaderConfig)
 
-DECLARE_REFCOUNTED_STRUCT(TPushShuffleConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, PushBasedShuffleLogger, "PushBasedShuffleClient");

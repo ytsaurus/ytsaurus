@@ -350,10 +350,6 @@ public:
         TSourceControllerState* state,
         bool isNativeV2Source);
 
-    static bool IsV1MigrationAllowed(
-        const std::string& sourceClassName,
-        bool allowV1Migration);
-
     static void UpdateMigrationState(
         TSourceControllerState* state,
         bool allowV1Migration,

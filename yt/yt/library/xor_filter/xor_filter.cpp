@@ -15,6 +15,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TXorFilterTag
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TXorFilter::IsInitialized() const
 {
     return static_cast<bool>(Data_);
@@ -221,7 +226,7 @@ TSharedRef TXorFilter::DoBuild(TRange<TFingerprint> keys, int bitsPerKey)
     int slotCount = ComputeSlotCount(std::ssize(keys));
 
     TXorFilter filter(bitsPerKey, slotCount);
-    auto data = TSharedMutableRef::Allocate(filter.ComputeAllocationSize());
+    auto data = TSharedMutableRef::Allocate<TXorFilterTag>(filter.ComputeAllocationSize());
 
     std::vector<int> assignedKeysXor(slotCount);
     std::vector<int> hitCount(slotCount);

@@ -27,6 +27,12 @@ public:
         return *this;
     }
 
+    //! Registers an output stream by its payload schema, for a function that fills the columns
+    //! itself (via MakeOutputMessageBuilder) rather than emitting a YSON message.
+    TTestRuntimeContextBuilder& RegisterStream(
+        const TStreamId& streamId,
+        NTableClient::TTableSchemaPtr schema);
+
     //! Sets a stream's event watermark. The input watermark mins over the spec's input_stream_ids,
     //! so declare them via SetSpec to exercise it.
     TTestRuntimeContextBuilder& SetWatermark(const TStreamId& streamId, TSystemTimestamp value);

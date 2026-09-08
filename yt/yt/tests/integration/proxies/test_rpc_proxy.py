@@ -1410,6 +1410,7 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
 class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
     NUM_RPC_PROXIES = 1
+    ENABLE_TCMALLOC_PROFILING = True
 
     @classmethod
     def setup_class(cls):

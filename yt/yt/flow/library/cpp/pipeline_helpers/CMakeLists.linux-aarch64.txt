@@ -37,6 +37,7 @@ target_link_libraries(library-cpp-pipeline_helpers PUBLIC
   cpp-yt-logging
   cpp-pipeline_helpers-flow_execute
   library-cpp-common
+  library-cpp-vanilla
   yt-yt-client
   yt-yt-core
   library-cpp-native_client

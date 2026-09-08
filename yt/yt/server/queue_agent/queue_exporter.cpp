@@ -343,7 +343,8 @@ private:
     //!   3) Fetches chunk specs, skipping dynamic stores, already exported chunks and chunks with timestamp larger than
     //!      the export unix timestamp upper bound.
     //!   4) Groups together chunk specs by export unix ts corresponding to their export unix ts.
-    //!   5) Creates exported table for each chunk spec group in nested transaction, stopping at the first failed, creating at most MaxExportedTableCountPerTask tables.
+    //!   5) For tables with hunk chunks drops groups starting with the first one that has a reference to an unsealed hunk chunk.
+    //!   6) Creates at most MaxExportedTableCountPerTask exported tables, stopping at the first failure.
     //!
     //! NB: We use the host's physical time to compute the unix ts of the next table to export.
     //! We rely on this time being mostly monotonous and not too different from the cluster time obtained via timestamp generation.
@@ -681,6 +682,145 @@ private:
         return New<TQueueExportProgress>();
     }
 
+    THashSet<TChunkId> FetchUnsealedHunkChunkIds(const std::vector<TChunkId>& hunkChunkIds) const
+    {
+        for (auto hunkChunkId : hunkChunkIds) {
+            if (QueueObject_.ExternalCellTag != CellTagFromId(hunkChunkId)) {
+                THROW_ERROR_EXCEPTION("Encountered hunk chunk with unexpected cell tag")
+                    .With("actual_cell_tag", CellTagFromId(hunkChunkId))
+                    .With("expected_cell_tag", QueueObject_.ExternalCellTag);
+            }
+        }
+
+        auto proxy = CreateObjectServiceReadProxy(
+            Client_,
+            TMasterReadOptions().ReadFrom,
+            QueueObject_.ExternalCellTag);
+
+        THashSet<TChunkId> unsealedHunkChunkIds;
+        auto fetchChunkBatch = [&] (i64 lowerChunkIndex, i64 upperChunkIndex) {
+            YT_TLOG_DEBUG("Started fetching seal state for a batch of hunk chunks")
+                .With("LowerChunkIndex", lowerChunkIndex)
+                .With("UpperChunkIndex", upperChunkIndex);
+
+            auto batchReq = proxy.ExecuteBatch();
+
+            for (int chunkIndex = lowerChunkIndex; chunkIndex < upperChunkIndex; ++chunkIndex) {
+                auto hunkChunkId = hunkChunkIds[chunkIndex];
+                auto req = TYPathProxy::Get(FromObjectId(hunkChunkId) + "/@sealed");
+                batchReq->AddRequest(req);
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            THROW_ERROR_EXCEPTION_UNLESS(cumulativeError.IsOK(),
+                "Error fetching hunk chunk seal state from master cell")
+                    .With("master_cell_tag", QueueObject_.ExternalCellTag)
+                    .With(cumulativeError);
+
+            auto responses = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>();
+            THROW_ERROR_EXCEPTION_IF(std::ssize(responses) != upperChunkIndex - lowerChunkIndex,
+                "Master cell returned hunk chunk seal state response of unexpected size")
+                .With("master_cell_tag", QueueObject_.ExternalCellTag)
+                .With("actual_response_size", responses.size())
+                .With("expected_response_size", upperChunkIndex - lowerChunkIndex);
+
+            for (int responseIndex = 0; responseIndex < std::ssize(responses); ++responseIndex) {
+                auto maybeResponseValue = responses[responseIndex].ValueOrThrow();
+                THROW_ERROR_EXCEPTION_UNLESS(maybeResponseValue,
+                    "Upon fetching chunk seal states unexpectedely encountered null subresponse")
+                    .With("response_index", responseIndex)
+                    .With("total_response_size", responses.size())
+                    .With("chunk_id", hunkChunkIds[lowerChunkIndex + responseIndex]);
+
+                auto responseValue = maybeResponseValue->value();
+                auto sealed = ConvertTo<bool>(TYsonString(responseValue));
+                if (!sealed) {
+                    auto hunkChunkId = hunkChunkIds[lowerChunkIndex + responseIndex];
+                    unsealedHunkChunkIds.insert(hunkChunkId);
+                }
+            }
+        };
+
+        for (i64 lowerChunkIndexToFetch = 0;
+            lowerChunkIndexToFetch < std::ssize(hunkChunkIds);
+            lowerChunkIndexToFetch += DynamicConfig_.MaxHunkChunkCountPerFetch)
+        {
+            fetchChunkBatch(
+                lowerChunkIndexToFetch,
+                std::min(
+                    lowerChunkIndexToFetch + DynamicConfig_.MaxHunkChunkCountPerFetch,
+                    std::ssize(hunkChunkIds)));
+        }
+
+        YT_TLOG_DEBUG("Finished fetching hunk chunk seal state")
+            .With("HunkChunkCount", hunkChunkIds.size())
+            .With("UnsealedHunkChunkCount", unsealedHunkChunkIds.size());
+
+        return unsealedHunkChunkIds;
+    }
+
+    // For each time segment we find all its corresponding hunk chunks and filter out
+    // all the time segments starting from the one that contains unsealed hunk chunk (if present),
+    // because journal hunk chunks must be sealed before being exported.
+    void FilterChunkSpecsByHunkChunkSealState()
+    {
+        std::vector<TChunkId> allHunkChunkIds;
+        THashMap<ui64, std::vector<TChunkId>> hunkChunkIdsByUnixTs;
+
+        for (const auto& [exportUnixTs, chunkSpecs] : ChunkSpecsToExportByUnixTs_) {
+            auto& currentHunkChunkIds = hunkChunkIdsByUnixTs[exportUnixTs];
+            for (const auto* chunkSpec : chunkSpecs) {
+                if (auto hunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkSpec->chunk_meta().extensions())) {
+                    for (const auto& ref : hunkChunkRefsExt->refs()) {
+                        currentHunkChunkIds.push_back(FromProto<TChunkId>(ref.chunk_id()));
+                    }
+                }
+            }
+
+            SortUnique(currentHunkChunkIds);
+            allHunkChunkIds.insert(allHunkChunkIds.end(), currentHunkChunkIds.begin(), currentHunkChunkIds.end());
+        }
+
+        SortUnique(allHunkChunkIds);
+
+        if (allHunkChunkIds.empty()) {
+            return;
+        }
+
+        auto unsealedHunkChunkIds = FetchUnsealedHunkChunkIds(allHunkChunkIds);
+
+        for (auto chunkSpecsIt = ChunkSpecsToExportByUnixTs_.begin();
+            chunkSpecsIt != ChunkSpecsToExportByUnixTs_.end();
+            ++chunkSpecsIt)
+        {
+            auto exportUnixTs = chunkSpecsIt->first;
+            auto& hunkChunkIds = GetOrCrash(hunkChunkIdsByUnixTs, exportUnixTs);
+
+            for (auto hunkChunkId : hunkChunkIds) {
+                if (unsealedHunkChunkIds.contains(hunkChunkId)) {
+                    auto skippedGroupCount = std::distance(chunkSpecsIt, ChunkSpecsToExportByUnixTs_.end());
+
+                    YT_TLOG_DEBUG("Stopped selecting chunks for export due to unsealed hunk chunks")
+                        .With("ExportUnixTs", exportUnixTs)
+                        .With("UnsealedHunkChunkId", hunkChunkId)
+                        .With("SkippedGroupCount", skippedGroupCount)
+                        .With("TotalGroupCount", ChunkSpecsToExportByUnixTs_.size());
+
+                    // TODO(akozhikhov): Consider erasing only the suffix of the chunk spec list that has a reference to
+                    // unsealed journal chunk. This can potentially speed up exporing of the data, however the degree of
+                    // such speed up is not obvious and shall be researched relying on actual use cases.
+                    ChunkSpecsToExportByUnixTs_.erase(chunkSpecsIt, ChunkSpecsToExportByUnixTs_.end());
+                    return;
+                }
+            }
+
+            if (!hunkChunkIds.empty()) {
+                EmplaceOrCrash(HunkChunkIdsToExportByUnixTs_, exportUnixTs, std::move(hunkChunkIds));
+            }
+        }
+    }
+
     void SelectChunkSpecsToExport(const TQueueExportProgressPtr& currentExportProgress)
     {
         std::map<i64, std::vector<const TChunkSpec*>> tabletToChunkSpecs;
@@ -746,21 +886,7 @@ private:
         }
 
         if (QueueSchema_->HasHunkColumns()) {
-            for (const auto& [exportUnixTs, chunkSpecs] : ChunkSpecsToExportByUnixTs_) {
-                std::vector<TChunkId> hunkChunkIds;
-                for (const auto& chunkSpec : chunkSpecs) {
-                    if (auto hunkChunkRefsExt = FindProtoExtension<THunkChunkRefsExt>(chunkSpec->chunk_meta().extensions())) {
-                        for (const auto& ref : hunkChunkRefsExt->refs()) {
-                            hunkChunkIds.push_back(FromProto<TChunkId>(ref.chunk_id()));
-                        }
-                    }
-                }
-
-                if (!hunkChunkIds.empty()) {
-                    SortUnique(hunkChunkIds);
-                    EmplaceOrCrash(HunkChunkIdsToExportByUnixTs_, exportUnixTs, std::move(hunkChunkIds));
-                }
-            }
+            FilterChunkSpecsByHunkChunkSealState();
         }
     }
 
@@ -1043,44 +1169,44 @@ private:
             EMasterChannelKind::Leader,
             taskPart.DestinationObject.ExternalCellTag));
 
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        SetTransactionId(batchReq, taskPart.UploadTransaction->GetId());
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-
         auto chunkListIds = GetChunkListIds(taskPart);
 
-        auto mainReq = batchReq->add_attach_chunk_trees_subrequests();
+        auto mainReq = proxy.AttachChunkTrees();
+        GenerateMutationId(mainReq);
+        SetSuppressUpstreamSync(&mainReq->Header(), true);
+
         ToProto(mainReq->mutable_parent_id(), chunkListIds[EChunkListContentType::Main]);
         for (const auto* chunkSpec : taskPart.ChunkSpecsToExport) {
             *mainReq->add_child_ids() = chunkSpec->chunk_id();
         }
         mainReq->set_request_statistics(true);
 
+        std::vector<TFuture<TChunkServiceProxy::TRspAttachChunkTreesPtr>> reqFutures;
+        reqFutures.push_back(mainReq->Invoke());
+
         if (taskPart.ShouldExportHunkChunks()) {
-            auto hunkReq = batchReq->add_attach_chunk_trees_subrequests();
+            auto hunkReq = proxy.AttachChunkTrees();
+            GenerateMutationId(hunkReq);
+            SetSuppressUpstreamSync(&hunkReq->Header(), true);
 
             ToProto(hunkReq->mutable_parent_id(), chunkListIds[EChunkListContentType::Hunk]);
             for (auto hunkChunkId : *taskPart.HunkChunkIdsToExport) {
                 ToProto(hunkReq->add_child_ids(), hunkChunkId);
             }
             hunkReq->set_request_statistics(true);
+
+            reqFutures.push_back(hunkReq->Invoke());
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto responsesOrError = WaitFor(AllSucceeded(std::move(reqFutures)));
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            responsesOrError,
             "Error attaching chunks to %v",
             taskPart.DestinationObject.GetPath());
 
-        const auto& batchRsp = batchRspOrError.Value();
-
-        const auto& mainRsp = batchRsp->attach_chunk_trees_subresponses(0);
-        taskPart.DataStatistics = mainRsp.statistics();
-        if (taskPart.ShouldExportHunkChunks()) {
-            YT_VERIFY(batchRsp->attach_chunk_trees_subresponses_size() == 2);
-            const auto& hunkRsp = batchRsp->attach_chunk_trees_subresponses(1);
-            taskPart.DataStatistics += hunkRsp.statistics();
+        taskPart.DataStatistics = {};
+        for (const auto& response : responsesOrError.Value()) {
+            taskPart.DataStatistics += response->statistics();
         }
 
         YT_TLOG_DEBUG("Finished chunk upload")

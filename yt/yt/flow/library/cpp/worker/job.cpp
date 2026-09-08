@@ -1,5 +1,7 @@
 #include "job.h"
 
+#include "lineage_tracker.h"
+
 #include "buffer_state_manager.h"
 #include "input_buffer.h"
 #include "job_spec.h"
@@ -832,6 +834,10 @@ private:
         computationContext->HttpClient = jobContext->HttpClient;
         computationContext->HttpsClient = jobContext->HttpsClient;
         computationContext->Poller = jobContext->Poller;
+        computationContext->JobLineageTracker = CreateJobLineageTracker(
+            jobContext->LineageTracker,
+            jobSpec->Partition->ComputationId,
+            jobSpec->ComputationSpec);
         auto dynamicComputationContext = New<TDynamicComputationContext>();
         dynamicComputationContext->SpecGeneration = specGeneration;
         dynamicComputationContext->DynamicComputationSpec = dynamicJobSpec->DynamicComputationSpec;

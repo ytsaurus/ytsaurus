@@ -342,6 +342,14 @@ func (d *WireDecoder) decodePrimitiveType(data any, t schema.Type, v *any) error
 		return d.decodeTimestamp(data, v)
 	case schema.TypeInterval:
 		return d.decodeInterval(data, v)
+	case schema.TypeDate32:
+		return d.decodeDate32(data, v)
+	case schema.TypeDatetime64:
+		return d.decodeDatetime64(data, v)
+	case schema.TypeTimestamp64:
+		return d.decodeTimestamp64(data, v)
+	case schema.TypeInterval64:
+		return d.decodeInterval64(data, v)
 	default:
 		*v = data
 		return nil
@@ -387,6 +395,38 @@ func (d *WireDecoder) decodeInterval(data any, v *any) error {
 		return nil
 	}
 	return fmt.Errorf("expected int64 for interval, got %T", data)
+}
+
+func (d *WireDecoder) decodeDate32(data any, v *any) error {
+	if date, ok := data.(int64); ok {
+		*v = date
+		return nil
+	}
+	return fmt.Errorf("expected int64 for date32, got %T", data)
+}
+
+func (d *WireDecoder) decodeDatetime64(data any, v *any) error {
+	if datetime, ok := data.(int64); ok {
+		*v = datetime
+		return nil
+	}
+	return fmt.Errorf("expected int64 for datetime64, got %T", data)
+}
+
+func (d *WireDecoder) decodeTimestamp64(data any, v *any) error {
+	if timestamp, ok := data.(int64); ok {
+		*v = timestamp
+		return nil
+	}
+	return fmt.Errorf("expected int64 for timestamp64, got %T", data)
+}
+
+func (d *WireDecoder) decodeInterval64(data any, v *any) error {
+	if interval, ok := data.(int64); ok {
+		*v = interval
+		return nil
+	}
+	return fmt.Errorf("expected int64 for interval64, got %T", data)
 }
 
 func (d *WireDecoder) decodeTimestamp(data any, v *any) error {

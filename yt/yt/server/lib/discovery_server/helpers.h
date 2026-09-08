@@ -24,6 +24,7 @@ struct TGossipMemberInfo
 
 void ToProto(NProto::TGossipMemberInfo* protoMemberInfo, const TGossipMemberInfo& MemberInfo);
 void FromProto(TGossipMemberInfo* memberInfo, const NProto::TGossipMemberInfo& protoMemberInfo);
+void FromProto(TGossipMemberInfo* memberInfo, NProto::TGossipMemberInfo&& protoMemberInfo);
 
 ////////////////////////////////////////////////////////////////////////////////
 

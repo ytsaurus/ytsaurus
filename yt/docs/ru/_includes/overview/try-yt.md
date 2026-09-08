@@ -263,7 +263,7 @@
 
   Если указанные ресурсы превышают лимит, который установлен в конфигурациях Podman, увеличьте этот лимит в разделе настроек.
 
-  ![](../../../images/try-yt-podman-settings.png)
+  ![](../../../_images/try-yt-podman-settings.png)
 
   {% endcut %}
 
@@ -686,7 +686,7 @@ $ yt create table //home/input_table --attributes '{schema = [{name = id; type =
 
 Посмотреть на созданную таблицу можно в веб-интерфейсе. Откройте в браузере адрес, который вы получили при запуске кластера, перейдите на вкладку **Navigation** и кликните на созданную таблицу:
 
-![](../../../images/try-yt-new-table.png)
+![](../../../_images/try-yt-new-table.png)
 
 ### 3. Запишите данные { #insert-data }
 
@@ -711,7 +711,7 @@ $ yt read-table //home/input_table --format json
 SELECT * FROM `//home/input_table`;
 ```
 
-![](../../../images/try-yt-hello-world-select.png)
+![](../../../_images/try-yt-hello-world-select.png)
 
 {% cut "Всплывает ошибка 'Attribute "cluster_name" is not found'" %}
 
@@ -721,7 +721,7 @@ SELECT * FROM `//home/input_table`;
 2. Нажмите иконку настроек — она находится справа в верхней части страницы. Удалите текущий **Settings**.
 3. Нажмите кнопку **Add setting** и в полях укажите значения: "cluster" и "primary" соответственно. Нажмите галочку.
 
-   ![](../../../images/try-yt-fix-ui-cluster.png)
+   ![](../../../_images/try-yt-fix-ui-cluster.png)
 
 Если вы поднимали {{product-name}} кластер через Minikube — пожалуйста, сообщите нам об этой ошибке в {% if lang == "ru" %}[community-чате](https://t.me/ytsaurus_ru){% else %}[коммьюнити чате](https://t.me/ytsaurus){% endif %}.
 
@@ -807,7 +807,7 @@ $ yt map-reduce --mapper "python3 word-count.py map" --reducer "python3 word-cou
 
 {% cut "Где найти этот раздел" %}
 
-![](../../../images/try-yt-operations.png)
+![](../../../_images/try-yt-operations.png)
 
 {% endcut %}
 
@@ -920,7 +920,7 @@ LIMIT 30;
 
 Ссылка на поднятый Jupyter Notebook будет в письме.
 
-![](../../../images/try-yt-jupyter.png)
+![](../../../_images/try-yt-jupyter.png)
 
 {% endcut %}
 
@@ -930,7 +930,7 @@ LIMIT 30;
 
 Ссылка на веб-интерфейс поднятого кластера будет в письме.
 
-![](../../../images/try-yt-ui.png)
+![](../../../_images/try-yt-ui.png)
 
 Про работу в веб-интерфейсе можно послушать в [ознакомительном вебинаре](https://youtu.be/LTKtY5okG4c?t=929) (начиная с минуты 15:30).
 
@@ -940,7 +940,7 @@ LIMIT 30;
 - **В DataLens**
   Здесь собраны примеры чартов, собранных из {{product-name}} таблиц.
 
-  ![](../../../images/try-yt-jupyter.png =500x400)
+  ![](../../../_images/try-yt-jupyter.png =500x400)
 
 
 

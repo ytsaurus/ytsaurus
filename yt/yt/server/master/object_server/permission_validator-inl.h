@@ -24,33 +24,23 @@ void THierarchicPermissionValidator<TObject>::ValidatePermission(
 {
     switch (scope) {
         case NYTree::EPermissionCheckScope::This:
-            return Underlying_->ValidatePermission(object, permission);
+            Underlying_->ValidatePermission(object, permission);
+            return;
         case NYTree::EPermissionCheckScope::Parent:
             if (auto parent = GetParentForPermissionValidation(object)) {
-                return Underlying_->ValidatePermission(parent, permission);
+                Underlying_->ValidatePermission(parent, permission);
             }
             return;
-        case NYTree::EPermissionCheckScope::Descendants:
-            return ValidatePermissionForSubtree(object, permission, /*descendantsOnly*/ true);
         case NYTree::EPermissionCheckScope::Subtree:
-            return ValidatePermissionForSubtree(object, permission);
+            Underlying_->ValidatePermission(object, permission);
+            [[fallthrough]];
+        case NYTree::EPermissionCheckScope::Descendants:
+            for (auto* descendant : ListDescendantsForPermissionValidation(object)) {
+                Underlying_->ValidatePermission(descendant, permission);
+            }
+            return;
         default:
             YT_ABORT();
-    }
-}
-
-template <class TObject>
-void THierarchicPermissionValidator<TObject>::ValidatePermissionForSubtree(
-    TObject* object,
-    NYTree::EPermission permission,
-    bool descendantsOnly)
-{
-    if (!descendantsOnly) {
-        Underlying_->ValidatePermission(object, permission);
-    }
-
-    for (auto descendant : ListDescendantsForPermissionValidation(object)) {
-        Underlying_->ValidatePermission(descendant, permission);
     }
 }
 

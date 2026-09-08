@@ -62,7 +62,7 @@ SPYT Connect работает в двух режимах — они опреде
 1. В поле **Settings** укажите [конфигурацию](#config) в формате JSON.
 1. Нажмите **Run** и дождитесь результата.
 
-![SPYT Connect в Query Tracker](../../../../../images/spyt-connect-qt-ui.png)
+![SPYT Connect в Query Tracker](../../../../../_images/spyt-connect-qt-ui.png)
 
 {% if audience == "internal" %}Пример минимальной конфигурации для прямого сабмита:
 
@@ -83,7 +83,7 @@ SPYT Connect работает в двух режимах — они опреде
 }
 ```
 
-![SPYT Connect с внутренним кластером](../../../../../images/spyt-connect-qt-ui-cluster.png)
+![SPYT Connect с внутренним кластером](../../../../../_images/spyt-connect-qt-ui-cluster.png)
 
 ### Через Query Tracker API {#qt-api}
 

@@ -26,8 +26,8 @@ ELSEIF (SANITIZER_TYPE)
     )
 ELSE()
     REQUIREMENTS(
-        cpu:22
-        ram:18
+        cpu:12
+        ram:14
     )
 ENDIF()
 

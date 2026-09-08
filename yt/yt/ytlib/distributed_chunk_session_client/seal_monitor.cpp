@@ -81,7 +81,7 @@ class TDistributedChunkSessionSealMonitor
 public:
     TDistributedChunkSessionSealMonitor(
         TDistributedChunkSessionSealMonitorConfigPtr config,
-        TSealSummaryFetchCallback fetchSealSummaries,
+        TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
         IInvokerPtr invoker,
         NLogging::TLogger logger)
         : Config_(std::move(config))
@@ -168,7 +168,7 @@ private:
     };
 
     TDistributedChunkSessionSealMonitorConfigPtr Config_;
-    const TSealSummaryFetchCallback FetchSealSummaries_;
+    const TDistributedChunkSessionSealSummaryFetchCallback FetchSealSummaries_;
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
 
@@ -606,7 +606,7 @@ void TDistributedChunkSessionSealSubscription::TrackChunks(
 
 IDistributedChunkSessionSealMonitorPtr CreateDistributedChunkSessionSealMonitor(
     TDistributedChunkSessionSealMonitorConfigPtr config,
-    TSealSummaryFetchCallback fetchSealSummaries,
+    TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
     IInvokerPtr invoker,
     NLogging::TLogger logger)
 {

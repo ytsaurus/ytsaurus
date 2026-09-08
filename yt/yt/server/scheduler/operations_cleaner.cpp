@@ -118,6 +118,7 @@ const std::vector<std::string>& TArchiveOperationRequest::GetAttributeKeys()
         "experiment_assignments",
         "provided_spec",
         "temporary_token_node_id",
+        "cumulative_spec_patch",
     };
 
     return attributeKeys;
@@ -411,6 +412,10 @@ TUnversionedOwningRow BuildOrderedByIdTableRow(
 
     if (version >= 52 && request.SchedulingAttributesPerPoolTree) {
         record.SchedulingAttributesPerPoolTree = request.SchedulingAttributesPerPoolTree;
+    }
+
+    if (version >= 69 && request.CumulativeSpecPatch) {
+        record.CumulativeSpecPatch = request.CumulativeSpecPatch;
     }
 
     return FromRecord(record);
@@ -785,6 +790,10 @@ public:
             result.FullSpec = initializationAttributes->FullSpec;
         }
 
+        if (const auto& cumulativeSpecPatch = operation->CumulativeSpecPatch()) {
+            result.CumulativeSpecPatch = ConvertToYsonString(cumulativeSpecPatch, EYsonFormat::Binary);
+        }
+
         result.DependentNodeIds = operation->GetDependentNodeIds();
 
         return result;
@@ -843,6 +852,8 @@ public:
         if (auto temporaryTokenNodeId = attributes.Find<TNodeId>("temporary_token_node_id")) {
             result.DependentNodeIds = {*temporaryTokenNodeId};
         }
+
+        result.CumulativeSpecPatch = attributes.FindYson("cumulative_spec_patch");
 
         return result;
     }

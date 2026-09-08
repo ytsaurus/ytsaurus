@@ -38,7 +38,7 @@ The prefix is not added if the table name is an absolute path (starts with /).
 | String | — | Static |
 | String, the name of the prefix appended to all modules | "" | Static |
 
-Importing all UDFs from the specified library. For the pragma to work, the library must be attached to the query using the ![ico](../../../../images/qt-ui-attach.png =30x30) icon. Please note that the library must be shared library (.so) and compiled for Linux x64.
+Importing all UDFs from the specified library. For the pragma to work, the library must be attached to the query using the ![ico](../../../../_images/qt-ui-attach.png =30x30) icon. Please note that the library must be shared library (.so) and compiled for Linux x64.
 
 When setting a prefix, it's appended before the names of all loaded modules, e.g. CustomPrefixIp::IsIPv4 instead of Ip::IsIPv4. Setting the prefix lets you use  different versions of the same UDF.
 

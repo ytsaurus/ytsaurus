@@ -11,5 +11,7 @@ Source: [yt/yt/flow/library/cpp/connectors/static_table_v2/spec.h]({{source-root
 || `format` | **Type**: [NYT::NFlow::ETimestampFormat](./all_yson_structs#NYT_NFlow_ETimestampFormat)
 **Default value**: `iso8601`
  ||
+|| `timezone` | **Type**: `std::optional<std::string>`
+Optional IANA time zone used to interpret ISO 8601 timestamps without an explicit UTC offset. Explicit offsets take precedence. The parameter can only be used with `format=iso8601`. If omitted, timestamps without an offset are interpreted as UTC for backward compatibility. ||
 |#
 

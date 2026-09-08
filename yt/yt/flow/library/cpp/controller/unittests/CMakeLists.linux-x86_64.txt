@@ -48,6 +48,7 @@ target_link_libraries(yt-flow-library-cpp-controller-unittests PUBLIC
   cpp-connectors-random
   library-cpp-computation
   library-cpp-common
+  library-cpp-partitioning
   library-query-engine
   client-unittests-mock
   yt-core-test_framework
@@ -77,6 +78,7 @@ target_sources(yt-flow-library-cpp-controller-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/dyntable_election_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/job_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/lineage_rate_aggregator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/partitioning_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/resource_balancer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/state_manager_ut.cpp

@@ -115,6 +115,8 @@ struct TJob
     : public NYTree::TYsonStruct
 {
     TJobId JobId;
+    //! Monotonically increasing fencing token; every subsequently created job for the same partition has a greater value.
+    TUniqueSeqNo Generation;
     std::string WorkerAddress;
     TIncarnationId WorkerIncarnationId;
     TPartitionId PartitionId;
@@ -385,6 +387,20 @@ DEFINE_REFCOUNTED_TYPE(TWorkerResourceStatus);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TWorkerStatistics
+    : public NYTree::TYsonStruct
+{
+    TLineageRates LineageRates;
+
+    REGISTER_YSON_STRUCT(TWorkerStatistics);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TWorkerStatistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TWorkerStatus
     : public NYTree::TYsonStruct
 {
@@ -394,6 +410,7 @@ struct TWorkerStatus
     TMessageDistributorStatusPtr MessageDistributorStatus;
     THashMap<TResourceId, TWorkerResourceStatusPtr> ResourceStatuses;
     THashMap<TResourceId, EPreloadedResourceState> PreloadedResourceStates;
+    TWorkerStatisticsPtr Statistics;
 
     REGISTER_YSON_STRUCT(TWorkerStatus);
 
@@ -820,6 +837,8 @@ struct TFlowEphemeralState
     TMessageTransferingInfoPtr MessageTransferingInfo;
     NYPath::TRichYPath PipelinePath;
     THashSet<TComputationId> TraverseUncoveredComputations;
+
+    TLineageRates LineageRates;
 
     THashMap<TResourceId, NYTree::IMapNodePtr> ResourceControllerViews;
 

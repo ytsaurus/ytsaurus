@@ -15,6 +15,7 @@ SRCS(
     job_balancer_result.cpp
     job_manager.cpp
     lease_manager.cpp
+    lineage_rate_aggregator.cpp
     persisted_state_manager.cpp
     private.cpp
     state_access.cpp
@@ -30,6 +31,7 @@ PEERDIR(
     library/cpp/containers/concurrent_hash_set
     library/cpp/getopt
     library/cpp/yson/node
+    library/cpp/yt/containers
     library/cpp/yt/memory
     yt/yt/core
     yt/yt/flow/library/cpp/pipeline_helpers/flow_execute
@@ -37,6 +39,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/controller/describe
     yt/yt/flow/library/cpp/distributed_throttler
     yt/yt/flow/library/cpp/misc
+    yt/yt/flow/library/cpp/partitioning
     yt/yt/flow/library/cpp/tables
     yt/yt/flow/library/cpp/client
     yt/yt/library/cypress_election

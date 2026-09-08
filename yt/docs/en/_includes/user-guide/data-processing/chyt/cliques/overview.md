@@ -10,7 +10,7 @@ The lifecycle is divided into two phases. In the preparation phase, you need to 
 
 The diagram below shows the stages of the clique lifecycle and transitions between them:
 
-![life cycle](../../../../../../images/schemeEN.png){ .center }
+![life cycle](../../../../../../_images/schemeEN.png){ .center }
 
 **Preparation for usage**
 

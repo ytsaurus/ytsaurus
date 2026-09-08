@@ -347,6 +347,7 @@ func decodeReflectPtr(r *Reader, v reflect.Value, opts *DecoderOptions) error {
 var (
 	textUnmarshalerType   = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
 	binaryUnmarshalerType = reflect.TypeOf((*encoding.BinaryUnmarshaler)(nil)).Elem()
+	genericMapType        = reflect.TypeOf((*map[string]any)(nil)).Elem()
 )
 
 func decodeReflectMap(r *Reader, v reflect.Value, attrs bool, opts *DecoderOptions) error {

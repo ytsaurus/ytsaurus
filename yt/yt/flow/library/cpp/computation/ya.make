@@ -11,6 +11,7 @@ SRCS(
     key_visitor.cpp
     static_table_key_visitor_joiner.cpp
     key_visitor_store.cpp
+    lineage_accumulator.cpp
     message_filter.cpp
     meta_setter.cpp
     ordered_source_computation_base.cpp
@@ -26,7 +27,6 @@ SRCS(
     swift_ordered_source_computation.cpp
     transform_computation.cpp
     transform_ordered_source_computation.cpp
-    universal_controller_helpers.cpp
     universal_controller.cpp
     watermark_aligner.cpp
     watermark_generator.cpp

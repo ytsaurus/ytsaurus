@@ -914,6 +914,14 @@ message TGeohashOption
     optional string source_geo_point_path = 2;
 }
 
+message TAddTagsToDescendantOption
+{
+    // Relative path to a descendant field, starting with '/'. The message root path '/' is not allowed.
+    optional string path = 1;
+    // Tags to add to the descendant field.
+    repeated string tags = 2;
+}
+
 message TJoinCondition
 {
     optional string object_attribute = 1;
@@ -945,7 +953,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31064.
+// Next field 31066.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -1066,6 +1074,10 @@ extend google.protobuf.FieldOptions
     // field in the subtree after |add_tags|, overriding any tags they add back via
     // |message_tags| or |add_tags|. The field itself keeps the tags.
     repeated string eliminate_tags_from_descendants = 31062;
+    // Tags to add to descendant fields at paths relative to this field and starting with '/'.
+    // The message root path '/' is not allowed.
+    // Added tags behave like |add_tags| declared directly on the descendant field.
+    repeated TAddTagsToDescendantOption add_tags_to_descendants = 31065;
 
     optional EUpdatePolicy update_policy = 31032;
     optional bool not_updatable = 31004;

@@ -28,6 +28,18 @@ constexpr int MaxThreads = 50;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Test helper: the per-resource even-load thresholds entry, created on first use.
+static TEvenLoadThresholdsPtr GetOrInsertEvenLoadThresholds(const TDynamicJobManagerSpecPtr& spec, EBalanceResource resource)
+{
+    auto& entry = spec->RebalanceEvenLoadThresholds[resource];
+    if (!entry) {
+        entry = New<TEvenLoadThresholds>();
+    }
+    return entry;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TSimpleComputation)
 
 struct TSimpleComputation
@@ -176,6 +188,7 @@ struct TThrowingTraverseComputationController
 
     TProcessPartitionTraverseDataResultPtr ProcessPartitionTraverseData(
         const THashMap<TPartitionId, TNodeTraverseDataPtr>& /*traverseData*/,
+        const TNodeTraverseDataPtr& /*currentTraverseData*/,
         const TFlowViewPtr& /*flowView*/) override
     {
         THROW_ERROR_EXCEPTION("Injected traverse failure");
@@ -876,6 +889,35 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TJobBalancerTest, JobGenerationIncreasesOnRecreation)
+{
+    Reset();
+    PrepareBalancerTest(/*workerCount*/ 1, {{/*PartitionCount*/ 1, {}}});
+    DistributeJobs();
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    ASSERT_EQ(layout->Partitions.size(), 1u);
+    const auto partitionId = layout->Partitions.begin()->first;
+    const auto& partition = layout->Partitions.at(partitionId);
+    ASSERT_TRUE(partition->CurrentJobId);
+    const auto oldJobId = *partition->CurrentJobId;
+    const auto oldGeneration = layout->Jobs.at(oldJobId)->Generation;
+    EXPECT_GT(oldGeneration.Underlying(), 0u);
+
+    FlowView->State->StartMutation();
+    layout->RemoveJob(oldJobId, EJobFinishReason::Rebalanced);
+    FlowView->State->CommitMutation();
+
+    DistributeJobs();
+
+    const auto& newPartition = layout->Partitions.at(partitionId);
+    ASSERT_TRUE(newPartition->CurrentJobId);
+    EXPECT_NE(*newPartition->CurrentJobId, oldJobId);
+    EXPECT_GT(layout->Jobs.at(*newPartition->CurrentJobId)->Generation, oldGeneration);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TJobManagerTest, PrepareNewComputation)
 {
     auto spec = New<TPipelineSpec>();
@@ -954,7 +996,6 @@ public:
             computationSpec->InputStreamIds.clear();
             computationSpec->KeyVisitorStreams["input"] = New<TKeyVisitorStreamSpec>();
         }
-
         auto dynamicSpec = New<TDynamicPipelineSpec>();
         dynamicSpec->JobManager->AsyncBalancing = false;
         for (const auto& computationId : {TComputationId("healthy"), TComputationId("broken")}) {
@@ -1009,6 +1050,27 @@ TEST_F(TTraverseIsolationTest, FailingComputationDoesNotFreezeOthers)
     EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("broken")), TSystemTimestamp(50));
 }
 
+TEST_F(TTraverseIsolationTest, SuccessfulComputationDoesNotRegressWatermark)
+{
+    PrepareTwoComputations();
+    FlowView->State->TraverseData->Computations[TComputationId("healthy")] =
+        MakeInputNode(/*epoch*/ 1, TSystemTimestamp(100));
+    FlowView->State->TraverseData->Computations[TComputationId("broken")] =
+        MakeInputNode(/*epoch*/ 0, TSystemTimestamp(50));
+
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId != TComputationId("healthy")) {
+            continue;
+        }
+        FlowView->Feedback->PartitionJobStatuses.at(partitionId)->LastTraverseData->Node =
+            MakeInputNode(/*epoch*/ 1, TSystemTimestamp(50));
+    }
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("healthy")), TSystemTimestamp(100));
+}
+
 TEST_F(TTraverseIsolationTest, FailingComputationWithoutPreviousDataAborts)
 {
     PrepareTwoComputations();
@@ -1029,6 +1091,171 @@ TEST_F(TTraverseIsolationTest, UnknownExecutionSpecComputationIsIgnored)
     EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("healthy")), TSystemTimestamp(100));
     EXPECT_EQ(GetInputWatermark(FlowView, TComputationId("broken")), TSystemTimestamp(50));
     EXPECT_FALSE(FlowView->State->TraverseData->Computations.contains(TComputationId("unknown")));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TInputSystemWatermarkTest
+    : public TJobManagerTest
+{
+public:
+    void PreparePipeline()
+    {
+        auto spec = New<TPipelineSpec>();
+        auto producerSpec = CreateGenericComputationSpec<TSimpleComputation>();
+        producerSpec->InputStreamIds.clear();
+        producerSpec->KeyVisitorStreams["source"] = New<TKeyVisitorStreamSpec>();
+        producerSpec->OutputStreamIds.insert("stream");
+        spec->Computations["producer"] = std::move(producerSpec);
+
+        auto consumerSpec = CreateGenericComputationSpec<TSimpleComputation>();
+        consumerSpec->InputStreamIds = {"stream"};
+        spec->Computations["consumer"] = std::move(consumerSpec);
+
+        auto dynamicSpec = New<TDynamicPipelineSpec>();
+        dynamicSpec->JobManager->AsyncBalancing = false;
+        for (const auto& computationId : {TComputationId("producer"), TComputationId("consumer")}) {
+            dynamicSpec->Computations[computationId] = New<TDynamicComputationSpec>();
+            dynamicSpec->Computations[computationId]->Parameters->AddChild(
+                "desired_partition_count",
+                NYTree::ConvertToNode(2u));
+        }
+
+        Prepare(spec, dynamicSpec);
+        FlowView->State->CurrentTimestamp = TSystemTimestamp(1000);
+        FlowView->State->StartMutation();
+        JobManager->DoPartitioning(FlowView);
+    }
+
+    void SetPartitionTraverseData(
+        const TComputationId& computationId,
+        const std::vector<i64>& epochs,
+        const std::vector<TSystemTimestamp>& watermarks)
+    {
+        std::vector<TPartitionId> partitionIds;
+        for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+            if (partition->ComputationId == computationId) {
+                partitionIds.push_back(partitionId);
+            }
+        }
+        Sort(partitionIds);
+
+        ASSERT_EQ(partitionIds.size(), epochs.size());
+        ASSERT_EQ(partitionIds.size(), watermarks.size());
+
+        for (size_t index = 0; index < partitionIds.size(); ++index) {
+            const auto& partitionId = partitionIds[index];
+            auto traverseData = New<TFromPartitionTraverseData>();
+            traverseData->Node = New<TNodeTraverseData>();
+            const auto& extendedSpec = GetOrCrash(
+                FlowView->State->ExecutionSpec->ExtendedPipelineSpec->GetValue()->Computations,
+                computationId);
+            for (const auto& streamId : extendedSpec->AllStreamIds) {
+                auto stream = New<TStreamTraverseData>();
+                stream->Epoch = epochs[index];
+                stream->SystemWatermark = watermarks[index];
+                stream->EventWatermark = watermarks[index];
+                traverseData->Node->Streams[streamId] = std::move(stream);
+            }
+
+            auto status = New<TPartitionJobStatus>();
+            status->LastTraverseData = std::move(traverseData);
+            FlowView->Feedback->PartitionJobStatuses[partitionId] = std::move(status);
+        }
+    }
+
+    TSystemTimestamp GetComputationStreamWatermark(
+        const TComputationId& computationId,
+        const TStreamId& streamId)
+    {
+        return GetOrCrash(
+            GetOrCrash(FlowView->State->TraverseData->Computations, computationId)->Streams,
+            streamId)
+            ->SystemWatermark;
+    }
+};
+
+TEST_F(TInputSystemWatermarkTest, AdvancesWithMixedOlderEpochs)
+{
+    PreparePipeline();
+    const auto currentEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+    ASSERT_GT(currentEpoch, 4);
+
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("producer", {currentEpoch - 1, currentEpoch - 2}, {TSystemTimestamp(450), TSystemTimestamp(250)}));
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("consumer", {currentEpoch - 3, currentEpoch - 4}, {TSystemTimestamp(400), TSystemTimestamp(300)}));
+    FlowView->State->TraverseData->InputSystemWatermark = TSystemTimestamp(100);
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_TRUE(FlowView->EphemeralState->TraverseUncoveredComputations.empty());
+    EXPECT_EQ(GetComputationStreamWatermark("producer", "stream"), TSystemTimestamp(250));
+    EXPECT_EQ(GetComputationStreamWatermark("consumer", "stream"), TSystemTimestamp(300));
+    EXPECT_EQ(FlowView->State->TraverseData->UnitedOutputStream->SystemWatermark, TSystemTimestamp(250));
+    EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(250));
+}
+
+TEST_F(TInputSystemWatermarkTest, DoesNotRetreatWithMixedOlderEpochs)
+{
+    PreparePipeline();
+    const auto currentEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+    ASSERT_GT(currentEpoch, 4);
+
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("producer", {currentEpoch - 1, currentEpoch - 2}, {TSystemTimestamp(450), TSystemTimestamp(250)}));
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("consumer", {currentEpoch - 3, currentEpoch - 4}, {TSystemTimestamp(400), TSystemTimestamp(300)}));
+    FlowView->State->TraverseData->InputSystemWatermark = TSystemTimestamp(275);
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(275));
+}
+
+TEST_F(TInputSystemWatermarkTest, DoesNotAdvanceWithoutFullPartitionCoverage)
+{
+    PreparePipeline();
+    const auto currentEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("producer", {currentEpoch - 1, currentEpoch - 2}, {TSystemTimestamp(450), TSystemTimestamp(250)}));
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("consumer", {currentEpoch - 3, currentEpoch - 4}, {TSystemTimestamp(400), TSystemTimestamp(300)}));
+    FlowView->State->TraverseData->InputSystemWatermark = TSystemTimestamp(100);
+
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId == TComputationId("consumer")) {
+            FlowView->State->ExecutionSpec->Layout->UpdatePartition(
+                partitionId,
+                EPartitionState::Interrupted,
+                currentEpoch,
+                TInstant::Now());
+            break;
+        }
+    }
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_EQ(FlowView->EphemeralState->TraverseUncoveredComputations, THashSet<TComputationId>{"consumer"});
+    EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(100));
+}
+
+TEST_F(TInputSystemWatermarkTest, DoesNotAdvanceWithoutPartitionTraverseData)
+{
+    PreparePipeline();
+    const auto currentEpoch = FlowView->State->ExecutionSpec->GetEpoch();
+
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("producer", {currentEpoch - 1, currentEpoch - 2}, {TSystemTimestamp(450), TSystemTimestamp(250)}));
+    ASSERT_NO_FATAL_FAILURE(SetPartitionTraverseData("consumer", {currentEpoch - 3, currentEpoch - 4}, {TSystemTimestamp(400), TSystemTimestamp(300)}));
+    FlowView->State->TraverseData->InputSystemWatermark = TSystemTimestamp(100);
+
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        if (partition->ComputationId == TComputationId("consumer")) {
+            ASSERT_EQ(partition->State, EPartitionState::Executing);
+            GetOrCrash(FlowView->Feedback->PartitionJobStatuses, partitionId)->LastTraverseData = nullptr;
+            break;
+        }
+    }
+
+    JobManager->AggregateTraverseData(FlowView);
+
+    EXPECT_TRUE(FlowView->EphemeralState->TraverseUncoveredComputations.empty());
+    EXPECT_EQ(FlowView->State->TraverseData->InputSystemWatermark, TSystemTimestamp(100));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1168,6 +1395,653 @@ TEST_F(TJobBalancerTest, StrayManyOnePartitionComputations)
     }
     ASSERT_LE(maxCount - minCount, 1)
         << "one-partition computations are not spread across workers: max=" << maxCount << " min=" << minCount;
+}
+
+//! Memory-weighted balancing: two workers hold two partitions each (CPU perfectly even), but both
+//! memory-heavy partitions sit on the same worker. With a nonzero memory weight the balancer must
+//! notice the memory imbalance (including in the even-load gate, where CPU is even) and swap a
+//! heavy partition with a light one. With default weights (memory = 0) the same layout must be
+//! left untouched — see the control test below.
+TEST_F(TJobBalancerTest, MemoryWeightedBalancingSpreadsMemoryHeavyPartitions)
+{
+    constexpr double HeavyMemory = 1e10;
+    constexpr double LightMemory = 1e9;
+
+    PrepareBalancerTest(/*workerCount*/ 2, {TComputationDescription{/*PartitionCount*/ 4, {}}});
+    DistributeJobs();
+    SetCpuLoadUniform();
+    DistributeJobs();
+    ASSERT_EQ(GetMinMaxDiffJobCount(), 0) << "Expected an even 2+2 initial placement";
+
+    // Make both partitions of worker 0 memory-heavy and both partitions of worker 1 light.
+    THashMap<TPartitionId, double> memoryByPartition;
+    for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+        memoryByPartition[job->PartitionId] = job->WorkerAddress == GetWorkerAddress(0) ? HeavyMemory : LightMemory;
+    }
+
+    auto setLoads = [&] {
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            auto status = New<TPartitionJobStatus>();
+            status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
+            status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memoryByPartition.at(job->PartitionId);
+            status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+            FlowView->Feedback->PartitionJobStatuses[job->PartitionId] = status;
+        }
+    };
+
+    auto memoryDiff = [&] {
+        THashMap<std::string, double> memoryOnWorker;
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            memoryOnWorker[job->WorkerAddress] += memoryByPartition.at(job->PartitionId);
+        }
+        const auto& range = memoryOnWorker | std::views::values;
+        return std::ranges::max(range) - std::ranges::min(range);
+    };
+    ASSERT_GE(memoryDiff(), HeavyMemory) << "Test setup must produce a memory imbalance";
+
+    // Weight memory in and enable the production even-load gate: CPU is perfectly even, so only
+    // the memory measures can open it.
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    for (int i = 0; i < 30; ++i) {
+        setLoads();
+        DistributeJobs();
+    }
+
+    EXPECT_LE(memoryDiff(), HeavyMemory - LightMemory)
+        << "Memory-weighted balancing must split the memory-heavy partitions across workers";
+}
+
+//! A CPU-unweighted config ({cpu: 0, memory: 1}) is allowed by the spec and must balance by memory
+//! alone: bottleneck routing must not fall back to the zero-weighted CPU.
+TEST_F(TJobBalancerTest, CpuUnweightedConfigBalancesByMemory)
+{
+    constexpr double HeavyMemory = 1e10;
+    constexpr double LightMemory = 1e9;
+
+    PrepareBalancerTest(/*workerCount*/ 2, {TComputationDescription{/*PartitionCount*/ 4, {}}});
+    DistributeJobs();
+    SetCpuLoadUniform();
+    DistributeJobs();
+    ASSERT_EQ(GetMinMaxDiffJobCount(), 0) << "Expected an even 2+2 initial placement";
+
+    THashMap<TPartitionId, double> memoryByPartition;
+    for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+        memoryByPartition[job->PartitionId] = job->WorkerAddress == GetWorkerAddress(0) ? HeavyMemory : LightMemory;
+    }
+
+    auto setLoads = [&] {
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            auto status = New<TPartitionJobStatus>();
+            status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
+            status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memoryByPartition.at(job->PartitionId);
+            status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+            FlowView->Feedback->PartitionJobStatuses[job->PartitionId] = status;
+        }
+    };
+
+    auto memoryDiff = [&] {
+        THashMap<std::string, double> memoryOnWorker;
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            memoryOnWorker[job->WorkerAddress] += memoryByPartition.at(job->PartitionId);
+        }
+        const auto& range = memoryOnWorker | std::views::values;
+        return std::ranges::max(range) - std::ranges::min(range);
+    };
+    ASSERT_GE(memoryDiff(), HeavyMemory) << "Test setup must produce a memory imbalance";
+
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Cpu] = 0.0;
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    for (int i = 0; i < 30; ++i) {
+        setLoads();
+        DistributeJobs();
+    }
+
+    EXPECT_LE(memoryDiff(), HeavyMemory - LightMemory)
+        << "A CPU-unweighted config must still split the memory-heavy partitions across workers";
+}
+
+//! Cross-computation memory relief for single-partition computations. Four computations of one
+//! partition each are placed two-and-two on two workers (CPU and count perfectly even), but both
+//! memory-heavy partitions sit on the same worker. A single-partition computation cannot be balanced
+//! within itself (nothing to swap), and the count-based overcount kick is blind to it, so only the
+//! worker-centric resource relief in the slow path can even the memory out. With default weights
+//! (memory = 0) the same layout must be left untouched (control test below).
+TEST_F(TJobBalancerTest, MemoryReliefSpreadsSinglePartitionComputations)
+{
+    constexpr double HeavyMemory = 1e10;
+    constexpr double LightMemory = 1e9;
+
+    std::vector<TComputationDescription> computationDescriptions(4, TComputationDescription{/*PartitionCount*/ 1, {}});
+    PrepareBalancerTest(/*workerCount*/ 2, computationDescriptions);
+    DistributeJobs();
+    SetCpuLoadUniform();
+    DistributeJobs();
+    ASSERT_EQ(GetMinMaxDiffJobCount(), 0) << "Expected an even 2+2 initial placement";
+
+    // Whatever landed on worker 0 is memory-heavy, worker 1 is light: a pure memory imbalance with
+    // even CPU and even count.
+    THashMap<TPartitionId, double> memoryByPartition;
+    for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+        memoryByPartition[job->PartitionId] = job->WorkerAddress == GetWorkerAddress(0) ? HeavyMemory : LightMemory;
+    }
+
+    auto setLoads = [&] {
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            auto status = New<TPartitionJobStatus>();
+            status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
+            status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memoryByPartition.at(job->PartitionId);
+            status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+            FlowView->Feedback->PartitionJobStatuses[job->PartitionId] = status;
+        }
+    };
+
+    auto memoryDiff = [&] {
+        THashMap<std::string, double> memoryOnWorker;
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            memoryOnWorker[job->WorkerAddress] += memoryByPartition.at(job->PartitionId);
+        }
+        const auto& range = memoryOnWorker | std::views::values;
+        return std::ranges::max(range) - std::ranges::min(range);
+    };
+    ASSERT_GE(memoryDiff(), HeavyMemory) << "Test setup must produce a memory imbalance";
+
+    // Weight memory in and enable the production even-load gate: CPU is even, so only the memory
+    // measures can open it.
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    for (int i = 0; i < 30; ++i) {
+        setLoads();
+        DistributeJobs();
+    }
+
+    EXPECT_LE(memoryDiff(), HeavyMemory - LightMemory)
+        << "Worker-centric memory relief must spread the memory-heavy single-partition computations";
+}
+
+//! A computation capped on the destination worker must not block the memory relief for other
+//! computations: the top candidate (12G, its computation already at the destination's count cap)
+//! is skipped and the next candidate (10G, another computation with room) moves instead.
+TEST_F(TJobBalancerTest, MemoryReliefSkipsCappedComputationCandidate)
+{
+    constexpr double Gigabyte = 1e9;
+
+    // Computation 0: two partitions split across the workers (so the destination is at its count
+    // cap for it); computation 1: two partitions, both on worker 0.
+    PrepareBalancerTest(
+        /*workerCount*/ 2,
+        {
+            TComputationDescription{/*PartitionCount*/ 2, {}},
+            TComputationDescription{/*PartitionCount*/ 2, {}},
+        });
+
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    THashMap<TComputationId, std::vector<TPartitionId>> partitionsByComputation;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        partitionsByComputation[partition->ComputationId].push_back(partitionId);
+    }
+    for (auto& [computationId, partitions] : partitionsByComputation) {
+        std::ranges::sort(partitions);
+    }
+    const auto& capped = partitionsByComputation.at(GetComputationId(0));
+    const auto& movable = partitionsByComputation.at(GetComputationId(1));
+
+    // Memory per partition and initial pinning: worker 0 holds 12G (capped computation) + 10G +
+    // 0.5G, worker 1 holds the capped computation's other 8G partition.
+    THashMap<TPartitionId, double> memoryByPartition;
+    THashMap<TPartitionId, std::string> pinnedWorker;
+    memoryByPartition[capped[0]] = 12 * Gigabyte;
+    pinnedWorker[capped[0]] = GetWorkerAddress(0);
+    memoryByPartition[capped[1]] = 8 * Gigabyte;
+    pinnedWorker[capped[1]] = GetWorkerAddress(1);
+    memoryByPartition[movable[0]] = 10 * Gigabyte;
+    pinnedWorker[movable[0]] = GetWorkerAddress(0);
+    memoryByPartition[movable[1]] = 0.5 * Gigabyte;
+    pinnedWorker[movable[1]] = GetWorkerAddress(0);
+
+    {
+        FlowView->State->StartMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        for (const auto& [partitionId, workerAddress] : pinnedWorker) {
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = workerAddress;
+            job->WorkerIncarnationId = FlowView->State->Workers.at(workerAddress)->IncarnationId;
+            job->PartitionId = partitionId;
+            layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+
+    auto setLoads = [&] {
+        for (const auto& [partitionId, memory] : memoryByPartition) {
+            auto status = New<TPartitionJobStatus>();
+            status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
+            status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memory;
+            status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+            FlowView->Feedback->PartitionJobStatuses[partitionId] = status;
+        }
+    };
+
+    auto memoryDiff = [&] {
+        THashMap<std::string, double> memoryOnWorker;
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            memoryOnWorker[job->WorkerAddress] += memoryByPartition.at(job->PartitionId);
+        }
+        const auto& range = memoryOnWorker | std::views::values;
+        return std::ranges::max(range) - std::ranges::min(range);
+    };
+    ASSERT_GE(memoryDiff(), 14 * Gigabyte) << "Test setup must produce a memory imbalance";
+
+    auto workerOf = [&] (const TPartitionId& partitionId) {
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        return layout->Jobs.at(*layout->Partitions.at(partitionId)->CurrentJobId)->WorkerAddress;
+    };
+
+    for (int i = 0; i < 5; ++i) {
+        setLoads();
+        DistributeJobs();
+    }
+
+    EXPECT_EQ(workerOf(movable[0]), GetWorkerAddress(1))
+        << "The 10G partition of the uncapped computation must move despite the capped 12G candidate";
+    EXPECT_EQ(workerOf(capped[0]), GetWorkerAddress(0))
+        << "The capped computation's partition must stay in place";
+    EXPECT_LE(memoryDiff(), 6 * Gigabyte)
+        << "Relief must narrow the memory spread by moving the uncapped candidate";
+}
+
+//! Memory relief must converge on more than two workers: three heavy single-partition computations
+//! piled on one worker of three spread out until the extremes are within tolerance.
+TEST_F(TJobBalancerTest, MemoryReliefConvergesAcrossThreeWorkers)
+{
+    constexpr double Gigabyte = 1e9;
+
+    std::vector<TComputationDescription> computationDescriptions(6, TComputationDescription{/*PartitionCount*/ 1, {}});
+    PrepareBalancerTest(/*workerCount*/ 3, computationDescriptions);
+
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    // Worker 0 gets three 10G partitions, worker 1 two 1G partitions, worker 2 one 1G partition.
+    std::vector<TPartitionId> partitionIds;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        partitionIds.push_back(partitionId);
+    }
+    std::ranges::sort(partitionIds);
+    THashMap<TPartitionId, double> memoryByPartition;
+    THashMap<TPartitionId, std::string> pinnedWorker;
+    for (int i = 0; i < std::ssize(partitionIds); ++i) {
+        memoryByPartition[partitionIds[i]] = (i < 3 ? 10 : 1) * Gigabyte;
+        pinnedWorker[partitionIds[i]] = GetWorkerAddress(i < 3 ? 0 : (i < 5 ? 1 : 2));
+    }
+
+    {
+        FlowView->State->StartMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        for (const auto& [partitionId, workerAddress] : pinnedWorker) {
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = workerAddress;
+            job->WorkerIncarnationId = FlowView->State->Workers.at(workerAddress)->IncarnationId;
+            job->PartitionId = partitionId;
+            layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+
+    auto setLoads = [&] {
+        for (const auto& [partitionId, memory] : memoryByPartition) {
+            auto status = New<TPartitionJobStatus>();
+            status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
+            status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memory;
+            status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+            FlowView->Feedback->PartitionJobStatuses[partitionId] = status;
+        }
+    };
+
+    auto memoryDiff = [&] {
+        THashMap<std::string, double> memoryOnWorker;
+        for (const auto& [workerAddress, worker] : FlowView->State->Workers) {
+            memoryOnWorker[workerAddress] = 0.;
+        }
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            memoryOnWorker[job->WorkerAddress] += memoryByPartition.at(job->PartitionId);
+        }
+        const auto& range = memoryOnWorker | std::views::values;
+        return std::ranges::max(range) - std::ranges::min(range);
+    };
+    ASSERT_GE(memoryDiff(), 29 * Gigabyte) << "Test setup must produce a memory imbalance";
+
+    for (int i = 0; i < 5; ++i) {
+        setLoads();
+        DistributeJobs();
+    }
+
+    EXPECT_LE(memoryDiff(), 3 * Gigabyte)
+        << "Relief must spread the heavy partitions across all three workers";
+}
+
+//! The overcount kick fires on the count trigger, but must pick the eviction along the worker's
+//! most overloaded weighted resource: on a memory-choked worker the memory monster goes first, not
+//! whatever partition happens to match the CPU fit (all partitions here have identical CPU).
+TEST_F(TJobBalancerTest, OvercountKickEvictsAlongOverloadedResource)
+{
+    constexpr double MonsterMemory = 16e9;
+    constexpr double LightMemory = 1e9;
+
+    PrepareBalancerTest(/*workerCount*/ 2, {TComputationDescription{/*PartitionCount*/ 5, {}}});
+
+    // Weight memory in before any placement happens. Neutralize the slow path (its improvement
+    // threshold becomes unreachable) so the final placement is attributable to the kick alone.
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        dynamicSpec->JobManager->RebalanceTargetDeviation = 1e9;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    // Assign four partitions (including the future memory monster) to worker 0 and one to
+    // worker 1: worker 0 is over the count cap (target 2.5, cap floor(2.5)+1 = 3), so the kick
+    // must evict exactly one of its partitions.
+    std::vector<TPartitionId> partitionIds;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        partitionIds.push_back(partitionId);
+    }
+    std::ranges::sort(partitionIds);
+    TPartitionId monsterId = partitionIds[0];
+    {
+        FlowView->State->StartMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        for (int i = 0; i < std::ssize(partitionIds); ++i) {
+            std::string workerAddress = GetWorkerAddress(i < 4 ? 0 : 1);
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = workerAddress;
+            job->WorkerIncarnationId = FlowView->State->Workers.at(workerAddress)->IncarnationId;
+            job->PartitionId = partitionIds[i];
+            layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+
+    // Uniform CPU (so the CPU fit cannot distinguish partitions), one memory monster on worker 0.
+    for (const auto& partitionId : partitionIds) {
+        auto status = New<TPartitionJobStatus>();
+        status->CurrentJobStatus = New<TJobStatus>();
+        status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
+        status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = partitionId == monsterId ? MonsterMemory : LightMemory;
+        status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+        FlowView->Feedback->PartitionJobStatuses[partitionId] = status;
+    }
+
+    DistributeJobs();
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    const auto& monster = layout->Partitions.at(monsterId);
+    ASSERT_TRUE(monster->CurrentJobId.has_value());
+    EXPECT_EQ(layout->Jobs.at(*monster->CurrentJobId)->WorkerAddress, GetWorkerAddress(1))
+        << "The kick must evict the memory monster from the memory-overloaded worker";
+    EXPECT_EQ(GetMinMaxDiffJobCount(), 1) << "Exactly one partition must have been kicked";
+}
+
+//! Shape-aware stray placement (fast path, phase 1): worker 0 already runs a CPU-heavy resident,
+//! worker 1 a memory-heavy one. Of the two stray partitions the CPU-heavy one must land on the
+//! CPU-free worker 1 and the memory-heavy one on the memory-free worker 0. The old CPU-only fit
+//! could not tell these strays' placements apart.
+TEST_F(TJobBalancerTest, StrayPlacementRoutesByPartitionShape)
+{
+    constexpr double HeavyMemory = 16e9;
+    constexpr double LightMemory = 1e6;
+    constexpr double CpuFactor = 4.0;
+
+    // Computations: 0 = resident CPU hog, 1 = resident memory hog, 2 = the two strays.
+    PrepareBalancerTest(
+        /*workerCount*/ 2,
+        {
+            TComputationDescription{/*PartitionCount*/ 1, {}},
+            TComputationDescription{/*PartitionCount*/ 1, {}},
+            TComputationDescription{/*PartitionCount*/ 2, {}},
+        });
+
+    // Weight memory in and neutralize the slow path so the placement is phase-1's alone.
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        dynamicSpec->JobManager->RebalanceTargetDeviation = 1e9;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    // Pin the residents: computation 0 on worker 0, computation 1 on worker 1.
+    THashMap<TComputationId, std::vector<TPartitionId>> partitionsByComputation;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        partitionsByComputation[partition->ComputationId].push_back(partitionId);
+    }
+    {
+        FlowView->State->StartMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        for (int i = 0; i < 2; ++i) {
+            std::string workerAddress = GetWorkerAddress(i);
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = workerAddress;
+            job->WorkerIncarnationId = FlowView->State->Workers.at(workerAddress)->IncarnationId;
+            job->PartitionId = partitionsByComputation.at(GetComputationId(i))[0];
+            layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+
+    auto strays = partitionsByComputation.at(GetComputationId(2));
+    std::ranges::sort(strays);
+    TPartitionId strayCpuHeavy = strays[0];
+    TPartitionId strayMemoryHeavy = strays[1];
+
+    auto setLoad = [&] (const TPartitionId& partitionId, double cpu, double memory) {
+        auto status = New<TPartitionJobStatus>();
+        status->CurrentJobStatus = New<TJobStatus>();
+        status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = cpu;
+        status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memory;
+        status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+        FlowView->Feedback->PartitionJobStatuses[partitionId] = status;
+    };
+    setLoad(partitionsByComputation.at(GetComputationId(0))[0], CpuFactor * BaseCpuLoad, LightMemory);
+    setLoad(partitionsByComputation.at(GetComputationId(1))[0], BaseCpuLoad, HeavyMemory);
+    setLoad(strayCpuHeavy, CpuFactor * BaseCpuLoad, LightMemory);
+    setLoad(strayMemoryHeavy, BaseCpuLoad, HeavyMemory);
+
+    DistributeJobs();
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    auto workerOf = [&] (const TPartitionId& partitionId) {
+        const auto& partition = layout->Partitions.at(partitionId);
+        return layout->Jobs.at(*partition->CurrentJobId)->WorkerAddress;
+    };
+    EXPECT_EQ(workerOf(strayCpuHeavy), GetWorkerAddress(1))
+        << "The CPU-heavy stray must land on the worker free of CPU load";
+    EXPECT_EQ(workerOf(strayMemoryHeavy), GetWorkerAddress(0))
+        << "The memory-heavy stray must land on the worker free of memory load";
+}
+
+//! Slow-balancing swap partner selection follows the moved partition's bottleneck resource.
+//! Counts are at the cap on both workers (moves are rejected), so only swaps can fix the memory
+//! imbalance, and all partitions have identical CPU: only the memory-routed partner search finds
+//! the partner whose size actually evens the memory out. Expected converged state: one 8G
+//! partition swapped for the 5G one, memory 17G/8G -> 14G/11G, and no further profitable swaps.
+TEST_F(TJobBalancerTest, SlowBalancingSwapPartnerFollowsBottleneckResource)
+{
+    constexpr double Gigabyte = 1e9;
+
+    // Computations: 0 and 1 are balanced background residents, 2 is the swap-only playground.
+    PrepareBalancerTest(
+        /*workerCount*/ 2,
+        {
+            TComputationDescription{/*PartitionCount*/ 1, {}},
+            TComputationDescription{/*PartitionCount*/ 1, {}},
+            TComputationDescription{/*PartitionCount*/ 5, {}},
+        });
+
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    THashMap<TComputationId, std::vector<TPartitionId>> partitionsByComputation;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        partitionsByComputation[partition->ComputationId].push_back(partitionId);
+    }
+    auto playground = partitionsByComputation.at(GetComputationId(2));
+    std::ranges::sort(playground);
+
+    // Memory per playground partition; the first two (the 8G ones) go to worker 0, the rest to
+    // worker 1. The count target is 2.5 per worker, so worker 1 (3 partitions) is at the movement
+    // cap and worker 0 (2 partitions) reaches it after any move: swaps are the only way out.
+    THashMap<TPartitionId, double> memoryByPartition;
+    THashMap<TPartitionId, std::string> pinnedWorker;
+    const std::vector<double> playgroundMemory{8 * Gigabyte, 8 * Gigabyte, 5 * Gigabyte, 1 * Gigabyte, 1 * Gigabyte};
+    for (int i = 0; i < std::ssize(playground); ++i) {
+        memoryByPartition[playground[i]] = playgroundMemory[i];
+        pinnedWorker[playground[i]] = GetWorkerAddress(i < 2 ? 0 : 1);
+    }
+    for (int i = 0; i < 2; ++i) {
+        const auto& residentId = partitionsByComputation.at(GetComputationId(i))[0];
+        memoryByPartition[residentId] = 1 * Gigabyte;
+        pinnedWorker[residentId] = GetWorkerAddress(i);
+    }
+
+    {
+        FlowView->State->StartMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        for (const auto& [partitionId, workerAddress] : pinnedWorker) {
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = workerAddress;
+            job->WorkerIncarnationId = FlowView->State->Workers.at(workerAddress)->IncarnationId;
+            job->PartitionId = partitionId;
+            layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+
+    auto setLoads = [&] {
+        for (const auto& [partitionId, memory] : memoryByPartition) {
+            auto status = New<TPartitionJobStatus>();
+            status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
+            status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memory;
+            status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+            FlowView->Feedback->PartitionJobStatuses[partitionId] = status;
+        }
+    };
+
+    auto memoryDiff = [&] {
+        THashMap<std::string, double> memoryOnWorker;
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            memoryOnWorker[job->WorkerAddress] += memoryByPartition.at(job->PartitionId);
+        }
+        const auto& range = memoryOnWorker | std::views::values;
+        return std::ranges::max(range) - std::ranges::min(range);
+    };
+    ASSERT_EQ(memoryDiff(), 9 * Gigabyte) << "Test setup must produce the expected memory imbalance";
+
+    for (int i = 0; i < 10; ++i) {
+        setLoads();
+        DistributeJobs();
+    }
+
+    // The 8G <-> 5G swap brings the memory diff from 9G down to 3G; the CPU-blind partner choice
+    // hits a 1G partition instead, which converges worse.
+    EXPECT_LE(memoryDiff(), 3 * Gigabyte)
+        << "Swap partner search must be routed by the partition's bottleneck resource";
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    const auto& fiveGigPartition = layout->Partitions.at(playground[2]);
+    ASSERT_TRUE(fiveGigPartition->CurrentJobId.has_value());
+    EXPECT_EQ(layout->Jobs.at(*fiveGigPartition->CurrentJobId)->WorkerAddress, GetWorkerAddress(0))
+        << "The 5G partition is the memory-routed swap partner and must have moved to worker 0";
+}
+
+//! Control for the test above: the same memory-imbalanced (but CPU-even) layout with the default
+//! weights (memory = 0) must not be touched at all — the memory dimension is invisible.
+TEST_F(TJobBalancerTest, MemoryUnweightedBalancingIgnoresMemory)
+{
+    constexpr double HeavyMemory = 1e10;
+    constexpr double LightMemory = 1e9;
+
+    PrepareBalancerTest(/*workerCount*/ 2, {TComputationDescription{/*PartitionCount*/ 4, {}}});
+    DistributeJobs();
+    SetCpuLoadUniform();
+    DistributeJobs();
+    ASSERT_EQ(GetMinMaxDiffJobCount(), 0) << "Expected an even 2+2 initial placement";
+
+    THashMap<TPartitionId, double> memoryByPartition;
+    for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+        memoryByPartition[job->PartitionId] = job->WorkerAddress == GetWorkerAddress(0) ? HeavyMemory : LightMemory;
+    }
+
+    auto setLoads = [&] {
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            auto status = New<TPartitionJobStatus>();
+            status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = BaseCpuLoad;
+            status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = memoryByPartition.at(job->PartitionId);
+            status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+            FlowView->Feedback->PartitionJobStatuses[job->PartitionId] = status;
+        }
+    };
+
+    auto currentPlacement = [&] {
+        THashMap<TPartitionId, std::string> result;
+        for (const auto& [jobId, job] : FlowView->State->ExecutionSpec->Layout->Jobs) {
+            result[job->PartitionId] = job->WorkerAddress;
+        }
+        return result;
+    };
+
+    // Default weights ({cpu: 1, memory: 0}), production even-load gate: CPU is even, memory has
+    // zero weight, so the gate must stay closed and nothing may move.
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+
+    auto placementBefore = currentPlacement();
+    for (int i = 0; i < 10; ++i) {
+        setLoads();
+        DistributeJobs();
+    }
+
+    EXPECT_EQ(currentPlacement(), placementBefore)
+        << "With zero memory weight the memory imbalance must be invisible to the balancer";
 }
 
 TEST_F(TJobBalancerTest, SlowWorker)
@@ -1663,6 +2537,7 @@ TEST_F(TJobBalancerTest, GracefulShutdownErrorJobCompletesOnTargetWorker)
         for (const auto& [partitionId, partition] : layout->Partitions) {
             auto job = New<TJob>();
             job->JobId = TJobId(TGuid::Create());
+            job->Generation = TUniqueSeqNo(1);
             job->WorkerAddress = GetWorkerAddress(0);
             job->WorkerIncarnationId = FlowView->State->Workers.at(GetWorkerAddress(0))->IncarnationId;
             job->PartitionId = partitionId;
@@ -1715,6 +2590,7 @@ TEST_F(TJobBalancerTest, GracefulShutdownErrorJobCompletesOnTargetWorker)
         const auto& newJob = layout->Jobs.at(*partition->CurrentJobId);
         EXPECT_EQ(newJob->WorkerAddress, GetWorkerAddress(1))
             << "New job must be on the target worker after graceful rebalance";
+        EXPECT_GT(newJob->Generation, TUniqueSeqNo(1));
     }
 }
 
@@ -2087,8 +2963,8 @@ TEST_F(TJobBalancerTest, RebalanceMinCpuSpreadSuppressesSlowActionsWhenBelowThre
     // This ensures slow actions are suppressed from the very first iteration.
     {
         auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
-        dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt; // Enable the even-load gate.
-        dynamicSpec->JobManager->RebalanceMinCpuSpread = 1e9;        // Impossibly large threshold.
+        dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt;                                 // Enable the even-load gate.
+        GetOrInsertEvenLoadThresholds(dynamicSpec->JobManager, EBalanceResource::Cpu)->Spread = 1e9; // Impossibly large threshold.
         JobManager->Reconfigure(dynamicSpec);
     }
 
@@ -2183,7 +3059,7 @@ TEST_F(TJobBalancerTest, RebalanceMinCpuSpreadTransitionFromSuppressedToAllowed)
     {
         auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
         dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt; // Enable the even-load gate.
-        dynamicSpec->JobManager->RebalanceMinCpuSpread = 1e9;
+        GetOrInsertEvenLoadThresholds(dynamicSpec->JobManager, EBalanceResource::Cpu)->Spread = 1e9;
         JobManager->Reconfigure(dynamicSpec);
     }
 
@@ -2251,9 +3127,9 @@ TEST_F(TJobBalancerTest, RebalanceMinCpuSpreadTransitionAcrossIntermediateThresh
     // Phase 1: threshold above the actual spread => slow actions suppressed.
     {
         auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
-        dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt; // Enable the even-load gate.
-        dynamicSpec->JobManager->RebalanceMinCpuRatio = 1.0;         // Make the spread the only binding criterion.
-        dynamicSpec->JobManager->RebalanceMinCpuSpread = 250.0;
+        dynamicSpec->JobManager->DisableEvenLoadGate = std::nullopt;                                // Enable the even-load gate.
+        GetOrInsertEvenLoadThresholds(dynamicSpec->JobManager, EBalanceResource::Cpu)->Ratio = 1.0; // Make the spread the only binding criterion.
+        GetOrInsertEvenLoadThresholds(dynamicSpec->JobManager, EBalanceResource::Cpu)->Spread = 250.0;
         JobManager->Reconfigure(dynamicSpec);
     }
 
@@ -2283,7 +3159,7 @@ TEST_F(TJobBalancerTest, RebalanceMinCpuSpreadTransitionAcrossIntermediateThresh
     // Phase 2: lower threshold below the current spread => slow actions allowed.
     {
         auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
-        dynamicSpec->JobManager->RebalanceMinCpuSpread = 150.0;
+        GetOrInsertEvenLoadThresholds(dynamicSpec->JobManager, EBalanceResource::Cpu)->Spread = 150.0;
         JobManager->Reconfigure(dynamicSpec);
     }
 

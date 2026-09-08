@@ -447,6 +447,7 @@ public:
 
         EXPECT_TRUE(Host_->LoadingFromSnapshotRequested());
         Host_->SetSnapshot(TReplicatedTableTrackerSnapshot());
+        WaitForSnapshotLoaded();
         WaitForUpdatesFromTracker();
         EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
         Host_->ResetSnapshotPromise();
@@ -570,6 +571,21 @@ public:
     {
         // NB: We need a few check iterations to warm Rtt up, invoking all checks for the first time.
         DoWaitForTracker(WarmUpIterationCount);
+    }
+
+    void WaitForSnapshotLoaded()
+    {
+        // DoWaitForTracker intentionally stops once RTT requests a snapshot, so it cannot
+        // be used to wait for the continuation of the snapshot promise supplied by the host.
+        WaitForPredicate(
+            [this] {
+                return !Host_->LoadingFromSnapshotRequested();
+            },
+            TWaitForPredicateOptions{
+                .IterationCount = 3000,
+                .Period = CheckPeriod,
+                .Message = "Replicated table tracker did not finish loading from snapshot",
+            });
     }
 
     void WaitForUpdatesFromTracker()
@@ -930,6 +946,7 @@ TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshot)
     snapshot.Replicas.push_back(replicaData);
     Host_->SetSnapshot(std::move(snapshot));
 
+    WaitForSnapshotLoaded();
     WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeChanged(replicaData.Id, ETableReplicaMode::Sync);
 }
@@ -955,6 +972,7 @@ TEST_F(TReplicatedTableTrackerTest, IgnoreNewActionsIfLoadingFromSnapshotRequest
 
     Host_->SetSnapshot(std::move(snapshot));
 
+    WaitForSnapshotLoaded();
     WaitForTrackerWarmUp();
     Host_->ValidateReplicaModeRemained(replicaData.Id);
 }
@@ -983,6 +1001,7 @@ TEST_F(TReplicatedTableTrackerTest, LoadFromSnapshotUponActionQueueOverflow)
     snapshot.Replicas.push_back(replicaData);
     Host_->SetSnapshot(std::move(snapshot));
 
+    WaitForSnapshotLoaded();
     WaitForTrackerWarmUp();
     EXPECT_FALSE(Host_->LoadingFromSnapshotRequested());
     Host_->ValidateReplicaModeChanged(replicaData.Id, ETableReplicaMode::Sync);

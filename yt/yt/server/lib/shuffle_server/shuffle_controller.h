@@ -7,7 +7,7 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/session_pool.h>
 
-#include <yt/yt/ytlib/push_based_shuffle_client/public.h>
+#include <yt/yt/ytlib/shuffle_client/public.h>
 
 #include <yt/yt/client/api/public.h>
 
@@ -96,7 +96,7 @@ IPushBasedShuffleControllerPtr CreatePushBasedShuffleController(
     std::string account,
     std::string medium,
     int replicationFactor,
-    NPushBasedShuffleClient::TPushShuffleConfigPtr pushConfig);
+    NShuffleClient::TPushShuffleConfigPtr pushConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

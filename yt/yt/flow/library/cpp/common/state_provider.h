@@ -35,8 +35,15 @@ DEFINE_REFCOUNTED_TYPE(IMutableStateProvider)
 struct IMutableStateKeyProvider
     : public TRefCounted
 {
+    //! Throws for a key that was not preloaded in the current epoch.
     virtual IStateHolderPtr GetState(const TKey& key) = 0;
+    //! Loads |keys| for the current epoch; incremental: only keys not loaded yet are fetched,
+    //! already-loaded states are left untouched. Calls are awaited one at a time.
     virtual TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) = 0;
+    //! Stages the deletion of |key| at the next Sync without loading it. Terminal for the epoch:
+    //! #GetState() throws and #PreloadKeyStates() skips the key afterwards. The default throws;
+    //! a store that can delete by key alone overrides it.
+    virtual void EraseKeyState(const TKey& key);
     //! Returns null when the underlying store has no explicit key schema.
     virtual NTableClient::TTableSchemaPtr GetKeySchema() const = 0;
 };

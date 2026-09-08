@@ -54,7 +54,7 @@ func encodeSchema(t *testing.T, s Schema) []byte {
 func TestSchemaFromProtoRejectsUnsupportedColumnType(t *testing.T) {
 	encoded, err := yson.Marshal(schema.Schema{Columns: []schema.Column{{
 		Name: "created_at",
-		Type: schema.Type("timestamp64"),
+		Type: schema.Type("duration"),
 	}}})
 	require.NoError(t, err)
 

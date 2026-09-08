@@ -5,6 +5,7 @@ import yatest.common
 
 from yt.common import wait
 
+from yt.yt.flow.library.python.bullied_process import ProcessDiedException
 from yt.yt.flow.library.python.integration_test_base.yt_flow_base import FlowTestBase
 from yt.yt.flow.library.python.integration_test_base.helpers import get_yson_config
 
@@ -77,21 +78,21 @@ class TestReanimateVanillaCpp(FlowTestBase):
         config_path = self.prepare_pipeline_config()
 
         cache_path = f"{self.work_yt_path}/vanilla_cache/files"
-        upload_temp_path = f"{self.work_yt_path}/vanilla_upload"
         with self.start_flow_process_federation(
             pipeline_binary_args={"--config": config_path},
             use_vanilla_jobs=True,
             vanilla_secret_env=[SECRET_ENV],
-            additional_env={SECRET_ENV: SECRET_VALUE},
-            vanilla_config_patch={"cache_path": cache_path, "upload_temp_path": upload_temp_path},
+            # The runner is not kept attached: the operation is aborted below on purpose, which an
+            # attached runner reports as a failed pipeline.
+            additional_env={SECRET_ENV: SECRET_VALUE, "YT_FLOW_WAIT": "0"},
+            vanilla_config_patch={"cache_path": cache_path},
         ):
             self.wait_pipeline_state("working", timeout=300)
 
-            # The files went through the custom cache, staged in the explicit temp dir: the cache
-            # holds the blobs, while the staging dir was used (it got created) and holds only
-            # throwaways, all removed after being copied into the cache.
+            # The files went through the custom cache, staged in its parent: the cache holds the
+            # blobs, while the staging dir holds only throwaways, all removed after being copied in.
             assert len(self.client.list(cache_path)) > 0
-            assert self.client.list(upload_temp_path) == []
+            assert self.client.list(f"{self.work_yt_path}/vanilla_cache") == ["files"]
 
             # The staged node's expiration timeout must follow the blob neither into the cache nor
             # into the durable copy reanimate depends on.
@@ -152,7 +153,9 @@ class TestReanimateVanillaCpp(FlowTestBase):
             pipeline_binary_args={"--config": config_path},
             use_vanilla_jobs=True,
             vanilla_secret_env=[SECRET_ENV],
-            additional_env={SECRET_ENV: SECRET_VALUE},
+            # The runner is not kept attached: the operation is aborted below on purpose, which an
+            # attached runner reports as a failed pipeline.
+            additional_env={SECRET_ENV: SECRET_VALUE, "YT_FLOW_WAIT": "0"},
             vanilla_runtime_cluster=runtime_cluster_url,
         ):
             self.wait_pipeline_state("working", timeout=300)
@@ -183,3 +186,25 @@ class TestReanimateVanillaCpp(FlowTestBase):
             # Processing resumes after the cross-cluster reanimate and the secret is still delivered.
             wait(lambda: self._total_count() > count_before, timeout=300)
             assert self._any_secret() == SECRET_VALUE
+
+    @pytest.mark.authors(["timoninmaxim"])
+    def test_runner_fails_fast_on_aborted_operation(self):
+        run_yt_sync(self.primary_cluster_name, self.work_yt_path)
+        config_path = self.prepare_pipeline_config()
+
+        # The attached runner exits non-zero on its own, which the harness reports as a died process.
+        with pytest.raises(ProcessDiedException):
+            with self.start_flow_process_federation(
+                pipeline_binary_args={"--config": config_path},
+                use_vanilla_jobs=True,
+                vanilla_secret_env=[SECRET_ENV],
+                additional_env={SECRET_ENV: SECRET_VALUE},
+            ):
+                # Abort the operation while the runner still waits for the controller: it must
+                # notice and stop instead of waiting out the controller-unavailable timeout.
+                wait(lambda: self._current_operation_id() is not None, timeout=300, ignore_exceptions=True)
+                self.client.abort_operation(self._current_operation_id())
+                wait(lambda: False, error_message="The runner did not exit after the abort", timeout=120)
+
+        with open(os.path.join(self.path_to_flow_logs, "Runner.err")) as runner_err:
+            assert "is aborted" in runner_err.read()

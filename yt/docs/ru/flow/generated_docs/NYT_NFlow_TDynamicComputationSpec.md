@@ -14,6 +14,8 @@
 || `max_bytes_per_batch` | **Тип**: [NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)
 **Значение по умолчанию**: `10Mi`
 Максимальный размер входного батча в байтах. Считается аналогично `max_rows_per_batch`. ||
+|| `max_keys_per_batch` | **Тип**: `std::optional<`[NYT::NYTree::TSize](./all_yson_structs#NYT_NYTree_TSize)`>`
+ ||
 || `draining` | **Тип**: `bool`
 **Значение по умолчанию**: `false`
 Режим `Draining` нужен для сброса пайплайна &mdash; в нём `Computation` перестанет запускать таймеры и доставать новые события из `Source`.

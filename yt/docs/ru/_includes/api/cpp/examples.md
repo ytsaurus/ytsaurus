@@ -201,9 +201,9 @@ export YT_LOG_LEVEL=INFO
 
 Но для решения задачи не нужно, чтобы все записи с одним хостом попадали на одну машину. Возможно распределить таблицу с URL между несколькими машинами: важно, чтобы вместе с URL обязательно был получен хост.
 
-![](../../../../images/reduce.svg){ .center}
+![](../../../../_images/reduce.svg){ .center}
 
-![](../../../../images/join_reduce.svg){ .center}
+![](../../../../_images/join_reduce.svg){ .center}
 
 Пример лежит в [yt/cpp/mapreduce/examples/tutorial/join_reduce_tnode]({{source-root}}/yt/cpp/mapreduce/examples/tutorial/join_reduce_tnode).
 

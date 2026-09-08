@@ -800,6 +800,9 @@ public:
             if (ChangelogStoreFactory_) {
                 ChangelogStoreFactory_->Reconfigure(dynamicConfig->Changelogs);
             }
+            if (LeaseManager_) {
+                LeaseManager_->Reconfigure(dynamicConfig->LeaseManager);
+            }
         }
     }
 

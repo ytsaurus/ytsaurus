@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.state;
 
 import com.google.protobuf.Message;
 import tech.ytsaurus.flow.row.Payload;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 
 /**
  * Read-only {@link ProtoStateAccessor} for proto-format external state joined from another
@@ -16,11 +17,12 @@ public final class ReadOnlyProtoStateAccessor<T extends Message> extends ProtoSt
      */
     ReadOnlyProtoStateAccessor(
             Payload key,
-            StatesHolder<ExternalState> statesHolder,
+            StatesHolder statesHolder,
             Class<T> stateClass,
-            T defaultInstance
+            T defaultInstance,
+            ByteStringCodec<T> codec
     ) {
-        super(key, statesHolder, stateClass, defaultInstance);
+        super(key, statesHolder, stateClass, defaultInstance, codec);
     }
 
     @Override

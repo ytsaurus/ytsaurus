@@ -70,6 +70,8 @@ PEERDIR(
     contrib/libs/xxhash
 )
 
+PROVIDES(YT_QUERY_ENGINE)
+
 USE_LLVM_BC18()
 
 LLVM_BC(

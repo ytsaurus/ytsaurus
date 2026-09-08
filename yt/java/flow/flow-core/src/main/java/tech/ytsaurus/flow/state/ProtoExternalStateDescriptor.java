@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.state;
 
 import com.google.protobuf.Message;
 import tech.ytsaurus.flow.row.Keyed;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 
 /**
  * {@link StateDescriptor} for an external state in the {@link StateFormat#PROTO} wire format
@@ -14,12 +15,14 @@ public final class ProtoExternalStateDescriptor<T extends Message> extends State
     private final String name;
     private final Class<T> stateClass;
     private final T defaultInstance;
+    private final ByteStringCodec<T> codec;
 
     ProtoExternalStateDescriptor(String name, Class<T> stateClass) {
         ExternalStateDescriptor.validateExternalStateName(name);
         this.name = name;
         this.stateClass = stateClass;
         this.defaultInstance = defaultInstanceOf(stateClass);
+        this.codec = ProtoStateAccessor.codecOf(name, defaultInstance);
     }
 
     static <T extends Message> T defaultInstanceOf(Class<T> messageClass) {
@@ -44,6 +47,6 @@ public final class ProtoExternalStateDescriptor<T extends Message> extends State
     @Override
     ProtoStateAccessor<T> create(Keyed key, StateBackend backend) {
         return new ProtoStateAccessor<>(
-                key.getKey(), backend.getExternalStateHolder(name), stateClass, defaultInstance);
+                key.getKey(), backend.getExternalStateHolder(name), stateClass, defaultInstance, codec);
     }
 }

@@ -168,6 +168,7 @@ public:
     void Detach();
     void SendSignal(pid_t pid, int signo);
     bool Empty() const;
+    bool Empty(ui32 type) const;
 
 private:
     const TProcessInfo& GetProcessInfo(ui32 type);

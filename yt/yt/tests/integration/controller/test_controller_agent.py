@@ -113,6 +113,7 @@ class TestControllerAgentRegistration(YTEnvSetup):
 
 class TestControllerMemoryUsage(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory usage.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_SCHEDULERS = 1
 
     DELTA_HTTP_PROXY_CONFIG = {
@@ -241,6 +242,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
 class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 2
 
@@ -683,6 +685,7 @@ class TestOperationControllerResourcesCheck(YTEnvSetup):
 
 class TestOperationControllerLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -718,6 +721,7 @@ class TestOperationControllerLimit(YTEnvSetup):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestMemoryOverconsumptionThreshold(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -753,6 +757,7 @@ class TestMemoryOverconsumptionThreshold(YTEnvSetup):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestTotalControllerMemoryLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -804,6 +809,7 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -859,6 +865,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestControllerAgentMemoryAlert(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # Checks memory.
+    ENABLE_TCMALLOC_PROFILING = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

@@ -15,7 +15,7 @@
 Произвольные параметры для соответствующего класса. ||
 || `file_providers` | **Тип**: `THashMap<NYT::TStrongTypedef<std::string, NYT::NFlow::TFileProviderIdTag, NYT::TStrongTypedefOptions{true}>, NYT::TIntrusivePtr<`[NYT::NFlow::TFileProviderSpec](./all_yson_structs#NYT_NFlow_TFileProviderSpec)`>>`
 **Значение по умолчанию**: `{}`
-Именованные файловые провайдеры ресурса. Контроллер добавляет файловый снимок в целевую ревизию только после обнаружения всех имён; собственная часть целевой спецификации контроллера может публиковаться независимо. Воркеры материализуют точные ревизии из полученной цели. Такие ресурсы поддерживаются только на воркерах и должны иметь `controller = %false` во всех путях `required_resource_ids`, которые могут до них дойти. ||
+Именованные файловые провайдеры ресурса. Контроллер добавляет файловый снимок в целевую ревизию только после обнаружения всех имён; собственная часть целевой спецификации контроллера может публиковаться независимо. Воркеры материализуют точные ревизии из полученной цели. Такие ресурсы поддерживаются только на воркерах и должны иметь `controller = %false` во всех путях `required_resource_ids`, которые могут до них дойти. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `dependencies` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TResourceIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TResourceDescription](./all_yson_structs#NYT_NFlow_TResourceDescription)`>>`
 **Значение по умолчанию**: `{}`
 Ресурсы, от которых зависит данный ресурс. Повторяет структуру `required_resource_ids` из `Computation`. ||

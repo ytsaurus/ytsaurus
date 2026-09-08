@@ -82,6 +82,7 @@ static constexpr auto ZeroSystemTimestamp = TSystemTimestamp(0);
 DECLARE_REFCOUNTED_STRUCT(ITimeProvider);
 DECLARE_REFCOUNTED_STRUCT(TDynamicPartitionSpec);
 DECLARE_REFCOUNTED_STRUCT(IPartitionBufferState);
+DECLARE_REFCOUNTED_STRUCT(IJobLineageTracker);
 
 struct TMessageMeta;
 struct TMessage;
@@ -200,6 +201,7 @@ DECLARE_REFCOUNTED_STRUCT(TAggregatedNodeInputMetrics);
 DECLARE_REFCOUNTED_STRUCT(TJobStatus);
 DECLARE_REFCOUNTED_STRUCT(TMessageDistributorStatus);
 DECLARE_REFCOUNTED_STRUCT(TWorkerResourceStatus);
+DECLARE_REFCOUNTED_STRUCT(TWorkerStatistics);
 DECLARE_REFCOUNTED_STRUCT(TWorkerStatus);
 DECLARE_REFCOUNTED_STRUCT(TWorkerSpec);
 DECLARE_REFCOUNTED_STRUCT(TPartitionJobStatus);
@@ -245,6 +247,8 @@ DECLARE_REFCOUNTED_STRUCT(TStateJoinSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicExternalStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TStateJoinerSpec);
 DECLARE_REFCOUNTED_STRUCT(TDynamicStateJoinerSpec);
+
+DECLARE_REFCOUNTED_STRUCT(TPartitioningSpec);
 
 DECLARE_REFCOUNTED_STRUCT(TComputationSpec);
 DECLARE_REFCOUNTED_STRUCT(TPipelineSpec);
@@ -345,10 +349,10 @@ DECLARE_REFCOUNTED_STRUCT(TDynamicSinkControllerContext);
 DECLARE_REFCOUNTED_STRUCT(ISinkController);
 
 DECLARE_REFCOUNTED_STRUCT(TProcessPartitionTraverseDataResult);
-DECLARE_REFCOUNTED_STRUCT(TComputationControllerCommonContext);
 DECLARE_REFCOUNTED_STRUCT(TComputationControllerContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicComputationControllerContext);
 DECLARE_REFCOUNTED_STRUCT(IComputationController);
+DECLARE_REFCOUNTED_STRUCT(TComputationPartitionStatus);
 
 DECLARE_REFCOUNTED_STRUCT(TResourceContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicResourceContext);

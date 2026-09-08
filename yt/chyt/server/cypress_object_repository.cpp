@@ -1,11 +1,10 @@
 #include "cypress_object_repository.h"
 
-#include "materialized_view_coordinator.h"
-#include "storage_yt_materialized_view.h"
-
 #include "config.h"
 #include "host.h"
+#include "materialized_view_coordinator.h"
 #include "query_context.h"
+#include "storage_yt_materialized_view.h"
 
 #include <yt/yt/client/api/cypress_client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -395,6 +394,7 @@ void TCypressObjectRepository::WriteMaterializedView(
         }
 
         host->GetMaterializedViewCoordinator()->InitializeProgress(
+            client,
             transaction,
             resultOrError.Value(),
             config.SourceType,
@@ -454,8 +454,14 @@ std::vector<TCypressObjectRepository::TMaterializedView> TCypressObjectRepositor
             if (entry.Type != ERepositoryObjectType::MaterializedView) {
                 continue;
             }
-            auto view = TObjectSnapshot::BuildMaterializedView(objectName, entry);
-            result.push_back(std::move(view));
+            try {
+                auto view = TObjectSnapshot::BuildMaterializedView(objectName, entry);
+                result.push_back(std::move(view));
+            } catch (const std::exception& ex) {
+                YT_TLOG_WARNING("Failed to load materialized view, skipping")
+                    .With("View", objectName)
+                    .With(ex);
+            }
         }
     }
     return result;

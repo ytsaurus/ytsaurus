@@ -33,9 +33,10 @@ DIGEST_COMPACTION_REASONS = [
 
 DIGEST_COMPACTION_REASON_SELECTOR = "|".join(DIGEST_COMPACTION_REASONS)
 TOP_SERIES_LIMIT = 20
-TABLE_LEGEND = "{{cluster}} | {{tablet_cell_bundle}} | {{table_path}}"
-COMPACTION_LEGEND = "{{reason}} | " + TABLE_LEGEND
-BUNDLE_LEGEND = "{{cluster}} | {{tablet_cell_bundle}}"
+TABLE_LEGEND_LABELS = ("cluster", "tablet_cell_bundle", "table_path")
+COMPACTION_LEGEND_LABELS = ("reason",) + TABLE_LEGEND_LABELS
+DIGEST_COMPACTION_LEGEND_LABELS = ("digest_reason",) + TABLE_LEGEND_LABELS
+BUNDLE_LEGEND_LABELS = ("cluster", "tablet_cell_bundle")
 
 
 def _anomaly_view(expression):
@@ -44,8 +45,34 @@ def _anomaly_view(expression):
         .downsampling_aggregation(DownsamplingAggregation.Max))
 
 
+def _group_digest_reasons(expression, all_digest_reasons_expression):
+    aggregate = '"{{reason}}" == "-"'
+    expression = MonitoringExpr.conditional(
+        f'({aggregate} || "{{{{reason}}}}" == "*")',
+        all_digest_reasons_expression,
+        expression)
+    replacement = MonitoringExpr.conditional(aggregate, '"sum"', '"$1"')
+    return (MonitoringExpr.func(
+        "relabel",
+        expression,
+        '"reason"',
+        '"(.*)"',
+        replacement,
+        '"digest_reason"')
+        .series_sum("digest_reason", "cluster", "tablet_cell_bundle", "table_path"))
+
+
 def _with_legend(expression, series, labels):
-    return expression.alias(f"{series} | {labels}")
+    for label in labels:
+        expression = MonitoringExpr.func(
+            "relabel",
+            expression,
+            f'"{label}"',
+            '"(.*)"',
+            '"$1"',
+            f'"legend_{label}"')
+    legend = " | ".join(f"{{{{legend_{label}}}}}" for label in labels)
+    return expression.alias(f"{series} | {legend}")
 
 
 def generate1():
@@ -171,24 +198,34 @@ def generate3():
 
 
 def _build_digest_compaction_rowset():
-    def data_weight_sensor(direction):
+    def data_weight_sensor(direction, reason):
         return (NodeTablet(f"yt.tablet_node.store_compactor.{direction}_data_weight.rate")
             .aggr("eden")
             .value("activity", "compaction")
-            .value("reason", TemplateTag("reason"))
+            .value("reason", reason)
             .unit("UNIT_BYTES_SI_PER_SECOND"))
 
-    def store_count_sensor(direction):
+    def store_count_sensor(direction, reason):
         return MonitoringExpr(
             NodeTablet(f"yt.tablet_node.store_compactor.{direction}_store_count.rate")
                 .aggr("eden")
                 .value("activity", "compaction")
-                .value("reason", TemplateTag("reason")))
+                .value("reason", reason))
 
-    in_data_weight = MonitoringExpr(data_weight_sensor("in"))
-    out_data_weight = MonitoringExpr(data_weight_sensor("out"))
-    in_store_count = store_count_sensor("in")
-    out_store_count = store_count_sensor("out")
+    def selected_data_weight(direction):
+        return _group_digest_reasons(
+            MonitoringExpr(data_weight_sensor(direction, TemplateTag("reason"))),
+            MonitoringExpr(data_weight_sensor(direction, DIGEST_COMPACTION_REASON_SELECTOR)))
+
+    def selected_store_count(direction):
+        return _group_digest_reasons(
+            store_count_sensor(direction, TemplateTag("reason")),
+            store_count_sensor(direction, DIGEST_COMPACTION_REASON_SELECTOR))
+
+    in_data_weight = selected_data_weight("in")
+    out_data_weight = selected_data_weight("out")
+    in_store_count = selected_store_count("in")
+    out_store_count = selected_store_count("out")
     write_data_weight = MonitoringExpr(
         NodeTablet("yt.tablet_node.write.data_weight.rate")
             .unit("UNIT_BYTES_SI_PER_SECOND"))
@@ -198,28 +235,32 @@ def _build_digest_compaction_rowset():
         .value("tablet_cell_bundle", TemplateTag("tablet_cell_bundle"))
         .value("table_path", TemplateTag("table_path"))
         .row()
-            .cell("Compacted data weight",
+            .cell("Compaction data weight",
                 MultiSensor(
-                    _with_legend(_anomaly_view(in_data_weight), "input data", COMPACTION_LEGEND),
-                    _with_legend(_anomaly_view(out_data_weight), "output data", COMPACTION_LEGEND))
+                    _with_legend(_anomaly_view(in_data_weight), "input data", DIGEST_COMPACTION_LEGEND_LABELS),
+                    _with_legend(_anomaly_view(out_data_weight), "output data", DIGEST_COMPACTION_LEGEND_LABELS))
                     .unit("UNIT_BYTES_SI_PER_SECOND"))
             .cell("Output / input data weight",
                 _with_legend(
-                    _anomaly_view(out_data_weight / in_data_weight.drop_below(1e-6)),
+                    _anomaly_view(
+                        out_data_weight /
+                        in_data_weight.drop_below(1e-6)),
                     "output/input data",
-                    COMPACTION_LEGEND)
+                    DIGEST_COMPACTION_LEGEND_LABELS)
                     .unit("UNIT_NONE"))
         .row()
             .cell("Digest input / table write data weight",
                 _with_legend(
-                    _anomaly_view(in_data_weight / write_data_weight.drop_below(1e-6)),
+                    _anomaly_view(
+                        in_data_weight /
+                        write_data_weight.drop_below(1e-6)),
                     "digest input/table write",
-                    COMPACTION_LEGEND)
+                    DIGEST_COMPACTION_LEGEND_LABELS)
                     .unit("UNIT_NONE"))
             .cell("Input / output store rate",
                 MultiSensor(
-                    _with_legend(_anomaly_view(in_store_count), "input stores", COMPACTION_LEGEND),
-                    _with_legend(_anomaly_view(out_store_count), "output stores", COMPACTION_LEGEND))
+                    _with_legend(_anomaly_view(in_store_count), "input stores", DIGEST_COMPACTION_LEGEND_LABELS),
+                    _with_legend(_anomaly_view(out_store_count), "output stores", DIGEST_COMPACTION_LEGEND_LABELS))
                     .unit("UNIT_COUNTS_PER_SECOND"))
     ).owner
 
@@ -234,7 +275,7 @@ def _build_digest_fetching_rowset():
         return _with_legend(
             _anomaly_view(MonitoringExpr(fetch_sensor(digest_kind, metric))),
             legend,
-            BUNDLE_LEGEND)
+            BUNDLE_LEGEND_LABELS)
 
     def digest_sensors(metric):
         return MultiSensor(
@@ -247,7 +288,7 @@ def _build_digest_fetching_rowset():
         return (_with_legend(
             _anomaly_view(finished / requested.drop_below(1e-6)),
             legend,
-            BUNDLE_LEGEND)
+            BUNDLE_LEGEND_LABELS)
             .unit("UNIT_NONE"))
 
     return (Rowset()
@@ -290,7 +331,7 @@ def _build_all_compactions_rowset():
                         NodeTablet("yt.tablet_node.store_compactor.in_data_weight.rate")
                             .all("reason"))),
                     "input data",
-                    COMPACTION_LEGEND)
+                    COMPACTION_LEGEND_LABELS)
                     .unit("UNIT_BYTES_SI_PER_SECOND")
                     .stack())
             .cell("Output store count by reason",
@@ -299,7 +340,7 @@ def _build_all_compactions_rowset():
                         NodeTablet("yt.tablet_node.store_compactor.out_store_count.rate")
                             .all("reason"))),
                     "output stores",
-                    COMPACTION_LEGEND)
+                    COMPACTION_LEGEND_LABELS)
                     .unit("UNIT_COUNTS_PER_SECOND")
                     .stack())
         .row()
@@ -308,13 +349,13 @@ def _build_all_compactions_rowset():
                     "in",
                     DIGEST_COMPACTION_REASON_SELECTOR,
                     "input data",
-                    COMPACTION_LEGEND)
+                    COMPACTION_LEGEND_LABELS)
                     .unit("UNIT_BYTES_SI_PER_SECOND")
                     .stack())
             .cell("Periodic compaction data weight",
                 MultiSensor(
-                    data_weight_sensor("in", "periodic", "input data", TABLE_LEGEND),
-                    data_weight_sensor("out", "periodic", "output data", TABLE_LEGEND))
+                    data_weight_sensor("in", "periodic", "input data", TABLE_LEGEND_LABELS),
+                    data_weight_sensor("out", "periodic", "output data", TABLE_LEGEND_LABELS))
                     .unit("UNIT_BYTES_SI_PER_SECOND"))
     ).owner
 
@@ -324,7 +365,7 @@ def _build_table_state_rowset():
         return _with_legend(
             _anomaly_view(MonitoringExpr(NodeTablet(sensor))),
             legend,
-            TABLE_LEGEND)
+            TABLE_LEGEND_LABELS)
 
     return (Rowset()
         .aggr("host")

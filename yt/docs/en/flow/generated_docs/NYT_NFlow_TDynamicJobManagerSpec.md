@@ -31,12 +31,16 @@ Period of `cpu_aware` balancing. It is not recommended to set a value lower than
 || `rebalance_count_exceeded_allowed` | **Type**: `double`
 **Default value**: `1.2`
  ||
-|| `rebalance_min_cpu_spread` | **Type**: `double`
-**Default value**: `1.0`
- ||
-|| `rebalance_min_cpu_ratio` | **Type**: `double`
-**Default value**: `1.2`
- ||
+|| `rebalance_even_load_thresholds` | **Type**: `THashMap<`[NYT::NFlow::EBalanceResource](./all_yson_structs#NYT_NFlow_EBalanceResource)`, NYT::TIntrusivePtr<`[NYT::NFlow::TEvenLoadThresholds](./all_yson_structs#NYT_NFlow_TEvenLoadThresholds)`>>`
+**Default value**: `{}`
+Per-resource thresholds of the "load is even" gate, for example `{cpu = {spread = 2.0; ratio = 1.5}}`. Only resources with a non-zero weight are consulted. Unset fields fall back to the defaults: a spread of `1.0` core for CPU and `1 GB` for memory, a ratio of `1.2`. ||
+|| `rebalance_min_cpu_spread` | **Type**: `std::optional<double>`
+Deprecated: the same as `spread` of the `cpu` entry of `rebalance_even_load_thresholds`. A value set explicitly in `rebalance_even_load_thresholds` takes precedence. ||
+|| `rebalance_min_cpu_ratio` | **Type**: `std::optional<double>`
+Deprecated: the same as `ratio` of the `cpu` entry of `rebalance_even_load_thresholds`. A value set explicitly in `rebalance_even_load_thresholds` takes precedence. ||
+|| `balance_weights` | **Type**: `THashMap<`[NYT::NFlow::EBalanceResource](./all_yson_structs#NYT_NFlow_EBalanceResource)`, double>`
+**Default value**: `{'cpu': 1.0, 'memory': 0.0}`
+Relative importance of the resources for `cpu_aware` balancing, for example `{cpu = 80; memory = 20}`. The given keys are merged into the default `{cpu = 1; memory = 0}`; the weights are normalized, so only the proportions matter. A resource with a zero weight does not take part in balancing, so by default only CPU is balanced. The `rebalance_target_deviation` threshold applies to the normalized weighted sum: adding a second resource proportionally shrinks the contribution of the first one. ||
 || `disable_even_load_gate` | **Type**: `std::optional<bool>`
  ||
 || `async_balancing` | **Type**: `bool`

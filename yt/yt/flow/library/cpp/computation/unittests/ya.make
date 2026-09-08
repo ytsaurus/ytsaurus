@@ -11,9 +11,11 @@ SRCS(
     idle_partition_ut.cpp
     input_store_ut.cpp
     simple_external_state_joiner_ut.cpp
+    simple_external_state_manager_ut.cpp
     static_table_key_visitor_joiner_ut.cpp
     key_visitor_store_ut.cpp
     key_visitor_ut.cpp
+    lineage_accumulator_ut.cpp
     late_data_partitions_ut.cpp
     message_filter_ut.cpp
     meta_setter_ut.cpp
@@ -25,7 +27,6 @@ SRCS(
     swift_map_validation_ut.cpp
     timer_store_ut.cpp
     transform_ordered_source_validation_ut.cpp
-    universal_controller_helpers_ut.cpp
     watermark_generator_ut.cpp
 )
 

@@ -59,7 +59,7 @@ $ echo '{ "id": 0, "text": "Hello, World!", "newColumn": "This column is not in 
 SELECT * FROM `//tmp/table_not_strict` AS t;
 ```
 
-![](../../../images/yql_other_field.png)
+![](../../../_images/yql_other_field.png)
 
 Получить значение колонки `newColumn` можно несколькими способами:
 

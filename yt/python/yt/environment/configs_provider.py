@@ -86,6 +86,8 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir)
 
@@ -760,6 +762,8 @@ def _build_timestamp_provider_configs(yt_config,
                                       multidaemon_config_output,
                                       master_connection_configs,
                                       clock_connection_config,
+                                      discovery_configs,
+                                      cypress_proxy_rpc_ports,
                                       ports_generator,
                                       logs_dir):
     configs = []
@@ -783,6 +787,18 @@ def _build_timestamp_provider_configs(yt_config,
         })
 
         init_cypress_annotations(config, index)
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                discovery_configs,
+                None,  # timestamp provider addresses
+                [],  # master cache addresses
+                [],  # chaos cache addresses
+                cypress_proxy_rpc_ports,
+                config_template=config["cluster_connection"])
 
         # COMPAT(aleksandra-zh)
         set_at(config, "timestamp_provider/addresses",
@@ -2484,6 +2500,8 @@ def init_singletons(config, yt_config):
     })
     set_at(config, "address_resolver/localhost_fqdn", yt_config.fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
+    if yt_config.tcmalloc_profile_sampling_rate is not None:
+        set_at(config, "tcmalloc/profile_sampling_rate", yt_config.tcmalloc_profile_sampling_rate)
     set_at(config, "enable_ref_counted_tracker_profiling", yt_config.enable_resource_tracking)
     set_at(config, "resource_tracker/enable", yt_config.enable_resource_tracking)
     if yt_config.mock_tvm_id is not None:

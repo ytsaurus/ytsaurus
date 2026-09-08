@@ -12,6 +12,7 @@ component="ytsaurus"
 apt_mirror="http://archive.ubuntu.com/"
 install_nvidia_packages="false"
 build_cache_repository=""
+server_image_base="base-server"
 
 print_usage() {
     cat << EOF
@@ -26,6 +27,7 @@ Usage: $script_name [-h|--help]
                     [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
                     [--install-nvidia-packages true|false (default: '$install_nvidia_packages')]
                     [--build-cache-repository registry/image]
+                    [--server-image-base base-server|base-server-crio (default: '$server_image_base')]
 EOF
     exit 1
 }
@@ -72,6 +74,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --build-cache-repository)
         build_cache_repository="$2"
+        shift 2
+        ;;
+        --server-image-base)
+        server_image_base="$2"
         shift 2
         ;;
         -h|--help)
@@ -211,6 +217,7 @@ cd ${output_path}
 common_docker_build_args=(
     --build-arg "APT_MIRROR=${apt_mirror}"
     --build-arg "INSTALL_NVIDIA_PACKAGES=${install_nvidia_packages}"
+    --build-arg "SERVER_IMAGE_BASE=${server_image_base}"
 )
 
 if [[ -n "${build_cache_repository}" ]]; then

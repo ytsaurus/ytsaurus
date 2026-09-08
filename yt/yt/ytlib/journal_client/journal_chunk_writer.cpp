@@ -421,7 +421,8 @@ private:
                 node->Descriptor.GetDefaultAddress())
                 .With(rspOrError);
             YT_TLOG_DEBUG("Failed to start chunk session at node")
-                .With(error);
+                .With("Address", node->Descriptor.GetDefaultAddress())
+                .With(rspOrError);
             THROW_ERROR_EXCEPTION(error);
         }
     }

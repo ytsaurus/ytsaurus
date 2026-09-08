@@ -197,17 +197,6 @@ TDistributedChunkSessionProgress Extrapolate(
 
 void FormatValue(
     TStringBuilderBase* builder,
-    const TSessionSealSummary& summary,
-    TStringBuf /*spec*/)
-{
-    builder->AppendFormat(
-        "{RecordCount: %v, PhysicalCompressedDataSize: %v}",
-        summary.RecordCount,
-        summary.PhysicalCompressedDataSize);
-}
-
-void FormatValue(
-    TStringBuilderBase* builder,
     const TDistributedChunkSessionProgress& progress,
     TStringBuf /*spec*/)
 {
@@ -219,6 +208,17 @@ void FormatValue(
         progress.UncompressedDataSize,
         progress.RecordCount,
         progress.RowCount);
+}
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TSessionSealSummary& summary,
+    TStringBuf /*spec*/)
+{
+    builder->AppendFormat(
+        "{RecordCount: %v, PhysicalCompressedDataSize: %v}",
+        summary.RecordCount,
+        summary.PhysicalCompressedDataSize);
 }
 
 void PrintTo(

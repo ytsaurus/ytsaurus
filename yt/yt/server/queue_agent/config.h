@@ -166,6 +166,9 @@ struct TQueueExporterDynamicConfig
     //! If true, the queue exporter will check that #LastChunk and #RowCount in tablet progress refer to the same chunk.
     bool EnableRowCountCheck;
 
+    //! Maximum number of hunk chunks in a batch to fetch their attributes from master.
+    int MaxHunkChunkCountPerFetch;
+
     NConcurrency::TPeriodicExecutorOptions GetPeriodicExecutorOptions() const;
 
     bool operator==(const TQueueExporterDynamicConfig&) const = default;

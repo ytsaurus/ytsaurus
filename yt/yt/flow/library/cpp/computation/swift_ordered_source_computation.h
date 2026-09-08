@@ -68,10 +68,18 @@ private:
     {
         TMessageId FirstMessageId;
         TSourceMessageBatchCookie BatchCookie;
+        i64 InputCount = 0;
+        i64 InputByteSize = 0;
         std::vector<TMessage> CandidateOutputMessages;
         std::vector<bool> IsOutput;
         TSystemTimestamp Timestamp;
         TWatermarkGeneratorCookie WatermarkGeneratorCookie;
+    };
+
+    struct TPublishResult
+    {
+        bool EmptyEpoch = false;
+        TLineageDelta LineageDelta;
     };
 
     std::deque<TProcessedBatch> DelayedMessages_;
@@ -83,7 +91,7 @@ private:
     TSystemTimestamp GetTriggerTimestamp(const std::vector<TMessage>& batch);
 
     void ProcessSourceBatches(std::vector<ISource::TMessageBatch>&& sourceMessageBatches);
-    bool CheckDelayedMessages(
+    TPublishResult CheckDelayedMessages(
         IComputationRunContextPtr context,
         NTracing::TTraceContextPtr epochTraceContext,
         TSystemTimestamp now,

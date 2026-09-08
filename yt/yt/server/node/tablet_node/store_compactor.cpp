@@ -77,7 +77,6 @@
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/heap.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -414,9 +413,11 @@ protected:
 
     IVersionedMultiChunkWriterPtr CreateWriter()
     {
-        auto chunkWriterFactory = [this, weakThis = MakeWeak(this)] (IChunkWriterPtr underlyingWriter) {
+        auto compressionInvoker = ComputeCompressionInvoker();
+
+        auto chunkWriterFactory = [this, weakThis = MakeWeak(this), compressionInvoker = std::move(compressionInvoker)] (IChunkWriterPtr underlyingWriter) {
             if (auto this_ = weakThis.Lock()) {
-                return CreateUnderlyingWriterAdapter(std::move(underlyingWriter));
+                return CreateUnderlyingWriterAdapter(std::move(underlyingWriter), compressionInvoker);
             } else {
                 THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Store compactor session destroyed");
             }
@@ -597,7 +598,9 @@ private:
         return result;
     }
 
-    IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(IChunkWriterPtr underlyingWriter) const
+    IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(
+        IChunkWriterPtr underlyingWriter,
+        IInvokerPtr compressionInvoker) const
     {
         auto writer = CreateHunkEncodingVersionedWriter(
             CreateVersionedChunkWriter(
@@ -608,7 +611,7 @@ private:
                 WriteBlocksOptions_,
                 /*dataSink*/ std::nullopt,
                 BlockCache_,
-                ComputeCompressionInvoker()),
+                std::move(compressionInvoker)),
             TabletSnapshot_->PhysicalSchema,
             HunkChunkPayloadWriter_,
             HunkChunkWriterStatistics_,
@@ -1556,12 +1559,6 @@ private:
             .WithTags(task->TabletLoggingTags)
             .WithTag("ReadSessionId", chunkReadOptions.ReadSessionId);
 
-        auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
-                ScheduleMorePartitionings();
-            }
-        });
-
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreCompactor", traceId);
         TTraceContextGuard traceContextGuard(traceContext);
@@ -1771,7 +1768,6 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
-            doneGuard.Release();
 
             if (RandomNumber<double>() < mountConfig->Testing.PartitioningFailureProbability) {
                 THROW_ERROR_EXCEPTION("Partitioning failed for testing purposes");
@@ -1980,12 +1976,6 @@ private:
         auto Logger = TabletNodeLogger()
             .WithTags(task->TabletLoggingTags)
             .WithTag("ReadSessionId", chunkReadOptions.ReadSessionId);
-
-        auto doneGuard = Finally([&] {
-            if (Bootstrap_->GetTabletNodeDynamicConfig()->StoreCompactor->ScheduleNewTasksAfterTaskCompletion) {
-                ScheduleMoreCompactions();
-            }
-        });
 
         auto traceId = task->Info->TaskId;
         auto traceContext = TTraceContext::NewRoot("StoreCompactor", traceId);
@@ -2206,7 +2196,6 @@ private:
 
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
-            doneGuard.Release();
 
             if (RandomNumber<double>() < mountConfig->Testing.CompactionFailureProbability) {
                 THROW_ERROR_EXCEPTION("Compaction failed for testing purposes");

@@ -8,6 +8,7 @@ DEFAULT_JUNIT_JAVA_SRCS_LAYOUT()
 
 PEERDIR(
     yt/java/flow/flow-core
+    yt/java/flow/flow-core/src/test_proto
     yt/java/flow/flow-server
     yt/java/flow/flow-test-utils
 

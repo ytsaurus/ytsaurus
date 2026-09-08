@@ -143,10 +143,10 @@ public:
 
     NLogging::TLogger GetLogger() const;
 
-    PHOENIX_DECLARE_TYPE(TInputCluster, 0xe1f2a3b4);
-
 private:
     NLogging::TSerializableLogger Logger;
+
+    PHOENIX_DECLARE_TYPE(TInputCluster, 0xe1f2a3b4);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputCluster)

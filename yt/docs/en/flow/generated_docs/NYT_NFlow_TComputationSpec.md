@@ -57,16 +57,16 @@ Has an `alias` parameter for locally renaming a resource (for example, `Computat
 Custom parameters for `Computation` and `ComputationController`. ||
 || `timer_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TTimerSpec](./all_yson_structs#NYT_NFlow_TTimerSpec)`>>`
 **Default value**: `{}`
-Settings for all `timer` streams. ||
+Settings for all `timer` streams. Keys must match `[0-9A-Za-z_-]+`. ||
 || `key_visitor_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TKeyVisitorStreamSpec](./all_yson_structs#NYT_NFlow_TKeyVisitorStreamSpec)`>>`
 **Default value**: `{}`
- ||
+Settings for all `key_visitor` streams. Keys must match `[0-9A-Za-z_-]+`. ||
 || `source_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSourceSpec](./all_yson_structs#NYT_NFlow_TSourceSpec)`>>`
 **Default value**: `{}`
-Settings for all `source` streams. ||
+Settings for all `source` streams. Keys must match `[0-9A-Za-z_-]+`. ||
 || `sinks` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TSinkIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSinkSpec](./all_yson_structs#NYT_NFlow_TSinkSpec)`>>`
 **Default value**: `{}`
-Settings for all sinks. ||
+Settings for all sinks. Keys must match `[0-9A-Za-z_-]+`. ||
 || `external_state_managers` | **Type**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TExternalStateManagerSpec](./all_yson_structs#NYT_NFlow_TExternalStateManagerSpec)`>>`
 **Default value**: `{}`
 A declarative declaration of [external state](../cpp/state.md#external-state) managers for this `Computation`. The key is the client name that the `Computation` subscribes to via `IJobInitContext::InitExternalStateClient` (must start with `/`, for example `/state`); the value contains the manager class name and its parameters. ||

@@ -92,12 +92,13 @@ private:
                 .With("Login", result.Login);
             return std::move(result);
         } catch (const std::exception& ex) {
-            auto error = TError("Cypress authentication failed")
+            static constexpr auto Message = "Cypress authentication failed"_sb;
+            YT_TLOG_DEBUG(Message)
+                .With("TokenHash", tokenHash)
+                .With(ex);
+            THROW_ERROR_EXCEPTION(Message)
                 .With("token_hash", tokenHash)
                 .With(ex);
-            YT_TLOG_DEBUG("Cypress authentication failed")
-                .With(error);
-            THROW_ERROR(error);
         }
     }
 

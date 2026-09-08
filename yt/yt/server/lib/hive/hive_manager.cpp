@@ -68,6 +68,8 @@ using NHiveClient::NProto::TEncapsulatedMessage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int TypicalPostDestinationCount = 8;
+
 static NConcurrency::TFlsSlot<TCellId> HiveMutationSenderId;
 static NConcurrency::TFlsSlot<TReign> HiveMutationSenderReign;
 
@@ -1017,10 +1019,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        TStringBuilder logMessageBuilder;
-        logMessageBuilder.AppendFormat("Reliable outcoming message added (MutationType: %v, SrcCellId: %v, DstIds: {",
-            message->Type,
-            SelfCellId_);
+        TCompactVector<std::pair<TEndpointId, TMessageId>, TypicalPostDestinationCount> dstIds;
 
         auto* traceContext = NTracing::TryGetCurrentTraceContext();
 
@@ -1056,12 +1055,7 @@ private:
                 mutationContext->CombineStateHash(messageId, mailbox->GetEndpointId());
             }
 
-            if (mailbox != AsTyped(mailboxes.Front())) {
-                logMessageBuilder.AppendString(TStringBuf(", "));
-            }
-            logMessageBuilder.AppendFormat("%v=>%v",
-                mailbox->GetEndpointId(),
-                messageId);
+            dstIds.emplace_back(mailbox->GetEndpointId(), messageId);
 
             if (IsLeader()) {
                 if (mailbox->IsAvenue()) {
@@ -1083,12 +1077,15 @@ private:
             }
         }
 
-        if (mutationContext) {
-            logMessageBuilder.AppendFormat("}, LogicalTime: %v, SequenceNumber: %v)",
-                logicalTime,
-                mutationContext->GetSequenceNumber());
-        }
-        YT_LOG_DEBUG(logMessageBuilder.Flush());
+        auto sequenceNumber = mutationContext ? mutationContext->GetSequenceNumber() : 0;
+        YT_TLOG_DEBUG("Reliable outcoming message added")
+            .With("MutationType", message->Type)
+            .With("SrcCellId", SelfCellId_)
+            .With("DstIds", MakeFormattableView(dstIds, [] (auto* builder, const auto& dstId) {
+                builder->AppendFormat("%v=>%v", dstId.first, dstId.second);
+            }))
+            .WithIf(mutationContext, "LogicalTime", logicalTime)
+            .WithIf(mutationContext, "SequenceNumber", sequenceNumber);
     }
 
     void UnreliablePostMessage(TRange<TMailboxHandle> mailboxes, const TSerializedMessagePtr& message)
@@ -1096,11 +1093,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!HasHydraContext());
 
-        TStringBuilder logMessageBuilder;
-        logMessageBuilder.AppendFormat("Sending unreliable outcoming message (MutationType: %v, SrcCellId: %v, DstCellIds: [",
-            message->Type,
-            SelfCellId_);
-
+        TCompactVector<TCellId, TypicalPostDestinationCount> dstCellIds;
         std::vector<TCellMailboxRuntimeDataPtr> cellRuntimeDatas;
         for (auto mailboxHandle : mailboxes) {
             auto* mailbox = AsTyped(mailboxHandle);
@@ -1116,16 +1109,15 @@ private:
                 continue;
             }
 
-            if (cellMailbox != AsTyped(mailboxes.Front())) {
-                logMessageBuilder.AppendString(TStringBuf(", "));
-            }
-            logMessageBuilder.AppendFormat("%v", cellMailbox->GetCellId());
+            dstCellIds.push_back(cellMailbox->GetCellId());
 
             cellRuntimeDatas.push_back(cellRuntimeData);
         }
 
-        logMessageBuilder.AppendString(TStringBuf("])"));
-        YT_LOG_DEBUG(logMessageBuilder.Flush());
+        YT_TLOG_DEBUG("Sending unreliable outcoming message")
+            .With("MutationType", message->Type)
+            .With("SrcCellId", SelfCellId_)
+            .With("DstCellIds", dstCellIds);
 
         BackgroundInvoker_->Invoke(
             BIND(&THiveManager::DoUnreliablePostMessage, MakeStrong(this), std::move(cellRuntimeDatas), message));

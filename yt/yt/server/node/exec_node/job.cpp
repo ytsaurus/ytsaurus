@@ -1394,7 +1394,9 @@ void TJob::AddProfile(TJobProfile profile)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (profile.ProfilingBinary == EProfilingBinary::JobProxy && profile.ProfilerType == EProfilerType::PeakMemory) {
+    if (profile.GetProfilingBinary() == EProfilingBinary::JobProxy &&
+        profile.GetProfilerType() == EProfilerType::PeakMemory)
+    {
         // NB(coteeq): JobProxy's peak memory profile is a special case.
         // We want the most recent profile and since it's peak profile,
         // it's okay to overwrite previous one.

@@ -421,25 +421,24 @@ void TJobProxy::SendHeartbeat()
         req->set_last_progress_save_time(ToProto(*time));
     }
 
-    if (auto& profileFuture = JobProxyPeakMemoryProfile_; profileFuture.has_value()) {
-        if (!profileFuture->IsSet()) {
-            YT_TLOG_DEBUG("JobProxy peak memory profile is not ready to be reported in the current heartbeat");
+    if (JobProxyPeakMemoryProfile_) {
+        if (!JobProxyPeakMemoryProfile_.IsSet()) {
+            YT_TLOG_DEBUG("Job proxy peak memory profile is not ready to be reported in the current heartbeat");
         } else {
-            YT_TLOG_DEBUG("Reporting JobProxy peak memory profile");
-            auto profile = profileFuture
-                ->AsUnique()
+            YT_TLOG_DEBUG("Reporting job proxy peak memory profile");
+            auto profile = JobProxyPeakMemoryProfile_
+                .AsUnique()
                 .GetOrCrash()
                 .ValueOrThrow();
 
             ToProto(
                 req->add_profiles(),
-                TJobProfile{
-                    .ProfilingBinary = EProfilingBinary::JobProxy,
-                    .ProfilerType = EProfilerType::PeakMemory,
-                    .Blob = std::move(profile),
-                    .ProfilingProbability = 1.0,
-                });
-            profileFuture.reset();
+                TJobProfile(
+                    EProfilingBinary::JobProxy,
+                    EProfilerType::PeakMemory,
+                    1.0,
+                    std::move(profile)));
+            JobProxyPeakMemoryProfile_.Reset();
         }
     }
 
@@ -1283,31 +1282,29 @@ void TJobProxy::ReportResult(
             }
 
             // We must extract JobProxyPeakMemoryProfile_ from |JobThread_|.
-            std::optional<TFuture<TString>> profileFuture;
+            TFuture<TString> profileFuture;
             YT_UNUSED_FUTURE(WaitFor(
                 BIND([this, &profileFuture] {
-                    profileFuture.swap(JobProxyPeakMemoryProfile_);
+                    std::swap(profileFuture, JobProxyPeakMemoryProfile_);
                 })
                     .AsyncVia(JobThread_->GetInvoker())
-                    .Run()
-            ));
+                    .Run()));
             if (profileFuture) {
                 if (Config_->JobProxyPeakMemoryProfiler->WaitLastProfile) {
-                    WaitUntilSet(profileFuture->AsVoid());
+                    WaitUntilSet(profileFuture.AsVoid());
                 }
 
-                if (profileFuture->IsSet()) {
+                if (profileFuture.IsSet()) {
                     ToProto(
                         req->add_profiles(),
-                        TJobProfile{
-                            .ProfilingBinary = EProfilingBinary::JobProxy,
-                            .ProfilerType = EProfilerType::PeakMemory,
-                            .Blob = profileFuture
-                                ->AsUnique()
+                        TJobProfile(
+                            EProfilingBinary::JobProxy,
+                            EProfilerType::PeakMemory,
+                            1.0,
+                            profileFuture
+                                .AsUnique()
                                 .GetOrCrash()
-                                .Value(),
-                            .ProfilingProbability = 1.0,
-                        });
+                                .ValueOrThrow()));
                 }
             }
         } catch (const std::exception& ex) {
@@ -2354,7 +2351,7 @@ void TJobProxy::OnMemoryEstimationExceeded(i64 usage)
 
     auto job = FindJob();
     if (job) {
-        YT_TLOG_INFO("Profiling Job proxy peak memory")
+        YT_TLOG_INFO("Profiling job proxy peak memory")
             .With("RunExternalSymbolizer", Config_->JobProxyPeakMemoryProfiler->RunExternalSymbolizer);
         JobProxyPeakMemoryProfile_ = ProfileJobProxyPeakMemory(
             Config_->JobProxyPeakMemoryProfiler->RunExternalSymbolizer);

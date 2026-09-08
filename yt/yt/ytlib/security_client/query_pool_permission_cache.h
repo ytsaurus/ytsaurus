@@ -14,6 +14,7 @@ public:
 
 private:
     bool CanCacheError(const TError& error) noexcept override;
+    bool CanRefreshError(const TError& error) noexcept override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryPoolPermissionCache)

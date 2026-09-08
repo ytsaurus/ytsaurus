@@ -453,6 +453,10 @@ SRCS(
 
     sequoia_client/proto/transaction_client.proto
 
+    shuffle_client/config.cpp
+
+    shuffle_client/proto/shuffle_service.proto
+
     table_chunk_format/boolean_column_reader.cpp
     table_chunk_format/boolean_column_writer.cpp
     table_chunk_format/column_reader_detail.cpp
@@ -592,8 +596,6 @@ SRCS(
     yql_client/proto/yql_service.proto
 
     yql_plugin/proto/yql_plugin.proto
-
-    shuffle_client/proto/shuffle_service.proto
 )
 
 GENERATE_YT_RECORD(

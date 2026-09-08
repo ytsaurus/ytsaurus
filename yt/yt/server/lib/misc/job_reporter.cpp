@@ -427,13 +427,16 @@ public:
 
     size_t EstimateSize() const override
     {
+        const auto& profile = Report_.Profile();
+        YT_VERIFY(profile);
+
         return ::NYT::NServer::EstimateSizes(
             Report_.OperationId(),
             Report_.JobId(),
-            Report_.Profile().value_or(NJobAgent::TJobProfile{}).GetType(),
+            profile->GetType(),
             /*partIndex*/ int{0},
-            Report_.Profile().value_or(NJobAgent::TJobProfile{}).Blob,
-            Report_.Profile().value_or(NJobAgent::TJobProfile{}).ProfilingProbability);
+            profile->Blob(),
+            profile->GetProfilingProbability());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -456,8 +459,8 @@ public:
                 .PartIndex = 0,
             },
             .ProfileType = profile->GetType(),
-            .ProfileBlob = profile->Blob,
-            .ProfilingProbability = profile->ProfilingProbability,
+            .ProfileBlob = profile->Blob(),
+            .ProfilingProbability = profile->GetProfilingProbability(),
         });
     }
 

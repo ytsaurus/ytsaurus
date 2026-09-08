@@ -432,7 +432,7 @@ TEST(TDistributedChunkSessionPoolTest, ReportsAndRetainsSessionProgress)
 
     auto chunks = WaitFor(pool->GetSlotChunks(17))
         .ValueOrThrow();
-    ASSERT_EQ(chunks.size(), 1u);
+    ASSERT_EQ(std::ssize(chunks), 1);
     EXPECT_EQ(chunks[0].ChunkId, session.SessionId.ChunkId);
     ASSERT_TRUE(chunks[0].Progress.has_value());
     EXPECT_EQ(*chunks[0].Progress, progress);
@@ -450,7 +450,7 @@ TEST(TDistributedChunkSessionPoolTest, PreservesMissingSessionProgress)
 
     auto chunks = WaitFor(pool->GetSlotChunks(17))
         .ValueOrThrow();
-    ASSERT_EQ(chunks.size(), 1u);
+    ASSERT_EQ(std::ssize(chunks), 1);
     EXPECT_FALSE(chunks[0].Progress.has_value());
 }
 
@@ -502,7 +502,7 @@ TEST(TDistributedChunkSessionPoolTest, ReportsMasterSealResultWithConfirmedProgr
 
     auto chunks = WaitFor(pool->GetSlotChunks(17))
         .ValueOrThrow();
-    ASSERT_EQ(chunks.size(), 1u);
+    ASSERT_EQ(std::ssize(chunks), 1);
     ASSERT_TRUE(chunks[0].Progress.has_value());
     EXPECT_EQ(*chunks[0].Progress, progress);
 }
@@ -549,7 +549,7 @@ TEST(TDistributedChunkSessionPoolTest, ThrowingChunkSealRequestDoesNotEscapeSlot
 
     // NB: The clean close still publishes the exact terminal result; the failed seal
     // scheduling only exhausts its retries in the background.
-    ASSERT_EQ(updates.size(), 2u);
+    ASSERT_EQ(std::ssize(updates), 2);
     EXPECT_EQ(std::get<TSessionInFlightProgress>(updates[0].Progress).Underlying(), progress);
     ASSERT_TRUE(std::get<TSessionFinalProgress>(updates[1].Progress).Underlying().has_value());
     EXPECT_EQ(*std::get<TSessionFinalProgress>(updates[1].Progress).Underlying(), progress);
@@ -600,7 +600,7 @@ TEST(TDistributedChunkSessionPoolTest, SealSummaryAfterFinalProgressIsIgnored)
         },
     });
 
-    ASSERT_EQ(updates.size(), 2u);
+    ASSERT_EQ(std::ssize(updates), 2);
     EXPECT_EQ(std::get<TSessionInFlightProgress>(updates[0].Progress).Underlying(), progress);
     ASSERT_TRUE(std::get<TSessionFinalProgress>(updates[1].Progress).Underlying().has_value());
     EXPECT_EQ(*std::get<TSessionFinalProgress>(updates[1].Progress).Underlying(), progress);
@@ -644,7 +644,7 @@ TEST(TDistributedChunkSessionPoolTest, ReportsMasterSealResultWithoutConfirmedPr
 
     auto chunks = WaitFor(pool->GetSlotChunks(17))
         .ValueOrThrow();
-    ASSERT_EQ(chunks.size(), 1u);
+    ASSERT_EQ(std::ssize(chunks), 1);
     EXPECT_FALSE(chunks[0].Progress.has_value());
 }
 
@@ -678,7 +678,7 @@ TEST(TDistributedChunkSessionPoolTest, IgnoresProgressReportedAfterSessionFinish
 
     auto chunks = WaitFor(pool->GetSlotChunks(17))
         .ValueOrThrow();
-    ASSERT_EQ(chunks.size(), 1u);
+    ASSERT_EQ(std::ssize(chunks), 1);
     EXPECT_FALSE(chunks[0].Progress.has_value());
 }
 
@@ -710,7 +710,7 @@ TEST(TDistributedChunkSessionPoolTest, ReportsFinalProgressAfterCleanClose)
     pool->FinalizeSlot(17);
     harness.DrainInvoker();
 
-    ASSERT_EQ(updates.size(), 1u);
+    ASSERT_EQ(std::ssize(updates), 1);
     const auto& update = updates.front();
     EXPECT_EQ(update.SlotCookie, 17);
     EXPECT_EQ(update.SessionId, session.SessionId);
@@ -748,7 +748,7 @@ TEST(TDistributedChunkSessionPoolTest, ReportsFinalProgressWhenCloseIsCalledOuts
     YT_UNUSED_FUTURE(harness.GetController(session.SessionId)->Close());
     harness.DrainInvoker();
 
-    ASSERT_EQ(updates.size(), 1u);
+    ASSERT_EQ(std::ssize(updates), 1);
     EXPECT_EQ(
         std::get<TSessionFinalProgress>(updates.front().Progress).Underlying(),
         progress);
@@ -782,7 +782,7 @@ TEST(TDistributedChunkSessionPoolTest, ReportsCloseFailureWhenCloseIsCalledOutsi
         .Summary = {.RecordCount = 7, .PhysicalCompressedDataSize = 70},
     });
 
-    ASSERT_EQ(updates.size(), 1u);
+    ASSERT_EQ(std::ssize(updates), 1);
     EXPECT_EQ(
         std::get<TSessionSealSummary>(updates.front().Progress),
         (TSessionSealSummary{.RecordCount = 7, .PhysicalCompressedDataSize = 70}));
@@ -1093,7 +1093,7 @@ TEST(TDistributedChunkSessionPoolTest, ExhaustedChunkSealRetriesReportCloseFailu
     harness.DrainInvoker();
 
     // NB: The chunk never seals, so the terminal alternative has to come from the pool.
-    ASSERT_EQ(updates.size(), 1u);
+    ASSERT_EQ(std::ssize(updates), 1);
     EXPECT_EQ(updates.front().SessionId, session.SessionId);
     EXPECT_FALSE(std::get<TSessionCloseFailed>(updates.front().Progress).Underlying().IsOK());
 }
@@ -1150,8 +1150,7 @@ TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesLateStartedPendingSessi
     EXPECT_FALSE(sessionOrError.IsOK());
     EXPECT_EQ(harness.GetController(sessionId)->GetCloseCallCount(), 1);
 
-    auto scheduledSeals = harness.ScheduledSeals();
-    EXPECT_THAT(scheduledSeals, ::testing::ElementsAre(sessionId.ChunkId));
+    EXPECT_THAT(harness.ScheduledSeals(), ::testing::ElementsAre(sessionId.ChunkId));
 }
 
 TEST(TDistributedChunkSessionPoolTest, FinalizeSlotClosesAndSealsAllSessions)
@@ -1226,9 +1225,9 @@ TEST(TDistributedChunkSessionPoolTest, GetSlotChunksReturnsAllCreatedChunks)
     auto chunks = WaitFor(pool->GetSlotChunks(11))
         .ValueOrThrow();
 
-    EXPECT_EQ(chunks.size(), 2u);
-    EXPECT_EQ(chunks[0].Replicas.size(), 3u);
-    EXPECT_EQ(chunks[1].Replicas.size(), 3u);
+    EXPECT_EQ(std::ssize(chunks), 2);
+    EXPECT_EQ(std::ssize(chunks[0].Replicas), 3);
+    EXPECT_EQ(std::ssize(chunks[1].Replicas), 3);
 }
 
 TEST(TDistributedChunkSessionPoolTest, FinalizedSlotRejectsNewSessions)

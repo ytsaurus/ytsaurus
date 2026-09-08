@@ -31,12 +31,16 @@
 || `rebalance_count_exceeded_allowed` | **Тип**: `double`
 **Значение по умолчанию**: `1.2`
  ||
-|| `rebalance_min_cpu_spread` | **Тип**: `double`
-**Значение по умолчанию**: `1.0`
- ||
-|| `rebalance_min_cpu_ratio` | **Тип**: `double`
-**Значение по умолчанию**: `1.2`
- ||
+|| `rebalance_even_load_thresholds` | **Тип**: `THashMap<`[NYT::NFlow::EBalanceResource](./all_yson_structs#NYT_NFlow_EBalanceResource)`, NYT::TIntrusivePtr<`[NYT::NFlow::TEvenLoadThresholds](./all_yson_structs#NYT_NFlow_TEvenLoadThresholds)`>>`
+**Значение по умолчанию**: `{}`
+Пороги гейта «нагрузка распределена ровно» по ресурсам, например `{cpu = {spread = 2.0; ratio = 1.5}}`. Учитываются только ресурсы с ненулевым весом. Незаданные поля берут значения по умолчанию: разброс `1.0` ядро для CPU и `1 GB` для памяти, отношение `1.2`. ||
+|| `rebalance_min_cpu_spread` | **Тип**: `std::optional<double>`
+Устаревший параметр: то же, что `spread` в записи `cpu` параметра `rebalance_even_load_thresholds`. Явно заданное значение в `rebalance_even_load_thresholds` имеет приоритет. ||
+|| `rebalance_min_cpu_ratio` | **Тип**: `std::optional<double>`
+Устаревший параметр: то же, что `ratio` в записи `cpu` параметра `rebalance_even_load_thresholds`. Явно заданное значение в `rebalance_even_load_thresholds` имеет приоритет. ||
+|| `balance_weights` | **Тип**: `THashMap<`[NYT::NFlow::EBalanceResource](./all_yson_structs#NYT_NFlow_EBalanceResource)`, double>`
+**Значение по умолчанию**: `{'cpu': 1.0, 'memory': 0.0}`
+Относительная важность ресурсов для `cpu_aware` балансировки, например `{cpu = 80; memory = 20}`. Указанные ключи накладываются на значение по умолчанию `{cpu = 1; memory = 0}`; веса нормируются, значимы только пропорции. Ресурс с нулевым весом не участвует в балансировке, поэтому по умолчанию балансируется только CPU. Порог `rebalance_target_deviation` применяется к нормированной взвешенной сумме: добавление второго ресурса пропорционально уменьшает вклад первого. ||
 || `disable_even_load_gate` | **Тип**: `std::optional<bool>`
  ||
 || `async_balancing` | **Тип**: `bool`

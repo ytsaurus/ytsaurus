@@ -50,6 +50,8 @@
 
 {% include [_](./NYT_NFlow_EBacktraceEnricherLevel.md) %}
 
+{% include [_](./NYT_NFlow_EBalanceResource.md) %}
+
 {% include [_](./NYT_NFlow_EDistributionOrdering.md) %}
 
 {% include [_](./NYT_NFlow_EFetchType.md) %}
@@ -201,6 +203,8 @@
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSwiftPassthroughOrderedSourceComputation.md) %}
 
 {% include [_](./NYT_NFlow_TDynamicUnitedParameters_NYT_NFlow_TSyncQueueSink.md) %}
+
+{% include [_](./NYT_NFlow_TEvenLoadThresholds.md) %}
 
 {% include [_](./NYT_NFlow_TEventTimestampAssignerSpec.md) %}
 

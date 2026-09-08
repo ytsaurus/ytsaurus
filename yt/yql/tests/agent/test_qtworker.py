@@ -5,7 +5,7 @@ from common import TestQueriesYqlBase, TestUpdateYqlAgentQtWorkerDynamicConfigMi
 
 from yt.environment.helpers import assert_items_equal
 
-from yt_commands import authors, create, create_user, issue_token, write_table, raises_yt_error, wait, update_access_control_object_acl
+from yt_commands import authors, create, create_user, get, issue_token, write_table, raises_yt_error, wait, update_access_control_object_acl
 
 from dirty_equals import AnyThing
 
@@ -20,6 +20,42 @@ class TestQTWorkerStart(TestQueriesYqlBase):
     @authors("mpereskokova")
     def test_qtworker_start(self, query_tracker, yql_agent):
         pass
+
+
+class TestQTWorkerNotReady(test_simple.TestQueriesYqlSimpleBase):
+    YQL_QTWORKER = True
+    NUM_YQL_AGENTS = 2
+    # The second agent starts without a qtworker, so it cannot execute queries at all.
+    YQL_QTWORKER_SKIP_INSTANCES = [1]
+
+    @staticmethod
+    def _is_ready(address):
+        return get(f"//sys/yql_agent/instances/{address}/orchid/yql_agent/ready")
+
+    @authors("mpereskokova")
+    @pytest.mark.timeout(300)
+    def test_not_ready_agent_is_skipped(self, query_tracker, yql_agent):
+        ready_address, not_ready_address = yql_agent.yql_agent.addresses
+
+        assert self._is_ready(ready_address)
+        assert not self._is_ready(not_ready_address)
+
+        for _ in range(3):
+            query = self.start_query("yql", "select 1 as a")
+            query.track()
+            assert_items_equal(query.read_result(0), [{"a": 1}])
+            assert query.get()["annotations"]["assigned_engine"] == ready_address
+
+        yql_agent.yql_agent.start_qtworker(1)
+        wait(lambda: self._is_ready(not_ready_address), timeout=120)
+
+        def is_assigned_to_recovered_agent():
+            query = self.start_query("yql", "select 1 as a")
+            query.track()
+            assert_items_equal(query.read_result(0), [{"a": 1}])
+            return query.get()["annotations"]["assigned_engine"] == not_ready_address
+
+        wait(is_assigned_to_recovered_agent)
 
 
 @authors("mpereskokova")

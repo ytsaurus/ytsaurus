@@ -113,7 +113,8 @@ const TConsumerReference& GetObjectReference(const TConsumerInfo& info)
 }
 
 template <typename TPath, typename T>
-THashMap<TPath, T> GetHashTable(const std::vector<T>& rowList) {
+THashMap<TPath, T> BuildHashTable(const std::vector<T>& rowList)
+{
     THashMap<TPath, T> result;
     for (const auto& row : rowList) {
         result.emplace(GetObjectReference(row), row);
@@ -127,7 +128,7 @@ std::string GetLeadingStatus(const IObjectControllerPtr& controller)
 }
 
 template <typename T>
-auto GetHashTable(const std::vector<T>& rowList)
+auto BuildHashTable(const std::vector<T>& rowList)
 {
     using TPath = decltype(T::Path);
     return rowList
@@ -774,7 +775,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         .With("QueueAgentObjectMappingRowCount", objectMappingRows.size())
         .With("ReplicatedTableMappingRowCount", replicatedTableMappingRows.size());
 
-    auto allMultiConsumers = GetHashTable<TTablePath>(multiConsumerRows);
+    auto allMultiConsumers = BuildHashTable<TTablePath>(multiConsumerRows);
 
     for (auto& consumerNameRow : multiConsumerNameRows) {
         if (auto multiConsumerRow = allMultiConsumers.FindPtr(ToTablePath(consumerNameRow.Ref))) {
@@ -785,8 +786,8 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
         }
     }
 
-    auto allQueues = GetHashTable<TTablePath>(queueRows);
-    auto allConsumers = GetHashTable<TConsumerReference>(consumerInfos);
+    auto allQueues = BuildHashTable<TTablePath>(queueRows);
+    auto allConsumers = BuildHashTable<TConsumerReference>(consumerInfos);
 
     auto queuesWithOurStage = GetObjectsWithStage(queueRows, Config_->Stage);
     auto consumersWithOurStage = GetObjectsWithStage(consumerInfos, Config_->Stage);
@@ -796,7 +797,7 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
     auto objectMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);
 
     // Mapping from refs for replicated objects to their meta-rows with information about potential replicas.
-    auto replicatedTableMapping = GetHashTable<TTablePath>(replicatedTableMappingRows);
+    auto replicatedTableMapping = BuildHashTable<TTablePath>(replicatedTableMappingRows);
 
     // Filter only those queues and consumers for which our queue agent is responsible.
 
@@ -887,8 +888,8 @@ void TQueueAgent::GuardedPass(const TLogger& Logger)
             /*leading*/ true);
     }
 
-    auto ledQueues = GetHashTable<TTablePath>(leaderQueueRows);
-    auto ledConsumers = GetHashTable<TConsumerReference>(leaderConsumerInfos);
+    auto ledQueues = BuildHashTable<TTablePath>(leaderQueueRows);
+    auto ledConsumers = BuildHashTable<TConsumerReference>(leaderConsumerInfos);
 
     THashMap<TTablePath, TQueueTableRow> followedQueues;
     THashMap<TConsumerReference, TConsumerInfo> followedConsumers;

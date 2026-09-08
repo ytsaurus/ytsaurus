@@ -13,7 +13,7 @@ using namespace NWebAssembly;
 struct TTopCollectorBufferTag
 { };
 
-static constexpr i64 MinimumGarbageCollectionCapacity = 2_MB;
+constexpr i64 MinimumGarbageCollectionCapacity = 2_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -535,7 +535,11 @@ public:
                 InspectorServer_->Shutdown();
                 InspectorServer_.reset();
             }
-            WorkerClients_.clear();
+
+            std::unordered_map<TString, TWorkerClient::TPtr, THash<TString>> workerClients;
+            with_lock(WorkerLock_) {
+                WorkerClients_.swap(workerClients);
+            }
         } catch (...) {
             YQL_LOG(ERROR) << "Error while stopping worker api: " << CurrentExceptionMessage();
         }
@@ -545,9 +549,11 @@ public:
         if (!InspectorServer_) {
             return false;
         }
-        for (const auto& [_, client]: WorkerClients_) {
-            if (client->IsHealthy()) {
-                return true;
+        with_lock (WorkerLock_) {
+            for (const auto& [_, client]: WorkerClients_) {
+                if (client->IsHealthy()) {
+                    return true;
+                }
             }
         }
         return false;
@@ -869,12 +875,18 @@ private:
     void DoLostWorker(const TString& workerId) {
         YQL_LOG(WARN) << "Worker " << workerId << " becomes lost";
 
-        size_t removed = 0;
+        // Keep the client alive until the lock is released: ~TWorkerClient blocks
+        // until in-flight requests drain.
+        TWorkerClient::TPtr workerToRemove;
+
         with_lock (WorkerLock_) {
-            removed = WorkerClients_.erase(workerId);
-        }
-        if (0 == removed) {
-            YQL_LOG(ERROR) << "Unknown worker lost " << workerId;
+            auto it = WorkerClients_.find(workerId);
+            if (it != WorkerClients_.end()) {
+                workerToRemove = it->second;
+                WorkerClients_.erase(it);
+            } else {
+                YQL_LOG(ERROR) << "Unknown worker lost " << workerId;
+            }
         }
     }
 

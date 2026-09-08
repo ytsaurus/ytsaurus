@@ -87,7 +87,6 @@ The less frequently used fields of the `vanilla` block:
 || **Parameter** | **Description** ||
 || `runtime_proxy_role` | The RPC proxy role for `runtime_cluster` (the pipeline cluster’s role may not exist there). Taken into account only when `runtime_cluster` differs from the pipeline cluster; on the pipeline cluster its own `proxy_role` is used ||
 || `cache_path` | The {{product-name}} file cache the job files are uploaded to (shared by all flow operations on the cluster). Non-empty, `//tmp/yt_wrapper/file_storage/new_cache` by default ||
-|| `upload_temp_path` | The directory where an uploaded file is staged as a temporary node before being moved into the cache. The parent directory of `cache_path` by default. Set it together with `cache_path` when the user has no access to `//tmp` ||
 |#
 
 And the task fields (`controller`/`worker`):

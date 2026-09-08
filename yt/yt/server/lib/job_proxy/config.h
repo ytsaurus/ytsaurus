@@ -389,6 +389,7 @@ struct TJobProxyPeakMemoryProfilerConfig
     : public NYTree::TYsonStruct
 {
     bool Enabled;
+
     //! NB(coteeq): This is probably what you want to get symbolized profiles,
     //! but external symbolizer is very slow and consumes large amounts
     //! of memory (this is a process, so think of 30M+ of additional memory).

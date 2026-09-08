@@ -3,11 +3,14 @@ package tech.ytsaurus.flow.state;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.google.protobuf.ByteString;
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.PayloadBuilder;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeConvertible;
@@ -21,21 +24,25 @@ import tech.ytsaurus.ysontree.YTreeNode;
  * confined to that single request-processing thread for its entire lifetime; it must not be
  * shared across threads.
  */
-public class StatesHolder<T extends State<?>> implements YTreeConvertible {
+public class StatesHolder implements YTreeConvertible {
     private final String name;
     private final @Nullable TableSchema keySchema;
     private final @Nullable TableSchema stateSchema;
     private final StateFormat format;
     private final @Nullable String protoType;
-    private final Map<UnversionedRow, T> states;
+    private final Map<UnversionedRow, State> states;
     /**
      * States whose value was changed during the current epoch via {@link #set} by state accessors.
      */
-    private final Map<UnversionedRow, T> modifiedStates;
+    private final Map<UnversionedRow, State> modifiedStates;
     /**
      * Memoized empty payload returned by {@link #emptyStatePayload}.
      */
     private @Nullable Payload emptyStatePayload;
+    /**
+     * Memoized codec bound to {@link #stateSchema}, returned by {@link #valueCodec}.
+     */
+    private @Nullable ByteStringCodec<Payload> valueCodec;
 
     public StatesHolder(
             String name,
@@ -75,7 +82,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      * @param key   UnversionedRow key.
      * @param value State value.
      */
-    public void set(UnversionedRow key, T value) {
+    public void set(UnversionedRow key, State value) {
         this.states.put(key, value);
         this.modifiedStates.put(key, value);
     }
@@ -87,7 +94,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      * @param key   UnversionedRow key.
      * @param value State value.
      */
-    public void load(UnversionedRow key, T value) {
+    public void load(UnversionedRow key, State value) {
         this.states.put(key, value);
     }
 
@@ -97,7 +104,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      * @param key UnversionedRow key.
      * @return State value, or {@code null} if absent.
      */
-    public @Nullable T get(UnversionedRow key) {
+    public @Nullable State get(UnversionedRow key) {
         return states.get(key);
     }
 
@@ -115,7 +122,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      *
      * @return Map of states.
      */
-    public Map<UnversionedRow, T> getStates() {
+    public Map<UnversionedRow, State> getStates() {
         return states;
     }
 
@@ -128,7 +135,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      *
      * @return Map of modified states.
      */
-    public Map<UnversionedRow, T> getModifiedStates() {
+    public Map<UnversionedRow, State> getModifiedStates() {
         return modifiedStates;
     }
 
@@ -170,8 +177,8 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
     }
 
     /**
-     * Ensures this holder carries row-format payloads. A proto-format holder stores null in the
-     * row payload slot, so a row accessor over it would silently read every state as absent.
+     * Ensures this holder carries row-format payloads: a row accessor over a proto-format holder
+     * would decode serialized messages as rows.
      *
      * @throws IllegalStateException if this holder is in the proto wire format
      */
@@ -182,6 +189,35 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
                             .formatted(name)
             );
         }
+    }
+
+    /**
+     * Encodes a payload into the wire bytes stored for it.
+     *
+     * @param value payload to encode.
+     * @return Wire bytes of the state value.
+     * @throws UnsupportedOperationException if this holder has no schema.
+     */
+    ByteString encodeValue(Payload value) {
+        return valueCodec().encode(value);
+    }
+
+    /**
+     * Memoized payload codec bound to this holder's state schema, used to (de)code the wire
+     * bytes of row-format external states.
+     *
+     * @return Codec bound to the state schema.
+     * @throws UnsupportedOperationException if this holder has no schema.
+     */
+    ByteStringCodec<Payload> valueCodec() {
+        if (stateSchema == null) {
+            throw new UnsupportedOperationException(
+                    "State '" + name + "' has no schema for its values");
+        }
+        if (valueCodec == null) {
+            valueCodec = CodecRegistry.getInstance().getPayloadCodec().codecFor(stateSchema);
+        }
+        return valueCodec;
     }
 
     /**

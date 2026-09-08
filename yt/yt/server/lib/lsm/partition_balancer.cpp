@@ -249,6 +249,7 @@ private:
         if (!mountConfig->EnablePartitionSplitWhileEdenPartitioning &&
             tablet->Eden()->GetState() == EPartitionState::Partitioning)
         {
+            auto Logger = BuildLogger(partition);
             YT_TLOG_DEBUG("Eden is partitioning, will not split partition")
                 .With("EdenPartitionId", tablet->Eden()->GetId());
             return false;
@@ -287,10 +288,9 @@ private:
             }
         }
 
-        NLogging::TLogger Logger;
-        if (mountConfig->EnableLsmVerboseLogging) {
-            Logger = BuildLogger(partition);
-        }
+        auto Logger = mountConfig->EnableLsmVerboseLogging
+            ? BuildLogger(partition)
+            : NLogging::TLogger();
 
         YT_TLOG_DEBUG("Scanning partition to merge")
             .WithFormat("PartitionIndex", "%v of %v", partition->GetIndex(), partitionCount)
@@ -307,12 +307,20 @@ private:
             int estimatedOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount() +
                 tablet->Partitions()[firstPartitionIndex]->Stores().size() +
                 tablet->Partitions()[lastPartitionIndex]->Stores().size();
+            i64 mergedDataSize =
+                tablet->Partitions()[firstPartitionIndex]->GetCompressedDataSize() +
+                tablet->Partitions()[lastPartitionIndex]->GetCompressedDataSize();
+            bool willRunMerge =
+                mergedDataSize <= mountConfig->MaxPartitionDataSize &&
+                estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount;
 
             YT_TLOG_DEBUG("Found candidate partitions to merge")
                 .With("FirstPartitionIndex", firstPartitionIndex)
                 .With("LastPartitionIndex", lastPartitionIndex)
+                .With("MergedDataSize", mergedDataSize)
+                .With("MaxPartitionDataSize", mountConfig->MaxPartitionDataSize)
                 .With("EstimatedOsc", estimatedOverlappingStoreCount)
-                .With("WillRunMerge", estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount);
+                .With("WillRunMerge", willRunMerge);
 
             std::vector<TPartitionId> partitionIds;
             for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
@@ -322,7 +330,7 @@ private:
                 }
             }
 
-            if (estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount) {
+            if (willRunMerge) {
                 return TMergePartitionsRequest{
                     .Tablet = MakeStrong(tablet),
                     .FirstPartitionIndex = firstPartitionIndex,
@@ -336,7 +344,6 @@ private:
 
     bool ValidateMerge(TPartition* partition, const NLogging::TLogger& Logger) const
     {
-        const auto& mountConfig = partition->GetTablet()->GetMountConfig();
         if (CurrentTime_ < partition->GetAllowedMergeTime()) {
             YT_TLOG_DEBUG("Will not merge partition: too early")
                 .With("CurrentTime", CurrentTime_)

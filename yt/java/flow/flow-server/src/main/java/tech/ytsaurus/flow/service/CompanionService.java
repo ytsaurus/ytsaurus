@@ -42,6 +42,7 @@ import tech.ytsaurus.flow.utils.YsonUtils;
 public class CompanionService extends CompanionServiceGrpc.CompanionServiceImplBase {
 
     private static final Logger log = LoggerFactory.getLogger(CompanionService.class);
+
     private final CompanionRequestProcessor processor;
     private final CompanionMetrics metrics;
 
@@ -85,12 +86,18 @@ public class CompanionService extends CompanionServiceGrpc.CompanionServiceImplB
             responseBuilder.setMetrics(responseMetrics);
 
             response = responseBuilder.build();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             measurement.stop();
-            log.error("Error processing batch", e);
+            log.error("Error processing batch (ComputationId: {})", request.getComputationId(), e);
             responseObserver.onError(new StatusRuntimeException(Status.INTERNAL.withDescription(
-                    "Error processing batch: " + e.getMessage()
+                    new TruncatedException(
+                            "Error processing batch (ComputationId: " + request.getComputationId() + ")", e)
+                            .getMessage()
             )));
+            if (e instanceof VirtualMachineError) {
+                // The status is surfaced above; the JVM must still see the fatal error.
+                throw (VirtualMachineError) e;
+            }
             return;
         }
         measurement.stop();

@@ -136,6 +136,8 @@ class TestGetFeatures(TestGetFeaturesBase):
         assert "require_password_in_authentication_commands" in features
         assert features["require_password_in_authentication_commands"] == yson.YsonBoolean(True)
 
+        assert features["cumulative_spec_patch"] == yson.YsonBoolean(True)
+
 
 class TestGetFeaturesWithConfigs(TestGetFeaturesBase):
     ENABLE_MULTIDAEMON = True

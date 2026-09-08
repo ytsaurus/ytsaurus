@@ -256,9 +256,9 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TKeyVisitor::BuildInflight()
         Store_->IsCurrentPassFinal() && Store_->IsAllCommitted() && Buffer_.empty();
     inflight->InflightMetrics->Count = inflight->Empty ? 0 : BufferRowCount_;
     inflight->InflightMetrics->ReadyCount = BufferRowCount_;
-    inflight->InflightMetrics->NewCountPerSec = EmittedRate_.GetRate();
+    inflight->InflightMetrics->NewCountPerSec = EmittedRate_.GetDecayedRate();
     inflight->InflightMetrics->OfferedCountPerSec = inflight->InflightMetrics->NewCountPerSec;
-    inflight->InflightMetrics->ProcessedCountPerSec = ProcessedRate_.GetRate();
+    inflight->InflightMetrics->ProcessedCountPerSec = ProcessedRate_.GetDecayedRate();
     if (!inflight->Empty && !Buffer_.empty() && !Buffer_.front().Visits.empty()) {
         const auto& head = Buffer_.front().Visits.front();
         inflight->MinSystemTimestamp = head.SystemTimestamp;
@@ -278,9 +278,6 @@ void TKeyVisitor::Sync(NApi::IDynamicTableTransactionPtr transaction)
 void TKeyVisitor::Commit()
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Context_->SerializedInvoker);
-    if (PendingProcessedCount_ == 0) {
-        return;
-    }
     ProcessedRate_.Inc(PendingProcessedCount_);
     PersistedCounter_.Increment(PendingProcessedCount_);
     PendingProcessedCount_ = 0;

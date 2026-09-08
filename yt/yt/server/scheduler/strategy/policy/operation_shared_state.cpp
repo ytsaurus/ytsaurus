@@ -189,7 +189,8 @@ bool TOperationSharedState::OnAllocationStarted(
     TControllerEpoch scheduleAllocationEpoch,
     bool force)
 {
-    YT_ELEMENT_LOG_DETAILED(operationElement, "Adding allocation to strategy (AllocationId: %v)", allocationId);
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Adding allocation to strategy")
+        .With("AllocationId", allocationId);
 
     if (!force && (!IsEnabled() || operationElement->GetControllerEpoch() != scheduleAllocationEpoch)) {
         return false;
@@ -207,7 +208,8 @@ EAllocationUpdateStatus TOperationSharedState::OnAllocationFinished(
     TPoolTreeOperationElement* operationElement,
     TAllocationId allocationId)
 {
-    YT_ELEMENT_LOG_DETAILED(operationElement, "Removing allocation from strategy (AllocationId: %v)", allocationId);
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Removing allocation from strategy")
+        .With("AllocationId", allocationId);
 
     {
         auto guard = ReaderGuard(AllocationPropertiesMapLock_);
@@ -241,7 +243,8 @@ void TOperationSharedState::ResetAllocationPreemptibleProgressUnsafe(
 {
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
 
-    YT_ELEMENT_LOG_DETAILED(operationElement, "Resetting preemptible allocation progress (AllocationId: %v)", allocationId);
+    YT_ELEMENT_LOG_DETAILED(operationElement, "Resetting preemptible allocation progress")
+        .With("AllocationId", allocationId);
 
     auto* properties = GetAllocationProperties(allocationId);
     auto& listToInsert = AllocationsPerPreemptionStatus_[EAllocationPreemptionStatus::Preemptible];

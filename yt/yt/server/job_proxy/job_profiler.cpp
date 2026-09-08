@@ -85,19 +85,19 @@ public:
 
             auto profile = JobProxyCpuProfiler_->ReadProfile();
             SymbolizeProfile(&profile, JobProxyCpuProfilerSpec_);
-            JobProxyCpuProfile_->Blob = SerializeProfile(profile);
+            SetProfileBlob(&JobProxyCpuProfile_, SerializeProfile(profile));
         }
 
         if (JobProxyMemoryProfile_) {
             auto profile = TCMallocProfileToProtoProfile(std::move(*JobProxyMemoryProfilingToken_).Stop());
             SymbolizeProfile(&profile, JobProxyMemoryProfilerSpec_);
-            JobProxyMemoryProfile_->Blob = SerializeProfile(profile);
+            SetProfileBlob(&JobProxyMemoryProfile_, SerializeProfile(profile));
         }
 
         if (JobProxyPeakMemoryProfile_) {
             auto profile = CaptureHeapProfile(tcmalloc::ProfileType::kPeakHeap);
             SymbolizeProfile(&profile, JobProxyPeakMemoryProfilerSpec_);
-            JobProxyPeakMemoryProfile_->Blob = SerializeProfile(profile);
+            SetProfileBlob(&JobProxyPeakMemoryProfile_, SerializeProfile(profile));
         }
 
         if (UserJobProfile_) {
@@ -106,7 +106,7 @@ public:
                 // User job did not send profile.
                 UserJobProfile_ = {};
             } else {
-                UserJobProfile_->Blob = std::move(profile);
+                SetProfileBlob(&UserJobProfile_, std::move(profile));
             }
         }
     }
@@ -192,21 +192,19 @@ private:
             .SamplingFrequency = spec->SamplingFrequency,
         };
         JobProxyCpuProfiler_ = std::make_unique<TCpuProfiler>(options);
-        JobProxyCpuProfile_ = TJobProfile{
-            .ProfilingBinary = spec->Binary,
-            .ProfilerType = spec->Type,
-            .ProfilingProbability = spec->ProfilingProbability,
-        };
+        JobProxyCpuProfile_ = TJobProfile(
+            spec->Binary,
+            spec->Type,
+            spec->ProfilingProbability);
         JobProxyCpuProfilerSpec_ = std::move(spec);
     }
 
     void InitializeJobProxyMemoryProfiler(const TJobProfilerSpecPtr& spec)
     {
-        JobProxyMemoryProfile_ = TJobProfile{
-            .ProfilingBinary = spec->Binary,
-            .ProfilerType = spec->Type,
-            .ProfilingProbability = spec->ProfilingProbability,
-        };
+        JobProxyMemoryProfile_ = TJobProfile(
+            spec->Binary,
+            spec->Type,
+            spec->ProfilingProbability);
         JobProxyMemoryProfilerSpec_ = spec;
     }
 
@@ -217,11 +215,10 @@ private:
         }
 
         UserJobProfileStream_ = std::make_unique<TStringStream>();
-        UserJobProfile_ = TJobProfile{
-            .ProfilingBinary = spec->Binary,
-            .ProfilerType = spec->Type,
-            .ProfilingProbability = spec->ProfilingProbability,
-        };
+        UserJobProfile_ = TJobProfile(
+            spec->Binary,
+            spec->Type,
+            spec->ProfilingProbability);
         UserJobProfilerSpec_ = std::move(spec);
     }
 
@@ -235,11 +232,10 @@ private:
         }
 
         if (!DumpPeakMemoryUsage_.exchange(true)) {
-            TJobProfile profile{
-                .ProfilingBinary = spec->Binary,
-                .ProfilerType = spec->Type,
-                .ProfilingProbability = spec->ProfilingProbability,
-            };
+            TJobProfile profile(
+                spec->Binary,
+                spec->Type,
+                spec->ProfilingProbability);
             JobProxyPeakMemoryProfile_ = profile;
             JobProxyPeakMemoryProfilerSpec_ = std::move(spec);
         }
@@ -271,6 +267,16 @@ private:
         TStringStream stream;
         WriteCompressedProfile(&stream, profile);
         return stream.Str();
+    }
+
+    static void SetProfileBlob(std::optional<TJobProfile>* profile, TString blob)
+    {
+        const auto& currentProfile = profile->value();
+        *profile = TJobProfile(
+            currentProfile.GetProfilingBinary(),
+            currentProfile.GetProfilerType(),
+            currentProfile.GetProfilingProbability(),
+            std::move(blob));
     }
 };
 

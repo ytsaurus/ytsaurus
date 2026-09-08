@@ -67,10 +67,9 @@ TEST(TSwiftMapSpecValidationTest, AcceptsWellFormedSpec)
             input_stream_ids = [ in ];
         }
     )##");
+    ASSERT_FALSE(spec->WatermarkStrategy->WatermarkGenerator);
     EXPECT_NO_THROW(TRegistry::Get()->ValidateComputationSpec(spec));
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
 } // namespace NYT::NFlow

@@ -34,6 +34,7 @@ target_link_libraries(library-cpp-controller PUBLIC
   cpp-containers-concurrent_hash_set
   library-cpp-getopt
   cpp-yson-node
+  cpp-yt-containers
   cpp-yt-memory
   yt-yt-core
   cpp-pipeline_helpers-flow_execute
@@ -41,6 +42,7 @@ target_link_libraries(library-cpp-controller PUBLIC
   cpp-controller-describe
   library-cpp-distributed_throttler
   library-cpp-misc
+  library-cpp-partitioning
   library-cpp-tables
   library-cpp-client
   yt-library-cypress_election
@@ -63,6 +65,7 @@ target_sources(library-cpp-controller PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_balancer_result.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/lease_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/lineage_rate_aggregator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/persisted_state_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/state_access.cpp

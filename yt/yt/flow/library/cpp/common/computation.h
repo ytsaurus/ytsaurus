@@ -7,6 +7,7 @@
 #include "distributing_tracker.h"
 #include "external_metrics_reporter.h"
 #include "flow_view.h"
+#include "job_lineage_tracker.h"
 #include "partition_buffer_state.h"
 #include "spec_validation.h"
 #include "stream_inflight_limits.h"
@@ -62,6 +63,8 @@ struct TComputationContextBase
     NYT::NHttp::IClientPtr HttpsClient;
     NYT::NConcurrency::IPollerPtr Poller;
 
+    IJobLineageTrackerPtr JobLineageTracker;
+
     //! Raw channel provider to the controller's distributed-throttler service.
     //! TComputationBase uses it to build its IDistributedThrottlerFactory.
     std::function<NRpc::IChannelPtr()> DistributedThrottlerControllerChannelProvider;
@@ -84,7 +87,7 @@ DEFINE_REFCOUNTED_TYPE(TComputationContext);
 
 struct TDynamicComputationContextBase
 {
-    i64 SpecGeneration;
+    i64 SpecGeneration = 0;
     TDynamicComputationSpecPtr DynamicComputationSpec;
     TDynamicPartitionSpecPtr DynamicPartitionSpec;
     THashMap<TThrottlerId, TDynamicThrottlerSpecPtr> Throttlers;
@@ -167,6 +170,21 @@ DEFINE_REFCOUNTED_TYPE(TComputationStatus);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Worker-to-controller status of the computation-owned part of a partition.
+struct TComputationPartitionStatus
+    : public NYTree::TYsonStruct
+{
+    std::optional<NYTree::IMapNodePtr> ActiveSourceStatus;
+
+    REGISTER_YSON_STRUCT(TComputationPartitionStatus);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TComputationPartitionStatus);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_BIT_ENUM(EWatchComputationReconfigure,
     ((Never)                    (0x00))
     ((SpecGeneration)           (0x01))
@@ -201,6 +219,12 @@ private:
     struct TDynamicPartitionSpecBase
         : public virtual NYTree::TYsonStruct
     {
+        NYTree::IMapNodePtr ActiveSource;
+        THashSet<TStreamId> BlockedOutputStreams;
+        //! Every partition of this partition's availability group is unavailable, as decided by the last
+        //! traverse. Passed to the source so it can stop publishing errors, never to be acted upon otherwise.
+        bool AvailabilityGroupUnavailable{};
+
         REGISTER_YSON_STRUCT(TDynamicPartitionSpecBase);
 
         static void Register(TRegistrar registrar);

@@ -20,6 +20,7 @@ import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.PayloadBuilder;
 import tech.ytsaurus.flow.row.Timer;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -66,23 +67,25 @@ class StateDescriptorTest {
                 .setKey(key)
                 .build();
 
-        Map<String, StatesHolder<InternalState>> internal = new HashMap<>();
-        Map<String, StatesHolder<ExternalState>> external = new HashMap<>();
+        Map<String, StatesHolder> internal = new HashMap<>();
+        Map<String, StatesHolder> external = new HashMap<>();
         TableSchema stateSchema = TableSchema.builder()
                 .addValue("count", TiType.int64())
                 .build();
-        external.put(EXT_STATE, new StatesHolder<>(EXT_STATE, keySchema, stateSchema));
+        external.put(EXT_STATE, new StatesHolder(EXT_STATE, keySchema, stateSchema));
 
         // Read-only joined state: a writer's value is pre-populated under joinedKey.
         joinedStateSchema = TableSchema.builder()
                 .addValue("count", TiType.int64())
                 .build();
         joinedKey = key;
-        Map<String, StatesHolder<ExternalState>> joined = new HashMap<>();
-        var joinedHolder = new StatesHolder<ExternalState>(JOINED_STATE, keySchema, joinedStateSchema);
+        Map<String, StatesHolder> joined = new HashMap<>();
+        var joinedHolder = new StatesHolder(JOINED_STATE, keySchema, joinedStateSchema);
         joinedHolder.set(
                 joinedKey.getRow(),
-                new ExternalState(new PayloadBuilder(joinedStateSchema).set("count", 42L).finish())
+                new State(CodecRegistry.getInstance().getPayloadCodec()
+                        .codecFor(joinedStateSchema)
+                        .encode(new PayloadBuilder(joinedStateSchema).set("count", 42L).finish()))
         );
         joined.put(JOINED_STATE, joinedHolder);
 

@@ -8,8 +8,6 @@ import pytest
 
 
 class TestUdfs(TestQueriesYqlBase):
-    NUM_TEST_PARTITIONS = 4
-
     @authors("max42")
     @pytest.mark.timeout(120)
     def test_simple_udf(self, query_tracker, yql_agent):
@@ -133,8 +131,6 @@ select $get_secure_param(SecureParam("token:geheim1")) as sp1, $get_secure_param
 
 
 class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
-    NUM_TEST_PARTITIONS = 4
-
     def _update_dyn_config(self, yql_agent, dyn_config):
         config = get("//sys/yql_agent/config")
         config["yql_agent"] = dyn_config

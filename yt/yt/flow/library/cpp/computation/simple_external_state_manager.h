@@ -65,13 +65,14 @@ public:
         TRange<TKey> keys,
         NTableClient::TTableSchemaPtr expectedStateSchema) const;
 
-    //! Diffs |oldPayloads| vs |newPayloads| and stages writes/deletes into |tx|.
-    //! Both maps must share keys; payloads must follow |stateSchema|.
+    //! Diffs |oldPayloads| vs |newPayloads| and stages writes/deletes into |tx|, plus a delete per
+    //! key of |erasedKeys|. |stateSchema| may be null only when the maps are empty.
     void Write(
         const IRetryableTransactionPtr& tx,
         const NTableClient::TTableSchemaPtr& stateSchema,
         const THashMap<TKey, TPayload>& oldPayloads,
-        const THashMap<TKey, TPayload>& newPayloads) const;
+        const THashMap<TKey, TPayload>& newPayloads,
+        const THashSet<TKey>& erasedKeys = {}) const;
 
     struct TListedKeys
     {
@@ -138,6 +139,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicSimpleExternalStateManagerSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Mutable per-key state over a dynamic table, one row per key.
 class TSimpleExternalStateManager
     : public TExternalStateManagerBase<TSimpleExternalState>
 {
@@ -152,6 +154,7 @@ public:
         TDynamicExternalStateManagerContextPtr dynamicContext);
 
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) final;
+    void EraseKeyState(const TKey& key) final;
     void Sync(IRetryableTransactionPtr transaction) final;
 
     IStateHolderPtr GetState(const TKey& key) final;
@@ -168,6 +171,8 @@ private:
         TStateSchemaPtr StateSchema;
         THashMap<TKey, TPayload> OldStates;
         THashMap<TKey, TStateHolderPtr> States;
+        //! Keys erased in this epoch; disjoint with States and OldStates.
+        THashSet<TKey> Erased;
     };
 
 private:

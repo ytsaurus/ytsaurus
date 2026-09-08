@@ -7,6 +7,8 @@
 
 #include <yt/yt/flow/library/cpp/native_client/public.h>
 
+#include <yt/yt/flow/library/cpp/vanilla/current_operation.h>
+
 #include <yt/yt/client/api/rpc_proxy/config.h>
 #include <yt/yt/client/api/rpc_proxy/connection.h>
 
@@ -18,6 +20,8 @@
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ypath/helpers.h>
+
+#include <yt/yt/core/ytree/convert.h>
 
 #include <util/system/env.h>
 
@@ -116,6 +120,33 @@ void WaitRelativelySmallTime(TInstant activityStart, TDuration minWait, TDuratio
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TError MakeWaitPipelineStateTimeoutError(
+    EPipelineState targetState,
+    EPipelineState lastObservedState,
+    TDuration waitTimeout)
+{
+    // A graceful update stops the pipeline before installing the new specs, so a pipeline that
+    // cannot drain blocks the very update that would fix it; pausing skips the drain.
+    constexpr TStringBuf GracefulUpdateHint =
+        "; if it cannot drain (for example, its jobs fail every epoch), "
+        "set YT_FLOW_GRACEFUL_UPDATE=0 to pause the pipeline instead of stopping it; "
+        "see the hotfix constraints in the release documentation before doing so";
+
+    const bool drainStalled =
+        targetState == EPipelineState::Stopped &&
+        lastObservedState == EPipelineState::Draining;
+
+    return TError(
+        "Timed out after %v seconds waiting for pipeline state %Qlv; the pipeline is still in state %Qlv%v",
+        waitTimeout.Seconds(),
+        targetState,
+        lastObservedState,
+        drainStalled ? GracefulUpdateHint : TStringBuf())
+        .With("target_state", targetState)
+        .With("last_observed_state", lastObservedState)
+        .With("timeout", waitTimeout);
+}
+
 static void WaitPipelineState(
     NApi::IClientPtr client,
     const TYPath& root,
@@ -158,8 +189,7 @@ static void WaitPipelineState(
         while (true) {
             const auto now = TInstant::Now();
             if (now >= deadline) {
-                THROW_ERROR_EXCEPTION("Wait timed out")
-                    .With("timeout", waitTimeout)
+                THROW_ERROR MakeWaitPipelineStateTimeoutError(targetState, currentState, waitTimeout)
                     .WithIf(!lastError.IsOK(), lastError);
             }
 
@@ -280,7 +310,8 @@ void RunPipeline(
     std::optional<bool> graceful,
     TDuration waitTimeout,
     bool enablePipelineCreation,
-    bool enablePipelineStopOrPause)
+    bool enablePipelineStopOrPause,
+    const std::optional<TVanillaOperationHandle>& vanillaOperation)
 {
     if (!graceful) {
         graceful = IsGracefulUpdateFromEnv();
@@ -422,6 +453,11 @@ void RunPipeline(
             YT_TLOG_ERROR("Failed to update pipeline")
                 .With(ex);
 
+            // The controller runs inside the operation, so a dead operation makes every retry hopeless.
+            if (vanillaOperation) {
+                vanillaOperation->ThrowIfTerminal();
+            }
+
             // Drain everything the controller has produced, so the user sees the public log lines that explain the failure.
             if (controllerLogReader.IsOpen()) {
                 try {
@@ -456,10 +492,42 @@ void WaitPipeline(
     WaitPipeline(std::move(client), pipelinePath);
 }
 
+void TVanillaOperationHandle::ThrowIfTerminal() const
+{
+    NApi::TGetOperationOptions options;
+    options.Attributes = THashSet<std::string>{"state", "result"};
+    NApi::TOperation info;
+    try {
+        info = WaitFor(Client->GetOperation(OperationId, options))
+            .ValueOrThrow();
+    } catch (const std::exception& ex) {
+        YT_TLOG_WARNING("Failed to check vanilla operation")
+            .With("OperationId", OperationId)
+            .With(ex);
+        return;
+    }
+    if (!info.State || !IsVanillaOperationStateTerminal(*info.State)) {
+        return;
+    }
+    auto error = TError(
+        "Vanilla operation %v is %lv; the pipeline cannot run without it",
+        OperationId,
+        *info.State);
+    if (info.Result) {
+        if (auto resultError = NYTree::ConvertToNode(info.Result)->AsMap()->FindChild("error")) {
+            error.MutableInnerErrors()->push_back(NYTree::ConvertTo<TError>(resultError));
+        }
+    }
+    THROW_ERROR error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void WaitPipeline(
     NApi::IClientPtr client,
     const TRichYPath& pipelinePath,
-    TDuration controllerUnavailableTimeout)
+    TDuration controllerUnavailableTimeout,
+    const std::optional<TVanillaOperationHandle>& vanillaOperation)
 {
     const auto& root = pipelinePath.GetPath();
 
@@ -500,6 +568,10 @@ void WaitPipeline(
         } catch (const std::exception& ex) {
             YT_TLOG_ERROR("Failed to check pipeline")
                 .With(ex);
+
+            if (vanillaOperation) {
+                vanillaOperation->ThrowIfTerminal();
+            }
 
             // A single failure is normal (controller restart, leader re-election); only a
             // sustained one means there is no controller left to tail.

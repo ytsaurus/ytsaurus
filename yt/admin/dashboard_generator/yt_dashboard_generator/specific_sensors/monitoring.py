@@ -23,6 +23,7 @@ class MonitoringExpr(Taggable):
     class NodeType(Enum):
         Terminal = auto()
         BinaryOp = auto()
+        Conditional = auto()
         Func = auto()
 
     def __repr__(self):
@@ -71,6 +72,14 @@ class MonitoringExpr(Taggable):
     @classmethod
     def binary_op(cls, op, lhs, rhs):
         return MonitoringExpr(cls.NodeType.BinaryOp, op, lhs, rhs)
+
+    @classmethod
+    def conditional(cls, condition, true_expression, false_expression):
+        return MonitoringExpr(
+            cls.NodeType.Conditional,
+            condition,
+            true_expression,
+            false_expression)
 
     @classmethod
     def constant_line(cls, value):
@@ -202,6 +211,12 @@ class MonitoringExpr(Taggable):
                     serialized = f'({serialized})'
                 args[i] = serialized
             return f"{args[0]} {op} {args[1]}"
+        elif self.node_type == self.NodeType.Conditional:
+            condition, true_expression, false_expression = [
+                self._serialize_arg(arg, default_serializer)
+                for arg in self.args
+            ]
+            return f"({condition} ? {true_expression} : {false_expression})"
         elif self.node_type == self.NodeType.Func:
             args = [self._serialize_arg(arg, default_serializer) for arg in self.args[1:]]
             joined_args = ", ".join(args)

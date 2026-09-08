@@ -49,6 +49,7 @@ dependencies {
     api("org.jspecify:jspecify:1.0.0")
     api("com.hubspot.jinjava:jinjava:2.8.0")
     testImplementation(project(":yt:java:flow:flow-core"))
+    testImplementation(project(":yt:java:flow:flow-core:src:test_proto"))
     testImplementation(project(":yt:java:flow:flow-server"))
     testImplementation("javax.persistence:persistence-api:1.0")
     testImplementation("com.google.protobuf:protobuf-java:4.33.0")

@@ -100,6 +100,14 @@ func convertType(valueType *int32) Type {
 		return TypeInterval
 	case 0x100d:
 		return TypeFloat32
+	case 0x1010:
+		return TypeDate32
+	case 0x1011:
+		return TypeDatetime64
+	case 0x1012:
+		return TypeTimestamp64
+	case 0x1013:
+		return TypeInterval64
 	default:
 		return TypeAny
 	}

@@ -273,6 +273,7 @@ DEFINE_ENUM(EStorageConflictResolveMode,
 DEFINE_ENUM(EMaterializedViewSourceType,
     (StaticTable)
     (TableRange)
+    (Queue)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

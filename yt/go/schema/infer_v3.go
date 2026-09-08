@@ -50,6 +50,14 @@ func (in *inferer) ytComplexTypeFor(typ reflect.Type) (ytTyp ComplexType, err er
 		return TypeTimestamp, nil
 	case typ == reflect.TypeOf(Interval(0)):
 		return TypeInterval, nil
+	case typ == reflect.TypeOf(Date32(0)):
+		return TypeDate32, nil
+	case typ == reflect.TypeOf(Datetime64(0)):
+		return TypeDatetime64, nil
+	case typ == reflect.TypeOf(Timestamp64(0)):
+		return TypeTimestamp64, nil
+	case typ == reflect.TypeOf(Interval64(0)):
+		return TypeInterval64, nil
 	}
 
 	switch typ.Kind() {

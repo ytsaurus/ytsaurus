@@ -12,7 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(lib)
 add_subdirectory(proto)
+add_subdirectory(unittest)
 
 add_executable(yt-flow-examples-cpp-proto_parser)
 
@@ -36,10 +38,11 @@ target_link_libraries(yt-flow-examples-cpp-proto_parser PUBLIC
   yutil
   build-cow-on
   library-cpp-cpuid_check
-  cpp-proto_parser-proto
+  cpp-proto_parser-lib
   library-cpp-computation
   cpp-connectors-queue
-  library-cpp-parsers
+  library-cpp-process_function
+  cpp-process_function-host
   library-cpp-runner
 )
 

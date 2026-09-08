@@ -145,7 +145,7 @@ private:
                 .With(ex);
             YT_TLOG_DEBUG("Parsing service ticket failed")
                 .With("ServiceTicketHash", ticketHash)
-                .With(error);
+                .With(ex);
             return error;
         }
     }

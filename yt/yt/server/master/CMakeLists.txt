@@ -360,7 +360,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/cluster_resources.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/cypress_integration.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/detailed_master_memory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/group_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/group.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/helpers.cpp

@@ -1,6 +1,7 @@
 #include "companion_computation_base.h"
 
 #include <yt/yt/flow/library/cpp/common/companion_state_adapter.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -66,6 +67,16 @@ void AddJoinedExternalStates(
                     .State = std::move(payload),
                 });
         }
+    }
+}
+
+void ValidateExternalStateManagersAutoPreload(const TComputationSpec& spec)
+{
+    for (const auto& [name, managerSpec] : spec.ExternalStateManagers) {
+        THROW_ERROR_EXCEPTION_IF(!managerSpec->AutoPreload,
+            "External state manager %Qv has auto_preload disabled, which a companion computation "
+            "cannot honor: companion states are shipped with the batch and cannot be preloaded on demand",
+            name);
     }
 }
 

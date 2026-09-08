@@ -30,6 +30,7 @@ target_compile_options(cpp-connectors-static_table_v2 PRIVATE
 target_link_libraries(cpp-connectors-static_table_v2 PUBLIC
   contrib-libs-cxxsupp
   yutil
+  library-cpp-timezone_conversion
   library-cpp-common
   cpp-connectors-common
   library-cpp-resources
@@ -61,6 +62,7 @@ target_compile_options(cpp-connectors-static_table_v2.global PRIVATE
 target_link_libraries(cpp-connectors-static_table_v2.global PUBLIC
   contrib-libs-cxxsupp
   yutil
+  library-cpp-timezone_conversion
   library-cpp-common
   cpp-connectors-common
   library-cpp-resources

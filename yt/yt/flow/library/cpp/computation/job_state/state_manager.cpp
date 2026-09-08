@@ -141,8 +141,13 @@ void TJobStateManager::Reconfigure(TDynamicJobStateManagerContextPtr dynamicCont
 
 bool TJobStateManager::HasPreloadCallbacks() const
 {
-    if (!MutableStateKeyProviders_.empty() || !ExternalStateManagers_.empty()) {
+    if (!MutableStateKeyProviders_.empty()) {
         return true;
+    }
+    for (const auto& [name, _] : ExternalStateManagers_) {
+        if (GetOrCrash(Context_->ExternalStateManagers, name)->AutoPreload) {
+            return true;
+        }
     }
     for (const auto& [name, _] : ExternalStateJoiners_) {
         if (GetOrCrash(Context_->ExternalStateJoiners, name)->AutoPreload) {
@@ -166,7 +171,11 @@ TFuture<void> TJobStateManager::PreloadKeyStates(const IInputContextPtr& inputCo
             futures.push_back(strongProvider->PreloadKeyStates(defaultKeys));
         }
     }
-    for (const auto& manager : GetValues(ExternalStateManagers_)) {
+    for (const auto& [name, manager] : ExternalStateManagers_) {
+        // A manual-preload manager is loaded by the computation itself.
+        if (!GetOrCrash(Context_->ExternalStateManagers, name)->AutoPreload) {
+            continue;
+        }
         futures.push_back(manager->PreloadKeyStates(defaultKeys));
     }
     for (const auto& [name, joiner] : ExternalStateJoiners_) {

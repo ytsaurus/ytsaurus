@@ -32,10 +32,24 @@ class QueryTracker(YTServerComponentBase, YTComponent):
 
         super(QueryTracker, self).prepare(env, config)
 
+        # When given, state tables go on a dedicated bundle (created below) that a class-scoped
+        # fixture excludes from cleanup, so the state survives per-method cypress cleanup.
+        self.dedicated_tablet_cell_bundle = config.get("dedicated_tablet_cell_bundle")
+
         if config.get("native_client_supported", False):
             self.client = env.create_native_client()
         else:
             self.client = env.create_client()
+
+        bundle = self.dedicated_tablet_cell_bundle or "default"
+        bundle_path = "//sys/tablet_cell_bundles/" + bundle
+        if self.dedicated_tablet_cell_bundle is not None and not self.client.exists(bundle_path):
+            self.client.create("tablet_cell_bundle", attributes={
+                "name": bundle,
+                "options": {"changelog_account": "sys", "snapshot_account": "sys"},
+            })
+        if not self.client.get(bundle_path + "/@tablet_cell_ids"):
+            self.client.create("tablet_cell", attributes={"tablet_cell_bundle": bundle})
 
         self.client.create("user", attributes={"name": self.USER_NAME})
 
@@ -82,10 +96,9 @@ class QueryTracker(YTServerComponentBase, YTComponent):
         wait(lambda: self.client.get_query_tracker_info(attributes=["expected_tables_version"]), ignore_exceptions=True)
         tracker_info = self.client.get_query_tracker_info(attributes=["expected_tables_version"])
 
-        if "expected_tables_version" not in tracker_info:
-            init_query_tracker_state.create_tables_required_version(self.client, 16)
-        else:
-            init_query_tracker_state.create_tables_required_version(self.client, tracker_info["expected_tables_version"])
+        version = tracker_info.get("expected_tables_version", 16)
+        init_query_tracker_state.create_tables_required_version(
+            self.client, version, override_tablet_cell_bundle=self.dedicated_tablet_cell_bundle or "default")
 
         wait(lambda: len(self.client.get(f"//sys/query_tracker/instances/{self.addresses[0]}/orchid/alerts")) == 0)
 

@@ -288,7 +288,7 @@ private:
 
         for (const auto& replicatedTableInfo : replicatedTableMapping) {
             for (const auto& replica : replicatedTableInfo.GetReplicas()) {
-                ReplicaToReplicatedTable_.emplace(TTablePath::FromRichYPath(replica), replicatedTableInfo.Path);
+                ReplicaToReplicatedTable_.insert_or_assign(TTablePath::FromRichYPath(replica), replicatedTableInfo.Path);
             }
         }
 

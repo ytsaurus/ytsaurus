@@ -54,7 +54,7 @@ target_link_options(unittester-transaction-supervisor PRIVATE
 )
 
 target_sources(unittester-transaction-supervisor PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/unittests/strong_oredring_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/transaction_supervisor/unittests/strong_ordering_manager_ut.cpp
 )
 
 

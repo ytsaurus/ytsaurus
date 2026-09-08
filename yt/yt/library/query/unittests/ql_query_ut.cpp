@@ -12,6 +12,7 @@
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/coordinator.h>
+#include <yt/yt/library/query/engine_api/query_engine_config.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
 
 #include <yt/yt/library/query/engine/folding_profiler.h>
@@ -93,6 +94,33 @@ protected:
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     TActionQueuePtr ActionQueue_;
 };
+
+std::string MakeQueryWithProjectionCount(int projectionCount)
+{
+    std::string query;
+    for (int index = 0; index < projectionCount; ++index) {
+        if (index > 0) {
+            query += ", ";
+        }
+        query += Format("%v AS projection_%v", index, index);
+    }
+    query += " FROM [//t]";
+    return query;
+}
+
+TEST_F(TQueryPrepareTest, ProjectionCountLimit)
+{
+    auto queryEngineConfig = New<TQueryEngineDynamicConfig>();
+
+    ExpectPrepareThrowsWithDiagnostics(
+        MakeQueryWithProjectionCount(10251),
+        HasSubstr("Maximum projection count exceeded"),
+        {},
+        {
+            .BuilderVersion = DefaultExpressionBuilderVersion,
+            .MaxProjectionCount = queryEngineConfig->MaxProjectionCount,
+        });
+}
 
 TEST_F(TQueryPrepareTest, BadSyntax)
 {

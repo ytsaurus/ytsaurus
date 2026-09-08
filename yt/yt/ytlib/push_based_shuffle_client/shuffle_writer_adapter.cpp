@@ -48,8 +48,6 @@ public:
         try {
             DoWrite(rows);
         } catch (const std::exception& ex) {
-            // The interface reports a rejected batch through the ready event rather than
-            // by throwing, and the failure stays there for every later call.
             ReadyEvent_ = MakeFuture(TError(ex));
             return false;
         }
@@ -64,7 +62,11 @@ public:
 
     TFuture<void> Close() override
     {
-        if (ReadyEvent_.IsSet() && !ReadyEvent_.GetOrCrash().IsOK()) {
+        // The shuffle writer requires serialized calls, so the caller must have waited for
+        // the last write.
+        YT_VERIFY(ReadyEvent_.IsSet());
+
+        if (!ReadyEvent_.GetOrCrash().IsOK()) {
             return ReadyEvent_;
         }
 

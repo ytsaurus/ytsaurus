@@ -9,8 +9,8 @@ ARG BASE_REPOSITORY="ghcr.io/ytsaurus/ytsaurus-nightly"
 ARG BASE_IMAGE="latest"
 
 # Args for base-server-crio
-ARG K8S_VERSION="v1.34"
-ARG CRIO_VERSION="v1.34"
+ARG K8S_VERSION="v1.36"
+ARG CRIO_VERSION="v1.36"
 
 # Args for odin.
 ARG PYTHON_RUNTIME_VERSION="3.11"
@@ -282,7 +282,7 @@ ARG CRIO_VERSION
 ADD --chmod=644 https://pkgs.k8s.io/core:/stable:/${K8S_VERSION}/deb/Release.key \
             /etc/apt/keyrings/kubernetes-apt-keyring.asc
 
-ADD --chmod=644 https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/Release.key \
+ADD --chmod=644 https://downloadcontent.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/Release.key \
             /etc/apt/keyrings/cri-o-apt-keyring.asc
 
 # Install CRI-O, see https://cri-o.io/
@@ -295,12 +295,12 @@ deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io
 EOF
 
 cat <<EOF >/etc/apt/sources.list.d/cri-o.list
-deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://download.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/ /
+deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.asc] https://downloadcontent.opensuse.org/repositories/isv:/cri-o:/stable:/${CRIO_VERSION}/deb/ /
 EOF
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 update -q --error-on=any
-apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 install -y cri-tools cri-o
+apt-get -o Acquire::Retries=5 -o Acquire::https::Timeout=30 install -y --no-install-recommends cri-tools cri-o
 EOT
 
 ##########################################################################################

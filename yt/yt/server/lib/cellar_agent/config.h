@@ -56,6 +56,7 @@ struct TCellarDynamicConfig
 
     NHydra::TDynamicRemoteChangelogStoreConfigPtr Changelogs;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;
+    NLeaseServer::TLeaseManagerDynamicConfigPtr LeaseManager;
 
     REGISTER_YSON_STRUCT(TCellarDynamicConfig);
 

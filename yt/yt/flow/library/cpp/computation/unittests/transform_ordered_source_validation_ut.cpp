@@ -205,6 +205,22 @@ TEST(TSwiftOrderedSourceValidationTest, RejectsExternalStateManagers)
     ExpectValidationError(spec, "does not support external_state_managers");
 }
 
+TEST(TSwiftOrderedSourceValidationTest, AcceptsMultipleSourceStreamsWithDefaultWatermarkGenerator)
+{
+    auto spec = ParseComputationSpec(R"##(
+        {
+            computation_class_name = "NYT::NFlow::TSwiftPassthroughOrderedSourceComputation";
+            source_streams = {
+                first = { source_class_name = "NYT::NFlow::TRandomSource"; };
+                second = { source_class_name = "NYT::NFlow::TRandomSource"; };
+            };
+        }
+    )##");
+    ASSERT_TRUE(spec->WatermarkStrategy->WatermarkGenerator);
+    EXPECT_EQ(spec->WatermarkStrategy->WatermarkGenerator->OutOfOrdernessBound, TDuration::Zero());
+    EXPECT_NO_THROW(TRegistry::Get()->ValidateComputationSpec(spec));
+}
+
 TEST(TSwiftOrderedSourceValidationTest, RejectsExternalStateJoinerWithKeyProviderStreamsOnly)
 {
     auto spec = ParseComputationSpec(R"##(

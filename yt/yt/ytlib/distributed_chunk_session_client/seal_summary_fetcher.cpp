@@ -13,6 +13,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
+#include <library/cpp/yt/string/format.h>
+
 #include <array>
 #include <string_view>
 
@@ -30,6 +32,8 @@ using namespace NYson;
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+constexpr int MaxReportedMissingChunkCount = 10;
 
 static constexpr auto SealSummaryAttributeKeys = std::to_array<std::string_view>({
     "sealed",
@@ -50,8 +54,8 @@ std::vector<TSessionSealSummaryWithChunkId> ParseSealSummaryResponse(
         auto chunkId = std::any_cast<TChunkId>(tag);
         THROW_ERROR_EXCEPTION_IF(
             requestedChunkIds.erase(chunkId) != 1,
-            "Master returned an unexpected or duplicate distributed chunk session seal summary")
-            .With("chunk_id", chunkId);
+            "Master returned an unexpected or duplicate seal summary for distributed-session chunk %v",
+            chunkId);
 
         if (responseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             YT_TLOG_DEBUG("Distributed chunk session chunk is missing")
@@ -65,8 +69,8 @@ std::vector<TSessionSealSummaryWithChunkId> ParseSealSummaryResponse(
         auto sealed = attributes->Find<bool>("sealed");
         THROW_ERROR_EXCEPTION_IF(
             !sealed,
-            "Master returned a distributed chunk session seal summary without seal flag")
-            .With("chunk_id", chunkId);
+            "Master returned a seal summary without seal flag for distributed-session chunk %v",
+            chunkId);
 
         if (*sealed) {
             auto recordCount = attributes->Find<i64>("row_count");
@@ -91,7 +95,8 @@ std::vector<TSessionSealSummaryWithChunkId> ParseSealSummaryResponse(
 
     THROW_ERROR_EXCEPTION_IF(
         !requestedChunkIds.empty(),
-        "Master did not return seal-summary responses for some distributed chunk session chunks")
+        "Master did not return seal-summary responses for distributed-session chunks %v",
+        MakeShrunkFormattableView(requestedChunkIds, TDefaultFormatter(), MaxReportedMissingChunkCount))
         .With("missing_chunk_count", requestedChunkIds.size());
 
     YT_TLOG_DEBUG("Distributed chunk session seal summaries fetched from master")

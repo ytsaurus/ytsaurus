@@ -3,6 +3,8 @@ from .helpers import TEST_DIR, check_rows_equality, get_test_file_path, set_conf
 
 from yt.wrapper.common import update, get_started_by
 from yt.wrapper.driver import get_api_version
+from yt.wrapper.local_mode import enable_local_files_usage_in_job
+from yt.wrapper.py_wrapper import calc_md5_from_file
 from yt.wrapper.spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
                                       MapReduceSpecBuilder, MapSpecBuilder, VanillaSpecBuilder)
 from yt.wrapper.spec_builder_helpers import BaseLayerDetector, distro, platform  # noqa
@@ -19,7 +21,9 @@ import mock
 import pytest
 
 from copy import deepcopy
+import os
 import sys
+import tempfile
 
 
 class NonCopyable:
@@ -732,3 +736,173 @@ class TestSpecBuilders(object):
                 "ok, from //porto_layers"
             assert BaseLayerDetector._get_default_layer(client, layer_type="docker") == [], \
                 "no docker default image without registry"
+
+    @authors("denvr")
+    def test_job_binary_local_path(self):
+        def mapper(row):
+            yield row
+
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, [{"x": 1}])
+
+        def build_mapper_spec(command=mapper, **kwargs):
+            spec_builder = MapSpecBuilder() \
+                .begin_mapper() \
+                    .command(command) \
+                    .job_binary_local_path(**kwargs) \
+                .end_mapper() \
+                .input_table_paths(table) \
+                .output_table_paths(other_table)  # noqa
+            return spec_builder.build()["mapper"]
+
+        with tempfile.NamedTemporaryFile(prefix="job_binary", suffix=".sh") as fout:
+            fout.write(b'#!/bin/sh\nexec "$@"\n')
+            fout.flush()
+            os.chmod(fout.name, 0o755)
+            job_binary = fout.name
+            file_name = os.path.basename(job_binary)
+
+            mapper_spec = build_mapper_spec(path=job_binary)
+            assert "job_binary_local_path" not in mapper_spec
+            assert "job_binary_md5" not in mapper_spec
+            if enable_local_files_usage_in_job(None):
+                assert mapper_spec["command"].split()[0] == job_binary
+            else:
+                assert mapper_spec["command"].split()[0] == "./" + file_name
+                assert file_name in [path.attributes.get("file_name") for path in mapper_spec["file_paths"]]
+
+            spec_with_md5 = build_mapper_spec(path=job_binary, md5=calc_md5_from_file(job_binary))
+            assert spec_with_md5["command"].split()[0] == mapper_spec["command"].split()[0]
+
+            # conflicts:
+            with pytest.raises(yt.YtError):
+                build_mapper_spec(path=job_binary, command="cat")
+
+            with pytest.raises(yt.YtError):
+                build_mapper_spec(path=None, md5=calc_md5_from_file(job_binary))
+
+            with pytest.raises(yt.YtError):
+                MapSpecBuilder() \
+                    .begin_mapper() \
+                        .command(mapper) \
+                        .spec({"job_binary_local_path": job_binary}) \
+                    .end_mapper() \
+                    .input_table_paths(table) \
+                    .output_table_paths(other_table) \
+                    .build()  # noqa
+
+        with pytest.raises(yt.YtError):
+            build_mapper_spec(path=job_binary)
+
+    @authors("denvr")
+    def test_job_binary_cypress_path(self):
+        def mapper(row):
+            yield row
+
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, [{"x": 1}])
+
+        file_name = "job_binary.sh"
+        job_binary = TEST_DIR + "/" + file_name
+        yt.write_file(job_binary, b'#!/bin/sh\nexec "$@"\n')
+
+        def build_mapper_spec(command=mapper, **kwargs):
+            spec_builder = MapSpecBuilder() \
+                .begin_mapper() \
+                    .command(command) \
+                    .job_binary_cypress_path(**kwargs) \
+                .end_mapper() \
+                .input_table_paths(table) \
+                .output_table_paths(other_table)  # noqa
+            return spec_builder.build()["mapper"]
+
+        def get_job_binary_path(mapper_spec):
+            paths = [path for path in mapper_spec["file_paths"] if str(path) == job_binary]
+            assert len(paths) == 1
+            return paths[0]
+
+        mapper_spec = build_mapper_spec(path=job_binary)
+        # Option is consumed by the client and must not be sent to the scheduler.
+        assert "job_binary_cypress_path" not in mapper_spec
+        assert "job_binary_transaction_id" not in mapper_spec
+        # Job is started by the given binary instead of the current python.
+        assert mapper_spec["command"].split()[0] == "./" + file_name
+        binary_path = get_job_binary_path(mapper_spec)
+        assert binary_path.attributes["file_name"] == file_name
+        assert binary_path.attributes["executable"]
+        assert "transaction_id" not in binary_path.attributes
+
+        # Transaction is passed along with the binary path.
+        with yt.Transaction() as transaction:
+            spec_with_transaction = build_mapper_spec(path=job_binary, transaction_id=transaction.transaction_id)
+            assert get_job_binary_path(spec_with_transaction).attributes["transaction_id"] == \
+                transaction.transaction_id
+
+        # File name inside the job sandbox can be overridden with the path attribute.
+        spec_with_file_name = build_mapper_spec(path='<file_name="binary">' + job_binary)
+        assert spec_with_file_name["command"].split()[0] == "./binary"
+        assert get_job_binary_path(spec_with_file_name).attributes["file_name"] == "binary"
+
+        with pytest.raises(yt.YtError):
+            build_mapper_spec(path=job_binary, command="cat")
+
+        with pytest.raises(yt.YtError):
+            build_mapper_spec(path=None, transaction_id="0-0-0-0")
+
+        with pytest.raises(yt.YtError):
+            MapSpecBuilder() \
+                .begin_mapper() \
+                    .command(mapper) \
+                    .spec({"job_binary_cypress_path": job_binary}) \
+                .end_mapper() \
+                .input_table_paths(table) \
+                .output_table_paths(other_table) \
+                .build()  # noqa
+
+        # Local and Cypress binaries are mutually exclusive.
+        with tempfile.NamedTemporaryFile(prefix="job_binary", suffix=".sh") as fout:
+            fout.write(b'#!/bin/sh\nexec "$@"\n')
+            fout.flush()
+            os.chmod(fout.name, 0o755)
+
+            with pytest.raises(yt.YtError):
+                MapSpecBuilder() \
+                    .begin_mapper() \
+                        .command(mapper) \
+                        .job_binary_local_path(fout.name) \
+                        .job_binary_cypress_path(job_binary) \
+                    .end_mapper() \
+                    .input_table_paths(table) \
+                    .output_table_paths(other_table) \
+                    .build()  # noqa
+
+    @authors("denvr")
+    def test_job_binary_cypress_path_run_operation(self):
+        def mapper(row):
+            yield {"x": row["x"] + 1}
+
+        table = TEST_DIR + "/table"
+        other_table = TEST_DIR + "/other_table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        # Launcher that starts the same python binary as the default job binary does.
+        job_binary = TEST_DIR + "/job_binary.sh"
+        yt.write_file(job_binary, '#!/bin/sh\nexec {} "$@"\n'.format(sys.executable).encode("utf-8"))
+
+        spec_builder = MapSpecBuilder() \
+            .begin_mapper() \
+                .command(mapper) \
+                .job_binary_cypress_path(job_binary) \
+            .end_mapper() \
+            .input_table_paths(table) \
+            .output_table_paths(other_table)  # noqa
+        operation = yt.run_operation(spec_builder)
+
+        check_rows_equality([{"x": 2}, {"x": 3}], yt.read_table(other_table), ordered=False)
+
+        # Job was really started by the binary from Cypress.
+        user_job_spec = yt.get_operation(operation.id, attributes=["spec"])["spec"]["mapper"]
+        assert user_job_spec["command"].split()[0] == "./job_binary.sh"
+        assert job_binary in [str(path) for path in user_job_spec["file_paths"]]

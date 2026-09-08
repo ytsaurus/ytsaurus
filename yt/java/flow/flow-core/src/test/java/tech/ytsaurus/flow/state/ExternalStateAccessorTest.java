@@ -8,6 +8,7 @@ import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,22 +34,22 @@ class ExternalStateAccessorTest {
         return new PayloadBuilder(STATE_SCHEMA).set("count", count).finish();
     }
 
-    private static ExternalStateAccessor accessor(StatesHolder<ExternalState> holder) {
+    private static ExternalStateAccessor accessor(StatesHolder holder) {
         return new ExternalStateAccessor(key(), holder);
     }
 
     @Test
     void getReturnsEmptyOnSchemalessHolderWhenAbsent() {
-        var holder = new StatesHolder<ExternalState>(STATE_NAME, KEY_SCHEMA, null);
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, null);
         var acc = accessor(holder);
         assertTrue(acc.get().isEmpty());
     }
 
     @Test
     void protoFormatHolderIsRejected() {
-        // A proto-format holder stores null in the row payload slot, so a
-        // row accessor over it would silently read every state as absent.
-        var holder = new StatesHolder<ExternalState>(
+        // A row accessor over a proto-format holder would decode serialized
+        // messages as rows.
+        var holder = new StatesHolder(
                 STATE_NAME, KEY_SCHEMA, null, StateFormat.PROTO, "Some.Type");
         var exception = assertThrows(IllegalStateException.class, () -> accessor(holder));
         assertTrue(exception.getMessage().contains("proto wire format"));
@@ -60,42 +61,50 @@ class ExternalStateAccessorTest {
     }
 
     @Test
-    void setThenGetWorksOnSchemalessHolder() {
-        var holder = new StatesHolder<ExternalState>(STATE_NAME, KEY_SCHEMA, null);
+    void setThenGetRoundTripsThroughWireBytes() {
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
         var acc = accessor(holder);
         acc.set(value(7L));
         assertEquals(7L, acc.get().orElseThrow().get("count", Long.class));
     }
 
     @Test
-    void clearWorksOnSchemalessHolder() {
-        var holder = new StatesHolder<ExternalState>(STATE_NAME, KEY_SCHEMA, null);
+    void repeatedGetDecodesOnce() {
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
         var acc = accessor(holder);
         acc.set(value(7L));
+        assertSame(acc.get().orElseThrow(), acc.get().orElseThrow());
+    }
+
+    @Test
+    void setThrowsOnSchemalessHolder() {
+        // Values are stored as wire bytes encoded against the state schema; without one there is
+        // nothing to encode with, and such a state could not be sent back to the worker anyway.
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, null);
+        var acc = accessor(holder);
+        assertThrows(UnsupportedOperationException.class, () -> acc.set(value(7L)));
+    }
+
+    @Test
+    void clearWorksOnSchemalessHolder() {
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, null);
+        var acc = accessor(holder);
         acc.clear();
         assertTrue(acc.get().isEmpty());
     }
 
     @Test
     void getOrDefaultThrowsWhenSchemalessAndAbsent() {
-        var holder = new StatesHolder<ExternalState>(STATE_NAME, KEY_SCHEMA, null);
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, null);
         var acc = accessor(holder);
         assertThrows(UnsupportedOperationException.class, acc::getOrDefault);
     }
 
     @Test
     void getOrDefaultReturnsEmptyPayloadWhenSchemaPresentAndAbsent() {
-        var holder = new StatesHolder<ExternalState>(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
         var acc = accessor(holder);
         Payload p = acc.getOrDefault();
         assertNotNull(p);
-    }
-
-    @Test
-    void getOrDefaultReturnsStoredValueWhenPresentEvenIfSchemaless() {
-        var holder = new StatesHolder<ExternalState>(STATE_NAME, KEY_SCHEMA, null);
-        var acc = accessor(holder);
-        acc.set(value(3L));
-        assertEquals(3L, acc.getOrDefault().get("count", Long.class));
     }
 }

@@ -71,6 +71,7 @@ struct TQueryResult
 struct TClustersResult
 {
     std::vector<std::pair<TString, TString>> Clusters;
+    std::optional<TString> DefaultCluster;
 
     //! YSON representation of a YT error.
     std::optional<TString> YsonError;
@@ -115,6 +116,9 @@ struct IYqlPlugin
         NYson::TYsonString settings,
         std::vector<TQueryFile> files) = 0;
 
+    //! Returns all clusters configured for the query, and the query's default cluster.
+    virtual TClustersResult GetClustersInfo(TQueryId queryId) = 0;
+
     virtual TQueryResult Run(
         TQueryId queryId,
         TString user,
@@ -142,7 +146,11 @@ struct IYqlPlugin
 
     virtual NYTree::IMapNodePtr GetOrchidNode() const;
 
-    virtual void RegisterQuery(TQueryId queryId) = 0;
+    //! Returns false if the plugin cannot execute queries right now,
+    //! e.g. there are no healthy workers to offload queries to.
+    virtual bool IsReady() const;
+
+    virtual void RegisterQuery(TQueryId queryId, NYson::TYsonString settings) = 0;
     virtual void UnregisterQuery(TQueryId queryId) = 0;
 
     virtual ~IYqlPlugin() = default;

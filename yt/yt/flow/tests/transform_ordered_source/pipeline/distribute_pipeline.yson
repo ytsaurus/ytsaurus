@@ -8,7 +8,9 @@
                 "input_stream_ids" = [];
                 "output_stream_ids" = ["events"];
                 "watermark_strategy" = {
-                    "watermark_generator" = {};
+                    "watermark_generator" = {
+                        "out_of_orderness_bound" = "1m";
+                    };
                     "watermark_alignment" = {
                         "group_name" = "events";
                         "drift_bound" = 8640000000000;

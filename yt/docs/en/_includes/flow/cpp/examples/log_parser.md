@@ -14,7 +14,7 @@ In `ProcessMessage(const TInputMessageConstPtr& message, const IOutputCollectorP
 
 The transformation result, the `records` stream, is materialized in {{product-name}} as in `TTransformComputation`, so the transformation has no determinism requirements: after a restart, Flow distributes the already materialized messages with the `MessageId` values previously assigned to them instead of recomputing them.
 
-You can still inherit from the class: that’s how the [Proto parser](../../../../flow/cpp/examples/proto_parser.md) example is written, on top of the `TProtoTransformOrderedSourceComputation<TProto>` helper over `TTransformOrderedSourceComputation`. The adapter’s spec validator is the same as the base class’s: a non-empty `group_by_schema`, timers, key-visitor streams, and `external_state_managers` are rejected in either variant (for the full [list of limitations](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)).
+The [Proto parser](../../../../flow/cpp/examples/proto_parser.md) example uses the same hosting mode through a reusable process-function base: `TProtoLogParserFunction` inherits from `TProtoParsingProcessFunctionBase<TLogRecordProto>` and runs under `TProcessFunctionTransformOrderedSourceComputation`. The host adapter’s spec validator is the same as the computation base class’s: a non-empty `group_by_schema`, timers, key-visitor streams, and `external_state_managers` are rejected (for the full [list of limitations](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)).
 
 ### The parser computation spec
 

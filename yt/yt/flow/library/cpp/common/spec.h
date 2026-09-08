@@ -412,6 +412,10 @@ struct TExternalStateManagerSpec
     : public NYTree::TYsonStruct
 {
     std::string ExternalStateManagerClassName;
+    //! When ``true`` (default), the framework preloads every message, timer and visit key of the
+    //! epoch before each #DoProcess(); when ``false``, the computation preloads the keys it needs
+    //! itself.
+    bool AutoPreload{};
     NYTree::IMapNodePtr Parameters;
 
     REGISTER_YSON_STRUCT(TExternalStateManagerSpec);
@@ -538,6 +542,31 @@ struct TDynamicStateJoinerSpec
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicStateJoinerSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPartitioningSpec
+    : public virtual NYTree::TYsonStruct
+{
+    std::optional<int> DesiredPartitionCount;
+    std::optional<int> MinPartitionCount;
+    std::optional<int> MaxPartitionCount;
+    std::optional<int> SinkChannelMultiplier;
+    std::optional<double> DesiredAveragePartitionCpuLoad;
+    std::optional<double> DesiredAveragePartitionMemoryUsed;
+    std::optional<double> DesiredAveragePartitionMessagesPerSecond;
+    std::optional<double> DesiredAveragePartitionBytesPerSecond;
+    std::optional<double> DesiredAveragePartitionTimerCount;
+    std::optional<double> AllowedPartitionCountDeviation;
+    std::optional<TDuration> PartitionCountDoubleDelay;
+    std::optional<TDuration> PartitionCountHalfDelay;
+
+    REGISTER_YSON_STRUCT(TPartitioningSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitioningSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1043,6 +1072,31 @@ DEFINE_ENUM(EJobBalancerType,
     (ResourceQueue)
 );
 
+//! Worker resources the CpuAware balancer can balance by.
+DEFINE_ENUM(EBalanceResource,
+    (Cpu)
+    (Memory)
+);
+
+DECLARE_REFCOUNTED_STRUCT(TEvenLoadThresholds)
+
+//! Per-resource thresholds of the even-load gate. Unset fields fall back to per-resource
+//! defaults in the balancer.
+struct TEvenLoadThresholds
+    : public NYTree::TYsonStruct
+{
+    //! Minimal max-min gap of the per-worker usage, in the resource's own units.
+    std::optional<double> Spread;
+    //! Minimal max/min ratio of the per-worker usage.
+    std::optional<double> Ratio;
+
+    REGISTER_YSON_STRUCT(TEvenLoadThresholds);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TEvenLoadThresholds);
+
 struct TDynamicJobBalancerSpec
     : public NYTree::TYsonStruct
 {
@@ -1056,8 +1110,18 @@ struct TDynamicJobBalancerSpec
     TDuration RebalanceActionMaxTime;
     TDuration RebalanceSyncPeriod;
     double RebalanceCountExceedAllowed{};
-    double RebalanceMinCpuSpread{};
-    double RebalanceMinCpuRatio{};
+    //! Even-load gate thresholds per resource; only weighted resources are consulted.
+    THashMap<EBalanceResource, TEvenLoadThresholdsPtr> RebalanceEvenLoadThresholds;
+    //! Deprecated: the CPU entry of #RebalanceEvenLoadThresholds. Kept so that live dynamic specs
+    //! setting these keys keep working; an explicit per-resource threshold takes precedence.
+    std::optional<double> RebalanceMinCpuSpread;
+    std::optional<double> RebalanceMinCpuRatio;
+    //! Relative importance of each resource for the CpuAware balancer. Provided entries merge into
+    //! the default {cpu: 1.0, memory: 0.0} per key; weights are normalized before use, so only
+    //! ratios matter. Note that rebalance_target_deviation thresholds apply to the normalized
+    //! weighted mix: weighting a second resource in proportionally shrinks the first one's
+    //! contribution, making the balancer correspondingly more tolerant to its imbalance.
+    THashMap<EBalanceResource, double> BalanceWeights;
     // Test-only: when set to true, the even-load gate is bypassed and rebalancing always runs.
     std::optional<bool> DisableEvenLoadGate;
     bool AsyncBalancing{};
@@ -1122,11 +1186,11 @@ struct TDynamicBufferStateManagerSpec
         THashMap<TWorkerGroupId, NYTree::TSize> WorkerGroupFairSharePoolOverrides;
         NYTree::TSize JobGuarantee;
         NYTree::TSize JobLimit;
-        //! Cap on how much buffered time a limit may represent. In the v1 formula
-        //! the limit is capped by demand × max_duration directly; in the v2
-        //! strategy it is the drain cap (demand × max_duration, raised by the
-        //! announced backlog for cold starts) and also bounds the measured
-        //! epoch-cycle estimate against mis-measured cycles.
+        //! Cap on how much buffered time a limit may represent. In v2 it also caps
+        //! the measured epoch-cycle estimate. A producing output may probe up to
+        //! its equal share of half FairSharePool because producer epochs do not
+        //! reveal the downstream acknowledgement period. JobLimit and the worker
+        //! pool remain hard bounds.
         TDuration MaxDuration;
         THashMap<TComputationId, THashMap<TStreamId, NYTree::TSize>> JobOverrides;
 
@@ -1151,9 +1215,12 @@ struct TDynamicBufferStateManagerSpec
     TOneSideBufferSpecPtr InputBuffer;
     TOneSideBufferSpecPtr OutputBuffer;
 
-    //! V2 strategy: target floor = gain_epochs × demand × epoch cycle (the
+    //! V2 strategy: target floor = v2_gain_epochs × demand × epoch cycle (the
     //! bandwidth-delay product, BDP), issued gradually (used + headroom, growth
-    //! gated on utilization), capped by demand × max_duration, Σissued ≤ pool.
+    //! gated on utilization). The demand × max_duration cap is raised by announced
+    //! input backlog or, for a producing output, by its equal share of half the
+    //! worker pool; demand-backed limits are allocated before speculative probes.
+    //! Σissued ≤ pool on both sides.
     bool EnableV2{};
     //! Target buffered time as a count of epochs (the BDP floor is this many
     //! epochs of demand): headroom for speed and latency spikes.
@@ -1236,6 +1303,7 @@ struct TDynamicControllerConnectorSpec
     TDuration ControllerWaitTimeout;
     TDuration ControllerDiscoverPeriod;
     TDuration ControllerHeartbeatPeriod;
+    TDuration WorkerStatisticsReportPeriod;
     TDuration ControllerHeartbeatRpcTimeout;
     TDuration ControllerHeartbeatFailureBackoff;
 

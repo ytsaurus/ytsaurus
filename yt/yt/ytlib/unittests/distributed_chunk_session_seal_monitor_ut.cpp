@@ -32,7 +32,7 @@ protected:
 
     static TChunkId MakeChunkId(TCellTag cellTag, ui64 counter)
     {
-        return MakeId(EObjectType::JournalChunk, cellTag, counter, 0);
+        return MakeId(EObjectType::JournalChunk, cellTag, counter, /*entropy*/ 0);
     }
 
     static TSessionSealSummaryWithChunkId MakeSealSummary(TChunkId chunkId)
@@ -65,7 +65,7 @@ protected:
     }
 
     IDistributedChunkSessionSealMonitorPtr CreateMonitor(
-        TSealSummaryFetchCallback fetchSealSummaries,
+        TDistributedChunkSessionSealSummaryFetchCallback fetchSealSummaries,
         TDistributedChunkSessionSealMonitorConfigPtr config = CreateConfig())
     {
         return CreateDistributedChunkSessionSealMonitor(

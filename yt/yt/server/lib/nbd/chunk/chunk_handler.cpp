@@ -103,9 +103,9 @@ public:
             .WithFormat("Cookie", "%x", options.Cookie);
 
         auto req = Proxy_.Flush();
-        req->SetRequestInfo("ChunkId: %v, Cookie: %x",
-            SessionId_.ChunkId,
-            options.Cookie);
+        req->Annotate()
+            .With("ChunkId", SessionId_.ChunkId)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -139,11 +139,11 @@ public:
         }
 
         auto req = Proxy_.Read();
-        req->SetRequestInfo("ChunkId: %v, Offset: %v, Length: %v, Cookie: %x",
-            SessionId_.ChunkId,
-            offset,
-            length,
-            options.Cookie);
+        req->Annotate()
+            .With("ChunkId", SessionId_.ChunkId)
+            .With("Offset", offset)
+            .With("Length", length)
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -181,12 +181,12 @@ public:
         }
 
         auto req = Proxy_.Write();
-        req->SetRequestInfo("ChunkId: %v, Offset: %v, Length: %v, Cookie: %x, Flush: %v",
-            SessionId_.ChunkId,
-            offset,
-            data.size(),
-            options.Cookie,
-            options.Flush);
+        req->Annotate()
+            .With("ChunkId", SessionId_.ChunkId)
+            .With("Offset", offset)
+            .With("Length", data.size())
+            .WithFormat("Cookie", "%x", options.Cookie)
+            .With("Flush", options.Flush);
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -216,10 +216,10 @@ public:
         }
 
         auto req = Proxy_.ReadBatch();
-        req->SetRequestInfo("ChunkId: %v, SubrequestCount: %v, Cookie: %x",
-            SessionId_.ChunkId,
-            subrequests.size(),
-            options.Cookie);
+        req->Annotate()
+            .With("ChunkId", SessionId_.ChunkId)
+            .With("SubrequestCount", subrequests.size())
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -259,10 +259,10 @@ public:
         }
 
         auto req = Proxy_.WriteBatch();
-        req->SetRequestInfo("ChunkId: %v, SubrequestCount: %v, Cookie: %x",
-            SessionId_.ChunkId,
-            subrequests.size(),
-            options.Cookie);
+        req->Annotate()
+            .With("ChunkId", SessionId_.ChunkId)
+            .With("SubrequestCount", subrequests.size())
+            .WithFormat("Cookie", "%x", options.Cookie);
 
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);

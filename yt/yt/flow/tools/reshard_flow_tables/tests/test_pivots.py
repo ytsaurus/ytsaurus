@@ -1,6 +1,6 @@
 from yt.wrapper import yson
 
-from yt.yt.flow.tools.reshard_flow_tables.lib import key_sort_value
+from yt.yt.flow.tools.reshard_flow_tables.lib import key_sort_value, plan_leases_table
 
 
 def sort_keys(keys):
@@ -30,3 +30,48 @@ def test_type_order_matches_yt():
     columns = ["string", True, 1.5, yson.YsonUint64(7), -3]
     keys = [[column] for column in columns]
     assert sort_keys(keys) == [[-3], [yson.YsonUint64(7)], [1.5], [True], ["string"]]
+
+
+class FakeClient:
+    def __init__(self, rows=None, error=None):
+        self.rows = rows
+        self.error = error
+        self.queries = []
+
+    def select_rows(self, query):
+        self.queries.append(query)
+        if self.error is not None:
+            raise self.error
+        return self.rows
+
+
+FULL_WIDTH = ("//pipeline/leases", {"tablet_count": 6, "uniform": True})
+
+
+def test_empty_leases_table_is_planned_to_a_single_tablet():
+    client = FakeClient([])
+
+    assert plan_leases_table(client, ["a", "b"], "//pipeline", 3) == (
+        "//pipeline/leases",
+        {"tablet_count": 1, "uniform": True},
+    )
+    assert client.queries == ["* FROM [//pipeline/leases] LIMIT 1"]
+
+
+def test_populated_leases_table_is_planned_to_the_full_width():
+    client = FakeClient([{"key": "", "subkey": "expiration"}])
+
+    assert plan_leases_table(client, ["a", "b"], "//pipeline", 3) == FULL_WIDTH
+
+
+def test_explicitly_named_leases_table_is_planned_to_the_full_width_even_when_empty():
+    client = FakeClient([])
+
+    assert plan_leases_table(client, ["a", "b"], "//pipeline", 3, infer_unused=False) == FULL_WIDTH
+    assert client.queries == []
+
+
+def test_unreadable_leases_table_is_planned_to_the_full_width():
+    client = FakeClient(error=RuntimeError("no in-sync replicas"))
+
+    assert plan_leases_table(client, ["a", "b"], "//pipeline", 3) == FULL_WIDTH

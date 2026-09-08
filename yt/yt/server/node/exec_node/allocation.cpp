@@ -518,7 +518,7 @@ void TAllocation::OnSettledJobReceived(
             .With(jobInfoOrError);
 
         YT_TLOG_INFO("Failed to settle job in allocation; aborting allocation")
-            .With(error);
+            .With(jobInfoOrError);
 
         error.Add("abort_reason", EAbortReason::GetSpecFailed);
 

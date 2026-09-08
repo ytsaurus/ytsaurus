@@ -15,7 +15,7 @@ Any Flow pipeline consists of three components:
 
 You use Java and Kotlin in the `Runner` and `Worker`.
 
-![](../../../flow/images/java_flow_cluster.svg)
+![](../../../flow/_images/java_flow_cluster.svg)
 
 ## Two configuration approaches
 

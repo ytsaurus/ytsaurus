@@ -32,6 +32,7 @@
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/inflight_tracker.h>
 #include <yt/yt/flow/library/cpp/common/input_context.h>
+#include <yt/yt/flow/library/cpp/common/job_lineage_tracker.h>
 #include <yt/yt/flow/library/cpp/common/message_batcher.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/sink.h>
@@ -511,10 +512,15 @@ std::vector<TStreamId> TComputationBase::BuildTopologicalStreamOrder(TComputatio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRootOutputCollector::TRootOutputCollector(TComputationSpecPtr spec, IMetaSetterPtr metaSetter, bool supportsDistribute)
+TRootOutputCollector::TRootOutputCollector(
+    TComputationSpecPtr spec,
+    IMetaSetterPtr metaSetter,
+    bool supportsDistribute,
+    bool collectLineage)
     : Spec_(std::move(spec))
     , MetaSetter_(std::move(metaSetter))
     , SupportsDistribute_(supportsDistribute)
+    , CollectLineage_(collectLineage)
 { }
 
 IOutputCollectorPtr TRootOutputCollector::SetParents(
@@ -538,6 +544,9 @@ void TRootOutputCollector::AddMessage(
         return;
     }
     auto setterResult = MetaSetter_->Fill(message, parents, messageIdSuffix);
+    if (distribute && CollectLineage_) {
+        LineageAccumulator_.Add(message, setterResult.ActualParentMessageIds);
+    }
     Result_.OutputMessages.push_back(std::move(message));
     if (SupportsDistribute_) {
         Result_.OutputMessagesDistribute.push_back(distribute);
@@ -548,6 +557,9 @@ void TRootOutputCollector::AddMessage(
 void TRootOutputCollector::AddTimer(TTimer&& timer, const TMessageParentsConstPtr& parents)
 {
     auto setterResult = MetaSetter_->Fill(timer, parents);
+    if (CollectLineage_) {
+        LineageAccumulator_.Add(timer, setterResult.ActualParentMessageIds);
+    }
     Result_.OutputTimers.push_back(std::move(timer));
     Result_.OutputTimersParentMessageIds.push_back(std::move(setterResult.ActualParentMessageIds));
 }
@@ -557,6 +569,9 @@ TRootOutputCollector::TTransformResult TRootOutputCollector::CollectResult()
     YT_VERIFY(Result_.OutputMessages.size() == Result_.OutputMessagesParentMessageIds.size());
     YT_VERIFY(!SupportsDistribute_ || Result_.OutputMessages.size() == Result_.OutputMessagesDistribute.size());
     YT_VERIFY(Result_.OutputTimers.size() == Result_.OutputTimersParentMessageIds.size());
+    if (CollectLineage_) {
+        Result_.LineageDelta = LineageAccumulator_.Finish();
+    }
     return std::exchange(Result_, TTransformResult{});
 }
 
@@ -635,23 +650,8 @@ void TUniversalComputationOrchidState::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUniversalComputationDynamicPartitionSpec::Register(TRegistrar registrar)
-{
-    registrar.Parameter("active_source", &TThis::ActiveSource)
-        .Default();
-    registrar.Parameter("blocked_output_streams", &TThis::BlockedOutputStreams)
-        .Default();
-    registrar.Parameter("availability_group_unavailable", &TThis::AvailabilityGroupUnavailable)
-        .Default(false);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TUniversalComputationPartitionStatus::Register(TRegistrar registrar)
-{
-    registrar.Parameter("active_source_status", &TThis::ActiveSourceStatus)
-        .Default();
-}
+void TUniversalComputationBase::TExtendedDynamicParameters::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -809,7 +809,7 @@ TComputationStatusPtr TUniversalComputationBase::GetStatus()
     }
 
     {
-        auto partitionStatus = New<TUniversalComputationPartitionStatus>();
+        auto partitionStatus = New<TComputationPartitionStatus>();
         if (ActiveSource_) {
             partitionStatus->ActiveSourceStatus = ActiveSource_->GetPartitionStatus();
         }
@@ -834,7 +834,8 @@ TBlockedTimeAccountant::TBlockedTimeAccountant(TInstant startTime)
 
 void TBlockedTimeAccountant::Account(TInstant now, TDuration window, const std::vector<TBlockedLimit>& blocked)
 {
-    double elapsed = LastUpdate_ ? (now - *LastUpdate_).SecondsFloat() : 0.0;
+    const auto previousUpdate = LastUpdate_.value_or(StartTime_);
+    const double elapsed = LastUpdate_ ? (now - previousUpdate).SecondsFloat() : 0.0;
     if (!LastUpdate_) {
         Lifetime_.Update(0, StartTime_);
     }
@@ -842,28 +843,31 @@ void TBlockedTimeAccountant::Account(TInstant now, TDuration window, const std::
     Lifetime_.SetWindow(window);
     Lifetime_.Inc(elapsed, now);
 
+    THashSet<std::pair<TStringBuf, TStreamId>> blockedPairs;
     for (const auto& [limitType, streamId] : blocked) {
+        blockedPairs.emplace(limitType, streamId);
         auto [it, inserted] = Counters_[std::string(limitType)].try_emplace(streamId, window);
         if (inserted) {
-            // A counter measuring from its own creation would report the share of
-            // its own lifetime, so a job that starts blocking after an hour of
-            // work would look blocked all along. Anchoring it at the job start
-            // keeps every counter spanning the same interval as the lifetime one.
+            // Preserve the common warm-up origin, including known idle history.
             it->second.Update(0, StartTime_);
+            it->second.Update(0, previousUpdate);
         }
-        it->second.SetWindow(window);
-        it->second.Inc(elapsed, now);
+    }
+    for (auto& [limitType, streamCounters] : Counters_) {
+        for (auto& [streamId, counter] : streamCounters) {
+            counter.SetWindow(window);
+            counter.Inc(blockedPairs.contains(std::pair<TStringBuf, TStreamId>{limitType, streamId}) ? elapsed : 0, now);
+        }
     }
 }
 
 void TBlockedTimeAccountant::FillShares(
-    TInstant now,
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>>* limits) const
 {
     for (const auto& [limitType, streamCounters] : Counters_) {
         for (const auto& [streamId, counter] : streamCounters) {
             // A stream that never blocked must not conjure a limit entry.
-            if (auto share = GetShare(counter, now); share > 0) {
+            if (auto share = GetShare(counter); share > 0) {
                 (*limits)[limitType][streamId].BlockedTimeShare = share;
             }
         }
@@ -874,10 +878,10 @@ void TBlockedTimeAccountant::FillShares(
 //! counters warm up from zero over their first window, and the ratio cancels that
 //! warm-up, so a job blocked all along reports ~1 instead of ~0.86. Until the
 //! rates are available at all, the same ratio is taken over the totals.
-double TBlockedTimeAccountant::GetShare(const TSimpleEmaCounter& blocked, TInstant now) const
+double TBlockedTimeAccountant::GetShare(const TSimpleEmaCounter& blocked) const
 {
-    auto blockedRate = blocked.GetRate(now);
-    auto lifetimeRate = Lifetime_.GetRate(now);
+    auto blockedRate = blocked.GetLastRate();
+    auto lifetimeRate = Lifetime_.GetLastRate();
     if (blockedRate && lifetimeRate && *lifetimeRate > 0) {
         return std::min(*blockedRate / *lifetimeRate, 1.0);
     }
@@ -918,7 +922,7 @@ bool TUniversalComputationBase::UpdateStatus(
             entityLimitStatus.Used = count;
         }
     }
-    BlockedTimeAccountant_.FillShares(TInstant::Now(), &outputLimits);
+    BlockedTimeAccountant_.FillShares(&outputLimits);
     {
         auto guard = Guard(LimitsLock_);
         InputLimits_ = std::move(inputLimits);
@@ -1539,7 +1543,16 @@ IRetryableTransactionPtr TUniversalComputationBase::PrepareTransaction(const ICo
     return GetTransactionManager()->CreateTransaction();
 }
 
-void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction)
+void TUniversalComputationBase::AddLineageDelta(TLineageDelta delta)
+{
+    if (const auto& tracker = GetContext()->JobLineageTracker) {
+        tracker->Add(std::move(delta));
+    }
+}
+
+void TUniversalComputationBase::Commit(
+    IComputationRunContextPtr context,
+    IRetryableTransactionPtr transaction)
 {
     YT_VERIFY(transaction);
     std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
@@ -1567,6 +1580,9 @@ void TUniversalComputationBase::Commit(IComputationRunContextPtr context, IRetry
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Commit"));
         WaitFor(GetTransactionManager()->CommitTransaction(transaction)).ThrowOnError();
+        if (const auto& tracker = GetContext()->JobLineageTracker) {
+            tracker->Commit();
+        }
     }
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("PostCommit"));
@@ -1620,7 +1636,7 @@ void TUniversalComputationBase::FinishRunIteration()
 
 TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::CheckOutputLimits(
     const TDynamicComputationSpecPtr& dynamicSpec,
-    const TUniversalComputationDynamicPartitionSpecPtr& dynamicPartitionSpec)
+    const IComputation::TDynamicPartitionSpecPtr& dynamicPartitionSpec)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 

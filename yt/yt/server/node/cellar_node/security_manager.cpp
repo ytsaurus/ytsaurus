@@ -154,12 +154,12 @@ private:
         bool validateTabletStaticMemory)
     {
         if (!resultOrError.IsOK()) {
-            auto wrappedError = TError("Error getting resource limits for account %Qv",
+            YT_TLOG_WARNING("Error getting resource limits for account")
+                .With("Account", key.Account)
+                .With(resultOrError);
+            THROW_ERROR_EXCEPTION("Error getting resource limits for account %Qv",
                 key.Account)
                 .With(resultOrError);
-            YT_TLOG_WARNING("Error getting resource limits for account")
-                .With(wrappedError);
-            THROW_ERROR wrappedError;
         }
 
         const auto& node = ConvertToNode(resultOrError.Value());
@@ -201,12 +201,12 @@ private:
         const TResourceLimitsKey& key)
     {
         if (!resultOrError.IsOK()) {
-            auto wrappedError = TError("Error getting resource limits for tablet cell bundle %Qv",
+            YT_TLOG_WARNING("Error getting resource limits for tablet cell bundle")
+                .With("TabletCellBundle", key.TabletCellBundle)
+                .With(resultOrError);
+            THROW_ERROR_EXCEPTION("Error getting resource limits for tablet cell bundle %Qv",
                 key.TabletCellBundle)
                 .With(resultOrError);
-            YT_TLOG_WARNING("Error getting resource limits for tablet cell bundle")
-                .With(wrappedError);
-            THROW_ERROR wrappedError;
         }
 
         const auto& node = ConvertToNode(resultOrError.Value());

@@ -29,6 +29,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self._qtworker_binary = None
         self._qtworker_inspector_ports = {}
         self._qtworker_instances = []
+        self._qtworker_skip_instances = set()
 
     def prepare(self, env, config, remote_envs=[]):
         logger.info("Preparing yql agent")
@@ -191,6 +192,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         self._qtworker_binary = binary
         self._qtworker_processes = []
         self._qtworker_instances = []
+        # Configs are prepared for all instances, including the skipped ones,
+        # so that a test may start the missing qtworker later via start_qtworker.
+        self._qtworker_skip_instances = set(self.config.get("qtworker_skip_instances") or [])
 
         # Start a dedicated qtworker per yql agent instance, each bound to that
         # agent's inspector port and using isolated ports, sockets and paths.
@@ -211,6 +215,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         if self._qtworker_enabled:
             logger.info("Starting qtworkers")
             for instance in self._qtworker_instances:
+                if instance["index"] in self._qtworker_skip_instances:
+                    logger.info("Skipping qtworker start for yql agent %s", instance["index"])
+                    continue
                 self._start_qtworker(instance)
             logger.info("Qtworkers started")
         logger.info("Yql agent started")
@@ -248,6 +255,16 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         self._run_qtworker_role(instance, "forker")
         self._run_qtworker_role(instance, "core")
+
+    def start_qtworker(self, index):
+        for instance in self._qtworker_instances:
+            if instance["index"] == index:
+                if index not in self._qtworker_skip_instances:
+                    raise YtError("Qtworker instance {0} is already running".format(index))
+                self._qtworker_skip_instances.discard(index)
+                self._start_qtworker(instance)
+                return
+        raise YtError("There is no qtworker instance with index {0}".format(index))
 
     def wait(self):
         logger.info("Waiting for yql agent to become ready")
@@ -450,6 +467,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         wait(lambda: self.client.get(f"//sys/yql_agent/instances/{address}/orchid/service/version"),
              ignore_exceptions=True,
              timeout=600)
+
+        if self._qtworker_enabled:
+            if self.addresses.index(address) in self._qtworker_skip_instances:
+                return
+
+            # The agent starts serving RPC before its plugin is able to execute queries
+            # (e.g. before qtworkers have registered), so wait for the plugin as well.
+            wait(lambda: self.client.get(f"//sys/yql_agent/instances/{address}/orchid/yql_agent/ready"),
+                 error_message=f"Yql agent {address} didn't become ready in time",
+                 ignore_exceptions=True,
+                 timeout=600)
 
     def stop(self):
         if self._qtworker_processes:

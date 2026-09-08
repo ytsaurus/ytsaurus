@@ -208,6 +208,10 @@ void TOrderedSourceBase::TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclu
         SourceTotalCount_.Inc(deltaRows * State_->AvgOffsetCountSize);
         SourceTotalBytes_.Inc(deltaRows * State_->AvgOffsetByteSize);
     } else if (newMaxOffsetExclusive == State_->MaxOffsetExclusive) {
+        if (confirmed) {
+            SourceTotalCount_.Inc(0);
+            SourceTotalBytes_.Inc(0);
+        }
         State_->MaxOffsetIsConfirmed |= confirmed;
     }
 }
@@ -344,6 +348,19 @@ double TOrderedSourceBase::GetSourceTotalBytes() const
 double TOrderedSourceBase::GetOfferedCount() const
 {
     return OfferedCount_.GetTotal();
+}
+
+std::optional<TSystemTimestamp> TOrderedSourceBase::GetLastPersistedWriteTimestamp() const
+{
+    YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
+    return State_->LastPersistedWriteTimestamp;
+}
+
+bool TOrderedSourceBase::AreOffsetsEquivalent(const TOffset& lhs, const TOffset& rhs) const
+{
+    return lhs == rhs ||
+        ConvertOffsetToLexicographicallyComparableString(lhs) ==
+        ConvertOffsetToLexicographicallyComparableString(rhs);
 }
 
 void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
@@ -544,7 +561,10 @@ TFuture<std::vector<ISource::TMessageBatch>> TOrderedSourceBase::GetNextBatch(
 
     std::optional<TOffset> offsetLimitExclusive;
     if (IsDraining()) {
-        if (NextReadOffset_ >= State_->PublishedOffsetExclusive) {
+        const bool publishedOffsetReached =
+            NextReadOffset_ >= State_->PublishedOffsetExclusive ||
+            AreOffsetsEquivalent(NextReadOffset_, State_->PublishedOffsetExclusive);
+        if (publishedOffsetReached) {
             return MakeFuture<std::vector<ISource::TMessageBatch>>({});
         } else {
             offsetLimitExclusive = State_->PublishedOffsetExclusive;
@@ -636,7 +656,7 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
     const bool wasEmptyRecently = State_->CommittedOffsetExclusive == State_->MaxOffsetExclusive &&
         State_->MaxOffsetIsConfirmed;
     inflight->Empty = wasEmptyRecently && IsFinite();
-    inflight->Suspended = State_->CommittedOffsetExclusive == State_->PublishedOffsetExclusive &&
+    inflight->Suspended = AreOffsetsEquivalent(State_->CommittedOffsetExclusive, State_->PublishedOffsetExclusive) &&
         (IsDraining() || inflight->Empty);
 
     const i64 offsetLag = DoGetEstimatedRowsAtOffset(State_->MaxOffsetExclusive) - DoGetEstimatedRowsAtOffset(State_->CommittedOffsetExclusive);
@@ -659,8 +679,8 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
         inflight->InflightMetrics->LastIdleTimestamp = TSystemTimestamp(State_->LastIdleInstant.Seconds());
     }
 
-    inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetRate();
-    inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetRate();
+    inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetLastRate();
+    inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetLastRate();
     if (auto backlogRate = EstimateBacklogRate()) {
         inflight->InflightMetrics->NewCountPerSec = std::max(
             inflight->InflightMetrics->NewCountPerSec.value_or(0),
@@ -669,10 +689,10 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
             inflight->InflightMetrics->NewBytesPerSec.value_or(0),
             std::max(0.0, backlogRate->BytesPerSecond));
     }
-    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetRate();
-    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetRate();
-    inflight->InflightMetrics->ProcessedCountPerSec = PersistedCount_.GetRate();
-    inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetRate();
+    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetDecayedRate();
+    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetDecayedRate();
+    inflight->InflightMetrics->ProcessedCountPerSec = PersistedCount_.GetDecayedRate();
+    inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetDecayedRate();
 
     if (State_->LastUnavailableInstant) {
         const auto threshold = GetDynamicParameters()->UnavailableThreshold;

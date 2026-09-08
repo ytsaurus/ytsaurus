@@ -11,11 +11,11 @@ ones that overlap the requested [start_time, end_time] window (using the file
 rotation hints plus a binary search driven by `logslice --info`), and finally
 runs `logslice` on each selected file, forwarding the grep arguments.
 
-Besides the live ``logs`` directory the script also looks into the master log
-archive (``/yt/master-logs-archive/<YYYY-MM-DD>/...``, see ``--archive-dir``),
-where old rotated files are moved under per-day subdirectories. The archive is
-only consulted when a time window is given, and only for the day subdirectories
-overlapping that window.
+Besides the live ``logs`` directory the script also looks into the log archive
+of the routed service (``/yt/<service>-logs-archive/<YYYY-MM-DD>/...``, see
+``--archive-dir``), where old rotated files are moved under per-day
+subdirectories. The archive is only consulted when a time window is given, and
+only for the day subdirectories overlapping that window.
 
 All times are interpreted exactly as `logslice` interprets them (server local
 time); the precise filtering is always delegated to `logslice` itself, so the
@@ -39,9 +39,15 @@ REMOTE_DIR = "/tmp"
 REMOTE_BIN = REMOTE_DIR + "/logslice"
 REMOTE_LOGS_DIR = "logs"
 
-# Old rotated master logs are moved here, under per-day subdirectories named
-# "YYYY-MM-DD", e.g. /yt/master-logs-archive/2026-06-19/master-klg0-0941.debug.log.2026-06-19_07-15.zst
-ARCHIVE_DIR_DEFAULT = "/yt/master-logs-archive"
+# Old rotated logs are moved to a per-service archive root, under per-day
+# subdirectories named "YYYY-MM-DD", e.g.
+# /yt/master-logs-archive/2026-06-19/master-klg0-0941.debug.log.2026-06-19_07-15.zst
+# The layout is identical under every root; only the root depends on the service
+# (see ytcfgen's logs_archive.py for the authoritative service -> root map).
+ARCHIVE_DIR_BY_ROLE = {
+    "master": "/yt/master-logs-archive",
+    "scheduler": "/yt/scheduler-logs-archive",
+}
 
 # A debug logslice is hundreds of MiB; a release one is well under this. Anything
 # below the limit is assumed to be a usable release build.
@@ -793,7 +799,7 @@ def archive_day_dirs(names, start_time, end_time):
 
 def discover_archive(ssh, log_type, start_time, end_time, archive_dir,
                      component=None):
-    """The master log archive: returns (base, ordered_files). Only the day
+    """The service's log archive: returns (base, ordered_files). Only the day
     subdirectories overlapping the window are scanned. Consulted only when a
     window bound is given (an unbounded scan of the whole archive is never what
     is wanted); returns (None, []) when the archive is absent or out of range."""
@@ -1167,6 +1173,12 @@ def infer_host_component(host):
         )
     if re.search(r"(?:^|-)clock\d*(?:-|$)", short):
         return "clock", "clock"
+    # YP services carry "scheduler" in their pod names too (yp-scheduler,
+    # yp-heavy-scheduler). They are matched here as well, but their log base is
+    # absent from a YT host's logs, so the route fails loudly in
+    # resolve_component_route instead of silently reading another service.
+    if re.search(r"(?:^|-)scheduler(?:-|$)", short):
+        return "scheduler", "scheduler"
     if re.search(r"(?:^|-)master(?:-|$)", short) or \
             re.match(r"^m(?:c)?\d+(?:-|$)", short):
         return "master", "master"
@@ -1249,15 +1261,33 @@ def routing_metadata(route, roots):
     ]
 
 
-def should_use_master_archive(host, override):
+def _role_for_base(base):
+    """The archive-bearing role of an explicit ``--component`` log base.
+
+    Bases carry a location suffix on some services (``master-vla2-1217``), so a
+    prefix match is needed; ``master-cache`` is a different service that only
+    looks like a master base.
+    """
+    if base == "master-cache" or base.startswith("master-cache-"):
+        return "master-cache"
+    for role in ARCHIVE_DIR_BY_ROLE:
+        if base == role or base.startswith(role + "-"):
+            return role
+    return None
+
+
+def archive_dir_for_route(host, override):
+    """The archive root of the route implied by ``host``/``--component``, or
+    None when the service keeps no archive (or the route is unknown).
+
+    Resolved before the exact component is known, because candidate discovery
+    already has to inspect the archive; the role is enough to pick the root.
+    """
     if override:
-        return (
-            override == "master"
-            or (override.startswith("master-")
-                and not override.startswith("master-cache"))
-        )
-    role, _ = infer_host_component(host)
-    return role == "master"
+        role = _role_for_base(override)
+    else:
+        role, _ = infer_host_component(host)
+    return ARCHIVE_DIR_BY_ROLE.get(role)
 
 
 def discover_series(ssh, log_type, start_time, end_time, archive_dir,
@@ -1415,10 +1445,15 @@ def _run_main(context):
     parser.add_argument("-e", dest="end", default=None,
                         help="time window end (passed to logslice)")
     parser.add_argument("--archive-dir", dest="archive_dir",
-                        default=ARCHIVE_DIR_DEFAULT,
-                        help="root of the per-day master log archive to also "
-                             "search (default: {}); pass '' to disable."
-                             .format(ARCHIVE_DIR_DEFAULT))
+                        default=None,
+                        help="root of the per-day log archive to also search; "
+                             "by default it is derived from the route ({}), "
+                             "and an explicit value overrides that. Pass '' to "
+                             "disable the archive."
+                             .format(", ".join(
+                                 "{}: {}".format(role, directory)
+                                 for role, directory
+                                 in sorted(ARCHIVE_DIR_BY_ROLE.items()))))
     parser.add_argument("-x", dest="execute", default=None,
                         help="pipe-separated post-processing commands run after "
                              "logslice, e.g. \"grep Error | wc -l\". "
@@ -1527,10 +1562,12 @@ def _run_main(context):
     # discover_series returns them oldest -> newest and select_log_files selects
     # each independently, so a window straddling the archive/live boundary picks
     # up files from both.
-    archive_dir = args.archive_dir or None
-    if archive_dir is not None and not should_use_master_archive(
-            args.host, args.component):
-        archive_dir = None
+    # An explicit --archive-dir wins over the route-derived root; the empty
+    # string disables the archive outright.
+    if args.archive_dir is None:
+        archive_dir = archive_dir_for_route(args.host, args.component)
+    else:
+        archive_dir = args.archive_dir or None
     candidates = set()
     roots = []
     for log_type in log_types:

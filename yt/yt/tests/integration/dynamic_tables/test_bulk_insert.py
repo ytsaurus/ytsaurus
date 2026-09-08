@@ -144,7 +144,7 @@ class TestBulkInsert(DynamicTablesBase):
                 in_="//tmp/t_input",
                 out="<append=true>//tmp/t_output",
                 command="cat",
-                mode="ordered",
+                ordered=True,
                 spec={"max_failed_job_count": 1},
             )
 
@@ -167,7 +167,7 @@ class TestBulkInsert(DynamicTablesBase):
                 in_="//tmp/t_input",
                 out="<append=true>//tmp/t_output",
                 command="cat",
-                mode="ordered",
+                ordered=True,
                 spec={"max_failed_job_count": 1},
             )
 
