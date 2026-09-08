@@ -32,10 +32,21 @@ DEFINE_ENUM(EGpuSchedulingLogEventType,
     (AllocationScheduled)
     (AllocationPreempted)
     (AllocationRevived)
+    (OperationReceivedFairShare)
+    (OperationLostFairShare)
     (OperationBoundToModule)
+    (OperationLostModuleBinding)
     (ModulesInfo)
     (NodesInfo)
     (OperationsInfo)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EModuleBindingLostReason,
+    (OperationPreemptible)
+    (ModuleReconsiderationTimeout)
+    (PriorityModuleBinding)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

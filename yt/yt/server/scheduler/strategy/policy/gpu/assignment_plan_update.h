@@ -163,9 +163,14 @@ private:
     bool ShouldResetModule(const TOperationPtr& operation) const;
     void EvictReservation(
         const NDetail::TModuleReservationPtr& reservation,
+        EModuleBindingLostReason reason,
         const std::string& preemptionDescription,
-        const std::string& evictionModule);
-    void EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription);
+        const std::string& evictionModule,
+        std::optional<TOperationId> preemptedForOperationId = std::nullopt);
+    void EvictOperationFromSchedulingModule(
+        const TOperationPtr& operation,
+        EModuleBindingLostReason reason,
+        const std::string& preemptionDescription);
     bool BindFullHostOperationToModule(const TOperationPtr& operation, bool priorityModuleBinding);
 
     //! Recomputes |operation->NetworkPriority()| based on the operation's node-share on its bound module.

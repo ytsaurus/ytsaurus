@@ -2087,11 +2087,15 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
                 job_count=1,
                 pool="pool1",
                 task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
-                spec={"scheduling_modules": [dc]},
+                spec={"scheduling_modules": [dc], "is_gang": True},
             ))
 
         for op in annoying_ops:
             wait(lambda: len(op.get_running_jobs()) == 1)
+
+        scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+        scheduler_address = ls("//sys/scheduler/instances")[0]
+        from_barrier = write_log_barrier(scheduler_address)
 
         good_op = run_sleeping_vanilla(
             job_count=2,
@@ -2100,6 +2104,20 @@ class TestAllocatingGpuSchedulingPolicyMultiModule(AllocatingGpuSchedulingPolicy
             spec={"is_gang": True},
         )
         wait(lambda: len(good_op.get_running_jobs()) == 2)
+
+        to_barrier = write_log_barrier(scheduler_address)
+        lost_module_binding_events = read_gpu_events(
+            scheduler_log_file,
+            from_barrier,
+            to_barrier=to_barrier,
+            event_type="operation_lost_module_binding",
+            predicate=lambda event: event.get("preempted_for_operation_id") == good_op.id,
+        )
+        assert len(lost_module_binding_events) == 1
+        lost_module_binding = lost_module_binding_events[0]
+        assert lost_module_binding["operation_id"] in [op.id for op in annoying_ops]
+        assert lost_module_binding["reason"] == "priority_module_binding"
+        assert lost_module_binding["preempted_for_operation_id"] == good_op.id
 
         def get_priority_module_binding(op) -> bool | None:
             value = get(
@@ -2275,6 +2293,84 @@ class TestAllocatingGpuSchedulingPolicyMultiModulePreemption(AllocatingGpuSchedu
     def _scheduler_address(self):
         return ls("//sys/scheduler/instances")[0]
 
+    @authors("severovv")
+    def test_operation_timeline_events(self):
+        update_pool_tree_config_option("gpu", "enable_step_function_for_gang_operations", True)
+
+        create_pool("timeline_gang", pool_tree="gpu")
+        create_pool(
+            "timeline_guaranteed",
+            pool_tree="gpu",
+            attributes={"strong_guarantee_resources": {"gpu": 32}},
+        )
+
+        scheduler_log_file = self._scheduler_log_file()
+        from_barrier = write_log_barrier(self._scheduler_address())
+
+        gang_op = run_sleeping_vanilla(
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+            job_count=2,
+            spec={"pool": "timeline_gang", "is_gang": True},
+        )
+        wait(lambda: len(gang_op.get_running_jobs()) == 2)
+
+        run_sleeping_vanilla(
+            task_patch={"gpu_limit": 6, "enable_gpu_layers": False},
+            job_count=5,
+            spec={
+                "pool": "timeline_guaranteed",
+                "scheduling_tag_filter": "nonexistent_timeline_tag",
+            },
+        )
+
+        wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            "operation_lost_module_binding",
+            op=gang_op,
+            predicate=lambda event: event["reason"] == "operation_preemptible",
+        )
+
+        to_barrier = write_log_barrier(self._scheduler_address())
+        events = read_gpu_events(
+            scheduler_log_file,
+            from_barrier,
+            to_barrier=to_barrier,
+            op=gang_op,
+        )
+
+        expected_event_types = [
+            "operation_received_fair_share",
+            "operation_bound_to_module",
+            "allocation_scheduled",
+            "allocation_scheduled",
+            "operation_lost_fair_share",
+            "operation_lost_module_binding",
+        ]
+        timeline_events = [
+            event
+            for event in events
+            if event["event_type"] in expected_event_types
+        ]
+        timeline_events = timeline_events[:len(expected_event_types)]
+        actual_event_types = [event["event_type"] for event in timeline_events]
+        assert actual_event_types == expected_event_types
+        assert all(event["policy_kind"] == "gpu" for event in events)
+
+        (
+            _,
+            bound_to_module,
+            first_allocation_scheduled,
+            _,
+            _,
+            lost_module_binding,
+        ) = timeline_events
+
+        assert "allocation_id" in first_allocation_scheduled
+        assert "node_address" in first_allocation_scheduled
+        assert lost_module_binding["module"] == bound_to_module["module"]
+        assert lost_module_binding["reason"] == "operation_preemptible"
+
     @authors("yaishenka")
     def test_full_host_op_evicted_from_module_after_timeout(self):
         # Speed up the reconsideration timeout; push the aggressive timeout
@@ -2336,6 +2432,15 @@ class TestAllocatingGpuSchedulingPolicyMultiModulePreemption(AllocatingGpuSchedu
                 "is_gang": True,
             },
         )
+
+        lost_module_binding = wait_for_gpu_event(
+            scheduler_log_file,
+            from_barrier,
+            "operation_lost_module_binding",
+            op=fhmb_op,
+        )
+        assert lost_module_binding["reason"] == "module_reconsideration_timeout"
+        assert "preempted_for_operation_id" not in lost_module_binding
 
         # After module_reconsideration_timeout, the FHMB op's single placed
         # full-host allocation is preempted via EvictOperationFromSchedulingModule.

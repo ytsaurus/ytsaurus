@@ -455,7 +455,19 @@ void TAssignmentPlanUpdateContext::UpdatePreemptionStatus(const TOperationPtr& o
 
     // Update preemptible allocations.
     if (operation->IsFullHostModuleBound()) {
-        operation->SetPreemptible(Dominates(TResourceVector::Epsilon(), fairShare));
+        bool isPreemptible = Dominates(TResourceVector::Epsilon(), fairShare);
+        operation->SetPreemptible(isPreemptible);
+
+        if (isPreemptible != operation->GetPreemptibleAtLastUpdate()) {
+            operation->SetPreemptibleAtLastUpdate(isPreemptible);
+            LogStructuredGpuEventFluently(
+                isPreemptible
+                    ? EGpuSchedulingLogEventType::OperationLostFairShare
+                    : EGpuSchedulingLogEventType::OperationReceivedFairShare)
+                .Item("operation_id").Value(operation->GetId())
+                .Item("resource_demand").Value(operationElement->ResourceDemand())
+                .Item("fair_resources").Value(operationElement->GetTotalResourceLimits() * fairShare);
+        }
     } else {
         auto sortedAssignments = GetItems(operation->Assignments());
         std::ranges::sort(

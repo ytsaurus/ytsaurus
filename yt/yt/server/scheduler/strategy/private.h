@@ -69,6 +69,8 @@ DEFINE_ENUM(EGpuSchedulingLogEventType,
     (FairShareInfo)
     (OperationRegistered)
     (OperationUnregistered)
+    (OperationReceivedFairShare)
+    (OperationLostFairShare)
     (SchedulingSegmentsInfo)
     (OperationAssignedToModule)
     (FailedToAssignOperation)

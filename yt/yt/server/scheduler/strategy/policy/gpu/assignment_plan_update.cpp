@@ -252,6 +252,10 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::InitializeModuleStates()
 
         // Preemptible operation cannot be bound to a module.
         if (operation->IsPreemptible()) {
+            Context_->LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationLostModuleBinding)
+                .Item("operation_id").Value(operation->GetId())
+                .Item("module").Value(*operation->SchedulingModule())
+                .Item("reason").Value(EModuleBindingLostReason::OperationPreemptible);
             operation->ResetSchedulingModule();
             continue;
         }
@@ -398,7 +402,10 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::PlanFullHostModuleBoundOperatio
         YT_VERIFY(!operation->IsPreemptible());
 
         if (ShouldResetModule(operation)) {
-            EvictOperationFromSchedulingModule(operation, "Preempted after module reset");
+            EvictOperationFromSchedulingModule(
+                operation,
+                EModuleBindingLostReason::ModuleReconsiderationTimeout,
+                "Preempted after module reset");
         }
 
         if (!operation->SchedulingModule() && !BindFullHostOperationToModule(operation, priorityModuleBinding)) {
@@ -637,8 +644,10 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::ShouldResetModule(const TOperat
 
 void TGpuAllocationAssignmentPlanUpdateExecutor::EvictReservation(
     const NDetail::TModuleReservationPtr& reservation,
+    EModuleBindingLostReason reason,
     const std::string& preemptionDescription,
-    const std::string& evictionModule)
+    const std::string& evictionModule,
+    std::optional<TOperationId> preemptedForOperationId)
 {
     int preemptedAssignments = 0;
     auto& moduleState = GetOrCrash(ModuleStates_, evictionModule);
@@ -646,6 +655,12 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::EvictReservation(
     Visit(reservation->GetItem(),
         [&] (const TOperationPtr& operation) {
             YT_VERIFY(evictionModule == operation->SchedulingModule());
+
+            Context_->LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationLostModuleBinding)
+                .Item("operation_id").Value(operation->GetId())
+                .Item("module").Value(*operation->SchedulingModule())
+                .Item("reason").Value(reason)
+                .OptionalItem("preempted_for_operation_id", preemptedForOperationId);
 
             preemptedAssignments += std::ssize(operation->Assignments());
             operation->ResetSchedulingModule();
@@ -665,13 +680,16 @@ void TGpuAllocationAssignmentPlanUpdateExecutor::EvictReservation(
     Context_->GetStatistics()->PreemptedAssignmentsByStage[EGpuAssignmentPlanningStage::FullHostModuleBound] += preemptedAssignments;
 }
 
-void TGpuAllocationAssignmentPlanUpdateExecutor::EvictOperationFromSchedulingModule(const TOperationPtr& operation, const std::string& preemptionDescription)
+void TGpuAllocationAssignmentPlanUpdateExecutor::EvictOperationFromSchedulingModule(
+    const TOperationPtr& operation,
+    EModuleBindingLostReason reason,
+    const std::string& preemptionDescription)
 {
     YT_VERIFY(operation->SchedulingModule());
 
     auto& moduleState = GetOrCrash(ModuleStates_, *operation->SchedulingModule());
     auto reservation = GetOrCrash(moduleState.FullHostBoundOperationReservations(), operation.Get());
-    EvictReservation(reservation, preemptionDescription, *operation->SchedulingModule());
+    EvictReservation(reservation, reason, preemptionDescription, *operation->SchedulingModule());
 }
 
 bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
@@ -763,8 +781,10 @@ bool TGpuAllocationAssignmentPlanUpdateExecutor::BindFullHostOperationToModule(
 
         EvictReservation(
             evictedReservation,
+            EModuleBindingLostReason::PriorityModuleBinding,
             Format("Preempted due to eviction from scheduling module in favour of priority operation %v", operation->GetId()),
-            bestModule);
+            bestModule,
+            operation->GetId());
     }
 
     operation->WaitingForModuleBindingSince().reset();

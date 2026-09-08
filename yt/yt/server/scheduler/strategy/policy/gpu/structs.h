@@ -158,6 +158,7 @@ public:
 
     // Full-host module-bound operation is either fully preemptible or none of its assignments are preemptible.
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Preemptible);
+    DEFINE_BYVAL_RW_PROPERTY(bool, PreemptibleAtLastUpdate, true);
 
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(Enabled);
 
