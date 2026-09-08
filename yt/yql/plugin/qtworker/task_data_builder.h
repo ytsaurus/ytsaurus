@@ -24,6 +24,7 @@ struct TTaskDataBuildContext
     const std::vector<TQueryFile>& Files;
     const TString& FunctionRegistryData;
     const std::optional<NYql::TGatewaysConfig>& GatewaysConfig;
+    const std::optional<TString>& DefaultCluster;
     TMaybe<TString> MaxYqlLangVersion;
     TMaybe<TString> DefaultYqlLangVersion;
     NYqlClient::EQueryType QueryType = NYqlClient::EQueryType::Regular;
