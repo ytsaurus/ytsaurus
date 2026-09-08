@@ -245,8 +245,6 @@ void TOrderedSourceBase::Init(IInitContextPtr initContext)
 
     SourceTotalCount_.Update(0);
     SourceTotalBytes_.Update(0);
-    OfferedCount_.Update(0);
-    OfferedBytes_.Update(0);
     PersistedCount_.Update(0);
     PersistedBytes_.Update(0);
 
@@ -343,11 +341,6 @@ double TOrderedSourceBase::GetSourceTotalCount() const
 double TOrderedSourceBase::GetSourceTotalBytes() const
 {
     return SourceTotalBytes_.GetTotal();
-}
-
-double TOrderedSourceBase::GetOfferedCount() const
-{
-    return OfferedCount_.GetTotal();
 }
 
 std::optional<TSystemTimestamp> TOrderedSourceBase::GetLastPersistedWriteTimestamp() const
@@ -689,8 +682,8 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
             inflight->InflightMetrics->NewBytesPerSec.value_or(0),
             std::max(0.0, backlogRate->BytesPerSecond));
     }
-    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetDecayedRate();
-    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetDecayedRate();
+    inflight->InflightMetrics->OfferedCountPerSec = inflight->InflightMetrics->NewCountPerSec;
+    inflight->InflightMetrics->OfferedBytesPerSec = inflight->InflightMetrics->NewBytesPerSec;
     inflight->InflightMetrics->ProcessedCountPerSec = PersistedCount_.GetDecayedRate();
     inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetDecayedRate();
 
@@ -772,8 +765,6 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
     }
 
     std::vector<ISource::TMessageBatch> parsedMessages;
-    i64 offeredCount = 0;
-    i64 offeredBytes = 0;
     for (i64 recordIndex = 0; recordIndex < std::ssize(records); ++recordIndex) {
         auto& record = records[recordIndex];
         const bool isLastRecord = (recordIndex + 1 == std::ssize(records));
@@ -887,8 +878,6 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
                 .Cookie = TSourceMessageBatchCookie(std::any(TMessageCookieData{.OffsetInfoIt = offsetInfoIt})),
                 .Messages = std::move(messages),
             });
-            offeredCount += offsetInfoIt->Count;
-            offeredBytes += offsetInfoIt->ByteSize;
         }
         TryCollapseOffsetInfo(std::prev(InflightOffsets_.end()));
     }
@@ -897,8 +886,6 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
         State_->LastIdleInstant = TInstant::Zero();
         TryIncreaseMaxOffsetExclusive(NextReadOffset_, false);
     }
-    OfferedCount_.Inc(offeredCount);
-    OfferedBytes_.Inc(offeredBytes);
     CleanUpInflightOffsets();
     return parsedMessages;
 }
