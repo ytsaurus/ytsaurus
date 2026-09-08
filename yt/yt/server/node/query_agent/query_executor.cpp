@@ -440,7 +440,7 @@ public:
     TExecutePlan Build(const TJoinSubqueryOptionsPatch& patch) const
     {
         auto joinSubqueryOptions = GetJoinSubqueryOptions(BaseOptions_);
-        joinSubqueryOptions = ApplyPatch(joinSubqueryOptions, patch);
+        joinSubqueryOptions = ApplyJoinSubqueryOptionsPatch(joinSubqueryOptions, patch);
         return [
             joinSubqueryOptions,
             remoteExecutor = RemoteExecutor_,
@@ -462,11 +462,11 @@ public:
     }
 
 private:
-    IExecutorPtr RemoteExecutor_;
-    TConstExternalCGInfoPtr ExternalCGInfo_;
-    IInvokerPtr Invoker_;
-    TFeatureFlags RequestFeatureFlags_;
-    TQueryOptions BaseOptions_;
+    const IExecutorPtr RemoteExecutor_;
+    const TConstExternalCGInfoPtr ExternalCGInfo_;
+    const IInvokerPtr Invoker_;
+    const TFeatureFlags RequestFeatureFlags_;
+    const TQueryOptions BaseOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
