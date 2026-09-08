@@ -3,7 +3,6 @@
   PYTEST_DONT_REWRITE
 """
 
-import argparse
 import operator
 import platform
 import sys
@@ -11,6 +10,7 @@ import traceback
 from collections import defaultdict
 from datetime import datetime
 from datetime import timezone
+from pathlib import Path
 
 import pytest
 
@@ -19,6 +19,7 @@ from .fixture import BenchmarkFixture
 from .session import BenchmarkSession
 from .session import PerformanceRegression
 from .timers import default_timer
+from .utils import DEFAULT_COLUMNS
 from .utils import NameWrapper
 from .utils import consistent_dumps
 from .utils import get_commit_info
@@ -28,6 +29,7 @@ from .utils import operations_unit
 from .utils import parse_columns
 from .utils import parse_compare_fail
 from .utils import parse_cprofile_loops
+from .utils import parse_fraction
 from .utils import parse_name_format
 from .utils import parse_rounds
 from .utils import parse_save
@@ -79,9 +81,8 @@ def add_display_options(addoption, prefix='benchmark-'):
         f'--{prefix}columns',
         metavar='LABELS',
         type=parse_columns,
-        default=['min', 'max', 'mean', 'stddev', 'median', 'iqr', 'outliers', 'ops', 'rounds', 'iterations'],
-        help='Comma-separated list of columns to show in the result table. Default: '
-        "'min, max, mean, stddev, median, iqr, outliers, ops, rounds, iterations'",
+        default=None,  # Deferred; resolved in cli.py and session.py
+        help=f"Comma-separated list of columns to show in the result table. Default: '{', '.join(DEFAULT_COLUMNS)}'",
     )
     addoption(
         f'--{prefix}name',
@@ -194,6 +195,22 @@ def pytest_addoption(parser):
         help='Minimum rounds, even if total time would exceed `--max-time`. Default: %(default)r',
     )
     group.addoption(
+        '--benchmark-precision',
+        metavar='FRACTION',
+        type=parse_fraction,
+        default=None,
+        help='Run rounds until the relative margin of error of the mean (at --benchmark-confidence) '
+        'is below this fraction, e.g. 0.02 for ±2%%. Bounded by --benchmark-min-rounds and '
+        '--benchmark-max-time. Default: disabled (fixed number of rounds).',
+    )
+    group.addoption(
+        '--benchmark-confidence',
+        metavar='FRACTION',
+        type=parse_fraction,
+        default=0.99,
+        help='Confidence level for --benchmark-precision, e.g. 0.99 for a 99%% confidence interval. Default: %(default)r',
+    )
+    group.addoption(
         '--benchmark-timer',
         metavar='FUNC',
         type=parse_timer,
@@ -257,7 +274,7 @@ def pytest_addoption(parser):
     group.addoption(
         '--benchmark-json',
         metavar='PATH',
-        type=argparse.FileType('wb'),
+        type=Path,
         help='Dump a JSON report into PATH. Note that this will include the complete data (all the timings, not just the stats).',
     )
     group.addoption(
@@ -340,6 +357,7 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         has_benchmark = hasattr(item, 'fixturenames') and 'benchmark' in item.fixturenames
         if has_benchmark:
+            bs.note_xdist_benchmark()
             if bs.skip:
                 item.add_marker(skip_bench)
         else:
@@ -500,6 +518,8 @@ def pytest_runtest_setup(item):
                 'max_time',
                 'min_rounds',
                 'min_time',
+                'precision',
+                'confidence',
                 'timer',
                 'group',
                 'disable_gc',

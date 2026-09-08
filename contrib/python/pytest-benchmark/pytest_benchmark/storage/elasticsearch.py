@@ -65,8 +65,8 @@ class ElasticsearchStorage:
         Yield key and content of records that corresponds with project name.
         """
         r = self._search(self._project_name, id_prefix)
-        groupped_data = self._group_by_commit_and_time(r['hits']['hits'])
-        result = list(groupped_data.items())
+        grouped_data = self._group_by_commit_and_time(r['hits']['hits'])
+        result = list(grouped_data.items())
         result.sort(key=lambda x: datetime.strptime(x[1]['datetime'], '%Y-%m-%dT%H:%M:%S.%f'))  # noqa: DTZ007
         for key, data in result:
             for bench in data['benchmarks']:
