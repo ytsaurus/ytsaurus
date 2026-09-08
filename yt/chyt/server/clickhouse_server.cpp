@@ -33,19 +33,20 @@
 #include <Common/MemoryTracker.h>
 #include <Common/SensitiveDataMasker.h>
 #include <Databases/DatabaseMemory.h>
+#include <IO/SharedThreadPools.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ExternalDictionariesLoader.h>
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/QueryLog.h>
 #include <Interpreters/ServerAsynchronousMetrics.h>
-#include <IO/SharedThreadPools.h>
+#include <Loggers/OwnSplitChannel.h>
 #include <Storages/StorageMemory.h>
-#include <Storages/System/attachSystemTables.h>
-#include <Storages/System/attachSystemTablesImpl.h>
 #include <Storages/System/StorageSystemAsynchronousMetrics.h>
 #include <Storages/System/StorageSystemDictionaries.h>
 #include <Storages/System/StorageSystemMetrics.h>
 #include <Storages/System/StorageSystemProcesses.h>
+#include <Storages/System/attachSystemTables.h>
+#include <Storages/System/attachSystemTablesImpl.h>
 
 #include <DBPoco/DirectoryIterator.h>
 #include <DBPoco/ThreadPool.h>
@@ -194,10 +195,13 @@ private:
     void SetupLogger()
     {
         LogChannel_ = CreateLogChannel(ClickHouseNativeLogger());
+        // Pass logs to Client via TCP interface. Useful for debugging with `SET send_logs_level='trace'`
+        DBPoco::AutoPtr<DB::OwnSplitChannel> splitChannel = new DB::OwnSplitChannel();
+        splitChannel->addChannel(LogChannel_, "chyt_logs");
 
         auto& rootLogger = DBPoco::Logger::root();
         rootLogger.close();
-        rootLogger.setChannel(LogChannel_);
+        rootLogger.setChannel(splitChannel);
         rootLogger.setLevel(Config_->LogLevel);
     }
 
