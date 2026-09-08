@@ -23,6 +23,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <util/string/cast.h>
 #include <util/system/env.h>
 
 #include <set>
@@ -215,6 +216,22 @@ TEST(TVanillaConfigTest, RetainsStderrOfEveryJobByDefault)
 {
     EXPECT_EQ(MakeVanillaConfig()->MaxStderrCount, DefaultMaxStderrCount);
     EXPECT_EQ(MakeVanillaConfig("max_stderr_count=7")->MaxStderrCount, 7);
+}
+
+TEST(TVanillaSpecTest, CarriesCpuLimitToJobEnvironment)
+{
+    TVanillaSpec spec;
+    spec.Tasks.push_back(TVanillaTaskSpec{
+        .Name = "worker",
+        .FlowMode = "worker",
+        .CpuLimit = 10,
+    });
+    auto operation = BuildVanillaOperationSpec(spec);
+    auto worker = operation->GetChildOrThrow("tasks")->AsMap()->GetChildOrThrow("worker")->AsMap();
+    auto environment = ConvertTo<THashMap<std::string, std::string>>(worker->GetChildOrThrow("environment"));
+
+    EXPECT_DOUBLE_EQ(FromString<double>(environment.at("YT_FLOW_CPU_LIMIT")), 10);
+    EXPECT_EQ(ConvertTo<double>(worker->GetChildOrThrow("cpu_limit")), 10);
 }
 
 TEST(TVanillaSpecTest, CarriesMaxStderrCount)
