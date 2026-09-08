@@ -270,6 +270,10 @@ TInMemorySimpleExternalStateManagerPtr TTestStateEnvironment::RegisterExternalSt
 {
     auto manager = New<TInMemorySimpleExternalStateManager>(std::move(stateSchema), std::move(keySchema));
     RegisterExternalState(name, manager);
+    // Ends the manager's epoch with the harness epoch, as the worker's Sync would.
+    RegisterEpochCommit([manager] (const IRetryableTransactionPtr& transaction) {
+        manager->Sync(transaction);
+    });
     return manager;
 }
 

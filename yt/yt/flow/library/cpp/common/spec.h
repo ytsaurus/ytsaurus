@@ -412,6 +412,10 @@ struct TExternalStateManagerSpec
     : public NYTree::TYsonStruct
 {
     std::string ExternalStateManagerClassName;
+    //! When ``true`` (default), the framework preloads every message, timer and visit key of the
+    //! epoch before each #DoProcess(); when ``false``, the computation preloads the keys it needs
+    //! itself.
+    bool AutoPreload{};
     NYTree::IMapNodePtr Parameters;
 
     REGISTER_YSON_STRUCT(TExternalStateManagerSpec);

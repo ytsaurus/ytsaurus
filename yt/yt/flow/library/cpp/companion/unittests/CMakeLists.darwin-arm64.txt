@@ -60,6 +60,7 @@ target_sources(yt-flow-library-cpp-companion-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittests/companion_model_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittests/companion_proxy_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittests/companion_resource_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittests/companion_spec_validation_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittests/config_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittests/java_companion_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/unittests/java_process_manager_ut.cpp

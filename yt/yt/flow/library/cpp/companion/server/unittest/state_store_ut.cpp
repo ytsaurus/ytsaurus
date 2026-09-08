@@ -171,6 +171,78 @@ TEST(TCompanionStateStoreTest, InternalStateResetAndUnchanged)
     EXPECT_TRUE(internalStates[0].StateItems[0].Reset);
 }
 
+// Erase by key alone: no read, the key is unreadable for the rest of the batch, and the
+// worker receives a reset item.
+TEST(TCompanionStateStoreTest, InternalStateEraseWithoutRead)
+{
+    auto store = MakeStore();
+    auto provider = store->RegisterInternalState(
+        "counter",
+        &New<TYsonSerializableStateHolder<i64>>);
+    TMutableStateKeyClient<i64> client(provider);
+
+    auto key1 = MakeKey(ui64{1});
+    auto key2 = MakeKey(ui64{2});
+
+    auto input = MakeBatchInputWithKeys({1, 2});
+    auto& holder = input.InternalStates["counter"];
+    holder.StateName = "counter";
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = YsonBytes(5)});
+    store->LoadBatch(input);
+
+    client.EraseState(key1);
+    EXPECT_THROW_WITH_SUBSTRING(client.GetState(key1), "was erased in this batch");
+    // A key the batch carried no state for can be erased too.
+    client.EraseState(key2);
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    store->CollectModified(&internalStates, &externalStates);
+
+    ASSERT_EQ(std::ssize(internalStates), 1);
+    ASSERT_EQ(std::ssize(internalStates[0].StateItems), 2);
+    for (const auto& item : internalStates[0].StateItems) {
+        EXPECT_TRUE(item.Reset);
+    }
+
+    // The next batch starts afresh.
+    store->LoadBatch(input);
+    EXPECT_EQ(*client.GetState(key1), 5);
+}
+
+TEST(TCompanionStateStoreTest, ExternalStateEraseWithoutRead)
+{
+    auto store = MakeStore();
+    auto manager = store->GetExternalStateManager("profile");
+    TMutableStateKeyClient<TSimpleExternalState> client(manager);
+
+    auto stateSchema = NTesting::DefaultTestKeySchema();
+    auto key1 = MakeKey(ui64{1});
+
+    TPayloadBuilder builder(stateSchema);
+    builder.Set(ui64{5}, "key");
+    auto payload = builder.Finish();
+
+    auto input = MakeBatchInputWithKeys({1});
+    auto& holder = input.ExternalStates["profile"];
+    holder.StateName = "profile";
+    holder.Schema = stateSchema;
+    holder.StateItems.push_back({.Key = key1, .Reset = false, .State = payload});
+    store->LoadBatch(input);
+
+    client.EraseState(key1);
+    EXPECT_THROW_WITH_SUBSTRING(client.GetState(key1), "was erased in this batch");
+
+    std::vector<NCompanion::TStateHolder<std::string>> internalStates;
+    std::vector<NCompanion::TStateHolder<TPayload>> externalStates;
+    store->CollectModified(&internalStates, &externalStates);
+
+    ASSERT_EQ(std::ssize(externalStates), 1);
+    ASSERT_EQ(std::ssize(externalStates[0].StateItems), 1);
+    EXPECT_EQ(externalStates[0].StateItems[0].Key, key1);
+    EXPECT_TRUE(externalStates[0].StateItems[0].Reset);
+}
+
 TEST(TCompanionStateStoreTest, UndeclaredStateThrows)
 {
     auto store = MakeStore();

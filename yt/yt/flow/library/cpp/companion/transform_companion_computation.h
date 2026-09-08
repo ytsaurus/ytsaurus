@@ -46,6 +46,10 @@ public:
     YT_FLOW_EXTEND_PARAMETERS(TCompanionParameters);
     YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TCompanionDynamicParameters);
 
+    YT_FLOW_EXTEND_SPEC_VALIDATION(ValidateSpec);
+
+    static void ValidateSpec(const TComputationSpec& spec);
+
     void DoInit(IJobInitContextPtr initContext) final;
 
     void DoProcess(IInputContextPtr input, IOutputCollectorPtr output) final;

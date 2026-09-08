@@ -133,4 +133,33 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! TExternalVisitTesterFunction for a manager with `auto_preload = %false`: one preload of the
+//! whole batch in Process, then per-entity handling through the dispatch helpers.
+class TManualPreloadExternalVisitTesterFunction
+    : public IBatchProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override;
+
+    void Process(
+        const IInputContextPtr& input,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override;
+
+private:
+    TMutableStateKeyClient<TSimpleExternalState> StateClient_;
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context);
+
+    void ProcessVisit(
+        const TInputVisitConstPtr& visit,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow::NKeyVisitorTest

@@ -105,6 +105,7 @@ target_sources(library-cpp-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/state_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/state.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/state_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/stream_inflight_limits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/stream_spec_storage_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/common/stream_spec_storage.cpp

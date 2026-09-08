@@ -4,8 +4,13 @@
 #include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
 
 #include <yt/yt/flow/library/cpp/common/payload.h>
+#include <yt/yt/flow/library/cpp/common/spec.h>
+
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 namespace NYT::NFlow::NKeyVisitorTest {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,6 +149,64 @@ void TExternalVisitTesterFunction::ProcessMessage(
 }
 
 void TExternalVisitTesterFunction::ProcessVisit(
+    const TInputVisitConstPtr& visit,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context)
+{
+    auto state = StateClient_.GetState(visit->Key);
+    if (state.IsEmpty()) {
+        return;
+    }
+    const auto payload = state->GetColumnValue<std::optional<std::string>>("payload").value_or(std::string{});
+    const auto newVisitIndex = state->GetColumnValue<std::optional<i64>>("visit_index").value_or(0) + 1;
+    TPayloadBuilder builder(state->Schema);
+    builder.Set(payload, "payload");
+    builder.Set(newVisitIndex, "visit_index");
+    state->Payload = builder.Finish();
+
+    auto ysonKey = context->ConvertToYsonKey<TKeyMessage>(visit->Key);
+    auto outputMessage = New<TVisitMessage>();
+    outputMessage->Key = ysonKey->Key;
+    outputMessage->Payload = payload;
+    outputMessage->VisitIndex = newVisitIndex;
+    output->AddMessage(context->ConvertToMessage(outputMessage));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TManualPreloadExternalVisitTesterFunction::Init(const IRuntimeInitContextPtr& initContext)
+{
+    initContext->InitExternalStateClient(StateClient_, "/user-state-external");
+}
+
+void TManualPreloadExternalVisitTesterFunction::Process(
+    const IInputContextPtr& input,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context)
+{
+    if (!context->GetSpec()->ExternalStateManagers.at("/user-state-external")->AutoPreload) {
+        // Both messages and visits read the row: one preload of every key of the batch.
+        WaitFor(StateClient_.PreloadKeyStates(input)).ThrowOnError();
+    }
+    ProcessMessages(input, output, context, BIND(&TManualPreloadExternalVisitTesterFunction::ProcessMessage, MakeStrong(this)));
+    ProcessVisits(input, output, context, BIND(&TManualPreloadExternalVisitTesterFunction::ProcessVisit, MakeStrong(this)));
+}
+
+void TManualPreloadExternalVisitTesterFunction::ProcessMessage(
+    const TInputMessageConstPtr& message,
+    const IOutputCollectorPtr& /*output*/,
+    const IRuntimeContextPtr& context)
+{
+    auto ysonMessage = context->ConvertToYsonMessage<TKeyMessage>(message);
+    auto state = StateClient_.GetState(message->Key);
+    const auto visitIndex = state->GetColumnValue<std::optional<i64>>("visit_index").value_or(0);
+    TPayloadBuilder builder(state->Schema);
+    builder.Set(ysonMessage->Payload, "payload");
+    builder.Set(visitIndex, "visit_index");
+    state->Payload = builder.Finish();
+}
+
+void TManualPreloadExternalVisitTesterFunction::ProcessVisit(
     const TInputVisitConstPtr& visit,
     const IOutputCollectorPtr& output,
     const IRuntimeContextPtr& context)

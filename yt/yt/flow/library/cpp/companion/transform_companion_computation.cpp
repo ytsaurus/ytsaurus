@@ -20,6 +20,11 @@ void TCompanionDynamicParameters::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTransformCompanionComputation::ValidateSpec(const TComputationSpec& spec)
+{
+    ValidateExternalStateManagersAutoPreload(spec);
+}
+
 TTransformCompanionComputation::TTransformCompanionComputation(
     TComputationContextPtr context,
     TDynamicComputationContextPtr dynamicContext)
