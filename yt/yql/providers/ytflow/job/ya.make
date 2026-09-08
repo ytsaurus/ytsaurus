@@ -54,6 +54,7 @@ SRCS(
     GLOBAL yql_ytflow_source_map.cpp
     GLOBAL yql_ytflow_swift_map.cpp
     GLOBAL yql_ytflow_transform_map.cpp
+    GLOBAL yql_ytflow_transform_source_map.cpp
 )
 
 IF (NOT OPENSOURCE)
