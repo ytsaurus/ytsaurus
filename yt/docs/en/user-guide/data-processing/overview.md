@@ -23,7 +23,7 @@ Please be aware that {{product-name}} and Hadoop use different terminology: a {{
 
 The components involved in running computations in a cluster include the scheduler, controller agents, and exec nodes.
 
-![](../../../images/data_processing_overview.png)
+![](../../../_images/data_processing_overview.png)
 
 The **scheduler** is the key component that stores information about all operations, makes new allocations for operations, and implements hierarchical resource distribution.
 

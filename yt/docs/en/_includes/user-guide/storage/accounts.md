@@ -60,7 +60,7 @@ Despite the hierarchical organization, accounts have globally unique names. This
 
 The account hierarchy is represented on the **Accounts** page (as well as in the **Dashboard** section). Due to the global uniqueness of names, when editing the path to an account, you only need to specify its name.
 
-![](../../../../images/account_tree_view.png){ .center }
+![](../../../../_images/account_tree_view.png){ .center }
 
 {% endcut %}
 
@@ -94,7 +94,7 @@ To create a new account, you need to:
 1. On the **Accounts** page, click **Create account**.
 2. Specify {% if audience == "internal" %}the ABC service, {% endif %}the name of the new account, the name of the parent account into which the created account will be nested, and the users responsible for the new account. If necessary, you can also request the automatic creation of a home directory corresponding to the account.
 
-![](../../../../images/account_tree_create.png){ .center }
+![](../../../../_images/account_tree_create.png){ .center }
 
 {% endcut %}
 
@@ -189,7 +189,7 @@ To transfer resources, you need to:
 3. Specify the account from which to reallocate resources (the parent account is suggested by default) and the new limit.
 4. Click **Save**.
 
-![](../../../../images/account_tree_transfer_resources.png){ .center }
+![](../../../../_images/account_tree_transfer_resources.png){ .center }
 
 {% endcut %}
 

@@ -11,7 +11,7 @@ For simplicity, the following description focuses on an example with external st
 
 You can think of each row in the state table as having two parts: key columns and value columns:
 
-![](../../../flow/images/state_line_example.svg)
+![](../../../flow/_images/state_line_example.svg)
 
 The key columns in the state table must match the `group_by_schema` of the [computation](../../../flow/concepts/glossary.md#stream-and-computation) that uses this state.
 

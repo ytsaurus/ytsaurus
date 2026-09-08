@@ -28,7 +28,7 @@ To change query behavior, override the default parameter values using:
 
     1. In the [{{clickhouse}} documentation](https://clickhouse.com/docs/ru/operations/settings/settings), find the required settings and copy their names.
     1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-    1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} in upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} in upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Select the **Advanced** section on the left.
     1. Find the **Query settings** section.
     1. In the *Use JSON syntax* field, enter parameters and their values in JSON syntax, as `key: value` pairs enclosed in curly braces `{ }`. For example:
@@ -152,7 +152,7 @@ The {{clickhouse}} config also has a `settings` option that contains the setting
 - Web interface
 
     1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-    1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Select the **Advanced** section on the left.
     1. Find the **Clickhouse config** section.
     1. In the *Use JSON syntax* field, enter the parameters and their values as a JSON configuration.
@@ -234,7 +234,7 @@ You can view the list of available YT configuration parameters in the [Instance 
 - Web interface
 
     1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-    1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+    1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
     1. Select the **Advanced** section on the left.
     1. Find the **YT config** section.
     1. In the *Use JSON syntax* field, enter the parameters and their values as a JSON configuration, for example:
@@ -306,7 +306,7 @@ In memory management terms:
 
 The diagram shows how memory is allocated within a CHYT instance: which amounts make up the total limit and which thresholds determine the system’s behavior when memory is low.
 
-![memory](../../../../../../images/chyt_memory.png)
+![memory](../../../../../../_images/chyt_memory.png)
 
 Below is a description of each parameter in the scheme — the memory amounts included in the instance’s total limit and the thresholds:
 
@@ -339,7 +339,7 @@ Below is a description of each parameter in the scheme — the memory amounts in
 The RSS scale in the memory allocation diagram marks critical value ranges with numbers — when these are reached, the system terminates the process.
 
 
-![memory](../../../../../../images/chyt_memory_rss.png)
+![memory](../../../../../../_images/chyt_memory_rss.png)
 
 If the process’s physical RAM amount reaches the following ranges:
 
@@ -354,7 +354,7 @@ If the process’s physical RAM amount reaches the following ranges:
 We recommend using the web interface:
 
 1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
 1. Select the **Advanced** section on the left.
 1. Find the **Instance memory** section.
 1. In the *Use JSON syntax* field, enter the parameters and their values as a JSON configuration. You can use the following configuration example as a template:
@@ -394,7 +394,7 @@ By default, queries are distributed across instances at random. To redirect quer
 We recommend using the web interface:
 
 1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
+1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} in the upper-right corner of the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block or the button **Edit speclet** on the **Speclet** tab in the [Tab panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#tabs).
 1. Select the **Advanced** section on the left.
 1. Find the **Enable sticky query distribution** option and enable it.
 1. Find the **Query sticky group size** option and enter a number in the field — the size of the instance group. The query will be randomly directed by the coordinator to one of the instances in the group.

@@ -82,7 +82,7 @@ You can set the `pool` option via:
 - Web interface
 
   1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-  1. Click ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui) block, or the button **Edit speclet** on the **Speclet** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
+  1. Click ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui) block, or the button **Edit speclet** on the **Speclet** tab in the [Tabs panel](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
   1. In the opened settings window, enter the compute pool name in the _Pool_ field.
   1. To finish, click **Confirm**.
 
@@ -141,14 +141,14 @@ You can start a configured clique via:
 - Web interface
 
   1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-  1. Click ![start](../../../../../../images/start-btn.png){width=24 height=24} in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block.
+  1. Click ![start](../../../../../../_images/start-btn.png){width=24 height=24} in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block.
   1. Make sure that:
      - the `Health` parameter changed to the `Pending` state and then, after some time, to `Good`;
      - the `State` parameter has the `Active` value.
 
      You can view the statuses of these parameters in the clique interface — in the block with [characteristics](../../../../../user-guide/data-processing/chyt/cliques/ui.md#ui).
   1. Check the clique’s functionality. To do this, make a test query in the **Query Tracker** interface:
-     - click ![sql](../../../../../../images/sql-btn.png){width=24 height=24} in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block;
+     - click ![sql](../../../../../../_images/sql-btn.png){width=24 height=24} in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block;
      - in the opened window, enter and run an SQL query.
 
 - CLI
@@ -234,7 +234,7 @@ You can stop a clique via:
 - Web interface
 
   1. Open the clique interface as described in the [How to open the clique interface](../../../../../user-guide/data-processing/chyt/cliques/ui.md#where) section.
-  1. Click ![stop](../../../../../../images/stop-btn.png){width=24 height=24} in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block.
+  1. Click ![stop](../../../../../../_images/stop-btn.png){width=24 height=24} in the upper‑right corner, in the [Action buttons](../../../../../user-guide/data-processing/chyt/cliques/ui.md#action-menu) block.
   1. Make sure that:
      - the `Health` parameter changed to the `Pending` state and then, after some time, to `Failed`;
      - the `State` parameter has the `Inactive` value.

@@ -63,7 +63,7 @@ To run an SQL query using SPYT Connect:
 1. In the **Settings** field, specify the [configuration](#config) in JSON format.
 1. Click **Run** and wait for the result.
 
-![SPYT Connect in Query Tracker](../../../../../images/spyt-connect-qt-ui.png)
+![SPYT Connect in Query Tracker](../../../../../_images/spyt-connect-qt-ui.png)
 
 To work with an internal Spark cluster, add `discovery_path` — the path to the running cluster. The cluster must run on SPYT 2.9.0 or higher:
 
@@ -73,7 +73,7 @@ To work with an internal Spark cluster, add `discovery_path` — the path to the
 }
 ```
 
-![SPYT Connect with internal cluster](../../../../../images/spyt-connect-qt-ui-cluster.png)
+![SPYT Connect with internal cluster](../../../../../_images/spyt-connect-qt-ui-cluster.png)
 
 ### Via Query Tracker API {#qt-api}
 

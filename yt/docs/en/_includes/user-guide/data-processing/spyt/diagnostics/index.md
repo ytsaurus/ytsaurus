@@ -21,15 +21,15 @@ At this stage, you need to identify obvious “symptoms” of inefficient applic
 * **Cumbersome execution plan.** A physical plan that’s too complex or long in the **SQL/DataFrame** section is hard to analyze for identifying bottlenecks (suboptimal areas). Also, if some partitions are lost, the plan will be re‑executed in full.
 * **Frequent garbage collector (GC) pauses.** In the **Executors** section, check the `GC Time` column. If this value makes up a significant part of `Task Time` (in which case a red background is used), it indicates memory shortage, inefficient JVM object usage, or partitions that are too large.
 
-![](../../../../../../images/spyt-diagnostics-gc-error.png){ .center }
+![](../../../../../../_images/spyt-diagnostics-gc-error.png){ .center }
 
 * **Data skew in partitions (Data Skew).** In the **Stages** section, check task statistics. If the maximum execution time (`Max`) significantly exceeds the median (`Median`), this indicates uneven data distribution across keys. A few tasks are slowing down the entire stage.
 
-![](../../../../../../images/spyt-diagnostics-skew.png){ .center }
+![](../../../../../../_images/spyt-diagnostics-skew.png){ .center }
 
 * **Suspicious parallel jobs.** In the **Jobs** section, you see several jobs starting simultaneously, although you expected only one. This may indicate repeated reading of the same data due to multiple `actions` (for example, `.show()`, `.count()`, `display()`) on an uncached DataFrame.
 
-![](../../../../../../images/spyt-diagnostics-parallel-jobs.png){ .center }
+![](../../../../../../_images/spyt-diagnostics-parallel-jobs.png){ .center }
 
 ### Step 2: “Divide and conquer” principle { #step2 }
 
@@ -51,7 +51,7 @@ This is a key step for analyzing large and complex applications. Instead of opti
     * It allows you to restart only the problematic code section without recalculating the whole previous chain.
     * After caching, you can estimate the actual data size at each stage in the tab.
 
-![](../../../../../../images/spyt-diagnostics-storage.png){ .center }
+![](../../../../../../_images/spyt-diagnostics-storage.png){ .center }
 
 3. **Saving to disk.** You can save some intermediate DataFrames to persistent storage (Cypress) and read them in the next step. This way, you “cut” the execution plan and don’t use memory for caching.
 
@@ -67,7 +67,7 @@ The earlier you filter out unnecessary information, the fewer resources will be 
 
    {% endnote %}
 
-![](../../../../../../images/spyt-diagnostics-pushdown-filters.png){ .center }
+![](../../../../../../_images/spyt-diagnostics-pushdown-filters.png){ .center }
 
 * **Proper type casting.** If a filtering condition compares a column and a value of different types, cast the value to the column’s type, not the other way around.
 

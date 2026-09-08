@@ -21,7 +21,7 @@ You can monitor the state in the pipeline UI, in the **Messages** block: it show
 
 {% if audience == "internal" %}
 
-![The binary mismatch message in the Messages block](../../../flow/images/flow_core_target_messages.png)
+![The binary mismatch message in the Messages block](../../../flow/_images/flow_core_target_messages.png)
 
 {% endif %}
 

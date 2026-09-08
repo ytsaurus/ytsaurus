@@ -14,7 +14,7 @@
 
 ## Ключевые блоки интерфейса { #ui-main-sections }
 
-![UI](../../../../../../images/chyt-yt-operation.png){ .center }
+![UI](../../../../../../_images/chyt-yt-operation.png){ .center }
 
 _1. Базовая информация об YT-операции._  
 _2. Сводка по джобам._  

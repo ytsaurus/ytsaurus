@@ -14,7 +14,7 @@ You can open the YT operation interface in three ways:
 
 ## Key interface blocks { #ui-main-sections }
 
-![UI](../../../../../../images/chyt-yt-operation.png){ .center }
+![UI](../../../../../../_images/chyt-yt-operation.png){ .center }
 
 _1. Basic information about the YT operation._  
 _2. Job summary._  

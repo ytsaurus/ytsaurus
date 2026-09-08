@@ -42,7 +42,7 @@ To change the ACL, use the `update_op_parameters` command (link?). To do this, y
 
 1. Enter the clique alias in the **Filter Operations** field, then click **Go to operation**. The alias starts with a `\*` symbol, this is the clique name.
 
-   ![find_operation_by_alias](../../../../../../images/find_op_by_alias.png){ .center }
+   ![find_operation_by_alias](../../../../../../_images/find_op_by_alias.png){ .center }
 
 1. Go to the operation page, copy `Id`.
 

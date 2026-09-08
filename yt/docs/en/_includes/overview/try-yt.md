@@ -249,7 +249,7 @@ Regardless of the installation method, the required system components will be de
 
   If the specified resources exceed the limit set in your Podman configurations, increase this limit in the settings section.
 
-  ![](../../../images/try-yt-podman-settings.png)
+  ![](../../../_images/try-yt-podman-settings.png)
 
   {% endcut %}
 
@@ -670,7 +670,7 @@ The value `16-64ca-10191-47007b7d` is the ID of the created [Cypress](*about-cyp
 
 You can view the created table in the web interface. In your web browser, open the address that you received when starting the cluster, go to the **Navigation** tab, and click the created table:
 
-![](../../../images/try-yt-new-table.png)
+![](../../../_images/try-yt-new-table.png)
 
 ### Write data { #insert-data }
 
@@ -695,7 +695,7 @@ Another way to read a table is by running a [SELECT](../../yql/syntax/select/ind
 SELECT * FROM `//home/input_table`;
 ```
 
-![](../../../images/try-yt-hello-world-select.png)
+![](../../../_images/try-yt-hello-world-select.png)
 
 {% cut "I get the error 'Attribute "cluster_name" is not found'" %}
 
@@ -705,7 +705,7 @@ If you deployed your {{product-name}} cluster via Docker, follow these steps:
 2. Click the settings icon at the top right of the page. Delete your current **Settings**.
 3. Click **Add setting** and specify the field values "cluster" and "primary", respectively. Click the checkmark.
 
-   ![](../../../images/try-yt-fix-ui-cluster.png)
+   ![](../../../_images/try-yt-fix-ui-cluster.png)
 
 If you deployed your {{product-name}} cluster via Minikube, please let us know about this error in the {% if lang == "ru" %}[community chat](https://t.me/ytsaurus_ru){% else %}[community chat](https://t.me/ytsaurus){% endif %}.
 
@@ -791,7 +791,7 @@ You can track the status of a running operation in the **Operations** section of
 
 {% cut "Where to find this section" %}
 
-![](../../../images/try-yt-operations.png)
+![](../../../_images/try-yt-operations.png)
 
 {% endcut %}
 
@@ -883,7 +883,7 @@ The notebook provides numerous examples for working with {{product-name}}, inclu
 
 A link to a deployed Jupyter Notebook will be included in the email.
 
-![](../../../images/try-yt-jupyter.png)
+![](../../../_images/try-yt-jupyter.png)
 
 {% endcut %}
 
@@ -893,7 +893,7 @@ Here you can test out the features of the {{product-name}} web interface: explor
 
 A link to the web interface of a deployed cluster will be included in the email.
 
-![](../../../images/try-yt-ui.png)
+![](../../../_images/try-yt-ui.png)
 
 For more information about using the web interface, watch the [introductory webinar](https://youtu.be/LTKtY5okG4c?t=929) (the timestamp is 15:30).
 

@@ -30,7 +30,7 @@ The companion returns its output in groups; each group carries [lineage](../../.
 
 In the future, you’ll also be able to use Unix sockets.
 
-![](../../../flow/images/companion_v1.svg)
+![](../../../flow/_images/companion_v1.svg)
 
 You manage the companion process through the [resource](../../../flow/concepts/glossary.md#resource) `CompanionManager`.
 

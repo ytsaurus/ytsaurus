@@ -5,7 +5,7 @@
 
 ## Общая схема Spark Structured Streaming в SPYT
 
-![](../../../../../../images/spyt-streaming-general-scheme.png){ .center }
+![](../../../../../../_images/spyt-streaming-general-scheme.png){ .center }
 
 ### Основные понятия
 
@@ -270,15 +270,15 @@ Environment нужен для просмотра всех конфигураци
 
 На странице Executors можно посмотреть количество активных, упавших, выполненных тасок и понять, насколько оптимально загружены ядра экзекьюторов. А также можно узнать статистику использования памяти. Иногда при утечке памяти полезно переходить во Thread Dump или Heap Histogram, чтобы найти причину.
 
-![](../../../../../../images/spyt-streaming-monitoring-executors.png){ .center }
+![](../../../../../../_images/spyt-streaming-monitoring-executors.png){ .center }
 
 Для стриминговых процессов в webUI по умолчанию появляется страница Structured Streaming. Здесь можно смотреть статистику по активным и по завершенным стримам. В частности, полезно смотреть, с какой ошибкой завершился Streaming Query.
 
-![](../../../../../../images/spyt-streaming-monitoring-streaming.png){ .center }
+![](../../../../../../_images/spyt-streaming-monitoring-streaming.png){ .center }
 
 Нажав на Run ID, можно посмотреть более детальную статистику конкретного Streaming Query.
 
-![](../../../../../../images/spyt-streaming-monitoring-streaming-query-stats.png){ .center }
+![](../../../../../../_images/spyt-streaming-monitoring-streaming-query-stats.png){ .center }
 
 ## Best practices { #best-practices }
 

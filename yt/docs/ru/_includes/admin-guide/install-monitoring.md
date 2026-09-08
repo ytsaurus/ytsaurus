@@ -165,7 +165,7 @@
 
       Видим для аккаунта "sys" количество чанков:
 
-      ![Prometheus UI](../../../images/monitoring-install-prometheus-ui-example.png)
+      ![Prometheus UI](../../../_images/monitoring-install-prometheus-ui-example.png)
 
       Рис. 1. Результат запроса количества чанков для аккаунта "sys" в UI Prometheus.
 
@@ -264,7 +264,7 @@
 
       В разделе `Target health` он будет отображаться так:
 
-      ![Odin service in Prometheus UI](../../../images/monitoring-install-prometheus-ui-odin-example.png)
+      ![Odin service in Prometheus UI](../../../_images/monitoring-install-prometheus-ui-odin-example.png)
 
       Рис. 2. Пример отображения сервиса Odin в Prometheus.
 
@@ -658,11 +658,11 @@ alerts:
 
 Перейдя по ней, пользователь попадет на тот же самый дашборд с теми же параметрами за тот же промежуток времени напрямую в интерфейсе Grafana.
 
-![{{product-name}} UI](../../../images/monitoring-install-redirects-to-grafana-1.png)
+![{{product-name}} UI](../../../_images/monitoring-install-redirects-to-grafana-1.png)
 
 Рис. 3. Демонстрация кнопки во внутреннем UI кластера.
 
-![Grafana UI](../../../images/monitoring-install-redirects-to-grafana-2.png)
+![Grafana UI](../../../_images/monitoring-install-redirects-to-grafana-2.png)
 
 Рис. 4. Интерфейс Grafana с теми же параметрами, что и во внутреннем UI с рис. 3.
 

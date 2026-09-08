@@ -20,7 +20,7 @@ The web interface is a convenient way to manage [cliques](../../../../../user-gu
 
 ## Main sections of the web interface { #ui }
 
-![UI](../../../../../../images/clique-ui-os.png){ .center }
+![UI](../../../../../../_images/clique-ui-os.png){ .center }
 
 _1. [Header](#header) — displays the clique name._  
 _2. [Action buttons](#action-menu) — use them to manage cliques._  
@@ -34,8 +34,8 @@ The header (1) displays basic information:
 - The name of the cluster where the clique is located, and a button to change it.
 - The name of section — **CHYT cliques**.
 - Buttons:
-  - ![add to favourites](../../../../../../images/add-to-favourites-btn.png){width=24 height=24} _Add to favourites_ — add the clique to your favourites.
-  - ![view favourites](../../../../../../images/view-favourites-btn.png){width=24 height=24} _View favourites_ — view your favourite cliques.
+  - ![add to favourites](../../../../../../_images/add-to-favourites-btn.png){width=24 height=24} _Add to favourites_ — add the clique to your favourites.
+  - ![view favourites](../../../../../../_images/view-favourites-btn.png){width=24 height=24} _View favourites_ — view your favourite cliques.
 - The clique name.
 - The **Create clique** button for [creating a new clique](../../../../../user-guide/data-processing/chyt/how-to-guides/create-start.md#create).
 
@@ -43,11 +43,11 @@ The header (1) displays basic information:
 
 On the right, there is an action buttons block (2):
 
-- ![sql](../../../../../../images/sql-btn.png){width=24 height=24} _SQL_ — go to the web interface for running queries — [Query Tracker](../../../../../user-guide/query-tracker/about.md).
-- ![start](../../../../../../images/start-btn.png){width=24 height=24} _Start_ — start the clique.
-- ![stop](../../../../../../images/stop-btn.png){width=24 height=24} _Stop_ — stop the clique.
-- ![remove](../../../../../../images/remove-btn.png){width=24 height=24} _Remove_ — delete the clique.
-- ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} _Edit speclet_ — edit the [speclet](../../../../../user-guide/data-processing/chyt/cliques/configs.md#speclet) — the clique’s configuration file.
+- ![sql](../../../../../../_images/sql-btn.png){width=24 height=24} _SQL_ — go to the web interface for running queries — [Query Tracker](../../../../../user-guide/query-tracker/about.md).
+- ![start](../../../../../../_images/start-btn.png){width=24 height=24} _Start_ — start the clique.
+- ![stop](../../../../../../_images/stop-btn.png){width=24 height=24} _Stop_ — stop the clique.
+- ![remove](../../../../../../_images/remove-btn.png){width=24 height=24} _Remove_ — delete the clique.
+- ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} _Edit speclet_ — edit the [speclet](../../../../../user-guide/data-processing/chyt/cliques/configs.md#speclet) — the clique’s configuration file.
 
 ### Clique characteristics {#params}
 

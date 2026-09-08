@@ -5,7 +5,7 @@ How the MapReduce operation works:
 1. On cluster nodes, the map phase starts. Each user script in the map phase (mapper) receives a separate part of the input table for input. The output data of the map phase is partitioned based on the hash value of a key. The resulting partitioned data is stored locally on the disk (replicated once), at the nodes where the map jobs were executed.
 2. Next comes the reduce phase. Each user script in the reduce phase (reducer) handles one partition: as input, it receives all the records received from mappers whose hashed key has the specified value. Over the network, the reducer fetches the data corresponding to its partition from the cluster nodes where the map jobs were executed. This process is called **shuffle**, and it produces the highest load on the network. Each partition is sorted in memory by key, and if the keys match, by subkey. The sorted data then becomes input for a reduce job. The reduce job's output is written to the disk and replicated as needed — usually it is two synchronous replicas and one asynchronous, with one synchronous replica being written locally.
 
-![](../../../../../images/mapreduce_op1.png){ .center }
+![](../../../../../_images/mapreduce_op1.png){ .center }
 
 The MapReduce operation is similar to the [Sort](../../../../user-guide/data-processing/operations/sort.md) operation, but allows for executing a mapper user script before partitioning jobs, and a reducer user script after sorting jobs.
 
@@ -29,7 +29,7 @@ The merged MapReduce operation has several advantages over the [Map](../../../..
 2. **No unnecessary barriers (synchronization points).** With the map-sort-reduce combination, {{product-name}} is forced to wait for **all** the map jobs (including the longest ones) to finish before starting partitioning. Similarly, sorting needs to be completed before the first reduce jobs can be run. As for the merged MapReduce operation, there is only one inevitable synchronization point: reduce jobs cannot be started before map jobs run their course.
 3. **Better fault tolerance.** MapReduce constitutes a single operation, so the scheduler does everything it can to complete it even when some intermediate data becomes unavailable. When it comes to a chain of independent operations, the scheduler is only concerned with the individual phases. The only way to combat this is to ramp up intermediate data replication, which severely impacts speed.
 
-![](../../../../../images/mapreduce_op2.png){ .center }
+![](../../../../../_images/mapreduce_op2.png){ .center }
 
 ### Usage notes
 

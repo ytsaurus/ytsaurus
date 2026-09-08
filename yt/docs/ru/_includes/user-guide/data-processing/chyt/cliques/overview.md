@@ -10,7 +10,7 @@
 
 На схеме ниже — этапы жизненного цикла клики и переходы между ними:
 
-![life cycle](../../../../../../images/clique-life-cycle.png){ .center }
+![life cycle](../../../../../../_images/clique-life-cycle.png){ .center }
 
 **Подготовка к работе**
 

@@ -182,7 +182,7 @@ For local development and testing, you can use `port-forward`:
 
 3. Make sure the `Excel` tab is displayed:
 
-   ![Excel export tab in the UI](../../../images/install_excel_01_excel_tab.png)
+   ![Excel export tab in the UI](../../../_images/install_excel_01_excel_tab.png)
 
 The tab appears if the request from your browser to `<exportTableBaseUrl>/<cluster-name>/api/ready` returns 200 OK. If you don't see the tab, verify the following settings: UI Helm Chart, Excel Helm Chart, and Ingress.
 
