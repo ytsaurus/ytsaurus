@@ -1423,7 +1423,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(68);
+        .Default(69);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
