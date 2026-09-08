@@ -783,7 +783,8 @@ private:
                     /*columns*/ std::nullopt,
                     // TODO(max42): YT-10402, omitted inaccessible columns
                     /*omittedInaccessibleColumns*/ {},
-                    table->Path.GetTimestamp().value_or(QueryContext_->DynamicTableReadTimestamp),
+                    table->Path.GetTimestamp().value_or(
+                        QueryContext_->GetDynamicTableReadTimestamp(table->Path.GetCluster())),
                     table->Path.GetRetentionTimestamp().value_or(NullTimestamp),
                     /*columnRenameDescriptors*/ {});
             } else {

@@ -292,6 +292,7 @@ DB::Pipe CreateRemoteSource(
     queryHeader->RemoteReadTransactionIds = queryContext->RemoteReadTransactionIds;
     queryHeader->RemoteSnapshotLocks = queryContext->RemoteSnapshotLocks;
     queryHeader->DynamicTableReadTimestamp = queryContext->DynamicTableReadTimestamp;
+    queryHeader->RemoteDynamicTableReadTimestamps = queryContext->RemoteDynamicTableReadTimestamps;
     queryHeader->ReadTransactionId = queryContext->ReadTransactionId;
     queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
     queryHeader->CreatedTablePath = queryContext->CreatedTablePath;

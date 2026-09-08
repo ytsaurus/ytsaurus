@@ -291,12 +291,6 @@ std::vector<TTablePtr> FetchTables(
             continue;
         }
 
-        if (path.GetCluster() && attributes->Get<bool>("dynamic", false)) {
-            THROW_ERROR_EXCEPTION("Cross-cluster reads support static tables only")
-                .With("cluster", *path.GetCluster())
-                .With("path", path.GetPath());
-        }
-
         if (attributes->Get<bool>("dynamic", false) &&
             enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))
         {
@@ -360,13 +354,22 @@ std::vector<TTablePtr> FetchTables(
         // Let's fetch table mount infos.
         YT_TLOG_INFO("Fetching table mount infos")
             .With("TableCount", dynamicTableCount);
-        const auto& connection = queryContext->Client()->GetNativeConnection();
-        const auto& tableMountCache = connection->GetTableMountCache();
-        std::vector<TFuture<void>> asyncResults;
-        for (auto& table : tables) {
+
+        THashMap<std::optional<std::string>, std::vector<TTablePtr>> clusterToTables;
+        for (const auto& table : tables) {
             if (table->Dynamic) {
+                clusterToTables[table->Path.GetCluster()].push_back(table);
+            }
+        }
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& [cluster, clusterTables] : clusterToTables) {
+            const auto& tableMountCache = queryContext->Client(cluster)
+                ->GetNativeConnection()
+                ->GetTableMountCache();
+            for (const auto& table : clusterTables) {
                 asyncResults.emplace_back(tableMountCache->GetTableInfo(table->GetPath())
-                    .Apply(BIND([&] (const TErrorOr<TTableMountInfoPtr>& errorOrMountInfo) {
+                    .Apply(BIND([table] (const TErrorOr<TTableMountInfoPtr>& errorOrMountInfo) {
                         table->TableMountInfo = errorOrMountInfo.ValueOrThrow();
                     })));
             }

@@ -106,6 +106,8 @@ public:
     THashMap<std::string, THashMap<NYPath::TYPath, TObjectLock>> RemoteSnapshotLocks;
     //! DynamicTableReadTimestamp is used for dynamic tables if snapshot locks are taken.
     NTransactionClient::TTimestamp DynamicTableReadTimestamp = NTransactionClient::AsyncLastCommittedTimestamp;
+    //! Dynamic table read timestamps belong to their respective remote clusters.
+    THashMap<std::string, NTransactionClient::TTimestamp> RemoteDynamicTableReadTimestamps;
     //! WriteTransactionId is the id of the query transaction in which all write operations should be performed.
     NTransactionClient::TTransactionId WriteTransactionId;
     //! CreatedTablePath is the path of the table created in write transaction.
@@ -162,6 +164,8 @@ public:
     NApi::NNative::IClientPtr Client(const std::optional<std::string>& cluster) const;
 
     NTransactionClient::TTransactionId GetReadTransactionId(
+        const std::optional<std::string>& cluster) const;
+    NTransactionClient::TTimestamp GetDynamicTableReadTimestamp(
         const std::optional<std::string>& cluster) const;
     std::vector<std::pair<std::string, NApi::NNative::IClientPtr>> GetRemoteClients() const;
 

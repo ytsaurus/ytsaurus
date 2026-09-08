@@ -1,7 +1,10 @@
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
-from yt_commands import authors, create, get_driver, raises_yt_error, remove, write_table
+from yt_commands import (authors, create, create_dynamic_table, get_driver, insert_rows,
+                         raises_yt_error, remove, sync_create_cells, sync_flush_table,
+                         sync_mount_table, write_table)
 from yt.common import wait
+import yt.yson as yson
 
 from base import ClickHouseTestBase, Clique
 
@@ -11,7 +14,7 @@ import threading
 @authors("a-romanov")
 class TestClickHouseCrossCluster(ClickHouseTestBase):
     NUM_REMOTE_CLUSTERS = 2
-    NUM_TEST_PARTITIONS = 5
+    NUM_TEST_PARTITIONS = 8
 
     NUM_NODES_REMOTE_0 = 2
     NUM_NODES_REMOTE_1 = 2
@@ -31,8 +34,10 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
     NUM_CYPRESS_PROXIES_REMOTE_0 = 0
     NUM_CYPRESS_PROXIES_REMOTE_1 = 0
 
-    USE_DYNAMIC_TABLES_REMOTE_0 = False
-    USE_DYNAMIC_TABLES_REMOTE_1 = False
+    def setup_method(self, method):
+        super().setup_method(method)
+        sync_create_cells(1, driver=get_driver(cluster="remote_0"))
+        sync_create_cells(1, driver=get_driver(cluster="remote_1"))
 
     def test_static_table_join(self):
         remote_driver = get_driver(cluster="remote_0")
@@ -74,20 +79,12 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
             value_column = next(column for column in description if column["name"] == "value")
             assert value_column["type"].startswith("LowCardinality")
 
-    def test_rejects_unsupported_remote_table_operations(self):
+    def test_rejects_remote_writes(self):
         remote_driver = get_driver(cluster="remote_0")
         schema = [{"name": "key", "type": "int64"}]
         create("table", "//tmp/static", attributes={"schema": schema}, driver=remote_driver)
-        create(
-            "table",
-            "//tmp/dynamic",
-            attributes={"dynamic": True, "schema": schema},
-            driver=remote_driver)
 
         with Clique(1) as clique:
-            with raises_yt_error("Cross-cluster reads support static tables only"):
-                clique.make_query("select * from `remote_0://tmp/dynamic`")
-
             with raises_yt_error("Cross-cluster tables are supported only in SELECT queries"):
                 clique.make_query("insert into `remote_0://tmp/static` values (1)")
 
@@ -95,6 +92,112 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
             with raises_yt_error("Cross-cluster tables are supported only in SELECT queries"):
                 clique.make_query(
                     "insert into `//tmp/output` select * from `remote_0://tmp/static`")
+
+    def test_sorted_dynamic_table_with_dynamic_store(self):
+        remote_driver = get_driver(cluster="remote_0")
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        attributes = {"dynamic_store_auto_flush_period": yson.YsonEntity()}
+
+        create_dynamic_table("//tmp/local_dynamic", schema=schema, **attributes)
+        create_dynamic_table("//tmp/remote_dynamic", schema=schema, driver=remote_driver, **attributes)
+        sync_mount_table("//tmp/local_dynamic")
+        sync_mount_table("//tmp/remote_dynamic", driver=remote_driver)
+
+        local_rows = [{"key": 1, "value": "local-1"}, {"key": 2, "value": "local-2"}]
+        remote_rows = [{"key": 2, "value": "remote-2"}, {"key": 3, "value": "remote-3"}]
+        insert_rows("//tmp/local_dynamic", local_rows)
+        insert_rows("//tmp/remote_dynamic", remote_rows, driver=remote_driver)
+
+        with Clique(2) as clique:
+            assert clique.make_query(
+                "select * from `remote_0://tmp/remote_dynamic` order by key") == remote_rows
+            assert clique.make_query("""
+                select l.key as key, l.value as local_value, r.value as remote_value
+                from `//tmp/local_dynamic` as l
+                join `remote_0://tmp/remote_dynamic` as r using key
+                order by key
+            """) == [{"key": 2, "local_value": "local-2", "remote_value": "remote-2"}]
+
+    def test_flushed_and_ordered_dynamic_tables(self):
+        remote_driver = get_driver(cluster="remote_0")
+
+        sorted_schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        sorted_rows = [{"key": 1, "value": "one"}, {"key": 2, "value": "two"}]
+        create_dynamic_table(
+            "//tmp/remote_flushed",
+            schema=sorted_schema,
+            driver=remote_driver,
+            enable_dynamic_store_read=False,
+            replication_factor=1)
+        sync_mount_table("//tmp/remote_flushed", driver=remote_driver)
+        insert_rows("//tmp/remote_flushed", sorted_rows, driver=remote_driver)
+        sync_flush_table("//tmp/remote_flushed", driver=remote_driver)
+
+        ordered_rows = [{"value": "one"}, {"value": "two"}]
+        create_dynamic_table(
+            "//tmp/remote_ordered",
+            schema=[{"name": "value", "type": "string"}],
+            driver=remote_driver,
+            dynamic_store_auto_flush_period=yson.YsonEntity(),
+            replication_factor=1)
+        sync_mount_table("//tmp/remote_ordered", driver=remote_driver)
+        insert_rows("//tmp/remote_ordered", ordered_rows[:1], driver=remote_driver)
+        sync_flush_table("//tmp/remote_ordered", driver=remote_driver)
+        insert_rows("//tmp/remote_ordered", ordered_rows[1:], driver=remote_driver)
+
+        with Clique(1) as clique:
+            assert clique.make_query(
+                "select * from `remote_0://tmp/remote_flushed` order by key",
+                settings={"chyt.dynamic_table.enable_dynamic_store_read": 0}) == sorted_rows
+            assert clique.make_query(
+                "select * from `remote_0://tmp/remote_ordered` order by value") == ordered_rows
+
+    def test_independent_dynamic_table_snapshots(self):
+        remote_0_driver = get_driver(cluster="remote_0")
+        remote_1_driver = get_driver(cluster="remote_1")
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        attributes = {"dynamic_store_auto_flush_period": yson.YsonEntity()}
+
+        create_dynamic_table("//tmp/dynamic_snapshot", schema=schema, driver=remote_0_driver, **attributes)
+        create_dynamic_table("//tmp/dynamic_snapshot", schema=schema, driver=remote_1_driver, **attributes)
+        sync_mount_table("//tmp/dynamic_snapshot", driver=remote_0_driver)
+        sync_mount_table("//tmp/dynamic_snapshot", driver=remote_1_driver)
+        insert_rows("//tmp/dynamic_snapshot", [{"key": 1, "value": "remote-0"}], driver=remote_0_driver)
+        insert_rows("//tmp/dynamic_snapshot", [{"key": 1, "value": "remote-1"}], driver=remote_1_driver)
+
+        with Clique(2) as clique:
+            def update_tables():
+                wait_breakpoint("cross_cluster_dynamic_snapshot")
+                insert_rows("//tmp/dynamic_snapshot", [{"key": 2, "value": "late-0"}], driver=remote_0_driver)
+                insert_rows("//tmp/dynamic_snapshot", [{"key": 2, "value": "late-1"}], driver=remote_1_driver)
+                release_breakpoint("cross_cluster_dynamic_snapshot")
+
+            thread = threading.Thread(target=update_tables)
+            thread.start()
+
+            settings = {
+                "chyt.execution.table_read_lock_mode": "sync",
+                "chyt.testing.chunk_spec_fetcher_breakpoint": get_breakpoint_node(
+                    "cross_cluster_dynamic_snapshot"),
+            }
+            result = clique.make_query("""
+                select l.key as key
+                from `remote_0://tmp/dynamic_snapshot` as l
+                join `remote_1://tmp/dynamic_snapshot` as r using key
+                order by key
+            """, settings=settings)
+
+            thread.join()
+            assert result == [{"key": 1}]
 
     def test_independent_cross_cluster_snapshots(self):
         remote_driver = get_driver(cluster="remote_0")

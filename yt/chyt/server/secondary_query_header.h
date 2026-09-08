@@ -41,6 +41,7 @@ struct TSecondaryQueryHeader
     THashMap<std::string, NTransactionClient::TTransactionId> RemoteReadTransactionIds;
     THashMap<std::string, THashMap<NYPath::TYPath, TObjectLock>> RemoteSnapshotLocks;
     NTransactionClient::TTimestamp DynamicTableReadTimestamp;
+    THashMap<std::string, NTransactionClient::TTimestamp> RemoteDynamicTableReadTimestamps;
     NTransactionClient::TTransactionId ReadTransactionId;
 
     NTransactionClient::TTransactionId WriteTransactionId;
