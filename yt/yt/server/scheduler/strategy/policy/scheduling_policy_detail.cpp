@@ -3991,6 +3991,7 @@ void TSchedulingPolicy::ApplyOperationSchedulingSegmentsChanges(
         operationState->FailingToScheduleAtModuleSince = changedOperationState->FailingToScheduleAtModuleSince;
         operationState->FailingToAssignToModuleSince = changedOperationState->FailingToAssignToModuleSince;
         operationState->NetworkPriority = changedOperationState->NetworkPriority;
+        operationState->PreemptibleAtLastUpdate = changedOperationState->PreemptibleAtLastUpdate;
     }
 }
 
