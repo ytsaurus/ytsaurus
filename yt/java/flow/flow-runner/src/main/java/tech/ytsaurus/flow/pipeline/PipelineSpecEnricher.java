@@ -3,6 +3,7 @@ package tech.ytsaurus.flow.pipeline;
 import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -187,18 +188,26 @@ public final class PipelineSpecEnricher {
         }
     }
 
-    private static YTreeMapNode getOrCreateMap(YTreeMapNode parent, String key) {
-        YTreeNode existing = parent.get(key).orElse(null);
-        if (existing != null) {
+    /**
+     * The map under {@code key}, empty when it is absent; a node of another type fails, since
+     * repairing it would submit a different spec than the one written.
+     */
+    static Optional<YTreeMapNode> mapNode(YTreeMapNode parent, String key) {
+        return parent.get(key).map(existing -> {
             if (!existing.isMapNode()) {
-                // Repairing a malformed node would submit a different spec than the one written.
                 throw new IllegalArgumentException(
-                        "The \"%s\" node of the pipeline spec must be a map, got: %s".formatted(key, existing));
+                        "The \"%s\" node must be a map, got: %s".formatted(key, existing));
             }
             return existing.mapNode();
-        }
-        YTreeMapNode created = YTree.mapBuilder().buildMap();
-        parent.put(key, created);
-        return created;
+        });
+    }
+
+    /** The map under {@code key}, created when absent; a node of another type fails. */
+    static YTreeMapNode getOrCreateMap(YTreeMapNode parent, String key) {
+        return mapNode(parent, key).orElseGet(() -> {
+            YTreeMapNode created = YTree.mapBuilder().buildMap();
+            parent.put(key, created);
+            return created;
+        });
     }
 }

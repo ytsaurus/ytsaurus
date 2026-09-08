@@ -71,6 +71,10 @@ private static final ExternalStateDescriptor JOIN_STATE =
 
 {% endnote %}
 
+### Объявление proto external state {#proto-external-state}
+
+Профильный стейт (`NYT::NFlow::NProfileState::TProfileStateManager`) хранит protobuf-сообщение. Опишите его через `StateDescriptors.externalProto(name, TMessage.class)` — или `StateDescriptors.externalProtoReadOnly(...)` для джойнера — и работайте с ним через `ProtoStateAccessor`. В отличие от обычного external state, раннеру нужно знать сообщение, чтобы описать стейт воркеру: он записывает в спеку `descriptor_layout.descriptor_set` и `message_name` из объявленного класса. Поэтому объявите стейт и пайплайну — через `PipelineContext.registerState(...)`, если контекст собирается вручную, или в Spring через `ComputationProvider.getStates()` либо бин `StateDescriptor<?>`. Одной константы в функции раннеру недостаточно.
+
 ## Основные операции
 
 ### Чтение стейта

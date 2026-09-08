@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -19,16 +20,18 @@ import tech.ytsaurus.flow.context.MetricsContext;
 import tech.ytsaurus.flow.context.PipelineContext;
 import tech.ytsaurus.flow.function.ProcessFunction;
 import tech.ytsaurus.flow.row.FlowMessage;
+import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreamAnnotations;
 
 /**
- * Collects Flow computations and streams from a Spring application context into a
+ * Collects Flow computations, streams and states from a Spring application context into a
  * {@link PipelineContext}.
  * <p>
  * Computations come from {@link FlowComputation}/{@link FlowSourceComputation} annotated beans;
  * streams from {@link ComputationProvider} beans, {@link FlowStream} beans, and {@link FlowMessage}
- * POJOs found by classpath scan. Duplicate ids are rejected by {@link PipelineContext}.
+ * POJOs found by classpath scan; states from {@link ComputationProvider} beans and
+ * {@link StateDescriptor} beans. Duplicate ids are rejected by {@link PipelineContext}.
  *
  * @see FlowAutoConfiguration
  */
@@ -57,6 +60,7 @@ public final class FlowComponents {
     ) {
         var context = new PipelineContext(collectComputations(beanFactory));
         context.registerStreams(collectStreams(computationProviders, flowStreams, beanFactory, scanPackages));
+        context.registerStates(collectStates(computationProviders, beanFactory));
         return context;
     }
 
@@ -82,13 +86,15 @@ public final class FlowComponents {
     ) {
         var context = new PipelineContext(collectComputations(beanFactory), metricsContext);
         context.registerStreams(collectStreams(computationProviders, flowStreams, beanFactory, scanPackages));
+        context.registerStates(collectStates(computationProviders, beanFactory));
         return context;
     }
 
     /**
-     * Builds a {@link PipelineContext} holding only the streams of the pipeline, for the runner.
+     * Builds a {@link PipelineContext} holding only the streams and states of the pipeline, for the
+     * runner.
      * <p>
-     * The runner needs the stream schemas to enrich the spec but never invokes user code, so the
+     * The runner needs the streams and states to enrich the spec but never invokes user code, so the
      * {@link FlowComputation}/{@link FlowSourceComputation} beans are deliberately not looked up.
      * Looking them up would instantiate them and everything they depend on — a pipeline whose
      * process functions hold caches, clients or connection pools would build all of it just to
@@ -99,7 +105,7 @@ public final class FlowComponents {
      * @param beanFactory          the bean factory used to scan for {@link FlowMessage} POJOs.
      * @param scanPackages         additional packages to scan for {@link FlowMessage} POJOs, on top
      *                             of the Spring Boot auto-configuration packages.
-     * @return a pipeline context holding the declared streams and no computations.
+     * @return a pipeline context holding the declared streams and states and no computations.
      */
     public static PipelineContext buildRunnerPipelineContext(
             ObjectProvider<ComputationProvider> computationProviders,
@@ -109,7 +115,29 @@ public final class FlowComponents {
     ) {
         var context = new PipelineContext();
         context.registerStreams(collectStreams(computationProviders, flowStreams, beanFactory, scanPackages));
+        context.registerStates(collectStates(computationProviders, beanFactory));
         return context;
+    }
+
+    /**
+     * Collects all states declared in the application context: those of {@link ComputationProvider}
+     * beans, and {@link StateDescriptor} beans, the latter from parent contexts as well.
+     *
+     * @param computationProviders provider of all {@link ComputationProvider} beans.
+     * @param beanFactory          the bean factory holding the {@link StateDescriptor} beans.
+     * @return the merged list of states.
+     * @see ComputationProvider#getStates()
+     */
+    public static List<StateDescriptor<?>> collectStates(
+            ObjectProvider<ComputationProvider> computationProviders,
+            ListableBeanFactory beanFactory
+    ) {
+        List<StateDescriptor<?>> states = new ArrayList<>();
+        computationProviders.forEach(provider -> states.addAll(provider.getStates()));
+        BeanFactoryUtils.beansOfTypeIncludingAncestors(beanFactory, StateDescriptor.class)
+                .values()
+                .forEach(states::add);
+        return states;
     }
 
     /**

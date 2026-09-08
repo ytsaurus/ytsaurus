@@ -2,10 +2,12 @@ package tech.ytsaurus.flow.context;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.computation.Computation;
+import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreamsContext;
 import tech.ytsaurus.ysontree.YTree;
@@ -17,7 +19,7 @@ import tech.ytsaurus.ysontree.YTreeNode;
  *
  * <p>A snapshot is produced by passing a {@link PipelineContext} to
  * {@link #PipelineContextSnapshot(PipelineContext)} and contains a defensive copy of all
- * computations and streams that were registered at the moment of the call. The snapshot
+ * computations, streams and states that were registered at the moment of the call. The snapshot
  * is safe to publish to multiple threads (including gRPC worker threads) without any
  * synchronization: all fields are {@code final}, all internal collections are
  * unmodifiable, and no mutation API is exposed.
@@ -28,6 +30,7 @@ public final class PipelineContextSnapshot implements YTreeConvertible {
 
     private final Map<String, Computation> computations;
     private final FlowStreamsContext streamsContext;
+    private final List<StateDescriptor<?>> states;
 
     /**
      * Creates an immutable snapshot from the current state of the given {@link PipelineContext}.
@@ -39,15 +42,17 @@ public final class PipelineContextSnapshot implements YTreeConvertible {
      * @param context the pipeline context to snapshot
      */
     public PipelineContextSnapshot(PipelineContext context) {
-        this(context.getComputations(), context.getStreams());
+        this(context.getComputations(), context.getStreams(), context.getStates());
     }
 
     private PipelineContextSnapshot(
             Map<String, Computation> computations,
-            Map<String, FlowStream<?>> streams
+            Map<String, FlowStream<?>> streams,
+            List<StateDescriptor<?>> states
     ) {
         this.computations = Collections.unmodifiableMap(new LinkedHashMap<>(computations));
         this.streamsContext = new FlowStreamsContext(streams);
+        this.states = List.copyOf(states);
     }
 
     /**
@@ -76,6 +81,16 @@ public final class PipelineContextSnapshot implements YTreeConvertible {
      */
     public Map<String, FlowStream<?>> getStreams() {
         return streamsContext.getStreams();
+    }
+
+    /**
+     * Returns the states declared at snapshot time, in registration order. Several may share a
+     * name: state names are scoped to a computation in the pipeline spec.
+     *
+     * @return an unmodifiable list of the declared states
+     */
+    public List<StateDescriptor<?>> getStates() {
+        return states;
     }
 
     /**
