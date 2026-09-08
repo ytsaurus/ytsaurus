@@ -41,7 +41,7 @@ def pytest_benchmark_generate_machine_info(config):
 
 def pytest_benchmark_update_machine_info(config, machine_info):
     """
-    If benchmarks are compared and machine_info is different then warnings will be shown.
+    If benchmarks are compared and machine_info is different, warnings will be shown.
 
     To add the current user to the commit info override the hook in your conftest.py like this:
 
@@ -99,7 +99,7 @@ def pytest_benchmark_group_stats(config, benchmarks, group_by):
 @pytest.hookspec(firstresult=True)
 def pytest_benchmark_generate_json(config, benchmarks, include_data, machine_info, commit_info):
     """
-    You should read pytest-benchmark's code if you really need to wholly customize the json.
+    You should read pytest-benchmark's code if you really need to wholly customize the JSON.
 
     .. warning::
 
