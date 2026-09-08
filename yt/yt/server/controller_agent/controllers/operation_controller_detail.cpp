@@ -11456,7 +11456,8 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_DELETED_FIELD(51, std::optional<std::string>, AcoName_, ESnapshotVersion::AccessControlRule);
 
     PHOENIX_REGISTER_FIELD(80, AccessControlRule_,
-        .SinceVersion(ESnapshotVersion::AccessControlRule));
+        .SinceVersion(ESnapshotVersion::AccessControlRule)
+        .template Serializer<TAtomicObjectSerializer<>>());
 
     PHOENIX_REGISTER_FIELD(52, BannedTreeIds_);
     PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_);
