@@ -144,7 +144,8 @@ public:
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
-            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantMakeTransactionReadyToCommit, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantRecordCommitTimestamp, Unretained(this)),
+            /*aliases*/ {"NYT.NTransactionSupervisor.NProto.TReqParticipantMakeTransactionReadyToCommit"});
         TCompositeAutomatonPart::RegisterMethod(
             BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(
@@ -406,7 +407,7 @@ private:
                 });
         }
 
-        TFuture<void> MakeTransactionReadyToCommit(TCommit* commit)
+        TFuture<void> RecordCommitTimestamp(TCommit* commit)
         {
             return EnqueueRequest(
                 true,
@@ -423,7 +424,7 @@ private:
                 (const ITransactionParticipantPtr& participant) {
                     auto cellTag = CellTagFromId(participant->GetCellId());
                     auto commitTimestamp = commitTimestamps.GetTimestamp(cellTag);
-                    return participant->MakeTransactionReadyToCommit(
+                    return participant->RecordCommitTimestamp(
                         transactionId,
                         commitTimestamp,
                         GetTimestampClusterTag(participant, inheritCommitTimestamp),
@@ -1079,11 +1080,15 @@ private:
         {
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareTransaction)
                 .SetHeavy(true));
-            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(MakeTransactionReadyToCommit)
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(RecordCommitTimestamp)
                 .SetHeavy(true));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction)
                 .SetHeavy(true));
             TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction)
+                .SetHeavy(true));
+
+            // COMPAT(h0pless): Deprecated. Can be removed after 26.2.
+            TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(MakeTransactionReadyToCommit)
                 .SetHeavy(true));
         }
 
@@ -1151,7 +1156,19 @@ private:
             }
         }
 
+        DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionParticipant, RecordCommitTimestamp)
+        {
+            RecordCommitTimestampImpl(request, context);
+        }
+
         DECLARE_RPC_SERVICE_METHOD(NProto::NTransactionParticipant, MakeTransactionReadyToCommit)
+        {
+            RecordCommitTimestampImpl(request, context);
+        }
+
+        void RecordCommitTimestampImpl(
+            auto* request,
+            const auto& context)
         {
             ValidatePeer(EPeerKind::Leader);
 
@@ -1164,7 +1181,7 @@ private:
                 commitTimestamp,
                 commitTimestampClusterTag);
 
-            NTransactionSupervisor::NProto::TReqParticipantMakeTransactionReadyToCommit hydraRequest;
+            NTransactionSupervisor::NProto::TReqParticipantRecordCommitTimestamp hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
             hydraRequest.set_commit_timestamp(ToProto(commitTimestamp));
             hydraRequest.set_commit_timestamp_cluster_tag(commitTimestampClusterTag);
@@ -1912,18 +1929,18 @@ private:
                 commitTimestamp,
                 SelfClockClusterTag_,
                 /*isCoordinator*/ true,
-                ECommitState::ReadyToCommit,
+                ECommitState::CommitTimestampKnown,
                 prepareTimestamp);
             CommitStronglyOrderedTransactions(transactionsToCommit);
 
             // Commit transient state might've changed if transaction failed to prepare
             // in late prepare mode, or if it was allowed to be committed straight away.
-            // In either of those cases, ReadyToCommit stage is redundant.
+            // In either of those cases, CommitTimestampKnown stage is redundant.
             if (commit->GetTransientState() == ECommitState::GeneratingCommitTimestamps) {
-                ChangeCommitTransientState(commit, ECommitState::ReadyToCommit);
+                ChangeCommitTransientState(commit, ECommitState::CommitTimestampKnown);
             } else {
                 // COMPAT(h0pless): StopSendingUnnecessaryRequests. Can be removed once stable.
-                YT_TLOG_DEBUG("Transient state of a transaction is past the expected one; skipping ReadyToCommit transition")
+                YT_TLOG_DEBUG("Transient state of a transaction is past the expected one; skipping CommitTimestampKnown transition")
                     .With("ExpectedState", ECommitState::GeneratingCommitTimestamps)
                     .With("TransactionId", transactionId)
                     .With("TransientState", commit->GetTransientState())
@@ -1934,10 +1951,10 @@ private:
             // is ok. The only situation when it's possible is if commit in late prepare mode
             // has failed.
             if (commit->GetPersistentState() == ECommitState::Prepare) {
-                ChangeCommitPersistentState(commit, ECommitState::ReadyToCommit);
+                ChangeCommitPersistentState(commit, ECommitState::CommitTimestampKnown);
             } else {
                 // COMPAT(h0pless): StopSendingUnnecessaryRequests. Can be removed once stable.
-                YT_TLOG_DEBUG("Persistent state of a transaction is past the expected one; skipping ReadyToCommit transition")
+                YT_TLOG_DEBUG("Persistent state of a transaction is past the expected one; skipping CommitTimestampKnown transition")
                     .With("ExpectedState", ECommitState::Prepare)
                     .With("TransactionId", transactionId)
                     .With("TransientState", commit->GetTransientState())
@@ -1946,8 +1963,8 @@ private:
         } else {
             // Even if coordinator is not committing this transaction in strongly
             // ordered mode, some other cell might be. But Commit call without
-            // ReadyToCommit is still ok, so let's not send more requests than
-            // necessary.
+            // CommitTimestampKnown call is still ok, so let's not send more
+            // requests than necessary.
             ChangeCommitPersistentState(commit, ECommitState::Commit);
             ChangeCommitTransientState(commit, ECommitState::Commit);
 
@@ -1976,7 +1993,7 @@ private:
         YT_VERIFY(commit->GetDistributed());
         YT_VERIFY(commit->GetPersistent());
 
-        if (commit->GetPersistentState() != ECommitState::Prepare && commit->GetPersistentState() != ECommitState::ReadyToCommit) {
+        if (commit->GetPersistentState() != ECommitState::Prepare && commit->GetPersistentState() != ECommitState::CommitTimestampKnown) {
             YT_TLOG_ERROR("Requested to execute phase two abort for transaction in wrong state; ignored")
                 .With("TransactionId", transactionId)
                 .With("State", commit->GetPersistentState());
@@ -2098,14 +2115,15 @@ private:
     }
 
 
-    // Possible persistent states:
+    // Possible persistent transaction states:
     // Active -- ok
-    // PersistentCommitPrepared (Prepare on supervisor) -- throw (probably should just do nothing?)
-    // PersistentCommitPrepared (ReadyToCommit on supervisor) -- throw (probably should just do nothing?)
+    // PersistentCommitPrepared (ECommitState::Prepare on supervisor) -- throw (probably should just do nothing?)
+    // PersistentCommitPrepared (ECommitState::CommitTimestampKnown on supervisor) -- throw (probably should just do nothing?)
     // Committed -- throw (probably should just do nothing?)
     // Aborted -- throw (probably should just do nothing?)
 
-    // None -> Prepared
+    // Commit state:
+    // None -> Prepare
     void HydraParticipantPrepareTransaction(NTransactionSupervisor::NProto::TReqParticipantPrepareTransaction* request)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -2166,14 +2184,16 @@ private:
             .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity());
     }
 
+    // Possible persistent transaction states:
     // Active -- throw (wait for prepare)
-    // PersistentCommitPrepared (Prepare on supervisor) -- ok
-    // PersistentCommitPrepared (ReadyToCommit on supervisor) -- do nothing
+    // PersistentCommitPrepared (ECommitState::Prepare on supervisor) -- ok
+    // PersistentCommitPrepared (ECommitState::CommitTimestampKnown on supervisor) -- do nothing
     // Committed -- do nothing
     // Aborted -- do nothing
 
-    // Prepared -> ReadyToCommit
-    void HydraParticipantMakeTransactionReadyToCommit(NTransactionSupervisor::NProto::TReqParticipantMakeTransactionReadyToCommit* request)
+    // Commit state:
+    // Prepare -> CommitTimestampKnown
+    void HydraParticipantRecordCommitTimestamp(NTransactionSupervisor::NProto::TReqParticipantRecordCommitTimestamp* request)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -2202,23 +2222,25 @@ private:
             .With("CommitTimestampClusterTag", commitTimestampClusterTag)
             .With("ExpectedClusterTag", StrongOrderingManager_.GetClockSourceClusterTag());
 
-        YT_TLOG_DEBUG("Strongly ordered transaction is ready to commit at participant")
+        YT_TLOG_DEBUG("Commit timestamp of a strongly ordered transaction has been recorded at participant")
             .With("TransactionId", transactionId);
 
-        auto transactionsToCommit = StrongOrderingManager_.OnCommitReadyToCommit(
+        auto transactionsToCommit = StrongOrderingManager_.OnCommitCommitTimestampKnown(
             transactionId,
             commitTimestamp,
             commitTimestampClusterTag);
         CommitStronglyOrderedTransactions(transactionsToCommit);
     }
 
+    // Possible persistent transaction states:
     // Active -- throw (should wait for prepare)
-    // PersistentCommitPrepared (Prepare on supervisor) -- ok
-    // PersistentCommitPrepared (ReadyToCommit on supervisor) -- ok, but different
+    // PersistentCommitPrepared (ECommitState::Prepare on supervisor) -- ok
+    // PersistentCommitPrepared (ECommitState::CommitTimestampKnown on supervisor) -- ok, but different
     // Committed -- do nothing
     // Aborted -- throw (probably should just do nothing?)
 
-    // Prepared -> Committed or ReadyToCommit -> Committed
+    // Commit state:
+    // Prepare -> Commit or CommitTimestampKnown -> Commit
     void HydraParticipantCommitTransaction(NTransactionSupervisor::NProto::TReqParticipantCommitTransaction* request)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -2314,13 +2336,15 @@ private:
             .With("AuthenticationIdentity", NRpc::GetCurrentAuthenticationIdentity());
     }
 
-    // Active -- ok (was do nothing before, but we should still do transactionManager->Abort())
-    // PersistentCommitPrepared (Prepare on supervisor) -- ok
-    // PersistentCommitPrepared (ReadyToCommit on supervisor) -- ok
+    // Possible persistent transaction states:
+    // Active -- ok (transactionManager->Abort() should still be called)
+    // PersistentCommitPrepared (ECommitState::Prepare on supervisor) -- ok
+    // PersistentCommitPrepared (ECommitState::CommitTimestampKnown on supervisor) -- ok
     // Committed -- throw (probably should just do nothing?)
     // Aborted -- do nothing
 
-    // Start -> Aborted or Prepared -> Aborted or ReadyToCommit -> Aborted
+    // Commit state:
+    // Start -> Abort or Prepare -> Abort or CommitTimestampKnown -> Abort
     void HydraParticipantAbortTransaction(NTransactionSupervisor::NProto::TReqParticipantAbortTransaction* request)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -2904,7 +2928,7 @@ private:
                 break;
 
             case ECommitState::Prepare:
-            case ECommitState::ReadyToCommit:
+            case ECommitState::CommitTimestampKnown:
             case ECommitState::Commit:
             case ECommitState::Abort:
                 SendParticipantRequests(commit);
@@ -2973,8 +2997,8 @@ private:
                 response = participant->PrepareTransaction(commit);
                 break;
 
-            case ECommitState::ReadyToCommit:
-                response = participant->MakeTransactionReadyToCommit(commit);
+            case ECommitState::CommitTimestampKnown:
+                response = participant->RecordCommitTimestamp(commit);
                 break;
 
             case ECommitState::Commit:
@@ -3080,7 +3104,7 @@ private:
 
                 case ECommitState::Commit:
                 case ECommitState::Abort:
-                case ECommitState::ReadyToCommit:
+                case ECommitState::CommitTimestampKnown:
                     YT_TLOG_DEBUG("Coordinator observes participant failure; will retry")
                         .With("TransactionId", commit->GetTransactionId())
                         .With("ParticipantCellId", participantCellId)
@@ -3105,7 +3129,7 @@ private:
     {
         if (commit->RespondedCellIds().size() == commit->ParticipantCellIds().size()) {
             auto state = commit->GetTransientState();
-            if (state != ECommitState::ReadyToCommit) {
+            if (state != ECommitState::CommitTimestampKnown) {
                 ChangeCommitTransientState(commit, GetNewCommitState(state));
             }
         }

@@ -40,11 +40,11 @@ DEFINE_ENUM(ECommitState,
     ((Start)                     (0))
     ((Prepare)                   (1))
     ((GeneratingCommitTimestamps)(2)) // transient only
+    ((CommitTimestampKnown)      (7))
     ((Commit)                    (3))
     ((Aborting)                  (4)) // transient only
     ((Abort)                     (5))
     ((Finishing)                 (6)) // transient only
-    ((ReadyToCommit)             (7))
 );
 
 class TCommit
