@@ -83,7 +83,6 @@ public:
         UpdatePartitionInfo(TPartitionInfoUpdate{.MaxOffsetExclusive = IntToOffset(MaxOffsetExclusive_)});
     }
 
-    using TOrderedSourceBase::GetOfferedCount;
     using TOrderedSourceBase::GetSourceTotalBytes;
     using TOrderedSourceBase::GetSourceTotalCount;
     using TOrderedSourceBase::UpdatePartitionInfo;
@@ -463,6 +462,8 @@ TEST_F(TOrderedSourceTest, BacklogRateContributesToNewRate)
     });
     EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->NewCountPerSec, 123);
     EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->NewBytesPerSec, 456);
+    EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->OfferedCountPerSec, 123);
+    EXPECT_DOUBLE_EQ(*inflight->InflightMetrics->OfferedBytesPerSec, 456);
 }
 
 TEST_F(TOrderedSourceTest, ReadyTracksUnreadPartOfExternalBacklog)
@@ -474,7 +475,6 @@ TEST_F(TOrderedSourceTest, ReadyTracksUnreadPartOfExternalBacklog)
     ASSERT_EQ(beforeRead->InflightMetrics->Count, 5);
     ASSERT_EQ(beforeRead->InflightMetrics->ReadyCount, 5);
     EXPECT_EQ(Source->GetSourceTotalCount(), 5);
-    EXPECT_EQ(Source->GetOfferedCount(), 0);
 
     const auto messages = RunInInvoker([&] {
         return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
@@ -486,14 +486,12 @@ TEST_F(TOrderedSourceTest, ReadyTracksUnreadPartOfExternalBacklog)
     EXPECT_EQ(afterRead->InflightMetrics->Count, 5);
     EXPECT_EQ(afterRead->InflightMetrics->ReadyCount, 0);
     EXPECT_EQ(Source->GetSourceTotalCount(), 5);
-    EXPECT_EQ(Source->GetOfferedCount(), 5);
 
     const auto empty = RunInInvoker([&] {
         return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
     });
     EXPECT_TRUE(empty.empty());
     EXPECT_EQ(Source->GetSourceTotalCount(), 5);
-    EXPECT_EQ(Source->GetOfferedCount(), 5);
 }
 
 TEST_F(TOrderedSourceTest, EmptyPartition)
@@ -1113,6 +1111,46 @@ TEST_F(TOrderedSourceTest, UnorderedUpdates)
         return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
     });
     ASSERT_EQ(data.size(), 5u);
+}
+
+TEST_F(TOrderedSourceTest, ArrivalRateIgnoresLowerMaximum)
+{
+    auto source = RunInInvoker([&] {
+        auto spec = CloneYsonStruct(SourceSpec);
+        spec->Parameters->AddChild("update_info_period", ConvertToNode(TDuration::Hours(1)));
+        auto result = MakeTestSource(spec);
+        result->Init(StateManager->CreateContext()->WithPrefix("source_rate"));
+        result->BuildInflight();
+        return result;
+    });
+
+    // Warm up the real counter without adding a test clock to the source API.
+    RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(31));
+    });
+    auto before = RunInInvoker([&] {
+        source->SetMaxOffset(100);
+        return source->BuildInflight()->InflightMetrics;
+    });
+    ASSERT_TRUE(before->NewCountPerSec);
+    ASSERT_GT(*before->NewCountPerSec, 0);
+
+    auto afterLower = RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+        source->SetMaxOffset(10);
+        return source->BuildInflight()->InflightMetrics;
+    });
+    EXPECT_EQ(afterLower->NewCountPerSec, before->NewCountPerSec);
+    EXPECT_EQ(afterLower->NewBytesPerSec, before->NewBytesPerSec);
+    EXPECT_EQ(afterLower->OfferedCountPerSec, before->NewCountPerSec);
+
+    auto afterUnchanged = RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+        source->SetMaxOffset(100);
+        return source->BuildInflight()->InflightMetrics;
+    });
+    ASSERT_TRUE(afterUnchanged->NewCountPerSec);
+    EXPECT_LT(*afterUnchanged->NewCountPerSec, *before->NewCountPerSec);
 }
 
 TEST_F(TOrderedSourceTest, Timestamps)

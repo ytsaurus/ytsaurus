@@ -202,7 +202,6 @@ protected:
 
     double GetSourceTotalCount() const;
     double GetSourceTotalBytes() const;
-    double GetOfferedCount() const;
     std::optional<TSystemTimestamp> GetLastPersistedWriteTimestamp() const;
 
 public:
@@ -254,8 +253,6 @@ private:
 
     TSimpleEmaCounter SourceTotalCount_;
     TSimpleEmaCounter SourceTotalBytes_;
-    TSimpleEmaCounter OfferedCount_;
-    TSimpleEmaCounter OfferedBytes_;
     TSimpleEmaCounter PersistedCount_;
     TSimpleEmaCounter PersistedBytes_;
     const NProfiling::TProfiler Profiler_;
