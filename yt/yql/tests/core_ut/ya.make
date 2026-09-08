@@ -38,6 +38,7 @@ PEERDIR(
     yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/sql/pg
     yql/essentials/udfs/common/string
+    yql/essentials/utils/string
 )
 
 RESOURCE(

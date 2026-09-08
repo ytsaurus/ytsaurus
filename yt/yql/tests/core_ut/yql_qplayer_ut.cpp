@@ -10,6 +10,7 @@
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yql/essentials/core/file_storage/file_storage.h>
 #include <yql/essentials/core/services/mounts/yql_mounts.h>
+#include <yql/essentials/utils/string/trim_indent.h>
 
 #include <library/cpp/yson/node/node_io.h>
 
@@ -278,6 +279,33 @@ Y_UNIT_TEST_SUITE(QPlayerTests) {
             runSettings.Tables = tables;
             CheckProgram(s, runSettings);
         });
+    }
+
+    Y_UNIT_TEST(EvaluateCodeCacheHitExpandsLambdaOnReplay) {
+        auto s = TrimIndent(R"sql(
+            $identity = ($value) -> ($value);
+            $fallback = ($value) -> (Just($value));
+            $dispatch = ($value) -> {
+                $type = FormatType(TypeOf($value));
+                $isString = $type IN AsList('String', 'Optional<String>');
+                $picked = EvaluateCode(IF($isString, QuoteCode($identity), QuoteCode($fallback)));
+                RETURN $picked($value);
+            };
+
+            SELECT $dispatch($dispatch('value'));
+        )sql");
+
+        auto qStorage = MakeMemoryQStorage();
+        TRunSettings captureRunSettings;
+        TQContext savingCtx(qStorage->MakeWriter("foo", {}));
+        UNIT_ASSERT(RunProgram(false, s, savingCtx, captureRunSettings));
+        savingCtx.GetWriter()->Commit().GetValueSync();
+
+        TRunSettings replayRunSettings;
+        auto* coreFlag = replayRunSettings.GatewaysConfig.MutableYqlCore()->AddFlags();
+        coreFlag->SetName("EnableEvaluateExprCache");
+        TQContext loadingCtx(qStorage->MakeReader("foo", {}));
+        UNIT_ASSERT(RunProgram(true, "", loadingCtx, replayRunSettings));
     }
 
     Y_UNIT_TEST(WalkFolders) {
