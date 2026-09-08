@@ -9,7 +9,7 @@ from .common import (flatten, round_up_to, GB, MB,
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
-from .ypath import TablePath, FilePath
+from .ypath import TablePath, FilePath, ypath_split
 from .py_wrapper import OperationParameters, TempfilesManager, get_local_temp_directory, WrapResult
 from .schema import TableSchema
 from .spec_builder_helpers import BaseLayerDetector
@@ -412,6 +412,16 @@ class UserJobSpecBuilder(object):
     def docker_image(self, docker_image):
         return _set_spec_value(self, "docker_image", docker_image)
 
+    @spec_option("Local path to the executable to be used inside jobs instead of the current one")
+    def job_binary_local_path(self, path, md5=None):
+        _set_spec_value(self, "job_binary_local_path", path)
+        return _set_spec_value(self, "job_binary_md5", md5)
+
+    @spec_option("Cypress path to the executable to be used inside jobs instead of the current one")
+    def job_binary_cypress_path(self, path, transaction_id=None):
+        _set_spec_value(self, "job_binary_cypress_path", path)
+        return _set_spec_value(self, "job_binary_transaction_id", transaction_id)
+
     @spec_option("The format of tabular data")
     def format(self, format):
         return _set_spec_value(self, "format", format)
@@ -580,6 +590,11 @@ class UserJobSpecBuilder(object):
         operation_preparation_context,
         client,
     ) -> typing.Tuple[typing.Dict, int, typing.List[str]]:
+        job_binary_local_path = spec.pop("job_binary_local_path", None)
+        job_binary_md5 = spec.pop("job_binary_md5", None)
+        job_binary_cypress_path = spec.pop("job_binary_cypress_path", None)
+        job_binary_transaction_id = spec.pop("job_binary_transaction_id", None)
+
         file_manager = FileManager(client=client)
         files = []
         for file in flatten(spec.get("file_paths", [])):
@@ -605,6 +620,39 @@ class UserJobSpecBuilder(object):
         )
 
         is_cpp_job = _is_cpp_job(spec["command"])
+
+        require(job_binary_local_path is None or job_binary_cypress_path is None,
+                lambda: YtError('Options "job_binary_local_path" and "job_binary_cypress_path" '
+                                'cannot be specified simultaneously'))
+
+        if job_binary_local_path is None:
+            require(job_binary_md5 is None,
+                    lambda: YtError('Option "job_binary_md5" cannot be specified '
+                                    'without "job_binary_local_path"'))
+        else:
+            require(_is_python_function(spec["command"]) or is_cpp_job,
+                    lambda: YtError('Option "job_binary_local_path" is supported only for python functions '
+                                    'and cpp jobs, but command has type "{}"'.format(type(spec["command"]))))
+            require(os.path.exists(job_binary_local_path),
+                    lambda: YtError('Job binary "{}" does not exist'.format(job_binary_local_path)))
+
+        if job_binary_cypress_path is None:
+            require(job_binary_transaction_id is None,
+                    lambda: YtError('Option "job_binary_transaction_id" cannot be specified '
+                                    'without "job_binary_cypress_path"'))
+        else:
+            require(_is_python_function(spec["command"]) or is_cpp_job,
+                    lambda: YtError('Option "job_binary_cypress_path" is supported only for python functions '
+                                    'and cpp jobs, but command has type "{}"'.format(type(spec["command"]))))
+            job_binary_cypress_path = FilePath(job_binary_cypress_path, client=client)
+            if job_binary_transaction_id is not None:
+                job_binary_cypress_path.attributes["transaction_id"] = job_binary_transaction_id
+            job_binary_cypress_path.attributes.setdefault("executable", True)
+            job_binary_cypress_path.attributes.setdefault(
+                "file_name",
+                ypath_split(job_binary_cypress_path)[1])
+            files.append(job_binary_cypress_path)
+
         if is_cpp_job:
             state_bytes, spec_patch = spec["command"].prepare_state_and_spec_patch(
                 group_by,
@@ -650,7 +698,10 @@ class UserJobSpecBuilder(object):
                     tempfiles_manager,
                     params,
                     local_mode,
-                    client=client)
+                    client=client,
+                    job_binary_local_path=job_binary_local_path,
+                    job_binary_md5=job_binary_md5,
+                    job_binary_cypress_path=job_binary_cypress_path)
                 if enable_local_files_usage_in_job(client):
                     prepare_result.local_files_to_remove += \
                         tempfiles_manager._tempfiles_pool + [tempfiles_manager.tmp_dir]
@@ -910,6 +961,16 @@ class UserJobSpecBuilder(object):
         spec = BaseLayerDetector.guess_base_layers(spec, client)
         spec = update(spec, self._user_spec)
         spec = update(get_config(client)["user_job_spec_defaults"], spec)
+
+        # Job files are already prepared at this point, so it is too late to take these options into account.
+        for option, method in (("job_binary_local_path", "job_binary_local_path"),
+                               ("job_binary_md5", "job_binary_local_path"),
+                               ("job_binary_cypress_path", "job_binary_cypress_path"),
+                               ("job_binary_transaction_id", "job_binary_cypress_path")):
+            require(option not in spec,
+                    lambda option=option, method=method: YtError(
+                        'Option "{}" cannot be specified in user spec or in user_job_spec_defaults '
+                        'config option, use UserJobSpecBuilder.{} instead'.format(option, method)))
 
         return spec, input_tables, output_tables
 

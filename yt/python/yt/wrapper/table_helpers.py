@@ -339,7 +339,8 @@ def _prepare_operation_formats(format, input_format, output_format, binary, inpu
     return input_format, output_format
 
 
-def _prepare_python_command(binary, file_manager, tempfiles_manager, params, local_mode, client=None):
+def _prepare_python_command(binary, file_manager, tempfiles_manager, params, local_mode, client=None,
+                            job_binary_local_path=None, job_binary_md5=None, job_binary_cypress_path=None):
     start_time = time.time()
     if isinstance(params.input_format, YamrFormat) and params.group_by is not None and set(params.group_by) != {"key"}:
         raise YtError("Yamr format does not support reduce by %r", params.group_by)
@@ -349,7 +350,10 @@ def _prepare_python_command(binary, file_manager, tempfiles_manager, params, loc
         tempfiles_manager=tempfiles_manager,
         local_mode=local_mode,
         params=params,
-        client=client)
+        client=client,
+        job_binary_local_path=job_binary_local_path,
+        job_binary_md5=job_binary_md5,
+        job_binary_cypress_path=job_binary_cypress_path)
 
     logger.debug("Collecting python modules and uploading to cypress takes %.2lf seconds", time.time() - start_time)
 
