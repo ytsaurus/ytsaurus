@@ -71,6 +71,10 @@ The external state name is validated: it must start with `/`, must not be empty,
 
 {% endnote %}
 
+### Declaring a proto external state {#proto-external-state}
+
+A profile state (`NYT::NFlow::NProfileState::TProfileStateManager`) stores a protobuf message. Describe it with `StateDescriptors.externalProto(name, TMessage.class)` — or `StateDescriptors.externalProtoReadOnly(...)` for a joiner — and access it through `ProtoStateAccessor`. Unlike a plain external state, the runner has to know the message to describe the state to the worker: it fills `descriptor_layout.descriptor_set` and `message_name` of the spec from the declared class. So declare the state to the pipeline as well — with `PipelineContext.registerState(...)` when you build the context yourself, or in Spring via `ComputationProvider.getStates()` or a `StateDescriptor<?>` bean. The constant in the function alone is not enough for the runner.
+
 ## Main operations
 
 ### Reading the state

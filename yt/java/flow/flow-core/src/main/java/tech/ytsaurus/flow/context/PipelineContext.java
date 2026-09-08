@@ -1,12 +1,16 @@
 package tech.ytsaurus.flow.context;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.flow.computation.Computation;
 import tech.ytsaurus.flow.row.FlowMessage;
+import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreamAnnotations;
 
@@ -14,8 +18,9 @@ import tech.ytsaurus.flow.stream.FlowStreamAnnotations;
  * Build-phase configuration container for a Flow pipeline.
  *
  * <p>{@link PipelineContext} is a mutable builder for the set of {@link Computation},
- * {@link FlowStream}, and the {@link MetricsContext} that make up a pipeline. It is
- * intended to be populated once at application startup, before any worker thread observes it.
+ * {@link FlowStream}, {@link StateDescriptor} and the {@link MetricsContext} that make up a
+ * pipeline. It is intended to be populated once at application startup, before any worker thread
+ * observes it.
  *
  * <p><b>Thread-safety.</b> This class is <em>not</em> thread-safe. All registration calls
  * must happen on the configuring thread (or be externally synchronized).
@@ -25,6 +30,7 @@ import tech.ytsaurus.flow.stream.FlowStreamAnnotations;
  * PipelineContext context = new PipelineContext();
  * context.registerComputation(new MyComputation("comp-1"));
  * context.registerStream(FlowStreams.typed("stream-1", MyMessage.class));
+ * context.registerState(StateDescriptors.externalProto("/profile", MyProfile.class));
  * }</pre>
  */
 public class PipelineContext {
@@ -33,6 +39,9 @@ public class PipelineContext {
     // Ordered: registration order reaches the pipeline spec and must be deterministic.
     private final Map<String, Computation> computations = new LinkedHashMap<>();
     private final Map<String, FlowStream<?>> streams = new LinkedHashMap<>();
+    // A list, not a map by name: state names are scoped to a computation in the pipeline spec, so
+    // the owner of an external state and the computations joining it declare it under one name.
+    private final List<StateDescriptor<?>> states = new ArrayList<>();
     private MetricsContext metricsContext = MetricsContext.builder().build();
 
     /**
@@ -146,6 +155,48 @@ public class PipelineContext {
     }
 
     /**
+     * Declares a state of the pipeline. Registration is what lets the runner describe the state to
+     * the worker: the descriptor source of a profile state is filled from the declared message.
+     *
+     * <p>State names are scoped to a computation in the pipeline spec, so several descriptors may
+     * share a name — the owner of an external state and the computations joining it declare it
+     * under one name — as long as they share a state type; states of different types need
+     * different names. Registering the same descriptor twice is a no-op.
+     *
+     * @param state the state descriptor to declare
+     * @throws IllegalArgumentException if a state of the same name and another type is declared
+     */
+    public void registerState(StateDescriptor<?> state) {
+        Objects.requireNonNull(state, "state");
+        for (StateDescriptor<?> existing : states) {
+            if (existing == state) {
+                return;
+            }
+            if (existing.getName().equals(state.getName()) && existing.getStateClass() != state.getStateClass()) {
+                throw new IllegalArgumentException(
+                        ("State %s is declared with the types %s and %s; states of one name share a type,"
+                                + " so give them different names")
+                                .formatted(
+                                        state.getName(), existing.getStateClass().getName(),
+                                        state.getStateClass().getName()));
+            }
+        }
+        states.add(state);
+    }
+
+    /**
+     * Declares all states from the given iterable, via {@link #registerState(StateDescriptor)}.
+     *
+     * @param states the states to declare
+     * @throws IllegalArgumentException if a state of the same name and another type is declared
+     */
+    public void registerStates(Iterable<? extends StateDescriptor<?>> states) {
+        for (StateDescriptor<?> state : states) {
+            registerState(state);
+        }
+    }
+
+    /**
      * Registers a {@link MetricsContext} for this pipeline, replacing the default context.
      *
      * <p>Typically called before the companion server is started so that subsequent metric
@@ -185,5 +236,14 @@ public class PipelineContext {
      */
     Map<String, FlowStream<?>> getStreams() {
         return streams;
+    }
+
+    /**
+     * Returns the states declared in this context.
+     *
+     * @return the live list of declared states, in registration order
+     */
+    List<StateDescriptor<?>> getStates() {
+        return states;
     }
 }

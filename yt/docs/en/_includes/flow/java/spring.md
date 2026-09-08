@@ -122,11 +122,11 @@ Declare streams as Spring beans `FlowStream<?>` — they’re automatically regi
 
 {% endlist %}
 
-As an alternative to separate beans, you can declare streams in one place by implementing the `ComputationProvider` interface (the `getStreams()` method) — see [ComputationProvider interface](#computation-provider).
+As an alternative to separate beans, you can declare streams in one place by implementing the `ComputationProvider` interface (the `getStreams()` method) — see [ComputationProvider interface](#computation-provider). The same interface declares the proto (profile) states of the pipeline (`getStates()`), so the runner can describe them to the worker; `StateDescriptor<?>` beans are collected as well.
 
 That’s all you need to start. The Spring Boot Starter automatically:
 
-1. Creates `PipelineContext` and registers `Computation` objects (from annotated classes) and streams in it.
+1. Creates `PipelineContext` and registers `Computation` objects (from annotated classes), streams and states in it.
 2. Creates and configures `GrpcServerExecution`.
 3. Starts the gRPC server when the application launches.
 4. Stops the server correctly when the application shuts down.
@@ -173,7 +173,7 @@ Example from [Logbroker Wait Click Join](../../../yandex-specific/flow/java/exam
 
 [Source code]({{source-root}}/yt/java/flow/flow-spring-boot-starter/src/main/java/tech/ytsaurus/flow/spring/ComputationProvider.java)
 
-`ComputationProvider` lets you declare pipeline streams imperatively in one place — as an alternative to separate `FlowStream<?>` beans. Implement it and register it as a Spring `@Configuration`. Computations aren’t registered through this interface — use `@FlowComputation` / `@FlowSourceComputation` annotations for them.
+`ComputationProvider` lets you declare pipeline streams and states imperatively in one place — as an alternative to separate `FlowStream<?>` and `StateDescriptor<?>` beans. Implement it and register it as a Spring `@Configuration`. Computations aren’t registered through this interface — use `@FlowComputation` / `@FlowSourceComputation` annotations for them.
 
 {% list tabs group=lang %}
 
@@ -185,6 +185,11 @@ Example from [Logbroker Wait Click Join](../../../yandex-specific/flow/java/exam
        * Returns the list of streams to register in the pipeline.
        */
       List<FlowStream<?>> getStreams();
+
+      /**
+       * Returns the states the pipeline declares; empty by default.
+       */
+      default List<StateDescriptor<?>> getStates() { return List.of(); }
   }
   ```
 
@@ -196,10 +201,17 @@ Example from [Logbroker Wait Click Join](../../../yandex-specific/flow/java/exam
        * Returns the list of streams to register in the pipeline.
        */
       fun getStreams(): List<FlowStream<*>>
+
+      /**
+       * Returns the states the pipeline declares; empty by default.
+       */
+      fun getStates(): List<StateDescriptor<*>> = emptyList()
   }
   ```
 
 {% endlist %}
+
+`getStates()` declares the proto (profile) states of the pipeline: the runner fills their descriptor sets into the spec from the declared message classes, so the spec names no descriptors of its own. States of one name share a type — the owner of a state and the computations joining it declare it under one name — and states of different types need different names.
 
 ### Using Spring DI in ProcessFunction
 

@@ -16,6 +16,10 @@ import tech.ytsaurus.flow.row.Keyed;
  * StateAccessor<TWordCountState> acc = ctx.getState(COUNTER, message);
  * }</pre>
  *
+ * <p>An external proto state (a profile state) is also declared to the pipeline, so the runner can
+ * describe it to the worker: via {@code PipelineContext.registerState}, or in Spring via
+ * {@code ComputationProvider.getStates()} or a {@code StateDescriptor} bean.
+ *
  * @param <T> state value type.
  */
 public abstract class StateDescriptor<T> {

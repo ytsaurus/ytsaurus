@@ -1,5 +1,6 @@
 package tech.ytsaurus.flow.spring;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +24,7 @@ import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.FlowMessage;
+import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreams;
 
@@ -153,7 +155,7 @@ class FlowRunnerLaunchPipelineTest {
         }
 
         @Override
-        int launch(String[] args, Map<String, FlowStream<?>> streams) {
+        int launch(String[] args, Map<String, FlowStream<?>> streams, Collection<StateDescriptor<?>> states) {
             return 11;
         }
 

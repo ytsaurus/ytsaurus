@@ -25,13 +25,15 @@ import tech.ytsaurus.flow.execution.GrpcServerExecution;
  *         var context = new PipelineContext();
  *         context.registerComputation(...);
  *         context.registerTypedStreams(Word.class);
+ *         context.registerState(StateDescriptors.externalProto("/profile", TProfile.class));
  *         FlowApplication.run(args, context);
  *     }
  * }
  * </pre>
  *
- * <p>In runner mode the registered streams supply the schemas of {@code spec.streams}, so they do
- * not have to be written into the pipeline spec by hand. The {@code main_class} of every companion
+ * <p>In runner mode the registered streams supply the schemas of {@code spec.streams} and the
+ * declared proto states supply the descriptor sets of the profile states, so neither has to be
+ * written into the pipeline spec by hand. The {@code main_class} of every companion
  * resource is set in the pipeline spec — normally to the same entry-point class.
  */
 public final class FlowApplication {
@@ -61,7 +63,7 @@ public final class FlowApplication {
         if (runMode.isEmpty()) {
             log.info("Selected runner mode");
             var snapshot = new PipelineContextSnapshot(context);
-            System.exit(SimpleRunnerProgram.runPipeline(args, snapshot.getStreams()));
+            System.exit(SimpleRunnerProgram.runPipeline(args, snapshot.getStreams(), snapshot.getStates()));
             return;
         }
 

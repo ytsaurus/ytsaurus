@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.spring;
 
 import java.util.List;
 
+import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 
 /**
@@ -43,4 +44,14 @@ public interface ComputationProvider {
      */
     List<FlowStream<?>> getStreams();
 
+    /**
+     * Returns the states the pipeline declares, so the runner can describe them to the worker (see
+     * {@link tech.ytsaurus.flow.context.PipelineContext#registerState}). {@link StateDescriptor}
+     * beans are collected as well; declaring a state both ways is harmless.
+     *
+     * @return the declared states; empty by default.
+     */
+    default List<StateDescriptor<?>> getStates() {
+        return List.of();
+    }
 }
