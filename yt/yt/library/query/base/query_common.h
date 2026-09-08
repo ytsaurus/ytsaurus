@@ -286,6 +286,7 @@ struct TPreparePlanFragmentOptions
     int HyperLogLogPrecision = 14;
     bool AllowJoinWithAsyncLastCommittedTimestampIfRequireSyncReplicaIsFalse = false; // COMPAT(dtorilov): Remove after 26.1.
     bool AllowReverseScanForOrderBy = false;
+    std::optional<int> MaxProjectionCount;
 };
 
 struct TPreparePlanFragmentContext
