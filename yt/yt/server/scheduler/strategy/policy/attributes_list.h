@@ -2,18 +2,43 @@
 
 #include <yt/yt/server/scheduler/strategy/pool_tree_element.h>
 
+#include <vector>
+
 namespace NYT::NScheduler::NStrategy::NPolicy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TAttributes>
 class TAttributesList final
-    : public std::vector<TAttributes>
 {
 public:
     explicit TAttributesList(int size = 0);
+
     TAttributes& AttributesOf(const TPoolTreeElement* element);
     const TAttributes& AttributesOf(const TPoolTreeElement* element) const;
+
+    auto begin()
+    {
+        return Attributes_.begin();
+    }
+
+    auto end()
+    {
+        return Attributes_.end();
+    }
+
+    auto begin() const
+    {
+        return Attributes_.begin();
+    }
+
+    auto end() const
+    {
+        return Attributes_.end();
+    }
+
+private:
+    std::vector<TAttributes> Attributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
