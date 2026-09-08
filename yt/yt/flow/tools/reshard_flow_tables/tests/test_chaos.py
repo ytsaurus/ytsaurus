@@ -4,9 +4,12 @@ import sys
 import pytest
 import yt.wrapper as yt
 
+from yt.wrapper import yson
+
 from yt.yt.flow.tools.reshard_flow_tables.lib import (
     TMP_SUFFIX,
     ReshardRequest,
+    build_compact_input_message_pivot_key,
     planned_tablet_count,
     uniform_pivot_keys,
     apply_reshard_plans,
@@ -20,6 +23,12 @@ from yt.yt.flow.tools.reshard_flow_tables.lib import (
 )
 
 HASH_SCHEMA = [{"name": "hash", "type": "uint64", "sort_order": "ascending"}]
+
+
+def read_back(pivot_keys):
+    """Pivot keys the way @pivot_keys hands them back: the client parses YSON with an encoding, and
+    a key column that does not decode as UTF-8 becomes a YsonStringProxy rather than str or bytes."""
+    return yson.loads(yson.dumps(pivot_keys, yson_format="binary"), encoding="utf-8")
 
 
 class FakeClient:
@@ -1202,6 +1211,24 @@ def test_computation_counts_include_shared_tablets_and_first_computation(caplog,
         apply_reshard_plans(client, [request], dry_run=True)
     assert "1 => 4 tablets" in caplog.text
     assert "computation_id='a': 1 => 2 tablets" in caplog.text
+    assert "computation_id='b': 1 => 2 tablets" in caplog.text
+    assert client.calls == []
+
+
+def test_binary_compact_pivot_keys_are_counted(caplog):
+    from yt.yt.flow.tools.reshard_flow_tables.lib import plan_compact_input_table
+
+    table = "//pipeline/compact_input_messages"
+    schema = [{"name": "deduplication_message_key", "type": "string", "sort_order": "ascending"}]
+    previous = [[], build_compact_input_message_pivot_key("a", 2**63), build_compact_input_message_pivot_key("b")]
+    client = FakeClient(
+        {f"{table}/@type": "table", f"{table}/@schema": schema, f"{table}/@pivot_keys": read_back(previous)}
+    )
+    request = plan_compact_input_table(["a", "b"], "//pipeline", 2)
+    with caplog.at_level(logging.INFO):
+        apply_reshard_plans(client, [request], dry_run=True)
+    assert "3 => 4 tablets" in caplog.text
+    assert "computation_id='a': 2 => 2 tablets" in caplog.text
     assert "computation_id='b': 1 => 2 tablets" in caplog.text
     assert client.calls == []
 

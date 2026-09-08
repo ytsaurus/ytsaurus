@@ -148,10 +148,10 @@ def key_sort_value(key):
             return (0, column)
         if isinstance(column, float):
             return (2, column)
-        if isinstance(column, str):
-            return (4, column.encode("utf-8"))
-        if isinstance(column, bytes):
-            return (4, column)
+        # A non-UTF-8 string column arrives as a YsonStringProxy, so unwrap every string kind
+        # through get_bytes.
+        if isinstance(column, (str, bytes, yson.YsonStringProxy)):
+            return (4, yson.get_bytes(column))
         raise TypeError(f"Unsupported key column type: {type(column)}")
 
     return [column_sort_value(column) for column in key]
@@ -682,14 +682,11 @@ def prepare_table_reshard(client, request):
 
 
 def computation_tablet_counts(pivots, computations, compact=False):
-    def encode(value):
-        return value.encode("utf-8") if isinstance(value, str) else bytes(value)
-
     # A pivot with trailing columns lies after the computation's prefix boundary.
-    boundaries = [(bool(key), encode(key[0]) if key else b"", len(key) > 1) for key in pivots]
+    boundaries = [(bool(key), yson.get_bytes(key[0]) if key else b"", len(key) > 1) for key in pivots]
     counts = {}
     for computation in computations:
-        encoded = encode(computation)
+        encoded = yson.get_bytes(computation)
         lower = encoded + b"\0" if compact else encoded
         upper = encoded + (b"\1" if compact else b"\0")
         first = max(0, bisect_right(boundaries, (True, lower, False)) - 1)
@@ -723,7 +720,7 @@ def log_computation_diffs(plan, name):
     for layout in (plan.previous_layout, plan.layout):
         for key in layout["pivot_keys"]:
             if key:
-                value = key[0].encode("utf-8") if isinstance(key[0], str) else bytes(key[0])
+                value = yson.get_bytes(key[0])
                 computations.add(value.split(b"\0", 1)[0].decode("utf-8") if compact else value.decode("utf-8"))
     computations = sorted(computations)
     before = computation_tablet_counts(plan.previous_layout["pivot_keys"], computations, compact)
