@@ -1,4 +1,5 @@
 #include "yql_ytflow_provider_impl.h"
+#include "yql_ytflow_constants.h"
 #include "yql_ytflow_utils.h"
 
 #include <yql/essentials/core/yql_expr_optimize.h>
@@ -45,6 +46,7 @@ public:
         AddHandler(0, &TCoSkipNullMembers::Match, HNDL(FilterNullMembers<TCoSkipNullMembers>));
         AddHandler(1, &TYtflowReadWrap::Match, HNDL(ExtractMembersOverReadWrapMultiUsage));
         AddHandler(1, &TYtflowMap::Match, HNDL(MapOverHoppingAggregate));
+        AddHandler(1, &TYtflowTransformMap::Match, HNDL(TransformCombineMapOverSourceMap));
         AddHandler(1, &TCoExtractMembers::Match, HNDL(ExtractMembersOverOutput));
         AddHandler(1, &TCoNth::Match, HNDL(NthOverOutput));
         AddHandler(1, &TYtflowOpBase::Match, HNDL(OpBaseWithSortedYtPersistentSinks));
@@ -61,6 +63,100 @@ private:
     };
 
 private:
+    TMaybeNode<TExprBase> TransformCombineMapOverSourceMap(
+        TExprBase node, TExprContext& ctx, const TGetParents& getParents
+    ) {
+        auto outerTransformMap = node.Cast<TYtflowTransformMap>();
+        if (outerTransformMap.Sources().Size() != 1) {
+            return node;
+        }
+
+        if (outerTransformMap.GroupByColumns().Size() != 1 ||
+            outerTransformMap.GroupByColumns().Item(0).Value() != YTFLOW_INPUT_MESSAGE_ID_FIELD
+        ) {
+            return node;
+        }
+
+        auto maybeOutput = outerTransformMap.Sources().Item(0).Maybe<TYtflowOutput>();
+        if (!maybeOutput || maybeOutput.Cast().OutputIndex().Value() != "0") {
+            return node;
+        }
+
+        auto output = maybeOutput.Cast();
+
+        auto maybeInnerSourceMap = output.Operation().Maybe<TYtflowSourceMap>();
+        if (!maybeInnerSourceMap) {
+            return node;
+        }
+
+        auto innerSourceMap = maybeInnerSourceMap.Cast();
+        if (innerSourceMap.Sources().Size() != 1 ||
+            !innerSourceMap.Sources().Item(0).Maybe<TYtflowPersistentSource>()
+        ) {
+            return node;
+        }
+
+        if (innerSourceMap.Sinks().Size() != 1) {
+            return node;
+        }
+
+        const auto& parents = *getParents();
+        if (parents.at(innerSourceMap.Raw()).size() != 1 ||
+            parents.at(output.Raw()).size() != 1
+        ) {
+            return node;
+        }
+
+        auto maybeSink = innerSourceMap.Sinks().Item(0).Maybe<TYtflowIntermediateSink>();
+        if (!maybeSink || maybeSink.Cast().OutputIndex().Value() != "0") {
+            return node;
+        }
+
+        auto innerType = innerSourceMap.Lambda().Ref().GetTypeAnn();
+        if (!innerType || innerType->GetKind() != ETypeAnnotationKind::Stream) {
+            return node;
+        }
+
+        auto innerItemType = innerType->Cast<TStreamExprType>()->GetItemType();
+        if (innerItemType->GetKind() != ETypeAnnotationKind::Struct) {
+            return node;
+        }
+
+        if (!HasSetting(innerSourceMap.Settings().Ref(), INJECT_INPUT_MESSAGE_ID_SETTING)) {
+            return node;
+        }
+
+        for (const auto& settings : {innerSourceMap.Settings(), outerTransformMap.Settings()}) {
+            auto filteredSettings = RemoveSetting(
+                settings.Ref(),
+                INJECT_INPUT_MESSAGE_ID_SETTING,
+                ctx);
+
+            if (!filteredSettings->Children().empty()) {
+                return node;
+            }
+        }
+
+        return Build<TYtflowTransformSourceMap>(ctx, node.Pos())
+            .World<TCoSync>()
+                .Add({outerTransformMap.World(), innerSourceMap.World()})
+                .Build()
+            .Sources(innerSourceMap.Sources())
+            .Sinks(outerTransformMap.Sinks())
+            .Settings(outerTransformMap.Settings())
+            .Lambda<TCoLambda>()
+                .Args({"stream"})
+                .Body<TExprApplier>()
+                    .Apply(outerTransformMap.Lambda())
+                    .With<TExprApplier>(0)
+                        .Apply(innerSourceMap.Lambda())
+                        .With(0, "stream")
+                        .Build()
+                    .Build()
+                .Build()
+            .Done();
+    }
+
     TMaybeNode<TExprBase> ExtractMembersOverReadWrap(
         TExprBase node, TExprContext& ctx, const TGetParents& getParents
     ) {

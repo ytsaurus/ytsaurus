@@ -12,23 +12,18 @@
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
-#include <yt/yt/flow/library/cpp/computation/swift_ordered_source_computation.h>
-
-#include <util/generic/string.h>
-#include <util/generic/vector.h>
-
+#include <yt/yt/flow/library/cpp/computation/transform_ordered_source_computation.h>
 
 namespace NYql::NYtflow {
 
 namespace {
 
-struct TSourceParameters
-    : public NYT::NFlow::TSwiftOrderedSourceComputation::TParameters
-    , public TCommonMapParameters
+struct TTransformSourceParameters
+    : public TCommonMapParameters
 {
     NYT::NTableClient::TTableSchemaPtr SourceSchema;
 
-    REGISTER_YSON_STRUCT(TSourceParameters);
+    REGISTER_YSON_STRUCT(TTransformSourceParameters);
 
     static void Register(TRegistrar registrar)
     {
@@ -38,17 +33,17 @@ struct TSourceParameters
 
 } // anonymous namespace
 
-class TSourceMap
-    : public NYT::NFlow::TSwiftOrderedSourceComputation
+class TTransformSourceMap
+    : public NYT::NFlow::TTransformOrderedSourceComputation
 {
 public:
-    YT_FLOW_EXTEND_PARAMETERS(TSourceParameters);
+    YT_FLOW_EXTEND_PARAMETERS(TTransformSourceParameters);
 
-    TSourceMap(
+    TTransformSourceMap(
         NYT::NFlow::TComputationContextPtr context,
         NYT::NFlow::TDynamicComputationContextPtr dynamicContext)
 
-        : NYT::NFlow::TSwiftOrderedSourceComputation(std::move(context), std::move(dynamicContext))
+        : NYT::NFlow::TTransformOrderedSourceComputation(std::move(context), std::move(dynamicContext))
         , CpuToVCpuFactor(TryGetCpuToVCpuFactor())
         , ProcessCpuTimeCounter(GetContext()->Profiler.TimeCounter("/custom/process/cpu_time"))
         , ProcessVCpuTimeCounter(GetContext()->Profiler.TimeCounter("/custom/process/vcpu_time"))
@@ -145,6 +140,6 @@ private:
     NYT::NProfiling::TCounter OutputMessagesCounter;
 };
 
-YT_FLOW_DEFINE_COMPUTATION(TSourceMap);
+YT_FLOW_DEFINE_COMPUTATION(TTransformSourceMap);
 
 } // namespace NYql::NYtflow

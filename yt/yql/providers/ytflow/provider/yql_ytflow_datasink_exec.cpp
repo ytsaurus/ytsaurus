@@ -75,6 +75,7 @@ public:
         AddHandler(
             {
                 TYtflowSourceMap::CallableName(),
+                TYtflowTransformSourceMap::CallableName(),
                 TYtflowTransformMap::CallableName(),
                 TYtflowSwiftMap::CallableName(),
                 TYtflowExtend::CallableName(),

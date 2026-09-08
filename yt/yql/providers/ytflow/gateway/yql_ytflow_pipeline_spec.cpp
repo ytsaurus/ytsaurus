@@ -849,8 +849,8 @@ void ProcessMapBase(
     }
 }
 
-void ProcessSourceMap(
-    TYtflowSourceMap sourceMap,
+void ProcessSourceMapBase(
+    TYtflowMapBase sourceMap,
     TString computationName,
     NYT::NFlow::TComputationSpecPtr computationSpec,
     NYT::NFlow::TPipelineSpecPtr pipelineSpec,
@@ -865,8 +865,6 @@ void ProcessSourceMap(
         outputIndicesByOutputStreamId,
         ctx);
 
-    computationSpec->ComputationClassName = "NYql::NYtflow::TSourceMap";
-
     auto& parameters = computationSpec->Parameters;
 
     {
@@ -880,6 +878,44 @@ void ProcessSourceMap(
         parameters->AddChild(
             "source_schema", NYT::NYTree::ConvertToNode(schema));
     }
+}
+
+void ProcessSourceMap(
+    TYtflowSourceMap sourceMap,
+    TString computationName,
+    NYT::NFlow::TComputationSpecPtr computationSpec,
+    NYT::NFlow::TPipelineSpecPtr pipelineSpec,
+    const THashMap<TString, TString>& outputIndicesByOutputStreamId,
+    TBuildPipelineSpecContext& ctx)
+{
+    ProcessSourceMapBase(
+        sourceMap,
+        computationName,
+        computationSpec,
+        pipelineSpec,
+        outputIndicesByOutputStreamId,
+        ctx);
+
+    computationSpec->ComputationClassName = "NYql::NYtflow::TSourceMap";
+}
+
+void ProcessTransformSourceMap(
+    TYtflowTransformSourceMap transformSourceMap,
+    TString computationName,
+    NYT::NFlow::TComputationSpecPtr computationSpec,
+    NYT::NFlow::TPipelineSpecPtr pipelineSpec,
+    const THashMap<TString, TString>& outputIndicesByOutputStreamId,
+    TBuildPipelineSpecContext& ctx)
+{
+    ProcessSourceMapBase(
+        transformSourceMap,
+        computationName,
+        computationSpec,
+        pipelineSpec,
+        outputIndicesByOutputStreamId,
+        ctx);
+
+    computationSpec->ComputationClassName = "NYql::NYtflow::TTransformSourceMap";
 }
 
 void ProcessGroupBySchema(
@@ -1166,6 +1202,17 @@ TBuildPipelineSpecResult BuildPipelineSpec(
                 pipelineSpec,
                 outputIndicesByOutputStreamId,
                 ctx);
+
+            supportsComputationPatternResource = true;
+        } else if (auto maybeTransformSourceMap = operation.Maybe<TYtflowTransformSourceMap>()) {
+            NPrivate::ProcessTransformSourceMap(
+                maybeTransformSourceMap.Cast(),
+                computationName,
+                computationSpec,
+                pipelineSpec,
+                outputIndicesByOutputStreamId,
+                ctx);
+
             supportsComputationPatternResource = true;
         } else if (auto maybeTransformMap = operation.Maybe<TYtflowTransformMap>()) {
             NPrivate::ProcessTransformMap(
@@ -1175,6 +1222,7 @@ TBuildPipelineSpecResult BuildPipelineSpec(
                 pipelineSpec,
                 outputIndicesByOutputStreamId,
                 ctx);
+
             supportsComputationPatternResource = true;
         } else if (auto maybeSwiftMap = operation.Maybe<TYtflowSwiftMap>()) {
             NPrivate::ProcessSwiftMap(
@@ -1184,6 +1232,7 @@ TBuildPipelineSpecResult BuildPipelineSpec(
                 pipelineSpec,
                 outputIndicesByOutputStreamId,
                 ctx);
+
             supportsComputationPatternResource = true;
         } else if (auto maybeHoppingAggregate = operation.Maybe<TYtflowHoppingAggregate>()) {
             NPrivate::ProcessHoppingAggregate(
