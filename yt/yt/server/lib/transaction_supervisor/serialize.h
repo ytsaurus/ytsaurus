@@ -14,10 +14,6 @@ bool ValidateSnapshotReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETransactionSupervisorReign,
-    ((CellIdsToSyncWithBeforePrepare)                               (10))  // babenko
-    ((MaxAllowedCommitTimestamp)                                    (11))  // ifsmirnov
-    ((CoordinatorPrepareMode)                                       (12))  // gritukan
-    ((AbortFailedSimpleTransactions)                                (13))  // gritukan
     ((Sequencer)                                                    (14))  // aleksandra-zh
     ((SequencerFixes)                                               (15))  // aleksandra-zh
     ((SaveLastCoordinatorCommitTimestamp)                           (16))  // aleksandra-zh
