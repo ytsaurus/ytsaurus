@@ -60,6 +60,7 @@ void ValidatePipelineDeclarationIds(const TPipelineSpec* spec)
     for (const auto& [_, computationSpec] : spec->Computations) {
         ValidateDeclarationIds("timer stream", computationSpec->TimerStreams);
         ValidateDeclarationIds("key visitor stream", computationSpec->KeyVisitorStreams);
+        ValidateDeclarationIds("source stream", computationSpec->SourceStreams);
         ValidateDeclarationIds("sink", computationSpec->Sinks);
     }
 

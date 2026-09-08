@@ -20,7 +20,7 @@ TEST(TApplyEventWatermarkComputeRuleTest, Simple)
         {
             "report_time" = 1729497623u;
             "streams" = {
-                "bigb/profile-hit-log" = {
+                "bigb__profile-hit-log" = {
                     "epoch" = 29238380;
                     "inflight_metrics" = {
                         "count" = 0;
@@ -52,7 +52,7 @@ TEST(TApplyEventWatermarkComputeRuleTest, Simple)
             "output_stream_ids" = ["bigb_profile_hit";];
             "parameters" = {};
             "source_streams" = {
-                "bigb/profile-hit-log" = {
+                "bigb__profile-hit-log" = {
                     "parameters" = {
                         "consumer" = "colibri/prestable-consumer";
                         "logbroker" = "lbk";
@@ -62,7 +62,7 @@ TEST(TApplyEventWatermarkComputeRuleTest, Simple)
                 };
             };
             "streams_dependency" = {
-                "bigb_profile_hit" = ["bigb/profile-hit-log";];
+                "bigb_profile_hit" = ["bigb__profile-hit-log";];
             };
             "watermark_strategy" = {
                 "watermark_generator" = {
@@ -76,9 +76,9 @@ TEST(TApplyEventWatermarkComputeRuleTest, Simple)
             };
         }
     )""")));
-    const TStreamId sourceStreamId("bigb/profile-hit-log");
+    const TStreamId sourceStreamId("bigb__profile-hit-log");
     auto otherNode = CloneYsonStruct(node);
-    otherNode->Streams["bigb/profile-hit-log"]->InflightMetrics->IdleDuration = TDuration::Seconds(10);
+    otherNode->Streams["bigb__profile-hit-log"]->InflightMetrics->IdleDuration = TDuration::Seconds(10);
     ASSERT_TRUE(GetPartitionLastIdleTimestamp(node, spec, sourceStreamId));
     ASSERT_FALSE(GetPartitionLastIdleTimestamp(otherNode, spec, sourceStreamId));
     auto preparedNodes = ApplyEventWatermarkComputeRule(

@@ -63,7 +63,7 @@ Settings for all `timer` streams. Keys must match `[0-9A-Za-z_-]+`. ||
 Settings for all `key_visitor` streams. Keys must match `[0-9A-Za-z_-]+`. ||
 || `source_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSourceSpec](./all_yson_structs#NYT_NFlow_TSourceSpec)`>>`
 **Default value**: `{}`
-Settings for all `source` streams. ||
+Settings for all `source` streams. Keys must match `[0-9A-Za-z_-]+`. ||
 || `sinks` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TSinkIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSinkSpec](./all_yson_structs#NYT_NFlow_TSinkSpec)`>>`
 **Default value**: `{}`
 Settings for all sinks. Keys must match `[0-9A-Za-z_-]+`. ||

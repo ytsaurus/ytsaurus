@@ -63,7 +63,7 @@
 Настройки всех `key_visitor` потоков. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `source_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSourceSpec](./all_yson_structs#NYT_NFlow_TSourceSpec)`>>`
 **Значение по умолчанию**: `{}`
-Настройки всех `source` потоков. ||
+Настройки всех `source` потоков. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `sinks` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TSinkIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TSinkSpec](./all_yson_structs#NYT_NFlow_TSinkSpec)`>>`
 **Значение по умолчанию**: `{}`
 Настройки всех `sink`. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||

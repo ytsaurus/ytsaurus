@@ -62,11 +62,11 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
             "output_stream_ids" = ["bigb_profile_hit";];
             "parameters" = {};
             "source_streams" = {
-                "bigb/profile-hit-log" = {
+                "bigb__profile-hit-log" = {
                 };
             };
             "streams_dependency" = {
-                "bigb_profile_hit" = ["bigb/profile-hit-log";];
+                "bigb_profile_hit" = ["bigb__profile-hit-log";];
             };
             "watermark_strategy" = {
                 "watermark_generator" = {
@@ -78,7 +78,7 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
             };
         }
     )""")));
-    const TStreamId sourceStreamId("bigb/profile-hit-log");
+    const TStreamId sourceStreamId("bigb__profile-hit-log");
 
     const auto now = TSystemTimestamp(TInstant::ParseIso8601("2024-01-01T15:00:00Z").Seconds());
     const auto outdatedTimestamp = TSystemTimestamp(now.Underlying() - 15);
@@ -86,7 +86,7 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
     const TNodeTraverseDataPtr defaultNode = ConvertTo<TNodeTraverseDataPtr>(TYsonString(TStringBuf(R"""(
         {
             "streams" = {
-                "bigb/profile-hit-log" = {
+                "bigb__profile-hit-log" = {
                     "inflight_metrics" = {
                         "zero_count_duration" = 100000;
                         "count" = 0;
@@ -105,11 +105,11 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
         }
     )""")));
     defaultNode->ReportTime = now;
-    defaultNode->Streams["bigb/profile-hit-log"]->InflightMetrics->UnavailableTimestamp = std::nullopt;
+    defaultNode->Streams["bigb__profile-hit-log"]->InflightMetrics->UnavailableTimestamp = std::nullopt;
     defaultNode->Streams["bigb_profile_hit"]->EventWatermark = now;
 
     const auto unavailableNode = CloneYsonStruct(defaultNode);
-    unavailableNode->Streams["bigb/profile-hit-log"]->InflightMetrics->UnavailableTimestamp = now;
+    unavailableNode->Streams["bigb__profile-hit-log"]->InflightMetrics->UnavailableTimestamp = now;
     unavailableNode->Streams["bigb_profile_hit"]->EventWatermark = outdatedTimestamp;
 
     // One availability group, partially unavailable. Do nothing.
@@ -248,11 +248,11 @@ TEST(TApplyAvailabilityGroupsEventWatermarkComputeRuleTest, Simple)
             "output_stream_ids" = ["bigb_profile_hit";];
             "parameters" = {};
             "source_streams" = {
-                "bigb/profile-hit-log" = {
+                "bigb__profile-hit-log" = {
                 };
             };
             "streams_dependency" = {
-                "bigb_profile_hit" = ["bigb/profile-hit-log";];
+                "bigb_profile_hit" = ["bigb__profile-hit-log";];
             };
             "watermark_strategy" = {
                 "watermark_generator" = {}
