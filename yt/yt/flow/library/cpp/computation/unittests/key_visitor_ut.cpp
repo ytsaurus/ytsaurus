@@ -32,10 +32,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockingFirstListKeyStates
+class TBlockingListKeyStates
     : public NTables::TInMemoryKeyStates
 {
 public:
+    explicit TBlockingListKeyStates(int blockedCall = 1)
+        : RemainingCalls_(blockedCall)
+    { }
+
     TFuture<TListResult> List(
         TTableKeyFilter filter,
         i64 limit,
@@ -46,32 +50,32 @@ public:
             limit,
             std::move(offsetExclusive)))
             .ValueOrThrow();
-        if (!std::exchange(BlockFirstList_, false)) {
+        if (--RemainingCalls_ != 0) {
             return MakeFuture(std::move(result));
         }
 
-        FirstListStartedPromise_.Set();
-        return ReleaseFirstListPromise_.ToFuture().Apply(BIND([
+        BlockedListStartedPromise_.Set();
+        return ReleaseListPromise_.ToFuture().Apply(BIND([
             result = std::move(result)
         ] () mutable {
             return std::move(result);
         }));
     }
 
-    TFuture<void> GetFirstListStartedFuture() const
+    TFuture<void> GetBlockedListStartedFuture() const
     {
-        return FirstListStartedPromise_.ToFuture();
+        return BlockedListStartedPromise_.ToFuture();
     }
 
-    void ReleaseFirstList()
+    void ReleaseList()
     {
-        ReleaseFirstListPromise_.Set();
+        ReleaseListPromise_.Set();
     }
 
 private:
-    bool BlockFirstList_ = true;
-    const TPromise<void> FirstListStartedPromise_ = NewPromise<void>();
-    const TPromise<void> ReleaseFirstListPromise_ = NewPromise<void>();
+    int RemainingCalls_;
+    const TPromise<void> BlockedListStartedPromise_ = NewPromise<void>();
+    const TPromise<void> ReleaseListPromise_ = NewPromise<void>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,6 +257,35 @@ protected:
                 .AsyncVia(Queue_->GetInvoker())
                 .Run())
             .ValueOrThrow();
+    }
+
+    TInflightMetricsPtr ReadMetricsOnQueue(const TKeyVisitorPtr& visitor)
+    {
+        return WaitFor(BIND([visitor, this] {
+            return visitor->BuildInflight().at(StreamId)->InflightMetrics;
+        })
+                .AsyncVia(Queue_->GetInvoker())
+                .Run())
+            .ValueOrThrow();
+    }
+
+    void WaitForOffered(const TKeyVisitorPtr& visitor, i64 readyCount, double rate)
+    {
+        const auto deadline = TInstant::Now() + TDuration::Seconds(5);
+        while (TInstant::Now() < deadline) {
+            auto metrics = ReadMetricsOnQueue(visitor);
+            if (metrics->ReadyCount == readyCount && metrics->OfferedCountPerSec &&
+                std::abs(*metrics->OfferedCountPerSec - rate) < 1e-6)
+            {
+                EXPECT_EQ(metrics->NewCountPerSec, metrics->OfferedCountPerSec);
+                return;
+            }
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(5));
+        }
+        auto metrics = ReadMetricsOnQueue(visitor);
+        EXPECT_EQ(metrics->ReadyCount, readyCount);
+        EXPECT_NEAR(metrics->OfferedCountPerSec.value_or(-1), rate, 1e-6);
+        EXPECT_EQ(metrics->NewCountPerSec, metrics->OfferedCountPerSec);
     }
 
     static THashSet<TKey> ToSet(const std::vector<TKey>& keys)
@@ -542,7 +575,7 @@ TEST_F(TKeyVisitorTest, NonFiniteVisitorIgnoresUpstreamCompletion)
 TEST_F(TKeyVisitorTest, CompletionAtInitSeedsFinalFirstPass)
 {
     const std::vector<TKey> seeded{MakeUintKey(10), MakeUintKey(20)};
-    auto keyStates = New<TBlockingFirstListKeyStates>();
+    auto keyStates = New<TBlockingListKeyStates>();
     for (const auto& key : seeded) {
         keyStates->Set({ComputationId, key, "/state"});
     }
@@ -554,9 +587,9 @@ TEST_F(TKeyVisitorTest, CompletionAtInitSeedsFinalFirstPass)
         /*bufferRowLimit*/ 100);
     auto visitor = New<TKeyVisitor>(context, dynamicContext);
     WaitFor(visitor->Init(/*upstreamCompleted*/ true)).ThrowOnError();
-    WaitFor(keyStates->GetFirstListStartedFuture().WithTimeout(TDuration::Seconds(5)))
+    WaitFor(keyStates->GetBlockedListStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
-    keyStates->ReleaseFirstList();
+    keyStates->ReleaseList();
 
     std::vector<TKey> drained;
     DrainKeys(visitor, &drained, std::ssize(seeded));
@@ -575,7 +608,7 @@ TEST_F(TKeyVisitorTest, CompletionAtInitSeedsFinalFirstPass)
 // following Final pass is what observes the newly committed key.
 TEST_F(TKeyVisitorTest, CompletionDuringBackgroundReadStartsFreshFinalPass)
 {
-    auto keyStates = New<TBlockingFirstListKeyStates>();
+    auto keyStates = New<TBlockingListKeyStates>();
     auto context = MakeContext(MakeUintKeyRange(1, 100), /*names*/ std::nullopt, /*bucketCount*/ 1);
     context->KeyStates = keyStates;
     auto visitor = New<TKeyVisitor>(
@@ -584,13 +617,13 @@ TEST_F(TKeyVisitorTest, CompletionDuringBackgroundReadStartsFreshFinalPass)
             /*period*/ TDuration::MilliSeconds(10),
             /*bufferRowLimit*/ 100));
     WaitFor(visitor->Init()).ThrowOnError();
-    WaitFor(keyStates->GetFirstListStartedFuture().WithTimeout(TDuration::Seconds(5)))
+    WaitFor(keyStates->GetBlockedListStartedFuture().WithTimeout(TDuration::Seconds(5)))
         .ThrowOnError();
 
     const auto committedAfterSnapshot = MakeUintKey(20);
     keyStates->Set({ComputationId, committedAfterSnapshot, "/state"});
     SetUpstreamCompletedOnQueue(visitor);
-    keyStates->ReleaseFirstList();
+    keyStates->ReleaseList();
 
     std::vector<TKey> drained;
     EXPECT_EQ(DrainKeys(visitor, &drained, /*stopCount*/ 1), 1)
@@ -1000,6 +1033,192 @@ TEST_F(TKeyVisitorTest, BackgroundFillErrorClearsAfterListRecovers)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TKeyVisitorTest, OfferedTracksMatchingPopulationDespiteFullBuffer)
+{
+    std::vector<TKey> keys;
+    for (ui64 hash = 0; hash < 100; hash += 10) {
+        keys.push_back(MakeKey(hash));
+    }
+    SeedKeys(keys, "/first");
+    SeedKeys(keys, "/second");
+    SeedKeys({MakeUintKey(5)}, "/excluded");
+    auto context = MakeContext(
+        MakeUintKeyRange(0, 100),
+        THashSet<std::string>{"/first", "/second"},
+        /*bucketCount*/ 1);
+    auto dynamicContext = MakeDynamicContext(TDuration::MilliSeconds(10), 1, 5);
+    auto visitor = New<TKeyVisitor>(context, dynamicContext);
+    // Accumulate one full range of throttler tokens before the first capped read.
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(20));
+    WaitFor(visitor->Init()).ThrowOnError();
+
+    WaitForOffered(visitor, 2, 1000);
+    ReconfigureOnQueue(visitor, MakeDynamicContext(TDuration::MilliSeconds(20), 1, 5));
+    WaitForOffered(visitor, 2, 500);
+    // Several fill ticks with a full buffer must not lower the scheduled supply.
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(150));
+    const auto metrics = ReadMetricsOnQueue(visitor);
+    EXPECT_EQ(metrics->ReadyCount, 2);
+    EXPECT_DOUBLE_EQ(metrics->OfferedCountPerSec.value_or(-1), 500);
+    EXPECT_EQ(metrics->NewCountPerSec, metrics->OfferedCountPerSec);
+    StopOnQueue(visitor);
+}
+
+TEST_F(TKeyVisitorTest, OfferedRetainsDensityObservationsAcrossPasses)
+{
+    std::vector<TKey> keys;
+    for (ui64 hash = 0; hash < 100; hash += 10) {
+        keys.push_back(MakeKey(hash));
+    }
+    SeedKeys(keys, "/state");
+    auto visitor = New<TKeyVisitor>(
+        MakeContext(MakeUintKeyRange(0, 100), std::nullopt, 1),
+        MakeDynamicContext(TDuration::MilliSeconds(10), 100));
+    WaitFor(visitor->Init()).ThrowOnError();
+    WaitForOffered(visitor, 10, 1000);
+
+    WaitFor(BIND([this] {
+        for (ui64 hash = 5; hash < 100; hash += 10) {
+            SeedKeys({MakeUintKey(hash)}, "/state");
+        }
+    })
+            .AsyncVia(Queue_->GetInvoker())
+            .Run())
+        .ThrowOnError();
+    std::vector<TKey> drained;
+    EXPECT_EQ(DrainKeys(visitor, &drained, 10, 10), 10);
+    WaitForOffered(visitor, 20, 1500);
+    EXPECT_EQ(DrainKeys(visitor, &drained, 20, 20), 20);
+    WaitForOffered(visitor, 20, 5000.0 / 3);
+    StopOnQueue(visitor);
+}
+
+TEST_F(TKeyVisitorTest, OfferedUsesOnlyLocallyObservedCoverageAfterRestart)
+{
+    std::vector<TKey> keys;
+    for (ui64 hash = 0; hash < 100; hash += 10) {
+        keys.push_back(MakeKey(hash));
+    }
+    SeedKeys(keys, "/state");
+    auto context = MakeContext(MakeUintKeyRange(0, 100), std::nullopt, 1);
+    auto dynamicContext = MakeDynamicContext(TDuration::MilliSeconds(10), 100);
+    auto visitor = New<TKeyVisitor>(context, dynamicContext);
+    WaitFor(visitor->Init()).ThrowOnError();
+    WaitForOffered(visitor, 10, 1000);
+    std::vector<TKey> drained;
+    EXPECT_EQ(DrainKeys(visitor, &drained, 5, 5), 5);
+    SyncOnQueue(visitor);
+    StopOnQueue(visitor);
+
+    auto resumed = New<TKeyVisitor>(context, dynamicContext);
+    EXPECT_FALSE(ReadMetricsOnQueue(resumed)->OfferedCountPerSec);
+    WaitFor(resumed->Init()).ThrowOnError();
+    WaitForOffered(resumed, 5, 1000);
+    EXPECT_EQ(DrainKeys(resumed, &drained, 5, 5), 5);
+    EXPECT_EQ(ToSet(drained), ToSet(keys));
+    WaitForOffered(resumed, 10, 1000);
+    StopOnQueue(resumed);
+}
+
+TEST_F(TKeyVisitorTest, OfferedIsUnknownWithoutHashCoverageUntilFiniteCompletion)
+{
+    SeedKeys({
+            MakeKey(ui64(50), TStringBuf("alpha")),
+            MakeKey(ui64(50), TStringBuf("beta")),
+            MakeKey(ui64(50), TStringBuf("gamma")),
+             },
+        "/state");
+    auto visitor = New<TKeyVisitor>(
+        MakeContext({
+                .Lower = MakeKey(ui64(50), TStringBuf("a")),
+                .Upper = MakeKey(ui64(50), TStringBuf("z")),
+                    },
+            std::nullopt,
+            1),
+        MakeDynamicContext(TDuration::MilliSeconds(10), 100, 2));
+    WaitFor(visitor->Init(/*upstreamCompleted*/ true)).ThrowOnError();
+    const auto deadline = TInstant::Now() + TDuration::Seconds(5);
+    while (ReadMetricsOnQueue(visitor)->ReadyCount != 3 && TInstant::Now() < deadline) {
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(5));
+    }
+    EXPECT_EQ(ReadMetricsOnQueue(visitor)->ReadyCount, 3);
+    EXPECT_FALSE(ReadMetricsOnQueue(visitor)->OfferedCountPerSec);
+    std::vector<TKey> drained;
+    EXPECT_EQ(DrainKeys(visitor, &drained, 3, 3), 3);
+    EXPECT_TRUE(IsEmptyOnQueue(visitor));
+    WaitForOffered(visitor, 0, 0);
+    StopOnQueue(visitor);
+}
+
+TEST_F(TKeyVisitorTest, EmptyPrefixContributesZeroDensityWithoutCompletingVisitor)
+{
+    auto keyStates = New<TBlockingListKeyStates>(2);
+    keyStates->Set({ComputationId, MakeUintKey(90), "/state"});
+    auto context = MakeContext(MakeUintKeyRange(0, 100), std::nullopt, 2);
+    context->KeyStates = keyStates;
+    auto visitor = New<TKeyVisitor>(context, MakeDynamicContext(TDuration::MilliSeconds(10), 100));
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(20));
+    WaitFor(visitor->Init()).ThrowOnError();
+    WaitFor(keyStates->GetBlockedListStartedFuture()).ThrowOnError();
+
+    // The empty first bucket has been processed, but the nonempty second one is still pending.
+    const auto metrics = ReadMetricsOnQueue(visitor);
+    EXPECT_EQ(metrics->NewCountPerSec, 0);
+    EXPECT_EQ(metrics->OfferedCountPerSec, 0);
+    EXPECT_FALSE(IsEmptyOnQueue(visitor));
+
+    keyStates->ReleaseList();
+    WaitForOffered(visitor, 1, 100);
+    StopOnQueue(visitor);
+}
+
+TEST_F(TKeyVisitorTest, OfferedUsesRecentDensityAfterEmaWarmup)
+{
+    auto keyStates = New<TBlockingListKeyStates>(2);
+    for (ui64 hash = 0; hash < 50; hash += 10) {
+        keyStates->Set({ComputationId, MakeUintKey(hash), "/state"});
+    }
+    for (ui64 hash = 51; hash < 100; hash += 5) {
+        keyStates->Set({ComputationId, MakeUintKey(hash), "/state"});
+    }
+    auto context = MakeContext(MakeUintKeyRange(0, 100), std::nullopt, 2);
+    context->KeyStates = keyStates;
+    auto visitor = New<TKeyVisitor>(context, MakeDynamicContext(TDuration::MilliSeconds(10), 100));
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(20));
+    WaitFor(visitor->Init()).ThrowOnError();
+    WaitFor(keyStates->GetBlockedListStartedFuture()).ThrowOnError();
+    WaitForOffered(visitor, 5, 1000);
+    ReconfigureOnQueue(visitor, MakeDynamicContext(TDuration::MilliSeconds(10), 1));
+
+    // Crossing the default 30-second window without an observation must not decay the estimate.
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(31));
+    WaitForOffered(visitor, 5, 1000);
+    keyStates->ReleaseList();
+    const auto deadline = TInstant::Now() + TDuration::Seconds(5);
+    while (ReadMetricsOnQueue(visitor)->ReadyCount != 15 && TInstant::Now() < deadline) {
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(5));
+    }
+    const auto metrics = ReadMetricsOnQueue(visitor);
+    EXPECT_EQ(metrics->ReadyCount, 15);
+    // Recent density is 0.2, lifetime density is 0.15: the EMA must favor the recent sample.
+    ASSERT_TRUE(metrics->OfferedCountPerSec);
+    EXPECT_GT(*metrics->OfferedCountPerSec, 1600);
+    EXPECT_LT(*metrics->OfferedCountPerSec, 2000);
+    EXPECT_EQ(metrics->NewCountPerSec, metrics->OfferedCountPerSec);
+    StopOnQueue(visitor);
+}
+
+TEST_F(TKeyVisitorTest, OfferedIsZeroAfterScanningEmptyState)
+{
+    auto visitor = New<TKeyVisitor>(
+        MakeContext(MakeUintKeyRange(0, 100), std::nullopt, 1),
+        MakeDynamicContext(TDuration::MilliSeconds(10), 100));
+    WaitFor(visitor->Init()).ThrowOnError();
+    WaitForOffered(visitor, 0, 0);
+    EXPECT_FALSE(IsEmptyOnQueue(visitor));
+    StopOnQueue(visitor);
+}
 
 // Regression: a near-uint64-max hash span produced a rate whose `period * rate`
 // overflowed the throttler's double->i64 cast into a negative value.
