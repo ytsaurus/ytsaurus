@@ -332,9 +332,9 @@ void TCypressObjectRepository::WriteDictionary(
     const DB::LoadablesConfigurationPtr& config)
 {
     const auto* queryContext = GetQueryContext(context);
-    const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
-    host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
+    host->ValidateCliquePermission(context->getClientInfo().initial_user, EPermission::Manage);
+    const auto client = host->GetSqlObjectsClient();
 
     auto configName = GetObjectName(storageId);
 
@@ -362,9 +362,9 @@ void TCypressObjectRepository::WriteMaterializedView(
     const TMaterializedViewConfiguration& config)
 {
     const auto* queryContext = GetQueryContext(context);
-    const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
     host->ValidateCliquePermission(context->getClientInfo().initial_user, EPermission::Manage);
+    const auto client = host->GetSqlObjectsClient();
 
     auto objectName = GetObjectName(storageId);
 
@@ -394,7 +394,7 @@ void TCypressObjectRepository::WriteMaterializedView(
         }
 
         host->GetMaterializedViewCoordinator()->InitializeProgress(
-            client,
+            queryContext->Client(),
             transaction,
             resultOrError.Value(),
             config.SourceType,
@@ -433,9 +433,9 @@ void TCypressObjectRepository::DeleteDictionary(
     NHydra::TRevision revision)
 {
     const auto* queryContext = GetQueryContext(context);
-    const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
     host->ValidateCliquePermission(context->getClientInfo().initial_user, EPermission::Manage);
+    const auto client = host->GetSqlObjectsClient();
 
     RemoveObject(client, objectName, revision);
 
@@ -473,9 +473,9 @@ void TCypressObjectRepository::DeleteMaterializedView(
     NHydra::TRevision revision)
 {
     const auto* queryContext = GetQueryContext(context);
-    const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
     host->ValidateCliquePermission(context->getClientInfo().initial_user, EPermission::Manage);
+    const auto client = host->GetSqlObjectsClient();
 
     RemoveObject(client, objectName, revision);
 
