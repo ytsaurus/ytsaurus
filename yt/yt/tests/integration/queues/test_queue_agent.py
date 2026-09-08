@@ -6643,8 +6643,22 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         }
     }
 
-    def _generate_table_with_hunks(self, queue_path, export_dir, hunk_storage_attrs={}):
-        _, queue_id = self._create_queue(queue_path, max_inline_hunk_size=10, mount=False)
+    def _generate_table_with_hunks(
+        self,
+        queue_path,
+        export_dir,
+        hunk_storage_attrs=None,
+        partition_count=1,
+        rows=None,
+    ):
+        hunk_storage_attrs = hunk_storage_attrs or {}
+
+        _, queue_id = self._create_queue(
+            queue_path,
+            max_inline_hunk_size=10,
+            mount=False,
+            partition_count=partition_count,
+        )
 
         queue_external_cell_tag = get("//tmp/q/@external_cell_tag")
         hunk_storage_attrs["external_cell_tag"] = queue_external_cell_tag
@@ -6663,7 +6677,8 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
 
         self._create_export_destination(export_dir, queue_id)
 
-        rows = [{"data": "x" * 30}]
+        if rows is None:
+            rows = [{"data": "x" * 30}]
 
         iteration = 0
         while iteration < 100:
@@ -6872,9 +6887,43 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
 
         queue_agent_orchid = QueueAgentOrchid()
 
-        self._generate_table_with_hunks(queue_path, export_dir, hunk_storage_attrs={
-            "store_rotation_period": 1000000
-        })
+        blocked_export_rows = [
+            {"$tablet_index": 0, "data": "inline"},
+            {"$tablet_index": 1, "data": "x" * 30},
+        ]
+        self._generate_table_with_hunks(
+            queue_path,
+            export_dir,
+            hunk_storage_attrs={"store_rotation_period": 1000000},
+            partition_count=2,
+            rows=blocked_export_rows,
+        )
+
+        # Separate two time export time segments.
+        time.sleep(self.EXPORT_PERIOD_SECONDS + 0.5)
+        later_export_rows = [{"$tablet_index": 0, "data": "later inline"}]
+        insert_rows(queue_path, later_export_rows)
+        sync_flush_table(queue_path)
+
+        store_chunk_ids = [
+            chunk_id
+            for chunk_id in get(f"{queue_path}/@chunk_ids")
+            if get(f"#{chunk_id}/@chunk_type") == "table"
+        ]
+        assert len(store_chunk_ids) == 3
+
+        hunk_chunk_ids = builtins.set()
+        for store_chunk_id in store_chunk_ids:
+            hunk_chunk_ids.update(
+                ref["chunk_id"]
+                for ref in get(f"#{store_chunk_id}/@hunk_chunk_refs")
+            )
+        assert len(hunk_chunk_ids) == 1
+        hunk_chunk_id = next(iter(hunk_chunk_ids))
+        assert not get(f"#{hunk_chunk_id}/@sealed")
+
+        # Make both time segments eligible before starting export.
+        time.sleep(self.EXPORT_PERIOD_SECONDS + 0.5)
 
         set(f"{queue_path}/@static_export_config", {
             "default": {
@@ -6885,14 +6934,25 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
         })
 
         self._wait_for_component_passes()
-        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        queue_orchid = queue_agent_orchid.get_queue_orchid("primary://tmp/q")
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+        wait(lambda: exists(exporter_orchid.orchid_path()))
+        exporter_orchid.wait_fresh_invocation()
 
-        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
-            "queue_agent_queue_controller_static_export_failed",
-            text="Attempted to attach unsealed journal chunk",
-        ), timeout=5, ignore_exceptions=True)
-
+        assert len(queue_orchid.get_alerts()) == 0
         assert len(ls(export_dir)) == 0
+
+        sync_unmount_table("//tmp/h")
+        wait(lambda: get(f"#{hunk_chunk_id}/@sealed"))
+
+        wait(lambda: len(ls(export_dir)) == 2)
+        self._check_export(
+            export_dir,
+            [
+                [row["data"] for row in blocked_export_rows],
+                [row["data"] for row in later_export_rows],
+            ],
+        )
 
         self.remove_export_destinations([export_dir])
 
