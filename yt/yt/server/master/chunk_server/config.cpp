@@ -608,6 +608,23 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("ghost_empty_validation_heartbeats", &TThis::GhostEmptyValidationHeartbeats)
         .Default(false);
 
+    registrar.Parameter("throttle_sequoia_replica_modifications", &TThis::ThrottleSequoiaReplicaModifications)
+        .Default(false);
+    registrar.Parameter("enable_per_replica_sequoia_modifications_throttling", &TThis::EnablePerReplicaSequoiaModificationsThrottling)
+        .Default(false);
+    registrar.Parameter("throttle_incremental_heartbeat_sequoia_replica_modifications", &TThis::ThrottleIncrementalHeartbeatSequoiaReplicaModifications)
+        .Default(true);
+    registrar.Parameter("max_concurrent_sequoia_replica_modifications", &TThis::MaxConcurrentSequoiaReplicaModifications)
+        .Default(100)
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("max_concurrent_replicas_in_sequoia_replica_modifications", &TThis::MaxConcurrentReplicasInSequoiaReplicaModifications)
+        .Default(5'000'000)
+        .GreaterThanOrEqual(0);
+
+    registrar.Parameter("sleep_duration_before_sequoia_replica_modifications", &TThis::SleepDurationBeforeSequoiaReplicaModifications)
+        .Default(std::nullopt)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(grphil).
         if (!config->BlobReplicasStoreConfig) {
