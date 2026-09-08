@@ -11,11 +11,12 @@ ones that overlap the requested [start_time, end_time] window (using the file
 rotation hints plus a binary search driven by `logslice --info`), and finally
 runs `logslice` on each selected file, forwarding the grep arguments.
 
-Besides the live ``logs`` directory the script also looks into the log archive
-of the routed service (``/yt/<service>-logs-archive/<YYYY-MM-DD>/...``, see
-``--archive-dir``), where old rotated files are moved under per-day
-subdirectories. The archive is only consulted when a time window is given, and
-only for the day subdirectories overlapping that window.
+Besides the live ``logs`` directory the script also looks into the archive for
+the inferred service role: ``/yt/master-logs-archive`` for masters and
+``/yt/scheduler-logs-archive`` for schedulers. ``--archive-dir`` can override
+that root explicitly. Old rotated files are stored below each root in per-day
+subdirectories; an archive is consulted only when a time window is given, and
+only the day subdirectories overlapping that window are searched.
 
 All times are interpreted exactly as `logslice` interprets them (server local
 time); the precise filtering is always delegated to `logslice` itself, so the
@@ -24,6 +25,7 @@ in-script time handling only needs to be good enough to pick the right files.
 
 import argparse
 import hashlib
+import heapq
 import json
 import os
 import re
@@ -60,7 +62,9 @@ GLOBAL_NO_MATCH_EXIT = 3
 OPERATIONAL_FAILURE_EXIT = 2
 COVERAGE_INCOMPLETE_EXIT = 4
 LOG_ROTATION_GAP_TOLERANCE = timedelta(minutes=1)
-LOG_TYPES = ("debug", "info", "error")
+STANDARD_LOG_TYPES = ("debug", "info", "error")
+LOG_TYPES = STANDARD_LOG_TYPES + ("access",)
+LOG_TYPE_ALIASES = {"access.json": "access"}
 
 # Path of this script inside Arcadia, used both to locate the binary and to
 # recover the Arcadia root when the script is run from an arbitrary directory.
@@ -122,13 +126,15 @@ def describe_exit_code(returncode):
 
 def parse_log_types(value):
     """Parse one severity, a comma-separated set, or ``all``."""
-    raw = list(LOG_TYPES) if value == "all" else value.split(",")
+    raw = list(STANDARD_LOG_TYPES) if value == "all" else value.split(",")
     result = []
     for item in raw:
         item = item.strip()
+        item = LOG_TYPE_ALIASES.get(item, item)
         if item not in LOG_TYPES:
             raise ValueError(
-                "unknown log type {!r}; expected debug, info, error, a "
+                "unknown log type {!r}; expected debug, info, error, access, "
+                "access.json, a "
                 "comma-separated combination, or all".format(item))
         if item not in result:
             result.append(item)
@@ -140,18 +146,27 @@ def parse_log_types(value):
 LOG_RECORD_TIME_RE = re.compile(
     r"^(?P<stamp>\d{4}-\d{2}-\d{2}[ T]"
     r"\d{2}:\d{2}:\d{2}[,.]\d+)")
+LOG_RECORD_JSON_TIME_RE = re.compile(
+    r'(?<!\\)"instant"\s*:\s*"(?P<stamp>\d{4}-\d{2}-\d{2}[ T]'
+    r'\d{2}:\d{2}:\d{2}[,.]\d+)"')
 
 
-def _timestamped_records(text, source_index):
-    records = []
+def _timestamped_record_iter(lines, source_index, line_records=False):
     current = None
     ordinal = 0
-    for line in text.splitlines(True):
+    for line in lines:
         match = LOG_RECORD_TIME_RE.match(line)
-        if match:
+        if match is None:
+            json_matches = list(LOG_RECORD_JSON_TIME_RE.finditer(line))
+            match = json_matches[-1] if json_matches else None
+        if match or line_records:
             if current is not None:
-                records.append(current)
-            stamp = match.group("stamp").replace(",", ".").replace(" ", "T")
+                yield current
+            if match is None:
+                stamp = current[0] if current is not None else ""
+            else:
+                stamp = match.group("stamp").replace(",", ".").replace(
+                    " ", "T")
             current = [stamp, source_index, ordinal, line]
             ordinal += 1
         elif current is None:
@@ -160,8 +175,11 @@ def _timestamped_records(text, source_index):
         else:
             current[3] += line
     if current is not None:
-        records.append(current)
-    return records
+        yield current
+
+
+def _timestamped_records(text, source_index):
+    return list(_timestamped_record_iter(text.splitlines(True), source_index))
 
 
 def merge_timestamped_outputs(outputs):
@@ -171,6 +189,34 @@ def merge_timestamped_outputs(outputs):
         records.extend(_timestamped_records(text, source_index))
     records.sort(key=lambda record: (record[0], record[1], record[2]))
     return "".join(record[3] for record in records)
+
+
+def write_merged_pipeline_outputs(outputs, destination):
+    """Merge ordered pipeline streams without loading them into memory."""
+    record_streams = [
+        _timestamped_record_iter(
+            completed.iter_stdout_lines(),
+            source_index,
+            line_records=completed.line_records)
+        for source_index, completed in enumerate(outputs)
+    ]
+    for record in heapq.merge(
+            *record_streams,
+            key=lambda item: (item[0], item[1], item[2])):
+        destination.write(record[3])
+
+
+def access_output_timestamp_error(completed):
+    """Return an error when an emitted access record lost its merge key."""
+    if completed.operational_returncode != 0 or not completed.has_output:
+        return None
+    for line_number, line in enumerate(completed.iter_stdout_lines(), 1):
+        if LOG_RECORD_JSON_TIME_RE.search(line) is None:
+            return (
+                "access pipeline output line {} has no valid instant; "
+                "retain the JSON instant field for timestamp merging"
+            ).format(line_number)
+    return None
 
 
 def classify_slice_result(returncode, stdout, stderr):
@@ -214,6 +260,18 @@ def requested_component(host, override):
         return override
     _, component = infer_host_component(host)
     return component or "unresolved"
+
+
+def _is_master_route(host, override):
+    """Return whether a request targets an actual master process."""
+    if override:
+        return (
+            override == "master"
+            or (override.startswith("master-")
+                and not override.startswith("master-cache"))
+        )
+    role, _ = infer_host_component(host)
+    return role == "master"
 
 
 def report_authentication_preflight(host, component, start, end):
@@ -326,11 +384,38 @@ def resolve_logslice(explicit_path):
 ########################################################################
 
 class PipelineResult:
-    def __init__(self, returncode, operational_returncode, stdout, stderr):
+    def __init__(
+            self,
+            returncode,
+            operational_returncode,
+            stdout,
+            stderr,
+            stdout_stream=None,
+            match_count=None,
+            line_records=False):
         self.returncode = returncode
         self.operational_returncode = operational_returncode
         self.stdout = stdout
         self.stderr = stderr
+        self.stdout_stream = stdout_stream
+        self.match_count = len(stdout.splitlines()) \
+            if match_count is None else match_count
+        self.line_records = line_records
+
+    @property
+    def has_output(self):
+        return self.match_count > 0
+
+    def iter_stdout_lines(self):
+        if self.stdout_stream is None:
+            return iter(self.stdout.splitlines(True))
+        self.stdout_stream.seek(0)
+        return iter(self.stdout_stream)
+
+    def close(self):
+        if self.stdout_stream is not None:
+            self.stdout_stream.close()
+            self.stdout_stream = None
 
 
 class Ssh:
@@ -339,6 +424,17 @@ class Ssh:
     # shell without passing the whitelist; stage arguments are always shlex-quoted.
     # Do NOT add "awk" in this list (because of `system()` call).
     PIPELINE_WHITELIST = frozenset(["grep", "wc", "cut", "sed", "head", "tail"])
+    ACCESS_PIPELINE_WHITELIST = PIPELINE_WHITELIST | frozenset(["jq"])
+    JQ_SAFE_OPTIONS = frozenset([
+        "-a", "--ascii-output",
+        "-c", "--compact-output",
+        "-M", "--monochrome-output",
+        "-S", "--sort-keys",
+        "--unbuffered",
+    ])
+    JQ_UNSAFE_FILTER_RE = re.compile(
+        r"(?:\$ENV\b|\b(?:env|include|import|module|modulemeta)\b)")
+    LINE_COUNT_RE = re.compile(r"^[+-]?\d+$")
 
     def __init__(
             self,
@@ -460,16 +556,65 @@ class Ssh:
         return result.stdout
 
     @classmethod
-    def validate_pipeline(cls, stages):
+    def validate_pipeline(cls, stages, access_log=False):
         """Raises ValueError unless every stage is non-empty and starts with a
         whitelisted command."""
+        whitelist = cls.ACCESS_PIPELINE_WHITELIST if access_log \
+            else cls.PIPELINE_WHITELIST
         for stage in stages:
             if not stage:
                 raise ValueError("Empty pipeline stage.")
-            if stage[0] not in cls.PIPELINE_WHITELIST:
+            if stage[0] not in whitelist:
                 raise ValueError("Command {!r} is not whitelisted; allowed: {}"
                                  .format(stage[0],
-                                         ", ".join(sorted(cls.PIPELINE_WHITELIST))))
+                                         ", ".join(sorted(whitelist))))
+            if stage[0] == "jq":
+                cls.validate_jq_stage(stage)
+            elif stage[0] in ("head", "tail"):
+                cls.validate_line_limit_stage(stage)
+
+    @classmethod
+    def validate_line_limit_stage(cls, stage):
+        """Allow head/tail to limit stdin by line count, never to open files."""
+        if len(stage) == 1:
+            return
+        if len(stage) == 3 and stage[1] in ("-n", "--lines") \
+                and cls.LINE_COUNT_RE.fullmatch(stage[2]):
+            return
+        if len(stage) == 2:
+            argument = stage[1]
+            if re.fullmatch(r"-\d+", argument):
+                return
+            for prefix in ("-n", "--lines="):
+                if argument.startswith(prefix) and cls.LINE_COUNT_RE.fullmatch(
+                        argument[len(prefix):]):
+                    return
+        raise ValueError(
+            "{} accepts only a stdin line count and no file operands"
+            .format(stage[0]))
+
+    @classmethod
+    def validate_jq_stage(cls, stage):
+        """Accept jq only with safe flags and one compact inline filter."""
+        index = 1
+        options = set()
+        while index < len(stage) and stage[index].startswith("-"):
+            if stage[index] == "--":
+                index += 1
+                break
+            if stage[index] not in cls.JQ_SAFE_OPTIONS:
+                raise ValueError(
+                    "jq option {!r} is not allowed; use an inline filter"
+                    .format(stage[index]))
+            options.add(stage[index])
+            index += 1
+        if len(stage) - index != 1:
+            raise ValueError("jq requires exactly one inline filter and no files")
+        if not ({"-c", "--compact-output"} & options):
+            raise ValueError(
+                "jq requires -c/--compact-output so each value stays on one line")
+        if cls.JQ_UNSAFE_FILTER_RE.search(stage[index]):
+            raise ValueError("jq environment and module access is not allowed")
 
     def run_pipeline(self, head_argv, stages, capture=False):
         """Runs head_argv piped through stages on the remote host. Re-validates the
@@ -487,14 +632,15 @@ class Ssh:
             return result.stdout
         return result.operational_returncode
 
-    def run_pipeline_result(self, head_argv, stages, capture=True):
+    def run_pipeline_result(
+            self, head_argv, stages, capture=True, access_log=False):
         """Run a validated pipeline and retain its output classification.
 
         ``returncode`` is 1 when any grep stage has no matches, even if a later
         presentation stage such as ``wc`` succeeds. ``operational_returncode``
         preserves the legacy behavior where grep no-match is not a tool failure.
         """
-        self.validate_pipeline(stages)
+        self.validate_pipeline(stages, access_log=access_log)
         pipeline = self._remote_command(head_argv)
         for stage in stages:
             pipeline += " | " + self._remote_command(stage)
@@ -508,16 +654,34 @@ class Ssh:
         cmd = ["ssh"] + self._base_opts + [self.host, remote_command]
         if self.verbose:
             eprint("Executing: {}".format(" ".join(shlex.quote(c) for c in cmd)))
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE if capture else None,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        stdout_stream = None
+        if capture and access_log:
+            stdout_stream = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
+        try:
+            result = subprocess.run(
+                cmd,
+                stdout=stdout_stream if stdout_stream is not None else (
+                    subprocess.PIPE if capture else None),
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except BaseException:
+            if stdout_stream is not None:
+                stdout_stream.close()
+            raise
+        returncode = result.returncode
+        stdout = result.stdout or ""
+        match_count = None
+        if stdout_stream is not None:
+            stdout_stream.flush()
+            stdout_stream.seek(0)
+            match_count = sum(1 for _ in stdout_stream)
+            stdout_stream.seek(0)
+        raw_stderr = result.stderr
         statuses = []
         stderr = []
         marker = "__LOGSLICE_PIPESTATUS__:"
-        for line in result.stderr.splitlines():
+        for line in raw_stderr.splitlines():
             if line.startswith(marker):
                 try:
                     statuses = [int(value) for value in line[len(marker):].split()]
@@ -528,11 +692,18 @@ class Ssh:
         if stderr:
             eprint("\n".join(stderr))
 
-        operational_returncode = result.returncode
+        operational_returncode = returncode
         grep_no_match = False
         if statuses:
-            operational_returncode = statuses[0]
-            for stage, status in zip(stages, statuses[1:]):
+            effective_statuses = list(statuses)
+            for stage_index, (stage, status) in enumerate(
+                    zip(stages, statuses[1:]), 1):
+                if stage[0] == "head" and status == 0:
+                    for upstream_index in range(stage_index):
+                        if effective_statuses[upstream_index] == 141:
+                            effective_statuses[upstream_index] = 0
+            operational_returncode = effective_statuses[0]
+            for stage, status in zip(stages, effective_statuses[1:]):
                 if stage[0] == "grep" and status == 1:
                     grep_no_match = True
                 elif status != 0:
@@ -545,8 +716,11 @@ class Ssh:
         return PipelineResult(
             returncode=returncode,
             operational_returncode=operational_returncode,
-            stdout=result.stdout or "",
+            stdout=stdout,
             stderr="\n".join(stderr),
+            stdout_stream=stdout_stream,
+            match_count=match_count,
+            line_records=access_log,
         )
 
     def remote_md5(self, remote_path):
@@ -650,7 +824,12 @@ def _file_md5(path):
 TIMESTAMP_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})$")
 SEQUENCE_RE = re.compile(r"^\d+$")
 
-CHANNEL_BY_TYPE = {"debug": "debug", "error": "error", "info": ""}
+CHANNEL_BY_TYPE = {
+    "debug": "debug",
+    "error": "error",
+    "info": "",
+    "access": "access.json",
+}
 
 # Sidecar agents (e.g. timbertruck) can outnumber the server's own log files and
 # so win the "most files" heuristic, yet are never the component wanted.
@@ -782,27 +961,44 @@ def discover_live(ssh, log_type, component=None):
 def archive_day_dirs(names, start_time, end_time):
     """From the archive root listing, the day subdirectories overlapping the
     window. A one-day margin on each side covers files whose content spills past
-    the day boundary named in their path."""
+    the day boundary named in their path. Also retain the nearest existing day
+    outside each finite margin for coverage-boundary diagnostics."""
     from datetime import timedelta
     lo = (start_time.date() - timedelta(days=1)) if start_time else None
     hi = (end_time.date() + timedelta(days=1)) if end_time else None
-    days = []
+    dated_names = []
     for name in names:
         m = ARCHIVE_DAY_RE.match(name)
         if not m:
             continue
         day = datetime(*(int(g) for g in m.groups())).date()
-        if (lo is None or day >= lo) and (hi is None or day <= hi):
-            days.append(name)
-    return sorted(days)
+        dated_names.append((day, name))
+    dated_names.sort()
+
+    selected = [
+        (day, name) for day, name in dated_names
+        if (lo is None or day >= lo) and (hi is None or day <= hi)
+    ]
+    if lo is not None:
+        before = [(day, name) for day, name in dated_names if day < lo]
+        if before:
+            selected.append(before[-1])
+    if hi is not None:
+        after = [(day, name) for day, name in dated_names if day > hi]
+        if after:
+            selected.append(after[0])
+    return [name for _, name in sorted(set(selected))]
 
 
 def discover_archive(ssh, log_type, start_time, end_time, archive_dir,
                      component=None):
-    """The service's log archive: returns (base, ordered_files). Only the day
-    subdirectories overlapping the window are scanned. Consulted only when a
-    window bound is given (an unbounded scan of the whole archive is never what
-    is wanted); returns (None, []) when the archive is absent or out of range."""
+    """A role-specific master or scheduler log archive.
+
+    Returns ``(base, ordered_files)`` after scanning only day subdirectories
+    overlapping the window. Consulted only when a window bound is given (an
+    unbounded scan of the whole archive is never wanted); returns ``(None, [])``
+    when the selected archive is absent or out of range.
+    """
     if archive_dir is None or (start_time is None and end_time is None):
         return None, []
     days = archive_day_dirs(list_remote_dir(ssh, archive_dir), start_time, end_time)
@@ -1106,6 +1302,42 @@ class FileSelector:
             return []
         return self.files[start_index:end_index + 1]
 
+    def nearest_before(self, start_time):
+        """Return the last retained file ending before ``start_time``."""
+        if start_time is None:
+            return None
+        result = None
+        lo, hi = 0, len(self.files) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            first, last = self.info(mid)
+            if first is None or last is None:
+                return None
+            if last < start_time:
+                result = (self.files[mid], first, last)
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        return result
+
+    def nearest_after(self, end_time):
+        """Return the first retained file starting after ``end_time``."""
+        if end_time is None:
+            return None
+        result = None
+        lo, hi = 0, len(self.files) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            first, last = self.info(mid)
+            if first is None or last is None:
+                return None
+            if first > end_time:
+                result = (self.files[mid], first, last)
+                hi = mid - 1
+            else:
+                lo = mid + 1
+        return result
+
 
 def _candidate_bases(names, log_type, directory=REMOTE_LOGS_DIR):
     wanted_channel = CHANNEL_BY_TYPE[log_type]
@@ -1290,6 +1522,19 @@ def archive_dir_for_route(host, override):
     return ARCHIVE_DIR_BY_ROLE.get(role)
 
 
+def should_use_master_archive(host, override):
+    """Compatibility wrapper for callers using the former public helper."""
+    return _is_master_route(host, override)
+
+
+def normalize_selection_result(result):
+    """Add an empty boundary list to legacy three-field selector results."""
+    if len(result) == 3:
+        selected, summary, coverage = result
+        return selected, summary, coverage, []
+    return result
+
+
 def discover_series(ssh, log_type, start_time, end_time, archive_dir,
                     component=None):
     """The log series to search, ordered oldest -> newest: the archive (when a
@@ -1322,6 +1567,7 @@ def select_log_files(ssh, remote_bin, series, start_time, end_time):
     selected = []
     summary = []
     intervals = []
+    boundaries = []
     bounds_authoritative = True
     for origin, base, files in series:
         selector = FileSelector(ssh, remote_bin, files)
@@ -1334,10 +1580,35 @@ def select_log_files(ssh, remote_bin, series, start_time, end_time):
                 bounds_authoritative = False
             else:
                 intervals.append((first_record, last_record))
+        for relation, boundary in (
+                ("before", selector.nearest_before(start_time)),
+                ("after", selector.nearest_after(end_time))):
+            if boundary is None:
+                continue
+            log_file, first_record, last_record = boundary
+            boundaries.append({
+                "relation": relation,
+                "root_kind": origin,
+                "file": log_file.path,
+                "first": first_record.isoformat(sep=" "),
+                "last": last_record.isoformat(sep=" "),
+            })
     coverage = None
     if selected and bounds_authoritative and intervals:
         coverage = sorted(intervals)
-    return selected, summary, coverage
+    return selected, summary, coverage, boundaries
+
+
+def nearest_retained_boundaries(boundaries):
+    """Choose the closest retained file on each side of the requested window."""
+    result = []
+    before = [item for item in boundaries if item["relation"] == "before"]
+    after = [item for item in boundaries if item["relation"] == "after"]
+    if before:
+        result.append(max(before, key=lambda item: item["last"]))
+    if after:
+        result.append(min(after, key=lambda item: item["first"]))
+    return result
 
 
 def find_coverage_gaps(start_time, end_time, type_coverages,
@@ -1426,10 +1697,11 @@ def _run_main(context):
         prog="logslice.py",
         description="Remote log grepping via logslice.",
         usage="%(prog)s remote_machine_name [--type type] [-l logslice] "
-              "[-t start_time] [-e end_time] [-x pipeline] -- grep_args...")
+              "[-t start_time] [-e end_time] [-x pipeline] "
+              "[--access-log-pipeline pipeline] -- grep_args...")
     parser.add_argument("host", help="remote machine name")
     parser.add_argument("--type", default="debug",
-                        help="log type: debug, error, info, comma-separated "
+                        help="log type: debug, error, info, access/access.json, comma-separated "
                              "types, or all (default: debug)")
     parser.add_argument(
         "--component",
@@ -1459,6 +1731,12 @@ def _run_main(context):
                              "logslice, e.g. \"grep Error | wc -l\". "
                              "Only whitelisted tools are allowed: "
                              + ", ".join(sorted(Ssh.PIPELINE_WHITELIST)))
+    parser.add_argument(
+        "--access-log-pipeline",
+        default=None,
+        help="post-processing pipeline used instead of -- grep_args/-x for "
+             "access logs; jq with one safe inline filter is additionally "
+             "allowed")
     parser.add_argument("--control-socket", dest="control_socket", default=None,
                         help="path to an existing ssh ControlMaster socket for "
                              "this host to reuse (no new connection or key touch "
@@ -1495,14 +1773,23 @@ def _run_main(context):
         log_types = parse_log_types(args.type)
     except ValueError as ex:
         parser.error(str(ex))
+    if "access" in log_types and not _is_master_route(
+            args.host, args.component):
+        parser.error("access logs are available only for actual master routes")
 
     stages = []
     if grep_args:
         stages.append(["grep"] + grep_args)
     if args.execute:
         stages += split_pipeline(args.execute)
+    access_stages = stages
+    if args.access_log_pipeline is not None:
+        if "access" not in log_types:
+            parser.error("--access-log-pipeline requires access in --type")
+        access_stages = split_pipeline(args.access_log_pipeline)
     try:
         Ssh.validate_pipeline(stages)
+        Ssh.validate_pipeline(access_stages, access_log=True)
     except ValueError as ex:
         sys.exit(str(ex))
 
@@ -1589,6 +1876,7 @@ def _run_main(context):
     selected = []
     selected_paths = []
     type_coverages = {}
+    retained_boundaries = []
     for log_type in log_types:
         series = discover_series(
             ssh, log_type, start_time, end_time, archive_dir,
@@ -1597,8 +1885,12 @@ def _run_main(context):
             eprint("Found 0 {} log files on {}.".format(log_type, args.host))
             type_coverages[log_type] = None
             continue
-        type_selected, summary, coverage = select_log_files(
-            ssh, REMOTE_BIN, series, start_time, end_time)
+        type_selected, summary, coverage, boundaries = \
+            normalize_selection_result(select_log_files(
+                ssh, REMOTE_BIN, series, start_time, end_time))
+        for boundary in boundaries:
+            boundary["log_type"] = log_type
+        retained_boundaries.extend(boundaries)
         type_coverages[log_type] = coverage
         for origin, base, total, sel in summary:
             eprint("Found {} {} log file(s) for component '{}' ({})."
@@ -1628,9 +1920,24 @@ def _run_main(context):
         if args.end:
             head += ["-e", args.end]
         head.append(path)
-        completed = ssh.run_pipeline_result(head, stages, capture=True)
+        file_stages = access_stages if log_type == "access" else stages
+        completed = ssh.run_pipeline_result(
+            head,
+            file_stages,
+            capture=True,
+            access_log=log_type == "access")
+        if log_type == "access":
+            timestamp_error = access_output_timestamp_error(completed)
+            if timestamp_error is not None:
+                completed.returncode = OPERATIONAL_FAILURE_EXIT
+                completed.operational_returncode = OPERATIONAL_FAILURE_EXIT
+                completed.stderr = "\n".join(filter(None, [
+                    completed.stderr, timestamp_error]))
+                eprint(timestamp_error)
         status = classify_slice_result(
-            completed.returncode, completed.stdout, completed.stderr)
+            completed.returncode,
+            "output" if completed.has_output else "",
+            completed.stderr)
         if status != "failed":
             execution_result["log_read"] = True
         result = {
@@ -1638,7 +1945,7 @@ def _run_main(context):
             "file": path,
             "status": status,
             "returncode": completed.returncode,
-            "match_count": len(completed.stdout.splitlines()),
+            "match_count": completed.match_count,
         }
         if status == "failed":
             result["failure_class"] = slice_failure_class(
@@ -1647,7 +1954,9 @@ def _run_main(context):
                 completed.returncode)
         results.append(result)
         if status == "matched":
-            outputs.append(completed.stdout)
+            outputs.append(completed)
+        elif completed.stdout_stream is not None:
+            completed.close()
         detail = ""
         if status == "failed":
             detail = " failure_class={}".format(result["failure_class"])
@@ -1655,7 +1964,11 @@ def _run_main(context):
             log_type, status, result["match_count"], path, detail))
 
     if outputs:
-        sys.stdout.write(merge_timestamped_outputs(outputs))
+        try:
+            write_merged_pipeline_outputs(outputs, sys.stdout)
+        finally:
+            for completed in outputs:
+                completed.close()
 
     exit_code = slice_exit_code(results)
     definitive_no_match = exit_code == GLOBAL_NO_MATCH_EXIT \
@@ -1685,6 +1998,13 @@ def _run_main(context):
     elif exit_code == COVERAGE_INCOMPLETE_EXIT:
         execution_result["outcome"] = "partial"
         execution_result["result"] = "coverage_incomplete"
+        retained_boundaries = nearest_retained_boundaries(retained_boundaries)
+        execution_result["retained_boundaries"] = retained_boundaries
+        for boundary in retained_boundaries:
+            eprint(
+                "Retained boundary type={log_type} relation={relation} "
+                "root_kind={root_kind} first={first} last={last} file={file}"
+                .format(**boundary))
     else:
         execution_result["outcome"] = "failed"
         execution_result["result"] = "operational_failure"

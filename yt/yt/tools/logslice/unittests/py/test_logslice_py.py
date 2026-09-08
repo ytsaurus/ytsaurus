@@ -97,6 +97,18 @@ def _find_preexecution_fixture():
             "preexecution_failure.json")
 
 
+def _find_ytadminreq_59543_fixture(name):
+    relative_path = (
+        "yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/" + name)
+    try:
+        import yatest.common
+        return yatest.common.source_path(relative_path)
+    except ImportError:
+        return os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "fixtures", "ytadminreq_59543", name)
+
+
 def _ssh_localhost_works():
     try:
         return subprocess.run(
@@ -246,6 +258,68 @@ class ValidatePipelineTest(unittest.TestCase):
         self.assertEqual(stages, [["grep", "foo;", "touch", "marker"]])
         self.ssh.validate_pipeline(stages)  # does not raise
 
+    def test_access_pipeline_accepts_safe_inline_jq_filter(self):
+        filter_expression = (
+            'select(.table_id == "33c20-506275-3fe0191-b2115d4d") | '
+            '{instant,user,method,table_id}')
+        stages = logslice.split_pipeline(
+            "jq -c '{}'".format(filter_expression))
+        self.assertEqual(stages, [["jq", "-c", filter_expression]])
+        self.ssh.validate_pipeline(stages, access_log=True)
+
+    def test_regular_pipeline_rejects_jq(self):
+        with self.assertRaisesRegex(ValueError, "not whitelisted"):
+            self.ssh.validate_pipeline([["jq", "."]])
+
+    def test_access_pipeline_rejects_noncompact_multiline_jq(self):
+        with self.assertRaisesRegex(ValueError, "compact-output"):
+            self.ssh.validate_pipeline(
+                [["jq", "{instant,user,method,table_id}"]],
+                access_log=True)
+
+    def test_access_pipeline_rejects_jq_exit_status(self):
+        for option in ("-e", "--exit-status"):
+            with self.subTest(option=option), \
+                    self.assertRaisesRegex(ValueError, "not allowed"):
+                self.ssh.validate_pipeline(
+                    [["jq", "-c", option, "."]], access_log=True)
+
+    def test_access_pipeline_rejects_jq_raw_output(self):
+        for option in ("-r", "--raw-output"):
+            with self.subTest(option=option), \
+                    self.assertRaisesRegex(ValueError, "not allowed"):
+                self.ssh.validate_pipeline(
+                    [["jq", "-c", option, "."]], access_log=True)
+
+    def test_access_pipeline_rejects_jq_filter_or_input_files(self):
+        for stage in (["jq", "-f", "filter.jq"],
+                      ["jq", ".", "/etc/passwd"]):
+            with self.subTest(stage=stage), \
+                    self.assertRaisesRegex(ValueError, "inline filter"):
+                self.ssh.validate_pipeline([stage], access_log=True)
+
+    def test_access_pipeline_rejects_jq_environment_and_modules(self):
+        for filter_expression in ("env", "$ENV.HOME", 'include "helpers"'):
+            with self.subTest(filter_expression=filter_expression), \
+                    self.assertRaisesRegex(ValueError, "not allowed"):
+                self.ssh.validate_pipeline(
+                    [["jq", "-c", filter_expression]], access_log=True)
+
+    def test_head_and_tail_accept_only_stdin_line_limits(self):
+        for stage in (["head"], ["head", "-n", "10"],
+                      ["tail", "--lines=+5"], ["tail", "-20"]):
+            with self.subTest(stage=stage):
+                self.ssh.validate_pipeline([stage])
+
+    def test_head_and_tail_reject_file_operands_and_read_options(self):
+        for stage in (["head", "-n", "1", "/etc/passwd"],
+                      ["head", "/etc/passwd"],
+                      ["tail", "--files0-from", "/tmp/names"],
+                      ["tail", "-f", "/var/log/messages"]):
+            with self.subTest(stage=stage), \
+                    self.assertRaisesRegex(ValueError, "no file operands"):
+                self.ssh.validate_pipeline([stage])
+
 
 # Shell control/redirection operators that must never reach the remote shell as
 # operators. Each is neutralized by shlex-quoting (it becomes a literal grep
@@ -368,6 +442,83 @@ class PipelineStatusTest(unittest.TestCase):
         self.assertEqual(completed.operational_returncode, 0)
         self.assertEqual(completed.stdout, "0\n")
 
+    def test_access_capture_uses_file_backed_stream_instead_of_pipe(self):
+        captured_stdout = []
+
+        def run(_cmd, stdout, stderr, text):
+            self.assertIs(stderr, logslice.subprocess.PIPE)
+            self.assertTrue(text)
+            self.assertIsNot(stdout, logslice.subprocess.PIPE)
+            captured_stdout.append(stdout)
+            stdout.write('{"instant":"2026-08-21 17:23:11,123"}\n')
+            stdout.write('{"instant":"2026-08-21 17:23:12,123"}\n')
+            return self._result(
+                0, "__LOGSLICE_PIPESTATUS__:0 0\n", stdout=None)
+
+        with mock.patch.object(logslice.subprocess, "run", side_effect=run):
+            completed = self.ssh.run_pipeline_result(
+                ["logslice", "file"],
+                [["jq", "-c", "."]],
+                access_log=True)
+
+        self.assertEqual(len(captured_stdout), 1)
+        self.assertEqual(completed.stdout, "")
+        self.assertEqual(completed.match_count, 2)
+        self.assertEqual(len(list(completed.iter_stdout_lines())), 2)
+        completed.close()
+        self.assertTrue(captured_stdout[0].closed)
+
+    def test_successful_head_limit_ignores_expected_upstream_sigpipe(self):
+        # Both upstream commands report SIGPIPE because head stopped after the
+        # requested prefix; this is the PIPESTATUS shape of input exceeding the
+        # explicit limit.
+        result = self._result(
+            141,
+            "__LOGSLICE_PIPESTATUS__:141 141 0\n",
+            stdout="first record\n")
+        with mock.patch.object(logslice.subprocess, "run", return_value=result):
+            completed = self.ssh.run_pipeline_result(
+                ["logslice", "file"],
+                [["grep", "record"], ["head", "-n", "1"]])
+
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.operational_returncode, 0)
+        self.assertEqual(completed.stdout, "first record\n")
+
+    def test_access_jq_head_limit_ignores_expected_upstream_sigpipe(self):
+        def run(_cmd, stdout, stderr, text):
+            stdout.write('{"instant":"2026-08-21 17:23:11,123"}\n')
+            return self._result(
+                141,
+                "__LOGSLICE_PIPESTATUS__:141 141 0\n",
+                stdout=None)
+
+        with mock.patch.object(logslice.subprocess, "run", side_effect=run):
+            completed = self.ssh.run_pipeline_result(
+                ["logslice", "file"],
+                [["jq", "-c", "."], ["head", "-n", "1"]],
+                access_log=True)
+
+        self.assertEqual(completed.returncode, 0)
+        self.assertEqual(completed.operational_returncode, 0)
+        self.assertEqual(completed.match_count, 1)
+        completed.close()
+
+    def test_head_does_not_hide_non_sigpipe_upstream_failure(self):
+        result = self._result(
+            2,
+            "decode failed\n__LOGSLICE_PIPESTATUS__:2 0\n",
+            stdout="")
+        stderr = io.StringIO()
+        with mock.patch.object(logslice.subprocess, "run", return_value=result), \
+                contextlib.redirect_stderr(stderr):
+            completed = self.ssh.run_pipeline_result(
+                ["logslice", "file"], [["head", "-n", "1"]])
+
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(completed.operational_returncode, 2)
+        self.assertIn("decode failed", stderr.getvalue())
+
 
 class MultiTypeAndOutcomeTest(unittest.TestCase):
     def test_parse_log_types_accepts_all_and_comma_list(self):
@@ -377,6 +528,8 @@ class MultiTypeAndOutcomeTest(unittest.TestCase):
         self.assertEqual(
             logslice.parse_log_types("all"),
             ["debug", "info", "error"])
+        self.assertEqual(logslice.parse_log_types("access"), ["access"])
+        self.assertEqual(logslice.parse_log_types("access.json"), ["access"])
         with self.assertRaisesRegex(ValueError, "unknown log type"):
             logslice.parse_log_types("debug,warning")
 
@@ -404,6 +557,14 @@ class MultiTypeAndOutcomeTest(unittest.TestCase):
             "  second continuation\n"
             "2026-08-11 06:16:54,000001 first\n"
             "  first continuation\n"))
+
+    def test_merge_orders_access_json_by_formatter_instant(self):
+        merged = logslice.merge_timestamped_outputs([
+            '{"method":"CommitUnmount","instant":"2026-08-21 17:23:12,000"}\n',
+            '{"method":"PrepareUnmount","instant":"2026-08-21 17:23:11,000"}\n',
+        ])
+        self.assertLess(merged.index("PrepareUnmount"),
+                        merged.index("CommitUnmount"))
 
     def test_fixture_distinguishes_match_no_match_and_failure(self):
         with open(os.path.join(FIXTURE_DIR, "rotation_outcomes.json")) as stream:
@@ -441,6 +602,227 @@ class MultiTypeAndOutcomeTest(unittest.TestCase):
             ["debug"], start, end, allow_broad=True)
         logslice.validate_debug_window(
             ["error"], None, None, allow_broad=False)
+
+
+class AccessLogContractTest(unittest.TestCase):
+    HOST = "m003-hahn.sas.yp-c.yandex.net"
+    COMPONENT = "master-sas5-4416"
+    START = "2026-08-21 02:15:00,000"
+    END = "2026-08-21 17:35:00,000"
+
+    def _run(
+            self,
+            pipeline_result,
+            file_count=1,
+            log_types="access",
+            access_pipeline=None,
+            legacy_selection_result=False):
+        argv = [
+            "logslice.py", self.HOST, "--component", self.COMPONENT,
+            "--type", log_types, "-t", self.START, "-e", self.END,
+            "-x", "grep -F -- 33c20-506275-3fe0191-b2115d4d",
+        ]
+        if access_pipeline is not None:
+            argv += ["--access-log-pipeline", access_pipeline]
+        log_files = [
+            logslice.parse_log_name(
+                "master-sas5-4416.access.json.log.{}.zst".format(index))
+            for index in range(file_count, 0, -1)
+        ]
+        start = logslice.parse_user_time(self.START)
+        end = logslice.parse_user_time(self.END)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        side_effect = pipeline_result if isinstance(pipeline_result, list) \
+            else None
+        selection_result = (
+            log_files,
+            [("archive", self.COMPONENT, file_count, log_files)],
+            [(start, end)],
+        )
+        if not legacy_selection_result:
+            selection_result += ([],)
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "ssh_access_preflight",
+                                  return_value=None), \
+                mock.patch.object(logslice, "resolve_logslice",
+                                  return_value="/bin/true"), \
+                mock.patch.object(logslice.Ssh, "copy_binary"), \
+                mock.patch.object(logslice.Ssh, "run", return_value="+0300\n"), \
+                mock.patch.object(
+                    logslice.Ssh, "run_pipeline_result",
+                    return_value=None if side_effect else pipeline_result,
+                    side_effect=side_effect) as run_pipeline, \
+                mock.patch.object(logslice, "discover_component_candidates",
+                                  return_value=([self.COMPONENT], ["logs"])), \
+                mock.patch.object(logslice, "discover_series", return_value=[
+                    ("archive", self.COMPONENT, log_files)]), \
+                mock.patch.object(logslice, "select_log_files",
+                                  return_value=selection_result), \
+                contextlib.redirect_stdout(stdout), \
+                contextlib.redirect_stderr(stderr):
+            exit_code = logslice.main()
+        return (exit_code, stdout.getvalue(), stderr.getvalue(),
+                run_pipeline.call_args_list)
+
+    def test_retained_parser_rejection_now_reaches_access_validation(self):
+        with open(_find_ytadminreq_59543_fixture(
+                "logslice-access-log-family-rejected.txt")) as stream:
+            captured = stream.read()
+        self.assertIn("unknown log type 'access'", captured)
+        self.assertEqual(logslice.parse_log_types("access"), ["access"])
+        self.assertEqual(logslice.parse_log_types("access.json"), ["access"])
+
+    def test_positive_access_fixture_emits_actor_record(self):
+        with open(_find_ytadminreq_59543_fixture(
+                "access-positive.json.log")) as stream:
+            record = stream.read()
+        result = logslice.PipelineResult(
+            returncode=0, operational_returncode=0, stdout=record, stderr="")
+        exit_code, stdout, stderr, _ = self._run(result)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(stdout, record)
+        self.assertIn('"user":"tablet_balancer"', stdout)
+        self.assertIn('"method":"PrepareUnmount"', stdout)
+        self.assertIn('"table_id":"33c20-506275-3fe0191-b2115d4d"', stdout)
+        self.assertIn("component=master-sas5-4416", stderr)
+        self.assertIn("window_start=" + self.START, stderr)
+
+    def test_access_collection_does_not_depend_on_public_archive_helper(self):
+        result = logslice.PipelineResult(
+            returncode=1, operational_returncode=0, stdout="", stderr="")
+        original = logslice.should_use_master_archive
+        try:
+            del logslice.should_use_master_archive
+            exit_code, _, _, _ = self._run(result)
+        finally:
+            logslice.should_use_master_archive = original
+        self.assertEqual(exit_code, logslice.GLOBAL_NO_MATCH_EXIT)
+
+    def test_main_accepts_legacy_three_field_selection_result(self):
+        result = logslice.PipelineResult(
+            returncode=1, operational_returncode=0, stdout="", stderr="")
+        exit_code, _, _, _ = self._run(
+            result, legacy_selection_result=True)
+        self.assertEqual(exit_code, logslice.GLOBAL_NO_MATCH_EXIT)
+
+    def test_valid_access_zero_match_is_not_parser_failure(self):
+        with open(_find_ytadminreq_59543_fixture(
+                "access-zero-match.json")) as stream:
+            fixture = json.load(stream)
+        result = logslice.PipelineResult(
+            returncode=fixture["returncode"],
+            operational_returncode=fixture["operational_returncode"],
+            stdout=fixture["stdout"], stderr=fixture["stderr"])
+        self.assertTrue(fixture["collection_attempted"])
+        exit_code, stdout, stderr, _ = self._run(result)
+        self.assertEqual(exit_code, logslice.GLOBAL_NO_MATCH_EXIT)
+        self.assertEqual(stdout, "")
+        final = json.loads(stderr.splitlines()[-1])
+        self.assertEqual(final["result"], "no_matches")
+        self.assertTrue(final["log_read"])
+
+    def test_access_reads_every_selected_file_without_implicit_limit(self):
+        first = "{\"instant\":\"2026-08-21 17:23:11,123\"}\n"
+        second = "{\"instant\":\"2026-08-21 17:23:12,123\"}\n"
+        third = "{\"instant\":\"2026-08-21 17:23:13,123\"}\n"
+        results = [
+            logslice.PipelineResult(0, 0, first, ""),
+            logslice.PipelineResult(0, 0, second, ""),
+            logslice.PipelineResult(0, 0, third, ""),
+        ]
+        exit_code, stdout, stderr, calls = self._run(results, file_count=3)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(stdout, first + second + third)
+        self.assertTrue(all(call.kwargs["access_log"] for call in calls))
+        self.assertNotIn("truncated", stderr)
+        final = json.loads(stderr.splitlines()[-1])
+        self.assertNotIn("output_truncated", final)
+
+    def test_access_specific_jq_pipeline_does_not_change_standard_pipeline(self):
+        access = '{"instant":"2026-08-21 17:23:11,123"}\n'
+        error = "2026-08-21 17:23:12,123 Standard error\n"
+        jq_filter = (
+            'select(.table_id == "33c20-506275-3fe0191-b2115d4d") | '
+            '{instant,user,method,table_id}')
+        access_pipeline = "jq -c '{}'".format(jq_filter)
+        results = [
+            logslice.PipelineResult(0, 0, access, ""),
+            logslice.PipelineResult(0, 0, error, ""),
+        ]
+
+        exit_code, stdout, stderr, calls = self._run(
+            results,
+            log_types="access,error",
+            access_pipeline=access_pipeline)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0].args[1], [["jq", "-c", jq_filter]])
+        self.assertTrue(calls[0].kwargs["access_log"])
+        self.assertEqual(calls[1].args[1], [
+            ["grep", "-F", "--", "33c20-506275-3fe0191-b2115d4d"]])
+        self.assertFalse(calls[1].kwargs["access_log"])
+        self.assertIn(access, stdout)
+        self.assertIn(error, stdout)
+        self.assertIn("file_status type=error status=matched", stderr)
+
+    def test_mixed_pipeline_rejects_access_output_without_instant(self):
+        access = '{"user":"tablet_balancer","method":"CommitUnmount"}\n'
+        error = "2026-08-21 17:23:12,123 Standard error\n"
+        results = [
+            logslice.PipelineResult(0, 0, access, ""),
+            logslice.PipelineResult(0, 0, error, ""),
+        ]
+
+        exit_code, stdout, stderr, _ = self._run(
+            results,
+            log_types="access,error",
+            access_pipeline="jq -c '{user,method}'")
+
+        self.assertEqual(exit_code, logslice.OPERATIONAL_FAILURE_EXIT)
+        self.assertNotIn(access, stdout)
+        self.assertIn(error, stdout)
+        self.assertIn("access pipeline output line 1 has no valid instant", stderr)
+        self.assertIn("file_status type=access status=failed", stderr)
+
+    def test_access_pipeline_is_rejected_without_access_type(self):
+        argv = [
+            "logslice.py", self.HOST, "--component", self.COMPONENT,
+            "--type", "error", "--access-log-pipeline", "jq -c .",
+        ]
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "ssh_access_preflight") as preflight, \
+                self.assertRaises(SystemExit):
+            logslice.main()
+        preflight.assert_not_called()
+
+    def test_noncompact_jq_is_rejected_before_multi_file_collection(self):
+        argv = [
+            "logslice.py", self.HOST, "--component", self.COMPONENT,
+            "--type", "access", "--access-log-pipeline",
+            "jq '{instant,user,method,table_id}'",
+        ]
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "ssh_access_preflight") as preflight, \
+                mock.patch.object(
+                    logslice.Ssh, "run_pipeline_result") as run_pipeline, \
+                self.assertRaisesRegex(SystemExit, "compact-output"):
+            logslice.main()
+        preflight.assert_not_called()
+        run_pipeline.assert_not_called()
+
+    def test_access_family_rejects_non_master_before_remote_access(self):
+        argv = [
+            "logslice.py", "sas5-5383-tab-node-ada.sas.yp-c.yandex.net",
+            "--type", "access", "-t", self.START, "-e", self.END,
+        ]
+        with mock.patch.object(logslice.sys, "argv", argv), \
+                mock.patch.object(logslice, "ssh_access_preflight") as preflight, \
+                self.assertRaises(SystemExit):
+            logslice.main()
+        preflight.assert_not_called()
 
 
 class AuthenticationPreflightTest(unittest.TestCase):
@@ -552,13 +934,16 @@ class PreexecutionContractTest(unittest.TestCase):
         self.assertEqual(ssh._control_path, default_path)
         self.assertIn("ControlPath=" + default_path, run.call_args.args[0])
 
-    def _run_no_match(self, coverage, slice_result=None):
+    def _run_no_match(
+            self, coverage, slice_result=None, boundaries=None,
+            selected=True):
         argv = [
             "logslice.py", "vla4-5603-sessions-003-tab-markov.vla.yp-c.yandex.net",
             "--type", "info", "-t", "2026-07-22 13:00:00",
             "-e", "2026-07-22 15:00:00",
         ]
         log_file = logslice.parse_log_name("node.log")
+        selected_files = [log_file] if selected else []
         if slice_result is None:
             slice_result = logslice.PipelineResult(
                 returncode=1, operational_returncode=0,
@@ -579,17 +964,20 @@ class PreexecutionContractTest(unittest.TestCase):
                 mock.patch.object(logslice, "discover_series", return_value=[
                     ("live", "node", [log_file])]), \
                 mock.patch.object(logslice, "select_log_files", return_value=(
-                    [log_file], [("live", "node", 1, [log_file])], coverage)), \
+                    selected_files,
+                    [("live", "node", 1, selected_files)], coverage,
+                    boundaries or [])), \
                 contextlib.redirect_stderr(stderr):
             exit_code = logslice.main()
-        return exit_code, json.loads(stderr.getvalue().splitlines()[-1])
+        return (exit_code, json.loads(stderr.getvalue().splitlines()[-1]),
+                stderr.getvalue())
 
     def test_partial_coverage_no_match_is_not_definitive(self):
         coverage = [(
             logslice.parse_user_time("2026-07-22 13:05:00"),
             logslice.parse_user_time("2026-07-22 15:00:00"),
         )]
-        exit_code, result = self._run_no_match(coverage)
+        exit_code, result, _ = self._run_no_match(coverage)
         self.assertEqual(exit_code, logslice.COVERAGE_INCOMPLETE_EXIT)
         self.assertEqual(result["gaps"], [{
             "log_type": "info",
@@ -599,12 +987,31 @@ class PreexecutionContractTest(unittest.TestCase):
         self.assertEqual(result["outcome"], "partial")
         self.assertEqual(result["result"], "coverage_incomplete")
 
+    def test_partial_coverage_prints_retained_boundary_without_ssh_command(self):
+        boundary = {
+            "log_type": "info",
+            "relation": "after",
+            "root_kind": "archive",
+            "file": "/archive/2026-08-22/master.info.log.2026-08-22_00-15.zst",
+            "first": "2026-08-22 00:00:00",
+            "last": "2026-08-22 00:15:00",
+        }
+        exit_code, result, rendered = self._run_no_match(
+            None, boundaries=[boundary], selected=False)
+        self.assertEqual(exit_code, logslice.COVERAGE_INCOMPLETE_EXIT)
+        self.assertFalse(result["log_read"])
+        self.assertEqual(result["selected_files"], [])
+        self.assertEqual(result["retained_boundaries"], [boundary])
+        self.assertIn("root_kind=archive", rendered)
+        self.assertIn("first=2026-08-22 00:00:00", rendered)
+        self.assertNotIn("Executing:", rendered)
+
     def test_full_coverage_no_match_is_definitive(self):
         coverage = [(
             logslice.parse_user_time("2026-07-22 13:00:00"),
             logslice.parse_user_time("2026-07-22 15:00:00"),
         )]
-        exit_code, result = self._run_no_match(coverage)
+        exit_code, result, _ = self._run_no_match(coverage)
         self.assertEqual(exit_code, logslice.GLOBAL_NO_MATCH_EXIT)
         self.assertEqual(result["outcome"], "success")
         self.assertEqual(result["result"], "no_matches")
@@ -618,7 +1025,7 @@ class PreexecutionContractTest(unittest.TestCase):
         failure = logslice.PipelineResult(
             returncode=255, operational_returncode=255,
             stdout="", stderr="ssh transport failed")
-        exit_code, result = self._run_no_match(coverage, failure)
+        exit_code, result, _ = self._run_no_match(coverage, failure)
         self.assertEqual(exit_code, logslice.OPERATIONAL_FAILURE_EXIT)
         self.assertEqual(result["outcome"], "failed")
         self.assertEqual(result["result"], "operational_failure")
@@ -1313,7 +1720,7 @@ def _select(ssh, start, end, archive_dir=ARCHIVE_DIR):
     end_time = logslice.parse_user_time(end) if end else None
     series = logslice.discover_series(
         ssh, "debug", start_time, end_time, archive_dir)
-    selected, _, _ = logslice.select_log_files(
+    selected, _, _, _ = logslice.select_log_files(
         ssh, "/tmp/logslice", series, start_time, end_time)
     return selected
 
@@ -1342,6 +1749,17 @@ class ArchiveParsingTest(unittest.TestCase):
     def test_index_sidecar_rejected(self):
         self.assertIsNone(
             logslice.parse_log_name("master.debug.log.1.zst.trindex", LIVE_DIR))
+
+    def test_access_json_family_is_recognized(self):
+        current = logslice.parse_log_name("master.access.json.log")
+        rotated = logslice.parse_log_name(
+            "master.access.json.log.2026-08-21_17-30.zst", ARCHIVE_DAY)
+        self.assertEqual(current.channel, "access.json")
+        self.assertEqual(rotated.channel, "access.json")
+        base, files = logslice.order_series(
+            [current, rotated], "access", "master")
+        self.assertEqual(base, "master")
+        self.assertEqual(files, [rotated, current])
 
 
 class ComponentRoutingTest(unittest.TestCase):
@@ -1391,6 +1809,13 @@ class ComponentRoutingTest(unittest.TestCase):
             ("master", "master"),
         )
 
+    def test_scheduler_hostname_maps_to_scheduler_base(self):
+        self.assertEqual(
+            logslice.infer_host_component(
+                "sas8-9668-scheduler-watt.sas.yp-c.yandex.net"),
+            ("scheduler", "scheduler"),
+        )
+
     def test_master_cache_hostname_maps_to_master_cache_base(self):
         self.assertEqual(
             logslice.infer_host_component(
@@ -1421,14 +1846,6 @@ class ComponentRoutingTest(unittest.TestCase):
                 "clock01-pythia.sas.yp-c.yandex.net"
             ),
             ("clock", "clock"),
-        )
-
-    def test_scheduler_hostname_maps_to_scheduler_base(self):
-        self.assertEqual(
-            logslice.infer_host_component(
-                "sas8-9668-scheduler-watt.sas.yp-c.yandex.net"
-            ),
-            ("scheduler", "scheduler"),
         )
 
     def test_scheduler_hostname_resolves_scheduler_route(self):
@@ -1546,6 +1963,39 @@ class ComponentRoutingTest(unittest.TestCase):
         self.assertIsNone(logslice.archive_dir_for_route(
             "mystery-pod.sas.yp-c.yandex.net", "node-vla5-6094"))
 
+    def test_archive_root_is_derived_from_the_route(self):
+        self.assertEqual(logslice.archive_dir_for_route(
+            "m001-zeno.vla.yp-c.yandex.net", None),
+            "/yt/master-logs-archive")
+        self.assertEqual(logslice.archive_dir_for_route(
+            "sas8-9668-scheduler-watt.sas.yp-c.yandex.net", None),
+            "/yt/scheduler-logs-archive")
+        self.assertIsNone(logslice.archive_dir_for_route(
+            "sas5-5383-tab-node-ada.sas.yp-c.yandex.net", None))
+        self.assertIsNone(logslice.archive_dir_for_route(
+            "master-cache-0a42-zeno-9d1f.vla.yp-c.yandex.net", None))
+
+    def test_main_routing_does_not_depend_on_public_archive_helper(self):
+        original = logslice.should_use_master_archive
+        try:
+            del logslice.should_use_master_archive
+            self.assertTrue(logslice._is_master_route(
+                "m001-zeno.vla.yp-c.yandex.net", None))
+            self.assertFalse(logslice._is_master_route(
+                "sas5-5383-tab-node-ada.sas.yp-c.yandex.net", None))
+        finally:
+            logslice.should_use_master_archive = original
+
+    def test_legacy_selection_result_gets_empty_boundaries(self):
+        selected = [logslice.parse_log_name("master.debug.log")]
+        summary = [("live", "master", 1, selected)]
+        coverage = []
+        self.assertEqual(
+            logslice.normalize_selection_result(
+                (selected, summary, coverage)),
+            (selected, summary, coverage, []),
+        )
+
 
 class ArchiveDayDirsTest(unittest.TestCase):
     def test_keeps_window_days_with_one_day_margin(self):
@@ -1553,16 +2003,42 @@ class ArchiveDayDirsTest(unittest.TestCase):
                  "2026-06-21", "not-a-day"]
         start = logslice.parse_user_time("2026-06-19 10:00")
         end = logslice.parse_user_time("2026-06-19 11:00")
-        # [start-1, end+1] = 06-18 .. 06-20; 06-17 and 06-21 are out, junk dropped.
+        # [start-1, end+1] = 06-18 .. 06-20; the adjacent existing days are
+        # retained as boundary probes and junk is dropped.
         self.assertEqual(
             logslice.archive_day_dirs(names, start, end),
-            ["2026-06-18", "2026-06-19", "2026-06-20"])
+            ["2026-06-17", "2026-06-18", "2026-06-19", "2026-06-20",
+             "2026-06-21"])
+
+    def test_keeps_nearest_days_across_a_retention_gap(self):
+        names = ["2026-08-01", "2026-08-10", "2026-08-25", "2026-09-01"]
+        start = logslice.parse_user_time("2026-08-20 10:00")
+        end = logslice.parse_user_time("2026-08-20 11:00")
+        self.assertEqual(
+            logslice.archive_day_dirs(names, start, end),
+            ["2026-08-10", "2026-08-25"])
 
     def test_no_window_keeps_all_days(self):
         names = ["2026-06-18", "2026-06-19"]
         self.assertEqual(
             logslice.archive_day_dirs(names, None, None),
             ["2026-06-18", "2026-06-19"])
+
+
+class RetainedBoundaryRankingTest(unittest.TestCase):
+    def test_nearer_archive_boundary_beats_later_live_file(self):
+        archive = {
+            "relation": "after", "root_kind": "archive",
+            "file": "/archive/2026-08-25/master.debug.log",
+            "first": "2026-08-25 00:00:00", "last": "2026-08-25 00:15:00",
+        }
+        live = {
+            "relation": "after", "root_kind": "live",
+            "file": "logs/master.debug.log",
+            "first": "2026-09-04 08:00:00", "last": "2026-09-04 08:15:00",
+        }
+        self.assertEqual(
+            logslice.nearest_retained_boundaries([live, archive]), [archive])
 
 
 class ArchiveDiscoveryTest(unittest.TestCase):
@@ -1600,7 +2076,7 @@ class ArchiveSelectionTest(unittest.TestCase):
         end_time = logslice.parse_user_time(end)
         series = logslice.discover_series(
             ssh, "debug", start_time, end_time, ARCHIVE_DIR)
-        selected, _, coverage = logslice.select_log_files(
+        selected, _, coverage, _ = logslice.select_log_files(
             ssh, "/tmp/logslice", series, start_time, end_time)
         gaps = logslice.find_coverage_gaps(
             start_time, end_time, {"debug": coverage})
@@ -1647,7 +2123,7 @@ class ArchiveSelectionTest(unittest.TestCase):
             for name in [ARCH_EARLY, successor]
         ]
 
-        selected, _, coverage = logslice.select_log_files(
+        selected, _, coverage, _ = logslice.select_log_files(
             ssh, "/tmp/logslice", [("archive", "master", files)],
             start_time, end_time)
 
@@ -1670,6 +2146,36 @@ class ArchiveSelectionTest(unittest.TestCase):
             "log_type": "debug",
             "start": "2026-06-19 09:45:00",
             "end": "2026-06-19 10:00:00",
+        }])
+
+    def test_nearest_after_boundary_retains_archive_bounds(self):
+        with open(_find_ytadminreq_59543_fixture(
+                "logslice-nearest-archive-boundary.txt")) as stream:
+            captured = stream.read()
+        expected_path = (
+            "/yt/master-logs-archive/2026-08-22/"
+            "master-sas5-4416.debug.log.2026-08-22_00-15.zst")
+        self.assertIn(expected_path, captured)
+
+        log_file = logslice.parse_log_name(
+            os.path.basename(expected_path), os.path.dirname(expected_path))
+        ssh = mock.Mock()
+        ssh.run.return_value = (
+            "first: 2026-08-22 00:00:00,000000\n"
+            "last: 2026-08-22 00:15:00,000000\n")
+        start = logslice.parse_user_time("2026-08-21 17:22:00")
+        end = logslice.parse_user_time("2026-08-21 17:24:30")
+        selected, _, coverage, boundaries = logslice.select_log_files(
+            ssh, "/tmp/logslice", [("archive", "master-sas5-4416", [log_file])],
+            start, end)
+        self.assertEqual(selected, [])
+        self.assertIsNone(coverage)
+        self.assertEqual(boundaries, [{
+            "relation": "after",
+            "root_kind": "archive",
+            "file": expected_path,
+            "first": "2026-08-22 00:00:00",
+            "last": "2026-08-22 00:15:00",
         }])
 
     def test_selected_file_does_not_hide_missing_window_suffix(self):

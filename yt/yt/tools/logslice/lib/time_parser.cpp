@@ -292,37 +292,75 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
 {
     // "YYYY-MM-DD HH:MM:SS,uuuuuu"
     constexpr int PrefixLength = 26;
-    if (std::ssize(line) < PrefixLength) {
-        return std::nullopt;
-    }
-    const char* p = line.data();
-    if (!IsDigits(p, 4) || p[4] != '-' || !IsDigits(p + 5, 2) || p[7] != '-' ||
-        !IsDigits(p + 8, 2) || p[10] != ' ' || !IsDigits(p + 11, 2) || p[13] != ':' ||
-        !IsDigits(p + 14, 2) || p[16] != ':' || !IsDigits(p + 17, 2) || p[19] != ',' ||
-        !IsDigits(p + 20, 6))
-    {
-        return std::nullopt;
+    if (std::ssize(line) >= PrefixLength) {
+        const char* p = line.data();
+        if (IsDigits(p, 4) && p[4] == '-' && IsDigits(p + 5, 2) && p[7] == '-' &&
+            IsDigits(p + 8, 2) && p[10] == ' ' && IsDigits(p + 11, 2) && p[13] == ':' &&
+            IsDigits(p + 14, 2) && p[16] == ':' && IsDigits(p + 17, 2) && p[19] == ',' &&
+            IsDigits(p + 20, 6))
+        {
+            // Cache the second-resolution epoch keyed by the 19-char prefix:
+            // consecutive log lines very often share the same second, and
+            // mktime is comparatively slow.
+            thread_local bool CacheValid = false;
+            thread_local char CacheKey[19];
+            thread_local time_t CacheEpoch = 0;
+
+            time_t epoch;
+            if (CacheValid && std::memcmp(CacheKey, p, 19) == 0) {
+                epoch = CacheEpoch;
+            } else {
+                epoch = LocalBrokenDownToEpoch(
+                    ReadInt(p, 4), ReadInt(p + 5, 2), ReadInt(p + 8, 2),
+                    ReadInt(p + 11, 2), ReadInt(p + 14, 2), ReadInt(p + 17, 2));
+                std::memcpy(CacheKey, p, 19);
+                CacheEpoch = epoch;
+                CacheValid = true;
+            }
+
+            return TInstant::Seconds(epoch) + TDuration::MicroSeconds(ReadInt(p + 20, 6));
+        }
     }
 
-    // Cache the second-resolution epoch keyed by the 19-char prefix: consecutive
-    // log lines very often share the same second, and mktime is comparatively slow.
-    thread_local bool CacheValid = false;
-    thread_local char CacheKey[19];
-    thread_local time_t CacheEpoch = 0;
-
-    time_t epoch;
-    if (CacheValid && std::memcmp(CacheKey, p, 19) == 0) {
-        epoch = CacheEpoch;
-    } else {
-        epoch = LocalBrokenDownToEpoch(
-            ReadInt(p, 4), ReadInt(p + 5, 2), ReadInt(p + 8, 2),
-            ReadInt(p + 11, 2), ReadInt(p + 14, 2), ReadInt(p + 17, 2));
-        std::memcpy(CacheKey, p, 19);
-        CacheEpoch = epoch;
-        CacheValid = true;
+    // Structured access logs are JSON lines. The standard formatter adds its
+    // trusted system timestamp as an `instant` string after payload fields, so
+    // use the last syntactically valid occurrence rather than a payload value.
+    constexpr TStringBuf InstantKey = "\"instant\"";
+    std::optional<TInstant> result;
+    size_t offset = 0;
+    while (offset < line.size()) {
+        auto key = line.find(InstantKey, offset);
+        if (key == TStringBuf::npos) {
+            break;
+        }
+        offset = key + InstantKey.size();
+        if (key > 0 && line[key - 1] == '\\') {
+            continue;
+        }
+        auto rest = line.SubStr(offset);
+        while (!rest.empty() && IsAsciiSpace(rest.front())) {
+            rest.Skip(1);
+        }
+        if (rest.empty() || rest.front() != ':') {
+            continue;
+        }
+        rest.Skip(1);
+        while (!rest.empty() && IsAsciiSpace(rest.front())) {
+            rest.Skip(1);
+        }
+        if (rest.empty() || rest.front() != '"') {
+            continue;
+        }
+        rest.Skip(1);
+        auto end = rest.find('"');
+        if (end == TStringBuf::npos) {
+            continue;
+        }
+        if (auto instant = TryParseLocalFull(rest.SubStr(0, end))) {
+            result = instant;
+        }
     }
-
-    return TInstant::Seconds(epoch) + TDuration::MicroSeconds(ReadInt(p + 20, 6));
+    return result;
 }
 
 std::string FormatLogTime(TInstant instant)

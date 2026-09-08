@@ -204,6 +204,14 @@ TEST_F(TLogSliceTest, ParseLogLineTime)
     // 26-char log timestamp, which parses back to the same instant.
     EXPECT_EQ("2020-01-02 03:04:05,123456", FormatLogTime(*local));
     EXPECT_EQ(local, ParseLogLineTime(FormatLogTime(*local)));
+
+    // Master access logs use the structured JSON formatter and millisecond
+    // precision. Payload text that merely mentions the key must not win over
+    // the formatter's later system field.
+    auto json = ParseLogLineTime(
+        R"({"message":"escaped \"instant\":\"1999-01-01 00:00:00,000\"","instant":"2020-01-02 03:04:05,123","method":"PrepareUnmount"})");
+    ASSERT_TRUE(json.has_value());
+    EXPECT_EQ(query + TDuration::MicroSeconds(123000), *json);
 }
 
 TEST_F(TLogSliceTest, ParseQueryTimeFormats)

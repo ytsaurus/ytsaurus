@@ -1,0 +1,12 @@
+Invocation: m003-hahn.sas.yp-c.yandex.net --component master-sas5-4416 --type debug -t "2026-08-21 17:22:00,000" -e "2026-08-21 17:24:30,000" --allow-broad-debug --connect-timeout 30 -v -x "grep -F -- 10a58-d7ab7-2b0e02be-1ca5d676"
+
+Captured verbose probe:
+Executing: ... /tmp/logslice --info /yt/master-logs-archive/2026-08-22/master-sas5-4416.debug.log.2026-08-22_00-15.zst
+
+Captured ordinary result:
+Found 96 debug log file(s) for component 'master-sas5-4416' (archive).
+Found 33 debug log file(s) for component 'master-sas5-4416' (live).
+summary timezone=+0300 window_start=2026-08-21 17:22:00,000 window_end=2026-08-21 17:24:30,000 files=0 matches=0 failure_class=coverage_incomplete exit_code=4
+{"gaps": null, "log_read": false, "outcome": "partial", "requested_component": "master-sas5-4416", "result": "coverage_incomplete", "selected_base": "master-sas5-4416", "selected_component": "master-sas5-4416", "selected_files": []}
+
+This capture establishes incomplete retained coverage, not absence of a tablet action.
