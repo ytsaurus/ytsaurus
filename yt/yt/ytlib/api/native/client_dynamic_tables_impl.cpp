@@ -1705,7 +1705,9 @@ TDuration TClient::CheckPermissionsForQuery(
 
         auto permissionOrError = WaitFor(Connection_->GetQueryPoolPermissionCache()->Get(key));
         if (!permissionOrError.IsOK() && !permissionOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            permissionOrError.ThrowOnError();
+            THROW_ERROR_EXCEPTION("Cannot use query pool %Qv",
+                *options.ExecutionPool)
+                .With(std::move(permissionOrError));
         }
     }
 
