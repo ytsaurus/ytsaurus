@@ -229,6 +229,23 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             assert "CREATE MATERIALIZED VIEW" in clique.make_query("SHOW CREATE TABLE mv")[0]["statement"]
 
     @authors("buyval01")
+    def test_broken_view_does_not_stop_background_refresh(self):
+        config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
+        with Clique(1, config_patch=config_patch) as clique:
+            create(
+                "document",
+                clique.storage_artifacts_path + "/YT.broken_mv",
+                attributes={
+                    "value": "not a materialized view statement",
+                    "chyt_object_type": "materialized_view",
+                })
+            clique.make_query(self.CREATE_MV_QUERY)
+
+            rows = [{"key": 1, "value": "new"}]
+            write_table("//tmp/source", rows)
+            wait(lambda: read_table("//tmp/target") == rows)
+
+    @authors("buyval01")
     def test_background_refresh(self):
         write_table("//tmp/source", [
             {"key": 0, "value": "initial-0"},
