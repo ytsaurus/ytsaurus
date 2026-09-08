@@ -262,8 +262,8 @@ func (c *Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.O
 			version, ok := versionVal.(int64)
 			if !ok || version != 2 {
 				err = fmt.Errorf("expected discovery version 2, got %v(%T)", versionVal, versionVal)
+				return
 			}
-			return
 		}
 
 		if _, ok := discovery["version"]; !ok {
