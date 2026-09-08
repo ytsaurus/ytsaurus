@@ -299,8 +299,7 @@ Events:
 Выполните все необходимые действия для [запуска кластера {{product-name}}](#starting-cluster). Затем установите чарт:
 
 ```
-git clone https://github.com/ytsaurus/ytsaurus-ui.git
-helm upgrade --install ytsaurus-ui ytsaurus-ui/packages/ui-helm-chart/
+helm upgrade --install ytsaurus-ui oci://ghcr.io/ytsaurus/ytsaurus-ui-chart
 ```
 
 ### Работа с пользовательским кластером
@@ -353,10 +352,9 @@ _EOF
 После этого можно приступить к установке или обновлению чарта:
 
 ```
-git clone https://github.com/ytsaurus/ytsaurus-ui.git
-helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml
+helm upgrade --install yt-ui oci://ghcr.io/ytsaurus/ytsaurus-ui-chart -f values.yaml
 # or run specific version of UI (all versions: https://github.com/ytsaurus/ytsaurus-ui/pkgs/container/ui)
-helm upgrade --install yt-ui ytsaurus-ui/packages/ui-helm-chart/ -f values.yaml --set ui.image.tag=1.60.1
+helm upgrade --install yt-ui oci://ghcr.io/ytsaurus/ytsaurus-ui-chart -f values.yaml --set ui.image.tag=1.60.1
 ```
 
 Чтобы веб-интерфейс {{product-name}} стал доступным в браузере, может потребоваться переадресация портов:
