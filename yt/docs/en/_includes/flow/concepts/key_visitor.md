@@ -147,6 +147,14 @@ where `elapsed` is the time since the start of the current pass (taken as the mi
 
 If the scan runs on schedule, `scheduleLag = 0`, and `EventTimestamp ≈ SystemTimestamp`. If you fall behind (for example, the throttler limits throughput due to a slow backend), `EventTimestamp` lies in the past, and the visit stream’s watermark lags by exactly the amount of the delay. This gives a direct signal to the downstream consumer and shows up as event-lag in standard flow metrics.
 
+### Scheduled visit rate {#scheduled-visit-rate}
+
+In the visit stream's inflight metrics, `new_count_per_sec` and `offered_count_per_sec` both estimate the rate required to visit all matching keys within `period`: estimated distinct key count divided by the period in seconds. This is not the actual buffer fill rate. `ready_count` reports buffered visits, and `processed_count_per_sec` reports committed processing.
+
+The estimate uses the density of distinct matching keys in recently scanned hash ranges: smoothed key count divided by smoothed hash coverage, multiplied by the partition's hash span. Both counters use the same observation timestamps and a 30-second EMA window. Before the window matures, the ratio of cumulative counts and coverage provides an initial estimate. Empty reads contribute coverage with zero keys and can lower the estimated density; an estimated zero does not mean that the visitor is `Empty`.
+
+The counters are not reset between passes. With no new reads, including while the buffer is full, the estimate stays unchanged. No population or EMA state is persisted: after restart or repartitioning, the job estimates density from new local observations, independently of the restored scan cursor. Without positive hash coverage, the rate is absent; this includes ranges with identical hash values at both boundaries, even after a complete pass. Small samples, uneven hash distribution, and capped reads within one hash can cause transient bias. Changes in unscanned regions are not immediately visible. Once the finite visitor becomes `Empty`, its New and Offered rates are zero.
+
 ### Diagnostics {#diagnostics}
 
 - **`max_scan_rows_per_iteration` is too small**. If a single key has more internal-state names than `max_scan_rows_per_iteration`, the scan can’t progress: the limit is hit mid-key, all its rows are discarded, and no progress is made. The computation reports the error `/key_visitor/<stream>/scan_cap_stall` via `StatusProfiler` (`Key visitor stalled: a single key has more than max_scan_rows_per_iteration = N rows`). The error clears automatically once the read progresses. The solution is to increase `max_scan_rows_per_iteration` via `Reconfigure`.
