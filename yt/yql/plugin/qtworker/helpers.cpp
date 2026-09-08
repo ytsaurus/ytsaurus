@@ -45,6 +45,18 @@ NYql::NProto::ETaskAction ExecuteModeToProto(int executeMode)
     }
 }
 
+std::optional<TString> ExtractDefaultCluster(const NYql::TGatewaysConfig& config)
+{
+    if (config.HasYt()) {
+        for (const auto& mapping : config.GetYt().GetClusterMapping()) {
+            if (mapping.GetDefault()) {
+                return mapping.GetName();
+            }
+        }
+    }
+    return {};
+}
+
 void UpdateTaskResultData(NYql::NProto::TTaskResult& to, const NYql::NProto::TTaskResult& from)
 {
     if (from.HasAst()) {

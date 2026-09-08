@@ -17,6 +17,35 @@ using NYqlClient::NProto::TYqlResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TResponse, class TContext>
+void ReplyClustersResult(
+    TQueryId queryId,
+    const TClustersResult& result,
+    const TResponse& response,
+    const TContext& context)
+{
+    for (const auto& [clusterName, clusterAddress] : result.Clusters) {
+        auto* cluster = response->add_clusters();
+        cluster->set_cluster_name(clusterName);
+        cluster->set_cluster_address(clusterAddress);
+    }
+    if (result.DefaultCluster) {
+        response->set_default_cluster(*result.DefaultCluster);
+    }
+    if (result.YsonError) {
+        response->set_error(*result.YsonError);
+    }
+
+    context->SetResponseInfo("QueryId: %v, Clusters: %v, DefaultCluster: %v, Error: %v",
+        queryId,
+        result.Clusters,
+        result.DefaultCluster,
+        result.YsonError);
+    context->Reply();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYqlPluginService
     : public TServiceBase
 {
@@ -36,6 +65,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryProgress));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetUsedClusters));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetClustersInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetDeclaredParametersInfo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterQuery));
@@ -71,27 +101,21 @@ public:
         context->SetRequestInfo("QueryId: %v", queryId);
 
         auto files = ExtractFiles(request->files());
-        auto clusters = YqlPlugin_->GetUsedClusters(
+        auto result = YqlPlugin_->GetUsedClusters(
           queryId,
           request->query_text(),
           TYsonString(request->settings()),
           files);
+        ReplyClustersResult(queryId, result, response, context);
+    }
 
-        for (const auto& cluster : clusters.Clusters) {
-            auto added = response->add_clusters();
-            added->set_cluster_name(cluster.first);
-            added->set_cluster_address(cluster.second);
-        }
+    DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, GetClustersInfo)
+    {
+        auto queryId = FromProto<TQueryId>(request->query_id());
+        context->SetRequestInfo("QueryId: %v", queryId);
 
-        if (clusters.YsonError) {
-            response->set_error(*clusters.YsonError);
-        }
-
-        context->SetResponseInfo("QueryId: %v, Clusters: %v, Error: %v",
-            queryId,
-            clusters.Clusters,
-            clusters.YsonError);
-        context->Reply();
+        auto result = YqlPlugin_->GetClustersInfo(queryId);
+        ReplyClustersResult(queryId, result, response, context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NYqlPlugin::NProto, AbortQuery)
@@ -149,7 +173,7 @@ public:
         auto queryId = FromProto<TQueryId>(request->query_id());
         context->SetRequestInfo("QueryId: %v", queryId);
 
-        YqlPlugin_->RegisterQuery(queryId);
+        YqlPlugin_->RegisterQuery(queryId, TYsonString(request->settings()));
 
         context->SetResponseInfo("QueryId: %v", queryId);
         context->Reply();

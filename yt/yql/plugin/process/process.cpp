@@ -47,6 +47,23 @@ TQueryResult ToQueryResult(const TYqlResponse& yqlResponse)
     return result;
 }
 
+template <class TResponse>
+TClustersResult ToClustersResult(const TResponse& response)
+{
+    TClustersResult result;
+    for (const auto& cluster : response->clusters()) {
+        result.Clusters.emplace_back(cluster.cluster_name(), cluster.cluster_address());
+    }
+    if (response->has_default_cluster()) {
+        result.DefaultCluster = response->default_cluster();
+    }
+    if (response->has_error()) {
+        result.YsonError = response->error();
+    }
+
+    return result;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,17 +113,24 @@ TClustersResult TYqlExecutorProcess::GetUsedClusters(
         return ToErrorResponse<TClustersResult>("Failed to get used clusters result from subprocess", response);
     }
 
-    auto responseValue = response.Value();
-    TClustersResult result;
-    for (const auto& cluster: responseValue->clusters()) {
-        result.Clusters.emplace_back(cluster.cluster_name(), cluster.cluster_address());
+    return ToClustersResult(response.Value());
+}
+
+TClustersResult TYqlExecutorProcess::GetClustersInfo(TQueryId queryId)
+{
+    auto request = PluginProxy_.GetClustersInfo();
+    ToProto(request->mutable_query_id(), queryId);
+
+    auto response = WaitFor(request->Invoke());
+    if (!response.IsOK()) {
+        YT_TLOG_ERROR("Failed to get clusters info from subprocess")
+            .With("QueryId", queryId)
+            .With("SlotIndex", SlotIndex_)
+            .With(response);
+        return ToErrorResponse<TClustersResult>("Failed to get clusters info from subprocess", response);
     }
 
-    if (responseValue->has_error()) {
-      result.YsonError = responseValue->error();
-    }
-
-    return result;
+    return ToClustersResult(response.Value());
 }
 
 TQueryResult TYqlExecutorProcess::Run(
@@ -258,11 +282,12 @@ void TYqlExecutorProcess::OnUdfMetaChanged(TUdfMetaPtr /*udfMeta*/)
     // Not implemented
 }
 
-void TYqlExecutorProcess::RegisterQuery(TQueryId queryId)
+void TYqlExecutorProcess::RegisterQuery(TQueryId queryId, TYsonString settings)
 {
     auto registerQueryReq = PluginProxy_.RegisterQuery();
 
     ToProto(registerQueryReq->mutable_query_id(), queryId);
+    registerQueryReq->set_settings(settings.ToString());
 
     auto response = WaitFor(registerQueryReq->Invoke());
     if (!response.IsOK()) {

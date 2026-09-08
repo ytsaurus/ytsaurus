@@ -733,8 +733,16 @@ private:
                 });
             }
 
-            YqlPlugin_->RegisterQuery(queryId);
+            YqlPlugin_->RegisterQuery(queryId, settings);
             queryState.Registered = true;
+
+            auto clustersInfo = YqlPlugin_->GetClustersInfo(queryId);
+            if (clustersInfo.YsonError) {
+                auto error = ConvertTo<TError>(TYsonString(*clustersInfo.YsonError));
+                THROW_ERROR error;
+            }
+
+            EraseNonYtClusters(clustersInfo.Clusters);
 
             // TODO(ngc224): revise after proper auth support in UI
             THashMap<TString, THashMap<TString, TString>> credentials;
@@ -761,18 +769,22 @@ private:
                     queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
                     queryState.RefreshTokenExecutor->Start();
 
-                    const auto defaultCluster = clustersResult.Clusters.front().first;
                     credentials = {
                         {"default_yt", {{"category", "yt"}, {"content", token}}},
                         {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
                     };
 
-                    FillCredentials(
-                        credentials,
-                        yqlRequest.secrets(),
-                        defaultCluster,
-                        user,
-                        queryClients);
+                    if (!yqlRequest.secrets().empty()) {
+                        if (!clustersInfo.DefaultCluster) {
+                            THROW_ERROR_EXCEPTION("Default YT cluster is not configured");
+                        }
+                        FillCredentials(
+                            credentials,
+                            yqlRequest.secrets(),
+                            *clustersInfo.DefaultCluster,
+                            user,
+                            queryClients);
+                    }
                     break;
                 }
 
@@ -829,7 +841,7 @@ private:
                 std::vector<TWireYqlRowset> rowsets;
                 switch (queryType) {
                 case EQueryType::Regular:
-                    rowsets = BuildRowsets(clustersResult.Clusters, clientOptions, *result.YsonResult, request.row_count_limit());
+                    rowsets = BuildRowsets(clustersInfo.Clusters, clientOptions, *result.YsonResult, request.row_count_limit());
                     break;
 
                 case EQueryType::UdfMeta:
@@ -909,7 +921,7 @@ private:
         };
 
         try {
-            YqlPlugin_->RegisterQuery(queryState.QueryId);
+            YqlPlugin_->RegisterQuery(queryState.QueryId, settings);
             queryState.Registered = true;
 
             auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, {});
@@ -930,7 +942,6 @@ private:
             queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             queryState.RefreshTokenExecutor->Start();
 
-            const auto defaultCluster = clustersResult.Clusters.front();
             // TODO(ngc224): revise after proper auth support in UI
             THashMap<TString, THashMap<TString, TString>> credentials = {
                 {"default_yt", {{"category", "yt"}, {"content", token}}},

@@ -5,6 +5,14 @@ import "yt/ytlib/yql_client/proto/yql_service.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TClusterInfo
+{
+    required string cluster_name = 1;
+    required string cluster_address = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqRunQuery
 {
     required NYT.NProto.TGuid query_id = 1;
@@ -58,13 +66,23 @@ message TReqGetUsedClusters
 
 message TRspGetUsedClusters
 {
-    message Cluster {
-        required string cluster_name = 1;
-        required string cluster_address = 2;
-    }
-
-    repeated Cluster clusters = 1;
+    repeated TClusterInfo clusters = 1;
     optional bytes error = 2; // YSON
+    optional string default_cluster = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetClustersInfo
+{
+    required NYT.NProto.TGuid query_id = 1;
+}
+
+message TRspGetClustersInfo
+{
+    repeated TClusterInfo clusters = 1;
+    optional bytes error = 2; // YSON
+    optional string default_cluster = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,6 +106,7 @@ message TRspGetDeclaredParametersInfo
 message TReqRegisterQuery
 {
     required NYT.NProto.TGuid query_id = 1;
+    required bytes settings = 2; // YSON
 }
 
 message TRspRegisterQuery

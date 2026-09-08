@@ -114,6 +114,17 @@ public:
         return pluginProcess->GetUsedClusters(queryId, queryText, settings, files);
     }
 
+    TClustersResult GetClustersInfo(TQueryId queryId) override
+    {
+        auto pluginProcessOrError = GetYqlPluginByQueryId(queryId);
+        if (!pluginProcessOrError.IsOK()) {
+            return TClustersResult{
+                .YsonError = ConvertToYsonString<TError>(pluginProcessOrError).ToString(),
+            };
+        }
+        return pluginProcessOrError.Value()->GetClustersInfo(queryId);
+    }
+
     // Gets an acquired in RegisterQuery subprocess and routes Run call to it.
     // Marks subprocess as active so it would not reinitialize. Long blocking call
     TQueryResult Run(
@@ -267,12 +278,14 @@ public:
     }
 
     // Acquires subprocess for query and routes call to it.
-    // Acquired process will also be used in subsequent GetUsedClusters and Run calls.
+    // Acquired process will also be used in subsequent GetClustersInfo,
+    // GetUsedClusters and Run calls.
     // If Run call did not happen in one minute, the process will be reinitialized.
-    void RegisterQuery(TQueryId queryId) override
+    void RegisterQuery(TQueryId queryId, TYsonString settings) override
     {
         // Yql agent calls this method first when staring query, so we acquire
-        // process in this call and then use it in GetUsedClusters() and Run() as well.
+        // process in this call and then use it in GetClustersInfo(),
+        // GetUsedClusters() and Run() as well.
         TYqlExecutorProcessPtr acquiredProcess = AcquireSlotForQuery(queryId);
 
         if (!acquiredProcess) {
@@ -283,7 +296,12 @@ public:
             .With("SlotIndex", acquiredProcess->SlotIndex())
             .With("QueryId", queryId);
 
-        return acquiredProcess->RegisterQuery(queryId);
+        try {
+            acquiredProcess->RegisterQuery(queryId, std::move(settings));
+        } catch (...) {
+            OnQueryFinish(queryId, acquiredProcess);
+            throw;
+        }
     }
 
     void UnregisterQuery(TQueryId queryId) override
