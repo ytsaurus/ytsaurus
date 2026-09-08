@@ -243,6 +243,7 @@ TQueryContext::TQueryContext(
         RemoteReadTransactionIds = secondaryQueryHeader->RemoteReadTransactionIds;
         RemoteSnapshotLocks = secondaryQueryHeader->RemoteSnapshotLocks;
         DynamicTableReadTimestamp = secondaryQueryHeader->DynamicTableReadTimestamp;
+        RemoteDynamicTableReadTimestamps = secondaryQueryHeader->RemoteDynamicTableReadTimestamps;
         WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
         CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
 
@@ -370,6 +371,20 @@ TTransactionId TQueryContext::GetReadTransactionId(const std::optional<std::stri
     }
     auto it = RemoteReadTransactionIds.find(*cluster);
     return it == RemoteReadTransactionIds.end() ? NullTransactionId : it->second;
+}
+
+TTimestamp TQueryContext::GetDynamicTableReadTimestamp(const std::optional<std::string>& cluster) const
+{
+    if (!cluster) {
+        return DynamicTableReadTimestamp;
+    }
+
+    auto it = RemoteDynamicTableReadTimestamps.find(*cluster);
+    if (it == RemoteDynamicTableReadTimestamps.end()) {
+        THROW_ERROR_EXCEPTION("Missing dynamic table read timestamp for remote cluster")
+            .With("cluster", *cluster);
+    }
+    return it->second;
 }
 
 std::vector<std::pair<std::string, NNative::IClientPtr>> TQueryContext::GetRemoteClients() const
@@ -672,13 +687,20 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         if (QueryKind == EQueryKind::InitialQuery) {
             auto transactionIt = InitialRemoteReadTransactions_.find(cluster);
             if (transactionIt == InitialRemoteReadTransactions_.end()) {
-                auto transaction = WaitFor(client->StartNativeTransaction(ETransactionType::Master))
-                    .ValueOrThrow();
+                auto transactionFuture = client->StartNativeTransaction(ETransactionType::Master);
+                auto timestampFuture = client->GetTimestampProvider()->GenerateTimestamps();
+                WaitFor(AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()}))
+                    .ThrowOnError();
+
+                auto transaction = WaitFor(transactionFuture).ValueOrThrow();
+                auto timestamp = WaitFor(timestampFuture).ValueOrThrow();
                 RemoteReadTransactionIds[cluster] = transaction->GetId();
+                RemoteDynamicTableReadTimestamps[cluster] = timestamp;
                 transactionIt = InitialRemoteReadTransactions_.emplace(cluster, std::move(transaction)).first;
                 YT_TLOG_INFO("Remote query read transaction initialized")
                     .With("Cluster", cluster)
-                    .With("ReadTransactionId", transactionIt->second->GetId());
+                    .With("ReadTransactionId", transactionIt->second->GetId())
+                    .With("DynamicTableReadTimestamp", timestamp);
             }
 
             std::vector<TYPath> pathsToLock;
