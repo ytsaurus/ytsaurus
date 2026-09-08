@@ -5,6 +5,7 @@ from yt.environment import YTServerComponentBase, YTComponent
 
 import logging
 import os
+import shutil
 
 logger = logging.getLogger("YtLocal")
 
@@ -487,11 +488,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             logger.info("Qtworker processes stopped")
             self._qtworker_processes = []
 
-        logger.info("Stopping yql agent")
-        super(YqlAgent, self).stop()
+        try:
+            logger.info("Stopping yql agent")
+            super(YqlAgent, self).stop()
 
-        self.client.remove(f"//sys/users/{self.USER_NAME}")
-        self.client.remove("//sys/yql_agent/instances", recursive=True, force=True)
-        self.client.remove(f"//sys/clusters/{self.env.id}/yql_agent", recursive=True, force=True)
-        self.client.remove("//sys/yql_agent", recursive=True, force=True)
-        logger.info("Yql agent stopped")
+            self.client.remove(f"//sys/users/{self.USER_NAME}")
+            self.client.remove("//sys/yql_agent/instances", recursive=True, force=True)
+            self.client.remove(f"//sys/clusters/{self.env.id}/yql_agent", recursive=True, force=True)
+            self.client.remove("//sys/yql_agent", recursive=True, force=True)
+            logger.info("Yql agent stopped")
+        finally:
+            # Each qtworker instance leaves ~1-2 GB of file cache behind; its processes
+            # are already stopped, so wiping it is safe.
+            for instance in self._qtworker_instances:
+                shutil.rmtree(os.path.join(instance["instance_root"], "filecache"), ignore_errors=True)

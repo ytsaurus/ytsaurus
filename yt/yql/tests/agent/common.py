@@ -12,6 +12,8 @@ import hashlib
 import tarfile
 import tempfile
 
+import yatest.common
+
 
 LLVM_SYMBOLIZER_PATH = "contrib/libs/llvm18/tools/llvm-symbolizer/llvm-symbolizer"
 
@@ -95,6 +97,26 @@ class TestQueriesYqlBase(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+
+    # Pass --test-param YT_RECIPE_DEBUG_LOGS to keep the default debug logs.
+    if yatest.common.get_param("YT_RECIPE_DEBUG_LOGS") is not None:
+        DELTA_LOCAL_YT_CONFIG = {}
+    else:
+        # Debug logging is on by default in local YT and produces hundreds of GB of logs.
+        # job_proxy_log_manager is passed as a whole value, so its defaults are restated
+        # here with log_dump switched to the info writer: no debug writer is created once
+        # debug logging is off.
+        DELTA_LOCAL_YT_CONFIG = {
+            "enable_debug_logging": False,
+            "job_proxy_log_manager": {
+                "sharding_key_length": 1,
+                "logs_storage_period": "7d",
+                "directory_traversal_concurrency": None,
+                "log_dump": {
+                    "log_writer_name": "info",
+                },
+            },
+        }
 
     COPY_YTSERVER = False
 
