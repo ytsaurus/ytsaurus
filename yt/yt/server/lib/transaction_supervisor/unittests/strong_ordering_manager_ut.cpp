@@ -44,11 +44,12 @@ public:
         std::vector<std::string> Tags;
 
         // Data to setup test environment.
-        TTimestamp DelayedPrepareTimestamp = NullTimestamp;
-        //NB: If nullopt - do not simulate ReadyToCommit call.
-        std::optional<TTimestamp> DelayedReadyToCommitTimestamp = std::nullopt;
-        TTimestamp DelayedCommitTimestamp = NullTimestamp;
         bool ShouldAbortInsteadOfCommit = false;
+        // When (on which timestamp) has the corresponding request arrived.
+        TTimestamp PrepareArrivalTimestamp = NullTimestamp;
+        //NB: If nullopt - do not simulate RecordCommitTimestamp call.
+        std::optional<TTimestamp> RecordCommitTimestampArrivalTimestamp = std::nullopt;
+        TTimestamp CommitArrivalTimestamp = NullTimestamp;
     };
 
     void SetUp() override
@@ -72,14 +73,14 @@ public:
         Manager_.OnCommitPrepare(transaction.Id, transaction.PrepareTimestamp, transaction.IsCoordinated, transaction.Tags);
     };
 
-    [[nodiscard]] std::vector<TCommitInfo> ReadyToCommit(TTestTransaction transaction)
+    [[nodiscard]] std::vector<TCommitInfo> RecordCommitTimestamp(TTestTransaction transaction)
     {
-        YT_TLOG_DEBUG("Calling ReadyToCommit")
+        YT_TLOG_DEBUG("Calling RecordCommitTimestamp")
             .With("TransactionId", transaction.Id)
             .With("CommitTimestamp", transaction.CommitTimestamp)
             .With("IsCoordinated", transaction.IsCoordinated);
 
-        return Manager_.OnCommitReadyToCommit(transaction.Id, transaction.CommitTimestamp, SelfClockClusterTagMock);
+        return Manager_.OnCommitCommitTimestampKnown(transaction.Id, transaction.CommitTimestamp, SelfClockClusterTagMock);
     }
 
     [[nodiscard]] std::vector<TCommitInfo> Commit(TTestTransaction transaction)
@@ -94,7 +95,7 @@ public:
             transaction.CommitTimestamp,
             SelfClockClusterTagMock,
             transaction.IsCoordinated,
-            transaction.IsCoordinated ? ECommitState::ReadyToCommit : ECommitState::Commit);
+            transaction.IsCoordinated ? ECommitState::CommitTimestampKnown : ECommitState::Commit);
     };
 
     [[nodiscard]] std::vector<TCommitInfo> Abort(TTestTransaction transaction)
@@ -123,7 +124,7 @@ class TStrongOrderingManagerTestSingleTransaction
     : public TStrongOrderingManagerTestBase
     , public ::testing::WithParamInterface<std::tuple<
         /*isCoordinated*/ bool,
-        /*runReadyToCommit*/ bool
+        /*runRecordCommitTimestamp*/ bool
     >>
 { };
 
@@ -133,7 +134,7 @@ TEST_P(TStrongOrderingManagerTestSingleTransaction, Commit)
 {
     SetCurrentMutationContext(&MutationContextMock);
 
-    auto [isCoordinated, runReadyToCommit] = GetParam();
+    auto [isCoordinated, runRecordCommitTimestamp] = GetParam();
     TTestTransaction transaction{
         .Id = GenerateTransactionId(),
         .IsCoordinated = isCoordinated,
@@ -143,8 +144,8 @@ TEST_P(TStrongOrderingManagerTestSingleTransaction, Commit)
     };
 
     Prepare(transaction);
-    if (!isCoordinated && runReadyToCommit) {
-        auto transactionsToCommit = ReadyToCommit(transaction);
+    if (!isCoordinated && runRecordCommitTimestamp) {
+        auto transactionsToCommit = RecordCommitTimestamp(transaction);
         EXPECT_TRUE(transactionsToCommit.empty());
     }
 
@@ -157,7 +158,7 @@ TEST_P(TStrongOrderingManagerTestSingleTransaction, Abort)
 {
     SetCurrentMutationContext(&MutationContextMock);
 
-    auto [isCoordinated, runReadyToCommit] = GetParam();
+    auto [isCoordinated, runRecordCommitTimestamp] = GetParam();
     TTestTransaction transaction{
         .Id = GenerateTransactionId(),
         .IsCoordinated = isCoordinated,
@@ -167,8 +168,8 @@ TEST_P(TStrongOrderingManagerTestSingleTransaction, Abort)
     };
 
     Prepare(transaction);
-    if (!isCoordinated && runReadyToCommit) {
-        auto transactionsToCommit = ReadyToCommit(transaction);
+    if (!isCoordinated && runRecordCommitTimestamp) {
+        auto transactionsToCommit = RecordCommitTimestamp(transaction);
         EXPECT_TRUE(transactionsToCommit.empty());
     }
 
@@ -180,9 +181,9 @@ INSTANTIATE_TEST_SUITE_P(
     TStrongOrderingManagerTestSingleTransaction,
     TStrongOrderingManagerTestSingleTransaction,
     ::testing::Values(
-        std::tuple<bool, bool>(/*isCoordinated*/ true, /*runReadyToCommit*/ false),
-        std::tuple<bool, bool>(/*isCoordinated*/ false, /*runReadyToCommit*/ false),
-        std::tuple<bool, bool>(/*isCoordinated*/ false, /*runReadyToCommit*/ true)
+        std::tuple<bool, bool>(/*isCoordinated*/ true, /*runRecordCommitTimestamp*/ false),
+        std::tuple<bool, bool>(/*isCoordinated*/ false, /*runRecordCommitTimestamp*/ false),
+        std::tuple<bool, bool>(/*isCoordinated*/ false, /*runRecordCommitTimestamp*/ true)
     ));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,7 +246,7 @@ TEST_F(TStrongOrderingManagerTest, CommitOrderOptimized)
 
     Prepare(firstTransaction);
 
-    auto transactionsToCommit = ReadyToCommit(firstTransaction);
+    auto transactionsToCommit = RecordCommitTimestamp(firstTransaction);
     EXPECT_TRUE(transactionsToCommit.empty());
 
     Prepare(secondTransaction);
@@ -299,8 +300,8 @@ protected:
 
         double CoordinationProbability = 0.5;
 
-        // Probability that ReadyToCommit is received for non-coordinated transaction.
-        double ReadyToCommitProbability = 0.7;
+        // Probability that RecordCommitTimestamp is received for non-coordinated transaction.
+        double RecordCommitTimestampProbability = 0.7;
 
         double AbortProbability = 0.2;
 
@@ -316,7 +317,7 @@ protected:
             return Format(
                 "TransactionCount: %v, MinTagsPerTransaction: %v, MaxTagsPerTransaction: %v, TagCount: %v, "
                 "AveragePrepareFrequency: %v, AverageCommitDuration: %v, CoordinationProbability: %v, "
-                "ReadyToCommitProbability: %v, AbortProbability: %v, MaxPrepareDelay: %v, MaxCommitDelay: %v, "
+                "RecordCommitTimestampProbability: %v, AbortProbability: %v, MaxPrepareDelay: %v, MaxCommitDelay: %v, "
                 "EnableDebugLogging: %v",
                 TransactionCount,
                 MinTagsPerTransaction,
@@ -325,7 +326,7 @@ protected:
                 AveragePrepareFrequency,
                 AverageCommitDuration,
                 CoordinationProbability,
-                ReadyToCommitProbability,
+                RecordCommitTimestampProbability,
                 AbortProbability,
                 MaxPrepareDelay,
                 MaxCommitDelay,
@@ -343,10 +344,10 @@ protected:
         ASSERT_GT(config.TransactionCount, 0)
             << "Transaction count should be greater than 0";
 
-        ASSERT_LE(0, config.ReadyToCommitProbability)
-            << "ReadyToCommit probability should be greater than or equal to 0";
-        ASSERT_LE(config.ReadyToCommitProbability, 1)
-            << "ReadyToCommit probability should be less than or equal to 1";
+        ASSERT_LE(0, config.RecordCommitTimestampProbability)
+            << "RecordCommitTimestamp probability should be greater than or equal to 0";
+        ASSERT_LE(config.RecordCommitTimestampProbability, 1)
+            << "RecordCommitTimestamp probability should be less than or equal to 1";
 
         ASSERT_LE(0, config.AbortProbability)
             << "Abort probability should be greater than or equal to 0";
@@ -405,9 +406,9 @@ protected:
             // strictly after a tranasction was prepared.
             if (transaction.IsCoordinated) {
                 // Transactions coordinated by this cell have no delay.
-                transaction.DelayedPrepareTimestamp = transaction.PrepareTimestamp;
+                transaction.PrepareArrivalTimestamp = transaction.PrepareTimestamp;
             } else {
-                transaction.DelayedPrepareTimestamp = NYT::NTransactionClient::TTimestamp(transaction.PrepareTimestamp.Underlying() + prepareDelayDistribution(Rng_));
+                transaction.PrepareArrivalTimestamp = NYT::NTransactionClient::TTimestamp(transaction.PrepareTimestamp.Underlying() + prepareDelayDistribution(Rng_));
             }
         }
 
@@ -418,7 +419,7 @@ protected:
             std::uniform_int_distribution<ui64> commitOffsetDistribution(1, maxCommitTimestampOffset);
 
             int collisionCount = 1;
-            auto candidate = NYT::NTransactionClient::TTimestamp(transaction.DelayedPrepareTimestamp.Underlying() + commitOffsetDistribution(Rng_));
+            auto candidate = NYT::NTransactionClient::TTimestamp(transaction.PrepareArrivalTimestamp.Underlying() + commitOffsetDistribution(Rng_));
             while (usedCommitTimestamps.contains(candidate)) {
                 if (collisionCount % 100 == 0) {
                     commitOffsetDistribution = std::uniform_int_distribution<ui64>(
@@ -426,7 +427,7 @@ protected:
                         maxCommitTimestampOffset * 2 * (collisionCount / 100));
                 }
 
-                candidate = NYT::NTransactionClient::TTimestamp(transaction.DelayedPrepareTimestamp.Underlying() + commitOffsetDistribution(Rng_));
+                candidate = NYT::NTransactionClient::TTimestamp(transaction.PrepareArrivalTimestamp.Underlying() + commitOffsetDistribution(Rng_));
                 ++collisionCount;
             }
 
@@ -437,22 +438,22 @@ protected:
         // Sanity check.
         for (const auto& transaction : transactions) {
             YT_ASSERT(transaction.PrepareTimestamp < transaction.CommitTimestamp);
-            YT_ASSERT(transaction.DelayedPrepareTimestamp < transaction.CommitTimestamp);
+            YT_ASSERT(transaction.PrepareArrivalTimestamp < transaction.CommitTimestamp);
         }
 
         // Now generate everything else.
         std::bernoulli_distribution abortDistribution(config.AbortProbability);
-        std::bernoulli_distribution readyToCommitDistribution(config.ReadyToCommitProbability);
+        std::bernoulli_distribution recordCommitTimestampDistribution(config.RecordCommitTimestampProbability);
         std::uniform_int_distribution<ui64> commitDelayDistribution(1, config.MaxCommitDelay);
 
         for (auto& transaction : transactions) {
             transaction.ShouldAbortInsteadOfCommit = abortDistribution(Rng_);
 
             // Transactions coordinated by this cell have no delay and do not have explicit
-            // ReadyToCommit stage.
+            // RecordCommitTimestamp stage.
             if (transaction.IsCoordinated) {
-                transaction.DelayedReadyToCommitTimestamp = std::nullopt;
-                transaction.DelayedCommitTimestamp = transaction.CommitTimestamp;
+                transaction.RecordCommitTimestampArrivalTimestamp = std::nullopt;
+                transaction.CommitArrivalTimestamp = transaction.CommitTimestamp;
                 continue;
             }
 
@@ -465,12 +466,12 @@ protected:
                 secondTimestamp = NYT::NTransactionClient::TTimestamp(transaction.CommitTimestamp.Underlying() + commitDelayDistribution(Rng_) + 1);
             }
 
-            if (!readyToCommitDistribution(Rng_)) {
-                transaction.DelayedReadyToCommitTimestamp = std::nullopt;
-                transaction.DelayedCommitTimestamp = firstTimestamp;
+            if (!recordCommitTimestampDistribution(Rng_)) {
+                transaction.RecordCommitTimestampArrivalTimestamp = std::nullopt;
+                transaction.CommitArrivalTimestamp = firstTimestamp;
             } else {
-                transaction.DelayedReadyToCommitTimestamp = std::min(firstTimestamp, secondTimestamp);
-                transaction.DelayedCommitTimestamp = std::max(firstTimestamp, secondTimestamp);
+                transaction.RecordCommitTimestampArrivalTimestamp = std::min(firstTimestamp, secondTimestamp);
+                transaction.CommitArrivalTimestamp = std::max(firstTimestamp, secondTimestamp);
             }
         }
 
@@ -487,9 +488,9 @@ protected:
                 .With("PrepareTimestamp", transaction.PrepareTimestamp)
                 .With("CommitTimestamp", transaction.CommitTimestamp)
                 .With("Tags", transaction.Tags)
-                .With("DelayedPrepareTimestamp", transaction.DelayedPrepareTimestamp)
-                .With("DelayedReadyToCommitTimestamp", transaction.DelayedReadyToCommitTimestamp)
-                .With("DelayedCommitTimestamp", transaction.DelayedCommitTimestamp)
+                .With("PrepareArrivalTimestamp", transaction.PrepareArrivalTimestamp)
+                .With("RecordCommitTimestampArrivalTimestamp", transaction.RecordCommitTimestampArrivalTimestamp)
+                .With("CommitArrivalTimestamp", transaction.CommitArrivalTimestamp)
                 .With("ShouldAbortInsteadOfCommit", transaction.ShouldAbortInsteadOfCommit);
         }
     }
@@ -506,7 +507,7 @@ protected:
         enum class EActionType
         {
             Prepare = 0,
-            ReadyToCommit = 1,
+            RecordCommitTimestamp = 1,
             Commit = 2,
             Abort = 3,
         };
@@ -526,29 +527,29 @@ protected:
             const auto& transaction = transactions[i];
 
             TAction prepareAction{
-                .TriggerTimestamp = transaction.DelayedPrepareTimestamp,
+                .TriggerTimestamp = transaction.PrepareArrivalTimestamp,
                 .TransactionIndex = i,
                 .ActionType = TAction::EActionType::Prepare,
             };
             actions.push_back(std::move(prepareAction));
 
-            if (!transaction.IsCoordinated && transaction.DelayedReadyToCommitTimestamp) {
-                TAction ReadyToCommitAction{
-                    .TriggerTimestamp = *transaction.DelayedReadyToCommitTimestamp,
+            if (!transaction.IsCoordinated && transaction.RecordCommitTimestampArrivalTimestamp) {
+                TAction recordCommitTimestampAction{
+                    .TriggerTimestamp = *transaction.RecordCommitTimestampArrivalTimestamp,
                     .TransactionIndex = i,
-                    .ActionType = TAction::EActionType::ReadyToCommit,
+                    .ActionType = TAction::EActionType::RecordCommitTimestamp,
                 };
-                actions.push_back(std::move(ReadyToCommitAction));
+                actions.push_back(std::move(recordCommitTimestampAction));
             }
 
-            TAction FinalAction{
-                .TriggerTimestamp = transaction.DelayedCommitTimestamp,
+            TAction finalAction{
+                .TriggerTimestamp = transaction.CommitArrivalTimestamp,
                 .TransactionIndex = i,
                 .ActionType = transaction.ShouldAbortInsteadOfCommit
                     ? TAction::EActionType::Abort
                     : TAction::EActionType::Commit,
             };
-            actions.push_back(std::move(FinalAction));
+            actions.push_back(std::move(finalAction));
         }
 
         // This should ensure that actions are ordered by TriggerTimestamp,
@@ -588,8 +589,8 @@ protected:
                     Prepare(transaction);
                     break;
 
-                case TAction::EActionType::ReadyToCommit:
-                    saveCommitInfo(ReadyToCommit(transaction));
+                case TAction::EActionType::RecordCommitTimestamp:
+                    saveCommitInfo(RecordCommitTimestamp(transaction));
                     break;
 
                 case TAction::EActionType::Commit:
@@ -819,7 +820,7 @@ TEST_F(TStrongOrderingManagerStressTest, RandomEverything)
 
     std::uniform_real_distribution<double> probabilityDistribution(0, 1);
     config.CoordinationProbability = probabilityDistribution(Rng_);
-    config.ReadyToCommitProbability = probabilityDistribution(Rng_);
+    config.RecordCommitTimestampProbability = probabilityDistribution(Rng_);
     config.AbortProbability = probabilityDistribution(Rng_);
 
     std::uniform_int_distribution<int> maxDelayDirstribution(0, 1000);

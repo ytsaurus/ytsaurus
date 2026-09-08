@@ -2337,7 +2337,7 @@ public:
         auto asyncTimestamp = timestampProvider->GenerateTimestamps();
         return asyncTimestamp.Apply(
             BIND(
-                &TTransactionManager::OnCommitTimestampGenerated,
+                &TTransactionManager::OnCommitTimestampKnown,
                 MakeStrong(this),
                 transactionId,
                 prerequisiteTransactionIds,
@@ -2348,7 +2348,7 @@ public:
                     .AsyncVia(EpochAutomatonInvoker_));
     }
 
-    TFuture<TSharedRefArray> OnCommitTimestampGenerated(
+    TFuture<TSharedRefArray> OnCommitTimestampKnown(
         TTransactionId transactionId,
         std::vector<TTransactionId> prerequisiteTransactionIds,
         NRpc::TMutationId mutationId,
