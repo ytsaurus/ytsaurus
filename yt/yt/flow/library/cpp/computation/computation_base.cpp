@@ -1740,14 +1740,10 @@ void TUniversalComputationBase::ValidateTimerStoreLimits(const TDynamicComputati
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Accounting"));
 
     if (TimerStore_->GetCount() > dynamicSpec->TimerStoreCountLimit) {
-        THROW_ERROR_EXCEPTION("Too much timers in memory: count %v, limit %v",
-            TimerStore_->GetCount(),
-            dynamicSpec->TimerStoreCountLimit);
+        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: count %v, limit %v", TimerStore_->GetCount(), dynamicSpec->TimerStoreCountLimit);
     }
     if (TimerStore_->GetByteSize() > dynamicSpec->TimerStoreByteSizeLimit) {
-        THROW_ERROR_EXCEPTION("Too much timers in memory: byte size %v, limit %v",
-            TimerStore_->GetByteSize(),
-            dynamicSpec->TimerStoreByteSizeLimit);
+        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: byte size %v, limit %v", TimerStore_->GetByteSize(), dynamicSpec->TimerStoreByteSizeLimit);
     }
 }
 
