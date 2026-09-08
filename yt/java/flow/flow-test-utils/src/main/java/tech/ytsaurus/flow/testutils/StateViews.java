@@ -7,8 +7,6 @@ import java.util.Map;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
 import tech.ytsaurus.flow.state.State;
 import tech.ytsaurus.flow.state.StatesHolder;
 
@@ -20,10 +18,10 @@ import tech.ytsaurus.flow.state.StatesHolder;
 record StateViews(StateView all, StateView modified) {
 
     static StateViews from(
-            Map<String, StatesHolder<ExternalState>> responseExternal,
-            Map<String, StatesHolder<InternalState>> responseInternal,
-            Map<String, Map<Payload, ExternalState>> loadedExternal,
-            Map<String, Map<Payload, InternalState>> loadedInternal,
+            Map<String, StatesHolder> responseExternal,
+            Map<String, StatesHolder> responseInternal,
+            Map<String, Map<Payload, State>> loadedExternal,
+            Map<String, Map<Payload, State>> loadedInternal,
             Map<String, TableSchema> externalStateSchemas
     ) {
         var modifiedExternal = buildModified(responseExternal);
@@ -45,10 +43,10 @@ record StateViews(StateView all, StateView modified) {
     /**
      * Snapshots the modified states into a per-name map keyed by {@link UnversionedRow}.
      */
-    private static <T extends State<?>> Map<String, Map<UnversionedRow, T>> buildModified(
-            Map<String, StatesHolder<T>> responseHolders
+    private static Map<String, Map<UnversionedRow, State>> buildModified(
+            Map<String, StatesHolder> responseHolders
     ) {
-        var result = new LinkedHashMap<String, Map<UnversionedRow, T>>(responseHolders.size());
+        var result = new LinkedHashMap<String, Map<UnversionedRow, State>>(responseHolders.size());
         for (var entry : responseHolders.entrySet()) {
             result.put(entry.getKey(), new LinkedHashMap<>(entry.getValue().getStates()));
         }
@@ -59,17 +57,17 @@ record StateViews(StateView all, StateView modified) {
      * Merges the request's loaded states with the modified states (modified entries win), keyed by
      * {@link UnversionedRow}.
      */
-    private static <T extends State<?>> Map<String, Map<UnversionedRow, T>> buildAll(
-            Map<String, Map<Payload, T>> loaded,
-            Map<String, Map<UnversionedRow, T>> modified
+    private static Map<String, Map<UnversionedRow, State>> buildAll(
+            Map<String, Map<Payload, State>> loaded,
+            Map<String, Map<UnversionedRow, State>> modified
     ) {
         var names = new LinkedHashSet<String>();
         names.addAll(loaded.keySet());
         names.addAll(modified.keySet());
 
-        var result = new LinkedHashMap<String, Map<UnversionedRow, T>>(names.size());
+        var result = new LinkedHashMap<String, Map<UnversionedRow, State>>(names.size());
         for (var name : names) {
-            var merged = new LinkedHashMap<UnversionedRow, T>();
+            var merged = new LinkedHashMap<UnversionedRow, State>();
             var loadedForName = loaded.get(name);
             if (loadedForName != null) {
                 for (var loadedEntry : loadedForName.entrySet()) {
@@ -85,26 +83,26 @@ record StateViews(StateView all, StateView modified) {
         return result;
     }
 
-    private static Map<String, StatesHolder<ExternalState>> toExternalHolders(
-            Map<String, Map<UnversionedRow, ExternalState>> states,
+    private static Map<String, StatesHolder> toExternalHolders(
+            Map<String, Map<UnversionedRow, State>> states,
             Map<String, TableSchema> externalStateSchemas
     ) {
-        var result = new LinkedHashMap<String, StatesHolder<ExternalState>>(states.size());
+        var result = new LinkedHashMap<String, StatesHolder>(states.size());
         for (var entry : states.entrySet()) {
             var name = entry.getKey();
-            var holder = new StatesHolder<ExternalState>(name, null, externalStateSchemas.get(name));
+            var holder = new StatesHolder(name, null, externalStateSchemas.get(name));
             entry.getValue().forEach(holder::load);
             result.put(name, holder);
         }
         return result;
     }
 
-    private static Map<String, StatesHolder<InternalState>> toInternalHolders(
-            Map<String, Map<UnversionedRow, InternalState>> states
+    private static Map<String, StatesHolder> toInternalHolders(
+            Map<String, Map<UnversionedRow, State>> states
     ) {
-        var result = new LinkedHashMap<String, StatesHolder<InternalState>>(states.size());
+        var result = new LinkedHashMap<String, StatesHolder>(states.size());
         for (var entry : states.entrySet()) {
-            var holder = new StatesHolder<InternalState>(entry.getKey(), null, null);
+            var holder = new StatesHolder(entry.getKey(), null, null);
             entry.getValue().forEach(holder::load);
             result.put(entry.getKey(), holder);
         }

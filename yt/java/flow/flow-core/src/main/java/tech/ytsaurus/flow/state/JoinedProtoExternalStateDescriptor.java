@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.state;
 
 import com.google.protobuf.Message;
 import tech.ytsaurus.flow.row.Keyed;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 
 /**
  * {@link StateDescriptor} for read-only proto-format external state joined from another
@@ -17,12 +18,14 @@ public final class JoinedProtoExternalStateDescriptor<T extends Message> extends
     private final String name;
     private final Class<T> stateClass;
     private final T defaultInstance;
+    private final ByteStringCodec<T> codec;
 
     JoinedProtoExternalStateDescriptor(String name, Class<T> stateClass) {
         ExternalStateDescriptor.validateExternalStateName(name);
         this.name = name;
         this.stateClass = stateClass;
         this.defaultInstance = ProtoExternalStateDescriptor.defaultInstanceOf(stateClass);
+        this.codec = ProtoStateAccessor.codecOf(name, defaultInstance);
     }
 
     @Override
@@ -38,6 +41,6 @@ public final class JoinedProtoExternalStateDescriptor<T extends Message> extends
     @Override
     ReadOnlyProtoStateAccessor<T> create(Keyed key, StateBackend backend) {
         return new ReadOnlyProtoStateAccessor<>(
-                key.getKey(), backend.getJoinedExternalStateHolder(name), stateClass, defaultInstance);
+                key.getKey(), backend.getJoinedExternalStateHolder(name), stateClass, defaultInstance, codec);
     }
 }

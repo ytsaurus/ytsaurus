@@ -81,8 +81,7 @@ public class ResponseProtoMapper {
         // Internal states.
         var internalStateMapper = new InternalStateProtoMapper(
                 /*keySchema not needed for toProto*/ null,
-                codecs.getKeyCodec(),
-                codecs.getInternalStateValueCodec()
+                codecs.getKeyCodec()
         );
         var protoStates = new ArrayList<tech.ytsaurus.flow.rpc.TState>();
         for (var namedState : response.getInternalStates().values()) {
@@ -165,16 +164,12 @@ public class ResponseProtoMapper {
         }
 
         // Internal states.
-        var internalStateMapper = new InternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec(), codecs.getInternalStateValueCodec()
+        var internalStates = new InternalStateProtoMapper(keySchema, codecs.getKeyCodec()).fromProto(
+                responseData.getInternalStatesList(), jobId, requestId
         );
-        var internalStates = internalStateMapper.fromProto(responseData.getInternalStatesList());
 
         // External states.
-        var externalStateMapper = new ExternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec()
-        );
-        var externalStates = externalStateMapper.fromProto(
+        var externalStates = new ExternalStateProtoMapper(keySchema, codecs.getKeyCodec()).fromProto(
                 responseData.getExternalStatesList(), jobId, requestId
         );
 

@@ -8,7 +8,7 @@ import tech.ytsaurus.flow.row.Payload;
  * {@link StateAccessor} for an external state.
  */
 public class ExternalStateAccessor implements StateAccessor<Payload> {
-    private final StatesHolder<ExternalState> statesHolder;
+    final StatesHolder statesHolder;
     private final Payload key;
 
     /**
@@ -16,7 +16,7 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
      */
     ExternalStateAccessor(
             Payload key,
-            StatesHolder<ExternalState> statesHolder
+            StatesHolder statesHolder
     ) {
         statesHolder.requireRowFormat();
         this.statesHolder = statesHolder;
@@ -30,11 +30,11 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
      */
     @Override
     public Optional<Payload> get() {
-        ExternalState state = statesHolder.get(key.getRow());
+        State state = statesHolder.get(key.getRow());
         if (state == null || state.isReset()) {
             return Optional.empty();
         }
-        return Optional.of(state.decode(statesHolder.valueCodec()));
+        return Optional.of(state.getValue(statesHolder.valueCodec()));
     }
 
     /**
@@ -57,7 +57,7 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
     public void set(Payload value) {
         statesHolder.set(
                 key.getRow(),
-                new ExternalState(statesHolder.encodeValue(value))
+                new State(statesHolder.encodeValue(value), value)
         );
     }
 
@@ -68,7 +68,7 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
     public void clear() {
         statesHolder.set(
                 key.getRow(),
-                ExternalState.RESET
+                State.RESET
         );
     }
 

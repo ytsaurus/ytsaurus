@@ -2,9 +2,12 @@ package tech.ytsaurus.flow.state;
 
 import java.util.Optional;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
+import com.google.protobuf.Parser;
 import tech.ytsaurus.flow.row.Payload;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 
 /**
  * {@link StateAccessor} for an external state in the {@link StateFormat#PROTO} wire format.
@@ -17,25 +20,55 @@ import tech.ytsaurus.flow.row.Payload;
  * @param <T> protobuf message type of the state
  */
 public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
-    private final StatesHolder<ExternalState> statesHolder;
+    private final StatesHolder statesHolder;
     private final Payload key;
     private final Class<T> stateClass;
     private final T defaultInstance;
+    private final ByteStringCodec<T> codec;
 
     /**
      * Intended to be called from {@link StateDescriptor#create}.
      */
     ProtoStateAccessor(
             Payload key,
-            StatesHolder<ExternalState> statesHolder,
+            StatesHolder statesHolder,
             Class<T> stateClass,
-            T defaultInstance
+            T defaultInstance,
+            ByteStringCodec<T> codec
     ) {
         this.statesHolder = statesHolder;
         this.key = key;
         this.stateClass = stateClass;
         this.defaultInstance = defaultInstance;
+        this.codec = codec;
         validateProtoType();
+    }
+
+    /**
+     * Builds the codec between messages of {@code defaultInstance}'s type and their serialized
+     * bytes for the state {@code name}. Descriptors memoize it so every accessor over a
+     * descriptor shares one instance.
+     */
+    @SuppressWarnings("unchecked")
+    static <T extends Message> ByteStringCodec<T> codecOf(String name, T defaultInstance) {
+        Parser<T> parser = (Parser<T>) defaultInstance.getParserForType();
+        String typeName = defaultInstance.getDescriptorForType().getFullName();
+        return new ByteStringCodec<>() {
+            @Override
+            public T decode(ByteString wire) {
+                try {
+                    return parser.parseFrom(wire);
+                } catch (InvalidProtocolBufferException e) {
+                    throw new IllegalStateException(
+                            "Failed to parse external state %s as %s".formatted(name, typeName), e);
+                }
+            }
+
+            @Override
+            public ByteString encode(T value) {
+                return value.toByteString();
+            }
+        };
     }
 
     /**
@@ -71,16 +104,11 @@ public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
      */
     @Override
     public Optional<T> get() {
-        ExternalState state = statesHolder.get(key.getRow());
+        State state = statesHolder.get(key.getRow());
         if (state == null || state.isReset()) {
             return Optional.empty();
         }
-        if (!(state instanceof ProtoExternalState protoState)) {
-            throw new IllegalStateException(
-                    "External state %s is not in the proto wire format".formatted(statesHolder.getName())
-            );
-        }
-        return Optional.of(parse(protoState));
+        return Optional.of(state.getValue(codec));
     }
 
     /**
@@ -97,7 +125,8 @@ public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
      */
     @Override
     public void set(T value) {
-        statesHolder.set(key.getRow(), new ProtoExternalState(value));
+        // Serialized once, when the response is built, however many times the key is set.
+        statesHolder.set(key.getRow(), new State(value, codec));
     }
 
     /**
@@ -105,7 +134,7 @@ public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
      */
     @Override
     public void clear() {
-        statesHolder.set(key.getRow(), ProtoExternalState.RESET);
+        statesHolder.set(key.getRow(), State.RESET);
     }
 
     /**
@@ -114,40 +143,5 @@ public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
     @Override
     public Class<T> getStateClass() {
         return stateClass;
-    }
-
-    @SuppressWarnings("unchecked")
-    private T parse(ProtoExternalState state) {
-        Message message = state.getMessage();
-        if (message == null) {
-            // Received entries cache their parse: repeated reads of the same
-            // (immutable) entry must not reparse identical bytes.
-            message = state.getParsed();
-        }
-        if (message != null) {
-            if (!stateClass.isInstance(message)) {
-                throw new IllegalStateException(
-                        "External state %s holds a message of type %s, expected %s"
-                                .formatted(
-                                        statesHolder.getName(),
-                                        message.getClass().getName(),
-                                        stateClass.getName())
-                );
-            }
-            return (T) message;
-        }
-        try {
-            T parsed = (T) defaultInstance.getParserForType().parseFrom(state.serialize());
-            state.setParsed(parsed);
-            return parsed;
-        } catch (InvalidProtocolBufferException e) {
-            throw new IllegalStateException(
-                    "Failed to parse external state %s as %s"
-                            .formatted(
-                                    statesHolder.getName(),
-                                    defaultInstance.getDescriptorForType().getFullName()),
-                    e
-            );
-        }
     }
 }

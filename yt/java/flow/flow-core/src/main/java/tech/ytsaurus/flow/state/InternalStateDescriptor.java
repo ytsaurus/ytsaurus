@@ -61,9 +61,9 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
     }
 
     /**
-     * Returns the byte-array codec used to (de)serialize values of this state.
+     * Returns the codec between values of this state and their bytes.
      *
-     * @return the configured codec
+     * @return the value codec
      */
     ByteArrayCodec<T> getCodec() {
         return codec;

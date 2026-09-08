@@ -24,17 +24,17 @@ import tech.ytsaurus.ysontree.YTreeNode;
  * confined to that single request-processing thread for its entire lifetime; it must not be
  * shared across threads.
  */
-public class StatesHolder<T extends State<?>> implements YTreeConvertible {
+public class StatesHolder implements YTreeConvertible {
     private final String name;
     private final @Nullable TableSchema keySchema;
     private final @Nullable TableSchema stateSchema;
     private final StateFormat format;
     private final @Nullable String protoType;
-    private final Map<UnversionedRow, T> states;
+    private final Map<UnversionedRow, State> states;
     /**
      * States whose value was changed during the current epoch via {@link #set} by state accessors.
      */
-    private final Map<UnversionedRow, T> modifiedStates;
+    private final Map<UnversionedRow, State> modifiedStates;
     /**
      * Memoized empty payload returned by {@link #emptyStatePayload}.
      */
@@ -82,7 +82,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      * @param key   UnversionedRow key.
      * @param value State value.
      */
-    public void set(UnversionedRow key, T value) {
+    public void set(UnversionedRow key, State value) {
         this.states.put(key, value);
         this.modifiedStates.put(key, value);
     }
@@ -94,7 +94,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      * @param key   UnversionedRow key.
      * @param value State value.
      */
-    public void load(UnversionedRow key, T value) {
+    public void load(UnversionedRow key, State value) {
         this.states.put(key, value);
     }
 
@@ -104,7 +104,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      * @param key UnversionedRow key.
      * @return State value, or {@code null} if absent.
      */
-    public @Nullable T get(UnversionedRow key) {
+    public @Nullable State get(UnversionedRow key) {
         return states.get(key);
     }
 
@@ -122,7 +122,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      *
      * @return Map of states.
      */
-    public Map<UnversionedRow, T> getStates() {
+    public Map<UnversionedRow, State> getStates() {
         return states;
     }
 
@@ -135,7 +135,7 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
      *
      * @return Map of modified states.
      */
-    public Map<UnversionedRow, T> getModifiedStates() {
+    public Map<UnversionedRow, State> getModifiedStates() {
         return modifiedStates;
     }
 
@@ -177,8 +177,8 @@ public class StatesHolder<T extends State<?>> implements YTreeConvertible {
     }
 
     /**
-     * Ensures this holder carries row-format payloads. A proto-format holder stores null in the
-     * row payload slot, so a row accessor over it would silently read every state as absent.
+     * Ensures this holder carries row-format payloads: a row accessor over a proto-format holder
+     * would decode serialized messages as rows.
      *
      * @throws IllegalStateException if this holder is in the proto wire format
      */

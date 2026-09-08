@@ -1,5 +1,6 @@
 package tech.ytsaurus.flow.state;
 
+import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tech.ytsaurus.client.rows.UnversionedRow;
@@ -26,14 +27,14 @@ class StatesHolderTest {
         return new PayloadBuilder(KEY_SCHEMA).set("k", value).finish().getRow();
     }
 
-    private static InternalState state(String value) {
-        return new InternalState(value.getBytes());
+    private static State state(String value) {
+        return new State(ByteString.copyFromUtf8(value));
     }
 
     @Test
     @DisplayName("load() does not mark a state as modified")
     void loadDoesNotMarkModified() {
-        var holder = new StatesHolder<InternalState>("s", KEY_SCHEMA, null);
+        var holder = new StatesHolder("s", KEY_SCHEMA, null);
 
         holder.load(key("a"), state("1"));
         holder.load(key("b"), state("2"));
@@ -45,7 +46,7 @@ class StatesHolderTest {
     @Test
     @DisplayName("set() marks a state as modified")
     void setMarksModified() {
-        var holder = new StatesHolder<InternalState>("s", KEY_SCHEMA, null);
+        var holder = new StatesHolder("s", KEY_SCHEMA, null);
 
         holder.set(key("a"), state("1"));
 
@@ -56,7 +57,7 @@ class StatesHolderTest {
     @Test
     @DisplayName("only states modified after load are reported as modified")
     void onlyModifiedAfterLoadAreReported() {
-        var holder = new StatesHolder<InternalState>("s", KEY_SCHEMA, null);
+        var holder = new StatesHolder("s", KEY_SCHEMA, null);
 
         holder.load(key("a"), state("1"));
         holder.load(key("b"), state("2"));
@@ -67,10 +68,10 @@ class StatesHolderTest {
         var modifiedStates = holder.getModifiedStates();
         assertEquals(1, modifiedStates.size());
         assertTrue(modifiedStates.containsKey(key("a")));
-        assertArrayEqualsState("11", holder.get(key("a")));
+        assertStateEquals("11", holder.get(key("a")));
     }
 
-    private static void assertArrayEqualsState(String expected, InternalState actual) {
-        assertEquals(expected, new String(actual.getValue()));
+    private static void assertStateEquals(String expected, State actual) {
+        assertEquals(expected, actual.getBytes().toStringUtf8());
     }
 }

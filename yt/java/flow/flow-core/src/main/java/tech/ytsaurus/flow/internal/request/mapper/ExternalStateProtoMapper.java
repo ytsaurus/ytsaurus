@@ -1,183 +1,70 @@
 package tech.ytsaurus.flow.internal.request.mapper;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.jspecify.annotations.Nullable;
-import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.codec.KeyCodec;
 import tech.ytsaurus.flow.rpc.TState;
-import tech.ytsaurus.flow.rpc.TStateItem;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.ProtoExternalState;
 import tech.ytsaurus.flow.state.StateFormat;
 import tech.ytsaurus.flow.state.StatesHolder;
 import tech.ytsaurus.flow.utils.YsonUtils;
 
 /**
- * Bidirectional mapper between protobuf {@link TState} and a {@link StatesHolder} of
- * {@link ExternalState} entries.
+ * {@link StateProtoMapper} for external states: a row-format state carries its schema on the
+ * wire, a proto-format one its format and proto type.
  */
-public class ExternalStateProtoMapper {
+public class ExternalStateProtoMapper extends StateProtoMapper {
 
-    private final @Nullable TableSchema keySchema;
-    private final KeyCodec keyCodec;
-
-    /**
-     * Creates a mapper with the supplied schema and key codec. State values are carried as
-     * undecoded wire bytes, so no payload codec is involved.
-     *
-     * @param keySchema table schema describing state entry keys
-     * @param keyCodec  codec used to (de)serialize state entry keys
-     */
-    public ExternalStateProtoMapper(
-            @Nullable TableSchema keySchema,
-            KeyCodec keyCodec
-    ) {
-        this.keySchema = keySchema;
-        this.keyCodec = keyCodec;
+    public ExternalStateProtoMapper(@Nullable TableSchema keySchema, KeyCodec keyCodec) {
+        super(keySchema, keyCodec);
     }
 
-    /**
-     * Converts a list of protobuf states to a map of {@link StatesHolder} instances.
-     *
-     * @param protoStates the protobuf states
-     * @param jobId       job identifier for error messages
-     * @param requestId   request identifier for error messages
-     * @return map of state name to states holder
-     */
-    public ConcurrentHashMap<String, StatesHolder<ExternalState>> fromProto(
-            List<TState> protoStates,
-            GUID jobId,
-            GUID requestId
-    ) {
-        var states = new ConcurrentHashMap<String, StatesHolder<ExternalState>>();
-        for (var protoState : protoStates) {
-            if (StateFormat.fromWireValue(protoState.getFormat()) == StateFormat.PROTO) {
-                loadProtoFormatState(states, protoState);
-                continue;
-            }
-            // The schema may be empty for a reset-only state (see companion_service.proto). Defer the
-            // schema requirement until a non-reset item that actually needs it.
-            TableSchema stateSchema = protoState.getSchema().isEmpty()
-                    ? null
-                    : TableSchema.fromYTree(YsonUtils.yTreeFromProto(protoState.getSchema()));
-            var stateHolder = states.computeIfAbsent(
-                    protoState.getName(), name -> new StatesHolder<>(name, keySchema, stateSchema)
-            );
-            for (var stateItem : protoState.getStateItemsList()) {
-                UnversionedRow key = keyCodec.decode(stateItem.getKey());
-                if (stateItem.getReset()) {
-                    stateHolder.load(key, ExternalState.RESET);
-                    continue;
-                }
-                if (stateSchema == null) {
-                    throw new IllegalArgumentException(
-                            "External state with a non-reset item must have a schema "
-                                    + "(StateName: %s, JobId: %s, RequestId: %s)"
-                                    .formatted(protoState.getName(), jobId, requestId)
-                    );
-                }
-                stateHolder.load(key, new ExternalState(stateItem.getState()));
-            }
-        }
-        return states;
-    }
-
-    /**
-     * Loads a proto-format {@link TState}: payloads are opaque serialized-message bytes, no
-     * schema or row codec is involved.
-     */
-    private void loadProtoFormatState(
-            ConcurrentHashMap<String, StatesHolder<ExternalState>> states,
-            TState protoState
-    ) {
-        var stateHolder = states.computeIfAbsent(
+    @Override
+    protected StatesHolder createHolder(TState protoState) {
+        // The schema may be empty for a reset-only state (see companion_service.proto). Defer the
+        // schema requirement until a non-reset item that actually needs it.
+        TableSchema stateSchema = protoState.getSchema().isEmpty()
+                ? null
+                : TableSchema.fromYTree(YsonUtils.yTreeFromProto(protoState.getSchema()));
+        return new StatesHolder(
                 protoState.getName(),
-                name -> new StatesHolder<>(
-                        name, keySchema, null, StateFormat.PROTO, protoState.getProtoType())
-        );
-        for (var stateItem : protoState.getStateItemsList()) {
-            UnversionedRow key = keyCodec.decode(stateItem.getKey());
-            stateHolder.load(
-                    key,
-                    stateItem.getReset()
-                            ? ProtoExternalState.RESET
-                            : new ProtoExternalState(stateItem.getState())
+                keySchema,
+                stateSchema,
+                StateFormat.fromWireValue(protoState.getFormat()),
+                protoState.getProtoType());
+    }
+
+    @Override
+    protected void validateItem(TState protoState, StatesHolder stateHolder, GUID jobId, GUID requestId) {
+        if (stateHolder.getFormat() != StateFormat.PROTO && stateHolder.getStateSchema() == null) {
+            throw new IllegalArgumentException(
+                    "External state with a non-reset item must have a schema "
+                            + "(StateName: %s, JobId: %s, RequestId: %s)"
+                            .formatted(protoState.getName(), jobId, requestId)
             );
         }
     }
 
     /**
-     * Converts a {@link StatesHolder} of external states to a protobuf {@link TState}.
+     * {@inheritDoc}
      *
-     * @param statesHolder the states holder
-     * @return the protobuf state
+     * <p>An all-default proto message serializes to zero bytes, a legal payload.
      */
-    public TState toProto(StatesHolder<ExternalState> statesHolder) {
+    @Override
+    protected void describeState(TState.Builder stateBuilder, StatesHolder statesHolder) {
         if (statesHolder.getFormat() == StateFormat.PROTO) {
-            return protoFormatToProto(statesHolder);
+            stateBuilder.setFormat(StateFormat.PROTO.getWireValue());
+            String protoType = statesHolder.getProtoType();
+            if (protoType != null && !protoType.isEmpty()) {
+                stateBuilder.setProtoType(protoType);
+            }
+            return;
         }
-        TState.Builder stateBuilder = TState.newBuilder();
-        stateBuilder.setName(statesHolder.getName());
         var stateSchema = Objects.requireNonNull(
                 statesHolder.getStateSchema(), "External state must have a schema"
         );
         stateBuilder.setSchema(YsonUtils.protoFromYTree(stateSchema.toYTree()));
-        var modifiedStates = statesHolder.getModifiedStates();
-        var stateItems = new ArrayList<TStateItem>(modifiedStates.size());
-        for (var entry : modifiedStates.entrySet()) {
-            var key = entry.getKey();
-            ExternalState state = entry.getValue();
-            var stateItemBuilder = TStateItem.newBuilder()
-                    .setKey(keyCodec.encode(key))
-                    .setReset(state.isReset());
-            if (!state.isReset()) {
-                Objects.requireNonNull(state.getValue(), "Non-reset state must have value");
-                stateItemBuilder.setState(state.getValue());
-            }
-            stateItems.add(stateItemBuilder.build());
-        }
-        stateBuilder.addAllStateItems(stateItems);
-        return stateBuilder.build();
-    }
-
-    /**
-     * Converts a proto-format {@link StatesHolder} to a protobuf {@link TState}: the format and
-     * proto type are stamped on the state and payloads bypass the row codec. An all-default
-     * message serializes to zero bytes — a legal payload.
-     */
-    private TState protoFormatToProto(StatesHolder<ExternalState> statesHolder) {
-        TState.Builder stateBuilder = TState.newBuilder()
-                .setName(statesHolder.getName())
-                .setFormat(StateFormat.PROTO.getWireValue());
-        String protoType = statesHolder.getProtoType();
-        if (protoType != null && !protoType.isEmpty()) {
-            stateBuilder.setProtoType(protoType);
-        }
-        var modifiedStates = statesHolder.getModifiedStates();
-        var stateItems = new ArrayList<TStateItem>(modifiedStates.size());
-        for (var entry : modifiedStates.entrySet()) {
-            ExternalState state = entry.getValue();
-            var stateItemBuilder = TStateItem.newBuilder()
-                    .setKey(keyCodec.encode(entry.getKey()))
-                    .setReset(state.isReset());
-            if (!state.isReset()) {
-                if (!(state instanceof ProtoExternalState protoState)) {
-                    throw new IllegalStateException(
-                            "External state %s is declared proto-format but holds a row-format entry"
-                                    .formatted(statesHolder.getName())
-                    );
-                }
-                stateItemBuilder.setState(protoState.serialize());
-            }
-            stateItems.add(stateItemBuilder.build());
-        }
-        stateBuilder.addAllStateItems(stateItems);
-        return stateBuilder.build();
     }
 }

@@ -8,9 +8,6 @@ import java.util.Set;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.row.Payload;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
-import tech.ytsaurus.flow.state.State;
 import tech.ytsaurus.flow.state.StateAccessor;
 import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.state.StatesHolder;
@@ -21,13 +18,13 @@ import tech.ytsaurus.flow.state.StatesHolder;
  * computation modified ({@link TestDoProcessResponse#modifiedStates()}).
  */
 public final class StateView {
-    private final Map<String, StatesHolder<ExternalState>> externalHolders;
-    private final Map<String, StatesHolder<InternalState>> internalHolders;
+    private final Map<String, StatesHolder> externalHolders;
+    private final Map<String, StatesHolder> internalHolders;
     private final SnapshotStateBackend backend;
 
     StateView(
-            Map<String, StatesHolder<ExternalState>> externalHolders,
-            Map<String, StatesHolder<InternalState>> internalHolders,
+            Map<String, StatesHolder> externalHolders,
+            Map<String, StatesHolder> internalHolders,
             Map<String, TableSchema> externalStateSchemas
     ) {
         this.externalHolders = externalHolders;
@@ -91,10 +88,8 @@ public final class StateView {
         return internalKeys(stateName).size();
     }
 
-    private static <T extends State<?>> Set<UnversionedRow> keysOf(
-            Map<String, StatesHolder<T>> holders, String stateName
-    ) {
-        StatesHolder<T> holder = holders.get(stateName);
+    private static Set<UnversionedRow> keysOf(Map<String, StatesHolder> holders, String stateName) {
+        StatesHolder holder = holders.get(stateName);
         return holder == null
                 ? Collections.emptySet()
                 : Collections.unmodifiableSet(holder.getStates().keySet());
