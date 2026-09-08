@@ -433,7 +433,13 @@ TAsyncQueueSinkImpl::TAsyncQueueSinkImpl(
         GetParameters()->WriteFlowQueueMeta
             ? NameTable_->FindId(GetParameters()->FlowQueueMetaColumn)
             : std::nullopt)
-{ }
+{
+    SubscribeReconfigured(BIND([this] (const TDynamicSinkContextPtr& /*dynamicContext*/) {
+        if (Writer_) {
+            Writer_->Reconfigure(GetDynamicParameters());
+        }
+    }));
+}
 
 TAsyncQueueSinkImpl::~TAsyncQueueSinkImpl()
 {
