@@ -747,13 +747,13 @@ private:
 
         // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
 
-        auto groupCoordinator = GroupCoordinatorManager_->GetGroupCoordinator(request.GroupId);
+        auto groupCoordinator = GroupCoordinatorManager_->FindGroupCoordinator(request.GroupId);
         if (!groupCoordinator) {
             YT_TLOG_DEBUG("Unknown group id")
                 .With("GroupId", request.GroupId);
             return TRspSyncGroup{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
         }
-        return (*groupCoordinator)->SyncGroup(request, Logger);
+        return groupCoordinator->SyncGroup(request, Logger);
     }
 
     DEFINE_KAFKA_HANDLER(Heartbeat)
@@ -762,13 +762,13 @@ private:
             .With("GroupId", request.GroupId)
             .With("MemberId", request.MemberId);
 
-        auto groupCoordinator = GroupCoordinatorManager_->GetGroupCoordinator(request.GroupId);
+        auto groupCoordinator = GroupCoordinatorManager_->FindGroupCoordinator(request.GroupId);
         if (!groupCoordinator) {
             YT_TLOG_DEBUG("Unknown group id")
                 .With("GroupId", request.GroupId);
             return TRspHeartbeat{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
         }
-        return (*groupCoordinator)->Heartbeat(request, Logger);
+        return groupCoordinator->Heartbeat(request, Logger);
     }
 
     DEFINE_KAFKA_HANDLER(LeaveGroup)
@@ -777,13 +777,13 @@ private:
             .With("GroupId", request.GroupId)
             .With("MemberId", request.MemberId);
 
-        auto groupCoordinator = GroupCoordinatorManager_->GetGroupCoordinator(request.GroupId);
+        auto groupCoordinator = GroupCoordinatorManager_->FindGroupCoordinator(request.GroupId);
         if (!groupCoordinator) {
             YT_TLOG_DEBUG("Unknown group id")
                 .With("GroupId", request.GroupId);
             return TRspLeaveGroup{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
         }
-        return (*groupCoordinator)->LeaveGroup(request, Logger);
+        return groupCoordinator->LeaveGroup(request, Logger);
     }
 
     DEFINE_KAFKA_HANDLER(OffsetCommit)

@@ -149,7 +149,9 @@ IQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistra
 
     TGetRegistrationResult result{.ResolvedQueue = queue, .ResolvedConsumer = consumer};
 
-    if (auto registration = DoFindRegistration(TTablePath::FromRichYPath(queue), TConsumerReference::FromRichYPath(consumer)); registration.has_value()) {
+    auto queuePath = TTablePath::FromRichYPath(queue);
+    auto consumerReference = TConsumerReference::FromRichYPath(consumer);
+    if (auto registration = DoFindRegistration(queuePath, consumerReference); registration.has_value()) {
         result.Registration = *registration;
         return result;
     }
