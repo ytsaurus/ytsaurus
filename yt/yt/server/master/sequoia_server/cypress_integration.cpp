@@ -81,10 +81,8 @@ private:
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
-
         switch (key) {
-            case EInternedAttributeKey::Config:
-            {
+            case EInternedAttributeKey::Config: {
                 const auto& cypressProxyTracker = Bootstrap_->GetCypressProxyTracker();
                 BuildYsonFluently(consumer)
                     .Value(cypressProxyTracker->GetDynamicConfig());
