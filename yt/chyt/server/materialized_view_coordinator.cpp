@@ -120,8 +120,8 @@ struct TMaterializedViewPartitionProgress
     }
 };
 
+DECLARE_REFCOUNTED_STRUCT(TMaterializedViewPartitionProgress);
 DEFINE_REFCOUNTED_TYPE(TMaterializedViewPartitionProgress)
-using TMaterializedViewPartitionProgressPtr = TIntrusivePtr<TMaterializedViewPartitionProgress>;
 
 struct TMaterializedViewProgress
     : public TYsonStruct
@@ -142,8 +142,8 @@ struct TMaterializedViewProgress
     }
 };
 
+DECLARE_REFCOUNTED_STRUCT(TMaterializedViewProgress)
 DEFINE_REFCOUNTED_TYPE(TMaterializedViewProgress)
-using TMaterializedViewProgressPtr = TIntrusivePtr<TMaterializedViewProgress>;
 
 class TMaterializedViewProgressStore
     : public TRefCounted
