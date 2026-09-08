@@ -8,6 +8,7 @@
 
 #include <yt/yt/library/auth/auth.h>
 
+#include <util/string/cast.h>
 #include <util/system/env.h>
 
 namespace NYT::NFlow {
@@ -66,6 +67,7 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
                     })
                     .Item("environment").BeginMap()
                         .Item("YT_FLOW_MODE").Value(task.FlowMode)
+                        .Item("YT_FLOW_CPU_LIMIT").Value(ToString(task.CpuLimit))
                         .DoFor(task.Environment, [&] (auto fluent, const auto& pair) {
                             fluent.Item(pair.first).Value(pair.second);
                         })

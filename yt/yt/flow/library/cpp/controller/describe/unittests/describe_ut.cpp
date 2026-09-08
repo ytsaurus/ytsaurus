@@ -1030,13 +1030,20 @@ TEST_W(TDescribeTest, DescribePartition)
 TEST_W(TDescribeTest, DescribeWorker)
 {
     Prepare();
+    for (const auto& [_, worker] : FlowView->State->Workers) {
+        worker->VcpuFactor = 1.5;
+        worker->VcpuLimit = 15'000;
+    }
     auto workersDescription = DescribeWorkers(FlowView);
     ASSERT_EQ(workersDescription.Workers.size(), 1u);
+    EXPECT_EQ(workersDescription.Workers[0].VcpuLimit, 15'000);
     auto description = DescribeWorker(FlowView, workersDescription.Workers[0].Address);
     EXPECT_EQ(description.Address, "worker-1.net:81");
     ASSERT_EQ(description.Partitions.size(), 9u);
     EXPECT_GE(description.Messages.size(), 1u);
     EXPECT_GE(description.CpuUsage, 1.0);
+    EXPECT_EQ(description.VcpuFactor, 1.5);
+    EXPECT_EQ(description.VcpuLimit, 15'000);
 }
 
 TEST_W(TDescribeTest, DescribeWorkerShowsDeployStageLink)
