@@ -94,6 +94,7 @@ public class TestComputationHarness {
                 request.getExternalStates(),
                 request.getJoinedExternalStates(),
                 externalStateSchemas,
+                request.getProtoStateTypes(),
                 request.getWatermarks()
         );
         CompanionRequestProcessor.ProcessBatchResult processBatchResult;

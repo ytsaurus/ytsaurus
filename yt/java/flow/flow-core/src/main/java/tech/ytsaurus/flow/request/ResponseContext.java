@@ -5,8 +5,6 @@ import java.util.Map;
 
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.flow.computation.TransformResult;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
 import tech.ytsaurus.flow.state.StatesHolder;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeConvertible;
@@ -20,15 +18,15 @@ public class ResponseContext implements YTreeConvertible {
     private final GUID jobId;
     private final GUID requestId;
     private final List<TransformResult> transformResults;
-    private final Map<String, StatesHolder<InternalState>> internalStates;
-    private final Map<String, StatesHolder<ExternalState>> externalStates;
+    private final Map<String, StatesHolder> internalStates;
+    private final Map<String, StatesHolder> externalStates;
 
     public ResponseContext(
             GUID jobId,
             GUID requestId,
             List<TransformResult> transformResults,
-            Map<String, StatesHolder<InternalState>> internalStates,
-            Map<String, StatesHolder<ExternalState>> externalStates
+            Map<String, StatesHolder> internalStates,
+            Map<String, StatesHolder> externalStates
     ) {
         this.jobId = jobId;
         this.requestId = requestId;
@@ -41,11 +39,11 @@ public class ResponseContext implements YTreeConvertible {
         return transformResults;
     }
 
-    public Map<String, StatesHolder<InternalState>> getInternalStates() {
+    public Map<String, StatesHolder> getInternalStates() {
         return internalStates;
     }
 
-    public Map<String, StatesHolder<ExternalState>> getExternalStates() {
+    public Map<String, StatesHolder> getExternalStates() {
         return externalStates;
     }
 

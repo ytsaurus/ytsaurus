@@ -3,8 +3,10 @@ package tech.ytsaurus.flow.testutils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import org.jspecify.annotations.Nullable;
@@ -13,19 +15,22 @@ import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.Timer;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
+import tech.ytsaurus.flow.state.ExternalStateDescriptor;
 import tech.ytsaurus.flow.state.JoinedExternalStateDescriptor;
+import tech.ytsaurus.flow.state.ProtoExternalStateDescriptor;
+import tech.ytsaurus.flow.state.State;
 import tech.ytsaurus.flow.state.StateAccessor;
 import tech.ytsaurus.flow.state.StateDescriptor;
+import tech.ytsaurus.flow.testutils.StateSeeder.CapturedSeed;
 
 public class TestDoProcessRequest {
     private final String computationId;
     private final List<ExtendedMessage> messages;
     private final List<Timer> timers;
-    private final Map<String, Map<Payload, ExternalState>> externalStates;
-    private final Map<String, Map<Payload, ExternalState>> joinedExternalStates;
-    private final Map<String, Map<Payload, InternalState>> internalStates;
+    private final Map<String, Map<Payload, State>> externalStates;
+    private final Map<String, Map<Payload, State>> joinedExternalStates;
+    private final Map<String, Map<Payload, State>> internalStates;
+    private final Map<String, String> protoStateTypes;
     private final List<Consumer<Map<String, TableSchema>>> stateSeeds;
     private final Map<String, Long> watermarks;
 
@@ -33,9 +38,10 @@ public class TestDoProcessRequest {
             String computationId,
             List<ExtendedMessage> messages,
             List<Timer> timers,
-            Map<String, Map<Payload, ExternalState>> externalStates,
-            Map<String, Map<Payload, ExternalState>> joinedExternalStates,
-            Map<String, Map<Payload, InternalState>> internalStates,
+            Map<String, Map<Payload, State>> externalStates,
+            Map<String, Map<Payload, State>> joinedExternalStates,
+            Map<String, Map<Payload, State>> internalStates,
+            Map<String, String> protoStateTypes,
             List<Consumer<Map<String, TableSchema>>> stateSeeds,
             Map<String, Long> watermarks
     ) {
@@ -45,6 +51,7 @@ public class TestDoProcessRequest {
         this.externalStates = externalStates;
         this.joinedExternalStates = joinedExternalStates;
         this.internalStates = internalStates;
+        this.protoStateTypes = protoStateTypes;
         this.stateSeeds = stateSeeds;
         this.watermarks = watermarks;
     }
@@ -65,16 +72,24 @@ public class TestDoProcessRequest {
         return timers;
     }
 
-    public Map<String, Map<Payload, ExternalState>> getExternalStates() {
+    public Map<String, Map<Payload, State>> getExternalStates() {
         return externalStates;
     }
 
-    public Map<String, Map<Payload, ExternalState>> getJoinedExternalStates() {
+    public Map<String, Map<Payload, State>> getJoinedExternalStates() {
         return joinedExternalStates;
     }
 
-    public Map<String, Map<Payload, InternalState>> getInternalStates() {
+    public Map<String, Map<Payload, State>> getInternalStates() {
         return internalStates;
+    }
+
+    /**
+     * Proto message type per external state seeded through a proto descriptor; such states are
+     * sent in the proto wire format.
+     */
+    public Map<String, String> getProtoStateTypes() {
+        return protoStateTypes;
     }
 
     public Map<String, Long> getWatermarks() {
@@ -96,9 +111,11 @@ public class TestDoProcessRequest {
         private @Nullable String computationId;
         private List<ExtendedMessage> messages = new ArrayList<>();
         private List<Timer> timers = new ArrayList<>();
-        private final Map<String, Map<Payload, ExternalState>> externalStates = new HashMap<>();
-        private final Map<String, Map<Payload, ExternalState>> joinedExternalStates = new HashMap<>();
-        private final Map<String, Map<Payload, InternalState>> internalStates = new HashMap<>();
+        private final Map<String, Map<Payload, State>> externalStates = new HashMap<>();
+        private final Map<String, Map<Payload, State>> joinedExternalStates = new HashMap<>();
+        private final Map<String, Map<Payload, State>> internalStates = new HashMap<>();
+        private final Map<String, String> protoStateTypes = new HashMap<>();
+        private final Set<String> rowExternalStates = new HashSet<>();
         private final List<Consumer<Map<String, TableSchema>>> stateSeeds = new ArrayList<>();
         private Map<String, Long> watermarks = Collections.emptyMap();
 
@@ -141,7 +158,7 @@ public class TestDoProcessRequest {
         ) {
             joinedExternalStates
                     .computeIfAbsent(descriptor.getName(), name -> new HashMap<>())
-                    .put(key, new ExternalState(
+                    .put(key, new State(
                             CodecRegistry.getInstance().getPayloadCodec()
                                     .codecFor(value.getSchema()).encode(value)));
             return this;
@@ -183,15 +200,35 @@ public class TestDoProcessRequest {
                 Consumer<StateAccessor<T>> op,
                 @Nullable TableSchema stateSchema
         ) {
-            var seed = StateSeeder.capture(descriptor, key, op, stateSchema);
             String name = descriptor.getName();
+            if (descriptor instanceof ProtoExternalStateDescriptor<?>) {
+                requireUnmixedFormat(name, rowExternalStates);
+            } else if (descriptor instanceof ExternalStateDescriptor) {
+                requireUnmixedFormat(name, protoStateTypes.keySet());
+            }
+            var seed = StateSeeder.capture(descriptor, key, op, stateSchema);
             switch (seed.kind()) {
                 case INTERNAL -> internalStates
                         .computeIfAbsent(name, n -> new HashMap<>())
-                        .put(key, (InternalState) seed.state());
+                        .put(key, seed.state());
                 case EXTERNAL -> externalStates
                         .computeIfAbsent(name, n -> new HashMap<>())
-                        .put(key, (ExternalState) seed.state());
+                        .put(key, seed.state());
+            }
+            if (descriptor instanceof ProtoExternalStateDescriptor<?> protoDescriptor) {
+                protoStateTypes.put(name, StateSeeder.protoTypeOf(protoDescriptor));
+            } else if (seed.kind() == CapturedSeed.Kind.EXTERNAL) {
+                rowExternalStates.add(name);
+            }
+        }
+
+        /**
+         * A state travels in one wire format, so its seeds must all be proto or all be rows.
+         */
+        private static void requireUnmixedFormat(String name, Set<String> otherFormat) {
+            if (otherFormat.contains(name)) {
+                throw new IllegalArgumentException(
+                        "External state %s mixes proto-format and row-format seeds".formatted(name));
             }
         }
 
@@ -216,6 +253,7 @@ public class TestDoProcessRequest {
                     externalStates,
                     joinedExternalStates,
                     internalStates,
+                    protoStateTypes,
                     stateSeeds,
                     watermarks);
         }

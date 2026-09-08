@@ -1,61 +1,88 @@
 package tech.ytsaurus.flow.state;
 
-import java.util.Arrays;
 import java.util.Objects;
 
+import com.google.protobuf.ByteString;
 import org.jspecify.annotations.Nullable;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeConvertible;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-public class State<Value> implements YTreeConvertible {
+/**
+ * State entry: a reset marker, or a value in one or both of its representations — the wire
+ * bytes and the decoded object — each materialized on first access. Internal and external
+ * states share this shape.
+ */
+public final class State implements YTreeConvertible {
+    public static final State RESET = new State(true, null);
+
     private final boolean reset;
-    private final @Nullable Value value;
+    // The entry is request-local and single-threaded; set()/clear() replace the whole entry, so
+    // neither representation outlives the other.
+    // Wire bytes; absent until first read for a value that came with its codec.
+    private @Nullable ByteString bytes;
+    // Decoded value: the one handed to set(), or memoized by getValue() on first read.
+    private @Nullable Object value;
+    // Encodes |value| into |bytes| on first read; set only for an entry created from a value.
+    private @Nullable ByteStringCodec<Object> codec;
 
-    public State(Value value) {
-        this.value = value;
-        this.reset = false;
+    public State(ByteString bytes) {
+        this(false, Objects.requireNonNull(bytes, "Non-reset state must have bytes"));
     }
 
-    public State(boolean reset, @Nullable Value value) {
+    private State(boolean reset, @Nullable ByteString bytes) {
         this.reset = reset;
-        this.value = value;
+        this.bytes = bytes;
     }
 
-    public @Nullable Value getValue() {
-        return value;
+    /**
+     * Creates an entry from both representations — a value and the bytes it was just encoded
+     * into — so a read that follows does not decode it again.
+     */
+    public State(ByteString bytes, Object value) {
+        this(bytes);
+        this.value = Objects.requireNonNull(value, "Value must not be null");
+    }
+
+    /**
+     * Creates an entry from a value alone: it is encoded with {@code codec} when the bytes are
+     * first read, typically once at the end of the request, however many times it is set.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> State(T value, ByteStringCodec<T> codec) {
+        this(false, null);
+        this.value = Objects.requireNonNull(value, "Value must not be null");
+        this.codec = (ByteStringCodec<Object>) Objects.requireNonNull(codec, "Codec must not be null");
     }
 
     public boolean isReset() {
         return reset;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) {
-            return false;
+    /**
+     * Returns the wire bytes, encoding the value on the first call if the entry came without them.
+     */
+    public @Nullable ByteString getBytes() {
+        if (bytes == null && codec != null) {
+            bytes = codec.encode(value);
         }
-        State<?> state = (State<?>) o;
-        return reset == state.reset && valueEquals(value, state.value);
+        return bytes;
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(reset, valueHashCode(value));
-    }
-
-    private static boolean valueEquals(Object a, Object b) {
-        if (a instanceof byte[] && b instanceof byte[]) {
-            return Arrays.equals((byte[]) a, (byte[]) b);
+    /**
+     * Returns the value, decoding the bytes with {@code codec} on the first call.
+     *
+     * @param codec codec of the bytes.
+     * @param <T>   value type.
+     * @return the value.
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T getValue(ByteStringCodec<T> codec) {
+        if (value == null) {
+            value = codec.decode(Objects.requireNonNull(bytes, "Non-reset state must have bytes"));
         }
-        return Objects.equals(a, b);
-    }
-
-    private static int valueHashCode(Object value) {
-        if (value instanceof byte[]) {
-            return Arrays.hashCode((byte[]) value);
-        }
-        return Objects.hashCode(value);
+        return (T) value;
     }
 
     @Override
@@ -65,12 +92,8 @@ public class State<Value> implements YTreeConvertible {
 
     @Override
     public YTreeNode toYTree() {
-        var builder = YTree.builder().beginMap()
-                .key("reset")
-                .value(reset);
-        if (value != null && YTreeConvertible.class.isAssignableFrom(value.getClass())) {
-            builder.key("state").value(((YTreeConvertible) value).toYTree());
-        }
-        return builder.endMap().build();
+        return YTree.builder().beginMap()
+                .key("reset").value(reset)
+                .endMap().build();
     }
 }

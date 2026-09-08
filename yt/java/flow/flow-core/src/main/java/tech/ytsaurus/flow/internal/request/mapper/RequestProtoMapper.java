@@ -70,16 +70,12 @@ public class RequestProtoMapper {
         }
         builder.setMessages(messages);
 
-        // Internal states.
-        var internalStateMapper = new InternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec(), codecs.getInternalStateValueCodec()
+        // States.
+        var internalStateMapper = new InternalStateProtoMapper(keySchema, codecs.getKeyCodec());
+        builder.setInternalStates(
+                internalStateMapper.fromProto(request.getInternalStatesList(), jobId, requestId)
         );
-        builder.setInternalStates(internalStateMapper.fromProto(request.getInternalStatesList()));
-
-        // External states.
-        var externalStateMapper = new ExternalStateProtoMapper(
-                keySchema, codecs.getKeyCodec()
-        );
+        var externalStateMapper = new ExternalStateProtoMapper(keySchema, codecs.getKeyCodec());
         builder.setExternalStates(
                 externalStateMapper.fromProto(request.getExternalStatesList(), jobId, requestId)
         );

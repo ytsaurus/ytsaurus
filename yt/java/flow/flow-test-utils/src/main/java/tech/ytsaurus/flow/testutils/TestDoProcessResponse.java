@@ -10,8 +10,7 @@ import tech.ytsaurus.flow.request.ResponseContext;
 import tech.ytsaurus.flow.row.Message;
 import tech.ytsaurus.flow.row.NewTimer;
 import tech.ytsaurus.flow.row.Payload;
-import tech.ytsaurus.flow.state.ExternalState;
-import tech.ytsaurus.flow.state.InternalState;
+import tech.ytsaurus.flow.state.State;
 
 /**
  * The response from {@code TestComputationHarness.doProcess()}, which contains all outputs
@@ -33,8 +32,8 @@ public class TestDoProcessResponse {
      */
     public TestDoProcessResponse(
             ResponseContext responseContext,
-            Map<String, Map<Payload, ExternalState>> loadedExternalStates,
-            Map<String, Map<Payload, InternalState>> loadedInternalStates,
+            Map<String, Map<Payload, State>> loadedExternalStates,
+            Map<String, Map<Payload, State>> loadedInternalStates,
             Map<String, TableSchema> externalStateSchemas
     ) {
         this.responseContext = responseContext;

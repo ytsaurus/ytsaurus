@@ -18,18 +18,18 @@ public class DefaultStateBackend implements StateBackend {
     private final Set<String> internalStateNames;
     private final Set<String> externalStateNames;
     private final Set<String> joinedExternalStateNames;
-    private final Map<String, StatesHolder<InternalState>> internalStates;
-    private final Map<String, StatesHolder<ExternalState>> externalStates;
-    private final Map<String, StatesHolder<ExternalState>> joinedExternalStates;
+    private final Map<String, StatesHolder> internalStates;
+    private final Map<String, StatesHolder> externalStates;
+    private final Map<String, StatesHolder> joinedExternalStates;
     private final @Nullable TableSchema keySchema;
 
     public DefaultStateBackend(
             Set<String> internalStateNames,
             Set<String> externalStateNames,
             Set<String> joinedExternalStateNames,
-            Map<String, StatesHolder<InternalState>> internalStates,
-            Map<String, StatesHolder<ExternalState>> externalStates,
-            Map<String, StatesHolder<ExternalState>> joinedExternalStates,
+            Map<String, StatesHolder> internalStates,
+            Map<String, StatesHolder> externalStates,
+            Map<String, StatesHolder> joinedExternalStates,
             @Nullable TableSchema keySchema
     ) {
         this.internalStateNames = internalStateNames;
@@ -45,11 +45,11 @@ public class DefaultStateBackend implements StateBackend {
      * {@inheritDoc}
      */
     @Override
-    public StatesHolder<InternalState> getOrCreateInternalStateHolder(String stateName) {
+    public StatesHolder getOrCreateInternalStateHolder(String stateName) {
         validateInternalStateName(stateName);
         return internalStates.computeIfAbsent(stateName, name -> {
             log.debug("Creating new state for name: {}", name);
-            return new StatesHolder<>(name, keySchema, null);
+            return new StatesHolder(name, keySchema, null);
         });
     }
 
@@ -57,7 +57,7 @@ public class DefaultStateBackend implements StateBackend {
      * {@inheritDoc}
      */
     @Override
-    public StatesHolder<ExternalState> getExternalStateHolder(String stateName) {
+    public StatesHolder getExternalStateHolder(String stateName) {
         validateExternalStateName(stateName);
         return Objects.requireNonNull(
                 externalStates.get(stateName),
@@ -72,10 +72,10 @@ public class DefaultStateBackend implements StateBackend {
      * the joiner is declared but the upstream state table had no matching entries.
      */
     @Override
-    public StatesHolder<ExternalState> getJoinedExternalStateHolder(String stateName) {
+    public StatesHolder getJoinedExternalStateHolder(String stateName) {
         validateJoinedExternalStateName(stateName);
         var holder = joinedExternalStates.get(stateName);
-        return holder != null ? holder : new StatesHolder<>(stateName, keySchema, null);
+        return holder != null ? holder : new StatesHolder(stateName, keySchema, null);
     }
 
     private void validateInternalStateName(String stateName) {
