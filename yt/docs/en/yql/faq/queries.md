@@ -59,7 +59,7 @@ If you read this table in YQL, the `newColumn` field will be available in the `_
 SELECT * FROM `//tmp/table_not_strict` AS t;
 ```
 
-![](../../../images/yql_other_field.png)
+![](../../../_images/yql_other_field.png)
 
 There are multiple methods for retrieving the value of new `newColumn`:
 

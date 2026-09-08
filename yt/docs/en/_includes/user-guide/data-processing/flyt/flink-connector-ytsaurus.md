@@ -161,11 +161,11 @@ Start Flink SQL Client:
 
 4. Monitor job progress at [localhost:8083](http://localhost:8083).
 
-   ![](../../../../../images/flyt-connector-simple-sink-job-ui.png)
+   ![](../../../../../_images/flyt-connector-simple-sink-job-ui.png)
 
 5. The table `flink_simple_test_table` will be created in the `/tmp/flink_simple_test_table` directory and will contain the results of the Flink job.
 
-   ![](../../../../../images/flyt-connector-simple-sink-result-ui.png)
+   ![](../../../../../_images/flyt-connector-simple-sink-result-ui.png)
 
 Congratulations! You've launched your first job with {{product-name}} and Apache Flink.
 
@@ -405,7 +405,7 @@ FROM partitioned_data_source;
 
 Result:
 
-![](../../../../../images/flyt-connector-partitioned-table-result-ui.png)
+![](../../../../../_images/flyt-connector-partitioned-table-result-ui.png)
 
 ## Table Resharding {#table-resharding}
 
@@ -566,11 +566,11 @@ ON o.user_id = l.id;
 
 Open the Apache Flink UI at [localhost:8083](http://localhost:8083).
 
-![](../../../../../images/flyt-connector-lookup-join-job-ui.png)
+![](../../../../../_images/flyt-connector-lookup-join-job-ui.png)
 
 Flink SQL Client displays the results of the Lookup Join operation in real time.
 
-![](../../../../../images/flyt-connector-lookup-join-flink-sql-result.png)
+![](../../../../../_images/flyt-connector-lookup-join-flink-sql-result.png)
 
 
 ## Examples {#examples}

@@ -19,7 +19,7 @@ A {{product-name}} computing cluster is able:
 
 ## Architecture
 
-![](../../../images/architecture.png)
+![](../../../_images/architecture.png)
 
 The {{product-name}} architecture contains three layers:
 - Distributed file system and metadata storage: Cypress.

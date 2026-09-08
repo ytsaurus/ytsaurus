@@ -12,7 +12,7 @@ StateAccessor — интерфейс для чтения, модификации
 
 Каждую строку в таблице стейта можно условно разделить на ключевые колонки и колонки значений:
 
-![](../../../flow/images/state_line_example.svg)
+![](../../../flow/_images/state_line_example.svg)
 
 Для `TTransformCompanionComputation` ключевые колонки в таблице стейта совпадают с `group_by_schema` [компьютейшена](../../../flow/concepts/glossary.md#stream-and-computation). Для внутреннего стейта `TTransformOrderedSourceCompanionComputation` ключом служит ключ партиции источника: `group_by_schema` в таком SourceComputation не поддерживается.
 

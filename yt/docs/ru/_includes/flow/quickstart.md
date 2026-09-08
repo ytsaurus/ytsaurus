@@ -160,7 +160,7 @@ $ ya run . -- --input {{flow-example-cluster}}://tmp/example/noop --ttl 1
 
 На выходе будет создан .svg файл с изображением пайплайна. Файл можно открыть в браузере. О том, какую информацию можно получить из графа &mdash; можно почитать в README.md рядом с утилитой.
 
-![](../../flow/images/flow_noop_pipeline.png =600x230){ .center }
+![](../../flow/_images/flow_noop_pipeline.png =600x230){ .center }
 
 ## Запуск в YT vanilla-операции {#vanilla}
 

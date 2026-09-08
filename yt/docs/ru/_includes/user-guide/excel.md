@@ -11,9 +11,9 @@ title: Импорт и экспорт таблиц Microsoft Excel | {{product-n
 Чтобы загрузить данные с одновременным созданием {{product-name}} таблицы, следует нажать кнопку **Create object** на странице директории. Из выпадающего меню выбрать **Upload xlsx**.
 
 {% if audience == "public" %}
-![](../../../images/excel_upload_create.png){ .center }
+![](../../../_images/excel_upload_create.png){ .center }
 {% else %}
-![](../../images/excel_upload_create.png){ .center }
+![](../../_images/excel_upload_create.png){ .center }
 {% endif %}
 
 В меню загрузки важно установить правильные значения переключателей **Column names** и **Types**.
@@ -29,9 +29,9 @@ title: Импорт и экспорт таблиц Microsoft Excel | {{product-n
 {% endnote %}
 
 {% if audience == "public" %}
-![](../../../images/excel_upload.png){ .center }
+![](../../../_images/excel_upload.png){ .center }
 {% else %}
-![](../../images/excel_upload.png){ .center }
+![](../../_images/excel_upload.png){ .center }
 {% endif %}
 
 ## Загрузка в существующую таблицу
@@ -39,9 +39,9 @@ title: Импорт и экспорт таблиц Microsoft Excel | {{product-n
 Чтобы загрузить данные в существующую {{product-name}} таблицу, следует нажать кнопку **Upload** на странице таблицы.
 
 {% if audience == "public" %}
-![](../../../images/excel_upload_existing.png){ .center }
+![](../../../_images/excel_upload_existing.png){ .center }
 {% else %}
-![](../../images/excel_upload_existing.png){ .center }
+![](../../_images/excel_upload_existing.png){ .center }
 {% endif %}
 
 {% note warning "Внимание" %}
@@ -53,9 +53,9 @@ title: Импорт и экспорт таблиц Microsoft Excel | {{product-n
 В меню загрузки с помощью переключателя **Append** можно выбрать режим загрузки. Включенное значение соответствует дописыванию строк в конец {{product-name}} таблицы, выключенное — перезаписыванию таблицы.
 
 {% if audience == "public" %}
-![](../../../images/excel_upload_append.png){ .center }
+![](../../../_images/excel_upload_append.png){ .center }
 {% else %}
-![](../../images/excel_upload_append.png){ .center }
+![](../../_images/excel_upload_append.png){ .center }
 {% endif %}
 
 ## Ограничения загрузки
@@ -70,9 +70,9 @@ title: Импорт и экспорт таблиц Microsoft Excel | {{product-n
 Интерфейс позволяет указать интересующее подмножество строк и колонок.
 
 {% if audience == "public" %}
-![](../../../images/excel_download.png){ .center }
+![](../../../_images/excel_download.png){ .center }
 {% else %}
-![](../../images/excel_download.png){ .center }
+![](../../_images/excel_download.png){ .center }
 {% endif %}
 
 В первой строке результата будут названия колонок, во второй — их типы.

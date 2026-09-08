@@ -10,7 +10,7 @@ To ensure fault tolerance, a {{product-name}} cluster needs to have several mast
 
 {{product-name}} masters are stateful components of the cluster, because they store changelogs and snapshots of the cluster state on the disk. For optimal master performance, we recommend using a storage medium that's good at handling a large stream of small records, such as NVMe SSD.
 
-![](../../../images/yt_cluster_components.png)
+![](../../../_images/yt_cluster_components.png)
 
 ## Data Nodes
 

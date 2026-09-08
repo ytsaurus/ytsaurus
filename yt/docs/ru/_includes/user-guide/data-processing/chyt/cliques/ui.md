@@ -22,11 +22,11 @@
 
 {% if audience == "internal" %}
 
-![UI](../../../../../../images/clique-ui-ys.png){ .center }
+![UI](../../../../../../_images/clique-ui-ys.png){ .center }
 
 {% else %}
 
-![UI](../../../../../../images/clique-ui-os.png){ .center }
+![UI](../../../../../../_images/clique-ui-os.png){ .center }
 
 {% endif %}
 
@@ -42,8 +42,8 @@ _4. [Панель вкладок](#tabs) — ссылки на вкладки н
 - название кластера, на котором находится клика, и кнопка для его смены;
 - название раздела **CHYT cliques**;
 - кнопки:
-  - ![add to favourites](../../../../../../images/add-to-favourites-btn.png){width=24 height=24} _Add to favourites_ — добавить клику в избранное;
-  - ![view favourites](../../../../../../images/view-favourites-btn.png){width=24 height=24} _View favourites_ — посмотреть избранные клики;
+  - ![add to favourites](../../../../../../_images/add-to-favourites-btn.png){width=24 height=24} _Add to favourites_ — добавить клику в избранное;
+  - ![view favourites](../../../../../../_images/view-favourites-btn.png){width=24 height=24} _View favourites_ — посмотреть избранные клики;
 - название клики;
 - кнопка **Create clique** для [создания новой клики](../../../../../user-guide/data-processing/chyt/how-to-guides/create-start.md#create).
 
@@ -51,11 +51,11 @@ _4. [Панель вкладок](#tabs) — ссылки на вкладки н
 
 Справа расположен блок с кнопками действий (2):
 
-- ![sql](../../../../../../images/sql-btn.png){width=24 height=24} _SQL_ — переход в веб-интерфейс для выполнения запросов [Query Tracker](../../../../../user-guide/query-tracker/about.md);
-- ![start](../../../../../../images/start-btn.png){width=24 height=24} _Start_ — запуск клики;
-- ![stop](../../../../../../images/stop-btn.png){width=24 height=24} _Stop_ — остановка клики;
-- ![remove](../../../../../../images/remove-btn.png){width=24 height=24} _Remove_ — удаление клики;
-- ![edit speclet](../../../../../../images/edit-btn.png){width=24 height=24} _Edit speclet_ — редактирование [спеклета](../../../../../user-guide/data-processing/chyt/cliques/configs.md#speclet) — файла настроек (конфигурации) клики.
+- ![sql](../../../../../../_images/sql-btn.png){width=24 height=24} _SQL_ — переход в веб-интерфейс для выполнения запросов [Query Tracker](../../../../../user-guide/query-tracker/about.md);
+- ![start](../../../../../../_images/start-btn.png){width=24 height=24} _Start_ — запуск клики;
+- ![stop](../../../../../../_images/stop-btn.png){width=24 height=24} _Stop_ — остановка клики;
+- ![remove](../../../../../../_images/remove-btn.png){width=24 height=24} _Remove_ — удаление клики;
+- ![edit speclet](../../../../../../_images/edit-btn.png){width=24 height=24} _Edit speclet_ — редактирование [спеклета](../../../../../user-guide/data-processing/chyt/cliques/configs.md#speclet) — файла настроек (конфигурации) клики.
 
 ### Характеристики клики {#params}
 

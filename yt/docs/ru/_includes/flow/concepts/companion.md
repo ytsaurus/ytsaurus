@@ -30,7 +30,7 @@ Computation на стороне Worker-a собирает батч сообще�
 
 В дальнейшем планируется использовать и unix sockets.
 
-![](../../../flow/images/companion_v1.svg)
+![](../../../flow/_images/companion_v1.svg)
 
 Управление процессом-компаньоном осуществляется через [ресурс](../../../flow/concepts/glossary.md#resource) `CompanionManager`.
 
