@@ -236,7 +236,9 @@ struct TJoinSubqueryOptionsPatch
     std::optional<int> MaxSubqueries;
 };
 
-TQueryOptions ApplyPatch(const TQueryOptions& base, const TJoinSubqueryOptionsPatch& patch);
+TQueryOptions ApplyJoinSubqueryOptionsPatch(
+    const TQueryOptions& base,
+    const TJoinSubqueryOptionsPatch& patch);
 
 ////////////////////////////////////////////////////////////////////////////////
 
