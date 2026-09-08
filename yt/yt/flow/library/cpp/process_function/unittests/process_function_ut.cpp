@@ -6,6 +6,7 @@
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/in_memory_external_state_manager.h>
+#include <yt/yt/flow/library/cpp/process_function/testing/process_function_test_harness.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/recording_output_collector.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/test_runtime_context.h>
 #include <yt/yt/flow/library/cpp/process_function/testing/test_state_environment.h>
@@ -344,6 +345,41 @@ private:
     TMutableStateKeyClient<TSimpleExternalState> StateClient_;
 };
 
+//! Erases the message's external state while |Erase| is set, reads it otherwise.
+class TExternalErasingFunction
+    : public IProcessFunction
+{
+public:
+    bool Erase = true;
+    //! Whether a read right after the erase was rejected, as the epoch contract requires.
+    bool SawErasedError = false;
+
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        initContext->InitExternalStateClient(StateClient_, "/state");
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        if (!Erase) {
+            StateClient_.GetState(message->Key);
+            return;
+        }
+        StateClient_.EraseState(message->Key);
+        try {
+            StateClient_.GetState(message->Key);
+        } catch (const std::exception& ex) {
+            SawErasedError = TString(ex.what()).Contains("was erased in this epoch");
+        }
+    }
+
+private:
+    TMutableStateKeyClient<TSimpleExternalState> StateClient_;
+};
+
 //! Reads a per-key "limit" from a read-only external state joiner and echoes it as a word.
 class TJoinerReadingFunction
     : public IProcessFunction
@@ -580,6 +616,30 @@ TEST(TProcessFunctionTest, ExternalStateManagerRegisteredGenerically)
         2);
 }
 
+// The in-memory manager's erase tombstone ends with the harness epoch, as the worker's Sync
+// would end a real manager's.
+TEST(TProcessFunctionTest, ExternalStateErasedKeyIsReadableInNextEpoch)
+{
+    TTestStateEnvironment stateEnv;
+    auto stateSchema = ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(R"([{name=count;type=int64}])")));
+    auto manager = stateEnv.RegisterExternalState("/state", stateSchema);
+
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto function = New<TExternalErasingFunction>();
+    TProcessFunctionTestHarness harness(stateEnv, function, context);
+
+    auto key = MakeKey<ui64>(1);
+    auto message = MakeTestMessage("input", key, New<TTableSchema>());
+
+    harness.RunEpoch({message}, {}, {});
+    EXPECT_TRUE(function->SawErasedError);
+    // The harness epoch ended: the tombstone is gone.
+    EXPECT_NO_THROW(manager->GetState(key));
+
+    function->Erase = false;
+    EXPECT_NO_THROW(harness.RunEpoch({message}, {}, {}));
+}
+
 TEST(TProcessFunctionTest, ExternalStateJoiner)
 {
     TTestStateEnvironment stateEnv;
@@ -629,6 +689,74 @@ TEST(TProcessFunctionTest, WholeBatchFunctionSeesAllKeys)
 
     ASSERT_EQ(std::ssize(output->GetMessages()), 1);
     EXPECT_EQ(GetColumnValue<std::string>(output->GetMessages()[0].Message, "word"), "3");
+}
+
+TEST(TProcessFunctionTest, DispatchHelpersSetParentsAndAcceptBoundMethods)
+{
+    // The helpers give a batch function the adapter's per-entity contract: parents are set to
+    // the entity, and a callback may be a bound method or a bound lambda.
+    class TCountingFunction
+        : public IBatchProcessFunction
+    {
+    public:
+        int Messages = 0;
+
+        void ProcessMessage(const TInputMessageConstPtr& /*message*/, const IOutputCollectorPtr& output, const IRuntimeContextPtr& /*context*/)
+        {
+            ++Messages;
+            output->AddTimer(TSystemTimestamp(5));
+        }
+    };
+
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto key = MakeKey<ui64>(1);
+    auto message = MakeTestMessage("input", key, New<TTableSchema>());
+    auto visit = MakeTestVisit(key, "input");
+    auto input = New<TInputContext>(
+        std::vector<TInputMessageConstPtr>{message},
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{visit});
+
+    auto function = New<TCountingFunction>();
+    ProcessMessages(input, output, context, BIND(&TCountingFunction::ProcessMessage, function));
+    ProcessVisits(input, output, context, BIND([] (const TInputVisitConstPtr& /*visit*/, const IOutputCollectorPtr& output, const IRuntimeContextPtr& /*context*/) {
+        output->AddTimer(TSystemTimestamp(6));
+    }));
+
+    EXPECT_EQ(function->Messages, 1);
+    ASSERT_EQ(std::ssize(output->GetTimers()), 2);
+    ASSERT_EQ(std::ssize(output->GetTimers()[0].ParentIds), 1);
+    EXPECT_EQ(output->GetTimers()[0].ParentIds[0], message->MessageId);
+    ASSERT_EQ(std::ssize(output->GetTimers()[1].ParentIds), 1);
+    EXPECT_EQ(output->GetTimers()[1].ParentIds[0], visit->MessageId);
+}
+
+TEST(TProcessFunctionTest, DispatchHelpersTagFailureWithKey)
+{
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+
+    auto key = MakeKey<ui64>(11);
+    auto input = New<TInputContext>(
+        std::vector<TInputMessageConstPtr>{},
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{MakeTestVisit(key, "input")});
+
+    try {
+        ProcessVisits(input, output, context, BIND([] (const TInputVisitConstPtr& /*visit*/, const IOutputCollectorPtr& /*output*/, const IRuntimeContextPtr& /*context*/) {
+            THROW_ERROR_EXCEPTION("Boom in visit");
+        }));
+        ADD_FAILURE() << "ProcessVisits was expected to throw";
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        auto keyAttribute = error.Attributes().Find<TKey>("key");
+        ASSERT_TRUE(keyAttribute.has_value());
+        EXPECT_EQ(*keyAttribute, key);
+        EXPECT_TRUE(ToString(error).Contains("Failed to process visit"));
+        EXPECT_TRUE(ToString(error).Contains("Boom in visit"));
+    }
 }
 
 TEST(TProcessFunctionTest, ElementFunctionDispatchesEachEntityKind)

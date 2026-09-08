@@ -83,8 +83,9 @@ public:
     //! constructed over a mock YT client.
     void RegisterExternalState(TStringBuf name, IExternalStateManagerPtr manager);
 
-    //! Convenience over RegisterExternalState: builds an in-memory simple manager and returns
-    //! it so the test can read the resulting state back via GetState(key) after the function ran.
+    //! Convenience over RegisterExternalState: builds an in-memory simple manager, synced at
+    //! every CommitEpoch, and returns it so the test can read the resulting state back via
+    //! GetState(key) after the function ran.
     TInMemorySimpleExternalStateManagerPtr RegisterExternalState(
         TStringBuf name,
         NTableClient::TTableSchemaPtr stateSchema,

@@ -11,6 +11,7 @@ SRCS(
     flow_view_ut.cpp
     generate_message_id_ut.cpp
     inflight_tracker_ut.cpp
+    input_context_ut.cpp
     interval_ut.cpp
     job_directory_ut.cpp
     joined_state_key_client_ut.cpp

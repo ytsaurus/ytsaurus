@@ -153,6 +153,52 @@ private:
 };
 ```
 
+### Предзагрузка и `auto_preload` {#external-state-preload}
+
+По умолчанию (`auto_preload = %true`) фреймворк перед каждым `DoProcess` подгружает в каждый external state manager все ключи сообщений, таймеров и визитов эпохи — по одному lookup'у на ключ. При `"auto_preload" = %false;` в спеке менеджера `Computation` подгружает только нужные ему ключи через клиент: `PreloadKeyStates(THashSet<TKey>)`, `PreloadKeyStates(IInputContextPtr)` или `PreloadKeyStates(IInputContextPtr, TExtractKeysOptions)`; опции выбирают, ключи каких сущностей брать, например `{.Visits = false}` для стейта, который обработчик визитов не читает. Предзагрузка инкрементальна: её можно вызывать несколько раз за эпоху, подгружаются только ещё не загруженные ключи, а уже загруженный (возможно, изменённый) стейт остаётся как есть. `GetState` по ключу, не подгруженному в эпохе, бросает исключение. `auto_preload = %false` запрещён для companion-вычислений.
+
+```cpp
+void DoProcess(IInputContextPtr input, IOutputCollectorPtr output) override
+{
+    if (!GetSpec()->ExternalStateManagers.at("/state")->AutoPreload) {
+        // Сообщениям нужна строка; визитам — только ключ.
+        WaitFor(StateClient_.PreloadKeyStates(input, {.Visits = false})).ThrowOnError();
+    }
+    for (const auto& message : input->GetMessages()) {
+        auto state = StateClient_.GetState(message);
+        // ...
+    }
+    for (const auto& visit : input->GetVisits()) {
+        // Работа только с ключом: lookup за него не оплачен.
+    }
+}
+```
+
+Process function делает то же в `IBatchProcessFunction::Process`, раздавая сущности через хелперы из раздела [Process functions](../../../flow/cpp/process-functions.md):
+
+```cpp
+void Process(const IInputContextPtr& input, const IOutputCollectorPtr& output, const IRuntimeContextPtr& context) override
+{
+    if (!context->GetSpec()->ExternalStateManagers.at("/state")->AutoPreload) {
+        WaitFor(StateClient_.PreloadKeyStates(input, {.Visits = false})).ThrowOnError();
+    }
+    ProcessMessages(input, output, context, BIND(&TMyFunction::ProcessMessage, MakeStrong(this)));
+    ProcessVisits(input, output, context, BIND(&TMyFunction::ProcessVisit, MakeStrong(this)));
+}
+```
+
+### Удаление без чтения: `EraseState` {#external-state-erase}
+
+`StateClient_.EraseState(key)` ставит строку на удаление, не подгружая и не читая её — key visitor, вычищающий строки по колонке ключа (например, timestamp), не платит за них ни одного lookup'а. Erase терминален для эпохи: после него `GetState` бросает исключение, а `PreloadKeyStates` не возвращает ключ обратно — независимо от того, был ли он загружен. `TSimpleExternalStateManager`, `TProfileStateManager` и внутренний per-key стейт удаляют только по ключу; пользовательский менеджер без переопределения `EraseKeyState` отвергает вызов.
+
+```cpp
+for (const auto& visit : input->GetVisits()) {
+    if (GetColumnValue<ui64>(visit->Key, "ts") + Week < now) {
+        StateClient_.EraseState(visit->Key);   // Без lookup'а.
+    }
+}
+```
+
 ### TSimpleExternalStateManager
 
 `TSimpleExternalStateManager` — стандартная реализация external state manager'а. Работает с одной динамической таблицей, ключи которой совпадают с `group_by_schema`. `GetState` отдаёт аксессор поверх `TSimpleExternalState` с полями `Payload` и `Schema`; колонки достаются и записываются через `GetColumn[Value]<T>` / `TPayloadBuilder` по имени или индексу. Кэширование стейтов происходит автоматически через общий [StateCache](#state-cache).

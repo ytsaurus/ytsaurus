@@ -268,24 +268,21 @@ void TOperator::Write(
     const IRetryableTransactionPtr& tx,
     const TTableSchemaPtr& stateSchema,
     const THashMap<TKey, TPayload>& oldPayloads,
-    const THashMap<TKey, TPayload>& newPayloads) const
+    const THashMap<TKey, TPayload>& newPayloads,
+    const THashSet<TKey>& erasedKeys) const
 {
-    YT_VERIFY(stateSchema);
+    YT_VERIFY(stateSchema || oldPayloads.empty());
     YT_VERIFY(oldPayloads.size() == newPayloads.size());
 
     auto lookupKeySchema = KeySchema_->ToSorted(KeySchema_->GetColumnNames())->ToLookup();
-    auto fullSchema = New<TTableSchema>(
-        ConcatVectors(lookupKeySchema->Columns(), stateSchema->Columns()));
+    auto fullSchema = New<TTableSchema>(ConcatVectors(
+        lookupKeySchema->Columns(),
+        stateSchema ? stateSchema->Columns() : std::vector<TColumnSchema>{}));
     auto rowBuffer = New<TRowBuffer>();
     std::vector<TRowModification> rows;
 
-    for (const auto& [key, oldPayload] : oldPayloads) {
-        const auto& newPayload = GetOrCrash(newPayloads, key);
-        if (TBitwiseUnversionedRowEqual()(oldPayload.Underlying(), newPayload.Underlying())) {
-            continue;
-        }
-
-        TUnversionedRowBuilder builder;
+    // Adds the non-expression key columns of |key|; returns the next value id.
+    auto addKeyColumns = [&] (TUnversionedRowBuilder& builder, const TKey& key) {
         int nextId = 0;
         for (int i = 0; i < KeySchema_->GetColumnCount(); ++i) {
             const auto& column = KeySchema_->Columns()[i];
@@ -296,6 +293,23 @@ void TOperator::Write(
                 builder.AddValue(value);
             }
         }
+        return nextId;
+    };
+
+    for (const auto& key : erasedKeys) {
+        TUnversionedRowBuilder builder;
+        addKeyColumns(builder, key);
+        rows.push_back(NRowModifications::TDeleteRow(rowBuffer->CaptureRow(builder.GetRow())));
+    }
+
+    for (const auto& [key, oldPayload] : oldPayloads) {
+        const auto& newPayload = GetOrCrash(newPayloads, key);
+        if (TBitwiseUnversionedRowEqual()(oldPayload.Underlying(), newPayload.Underlying())) {
+            continue;
+        }
+
+        TUnversionedRowBuilder builder;
+        int nextId = addKeyColumns(builder, key);
 
         if (IsEmpty(newPayload)) {
             auto row = rowBuffer->CaptureRow(builder.GetRow());
@@ -449,13 +463,22 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
         .With("Count", keys.size());
 
     auto guard = Guard(Lock_);
-    YT_VERIFY(!EpochState_);
-    EpochState_ = TEpochState{};
+    if (!EpochState_) {
+        EpochState_.emplace();
+    }
 
     std::vector<TKey> keysToLoad;
     keysToLoad.reserve(keys.size());
+    i64 residentCount = 0;
+    i64 cachedCount = 0;
     for (const auto& key : keys) {
+        // Incremental: keys loaded or erased earlier in this epoch stay as they are.
+        if (EpochState_->States.contains(key) || EpochState_->Erased.contains(key)) {
+            ++residentCount;
+            continue;
+        }
         if (auto cached = ExtractCachedState(key)) {
+            ++cachedCount;
             NSimpleExternalState::EnsureSchema(EpochState_->StateSchema, cached->Schema, key);
             EmplaceOrCrash(EpochState_->OldStates, key, cached->Payload);
             auto state = New<TStateHolder>();
@@ -468,13 +491,15 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
     }
 
     if (keysToLoad.empty()) {
-        YT_TLOG_DEBUG("All keys served from cache")
-            .With("CachedCount", keys.size());
+        YT_TLOG_DEBUG("No keys to load")
+            .With("ResidentCount", residentCount)
+            .With("CachedCount", cachedCount);
         return OKFuture;
     }
 
     YT_TLOG_DEBUG("Loading keys from YT")
-        .With("CachedCount", keys.size() - keysToLoad.size())
+        .With("ResidentCount", residentCount)
+        .With("CachedCount", cachedCount)
         .With("LoadCount", keysToLoad.size());
 
     return Operator_.Lookup(keysToLoad, EpochState_->StateSchema)
@@ -487,6 +512,10 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
             YT_VERIFY(std::ssize(keys) == std::ssize(loaded.Payloads));
             NSimpleExternalState::EnsureSchema(EpochState_->StateSchema, loaded.StateSchema, keys.front());
             for (int i = 0; i < std::ssize(keys); ++i) {
+                // A concurrent preload may have landed first; never replace an epoch-resident state.
+                if (EpochState_->States.contains(keys[i])) {
+                    continue;
+                }
                 EmplaceOrCrash(EpochState_->OldStates, keys[i], loaded.Payloads[i]);
                 auto newState = New<TStateHolder>();
                 newState->Get().Payload = std::move(loaded.Payloads[i]);
@@ -497,17 +526,31 @@ TFuture<void> TSimpleExternalStateManager::PreloadKeyStates(const THashSet<TKey>
                 .AsyncVia(GetCurrentInvoker()));
 }
 
+void TSimpleExternalStateManager::EraseKeyState(const TKey& key)
+{
+    auto guard = Guard(Lock_);
+    if (!EpochState_) {
+        EpochState_.emplace();
+    }
+    // Dropped, not cleared, so a later GetState cannot turn the deletion back into a write.
+    EpochState_->States.erase(key);
+    EpochState_->OldStates.erase(key);
+    EpochState_->Erased.insert(key);
+}
+
 void TSimpleExternalStateManager::Sync(IRetryableTransactionPtr transaction)
 {
     auto guard = Guard(Lock_);
-    if (!EpochState_ || EpochState_->OldStates.empty()) {
+    if (!EpochState_ || (EpochState_->OldStates.empty() && EpochState_->Erased.empty())) {
         YT_TLOG_DEBUG("Nothing to sync");
         EpochState_ = std::nullopt;
         return;
     }
     YT_TLOG_DEBUG("Syncing")
-        .With("Count", EpochState_->OldStates.size());
-    YT_VERIFY(EpochState_->StateSchema);
+        .With("Count", EpochState_->OldStates.size())
+        .With("ErasedCount", EpochState_->Erased.size());
+    // An erase-only epoch has no schema and needs none: deletes carry key columns only.
+    YT_VERIFY(EpochState_->StateSchema || EpochState_->OldStates.empty());
 
     THashMap<TKey, TPayload> newPayloads;
     newPayloads.reserve(EpochState_->States.size());
@@ -515,10 +558,14 @@ void TSimpleExternalStateManager::Sync(IRetryableTransactionPtr transaction)
         EmplaceOrCrash(newPayloads, key, state->Get().Payload);
     }
 
-    Operator_.Write(transaction, EpochState_->StateSchema, EpochState_->OldStates, newPayloads);
+    Operator_.Write(transaction, EpochState_->StateSchema, EpochState_->OldStates, newPayloads, EpochState_->Erased);
 
     for (const auto& [key, payload] : newPayloads) {
         UpdateCache(key, payload, EpochState_->StateSchema);
+    }
+    for (const auto& key : EpochState_->Erased) {
+        // Evict the cached row: it would outlive the deletion.
+        StateCache_->Extract(key);
     }
 
     EpochState_ = std::nullopt;
@@ -529,7 +576,13 @@ IStateHolderPtr TSimpleExternalStateManager::GetState(const TKey& key)
     auto guard = Guard(Lock_);
     YT_TLOG_DEBUG("GetState")
         .With("Key", key);
-    YT_VERIFY(EpochState_);
+    // Not preloaded: failing the job beats aborting the whole worker.
+    THROW_ERROR_EXCEPTION_IF(EpochState_ && EpochState_->Erased.contains(key),
+        "External state for key %v was erased in this epoch",
+        key);
+    THROW_ERROR_EXCEPTION_IF(!EpochState_ || !EpochState_->States.contains(key),
+        "External state manager has no preloaded state for key %v; preload it via PreloadKeyStates",
+        key);
     return GetOrCrash(EpochState_->States, key);
 }
 

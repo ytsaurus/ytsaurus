@@ -340,6 +340,8 @@ void TExternalStateManagerSpec::Register(TRegistrar registrar)
     registrar.Parameter("external_state_manager_class_name", &TThis::ExternalStateManagerClassName)
         .Alias("class_name")
         .Default("NYT::NFlow::TSimpleExternalStateManager");
+    registrar.Parameter("auto_preload", &TThis::AutoPreload)
+        .Default(true);
     registrar.Parameter("parameters", &TThis::Parameters)
         .Default();
 }

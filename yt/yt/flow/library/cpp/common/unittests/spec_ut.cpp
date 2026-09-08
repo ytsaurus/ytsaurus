@@ -3241,5 +3241,21 @@ TEST(TPipelineSpecTest, DynamicSourceStreamIdIsNotValidated)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TExternalStateManagerSpecTest, AutoPreloadDefaultsToTrue)
+{
+    auto spec = ConvertTo<TExternalStateManagerSpecPtr>(TYsonStringBuf(
+        R"({class_name = "NYT::NFlow::TSimpleExternalStateManager"; parameters = {}})"));
+    EXPECT_TRUE(spec->AutoPreload);
+}
+
+TEST(TExternalStateManagerSpecTest, AutoPreloadParsesFalse)
+{
+    auto spec = ConvertTo<TExternalStateManagerSpecPtr>(TYsonStringBuf(
+        R"({class_name = "NYT::NFlow::TSimpleExternalStateManager"; auto_preload = %false; parameters = {}})"));
+    EXPECT_FALSE(spec->AutoPreload);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NFlow

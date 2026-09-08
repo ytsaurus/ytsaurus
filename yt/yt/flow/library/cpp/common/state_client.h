@@ -19,6 +19,8 @@ namespace NYT::NFlow {
 template <class T>
 class TStateHolder;
 
+struct TExtractKeysOptions;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Read-only, move-only, epoch-scoped view of a state. Returned by
@@ -114,8 +116,14 @@ public:
     TStateAccessor<T> GetState(const TKey& key) const;
     TStateAccessor<T> GetState(const TInputMessageConstPtr& message) const;
     TStateAccessor<T> GetState(const TInputTimerConstPtr& timer) const;
+    //! Preloads the keys of |inputContext|, optionally only those of the selected entity kinds
+    //! (e.g. ``{.Visits = false}``); incremental within an epoch, see #IMutableStateKeyProvider.
     TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) const;
     TFuture<void> PreloadKeyStates(const IInputContextPtr& inputContext) const;
+    TFuture<void> PreloadKeyStates(const IInputContextPtr& inputContext, const TExtractKeysOptions& options) const;
+    //! Stages the deletion of |key|'s state without loading it; see
+    //! #IMutableStateKeyProvider::EraseKeyState().
+    void EraseState(const TKey& key) const;
     NTableClient::TTableSchemaPtr GetKeySchema() const;
     bool IsInitialized() const noexcept;
 

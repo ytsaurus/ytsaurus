@@ -57,8 +57,16 @@ THashSet<TKey> ExtractKeys(
     const std::optional<THashSet<TStreamId>>& streamFilter,
     const IPayloadConverterCachePtr& converterCache);
 
-//! Shorthand for ``ExtractKeys(context, nullptr, std::nullopt, nullptr)``.
-THashSet<TKey> ExtractKeys(const IInputContextPtr& context);
+//! Entity kinds whose keys #ExtractKeys() collects.
+struct TExtractKeysOptions
+{
+    bool Messages = true;
+    bool Timers = true;
+    bool Visits = true;
+};
+
+//! Keys of the selected entity kinds of |context| (every kind by default), taken verbatim.
+THashSet<TKey> ExtractKeys(const IInputContextPtr& context, const TExtractKeysOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

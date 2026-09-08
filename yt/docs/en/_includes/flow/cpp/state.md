@@ -153,6 +153,52 @@ private:
 };
 ```
 
+### Preload and `auto_preload` {#external-state-preload}
+
+By default (`auto_preload = %true`) the framework preloads every external state manager before each `DoProcess` with all message, timer and visit keys of the epoch — one lookup per key. With `"auto_preload" = %false;` in the manager's spec the `Computation` loads only the keys it needs through the client: `PreloadKeyStates(THashSet<TKey>)`, `PreloadKeyStates(IInputContextPtr)` or `PreloadKeyStates(IInputContextPtr, TExtractKeysOptions)`; the options select the entity kinds whose keys are taken, for example `{.Visits = false}` for a state that a visit handler does not read. Preload is incremental: it may be called several times within an epoch, only keys not loaded yet are fetched, and an already loaded (possibly modified) state is left as is. `GetState` on a key that was not preloaded in the epoch throws. `auto_preload = %false` is not allowed for companion computations.
+
+```cpp
+void DoProcess(IInputContextPtr input, IOutputCollectorPtr output) override
+{
+    if (!GetSpec()->ExternalStateManagers.at("/state")->AutoPreload) {
+        // Messages need the row; visits only need the key.
+        WaitFor(StateClient_.PreloadKeyStates(input, {.Visits = false})).ThrowOnError();
+    }
+    for (const auto& message : input->GetMessages()) {
+        auto state = StateClient_.GetState(message);
+        // ...
+    }
+    for (const auto& visit : input->GetVisits()) {
+        // Key-only work: no lookup was paid for this key.
+    }
+}
+```
+
+A process function does the same in `IBatchProcessFunction::Process`, dispatching entities through the helpers described in [Process functions](../../../flow/cpp/process-functions.md):
+
+```cpp
+void Process(const IInputContextPtr& input, const IOutputCollectorPtr& output, const IRuntimeContextPtr& context) override
+{
+    if (!context->GetSpec()->ExternalStateManagers.at("/state")->AutoPreload) {
+        WaitFor(StateClient_.PreloadKeyStates(input, {.Visits = false})).ThrowOnError();
+    }
+    ProcessMessages(input, output, context, BIND(&TMyFunction::ProcessMessage, MakeStrong(this)));
+    ProcessVisits(input, output, context, BIND(&TMyFunction::ProcessVisit, MakeStrong(this)));
+}
+```
+
+### Deleting without reading: `EraseState` {#external-state-erase}
+
+`StateClient_.EraseState(key)` stages the deletion of a row without preloading or reading it — a key visitor that expires rows by a key column (say, a timestamp) never pays a lookup for them. Erase is terminal for the epoch: afterwards `GetState` throws and `PreloadKeyStates` does not bring the key back, whether or not it was loaded before. `TSimpleExternalStateManager`, `TProfileStateManager` and the internal per-key state delete by key alone; a user-defined manager that does not override `EraseKeyState` rejects the call.
+
+```cpp
+for (const auto& visit : input->GetVisits()) {
+    if (GetColumnValue<ui64>(visit->Key, "ts") + Week < now) {
+        StateClient_.EraseState(visit->Key);   // No lookup.
+    }
+}
+```
+
 ### TSimpleExternalStateManager
 
 `TSimpleExternalStateManager` is the standard implementation of an external state manager. It works with a single dynamic table whose keys match the `group_by_schema`. `GetState` returns an accessor over `TSimpleExternalState` with `Payload` and `Schema` fields; columns are retrieved and written via `GetColumn[Value]<T>` / `TPayloadBuilder` by name or index. State caching happens automatically via the shared [StateCache](#state-cache).

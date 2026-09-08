@@ -3,22 +3,99 @@
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/key_states.h>
 #include <yt/yt/flow/library/cpp/tables/unittests/mock/partition_states.h>
 
+#include <yt/yt/flow/library/cpp/common/external_state_manager.h>
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
 #include <yt/yt/flow/library/cpp/common/state_cache.h>
 #include <yt/yt/flow/library/cpp/common/state_client.h>
+#include <yt/yt/flow/library/cpp/common/visit.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NFlow {
 
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRecordingManagerParameters
+    : public IExternalStateManager::TParameters
+{
+    REGISTER_YSON_STRUCT(TRecordingManagerParameters);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+};
+
+struct TRecordingManagerDynamicParameters
+    : public IExternalStateManager::TDynamicParameters
+{
+    REGISTER_YSON_STRUCT(TRecordingManagerDynamicParameters);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+};
+
+//! Records what the framework preloads and serves states only for those keys.
+struct TRecordingExternalStateManager
+    : public IExternalStateManager
+{
+    YT_FLOW_EXTEND_PARAMETERS(TRecordingManagerParameters);
+    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TRecordingManagerDynamicParameters);
+
+    THashSet<TKey> PreloadedKeys;
+
+    TRecordingExternalStateManager(
+        TExternalStateManagerContextPtr /*context*/,
+        TDynamicExternalStateManagerContextPtr /*dynamicContext*/)
+    { }
+
+    IStateHolderPtr GetState(const TKey& key) override
+    {
+        THROW_ERROR_EXCEPTION_IF(!PreloadedKeys.contains(key),
+            "Recording manager has no preloaded state for key %v",
+            key);
+        return New<TStateHolder<i64>>();
+    }
+
+    TFuture<void> PreloadKeyStates(const THashSet<TKey>& keys) override
+    {
+        PreloadedKeys.insert(keys.begin(), keys.end());
+        return OKFuture;
+    }
+
+    NTableClient::TTableSchemaPtr GetKeySchema() const override
+    {
+        return nullptr;
+    }
+
+    void Sync(IRetryableTransactionPtr /*transaction*/) override
+    { }
+
+    void ValidateStateClass(const std::type_info& /*expectedStateType*/) const override
+    { }
+
+    IExternalStateManager::TParametersPtr GetParametersBase() const override
+    {
+        return nullptr;
+    }
+
+    IExternalStateManager::TDynamicParametersPtr GetDynamicParametersBase() const override
+    {
+        return nullptr;
+    }
+};
+
+YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(TRecordingExternalStateManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +130,32 @@ protected:
         return managerContext;
     }
 
+    //! A context with one TRecordingExternalStateManager, "/ext", with the given auto_preload.
+    TJobStateManagerContextPtr MakeManagerContextWithExternal(bool autoPreload)
+    {
+        auto context = MakeManagerContext();
+        context->SerializedInvoker = Queue_->GetInvoker();
+        context->PipelinePath = NYPath::TRichYPath("//pipeline");
+        context->PipelinePath.SetCluster("test");
+
+        auto spec = New<TExternalStateManagerSpec>();
+        spec->ExternalStateManagerClassName = TypeName<TRecordingExternalStateManager>();
+        spec->AutoPreload = autoPreload;
+        spec->Parameters = NYTree::BuildYsonNodeFluently().BeginMap().EndMap()->AsMap();
+        context->ExternalStateManagers["/ext"] = std::move(spec);
+        return context;
+    }
+
+    static TIntrusivePtr<TRecordingExternalStateManager> GetRecordingManager(const TJobStateManagerPtr& manager)
+    {
+        auto recording = DynamicPointerCast<TRecordingExternalStateManager>(
+            manager->GetExternalStateManagerOrThrow("/ext"));
+        YT_VERIFY(recording);
+        return recording;
+    }
+
+    const TActionQueuePtr Queue_ = New<TActionQueue>("StateClientTest");
+
     static TDynamicJobStateManagerContextPtr MakeDynamicManagerContext()
     {
         auto dynamicContext = New<TDynamicJobStateManagerContext>();
@@ -65,7 +168,9 @@ protected:
         return New<TJobStateManager>(std::move(context), MakeDynamicManagerContext());
     }
 
-    static IInputContextPtr MakeInputContext(std::initializer_list<TKey> keys)
+    static IInputContextPtr MakeInputContext(
+        std::initializer_list<TKey> keys,
+        std::initializer_list<TKey> visitKeys = {})
     {
         std::vector<TInputMessageConstPtr> messages;
         messages.reserve(keys.size());
@@ -79,7 +184,19 @@ protected:
             builder.SetEventTimestamp(TSystemTimestamp(1));
             messages.push_back(New<TInputMessage>(builder.Finish(), key));
         }
-        return New<TInputContext>(messages, std::vector<TInputTimerConstPtr>{});
+        std::vector<TInputVisitConstPtr> visits;
+        visits.reserve(visitKeys.size());
+        for (const auto& key : visitKeys) {
+            TVisit visit;
+            visit.MessageId = TMessageId(Format("visit-%v", idx++));
+            visit.StreamId = TStreamId("visit_iter");
+            visit.SystemTimestamp = TSystemTimestamp(1);
+            visit.AlignmentTimestamp = TSystemTimestamp(1);
+            visit.EventTimestamp = TSystemTimestamp(1);
+            visit.Key = key;
+            visits.push_back(New<TInputVisit>(std::move(visit)));
+        }
+        return New<TInputContext>(messages, std::vector<TInputTimerConstPtr>{}, visits);
     }
 };
 
@@ -241,6 +358,111 @@ TEST_F(TStateClientTest, KeyClientInitialIsEmpty)
     auto key = MakeKey<ui64>(99);
     WaitFor(manager->PreloadKeyStates(MakeInputContext({key}))).ThrowOnError();
 
+    EXPECT_EQ(*keyClient.GetState(key), 0);
+}
+
+TEST_F(TStateClientTest, KeyClientPreloadWithOptionsSkipsVisits)
+{
+    auto managerContext = MakeManagerContext();
+    auto manager = MakeManager(managerContext);
+    auto jobCtx = manager->CreateContext();
+
+    auto keyClient = WaitFor(jobCtx->CreateMutableStateKeyClient<i64>("counter"))
+        .ValueOrThrow();
+
+    auto messageKey = MakeKey<ui64>(1);
+    auto visitKey = MakeKey<ui64>(2);
+    auto input = MakeInputContext({messageKey}, {visitKey});
+    WaitFor(keyClient.PreloadKeyStates(input, TExtractKeysOptions{.Visits = false})).ThrowOnError();
+
+    EXPECT_EQ(*keyClient.GetState(messageKey), 0);
+    EXPECT_THROW(keyClient.GetState(visitKey), TErrorException);
+
+    // A later preload of the visit key in the same epoch fills the gap.
+    WaitFor(keyClient.PreloadKeyStates(input, TExtractKeysOptions{.Messages = false, .Timers = false})).ThrowOnError();
+    EXPECT_EQ(*keyClient.GetState(visitKey), 0);
+}
+
+TEST_F(TStateClientTest, ExternalManagerAutoPreloadIsPreloadedByFramework)
+{
+    auto manager = MakeManager(MakeManagerContextWithExternal(/*autoPreload*/ true));
+    auto recording = GetRecordingManager(manager);
+
+    auto key = MakeKey<ui64>(1);
+    WaitFor(manager->PreloadKeyStates(MakeInputContext({key}))).ThrowOnError();
+
+    EXPECT_EQ(recording->PreloadedKeys, (THashSet<TKey>{key}));
+}
+
+TEST_F(TStateClientTest, ExternalManagerManualPreloadIsSkippedByFramework)
+{
+    auto manager = MakeManager(MakeManagerContextWithExternal(/*autoPreload*/ false));
+    auto recording = GetRecordingManager(manager);
+
+    auto key = MakeKey<ui64>(1);
+    WaitFor(manager->PreloadKeyStates(MakeInputContext({key}))).ThrowOnError();
+    EXPECT_TRUE(recording->PreloadedKeys.empty());
+
+    TMutableStateKeyClient<i64> client;
+    manager->CreateContext()->InitExternalStateClient(client, "/ext");
+    EXPECT_THROW_WITH_SUBSTRING(client.GetState(key), "has no preloaded state");
+
+    // Manual preload through the client.
+    WaitFor(client.PreloadKeyStates(THashSet<TKey>{key})).ThrowOnError();
+    EXPECT_EQ(recording->PreloadedKeys, (THashSet<TKey>{key}));
+    EXPECT_EQ(*client.GetState(key), 0);
+}
+
+TEST_F(TStateClientTest, HasPreloadCallbacksIgnoresManualManagers)
+{
+    EXPECT_FALSE(MakeManager(MakeManagerContextWithExternal(/*autoPreload*/ false))->HasPreloadCallbacks());
+    EXPECT_TRUE(MakeManager(MakeManagerContextWithExternal(/*autoPreload*/ true))->HasPreloadCallbacks());
+}
+
+TEST_F(TStateClientTest, KeyClientEraseStateDeletesInternalStateWithoutLoading)
+{
+    auto managerContext = MakeManagerContext();
+    auto manager = MakeManager(managerContext);
+    auto jobCtx = manager->CreateContext();
+
+    auto keyClient = WaitFor(jobCtx->CreateMutableStateKeyClient<i64>("counter"))
+        .ValueOrThrow();
+
+    auto key = MakeKey<ui64>(1);
+    WaitFor(keyClient.PreloadKeyStates(THashSet<TKey>{key})).ThrowOnError();
+    *keyClient.GetState(key) = 42;
+    manager->Sync(/*transaction*/ nullptr);
+
+    // Terminal: neither GetState nor a later preload brings the key back.
+    keyClient.EraseState(key);
+    EXPECT_THROW(keyClient.GetState(key), TErrorException);
+    WaitFor(keyClient.PreloadKeyStates(THashSet<TKey>{key})).ThrowOnError();
+    EXPECT_THROW(keyClient.GetState(key), TErrorException);
+    manager->Sync(/*transaction*/ nullptr);
+
+    // The row is gone: the next epoch starts from the empty state.
+    WaitFor(keyClient.PreloadKeyStates(THashSet<TKey>{key})).ThrowOnError();
+    EXPECT_EQ(*keyClient.GetState(key), 0);
+}
+
+TEST_F(TStateClientTest, KeyClientEraseLoadedStateMakesKeyUnreadable)
+{
+    auto managerContext = MakeManagerContext();
+    auto manager = MakeManager(managerContext);
+    auto jobCtx = manager->CreateContext();
+
+    auto keyClient = WaitFor(jobCtx->CreateMutableStateKeyClient<i64>("counter"))
+        .ValueOrThrow();
+
+    auto key = MakeKey<ui64>(1);
+    WaitFor(keyClient.PreloadKeyStates(THashSet<TKey>{key})).ThrowOnError();
+    *keyClient.GetState(key) = 42;
+
+    keyClient.EraseState(key);
+    EXPECT_THROW(keyClient.GetState(key), TErrorException);
+    manager->Sync(/*transaction*/ nullptr);
+
+    WaitFor(keyClient.PreloadKeyStates(THashSet<TKey>{key})).ThrowOnError();
     EXPECT_EQ(*keyClient.GetState(key), 0);
 }
 
