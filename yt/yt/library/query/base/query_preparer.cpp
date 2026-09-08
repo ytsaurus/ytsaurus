@@ -1371,6 +1371,15 @@ TPlanFragmentPtr PreparePlanFragmentImpl(
             << TErrorAttribute("max_subquery_depth", MaxSubqueryDepth);
     }
 
+    if (queryAst.SelectExprs &&
+        options.MaxProjectionCount &&
+        std::ssize(*queryAst.SelectExprs) > *options.MaxProjectionCount)
+    {
+        THROW_ERROR_EXCEPTION("Maximum projection count exceeded")
+            << TErrorAttribute("projection_count", std::ssize(*queryAst.SelectExprs))
+            << TErrorAttribute("max_projection_count", *options.MaxProjectionCount);
+    }
+
     auto query = New<TQuery>(TGuid::Create());
 
     auto Logger = MakeQueryLogger(query);

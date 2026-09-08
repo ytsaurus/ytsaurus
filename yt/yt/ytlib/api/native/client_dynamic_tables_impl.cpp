@@ -1991,6 +1991,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             .AllowReverseScanForOrderBy = queryEngineConfig
                 ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
                 : false,
+            .MaxProjectionCount = queryEngineConfig
+                ? queryEngineConfig->MaxProjectionCount
+                : DefaultMaxProjectionCount,
         },
         HeavyRequestMemoryUsageTracker_);
 
@@ -2187,6 +2190,9 @@ NYson::TYsonString TClient::DoExplainQuery(
             .AllowReverseScanForOrderBy = queryEngineConfig
                 ? queryEngineConfig->AllowReverseScanForOrderBy.value_or(false)
                 : false,
+            .MaxProjectionCount = queryEngineConfig
+                ? queryEngineConfig->MaxProjectionCount
+                : DefaultMaxProjectionCount,
         },
         HeavyRequestMemoryUsageTracker_);
 
