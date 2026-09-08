@@ -1926,6 +1926,9 @@ private:
             }
 
             for (const auto& entry : chunk->GetAggregatedRequisition(requisitionRegistry).AllEntries()) {
+                if (!IsObjectAlive(entry.Account)) {
+                    continue;
+                }
                 referenceAccount(chunkSchema.Get(), entry.Account);
             }
         }

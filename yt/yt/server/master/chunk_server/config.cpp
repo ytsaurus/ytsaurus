@@ -1056,6 +1056,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_verbose_logging_enabled_duration", &TThis::MaxVerboseLoggingEnabledDuration)
         .Default(TDuration::Days(1));
 
+    registrar.Parameter("set_empty_requisition_index_on_import", &TThis::SetEmptyRequisitionIndexOnImport)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

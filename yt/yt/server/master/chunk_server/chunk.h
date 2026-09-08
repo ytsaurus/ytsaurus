@@ -231,10 +231,12 @@ public:
         const NObjectServer::IObjectManagerPtr& objectManager) const;
 
     TChunkRequisitionIndex GetLocalRequisitionIndex() const;
+    // COMPAT(theevilbird): Get rid of |force| after removing requisitions for chunk_wise_accounting_migration.
     void SetLocalRequisitionIndex(
         TChunkRequisitionIndex requisitionIndex,
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::IObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager,
+        bool forceAggregatedRequisitionUpdate = false);
 
     //! Prerequisite: IsExportedToCell(cellTag).
     TChunkRequisitionIndex GetExternalRequisitionIndex(NObjectServer::TCellTag cellTag) const;
@@ -481,9 +483,11 @@ private:
     const TReplicasDataBase& ReplicasData() const;
     TReplicasDataBase* MutableReplicasData();
 
+    // COMPAT(theevilbird): Get rid of |force| after removing requisitions for chunk_wise_accounting_migration.
     void UpdateAggregatedRequisitionIndex(
         TChunkRequisitionRegistry* registry,
-        const NObjectServer::IObjectManagerPtr& objectManager);
+        const NObjectServer::IObjectManagerPtr& objectManager,
+        bool forceAggregatedRequisitionUpdate = false);
 
     void MaybeResetObsoleteEpochData();
 
