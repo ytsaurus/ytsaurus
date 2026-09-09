@@ -39,6 +39,7 @@ target_link_libraries(flow_server PUBLIC
   library-cpp-cpuid_check
   library-cpp-companion
   library-cpp-computation
+  flow-extensions-http
   cpp-connectors-queue
   cpp-connectors-servicelog
   cpp-connectors-sorted_dynamic_table

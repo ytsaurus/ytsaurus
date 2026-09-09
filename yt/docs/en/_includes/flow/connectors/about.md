@@ -8,7 +8,7 @@ The connectors used by a pipeline directly affect the message processing guarant
 
 {% endnote %}
 
-{% if audience == "internal" %}Integrations with external (non-{{product-name}}) systems are described in the [Extensions](../../../yandex-specific/flow/extensions/about.md) section.{% endif %}
+Integrations with external (non-{{product-name}}) systems are described in the [Extensions](../../../flow/extensions/about.md) section.
 
 ## List of connectors {#list}
 

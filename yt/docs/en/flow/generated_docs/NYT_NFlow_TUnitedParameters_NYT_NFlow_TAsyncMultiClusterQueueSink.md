@@ -29,7 +29,7 @@ The policy for reducing the `tablet_index_routing_hash_expression` hash to a tab
 || `tablet_count` | **Type**: `std::optional<long>`
 The number of tablets used to reduce `tablet_index_routing_hash_expression` to a tablet index. Optional. When unset, the sink periodically re-reads the target queue's `@tablet_count` (from the master cache) and follows a reshard without a restart. When set explicitly, the value is fixed (no queue read) and a reshard is reflected only by changing the config. ||
 || `at_most_once_strategy` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyParameters)`>`
- ||
+Optional at-most-once delivery strategy. Connector support varies; check the connector documentation before enabling it. ||
 || `column_filter` | **Type**: `std::optional<THashSet<std::string>>`
 Which columns from the message to write to the queue (default &mdash; all). ||
 || `use_clusters` | **Type**: `bool`
