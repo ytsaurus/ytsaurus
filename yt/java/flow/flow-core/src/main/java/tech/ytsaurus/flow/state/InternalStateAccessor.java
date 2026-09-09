@@ -1,7 +1,6 @@
 package tech.ytsaurus.flow.state;
 
-import java.util.Optional;
-
+import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
@@ -48,12 +47,12 @@ public final class InternalStateAccessor<T> implements StateAccessor<T> {
      * are taken out of the wire once.
      */
     @Override
-    public Optional<T> get() {
+    public @Nullable T get() {
         State state = statesHolder.get(key.getRow());
         if (state == null || state.isReset()) {
-            return Optional.empty();
+            return null;
         }
-        return Optional.of(codec.decode(state.getValue(wireCodec)));
+        return codec.decode(state.getValue(wireCodec));
     }
 
     /**
@@ -86,7 +85,7 @@ public final class InternalStateAccessor<T> implements StateAccessor<T> {
      */
     @Override
     public T getOrDefault() {
-        Optional<T> value = get();
-        return value.isPresent() ? value.get() : descriptor.defaultValue();
+        T value = get();
+        return value != null ? value : descriptor.defaultValue();
     }
 }

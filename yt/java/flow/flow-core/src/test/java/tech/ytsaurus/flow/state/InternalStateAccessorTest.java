@@ -65,7 +65,7 @@ class InternalStateAccessorTest {
     void getDecodesWithTheValueCodecBeforeTheByteCodec() {
         var holder = new StatesHolder(STATE, KEY_SCHEMA);
         holder.load(key().getRow(), new State(ByteString.copyFrom(flip(YSON.encode(42L)))));
-        assertEquals(42L, accessor(holder).get().orElseThrow());
+        assertEquals(42L, accessor(holder).get());
     }
 
     @Test
@@ -73,7 +73,7 @@ class InternalStateAccessorTest {
         var holder = new StatesHolder(STATE, KEY_SCHEMA);
         var acc = accessor(holder);
         acc.set(42L);
-        assertEquals(42L, acc.get().orElseThrow());
+        assertEquals(42L, acc.get());
     }
 
     @Test
@@ -82,6 +82,6 @@ class InternalStateAccessorTest {
         var holder = new StatesHolder(STATE, KEY_SCHEMA);
         holder.load(key().getRow(), new State(ByteString.copyFrom(flip(YSON.encode(1_000_000L)))));
         var acc = accessor(holder);
-        assertNotSame(acc.get().orElseThrow(), acc.get().orElseThrow());
+        assertNotSame(acc.get(), acc.get());
     }
 }

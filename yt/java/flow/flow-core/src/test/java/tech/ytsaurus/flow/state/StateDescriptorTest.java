@@ -113,7 +113,7 @@ class StateDescriptorTest {
         StateAccessor<byte[]> acc = ctx.getState(StateDescriptors.raw(RAW_STATE), message);
         byte[] payload = "hello".getBytes(StandardCharsets.UTF_8);
         acc.set(payload);
-        assertEquals("hello", new String(acc.get().orElseThrow(), StandardCharsets.UTF_8));
+        assertEquals("hello", new String(acc.get(), StandardCharsets.UTF_8));
     }
 
     @Test
@@ -137,7 +137,7 @@ class StateDescriptorTest {
                 message
         );
         acc.set("abc");
-        assertEquals("abc", acc.get().orElseThrow());
+        assertEquals("abc", acc.get());
     }
 
     @Test
@@ -228,16 +228,16 @@ class StateDescriptorTest {
         // Then: it is a regular state accessor with full functionality.
         assertInstanceOf(InternalStateAccessor.class, acc);
         acc.set(true);
-        assertEquals(Boolean.TRUE, acc.get().orElseThrow());
+        assertEquals(Boolean.TRUE, acc.get());
         acc.set(false);
-        assertEquals(Boolean.FALSE, acc.get().orElseThrow());
+        assertEquals(Boolean.FALSE, acc.get());
     }
 
     @Test
     void rawDescriptorWorksWithTimerKey() {
         StateAccessor<byte[]> acc = ctx.getState(StateDescriptors.raw(RAW_STATE), timer);
         acc.set(new byte[]{1, 2, 3});
-        assertEquals(3, acc.get().orElseThrow().length);
+        assertEquals(3, acc.get().length);
     }
 
     static final class StringArrayCodec implements ByteArrayCodec<String> {
@@ -324,7 +324,7 @@ class StateDescriptorTest {
         state.tags = List.of("a", "b");
 
         acc.set(state);
-        assertEquals(state, acc.get().orElseThrow());
+        assertEquals(state, acc.get());
     }
 
     @Test
@@ -334,7 +334,7 @@ class StateDescriptorTest {
                 StateDescriptors.yson(YSON_STATE, Long.class), message);
 
         acc.set(5L);
-        assertEquals(5L, acc.get().orElseThrow());
+        assertEquals(5L, acc.get());
     }
 
     @Test
@@ -362,7 +362,7 @@ class StateDescriptorTest {
     void joinedExternalDescriptorReadsWriterValue() {
         ReadOnlyExternalStateAccessor acc =
                 ctx.getState(StateDescriptors.externalReadOnly(JOINED_STATE), message);
-        assertEquals(42L, acc.get().orElseThrow().get("count", Long.class));
+        assertEquals(42L, acc.get().get("count", Long.class));
         assertEquals(42L, acc.getOrDefault().get("count", Long.class));
     }
 
@@ -389,7 +389,7 @@ class StateDescriptorTest {
         ExtendedMessage otherMessage = ExtendedMessage.builder().setKey(otherKey).build();
         ReadOnlyExternalStateAccessor acc =
                 ctx.getState(StateDescriptors.externalReadOnly(JOINED_STATE), otherMessage);
-        Assertions.assertTrue(acc.get().isEmpty());
+        Assertions.assertNull(acc.get());
     }
 
     @Test

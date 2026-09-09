@@ -103,10 +103,10 @@ public class JoinProcessFunction implements RowFunction {
         String hitId = timer.getKey().get("hit_id", String.class);
         log.debug("Process timer (KeyHitId: {}, Timer: {})", hitId, timer);
         ExternalStateAccessor stateAccessor = ctx.getState(JOINED_ACTION_STATE, timer);
-        if (stateAccessor.get().isEmpty()) {
+        Payload joinState = stateAccessor.get();
+        if (joinState == null) {
             throw new IllegalStateException("Empty state for timer: " + timer);
         }
-        Payload joinState = stateAccessor.get().orElseThrow();
         log.debug("Process state (KeyHitId: {}, State: {})", hitId, joinState);
         if ("timer".equals(timer.getStreamId())) {
             // ExternalState to pojo conversion is not supported yet.

@@ -1,6 +1,6 @@
 package tech.ytsaurus.flow.state;
 
-import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Typed accessor for a single keyed value in a {@link StatesHolder}.
@@ -19,9 +19,10 @@ public interface StateAccessor<T> {
     /**
      * Get state value.
      *
-     * @return Optional state value. Optional.empty() means that there is no corresponding value for the key.
+     * @return State value, or {@code null} if there is no corresponding value for the key.
      */
-    Optional<T> get();
+    @Nullable
+    T get();
 
     /**
      * Get state value or user-provided default value if none is present.
@@ -30,7 +31,8 @@ public interface StateAccessor<T> {
      * @return State value or default value.
      */
     default T getOrDefault(T defaultValue) {
-        return get().orElse(defaultValue);
+        T value = get();
+        return value != null ? value : defaultValue;
     }
 
     /**

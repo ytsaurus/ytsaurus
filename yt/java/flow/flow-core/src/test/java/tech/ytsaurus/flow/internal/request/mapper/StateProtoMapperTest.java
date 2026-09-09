@@ -211,7 +211,7 @@ class StateProtoMapperTest {
         assertEquals(PROTO_TYPE, holder.getProtoType());
 
         var acc = protoAccessor(holder, key);
-        assertEquals(42, acc.get().orElseThrow().getCount());
+        assertEquals(42, acc.get().getCount());
 
         // Write back and map to the response: format and proto type are stamped.
         acc.set(message(43));

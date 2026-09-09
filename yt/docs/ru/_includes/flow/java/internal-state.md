@@ -29,7 +29,8 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```java
   public interface StateAccessor<T> {
       /** Получить значение стейта. */
-      Optional<T> get();
+      @Nullable
+      T get();
 
       /** Получить значение стейта или дефолтное значение. */
       default T getOrDefault(T defaultValue);
@@ -50,7 +51,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```kotlin
   interface StateAccessor<T> {
       /** Получить значение стейта. */
-      fun get(): Optional<T>
+      fun get(): T?
 
       /** Получить значение стейта или дефолтное значение. */
       fun getOrDefault(defaultValue: T): T
@@ -468,9 +469,8 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```java
   RawStateAccessor stateAccessor = ctx.getRawStateAccessor("raw-state", message);
 
-  Optional<byte[]> maybeBytes = stateAccessor.get();
-  if (maybeBytes.isPresent()) {
-      byte[] data = maybeBytes.get();
+  byte[] data = stateAccessor.get();
+  if (data != null) {
       // Обработка сырых данных...
   }
 
@@ -486,9 +486,8 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```kotlin
   val stateAccessor: RawStateAccessor = ctx.getRawStateAccessor("raw-state", message)
 
-  val maybeBytes: Optional<ByteArray> = stateAccessor.get()
-  if (maybeBytes.isPresent) {
-      val data: ByteArray = maybeBytes.get()
+  val data: ByteArray? = stateAccessor.get()
+  if (data != null) {
       // Обработка сырых данных...
   }
 
@@ -538,7 +537,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
           NoOpStateAccessor stateAccessor = ctx.getNoOpStateAccessor("seen-keys", message);
 
           // Проверяем, был ли ключ уже обработан
-          if (stateAccessor.get().isPresent()) {
+          if (stateAccessor.get() != null) {
               // Ключ уже обработан, пропускаем
               return;
           }
@@ -560,7 +559,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
           val stateAccessor: NoOpStateAccessor = ctx.getNoOpStateAccessor("seen-keys", message)
 
           // Проверяем, был ли ключ уже обработан
-          if (stateAccessor.get().isPresent) {
+          if (stateAccessor.get() != null) {
               // Ключ уже обработан, пропускаем
               return
           }

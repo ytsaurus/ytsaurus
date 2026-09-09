@@ -33,7 +33,8 @@ StateAccessor — интерфейс для чтения, модификации
   ```java
   public interface StateAccessor<T> {
       /** Получить значение стейта. */
-      Optional<T> get();
+      @Nullable
+      T get();
 
       /** Получить значение стейта или дефолтное значение. */
       default T getOrDefault(T defaultValue);
@@ -54,7 +55,7 @@ StateAccessor — интерфейс для чтения, модификации
   ```kotlin
   interface StateAccessor<T> {
       /** Получить значение стейта. */
-      fun get(): Optional<T>
+      fun get(): T?
 
       /** Получить значение стейта или дефолтное значение. */
       fun getOrDefault(defaultValue: T): T
