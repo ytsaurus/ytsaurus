@@ -72,9 +72,14 @@ constexpr auto JobIdTag = "job_id";
 struct TFailedJob
     : public IJob
 {
-    TFailedJob(TJobId jobId, TComputationId computationId, TError error)
+    TFailedJob(
+        TJobId jobId,
+        TComputationId computationId,
+        TJobStreamLimitUsageStates streamLimitUsageStates,
+        TError error)
         : JobId_(jobId)
         , ComputationId_(std::move(computationId))
+        , StreamLimitUsageStates_(std::move(streamLimitUsageStates))
         , Error_(std::move(error))
         , Timestamp_(TInstant::Now())
     { }
@@ -122,6 +127,23 @@ struct TFailedJob
         return ComputationId_;
     }
 
+    TJobOrchidStatePtr GetOrchidState() override
+    {
+        auto readStreamUsages = [] (const TStreamLimitUsageStateMap& streams) {
+            THashMap<TStreamId, TStreamUsage> usages;
+            usages.reserve(streams.size());
+            for (const auto& [streamId, state] : streams) {
+                usages.emplace(streamId, state->Read());
+            }
+            return usages;
+        };
+
+        auto state = New<TJobOrchidState>();
+        state->InputStreams = readStreamUsages(StreamLimitUsageStates_.Input);
+        state->OutputStreams = readStreamUsages(StreamLimitUsageStates_.Output);
+        return state;
+    }
+
     IInputBufferPtr GetInputBuffer() override
     {
         return nullptr;
@@ -139,18 +161,10 @@ struct TFailedJob
         return MakeFuture(status);
     }
 
-    TFuture<TJobOrchidStatePtr> GetOrchidState() override
-    {
-        return GetStatus().Apply(BIND([] (const TJobStatusPtr& status) {
-            auto orchidState = New<TJobOrchidState>();
-            orchidState->Status = status;
-            return orchidState;
-        }));
-    }
-
 private:
     const TJobId JobId_;
     const TComputationId ComputationId_;
+    const TJobStreamLimitUsageStates StreamLimitUsageStates_;
     const TError Error_;
     const TInstant Timestamp_;
 };
@@ -712,7 +726,11 @@ private:
             } catch (const std::exception& ex) {
                 YT_TLOG_ERROR("Job creation failed")
                     .With(ex);
-                return New<TFailedJob>(jobId, jobSpec->Partition->ComputationId, TError(ex));
+                return New<TFailedJob>(
+                    jobId,
+                    jobSpec->Partition->ComputationId,
+                    std::move(streamLimitUsageStates),
+                    TError(ex));
             }
         }();
 
@@ -876,23 +894,16 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(Control);
 
-        THashMap<TJobId, TFuture<TJobOrchidStatePtr>> jobOrchidStates;
+        THashMap<TJobId, TJobOrchidStatePtr> jobStates;
+        jobStates.reserve(JobIdToRuntimeState_.size());
         for (const auto& [jobId, state] : JobIdToRuntimeState_) {
-            jobOrchidStates[jobId] = state.Job->GetOrchidState();
-        }
-        for (const auto& [jobId, stateFuture] : jobOrchidStates) {
-            Y_UNUSED(WaitForFast(stateFuture));
+            jobStates.emplace(jobId, state.Job->GetOrchidState());
         }
 
         // clang-format off
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("jobs").DoMapFor(jobOrchidStates, [] (auto fluent, const auto& jobIdWithState) {
-                    const auto& [jobId, stateFuture] = jobIdWithState;
-                    if (stateFuture.GetOrCrash().IsOK()) {
-                        fluent.Item(ToString(jobId)).Value(stateFuture.GetOrCrash().Value());
-                    }
-                })
+                .Item("jobs").Value(jobStates)
             .EndMap();
         // clang-format on
     }

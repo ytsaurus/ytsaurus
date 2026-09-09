@@ -74,9 +74,11 @@ class TComputationRunContext;
 
 void TJobOrchidState::Register(TRegistrar registrar)
 {
-    registrar.Parameter("status", &TThis::Status)
+    registrar.Parameter("committed_epoch_count", &TThis::CommittedEpochCount)
         .Default();
-    registrar.Parameter("computation", &TThis::Computation)
+    registrar.Parameter("input_streams", &TThis::InputStreams)
+        .Default();
+    registrar.Parameter("output_streams", &TThis::OutputStreams)
         .Default();
 }
 
@@ -461,24 +463,22 @@ public:
         return status;
     }
 
-    TFuture<TJobOrchidStatePtr> GetOrchidState() override
+    TJobOrchidStatePtr GetOrchidState() override
     {
-        return BIND_NO_PROPAGATE(&TJob::GetOrchidStateSync, MakeStrong(this))
-            .AsyncVia(ControlSerializedInvoker_)
-            .Run()
-            .ToUncancelable();
-    }
+        auto readStreamUsages = [] (const TStreamLimitUsageStateMap& streams) {
+            THashMap<TStreamId, TStreamUsage> usages;
+            usages.reserve(streams.size());
+            for (const auto& [streamId, state] : streams) {
+                usages.emplace(streamId, state->Read());
+            }
+            return usages;
+        };
 
-    TJobOrchidStatePtr GetOrchidStateSync()
-    {
-        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlSerializedInvoker_);
-
-        auto orchidState = New<TJobOrchidState>();
-        orchidState->Status = GetStatusSync();
-        if (IsRunning_.load() && InitializePromise_.IsSet()) {
-            orchidState->Computation = Computation_->GetOrchidState();
-        }
-        return orchidState;
+        auto state = New<TJobOrchidState>();
+        state->CommittedEpochCount = CommittedEpochCount_.load(std::memory_order::relaxed);
+        state->InputStreams = readStreamUsages(StreamLimitUsageStates_.Input);
+        state->OutputStreams = readStreamUsages(StreamLimitUsageStates_.Output);
+        return state;
     }
 
     TFuture<std::vector<TInputMessageConstPtr>> GetNextBatch(const THashSet<TStreamId>& allowedStreams)
@@ -601,6 +601,7 @@ public:
 
     void Commit()
     {
+        CommittedEpochCount_.fetch_add(1, std::memory_order::relaxed);
         std::deque<TDistributorOutputMessage> toDistribute;
         {
             auto guard = Guard(DistributingLock_);
@@ -626,6 +627,7 @@ private:
     TPromise<void> InitializePromise_ = NewPromise<void>();
     IComputationPtr Computation_ = nullptr; // Can be used after InitializePromise_ is set.
     TFuture<void> ReconfigureFuture_ = InitializePromise_.ToFuture();
+    std::atomic<i64> CommittedEpochCount_ = 0;
 
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
