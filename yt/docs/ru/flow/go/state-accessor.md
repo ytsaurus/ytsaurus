@@ -18,7 +18,7 @@ StateAccessor — интерфейс для чтения, модификации
 
 Запись новых значений в таблицу стейта осуществляется транзакционно в рамках [эпохи](../../flow/concepts/glossary.md#epoch).
 
-Обратно воркеру уезжает не весь стейт, а дельта: только изменённые записи. Для Raw-, Proto- и External-стейтов запись выполняется через `Set` или `Clear`; для YSON-стейта — изменением значения из `Value()` или вызовом `Clear`. Простое чтение ничего не отправляет.
+Обратно воркеру уезжает не весь стейт, а дельта: только изменённые записи. Для Raw- и External-стейтов запись выполняется через `Set` или `Clear`; YSON- и Proto-стейты записываются [изменением значения на месте](internal-state.md#in-place). Простое чтение ничего не отправляет.
 
 `Clear` не стирает запись из аксессора, а помечает её удалённой, и удаление доезжает до воркера именно в таком виде. Для компьютейшена разницы нет: стейт, которого запрос не принёс, и стейт, очищенный в этом запросе, одинаково читаются как отсутствующий — компьютейшен видит стейт таким, каким он станет после ответа.
 
@@ -36,34 +36,37 @@ Go SDK предоставляет пять видов аксессоров:
 |----------|--------|----------|----------|
 | [RawStateAccessor](internal-state.md#raw-state-accessor) | `[]byte` | `flow.OpenRawState(rt, name, input)` | Сырые байты без сериализации |
 | [YSONState](internal-state.md#yson-state) | YSON | `flow.OpenYSONState[T](rt, name, input)` | Сериализация Go-значения в YSON |
-| [ProtoStateAccessor](internal-state.md#proto-state-accessor) | Protobuf | `flow.OpenProtoState[T](rt, name, input)` | Сериализация через Protobuf |
+| [ProtoState](internal-state.md#proto-state) | Protobuf | `flow.OpenProtoState[T](rt, name, input)` | Сериализация через Protobuf |
 | [ExternalStateAccessor](external-state.md) | Go-структура (строка таблицы) | `flow.OpenExternalState(rt, "/name", input)` | Чтение и запись строки внешней таблицы |
 | [JoinedExternalStateAccessor](external-state.md) | Go-структура | `flow.OpenJoinedExternalState(rt, "/name", input)` | Read-only доступ к таблице чужого стейта |
 
-Первые три работают с [внутренним стейтом](internal-state.md), таблицами которого управляет Flow. `ProtoStateAccessor` сериализует явные записи поверх `RawStateAccessor`. `YSONState` держит изменяемое значение и сохраняет его автоматически после успешного батча.
+Первые три работают с [внутренним стейтом](internal-state.md), таблицами которого управляет Flow. `RawStateAccessor` сериализует явные записи; `YSONState` и `ProtoState` держат изменяемое значение и сохраняют его автоматически после успешного батча.
 
 `ExternalStateAccessor` и `JoinedExternalStateAccessor` работают с [внешним стейтом](external-state.md) — динамической таблицей, которую пользователь создаёт сам. Различаются они правами: первый доступен компьютейшену, который стейтом владеет, второй — компьютейшену, который его только читает.
 
 ## API внутренних стейтов {#common-api}
 
-Raw- и Proto-аксессоры используют явные операции чтения и записи:
-
-| Метод | `RawStateAccessor` | `ProtoStateAccessor[T, PT]` |
-|-------|--------------------|-----------------------------|
-| `Get()` | `([]byte, bool)` | `(PT, bool, error)` |
-| `Or(fallback)` | `[]byte` | `(PT, error)` |
-| `Set(value)` | `error` | `error` |
-| `Clear()` | `error` | `error` |
-
-YSON-стейт изменяется на месте:
+Raw-аксессор использует явные операции чтения и записи:
 
 | Метод | Тип результата | Описание |
 |-------|----------------|----------|
-| `Empty()` | `bool` | Значение отсутствует |
-| `Value()` | `*T` | Изменяемое значение; создаёт zero value при отсутствии |
-| `Clear()` | — | Удалить значение |
+| `Get()` | `([]byte, bool)` | Копия сохранённых байтов |
+| `Or(fallback []byte)` | `[]byte` | Текущее значение или `fallback` |
+| `Set(data []byte)` | `error` | Сохранить байты |
+| `Clear()` | `error` | Удалить стейт |
 
-Десериализация YSON выполняется в `OpenYSONState`. Изменения из `Value()` сохраняются автоматически только после успешного завершения обработчиков батча.
+YSON- и Proto-стейты изменяются на месте:
+
+| Метод | `YSONState[T]` | `ProtoState[T, PT]` |
+|-------|----------------|---------------------|
+| `Empty()` | `bool` | `bool` |
+| `Get()` | `(*T, bool)` | `(PT, bool)` |
+| `Value()` / `Or(fallback)` | `*T` | `PT` |
+| `Set(value)` | нет метода | `error` |
+| `Clear()` | без результата | без результата |
+| `ReadOnly()` | `ReadOnlyYSONState[T]` | `ReadOnlyProtoState[T, PT]` |
+
+Десериализация выполняется при открытии. Изменения значения сохраняются автоматически только после успешного завершения обработчиков батча — см. [Изменение значения на месте](internal-state.md#in-place).
 
 `ExternalStateAccessor` преобразует строку таблицы в Go-структуру:
 

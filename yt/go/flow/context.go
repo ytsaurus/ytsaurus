@@ -27,8 +27,8 @@ type RequestRuntime struct {
 	external map[string]*StatesHolder[ExternalState]
 	joined   map[string]*StatesHolder[ExternalState]
 
-	ysonStates     map[ysonStateKey]trackedYSONState
-	ysonStateOrder []trackedYSONState
+	trackedStates     map[trackedStateKey]trackedState
+	trackedStateOrder []trackedState
 }
 
 var _ Runtime = (*RequestRuntime)(nil)
@@ -36,13 +36,13 @@ var _ Runtime = (*RequestRuntime)(nil)
 // NewRequestRuntime returns an empty runtime for a job.
 func NewRequestRuntime(job *Job) *RequestRuntime {
 	return &RequestRuntime{
-		job:        job,
-		streams:    job.StreamSpecs(),
-		watermarks: map[string]uint64{},
-		internal:   map[string]*StatesHolder[InternalState]{},
-		external:   map[string]*StatesHolder[ExternalState]{},
-		joined:     map[string]*StatesHolder[ExternalState]{},
-		ysonStates: map[ysonStateKey]trackedYSONState{},
+		job:           job,
+		streams:       job.StreamSpecs(),
+		watermarks:    map[string]uint64{},
+		internal:      map[string]*StatesHolder[InternalState]{},
+		external:      map[string]*StatesHolder[ExternalState]{},
+		joined:        map[string]*StatesHolder[ExternalState]{},
+		trackedStates: map[trackedStateKey]trackedState{},
 	}
 }
 
@@ -195,44 +195,90 @@ func externalHolder(
 	return holder, nil
 }
 
-type ysonStateKey struct {
+type trackedStateKey struct {
 	holder *StatesHolder[InternalState]
 	key    string
 }
 
-type trackedYSONState interface {
+type trackedState interface {
 	flush() error
 }
 
-func (r *RequestRuntime) getYSONState(
-	key ysonStateKey,
-	create func() (trackedYSONState, error),
-) (trackedYSONState, error) {
-	if state, ok := r.ysonStates[key]; ok {
+func (r *RequestRuntime) getTrackedState(
+	key trackedStateKey,
+	create func() (trackedState, error),
+) (trackedState, error) {
+	if state, ok := r.trackedStates[key]; ok {
 		return state, nil
 	}
 	state, err := create()
 	if err != nil {
 		return nil, err
 	}
-	r.ysonStates[key] = state
-	r.ysonStateOrder = append(r.ysonStateOrder, state)
+	r.trackedStates[key] = state
+	r.trackedStateOrder = append(r.trackedStateOrder, state)
 	return state, nil
 }
 
-func (r *RequestRuntime) resetYSONStates() {
-	clear(r.ysonStates)
-	r.ysonStateOrder = r.ysonStateOrder[:0]
+func (r *RequestRuntime) resetTrackedStates() {
+	clear(r.trackedStates)
+	r.trackedStateOrder = r.trackedStateOrder[:0]
 }
 
-func (r *RequestRuntime) flushYSONStates() error {
-	defer r.resetYSONStates()
-	for _, state := range r.ysonStateOrder {
+func (r *RequestRuntime) flushTrackedStates() error {
+	defer r.resetTrackedStates()
+	for _, state := range r.trackedStateOrder {
 		if err := state.flush(); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// openTrackedState returns the state of the input key, decoding it once per state and key.
+func openTrackedState[S trackedState](
+	rt Runtime,
+	name string,
+	input Input,
+	load func(RawStateAccessor) (S, error),
+) (S, error) {
+	var zero S
+	raw, err := OpenRawState(rt, name, input)
+	if err != nil {
+		return zero, err
+	}
+	encodedKey, err := encodeStateKey(raw.key)
+	if err != nil {
+		return zero, xerrors.Errorf("flow: state %q: %w", name, err)
+	}
+	key := trackedStateKey{holder: raw.holder, key: encodedKey}
+	tracked, err := rt.getTrackedState(key, func() (trackedState, error) {
+		return load(raw)
+	})
+	if err != nil {
+		return zero, err
+	}
+	state, ok := tracked.(S)
+	if !ok {
+		return zero, xerrors.Errorf("flow: state %q for this key was opened with another Go type", name)
+	}
+	return state, nil
+}
+
+// setTrackedState writes data unless it repeats the bytes the state arrived with.
+func setTrackedState(raw RawStateAccessor, initial, data []byte) error {
+	if bytes.Equal(data, initial) {
+		return nil
+	}
+	return raw.Set(data)
+}
+
+// clearTrackedState resets the state unless the request brought none.
+func clearTrackedState(raw RawStateAccessor, initial []byte) error {
+	if initial == nil {
+		return nil
+	}
+	return raw.Clear()
 }
 
 func modifiedHolders[T StateValue[T]](holders map[string]*StatesHolder[T]) iter.Seq[*StatesHolder[T]] {
@@ -302,51 +348,29 @@ func (a RawStateAccessor) Clear() error {
 type YSONState[T any] struct {
 	raw RawStateAccessor
 
-	value         T
-	exists        bool
-	cleared       bool
-	initial       []byte
-	initialExists bool
+	value   T
+	exists  bool
+	cleared bool
+	mutable bool
+	initial []byte
 }
 
 // OpenYSONState binds mutable internal state to the key of the input being handled.
 func OpenYSONState[T any](rt Runtime, name string, input Input) (*YSONState[T], error) {
-	raw, err := OpenRawState(rt, name, input)
-	if err != nil {
-		return nil, err
-	}
-	encodedKey, err := encodeStateKey(raw.key)
-	if err != nil {
-		return nil, xerrors.Errorf("flow: state %q: %w", name, err)
-	}
-	key := ysonStateKey{holder: raw.holder, key: encodedKey}
-	tracked, err := rt.getYSONState(key, func() (trackedYSONState, error) {
-		return loadYSONState[T](raw)
-	})
-	if err != nil {
-		return nil, err
-	}
-	state, ok := tracked.(*YSONState[T])
-	if !ok {
-		return nil, xerrors.Errorf("flow: state %q for this key was opened with another Go type", name)
-	}
-	return state, nil
+	return openTrackedState(rt, name, input, loadYSONState[T])
 }
 
 func loadYSONState[T any](raw RawStateAccessor) (*YSONState[T], error) {
 	state := &YSONState[T]{raw: raw}
-	if data, ok := raw.Get(); ok {
-		if err := yson.Unmarshal(data, &state.value); err != nil {
-			return nil, xerrors.Errorf("flow: state %q: %w", raw.holder.Name(), err)
-		}
-		state.exists = true
-		state.initialExists = true
+	data, ok := raw.Get()
+	if !ok {
+		return state, nil
 	}
-	initial, err := yson.MarshalFormat(state.value, yson.FormatBinary)
-	if err != nil {
+	if err := yson.Unmarshal(data, &state.value); err != nil {
 		return nil, xerrors.Errorf("flow: state %q: %w", raw.holder.Name(), err)
 	}
-	state.initial = initial
+	state.exists = true
+	state.initial = data
 	return state, nil
 }
 
@@ -355,10 +379,20 @@ func (s *YSONState[T]) Empty() bool {
 	return !s.exists || s.cleared
 }
 
+// Get returns the mutable state value, or false when the key has none.
+func (s *YSONState[T]) Get() (*T, bool) {
+	if s.Empty() {
+		return nil, false
+	}
+	s.mutable = true
+	return &s.value, true
+}
+
 // Value returns the mutable state value, creating its zero value when absent.
 func (s *YSONState[T]) Value() *T {
 	s.exists = true
 	s.cleared = false
+	s.mutable = true
 	return &s.value
 }
 
@@ -370,25 +404,51 @@ func (s *YSONState[T]) Clear() {
 	s.value = zero
 }
 
+// ReadOnly returns a view of the same value that is never written back.
+func (s *YSONState[T]) ReadOnly() ReadOnlyYSONState[T] {
+	return ReadOnlyYSONState[T]{state: s}
+}
+
 func (s *YSONState[T]) flush() error {
 	if s.cleared {
-		if !s.initialExists {
-			return nil
-		}
-		return s.raw.Clear()
+		return clearTrackedState(s.raw, s.initial)
 	}
-	if !s.exists {
+	if !s.mutable {
 		return nil
 	}
 	data, err := yson.MarshalFormat(s.value, yson.FormatBinary)
 	if err != nil {
 		return xerrors.Errorf("flow: state %q: %w", s.raw.holder.Name(), err)
 	}
-	if bytes.Equal(data, s.initial) {
-		return nil
-	}
-	return s.raw.Set(data)
+	return setTrackedState(s.raw, s.initial, data)
 }
+
+// ReadOnlyYSONState reads a YSON internal state without writing it back.
+type ReadOnlyYSONState[T any] struct {
+	state *YSONState[T]
+}
+
+// Empty reports whether the state has no value.
+func (s ReadOnlyYSONState[T]) Empty() bool {
+	return s.state.Empty()
+}
+
+// Get returns the state value, or false when the key has none.
+func (s ReadOnlyYSONState[T]) Get() (*T, bool) {
+	if s.state.Empty() {
+		return nil, false
+	}
+	return &s.state.value, true
+}
+
+// Value returns the state value, or its zero value when absent; the state is not created.
+func (s ReadOnlyYSONState[T]) Value() *T {
+	return &s.state.value
+}
+
+// protoStateMarshalOptions keep the encoding stable across requests, so that a message
+// nobody changed compares equal to the bytes it arrived with.
+var protoStateMarshalOptions = proto.MarshalOptions{Deterministic: true}
 
 // ProtoStateValue is a generated protobuf message pointer.
 type ProtoStateValue[T any] interface {
@@ -396,59 +456,131 @@ type ProtoStateValue[T any] interface {
 	proto.Message
 }
 
-// ProtoStateAccessor reads and writes an internal state as protobuf.
-type ProtoStateAccessor[T any, PT ProtoStateValue[T]] struct {
+// ProtoState is mutable protobuf internal state for one key.
+type ProtoState[T any, PT ProtoStateValue[T]] struct {
 	raw RawStateAccessor
+
+	value   PT
+	cleared bool
+	mutable bool
+	initial []byte
 }
 
-// OpenProtoState binds an internal state to the key of the input being handled.
-func OpenProtoState[T any, PT ProtoStateValue[T]](rt Runtime, name string, input Input) (ProtoStateAccessor[T, PT], error) {
-	raw, err := OpenRawState(rt, name, input)
-	if err != nil {
-		return ProtoStateAccessor[T, PT]{}, err
-	}
-	return ProtoStateAccessor[T, PT]{raw: raw}, nil
+// OpenProtoState binds mutable internal state to the key of the input being handled.
+func OpenProtoState[T any, PT ProtoStateValue[T]](rt Runtime, name string, input Input) (*ProtoState[T, PT], error) {
+	return openTrackedState(rt, name, input, loadProtoState[T, PT])
 }
 
-// Get deserializes the state stored for the key.
-func (a ProtoStateAccessor[T, PT]) Get() (PT, bool, error) {
-	var zero PT
-	data, ok := a.raw.Get()
+func loadProtoState[T any, PT ProtoStateValue[T]](raw RawStateAccessor) (*ProtoState[T, PT], error) {
+	state := &ProtoState[T, PT]{raw: raw}
+	data, ok := raw.Get()
 	if !ok {
-		return zero, false, nil
+		return state, nil
 	}
 	value := PT(new(T))
 	if err := proto.Unmarshal(data, value); err != nil {
-		return zero, false, xerrors.Errorf("flow: state %q: %w", a.raw.holder.Name(), err)
+		return nil, xerrors.Errorf("flow: state %q: %w", raw.holder.Name(), err)
 	}
-	return value, true, nil
+	state.value = value
+	state.initial = data
+	return state, nil
 }
 
-// Or deserializes the state stored for the key, or returns fallback if it has none.
-func (a ProtoStateAccessor[T, PT]) Or(fallback PT) (PT, error) {
-	value, ok, err := a.Get()
-	if err != nil {
-		var zero PT
-		return zero, err
-	}
-	if !ok {
-		return fallback, nil
-	}
-	return value, nil
+// Empty reports whether the state has no value.
+func (s *ProtoState[T, PT]) Empty() bool {
+	return s.value == nil || s.cleared
 }
 
-// Set serializes value as the state of the key.
-func (a ProtoStateAccessor[T, PT]) Set(value PT) error {
-	data, err := proto.Marshal(value)
-	if err != nil {
-		return xerrors.Errorf("flow: state %q: %w", a.raw.holder.Name(), err)
+// Get returns the mutable state message, or false when the key has none.
+func (s *ProtoState[T, PT]) Get() (PT, bool) {
+	if s.Empty() {
+		return nil, false
 	}
-	return a.raw.Set(data)
+	s.mutable = true
+	return s.value, true
+}
+
+// Or returns the mutable state message, storing fallback as the value when the key has none.
+func (s *ProtoState[T, PT]) Or(fallback PT) PT {
+	if value, ok := s.Get(); ok {
+		return value
+	}
+	s.bind(fallback)
+	return fallback
+}
+
+// Set stores value as the state of the key.
+func (s *ProtoState[T, PT]) Set(value PT) error {
+	data, err := protoStateMarshalOptions.Marshal(value)
+	if err != nil {
+		return xerrors.Errorf("flow: state %q: %w", s.raw.holder.Name(), err)
+	}
+	if len(data) == 0 {
+		return xerrors.Errorf("flow: state %q: %w", s.raw.holder.Name(), ErrEmptyStateValue)
+	}
+	s.bind(value)
+	return nil
 }
 
 // Clear deletes the state of the key.
-func (a ProtoStateAccessor[T, PT]) Clear() error {
-	return a.raw.Clear()
+func (s *ProtoState[T, PT]) Clear() {
+	s.cleared = true
+	s.value = nil
+}
+
+// ReadOnly returns a view of the same message that is never written back.
+func (s *ProtoState[T, PT]) ReadOnly() ReadOnlyProtoState[T, PT] {
+	return ReadOnlyProtoState[T, PT]{state: s}
+}
+
+func (s *ProtoState[T, PT]) bind(value PT) {
+	s.value = value
+	s.cleared = false
+	s.mutable = true
+}
+
+func (s *ProtoState[T, PT]) flush() error {
+	if s.cleared {
+		return clearTrackedState(s.raw, s.initial)
+	}
+	if !s.mutable {
+		return nil
+	}
+	data, err := protoStateMarshalOptions.Marshal(s.value)
+	if err != nil {
+		return xerrors.Errorf("flow: state %q: %w", s.raw.holder.Name(), err)
+	}
+	// A message with no field set encodes to no bytes, which is how an absent state is spelled.
+	if len(data) == 0 {
+		return clearTrackedState(s.raw, s.initial)
+	}
+	return setTrackedState(s.raw, s.initial, data)
+}
+
+// ReadOnlyProtoState reads a protobuf internal state without writing it back.
+type ReadOnlyProtoState[T any, PT ProtoStateValue[T]] struct {
+	state *ProtoState[T, PT]
+}
+
+// Empty reports whether the state has no value.
+func (s ReadOnlyProtoState[T, PT]) Empty() bool {
+	return s.state.Empty()
+}
+
+// Get returns the state message, or false when the key has none.
+func (s ReadOnlyProtoState[T, PT]) Get() (PT, bool) {
+	if s.state.Empty() {
+		return nil, false
+	}
+	return s.state.value, true
+}
+
+// Or returns the state message, or fallback when the key has none; the state is not created.
+func (s ReadOnlyProtoState[T, PT]) Or(fallback PT) PT {
+	if value, ok := s.Get(); ok {
+		return value
+	}
+	return fallback
 }
 
 // ExternalStateAccessor reads and writes an owned external state row.
