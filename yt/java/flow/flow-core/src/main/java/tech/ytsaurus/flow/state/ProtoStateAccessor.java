@@ -1,11 +1,10 @@
 package tech.ytsaurus.flow.state;
 
-import java.util.Optional;
-
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.Parser;
+import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 
@@ -99,16 +98,16 @@ public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
     /**
      * {@inheritDoc}
      *
-     * <p>An empty optional means the key has no state entry or the state was reset. A present
+     * <p>{@code null} means the key has no state entry or the state was reset. A present
      * message with all-default fields is a legitimate state distinct from an absent one.
      */
     @Override
-    public Optional<T> get() {
+    public @Nullable T get() {
         State state = statesHolder.get(key.getRow());
         if (state == null || state.isReset()) {
-            return Optional.empty();
+            return null;
         }
-        return Optional.of(state.getValue(codec));
+        return state.getValue(codec);
     }
 
     /**
@@ -117,7 +116,8 @@ public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
      * @return the state message
      */
     public T getOrDefault() {
-        return get().orElse(defaultInstance);
+        T value = get();
+        return value != null ? value : defaultInstance;
     }
 
     /**

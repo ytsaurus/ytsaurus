@@ -63,8 +63,10 @@ public class RequestProcessorFunction implements RowFunction {
         StateAccessor<RequestState> accessor =
                 ctx.getState(REQUEST_STATE, timer);
 
-        RequestState state = accessor.get()
-                .orElseThrow(() -> new IllegalStateException("No request state found on timer fire"));
+        RequestState state = accessor.get();
+        if (state == null) {
+            throw new IllegalStateException("No request state found on timer fire");
+        }
 
         tryRequest(state, accessor, output, ctx);
     }

@@ -1,7 +1,6 @@
 package tech.ytsaurus.flow.testutils;
 
-import java.util.Optional;
-
+import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.state.StateAccessor;
 
 /**
@@ -19,7 +18,7 @@ class ReadOnlyStateAccessor<T> implements StateAccessor<T> {
     }
 
     @Override
-    public Optional<T> get() {
+    public @Nullable T get() {
         return delegate.get();
     }
 

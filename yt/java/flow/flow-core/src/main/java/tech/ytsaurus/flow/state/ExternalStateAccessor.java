@@ -1,7 +1,6 @@
 package tech.ytsaurus.flow.state;
 
-import java.util.Optional;
-
+import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.row.Payload;
 
 /**
@@ -29,12 +28,12 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
      * @throws UnsupportedOperationException if a value is stored and the holder has no schema.
      */
     @Override
-    public Optional<Payload> get() {
+    public @Nullable Payload get() {
         State state = statesHolder.get(key.getRow());
         if (state == null || state.isReset()) {
-            return Optional.empty();
+            return null;
         }
-        return Optional.of(state.getValue(statesHolder.valueCodec()));
+        return state.getValue(statesHolder.valueCodec());
     }
 
     /**
@@ -44,8 +43,8 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
      * @throws UnsupportedOperationException if no value is present and the holder has no schema.
      */
     public Payload getOrDefault() {
-        Optional<Payload> value = get();
-        return value.isPresent() ? value.get() : statesHolder.emptyStatePayload();
+        Payload value = get();
+        return value != null ? value : statesHolder.emptyStatePayload();
     }
 
     /**

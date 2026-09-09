@@ -367,9 +367,8 @@ public class ComputationTest {
                                 new WordCountByteArrayCodec()),
                         message
                 );
-                long newCount = state.get()
-                        .map(wc -> wc.count + 1)
-                        .orElse(1L);
+                WordCount current = state.get();
+                long newCount = current != null ? current.count + 1 : 1L;
 
                 var stateEntry = new WordCount();
                 stateEntry.word = word;

@@ -32,7 +32,8 @@ You write new values to the state table as a transaction within an [epoch](../..
   ```java
   public interface StateAccessor<T> {
       /** Get the state value. */
-      Optional<T> get();
+      @Nullable
+      T get();
 
       /** Get the state value or a default value. */
       default T getOrDefault(T defaultValue);
@@ -53,7 +54,7 @@ You write new values to the state table as a transaction within an [epoch](../..
   ```kotlin
   interface StateAccessor<T> {
       /** Get the state value. */
-      fun get(): Optional<T>
+      fun get(): T?
 
       /** Get the state value or a default value. */
       fun getOrDefault(defaultValue: T): T

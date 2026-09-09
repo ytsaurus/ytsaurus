@@ -10,7 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -943,12 +942,12 @@ class TestComputationHarnessTest {
 
             // Then: Unknown names/keys yield empty readers/sets rather than throwing.
             assertAll(
-                    () -> assertTrue(response.allStates()
-                            .get(StateDescriptors.external("/missing"), someKey).get().isEmpty()),
-                    () -> assertTrue(response.allStates()
-                            .get(StateDescriptors.raw("missing"), someKey).get().isEmpty()),
-                    () -> assertTrue(response.modifiedStates()
-                            .get(StateDescriptors.external("/missing"), someKey).get().isEmpty()),
+                    () -> assertNull(response.allStates()
+                            .get(StateDescriptors.external("/missing"), someKey).get()),
+                    () -> assertNull(response.allStates()
+                            .get(StateDescriptors.raw("missing"), someKey).get()),
+                    () -> assertNull(response.modifiedStates()
+                            .get(StateDescriptors.external("/missing"), someKey).get()),
                     () -> assertTrue(response.allStates().externalKeys("missing").isEmpty()),
                     () -> assertTrue(response.allStates().internalKeys("missing").isEmpty()),
                     () -> assertEquals(0, response.allStates().externalSize("missing"))
@@ -990,15 +989,15 @@ class TestComputationHarnessTest {
             // Then: The key collapses to a single entry (no stale loaded duplicate), and the
             // all-states view returns the modified value, not the loaded one.
             var extA = StateDescriptors.external(EXT_STATE_A);
-            Optional<Payload> allValue = response.allStates().get(extA, key).get();
-            Optional<Payload> modifiedValue = response.modifiedStates().get(extA, key).get();
+            Payload allValue = response.allStates().get(extA, key).get();
+            Payload modifiedValue = response.modifiedStates().get(extA, key).get();
             assertAll(
                     () -> assertEquals(1, response.allStates().externalSize(EXT_STATE_A)),
                     () -> assertEquals(Set.of(key.getRow()), response.allStates().externalKeys(EXT_STATE_A)),
                     () -> assertEquals(1, response.modifiedStates().externalSize(EXT_STATE_A)),
-                    () -> assertTrue(allValue.isPresent()),
-                    () -> assertEquals(modifiedValue.orElseThrow(), allValue.orElseThrow()),
-                    () -> assertNotEquals(prePayload, allValue.orElseThrow())
+                    () -> assertNotNull(allValue),
+                    () -> assertEquals(modifiedValue, allValue),
+                    () -> assertNotEquals(prePayload, allValue)
             );
         }
     }

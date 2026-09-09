@@ -86,11 +86,10 @@ A profile state (`NYT::NFlow::NProfileState::TProfileStateManager`) stores a pro
   ```java
   ExternalStateAccessor stateAccessor = ctx.getExternalStateAccessor("join-state", message);
 
-  // Get Optional<Payload>
-  Optional<Payload> maybeState = stateAccessor.get();
-  if (maybeState.isPresent()) {
-      Payload state = maybeState.get();
-      String value = state.get("field_name", String.class);
+  // Get the state: null when there is no value
+  Payload maybeState = stateAccessor.get();
+  if (maybeState != null) {
+      String value = maybeState.get("field_name", String.class);
   }
 
   // Get the state with a default value (an empty Payload with the state schema)
@@ -102,11 +101,10 @@ A profile state (`NYT::NFlow::NProfileState::TProfileStateManager`) stores a pro
   ```kotlin
   val stateAccessor = ctx.getExternalStateAccessor("join-state", message)
 
-  // Get Optional<Payload>
+  // Get the state: null when there is no value
   val maybeState = stateAccessor.get()
-  if (maybeState.isPresent) {
-      val state = maybeState.get()
-      val value = state.get("field_name", String::class.java)
+  if (maybeState != null) {
+      val value = maybeState.get("field_name", String::class.java)
   }
 
   // Get the state with a default value (an empty Payload with the state schema)
@@ -171,7 +169,7 @@ A profile state (`NYT::NFlow::NProfileState::TProfileStateManager`) stores a pro
 
 {% note info %}
 
-An empty state corresponds to the absence of a row in the table. If there’s no row, `get()` returns `Optional.empty()`. Calling `clear()` deletes the row from the table.
+An empty state corresponds to the absence of a row in the table. If there’s no row, `get()` returns `null`. Calling `clear()` deletes the row from the table.
 
 {% endnote %}
 
@@ -257,7 +255,7 @@ In the static spec, declare the joiner in the top-level `external_state_joiners`
 
 {% note warning %}
 
-`getOrDefault()` on a joiner can build an empty `Payload` only if the schema for the requested keys arrives from the joined table. If no rows are found for the keys and the schema isn’t available, `getOrDefault()` throws `IllegalStateException`. In that case, use `get()` and handle `Optional.empty()`.
+`getOrDefault()` on a joiner can build an empty `Payload` only if the schema for the requested keys arrives from the joined table. If no rows are found for the keys and the schema isn’t available, `getOrDefault()` throws `IllegalStateException`. In that case, use `get()` and handle `null`.
 
 {% endnote %}
 
@@ -320,7 +318,7 @@ Example from [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_cli
       @Override
       public void onTimer(Timer timer, OutputCollector output, RuntimeContext ctx) {
           ExternalStateAccessor stateAccessor = ctx.getExternalStateAccessor("join-state", timer);
-          Payload joinState = stateAccessor.get().orElseThrow();
+          Payload joinState = Objects.requireNonNull(stateAccessor.get());
 
           // Build the output message from the state
           if (joinState.get("show_time", Long.class) != null
@@ -372,7 +370,7 @@ Example from [wait_click_join]({{source-root}}/yt/yt/flow/examples/java/wait_cli
 
       override fun onTimer(timer: Timer, output: OutputCollector, ctx: RuntimeContext) {
           val stateAccessor = ctx.getExternalStateAccessor("join-state", timer)
-          val joinState = stateAccessor.get().orElseThrow()
+          val joinState = stateAccessor.get()!!
 
           // Build the output message from the state
           if (joinState.get("show_time", Long::class.java) != null

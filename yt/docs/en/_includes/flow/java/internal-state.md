@@ -29,7 +29,8 @@ All accessors implement the common `StateAccessor<T>` interface.
   ```java
   public interface StateAccessor<T> {
       /** Get the state value. */
-      Optional<T> get();
+      @Nullable
+      T get();
 
       /** Get the state value or a default value. */
       default T getOrDefault(T defaultValue);
@@ -50,7 +51,7 @@ All accessors implement the common `StateAccessor<T>` interface.
   ```kotlin
   interface StateAccessor<T> {
       /** Get the state value. */
-      fun get(): Optional<T>
+      fun get(): T?
 
       /** Get the state value or a default value. */
       fun getOrDefault(defaultValue: T): T
@@ -468,9 +469,8 @@ Use `RawStateAccessor` to work with raw bytes without serialization or deseriali
   ```java
   RawStateAccessor stateAccessor = ctx.getRawStateAccessor("raw-state", message);
 
-  Optional<byte[]> maybeBytes = stateAccessor.get();
-  if (maybeBytes.isPresent()) {
-      byte[] data = maybeBytes.get();
+  byte[] data = stateAccessor.get();
+  if (data != null) {
       // Process raw data...
   }
 
@@ -486,9 +486,8 @@ Use `RawStateAccessor` to work with raw bytes without serialization or deseriali
   ```kotlin
   val stateAccessor: RawStateAccessor = ctx.getRawStateAccessor("raw-state", message)
 
-  val maybeBytes: Optional<ByteArray> = stateAccessor.get()
-  if (maybeBytes.isPresent) {
-      val data: ByteArray = maybeBytes.get()
+  val data: ByteArray? = stateAccessor.get()
+  if (data != null) {
       // Process raw data...
   }
 
@@ -538,7 +537,7 @@ Use `RawStateAccessor` to work with raw bytes without serialization or deseriali
           NoOpStateAccessor stateAccessor = ctx.getNoOpStateAccessor("seen-keys", message);
 
           // Check if the key was already processed
-          if (stateAccessor.get().isPresent()) {
+          if (stateAccessor.get() != null) {
               // The key is already processed, skip it
               return;
           }
@@ -560,7 +559,7 @@ Use `RawStateAccessor` to work with raw bytes without serialization or deseriali
           val stateAccessor: NoOpStateAccessor = ctx.getNoOpStateAccessor("seen-keys", message)
 
           // Check if the key was already processed
-          if (stateAccessor.get().isPresent) {
+          if (stateAccessor.get() != null) {
               // The key is already processed, skip it
               return
           }
