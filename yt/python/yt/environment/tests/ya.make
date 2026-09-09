@@ -1,6 +1,7 @@
 PY3TEST()
 
 TEST_SRCS(
+    test_arcadia_interop.py
     test_tls_helpers.py
     test_init_logging.py
     test_yt_env.py

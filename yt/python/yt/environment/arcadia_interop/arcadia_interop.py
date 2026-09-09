@@ -108,7 +108,10 @@ exec sudo -En {} {} {} {} "$@"
 """
     sudofixup = search_binary_path("yt-sudo-fixup", binary_root=binary_root)
 
-    for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
+    # ytserver-exec is started as root by the Porto job environment and drops
+    # privileges to the slot user before executing user code. Wrapping it in
+    # sudo breaks custom rootfs jobs, where neither sudo nor host paths exist.
+    for binary in ["ytserver-job-proxy", "ytserver-tools"]:
         bin_path = os.path.join(bin_dir, binary)
         orig_path = os.path.join(bin_dir, binary + ".orig")
         if not os.path.exists(bin_path):

@@ -375,9 +375,14 @@ public:
 
         auto launcher = CreatePortoInstanceLauncher(containerName, PortoExecutor_);
 
-        auto portoUser = *WaitFor(PortoExecutor_->GetContainerProperty(SlotContainerName_, "user"))
-            .ValueOrThrow();
-        launcher->SetUser(portoUser);
+        if (Options_.TargetUserId) {
+            YT_VERIFY(*Options_.TargetUserId > 0);
+            launcher->SetUser("root");
+        } else {
+            auto portoUser = GetOrCrash(WaitFor(PortoExecutor_->GetContainerProperty(SlotContainerName_, "user"))
+                .ValueOrThrow());
+            launcher->SetUser(portoUser);
+        }
 
         if (Options_.RootFS) {
             launcher->SetRoot(*Options_.RootFS);
