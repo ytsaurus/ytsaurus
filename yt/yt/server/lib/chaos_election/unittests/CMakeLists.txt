@@ -12,30 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(server-lib-chaos_election)
-
-
-target_compile_options(server-lib-chaos_election PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(server-lib-chaos_election PUBLIC
-  contrib-libs-cxxsupp
-  yutil
-  yt-library-lock_election
-  yt-yt-core
-  yt-yt-client
-)
-
-target_sources(server-lib-chaos_election PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/chaos_lease.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_election/election_manager.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

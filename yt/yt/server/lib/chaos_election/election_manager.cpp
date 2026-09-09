@@ -1,6 +1,7 @@
 #include "election_manager.h"
 
 #include "private.h"
+#include "chaos_lease.h"
 #include "config.h"
 
 #include <yt/yt/client/api/transaction.h>
@@ -76,6 +77,7 @@ public:
         , Logger(ChaosElectionLogger()
             .WithTag("GroupName", Options_->GroupName)
             .WithTag("Path", Config_->LockTablePath))
+        , LeaseFactory_(New<TChaosLeaseFactory>(Client_, Config_->ChaosCellBundle))
         , LockAcquisitionExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TChaosElectionManager::TryAcquireLock, MakeWeak(this)),
@@ -150,6 +152,7 @@ private:
     const IInvokerPtr Invoker_;
     const TLogger Logger;
 
+    const TChaosLeaseFactoryPtr LeaseFactory_;
     const TPeriodicExecutorPtr LockAcquisitionExecutor_;
     const TPeriodicExecutorPtr LeasePingExecutor_;
 
@@ -253,7 +256,7 @@ private:
                     return;
                 } catch (const TErrorException& ex) {
                     if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-                        YT_TLOG_DEBUG("Existing leader lease is dead, attempting takeover")
+                        YT_TLOG_INFO("Existing leader lease is dead, attempting takeover")
                             .With("LeaseId", existingLeaseId);
                     } else {
                         throw;
@@ -262,7 +265,8 @@ private:
             }
         }
 
-        auto chaosLeaseId = CreateLeaseOnEnabledCell();
+        auto chaosLeaseId = WaitFor(LeaseFactory_->CreateLease(Config_->LeaseTimeout))
+            .ValueOrThrow();
 
         YT_TLOG_DEBUG("Created chaos lease")
             .With("LeaseId", chaosLeaseId);
@@ -292,12 +296,14 @@ private:
 
         auto commitResultOrError = WaitFor(transaction->Commit());
         if (!commitResultOrError.IsOK()) {
-            YT_TLOG_DEBUG("Lock acquisition commit failed, will retry")
+            // NB: Logged at info level: a group whose every attempt loses the commit never becomes
+            // led, and that must be visible on installations that write no debug log.
+            YT_TLOG_INFO("Lock acquisition commit failed, will retry")
                 .With(commitResultOrError);
             return;
         }
 
-        YT_TLOG_DEBUG("Lock acquisition committed successfully")
+        YT_TLOG_INFO("Lock acquisition committed successfully")
             .With("LeaseId", lease->GetId());
 
         Lease_ = std::move(lease);
@@ -310,43 +316,6 @@ private:
         LeasePingExecutor_->Start();
 
         OnLeadingStarted();
-    }
-
-    std::vector<TCellId> FetchMetadataCellIds()
-    {
-        auto path = Format("//sys/chaos_cell_bundles/%v/@metadata_cell_ids",
-            Config_->ChaosCellBundle);
-        auto result = WaitFor(Client_->GetNode(path))
-            .ValueOrThrow();
-        return ConvertTo<std::vector<TCellId>>(result);
-    }
-
-    TChaosLeaseId CreateLeaseOnEnabledCell()
-    {
-        auto cellIds = FetchMetadataCellIds();
-
-        for (auto cellId : cellIds) {
-            try {
-                auto leaseAttributes = CreateEphemeralAttributes();
-                leaseAttributes->Set("chaos_cell_id", cellId);
-                leaseAttributes->Set("timeout", Config_->LeaseTimeout);
-
-                TCreateObjectOptions createLeaseOptions;
-                createLeaseOptions.Attributes = std::move(leaseAttributes);
-                return WaitFor(Client_->CreateObject(EObjectType::ChaosLease, createLeaseOptions))
-                    .ValueOrThrow();
-            } catch (const TErrorException& ex) {
-                if (ex.Error().FindMatching(NChaosClient::EErrorCode::ChaosCellIsNotEnabled)) {
-                    YT_TLOG_DEBUG("Chaos cell is not enabled, trying next")
-                        .With("CellId", cellId);
-                    continue;
-                }
-                throw;
-            }
-        }
-
-        THROW_ERROR_EXCEPTION("No enabled chaos cell found in bundle %Qv",
-            Config_->ChaosCellBundle);
     }
 
     void PingLease()
