@@ -291,6 +291,9 @@ void TQuerySettings::Register(TRegistrar registrar)
     registrar.Parameter("infer_dynamic_table_ranges_from_pivot_keys", &TThis::InferDynamicTableRangesFromPivotKeys)
         .Default(true);
 
+    registrar.Parameter("enable_full_result_write", &TThis::EnableFullResultWrite)
+        .Default(false);
+
     registrar.Parameter("conversion", &TThis::Conversion)
         .DefaultNew();
 

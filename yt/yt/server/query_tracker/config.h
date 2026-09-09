@@ -67,6 +67,9 @@ struct TChytEngineConfig
     std::string DefaultClique;
     std::string DefaultCluster;
     TDuration ProgressPollPeriod;
+    bool EnableFullResultWrite;
+    NYPath::TYPath FullResultTablePathPrefix;
+    TDuration FullResultTableExpirationTimeout;
 
     REGISTER_YSON_STRUCT(TChytEngineConfig);
 
