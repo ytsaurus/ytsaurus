@@ -4,6 +4,9 @@
 #include "tablet.h"
 #include "sorted_chunk_store.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -15,6 +18,7 @@ namespace NYT::NTabletNode {
 using namespace NYTree;
 using namespace NLogging;
 using namespace NProfiling;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NTracing;
 
@@ -78,6 +82,29 @@ void TCompactionHintFetchPipeline::ExecuteParse(const std::function<void()>& par
     TWallTimer timer;
     parser();
     GetFetcher()->Context().ParseCumulativeTime.Add(timer.GetElapsedTime());
+}
+
+IMemoryUsageTrackerPtr TCompactionHintFetchPipeline::MaybeGetMemoryUsageTracker() const
+{
+    auto nodeMemoryTracker = Store_->GetTablet()->TryGetNodeMemoryUsageTracker();
+    return nodeMemoryTracker
+        ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletBackground)
+        : nullptr;
+}
+
+TClientChunkReadOptions TCompactionHintFetchPipeline::CreateChunkReadOptions() const
+{
+    return {
+        .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
+        .ReadSessionId = TReadSessionId::Create(),
+        .MemoryUsageTracker = MaybeGetMemoryUsageTracker(),
+    };
+}
+
+i64 TCompactionHintFetchPipeline::GetEstimatedChunkMetaSize() const
+{
+    // Per-extension sizes are unavailable; we hope rough estimate is good enough.
+    return 8_KB;
 }
 
 void TCompactionHintFetchPipeline::OnStoreHasNoHint()
