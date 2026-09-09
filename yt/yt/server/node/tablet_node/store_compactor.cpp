@@ -413,9 +413,11 @@ protected:
 
     IVersionedMultiChunkWriterPtr CreateWriter()
     {
-        auto chunkWriterFactory = [this, weakThis = MakeWeak(this)] (IChunkWriterPtr underlyingWriter) {
+        auto compressionInvoker = ComputeCompressionInvoker();
+
+        auto chunkWriterFactory = [this, weakThis = MakeWeak(this), compressionInvoker = std::move(compressionInvoker)] (IChunkWriterPtr underlyingWriter) {
             if (auto this_ = weakThis.Lock()) {
-                return CreateUnderlyingWriterAdapter(std::move(underlyingWriter));
+                return CreateUnderlyingWriterAdapter(std::move(underlyingWriter), compressionInvoker);
             } else {
                 THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Store compactor session destroyed");
             }
@@ -596,7 +598,9 @@ private:
         return result;
     }
 
-    IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(IChunkWriterPtr underlyingWriter) const
+    IVersionedChunkWriterPtr CreateUnderlyingWriterAdapter(
+        IChunkWriterPtr underlyingWriter,
+        IInvokerPtr compressionInvoker) const
     {
         auto writer = CreateHunkEncodingVersionedWriter(
             CreateVersionedChunkWriter(
@@ -607,7 +611,7 @@ private:
                 WriteBlocksOptions_,
                 /*dataSink*/ std::nullopt,
                 BlockCache_,
-                ComputeCompressionInvoker()),
+                std::move(compressionInvoker)),
             TabletSnapshot_->PhysicalSchema,
             HunkChunkPayloadWriter_,
             HunkChunkWriterStatistics_,
