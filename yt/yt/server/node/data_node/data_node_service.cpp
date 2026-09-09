@@ -922,8 +922,8 @@ private:
 
             auto diskThrottling = chunk
                 ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ true)
-                : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-            subresponse->set_disk_throttling(diskThrottling.Enabled);
+                : TChunkLocation::TReadThrottlingResult{};
+            subresponse->set_disk_throttling(diskThrottling.IsEnabled());
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
 
             if (chunk) {
@@ -998,8 +998,8 @@ private:
 
         auto diskThrottling = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ true)
-            : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-        response->set_disk_throttling(diskThrottling.Enabled);
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
         if (chunk) {
@@ -1064,7 +1064,7 @@ private:
             hasCompleteChunk,
             netThrottling.Enabled,
             netThrottling.QueueSize,
-            diskThrottling.Enabled,
+            diskThrottling.IsEnabled(),
             diskThrottling.QueueSize,
             response->peer_descriptors_size(),
             response->cached_blocks_size(),
@@ -1326,8 +1326,8 @@ private:
 
         auto diskThrottling = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-        response->set_disk_throttling(diskThrottling.Enabled);
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
         YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
@@ -1361,7 +1361,7 @@ private:
                     request,
                     chunk,
                     fetchFromCache && !netThrottling.Enabled,
-                    fetchFromDisk && !netThrottling.Enabled && !diskThrottling.Enabled,
+                    fetchFromDisk && !netThrottling.Enabled && !diskThrottling.IsEnabled(),
                     chunkReaderStatistics);
 
                 if (!chunk && options.FetchFromCache && enableP2P) {
@@ -1432,7 +1432,7 @@ private:
                     .HasCompleteChunk = hasCompleteChunk,
                     .NetThrottling = netThrottling.Enabled,
                     .NetQueueSize = netThrottling.QueueSize,
-                    .DiskThrottling = diskThrottling.Enabled,
+                    .DiskThrottling = diskThrottling.IsEnabled(),
                     .DiskQueueSize = diskThrottling.QueueSize,
                     .ThrottledLargeBlock = throttledLargeBlock,
                     .ChunkReaderStatistics = chunkReaderStatistics,
@@ -1470,8 +1470,8 @@ private:
 
         auto diskThrottling = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
-        response->set_disk_throttling(diskThrottling.Enabled);
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
         YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
@@ -1487,7 +1487,7 @@ private:
             request,
             chunk,
             !netThrottling.Enabled,
-            !netThrottling.Enabled && !diskThrottling.Enabled,
+            !netThrottling.Enabled && !diskThrottling.IsEnabled(),
             chunkReaderStatistics);
 
         auto blocksFuture = chunk
@@ -1514,7 +1514,7 @@ private:
                     .HasCompleteChunk = hasCompleteChunk,
                     .NetThrottling = netThrottling.Enabled,
                     .NetQueueSize = netThrottling.QueueSize,
-                    .DiskThrottling = diskThrottling.Enabled,
+                    .DiskThrottling = diskThrottling.IsEnabled(),
                     .DiskQueueSize = diskThrottling.QueueSize,
                     .ThrottledLargeBlock = false,
                     .ChunkReaderStatistics = chunkReaderStatistics,
@@ -1795,11 +1795,11 @@ private:
 
             auto diskThrottling = chunk
                 ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-                : TChunkLocation::TDiskThrottlingResult{ .Enabled = false };
+                : TChunkLocation::TReadThrottlingResult{};
             YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
                 .With(diskThrottling.Error);
 
-            auto diskThrottlingActive = enableThrottling && diskThrottling.Enabled;
+            auto diskThrottlingActive = enableThrottling && diskThrottling.IsEnabled();
 
             bool chunkAvailable = false;
             if (chunk) {
@@ -2075,12 +2075,12 @@ private:
 
         auto diskThrottling = chunk
             ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
-            : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
+            : TChunkLocation::TReadThrottlingResult{};
         // COMPAT(akozhikhov): For YT-18378. Drop this after all tablet nodes are updated.
-        if (diskThrottling.Enabled) {
+        if (diskThrottling.IsEnabled()) {
             ++diskThrottling.QueueSize;
         }
-        response->set_disk_throttling(diskThrottling.Enabled);
+        response->set_disk_throttling(diskThrottling.IsEnabled());
         response->set_disk_queue_size(diskThrottling.QueueSize);
 
         YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
@@ -2118,7 +2118,7 @@ private:
             chunkId,
             readSessionId,
             workloadDescriptor,
-            diskThrottling.Enabled,
+            diskThrottling.IsEnabled(),
             diskThrottling.QueueSize,
             netThrottling.Enabled,
             netThrottling.QueueSize);

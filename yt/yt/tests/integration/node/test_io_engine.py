@@ -277,14 +277,14 @@ class TestIoEngine(YTEnvSetup):
 
         nodes = ls("//sys/cluster_nodes")
 
-        def seed_counter(node, path):
-            return profiler_factory().at_node(node).counter(path)
+        def seed_counter(node, path, reason):
+            return profiler_factory().at_node(node).counter(path, tags={"reason": reason})
 
-        counters = [seed_counter(node, "location/throttled_reads") for node in nodes]
+        counters = [seed_counter(node, "location/throttled_reads", "total_in_flight_request_limit_exceeded") for node in nodes]
         read_res = read_table(path, return_response=True, table_reader={"probe_peer_count": 1})
         wait(lambda: any(counter.get_delta() > 0 for counter in counters))
 
-        counters = [seed_counter(node, "location/throttled_writes") for node in nodes]
+        counters = [seed_counter(node, "location/throttled_writes", "total_in_flight_request_limit_exceeded") for node in nodes]
         write_res = write_table(path, [{"a": 1}], return_response=True)
         wait(lambda: any(counter.get_delta() > 0 for counter in counters))
 
@@ -323,10 +323,10 @@ class TestIoEngine(YTEnvSetup):
 
         nodes = ls("//sys/cluster_nodes")
 
-        def seed_counter(node, path):
-            return profiler_factory().at_node(node).counter(path)
+        def seed_counter(node, path, reason):
+            return profiler_factory().at_node(node).counter(path, tags={"reason": reason})
 
-        counters = [seed_counter(node, "location/throttled_reads") for node in nodes]
+        counters = [seed_counter(node, "location/throttled_reads", "read_in_flight_request_limit_exceeded") for node in nodes]
         read_res = read_table(path, return_response=True, table_reader={"probe_peer_count": 1})
         wait(lambda: any(counter.get_delta() > 0 for counter in counters))
 
@@ -343,7 +343,7 @@ class TestIoEngine(YTEnvSetup):
             }
         })
 
-        counters = [seed_counter(node, "location/throttled_writes") for node in nodes]
+        counters = [seed_counter(node, "location/throttled_writes", "write_in_flight_request_limit_exceeded") for node in nodes]
         write_res = write_table(path, [{"a": 1}], return_response=True)
         wait(lambda: any(counter.get_delta() > 0 for counter in counters))
 
@@ -438,14 +438,21 @@ class TestIoEngine(YTEnvSetup):
         for response in responses:
             response.wait()
 
-    def _run_throttled(self, delta, is_read, need_throttle):
+    def _run_throttled(self, delta, is_read, need_throttle, reason=None):
         nodes = ls("//sys/cluster_nodes")
 
-        def seed_counter(node, path):
-            return profiler_factory().at_node(node).counter(path)
+        def seed_counter(node, path, counter_reason):
+            tags = {"reason": counter_reason} if counter_reason else {}
+            return profiler_factory().at_node(node).counter(path, tags=tags)
 
         update_nodes_dynamic_config(delta)
-        counters = [seed_counter(node, "location/throttled_reads" if is_read else "location/throttled_writes") for node in nodes]
+        counters = [
+            seed_counter(
+                node,
+                "location/throttled_reads" if is_read else "location/throttled_writes",
+                reason)
+            for node in nodes
+        ]
 
         responses = []
         for i in range(10):
@@ -736,7 +743,7 @@ class TestIoEngine(YTEnvSetup):
                     }
                 }
             }
-        }, False, True)
+        }, False, True, "workload_category_write_memory_limit_exceeded")
 
         self._run_throttled({
             "data_node": {
@@ -746,7 +753,7 @@ class TestIoEngine(YTEnvSetup):
                     }
                 }
             }
-        }, False, True)
+        }, False, True, "new_session_write_memory_limit_exceeded")
 
         self._run_throttled({
             "data_node": {
@@ -764,7 +771,7 @@ class TestIoEngine(YTEnvSetup):
                     }
                 }
             }
-        }, True, True)
+        }, True, True, "read_memory_limit_exceeded")
 
         self._run_throttled({
             "data_node": {
@@ -774,7 +781,7 @@ class TestIoEngine(YTEnvSetup):
                     }
                 }
             }
-        }, True, True)
+        }, True, True, "read_memory_limit_exceeded")
 
         self._run_throttled({
             "data_node": {
@@ -792,7 +799,7 @@ class TestIoEngine(YTEnvSetup):
                     }
                 }
             }
-        }, True, True)
+        }, True, True, "total_memory_limit_exceeded")
 
         self._run_throttled({
             "data_node": {
@@ -802,7 +809,7 @@ class TestIoEngine(YTEnvSetup):
                     }
                 }
             }
-        }, False, True)
+        }, False, True, "total_memory_limit_exceeded")
 
     @authors("yuryalekseev")
     def test_rpc_server_queue_bytes_size_limit(self):

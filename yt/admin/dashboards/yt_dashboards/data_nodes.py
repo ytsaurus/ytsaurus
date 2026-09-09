@@ -63,6 +63,7 @@ def _make_throttling_ratio(backend, throttled_name, throttled_sensor, total_name
     if backend == "monitoring":
         return MultiSensor(
             _build_sensor(throttled_name, throttled_sensor)
+                .aggr("reason")
                 .hidden(True)
                 .name(throttled_name),
             _build_sensor(total_name, total_sensor)
@@ -73,7 +74,7 @@ def _make_throttling_ratio(backend, throttled_name, throttled_sensor, total_name
                 .name(ratio_name)
         )
 
-    throttled = MonitoringExpr(_build_sensor(throttled_name, throttled_sensor)).series_sum("medium")
+    throttled = MonitoringExpr(_build_sensor(throttled_name, throttled_sensor).aggr("reason")).series_sum("medium")
     total = MonitoringExpr(_build_sensor(total_name, total_sensor)).series_sum("medium")
     return (MonitoringExpr(MonitoringExpr.NodeType.Terminal, 100) * throttled / (throttled + total)) \
         .legend_format("{{medium}}")
