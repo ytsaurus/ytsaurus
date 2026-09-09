@@ -20,19 +20,21 @@ All accessors provide the same set of methods: `get()`, `set(value)`, `clear()`,
 
 ## Changing the value in place {#in-place}
 
-The value returned by `get()` and `get_or_default()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `get_or_default()` becomes the state value and is written as after `set()`, so it can be changed right away:
+The value returned by `get()` and `get_or_default()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `get_or_default()` is attached to the key but not written: it can be changed right away, and it becomes the state value only once it is changed, so an untouched default creates no row in the state table:
 
 ```python
 ctx.state("word-state", message).get_or_default({"count": 0})["count"] += 1
 ```
 
-`set()` still replaces the whole value, and `clear()` removes the state. A `None` default is not a value and is not stored. A `bytes` object is immutable, so a `RawStateAccessor` state is only written through `set()`.
+`set()` still replaces the whole value, and `clear()` removes the state. A `None` default is not a value and is not attached. A value that encodes to no bytes — an all-default protobuf message, for instance — is not a value either: setting it removes the state. A `bytes` object is immutable, so a `RawStateAccessor` state is only written through `set()`, and its `get_or_default()` default is not even attached.
 
 To detect the changes, a value that was read is re-encoded at the end of the batch. When the computation only reads a state, use `read_only()`: that accessor returns the same object but does not track it, its `get_or_default()` does not create the state, and `set()` and `clear()` raise `ReadOnlyStateError`:
 
 ```python
 count = ctx.state("word-state", message).read_only().get_or_default({"count": 0})["count"]
 ```
+
+The value is shared, not a copy: if a writable accessor read the same key earlier in the batch, a change made through the read-only view still reaches the state.
 
 ## YsonStateAccessor {#yson-state-accessor}
 
@@ -57,7 +59,7 @@ state = ctx.state("state-name", timer)
 | `get()` | `dict` or `None` | Deserialize and return the current value |
 | `set(value)` | — | Serialize and save the value (dict or bytes) |
 | `clear()` | — | Delete the state for the current key |
-| `get_or_default(default)` | `dict` | Return the current value, or store and return `default` |
+| `get_or_default(default)` | `dict` | Return the current value, or `default` (written only once you change it) |
 
 ### Example from WordCount
 
@@ -90,7 +92,7 @@ state = ctx.raw_state("state-name", timer)
 | `get()` | `bytes` or `None` | Get the raw bytes |
 | `set(value: bytes)` | — | Save the raw bytes |
 | `clear()` | — | Delete the state for the current key |
-| `get_or_default(default: bytes)` | `bytes` | Return the current value, or store and return `default` |
+| `get_or_default(default: bytes)` | `bytes` | Return the current value, or `default` (not stored) |
 
 ### Usage example
 
@@ -134,11 +136,11 @@ The third argument is the Protobuf message class used for deserialization.
 | `get()` | Proto object or `None` | Deserialize and return the value |
 | `set(value)` | — | Serialize and save the Proto object |
 | `clear()` | — | Delete the state for the current key |
-| `get_or_default(default=None)` | Proto object | Return the value, or store and return `default` or an empty instance of the Proto class |
+| `get_or_default(default=None)` | Proto object | Return the value, `default`, or an empty instance of the Proto class (written only once you change it) |
 
 {% note info %}
 
-The `get_or_default()` method with no arguments returns an empty instance of the Proto class (equivalent to `ProtoClass()`). This is convenient for initializing the state on the first access.
+The `get_or_default()` method with no arguments returns an empty instance of the Proto class (equivalent to `ProtoClass()`). This is convenient for initializing the state on the first access; the state itself appears once you change that message.
 
 {% endnote %}
 
