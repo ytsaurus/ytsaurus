@@ -36,9 +36,12 @@ private:
     {
         SubscribeWithErrorHandling(
             Store_->GetBackendReaders(EWorkloadCategory::SystemTabletCompaction).ChunkReader->GetMeta(
-                /*options*/ {},
+                IChunkReader::TGetMetaOptions{
+                    .ClientOptions = CreateChunkReadOptions(),
+                    .MetaSize = GetEstimatedChunkMetaSize(),
+                },
                 /*partitionTags*/ {},
-                /*extentionTags*/ std::vector<int>{TProtoExtensionTag<TVersionedRowDigestExt>::Value}),
+                /*extensionTags*/ std::vector<int>{TProtoExtensionTag<TVersionedRowDigestExt>::Value}),
             std::bind_front(&TRowDigestFetchPipeline::OnRowDigestMetaReceived, this));
     }
 
