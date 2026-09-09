@@ -323,8 +323,10 @@ def internal_states_to_proto(states_holder: StatesHolder, TState, TStateItem):
     for row_key, state_val in states_holder.modified_items():
         item = TStateItem()
         item.key = writer.write_unversioned_row(row_key)
-        item.reset = state_val.reset
-        if not state_val.reset and state_val.state is not None:
+        # A value that encodes to no bytes is no value, and the wire says that with a reset:
+        # the worker rejects a non-reset item with an empty payload.
+        item.reset = state_val.reset or not state_val.state
+        if not item.reset:
             item.state = state_val.state
         state.stateItems.append(item)
     return state

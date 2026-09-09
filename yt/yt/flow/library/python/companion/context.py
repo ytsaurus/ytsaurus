@@ -23,7 +23,6 @@ from .state import (
     ExternalState,
     EXTERNAL_STATE_RESET,
     State,
-    STATE_RESET,
     StatesHolder,
 )
 from .stream import FlowStream, FlowStreamsContext, StreamSpecs
@@ -66,7 +65,8 @@ class StateAccessor:
     The value returned by ``get()`` is live: for a given key it is decoded once per request, every
     accessor for that key returns the same object, and the changes made to that object in place
     are written back at the end of the request without a ``set()`` call.  A value that re-encodes
-    to the bytes it arrived with is not sent back.  ``read_only()`` returns the untracked view.
+    to the bytes it arrived with is not sent back, the default of ``get_or_default()`` included.
+    ``read_only()`` returns the untracked view.
     """
 
     def __init__(self, key: Payload, states_holder: StatesHolder, read_only: bool = False):
@@ -78,27 +78,29 @@ class StateAccessor:
         """Store |value| under the accessor's key.
 
         The stored object stays live: the changes made to it in place afterwards are written back
-        as well.
+        as well.  A value that encodes to no bytes is no value and removes the state.
         """
-        self._store(State(state=self._encode(value), value=value, codec=self._codec(), encode=self._encode))
+        self._store(self._entry(value))
 
     def clear(self) -> None:
         """Remove the state stored under the accessor's key."""
-        self._store(STATE_RESET)
+        # A fresh entry per key: a State memoizes the value handed out, and one shared across
+        # keys would let them share that memo.
+        self._store(State(reset=True))
 
     def get_or_default(self, default: Any) -> Any:
         """Value stored under the accessor's key, or |default|.
 
-        The default becomes the state value and is written back, as after ``set()``, so that it
-        can be changed in place right away.  A ``None`` default carries no value and is not
-        stored, and neither is the default of an accessor that cannot write.
+        The default is attached to the key, not written: it can be changed in place right away,
+        and it becomes the state value only once it is changed.  A ``None`` default carries no
+        value and is not attached, and neither is the default of an accessor that cannot write.
         """
         state = self._get_state()
         if state is not None:
             return self._read(state)
         default = self._default_value(default)
         if default is not None and self._is_writable():
-            self.set(default)
+            self._attach(default)
         return default
 
     def read_only(self) -> "StateAccessor":
@@ -107,6 +109,9 @@ class StateAccessor:
         It returns the same object, but reading through it does not track the state for changes,
         ``get_or_default()`` does not create the state, and ``set()`` and ``clear()`` raise
         :class:`ReadOnlyStateError`.
+
+        The value is shared, not a copy: a change made through this view still reaches the state
+        when a writable accessor read the same key earlier in the request.
         """
         if self._read_only:
             return self
@@ -147,8 +152,20 @@ class StateAccessor:
             raise ReadOnlyStateError(f"Internal state is read-only (StateName: {self._states_holder.name})")
         self._states_holder.set(self._get_row_key(), state)
 
+    def _attach(self, value: Any) -> None:
+        """Put |value| under the accessor's key as an unmodified state.
+
+        The bytes are encoded right away and serve as the baseline the end-of-batch sweep
+        compares against: an untouched value produces no write, one changed in place does.
+        """
+        self._states_holder.load(self._get_row_key(), self._entry(value))
+
+    def _entry(self, value: Any) -> State:
+        """State entry holding |value| together with the encoder that turns it back into bytes."""
+        return State(state=self._encode(value), value=value, codec=self._codec(), encode=self._encode)
+
     def _default_value(self, default: Any) -> Any:
-        """Value to store when the state is absent, resolved only then."""
+        """Value to attach when the state is absent, resolved only then."""
         return default
 
     def _codec(self) -> Any:
@@ -172,6 +189,15 @@ class RawStateAccessor(StateAccessor):
         """Bytes stored under the accessor's key."""
         return self._read_state()
 
+    def get_or_default(self, default: bytes) -> bytes:
+        """Bytes stored under the accessor's key, or |default|.
+
+        The default is not even attached: ``bytes`` is immutable, so there is nothing to change
+        in place afterwards and a raw state is written by ``set()`` only.
+        """
+        value = self._read_state()
+        return value if value is not None else default
+
     def _read(self, state: State) -> Optional[bytes]:
         # Immutable bytes have nothing to track: a read never marks the state modified.
         return state.get_value(self._codec(), self._decode)
@@ -189,19 +215,21 @@ class YsonStateAccessor(StateAccessor):
     """State accessor for YSON-encoded dict values.
 
     A decoded value is mutable, so the changes made to it in place are written back; see
-    :class:`StateAccessor`.
+    :class:`StateAccessor`.  A ``bytes`` value handed to ``set()`` is taken as already
+    YSON-encoded.
     """
 
     def get(self) -> Optional[Any]:
         """YSON-decoded value stored under the accessor's key."""
         return self._read_state()
 
-    def set(self, value: Any) -> None:
-        """Store |value|; a ``bytes`` value is taken as already YSON-encoded."""
+    def _entry(self, value: Any) -> State:
+        """Entry for |value|; a ``bytes`` value is taken as already YSON-encoded, and carries no
+        encoder: there is nothing to change in place in it.
+        """
         if isinstance(value, bytes):
-            self._store(State(state=value))
-            return
-        super().set(value)
+            return State(state=value)
+        return super()._entry(value)
 
     @staticmethod
     def _decode(data: bytes) -> Any:
@@ -233,7 +261,7 @@ class ProtoStateAccessor(StateAccessor):
 
     def get_or_default(self, default=None):
         """Value stored under the accessor's key, |default|, or an empty message of the state's
-        proto class; the default is stored as in :meth:`StateAccessor.get_or_default`.
+        proto class; the default is attached as in :meth:`StateAccessor.get_or_default`.
         """
         return super().get_or_default(default)
 

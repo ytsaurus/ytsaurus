@@ -104,13 +104,24 @@ class TestYsonStateTracking:
 
         assert _modified(holder) == {}
 
-    def test_get_or_default_writes_the_default(self):
+    def test_get_or_default_left_untouched_writes_nothing(self):
         holder = _holder()
         key = _key("aa")
 
-        YsonStateAccessor(key, holder).get_or_default({"count": 0})
+        assert YsonStateAccessor(key, holder).get_or_default({"count": 0}) == {"count": 0}
 
-        assert _count(_modified(holder)["aa"]) == 0
+        assert _modified(holder) == {}
+
+    def test_get_or_default_attaches_the_default(self):
+        holder = _holder()
+        key = _key("aa")
+
+        accessor = YsonStateAccessor(key, holder)
+        value = accessor.get_or_default({"count": 0})
+
+        assert accessor.get() is value
+        assert YsonStateAccessor(key, holder).get_or_default({"count": 9}) is value
+        assert _modified(holder) == {}
 
     def test_get_or_default_binds_the_default(self):
         holder = _holder()
@@ -175,6 +186,19 @@ class TestYsonStateTracking:
         assert accessor.get() is None
         assert _modified(holder)["aa"].reset
 
+    def test_cleared_keys_do_not_share_a_state(self):
+        holder = _holder()
+        first, second = _key("aa"), _key("ab")
+        _seed(holder, first, 1)
+        _seed(holder, second, 5)
+
+        YsonStateAccessor(first, holder).clear()
+        YsonStateAccessor(second, holder).clear()
+
+        modified = _modified(holder)
+        assert modified["aa"].reset and modified["ab"].reset
+        assert modified["aa"] is not modified["ab"]
+
     def test_get_or_default_after_clear_revives_the_state(self):
         holder = _holder()
         key = _key("aa")
@@ -185,6 +209,17 @@ class TestYsonStateTracking:
         accessor.get_or_default({"count": 0})["count"] = 5
 
         assert _count(_modified(holder)["aa"]) == 5
+
+    def test_get_or_default_after_clear_left_untouched_keeps_the_reset(self):
+        holder = _holder()
+        key = _key("aa")
+        _seed(holder, key, 1)
+
+        accessor = YsonStateAccessor(key, holder)
+        accessor.clear()
+        accessor.get_or_default({"count": 0})
+
+        assert _modified(holder)["aa"].reset
 
     def test_collect_modified_picks_up_a_later_change(self):
         holder = _holder()
@@ -286,6 +321,18 @@ class TestReadOnlyStateAccessor:
 
         assert accessor.read_only() is accessor
 
+    def test_change_after_a_writable_read_is_written_back(self):
+        """The view hands out the very value the writable read already tracked."""
+        holder = _holder()
+        key = _key("aa")
+        _seed(holder, key, 1)
+
+        accessor = YsonStateAccessor(key, holder)
+        accessor.get()
+        accessor.read_only().get()["count"] = 2
+
+        assert _count(_modified(holder)["aa"]) == 2
+
     def test_writable_accessor_is_unaffected(self):
         holder = _holder()
         key = _key("aa")
@@ -320,12 +367,24 @@ class TestRawStateTracking:
 
         assert _modified(holder)["aa"].state == b"\x03"
 
-    def test_get_or_default_writes_the_default(self):
+    def test_get_or_default_stores_nothing(self):
         holder = _holder()
+        key = _key("aa")
 
-        RawStateAccessor(_key("aa"), holder).get_or_default(b"\x00")
+        accessor = RawStateAccessor(key, holder)
+        assert accessor.get_or_default(b"\x00") == b"\x00"
 
-        assert _modified(holder)["aa"].state == b"\x00"
+        assert accessor.get() is None
+        assert _modified(holder) == {}
+
+    def test_get_or_default_returns_the_stored_bytes(self):
+        holder = _holder()
+        key = _key("aa")
+        holder.load(key.row, State(state=b"\x01\x02"))
+
+        assert RawStateAccessor(key, holder).get_or_default(b"\x00") == b"\x01\x02"
+
+        assert _modified(holder) == {}
 
     def test_read_only_rejects_writes(self):
         holder = _holder()
@@ -372,7 +431,15 @@ class TestProtoStateTracking:
 
         assert _modified(holder) == {}
 
-    def test_get_or_default_writes_the_empty_message(self):
+    def test_get_or_default_left_untouched_writes_nothing(self):
+        holder = _holder()
+        key = _key("aa")
+
+        assert ProtoStateAccessor(key, holder, TJoinState).get_or_default().show_time == 0
+
+        assert _modified(holder) == {}
+
+    def test_get_or_default_changed_in_place_is_written(self):
         holder = _holder()
         key = _key("aa")
 
@@ -421,6 +488,17 @@ class TestMixedCodecs:
         assert RawStateAccessor(key, holder).get() == yson.dumps({"count": 1})
         assert YsonStateAccessor(key, holder).get()["count"] == 1
 
+        assert _modified(holder) == {}
+
+    def test_raw_read_drops_a_pending_yson_change(self):
+        """Documented limitation: decoding anew takes the bytes as they arrived."""
+        holder = _holder()
+        key = _key("aa")
+        _seed(holder, key, 1)
+
+        YsonStateAccessor(key, holder).get()["count"] = 2
+
+        assert RawStateAccessor(key, holder).get() == yson.dumps({"count": 1})
         assert _modified(holder) == {}
 
     def test_same_proto_class_gives_the_same_message(self):
@@ -509,6 +587,12 @@ class TestInternalStateFlush:
         return map_process_batch_response(stream_specs, response, _proto_module())
 
     @staticmethod
+    def _items(data) -> list:
+        """State items of the single internal state in |data|."""
+        assert len(data.internal_states) == 1
+        return list(data.internal_states[0].stateItems)
+
+    @staticmethod
     def _counts(proto_state) -> dict:
         counts = {}
         for item in proto_state.stateItems:
@@ -545,6 +629,63 @@ class TestInternalStateFlush:
             ctx.state(_STATE_NAME, message).read_only().get()["count"] += 1
 
         data = self._process(touch_word, ["aa"], holder)
+
+        assert len(data.internal_states) == 0
+
+    def test_untouched_proto_default_is_not_sent(self):
+        """The default is attached, not written: an untouched one re-encodes to the bytes it was
+        attached with, so nothing goes out.
+        """
+
+        def take_default(message, output, ctx):
+            ctx.proto_state(_STATE_NAME, message, TJoinState).get_or_default()
+
+        data = self._process(take_default, ["aa"], _holder())
+
+        assert len(data.internal_states) == 0
+
+    def test_changed_proto_default_is_sent_with_its_payload(self):
+        def fill_default(message, output, ctx):
+            ctx.proto_state(_STATE_NAME, message, TJoinState).get_or_default().show_time = 300
+
+        items = self._items(self._process(fill_default, ["aa"], _holder()))
+
+        assert len(items) == 1
+        assert not items[0].reset
+        state = TJoinState()
+        state.ParseFromString(items[0].state)
+        assert state.show_time == 300
+
+    def test_value_emptied_in_place_is_sent_as_a_reset(self):
+        holder = _holder()
+        TestProtoStateTracking._seed_proto(holder, _key("aa"), 100)
+
+        def drop_fields(message, output, ctx):
+            ctx.proto_state(_STATE_NAME, message, TJoinState).get().Clear()
+
+        items = self._items(self._process(drop_fields, ["aa"], holder))
+
+        assert len(items) == 1
+        assert items[0].reset
+
+    def test_set_of_empty_bytes_is_sent_as_a_reset(self):
+        """An explicit empty value is no value either, and removes the state."""
+        holder = _holder()
+        _seed(holder, _key("aa"), 3)
+
+        def empty_state(message, output, ctx):
+            ctx.raw_state(_STATE_NAME, message).set(b"")
+
+        items = self._items(self._process(empty_state, ["aa"], holder))
+
+        assert len(items) == 1
+        assert items[0].reset
+
+    def test_empty_raw_default_is_not_sent(self):
+        def take_default(message, output, ctx):
+            ctx.raw_state(_STATE_NAME, message).get_or_default(b"")
+
+        data = self._process(take_default, ["aa"], _holder())
 
         assert len(data.internal_states) == 0
 
