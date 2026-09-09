@@ -20,6 +20,9 @@ from yt.common import YtError
 
 import pytest
 
+import builtins
+
+
 ##################################################################
 
 
@@ -32,11 +35,47 @@ class TestMultiConsumerController(TestQueueAgentBase):
         "cypress_synchronizer": {
             "policy": "watching",
         },
+        "controller": {
+            "multi_consumer_select_batch_size": 5,
+        },
     }
 
     def _get_orchid(self) -> QueueAgentOrchid:
         instances = ls("//sys/queue_agents/instances")
         return QueueAgentOrchid(agent_id=instances[0])
+
+    @authors("panesher")
+    def test_select_consumer_names_pagination(self):
+        path = self.create_consumer_path("multi_consumer_pagination")
+        self._create_consumer(path, multi_consumer=True, queue_agent_stage="production")
+
+        self._wait_for_component_passes()
+
+        orchid = self._get_orchid().get_multi_consumer_orchid(GenericObjectPath(path, "primary"))
+        batch_size = self.DELTA_QUEUE_AGENT_DYNAMIC_CONFIG["controller"]["multi_consumer_select_batch_size"]
+        expected = builtins.set()
+
+        for index in range(batch_size * 2, 1, -1):
+            name = f"c_{index:02d}"
+            insert_rows(path, [{
+                "queue_consumer_name": name,
+                "queue_cluster": "primary",
+                "queue_path": f"//tmp/queue_for_{name}",
+                "partition_index": partition_index,
+                "offset": 0,
+            } for partition_index in range(index)])
+            expected.add(name)
+
+            orchid.wait_fresh_pass()
+
+            assert builtins.set(orchid.get_queue_consumer_names()) == expected
+
+            # NB: Snapshot is stored before the state table sync, so wait one more pass for it to land.
+            orchid.wait_fresh_pass()
+
+            assert builtins.set(
+                row["name"] for row in select_rows("* from [//sys/queue_agents/multi_consumer_names]")
+            ) == expected
 
     @authors("panesher")
     def test_consistent_orchid_and_table(self):
