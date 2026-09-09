@@ -418,11 +418,7 @@ void TSchedulingPolicy::ReviveAllocation(
     auto node = GetOrDefault(Nodes_, nodeId);
 
     if (!node) {
-        auto allocationState = New<TAllocationState>(
-            allocationId,
-            nodeId,
-            /*assignment*/ TWeakPtr<TAssignment>{},
-            resourceUsage);
+        auto allocationState = New<TAllocationState>(allocationId, nodeId, resourceUsage);
         operation->AddOrphanAllocation(allocationState);
         EmplaceOrCrash(
             PendingRevivedAllocations_[nodeId],
@@ -449,13 +445,13 @@ void TSchedulingPolicy::ReviveAllocation(
     assignmentResources.DiskQuota() = allocation->DiskQuota();
 
     TAssignmentId assignmentId;
-    if (auto assignment = GetOrDefault(operation->AllocationIdToAssignment(), allocationId)) {
+    if (auto assignment = operation->FindAssignment(allocationId)) {
         YT_VERIFY(assignment->Reviving);
         YT_VERIFY(assignment->Node == node.Get());
 
         assignment->Reviving = false;
         assignmentId = assignment->Id;
-        auto allocationState = New<TAllocationState>(allocationId, nodeId, assignment, resourceUsage);
+        auto allocationState = New<TAllocationState>(allocationId, nodeId, resourceUsage);
         operation->AddRevivedAllocation(allocationState, assignment);
     } else {
         auto newAssignment = New<TAssignment>(
@@ -468,7 +464,7 @@ void TSchedulingPolicy::ReviveAllocation(
         node->AddAssignment(newAssignment);
 
         assignmentId = newAssignment->Id;
-        auto allocationState = New<TAllocationState>(allocationId, nodeId, newAssignment, resourceUsage);
+        auto allocationState = New<TAllocationState>(allocationId, nodeId, resourceUsage);
         newAssignment->AddAllocation(allocationState);
     }
 
@@ -695,8 +691,8 @@ TPoolTreeSnapshotStatePtr TSchedulingPolicy::CreateSnapshotState(TPostUpdateCont
 
     auto snapshotOperations = [&] (const TOperationMap& operations) {
         for (const auto& [operationId, operation] : operations) {
-            for (const auto& [allocationId, allocation] : operation->AllocationIdToAllocationState()) {
-                EmplaceOrCrash(allocationStates, allocationId, allocation->BuildSnapshotInfo(operationId));
+            for (const auto& [allocationId, _] : operation->AllocationIdToAllocationState()) {
+                EmplaceOrCrash(allocationStates, allocationId, operation->BuildAllocationSnapshotInfo(allocationId));
             }
             EmplaceOrCrash(operationStates, operationId, operation->BuildSnapshotInfo());
         }
@@ -1019,7 +1015,7 @@ void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
             continue;
         }
 
-        YT_VERIFY(orphan->Assignment() == nullptr);
+        YT_VERIFY(!operation->FindAssignment(allocationId));
 
         auto currentUsage = orphan->ResourceUsage();
 
@@ -1033,7 +1029,6 @@ void TSchedulingPolicy::RevivePendingAllocations(const TNodePtr& node)
         operation->AddAssignment(assignment);
         node->AddAssignment(assignment);
 
-        orphan->SetAssignment(MakeWeak(assignment));
         assignment->AddAllocation(orphan);
 
         YT_LOG_DEBUG(
@@ -1053,7 +1048,7 @@ void TSchedulingPolicy::DropPendingAllocationsForOperation(const TOperationPtr& 
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     for (const auto& [allocationId, allocationState] : operation->AllocationIdToAllocationState()) {
-        if (allocationState->Assignment() != nullptr) {
+        if (operation->FindAssignment(allocationId)) {
             // Not an orphan.
             continue;
         }
@@ -1522,7 +1517,6 @@ void TSchedulingPolicy::ScheduleAllocations(
         auto allocation = New<TAllocationState>(
             allocationId,
             node->GetId(),
-            assignment,
             assignment->ResourceUsage);
         assignment->AddAllocation(allocation);
 
@@ -1604,7 +1598,7 @@ bool TSchedulingPolicy::PreemptAllocation(
             }
         }
 
-        usageToPreempt = allocationState->UpdateResourceUsage(TJobResources());
+        usageToPreempt = operation->UpdateAllocationResourceUsage(allocationState, TJobResources());
     }
 
     if (usageToPreempt != TJobResources()) {
@@ -1823,7 +1817,7 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
         };
     }
 
-    auto assignment = allocation->Assignment().Lock();
+    auto assignment = operation->FindAssignment(allocationUpdate.AllocationId);
 
     if (allocationUpdate.Finished) {
         return ProcessFinishedAllocation(
@@ -1838,7 +1832,7 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
     YT_VERIFY(allocationUpdate.AllocationResources || allocationUpdate.PreemptibleProgressStartTime);
 
     if (allocationUpdate.AllocationResources) {
-        auto delta = allocation->UpdateResourceUsage(*allocationUpdate.AllocationResources);
+        auto delta = operation->UpdateAllocationResourceUsage(allocation, *allocationUpdate.AllocationResources);
         if (delta != TJobResources()) {
             element->IncreaseHierarchicalResourceUsage(delta);
         }

@@ -15,7 +15,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, create, wait, write_table, ls, get, create_data_center, create_rack, run_sleeping_vanilla, update_pool_tree_config,
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
-    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters,
+    run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters, abort_job,
     print_debug, update_controller_agent_config, update_nodes_dynamic_config, get_applied_node_dynamic_config,
     raises_yt_error, remove_pool_tree,
 )
@@ -1696,6 +1696,110 @@ class TestAllocatingGpuPolicyDisableDuringScheduleAllocation(AllocatingGpuSchedu
         time.sleep(schedule_allocation_delay / 1000.0 + 2)
 
         wait_operation_unregistered(op.id)
+
+
+##################################################################
+
+class TestAllocatingGpuPolicyFinishPreemptedAssignmentDuringScheduleAllocation(AllocatingGpuSchedulingPolicyBaseConfig):
+    # A single 8-GPU node so that the victim's realized assignment and the parking operation's
+    # preliminary assignment live on the same node, hence in one ScheduleAllocations(node) loop.
+    NUM_NODES = 1
+
+    @authors("yaishenka")
+    def test_finish_allocation_of_preempted_assignment_while_scheduling(self):
+        # Regression for the YT_VERIFY coredump in ProcessFinishedAllocation.
+        #
+        # ScheduleAllocations iterates a *copy* of node->Assignments(), i.e. a vector of strong
+        # assignment pointers that lives for the whole loop. When the loop parks inside
+        # DoScheduleAllocation, every assignment of that node is kept alive even after it is
+        # detached from the node and the operation.
+        #
+        # While the loop is parked the node leaves the gpu tree, so the policy's UnregisterNode
+        # preempts all of its assignments: the victim's assignment is detached from both the node
+        # and the operation, but cannot be destroyed because the parked loop still holds a
+        # reference. Back then the allocation held a weak back-reference to that assignment; it
+        # still locked, so ProcessFinishedAllocation took the "assignment is alive" branch and
+        # removed the assignment strictly, tripping the YT_VERIFY and crashing the scheduler.
+        # The allocation holds no such reference now: attachment lives only in
+        # TOperation::AllocationIdToAssignment_, which preemption erases.
+        #
+        # Why the node has to leave the tree rather than the assignment being preempted by the
+        # plan update: DoProcessSchedulingHeartbeat holds a *reader* guard of
+        # AssignmentPlanUpdateLock_ for the whole park, and UpdateAssignmentPlan needs the
+        # *writer* guard, so no plan-driven preemption (resource limits violation and friends) can
+        # run while the loop is parked. UnregisterNode takes no lock at all.
+        #
+        # The allocation is finished with abort_job (scheduler-side abort, delivered to the
+        # strategy as a finished allocation update on the control thread) rather than by aborting
+        # the operation: that keeps the operation enabled, so the update is guaranteed to reach
+        # ProcessFinishedAllocation instead of being postponed as "operation is disabled". The
+        # node shard's own "abort all allocations on a node" for the tree change does not race
+        # with it: it is postponed until the (parked) heartbeat finishes.
+        schedule_allocation_delay = 15000
+
+        victim = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+
+        wait(lambda: len(victim.get_running_jobs()) == 1)
+        wait_for_assignments_in_gpu_policy_orchid(victim, assignment_count=1, exactly=True)
+
+        # This operation parks the node's ScheduleAllocations loop: its preliminary assignment is
+        # processed after the victim's realized one, which is therefore pinned by the loop's copy.
+        parker = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+            spec={
+                "testing": {
+                    "schedule_allocation_delay_scheduler": {
+                        "duration": schedule_allocation_delay,
+                        "type": "async",
+                    },
+                },
+            },
+        )
+
+        wait_for_assignments_in_gpu_policy_orchid(parker, assignment_count=1, exactly=True)
+
+        assignments = get_operation_gpu_assignments_from_gpu_policy_orchid(parker)
+        assert len(assignments) == 1
+        assert is_default_guid(assignments[0].get("allocation_id")), \
+            "parking assignment must still be preliminary (schedule allocation parked)"
+
+        # Give a scheduling heartbeat time to enter DoScheduleAllocation for the parking
+        # assignment and park inside the scheduler-side delay. The park lasts
+        # ~schedule_allocation_delay, so everything below lands while the fiber is parked and the
+        # victim's assignment is pinned.
+        time.sleep(2)
+
+        job_ids = list(victim.get_running_jobs())
+        assert len(job_ids) == 1
+
+        # Drop the node out of the gpu tree. The tree's UnregisterNode preempts every assignment
+        # of the node, detaching the victim's one, which nevertheless stays alive because of the
+        # parked loop.
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), [])
+
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == 0)
+        wait_for_assignments_in_gpu_policy_orchid(victim, assignment_count=0, exactly=True)
+
+        # The victim's allocation is still running: the node shard postpones its own
+        # "abort all allocations on a node" until the parked heartbeat finishes.
+        abort_job(job_ids[0])
+
+        # Without the fix the scheduler dies here on the YT_VERIFY in RemoveAssignment. With it the
+        # allocation is released through the "allocation without assignment" branch, which is also
+        # the branch that cleans up the node's preemption bookkeeping.
+        wait_for_gpu_allocations_empty_in_gpu_policy_orchid(victim)
+
+        # Put the node back and check the scheduler still picks it up. The operations are left to
+        # the environment on purpose: with the only node out of the tree they fail on their own
+        # ("Found no nodes with enough resources to schedule an allocation that are online in
+        # trees [gpu]") a few seconds later, which has nothing to do with what is being tested.
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), ["gpu"])
+        wait(lambda: get(scheduler_new_orchid_pool_tree_path("gpu") + "/node_count") == self.NUM_NODES)
 
 
 ##################################################################

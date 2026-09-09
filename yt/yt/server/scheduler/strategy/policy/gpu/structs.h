@@ -81,7 +81,6 @@ class TAllocationState final
 public:
     DEFINE_BYVAL_RO_PROPERTY(TAllocationId, Id);
     DEFINE_BYVAL_RO_PROPERTY(NNodeTrackerClient::TNodeId, NodeId);
-    DEFINE_BYREF_RO_PROPERTY(TWeakPtr<TAssignment>, Assignment);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TPreemptionInfo>, PreemptionInfo);
 
@@ -91,15 +90,10 @@ public:
     TAllocationState(
         TAllocationId id,
         NNodeTrackerClient::TNodeId nodeId,
-        TWeakPtr<TAssignment> assignment,
         const TJobResources& resourceUsage);
 
     // Updates ResourceUsage, returns delta.
     TJobResources UpdateResourceUsage(const TJobResources& newUsage);
-
-    void SetAssignment(TWeakPtr<TAssignment> assignment);
-
-    TAllocationSnapshotState BuildSnapshotInfo(TOperationId operationId) const;
 };
 
 void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consumer);
@@ -211,6 +205,16 @@ public:
     //! Deletes all allocation objects. Assignments kept.
     void RemoveAllAllocations();
 
+    //! Returns the assignment attached to |allocationId|, or null when there is none: an orphan
+    //! revival allocation, or an assignment that has been preempted or removed.
+    TAssignmentPtr FindAssignment(TAllocationId allocationId) const;
+
+    //! Updates the tracked usage of |allocation| and of its assignment, when it has one.
+    //! Returns the allocation's usage delta.
+    TJobResources UpdateAllocationResourceUsage(
+        const TAllocationStatePtr& allocation,
+        const TJobResources& newUsage);
+
     void SetPreemptible(bool preemptible);
 
     //! For a full-host module-bound operation returns the module, where its assignments are currently located.
@@ -223,6 +227,9 @@ public:
     bool IsZeroAssignedUsage() const;
 
     TOperationSnapshotState BuildSnapshotInfo() const;
+
+    //! |allocationId| must belong to this operation.
+    TAllocationSnapshotState BuildAllocationSnapshotInfo(TAllocationId allocationId) const;
 
 private:
     friend struct TAssignment;

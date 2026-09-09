@@ -102,19 +102,12 @@ void TAssignmentHandler::RemoveAssignment(const TAssignmentPtr& assignment, bool
         assignment->AllocationId,
         strict);
 
-    if (strict) {
-        YT_VERIFY(assignment->Node->Assignments().contains(assignment));
-        assignment->Node->RemoveAssignment(assignment);
-
-        YT_VERIFY(assignment->Operation->Assignments().contains(assignment));
-        assignment->Operation->RemoveAssignment(assignment);
-
-        return;
-    }
-
+    YT_VERIFY(!strict || assignment->Node->Assignments().contains(assignment));
     if (assignment->Node->Assignments().contains(assignment)) {
         assignment->Node->RemoveAssignment(assignment);
     }
+
+    YT_VERIFY(!strict || assignment->Operation->Assignments().contains(assignment));
     if (assignment->Operation->Assignments().contains(assignment)) {
         assignment->Operation->RemoveAssignment(assignment);
     }

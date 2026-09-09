@@ -30,7 +30,6 @@ void TAssignment::AddAllocation(const TAllocationStatePtr& allocation)
 {
     YT_VERIFY(!AllocationId);
 
-    YT_VERIFY(allocation->Assignment().Lock() == this);
     YT_VERIFY(allocation->GetId() == Id);
 
     AllocationId = allocation->GetId();
@@ -90,11 +89,9 @@ void Serialize(const TPreemptionInfo& preemptionInfo, NYson::IYsonConsumer* cons
 TAllocationState::TAllocationState(
     TAllocationId id,
     NNodeTrackerClient::TNodeId nodeId,
-    TWeakPtr<TAssignment> assignment,
     const TJobResources& resourceUsage)
     : Id_(id)
     , NodeId_(nodeId)
-    , Assignment_(std::move(assignment))
     , ResourceUsage_(resourceUsage)
     , CreationTime_(TInstant::Now())
 { }
@@ -106,32 +103,7 @@ TJobResources TAllocationState::UpdateResourceUsage(const TJobResources& newUsag
 
     YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
 
-    if (auto assignment = Assignment_.Lock()) {
-        Y_UNUSED(assignment->UpdateResourceUsage(newUsage));
-    }
-
     return delta;
-}
-
-void TAllocationState::SetAssignment(TWeakPtr<TAssignment> assignment)
-{
-    YT_VERIFY(Assignment_ == nullptr);
-
-    Assignment_ = std::move(assignment);
-}
-
-TAllocationSnapshotState TAllocationState::BuildSnapshotInfo(TOperationId operationId) const
-{
-    TAllocationSnapshotState info{
-        .AllocationId = Id_,
-        .OperationId = operationId,
-        .NodeId = NodeId_,
-        .ResourceUsage = ResourceUsage_,
-    };
-    if (auto assignment = Assignment_.Lock()) {
-        info.Preemptible = assignment->Preemptible;
-    }
-    return info;
 }
 
 void Serialize(const TAllocationState& allocation, NYson::IYsonConsumer* consumer)
@@ -296,7 +268,7 @@ void TOperation::AddAllocation(const TAllocationStatePtr& allocation, const TAss
 
 void TOperation::AddOrphanAllocation(const TAllocationStatePtr& allocation)
 {
-    YT_VERIFY(allocation->Assignment() == nullptr);
+    YT_VERIFY(!FindAssignment(allocation->GetId()));
     EmplaceOrCrash(AllocationIdToAllocationState_, allocation->GetId(), allocation);
 }
 
@@ -318,6 +290,26 @@ void TOperation::RemoveAllocation(TAllocationId allocationId)
 void TOperation::RemoveAllAllocations()
 {
     AllocationIdToAllocationState_.clear();
+}
+
+TAssignmentPtr TOperation::FindAssignment(TAllocationId allocationId) const
+{
+    return GetOrDefault(AllocationIdToAssignment_, allocationId);
+}
+
+TJobResources TOperation::UpdateAllocationResourceUsage(
+    const TAllocationStatePtr& allocation,
+    const TJobResources& newUsage)
+{
+    YT_VERIFY(AllocationIdToAllocationState_.contains(allocation->GetId()));
+
+    auto delta = allocation->UpdateResourceUsage(newUsage);
+
+    if (auto assignment = FindAssignment(allocation->GetId())) {
+        Y_UNUSED(assignment->UpdateResourceUsage(newUsage));
+    }
+
+    return delta;
 }
 
 int TOperation::DoGetNeededAllocationCount(const TAllocationGroupResourcesMap& groupedNeededResources) const
@@ -351,6 +343,24 @@ TOperationSnapshotState TOperation::BuildSnapshotInfo() const
     info.AllocationIds.reserve(AllocationIdToAllocationState_.size());
     for (const auto& [allocationId, _] : AllocationIdToAllocationState_) {
         info.AllocationIds.push_back(allocationId);
+    }
+
+    return info;
+}
+
+TAllocationSnapshotState TOperation::BuildAllocationSnapshotInfo(TAllocationId allocationId) const
+{
+    const auto& allocation = GetOrCrash(AllocationIdToAllocationState_, allocationId);
+
+    TAllocationSnapshotState info{
+        .AllocationId = allocationId,
+        .OperationId = Id_,
+        .NodeId = allocation->GetNodeId(),
+        .ResourceUsage = allocation->ResourceUsage(),
+    };
+
+    if (auto assignment = FindAssignment(allocationId)) {
+        info.Preemptible = assignment->Preemptible;
     }
 
     return info;
