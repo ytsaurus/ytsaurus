@@ -67,14 +67,14 @@ def parse_args() -> argparse.Namespace:
         "--map",
         dest="map_path",
         type=Path,
-        default=Path("yt/docs/ai/artifacts/kb/codebase-map.md"),
+        default=Path("yt/docs/ai/artifacts/codebase/codebase-map.md"),
     )
     parser.add_argument(
         "--inventory-path",
         "--inventory",
         dest="inventory_path",
         type=Path,
-        default=Path("yt/docs/ai/artifacts/kb/codebase-map-inventory.json"),
+        default=Path("yt/docs/ai/artifacts/codebase/codebase-map-inventory.json"),
     )
     parser.add_argument(
         "--max-review-age-days",

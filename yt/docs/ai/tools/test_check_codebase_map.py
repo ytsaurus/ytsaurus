@@ -86,7 +86,7 @@ class CodebaseMapValidatorTest(unittest.TestCase):
         self.assertEqual(checker.extract_arcadia_paths("Root: `yt/`"), [])
 
     def test_live_map_declares_62_concrete_exact_paths(self) -> None:
-        map_path = Path(__file__).resolve().parents[1] / "artifacts/kb/codebase-map.md"
+        map_path = Path(__file__).resolve().parents[1] / "artifacts/codebase/codebase-map.md"
         paths = checker.extract_arcadia_paths(map_path.read_text(encoding="utf-8"))
         concrete_paths = [path for path in paths if not checker.validate_pattern_syntax(path)[0]]
 
