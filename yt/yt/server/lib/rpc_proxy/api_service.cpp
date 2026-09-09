@@ -4790,7 +4790,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, SelectRows)
 
     auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
     options.DetailedProfilingInfo = detailedProfilingInfo;
-    i64 queryTruncateLimit = config->TruncatedQueryLengthForRequestInfo.value_or(std::numeric_limits<int>::max());
+    int queryTruncateLimit = config->TruncatedQueryLengthForRequestInfo.value_or(std::numeric_limits<int>::max());
 
     if (options.PlaceholderValues) {
         context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
