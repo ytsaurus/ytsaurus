@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/client/job_tracker_client/public.h>
+
+#include <yt/yt/library/erasure/public.h>
+
 #include <yt/yt/core/http/config.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -814,7 +818,7 @@ struct TDynamicChunkManagerConfig
     NConcurrency::TThroughputThrottlerConfigPtr JobThrottler;
 
     //! Throttles chunk jobs per type.
-    THashMap<EJobType, NConcurrency::TThroughputThrottlerConfigPtr> JobTypeToThrottler;
+    THashMap<NJobTrackerClient::EJobType, NConcurrency::TThroughputThrottlerConfigPtr> JobTypeToThrottler;
 
     //! Maximum number of heavy columns in chunk approximate statistics.
     int MaxHeavyColumns;

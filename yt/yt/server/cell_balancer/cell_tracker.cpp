@@ -9,6 +9,8 @@
 
 #include <yt/yt/library/cypress_election/election_manager.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NCellBalancer {

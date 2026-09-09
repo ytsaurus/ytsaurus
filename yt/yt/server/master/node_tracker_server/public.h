@@ -4,11 +4,7 @@
 
 #include <yt/yt/server/lib/hydra/public.h>
 
-#include <yt/yt/ytlib/chunk_client/public.h>
-
 #include <yt/yt/ytlib/node_tracker_client/public.h>
-
-#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <bitset>
 
@@ -18,10 +14,7 @@ namespace NYT::NNodeTrackerServer {
 
 namespace NProto {
 
-class TReqRemoveNode;
 class TNodeStatistics;
-
-using TReqRegisterNode = NNodeTrackerClient::NProto::TReqRegisterNode;
 
 } // namespace NProto
 
@@ -42,11 +35,8 @@ using NNodeTrackerClient::TNodeDescriptor;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(INodeTracker)
-DECLARE_REFCOUNTED_STRUCT(INodeDisposalManager)
 
 DECLARE_REFCOUNTED_STRUCT(INodeTrackerCache)
-
-DECLARE_REFCOUNTED_CLASS(TNodeDiscoveryManager)
 
 DECLARE_REFCOUNTED_STRUCT(TNodeGroupConfig)
 DECLARE_REFCOUNTED_STRUCT(TNodeTrackerConfig)
@@ -65,8 +55,6 @@ DECLARE_MASTER_OBJECT_TYPE(TDataCenter)
 DECLARE_MASTER_OBJECT_TYPE(TRack)
 DECLARE_MASTER_OBJECT_TYPE(THost)
 DECLARE_MASTER_OBJECT_TYPE(TNode)
-
-using TNodeList = TCompactVector<TNode*, NChunkClient::TypicalReplicaCount>;
 
 class TNodeDirectoryBuilder;
 

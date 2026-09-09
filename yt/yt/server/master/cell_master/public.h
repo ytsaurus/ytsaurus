@@ -13,7 +13,6 @@ namespace NYT::NCellMaster {
 namespace NProto {
 
 class TCellStatistics;
-class TReqResetDynamicallyPropagatedMasterCells;
 
 } // namespace NProto
 
@@ -138,12 +137,6 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TransactionFinisher)
     (ExpirationTracker)
     (SequoiaActionExecutor)
-);
-
-DEFINE_ENUM(EAutomatonThreadBucket,
-    (Gossips)
-    (ChunkMaintenance)
-    (Transactions)
 );
 
 using NCellMasterClient::EMasterCellRole;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_replica.h>
 

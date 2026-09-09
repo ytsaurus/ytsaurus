@@ -2,11 +2,33 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 namespace NYT::NNodeTrackerServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+class TReqRemoveNode;
+
+using TReqRegisterNode = NNodeTrackerClient::NProto::TReqRegisterNode;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(INodeDisposalManager)
+
+DECLARE_REFCOUNTED_CLASS(TNodeDiscoveryManager)
+
+using TNodeList = TCompactVector<TNode*, NChunkClient::TypicalReplicaCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
