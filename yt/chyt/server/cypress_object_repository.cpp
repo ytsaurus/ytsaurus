@@ -225,9 +225,9 @@ void TCypressObjectRepository::WriteDictionary(
     const DB::LoadablesConfigurationPtr& config)
 {
     const auto* queryContext = GetQueryContext(context);
-    const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
+    const auto client = host->GetSqlObjectsClient();
 
     auto configName = GetObjectName(storageId);
 
@@ -255,9 +255,9 @@ void TCypressObjectRepository::DeleteDictionary(
     NHydra::TRevision revision)
 {
     const auto* queryContext = GetQueryContext(context);
-    const auto& client = queryContext->Client();
     const auto* host = queryContext->Host;
     host->ValidateCliquePermission(TString(context->getClientInfo().initial_user), EPermission::Manage);
+    const auto client = host->GetSqlObjectsClient();
 
     auto objectName = GetObjectName(storageId);
     RemoveObject(client, objectName, revision);

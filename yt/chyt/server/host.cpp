@@ -697,6 +697,11 @@ public:
         return DictionaryAccessControl_ ? DictionariesClient_ : RootClient_;
     }
 
+    NApi::NNative::IClientPtr GetSqlObjectsClient() const
+    {
+        return SqlObjectsClient_;
+    }
+
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const
     {
         auto identity = NRpc::TAuthenticationIdentity(user);
@@ -941,6 +946,7 @@ private:
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
     NApi::NNative::IClientPtr DictionariesClient_;
+    NApi::NNative::IClientPtr SqlObjectsClient_;
     NApi::NNative::TClientCachePtr ClientCache_;
 
     TPermissionCachePtr PermissionCache_;
@@ -992,6 +998,7 @@ private:
         RootClient_ = getClientForUser(Config_->User);
         CacheClient_ = getClientForUser(CacheUserName);
         DictionariesClient_ = getClientForUser(DictionariesUserName);
+        SqlObjectsClient_ = getClientForUser(ChytSqlObjectsUserName);
     }
 
     void InitializeCaches()
@@ -1385,6 +1392,11 @@ NApi::NNative::IClientPtr THost::GetRootClient() const
 NApi::NNative::IClientPtr THost::GetDictionariesClient() const
 {
     return Impl_->GetDictionariesClient();
+}
+
+NApi::NNative::IClientPtr THost::GetSqlObjectsClient() const
+{
+    return Impl_->GetSqlObjectsClient();
 }
 
 NApi::NNative::IClientPtr THost::CreateClient(const std::string& user) const
