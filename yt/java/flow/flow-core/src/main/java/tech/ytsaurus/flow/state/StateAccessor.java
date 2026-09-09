@@ -62,4 +62,19 @@ public interface StateAccessor<T> {
      * @return State class.
      */
     Class<T> getStateClass();
+
+    /**
+     * Returns a read-only view of this accessor: reads behave as on this accessor, {@link #set}
+     * and {@link #clear} throw {@link UnsupportedOperationException}.
+     *
+     * <p>Use it wherever a computation only inspects a state. The value of an internal state
+     * read through {@link #get} is re-encoded at the end of the batch, to find out whether it
+     * was changed in place; a value read through this view is not tracked, so that encoding
+     * does not happen and nothing is written back.
+     *
+     * @return Read-only view of this accessor.
+     */
+    default StateAccessor<T> readOnly() {
+        return new ReadOnlyStateAccessor<>(this);
+    }
 }

@@ -69,6 +69,46 @@ All accessors implement the common `StateAccessor<T>` interface.
 
 {% endlist %}
 
+### Changing the value in place {#in-place}
+
+The value returned by `get()` and `getOrDefault()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `getOrDefault()` becomes the state value and is written as after `set()`, so it can be changed right away:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  ctx.getState(COUNTER, message).getOrDefault(new CounterState()).count += 1;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  ctx.getState(COUNTER, message).getOrDefault(CounterState()).count += 1
+  ```
+
+{% endlist %}
+
+`set()` still replaces the whole value, and `clear()` removes the state. Protobuf messages are immutable, so their new value goes through `set()`.
+
+To detect the changes, a value that was read is re-encoded once at the end of the batch — even when the computation only inspects the state. `readOnly()` takes that work away: the accessor returns the same value but does not track it, so the state is neither re-encoded at the end of the batch nor sent to the worker. Use it wherever a state is only read. Its `getOrDefault()` does not create the state, and `set()` and `clear()` throw:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  long count = ctx.getState(COUNTER, message).readOnly().getOrDefault().count;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  val count = ctx.getState(COUNTER, message).readOnly().getOrDefault().count
+  ```
+
+{% endlist %}
+
 ## YsonStateAccessor {#yson-state-accessor}
 
 `YsonStateAccessor` uses YSON serialization. The state class must be annotated with `@YTreeObject`.

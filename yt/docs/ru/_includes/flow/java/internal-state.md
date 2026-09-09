@@ -69,6 +69,46 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
 
 {% endlist %}
 
+### Изменение значения на месте {#in-place}
+
+Значение, которое возвращают `get()` и `getOrDefault()`, живое: для каждого ключа оно декодируется один раз за батч, все аксессоры этого ключа возвращают один и тот же объект, а изменения, сделанные в нём, записываются в стейт по окончании батча без вызова `set()`. Если значение не изменилось, запись не выполняется. Дефолт из `getOrDefault()` становится значением стейта и записывается, как после `set()`, поэтому его можно сразу изменять:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  ctx.getState(COUNTER, message).getOrDefault(new CounterState()).count += 1;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  ctx.getState(COUNTER, message).getOrDefault(CounterState()).count += 1
+  ```
+
+{% endlist %}
+
+`set()` по-прежнему заменяет значение целиком, `clear()` удаляет стейт. Protobuf-объекты неизменяемы, поэтому для них новое значение задаётся через `set()`.
+
+Чтобы отследить изменения, прочитанное значение один раз перекодируется по окончании батча — даже если вычисление стейт только просматривает. Убрать эту работу позволяет `readOnly()`: аксессор возвращает то же значение, но не отслеживает его, поэтому по окончании батча стейт не перекодируется и не отправляется воркеру. Используйте его везде, где стейт только читают. `getOrDefault()` у такого аксессора не создаёт стейт, а `set()` и `clear()` бросают исключение:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  long count = ctx.getState(COUNTER, message).readOnly().getOrDefault().count;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  val count = ctx.getState(COUNTER, message).readOnly().getOrDefault().count
+  ```
+
+{% endlist %}
+
 ## YsonStateAccessor {#yson-state-accessor}
 
 `YsonStateAccessor` использует YSON-сериализацию. Класс стейта должен быть аннотирован `@YTreeObject`.

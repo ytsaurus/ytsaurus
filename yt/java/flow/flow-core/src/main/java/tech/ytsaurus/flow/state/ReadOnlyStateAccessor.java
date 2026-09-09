@@ -1,16 +1,14 @@
-package tech.ytsaurus.flow.testutils;
+package tech.ytsaurus.flow.state;
 
 import org.jspecify.annotations.Nullable;
-import tech.ytsaurus.flow.state.StateAccessor;
 
 /**
- * Read-only {@link StateAccessor} wrapper returned by {@link TestDoProcessResponse}: it delegates the
- * read operations to the underlying accessor and rejects {@link #set} / {@link #clear}, since a
- * processed response is an immutable snapshot.
+ * Read-only view returned by {@link StateAccessor#readOnly()}: reads go to the underlying
+ * accessor, {@link #set} and {@link #clear} throw.
  *
  * @param <T> state value type.
  */
-class ReadOnlyStateAccessor<T> implements StateAccessor<T> {
+final class ReadOnlyStateAccessor<T> implements StateAccessor<T> {
     private final StateAccessor<T> delegate;
 
     ReadOnlyStateAccessor(StateAccessor<T> delegate) {
@@ -39,11 +37,16 @@ class ReadOnlyStateAccessor<T> implements StateAccessor<T> {
 
     @Override
     public void set(T value) {
-        throw new UnsupportedOperationException("State is read-only on a processed response");
+        throw new UnsupportedOperationException("State accessor is read-only");
     }
 
     @Override
     public void clear() {
-        throw new UnsupportedOperationException("State is read-only on a processed response");
+        throw new UnsupportedOperationException("State accessor is read-only");
+    }
+
+    @Override
+    public StateAccessor<T> readOnly() {
+        return this;
     }
 }

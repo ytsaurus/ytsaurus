@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Tests for {@link StatesHolder} modified-state tracking: only states changed through
  * {@link StatesHolder#set} (accessor writes) are reported by
- * {@link StatesHolder#getModifiedStates}, while states populated from the request through
+ * {@link StatesHolder#collectModifiedStates}, while states populated from the request through
  * {@link StatesHolder#load} are not, so that unmodified states are not sent back.
  */
 class StatesHolderTest {
@@ -40,7 +40,7 @@ class StatesHolderTest {
         holder.load(key("b"), state("2"));
 
         assertEquals(2, holder.getStates().size());
-        assertTrue(holder.getModifiedStates().isEmpty());
+        assertTrue(holder.collectModifiedStates().isEmpty());
     }
 
     @Test
@@ -50,8 +50,9 @@ class StatesHolderTest {
 
         holder.set(key("a"), state("1"));
 
-        assertEquals(1, holder.getModifiedStates().size());
-        assertTrue(holder.getModifiedStates().containsKey(key("a")));
+        var modifiedStates = holder.collectModifiedStates();
+        assertEquals(1, modifiedStates.size());
+        assertTrue(modifiedStates.containsKey(key("a")));
     }
 
     @Test
@@ -65,7 +66,7 @@ class StatesHolderTest {
         holder.set(key("a"), state("11"));
 
         assertEquals(2, holder.getStates().size());
-        var modifiedStates = holder.getModifiedStates();
+        var modifiedStates = holder.collectModifiedStates();
         assertEquals(1, modifiedStates.size());
         assertTrue(modifiedStates.containsKey(key("a")));
         assertStateEquals("11", holder.get(key("a")));

@@ -68,7 +68,10 @@ final class StateSeeder {
         String name = descriptor.getName();
         var internalHolder = internalHolders.get(name);
         if (internalHolder != null) {
-            return new CapturedSeed(CapturedSeed.Kind.INTERNAL, internalHolder.get(key.getRow()));
+            // The seed is exactly what the accessor modified; the sweep also picks up a seed
+            // made by mutating the value in place.
+            var seeded = internalHolder.collectModifiedStates().get(key.getRow());
+            return new CapturedSeed(CapturedSeed.Kind.INTERNAL, seeded);
         }
         var externalHolder = externalHolders.get(name);
         if (externalHolder != null) {
