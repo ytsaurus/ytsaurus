@@ -7,13 +7,13 @@ Source: [yt/yt/flow/library/cpp/common/spec.h]({{source-root}}/yt/yt/flow/librar
 || **Parameter** | **Description** ||
 || `computation_class_name` | **Type**: `std::string`
 **Required parameter**
-The Computation class name.
+The built-in Computation or process-function adapter class name.
 
-The class must be registered using the `YT_FLOW_DEFINE_COMPUTATION` macro. ||
+For new C++ user logic, select one of the built-in `TProcessFunction*Computation` adapters. Register the function with `YT_FLOW_DEFINE_PROCESS_FUNCTION` and name it in `processing_function`. Don’t create custom Computation classes. ||
 || `processing_function` | **Type**: `std::optional<std::string>`
- ||
+The fully qualified process-function name registered with `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Required by `TProcessFunction*Computation` adapters. ||
 || `processing_function_parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
- ||
+Static process-function parameters. Their type is declared in `YT_FLOW_DEFINE_PROCESS_FUNCTION` registration. ||
 || `group_by_schema` | **Type**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`
 **Default value**: `{'value': [], 'attributes': {'strict': true, 'unique_keys': false}}`
 A schema for grouping all input streams. It is a dynamic table schema. Schema properties and requirements:
@@ -69,13 +69,13 @@ Settings for all `source` streams. Keys must match `[0-9A-Za-z_-]+`. ||
 Settings for all sinks. Keys must match `[0-9A-Za-z_-]+`. ||
 || `external_state_managers` | **Type**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TExternalStateManagerSpec](./all_yson_structs#NYT_NFlow_TExternalStateManagerSpec)`>>`
 **Default value**: `{}`
-A declarative declaration of [external state](../cpp/state.md#external-state) managers for this `Computation`. The key is the client name that the `Computation` subscribes to via `IJobInitContext::InitExternalStateClient` (must start with `/`, for example `/state`); the value contains the manager class name and its parameters. ||
+A declarative declaration of [external state](../cpp/state.md#external-state) managers for this `Computation`. The key is the client name that the process function passes to `InitExternalStateClient` (must start with `/`, for example `/state`); the value contains the manager class name and its parameters. ||
 || `external_state_joiners` | **Type**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TExternalStateJoinerSpec](./all_yson_structs#NYT_NFlow_TExternalStateJoinerSpec)`>>`
 **Default value**: `{}`
-A declarative declaration of [external state](../cpp/state.md#external-state-joiner) joiners (read-only access to external states via key join) for this `Computation`. The key is the client name that the `Computation` subscribes to via `IJobInitContext::InitExternalStateClient` (must start with `/`, for example `/state`); the value contains the joiner class name and its parameters. ||
+A declarative declaration of [external state](../cpp/state.md#external-state-joiner) joiners (read-only access to external states via key join) for this `Computation`. The key is the client name that the process function passes to `InitExternalStateClient` (must start with `/`, for example `/state`); the value contains the joiner class name and its parameters. ||
 || `state_joiners` | **Type**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TStateJoinerSpec](./all_yson_structs#NYT_NFlow_TStateJoinerSpec)`>>`
 **Default value**: `{}`
-A declarative declaration of [state](../cpp/state.md#state-joiner) joiners (read-only access to the internal state of another `Computation` via key join) for this `Computation`. The key is the client name that the `Computation` subscribes to via `IJobInitContext::InitClient` (must start with `/`); the value specifies the target `computation_id`, its `state_name`, and `join_on`. ||
+A declarative declaration of [state](../cpp/state.md#state-joiner) joiners (read-only access to the internal state of another `Computation` via key join) for this `Computation`. The key is the client name that the process function passes to `InitClient` (must start with `/`); the value specifies the target `computation_id`, its `state_name`, and `join_on`. ||
 || `heavy_hitters` | **Type**: [NYT::NFlow::THeavyHittersSpec](./all_yson_structs#NYT_NFlow_THeavyHittersSpec)
 **Default value**: `{}`
 Settings for detecting high-frequency keys. ||

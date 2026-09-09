@@ -34,7 +34,7 @@ struct TWordMessage
 YT_FLOW_DEFINE_YSON_MESSAGE(TWordMessage);
 ```
 
-For more details on message conversion, see the [Computation (C++)](../../../flow/cpp/computation.md) section, “TYsonMessage”.
+For more details on message conversion, see [Process functions (C++)](../../../flow/cpp/process-functions.md).
 
 ### 2. Define the state {#define-state}
 
@@ -58,54 +58,53 @@ struct TWordCountState
 
 For more details on working with states, see [Working with states (C++)](../../../flow/cpp/state.md).
 
-### 3. Implement the [Source](../../../flow/concepts/glossary.md#source) Computation {#implement-source}
+### 3. Implement a process function for the [Source](../../../flow/concepts/glossary.md#source) {#implement-source}
 
-To read data from external sources, inherit from `TSwiftOrderedSourceComputation`. In the `DoProcessMessage` method, transform the input messages:
+Implement C++ user logic only as a [process function](../../../flow/cpp/process-functions.md). For element-wise processing, inherit from `IProcessFunction` and implement `ProcessMessage`:
 
 ```cpp
-class TTextReader
-    : public TSwiftOrderedSourceComputation
+class TTextReadFunction
+    : public IProcessFunction
 {
 public:
-    using TSwiftOrderedSourceComputation::TSwiftOrderedSourceComputation;
-
-    void DoProcessMessage(const TMessage& message, IOutputCollectorPtr output) override
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
     {
         auto text = GetColumnValue<std::string>(message, "text");
         for (const auto& word : StringSplitter(text).SplitBySet(" \t\n\r").SkipEmpty()) {
             auto wordMessage = New<TWordMessage>();
             wordMessage->Word = word;
-            output->AddMessage(ConvertToMessage(wordMessage));
+            output->AddMessage(context->ConvertToMessage(wordMessage));
         }
     }
 };
 
-YT_FLOW_DEFINE_COMPUTATION(TTextReader);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TTextReadFunction);
 ```
 
-Note that `TSwiftOrderedSourceComputation` doesn’t materialize the messages themselves in YT; it only stores metadata for recovery. For more details, see [Computation (C++)](../../../flow/cpp/computation.md#tswiftorderedsourcecomputation).
+In the spec, the built-in `TProcessFunctionSourceComputation` executes this function. It selects source mode: output messages aren’t materialized in YT, and only recovery metadata is stored. For more details, see [Process functions](../../../flow/cpp/process-functions.md#how-it-works).
 
-### 4. Implement the Transform Computation {#implement-transform}
+### 4. Implement a stateful process function {#implement-transform}
 
-To process data with state, inherit from `TTransformComputation`. To work with external states, use `TSimpleExternalStateManager`:
+Use `IProcessFunction` for stateful processing as well. To work with external state, use `TSimpleExternalStateManager`:
 
 ```cpp
-class TWordCounter
-    : public TTransformComputation
+class TWordCountFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitExternalStateClient(StateClient_, "/state");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr /*output*/) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
-        const auto wordMessage = ConvertToYsonMessage<TWordMessage>(message);
         auto state = StateClient_.GetState(message->Key);
         i64 count = state->GetColumnValue<std::optional<i64>>("count").value_or(0);
         TPayloadBuilder builder(state->Schema);
@@ -117,13 +116,13 @@ private:
     TMutableStateKeyClient<TSimpleExternalState> StateClient_;
 };
 
-YT_FLOW_DEFINE_COMPUTATION(TWordCounter);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TWordCountFunction);
 ```
 
 Key points:
 - `TMutableStateKeyClient<TState>` is a type-safe client for external state. You set the manager’s parameters in the `Computation` spec (see below), not in your own `TParameters`/`TDynamicParameters`.
 - `InitExternalStateClient(StateClient_, "/state")` binds the client to the external state manager named `"/state"`, which is declared in the `external_state_managers` spec.
-- `ConvertToYsonMessage<T>` converts input messages into a type-safe structure.
+- In the spec, the built-in `TProcessFunctionComputation` executes the function and provides transform-mode exactly-once state commits.
 
 ### 5. Write main.cpp {#write-main}
 
@@ -158,42 +157,42 @@ The spec describes the pipeline topology in YSON format. Here’s an example for
 
 ```yson
 {
-    computations = {
-        text_reader = {
-            computation_ref = "TTextReader";
-            outputs = ["words"];
-            sources = {
-                source = {
-                    type = "TQueueSource";
-                    parameters = {
-                        queue_path = "//path/to/input/queue";
+    "spec" = {
+        "computations" = {
+            "reader" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionSourceComputation";
+                "processing_function" = "NYT::NFlow::NExample::TTextReadFunction";
+                "output_stream_ids" = ["words"];
+                "source_streams" = {
+                    "queue" = {
+                        "source_class_name" = "NYT::NFlow::TQueueSource";
+                        "parameters" = {
+                            "queue_path" = "<cluster=cluster_name>//path/to/queue";
+                            "consumer_path" = "<cluster=cluster_name>//path/to/consumer";
+                        };
                     };
                 };
             };
-            watermark_strategy = {
-                watermark_generator = {
-                    out_of_orderness_bound = "10s";
-                };
-            };
-        };
-        word_counter = {
-            computation_ref = "TWordCounter";
-            inputs = ["words"];
-            group_by_schema = [
-                {name = "hash"; type = "uint64"; expression = "farm_hash(word)"};
-                {name = "word"; type = "string"};
-            ];
-            external_state_managers = {
-                "/state" = {
-                    external_state_manager_class_name = "NYT::NFlow::TSimpleExternalStateManager";
-                    parameters = {
-                        path = "//path/to/state/table";
+            "counter" = {
+                "computation_class_name" = "NYT::NFlow::TProcessFunctionComputation";
+                "processing_function" = "NYT::NFlow::NExample::TWordCountFunction";
+                "input_stream_ids" = ["words"];
+                "output_stream_ids" = [];
+                "group_by_schema" = [
+                    {"name" = "hash"; "type" = "uint64"; "expression" = "farm_hash(word)";};
+                    {"name" = "word"; "type" = "string";};
+                ];
+                "external_state_managers" = {
+                    "/state" = {
+                        "external_state_manager_class_name" = "NYT::NFlow::TSimpleExternalStateManager";
+                        "parameters" = {
+                            "path" = "//path/to/state/table";
+                        };
                     };
                 };
             };
         };
     };
-    streams = {};
 }
 ```
 
@@ -226,7 +225,8 @@ For detailed information about releases and pipeline management, read the [Relea
 
 ## See also
 
-- [Computation (C++)](../../../flow/cpp/computation.md)
+- [Process functions (C++)](../../../flow/cpp/process-functions.md)
+- [Computation modes (C++)](../../../flow/cpp/computation.md)
 - [Working with states (C++)](../../../flow/cpp/state.md)
 - [Watermarks](../../../flow/concepts/watermarks.md)
 - [Timers](../../../flow/concepts/timers.md)

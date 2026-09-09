@@ -37,7 +37,7 @@
 **Значение по умолчанию**: `{}`
 Произвольные динамические параметры класса `Computation`. ||
 || `processing_function_parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
- ||
+Динамические параметры process function. Тип параметров задаётся при регистрации `YT_FLOW_DEFINE_PROCESS_FUNCTION`. ||
 || `source_streams` | **Тип**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSourceSpec](./all_yson_structs#NYT_NFlow_TDynamicSourceSpec)`>>`
 **Значение по умолчанию**: `{}`
 Динамические параметры всех `Sources`. ||

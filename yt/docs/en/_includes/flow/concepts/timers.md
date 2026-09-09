@@ -4,7 +4,7 @@
 
 Many stream processing tasks require waiting. For example, you might need to treat a conversion as failed if no click arrives within 30 minutes after an impression. The standard message exchange between computations isn’t suitable for this: a message is either present or not, and you can’t wait for an event’s “absence”.
 
-Timers solve this problem. A `TransformComputation` can create a timer — tell the system, “Wake me up when time X arrives.” When the moment comes, the computation receives a call to `on_timer` / `onTimer` / `DoProcessTimer` and can make a decision based on the accumulated [state](../../../flow/concepts/glossary.md#state).
+Timers solve this problem. A process function in transform mode can create a timer — tell the system, “Wake me up when time X arrives.” When the moment comes, the function receives a `ProcessTimer` / `on_timer` / `onTimer` call and can make a decision based on the accumulated [state](../../../flow/concepts/glossary.md#state).
 
 Typical use cases:
 - **Join with wait**: correlate an ad impression with a click that might arrive with a delay.
@@ -31,12 +31,12 @@ The timer is also bound to the **[grouping key](../../../flow/concepts/glossary.
 
 ## Which computations support timers {#supported-computations}
 
-| Computation | Timer support |
+| Process-function adapter | Timer support |
 |---|---|
-| `TTransformComputation` | ✓ |
-| `TSwiftMapComputation` | ✗ |
-| `TSwiftOrderedSourceComputation` | ✗ |
-| `TTransformOrderedSourceComputation` | ✗ |
+| `TProcessFunctionComputation` | ✓ |
+| `TProcessFunctionSwiftMapComputation` | ✗ |
+| `TProcessFunctionSourceComputation` | ✗ |
+| `TProcessFunctionTransformOrderedSourceComputation` | ✗ |
 
 ## Configuration {#configuration}
 
@@ -64,19 +64,29 @@ Explanations:
 ### C++ {#api-cpp}
 
 ```cpp
-// Create a timer in DoProcessMessage:
-output->AddTimer(TSystemTimestamp(message.EventTimestamp.Underlying() + TDuration::Minutes(30).Seconds()));
+void ProcessMessage(
+    const TInputMessageConstPtr& message,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& /*context*/) override
+{
+    output->AddTimer(
+        TSystemTimestamp(message->EventTimestamp.Underlying() + TDuration::Minutes(30).Seconds()),
+        message->EventTimestamp);
+}
 
-// Process the triggered timer:
-void DoProcessTimer(const TTimer& timer, IOutputCollectorPtr output) override {
-    // timer.Key, timer.EventTimestamp, timer.TriggerTimestamp
-    auto builder = MakeMessageBuilder();
+void ProcessTimer(
+    const TInputTimerConstPtr& timer,
+    const IOutputCollectorPtr& output,
+    const IRuntimeContextPtr& context) override
+{
+    // timer->Key, timer->EventTimestamp, timer->TriggerTimestamp
+    auto builder = context->MakeOutputMessageBuilder();
     // ...
     output->AddMessage(builder.Finish());
 }
 ```
 
-For more details, see the [Computation (C++)](../../../flow/cpp/computation.md) section.
+For more details, see [Process functions (C++)](../../../flow/cpp/process-functions.md).
 
 ### Java {#api-java}
 
@@ -158,7 +168,7 @@ Example implementation of a join with wait (impression + click, 30-minute timeou
 
 {% endnote %}
 
-- **`TSwiftMapComputation` doesn’t support timers**. If you need timer functionality, use `TTransformComputation`.
+- Swift-map mode doesn’t support timers. If you need timer functionality, run the process function under `TProcessFunctionComputation`.
 - Timestamps are transmitted in nanoseconds (uint64).
 
 ## See also

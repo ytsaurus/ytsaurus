@@ -179,73 +179,31 @@
 
 ## Parameters {#parameters}
 
-Поле `parameters` есть в классах спек `Computation`, `Source`, `Sink`, `Resource`. В любом классе это слабо типизированное поле (`NYT::NYTree::IMapNodePtr`), которое скрывает за собой параметры, специфичные для [конкретной реализации сущности](*paramsClasses).
+Поле `parameters` есть в спеках `Computation`, `Source`, `Sink` и `Resource`. Оно содержит параметры выбранной встроенной реализации, например адаптера process function. Проверяйте доступные поля в документации конкретного класса и не используйте этот блок для параметров пользовательской логики.
 
-В конкретных реализациях сущностей поле `parameters` парсится в [yson struct](../../../user-guide/storage/data-types.md#yson_struct) для удобства и эффективности. При этом классы, в которые парсится поле `parameters`, называются `T*Parameters`, а не `T*Spec`. Как это работает на примере статической спеки `Computation`:
+Параметры C++ process function задаются отдельно в `processing_function_parameters`. Объявите для них обычный [yson struct](../../../user-guide/storage/data-types.md#yson_struct), зарегистрируйте тип вместе с функцией и читайте параметры через runtime-контекст:
 
 ```cpp
-// Спека Computation.
-class TComputationSpec : public virtual NYTree::TYsonStruct
+struct TMyParameters
+    : public NYTree::TYsonStruct
 {
-public:
-    // ...
-    NYTree::IMapNodePtr Parameters; // Слабо типизированное поле с параметрами.
-    // ...
+    i64 Threshold;
+
+    REGISTER_YSON_STRUCT(TMyParameters);
+
+    static void Register(TRegistrar registrar);
 };
 
-// Базовый класс сущности.
-struct IComputation : public // ...
-{
-private:
-    // Базовый класс yson struct для всех классов, в которые может парситься поле TComputationSpec::Parameters.
-    struct TParametersBase : public virtual NYTree::TYsonStruct
-    {
-        // ...
-    };
-public:
-    // В базовом классе сущности объявляется, что у её наследников могут быть параметры, унаследованные от TParametersBase.
-    // Макрос определяет алиасы TParameters[Ptr], связывая их с TParametersBase.
-    YT_FLOW_REGISTER_PARAMETERS(TParametersBase);
-    // ...
-};
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction, TMyParameters);
+```
 
-class TTransformComputation
-    : public TUniversalComputationBase // TUniversalComputationBase → TComputationBase → IComputation.
-{
-private:
-    // Параметры для TTransformComputation. Они унаследованы от параметров родительского класса TTransformComputation.
-    // Параметры классов-наследников TTransformComputation должны наследоваться от TExtendedParameters.
-    // Но обращаться к ним нужно через алиас: TTransformComputation::TParameters, который будет объявлен ниже по коду.
-    struct TExtendedParameters : public TUniversalComputationBase::TParameters
-    {
-        EProcessingMode ProcessingMode; // Поле, специфичное для TTransformComputation.
-        // ...
-    };
-public:
-    // Объявляется, что класс будет использовать более специфичные параметры.
-    // При этом computationSpec->Parameters парсится в финальный класс параметров,
-    // и TTransformComputation использует их, приводя к более базовому классу — TTransformComputation::TExtendedParameters.
-    // Макрос определяет алиасы TParameters[Ptr], связывая их с TExtendedParameters.
-    // Также появляется метод TParametersPtr GetParameters(), который можно использовать для получения параметров в коде.
-    YT_FLOW_EXTEND_PARAMETERS(TExtendedParameters);
-    // ...
-};
-
-// Пользовательский Computation.
-class TMyClassComputation : public TTransformComputation
-{
-private:
-    struct TExtendedParameters : public TTransformComputation::TParameters
-    {
-        // Поля, специфичные для TMyComputation.
-        // ...
-    };
-public:
-    // В пользовательских классах можно задать ещё более специфичные параметры.
-    // Как и в TTransformComputation, переопределяются алиасы TParameters[Ptr] и метод TParametersPtr GetParameters().
-    YT_FLOW_EXTEND_PARAMETERS(TExtendedParameters);
+```yson
+"processing_function_parameters" = {
+    "threshold" = 10;
 };
 ```
+
+Статические параметры доступны в `Init` через `initContext->GetParameters<TMyParameters>()`, динамические — через `context->GetDynamicParameters<TMyParameters>()`. Подробнее см. в разделе [Process function](../../../flow/cpp/process-functions.md#parameters).
 
 ## Config
 
