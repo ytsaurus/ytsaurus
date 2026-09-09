@@ -244,6 +244,7 @@ public:
     TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TYsonString credentials,
         TString queryText,
         TYsonString settings,
@@ -253,7 +254,7 @@ public:
     {
         try {
             auto action = ExecuteModeToProto(executeMode);
-            auto data = BuildTaskData(queryId, user, queryText, settings, credentials, files, queryType);
+            auto data = BuildTaskData(queryId, user, queryIdentityToken, queryText, settings, credentials, files, queryType);
             auto callback = RunTaskToCompletion(queryId, action, std::move(data), /*persist*/ true);
 
             const auto snapshot = callback->GetTaskResult();
@@ -398,11 +399,12 @@ public:
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         TYsonString settings,
         TYsonString credentials) override
     {
-        auto data = BuildTaskData(queryId, user, queryText, settings, credentials, /*files*/ {});
+        auto data = BuildTaskData(queryId, user, queryIdentityToken, queryText, settings, credentials, /*files*/ {});
         auto callback = RunTaskToCompletion(
             queryId,
             NYql::NProto::ETaskAction::EXTRACT_PARAMS_META,
@@ -512,6 +514,7 @@ private:
     NYql::NProto::TTaskData BuildTaskData(
         TQueryId queryId,
         const TString& user,
+        const TString& queryIdentityToken,
         const TString& queryText,
         const TYsonString& settings,
         const TYsonString& credentials,
@@ -536,6 +539,7 @@ private:
             .MaxYqlLangVersion = NYql::FormatLangVersion(MaxYqlLangVersion_.load()),
             .DefaultYqlLangVersion = NYql::FormatLangVersion(DefaultYqlApiLangVersion_),
             .QueryType = queryType,
+            .QueryIdentityToken = queryIdentityToken,
         });
     }
 

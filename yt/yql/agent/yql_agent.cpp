@@ -818,7 +818,7 @@ private:
             }
 
             // This is a long blocking call.
-            const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode(), queryType);
+            const auto result = YqlPlugin_->Run(queryId, user, {}, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode(), queryType);
 
             if (result.YsonError) {
                 YT_TLOG_INFO("YQL plugin query run failed")
@@ -948,7 +948,7 @@ private:
                 {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
             };
 
-            const auto result = YqlPlugin_->GetDeclaredParametersInfo(queryState.QueryId, user, query, settings, ConvertToYsonString(credentials));
+            const auto result = YqlPlugin_->GetDeclaredParametersInfo(queryState.QueryId, user, {}, query, settings, ConvertToYsonString(credentials));
 
             ToProto(response.mutable_declared_parameters_info(), result.YsonParameters.value_or("{}"));
 

@@ -130,6 +130,7 @@ public:
     TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TYsonString credentials,
         TString queryText,
         TYsonString settings,
@@ -154,6 +155,7 @@ public:
         auto result = pluginProcess->Run(
             queryId,
             user,
+            queryIdentityToken,
             credentials,
             queryText,
             settings,
@@ -196,6 +198,7 @@ public:
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         TYsonString settings,
         TYsonString credentials) override
@@ -219,6 +222,7 @@ public:
             result = pluginProcess->GetDeclaredParametersInfo(
                 queryId,
                 user,
+                queryIdentityToken,
                 queryText,
                 settings,
                 credentials);

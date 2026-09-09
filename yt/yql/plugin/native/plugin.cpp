@@ -660,6 +660,7 @@ public:
     TQueryResult GuardedRun(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TYsonString credentialsStr,
         TString queryText,
         TYsonString settings,
@@ -685,6 +686,7 @@ public:
             queryText,
             settings,
             credentialsStr,
+            queryIdentityToken,
             *queryConfig,
             factory);
 
@@ -840,6 +842,7 @@ public:
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         TYsonString settingsStr,
         TYsonString credentialsStr) override
@@ -852,6 +855,7 @@ public:
             queryText,
             settingsStr,
             credentialsStr,
+            queryIdentityToken,
             *queryConfig,
             factory);
 
@@ -922,6 +926,7 @@ public:
     TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TYsonString credentials,
         TString queryText,
         TYsonString settings,
@@ -943,7 +948,7 @@ public:
                 });
 
                 try {
-                    result = GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode, queryType);
+                    result = GuardedRun(queryId, user, queryIdentityToken, credentials, queryText, settings, files, executeMode, queryType);
                 } catch (const std::exception& ex) {
                     YQL_LOG(DEBUG) << "Query " << ToString(queryId) << " finished with errors";
                     result = TQueryResult{
@@ -1438,6 +1443,7 @@ private:
         const TString& queryText,
         const TYsonString& settingsStr,
         const TYsonString& credentialsStr,
+        const TString& queryIdentityToken,
         const TActiveQuery::TConfig& queryConfig,
         TProgramFactoryPtr factory)
     {
@@ -1455,6 +1461,7 @@ private:
             });
         }
         program->AddCredentials(credentials);
+        program->SetUserCredentials({.QueryIdentityToken = queryIdentityToken});
 
         program->SetOperationAttrsYson(PatchQueryAttributes(OperationAttributes_, settingsStr));
 
