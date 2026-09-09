@@ -2,11 +2,17 @@
 
 {% note info %}
 
-На этой странице описаны особенности реализации Computation на C++. Языконезависимое описание концепции см. в разделе [Computation](../../../flow/concepts/computation.md).
+На этой странице описаны режимы исполнения Computation на C++. Языконезависимое описание концепции см. в разделе [Computation](../../../flow/concepts/computation.md).
 
 {% endnote %}
 
-В этом разделе приведено описание базовых классов `Computation` и важные детали реализации.
+{% note warning %}
+
+Новую пользовательскую логику на C++ реализуйте только как [process function](../../../flow/cpp/process-functions.md). Не создавайте классы-наследники от базовых классов `Computation`. Эта страница описывает режимы исполнения, встроенные компьютейшены и low-level API, необходимый для устройства фреймворка и сопровождения legacy-кода.
+
+{% endnote %}
+
+В этом разделе приведено описание базовых классов `Computation`, на которых работают встроенные адаптеры process function, и важные детали режимов исполнения.
 
 Во Flow в данный момент реализовано четыре базовых класса `Computation`:
 
@@ -19,29 +25,15 @@
 
 ## Общее
 
-- При наследовании от базового класса можно расширить параметры `Computation` с помощью макросов:
+Следующие детали прямого API нужны при сопровождении фреймворка и существующего legacy-кода; они не являются инструкцией по созданию нового пользовательского компьютейшена.
 
-  * `YT_FLOW_EXTEND_PARAMETERS`
-  * `YT_FLOW_EXTEND_DYNAMIC_PARAMETERS`
+- Параметры process function объявляйте обычной `TYsonStruct`, указывайте её тип в `YT_FLOW_DEFINE_PROCESS_FUNCTION` и передавайте значения через `processing_function_parameters`.
 
-  В них можно передать `yson struct` для парсинга `parameters` из `ComputationSpec`, эта структура должна быть отнаследована от соответствующей структуры родительского класса.
-
-- Все классы предоставляют методы:
-
-  * `GetContext` — для получения `TComputationContext`.
-  * `GetSpec` и `GetDynamicSpec` — для получения полной спеки соответствующего `Computation`;
-  * `GetParameters` и `GetDynamicParameters` — для получения структурированных `parameters`.
-
-    Хотя методы `GetParameters` и `GetDynamicParameters` возвращают результат парсинга, сам парсинг происходит только при реконфигурации спеки. Если спека не менялась, повторный вызов метода возвращает уже подготовленный объект, то есть метод не нагружает систему дополнительно.
-
-- Конструктор нужно делать максимально простым без создания сложных объектов.
-- Логгирование внутри `Computation` стоит делать с использованием `YT_LOG_*`. В классе уже есть подготовленный и заполненный необходимой для дебагга информацией объект типа `NLogging::TLogger`.
-- Аналогично, для сбора различных метрик нужно использовать `NProfiling::TProfiler` и заранее подготовленный объект `GetContext()->Profiler`.
-- Метод `DoInit` стоит использовать для сложной инициализации (например, инициализации объектов для работы со стейтами).
-- Метод `DoSync` может использоваться для сохранения данных вручную в транзакцию `YT`. Однако, более правильно использовать [Sink](../../../flow/concepts/glossary.md#sink) или [ExternalState](../../../flow/cpp/state.md#external-state). Прямая работа с `DoSync` в `SwiftComputation` может привести к нежелаемому поведению. В `Transform` метод является безопасным, однако менее удобным.
-- У каждого `Computation` есть семейство методов `DoProcess`. Они принимают либо `IInputContextPtr input` с методами `GetMessages` и `GetTimers`, либо конкретное сообщение или [таймер](../../../flow/concepts/glossary.md#timer). А объект `IOutputCollectorPtr output` предназначен для сбора выходных сообщений и таймеров — подробнее см. [OutputCollector](#output-collector).
-- Все Computation'ы берут на себя заполнение всех метаполей `message` и `timer`, включая заполнение `StreamId` или `timer.Key`, если нет двусмысленности. Для создания сообщений можно использовать метод `MakeMessageBuilder`.
-- Всё выполнение кода в рамках Computation'ов строго однопоточно и выполняется в рамках `GetContext()->SerializedInvoker`. Многопоточность достигается за счёт увеличения числа [партиций](../../../flow/concepts/glossary.md#partition). Если тем не менее нужно выполнить некоторый код многопоточно, то стоит использовать `GetContext()->PoolInvoker`, но при этом необходимо дождаться результатов выполнения в рамках соответствующего метода.
+- В пользовательской process function сложную инициализацию выполняйте в `Init(const IRuntimeInitContextPtr&)`.
+- Выберите одну гранулярность обработки: `IProcessFunction` для сообщений/таймеров/визитов по одному, `IBatchProcessFunction` для всей эпохи или `IKeyedBatchProcessFunction` для батча одного ключа.
+- Для ручной записи в транзакцию transform-режима дополнительно реализуйте `ISyncProcessFunction`; в остальных случаях используйте [Sink](../../../flow/concepts/glossary.md#sink) или [ExternalState](../../../flow/cpp/state.md#external-state).
+- Выходные сообщения и таймеры добавляйте через `IOutputCollector`; создавайте и конвертируйте их через `IRuntimeContext`.
+- Код одной партиции выполняется строго однопоточно. Распараллеливайте обработку увеличением числа [партиций](../../../flow/concepts/glossary.md#partition).
 - Есть возможность конвертировать входные сообщения в `NYTree::TYsonStruct`. Для этого необходимо:
   * Завести класс-наследник от `TYsonMessage` (это специальный наследник `NYTree::TYsonStruct`).
   * Зарегистрировать его в глобальном реестре с помощью `YT_FLOW_DEFINE_YSON_MESSAGE`.
@@ -49,81 +41,39 @@
   * При использовании `TSimpleRunnerProgram` можно передать данный `TSimpleSpecBuilder` сразу в конструктор `TSimpleRunnerProgram`.
   * При самостоятельной реализации `main` необходимо будет передать в `TSimpleSpecBuilder` спеки для обогащения информацией о потоках.
   * Заполнять `spec/streams` в случае использования `TYsonMessage` самостоятельно не нужно — вся информация будет выведена из зарегистрированных `TYsonMessage + stream_id` с помощью `TSimpleSpecBuilder`.
-  * В `Computation` будут доступны методы `ConvertToYsonMessage(message)->As<Type>()` и `ConvertToMessage(ysonMessage)` для преобразований `TMessage => TYsonMessage` и обратно.
+  * В process function используйте `context->ConvertToYsonMessage<T>(message)` и `context->ConvertToMessage(ysonMessage)` для преобразований `TMessage => TYsonMessage` и обратно.
 
 ### OutputCollector {#output-collector}
 
-Объект `IOutputCollectorPtr output` передаётся в методы `DoProcess*` и предназначен для отправки результатов обработки:
+Объект `IOutputCollectorPtr output` передаётся в методы process function и предназначен для отправки результатов обработки:
 
 | Метод | Описание |
 | --- | --- |
-| `output->AddMessage(message)` | Добавить выходное сообщение (объект `TMessage`, полученный через `MakeMessageBuilder().Finish()`) |
+| `output->AddMessage(message)` | Добавить выходное сообщение (объект `TMessage`, полученный через `context->MakeOutputMessageBuilder().Finish()`) |
 | `output->AddTimer(timer)` | Добавить [таймер](../../../flow/concepts/glossary.md#timer) |
 | `output->SetParents(parentIds)` | Задать parent ID для отслеживания [lineage](../../../flow/concepts/lineage.md). Возвращает новый `IOutputCollectorPtr` с привязанным контекстом lineage |
 
-`SetParents` рекомендуется использовать, когда выходное сообщение логически произведено от конкретного подмножества входных, а не от всего батча. Либо использовать небатчевые `DoProcessMessage` и `DoProcessTimer` — они устанавливают lineage автоматически.
+`SetParents` используйте, когда выходное сообщение логически произведено от конкретного подмножества входных, а не от всего батча. В небатчевых `ProcessMessage` и `ProcessTimer` lineage устанавливается автоматически.
 
 ### TMessage {#tmessage}
 
-Структура `TMessage`, используемая в методах `DoProcessMessage` и `AddMessage`:
+Структура `TMessage`, используемая в методах `ProcessMessage` и `AddMessage`:
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TMessageSerializer.md) %}
 
 ## TTransformComputation
 
-Предназначен для произвольных `Transform` преобразований входных данных. Не умеет работать с `Source`. Результат работы обязательно сохраняется в YT, поэтому нет требований на какую-либо детерминированность преобразований.
+Transform-режим предназначен для произвольных преобразований входных данных. Он не работает с `Source`. Результат обязательно сохраняется в YT, поэтому требований к детерминированности преобразований нет.
 
 Свойства `TTransformComputation`:
 
 - Может писать в YT «вхолостую», то есть без реальных изменений, перезаписывая существующее содержимое. Ожидается, что такой поток будет создавать незначительную нагрузку.
 
-Пример работы с `TTransformComputation`:
-
-```cpp
-class TMyComputation
-    : public TTransformComputation
-{
-public:
-    YT_FLOW_EXTEND_PARAMETERS(TMyParameters);
-    YT_FLOW_EXTEND_DYNAMIC_PARAMETERS(TDynamicMyParameters);
-
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit() override
-    {
-
-    }
-
-    void DoProcessMessage(const TMessage& message, IOutputCollectorPtr output) override
-    {
-        TMyParametersPtr parameters = GetParameters();
-        TDynamicMyParametersPtr dynamicParameters = GetDynamicParameters();
-        ...
-        output->AddTimer(TSystemTimestamp(message.EventTimestamp.Underlying() + TDuration::Minutes(5).Seconds()));
-        ...
-    }
-
-    void DoProcessTimer(const TTimer& timer, IOutputCollectorPtr output) override
-    {
-        ...
-        auto builder = MakeMessageBuilder();
-        builder.Payload().SetValue(...);
-        output->AddMessage(builder.Finish());
-        ...
-    }
-
-    void DoSync(NApi::ITransactionPtr transaction) override
-    {
-        ...
-        transaction->ModifyRows(...);
-        ...
-    }
-};
-```
+Для новой пользовательской логики этот режим выбирается адаптером `TProcessFunctionComputation`. Реализуйте `IProcessFunction`, `IBatchProcessFunction` или `IKeyedBatchProcessFunction`; для sync-фазы дополнительно реализуйте `ISyncProcessFunction`. Полный пример см. в разделе [Process function](../../../flow/cpp/process-functions.md).
 
 ### TTimer {#ttimer}
 
-Структура `TTimer`, используемая в методах `DoProcessTimer` и `AddTimer`:
+Структура `TTimer`, используемая в методах `ProcessTimer` и `AddTimer`:
 
 {% include notitle [_](../../../flow/generated_docs/NYT_NFlow_TTimerSerializer.md) %}
 
@@ -145,7 +95,7 @@ public:
 
 ### TTransformOrderedSourceComputation {#ttransformorderedsourcecomputation}
 
-`TTransformOrderedSourceComputation` (`yt/yt/flow/library/cpp/computation/transform_ordered_source_computation.h`) обрабатывает сообщения `source` произвольной пользовательской логикой — парсинг, фильтрация, разворачивание одного входного сообщения в несколько выходных. Пользователь переопределяет те же методы обработки, что и у `TTransformComputation`, но на вход приходят сообщения одного упорядоченного `Source`, а не `input`-стримов. Класс заменяет связку `TSwiftPassthroughOrderedSourceComputation` → `TTransformComputation`, когда единственная задача промежуточного компьютейшена — обработать данные источника.
+Этот режим обрабатывает сообщения `source` произвольной пользовательской логикой: парсит, фильтрует или разворачивает одно входное сообщение в несколько выходных. Новую process function запускайте под `TProcessFunctionTransformOrderedSourceComputation`; он заменяет связку `TSwiftPassthroughOrderedSourceComputation` → `TProcessFunctionComputation`, когда единственная задача промежуточного компьютейшена — обработать данные источника.
 
 Результат трансформации материализуется в {{product-name}} так же, как у `TTransformComputation`:
 
@@ -153,40 +103,11 @@ public:
 - Сообщение можно добавить в `output` с явным флагом `distribute`, например `output->AddMessage(std::move(message), /*distribute*/ false)`. Такое сообщение не публикуется в downstream, но участвует в оценке вотермарка наравне с публикуемыми: генератор вотермарка регистрирует чтение по полному набору выходных сообщений ещё до применения фильтра публикации, поэтому вотермарк можно корректно оценивать по полному потоку, даже когда значимая его часть отфильтровывается. Смещение источника в любом случае продвигается в транзакции эпохи.
 - Смещение `source`, материализованный выход и стейты коммитятся в одной транзакции эпохи, поэтому обработка каждого сообщения источника применяется ровно один раз.
 
-Переопределяемые методы:
+Для новой пользовательской логики реализуйте process function: `Init(const IRuntimeInitContextPtr&)` для инициализации, `ProcessMessage` или `Process` для обработки и, при необходимости, `ISyncProcessFunction::Sync` для ручной записи в транзакцию эпохи.
 
-* `DoInit(IJobInitContextPtr initContext)` — инициализация, в том числе создание клиентов стейта;
-* `DoProcess(IInputContextPtr input, IOutputCollectorPtr output)` — батч-версия обработки;
-* `DoProcessMessage(const TMessage& message, IOutputCollectorPtr output)` — самый частый выбор для обработки без стейта; вариант `DoProcessMessage(const TInputMessageConstPtr& message, IOutputCollectorPtr output)` даёт доступ к метаполям исходного сообщения, в том числе к `message->Key` для обращения к стейту;
-* `DoSync(IRetryableTransactionPtr transaction)` — ручная запись в транзакцию эпохи.
+Собственный стейт process function хранит в поле `TMutableStateKeyClient<T>` (см. [Работа со стейтами](../../../flow/cpp/state.md#internal-state)), инициализирует через `initContext->InitClient(...)` и читает через `GetState(message->Key)`. Перед обработкой адаптер сам загружает стейт для ключей сообщений текущей эпохи. Инстанс компьютейшена всегда привязан к единственному `source`-ключу, поэтому все сообщения эпохи несут один и тот же ключ и обращаются к одной строке стейта.
 
-Собственный стейт пользователь заводит ровно так же, как в `TTransformComputation` (см. [Работа со стейтами](../../../flow/cpp/state.md#internal-state)): поле `TMutableStateKeyClient<T>`, инициализация `initContext->InitClient(...)` в `DoInit` и аксессор `GetState(message->Key)` при обработке. Перед вызовом `DoProcess` фреймворк сам загружает стейт для ключей сообщений текущей эпохи. Инстанс компьютейшена всегда привязан к единственному `source`-ключу, поэтому все сообщения эпохи несут один и тот же ключ и обращаются к одной и той же строке стейта:
-
-```cpp
-class TMyComputation
-    : public TTransformOrderedSourceComputation
-{
-public:
-    using TTransformOrderedSourceComputation::TTransformOrderedSourceComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
-    {
-        initContext->InitClient(StateClient_, "my_state");
-    }
-
-    void DoProcessMessage(const TInputMessageConstPtr& message, IOutputCollectorPtr output) override
-    {
-        auto state = StateClient_.GetState(message->Key);
-        state->Counter += 1;
-        ...
-    }
-
-private:
-    TMutableStateKeyClient<TMyState> StateClient_;
-};
-```
-
-Стейт-клиенты, созданные через `IJobInitContext`, фреймворк синхронизирует в транзакции эпохи атомарно со смещением `source`, поэтому обычная мутация (например, инкремент счётчика) корректна exactly-once — дополнительная дедупликация по `MessageId` не нужна.
+Стейт-клиенты, созданные через `IRuntimeInitContext`, фреймворк синхронизирует в транзакции эпохи атомарно со смещением `source`, поэтому обычная мутация (например, инкремент счётчика) корректна exactly-once — дополнительная дедупликация по `MessageId` не нужна.
 
 Спека компьютейшена проверяется при запуске; следующие поля приводят к ошибке валидации:
 
@@ -201,29 +122,23 @@ private:
 
 `skip_if_expression` применяется до обработки, но после того, как входной батч учтён в метриках и в подсчёте опоздавших сообщений: отфильтрованное сообщение не попадает ни в стейт, ни в выход. На оценку вотермарка оно тоже не влияет: генератор регистрирует чтение только по выходным сообщениям, поэтому полностью отфильтрованный батч не сдвигает `EventWatermark`, а на длинной серии таких батчей вотермарк партиции стоит на месте. Маркеры `EventWatermark` во входных записях источник учитывает при чтении независимо от фильтра, но при `use_source_watermark = false` (значение по умолчанию) вотермарк источника только ограничивает оценку сверху и вперёд её не двигает; единственным источником вотермарка партиции он становится при `use_source_watermark = true`. Это полностью совпадает с поведением `TSwiftOrderedSourceComputation`.
 
-Логику можно не наследовать от класса, а написать как [process function](../../../flow/cpp/process-functions.md) и указать в спеке адаптер `NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation`: он исполняет функцию поверх `TTransformOrderedSourceComputation` — с той же материализацией выхода, теми же стейтами и той же валидацией спеки.
+Пользовательскую логику пишите как [process function](../../../flow/cpp/process-functions.md) и указывайте в спеке адаптер `NYT::NFlow::TProcessFunctionTransformOrderedSourceComputation`: он исполняет функцию в этом режиме — с той же материализацией выхода, теми же стейтами и той же валидацией спеки.
 
 Пример — `NYT::NFlow::NExample::TLogParserProcessFunction` из [`examples/cpp/log_parser`]({{source-root}}/yt/yt/flow/examples/cpp/log_parser): разбирает строку лога на записи, эмитит YSON-структуру `TLogRecordMessage` (`level`, `text`, `worst_level_so_far`) и ведёт стейт `TWorstSeverityState` — бегущий максимум severity по партиции источника. Подробнее, вместе с полным исходным кодом, — в разделе [Log Parser](../../../flow/cpp/examples/log_parser.md).
 
 #### TProtoTransformOrderedSourceComputation {#tprototransformorderedsourcecomputation}
 
-Хелпер `NYT::NFlow::TProtoTransformOrderedSourceComputation<TProto>` (`yt/yt/flow/library/cpp/parsers/proto.h`) снимает с пользователя ручной парсинг `Protobuf` — аналог `TProtoSwiftSourceComputation<TProto>` для `TSwiftOrderedSourceComputation`.
+Для новой пользовательской логики используйте `TProtoParsingProcessFunctionBase<TProto>` из `yt/yt/flow/library/cpp/parsers/proto.h`. База читает строковую колонку, заданную параметром `processing_function_parameters/data_column` (по умолчанию `"data"`), разбирает её в `TProto` и вызывает `ProcessProto(message, proto, output, context)`. Ошибку чтения или разбора она передаёт в `ProcessUnparsed(message, error, output, context)`, который по умолчанию перебрасывает ошибку дальше.
 
-`DoProcessMessage` реализован за пользователя: он читает из сырого сообщения `source` строковую колонку, имя которой задано параметром `parameters/data_column` (по умолчанию `"data"`), и разбирает её в `TProto`. Пользователь переопределяет один из хуков:
+Стейт храните в `TMutableStateKeyClient<T>` и инициализируйте в `Init`; ключ доступен как `message->Key`. Для materialized ordered-source режима запускайте функцию под `TProcessFunctionTransformOrderedSourceComputation`.
 
-* `DoProcessProto(TProto&& proto, IOutputCollectorPtr output)` — на успешный разбор, без доступа к исходному сообщению;
-* `DoProcessProto(const TInputMessageConstPtr& inputMessage, TProto&& proto, IOutputCollectorPtr output)` — та же ситуация, но с доступом к исходному сообщению `source`;
-* `DoProcessUnparsed(const TInputMessageConstPtr& inputMessage, TError error, IOutputCollectorPtr output)` — колонка, имя которой задано параметром `data_column`, отсутствует (`null`) либо `Protobuf`-разбор бросил исключение; по умолчанию перебрасывает `error` дальше, поведение можно переопределить (например, чтобы молча отбросить невалидные сообщения). Пустая, но присутствующая строка — не то же самое, что отсутствующее значение: она успешно разбирается в сообщение со значениями по умолчанию, если у `TProto` нет обязательных полей, и в этом случае попадает в `DoProcessProto`, а не в `DoProcessUnparsed`.
-
-Ответственность за ошибку разделена: ошибка самого разбора маршрутизируется в `DoProcessUnparsed`, а исключение из `DoProcessProto` пробрасывается наружу и прерывает эпоху — ничего не коммитится. К моменту такого исключения стейт мог быть уже частично изменён, и эту мутацию нельзя молча проглотить как «неразобранное» сообщение.
-
-Собственный стейт заводится так же, как у `TTransformOrderedSourceComputation`, — через `TMutableStateKeyClient<T>` в `DoInit`; ключ для `GetState` — это `inputMessage->Key`, поэтому стейтовому компьютейшену подходит хук `DoProcessProto(const TInputMessageConstPtr&, TProto&&, IOutputCollectorPtr)`.
+`TProtoTransformOrderedSourceComputation<TProto>` — low-level аналог для сопровождения существующего legacy-кода. Не используйте его как базу нового пользовательского класса.
 
 Пример process function с тем же способом разбора — `NYT::NFlow::NExample::TProtoLogParserFunction` из [`examples/cpp/proto_parser`]({{source-root}}/yt/yt/flow/examples/cpp/proto_parser). Она наследуется от `TProtoParsingProcessFunctionBase<TLogRecordProto>` и запускается под `TProcessFunctionTransformOrderedSourceComputation`: разбирает `TLogRecordProto`, эмитит `TLogRecordMessage` (`level`, `text`, `seen_at_level`) и ведёт стейт `TLevelCountsState` — счётчик записей каждого уровня по партиции источника. Счётчик неидемпотентен к повторной обработке и корректен ровно потому, что стейт коммитится в одной транзакции со смещением `source`. Подробнее — в разделе [Proto Parser](../../../flow/cpp/examples/proto_parser.md).
 
 ## TSwiftMapComputation
 
-Реализует детерминированный простой `Map` без материализации результатов в YT.
+Swift-map режим реализует детерминированный простой `Map` без материализации результатов в YT. Пользовательскую process function запускайте под `TProcessFunctionSwiftMapComputation`.
 
 Особенности:
 
@@ -238,7 +153,7 @@ private:
 
 ## TSwiftOrderedSourceComputation
 
-Основной класс для чтения данных из внешних источников. Требует, чтобы поток данных из каждого инстанса был упорядочен.
+Swift ordered-source режим читает данные из внешних источников и требует, чтобы поток данных из каждого инстанса был упорядочен. Пользовательскую process function запускайте под `TProcessFunctionSourceComputation`.
 
 Особенности:
 
@@ -266,9 +181,9 @@ private:
 
 ### Как работает батчинг и партиционирование? {#batching-partitions}
 
-Каждая партиция обрабатывается строго однопоточно. Многопоточность достигается за счёт увеличения числа партиций (`partition_count` в спеке). Батчевые методы `DoProcess(IInputContextPtr input, IOutputCollectorPtr output)` получают все сообщения и таймеры за текущую [эпоху](../../../flow/concepts/glossary.md#epoch), что позволяет оптимизировать обработку.
+Каждая партиция обрабатывается строго однопоточно. Многопоточность достигается за счёт увеличения числа партиций (`partition_count` в спеке). `IBatchProcessFunction::Process` получает все сообщения и таймеры за текущую [эпоху](../../../flow/concepts/glossary.md#epoch), что позволяет оптимизировать обработку.
 
-Если нужно выполнить код многопоточно внутри одной партиции, используйте `GetContext()->PoolInvoker`, но обязательно дождитесь завершения в рамках текущего метода.
+Process function API намеренно не предоставляет `PoolInvoker`; распараллеливайте обработку числом партиций.
 
 ### Как оценить нагрузку на внутренние таблицы? {#internal-tables-load}
 
@@ -292,6 +207,7 @@ private:
 
 ## См. также
 
+- [Process function (C++)](../../../flow/cpp/process-functions.md)
 - [Computation (концепция)](../../../flow/concepts/computation.md)
 - [Работа со стейтами (C++)](../../../flow/cpp/state.md)
 - [Быстрый старт (C++)](../../../flow/cpp/getting-started.md)

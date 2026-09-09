@@ -12,7 +12,7 @@
 
 `TTextReadFunction` &mdash; process function (`IProcessFunction`), которую исполняет `TProcessFunctionSourceComputation` (source-адаптер). Она читает текстовые сообщения из входной очереди, разбивает текст на слова (по пробельным символам) и для каждого слова длиной не меньше `min_word_length` генерирует объект `TWordMessage` в выходной поток `words`. Параметр `min_word_length` читается в `Init` через `initContext->GetParameters<TTextReaderParameters>()` из блока `processing_function_parameters` спеки.
 
-Так как исполняющий `Computation` является источником (`TSwiftOrderedSourceComputation`), выходные сообщения не сохраняются в {{product-name}} &mdash; сохраняется только метаинформация, необходимая для детерминированной работы. Подробнее про типы компьютейшенов можно прочитать в разделе [Компьютейшены](../../../../flow/concepts/computation.md).
+`TProcessFunctionSourceComputation` запускает функцию в Swift ordered-source режиме, поэтому выходные сообщения не сохраняются в {{product-name}} &mdash; сохраняется только метаинформация, необходимая для детерминированной работы. Подробнее про режимы компьютейшенов можно прочитать в разделе [Компьютейшены](../../../../flow/concepts/computation.md).
 
 ### TWordCountFunction
 
@@ -53,5 +53,4 @@
 ### TWordCountFunction
 
 {% code '/yt/yt/flow/examples/cpp/word_count/lib/word_count_functions.cpp' lang='cpp' lines='[BEGIN word_counter]-[END word_counter]' keep-indents %}
-
 

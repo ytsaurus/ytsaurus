@@ -1,6 +1,6 @@
 # Log Parser в {{product-name}} Flow (C++)
 
-Пример показывает [`TTransformOrderedSourceComputation`](../../../../flow/concepts/computation.md#ttransformorderedsourcecomputation) (детали в [Computation (C++)](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)): [пайплайн]({{source-root}}/yt/yt/flow/examples/cpp/log_parser) читает строки лога из очереди и парсит их сразу при чтении источника, без промежуточного passthrough-компьютейшена и `TTransformComputation`. Сама логика разбора написана как [process function](../../../../flow/cpp/process-functions.md) и работает под встроенным адаптером. Дополнительно пример показывает чтение из `Source` и собственный durable-стейт, переживающий рестарты (см. [Стейт](#state)).
+Пример показывает [process function](../../../../flow/cpp/process-functions.md) в materialized ordered-source режиме: [пайплайн]({{source-root}}/yt/yt/flow/examples/cpp/log_parser) читает строки лога из очереди и парсит их сразу при чтении источника, без промежуточного passthrough-компьютейшена. Функцию исполняет встроенный `TProcessFunctionTransformOrderedSourceComputation`. Дополнительно пример показывает чтение из `Source` и собственный durable-стейт, переживающий рестарты (см. [Стейт](#state)).
 
 [Исходный код]({{source-root}}/yt/yt/flow/examples/cpp/log_parser)
 
@@ -37,7 +37,7 @@
 
 ## Стейт {#state}
 
-`TLogParserProcessFunction` — стейтовая. Стейт `TWorstSeverityState` она держит в поле `TMutableStateKeyClient<TWorstSeverityState> StateClient_` — ровно как `TTransformComputation` (см. [Работа со стейтами (C++)](../../../../flow/cpp/state.md#internal-state)). Остальное делает адаптер `TProcessFunctionTransformOrderedSourceComputation`: он вызывает `Init(const IRuntimeInitContextPtr& initContext)`, где клиент подключается к стейту вызовом `initContext->InitClient(StateClient_, WorstSeverityStateName)` (имя стейта — `worst_severity`), и `ProcessMessage`, где стейт читается аксессором `GetState(message->Key)`, а выходные записи приводятся к сообщениям через `context->ConvertToMessage(...)`.
+`TLogParserProcessFunction` — стейтовая. Стейт `TWorstSeverityState` она держит в поле `TMutableStateKeyClient<TWorstSeverityState> StateClient_` (см. [Работа со стейтами (C++)](../../../../flow/cpp/state.md#internal-state)). Адаптер `TProcessFunctionTransformOrderedSourceComputation` вызывает `Init(const IRuntimeInitContextPtr& initContext)`, где клиент подключается к стейту вызовом `initContext->InitClient(StateClient_, WorstSeverityStateName)` (имя стейта — `worst_severity`), и `ProcessMessage`, где стейт читается аксессором `GetState(message->Key)`, а выходные записи приводятся к сообщениям через `context->ConvertToMessage(...)`.
 
 Инстанс компьютейшена привязан к единственной партиции источника, поэтому все сообщения несут один и тот же ключ и обращаются к одной строке стейта: `state->WorstSeverity = std::max(state->WorstSeverity, SeverityRank(record.Level))`.
 

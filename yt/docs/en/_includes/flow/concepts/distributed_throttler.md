@@ -122,9 +122,9 @@ The ID must be declared in `dynamic_spec/throttlers`. Both fields may be set at 
 
 ### Manual: `GetThrottlerOrThrow(id)` from user code {#manual}
 
-If automatic throttling on the input batch isn’t enough — for example, if you need a rate limit for each external request — you get the throttler directly from your user `Computation`. The base class has a `GetThrottlerOrThrow(id)` method that returns `IThroughputThrottlerPtr` — the standard YT throttler. You call `Throttle(amount)` on it and wait for the result. `GetThrottlerOrThrow` throws if the id is not declared in `throttlers`; `TryGetThrottler(id)` returns `nullptr` instead — handy when declaring a throttler in `dynamic_spec` is what turns throttling on for the matching entity (say, one throttler per model or per external service).
+If automatic throttling on the input batch isn’t enough — for example, if you need a rate limit for each external request — a process function gets the throttler from `IRuntimeContext`. `context->GetThrottlerOrThrow(id)` returns `IThroughputThrottlerPtr`, the standard YT throttler. Call `Throttle(amount)` on it and wait for the result. `GetThrottlerOrThrow` throws if the id isn’t declared in `throttlers`; `context->TryGetThrottler(id)` returns `nullptr` instead — useful when declaring a throttler in `dynamic_spec` enables throttling for the matching entity, such as one throttler per model or external service.
 
-The returned pointer stays stable for the entire life of the Job: the factory replaces the internal client during `Reconfigure`, so you can store it in `DoInit` and keep using it without re-fetching. This does not apply to a `nullptr` from `TryGetThrottler`: it only means "not declared right now", and once the throttler is added to `dynamic_spec` you have to query it again.
+The returned pointer stays stable for the entire life of the Job: the factory replaces the internal client during `Reconfigure`, so a process function can store it in `Init` and keep using it without re-fetching. This does not apply to a `nullptr` from `TryGetThrottler`: it only means "not declared right now", and once the throttler is added to `dynamic_spec` you have to query it again.
 
 Right now, this mechanism is supported only in C++.
 

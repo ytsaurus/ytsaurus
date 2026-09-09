@@ -12,7 +12,7 @@ Both units of user logic are written as [process functions](../../../../flow/cpp
 
 `TTextReadFunction` is a process function (`IProcessFunction`) that is executed by `TProcessFunctionSourceComputation` (the source adapter). It reads text messages from the input queue, splits the text into words (by whitespace characters), and for each word with a length of at least `min_word_length`, it generates a `TWordMessage` object in the `words` output stream. The `min_word_length` parameter is read in `Init` via `initContext->GetParameters<TTextReaderParameters>()` from the `processing_function_parameters` block of the spec.
 
-Since the executing `Computation` is a source (`TSwiftOrderedSourceComputation`), the output messages are not stored in {{product-name}} — only the metadata required for deterministic operation is saved. For more details about computation types, see the [Computations](../../../../flow/concepts/computation.md) section.
+`TProcessFunctionSourceComputation` runs the function in Swift ordered-source mode, so output messages are not stored in {{product-name}} — only the metadata required for deterministic operation is saved. For more details about computation modes, see the [Computations](../../../../flow/concepts/computation.md) section.
 
 ### TWordCountFunction
 
@@ -55,4 +55,3 @@ In `main`, you do the following:
 ### TWordCountFunction
 
 {% code '/yt/yt/flow/examples/cpp/word_count/lib/word_count_functions.cpp' lang='cpp' lines='[BEGIN word_counter]-[END word_counter]' keep-indents %}
-

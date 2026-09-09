@@ -16,8 +16,8 @@ Lineage используется фреймворком в двух целях:
 
 | Тип функции | Родитель выходного сообщения |
 |---|---|
-| `RowFunction` / `DoProcessMessage` | текущее входное сообщение |
-| `BatchFunction` / `DoProcess` | все сообщения текущего батча |
+| `IProcessFunction::ProcessMessage` / `RowFunction` | текущее входное сообщение |
+| `IBatchProcessFunction::Process` / `BatchFunction` | все сообщения текущего батча |
 | Обработчик таймера | текущий таймер |
 
 ## Когда задавать lineage явно {#explicit-lineage}
@@ -31,7 +31,7 @@ Lineage используется фреймворком в двух целях:
 Lineage устанавливается через метод `SetParents` / `set_parent_ids` / `setParentIds` / `WithParentIDs` на объекте `OutputCollector`. Метод возвращает **новый** коллектор с привязанным контекстом lineage — все вызовы `AddMessage` / `add_message` / `addMessage` на нём будут нести этот lineage.
 
 Подробнее об использовании в каждом языке:
-- [C++](../../../flow/cpp/computation.md#output-collector)
+- [C++](../../../flow/cpp/process-functions.md)
 - [Java](../../../flow/java/computation.md#output-collector)
 - [Python](../../../flow/python/computation.md#output-collector)
 - [Go](../../../flow/go/computation.md#output-collector)

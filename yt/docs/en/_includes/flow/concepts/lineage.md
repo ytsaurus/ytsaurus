@@ -15,8 +15,8 @@ In most cases, you don’t need to manage lineage explicitly—the framework aut
 
 | Function type | Parent of the output message |
 | --- | --- |
-| `RowFunction` / `DoProcessMessage` | The current input message |
-| `BatchFunction` / `DoProcess` | All messages in the current batch |
+| `IProcessFunction::ProcessMessage` / `RowFunction` | The current input message |
+| `IBatchProcessFunction::Process` / `BatchFunction` | All messages in the current batch |
 | Timer handler | The current timer |
 
 ## When to set lineage explicitly {#explicit-lineage}
@@ -30,7 +30,7 @@ In a Swift computation the narrowing is mandatory: every output message must hav
 You set lineage using the `SetParents` / `set_parent_ids` / `setParentIds` / `WithParentIDs` method on the `OutputCollector` object. The method returns a **new** collector with the lineage context attached. All calls to `AddMessage` / `add_message` / `addMessage` on this collector will carry that lineage.
 
 For more details on how to use this in each language:
-- [C++](../../../flow/cpp/computation.md#output-collector)
+- [C++](../../../flow/cpp/process-functions.md)
 - [Java](../../../flow/java/computation.md#output-collector)
 - [Python](../../../flow/python/computation.md#output-collector)
 - [Go](../../../flow/go/computation.md#output-collector)
