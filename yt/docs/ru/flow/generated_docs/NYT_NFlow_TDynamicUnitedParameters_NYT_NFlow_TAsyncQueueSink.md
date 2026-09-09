@@ -7,7 +7,7 @@
 || **Параметр** | **Описание** ||
 || `at_most_once_strategy` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::TAtMostOnceStrategyDynamicParameters](./all_yson_structs#NYT_NFlow_TAtMostOnceStrategyDynamicParameters)`>`
 **Значение по умолчанию**: `{}`
- ||
+Динамические параметры `at_most_once_strategy`. Поддержка зависит от коннектора; перед настройкой проверьте документацию выбранного коннектора. ||
 |#
 
 
