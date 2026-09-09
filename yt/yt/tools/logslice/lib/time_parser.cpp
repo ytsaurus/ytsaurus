@@ -322,21 +322,48 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
         }
     }
 
-    // Structured access logs are JSON lines. The standard formatter adds its
-    // trusted system timestamp as an `instant` string after payload fields, so
-    // use the last syntactically valid occurrence rather than a payload value.
-    constexpr TStringBuf InstantKey = "\"instant\"";
+    // Structured access logs are JSON lines. Callers probing a compressed block
+    // may pass a prefix containing several records, but the result must describe
+    // the first line. The standard formatter adds its trusted system timestamp
+    // after payload fields, so use the last valid occurrence within that line.
+    if (auto newline = line.find('\n'); newline != TStringBuf::npos) {
+        line = line.SubStr(0, newline);
+    }
+    constexpr TStringBuf InstantKey = "instant";
     std::optional<TInstant> result;
-    size_t offset = 0;
-    while (offset < line.size()) {
-        auto key = line.find(InstantKey, offset);
-        if (key == TStringBuf::npos) {
-            break;
-        }
-        offset = key + InstantKey.size();
-        if (key > 0 && line[key - 1] == '\\') {
+    int objectDepth = 0;
+    for (size_t offset = 0; offset < line.size();) {
+        if (line[offset] == '{') {
+            ++objectDepth;
+            ++offset;
             continue;
         }
+        if (line[offset] == '}') {
+            --objectDepth;
+            ++offset;
+            continue;
+        }
+        if (line[offset] != '"') {
+            ++offset;
+            continue;
+        }
+
+        const auto stringStart = ++offset;
+        while (offset < line.size() && line[offset] != '"') {
+            if (line[offset] == '\\' && offset + 1 < line.size()) {
+                offset += 2;
+            } else {
+                ++offset;
+            }
+        }
+        if (offset == line.size()) {
+            break;
+        }
+        const auto stringEnd = offset++;
+        if (objectDepth != 1 || line.SubStr(stringStart, stringEnd - stringStart) != InstantKey) {
+            continue;
+        }
+
         auto rest = line.SubStr(offset);
         while (!rest.empty() && IsAsciiSpace(rest.front())) {
             rest.Skip(1);
