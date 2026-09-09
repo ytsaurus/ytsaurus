@@ -596,10 +596,28 @@ namespace NYql::NDqs {
 
             auto ev = MakeHolder<TEvJobStop>(*request);
 
-            auto* result = google::protobuf::Arena::CreateMessage<Yql::DqsProto::JobStopResponse>(ctx->GetArena());
-            ctx->Reply(result, Ydb::StatusIds::SUCCESS);
+            auto callback = MakeHolder<TRichActorFutureCallback<TEvJobStopResponse>>(
+                [ctx] (TAutoPtr<TEventHandle<TEvJobStopResponse>>& event) mutable {
+                    const auto& error = event->Get()->Record.GetError();
+                    if (error.empty()) {
+                        auto* result = google::protobuf::Arena::CreateMessage<Yql::DqsProto::JobStopResponse>(ctx->GetArena());
+                        ctx->Reply(result, Ydb::StatusIds::SUCCESS);
+                    } else {
+                        const auto status = event->Get()->Record.GetRetryable()
+                            ? grpc::UNAVAILABLE
+                            : grpc::INVALID_ARGUMENT;
+                        ctx->ReplyError(status, error);
+                    }
+                },
+                [ctx] () mutable {
+                    YQL_CLOG(INFO, ProviderDq) << "JobStopResponse failed";
+                    ctx->ReplyError(grpc::UNAVAILABLE, "Error");
+                },
+                TDuration::MilliSeconds(2000));
 
-            ActorSystem.Send(WorkerManagerActorId, ev.Release());
+            TActorId callbackId = ActorSystem.Register(callback.Release());
+
+            ActorSystem.Send(new IEventHandle(WorkerManagerActorId, callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
         });
 
         ADD_REQUEST(ClusterStatus, ClusterStatusRequest, ClusterStatusResponse, {
