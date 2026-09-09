@@ -287,9 +287,11 @@ namespace NYql::NDqs {
             TExecuteGraphProxyActor(NYdbGrpc::IRequestContextBase* ctx,
                 const TIntrusivePtr<NMonitoring::TDynamicCounters>& counters,
                 const TString& traceId, const TString& username,
-                const NActors::TActorId& graphExecutionEventsActorId)
+                const NActors::TActorId& graphExecutionEventsActorId,
+                const NActors::TActorId& workerManagerActorId)
                 : TServiceProxyActor(ctx, counters, traceId, username)
                 , GraphExecutionEventsActorId(graphExecutionEventsActorId)
+                , WorkerManagerActorId(workerManagerActorId)
             {
                 ExecutionTimeout = Request->GetExecutionTimeout();
             }
@@ -394,7 +396,7 @@ namespace NYql::NDqs {
                 YQL_CLOG(DEBUG, ProviderDq) << __FUNCTION__;
                 MergeTaskMetas(params);
 
-                ExecuterActorId = RegisterChild(NDq::MakeDqExecuter(MakeWorkerManagerActorID(SelfId().NodeId()), SelfId(), TraceId, Username, Settings, Counters, RequestStartTime, false, ExecutionTimeout));
+                ExecuterActorId = RegisterChild(NDq::MakeDqExecuter(WorkerManagerActorId, SelfId(), TraceId, Username, Settings, Counters, RequestStartTime, false, ExecutionTimeout));
 
                 TVector<TString> columns;
                 columns.reserve(Request->GetColumns().size());
@@ -443,6 +445,7 @@ namespace NYql::NDqs {
             }
 
             NActors::TActorId GraphExecutionEventsActorId;
+            NActors::TActorId WorkerManagerActorId;
             ui64 ExecutionTimeout;
         };
 
@@ -462,10 +465,12 @@ namespace NYql::NDqs {
     TDqsGrpcService::TDqsGrpcService(
             NActors::TActorSystem& system,
             TIntrusivePtr<NMonitoring::TDynamicCounters> counters,
-            const TDqTaskPreprocessorFactoryCollection& dqTaskPreprocessorFactories)
+            const TDqTaskPreprocessorFactoryCollection& dqTaskPreprocessorFactories,
+            NActors::TActorId workerManagerActorId)
         : ActorSystem(system)
         , Counters(std::move(counters))
         , DqTaskPreprocessorFactories(dqTaskPreprocessorFactories)
+        , WorkerManagerActorId(workerManagerActorId)
         , Promise(NewPromise<void>())
         , RunningRequests(0)
         , Stopping(false)
@@ -519,7 +524,7 @@ namespace NYql::NDqs {
             auto graphExecutionEventsActorId = ActorSystem.Register(NDqs::MakeGraphExecutionEventsActor(request->GetSession(), std::move(taskPreprocessors)));
 
             RunningRequests++;
-            auto actor = MakeHolder<TExecuteGraphProxyActor>(ctx, Counters, request->GetSession(), session->GetUsername(), graphExecutionEventsActorId);
+            auto actor = MakeHolder<TExecuteGraphProxyActor>(ctx, Counters, request->GetSession(), session->GetUsername(), graphExecutionEventsActorId, WorkerManagerActorId);
             auto future = actor->GetFuture();
             auto actorId = ActorSystem.Register(actor.Release());
             future.Apply([session, actorId, this] (const TFuture<void>&) mutable {
@@ -594,7 +599,7 @@ namespace NYql::NDqs {
             auto* result = google::protobuf::Arena::CreateMessage<Yql::DqsProto::JobStopResponse>(ctx->GetArena());
             ctx->Reply(result, Ydb::StatusIds::SUCCESS);
 
-            ActorSystem.Send(MakeWorkerManagerActorID(ActorSystem.NodeId), ev.Release());
+            ActorSystem.Send(WorkerManagerActorId, ev.Release());
         });
 
         ADD_REQUEST(ClusterStatus, ClusterStatusRequest, ClusterStatusResponse, {
@@ -638,7 +643,7 @@ namespace NYql::NDqs {
 
             TActorId callbackId = ActorSystem.Register(callback.Release());
 
-            ActorSystem.Send(new IEventHandle(MakeWorkerManagerActorID(ActorSystem.NodeId), callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
+            ActorSystem.Send(new IEventHandle(WorkerManagerActorId, callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
         });
 
         ADD_REQUEST(OperationStop, OperationStopRequest, OperationStopResponse, {
@@ -659,7 +664,7 @@ namespace NYql::NDqs {
 
             TActorId callbackId = ActorSystem.Register(callback.Release());
 
-            ActorSystem.Send(new IEventHandle(MakeWorkerManagerActorID(ActorSystem.NodeId), callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
+            ActorSystem.Send(new IEventHandle(WorkerManagerActorId, callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
         });
 
         ADD_REQUEST(QueryStatus, QueryStatusRequest, QueryStatusResponse, {
@@ -700,7 +705,7 @@ namespace NYql::NDqs {
                 }
             } else {
                 TActorId callbackId = ActorSystem.Register(callback.Release());
-                ActorSystem.Send(new IEventHandle(MakeWorkerManagerActorID(ActorSystem.NodeId), callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
+                ActorSystem.Send(new IEventHandle(WorkerManagerActorId, callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
             }
         });
 
@@ -712,29 +717,57 @@ namespace NYql::NDqs {
                 || request->GetRole().empty()
                 || request->GetAddress().empty())
             {
+                YQL_CLOG(WARN, ProviderDq) << "RegisterNode rejected: invalid argument"
+                    << " nodeId=" << request->GetNodeId()
+                    << " role=" << request->GetRole()
+                    << " address=" << request->GetAddress()
+                    << " port=" << request->GetPort();
                 ctx->ReplyError(grpc::INVALID_ARGUMENT, "Invalid argument");
                 return;
             }
+
+            const ui32 reqNodeId = request->GetNodeId();
+            const TString reqRole = request->GetRole();
 
             auto ev = MakeHolder<TEvRegisterNode>(*request);
 
             using ResultEv = TEvRegisterNodeResponse;
 
             auto callback = MakeHolder<TRichActorFutureCallback<ResultEv>>(
-                [ctx] (TAutoPtr<TEventHandle<ResultEv>>& event) mutable {
+                [ctx, reqNodeId, reqRole] (TAutoPtr<TEventHandle<ResultEv>>& event) mutable {
+                    const auto& response = event->Get()->Record.GetResponse();
+                    YQL_CLOG(TRACE, ProviderDq) << "RegisterNode succeeded"
+                        << " nodeId=" << reqNodeId
+                        << " role=" << reqRole
+                        << " responseEpoch=" << response.GetEpoch()
+                        << " nodes=" << response.GetNodes().size()
+                        << " downloadList=" << response.GetDownloadList().size();
                     auto* result = google::protobuf::Arena::CreateMessage<Yql::DqsProto::RegisterNodeResponse>(ctx->GetArena());
-                    result->MergeFrom(event->Get()->Record.GetResponse());
+                    result->MergeFrom(response);
                     ctx->Reply(result, Ydb::StatusIds::SUCCESS);
                 },
-                [ctx] () mutable {
-                    YQL_CLOG(INFO, ProviderDq) << "RegisterNode failed";
+                [ctx, reqNodeId, reqRole, workerManagerActorId = WorkerManagerActorId, grpcServiceActorNodeId = ActorSystem.NodeId] () mutable {
+                    YQL_CLOG(DEBUG, ProviderDq) << "RegisterNode failed: worker manager actor did not respond"
+                        << " nodeId=" << reqNodeId
+                        << " role=" << reqRole
+                        << " targetWorkerManagerActorId=" << workerManagerActorId
+                        << " grpcServiceActorNodeId=" << grpcServiceActorNodeId;
                     ctx->ReplyError(grpc::UNAVAILABLE, "Error");
                 },
-                TDuration::MilliSeconds(5000));
+                TDuration::MilliSeconds(5000),
+                "RegisterNode",
+                WorkerManagerActorId);
 
             TActorId callbackId = ActorSystem.Register(callback.Release());
 
-            ActorSystem.Send(new IEventHandle(MakeWorkerManagerActorID(ActorSystem.NodeId), callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
+            YQL_CLOG(DEBUG, ProviderDq) << "RegisterNode: sending TEvRegisterNode to worker manager actor"
+                << " nodeId=" << reqNodeId
+                << " role=" << reqRole
+                << " targetWorkerManagerActorId=" << WorkerManagerActorId
+                << " callbackActorId=" << callbackId
+                << " grpcServiceActorNodeId=" << ActorSystem.NodeId;
+
+            ActorSystem.Send(new IEventHandle(WorkerManagerActorId, callbackId, ev.Release(), IEventHandle::FlagTrackDelivery));
         });
 
         ADD_REQUEST(GetMaster, GetMasterRequest, GetMasterResponse, {
@@ -752,7 +785,7 @@ namespace NYql::NDqs {
 
             TActorId callbackId = ActorSystem.Register(callback.Release());
 
-            ActorSystem.Send(new IEventHandle(MakeWorkerManagerActorID(ActorSystem.NodeId), callbackId, requestEvent.Release()));
+            ActorSystem.Send(new IEventHandle(WorkerManagerActorId, callbackId, requestEvent.Release()));
         });
 
         ADD_REQUEST(ConfigureFailureInjector, ConfigureFailureInjectorRequest, ConfigureFailureInjectorResponse,{
@@ -770,7 +803,7 @@ namespace NYql::NDqs {
 
             TActorId callbackId = ActorSystem.Register(callback.Release());
 
-            ActorSystem.Send(new IEventHandle(MakeWorkerManagerActorID(ActorSystem.NodeId), callbackId, requestEvent.Release()));
+            ActorSystem.Send(new IEventHandle(WorkerManagerActorId, callbackId, requestEvent.Release()));
         });
 
         ADD_REQUEST(IsReady, IsReadyRequest, IsReadyResponse, {
@@ -793,7 +826,7 @@ namespace NYql::NDqs {
 
             TActorId callbackId = ActorSystem.Register(callback.Release());
 
-            ActorSystem.Send(new IEventHandle(MakeWorkerManagerActorID(ActorSystem.NodeId), callbackId, ev.Release()));
+            ActorSystem.Send(new IEventHandle(WorkerManagerActorId, callbackId, ev.Release()));
         });
 
         ADD_REQUEST(Routes, RoutesRequest, RoutesResponse, {
@@ -816,7 +849,10 @@ namespace NYql::NDqs {
 
             TActorId callbackId = ActorSystem.Register(callback.Release());
 
-            ActorSystem.Send(new IEventHandle(MakeWorkerManagerActorID(request->GetNodeId()), callbackId, ev.Release()));
+            ActorSystem.Send(new IEventHandle(
+                MakeWorkerManagerActorID(request->GetNodeId()),
+                callbackId,
+                ev.Release()));
         });
 
 /* 1. move grpc to providers/dq, 2. move benchmark to providers/dq 3. uncomment
