@@ -43,38 +43,26 @@ TFuture<TChaosLeaseId> TChaosLeaseFactory::CreateLease(
 
 std::vector<TCellId> TChaosLeaseFactory::RotateCells(std::vector<TCellId> cellIds)
 {
-    // Cells known not to serve leases go last: they are still tried, because serving migrates
+    // Cells known to be disabled go last. They are still tried, since lease serving migrates
     // between sibling cells, but they no longer cost a rejected request per creation.
-    auto servingEnd = cellIds.end();
+    auto enabledEnd = cellIds.end();
     {
         auto guard = Guard(CellIdsLock_);
-        if (!NotServingCellIds_.empty()) {
-            servingEnd = std::stable_partition(cellIds.begin(), cellIds.end(), [&] (TCellId cellId) {
-                return !NotServingCellIds_.contains(cellId);
+        if (!NotEnabledCellIds_.empty()) {
+            enabledEnd = std::stable_partition(cellIds.begin(), cellIds.end(), [&] (TCellId cellId) {
+                return !NotEnabledCellIds_.contains(cellId);
             });
         }
     }
 
-    // Each creation starts from its own cell, so the leases spread evenly instead of piling up on
-    // whichever cell answered first. Only the serving cells take part: starting the walk at a cell
-    // known to reject would waste a request on every creation.
-    if (auto servingCount = servingEnd - cellIds.begin(); servingCount > 1) {
-        auto shift = NextCellIndex_.fetch_add(1) % servingCount;
-        std::rotate(cellIds.begin(), cellIds.begin() + shift, servingEnd);
+    // Each creation starts from its own cell, so that the leases spread evenly instead of piling
+    // up on whichever cell answered first. Only the enabled cells take part: starting the walk at
+    // a cell known to reject would waste a request on every creation.
+    if (auto enabledCount = enabledEnd - cellIds.begin(); enabledCount > 1) {
+        auto shift = NextCellIndex_.fetch_add(1) % enabledCount;
+        std::rotate(cellIds.begin(), cellIds.begin() + shift, enabledEnd);
     }
     return cellIds;
-}
-
-void TChaosLeaseFactory::OnCellServes(TCellId cellId)
-{
-    auto guard = Guard(CellIdsLock_);
-    NotServingCellIds_.erase(cellId);
-}
-
-void TChaosLeaseFactory::OnCellDoesNotServe(TCellId cellId)
-{
-    auto guard = Guard(CellIdsLock_);
-    NotServingCellIds_.insert(cellId);
 }
 
 TFuture<std::vector<TCellId>> TChaosLeaseFactory::GetCellIds(bool forceRefresh)
@@ -94,14 +82,11 @@ TFuture<std::vector<TCellId>> TChaosLeaseFactory::GetCellIds(bool forceRefresh)
         CellIdsFuture_ = promise.ToFuture();
     }
 
-    // NB: All the cells of the bundle, not its metadata cells: those are a sibling pair reserved
-    // for replication cards, and only one sibling serves leases at a time.
     auto path = Format("//sys/chaos_cell_bundles/%v/@tablet_cell_ids", ChaosCellBundle_);
 
     TGetNodeOptions options;
-    // The list changes when the bundle is reconfigured, which is rare, and a stale answer costs
-    // nothing here: an absent cell is skipped by the walk and a new one arrives with the next
-    // refresh. Not worth waking the master up for every controller on the cluster.
+    // A stale answer is harmless here: an absent cell is skipped by the walk, and a new one
+    // arrives with the next refresh.
     options.ReadFrom = EMasterChannelKind::Cache;
 
     Client_->GetNode(path, options)
@@ -122,12 +107,11 @@ TFuture<std::vector<TCellId>> TChaosLeaseFactory::GetCellIds(bool forceRefresh)
                 CellIdsFuture_.Reset();
                 if (cellIdsOrError.IsOK()) {
                     CellIds_ = cellIdsOrError.Value();
-                    // What each cell answered may no longer hold for the refreshed list.
-                    NotServingCellIds_.clear();
+                    NotEnabledCellIds_.clear();
                     CellIdsDeadline_ = TInstant::Now() + CellIdsExpirationTime_;
                 } else if (!CellIds_.empty()) {
-                    // A failed refresh must not cost the caller its lease: the previous list is
-                    // stale, not wrong, and creation validates every cell it walks anyway.
+                    // The cached list is stale, not wrong, and creation validates every cell it
+                    // walks anyway.
                     YT_LOG_DEBUG(cellIdsOrError, "Failed to refresh chaos cell ids, using the cached ones");
                     cellIdsOrError = CellIds_;
                 }
@@ -170,7 +154,10 @@ TFuture<TChaosLeaseId> TChaosLeaseFactory::CreateLeaseOnCells(
     return Client_->CreateObject(EObjectType::ChaosLease, options)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TObjectId>& leaseIdOrError) {
             if (leaseIdOrError.IsOK()) {
-                OnCellServes(cellId);
+                {
+                    auto guard = Guard(CellIdsLock_);
+                    NotEnabledCellIds_.erase(cellId);
+                }
                 return MakeFuture<TChaosLeaseId>(leaseIdOrError.Value());
             }
 
@@ -178,13 +165,15 @@ TFuture<TChaosLeaseId> TChaosLeaseFactory::CreateLeaseOnCells(
                 return MakeFuture<TChaosLeaseId>(TError(leaseIdOrError));
             }
 
-            OnCellDoesNotServe(cellId);
+            {
+                auto guard = Guard(CellIdsLock_);
+                NotEnabledCellIds_.insert(cellId);
+            }
             YT_LOG_DEBUG("Chaos cell is not enabled, trying next (CellId: %v)",
                 cellId);
             return CreateLeaseOnCells(cellIds, index + 1, timeout, attributes, refreshed);
         }));
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
