@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/security_client/public.h>
 
+#include <yt/yt/core/ypath/token.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -91,7 +93,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
                 return;
             }
             for (const auto& [name, taskSpec] : tasks->AsMap()->GetChildren()) {
-                processTask("/tasks/" + name);
+                processTask("/tasks/" + NYPath::ToYPathLiteral(name));
             }
             return;
         }

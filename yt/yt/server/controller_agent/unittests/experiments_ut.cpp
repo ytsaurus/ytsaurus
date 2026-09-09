@@ -199,6 +199,32 @@ TEST(TApplyExperimentsTest, VanillaSimple)
         })");
 }
 
+TEST(TApplyExperimentsTest, VanillaTaskNameWithSlashes)
+{
+    auto spec = ParseSpec(R"({tasks={"process: //path/to/table"={command=true}}})");
+    auto assignment = MakeAssignment(
+        "{controller_job_io_patch={foo_spec=patched}}");
+
+    INodePtr optionsPatch;
+    ApplyExperiments(
+        spec,
+        EOperationType::Vanilla,
+        {assignment},
+        &optionsPatch);
+
+    ExpectSpecEquals(
+        spec,
+        R"({
+            tasks = {
+                "process: //path/to/table" = {
+                    command = true;
+                    job_io = {foo_spec = patched};
+                };
+            };
+            auto_merge = {job_io = {foo_spec = patched}};
+        })");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
