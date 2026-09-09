@@ -112,17 +112,37 @@ constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStr
 });
 
 constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
+    {"_RpcTimeout", "10s"},
+    {"_MasterLockTimeout", "2m"},
+    {"_MasterLockPingPeriod", "30s"},
     {"_FiniteStreams", "0"},
+    {"EnableComputationPatternResources", "false"},
     {"GracefulUpdate", "1"},
     {"UpdateTimeout", "600s"},
     {"ControllerCount", "1"},
     {"ControllerCpuLimit", "1.0"},
     {"ControllerMemoryLimit", "1G"},
+    {"ControllerRpcPort", "10080"},
+    {"ControllerMonitoringPort", "10081"},
+    {"_ControllerWriteLogsToFile", "false"},
+    {"_ControllerEnableStderrLogging", "true"},
+    {"_ControllerLogLevel", "info"},
     {"WorkerCount", "1"},
     {"WorkerCpuLimit", "1.0"},
     {"WorkerMemoryLimit", "1G"},
+    {"WorkerRpcPort", "10080"},
+    {"WorkerMonitoringPort", "10081"},
+    {"_WorkerWriteLogsToFile", "false"},
+    {"_WorkerEnableStderrLogging", "true"},
+    {"_WorkerLogLevel", "info"},
+    {"_LogsDirectory", "logs"},
     {"YtConsumerVital", "false"},
-    {"YtPartitionCount", "1"}
+    {"YtPartitionCount", "1"},
+    {"LookupJoinInflightRowLimit", "100"},
+    {"LookupJoinInflightLookupLimit", "5"},
+    {"LookupJoinLookupTimeout", "10s"},
+    {"_SwitchComputationNodeBufferSizeBytes", "0"},
+    {"_RunVanillaOperation", "true"},
 });
 
 constexpr auto DefaultPQGatewaySettings = std::array<std::pair<TStringBuf, TStringBuf>, 0>{};
