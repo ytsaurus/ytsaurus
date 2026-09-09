@@ -559,8 +559,7 @@ private:
         }
 
         if (response->execution_spec().length() != 0) {
-            auto executionSpecUpdate = ConvertTo<TExecutionSpecPtr>(
-                ConvertToNode(TYsonStringBuf(response->execution_spec())));
+            auto executionSpecUpdate = ConvertTo<TExecutionSpecPtr>(TYsonStringBuf(response->execution_spec()));
             std::vector<TPersistedStateStorageRow<std::string>> stateUpdate;
             stateUpdate.resize(response->state_update_size());
             for (int i = 0; i < response->state_update_size(); ++i) {
