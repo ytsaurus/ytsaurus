@@ -1,6 +1,8 @@
 #include "context.h"
 #include "log.h"
 
+#include <yt/yt/core/concurrency/fls.h>
+
 #include <util/thread/singleton.h>
 
 namespace NYql::NLog {
@@ -68,7 +70,9 @@ void OutputLogCtx(IOutputStream* out, bool withBraces, bool skipSessionId) {
 }
 
 NImpl::TLogContextListItem* NImpl::GetLogContextList() {
-    return FastTlsSingleton<NImpl::TLogContextListItem>();
+    // Temporary solution until proper one is rolled out
+    static NYT::NConcurrency::TFlsSlot<NImpl::TLogContextListItem> logContextList;
+    return logContextList.GetOrCreate();
 }
 
 std::pair<TString, TString> CurrentLogContextPath() {

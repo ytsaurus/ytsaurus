@@ -25,6 +25,7 @@ target_link_libraries(essentials-utils-log PUBLIC
   cpp-logger-global
   cpp-deprecated-atomic
   library-cpp-json
+  yt-yt-core
   utils-log-proto
   essentials-utils-backtrace
   yql-essentials-utils

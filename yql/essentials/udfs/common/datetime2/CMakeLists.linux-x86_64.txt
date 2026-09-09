@@ -50,6 +50,7 @@ target_link_options(datetime2_udf PRIVATE
   -fPIC
   -lrt
   -ldl
+  -lutil
 )
 
 target_sources(datetime2_udf PRIVATE

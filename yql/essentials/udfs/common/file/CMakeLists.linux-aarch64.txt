@@ -44,6 +44,7 @@ target_link_options(file_udf PRIVATE
   -fPIC
   -lrt
   -ldl
+  -lutil
 )
 
 target_sources(file_udf PRIVATE
