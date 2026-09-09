@@ -51,6 +51,7 @@ struct TJobSpecEnvironmentOptions
     bool EnableCoreDumps = false;
     bool EnableGpuCoreDumps = false;
     NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
+    std::optional<int> TargetUserId;
     i64 ThreadLimit;
 };
 
