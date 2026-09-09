@@ -380,13 +380,17 @@ void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
                 TryIncreaseMaxOffsetExclusive(*update.CommittedOffsetExclusive, false);
             }
             if (CommittedOffsetExclusive_ > NextReadOffset_) {
-                if (!CanCommittedOffsetExceedNextReadOffset()) {
+                if (update.Repositioned) {
+                    YT_TLOG_INFO("Skip NextReadOffset forward to an external position")
+                        .With("NewNextReadOffset", CommittedOffsetExclusive_)
+                        .With("OldNextReadOffset", NextReadOffset_);
+                } else if (!CanCommittedOffsetExceedNextReadOffset()) {
                     YT_TLOG_ERROR("Rewind NextReadOffset up to CommittedOffsetExclusive. Probably some input data was trimmed before reading")
                         .With("NewNextReadOffset", CommittedOffsetExclusive_)
                         .With("OldNextReadOffset", NextReadOffset_);
                 }
                 NextReadOffset_ = CommittedOffsetExclusive_;
-                MarkMissingMessagesPersisted();
+                MarkMissingMessagesPersisted(/*trimmed*/ !update.Repositioned);
             }
             if (update.MaxOffsetExclusive) {
                 TryIncreaseMaxOffsetExclusive(*update.MaxOffsetExclusive, true);
@@ -492,7 +496,7 @@ void TOrderedSourceBase::CleanUpInflightOffsets()
     MarkMissingMessagesPersisted();
 }
 
-void TOrderedSourceBase::MarkMissingMessagesPersisted()
+void TOrderedSourceBase::MarkMissingMessagesPersisted(bool trimmed)
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
 
@@ -503,7 +507,7 @@ void TOrderedSourceBase::MarkMissingMessagesPersisted()
         .With("NewPersistedOffsetExclusive", firstNotPersistedMessageOffset)
         .With("OldPersistedOffsetExclusive", State_->PersistedOffsetExclusive);
     if (firstNotPersistedMessageOffset > State_->PersistedOffsetExclusive) {
-        if (AreOffsetsConsecutive()) {
+        if (trimmed && AreOffsetsConsecutive()) {
             YT_TLOG_ERROR("Rewind PersistedOffsetExclusive up to first not persisted message offset. Probably some input data was trimmed before reading")
                 .With("OldPersistedOffsetExclusive", State_->PersistedOffsetExclusive)
                 .With("FirstNotPersistedMessageOffset", firstNotPersistedMessageOffset);

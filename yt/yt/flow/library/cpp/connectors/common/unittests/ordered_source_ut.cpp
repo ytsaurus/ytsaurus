@@ -98,6 +98,14 @@ public:
         UpdatePartitionInfo(TPartitionInfoUpdate{.CommittedOffsetExclusive = IntToOffset(offsetExclusive)});
     }
 
+    void Reposition(i64 offsetExclusive)
+    {
+        UpdatePartitionInfo(TPartitionInfoUpdate{
+            .CommittedOffsetExclusive = IntToOffset(offsetExclusive),
+            .Repositioned = true,
+        });
+    }
+
     void SetTestError(TError error)
     {
         Error_ = std::move(error);
@@ -682,6 +690,31 @@ TEST_F(TOrderedSourceTest, UnavailablePartitionAfterRestart)
             ASSERT_TRUE(inflight->InflightMetrics->UnavailableTimestamp);
         }
     }
+}
+
+TEST_F(TOrderedSourceTest, RepositionedUpdateSkipsForward)
+{
+    // An external position ahead of the persisted offset (a consumer offset an operator moved) is
+    // honored like a trim rewind, minus the alarm.
+    const auto source = MakeTestSource(SourceSpec);
+    RunInInvoker([&] () {
+        source->Init(StateManager->CreateContext()->WithPrefix("reposition"));
+        source->Reposition(100);
+    });
+
+    const auto data = RunInInvoker([&] () {
+        source->SetMaxOffset(105);
+        return UnpackBatches(WaitFor(source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    ASSERT_EQ(data.size(), 5u);
+    ASSERT_EQ(GetColumnValue<i64>(data[0].Message, "data"), 100);
+
+    const auto state = RunInInvoker([&] () {
+        source->Sync();
+        StateManager->Sync();
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/reposition/v0"));
+    });
+    ASSERT_EQ(OffsetToInt(state->PersistedOffsetExclusive), 100LL);
 }
 
 TEST_F(TOrderedSourceTest, RestartGapIsNotCountedAsUnavailable)

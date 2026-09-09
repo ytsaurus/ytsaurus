@@ -163,6 +163,9 @@ protected:
         std::optional<TOffset> CommittedOffsetExclusive = {};
         std::optional<TOffset> MaxOffsetExclusive = {};
         std::optional<TInstant> UpdateInstant = {};
+        //! The committed offset is an external position the connector chose to honor (a consumer
+        //! offset), so reading past unread data is a deliberate skip, not evidence of trimming.
+        bool Repositioned = false;
     };
 
     // To implement.
@@ -269,7 +272,8 @@ private:
     void FlushDelayedPartitionInfoUpdates();
     void TryCollapseOffsetInfo(TOffsetInfos::iterator offsetInfoIt);
     void CleanUpInflightOffsets();
-    void MarkMissingMessagesPersisted();
+    //! |trimmed| is false for a deliberate skip, which is not worth the trimming error.
+    void MarkMissingMessagesPersisted(bool trimmed = true);
     void UpdateUnavailability();
     void UpdateStatusProfilerMute();
 };
