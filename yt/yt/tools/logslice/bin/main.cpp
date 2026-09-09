@@ -17,11 +17,7 @@ using namespace NYT::NLogSlice;
 int main(int argc, char** argv)
 {
     try {
-        // NLastGetopt's default permutation mode looks past free arguments for
-        // options. In a command such as "logslice FILE -- -F pattern" this
-        // makes it skip over both FILE and "--", then consume -F as a logslice
-        // option. Split at the delimiter first so the right-hand side never
-        // reaches the logslice option parser.
+        // Split off the delimiter before NLastGetopt permutes free arguments.
         int optionArgc = argc;
         std::vector<std::string> trailingGrepArgs;
         for (int index = 1; index < argc; ++index) {
