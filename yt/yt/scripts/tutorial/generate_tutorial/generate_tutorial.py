@@ -482,7 +482,7 @@ def upload_tutorials(args: argparse.Namespace):
     client = make_yt_client(args)
     path_to_query_ids_table = args.yt_directory + "/query_ids"
     if args.full_wipe_annotations:
-        full_queries = client.list_queries(stage=args.stage, filter="is_tutorial")["queries"]
+        full_queries = client.list_queries(stage=args.stage, tutorial_filter=True)["queries"]
         print(f"Full queries: {full_queries}")
         for query in full_queries:
             if "is_tutorial" in query["annotations"]:
