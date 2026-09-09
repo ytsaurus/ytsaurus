@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/distributed_chunk_session_client/statistics.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -20,11 +22,18 @@ struct IDistributedChunkSessionSequencer
 {
     virtual TFuture<void> Open() = 0;
 
-    virtual TFuture<void> WriteRecord(TSharedRef record) = 0;
+    //! Submission failures are reported through the returned future, never by throwing.
+    virtual TFuture<void> WriteRecord(
+        TSharedRef record,
+        NDistributedChunkSessionClient::TDistributedChunkSessionWriteStatistics statistics) noexcept = 0;
+
+    //! Returns the progress of the longest quorum-confirmed contiguous record prefix.
+    virtual NDistributedChunkSessionClient::TDistributedChunkSessionProgress GetProgress() const = 0;
 
     virtual TFuture<void> GetClosedFuture() = 0;
 
-    virtual TFuture<void> Close() = 0;
+    //! Must not be called before Open().
+    virtual TFuture<NDistributedChunkSessionClient::TDistributedChunkSessionProgress> Close() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionSequencer)

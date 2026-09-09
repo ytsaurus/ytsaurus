@@ -261,6 +261,7 @@ SRCS(
     distributed_chunk_session_client/helpers.cpp
     distributed_chunk_session_client/seal_summary_fetcher.cpp
     distributed_chunk_session_client/seal_monitor.cpp
+    distributed_chunk_session_client/statistics.cpp
     distributed_chunk_session_client/session_pool.cpp
     distributed_chunk_session_client/session_writer.cpp
     distributed_chunk_session_client/session_controller.cpp

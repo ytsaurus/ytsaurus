@@ -10,6 +10,15 @@ namespace NYT::NDistributedChunkSessionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TSessionProgress;
+class TWriteRecordStatistics;
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(IDistributedChunkSessionController)
 DECLARE_REFCOUNTED_STRUCT(IDistributedChunkSessionPool)
 DECLARE_REFCOUNTED_STRUCT(IDistributedChunkSessionSealMonitor)

@@ -10,6 +10,24 @@ import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TWriteRecordStatistics
+{
+    optional int64 data_weight = 1;
+    optional int64 uncompressed_data_size = 2;
+    optional int64 row_count = 3;
+}
+
+message TSessionProgress
+{
+    optional int64 data_weight = 1;
+    optional int64 compressed_data_size = 2;
+    optional int64 uncompressed_data_size = 3;
+    optional int64 record_count = 4;
+    optional int64 row_count = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqStartSession
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
@@ -30,13 +48,16 @@ message TReqPingSession
 }
 
 message TRspPingSession
-{ }
+{
+    optional TSessionProgress progress = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqWriteRecord
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
+    optional TWriteRecordStatistics statistics = 2;
 }
 
 message TRspWriteRecord
@@ -50,4 +71,6 @@ message TReqFinishSession
 }
 
 message TRspFinishSession
-{ }
+{
+    optional TSessionProgress progress = 1;
+}

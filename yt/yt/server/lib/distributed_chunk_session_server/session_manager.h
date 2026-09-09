@@ -25,7 +25,8 @@ struct IDistributedChunkSessionManager
         NApi::TJournalChunkWriterOptionsPtr options,
         NApi::TJournalChunkWriterConfigPtr config) = 0;
 
-    virtual void RenewSessionLease(NChunkClient::TSessionId sessionId) = 0;
+    virtual IDistributedChunkSessionSequencerPtr RenewSessionLeaseAndGetSequencerOrThrow(
+        NChunkClient::TSessionId sessionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionManager)
