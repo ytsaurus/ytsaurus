@@ -35,8 +35,8 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/concurrency/context_switch.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
@@ -777,9 +777,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     TStringBuilder schedulingAttributesBuilder;
     TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
-    strategyProxy->BuildSchedulingAttributesString(
-        schedulingHeartbeatContext,
-        delimitedSchedulingAttributesBuilder);
+    {
+        TForbidContextSwitchGuard guard;
+
+        strategyProxy->BuildSchedulingAttributesString(
+            schedulingHeartbeatContext,
+            delimitedSchedulingAttributesBuilder);
+    }
     context->SetRawResponseInfo(schedulingAttributesBuilder.Flush(), /*incremental*/ true);
 
     FillNodeProfilingTags(response, strategyProxy);
@@ -1208,6 +1212,10 @@ void TNodeShard::AbortAllocations(const std::vector<TAllocationId>& allocationId
 TNodeYsonList TNodeShard::BuildNodeYsonList() const
 {
     YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
+
+    // NB: A context switch under #BuildNodeYson would let node (un)registration
+    // invalidate the iterator, so it is explicitly forbidden here.
+    TForbidContextSwitchGuard guard;
 
     TNodeYsonList nodeYsons;
     nodeYsons.reserve(std::ssize(IdToNode_));
@@ -1894,6 +1902,8 @@ void TNodeShard::LogOngoingAllocationsOnHeartbeat(
     const TStateToAllocationList& ongoingAllocationsByState,
     const TExecNodePtr& node) const
 {
+    TForbidContextSwitchGuard guard;
+
     for (auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
         const auto& allocations = ongoingAllocationsByState[allocationState];
         if (allocations.empty() || !strategyProxy->HasMatchingTree()) {
