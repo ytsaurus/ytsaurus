@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_policy.h>
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -44,6 +46,8 @@ struct TNodeSnapshotState
     TJobResources AssignedResourceUsage;
     int AllocationsToPreemptCount = 0;
     int PreemptedAllocationsCount = 0;
+
+    TGpuScheduleAllocationsStatisticsPtr LastSchedulingHeartbeatStatistics;
 
     std::vector<TAllocationId> AllocationIds;
 };

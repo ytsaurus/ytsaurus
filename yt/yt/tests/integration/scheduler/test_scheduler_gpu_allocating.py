@@ -17,7 +17,7 @@ from yt_commands import (
     update_pool_tree_config_option, create_pool_tree, exists, map, update_scheduler_config, create_pool, set_node_banned, set,
     run_test_vanilla, with_breakpoint, release_breakpoint, get_allocation_id_from_job_id, vanilla, update_op_parameters, abort_job,
     print_debug, update_controller_agent_config, update_nodes_dynamic_config, get_applied_node_dynamic_config,
-    raises_yt_error, remove_pool_tree,
+    raises_yt_error, remove_pool_tree, set_nodes_banned,
 )
 
 from yt_scheduler_helpers import (
@@ -4676,3 +4676,59 @@ class TestAllocatingGpuSchedulingFullHostNonGangOperations(AllocatingGpuScheduli
         wait_for_assignments_in_gpu_policy_orchid(mapper, 1, exactly=True)
         assignment = get_operation_from_gpu_policy_orchid(mapper)["assignments"][0]
         assert assignment["node_address"] in sas_nodes
+
+
+##################################################################
+
+
+class TestAllocatingGpuSchedulingPolicyNodeYsonBuilding(AllocatingGpuSchedulingPolicyBaseConfig):
+    # NB: A single node shard owns every node, so that its node map iteration spans several nodes.
+    # Without this the shard may hold a single node and the invalidated iteration is never observed.
+    NUM_NODES = 6
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            # Keep the control thread's strategy queue busy, so that every per-node switch out of
+            # the node shard takes a while. This keeps the node yson list build, and hence the
+            # iteration over the node map, running essentially all of the time.
+            "fair_share_update_period": 10,
+            "fair_share_profiling_period": 10,
+            "node_shard_count": 1,
+            # Rebuild the node yson list as often as possible to widen the window.
+            "nodes_info_logging_period": 10,
+            "static_orchid_cache_update_period": 10,
+            # Make a banned node leave the node shard map quickly, and let it back in on unban.
+            # A node is dropped from the map only once it is offline at master (ban does that)
+            # and offline at the scheduler, which happens when its heartbeat lease expires.
+            "nodes_attributes_update_period": 100,
+            "exec_node_descriptors_update_period": 100,
+            "node_heartbeat_timeout": 1000,
+            "max_offline_node_age": 300,
+        }
+    }
+
+    def _scheduler_nodes(self):
+        return get(scheduler_orchid_path() + "/scheduler/nodes", default={})
+
+    @authors("yaishenka")
+    def test_node_yson_building_survives_node_churn(self):
+        # BuildNodeYsonList used to switch context to the control thread mid-iteration over
+        # IdToNode_, so a concurrent node (un)registration invalidated the iterator. Churn nodes
+        # while the scheduler rebuilds the node yson list; a switch now trips the forbid guard.
+        #
+        # NB: Only erasing the entry that is being built right now invalidates the iteration,
+        # hence several nodes are churned at once.
+        churned_nodes = ls("//sys/cluster_nodes")[:3]
+
+        for _ in range(15):
+            # Removal from the node shard map, i.e. erases from IdToNode_.
+            set_nodes_banned(churned_nodes, True)
+            wait(lambda: all(node not in self._scheduler_nodes() for node in churned_nodes), timeout=60)
+
+            # Bring the nodes back so that the next iteration has something to erase again.
+            set_nodes_banned(churned_nodes, False)
+            wait(lambda: all(node in self._scheduler_nodes() for node in churned_nodes), timeout=60)
+
+        # A crashed scheduler shows up as an unreachable orchid here.
+        wait(lambda: len(self._scheduler_nodes()) == self.NUM_NODES)

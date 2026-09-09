@@ -254,9 +254,10 @@ struct TGpuScheduleAllocationsStatistics
     // NB(severovv): not serialized or logged, only used in metrics
     TScheduleAllocationAttemptStatistics AttemptStatistics;
 };
-using TGpuScheduleAllocationsStatisticsPtr = TIntrusivePtr<TGpuScheduleAllocationsStatistics>;
 
 void Serialize(const TGpuScheduleAllocationsStatisticsPtr& statistics, NYson::IYsonConsumer* consumer);
+
+DEFINE_REFCOUNTED_TYPE(TGpuScheduleAllocationsStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 

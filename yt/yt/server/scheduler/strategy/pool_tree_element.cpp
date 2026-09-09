@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/concurrency/context_switch.h>
+
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -180,6 +182,8 @@ void TPoolTreeElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapp
 
 TString TPoolTreeElement::GetLoggingString(const TPoolTreeSnapshotPtr& treeSnapshot) const
 {
+    NConcurrency::TForbidContextSwitchGuard guard;
+
     TStringBuilder builder;
     builder.AppendFormat("Scheduling info for tree %Qv = {", GetTreeId());
 

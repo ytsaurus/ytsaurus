@@ -1,6 +1,7 @@
 #include "pool_tree_snapshot_state.h"
 
 #include "config_wrapper.h"
+#include "structs.h"
 
 #include <yt/yt/server/scheduler/strategy/policy/scheduling_segment_manager.h>
 

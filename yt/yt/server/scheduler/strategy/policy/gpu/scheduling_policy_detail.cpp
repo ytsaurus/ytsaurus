@@ -62,12 +62,30 @@ TAllocationInfoMap CollectRunningAllocationInfos(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGpuScheduleAllocationsStatisticsPtr FindScheduleAllocationsStatistics(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
+{
+    return DynamicPointerCast<TGpuScheduleAllocationsStatistics>(schedulingHeartbeatContext->GetSchedulingStatistics());
+}
+
 TGpuScheduleAllocationsStatisticsPtr GetScheduleAllocationsStatistics(const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext)
 {
-    auto statistics = DynamicPointerCast<TGpuScheduleAllocationsStatistics>(schedulingHeartbeatContext->GetSchedulingStatistics());
+    auto statistics = FindScheduleAllocationsStatistics(schedulingHeartbeatContext);
     YT_VERIFY(statistics);
 
     return statistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TNodeSnapshotState* FindNodeSnapshotState(const TPoolTreeSnapshotPtr& treeSnapshot, TNodeId nodeId)
+{
+    if (!treeSnapshot) {
+        return nullptr;
+    }
+
+    const auto& nodeStates = GetPoolTreeSnapshotState(treeSnapshot)->NodeStates();
+    auto it = nodeStates.find(nodeId);
+    return it != nodeStates.end() ? &it->second : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -541,36 +559,46 @@ std::vector<TProcessAllocationUpdateResult> TSchedulingPolicy::DoProcessAllocati
     return updateResults;
 }
 
-// TODO(YT-27647): Save node info by NodeShards and don't switch to control here.
 void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     TNodeId nodeId,
     TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    Y_UNUSED(WaitFor(BIND(
-        &TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode,
-        MakeWeak(this),
-        schedulingHeartbeatContext,
-        nodeId,
-        std::addressof(delimitedBuilder))
-        .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
-        .Run()));
+    if (const auto* nodeState = FindNodeSnapshotState(treeSnapshot, nodeId)) {
+        delimitedBuilder->AppendFormat(
+            "SchedulingModule: %v, AssignedUsage: %v",
+            nodeState->SchedulingModule,
+            nodeState->AssignedResourceUsage);
+    }
+
+    auto statistics = FindScheduleAllocationsStatistics(schedulingHeartbeatContext);
+    if (statistics) {
+        delimitedBuilder->AppendFormat(
+            "ControllerScheduleAllocationCount: %v, ControllerScheduleAllocationTimedOutCount: %v",
+            statistics->ControllerScheduleAllocationCount,
+            statistics->ControllerScheduleAllocationTimedOutCount);
+    }
 }
 
-// TODO(YT-27647): Save node info by NodeShards and don't switch to control here.
-void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
+void TSchedulingPolicy::BuildSchedulingAttributesForNode(
+    const TPoolTreeSnapshotPtr& treeSnapshot,
+    TNodeId nodeId,
+    TFluentMap fluent) const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    Y_UNUSED(WaitFor(BIND(
-        &TSchedulingPolicy::DoBuildSchedulingAttributesForNode,
-        MakeWeak(this),
-        nodeId,
-        fluent)
-        .AsyncVia(StrategyHost_->GetControlInvoker(EControlQueue::Strategy))
-        .Run()));
+    const auto* nodeState = FindNodeSnapshotState(treeSnapshot, nodeId);
+    if (!nodeState) {
+        return;
+    }
+
+    fluent
+        .Item("module").Value(nodeState->SchedulingModule)
+        .Item("allocation_ids").List(nodeState->AllocationIds)
+        .OptionalItem("last_heartbeat_statistics", nodeState->LastSchedulingHeartbeatStatistics);
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
@@ -579,6 +607,8 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(
     TInstant now,
     TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     if (!treeSnapshot) {
         return;
     }
@@ -614,6 +644,8 @@ void TSchedulingPolicy::BuildElementLoggingStringAttributes(
     const TPoolTreeElement* element,
     TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     if (!treeSnapshot || element->GetType() != ESchedulerElementType::Operation) {
         return;
     }
@@ -1935,50 +1967,6 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessFinishedAllocation(
     };
 }
 
-// TODO(YT-27867): consider to add more info here
-void TSchedulingPolicy::DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    auto node = GetOrDefault(Nodes_, nodeId);
-    if (!node) {
-        return;
-    }
-
-    fluent
-        .Item("module").Value(node->SchedulingModule())
-        .Item("assignments").List(node->Assignments())
-        .OptionalItem("last_heartbeat_statistics", node->LastSchedulingHeartbeatStatistics());
-}
-
-// TODO(YT-27867): consider to add more info here
-void TSchedulingPolicy::DoBuildSchedulingAttributesStringForNode(
-    const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-    TNodeId nodeId,
-    TDelimitedStringBuilderWrapper* builderWrapper) const
-{
-    YT_ASSERT_THREAD_AFFINITY(ControlThread);
-
-    auto node = GetOrDefault(Nodes_, nodeId);
-    if (!node) {
-        return;
-    }
-
-    auto& builder = *builderWrapper;
-    builder->AppendFormat(
-        "SchedulingModule: %v, AssignedUsage: %v",
-        node->SchedulingModule(),
-        node->AssignedResourceUsage());
-
-    auto statistics = DynamicPointerCast<TGpuScheduleAllocationsStatistics>(schedulingHeartbeatContext->GetSchedulingStatistics());
-    if (statistics) {
-        builder->AppendFormat(
-            "ControllerScheduleAllocationCount: %v, ControllerScheduleAllocationTimedOutCount: %v",
-            statistics->ControllerScheduleAllocationCount,
-            statistics->ControllerScheduleAllocationTimedOutCount);
-    }
-}
-
 void TSchedulingPolicy::RemovePendingRevivedAllocation(TNodeId nodeId, TAllocationId allocationId)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -2053,12 +2041,16 @@ TFuture<std::vector<TProcessAllocationUpdateResult>> TNoopSchedulingPolicy::Proc
 }
 
 void TNoopSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
     TNodeId /*nodeId*/,
     TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const
 { }
 
-void TNoopSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId /*nodeId*/, TFluentMap /*fluent*/) const
+void TNoopSchedulingPolicy::BuildSchedulingAttributesForNode(
+    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+    TNodeId /*nodeId*/,
+    TFluentMap /*fluent*/) const
 { }
 
 void TNoopSchedulingPolicy::BuildSchedulingAttributesStringForOngoingAllocations(

@@ -2974,6 +2974,7 @@ private:
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
         SchedulingPolicy_->BuildSchedulingAttributesStringForNode(
+            GetAtomicTreeSnapshot(),
             schedulingHeartbeatContext,
             nodeId,
             delimitedBuilder);
@@ -2981,7 +2982,7 @@ private:
 
     void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override
     {
-        SchedulingPolicy_->BuildSchedulingAttributesForNode(nodeId, fluent);
+        SchedulingPolicy_->BuildSchedulingAttributesForNode(GetAtomicTreeSnapshot(), nodeId, fluent);
     }
 
     void BuildSchedulingAttributesStringForOngoingAllocations(

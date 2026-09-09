@@ -131,11 +131,15 @@ public:
         const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     void BuildSchedulingAttributesStringForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
-    void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override;
+    void BuildSchedulingAttributesForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        TNodeId nodeId,
+        TFluentMap fluent) const override;
 
     // TODO(yaishenka): implement these methods in YT-27633.
     void BuildSchedulingAttributesStringForOngoingAllocations(
@@ -305,12 +309,6 @@ private:
         const TAssignmentPtr& assignment,
         const TAllocationStatePtr& allocation);
 
-    void DoBuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const;
-    void DoBuildSchedulingAttributesStringForNode(
-        const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
-        TNodeId nodeId,
-        TDelimitedStringBuilderWrapper* builderWrapper) const;
-
     void RemovePendingRevivedAllocation(TNodeId nodeId, TAllocationId allocationId);
 };
 
@@ -369,11 +367,15 @@ public:
         const std::vector<TAllocationUpdate>& allocationUpdates) override;
 
     void BuildSchedulingAttributesStringForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const override;
 
-    void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override;
+    void BuildSchedulingAttributesForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        TNodeId nodeId,
+        TFluentMap fluent) const override;
 
     void BuildSchedulingAttributesStringForOngoingAllocations(
         const TPoolTreeSnapshotPtr& treeSnapshot,

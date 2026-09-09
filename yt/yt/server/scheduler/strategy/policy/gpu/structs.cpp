@@ -499,6 +499,7 @@ TNodeSnapshotState TNode::BuildSnapshotInfo() const
         .AssignedResourceUsage = AssignedResourceUsage_,
         .AllocationsToPreemptCount = static_cast<int>(std::ssize(AllocationsToPreempt_)),
         .PreemptedAllocationsCount = static_cast<int>(std::ssize(PreemptedAllocations_)),
+        .LastSchedulingHeartbeatStatistics = LastSchedulingHeartbeatStatistics_,
     };
 
     info.AllocationIds.reserve(AllocationIdToAssignment_.size());

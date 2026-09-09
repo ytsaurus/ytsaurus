@@ -61,6 +61,7 @@ DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TNode)
 
 DECLARE_REFCOUNTED_STRUCT(TGpuPlanUpdateStatistics)
+DECLARE_REFCOUNTED_STRUCT(TGpuScheduleAllocationsStatistics)
 
 struct IAssignmentPlanUpdateContext;
 

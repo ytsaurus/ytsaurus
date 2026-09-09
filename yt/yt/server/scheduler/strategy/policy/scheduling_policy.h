@@ -131,10 +131,14 @@ struct ISchedulingPolicy
     //! Diagnostics.
     //! Thread affinity: Any.
     virtual void BuildSchedulingAttributesStringForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
         const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
         NNodeTrackerClient::TNodeId nodeId,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
-    virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
+    virtual void BuildSchedulingAttributesForNode(
+        const TPoolTreeSnapshotPtr& treeSnapshot,
+        NNodeTrackerClient::TNodeId nodeId,
+        NYTree::TFluentMap fluent) const = 0;
     virtual void BuildSchedulingAttributesStringForOngoingAllocations(
         const TPoolTreeSnapshotPtr& treeSnapshot,
         const std::vector<TAllocationPtr>& allocations,
