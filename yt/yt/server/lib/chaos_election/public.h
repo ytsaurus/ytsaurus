@@ -9,6 +9,8 @@ namespace NYT::NChaosElection {
 DECLARE_REFCOUNTED_STRUCT(TChaosElectionManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TChaosElectionManagerOptions)
 
+DECLARE_REFCOUNTED_CLASS(TChaosLeaseFactory)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosElection
