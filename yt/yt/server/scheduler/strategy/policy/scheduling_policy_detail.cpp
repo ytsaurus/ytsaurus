@@ -2856,6 +2856,7 @@ TProcessAllocationUpdateResult TSchedulingPolicy::ProcessAllocationUpdate(
 }
 
 void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
+    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
     const ISchedulingHeartbeatContextPtr& schedulingHeartbeatContext,
     TNodeId nodeId,
     TDelimitedStringBuilderWrapper& delimitedBuilder) const
@@ -2886,7 +2887,10 @@ void TSchedulingPolicy::BuildSchedulingAttributesStringForNode(
     }
 }
 
-void TSchedulingPolicy::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
+void TSchedulingPolicy::BuildSchedulingAttributesForNode(
+    const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+    TNodeId nodeId,
+    TFluentMap fluent) const
 {
     auto nodeState = FindNodeState(nodeId);
     if (!nodeState) {
