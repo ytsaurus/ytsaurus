@@ -8,6 +8,7 @@ TEST_SRCS(
     test_computation.py
     test_context.py
     test_state.py
+    test_internal_state_tracking.py
     test_request_processor.py
     test_resource_store.py
     test_server.py

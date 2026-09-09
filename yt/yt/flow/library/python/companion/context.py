@@ -3,6 +3,7 @@ Context classes: PipelineContext, RuntimeContext, DefaultRuntimeContext,
 StateAccessor, ResponseContext, RequestContext.
 """
 
+import copy
 import logging
 import os
 from dataclasses import dataclass, field
@@ -55,110 +56,202 @@ def _validate_external_state_name(name: str) -> None:
 # ---------- State Accessors ----------
 
 
-class StateAccessor:
-    """Generic state accessor."""
+class ReadOnlyStateError(RuntimeError):
+    """Raised when code tries to write through a read-only state accessor."""
 
-    def __init__(self, key: Payload, states_holder: StatesHolder):
+
+class StateAccessor:
+    """Generic internal state accessor.
+
+    The value returned by ``get()`` is live: for a given key it is decoded once per request, every
+    accessor for that key returns the same object, and the changes made to that object in place
+    are written back at the end of the request without a ``set()`` call.  A value that re-encodes
+    to the bytes it arrived with is not sent back.  ``read_only()`` returns the untracked view.
+    """
+
+    def __init__(self, key: Payload, states_holder: StatesHolder, read_only: bool = False):
         self._key = key
         self._states_holder = states_holder
+        self._read_only = read_only
+
+    def set(self, value: Any) -> None:
+        """Store |value| under the accessor's key.
+
+        The stored object stays live: the changes made to it in place afterwards are written back
+        as well.
+        """
+        self._store(State(state=self._encode(value), value=value, codec=self._codec(), encode=self._encode))
+
+    def clear(self) -> None:
+        """Remove the state stored under the accessor's key."""
+        self._store(STATE_RESET)
+
+    def get_or_default(self, default: Any) -> Any:
+        """Value stored under the accessor's key, or |default|.
+
+        The default becomes the state value and is written back, as after ``set()``, so that it
+        can be changed in place right away.  A ``None`` default carries no value and is not
+        stored, and neither is the default of an accessor that cannot write.
+        """
+        state = self._get_state()
+        if state is not None:
+            return self._read(state)
+        default = self._default_value(default)
+        if default is not None and self._is_writable():
+            self.set(default)
+        return default
+
+    def read_only(self) -> "StateAccessor":
+        """Read-only view of this accessor.
+
+        It returns the same object, but reading through it does not track the state for changes,
+        ``get_or_default()`` does not create the state, and ``set()`` and ``clear()`` raise
+        :class:`ReadOnlyStateError`.
+        """
+        if self._read_only:
+            return self
+        view = copy.copy(self)
+        view._read_only = True
+        return view
 
     def _get_row_key(self):
         return self._key.row if self._key else None
 
-
-class RawStateAccessor(StateAccessor):
-    """State accessor for raw bytes."""
-
-    def get(self) -> Optional[bytes]:
+    def _get_state(self) -> Optional[State]:
+        """State entry stored under the accessor's key, or None when there is no value."""
         key = self._get_row_key()
         if key is None:
             return None
         state = self._states_holder.get(key)
-        if state is None or state.reset:
+        if state is None or state.reset or state.state is None:
             return None
-        return state.state
+        return state
 
-    def set(self, value: bytes):
-        key = self._get_row_key()
-        self._states_holder.set(key, State(reset=False, state=value))
+    def _is_writable(self) -> bool:
+        """Whether a value can be stored: a read-only view and a keyless accessor never store."""
+        return not self._read_only and self._get_row_key() is not None
 
-    def clear(self):
-        key = self._get_row_key()
-        self._states_holder.set(key, STATE_RESET)
+    def _read(self, state: State) -> Any:
+        """Value of |state|, tracked for changes unless this accessor is read-only."""
+        if self._read_only:
+            return state.get_value(self._codec(), self._decode)
+        return state.get_mutable_value(self._codec(), self._decode, self._encode)
 
-    def get_or_default(self, default: bytes) -> bytes:
-        result = self.get()
-        return result if result is not None else default
+    def _read_state(self) -> Any:
+        """Value stored under the accessor's key, or None when the state is absent."""
+        state = self._get_state()
+        return self._read(state) if state is not None else None
+
+    def _store(self, state: State) -> None:
+        if self._read_only:
+            raise ReadOnlyStateError(f"Internal state is read-only (StateName: {self._states_holder.name})")
+        self._states_holder.set(self._get_row_key(), state)
+
+    def _default_value(self, default: Any) -> Any:
+        """Value to store when the state is absent, resolved only then."""
+        return default
+
+    def _codec(self) -> Any:
+        """Identity of this accessor's encoding, telling whose value a state memoized."""
+        return type(self)
+
+    def _decode(self, data: bytes) -> Any:
+        raise NotImplementedError
+
+    def _encode(self, value: Any) -> bytes:
+        raise NotImplementedError
+
+
+class RawStateAccessor(StateAccessor):
+    """State accessor for raw bytes.
+
+    ``bytes`` is immutable, so a raw state cannot be changed in place; it is written by ``set()``.
+    """
+
+    def get(self) -> Optional[bytes]:
+        """Bytes stored under the accessor's key."""
+        return self._read_state()
+
+    def _read(self, state: State) -> Optional[bytes]:
+        # Immutable bytes have nothing to track: a read never marks the state modified.
+        return state.get_value(self._codec(), self._decode)
+
+    @staticmethod
+    def _decode(data: bytes) -> bytes:
+        return data
+
+    @staticmethod
+    def _encode(value: bytes) -> bytes:
+        return value
 
 
 class YsonStateAccessor(StateAccessor):
-    """State accessor for YSON-encoded dict values."""
+    """State accessor for YSON-encoded dict values.
+
+    A decoded value is mutable, so the changes made to it in place are written back; see
+    :class:`StateAccessor`.
+    """
 
     def get(self) -> Optional[Any]:
+        """YSON-decoded value stored under the accessor's key."""
+        return self._read_state()
+
+    def set(self, value: Any) -> None:
+        """Store |value|; a ``bytes`` value is taken as already YSON-encoded."""
+        if isinstance(value, bytes):
+            self._store(State(state=value))
+            return
+        super().set(value)
+
+    @staticmethod
+    def _decode(data: bytes) -> Any:
         import yt.yson as yson
 
-        key = self._get_row_key()
-        if key is None:
-            return None
-        state = self._states_holder.get(key)
-        if state is None or state.reset:
-            return None
-        if state.state is None:
-            return None
-        return yson.loads(state.state)
+        return yson.loads(data)
 
-    def set(self, value: Any):
+    @staticmethod
+    def _encode(value: Any) -> bytes:
         import yt.yson as yson
 
-        key = self._get_row_key()
-        data = yson.dumps(value) if not isinstance(value, bytes) else value
-        self._states_holder.set(key, State(reset=False, state=data))
-
-    def clear(self):
-        key = self._get_row_key()
-        self._states_holder.set(key, STATE_RESET)
-
-    def get_or_default(self, default: Any) -> Any:
-        result = self.get()
-        return result if result is not None else default
+        return yson.dumps(value)
 
 
 class ProtoStateAccessor(StateAccessor):
-    """State accessor for protobuf message values."""
+    """State accessor for protobuf message values.
 
-    def __init__(self, key, states_holder, proto_class):
-        super().__init__(key, states_holder)
+    A message is mutable, so the changes made to it in place are written back; see
+    :class:`StateAccessor`.
+    """
+
+    def __init__(self, key: Payload, states_holder: StatesHolder, proto_class, read_only: bool = False):
+        super().__init__(key, states_holder, read_only)
         self._proto_class = proto_class
 
     def get(self):
-        key = self._get_row_key()
-        if key is None:
-            return None
-        state = self._states_holder.get(key)
-        if state is None or state.reset:
-            return None
-        if state.state is None:
-            return None
-        msg = self._proto_class()
-        msg.ParseFromString(state.state)
-        return msg
-
-    def set(self, value):
-        key = self._get_row_key()
-        data = value.SerializeToString()
-        self._states_holder.set(key, State(reset=False, state=data))
-
-    def clear(self):
-        key = self._get_row_key()
-        self._states_holder.set(key, STATE_RESET)
+        """Protobuf message stored under the accessor's key."""
+        return self._read_state()
 
     def get_or_default(self, default=None):
-        result = self.get()
-        if result is not None:
-            return result
-        if default is not None:
-            return default
-        return self._proto_class()
+        """Value stored under the accessor's key, |default|, or an empty message of the state's
+        proto class; the default is stored as in :meth:`StateAccessor.get_or_default`.
+        """
+        return super().get_or_default(default)
+
+    def _default_value(self, default):
+        return default if default is not None else self._proto_class()
+
+    def _codec(self):
+        # Two accessors share a memoized message only when they decode the same proto class.
+        return type(self), self._proto_class
+
+    def _decode(self, data: bytes):
+        message = self._proto_class()
+        message.ParseFromString(data)
+        return message
+
+    @staticmethod
+    def _encode(value) -> bytes:
+        return value.SerializeToString()
 
 
 class ExternalStateAccessor(Payload):

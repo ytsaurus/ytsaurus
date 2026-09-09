@@ -16,7 +16,23 @@ Python SDK предоставляет три вида аксессоров дл�
 | [RawStateAccessor](#raw-state-accessor) | `bytes` | Без сериализации (сырые байты) |
 | [ProtoStateAccessor](#proto-state-accessor) | Protobuf | Сериализация через Protobuf |
 
-Все аксессоры предоставляют единый набор методов: `get()`, `set(value)`, `clear()`, `get_or_default(default)`.
+Все аксессоры предоставляют единый набор методов: `get()`, `set(value)`, `clear()`, `get_or_default(default)`, `read_only()`.
+
+## Изменение значения на месте {#in-place}
+
+Значение, которое возвращают `get()` и `get_or_default()`, живое: для каждого ключа оно декодируется один раз за батч, все аксессоры этого ключа возвращают один и тот же объект, а изменения, сделанные в нём, записываются в стейт по окончании батча без вызова `set()`. Если значение не изменилось, запись не выполняется. Дефолт из `get_or_default()` становится значением стейта и записывается, как после `set()`, поэтому его можно сразу изменять:
+
+```python
+ctx.state("word-state", message).get_or_default({"count": 0})["count"] += 1
+```
+
+`set()` по-прежнему заменяет значение целиком, `clear()` удаляет стейт. Дефолт `None` значением не является и не записывается. Объект `bytes` неизменяем, поэтому стейт `RawStateAccessor` записывается только через `set()`.
+
+Чтобы отследить изменения, прочитанное значение перекодируется по окончании батча. Если вычисление только читает стейт, используйте `read_only()`: такой аксессор возвращает тот же объект, но не отслеживает его, `get_or_default()` не создаёт стейт, а `set()` и `clear()` бросают `ReadOnlyStateError`:
+
+```python
+count = ctx.state("word-state", message).read_only().get_or_default({"count": 0})["count"]
+```
 
 ## YsonStateAccessor {#yson-state-accessor}
 
@@ -41,7 +57,7 @@ state = ctx.state("state-name", timer)
 | `get()` | `dict` или `None` | Десериализовать и вернуть текущее значение |
 | `set(value)` | — | Сериализовать и сохранить значение (dict или bytes) |
 | `clear()` | — | Удалить стейт для текущего ключа |
-| `get_or_default(default)` | `dict` | Вернуть текущее значение или `default` |
+| `get_or_default(default)` | `dict` | Вернуть текущее значение или записать и вернуть `default` |
 
 ### Пример из WordCount
 
@@ -74,7 +90,7 @@ state = ctx.raw_state("state-name", timer)
 | `get()` | `bytes` или `None` | Получить сырые байты |
 | `set(value: bytes)` | — | Сохранить сырые байты |
 | `clear()` | — | Удалить стейт для текущего ключа |
-| `get_or_default(default: bytes)` | `bytes` | Вернуть текущее значение или `default` |
+| `get_or_default(default: bytes)` | `bytes` | Вернуть текущее значение или записать и вернуть `default` |
 
 ### Пример использования
 
@@ -118,7 +134,7 @@ state = ctx.proto_state("state-name", timer, TJoinState)
 | `get()` | Proto-объект или `None` | Десериализовать и вернуть значение |
 | `set(value)` | — | Сериализовать и сохранить Proto-объект |
 | `clear()` | — | Удалить стейт для текущего ключа |
-| `get_or_default(default=None)` | Proto-объект | Вернуть значение, `default`, или пустой экземпляр Proto-класса |
+| `get_or_default(default=None)` | Proto-объект | Вернуть значение или записать и вернуть `default`, либо пустой экземпляр Proto-класса |
 
 {% note info %}
 
