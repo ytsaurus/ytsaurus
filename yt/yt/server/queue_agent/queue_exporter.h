@@ -1,7 +1,7 @@
 #pragma once
 
-#include "private.h"
 #include "config.h"
+#include "private.h"
 #include "queue_exporter_profile_manager.h"
 
 #include <yt/yt/server/lib/alert_manager/alert_manager.h>
@@ -12,9 +12,9 @@
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt/client/ypath/rich.h>
-
 #include <yt/yt/client/queue_client/config.h>
+
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/library/auth/auth.h>
 

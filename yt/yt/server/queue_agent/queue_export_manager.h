@@ -1,7 +1,7 @@
 #pragma once
 
-#include "private.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/hive/public.h>
 
