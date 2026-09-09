@@ -67,11 +67,6 @@ void IComputationRunContext::MarkDeduplicated(TMessageId messageId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TComputationOrchidState::Register(TRegistrar /*registrar*/)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TComputationStatus::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_traverse", &TThis::NodeTraverse)

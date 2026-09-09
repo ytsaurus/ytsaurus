@@ -54,11 +54,6 @@ struct TNullComputation
     void SetInputTraverse(THashMap<TStreamId, TStreamTraverseDataPtr> /*inputStreams*/) override
     { }
 
-    TComputationOrchidStatePtr GetOrchidState() override
-    {
-        return New<TComputationOrchidState>();
-    }
-
     TComputationStatusPtr GetStatus() override
     {
         auto status = New<TComputationStatus>();

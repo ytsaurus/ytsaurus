@@ -60,10 +60,11 @@ DEFINE_REFCOUNTED_TYPE(TJobContext);
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobOrchidState
-    : public virtual NYTree::TYsonStruct
+    : public NYTree::TYsonStruct
 {
-    TJobStatusPtr Status;
-    TComputationOrchidStatePtr Computation;
+    i64 CommittedEpochCount = 0;
+    THashMap<TStreamId, TStreamUsage> InputStreams;
+    THashMap<TStreamId, TStreamUsage> OutputStreams;
 
     REGISTER_YSON_STRUCT(TJobOrchidState);
 
@@ -91,7 +92,7 @@ struct IJob
     virtual TFuture<TJobStatusPtr> GetStatus() = 0;
     virtual IInputBufferPtr GetInputBuffer() = 0;
 
-    virtual TFuture<TJobOrchidStatePtr> GetOrchidState() = 0;
+    virtual TJobOrchidStatePtr GetOrchidState() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob);

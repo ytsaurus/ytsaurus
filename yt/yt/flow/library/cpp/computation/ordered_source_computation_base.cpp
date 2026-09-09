@@ -42,15 +42,6 @@ void TOrderedSourceComputationBase::DoPrepare(const IComputationRunContextPtr& c
     InitOutputStoreDistribution(context);
 }
 
-TComputationOrchidStatePtr TOrderedSourceComputationBase::GetOrchidState()
-{
-    auto state = TUniversalComputationBase::GetOrchidState();
-    auto universalState = DynamicPointerCast<TUniversalComputationOrchidState>(state);
-    YT_VERIFY(universalState);
-    universalState->PartitionDescription = Format("SourceKey: %v", *GetContext()->Partition->SourceKey);
-    return universalState;
-}
-
 void TOrderedSourceComputationBase::DoInit(IJobInitContextPtr /*initContext*/)
 {
     DoInit();

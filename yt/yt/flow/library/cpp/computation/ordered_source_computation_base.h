@@ -19,8 +19,6 @@ public:
         TComputationContextPtr context,
         TDynamicComputationContextPtr dynamicContext);
 
-    TComputationOrchidStatePtr GetOrchidState() override;
-
     virtual void DoInit(IJobInitContextPtr initContext);
     virtual void DoInit(); // For backward compatibility - remove it later.
     virtual void DoProcess(IInputContextPtr input, IOutputCollectorPtr output);
