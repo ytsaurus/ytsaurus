@@ -1206,13 +1206,22 @@ class YTInstance(object):
                     raise YtError("Memory limits are not supported for non-porto environment")
                 process.set_memory_limit(memory_limit)
 
-    def check_liveness(self, callback_func):
+    def check_liveness(self, callback_func, ignored_components=None):
         with self._lock:
-            for info in self._pid_to_process.values():
-                proc, args = info
-                proc.poll()
-                if proc.returncode is not None:
-                    callback_func(self, proc, args)
+            ignored_processes = {
+                process
+                for component in ignored_components or ()
+                for process in self._service_processes.get(component, ())
+                if process is not None
+            }
+
+            for process, args in self._pid_to_process.values():
+                if process in ignored_processes:
+                    continue
+
+                process.poll()
+                if process.returncode is not None:
+                    callback_func(self, process, args)
                     break
 
     def get_component_version(self, component):
