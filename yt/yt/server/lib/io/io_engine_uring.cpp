@@ -269,19 +269,41 @@ struct TUringRequest
 
     EUringRequestType Type;
     EWorkloadCategory Category;
-    std::optional<TRequestStatsGuard> RequestTimeGuard_;
+    std::optional<TRequestStatsGuard> RequestStatsGuard;
+    std::optional<TEventTimerGuard> TotalTimeGuard;
     TRequestCounterGuard RequestCounterGuard;
+    bool WaitTimeRecorded = false;
 
     virtual ~TUringRequest();
 
-    void StartTimeTracker(const TIOEngineSensors::TRequestSensors& sensors)
+    void StartTotalTimeTracker(const TIOEngineSensors::TRequestSensors& sensors)
     {
-        RequestTimeGuard_.emplace(sensors);
+        YT_VERIFY(!TotalTimeGuard);
+        TotalTimeGuard.emplace(sensors.TotalTimer);
     }
 
-    void StopTimeTracker()
+    void RecordWaitTime(const TIOEngineSensors::TRequestSensors& sensors)
     {
-        RequestTimeGuard_.reset();
+        YT_VERIFY(TotalTimeGuard);
+        if (!WaitTimeRecorded) {
+            sensors.WaitTimer.Record(TotalTimeGuard->GetElapsedTime());
+            WaitTimeRecorded = true;
+        }
+    }
+
+    void StopTotalTimeTracker()
+    {
+        TotalTimeGuard.reset();
+    }
+
+    void StartStatsTracker(const TIOEngineSensors::TRequestSensors& sensors)
+    {
+        RequestStatsGuard.emplace(sensors);
+    }
+
+    void StopStatsTracker()
+    {
+        RequestStatsGuard.reset();
     }
 
     virtual void SetPromise() = 0;
@@ -720,9 +742,11 @@ private:
     {
         switch (request->Type) {
             case EUringRequestType::Read:
+                request->RecordWaitTime(Sensors_->ReadSensors[request->Category]);
                 HandleReadRequest(static_cast<TReadUringRequest*>(request));
                 break;
             case EUringRequestType::Write:
+                request->RecordWaitTime(Sensors_->WriteSensors[request->Category]);
                 HandleWriteRequest(static_cast<TWriteUringRequest*>(request));
                 break;
             case EUringRequestType::FlushFile:
@@ -949,7 +973,7 @@ private:
     void HandleCompletion(const io_uring_cqe* cqe)
     {
         auto [request, _] = GetRequestUserData<TUringRequest>(cqe);
-        request->StopTimeTracker();
+        request->StopStatsTracker();
         switch (request->Type) {
             case EUringRequestType::Read:
                 HandleReadCompletion(cqe);
@@ -1202,7 +1226,7 @@ private:
         const TIOEngineSensors::TRequestSensors& sensors,
         int subrequestIndex = 0)
     {
-        request->StartTimeTracker(sensors);
+        request->StartStatsTracker(sensors);
 
         auto userData = reinterpret_cast<void*>(
             reinterpret_cast<uintptr_t>(request) |
@@ -1226,6 +1250,7 @@ private:
         YT_TLOG_DEBUG_IF(EnableIOUringLogging_, "Request disposed")
             .With("Request", request);
 
+        request->StopTotalTimeTracker();
         ThreadPool_->MarkFinished(ThreadIndex_, TUringRequestPtr(request));
     }
 };
@@ -1846,6 +1871,7 @@ public:
             uringRequest->Type = EUringRequestType::Write;
             uringRequest->Category = category;
             uringRequest->WriteRequest = std::move(slice);
+            uringRequest->StartTotalTimeTracker(Sensors_->WriteSensors[category]);
             uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write, category);
 
             futures.push_back(uringRequest->Promise.ToFuture());
@@ -1936,6 +1962,7 @@ private:
                 auto uringRequest = std::make_unique<TReadUringRequest>(readRequestCombiner);
                 uringRequest->Type = EUringRequestType::Read;
                 uringRequest->Category = category;
+                uringRequest->StartTotalTimeTracker(Sensors_->ReadSensors[category]);
 
                 uringRequest->ReadSubrequests.reserve(1);
                 uringRequest->ReadSubrequestStates.reserve(1);
