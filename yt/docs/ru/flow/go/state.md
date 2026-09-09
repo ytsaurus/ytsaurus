@@ -33,7 +33,7 @@ state.Value().Count++
 return nil
 ```
 
-`flow.YSONState[T]` предоставляет `Empty()`, `Value() *T` и `Clear()`. `Value()` возвращает изменяемое значение, а для отсутствующего стейта создаёт zero value. Отдельный `Set` не нужен: после успешной обработки батча SDK сериализует изменения автоматически; при ошибке обработчика они отбрасываются.
+`flow.YSONState[T]` предоставляет `Empty()`, `Get() (*T, bool)`, `Value() *T`, `Clear()` и `ReadOnly()`. `Value()` возвращает изменяемое значение, а для отсутствующего стейта создаёт zero value. Отдельный `Set` не нужен: после успешной обработки батча SDK сериализует изменения автоматически; при ошибке обработчика они отбрасываются.
 
 {% code '/yt/yt/flow/examples/go/word_count/word_count_mapper.go' lang='go' lines='[BEGIN word_count_state]-[END word_count_state]' %}
 
@@ -56,7 +56,7 @@ state, err := flow.OpenRawState(rt, "raw-state", msg)
 - `Set(data []byte) error` — сохранить значение.
 - `Clear() error` — удалить стейт.
 
-YSON- и Proto-аксессоры — обёртки над сырым: сам `RawStateAccessor` нужен, когда сериализацию компьютейшен выполняет самостоятельно.
+YSON- и Proto-стейты — обёртки над сырым аксессором: сам `RawStateAccessor` нужен, когда сериализацию компьютейшен выполняет самостоятельно.
 
 ## Proto State {#proto-state}
 
@@ -66,14 +66,18 @@ YSON- и Proto-аксессоры — обёртки над сырым: сам `
 state, err := flow.OpenProtoState[TJoinState](rt, "join-state", msg)
 ```
 
-Тип стейта называется по значению (`TJoinState`), а аксессор работает с указателем на него (`*TJoinState`) — именно на указателе сгенерированный код реализует `proto.Message`.
+Тип стейта называется по значению (`TJoinState`), а стейт работает с указателем на него (`*TJoinState`) — именно на указателе сгенерированный код реализует `proto.Message`.
 
-Возвращает `flow.ProtoStateAccessor[T, PT]` с методами:
+Возвращает `*flow.ProtoState[T, PT]` с методами:
 
-- `Get() (PT, bool, error)` — десериализовать и вернуть сообщение.
-- `Or(fallback PT) (PT, error)` — вернуть сохранённое сообщение или `fallback`.
-- `Set(value PT) error` — сериализовать и сохранить.
-- `Clear() error` — удалить стейт.
+- `Empty() bool` — проверить, отсутствует ли значение.
+- `Get() (PT, bool)` — вернуть изменяемое сообщение.
+- `Or(fallback PT) PT` — вернуть сохранённое сообщение или записать и вернуть `fallback`.
+- `Set(value PT) error` — заменить значение целиком.
+- `Clear()` — удалить стейт.
+- `ReadOnly() flow.ReadOnlyProtoState[T, PT]` — представление только на чтение.
+
+Сообщение изменяется на месте: изменения записываются по окончании батча без `Set`, см. [Изменение значения на месте](internal-state.md#in-place).
 
 ```go
 state, err := flow.OpenProtoState[TJoinState](rt, "join-state", msg)
@@ -81,13 +85,10 @@ if err != nil {
     return err
 }
 
-window, err := state.Or(&TJoinState{})
-if err != nil {
-    return err
-}
+window := state.Or(&TJoinState{})
 window.HitPayload = payload
 
-return state.Set(window)
+return nil
 ```
 
 ## External State {#external-state}

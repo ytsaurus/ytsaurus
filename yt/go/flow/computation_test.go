@@ -16,16 +16,16 @@ type stubRuntime struct {
 	Runtime
 }
 
-func (r *stubRuntime) getYSONState(
-	key ysonStateKey,
-	create func() (trackedYSONState, error),
-) (trackedYSONState, error) {
+func (r *stubRuntime) getTrackedState(
+	key trackedStateKey,
+	create func() (trackedState, error),
+) (trackedState, error) {
 	return create()
 }
 
-func (r *stubRuntime) resetYSONStates() {}
+func (r *stubRuntime) resetTrackedStates() {}
 
-func (r *stubRuntime) flushYSONStates() error { return nil }
+func (r *stubRuntime) flushTrackedStates() error { return nil }
 
 func testInput(id string) ExtendedMessage {
 	return ExtendedMessage{Message: Message{Meta: Meta{ID: id, StreamID: "in"}}}

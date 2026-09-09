@@ -14,9 +14,9 @@ The Go SDK provides three kinds of accessors for working with Internal State, di
 |---|---|---|
 | [YSONState](#yson-state) | YSON | `flow.OpenYSONState[T]` |
 | [RawStateAccessor](#raw-state-accessor) | `[]byte` | `flow.OpenRawState` |
-| [ProtoStateAccessor](#proto-state-accessor) | Protobuf | `flow.OpenProtoState[T]` |
+| [ProtoState](#proto-state) | Protobuf | `flow.OpenProtoState[T]` |
 
-`RawStateAccessor` and `ProtoStateAccessor` read and write values explicitly through `Get`, `Set`, and `Clear`. `YSONState` provides a mutable value: the changes made through `Value()` are serialized automatically after the batch handlers complete successfully.
+`RawStateAccessor` reads and writes raw bytes explicitly through `Get`, `Set`, and `Clear`. `YSONState` and `ProtoState` provide a mutable value: the changes made to it are serialized automatically after the batch handlers complete successfully — see [Changing the value in place](#in-place).
 
 Each of the `flow.OpenXxxState` functions takes three arguments:
 
@@ -29,6 +29,28 @@ Each of the `flow.OpenXxxState` functions takes three arguments:
 The accessor shows the state as it will be after the response to the worker: a state that wasn’t in the incoming request and a state cleared in the same call through `Clear` are read the same way — as missing.
 
 {% endnote %}
+
+## Changing the value in place {#in-place}
+
+The value returned by `Value()`, `Get()`, and `Or()` is live: it is decoded once per key and batch, every accessor for that key returns the same value, and the changes made to it are written to the state at the end of the batch without a `Set()` call. Nothing is written when the value did not change: a state that serializes to the bytes it arrived with does not go back. The default from `Value()` and `Or()` becomes the state value and is written as after `Set()`, so it can be changed right away:
+
+```go
+state, err := flow.OpenYSONState[wordCountState](rt, "word-state", msg)
+if err != nil {
+    return err
+}
+state.Value().Count++
+```
+
+`ProtoState.Set()` still replaces the whole message and does not accept an empty one, and `Clear()` removes the state. An empty Protobuf message serializes to zero bytes, and zero bytes are the absence of a state: a `&T{}` default is not written, and a message whose fields were all unset deletes the state. `RawStateAccessor` hands out no mutable value: its `Get()` returns a copy of the bytes, and they are only written through `Set()`. [External State](external-state.md) states are not tracked in place either.
+
+A key has a single decoded value per batch, so opening the same state and key with another Go type returns an error. If a handler returned an error, the in-place changes don’t make it into the response to the worker. A state that Go serializes to bytes other than the ones it arrived with is rewritten canonically on the first read — once per key.
+
+To detect the changes, a value that was read is re-encoded at the end of the batch. When the computation only reads a state, use `ReadOnly()`: that view returns the same value but does not track it, and `ReadOnlyYSONState.Value()` and `ReadOnlyProtoState.Or()` do not create the state. It has no write methods, so writing through it does not compile. The value is shared with the mutable state of the same key: if that state is also opened for writing somewhere, the changes made through the view still reach the worker.
+
+```go
+count := state.ReadOnly().Value().Count
+```
 
 ## YSONState {#yson-state}
 
@@ -53,10 +75,12 @@ Deserialization is performed on opening. Opening the same state and key again wi
 | Method | Result type | Description |
 |---|---|---|
 | `Empty()` | `bool` | Check whether the value is missing |
+| `Get()` | `(*T, bool)` | Get the mutable value. The second result distinguishes a saved state from a missing one |
 | `Value()` | `*T` | Get the mutable value; a zero value is created if the state is missing |
 | `Clear()` | — | Delete the value |
+| `ReadOnly()` | `ReadOnlyYSONState[T]` | A read-only view |
 
-The changes from `Value()` are serialized automatically after all the batch handlers complete successfully. If a handler returned an error, the changes to the YSON state don’t make it into the response to the worker.
+The changes to the value are serialized automatically after all the batch handlers complete successfully. If a handler returned an error, the changes to the YSON state don’t make it into the response to the worker.
 
 ### Example from WordCount {#yson-example}
 
@@ -124,13 +148,13 @@ if err := state.Set([]byte{0x01, 0x02, 0x03}); err != nil {
 return state.Clear()
 ```
 
-## ProtoStateAccessor {#proto-state-accessor}
+## ProtoState {#proto-state}
 
 [Source code]({{source-root}}/yt/go/flow/context.go)
 
-`ProtoStateAccessor` serializes the state through Protobuf. The type of the Protobuf message is given in its value form, and the accessor returns a pointer to it: `flow.OpenProtoState[TJoinState]` returns an accessor over `*TJoinState`.
+`ProtoState` serializes the state through Protobuf. The type of the Protobuf message is given in its value form, and the state returns a pointer to it: `flow.OpenProtoState[TJoinState]` returns a state over `*TJoinState`.
 
-### Getting the accessor {#getting-proto-accessor}
+### Getting the state {#getting-proto-accessor}
 
 ```go
 // For a message
@@ -140,18 +164,22 @@ state, err := flow.OpenProtoState[TJoinState](rt, "join-state", msg)
 state, err := flow.OpenProtoState[TJoinState](rt, "join-state", timer)
 ```
 
+Deserialization is performed on opening. Opening the same state and key again within the request returns the same mutable message.
+
 ### Methods {#proto-methods}
 
 | Method | Result type | Description |
 |---|---|---|
-| `Get()` | `(*T, bool, error)` | Deserialize and return the value. The second result distinguishes a saved state from a missing one and is meaningful only when `err == nil` |
-| `Or(fallback *T)` | `(*T, error)` | Return the current value, or `fallback` if there is no state |
-| `Set(value *T)` | `error` | Serialize and save the Proto message |
-| `Clear()` | `error` | Delete the state for the current key |
+| `Empty()` | `bool` | Check whether the value is missing |
+| `Get()` | `(*T, bool)` | Get the mutable message. The second result distinguishes a saved state from a missing one |
+| `Or(fallback *T)` | `*T` | Return the current message, or write and return `fallback` if there is no state |
+| `Set(value *T)` | `error` | Replace the whole state value; an empty message cannot be written |
+| `Clear()` | — | Delete the state for the current key |
+| `ReadOnly()` | `ReadOnlyProtoState[T, PT]` | A read-only view |
 
 {% note info %}
 
-Unlike in Python, where `get_or_default()` without arguments returns an empty instance of the Proto class, in Go the default value is set explicitly — pass `&T{}` if you want to start with an empty message.
+Unlike in Python, where `get_or_default()` without arguments returns an empty instance of the Proto class, in Go the default value is set explicitly — pass `&T{}` if you want to start with an empty message. An empty message serializes to zero bytes and is not written to the state.
 
 {% endnote %}
 
@@ -163,13 +191,10 @@ if err != nil {
     return err
 }
 
-window, err := state.Or(&TJoinState{})
-if err != nil {
-    return err
-}
+window := state.Or(&TJoinState{})
 window.ShowTime = showTime
 
-return state.Set(window)
+return nil
 ```
 
 ## Configuration in the static spec {#static-spec}
