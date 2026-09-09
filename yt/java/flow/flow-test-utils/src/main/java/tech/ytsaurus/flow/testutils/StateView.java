@@ -30,8 +30,8 @@ public final class StateView {
         this.externalHolders = externalHolders;
         this.internalHolders = internalHolders;
         // Backend gets shallow copies so the empty holders it creates for unknown state names stay
-        // out of the metadata maps. Sharing the holder instances is safe because reads never mutate
-        // them (state readers are read-only).
+        // out of the metadata maps. Sharing the holder instances is safe because the accessors
+        // handed out are read-only views, which never add entries.
         this.backend = new SnapshotStateBackend(
                 new LinkedHashMap<>(internalHolders), new LinkedHashMap<>(externalHolders),
                 externalStateSchemas, null);
@@ -43,7 +43,7 @@ public final class StateView {
      * @param <T> state value type.
      */
     public <T> StateAccessor<T> get(StateDescriptor<T> descriptor, Payload key) {
-        return new ReadOnlyStateAccessor<>(backend.accessor(descriptor, key));
+        return backend.accessor(descriptor, key).readOnly();
     }
 
     /**

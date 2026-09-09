@@ -65,7 +65,7 @@ class ProtoStateAccessorTest {
         holder.load(key().getRow(), state(message(7)));
         assertEquals(7, accessor(holder).get().getCount());
         // Reads do not mark the state modified.
-        assertFalse(holder.hasModifiedStates());
+        assertTrue(holder.collectModifiedStates().isEmpty());
     }
 
     @Test
@@ -94,7 +94,7 @@ class ProtoStateAccessorTest {
         var holder = protoHolder();
         var acc = accessor(holder);
         acc.set(message(42));
-        assertTrue(holder.hasModifiedStates());
+        assertFalse(holder.collectModifiedStates().isEmpty());
         assertEquals(message(42), acc.get());
         assertEquals(message(42).toByteString(), holder.get(key().getRow()).getBytes());
     }
@@ -106,7 +106,9 @@ class ProtoStateAccessorTest {
         var acc = accessor(holder);
         acc.clear();
         assertNull(acc.get());
-        assertTrue(holder.getModifiedStates().values().stream().allMatch(State::isReset));
+        var modifiedStates = holder.collectModifiedStates();
+        assertEquals(1, modifiedStates.size());
+        assertTrue(modifiedStates.values().stream().allMatch(State::isReset));
     }
 
     @Test

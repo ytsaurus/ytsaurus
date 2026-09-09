@@ -12,7 +12,7 @@ import tech.ytsaurus.flow.row.codec.YsonByteArrayCodec;
 import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 
 class InternalStateAccessorTest {
 
@@ -77,11 +77,10 @@ class InternalStateAccessorTest {
     }
 
     @Test
-    void getDecodesAFreshValueOnEveryCall() {
-        // A value outside the Long cache, so two decodes yield two objects.
+    void getReturnsTheSameValueOnEveryCall() {
+        // A value outside the Long cache, so two decodes would yield two objects.
         var holder = new StatesHolder(STATE, KEY_SCHEMA);
         holder.load(key().getRow(), new State(ByteString.copyFrom(flip(YSON.encode(1_000_000L)))));
-        var acc = accessor(holder);
-        assertNotSame(acc.get(), acc.get());
+        assertSame(accessor(holder).get(), accessor(holder).get());
     }
 }

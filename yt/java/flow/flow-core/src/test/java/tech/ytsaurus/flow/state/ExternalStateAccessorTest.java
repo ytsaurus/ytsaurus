@@ -70,6 +70,18 @@ class ExternalStateAccessorTest {
     }
 
     @Test
+    void readOnlyReadsButRejectsWrites() {
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
+        var acc = accessor(holder);
+        acc.set(value(7L));
+        var readOnly = acc.readOnly();
+        assertEquals(7L, readOnly.get().get("count", Long.class));
+        assertThrows(UnsupportedOperationException.class, () -> readOnly.set(value(8L)));
+        assertThrows(UnsupportedOperationException.class, readOnly::clear);
+        assertSame(readOnly, readOnly.readOnly());
+    }
+
+    @Test
     void repeatedGetDecodesOnce() {
         var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
         var acc = accessor(holder);
