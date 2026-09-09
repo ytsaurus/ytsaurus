@@ -20,6 +20,7 @@ SET(MISC_SRCS
     ${MISC_SRCS_ROOT}/protobuf_table_io.cpp
     ${MISC_SRCS_ROOT}/raw_io.cpp
     ${MISC_SRCS_ROOT}/redirect_stdout_to_stderr_spec_flag.cpp
+    ${MISC_SRCS_ROOT}/request_with_retry.cpp
     ${MISC_SRCS_ROOT}/retry_config_provider.cpp
     ${MISC_SRCS_ROOT}/schema.cpp
     ${MISC_SRCS_ROOT}/security_client.cpp
