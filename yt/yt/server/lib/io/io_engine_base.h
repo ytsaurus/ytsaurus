@@ -100,8 +100,16 @@ struct TIOEngineSensors final
 
     struct TRequestSensors
     {
-        // Single request time.
-        NProfiling::TEventTimer Timer;
+        // Time spent waiting for request execution.
+        // Registered for read/write sensors only.
+        NProfiling::TEventTimer WaitTimer;
+
+        // Single I/O operation execution time.
+        NProfiling::TEventTimer ExecTimer;
+
+        // Single request wait plus execution time.
+        // Registered for read/write sensors only.
+        NProfiling::TEventTimer TotalTimer;
 
         // Single request time using huge pages.
         NProfiling::TEventTimer HugePageTimer;
@@ -236,8 +244,8 @@ protected:
     static int GetLockOp(ELockFileMode mode);
     void DoLock(const TLockRequest& request);
     void DoResize(const TResizeRequest& request);
-    void AddWriteWaitTimeSample(TDuration duration);
-    void AddReadWaitTimeSample(TDuration duration);
+    void AddWriteWaitTimeSample(TDuration duration, EWorkloadCategory category);
+    void AddReadWaitTimeSample(TDuration duration, EWorkloadCategory category);
 
     //! Rounds \p size up to a multiple of \p directIoBlockSize.
     TSharedMutableRef AllocateWriteBlob(
