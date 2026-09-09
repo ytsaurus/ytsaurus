@@ -136,6 +136,7 @@ TClustersResult TYqlExecutorProcess::GetClustersInfo(TQueryId queryId)
 TQueryResult TYqlExecutorProcess::Run(
     TQueryId queryId,
     TString user,
+    TString queryIdentityToken,
     TYsonString credentials,
     TString queryText,
     TYsonString settings,
@@ -152,6 +153,7 @@ TQueryResult TYqlExecutorProcess::Run(
 
     ToProto(runQueryReq->mutable_query_id(), queryId);
     runQueryReq->set_user(user);
+    runQueryReq->set_query_identity_token(queryIdentityToken);
     runQueryReq->set_credentials(credentials.ToString());
     runQueryReq->set_query_text(queryText);
     runQueryReq->set_settings(settings.ToString());
@@ -226,6 +228,7 @@ TAbortResult TYqlExecutorProcess::Abort(TQueryId queryId)
 TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
     TQueryId queryId,
     TString user,
+    TString queryIdentityToken,
     TString queryText,
     TYsonString settings,
     TYsonString credentials)
@@ -234,6 +237,7 @@ TGetDeclaredParametersInfoResult TYqlExecutorProcess::GetDeclaredParametersInfo(
 
     ToProto(getDeclaredParametersInfoReq->mutable_query_id(), queryId);
     getDeclaredParametersInfoReq->set_user(user);
+    getDeclaredParametersInfoReq->set_query_identity_token(queryIdentityToken);
     getDeclaredParametersInfoReq->set_query_text(queryText);
     getDeclaredParametersInfoReq->set_settings(settings.ToString());
     getDeclaredParametersInfoReq->set_credentials(credentials.ToString());

@@ -114,6 +114,7 @@ message TTaskFile {
 message TUserAuthData {
     optional string OauthToken = 1;
     optional string BlackboxSessionIdCookie = 2;
+    optional bytes QueryIdentityToken = 3;
 }
 
 message TProjectData {
@@ -283,4 +284,3 @@ message TTaskResult {
     optional bool KeepRunning = 11 [default = false];
     optional bool RequiresPruning = 12 [default = false];
 }
-

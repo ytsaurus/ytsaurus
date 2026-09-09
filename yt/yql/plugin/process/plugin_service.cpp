@@ -81,6 +81,7 @@ public:
         auto queryResult = YqlPlugin_->Run(
           queryId,
           request->user(),
+          request->query_identity_token(),
           TYsonString(request->credentials()),
           request->query_text(),
           TYsonString(request->settings()),
@@ -156,6 +157,7 @@ public:
         auto result = YqlPlugin_->GetDeclaredParametersInfo(
             queryId,
             request->user(),
+            request->query_identity_token(),
             request->query_text(),
             TYsonString(request->settings()),
             TYsonString(request->credentials()));

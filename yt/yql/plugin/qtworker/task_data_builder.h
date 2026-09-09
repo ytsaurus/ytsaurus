@@ -28,6 +28,7 @@ struct TTaskDataBuildContext
     TMaybe<TString> MaxYqlLangVersion;
     TMaybe<TString> DefaultYqlLangVersion;
     NYqlClient::EQueryType QueryType = NYqlClient::EQueryType::Regular;
+    const TString& QueryIdentityToken;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

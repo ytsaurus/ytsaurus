@@ -1,0 +1,20 @@
+package NYT.NYqlClient.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+message TQueryIdentityToken
+{
+    required NYT.NProto.TGuid execution_id = 1;
+    required bytes signature = 2;
+}
+
+message TReqIssueQueryTemporaryToken
+{
+    required bytes query_identity_token = 1;
+    required string cluster = 2;
+}
+
+message TRspIssueQueryTemporaryToken
+{
+    required bytes token = 1;
+}

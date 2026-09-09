@@ -41,6 +41,7 @@ public:
     TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         NYson::TYsonString credentials,
         TString queryText,
         NYson::TYsonString settings,
@@ -51,6 +52,7 @@ public:
     TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         NYson::TYsonString settings,
         NYson::TYsonString credentials) override;

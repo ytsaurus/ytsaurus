@@ -23,6 +23,7 @@ message TReqRunQuery
     repeated NYT.NYqlClient.NProto.TYqlQueryFile files = 6;
     required int64 mode = 7 [default = 2]; // EExecuteMode
     required int64 query_type = 8 [default = 0]; // EQueryType
+    optional bytes query_identity_token = 9;
 }
 
 message TRspRunQuery
@@ -94,6 +95,7 @@ message TReqGetDeclaredParametersInfo
     required string query_text = 3;
     required bytes settings = 4; // YSON
     required bytes credentials = 5; // YSON
+    optional bytes query_identity_token = 6;
 }
 
 message TRspGetDeclaredParametersInfo

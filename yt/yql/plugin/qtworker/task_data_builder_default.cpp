@@ -55,6 +55,7 @@ public:
         data.SetUsername(context.User);
         data.SetResultFormat(NYql::NProto::EDataFormat::YSON_TEXT);
         data.SetAuthData(SerializeCredentials(context.Credentials));
+        data.MutableUserAuthData()->SetQueryIdentityToken(context.QueryIdentityToken);
         data.SetIsSystemRequest(false);
         data.SetFunctionRegistryData(context.FunctionRegistryData);
         data.SetPersistedId(true);
