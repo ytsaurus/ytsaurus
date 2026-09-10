@@ -26,7 +26,7 @@ The value returned by `get()` and `get_or_default()` is live: it is decoded once
 ctx.state("word-state", message).get_or_default({"count": 0})["count"] += 1
 ```
 
-`set()` still replaces the whole value, and `clear()` removes the state. A `None` default is not a value and is not attached. A value that encodes to no bytes — an all-default protobuf message, for instance — is not a value either: setting it removes the state. A `bytes` object is immutable, so a `RawStateAccessor` state is only written through `set()`, and its `get_or_default()` default is not even attached.
+`set()` still replaces the whole value, and `clear()` removes the state. A `None` default is not a value and is not attached. A value that encodes to no bytes — an all-default protobuf message, for instance — is not a value either: setting it removes the state. A `RawStateAccessor` default is attached like any other, and a later `get()` returns it. But a `bytes` object is immutable, so an attached default cannot be changed in place, and a non-empty raw value reaches {{product-name}} only through `set()`.
 
 To detect the changes, a value that was read is re-encoded at the end of the batch. When the computation only reads a state, use `read_only()`: that accessor returns the same object but does not track it, its `get_or_default()` does not create the state, and `set()` and `clear()` raise `ReadOnlyStateError`:
 
@@ -92,7 +92,7 @@ state = ctx.raw_state("state-name", timer)
 | `get()` | `bytes` or `None` | Get the raw bytes |
 | `set(value: bytes)` | — | Save the raw bytes |
 | `clear()` | — | Delete the state for the current key |
-| `get_or_default(default: bytes)` | `bytes` | Return the current value, or `default` (not stored) |
+| `get_or_default(default: bytes)` | `bytes` | Return the current value, or attach and return `default` (reaches {{product-name}} only through `set()`) |
 
 ### Usage example
 
