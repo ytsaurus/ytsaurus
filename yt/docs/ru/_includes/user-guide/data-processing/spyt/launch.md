@@ -59,7 +59,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
 
 - Запуск задач с высокой периодичностью (более 1 раза в час). Эффективность достигается за счет того, что время запуска задачи в standalone кластере существенно меньше, чем время запуска операции в {{product-name}}.
 - Ad-hoc аналитика в Jupyter-ноутбуках.
-- Ad-hoc аналитика с использованием Query tracker и livy.
+- Ad-hoc аналитика с использованием Query Tracker и [Livy](../../../../user-guide/data-processing/spyt/cluster/livy.md) в версиях SPYT ниже 2.10.0. Начиная с SPYT 2.10.0 и Query Tracker 0.4 используйте [SPYT Connect](../../../../user-guide/data-processing/spyt/connect.md).
 
 Для запуска внутреннего standalone Spark кластера необходимо выполнить следующие шаги:
 
