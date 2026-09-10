@@ -49,6 +49,8 @@ protected:
     const std::string& AllocationGroupName_;
     const TAllocationGroupResources AllocationGroupResources_;
     IAssignmentPlanUpdateContext* const Context_;
+
+    const bool IsDetailedLoggingEnabled_;
     const NLogging::TLogger Logger;
 
     bool CanAddAssignmentToNode(

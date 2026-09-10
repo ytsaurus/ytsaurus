@@ -42,7 +42,10 @@ TAllocationGroupPlannerBase::TAllocationGroupPlannerBase(
     , AllocationGroupName_(allocationGroupName)
     , AllocationGroupResources_(allocationGroupResources)
     , Context_(context)
-    , Logger(std::move(logger))
+    , IsDetailedLoggingEnabled_(Context_->IsDetailedLoggingEnabled(Operation_))
+    , Logger(std::move(logger)
+        .WithTag("OperationId: %v", Operation_->GetId())
+        .WithTag("AllocationGroup: %v", AllocationGroupName_))
 { }
 
 void TAllocationGroupPlannerBase::Run()
@@ -67,30 +70,30 @@ bool TAllocationGroupPlannerBase::CanAddAssignmentToNode(
     TNode* node,
     const TJobResources& discount) const
 {
-    const bool isDetailedLoggingEnabled = Context_->IsDetailedLoggingEnabled(Operation_);
-    const auto& Logger = this->Logger
-        .WithTag("Node: %v", node->Address())
-        .WithTag("OperationId: %v", Operation_->GetId())
-        .WithTag("AllocationGroup: %v", AllocationGroupName_);
-
     const auto& nodeTags = node->Descriptor()->Tags;
     if (!Operation_->SchedulingTagFilter().CanSchedule(nodeTags)) {
-        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled, "Cannot add assignment to node: scheduling tag filter mismatch");
+        YT_LOG_DEBUG_IF(IsDetailedLoggingEnabled_,
+            "Cannot add assignment to node: scheduling tag filter mismatch (Node: %v)",
+            node->Address());
         return false;
     }
 
     // NB(eshcherbin): Check disk request lazily only if resources request can be satisfied.
     if (!CanSatisfyResourceRequest(node, discount)) {
-        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled,
-            "Cannot add assignment to node: insufficient resources (ResourceLimits: %v, RequiredResources: %v)",
+        YT_LOG_DEBUG_IF(IsDetailedLoggingEnabled_,
+            "Cannot add assignment to node: insufficient resources "
+            "(Node: %v, ResourceLimits: %v, RequiredResources: %v)",
+            node->Address(),
             node->Descriptor()->ResourceLimits,
             GetRequiredResources(node, discount));
         return false;
     }
 
     if (auto unsatisfiedDiskRequests = GetUnsatisfiedDiskRequests(node)) {
-        YT_LOG_DEBUG_IF(isDetailedLoggingEnabled,
-            "Cannot add assignment to node: insufficient disk (DiskResources: %v, DiskRequests: %v)",
+        YT_LOG_DEBUG_IF(IsDetailedLoggingEnabled_,
+            "Cannot add assignment to node: insufficient disk "
+            "(Node: %v, DiskResources: %v, DiskRequests: %v)",
+            node->Address(),
             node->Descriptor()->DiskResources,
             *unsatisfiedDiskRequests);
         return false;
