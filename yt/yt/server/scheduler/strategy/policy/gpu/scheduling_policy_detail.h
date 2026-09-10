@@ -197,7 +197,8 @@ private:
 
     TInstant InitializationFromPersistentStateDeadline_;
     TPersistentStatePtr InitialPersistentState_ = New<TPersistentState>();
-    TPersistentStatePtr PersistentState_;
+    //! Updated once per assignment plan update and treated as immutable after publication.
+    NYTree::INodePtr CachedPersistentStateNode_;
 
     NProfiling::TProfiler Profiler_;
     TGpuSchedulingProfilingCounters ProfilingCounters_;

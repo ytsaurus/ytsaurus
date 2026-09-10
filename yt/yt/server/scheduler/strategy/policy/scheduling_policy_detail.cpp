@@ -3161,10 +3161,9 @@ INodePtr TSchedulingPolicy::BuildPersistentState() const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    auto persistentState = PersistentState_
-        ? PersistentState_
-        : InitialPersistentState_;
-    return ConvertToNode(persistentState);
+    return CachedPersistentStateNode_
+        ? CachedPersistentStateNode_
+        : ConvertToNode(InitialPersistentState_);
 }
 
 bool TSchedulingPolicy::IsGpuTree() const
@@ -4221,8 +4220,9 @@ void TSchedulingPolicy::ManageSchedulingSegments()
         TreeHost_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::ManageSchedulingSegments, context.Error);
 
         if (now > SchedulingSegmentsInitializationDeadline_) {
-            PersistentState_ = New<TPersistentState>();
-            PersistentState_->SchedulingSegmentsState = std::move(context.PersistentState);
+            auto persistentState = New<TPersistentState>();
+            persistentState->SchedulingSegmentsState = std::move(context.PersistentState);
+            CachedPersistentStateNode_ = ConvertToNode(persistentState);
 
             YT_LOG_DEBUG("Saved new persistent scheduling segments state");
         } else {

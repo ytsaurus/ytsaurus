@@ -802,11 +802,9 @@ INodePtr TSchedulingPolicy::BuildPersistentState() const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    auto persistentState = PersistentState_
-        ? PersistentState_
-        : InitialPersistentState_;
-
-    return ConvertToNode(persistentState);
+    return CachedPersistentStateNode_
+        ? CachedPersistentStateNode_
+        : ConvertToNode(InitialPersistentState_);
 }
 
 void TSchedulingPolicy::UpdateNodeDescriptor(const TNodePtr& node, TExecNodeDescriptorPtr descriptor)
@@ -1149,10 +1147,11 @@ std::optional<TPersistentOperationState> TSchedulingPolicy::FindInitialOperation
 void TSchedulingPolicy::UpdatePersistentState()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
-    PersistentState_ = New<TPersistentState>();
+
+    auto persistentState = New<TPersistentState>();
 
     for (const auto& [nodeId, node] : Nodes_) {
-        auto& nodePersistentState = PersistentState_->NodeStates[nodeId];
+        auto& nodePersistentState = persistentState->NodeStates[nodeId];
         nodePersistentState.SchedulingModule = node->SchedulingModule();
         nodePersistentState.Address = node->Address();
 
@@ -1165,7 +1164,7 @@ void TSchedulingPolicy::UpdatePersistentState()
             return;
         }
 
-        auto& operationPersistentState = PersistentState_->OperationStates[operationId];
+        auto& operationPersistentState = persistentState->OperationStates[operationId];
         operationPersistentState.SchedulingModule = operation->SchedulingModule();
         operationPersistentState.NetworkPriority = operation->NetworkPriority();
 
@@ -1178,6 +1177,8 @@ void TSchedulingPolicy::UpdatePersistentState()
 
     std::ranges::for_each(DisabledOperations_, updateOperationPersistentState);
     std::ranges::for_each(EnabledOperations_, updateOperationPersistentState);
+
+    CachedPersistentStateNode_ = ConvertToNode(persistentState);
 }
 
 void TSchedulingPolicy::LogSnapshotEvent(const TGpuPlanUpdateStatisticsPtr& statistics) const
