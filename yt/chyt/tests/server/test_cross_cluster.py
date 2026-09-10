@@ -1,6 +1,6 @@
 from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
 
-from yt_commands import (authors, create, create_dynamic_table, get_driver, insert_rows,
+from yt_commands import (authors, create, create_dynamic_table, exists, get_driver, insert_rows,
                          raises_yt_error, remove, sync_create_cells, sync_flush_table,
                          sync_mount_table, write_table)
 from yt.common import wait
@@ -263,6 +263,89 @@ class TestClickHouseCrossCluster(ClickHouseTestBase):
 
             assert clique.make_query("select * from `remote_0://tmp/schema_cache`") == rows
             wait(lambda: hit_counter.get_delta() > before)
+
+    def test_partitioned_tables(self):
+        remote_0_driver = get_driver(cluster="remote_0")
+        remote_1_driver = get_driver(cluster="remote_1")
+        schema = [{"name": "value", "type": "int64"}]
+
+        for driver, directory, partitions in [
+            (remote_0_driver, "//tmp/orders", [("2026-09-08", 8), ("2026-09-09", 9)]),
+            (remote_1_driver, "//tmp/archive", [("2026-09-10", 10)]),
+        ]:
+            create("map_node", directory, driver=driver)
+            for partition, value in partitions:
+                path = f"{directory}/{partition}"
+                create("table", path, attributes={"schema": schema}, driver=driver)
+                write_table(path, [{"value": value}], driver=driver)
+
+        with Clique(1) as clique:
+            assert clique.make_query("""
+                select *, $table_name
+                from ytTables(ytListTables('remote_0://tmp/orders'))
+                where $table_name = '2026-09-09'
+            """) == [{"value": 9, "$table_name": "2026-09-09"}]
+
+            assert clique.make_query("""
+                select $path
+                from ytListTables('remote_0://tmp/orders')
+                order by $path
+            """) == [
+                {"$path": "remote_0://tmp/orders/2026-09-08"},
+                {"$path": "remote_0://tmp/orders/2026-09-09"},
+            ]
+
+            assert clique.make_query("""
+                select value
+                from ytTables(
+                    ytListTables('remote_0://tmp/orders'),
+                    ytListTables('remote_1://tmp/archive'))
+                order by value
+            """) == [{"value": 8}, {"value": 9}, {"value": 10}]
+
+            assert clique.make_query("""
+                select value
+                from concatYtTablesRange(
+                    'remote_0://tmp/orders',
+                    '2026-09-09',
+                    '2026-09-09')
+            """) == [{"value": 9}]
+
+    def test_partitioned_tables_snapshot(self):
+        remote_driver = get_driver(cluster="remote_0")
+        directory = "//tmp/snapshot_orders"
+        schema = [{"name": "value", "type": "int64"}]
+        rows = [{"value": 8}, {"value": 9}]
+
+        create("map_node", directory, driver=remote_driver)
+        for row in rows:
+            path = f"{directory}/2026-09-{row['value']:02d}"
+            create("table", path, attributes={"schema": schema}, driver=remote_driver)
+            write_table(path, [row], driver=remote_driver)
+
+        breakpoint_name = "cross_cluster_list_tables"
+        breakpoint_path = get_breakpoint_node(breakpoint_name)
+        create("map_node", "//sys/clickhouse/breakpoints", recursive=True, driver=remote_driver)
+
+        with Clique(1) as clique:
+            def remove_partitions():
+                wait(lambda: exists(breakpoint_path, driver=remote_driver))
+                remove(directory, recursive=True, driver=remote_driver)
+                create("document", breakpoint_path + "/release", driver=remote_driver)
+
+            thread = threading.Thread(target=remove_partitions)
+            thread.start()
+
+            result = clique.make_query("""
+                select value
+                from ytTables(ytListTables('remote_0://tmp/snapshot_orders'))
+                order by value
+            """, settings={
+                "chyt.testing.list_dirs_breakpoint": breakpoint_path,
+            })
+
+            thread.join()
+            assert result == rows
 
     def test_set_operations_over_three_clusters(self):
         schema = [{"name": "key", "type": "int64"}]

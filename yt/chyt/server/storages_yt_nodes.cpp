@@ -65,14 +65,16 @@ DB::VirtualColumnsDescription MakeVirtualColumnsDescription(DB::NamesAndTypesLis
 std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     const std::vector<TString>& paths,
     const std::vector<TString>& attributesToFetch,
-    TQueryContext* queryContext);
+    TQueryContext* queryContext,
+    const std::optional<std::string>& cluster = std::nullopt);
 
 //! Returns a list of table paths from provided dirs with its attributes.
 //! If any master request is failed (e.g. ResolveError), the error will be returned.
 std::vector<TErrorOr<INodePtr>> ListDirs(
     const std::vector<TString>& dirPaths,
     const std::vector<TString>& attributesToFetch,
-    TQueryContext* queryContext)
+    TQueryContext* queryContext,
+    const std::optional<std::string>& cluster = std::nullopt)
 {
     // In sync mode execution for Sequoia nodes is a bit tricky:
     // 1) Use "list" verb to get children of each directory;
@@ -85,10 +87,15 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     // Note that steps (2) and (3) are needed for Sequoia nodes only.
 
     bool sync = (queryContext->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
-    bool shouldLock = sync && queryContext->QueryKind == EQueryKind::InitialQuery;
+    bool shouldUseSnapshot = sync || cluster.has_value();
+    bool shouldLock = shouldUseSnapshot && queryContext->QueryKind == EQueryKind::InitialQuery;
 
     if (shouldLock) {
-        queryContext->AcquireSnapshotLocks(dirPaths);
+        if (cluster) {
+            queryContext->AcquireSnapshotLocks(dirPaths, *cluster);
+        } else {
+            queryContext->AcquireSnapshotLocks(dirPaths);
+        }
     }
 
     // If caller didn't request "revision" this attribute should be filtered out
@@ -101,7 +108,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         additionalRevisionRequested = true;
     }
 
-    const auto& client = queryContext->Client();
+    const auto& client = queryContext->Client(cluster);
     const auto& settings = queryContext->SessionSettings->ListDir;
     const auto& connection = client->GetNativeConnection();
     TMasterReadOptions masterReadOptions = *queryContext->SessionSettings->CypressReadOptions;
@@ -110,6 +117,27 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     std::vector<TError> errors;
     std::vector<INodePtr> cypressNodes;
     std::vector<INodePtr> sequoiaNodes;
+
+    auto lockNodes = [&] (std::vector<INodePtr>& nodes) {
+        std::vector<TString> pathsToLock(nodes.size());
+        std::ranges::transform(nodes, pathsToLock.begin(), [] (const INodePtr& node) {
+            return node->GetValue<std::string>();
+        });
+        auto lockRsps = cluster
+            ? queryContext->TryAcquireSnapshotLocks(pathsToLock, *cluster)
+            : queryContext->TryAcquireSnapshotLocks(pathsToLock);
+        std::vector<INodePtr> lockedNodes;
+        lockedNodes.reserve(nodes.size());
+        for (int i : std::views::iota(0, std::ssize(nodes))) {
+            if (lockRsps[i].IsOK()) {
+                lockedNodes.push_back(std::move(nodes[i]));
+            } else if (!lockRsps[i].FindMatching(NYTree::EErrorCode::ResolveError)) {
+                errors.push_back(std::move(lockRsps[i]));
+            }
+            // If node was removed after step (1) just skip it.
+        }
+        nodes = std::move(lockedNodes);
+    };
 
     // Step (1): list directories.
     {
@@ -127,8 +155,8 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         for (const auto& path : dirPaths) {
             auto req = TYPathProxy::List(path);
             SetCachingHeader(req, connection, masterReadOptions);
-            if (sync) {
-                SetTransactionId(req, queryContext->ReadTransactionId);
+            if (shouldUseSnapshot) {
+                SetTransactionId(req, queryContext->GetReadTransactionId(cluster));
             }
             ToProto(req->mutable_attributes(), TAttributeFilter(*attributesWithRevision));
             if (settings->MaxSize) {
@@ -151,7 +179,9 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
             }
 
             std::vector<INodePtr>* listedNodes;
-            const auto& snapshotLocks = queryContext->SnapshotLocks;
+            const auto& snapshotLocks = cluster
+                ? GetOrCrash(queryContext->RemoteSnapshotLocks, *cluster)
+                : queryContext->SnapshotLocks;
             if (auto it = snapshotLocks.find(dirPaths[index]); it != snapshotLocks.end() && IsSequoiaId(it->second.NodeId)) {
                 listedNodes = &sequoiaNodes;
             } else {
@@ -165,34 +195,29 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         }
     }
 
+    // Unlike local Cypress reads, remote reads cannot defer locking children
+    // until FetchTables: the directory may be recursively removed after this
+    // function returns, making children impossible to resolve by path. Lock
+    // remote Cypress children immediately while their paths are still valid.
+    if (shouldLock && cluster && !cypressNodes.empty()) {
+        lockNodes(cypressNodes);
+    }
+
     if (auto breakpointFilename = queryContext->SessionSettings->Testing->ListDirsBreakpoint) {
         HandleBreakpoint(*breakpointFilename, client);
     }
 
     // Step (2): acquire snapshot locks for Sequoia nodes.
     if (shouldLock && !sequoiaNodes.empty()) {
-        std::vector<TString> sequoiaPathsToLock(sequoiaNodes.size());
-        std::ranges::transform(sequoiaNodes, sequoiaPathsToLock.begin(), [] (const INodePtr& node) {
-            return node->GetValue<std::string>();
-        });
-        auto lockRsps = queryContext->TryAcquireSnapshotLocks(sequoiaPathsToLock);
-        std::vector<INodePtr> lockedNodes;
-        lockedNodes.reserve(sequoiaNodes.size());
-        for (int i : std::views::iota(0, std::ssize(sequoiaNodes))) {
-            if (lockRsps[i].IsOK()) {
-                lockedNodes.push_back(std::move(sequoiaNodes[i]));
-            } else if (!lockRsps[i].FindMatching(NYTree::EErrorCode::ResolveError)) {
-                errors.push_back(std::move(lockRsps[i]));
-            }
-            // If node was removed after step (1) just skip it.
-        }
-        sequoiaNodes = std::move(lockedNodes);
+        lockNodes(sequoiaNodes);
     }
 
     // Step (3): fix fetched attributes if they are changed between initial
     // list and snapshot lock acquiring.
     if (shouldLock && !attributesToFetch.empty()) {
-        const auto& snapshotLocks = queryContext->SnapshotLocks;
+        const auto& snapshotLocks = cluster
+            ? GetOrCrash(queryContext->RemoteSnapshotLocks, *cluster)
+            : queryContext->SnapshotLocks;
 
         // NB: it's racy to use node path to access node's snapshot but
         // GetNodeAttributes() replaces such paths with node IDs.
@@ -224,7 +249,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
             }
         }
 
-        for (auto& inconsistentNodeRsp : GetNodeAttributes(inconsistentNodePaths, attributesToFetch, queryContext)) {
+        for (auto& inconsistentNodeRsp : GetNodeAttributes(inconsistentNodePaths, attributesToFetch, queryContext, cluster)) {
             if (inconsistentNodeRsp.IsOK()) {
                 sequoiaNodes.push_back(std::move(inconsistentNodeRsp.Value()));
             } else {
@@ -244,20 +269,26 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
 std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     const std::vector<TString>& paths,
     const std::vector<TString>& attributesToFetch,
-    TQueryContext* queryContext)
+    TQueryContext* queryContext,
+    const std::optional<std::string>& cluster)
 {
     if (paths.empty()) {
         return {};
     }
 
     bool sync = (queryContext->SessionSettings->Execution->TableReadLockMode == ETableReadLockMode::Sync);
+    bool shouldUseSnapshot = sync || cluster.has_value();
 
-    if (sync && queryContext->QueryKind == EQueryKind::InitialQuery) {
+    if (shouldUseSnapshot && queryContext->QueryKind == EQueryKind::InitialQuery) {
         // TODO(dakovalkov): it won't work if the path is not a cypress node (e.g. part of yson document).
-        queryContext->AcquireSnapshotLocks(paths);
+        if (cluster) {
+            queryContext->AcquireSnapshotLocks(paths, *cluster);
+        } else {
+            queryContext->AcquireSnapshotLocks(paths);
+        }
     }
 
-    const auto& client = queryContext->Client();
+    const auto& client = queryContext->Client(cluster);
     const auto& connection = DynamicPointerCast<NApi::NNative::IConnection>(client->GetConnection());
     TMasterReadOptions masterReadOptions = *queryContext->SessionSettings->CypressReadOptions;
 
@@ -267,14 +298,17 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
 
     int index = 0;
     for (auto& path : paths) {
-        auto req = TYPathProxy::Get(queryContext->GetNodeIdOrPath(path) + "/@");
+        auto nodeIdOrPath = cluster
+            ? queryContext->GetNodeIdOrPath(path, *cluster)
+            : queryContext->GetNodeIdOrPath(path);
+        auto req = TYPathProxy::Get(nodeIdOrPath + "/@");
         SetCachingHeader(req, connection, masterReadOptions);
         ToProto(req->mutable_attributes()->mutable_keys(), attributesToFetch);
         req->Tag() = index;
         ++index;
 
-        if (sync) {
-            SetTransactionId(req, queryContext->ReadTransactionId);
+        if (shouldUseSnapshot) {
+            SetTransactionId(req, queryContext->GetReadTransactionId(cluster));
         }
 
         batchReq->AddRequest(req);
@@ -331,7 +365,8 @@ bool IsTable(const INodePtr& node)
 std::vector<INodePtr> ResolveLinks(
     std::vector<INodePtr> nodes,
     const std::vector<TString>& attributesToFetch,
-    TQueryContext* queryContext)
+    TQueryContext* queryContext,
+    const std::optional<std::string>& cluster = std::nullopt)
 {
     std::vector<TString> pathsToResolve;
     pathsToResolve.reserve(nodes.size());
@@ -347,7 +382,7 @@ std::vector<INodePtr> ResolveLinks(
         return nodes;
     }
 
-    auto resolvedNodes = GetNodeAttributes(pathsToResolve, attributesToFetch, queryContext);
+    auto resolvedNodes = GetNodeAttributes(pathsToResolve, attributesToFetch, queryContext, cluster);
 
     int linkIndex = 0;
     for (auto& node : nodes) {
@@ -677,7 +712,7 @@ class TStorageYtDir
     : public TStorageYtNodesBase
 {
 public:
-    TStorageYtDir(TString dirPath, TStorageYtDirOptions options)
+    TStorageYtDir(TRichYPath dirPath, TStorageYtDirOptions options)
         : DirPath_(std::move(dirPath))
         , Options_(std::move(options))
     { }
@@ -687,14 +722,15 @@ protected:
         const std::vector<TString>& attributesToFetch,
         TQueryContext* queryContext) override
     {
-        auto nodes = ValuesOrThrow(ListDirs({DirPath_}, attributesToFetch, queryContext));
+        auto cluster = DirPath_.GetCluster();
+        auto nodes = ValuesOrThrow(ListDirs({DirPath_.GetPath()}, attributesToFetch, queryContext, cluster));
 
         std::erase_if(nodes, [this] (const INodePtr& node) {
             return !IsNodeKeySuitable(node);
         });
 
         if (Options_.ResolveLinks) {
-            nodes = ResolveLinks(nodes, attributesToFetch, queryContext);
+            nodes = ResolveLinks(nodes, attributesToFetch, queryContext, cluster);
         }
 
         if (Options_.TablesOnly) {
@@ -703,11 +739,17 @@ protected:
             });
         }
 
+        if (cluster) {
+            for (auto& node : nodes) {
+                node->AsString()->SetValue(Format("%v:%v", *cluster, node->GetValue<TString>()));
+            }
+        }
+
         return nodes;
     }
 
 private:
-    TString DirPath_;
+    TRichYPath DirPath_;
     TStorageYtDirOptions Options_;
 
     bool IsNodeKeySuitable(const INodePtr& node) const
@@ -934,7 +976,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageYtDir(TString dirPath, TStorageYtDirOptions options)
+DB::StoragePtr CreateStorageYtDir(TRichYPath dirPath, TStorageYtDirOptions options)
 {
     return std::make_shared<TStorageYtDir>(std::move(dirPath), std::move(options));
 }

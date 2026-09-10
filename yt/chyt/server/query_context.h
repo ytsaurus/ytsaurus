@@ -204,10 +204,19 @@ public:
     //! Try to get node id from PathToNodeId, return path on failure.
     //! Node id format is "#<node_id>".
     NYPath::TYPath GetNodeIdOrPath(const NYPath::TYPath& path) const;
+    NYPath::TYPath GetNodeIdOrPath(
+        const NYPath::TYPath& path,
+        const std::string& cluster) const;
 
     //! Synchronously acquire snapshot locks on given paths under the read transaction.
     void AcquireSnapshotLocks(const std::vector<NYPath::TYPath>& paths);
     std::vector<TError> TryAcquireSnapshotLocks(const std::vector<NYPath::TYPath>& paths);
+    void AcquireSnapshotLocks(
+        const std::vector<NYPath::TYPath>& paths,
+        const std::string& cluster);
+    std::vector<TError> TryAcquireSnapshotLocks(
+        const std::vector<NYPath::TYPath>& paths,
+        const std::string& cluster);
 
     // QueryLog
 
@@ -303,6 +312,8 @@ private:
         NTransactionClient::TTimestamp Timestamp;
     };
     TFuture<TTransactionWithTimestamp> ReadTransactionFuture_;
+
+    void EnsureRemoteReadTransaction(const std::string& cluster);
 
     THashMap<std::string, THashMap<NYPath::TYPath, TErrorOr<NYTree::IAttributeDictionaryPtr>>>
         RemoteObjectAttributesSnapshots_;
