@@ -8,6 +8,31 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.11.1**" %}
+
+**Release date:** 2026-08-25
+
+
+**Release page:** [2.11.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.11.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.11.1](https://github.com/orgs/ytsaurus/packages/container/spyt/1169310265?tag=2.11.1)
+
+
+Maintenance release with minor enhancements and bug fixes
+
+- Support for `schema_hint` methods in Spark Connect sessions
+- UDF support for python binaries submitted via Spark Connect
+- Extended UInt64 support for Spark Connect
+- Support for specifying pool for Spark Connect driver operation
+- Spark Connect endpoint availability check
+- Reuse Hadoop configuration across reader factories
+- Fixed reading columns with dots in their names from lookup tables
+- Other minor fixes and improvements
+
+{% endcut %}
+
+
 {% cut "**2.11.0**" %}
 
 **Release date:** 2026-07-31
