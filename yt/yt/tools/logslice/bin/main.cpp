@@ -56,9 +56,8 @@ int main(int argc, char** argv)
         opts.AddLongOption('g', "grep", "grep arguments as a single string, split into tokens (quotes group multi-word patterns)")
             .RequiredArgument("ARGS")
             .StoreResult(&grepLine);
-        // The first free argument is the log file. Preserve the existing local
-        // shorthand that treats further non-option arguments as grep arguments;
-        // option-looking grep arguments belong after "--".
+        // The first free argument is the log file. Further non-option arguments
+        // are grep arguments; option-looking grep arguments belong after "--".
         opts.SetFreeArgsMin(1);
         opts.SetFreeArgTitle(0, "log_file", "log file (.zst, .gz or plain .log) [-- GREP_ARGS...]");
         opts.AddHelpOption();
