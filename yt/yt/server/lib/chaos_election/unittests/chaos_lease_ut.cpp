@@ -23,7 +23,6 @@ using namespace NYson;
 using namespace NYTree;
 
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::StrictMock;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,9 +59,9 @@ protected:
         auto& expectation = EXPECT_CALL(*Client_, GetNode(NYPath::TYPath(CellIdsPath), _))
             .Times(std::ssize(fetchResults));
         for (const auto& cells : fetchResults) {
-            expectation.WillOnce(Invoke([cells] (const NYPath::TYPath&, const TGetNodeOptions&) {
+            expectation.WillOnce([cells] (const NYPath::TYPath&, const TGetNodeOptions&) {
                 return MakeFuture(ConvertToYsonString(cells));
-            }));
+            });
         }
     }
 
@@ -71,7 +70,7 @@ protected:
     void ExpectCreations(THashSet<TCellId> disabledCells = {})
     {
         EXPECT_CALL(*Client_, CreateObject(EObjectType::ChaosLease, _))
-            .WillRepeatedly(Invoke(
+            .WillRepeatedly(
                 [this, disabledCells = std::move(disabledCells)] (
                     EObjectType,
                     const TCreateObjectOptions& options)
@@ -84,7 +83,7 @@ protected:
                             "Cell is not enabled"));
                     }
                     return MakeFuture<TObjectId>(MakeLeaseId(TargetedCells_.size()));
-                }));
+                });
     }
 };
 
@@ -149,7 +148,7 @@ TEST_F(TChaosLeaseFactoryTest, ComesBackToACellThatStartedServing)
     ExpectCellFetches({{MakeCellId(0), MakeCellId(1)}});
     THashSet<TCellId> disabledCells{MakeCellId(0)};
     EXPECT_CALL(*Client_, CreateObject(EObjectType::ChaosLease, _))
-        .WillRepeatedly(Invoke([&] (EObjectType, const TCreateObjectOptions& options) {
+        .WillRepeatedly([&] (EObjectType, const TCreateObjectOptions& options) {
             auto cellId = options.Attributes->Get<TCellId>("chaos_cell_id");
             TargetedCells_.push_back(cellId);
             if (disabledCells.contains(cellId)) {
@@ -158,7 +157,7 @@ TEST_F(TChaosLeaseFactoryTest, ComesBackToACellThatStartedServing)
                     "Cell is not enabled"));
             }
             return MakeFuture<TObjectId>(MakeLeaseId(TargetedCells_.size()));
-        }));
+        });
 
     bool created = Factory_->CreateLease(TDuration::Seconds(15)).BlockingGet().IsOK();
     EXPECT_TRUE(created);
@@ -216,12 +215,12 @@ TEST_F(TChaosLeaseFactoryTest, PicksUpCellsAddedToTheBundleWhenTheCacheExpires)
 TEST_F(TChaosLeaseFactoryTest, FallsBackToTheCachedCellsWhenTheRefreshFails)
 {
     EXPECT_CALL(*Client_, GetNode(NYPath::TYPath(CellIdsPath), _))
-        .WillOnce(Invoke([] (const NYPath::TYPath&, const TGetNodeOptions&) {
+        .WillOnce([] (const NYPath::TYPath&, const TGetNodeOptions&) {
             return MakeFuture(ConvertToYsonString(std::vector<TCellId>{MakeCellId(0)}));
-        }))
-        .WillOnce(Invoke([] (const NYPath::TYPath&, const TGetNodeOptions&) {
+        })
+        .WillOnce([] (const NYPath::TYPath&, const TGetNodeOptions&) {
             return MakeFuture<TYsonString>(TError("Cypress is unavailable"));
-        }));
+        });
     ExpectCreations();
 
     for (int index = 0; index < 2; ++index) {
@@ -249,9 +248,9 @@ TEST_F(TChaosLeaseFactoryTest, PropagatesUnexpectedCreationErrors)
     // on the remaining cells: it can be a created-but-unacknowledged lease.
     ExpectCellFetches({{MakeCellId(0), MakeCellId(1)}});
     EXPECT_CALL(*Client_, CreateObject(EObjectType::ChaosLease, _))
-        .WillOnce(Invoke([] (EObjectType, const TCreateObjectOptions&) {
+        .WillOnce([] (EObjectType, const TCreateObjectOptions&) {
             return MakeFuture<TObjectId>(TError("Creation lost"));
-        }));
+        });
 
     auto result = Factory_->CreateLease(TDuration::Seconds(15)).BlockingGet();
 
@@ -265,10 +264,10 @@ TEST_F(TChaosLeaseFactoryTest, ForwardsTimeoutAndCallerAttributes)
 
     IAttributeDictionaryPtr seenAttributes;
     EXPECT_CALL(*Client_, CreateObject(EObjectType::ChaosLease, _))
-        .WillOnce(Invoke([&] (EObjectType, const TCreateObjectOptions& options) {
+        .WillOnce([&] (EObjectType, const TCreateObjectOptions& options) {
             seenAttributes = options.Attributes->Clone();
             return MakeFuture<TObjectId>(MakeLeaseId(0));
-        }));
+        });
 
     auto callerAttributes = CreateEphemeralAttributes();
     callerAttributes->Set("marker", 42);
