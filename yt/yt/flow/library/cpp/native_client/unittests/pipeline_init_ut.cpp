@@ -83,6 +83,51 @@ TEST(TPipelineInitTest, IgnoreExistingPropagatesToInnerTables)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TPipelineInitTest, InitializeTablesIsControlAttribute)
+{
+    auto client = New<NiceMock<TMockClient>>();
+    auto transaction = New<NiceMock<TMockTransaction>>();
+
+    int createNodeCallCount = 0;
+    TCreateNodeOptions capturedOptions;
+
+    ON_CALL(*client, StartTransaction(_, _))
+        .WillByDefault(Return(MakeFuture<ITransactionPtr>(transaction)));
+
+    ON_CALL(*transaction, CreateNode(_, _, _))
+        .WillByDefault([&] (
+            const TYPath& path,
+            EObjectType type,
+            const TCreateNodeOptions& options) {
+            ++createNodeCallCount;
+            EXPECT_EQ(path, "//tmp/pipeline");
+            EXPECT_EQ(type, EObjectType::MapNode);
+            capturedOptions = options;
+            return MakeFuture<TNodeId>(TNodeId(TGuid::Create()));
+        });
+
+    ON_CALL(*transaction, Commit(_))
+        .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));
+
+    TCreateNodeOptions options;
+    options.Attributes = NYTree::CreateEphemeralAttributes();
+    options.Attributes->Set("initialize_tables", false);
+    options.Attributes->Set("monitoring_cluster", "monitoring");
+    options.Attributes->Set(PipelineFormatVersionAttribute, -1);
+
+    CreatePipelineNode(client, "//tmp/pipeline", options);
+
+    EXPECT_EQ(createNodeCallCount, 1);
+    ASSERT_TRUE(capturedOptions.Attributes);
+    EXPECT_FALSE(capturedOptions.Attributes->Contains("initialize_tables"));
+    EXPECT_EQ(capturedOptions.Attributes->Get<std::string>("monitoring_cluster"), "monitoring");
+    EXPECT_EQ(
+        capturedOptions.Attributes->Get<int>(PipelineFormatVersionAttribute),
+        CurrentPipelineFormatVersion);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // The dyntable lease backend cannot run without the "leases" table, and a pipeline created by the
 // native client is provisioned by #GetTables alone: yt_sync is not involved there. The Python
 // catalogue drift test cannot cover this — it creates a pipeline through the master, which does
