@@ -395,7 +395,7 @@ TEST_W(TDescribeTest, MakeComputationDescriptions)
 
         EXPECT_TRUE(*computationDescription.Metrics == *expected.Metrics);
         EXPECT_DOUBLE_EQ(computationDescription.CpuUsage, *expected.Metrics->CpuUsage10m);
-        EXPECT_DOUBLE_EQ(computationDescription.MemoryUsage, expected.Metrics->MemoryUsage10m);
+        EXPECT_DOUBLE_EQ(computationDescription.MemoryUsage, expected.Metrics->MemoryUsage10m.value_or(0));
 
         EXPECT_EQ(computationDescription.HighlightCpuUsage, expected.Highlighted);
         EXPECT_EQ(computationDescription.HighlightMemoryUsage, expected.Highlighted);

@@ -146,9 +146,9 @@ struct TNodePerformanceMetrics
     std::optional<double> CpuUsage30s;
     std::optional<double> CpuUsage10m;
 
-    i64 MemoryUsageCurrent{};
-    i64 MemoryUsage30s{};
-    i64 MemoryUsage10m{};
+    std::optional<i64> MemoryUsageCurrent;
+    std::optional<i64> MemoryUsage30s;
+    std::optional<i64> MemoryUsage10m;
 
     REGISTER_YSON_STRUCT(TNodePerformanceMetrics);
 

@@ -199,7 +199,7 @@ void TPartitioningCoordinator::InputAutoPartitioningCalculateOptimalCount(
                         : *status->PerformanceMetrics->CpuUsage30s);
             }
             if (status->PerformanceMetrics && status->PerformanceMetrics->MemoryUsage10m) {
-                averageMemoryUsage.Add(partitionId, status->PerformanceMetrics->MemoryUsage10m);
+                averageMemoryUsage.Add(partitionId, *status->PerformanceMetrics->MemoryUsage10m);
             }
             if (status->InputMetrics) {
                 averageMessagesPerSecond.Add(partitionId, status->InputMetrics->Global.MessagesPerSecond);

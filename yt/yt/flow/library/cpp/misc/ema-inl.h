@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef EMA_INL_H_
     #error "Direct inclusion of this file is not allowed, include ema.h"
     // For the sake of sane code completion.
@@ -38,6 +40,13 @@ const std::optional<T>& TEma<T, CalculateRate>::GrowthRate() const
     requires CalculateRate
 {
     return Ema_.GrowthRate()[0];
+}
+
+template <class T, bool CalculateRate>
+    requires std::is_arithmetic_v<T>
+const std::optional<T>& TEma<T, CalculateRate>::Last() const
+{
+    return Ema_.Last();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,6 +103,7 @@ void TMultiWindowEma<T, WindowCount, CalculateRate>::Set(const T& value, TInstan
     }
 
     LastTime_ = instant;
+    ResultLastValue = value;
     FillResults();
 }
 
@@ -110,6 +120,13 @@ const std::array<std::optional<T>, WindowCount>& TMultiWindowEma<T, WindowCount,
     requires CalculateRate
 {
     return this->ResultGrowthRates;
+}
+
+template <class T, ssize_t WindowCount, bool CalculateRate>
+    requires(std::is_arithmetic_v<T> && WindowCount > 0)
+const std::optional<T>& TMultiWindowEma<T, WindowCount, CalculateRate>::Last() const
+{
+    return ResultLastValue;
 }
 
 template <class T, ssize_t WindowCount, bool CalculateRate>

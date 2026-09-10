@@ -273,9 +273,9 @@ static void NodePerformanceMetricsApply(
     result->CpuUsageCurrent = aggregator(result->CpuUsageCurrent.value_or(0), metrics->CpuUsageCurrent.value_or(0));
     result->CpuUsage30s = aggregator(result->CpuUsage30s.value_or(0), metrics->CpuUsage30s.value_or(0));
     result->CpuUsage10m = aggregator(result->CpuUsage10m.value_or(0), metrics->CpuUsage10m.value_or(0));
-    result->MemoryUsage10m = aggregator(result->MemoryUsage10m, metrics->MemoryUsage10m);
-    result->MemoryUsage30s = aggregator(result->MemoryUsage30s, metrics->MemoryUsage30s);
-    result->MemoryUsageCurrent = aggregator(result->MemoryUsageCurrent, metrics->MemoryUsageCurrent);
+    result->MemoryUsageCurrent = aggregator(result->MemoryUsageCurrent.value_or(0), metrics->MemoryUsageCurrent.value_or(0));
+    result->MemoryUsage30s = aggregator(result->MemoryUsage30s.value_or(0), metrics->MemoryUsage30s.value_or(0));
+    result->MemoryUsage10m = aggregator(result->MemoryUsage10m.value_or(0), metrics->MemoryUsage10m.value_or(0));
 }
 
 template <typename TAggregator>
@@ -307,9 +307,9 @@ TAggregatedNodePerformanceMetricsPtr AggregateNodePerformanceMetrics(const std::
         result->Avg->CpuUsageCurrent = result->Total->CpuUsageCurrent.value_or(0) / count;
         result->Avg->CpuUsage30s = result->Total->CpuUsage30s.value_or(0) / count;
         result->Avg->CpuUsage10m = result->Total->CpuUsage10m.value_or(0) / count;
-        result->Avg->MemoryUsage10m = result->Total->MemoryUsage10m / count;
-        result->Avg->MemoryUsage30s = result->Total->MemoryUsage30s / count;
-        result->Avg->MemoryUsageCurrent = result->Total->MemoryUsageCurrent / count;
+        result->Avg->MemoryUsageCurrent = result->Total->MemoryUsageCurrent.value_or(0) / count;
+        result->Avg->MemoryUsage30s = result->Total->MemoryUsage30s.value_or(0) / count;
+        result->Avg->MemoryUsage10m = result->Total->MemoryUsage10m.value_or(0) / count;
     }
 
     return result;

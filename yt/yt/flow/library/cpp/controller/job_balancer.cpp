@@ -1471,12 +1471,11 @@ void TPartitionDistributionData::CollectPartitions(const TFlowViewPtr& flowView,
             } else {
                 info.InputCpuUsage = currentJobStatus->PerformanceMetrics->CpuUsageCurrent;
             }
-            // Unlike the CPU counterparts, the memory fields are plain integers: present iff positive.
-            if (currentJobStatus->PerformanceMetrics->MemoryUsage10m > 0) {
-                info.InputMemoryUsage = currentJobStatus->PerformanceMetrics->MemoryUsage10m;
-            } else if (currentJobStatus->PerformanceMetrics->MemoryUsage30s > 0) {
-                info.InputMemoryUsage = currentJobStatus->PerformanceMetrics->MemoryUsage30s;
-            } else if (currentJobStatus->PerformanceMetrics->MemoryUsageCurrent > 0) {
+            if (currentJobStatus->PerformanceMetrics->MemoryUsage10m) {
+                info.InputMemoryUsage = *currentJobStatus->PerformanceMetrics->MemoryUsage10m;
+            } else if (currentJobStatus->PerformanceMetrics->MemoryUsage30s) {
+                info.InputMemoryUsage = *currentJobStatus->PerformanceMetrics->MemoryUsage30s;
+            } else {
                 info.InputMemoryUsage = currentJobStatus->PerformanceMetrics->MemoryUsageCurrent;
             }
             info.TimeSinceStart = TInstant::Now() - currentJobStatus->StartTime;
