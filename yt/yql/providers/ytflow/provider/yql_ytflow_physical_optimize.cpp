@@ -789,25 +789,14 @@ private:
             combineItemType = ctx.MakeType<TStructExprType>(combineItemTypes);
         }
 
-        // NOTE: combineLambda gets following items:
-        //   * stream of original items
-        // and produces:
-        //   * stream of key + aggregationState
-
-        auto combineLambda = BuildLambdaFromSExprFactory(
+        auto combineByKeyLambda = BuildLambdaFromSExprFactory(
             R"((
             (let factory (lambda '(
                     combineKeyType
                     combinePayloadType
-                    column
-                    hop
-                    hopFrameCount
-                    keyExtractorLambda
                     buildCombineOutputLambda
-                    initLambda
-                    updateLambda
                     saveLambda)
-                (lambda '(stream) (block '(
+                (lambda '(stream keyExtractorLambda updateInnerStateLambda) (block '(
                     (let innerDictType (DictType
                         (DataType 'Timestamp)
                         combinePayloadType))
@@ -840,46 +829,8 @@ private:
                                     (ToDynamicLinear (ToMutDict
                                         (Dict innerDictType)
                                         (DependsOn item)))))
-                                (let time (Member item column))
-                                (let hopStartTime (Unwrap (Sub
-                                    time
-                                    (SafeCast
-                                        (Unwrap (Mod
-                                            (BitCast time 'Int64)
-                                            (BitCast (Interval hop) 'Int64)))
-                                        (DataType 'Interval)))))
-                                (let hopFrameIndexList (ListFromRange
-                                    (Int64 '0) (Int64 hopFrameCount) (Int64 '1)))
-                                (let updatedState (Fold
-                                    hopFrameIndexList
-                                    '(item innerLinearState hopStartTime)
-                                    (lambda '(hopFrameIndex state) (block '(
-                                        (let item (Nth state '0))
-                                        (let innerLinearState (FromDynamicLinear
-                                            (Nth state '1)))
-                                        (let hopFrameStartTime (Nth state '2))
-                                        (let innerLookupResult (MutDictLookup
-                                            innerLinearState hopFrameStartTime))
-                                        (let innerLinearState (Nth innerLookupResult '0))
-                                        (let optionalHopFrameState
-                                            (Nth innerLookupResult '1))
-                                        (let hopFrameState (If
-                                            (Exists optionalHopFrameState)
-                                            (Apply updateLambda item
-                                                (Unwrap optionalHopFrameState))
-                                            (Apply initLambda item)))
-                                        (let updatedInnerLinearState (ToDynamicLinear
-                                            (MutDictUpsert
-                                                innerLinearState
-                                                hopFrameStartTime
-                                                hopFrameState)))
-                                        (let updatedHopFrameStartTime (Unwrap (Sub
-                                            hopFrameStartTime (Interval hop))))
-                                        (return '(
-                                            item
-                                            updatedInnerLinearState
-                                            updatedHopFrameStartTime)))))))
-                                (let innerLinearState (Nth updatedState '1))
+                                (let innerLinearState (Apply
+                                    updateInnerStateLambda item innerLinearState))
                                 (let outerLinearState (MutDictUpsert
                                     outerLinearState key innerLinearState))
                                 (return (ToDynamicLinear outerLinearState)))))))))
@@ -906,17 +857,153 @@ private:
             {
                 ExpandType(node.Pos(), *combineKeyType, ctx),
                 ExpandType(node.Pos(), *combinePayloadType, ctx),
-                ctx.NewAtom(node.Pos(), hopTraits.Column),
-                ctx.NewAtom(node.Pos(), ToString(hopTraits.Hop)),
-                ctx.NewAtom(node.Pos(), ToString(hopTraits.Interval / hopTraits.Hop)),
-                keyExtractorLambda,
                 buildCombineOutputLambda,
-                initLambda,
-                updateLambda,
                 saveLambda,
             },
             node.Pos(),
             ctx);
+
+        auto updateRawInnerStateLambda = BuildLambdaFromSExprFactory(
+            R"((
+            (let factory (lambda '(
+                    column
+                    hop
+                    hopFrameCount
+                    initLambda
+                    updateLambda)
+                (lambda '(item innerLinearState) (block '(
+                    (let time (Member item column))
+                    (let hopStartTime (Unwrap (Sub
+                        time
+                        (SafeCast
+                            (Unwrap (Mod
+                                (BitCast time 'Int64)
+                                (BitCast (Interval hop) 'Int64)))
+                            (DataType 'Interval)))))
+                    (let hopFrameIndexList (ListFromRange
+                        (Int64 '0) (Int64 hopFrameCount) (Int64 '1)))
+                    (let updatedState (Fold
+                        hopFrameIndexList
+                        '(item innerLinearState hopStartTime)
+                        (lambda '(hopFrameIndex state) (block '(
+                            (let item (Nth state '0))
+                            (let innerLinearState (FromDynamicLinear
+                                (Nth state '1)))
+                            (let hopFrameStartTime (Nth state '2))
+                            (let innerLookupResult (MutDictLookup
+                                innerLinearState hopFrameStartTime))
+                            (let innerLinearState (Nth innerLookupResult '0))
+                            (let optionalHopFrameState
+                                (Nth innerLookupResult '1))
+                            (let hopFrameState (If
+                                (Exists optionalHopFrameState)
+                                (Apply updateLambda item
+                                    (Unwrap optionalHopFrameState))
+                                (Apply initLambda item)))
+                            (let updatedInnerLinearState (ToDynamicLinear
+                                (MutDictUpsert
+                                    innerLinearState
+                                    hopFrameStartTime
+                                    hopFrameState)))
+                            (let updatedHopFrameStartTime (Unwrap (Sub
+                                hopFrameStartTime (Interval hop))))
+                            (return '(
+                                item
+                                updatedInnerLinearState
+                                updatedHopFrameStartTime)))))))
+                    (return (Nth updatedState '1)))))))
+            (return factory)
+            ))",
+            {
+                ctx.NewAtom(node.Pos(), hopTraits.Column),
+                ctx.NewAtom(node.Pos(), ToString(hopTraits.Hop)),
+                ctx.NewAtom(node.Pos(), ToString(hopTraits.Interval / hopTraits.Hop)),
+                initLambda,
+                updateLambda,
+            },
+            node.Pos(),
+            ctx);
+
+        auto updateCombinedInnerStateLambda = BuildLambdaFromSExprFactory(
+            R"((
+            (let factory (lambda '(
+                    combinedStateField
+                    loadLambda
+                    mergeLambda)
+                (lambda '(item innerLinearState) (Fold
+                    (Member item combinedStateField)
+                    innerLinearState
+                    (lambda '(combinedStateItem state) (block '(
+                        (let innerLinearState (FromDynamicLinear state))
+                        (let hopFrameStartTime (Nth combinedStateItem '0))
+                        (let hopFrameCombinedState (Apply loadLambda
+                            (Nth combinedStateItem '1)))
+                        (let lookupResult (MutDictLookup
+                            innerLinearState hopFrameStartTime))
+                        (let innerLinearState (Nth lookupResult '0))
+                        (let optionalHopFrameState (Nth lookupResult '1))
+                        (let hopFrameState (If
+                            (Exists optionalHopFrameState)
+                            (Apply
+                                mergeLambda
+                                hopFrameCombinedState
+                                (Unwrap optionalHopFrameState))
+                            hopFrameCombinedState))
+                        (return (ToDynamicLinear (MutDictUpsert
+                            innerLinearState
+                            hopFrameStartTime
+                            hopFrameState))))))))))
+            (return factory)
+            ))",
+            {
+                ctx.NewAtom(node.Pos(), YTFLOW_COMBINED_STATE_FIELD),
+                loadLambda,
+                mergeLambda,
+            },
+            node.Pos(),
+            ctx);
+
+        auto buildCombineLambda = [&](TExprNode::TPtr extractor, TExprNode::TPtr updater) {
+            auto combineByKeyLambdaCopy = ctx.DeepCopyLambda(*combineByKeyLambda);
+
+            return BuildLambdaFromSExprFactory(
+                R"((
+                (let factory (lambda '(
+                        combineByKeyLambda
+                        keyExtractorLambda
+                        updateInnerStateLambda)
+                    (lambda '(stream) (Apply
+                        combineByKeyLambda
+                        stream
+                        keyExtractorLambda
+                        updateInnerStateLambda))))
+                (return factory)
+                ))",
+                {
+                    std::move(combineByKeyLambdaCopy),
+                    std::move(extractor),
+                    std::move(updater),
+                },
+                node.Pos(),
+                ctx);
+        };
+
+        // NOTE: combineLambda gets following items:
+        //   * stream of original items
+        // and produces:
+        //   * stream of key + aggregationState
+        auto combineLambda = buildCombineLambda(
+            keyExtractorLambda, updateRawInnerStateLambda);
+
+        auto combinedStateKeyExtractorLambda = keysDescription.GetKeySelector(
+            ctx, node.Pos(), combineItemType->Cast<TStructExprType>());
+
+        // NOTE: combineStatesLambda gets following items:
+        //   * stream of key + aggregationState
+        // and produces:
+        //   * stream of key + aggregationState
+        auto combineStatesLambda = buildCombineLambda(
+            combinedStateKeyExtractorLambda, updateCombinedInnerStateLambda);
 
         // build pre map with combine & hopTraits.Column evaluation
         TExprNode::TPtr combineMapOutput;
@@ -1022,6 +1109,14 @@ private:
                     .Add(std::move(combineMapSink))
                     .Build()
                 .Settings()
+                    .Add<TCoNameValueTuple>()
+                        .Name()
+                            .Value(INJECT_INPUT_MESSAGE_ID_SETTING)
+                            .Build()
+                        .Value<TCoAtom>()
+                            .Value("")
+                            .Build()
+                        .Build()
                     .Build()
                 .Lambda(TCoLambda(combineLambda))
                 .GroupByColumns()
@@ -1033,6 +1128,49 @@ private:
 
             combineMapOutput = Build<TYtflowOutput>(ctx, node.Pos())
                 .Operation(combineMap)
+                .OutputIndex()
+                    .Value(0)
+                    .Build()
+                .Done().Ptr();
+        }
+
+        TExprNode::TPtr combineStatesMapOutput;
+
+        {
+            TSyncMap combineStatesMapSyncList;
+            auto combineStatesMapSource = BuildOperationSource(
+                combineMapOutput, combineStatesMapSyncList, ctx, *State_->Types);
+
+            auto combineStatesMapSink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
+                .Name()
+                    .Value("")
+                    .Build()
+                .OutputIndex()
+                    .Value(0)
+                    .Build()
+                .RowType(ExpandType(node.Pos(), *combineItemType, ctx))
+                .Done().Ptr();
+
+            auto combineStatesMap = Build<TYtflowTransformMap>(ctx, node.Pos())
+                .World(MakeSyncNodeFromSyncList(combineStatesMapSyncList, node.Pos(), ctx))
+                .Sources()
+                    .Add(std::move(combineStatesMapSource))
+                    .Build()
+                .Sinks()
+                    .Add(std::move(combineStatesMapSink))
+                    .Build()
+                .Settings()
+                    .Build()
+                .Lambda(TCoLambda(combineStatesLambda))
+                .GroupByColumns()
+                    .Add<TCoAtom>()
+                        .Value(YTFLOW_INPUT_MESSAGE_ID_FIELD)
+                        .Build()
+                    .Build()
+                .Done();
+
+            combineStatesMapOutput = Build<TYtflowOutput>(ctx, node.Pos())
+                .Operation(combineStatesMap)
                 .OutputIndex()
                     .Value(0)
                     .Build()
@@ -1173,7 +1311,7 @@ private:
 
         TSyncMap syncList;
         auto source = BuildOperationSource(
-            combineMapOutput, syncList, ctx, *State_->Types);
+            combineStatesMapOutput, syncList, ctx, *State_->Types);
 
         auto sink = Build<TYtflowIntermediateSink>(ctx, TPositionHandle{})
             .Name()
