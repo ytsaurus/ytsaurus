@@ -26,6 +26,8 @@ If you need **read-only** access to the external state (a key-based join with TT
 
 For more details about Internal State, see [Internal State](../../../flow/java/internal-state.md).
 
+Unlike internal state, external state is not tracked: a new value goes only through `set()`, and a joined external state is read-only.
+
 ## Getting ExternalStateAccessor
 
 External state is described by the `ExternalStateDescriptor` constant, which you create via `StateDescriptors.external(...)`. You usually declare the descriptor once per `RowFunction` class:

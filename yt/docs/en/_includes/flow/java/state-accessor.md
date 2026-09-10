@@ -46,6 +46,9 @@ You write new values to the state table as a transaction within an [epoch](../..
 
       /** Get the state class. */
       Class<T> getStateClass();
+
+      /** Get a read-only view of the accessor. */
+      default StateAccessor<T> readOnly();
   }
   ```
 
@@ -67,7 +70,12 @@ You write new values to the state table as a transaction within an [epoch](../..
 
       /** Get the state class. */
       fun getStateClass(): Class<T>
+
+      /** Get a read-only view of the accessor. */
+      fun readOnly(): StateAccessor<T>
   }
   ```
 
 {% endlist %}
+
+The value of an internal state returned by `get()` and `getOrDefault()` is live: the changes made to it are written without a `set()` call, and `readOnly()` returns an untracked view — see [Changing the value in place](../../../flow/java/internal-state.md#in-place). A default returned by `getOrDefault()` is not written to {{product-name}}: it becomes the state value only if the computation changes it.

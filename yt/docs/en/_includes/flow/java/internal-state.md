@@ -212,9 +212,6 @@ To detect the changes, a value that was read is re-encoded once at the end of th
           // Modify the state
           state.setCount(state.getCount() + 1);
           state.setLastUpdate(message.getEventTimestamp());
-
-          // Save the state
-          stateAccessor.set(state);
       }
   }
   ```
@@ -233,9 +230,6 @@ To detect the changes, a value that was read is re-encoded once at the end of th
           // Modify the state
           state.count = state.count + 1
           state.lastUpdate = message.getEventTimestamp()
-
-          // Save the state
-          stateAccessor.set(state)
       }
   }
   ```
@@ -439,7 +433,6 @@ To detect the changes, a value that was read is re-encoded once at the end of th
 
           CounterState state = stateAccessor.getOrDefault(new CounterState());
           state.setCount(state.getCount() + 1);
-          stateAccessor.set(state);
       }
   }
   ```
@@ -469,7 +462,6 @@ To detect the changes, a value that was read is re-encoded once at the end of th
 
           val state: CounterState = stateAccessor.getOrDefault(CounterState())
           state.count = state.count + 1
-          stateAccessor.set(state)
       }
   }
   ```
