@@ -661,16 +661,6 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
     const std::vector<TYPath>& paths,
     const std::string& cluster)
 {
-    if (QueryKind == EQueryKind::NoQuery) {
-        THROW_ERROR_EXCEPTION("Cross-cluster reads are not supported outside a SELECT query")
-            .With("cluster", cluster);
-    }
-    if (ParentTransactionId) {
-        THROW_ERROR_EXCEPTION("Cross-cluster reads cannot use a parent transaction")
-            .With("cluster", cluster)
-            .With("parent_transaction_id", ParentTransactionId);
-    }
-
     auto& snapshot = RemoteObjectAttributesSnapshots_[cluster];
     std::vector<TYPath> pathsToFetch;
     for (const auto& path : paths) {
@@ -685,40 +675,15 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
         auto& locks = RemoteSnapshotLocks[cluster];
 
         if (QueryKind == EQueryKind::InitialQuery) {
-            auto transactionIt = InitialRemoteReadTransactions_.find(cluster);
-            if (transactionIt == InitialRemoteReadTransactions_.end()) {
-                auto transactionFuture = client->StartNativeTransaction(ETransactionType::Master);
-                auto timestampFuture = client->GetTimestampProvider()->GenerateTimestamps();
-                WaitFor(AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()}))
-                    .ThrowOnError();
-
-                auto transaction = WaitFor(transactionFuture).ValueOrThrow();
-                auto timestamp = WaitFor(timestampFuture).ValueOrThrow();
-                RemoteReadTransactionIds[cluster] = transaction->GetId();
-                RemoteDynamicTableReadTimestamps[cluster] = timestamp;
-                transactionIt = InitialRemoteReadTransactions_.emplace(cluster, std::move(transaction)).first;
-                YT_TLOG_INFO("Remote query read transaction initialized")
-                    .With("Cluster", cluster)
-                    .With("ReadTransactionId", transactionIt->second->GetId())
-                    .With("DynamicTableReadTimestamp", timestamp);
-            }
-
             std::vector<TYPath> pathsToLock;
             for (const auto& path : pathsToFetch) {
                 if (!locks.contains(path)) {
                     pathsToLock.push_back(path);
                 }
             }
-            auto lockResults = WaitFor(DoAcquireSnapshotLocksAsync(
-                pathsToLock,
-                client,
-                transactionIt->second->GetId(),
-                Logger))
-                .ValueOrThrow();
+            auto lockResults = TryAcquireSnapshotLocks(pathsToLock, cluster);
             for (const auto& [index, path] : SEnumerate(pathsToLock)) {
-                if (lockResults[index].IsOK()) {
-                    locks.emplace(path, lockResults[index].Value());
-                } else {
+                if (!lockResults[index].IsOK()) {
                     snapshot.emplace(path, TError(lockResults[index]));
                 }
             }
@@ -747,7 +712,7 @@ std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::GetObjectAttribute
 
         std::vector<NSecurityClient::TPermissionKey> permissionKeys;
         permissionKeys.reserve(fetchablePaths.size());
-        for (const auto& path : fetchablePaths) {
+        for (const auto& path : resolvedPaths) {
             permissionKeys.push_back(NSecurityClient::TPermissionKey{
                 .Path = path,
                 .User = User,
@@ -1095,6 +1060,17 @@ TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path) const
     return (lockIt != SnapshotLocks.end()) ? Format("#%v", lockIt->second.NodeId) : path;
 }
 
+TYPath TQueryContext::GetNodeIdOrPath(const TYPath& path, const std::string& cluster) const
+{
+    auto clusterIt = RemoteSnapshotLocks.find(cluster);
+    if (clusterIt == RemoteSnapshotLocks.end()) {
+        return path;
+    }
+
+    auto lockIt = clusterIt->second.find(path);
+    return (lockIt != clusterIt->second.end()) ? Format("#%v", lockIt->second.NodeId) : path;
+}
+
 void TQueryContext::AcquireSnapshotLocks(const std::vector<TYPath>& paths)
 {
     for (const auto& error : TryAcquireSnapshotLocks(paths)) {
@@ -1120,6 +1096,104 @@ std::vector<TError> TQueryContext::TryAcquireSnapshotLocks(const std::vector<TYP
         }
         result[index] = std::move(locks[index]);
     }
+    return result;
+}
+
+void TQueryContext::EnsureRemoteReadTransaction(const std::string& cluster)
+{
+    if (QueryKind == EQueryKind::NoQuery) {
+        THROW_ERROR_EXCEPTION("Cross-cluster reads are not supported outside a SELECT query")
+            .With("cluster", cluster);
+    }
+    if (ParentTransactionId) {
+        THROW_ERROR_EXCEPTION("Cross-cluster reads cannot use a parent transaction")
+            .With("cluster", cluster)
+            .With("parent_transaction_id", ParentTransactionId);
+    }
+
+    if (QueryKind != EQueryKind::InitialQuery) {
+        if (!RemoteReadTransactionIds.contains(cluster)) {
+            THROW_ERROR_EXCEPTION("Missing remote read transaction in secondary query")
+                .With("cluster", cluster);
+        }
+        return;
+    }
+
+    if (InitialRemoteReadTransactions_.contains(cluster)) {
+        return;
+    }
+
+    auto client = Client(cluster);
+    auto transactionFuture = client->StartNativeTransaction(ETransactionType::Master);
+    auto timestampFuture = client->GetTimestampProvider()->GenerateTimestamps();
+    WaitFor(AllSucceeded(std::vector{transactionFuture.AsVoid(), timestampFuture.AsVoid()}))
+        .ThrowOnError();
+
+    auto transaction = WaitFor(transactionFuture).ValueOrThrow();
+    auto timestamp = WaitFor(timestampFuture).ValueOrThrow();
+    RemoteReadTransactionIds[cluster] = transaction->GetId();
+    RemoteDynamicTableReadTimestamps[cluster] = timestamp;
+    auto transactionId = transaction->GetId();
+    InitialRemoteReadTransactions_.emplace(cluster, std::move(transaction));
+    YT_TLOG_INFO("Remote query read transaction initialized")
+        .With("Cluster", cluster)
+        .With("ReadTransactionId", transactionId)
+        .With("DynamicTableReadTimestamp", timestamp);
+}
+
+void TQueryContext::AcquireSnapshotLocks(
+    const std::vector<TYPath>& paths,
+    const std::string& cluster)
+{
+    for (const auto& error : TryAcquireSnapshotLocks(paths, cluster)) {
+        error.ThrowOnError();
+    }
+}
+
+std::vector<TError> TQueryContext::TryAcquireSnapshotLocks(
+    const std::vector<TYPath>& paths,
+    const std::string& cluster)
+{
+    if (paths.empty()) {
+        return {};
+    }
+
+    EnsureRemoteReadTransaction(cluster);
+
+    auto& locks = RemoteSnapshotLocks[cluster];
+    std::vector<TError> result(paths.size());
+    std::vector<TYPath> pathsToLock;
+    std::vector<size_t> indicesToLock;
+    for (const auto& [index, path] : SEnumerate(paths)) {
+        if (locks.contains(path)) {
+            continue;
+        }
+        pathsToLock.push_back(path);
+        indicesToLock.push_back(index);
+    }
+
+    if (QueryKind == EQueryKind::InitialQuery) {
+        auto lockResults = WaitFor(DoAcquireSnapshotLocksAsync(
+            pathsToLock,
+            Client(cluster),
+            GetOrCrash(RemoteReadTransactionIds, cluster),
+            Logger))
+            .ValueOrThrow();
+        for (const auto& [lockIndex, path] : SEnumerate(pathsToLock)) {
+            auto resultIndex = indicesToLock[lockIndex];
+            if (lockResults[lockIndex].IsOK()) {
+                locks.emplace(path, lockResults[lockIndex].Value());
+            } else {
+                result[resultIndex] = TError(lockResults[lockIndex]);
+            }
+        }
+    } else {
+        for (auto resultIndex : indicesToLock) {
+            result[resultIndex] = TError("Missing snapshot lock for remote path %v", paths[resultIndex])
+                .With("cluster", cluster);
+        }
+    }
+
     return result;
 }
 

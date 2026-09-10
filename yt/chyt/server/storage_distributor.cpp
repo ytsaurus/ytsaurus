@@ -149,8 +149,9 @@ void ValidateReadPermissions(
     for (const auto& table : tables) {
         // TODO(dakovalkov): in theory, we should validate permissions only if attributes
         // were received through the cache.
-        auto tablePath = table->Path.GetCluster()
-            ? TRichYPath(table->GetPath())
+        auto cluster = table->Path.GetCluster();
+        auto tablePath = cluster
+            ? TRichYPath(queryContext->GetNodeIdOrPath(table->GetPath(), *cluster))
             : TRichYPath(queryContext->GetNodeIdOrPath(table->GetPath()));
         tablePath.SetColumns(columnNames);
         tablePathsWithColumns.emplace_back(std::move(tablePath));
@@ -193,7 +194,7 @@ void ValidateReadPermissions(
             if (!results[resultIndex].IsOK()) {
                 errors.push_back(TError(results[resultIndex])
                     .With("cluster", *cluster)
-                    .With("path", paths[resultIndex]));
+                    .With("path", tables[tableIndex]->Path));
             } else {
                 rowLevelAclPerTable[tableIndex] = results[resultIndex].Value().RowLevelAcl;
             }
