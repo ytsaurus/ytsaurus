@@ -21,6 +21,7 @@
 #include <yt/yt/flow/library/cpp/common/state_cache.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
+#include <yt/yt/flow/library/cpp/misc/ema.h>
 #include <yt/yt/flow/library/cpp/misc/load_throughput_throttler.h>
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -31,7 +32,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/yt/core/misc/adjusted_exponential_moving_average.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/ema_counter.h>
 
@@ -535,9 +535,7 @@ private:
         {
             auto now = TInstant::Now();
             CpuTimeEmaCounter_.Update(cpuTime.SecondsFloat(), now);
-            MemoryUsageCurrent_ = memoryUsage;
-            MemoryUsage30s_.UpdateAt(now, memoryUsage);
-            MemoryUsage10m_.UpdateAt(now, memoryUsage);
+            MemoryUsageEma_.Set(static_cast<i64>(memoryUsage), now);
 
             CpuTimeCounter_.Add(std::max(cpuTime, TotalCpuTime_) - TotalCpuTime_);
             TotalCpuTime_ = cpuTime;
@@ -550,21 +548,18 @@ private:
             metrics->CpuUsageCurrent = CpuTimeEmaCounter_.ImmediateRate;
             metrics->CpuUsage30s = CpuTimeEmaCounter_.GetRate(0);
             metrics->CpuUsage10m = CpuTimeEmaCounter_.GetRate(1);
-            metrics->MemoryUsageCurrent = MemoryUsageCurrent_;
-            metrics->MemoryUsage30s = MemoryUsage30s_.GetAverage();
-            metrics->MemoryUsage10m = MemoryUsage10m_.GetAverage();
+            metrics->MemoryUsageCurrent = MemoryUsageEma_.Last();
+            metrics->MemoryUsage30s = MemoryUsageEma_.Average()[0];
+            metrics->MemoryUsage10m = MemoryUsageEma_.Average()[1];
             return metrics;
         }
 
     private:
         static constexpr int TimeWindowsCount = 2;
-        TEmaCounter<double, TimeWindowsCount> CpuTimeEmaCounter_{{
-            TDuration::Seconds(30),
-            TDuration::Minutes(10),
-        }};
-        size_t MemoryUsageCurrent_ = 0;
-        TAdjustedExponentialMovingAverage MemoryUsage10m_{TDuration::Minutes(10)};
-        TAdjustedExponentialMovingAverage MemoryUsage30s_{TDuration::Seconds(30)};
+        static constexpr TDuration ShortWindow = TDuration::Seconds(30);
+        static constexpr TDuration LongWindow = TDuration::Minutes(10);
+        TEmaCounter<double, TimeWindowsCount> CpuTimeEmaCounter_{{ShortWindow, LongWindow}};
+        TMultiWindowEma<i64, TimeWindowsCount, /*CalculateRate*/ false> MemoryUsageEma_{{ShortWindow, LongWindow}};
 
         const NProfiling::TProfiler Profiler_;
         TDuration TotalCpuTime_ = TDuration::Zero();

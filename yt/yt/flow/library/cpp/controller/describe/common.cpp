@@ -412,12 +412,7 @@ double GetMostStableCpuUsage(const TNodePerformanceMetricsPtr& metrics)
 
 i64 GetMostStableMemoryUsage(const TNodePerformanceMetricsPtr& metrics)
 {
-    for (i64 value : {metrics->MemoryUsage10m, metrics->MemoryUsage30s, metrics->MemoryUsageCurrent}) {
-        if (value) {
-            return value;
-        }
-    }
-    return 0;
+    return metrics->MemoryUsage10m.value_or(metrics->MemoryUsage30s.value_or(metrics->MemoryUsageCurrent.value_or(0)));
 }
 
 } // namespace
@@ -463,7 +458,7 @@ THashMap<TComputationId, TComputationDescription> MakeComputationDescriptions(
             {
                 const auto& performanceMetrics = intermediatePartition.PartitionJobStatus->CurrentJobStatus->PerformanceMetrics;
                 currentResourceUsage->CpuUsageCores += performanceMetrics->CpuUsageCurrent.value_or(0.0);
-                currentResourceUsage->MemoryUsage += performanceMetrics->MemoryUsageCurrent;
+                currentResourceUsage->MemoryUsage += performanceMetrics->MemoryUsageCurrent.value_or(0);
             }
             if (intermediatePartition.PartitionJobStatus && intermediatePartition.PartitionJobStatus->CurrentJobStatus) {
                 const auto& currentJobStatus = intermediatePartition.PartitionJobStatus->CurrentJobStatus;
@@ -579,7 +574,7 @@ void FillPartitionDescription(
 
         const auto& performanceMetrics = jobStatus->PerformanceMetrics;
         description.CpuUsage = GetMostStableCpuUsage(performanceMetrics);
-        description.MemoryUsage = performanceMetrics->MemoryUsage10m;
+        description.MemoryUsage = GetMostStableMemoryUsage(performanceMetrics);
 
         if (jobStatus->InputMetrics) {
             description.MessagesPerSecond += jobStatus->InputMetrics->Global.MessagesPerSecond;

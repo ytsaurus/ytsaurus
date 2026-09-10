@@ -236,15 +236,15 @@ public:
         void Apply(const TAggregatedNodePerformanceMetricsPtr& metrics)
         {
             CpuUsageTotalGauge_.Update(metrics->Total->CpuUsageCurrent.value_or(0));
-            MemoryUsageTotalGauge_.Update(metrics->Total->MemoryUsageCurrent);
+            MemoryUsageTotalGauge_.Update(metrics->Total->MemoryUsageCurrent.value_or(0));
 
             // CpuUsageCurrent/MemoryUsageCurrent is bad metric for taking maximum.
             PartitionCpuUsageMaxGauge_.Update(metrics->Max->CpuUsage30s.value_or(0));
             // Per-partition memory metric is very noisy, so use 10-min smoothed metric.
-            PartitionMemoryUsageMaxGauge_.Update(metrics->Max->MemoryUsage10m);
+            PartitionMemoryUsageMaxGauge_.Update(metrics->Max->MemoryUsage10m.value_or(0));
 
             PartitionCpuUsageAvgGauge_.Update(metrics->Avg->CpuUsageCurrent.value_or(0));
-            PartitionMemoryUsageAvgGauge_.Update(metrics->Avg->MemoryUsageCurrent);
+            PartitionMemoryUsageAvgGauge_.Update(metrics->Avg->MemoryUsageCurrent.value_or(0));
         }
 
         void ResetPerformanceMetrics()

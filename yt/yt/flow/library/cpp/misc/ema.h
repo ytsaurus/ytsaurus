@@ -59,6 +59,9 @@ public:
     const std::optional<T>& GrowthRate() const
         requires CalculateRate;
 
+    //! Returns the last observed value, or std::nullopt before the first Set().
+    const std::optional<T>& Last() const;
+
 private:
     TMultiWindowEma<T, 1, CalculateRate> Ema_;
 };
@@ -123,6 +126,9 @@ public:
     const TResultArray& GrowthRate() const
         requires CalculateRate;
 
+    //! Returns the last observed value, or std::nullopt before the first Set().
+    const std::optional<T>& Last() const;
+
 private:
     static constexpr ssize_t RealWindowCount = WindowCount * (CalculateRate ? 2 : 1);
 
@@ -141,6 +147,7 @@ private:
 
     std::array<TOneWindowData, RealWindowCount> Data_;
     std::array<std::optional<T>, WindowCount> ResultAverageValues;
+    std::optional<T> ResultLastValue;
 
     double Alpha(const TOneWindowData& data, double dtSeconds) const;
     void FillResults();
