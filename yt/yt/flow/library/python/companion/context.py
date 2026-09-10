@@ -190,13 +190,11 @@ class RawStateAccessor(StateAccessor):
         return self._read_state()
 
     def get_or_default(self, default: bytes) -> bytes:
-        """Bytes stored under the accessor's key, or |default|.
-
-        The default is not even attached: ``bytes`` is immutable, so there is nothing to change
-        in place afterwards and a raw state is written by ``set()`` only.
+        """Bytes stored under the accessor's key, or |default|; the default is attached as in
+        :meth:`StateAccessor.get_or_default`.  It cannot be changed in place, so it becomes the
+        state value only through a later ``set()``.
         """
-        value = self._read_state()
-        return value if value is not None else default
+        return super().get_or_default(default)
 
     def _read(self, state: State) -> Optional[bytes]:
         # Immutable bytes have nothing to track: a read never marks the state modified.

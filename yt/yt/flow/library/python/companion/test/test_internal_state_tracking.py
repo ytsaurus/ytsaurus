@@ -367,14 +367,23 @@ class TestRawStateTracking:
 
         assert _modified(holder)["aa"].state == b"\x03"
 
-    def test_get_or_default_stores_nothing(self):
+    def test_get_or_default_attaches_the_default(self):
         holder = _holder()
         key = _key("aa")
 
         accessor = RawStateAccessor(key, holder)
         assert accessor.get_or_default(b"\x00") == b"\x00"
 
+        assert accessor.get() == b"\x00"
+        assert _modified(holder) == {}
+
+    def test_keyless_accessor_stores_nothing(self):
+        holder = _holder()
+        accessor = RawStateAccessor(None, holder)
+
         assert accessor.get() is None
+        assert accessor.get_or_default(b"\x00") == b"\x00"
+
         assert _modified(holder) == {}
 
     def test_get_or_default_returns_the_stored_bytes(self):
@@ -386,6 +395,17 @@ class TestRawStateTracking:
 
         assert _modified(holder) == {}
 
+    def test_get_or_default_after_clear_keeps_the_reset(self):
+        holder = _holder()
+        key = _key("aa")
+        holder.load(key.row, State(state=b"\x01\x02"))
+
+        accessor = RawStateAccessor(key, holder)
+        accessor.clear()
+        assert accessor.get_or_default(b"\x00") == b"\x00"
+
+        assert _modified(holder)["aa"].reset
+
     def test_read_only_rejects_writes(self):
         holder = _holder()
         accessor = RawStateAccessor(_key("aa"), holder).read_only()
@@ -394,6 +414,7 @@ class TestRawStateTracking:
             accessor.set(b"\x01")
         assert accessor.get_or_default(b"\x00") == b"\x00"
 
+        assert accessor.get() is None
         assert _modified(holder) == {}
 
 
@@ -682,12 +703,25 @@ class TestInternalStateFlush:
         assert items[0].reset
 
     def test_empty_raw_default_is_not_sent(self):
+        """The default is attached, not written: an untouched one puts nothing on the wire."""
+
         def take_default(message, output, ctx):
             ctx.raw_state(_STATE_NAME, message).get_or_default(b"")
 
         data = self._process(take_default, ["aa"], _holder())
 
         assert len(data.internal_states) == 0
+
+    def test_raw_value_set_over_the_default_is_sent(self):
+        def fill_default(message, output, ctx):
+            state = ctx.raw_state(_STATE_NAME, message)
+            state.set(state.get_or_default(b"") + b"\x07")
+
+        items = self._items(self._process(fill_default, ["aa"], _holder()))
+
+        assert len(items) == 1
+        assert not items[0].reset
+        assert items[0].state == b"\x07"
 
 
 class TestHarnessInPlaceState:
