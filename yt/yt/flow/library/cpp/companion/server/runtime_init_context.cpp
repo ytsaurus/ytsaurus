@@ -76,6 +76,16 @@ NProfiling::TProfiler TCompanionRuntimeInitContext::GetProfiler() const
     return {};
 }
 
+NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpClient() const
+{
+    THROW_ERROR_EXCEPTION("HTTP clients are not available in a companion process");
+}
+
+NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpsClient() const
+{
+    THROW_ERROR_EXCEPTION("HTTP clients are not available in a companion process");
+}
+
 TPartitionId TCompanionRuntimeInitContext::GetPartitionId() const
 {
     THROW_ERROR_EXCEPTION("The partition id is not available in a companion process");

@@ -51,7 +51,9 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
         this->GetPartitionId(),
         this->GetSpec()->ProcessingFunctionParameters,
         this->GetContext()->StaticResources,
-        this->GetContext()->Profiler);
+        this->GetContext()->Profiler,
+        this->GetContext()->HttpClient,
+        this->GetContext()->HttpsClient);
     Function_->Init(runtimeInitContext);
 }
 

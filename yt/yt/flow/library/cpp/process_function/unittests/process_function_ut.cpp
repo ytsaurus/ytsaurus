@@ -33,6 +33,10 @@
 
 #include <yt/yt/core/actions/bind.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <yt/yt/core/http/mock/client.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
@@ -1421,6 +1425,80 @@ TEST(TProcessFunctionProfilerTest, InitContextProfilerIsNullByDefault)
     auto function = New<TProfiledFunction>();
     function->Init(stateEnv.GetInitContext());
     EXPECT_FALSE(static_cast<bool>(function->GetMessagesCounter()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THttpClientFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        HttpClient_ = initContext->GetHttpClient();
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& /*message*/,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
+    {
+        auto response = NConcurrency::WaitForFast(HttpClient_->Get("http://localhost/ping"))
+            .ValueOrThrow();
+        LastStatusCode_ = response->GetStatusCode();
+    }
+
+    const NHttp::IClientPtr& GetHttpClient() const
+    {
+        return HttpClient_;
+    }
+
+    std::optional<NHttp::EStatusCode> GetLastStatusCode() const
+    {
+        return LastStatusCode_;
+    }
+
+private:
+    NHttp::IClientPtr HttpClient_;
+    std::optional<NHttp::EStatusCode> LastStatusCode_;
+};
+
+TEST(TProcessFunctionHttpClientTest, InitContextExposesTheHostClients)
+{
+    auto httpClient = New<NHttp::TMockClient>();
+    auto httpsClient = New<NHttp::TMockClient>();
+
+    TTestStateEnvironment stateEnv;
+    stateEnv.SetHttpClient(httpClient);
+    stateEnv.SetHttpsClient(httpsClient);
+
+    const auto& initContext = stateEnv.GetInitContext();
+    EXPECT_EQ(initContext->GetHttpClient(), httpClient);
+    EXPECT_EQ(initContext->GetHttpsClient(), httpsClient);
+
+    // Client access is prefix-independent, like the profiler and the static resources.
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpClient(), httpClient);
+
+    // The client a function keeps from Init is usable while processing.
+    auto function = New<THttpClientFunction>();
+    function->Init(initContext);
+    EXPECT_EQ(function->GetHttpClient(), httpClient);
+
+    EXPECT_CALL(*httpClient, Get("http://localhost/ping", testing::_))
+        .WillOnce(testing::Return(NHttp::TMockResponse{.StatusCode = NHttp::EStatusCode::OK}));
+
+    auto context = TTestRuntimeContextBuilder().Build();
+    auto output = New<TRecordingOutputCollector>();
+    function->ProcessMessage(MakeTestMessage("input", MakeKey<ui64>(7), New<TTableSchema>()), output, context);
+
+    EXPECT_EQ(function->GetLastStatusCode(), NHttp::EStatusCode::OK);
+}
+
+TEST(TProcessFunctionHttpClientTest, InitContextWithoutClientsThrows)
+{
+    TTestStateEnvironment stateEnv;
+    EXPECT_THROW(stateEnv.GetInitContext()->GetHttpClient(), std::exception);
+    EXPECT_THROW(stateEnv.GetInitContext()->GetHttpsClient(), std::exception);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

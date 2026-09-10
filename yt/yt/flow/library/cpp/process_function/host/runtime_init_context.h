@@ -22,7 +22,9 @@ public:
         TPartitionId partitionId,
         NYTree::IMapNodePtr parametersNode = {},
         THashMap<TResourceId, IResourcePtr> staticResources = {},
-        NProfiling::TProfiler profiler = {});
+        NProfiling::TProfiler profiler = {},
+        NHttp::IClientPtr httpClient = {},
+        NHttp::IClientPtr httpsClient = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
     TFuture<IJoinedStateKeyProviderPtr> CreateJoinedStateKeyProvider(std::function<IStateHolderPtr()> ctor) const override;
@@ -39,6 +41,10 @@ public:
 
     NProfiling::TProfiler GetProfiler() const override;
 
+    //! Throw when the hosting computation context carried no such client.
+    NHttp::IClientPtr GetHttpClient() const override;
+    NHttp::IClientPtr GetHttpsClient() const override;
+
     TPartitionId GetPartitionId() const override;
 
 protected:
@@ -52,6 +58,8 @@ private:
     const NYTree::IMapNodePtr ParametersNode_;
     const THashMap<TResourceId, IResourcePtr> StaticResources_;
     const NProfiling::TProfiler Profiler_;
+    const NHttp::IClientPtr HttpClient_;
+    const NHttp::IClientPtr HttpsClient_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

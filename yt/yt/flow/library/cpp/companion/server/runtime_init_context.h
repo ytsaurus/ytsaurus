@@ -42,6 +42,12 @@ public:
     //! Null profiler: the computation profiler does not cross the process boundary.
     NProfiling::TProfiler GetProfiler() const override;
 
+    //! Throws: a companion process runs no HTTP client of its own, and there is nothing in its
+    //! startup config to build one from. A function needing HTTP stays in process.
+    NHttp::IClientPtr GetHttpClient() const override;
+
+    NHttp::IClientPtr GetHttpsClient() const override;
+
     //! Throws: the hosting partition is not identified on the wire, and a null id would
     //! silently collapse every partition into one value.
     TPartitionId GetPartitionId() const override;

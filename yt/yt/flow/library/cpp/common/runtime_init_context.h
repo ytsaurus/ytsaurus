@@ -12,6 +12,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/core/http/public.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +82,11 @@ public:
     //! function's sensors from it in Init() and keep them. Sensors aggregate over the partitions
     //! a worker hosts, and are no-ops out of process.
     virtual NProfiling::TProfiler GetProfiler() const = 0;
+
+    //! The hosting process' shared plain-HTTP client, running on its HTTP poller.
+    //! Throws where the hosting process runs no HTTP client (out of process).
+    virtual NHttp::IClientPtr GetHttpClient() const = 0;
+    virtual NHttp::IClientPtr GetHttpsClient() const = 0;
 
     //! Id of the partition this function instance serves; fixed for the instance's lifetime.
     //! Throws out of process, where the hosting partition is not known.

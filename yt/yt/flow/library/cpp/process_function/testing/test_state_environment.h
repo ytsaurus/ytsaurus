@@ -53,6 +53,12 @@ public:
     //! the init context. Call before Init. Defaults to a null profiler.
     void SetProfiler(NProfiling::TProfiler profiler);
 
+    //! Sets the clients the init context hands to IRuntimeInitContext::GetHttpClient() /
+    //! GetHttpsClient(); rebuilds the init context. Call before Init. Unset by default, and the
+    //! getters throw until set, as they do in a host that runs no HTTP client.
+    void SetHttpClient(NHttp::IClientPtr client);
+    void SetHttpsClient(NHttp::IClientPtr client);
+
     //! Persists pending state into the in-memory tables.
     void Sync();
 
@@ -151,11 +157,13 @@ private:
     std::shared_ptr<TStaticResourceMap> StaticResources_;
     NYTree::IMapNodePtr ParametersNode_;
     NProfiling::TProfiler Profiler_;
+    NHttp::IClientPtr HttpClient_;
+    NHttp::IClientPtr HttpsClient_;
     IRuntimeInitContextPtr InitContext_;
 
     std::vector<std::function<void(const IRetryableTransactionPtr&)>> EpochCommits_;
 
-    //! Rebuilds InitContext_ over the current parameters node and profiler.
+    //! Rebuilds InitContext_ over the current parameters node, profiler and HTTP clients.
     void RebuildInitContext();
 
     //! Syncs pending state and returns an init context over a fresh manager bound to the
