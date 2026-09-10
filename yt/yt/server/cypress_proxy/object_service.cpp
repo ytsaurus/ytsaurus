@@ -971,9 +971,17 @@ private:
         TSequoiaSessionPtr session;
         TMaybeUnreachableResolveResult resolveResult;
         try {
+            TStringBuilder descriptionBuilder;
+            descriptionBuilder.AppendFormat("%v %v", header.method(), originalTargetPath);
+            const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
+            if (ypathExt.original_additional_paths_size() > 0) {
+                descriptionBuilder.AppendFormat("; additional paths: %v", ypathExt.original_additional_paths());
+            }
+
             session = TSequoiaSession::Start(
                 Owner_->Bootstrap_,
                 std::move(authenticationIdentity),
+                descriptionBuilder.Flush(),
                 cypressTransactionId,
                 prerequisiteTransactionIds);
             // TODO(cherepashka): add resolve cache YT-25661.
