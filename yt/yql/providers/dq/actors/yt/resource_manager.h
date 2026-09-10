@@ -15,13 +15,16 @@
 namespace NYql {
     namespace NCommonJobVars {
         extern const TString ACTOR_PORT;
+        extern const TString GRPC_PORT;
         extern const TString ACTOR_NODE_ID;
+        extern const TString LOG_LEVEL;
         extern const TString ADDRESS_RESOLVER_CONFIG;
         extern const TString UDFS_PATH;
         extern const TString OPERATION_SIZE;
         extern const TString YT_COORDINATOR;
         extern const TString YT_BACKEND;
         extern const TString YT_FORCE_IPV4;
+        extern const TString DQ_CLIQUE_ALIAS;
     }
 
     class ICoordinationHelper;
