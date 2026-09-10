@@ -556,6 +556,28 @@ ISyncProcessFunction* TRegistry::ViewProcessFunctionAsSync(const std::string& na
     return descriptor->SyncView(function.Get());
 }
 
+NYTree::TYsonStructPtr TRegistry::ParseProcessFunctionParameters(const TComputationSpecPtr& spec) const
+{
+    YT_VERIFY(spec->ProcessingFunction);
+    const auto* descriptor = FindProcessFunctionDescriptor(*spec->ProcessingFunction);
+    THROW_ERROR_EXCEPTION_UNLESS(descriptor, "Unknown processing function %Qv", *spec->ProcessingFunction);
+    auto parameters = descriptor->StaticParametersFactory();
+    parameters->Load(ProcessingFunctionParametersNodeOrEmpty(spec->ProcessingFunctionParameters));
+    return parameters;
+}
+
+NYTree::TYsonStructPtr TRegistry::ParseDynamicProcessFunctionParameters(
+    const TComputationSpecPtr& spec,
+    const NYTree::IMapNodePtr& parameters) const
+{
+    YT_VERIFY(spec->ProcessingFunction);
+    const auto* descriptor = FindProcessFunctionDescriptor(*spec->ProcessingFunction);
+    THROW_ERROR_EXCEPTION_UNLESS(descriptor, "Unknown processing function %Qv", *spec->ProcessingFunction);
+    auto dynamicParameters = descriptor->DynamicParametersFactory();
+    dynamicParameters->Load(ProcessingFunctionParametersNodeOrEmpty(parameters));
+    return dynamicParameters;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TError> TRegistry::ValidatePipelineSpecParseability(const NYTree::IMapNodePtr& specNode) const

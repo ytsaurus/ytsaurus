@@ -1445,6 +1445,7 @@ TEST(TCompanionRuntimeInitContextResourcesTest, WithPrefixPreservesResourceLooku
     auto initContext = New<TCompanionRuntimeInitContext>(
         store,
         /*parametersNode*/ nullptr,
+        /*parametersObject*/ nullptr,
         THashMap<TResourceId, IResourcePtr>{{TResourceId("the_dict"), resource}});
 
     EXPECT_EQ(initContext->GetStaticResource(TResourceId("the_dict")), resource);

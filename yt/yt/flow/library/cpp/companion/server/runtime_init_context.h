@@ -21,6 +21,7 @@ public:
     TCompanionRuntimeInitContext(
         TCompanionStateStorePtr stateStore,
         NYTree::IMapNodePtr parametersNode,
+        NYTree::TYsonStructPtr parametersObject = {},
         THashMap<TResourceId, IResourcePtr> resources = {},
         std::string prefix = {});
 
@@ -36,6 +37,7 @@ public:
     const std::string& GetPrefix() const override;
 
     NYTree::IMapNodePtr GetParametersNode() const override;
+    NYTree::TYsonStructPtr GetParametersObject() const override;
 
     IResourcePtr GetStaticResource(const TResourceId& resourceId) const override;
 
@@ -59,6 +61,10 @@ protected:
 private:
     const TCompanionStateStorePtr StateStore_;
     const NYTree::IMapNodePtr ParametersNode_;
+    //! The parameters node parsed into the registered static-parameters type (see
+    //! TRegistry::ParseProcessFunctionParameters). A job always holds one, default-filled when the
+    //! spec carries no block; null only when a test constructs the context directly.
+    const NYTree::TYsonStructPtr ParametersObject_;
     //! Companion-hosted resources acquired for the job, keyed by their
     //! required-resource alias; immutable for the context's lifetime.
     const THashMap<TResourceId, IResourcePtr> Resources_;

@@ -150,7 +150,7 @@ void Init(const IRuntimeInitContextPtr& initContext) override
 - статические — `processing_function_parameters` в `spec`, читаются один раз в `Init` через `initContext->GetParameters<T>()`;
 - динамические — `processing_function_parameters` в `dynamic_spec`, читаются через `context->GetDynamicParameters<T>()` и отражают последнюю реконфигурацию.
 
-Если поле `processing_function_parameters` отсутствует, структура заполняется значениями по умолчанию. `GetDynamicParameters<T>()` кэширует результат и разбирает узел заново только при его изменении (то есть при реконфигурации).
+Оба блока разбираются в типы параметров, объявленные при регистрации функции (см. ниже), поэтому `T` в `GetParameters<T>()` / `GetDynamicParameters<T>()` должен совпадать с зарегистрированным типом — при несовпадении бросается исключение. Если поле `processing_function_parameters` отсутствует, структура заполняется значениями по умолчанию. Статический блок разбирается один раз при инициализации джоба, динамический — заново только при его изменении (то есть при реконфигурации).
 
 Типы параметров указываются при регистрации функции аргументами макроса: `YT_FLOW_DEFINE_PROCESS_FUNCTION(function, TStaticParams)` — для статического блока, `YT_FLOW_DEFINE_PROCESS_FUNCTION(function, TStaticParams, TDynamicParams)` — ещё и для динамического. Тогда соответствующий блок `processing_function_parameters` (в `spec` и `dynamic_spec`) валидируется по схеме при загрузке спеки, как и `parameters` у `Computation`: неизвестное поле или неверный тип — ошибка ещё до запуска. Блок, для которого тип не объявлен (в т. ч. у беспараметрической `YT_FLOW_DEFINE_PROCESS_FUNCTION(function)`), считается пустым — любое переданное поле будет отвергнуто.
 
@@ -195,7 +195,7 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction, TMyParameters);
 };
 ```
 
-В юнит-тестах статические параметры задаются через `TTestStateEnvironment::SetStaticParameters(...)`, динамические — через `TTestRuntimeContextBuilder().SetDynamicParameters(...)`.
+В юнит-тестах статические параметры задаются через `TTestStateEnvironment::SetStaticParameters(...)` — переданная структура отдаётся в `GetParameters<T>()` как есть. Динамические идут по продакшен-пути: функция называется через `TTestRuntimeContextBuilder().SetProcessingFunction<TMyFunction>()` (она должна быть зарегистрирована в тестовом бинаре), а структура передаётся в `SetDynamicParameters(...)`; контекст разбирает её заново в зарегистрированный динамический тип.
 
 ## Регистрация {#registration}
 

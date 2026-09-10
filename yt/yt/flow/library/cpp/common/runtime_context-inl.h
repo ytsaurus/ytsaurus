@@ -13,13 +13,18 @@ namespace NYT::NFlow {
 template <class T>
 TIntrusivePtr<T> IRuntimeContext::GetDynamicParameters() const
 {
-    auto node = GetDynamicParametersNode();
-    if (DynamicParametersCache_.Node != node || DynamicParametersCache_.Type != std::type_index(typeid(T))) {
-        DynamicParametersCache_.Node = node;
-        DynamicParametersCache_.Type = std::type_index(typeid(T));
-        DynamicParametersCache_.Value = NYTree::ConvertTo<TIntrusivePtr<T>>(std::move(node));
+    auto object = GetDynamicParametersObject();
+    if (!object) {
+        // The spec names no processing function (possible only under the test builder): the
+        // dynamic block is absent and defaults apply.
+        return New<T>();
     }
-    return StaticPointerCast<T>(DynamicParametersCache_.Value);
+    auto parameters = DynamicPointerCast<T>(object);
+    THROW_ERROR_EXCEPTION_UNLESS(parameters,
+        "Dynamic function parameters type mismatch: requested %Qv, registered %Qv",
+        TypeName<T>(),
+        TypeName(*object));
+    return parameters;
 }
 
 template <class T>

@@ -7,6 +7,7 @@
 #include "runtime_init_context.h"
 
 #include <yt/yt/flow/library/cpp/common/input_context.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
 
 #include <yt/yt/flow/library/cpp/process_function/host/computation.h>
 
@@ -220,6 +221,7 @@ bool TJob::EnsureInitialized()
     auto initContext = New<TCompanionRuntimeInitContext>(
         StateStore_,
         Spec_->ProcessingFunctionParameters,
+        TRegistry::Get()->ParseProcessFunctionParameters(Spec_),
         std::move(*resources));
     function->Init(initContext);
 

@@ -286,6 +286,16 @@ struct TThresholdParameters
     }
 };
 
+// A parameters type nothing registers, used to assert typed-access mismatches throw.
+struct TUnrelatedParameters
+    : public NYTree::TYsonStruct
+{
+    REGISTER_YSON_STRUCT(TUnrelatedParameters);
+
+    static void Register(TRegistrar /*registrar*/)
+    { }
+};
+
 // Reads its static parameters in Init and its dynamic parameters per message; records both
 // so the test can assert on them.
 class TParameterReadingFunction
@@ -1135,6 +1145,7 @@ TEST(TProcessFunctionTest, FunctionParameters)
     auto dynamicParameters = New<TThresholdParameters>();
     dynamicParameters->Threshold = 9;
     auto context = TTestRuntimeContextBuilder()
+        .SetProcessingFunction<TParameterReadingFunction>()
         .SetDynamicParameters(dynamicParameters)
         .Build();
     auto output = New<TRecordingOutputCollector>();
@@ -1156,6 +1167,35 @@ TEST(TProcessFunctionTest, FunctionParametersDefaultWhenAbsent)
     auto message = MakeTestMessage("input", MakeKey<ui64>(1), New<TTableSchema>());
     function->ProcessMessage(message, output, context);
     EXPECT_EQ(function->DynamicThreshold, 0);
+}
+
+TEST(TProcessFunctionTest, FunctionParametersTypeMismatchThrows)
+{
+    // Static parameters: requesting a type other than the supplied one throws.
+    TTestStateEnvironment stateEnv;
+    stateEnv.SetStaticParameters(New<TThresholdParameters>());
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(stateEnv.GetInitContext()->GetParameters<TUnrelatedParameters>()),
+        "Static function parameters type mismatch");
+
+    // Dynamic parameters: requesting a type other than the registered one throws.
+    auto context = TTestRuntimeContextBuilder()
+        .SetProcessingFunction<TParameterReadingFunction>()
+        .SetDynamicParameters(New<TThresholdParameters>())
+        .Build();
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(context->GetDynamicParameters<TUnrelatedParameters>()),
+        "Dynamic function parameters type mismatch");
+}
+
+TEST(TProcessFunctionTest, DynamicParametersRequireProcessingFunction)
+{
+    // Without a processing function there is no registered type to parse into.
+    EXPECT_THROW_WITH_SUBSTRING(
+        TTestRuntimeContextBuilder()
+            .SetDynamicParameters(New<TThresholdParameters>())
+            .Build(),
+        "name one via SetProcessingFunction");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

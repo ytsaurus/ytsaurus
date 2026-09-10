@@ -56,6 +56,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr TryGetThrottler(const TThrottlerId& throttlerId) override;
 
     NYTree::IMapNodePtr GetDynamicParametersNode() const override;
+    NYTree::TYsonStructPtr GetDynamicParametersObject() const override;
 
 private:
     const TComputationSpecPtr Spec_;
@@ -68,6 +69,8 @@ private:
     const NYTree::IMapNodePtr EmptyDynamicParametersNode_;
     TWatermarkStatePtr WatermarkState_;
     NYTree::IMapNodePtr DynamicParametersNode_;
+    //! The parsed dynamic parameters, reparsed only when DynamicParametersNode_ changes.
+    NYTree::TYsonStructPtr DynamicParameters_;
     std::optional<TUniqueSeqNo> EpochUniqueSeqNo_;
 
     TStreamId GuessStreamId(std::optional<TStreamId> streamId) const;

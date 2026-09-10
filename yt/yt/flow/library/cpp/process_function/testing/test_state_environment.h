@@ -38,16 +38,10 @@ public:
     //! The partition id the init context reports, freshly generated per environment.
     TPartitionId GetPartitionId() const;
 
-    //! Sets the static ``function_parameters`` node the init context hands to
-    //! IRuntimeInitContext::GetParameters<T>(); rebuilds the init context. Call before Init.
-    void SetStaticParametersNode(NYTree::IMapNodePtr node);
-
-    //! Typed convenience over SetStaticParametersNode: serializes |parameters| to a node.
-    template <class T>
-    void SetStaticParameters(const TIntrusivePtr<T>& parameters)
-    {
-        SetStaticParametersNode(NYTree::ConvertTo<NYTree::IMapNodePtr>(parameters));
-    }
+    //! Sets the static ``function_parameters`` the init context hands out: |parameters| is
+    //! served by GetParameters<T>() as is (production parses the block into the registered type
+    //! instead) and serialized to the raw node. Call before Init.
+    void SetStaticParameters(const NYTree::TYsonStructPtr& parameters);
 
     //! Sets the profiler the init context hands to IRuntimeInitContext::GetProfiler(); rebuilds
     //! the init context. Call before Init. Defaults to a null profiler.
@@ -155,15 +149,16 @@ private:
     std::shared_ptr<TExternalManagerMap> ExternalManagers_;
     std::shared_ptr<TExternalJoinerMap> ExternalJoiners_;
     std::shared_ptr<TStaticResourceMap> StaticResources_;
-    NYTree::IMapNodePtr ParametersNode_;
     NProfiling::TProfiler Profiler_;
     NHttp::IClientPtr HttpClient_;
     NHttp::IClientPtr HttpsClient_;
     IRuntimeInitContextPtr InitContext_;
+    NYTree::IMapNodePtr StaticParametersNode_;
+    NYTree::TYsonStructPtr StaticParametersObject_;
 
     std::vector<std::function<void(const IRetryableTransactionPtr&)>> EpochCommits_;
 
-    //! Rebuilds InitContext_ over the current parameters node, profiler and HTTP clients.
+    //! Rebuilds InitContext_ from the current static parameters, profiler and HTTP clients.
     void RebuildInitContext();
 
     //! Syncs pending state and returns an init context over a fresh manager bound to the
