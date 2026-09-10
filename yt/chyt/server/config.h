@@ -155,6 +155,7 @@ struct TTestingSettings
     bool ThrowExceptionInWriterFinish;
     bool ThrowExceptionAfterRefreshQuery;
     bool ThrowExceptionAfterRefreshCommit;
+    std::optional<int> FailMaterializedViewRefreshQueryResponseForPartition;
     i64 SubqueryAllocationSize;
 
     bool HangControlInvoker;

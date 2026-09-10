@@ -534,9 +534,18 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
             {"name": "key", "type": "int64"},
             {"name": "value", "type": "int64"},
         ]
+        create("map_node", "//tmp/source_directory")
+        create("table", "//tmp/source_directory/good", attributes={"schema": self.SCHEMA})
+        create("table", "//tmp/source_directory/bad", attributes={"schema": self.SCHEMA})
         create("table", "//tmp/int_target", attributes={"schema": int_schema})
         config_patch = {
             "yt": {
+                "settings": {
+                    "testing": {
+                        "materialized_view_consumer_commit_breakpoint":
+                            get_breakpoint_node("refresh_commit"),
+                    },
+                },
                 "materialized_views": {
                     "scan_period": 100,
                 },
@@ -546,32 +555,71 @@ class TestMaterializedViews(MaterializedViewsTestBase, ClickHouseTestBase):
         with Clique(1, config_patch=config_patch, export_query_log=True) as clique:
             clique.make_query(
                 'CREATE MATERIALIZED VIEW mv TO "//tmp/int_target" '
-                'AS SELECT key, accurateCast(value, \'Int64\') AS value FROM "//tmp/source"')
+                'AS SELECT key, accurateCast(value, \'Int64\') AS value '
+                'FROM concatYtTablesRange("//tmp/source_directory")')
             view_id = get(self._statement_path(clique) + "/@id")
             progress_path = clique.materialized_views_path + "/progress/" + view_id
-            initial_last_update = get(progress_path)["partitions"][0].get("last_update")
+            good_part_id = get("//tmp/source_directory/good/@id")
+            bad_part_id = get("//tmp/source_directory/bad/@id")
 
-            write_table("//tmp/source", [{"key": 1, "value": "not-an-integer"}])
+            good_rows = [{"key": 1, "value": 42}]
+            # Use the target lock as a barrier so both source partitions are written before refresh starts.
+            transaction_id = start_transaction(timeout=60000)
+            try:
+                lock_id = lock("//tmp/int_target", mode="exclusive", tx=transaction_id, waitable=True)["lock_id"]
+                wait(lambda: get(f"#{lock_id}/@state") == "acquired")
+                write_table("//tmp/source_directory/good", [{"key": 1, "value": "42"}])
+                write_table("//tmp/source_directory/bad", [{"key": 2, "value": "not-an-integer"}])
+            finally:
+                abort_transaction(transaction_id)
 
-            wait(
-                lambda: bool(get(progress_path)["last_error"]),
-                ignore_exceptions=True,
-                timeout=10)
-            assert read_table("//tmp/int_target") == []
-            progress = get(progress_path)
-            partition = progress["partitions"][0]
-            assert partition["next_row_index"] == 0
-            assert partition.get("last_update") == initial_last_update
-            assert partition["last_error"] == ""
+            wait_breakpoint("refresh_commit")
+            try:
+                assert read_table("//tmp/int_target") == good_rows
+                progress = get(progress_path)
+                partitions = {partition["object_id"]: partition for partition in progress["partitions"]}
+                assert progress["last_error"] == ""
+                assert partitions[good_part_id]["next_row_index"] == 1
+                assert partitions[good_part_id]["last_update"]
+                assert partitions[good_part_id]["last_error"] == ""
+                assert partitions[bad_part_id]["next_row_index"] == 0
+                assert not partitions[bad_part_id].get("last_update")
+                assert partitions[bad_part_id]["last_error"]
+                progress_revision = get(progress_path + "/@revision")
+            finally:
+                release_breakpoint("refresh_commit")
 
-            expected_rows = [{"key": 2, "value": 42}]
-            write_table("//tmp/source", [{"key": 2, "value": "42"}])
+            for _ in range(2):
+                wait(lambda: get(progress_path + "/@revision") > progress_revision, timeout=10)
+                assert get(progress_path)["last_error"] == ""
+                progress_revision = get(progress_path + "/@revision")
+            assert read_table("//tmp/int_target") == good_rows
+
+            write_table("<append=%true>//tmp/source_directory/good", [{"key": 3, "value": "invalid"}])
+            wait(lambda: all(partition["last_error"] for partition in get(progress_path)["partitions"]), timeout=10)
+            assert get(progress_path)["last_error"] == "All materialized view partitions are in a failed state"
+            assert read_table("//tmp/int_target") == good_rows
+
+            expected_rows = good_rows + [{"key": 2, "value": 43}]
+            write_table("//tmp/source_directory/bad", [{"key": 2, "value": "43"}])
             wait(lambda: read_table("//tmp/int_target") == expected_rows, timeout=10)
             progress = get(progress_path)
-            partition = progress["partitions"][0]
+            partitions = {partition["object_id"]: partition for partition in progress["partitions"]}
             assert progress["last_error"] == ""
-            assert partition["last_error"] == ""
-            assert partition["last_update"] != initial_last_update
+            assert partitions[bad_part_id]["next_row_index"] == 1
+            assert partitions[bad_part_id]["last_update"]
+            assert partitions[bad_part_id]["last_error"] == ""
+            assert partitions[good_part_id]["last_error"]
+
+            write_table("//tmp/source_directory/good", [
+                {"key": 1, "value": "42"},
+                {"key": 3, "value": "44"},
+            ])
+            expected_rows += [{"key": 3, "value": 44}]
+            wait(lambda: read_table("//tmp/int_target") == expected_rows, timeout=10)
+            progress = get(progress_path)
+            assert progress["last_error"] == ""
+            assert all(not partition["last_error"] for partition in progress["partitions"])
 
     @authors("buyval01")
     def test_background_refresh_parent_transaction_abort(self):
@@ -822,6 +870,103 @@ class TestMaterializedViewsQueue(MaterializedViewsTestBase, ClickHouseTestBase, 
                 row["offset"]
                 for row in select_rows("[offset] from [{}]".format(consumer_path))
             ) == [3, 3])
+
+    @authors("buyval01")
+    def test_background_refresh_from_queue_handles_partition_failure(self):
+        self._create_queue_source(partition_count=2)
+        int_schema = [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "int64"},
+        ]
+        create("table", "//tmp/int_target", attributes={"schema": int_schema})
+        config_patch = {"yt": {"materialized_views": {"scan_period": 100}}}
+
+        with Clique(1, config_patch=config_patch) as clique:
+            clique.make_query(
+                'CREATE MATERIALIZED VIEW mv TO "//tmp/int_target" '
+                'AS SELECT key, accurateCast(value, \'Int64\') AS value FROM "//tmp/source"',
+                settings={"chyt.dynamic_table.enable_dynamic_store_read": 1})
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+
+            insert_rows("//tmp/source", [
+                {"$tablet_index": 0, "key": 1, "value": "not-an-integer"},
+                {"$tablet_index": 1, "key": 2, "value": "42"},
+            ])
+
+            wait(lambda: read_table("//tmp/int_target") == [{"key": 2, "value": 42}], timeout=10)
+            progress = get(progress_path)
+            partitions = {
+                partition["partition_index"]: partition
+                for partition in progress["partitions"]
+            }
+            assert partitions[0]["next_row_index"] == 0
+            assert partitions[0]["last_error"]
+            assert partitions[1]["next_row_index"] == 1
+            assert partitions[1]["last_error"] == ""
+
+            def get_consumer_offsets():
+                return {
+                    row["partition_index"]: row["offset"]
+                    for row in select_rows("* from [{}]".format(consumer_path))
+                }
+
+            wait(lambda: get_consumer_offsets().get(1) == 1)
+            assert get_consumer_offsets().get(0, 0) == 0
+
+    @authors("buyval01")
+    def test_background_refresh_lost_query_response(self):
+        self._create_queue_source(partition_count=2)
+        config_patch = {
+            "yt": {
+                "settings": {
+                    "testing": {
+                        "fail_materialized_view_refresh_query_response_for_partition": 0,
+                    },
+                },
+                "materialized_views": {"scan_period": 100},
+            },
+        }
+
+        with Clique(1, config_patch=config_patch, export_query_log=True) as clique:
+            clique.make_query(self.CREATE_MV_QUERY)
+            view_id = get(self._statement_path(clique) + "/@id")
+            progress_path = clique.materialized_views_path + "/progress/" + view_id
+            consumer_path = clique.materialized_views_path + "/consumers/" + view_id
+            target_id = get("//tmp/target/@id")
+            insert_rows("//tmp/source", [
+                {"$tablet_index": 0, "key": 1, "value": "lost response"},
+                {"$tablet_index": 1, "key": 2, "value": "success"},
+            ])
+
+            def get_partitions():
+                return {
+                    partition["partition_index"]: partition
+                    for partition in get(progress_path)["partitions"]
+                }
+
+            wait(lambda: get_partitions()[1]["next_row_index"] == 1, timeout=10)
+            wait(lambda: len([
+                row for row in read_table(clique.query_log_table_path)
+                if row.get("type") == "QueryFinish"
+                and row.get("is_initial_query") == 1
+                and target_id in row.get("query", "")
+            ]) >= 3)
+
+            assert read_table("//tmp/target") == [{"key": 2, "value": "success"}]
+            partitions = get_partitions()
+            assert partitions[0]["next_row_index"] == 0
+            assert "Testing lost" in partitions[0]["last_error"]
+
+            def get_consumer_offsets():
+                return {
+                    row["partition_index"]: row["offset"]
+                    for row in select_rows("* from [{}]".format(consumer_path))
+                }
+
+            wait(lambda: get_consumer_offsets().get(1) == 1)
+            assert get_consumer_offsets().get(0, 0) == 0
 
     @authors("buyval01")
     def test_queue_consumer_recovers_after_master_commit(self):

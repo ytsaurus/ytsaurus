@@ -434,7 +434,8 @@ public:
 
         YT_TLOG_INFO("Materialized view refresh completed")
             .With("View", View_.ObjectName)
-            .With("SuccessfulPartitionCount", SuccessCount_);
+            .With("SuccessfulPartitionCount", SuccessCount_)
+            .With("FailedPartitionCount", FailureCount_);
         return {};
     }
 
@@ -490,6 +491,7 @@ private:
     bool Refreshed_ = false;
 
     i64 SuccessCount_ = 0;
+    i64 FailureCount_ = 0;
 
     void DoExecute()
     {
@@ -556,10 +558,7 @@ private:
                 .ThrowOnError();
         }
 
-        auto results = WaitFor(RunRefreshTasks(targetObjectId, tasks)).ValueOrThrow();
-        for (const auto& result : results) {
-            result.Result.ThrowOnError();
-        }
+        auto results = RunRefreshTasks(targetObjectId, tasks);
         if (!results.empty()) {
             THROW_ERROR_EXCEPTION_IF(Host_->GetConfig()->QuerySettings->Testing->ThrowExceptionAfterRefreshQuery,
                 "Testing exception after materialized view refresh query");
@@ -679,13 +678,33 @@ private:
 
         for (const auto& result : results) {
             auto& partition = progress->Partitions[result.PartitionIndex];
+            if (!result.Result.IsOK()) {
+                ++FailureCount_;
+                YT_TLOG_WARNING("Materialized view partition refresh failed")
+                    .With("View", View_.ObjectName)
+                    .With("PartitionIndex", result.PartitionIndex)
+                    .With(result.Result);
+                partition->LastError = result.Result.GetMessage();
+                continue;
+            }
+
             ++SuccessCount_;
             partition->LastUpdate = now;
             partition->LastError.clear();
             partition->NextRowIndex = result.Result.Value();
         }
         NeedProgressFlush_ = NeedProgressFlush_ || !results.empty();
-        if (!progress->LastError.empty()) {
+
+        bool allPartitionsFailed = !progress->Partitions.empty();
+        for (const auto& partition : progress->Partitions) {
+            if (partition->LastError.empty()) {
+                allPartitionsFailed = false;
+                break;
+            }
+        }
+        if (allPartitionsFailed) {
+            progress->LastError = "All materialized view partitions are in a failed state";
+        } else if (!progress->LastError.empty()) {
             progress->LastError.clear();
             NeedProgressFlush_ = true;
         }
@@ -742,7 +761,7 @@ private:
         return queries;
     }
 
-    TFuture<std::vector<TRefreshResult>> RunRefreshTasks(
+    std::vector<TRefreshResult> RunRefreshTasks(
         TObjectId targetObjectId,
         const std::vector<TRefreshTask>& tasks)
     {
@@ -752,10 +771,25 @@ private:
         taskFutures.reserve(tasks.size());
 
         auto queries = BuildRefreshQueries(targetObjectId, tasks);
-        for (int index = 0; index < std::ssize(tasks); ++index) {
-            taskFutures.push_back(StartRefreshQuery(queries[index]));
 
+        TTransactionStartOptions options;
+        options.ParentId = Transaction_->GetId();
+        options.Timeout = Config_->TransactionTimeout;
+        std::vector<TFuture<NApi::ITransactionPtr>> transactionFutures;
+        transactionFutures.reserve(tasks.size());
+        for (int index = 0; index < std::ssize(tasks); ++index) {
+            transactionFutures.push_back(Client_->StartTransaction(ETransactionType::Master, options));
+        }
+        auto transactions = WaitFor(AllSucceeded(std::move(transactionFutures)))
+            .ValueOrThrow();
+
+        for (int index = 0; index < std::ssize(tasks); ++index) {
             const auto& task = tasks[index];
+            taskFutures.push_back(StartRefreshQuery(
+                queries[index],
+                task.PartitionIndex,
+                transactions[index]->GetId()));
+
             results.push_back({
                 .PartitionIndex = task.PartitionIndex,
                 .OldOffset = task.LowerRowIndex,
@@ -763,22 +797,30 @@ private:
             });
         }
 
-        return AllSet(std::move(taskFutures))
-            .AsUnique()
-            .Apply(BIND([
-                results = std::move(results)
-            ] (std::vector<TError>&& errors) mutable {
-                for (int index = 0; index < std::ssize(results); ++index) {
-                    auto& result = results[index];
-                    if (!errors[index].IsOK()) {
-                        result.Result = std::move(errors[index]);
-                    }
-                }
-                return std::move(results);
-            }));
+        auto errors = WaitFor(AllSet(std::move(taskFutures)))
+            .ValueOrThrow();
+        std::vector<TFuture<void>> commitFutures;
+        commitFutures.reserve(results.size());
+        for (int index = 0; index < std::ssize(results); ++index) {
+            auto& result = results[index];
+            if (!errors[index].IsOK()) {
+                // Parent commit aborts any nested transaction whose explicit abort did not succeed.
+                YT_UNUSED_FUTURE(transactions[index]->Abort());
+                result.Result = std::move(errors[index]);
+            } else {
+                commitFutures.push_back(transactions[index]->Commit().AsVoid());
+            }
+        }
+        WaitFor(AllSucceeded(std::move(commitFutures)))
+            .ThrowOnError();
+
+        return results;
     }
 
-    TFuture<void> StartRefreshQuery(const std::string& query)
+    TFuture<void> StartRefreshQuery(
+        const std::string& query,
+        int partitionIndex,
+        TTransactionId transactionId)
     {
         auto instances = Host_->GetDiscoveryNodes();
         if (instances.empty()) {
@@ -805,16 +847,26 @@ private:
         auto req = proxy.ExecuteQuery();
         NRpc::SetAuthenticationIdentity(req, NRpc::TAuthenticationIdentity(View_.Creator));
         ToProto(req->mutable_query_id(), TQueryId::Create());
-        ToProto(req->mutable_parent_transaction_id(), Transaction_->GetId());
+        ToProto(req->mutable_parent_transaction_id(), transactionId);
         auto* chytRequest = req->mutable_chyt_request();
         chytRequest->set_query(query);
         if (View_.SourceType == EMaterializedViewSourceType::Queue) {
             (*chytRequest->mutable_settings())["chyt.dynamic_table.enable_dynamic_store_read"] = "1";
         }
 
-        return req->Invoke().Apply(BIND([] (const TQueryServiceProxy::TRspExecuteQueryPtr& rsp) {
+        auto queryFuture = req->Invoke().Apply(BIND([] (const TQueryServiceProxy::TRspExecuteQueryPtr& rsp) {
             FromProto<TError>(rsp->error()).ThrowOnError();
         }));
+
+        const auto& testingConfig = Host_->GetConfig()->QuerySettings->Testing;
+        auto failedPartition = testingConfig->FailMaterializedViewRefreshQueryResponseForPartition;
+        if (failedPartition == partitionIndex) {
+            queryFuture = queryFuture.Apply(BIND([] {
+                THROW_ERROR_EXCEPTION("Testing lost materialized view refresh query response");
+            }));
+        }
+
+        return queryFuture;
     }
 
     void RecoverConsumerOffsetsIfNeeded(const TMaterializedViewProgressPtr& progress)
@@ -850,6 +902,9 @@ private:
             auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
                 .ValueOrThrow();
             for (const auto& result : RefreshResults_) {
+                if (!result.Result.IsOK()) {
+                    continue;
+                }
                 SubConsumerClient_->Advance(transaction, result.PartitionIndex, result.OldOffset, result.Result.Value());
             }
             WaitFor(transaction->Commit()).ThrowOnError();
