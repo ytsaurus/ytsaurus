@@ -48,6 +48,14 @@ public class TypeIOTest {
                 TypeIO.parseYson("{type_name=decimal; precision=3; scale=2}"),
                 TiType.decimal(3, 2)
         );
+        Assert.assertEquals(
+                TypeIO.parseYson("{type_name=decimal; precision=38; scale=4}"),
+                TiType.decimal(38, 4)
+        );
+        Assert.assertEquals(
+                TypeIO.parseYson("{type_name=decimal; precision=76; scale=0}"),
+                TiType.decimal(76, 0)
+        );
     }
 
     @Test

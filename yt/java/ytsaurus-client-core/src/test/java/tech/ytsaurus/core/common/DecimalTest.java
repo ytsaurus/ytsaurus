@@ -1,6 +1,7 @@
 package tech.ytsaurus.core.common;
 
 import java.math.BigInteger;
+import java.util.Arrays;
 import java.util.Collections;
 
 import org.junit.jupiter.api.Test;
@@ -105,24 +106,60 @@ public class DecimalTest {
                 (byte) 0x80, 0x0B, (byte) 0xD5, (byte) 0xB5, (byte) 0xD5, (byte) 0xF0, (byte) 0xC7, 0x3E,
                 0x0C, (byte) 0x9C, (byte) 0xD4, (byte) 0x94, 0x32, (byte) 0x98, (byte) 0xB5, (byte) 0x83
         });
+
+        byte[] lastNarrowValue = new byte[16];
+        lastNarrowValue[0] = (byte) 0x80;
+        lastNarrowValue[14] = 0x01;
+        lastNarrowValue[15] = 0x3A;
+        check(38, 2, "3.14", lastNarrowValue);
+
+        byte[] firstWideValue = new byte[32];
+        firstWideValue[0] = (byte) 0x80;
+        firstWideValue[30] = 0x01;
+        firstWideValue[31] = 0x3A;
+        check(39, 2, "3.14", firstWideValue);
+
+        byte[] wideValue = new byte[32];
+        wideValue[0] = (byte) 0x80;
+        wideValue[30] = 0x01;
+        wideValue[31] = 0x3A;
+        check(76, 2, "3.14", wideValue);
+
+        byte[] wideNan = new byte[32];
+        Arrays.fill(wideNan, (byte) 0xFF);
+        check(76, 2, "nan", wideNan);
+
+        byte[] widePlusInf = new byte[32];
+        Arrays.fill(widePlusInf, (byte) 0xFF);
+        widePlusInf[31] = (byte) 0xFE;
+        check(76, 2, "inf", widePlusInf);
+
+        byte[] wideMinusInf = new byte[32];
+        wideMinusInf[31] = 0x02;
+        check(76, 2, "-inf", wideMinusInf);
     }
 
     @Test
     public void testPrecisionScaleLimits() {
         checkErrorTextToBinary(-1, 0, "0", "Invalid decimal precision");
         checkErrorTextToBinary(0, 0, "0", "Invalid decimal precision");
-        checkErrorTextToBinary(36, 0, "0", "Invalid decimal precision");
+        checkErrorTextToBinary(77, 0, "0", "Invalid decimal precision");
 
         checkErrorBinaryToText(-1, 0, new byte[]{0x00}, "Invalid decimal precision");
         checkErrorBinaryToText(0, 0, new byte[]{0x00}, "Invalid decimal precision");
-        checkErrorBinaryToText(36, 0, new byte[]{0x00}, "Invalid decimal precision");
+        checkErrorBinaryToText(77, 0, new byte[]{0x00}, "Invalid decimal precision");
 
         checkRoundConvert(1, 0, "0");
         checkRoundConvert(35, 0, "0");
+        checkRoundConvert(76, 0, "0");
 
         checkRoundConvert(3, 2, "-3.14");
 
         checkErrorBinaryToText(3, 4, new byte[]{0x00}, "Invalid decimal scale");
+
+        checkErrorBinaryToText(3, 2, new byte[8], "invalid length: actual 8, expected 4");
+        checkErrorBinaryToText(38, 2, new byte[32], "invalid length: actual 32, expected 16");
+        checkErrorBinaryToText(39, 2, new byte[16], "invalid length: actual 16, expected 32");
 
         checkErrorTextToBinary(10, 3, "3.1415", "too many digits after decimal point");
         checkErrorTextToBinary(10, 3, "-3.1415", "too many digits after decimal point");
@@ -152,7 +189,7 @@ public class DecimalTest {
 
     @Test
     public void testTextLimits() {
-        for (int precision = 1; precision <= 35; ++precision) {
+        for (int precision = 1; precision <= 76; ++precision) {
             checkRoundConvert(precision, 0, "0");
             checkRoundConvert(precision, 0, "1");
             checkRoundConvert(precision, 0, "-1");
