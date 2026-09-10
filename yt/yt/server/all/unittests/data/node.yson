@@ -330,7 +330,7 @@
         "job_proxy_log_manager" = {
             "locations" = [
                 {
-                    "disk_path" = "~/logs";
+                    "path" = "~/logs";
                 };
             ];
             "location_check_period" = "1m";

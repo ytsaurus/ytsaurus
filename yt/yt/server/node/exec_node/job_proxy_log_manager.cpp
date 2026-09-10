@@ -11,6 +11,8 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/server/lib/misc/disk_health_checker.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -24,8 +26,6 @@
 #include <yt/yt/client/api/file_writer.h>
 
 #include <yt/yt/core/logging/config.h>
-
-#include <yt/yt/server/lib/misc/disk_health_checker.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -124,7 +124,7 @@ public:
     {
         std::string jobLogsPath;
         try {
-            jobLogsPath = FindExistingJobLogsPath(jobId);
+            jobLogsPath = GetExistingJobLogsPathOrThrow(jobId);
         } catch (const std::exception& ex) {
             YT_TLOG_DEBUG("Job log directory is not found, skipping removal")
                 .With("JobId", jobId)
@@ -181,7 +181,7 @@ public:
     std::string AdjustLogPath(TJobId jobId, const std::string& logFilePath) final
     {
         try {
-            return NFS::CombinePaths(GetJobLogDirectoryPath(jobId), NFS::GetFileName(logFilePath));
+            return NFS::CombinePaths(CreateJobLogDirectory(jobId), NFS::GetFileName(logFilePath));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to adjust job log file path")
                 .With("abort_reason", NScheduler::EAbortReason::JobLogDirectoryNotPrepared)
@@ -458,7 +458,7 @@ private:
         return bestIndex;
     }
 
-    std::string GetJobLogDirectoryPath(TJobId jobId)
+    std::string CreateJobLogDirectory(TJobId jobId)
     {
         auto shardingKey = GetShardingKey(jobId);
 
@@ -484,7 +484,7 @@ private:
         const auto symlinkPath = NFS::CombinePaths({Config_->JobProxyLogSymlinksPath, shardingKey, ToString(jobId)});
         if (!NFS::Exists(symlinkPath)) {
             try {
-                const auto targetJobLogPath = GetJobLogDirectoryPath(jobId);
+                const auto targetJobLogPath = CreateJobLogDirectory(jobId);
 
                 NFS::MakeSymbolicLink(targetJobLogPath, symlinkPath);
 
@@ -500,7 +500,7 @@ private:
         }
     }
 
-    std::string FindExistingJobLogsPath(TJobId jobId) const
+    std::string GetExistingJobLogsPathOrThrow(TJobId jobId) const
     {
         auto shardingKey = GetShardingKey(jobId);
 
@@ -544,7 +544,7 @@ private:
         const NYPath::TYPath& path,
         NObjectClient::TTransactionId transactionId)
     {
-        auto logsPath = FindExistingJobLogsPath(jobId);
+        auto logsPath = GetExistingJobLogsPathOrThrow(jobId);
 
         auto dynamicConfig = DynamicConfig_.Acquire();
 
