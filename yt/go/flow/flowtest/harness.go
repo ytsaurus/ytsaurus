@@ -304,8 +304,8 @@ func (h *Harness) process(inputs []flow.Input) (*Response, error) {
 		return nil, err
 	}
 
-	// The wire form is rendered and dropped: it is where a message on an undeclared stream,
-	// an unencodable key and a state written as empty bytes are refused.
+	// The wire form is rendered and dropped: it is where a message on an undeclared stream
+	// and an unencodable key are refused.
 	if _, err := flow.ResponseDataToProto(runtime, results); err != nil {
 		return nil, err
 	}
