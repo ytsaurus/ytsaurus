@@ -743,6 +743,8 @@ void TWorkersStorage::ClusterStatus(Yql::DqsProto::ClusterStatusResponse* r) con
 
         node->MutableRusage()->SetStime(workerInfo->Stime.MicroSeconds());
         node->MutableRusage()->SetUtime(workerInfo->Utime.MicroSeconds());
+        node->MutableRusage()->SetMaxRss(workerInfo->MaxRss);
+        node->MutableRusage()->SetCurrentRss(workerInfo->CurrentRss);
         node->MutableRusage()->SetMajorPageFaults(workerInfo->MajorPageFaults);
         node->MutableRusage()->SetCpuSystem(workerInfo->CpuSystem);
         node->MutableRusage()->SetCpuUser(workerInfo->CpuUser);

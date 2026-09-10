@@ -347,6 +347,7 @@ namespace NYql::NDq::NWorker {
         Cerr << "Configure porto done" << Endl;
 
         auto dqSensors = GetSensorsGroupFor(NSensorComponent::kDq);
+        pfOptions.Counters = dqSensors->GetSubgroup("component", "task_runner_pipe");
         THolder<NActors::TActorSystemSetup> setup;
         TIntrusivePtr<NActors::NLog::TSettings> logSettings;
         std::tie(setup, logSettings) = BuildActorSetup(

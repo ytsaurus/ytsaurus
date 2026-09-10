@@ -238,6 +238,8 @@ private:
         auto rusageFull = RuntimeData->GetRusage();
         req.MutableRusage()->SetStime(rusageFull.Stime.MicroSeconds());
         req.MutableRusage()->SetUtime(rusageFull.Utime.MicroSeconds());
+        req.MutableRusage()->SetMaxRss(rusageFull.MaxRss);
+        req.MutableRusage()->SetCurrentRss(TRusage::GetCurrentRSS());
         req.MutableRusage()->SetMajorPageFaults(rusageFull.MajorPageFaults);
 
         //if (Options.MetricsRegistry) {
