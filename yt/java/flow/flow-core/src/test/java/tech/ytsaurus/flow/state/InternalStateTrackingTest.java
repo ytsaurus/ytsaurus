@@ -12,13 +12,16 @@ import org.junit.jupiter.api.Test;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.context.DefaultRuntimeContext;
+import tech.ytsaurus.flow.internal.request.mapper.InternalStateProtoMapper;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.PayloadBuilder;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
+import tech.ytsaurus.flow.rpc.TState;
 import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -144,11 +147,24 @@ class InternalStateTrackingTest {
     }
 
     @Test
-    @DisplayName("getOrDefault() of an absent state writes the default")
-    void getOrDefaultWritesTheDefault() {
-        ctx.getState(COUNTER, message).getOrDefault();
+    @DisplayName("getOrDefault() after clear() left untouched keeps the reset")
+    void getOrDefaultAfterClearLeftUntouchedKeepsTheReset() {
+        seed(message, 1L);
 
-        assertEquals(wire(0L), modified().get(key(message)).getBytes());
+        var state = ctx.getState(COUNTER, message);
+        state.clear();
+        state.getOrDefault();
+
+        assertTrue(modified().get(key(message)).isReset());
+    }
+
+    @Test
+    @DisplayName("getOrDefault() of an absent state left untouched writes nothing")
+    void getOrDefaultOfAbsentStateWritesNothing() {
+        assertEquals(0L, ctx.getState(COUNTER, message).getOrDefault().value);
+
+        assertTrue(modified().isEmpty());
+        assertEquals(0, proto(COUNTER_STATE).getStateItemsCount());
     }
 
     @Test
@@ -157,6 +173,44 @@ class InternalStateTrackingTest {
         ctx.getState(COUNTER, message).getOrDefault().value = 7L;
 
         assertEquals(wire(7L), modified().get(key(message)).getBytes());
+
+        TState out = proto(COUNTER_STATE);
+        assertEquals(1, out.getStateItemsCount());
+        assertFalse(out.getStateItems(0).getReset());
+        assertEquals(wire(7L), out.getStateItems(0).getState());
+    }
+
+    @Test
+    @DisplayName("getOrDefault() attaches the default, so a later get() hands out the same value")
+    void getOrDefaultAttachesTheDefault() {
+        var state = ctx.getState(COUNTER, message);
+        var value = state.getOrDefault();
+
+        assertSame(value, state.get());
+        assertSame(value, ctx.getState(COUNTER, message).getOrDefault());
+        assertTrue(modified().isEmpty());
+    }
+
+    @Test
+    @DisplayName("a raw default changed in place is written back")
+    void rawGetOrDefaultChangedInPlaceIsWrittenBack() {
+        // A byte[] default is mutable, so attaching it is what lets a change reach the wire.
+        ctx.getState(RAW, message).getOrDefault(new byte[]{1, 2, 3})[0] = 42;
+
+        assertEquals(
+                ByteString.copyFrom(new byte[]{42, 2, 3}),
+                modifiedOf(RAW_STATE).get(key(message)).getBytes());
+    }
+
+    @Test
+    @DisplayName("getOrDefault() of an absent raw state sends no empty payload")
+    void rawGetOrDefaultSendsNothing() {
+        // The raw default is an empty byte array and encodes to an empty payload, which the
+        // worker rejects on a non-reset item; attaching it keeps the item off the wire.
+        assertEquals(0, ctx.getState(RAW, message).getOrDefault().length);
+
+        assertTrue(modifiedOf(RAW_STATE).isEmpty());
+        assertEquals(0, proto(RAW_STATE).getStateItemsCount());
     }
 
     @Test
@@ -331,6 +385,12 @@ class InternalStateTrackingTest {
 
     private Map<UnversionedRow, State> modifiedOf(String stateName) {
         return holder(stateName).collectModifiedStates();
+    }
+
+    private TState proto(String stateName) {
+        var holder = holder(stateName);
+        return new InternalStateProtoMapper(keySchema, CodecRegistry.getInstance().getKeyCodec())
+                .toProto(holder, holder.collectModifiedStates());
     }
 
     private static UnversionedRow key(ExtendedMessage forMessage) {
