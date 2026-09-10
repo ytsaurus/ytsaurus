@@ -184,10 +184,16 @@ func TestRawStateAccessorLifecycle(t *testing.T) {
 	require.Equal(t, []InternalState{{Reset: true}}, values)
 }
 
-func TestRawStateAccessorRejectsEmptyValue(t *testing.T) {
-	state, err := OpenRawState(testRuntime(t), "counters", keyedInput(t, "ru"))
+func TestRawStateAccessorClearsOnEmptyValue(t *testing.T) {
+	r := testRuntime(t)
+	state, err := OpenRawState(r, "counters", keyedInput(t, "ru"))
 	require.NoError(t, err)
-	require.ErrorIs(t, state.Set(nil), ErrEmptyStateValue)
+	require.NoError(t, state.Set(nil))
+
+	_, ok := state.Get()
+	require.False(t, ok)
+	_, values := collectStates(r.internal["counters"].Modified())
+	require.Equal(t, []InternalState{{Reset: true}}, values)
 }
 
 func TestRawStateAccessorOwnsStoredBytes(t *testing.T) {
@@ -772,9 +778,8 @@ func TestProtoStateEmptiedMessageDeletesState(t *testing.T) {
 
 	require.NoError(t, r.flushTrackedStates())
 
-	stored, ok := r.internal["counters"].Get(input.Key)
-	require.True(t, ok)
-	require.True(t, stored.Reset)
+	_, values := collectStates(r.internal["counters"].Modified())
+	require.Equal(t, []InternalState{{Reset: true}}, values)
 }
 
 func TestProtoStateOrRevivesClearedStateWithinRequest(t *testing.T) {
@@ -836,14 +841,31 @@ func TestOpenProtoStateReportsDecodeFailure(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestProtoStateRejectsEmptyValueAtSet(t *testing.T) {
+func TestProtoStateSetOfDefaultMessageLeavesAnAbsentStateAbsent(t *testing.T) {
 	r := testRuntime(t)
-	state, err := OpenProtoState[companion.TReqCompanionInfo](r, "counters", keyedInput(t, "ru"))
+	state, err := OpenProtoState[companion.TMessageIdSuffix](r, "counters", keyedInput(t, "ru"))
 	require.NoError(t, err)
 
-	require.ErrorIs(t, state.Set(&companion.TReqCompanionInfo{}), ErrEmptyStateValue)
+	require.NoError(t, state.Set(&companion.TMessageIdSuffix{}))
 	require.NoError(t, r.flushTrackedStates())
 	require.Empty(t, modifiedStateNames(r.ModifiedInternalStates()))
+}
+
+func TestProtoStateSetOfDefaultMessageClearsAStoredState(t *testing.T) {
+	r := testRuntime(t)
+	input := keyedInput(t, "ru")
+	data, err := proto.Marshal(&companion.TMessageIdSuffix{UserDefined: []byte("x")})
+	require.NoError(t, err)
+	require.NoError(t, r.LoadInternalState("counters", input.Key, InternalState{Data: data}))
+
+	state, err := OpenProtoState[companion.TMessageIdSuffix](r, "counters", input)
+	require.NoError(t, err)
+	require.NoError(t, state.Set(&companion.TMessageIdSuffix{}))
+
+	require.NoError(t, r.flushTrackedStates())
+
+	_, values := collectStates(r.internal["counters"].Modified())
+	require.Equal(t, []InternalState{{Reset: true}}, values)
 }
 
 type externalStateValue struct {
@@ -877,7 +899,7 @@ func TestExternalStateAccessorConvertsTypedValue(t *testing.T) {
 	require.Equal(t, externalStateValue{Count: 11, Label: "loaded"}, updated)
 }
 
-func TestExternalStateAccessorRejectsMissingRowAtSet(t *testing.T) {
+func TestExternalStateAccessorSetOfMissingRowClearsTheRow(t *testing.T) {
 	r := testRuntime(t)
 	input := keyedInput(t, "ru")
 	require.NoError(t, r.LoadExternalState(
@@ -889,7 +911,10 @@ func TestExternalStateAccessorRejectsMissingRowAtSet(t *testing.T) {
 
 	state, err := OpenExternalState(r, "/state", input)
 	require.NoError(t, err)
-	require.ErrorIs(t, state.Set(Payload{}), ErrEmptyStateValue)
+	require.NoError(t, state.Set(Payload{}))
+
+	_, values := collectStates(r.external["/state"].Modified())
+	require.Equal(t, []ExternalState{{Reset: true}}, values)
 }
 
 func TestExternalStateAccessorLifecycle(t *testing.T) {
