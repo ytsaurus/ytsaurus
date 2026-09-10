@@ -71,7 +71,7 @@ All accessors implement the common `StateAccessor<T>` interface.
 
 ### Changing the value in place {#in-place}
 
-The value returned by `get()` and `getOrDefault()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `getOrDefault()` becomes the state value and is written as after `set()`, so it can be changed right away:
+The value returned by `get()` and `getOrDefault()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `getOrDefault()` is attached to the key but not written: it can be changed right away, and it becomes the state value only once it is changed — an untouched default creates no row in the state table:
 
 {% list tabs group=lang %}
 
