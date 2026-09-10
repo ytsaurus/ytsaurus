@@ -71,6 +71,10 @@ private static final ExternalStateDescriptor JOIN_STATE =
 
 {% endnote %}
 
+### Объявление proto external state {#proto-external-state}
+
+Профильный стейт (`NYT::NFlow::NProfileState::TProfileStateManager`) хранит protobuf-сообщение. Опишите его через `StateDescriptors.externalProto(name, TMessage.class)` — или `StateDescriptors.externalProtoReadOnly(...)` для джойнера — и работайте с ним через `ProtoStateAccessor`. В отличие от обычного external state, раннеру нужно знать сообщение, чтобы описать стейт воркеру: он записывает в спеку `descriptor_layout.descriptor_set` и `message_name` из объявленного класса. Поэтому объявите стейт и пайплайну — через `PipelineContext.registerState(...)`, если контекст собирается вручную, или в Spring через `ComputationProvider.getStates()` либо бин `StateDescriptor<?>`. Одной константы в функции раннеру недостаточно.
+
 ## Основные операции
 
 ### Чтение стейта
@@ -82,11 +86,10 @@ private static final ExternalStateDescriptor JOIN_STATE =
   ```java
   ExternalStateAccessor stateAccessor = ctx.getExternalStateAccessor("join-state", message);
 
-  // Получение Optional<Payload>
-  Optional<Payload> maybeState = stateAccessor.get();
-  if (maybeState.isPresent()) {
-      Payload state = maybeState.get();
-      String value = state.get("field_name", String.class);
+  // Получение стейта: null, если значения нет
+  Payload maybeState = stateAccessor.get();
+  if (maybeState != null) {
+      String value = maybeState.get("field_name", String.class);
   }
 
   // Получение стейта с дефолтным значением (пустой Payload со схемой стейта)
@@ -98,11 +101,10 @@ private static final ExternalStateDescriptor JOIN_STATE =
   ```kotlin
   val stateAccessor = ctx.getExternalStateAccessor("join-state", message)
 
-  // Получение Optional<Payload>
+  // Получение стейта: null, если значения нет
   val maybeState = stateAccessor.get()
-  if (maybeState.isPresent) {
-      val state = maybeState.get()
-      val value = state.get("field_name", String::class.java)
+  if (maybeState != null) {
+      val value = maybeState.get("field_name", String::class.java)
   }
 
   // Получение стейта с дефолтным значением (пустой Payload со схемой стейта)
@@ -167,7 +169,7 @@ private static final ExternalStateDescriptor JOIN_STATE =
 
 {% note info %}
 
-Пустой стейт соответствует отсутствию строки в таблице. Если строки нет, `get()` вернёт `Optional.empty()`. При вызове `clear()` строка будет удалена из таблицы.
+Пустой стейт соответствует отсутствию строки в таблице. Если строки нет, `get()` вернёт `null`. При вызове `clear()` строка будет удалена из таблицы.
 
 {% endnote %}
 
@@ -253,7 +255,7 @@ private static final ExternalStateDescriptor JOIN_STATE =
 
 {% note warning %}
 
-`getOrDefault()` на joiner'е может построить пустой `Payload` только если для запрошенных ключей пришла схема джойнимой таблицы. Если ни одной строки по ключам не найдено и схема недоступна, `getOrDefault()` бросит `IllegalStateException` — в таком случае используйте `get()` и обрабатывайте `Optional.empty()`.
+`getOrDefault()` на joiner'е может построить пустой `Payload` только если для запрошенных ключей пришла схема джойнимой таблицы. Если ни одной строки по ключам не найдено и схема недоступна, `getOrDefault()` бросит `IllegalStateException` — в таком случае используйте `get()` и обрабатывайте `null`.
 
 {% endnote %}
 
@@ -316,7 +318,7 @@ private static final ExternalStateDescriptor JOIN_STATE =
       @Override
       public void onTimer(Timer timer, OutputCollector output, RuntimeContext ctx) {
           ExternalStateAccessor stateAccessor = ctx.getExternalStateAccessor("join-state", timer);
-          Payload joinState = stateAccessor.get().orElseThrow();
+          Payload joinState = Objects.requireNonNull(stateAccessor.get());
 
           // Генерация выходного сообщения на основе стейта
           if (joinState.get("show_time", Long.class) != null
@@ -368,7 +370,7 @@ private static final ExternalStateDescriptor JOIN_STATE =
 
       override fun onTimer(timer: Timer, output: OutputCollector, ctx: RuntimeContext) {
           val stateAccessor = ctx.getExternalStateAccessor("join-state", timer)
-          val joinState = stateAccessor.get().orElseThrow()
+          val joinState = stateAccessor.get()!!
 
           // Генерация выходного сообщения на основе стейта
           if (joinState.get("show_time", Long::class.java) != null

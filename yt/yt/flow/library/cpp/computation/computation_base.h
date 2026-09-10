@@ -287,40 +287,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOutputStoreStreamOrchidState
-    : public NYTree::TYsonStruct
-{
-    i64 UsedCount{};
-    i64 LimitCount{};
-
-    i64 UsedBytes{};
-    i64 LimitBytes{};
-
-    REGISTER_YSON_STRUCT(TOutputStoreStreamOrchidState);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TOutputStoreStreamOrchidState);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TUniversalComputationOrchidState
-    : public TComputationOrchidState
-{
-    std::string PartitionDescription;
-    THashMap<std::string, TDuration> EpochPartsWallTime;
-    THashMap<TStreamId, TOutputStoreStreamOrchidStatePtr> OutputStore;
-
-    REGISTER_YSON_STRUCT(TUniversalComputationOrchidState);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TUniversalComputationOrchidState);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Shared state for tracker callbacks: holds two pending deques and a Finished flag.
 // Callbacks capture a strong pointer and push under the spinlock; if Finished is set
 // (set in the destructor of TUniversalComputationBase) they do nothing, avoiding
@@ -435,7 +401,6 @@ public:
         TDynamicComputationContextPtr dynamicContext);
     ~TUniversalComputationBase() override;
 
-    TComputationOrchidStatePtr GetOrchidState() override;
     TComputationStatusPtr GetStatus() override;
 
     bool UpdateStatus(

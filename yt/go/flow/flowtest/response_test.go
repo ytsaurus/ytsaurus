@@ -251,12 +251,9 @@ func (protoCounter) OnMessage(_ context.Context, rt flow.Runtime, msg flow.Exten
 	if err != nil {
 		return err
 	}
-	stored, err := state.Or(&companion.TNewTimer{})
-	if err != nil {
-		return err
-	}
+	stored := state.Or(&companion.TNewTimer{})
 	stored.TriggerTimestamp = proto.Uint64(stored.GetTriggerTimestamp() + 1)
-	return state.Set(stored)
+	return nil
 }
 
 func TestResponseReadsInternalStateAsProto(t *testing.T) {

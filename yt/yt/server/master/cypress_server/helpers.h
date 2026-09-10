@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/library/erasure/public.h>
+
 #include <yt/yt/core/yson/string.h>
 
 namespace NYT::NCypressServer {

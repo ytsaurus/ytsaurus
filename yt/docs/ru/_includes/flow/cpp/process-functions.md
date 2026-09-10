@@ -2,7 +2,7 @@
 
 ## Зачем это нужно
 
-Классический способ написать [Computation](../../../flow/concepts/computation.md) на C++ — отнаследоваться от `TTransformComputation` (или `TSwiftMapComputation` / `TSwiftOrderedSourceComputation`) и переопределить методы `DoProcessMessage` / `DoProcessTimer` / `DoProcessVisit` / `DoInit`. При этом пользовательская логика оказывается «вплетена» в объект `Computation`: она наследует десятки protected-методов и конструируется только из полностью собранного `TComputationContext` (клиенты {{product-name}}, сторы, менеджер стейтов и т. д.). Как следствие, такую логику практически невозможно покрыть юнит-тестами в изоляции.
+Новую пользовательскую логику на C++ реализуйте только как process function. Прямое наследование от `TTransformComputation`, `TSwiftMapComputation`, `TSwiftOrderedSourceComputation` или `TTransformOrderedSourceComputation` — low-level API для фреймворка и сопровождения legacy-кода, а не способ создания новых пользовательских компьютейшенов. Такая логика «вплетена» в объект `Computation`, наследует десятки protected-методов и конструируется только из полностью собранного `TComputationContext`, поэтому её практически невозможно покрыть юнит-тестами в изоляции.
 
 Process function выносит пользовательскую логику в отдельный лёгкий объект, который получает свои зависимости (`IOutputCollector`, `IRuntimeContext`) как узкие интерфейсы и не имеет зависимости на сам объект `Computation`. Благодаря этому такую функцию можно протестировать изолированно при помощи юнит-тестов.
 
@@ -23,7 +23,7 @@ Process function выносит пользовательскую логику в
 
 ## Интерфейсы
 
-Библиотека `library/cpp/common` (`common/process_function.h`). Методы функции повторяют `Do*`-методы воркера. Функция выбирает **одну** гранулярность обработки, наследуясь от соответствующего интерфейса; на какой `Computation` (source, swift map или transform) её повесить, задаёт спека (см. [Регистрация](#registration)). Базовый `IProcessFunctionBase` несёт только `Init(initContext)` — инициализацию в начале [эпохи](../../../flow/concepts/glossary.md#epoch) (аналог `TTransformComputation::DoInit`), по умолчанию no-op; сами методы обработки добавляют интерфейсы гранулярности. Выбирайте интерфейс по тому, как удобно обрабатывать вход эпохи — по одной сущности, всем батчем сразу или по ключу — и переопределяйте только нужные методы; воркер сам вызовет их с теми же стейтами и семантикой exactly-once, что и у обычного `Computation`.
+Библиотека `library/cpp/common` (`common/process_function.h`). Функция выбирает **одну** гранулярность обработки, наследуясь от соответствующего интерфейса; на какой `Computation` (source, swift map или transform) её повесить, задаёт спека (см. [Регистрация](#registration)). Базовый `IProcessFunctionBase` несёт только `Init(initContext)` — инициализацию в начале [эпохи](../../../flow/concepts/glossary.md#epoch), по умолчанию no-op; сами методы обработки добавляют интерфейсы гранулярности. Выбирайте интерфейс по тому, как удобно обрабатывать вход эпохи — по одной сущности, всем батчем сразу или по ключу — и переопределяйте только нужные методы; воркер сам вызовет их со стейтами и семантикой exactly-once выбранного режима.
 
 Функция наследует один интерфейс гранулярности и, при необходимости, mix-in `ISyncProcessFunction`:
 
@@ -66,17 +66,17 @@ classDiagram
     ISyncProcessFunction <|.. TUserFunction : sync mix-in
 ```
 
-- `IProcessFunction` — поэлементная обработка (самый частый случай). Воркер вызывает метод на каждую сущность эпохи (аналог `TTransformComputation::DoProcessMessage` и т. д.); переопределяйте нужные, все по умолчанию no-op:
+- `IProcessFunction` — поэлементная обработка (самый частый случай). Воркер вызывает метод на каждую сущность эпохи; переопределяйте нужные, все по умолчанию no-op:
     - `ProcessMessage(message, output, context)` — одно сообщение;
     - `ProcessTimer(timer, output, context)` — один [таймер](../../../flow/concepts/glossary.md#timer);
     - `ProcessVisit(visit, output, context)` — один визит.
 
     В обоих source-режимах приходят только сообщения, поэтому `ProcessTimer` / `ProcessVisit` не вызываются.
-- `IBatchProcessFunction` — весь вход эпохи одним вызовом (аналог `TTransformComputation::DoProcess`). Переопределяйте `Process(input, output, context)`, когда логика работает со всем батчем сразу (например, один батчевый внешний запрос). Вход не группируется по ключу. Чтобы совместить батчевую работу с поэлементной обработкой — скажем, [одну предзагрузку стейта](../../../flow/cpp/state.md#external-state-preload) на весь батч — вызывайте из `Process` dispatch-хелперы `ProcessMessages` / `ProcessTimers` / `ProcessVisits(input, output, context, callback)`: каждый проставляет родителей и тегирует ошибку ключом ровно так, как воркер вокруг методов `IProcessFunction`, и принимает `TCallback` — `BIND(&TMyFunction::ProcessMessage, MakeStrong(this))` или `BIND` от лямбды.
+- `IBatchProcessFunction` — весь вход эпохи одним вызовом. Переопределяйте `Process(input, output, context)`, когда логика работает со всем батчем сразу (например, один батчевый внешний запрос). Вход не группируется по ключу. Чтобы совместить батчевую работу с поэлементной обработкой — скажем, [одну предзагрузку стейта](../../../flow/cpp/state.md#external-state-preload) на весь батч — вызывайте из `Process` dispatch-хелперы `ProcessMessages` / `ProcessTimers` / `ProcessVisits(input, output, context, callback)`: каждый проставляет родителей и тегирует ошибку ключом ровно так, как воркер вокруг методов `IProcessFunction`, и принимает `TCallback` — `BIND(&TMyFunction::ProcessMessage, MakeStrong(this))` или `BIND` от лямбды.
 - `IKeyedBatchProcessFunction` — обработка по ключу group-by, для keyed-режимов (swift map и transform). Воркер группирует вход эпохи по ключу и вызывает `ProcessKey` для каждого ключа:
-    - `ProcessKey(input, output, context)` — весь вход одного ключа (сообщения, таймеры и визиты вместе; аналог `TTransformComputation::DoProcessKey`), по умолчанию no-op. Переопределяйте, когда логика опирается на весь батч ключа сразу (например, согласует сообщения и таймеры через общий стейт ключа).
+    - `ProcessKey(input, output, context)` — весь вход одного ключа (сообщения, таймеры и визиты вместе), по умолчанию no-op. Переопределяйте, когда логика опирается на весь батч ключа сразу (например, согласует сообщения и таймеры через общий стейт ключа).
 - `ISyncProcessFunction` — необязательный mix-in для функций, которые в конце эпохи фиксируют побочные эффекты в отдельной sync-фазе; от него наследуются дополнительно к интерфейсу гранулярности:
-    - `Sync(transaction, context)` — фиксация побочных эффектов в транзакции `transaction` (аналог `TTransformComputation::DoSync`); `context` даёт доступ к рантайм-аксессорам. Метод обязателен к реализации. Вызывается только `Computation`-адаптером, у которого есть sync-фаза — из встроенных адаптеров это `TProcessFunctionComputation` (transform) и `TProcessFunctionTransformOrderedSourceComputation` (ordered source). Соответствие проверяется при валидации спеки: функцию с `Sync` нельзя повесить на `Computation` без sync-фазы.
+    - `Sync(transaction, context)` — фиксация побочных эффектов в транзакции `transaction`; `context` даёт доступ к рантайм-аксессорам. Метод обязателен к реализации. Вызывается только `Computation`-адаптером, у которого есть sync-фаза — из встроенных адаптеров это `TProcessFunctionComputation` (transform) и `TProcessFunctionTransformOrderedSourceComputation` (ordered source). Соответствие проверяется при валидации спеки: функцию с `Sync` нельзя повесить на `Computation` без sync-фазы.
 
 В `Process` (`IBatchProcessFunction`) и `ProcessKey` у `output` не проставлены родительские сообщения — проставляйте их сами через `output->SetParents(...)`; в поэлементных методах `IProcessFunction` (`ProcessMessage` / `ProcessTimer` / `ProcessVisit`) они уже проставлены на соответствующую сущность.
 
@@ -131,7 +131,7 @@ Process function — `TRefCounted`, поэтому создавать её вс�
 
 ## Стейты
 
-Стейты работают так же, как и в `Computation`: типизированные клиенты (`TMutableStateKeyClient<T>` и др.) хранятся как поля функции и инициализируются в `Init` через `IRuntimeInitContext` (`common/runtime_init_context.h`), который повторяет API `IJobInitContext`:
+Типизированные клиенты стейта (`TMutableStateKeyClient<T>` и др.) хранятся как поля функции и инициализируются в `Init` через `IRuntimeInitContext` (`common/runtime_init_context.h`):
 
 ```cpp
 void Init(const IRuntimeInitContextPtr& initContext) override

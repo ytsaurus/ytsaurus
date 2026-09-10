@@ -535,7 +535,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 session->Options.WorkloadDescriptor,
                 readBytesEstimate);
             if (!memoryGuardOrError.IsOK()) {
-                Location_->ReportThrottledRead();
+                Location_->ReportThrottledRead(ELocationReadThrottlingReason::ReadMemoryTrackerLimitExceeded);
                 static constexpr auto Message = "Read session aborted due to memory pressure"_sb;
                 YT_TLOG_DEBUG(Message);
 

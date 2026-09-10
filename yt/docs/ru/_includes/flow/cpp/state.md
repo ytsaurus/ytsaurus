@@ -6,6 +6,8 @@
 
 {% endnote %}
 
+Все примеры пользовательской логики на этой странице используют [process function](../../../flow/cpp/process-functions.md). Не создавайте для работы со стейтом собственный класс-наследник `Computation`.
+
 ## Internal State {#internal-state}
 
 Простейший способ хранить стейт внутри `Computation`. Данные автоматически подгружаются в начале [эпохи](../../../flow/concepts/glossary.md#epoch) и записываются при коммите. Не требует самостоятельного создания таблиц — Flow управляет ими автоматически.
@@ -23,8 +25,8 @@
 
 Необходимо:
 
-1. Завести поле `TMutableStateKeyClient<TMyState> MyStateClient_` в своём `TComputation`.
-2. Переопределить `DoInit(IJobInitContextPtr initContext)` и вызвать в нём инициализацию `initContext->InitClient<TMyState>(MyStateClient_, "my_state")`. В качестве имени стоит взять уникальную в рамках `Computation` строку.
+1. Завести поле `TMutableStateKeyClient<TMyState> MyStateClient_` в своей process function.
+2. Переопределить `Init(const IRuntimeInitContextPtr& initContext)` и вызвать в нём `initContext->InitClient<TMyState>(MyStateClient_, "my_state")`. В качестве имени стоит взять уникальную в рамках компьютейшена строку.
 3. Для получения стейта по ключу использовать `MyStateClient_.GetState(message->Key)`. Возвращаемый аксессор `TStateAccessor<TMyState>` ведёт себя как умный указатель на `TMyState` (`state->...`, `*state`) и действителен только в пределах текущей эпохи — сохранять его в полях нельзя.
 4. Для очистки стейта (удаления строки из таблицы) вызвать `state.Clear()` на аксессоре.
 
@@ -47,31 +49,31 @@ struct TMyState
     }
 };
 
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitClient(MyStateClient_, "my_state");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr output) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
         auto state = MyStateClient_.GetState(message->Key);
         state->SomeValue = 42;
         // ...
     }
 
-    void DoProcessTimer(
-        const TTimer& timer,
-        IOutputCollectorPtr output) override
+    void ProcessTimer(
+        const TInputTimerConstPtr& timer,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
-        auto state = MyStateClient_.GetState(timer.Key);
+        auto state = MyStateClient_.GetState(timer->Key);
         // Очистить стейт (удалить строку из таблицы):
         state.Clear();
     }
@@ -106,27 +108,26 @@ External state manager объявляется в спеке `Computation` под
 
 Для работы с External State необходимо:
 
-1. Завести поле `TMutableStateKeyClient<TState> StateClient_` в своём `TComputation`, где `TState` — тип стейта, который возвращает соответствующий external state manager (см. ниже про конкретные реализации).
-2. Переопределить `DoInit(IJobInitContextPtr initContext)` и вызвать в нём `initContext->InitExternalStateClient(StateClient_, "/state")`. В качестве имени стоит взять уникальную в рамках `Computation` строку — это же имя должно фигурировать в спеке.
+1. Завести поле `TMutableStateKeyClient<TState> StateClient_` в своей process function, где `TState` — тип стейта, который возвращает соответствующий external state manager (см. ниже про конкретные реализации).
+2. Переопределить `Init(const IRuntimeInitContextPtr& initContext)` и вызвать в нём `initContext->InitExternalStateClient(StateClient_, "/state")`. В качестве имени стоит взять уникальную в рамках компьютейшена строку — это же имя должно фигурировать в спеке.
 3. Для получения стейта по ключу использовать `StateClient_.GetState(message->Key)`. Возвращаемый аксессор `TStateAccessor<TState>` ведёт себя как умный указатель на `TState` и действителен только в пределах текущей эпохи.
 
 Пример:
 
 ```cpp
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitExternalStateClient(StateClient_, "/state");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr /*output*/) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
         auto state = StateClient_.GetState(message->Key);
         i64 count = state->GetColumnValue<std::optional<i64>>("count").value_or(0);
@@ -155,26 +156,9 @@ private:
 
 ### Предзагрузка и `auto_preload` {#external-state-preload}
 
-По умолчанию (`auto_preload = %true`) фреймворк перед каждым `DoProcess` подгружает в каждый external state manager все ключи сообщений, таймеров и визитов эпохи — по одному lookup'у на ключ. При `"auto_preload" = %false;` в спеке менеджера `Computation` подгружает только нужные ему ключи через клиент: `PreloadKeyStates(THashSet<TKey>)`, `PreloadKeyStates(IInputContextPtr)` или `PreloadKeyStates(IInputContextPtr, TExtractKeysOptions)`; опции выбирают, ключи каких сущностей брать, например `{.Visits = false}` для стейта, который обработчик визитов не читает. Предзагрузка инкрементальна: её можно вызывать несколько раз за эпоху, подгружаются только ещё не загруженные ключи, а уже загруженный (возможно, изменённый) стейт остаётся как есть. `GetState` по ключу, не подгруженному в эпохе, бросает исключение. `auto_preload = %false` запрещён для companion-вычислений.
+По умолчанию (`auto_preload = %true`) фреймворк перед обработкой эпохи подгружает в каждый external state manager все ключи сообщений, таймеров и визитов — по одному lookup'у на ключ. При `"auto_preload" = %false;` process function подгружает только нужные ключи через клиент: `PreloadKeyStates(THashSet<TKey>)`, `PreloadKeyStates(IInputContextPtr)` или `PreloadKeyStates(IInputContextPtr, TExtractKeysOptions)`; опции выбирают, ключи каких сущностей брать, например `{.Visits = false}` для стейта, который обработчик визитов не читает. Предзагрузка инкрементальна: её можно вызывать несколько раз за эпоху, подгружаются только ещё не загруженные ключи, а уже загруженный (возможно, изменённый) стейт остаётся как есть. `GetState` по ключу, не подгруженному в эпохе, бросает исключение. `auto_preload = %false` запрещён для companion-вычислений.
 
-```cpp
-void DoProcess(IInputContextPtr input, IOutputCollectorPtr output) override
-{
-    if (!GetSpec()->ExternalStateManagers.at("/state")->AutoPreload) {
-        // Сообщениям нужна строка; визитам — только ключ.
-        WaitFor(StateClient_.PreloadKeyStates(input, {.Visits = false})).ThrowOnError();
-    }
-    for (const auto& message : input->GetMessages()) {
-        auto state = StateClient_.GetState(message);
-        // ...
-    }
-    for (const auto& visit : input->GetVisits()) {
-        // Работа только с ключом: lookup за него не оплачен.
-    }
-}
-```
-
-Process function делает то же в `IBatchProcessFunction::Process`, раздавая сущности через хелперы из раздела [Process functions](../../../flow/cpp/process-functions.md):
+В `IBatchProcessFunction::Process` сущности можно раздать через хелперы из раздела [Process functions](../../../flow/cpp/process-functions.md):
 
 ```cpp
 void Process(const IInputContextPtr& input, const IOutputCollectorPtr& output, const IRuntimeContextPtr& context) override
@@ -225,13 +209,11 @@ for (const auto& visit : input->GetVisits()) {
 
 ```cpp
 // header: подключаем клиента с типом стейта, привязанным к профилю.
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitExternalStateClient(StateClient_, "/state");
     }
@@ -245,8 +227,8 @@ private:
 ```
 
 ```cpp
-// register.cpp: регистрируем computation и сам менеджер.
-YT_FLOW_DEFINE_COMPUTATION(TMyComputation);
+// register.cpp: регистрируем process function и сам менеджер.
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction);
 YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(NYT::NFlow::NBigRTExtensions::TProfileManager<TMyProfile>);
 ```
 
@@ -275,20 +257,19 @@ External state joiner объявляется в спеке `Computation` под 
 Аналогично external state manager'у:
 
 ```cpp
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitExternalStateClient(StateReaderClient_, "/reference");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr /*output*/) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
         auto state = StateReaderClient_.GetState(message->Key);
         // state — read-only аксессор TConstStateAccessor<TSimpleExternalState> (действителен в пределах эпохи).
@@ -328,7 +309,7 @@ private:
 
 ### TStaticTableKeyVisitorJoiner {#static-table-key-visitor-joiner}
 
-`TStaticTableKeyVisitorJoiner` — external state joiner поверх **статической** сортированной таблицы. Работает только в паре с [key-visitor-стримом](../../../flow/concepts/key_visitor.md#static-table-joiner): в отличие от `TSimpleExternalStateJoiner`, он не делает случайных чтений — фоновый обход визитора последовательно читает таблицу теми же диапазонами ключей, что и внутренний стейт, и строка таблицы становится доступна в `DoProcessVisit` как read-only стейт ключа визита. Ключ, которого в таблице нет, отдаёт пустой стейт (`IsEmpty() == true`).
+`TStaticTableKeyVisitorJoiner` — external state joiner поверх **статической** сортированной таблицы. Работает только в паре с [key-visitor-стримом](../../../flow/concepts/key_visitor.md#static-table-joiner): в отличие от `TSimpleExternalStateJoiner`, он не делает случайных чтений — фоновый обход визитора последовательно читает таблицу теми же диапазонами ключей, что и внутренний стейт, и строка таблицы становится доступна в `ProcessVisit` как read-only стейт ключа визита. Ключ, которого в таблице нет, отдаёт пустой стейт (`IsEmpty() == true`).
 
 Джойнер привязывается к visit-стриму перечислением его имени в `external_names` секции `key_visitor_streams` (см. [параметры статической спеки](../../../flow/concepts/key_visitor.md#static-params)); один джойнер можно привязать не более чем к одному visit-стриму (проверяется при submit'е спеки). `join_on/key_schema_override` не поддерживается — ключом всегда служит собственная `group_by_schema`.
 
@@ -346,28 +327,27 @@ private:
 Канонический паттерн — зеркалирование (reconciliation): ключи таблицы участвуют в обходе наравне с ключами собственного стейта, поэтому визит приходит и для ключа, которого в стейте ещё нет (его надо создать), и для ключа, которого уже нет в таблице (его надо удалить). Периодический обход таким образом сводит стейт `Computation`'а к внешней таблице:
 
 ```cpp
-class TMirrorComputation
-    : public TTransformComputation
+class TMirrorFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitClient<TMirrorState>(MirroredState_, "/mirror");
         initContext->InitExternalStateClient(SourceState_, "/source");
     }
 
-    void DoProcessVisit(
-        const TVisit& visit,
-        IOutputCollectorPtr /*output*/) override
+    void ProcessVisit(
+        const TInputVisitConstPtr& visit,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
-        auto src = SourceState_.GetState(visit.Key);
+        auto src = SourceState_.GetState(visit->Key);
         if (!src.IsInitialized()) {
             // Диапазон источника не прочитан (mark_unreadable): состояние ключа неизвестно.
             return;
         }
-        auto mirror = MirroredState_.GetState(visit.Key);
+        auto mirror = MirroredState_.GetState(visit->Key);
         if (src.IsEmpty()) {
             mirror.Clear();
         } else {
@@ -469,20 +449,19 @@ Joiner объявляется в спеке `Computation` под уникаль�
 ### Использование
 
 ```cpp
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitClient(UpstreamClient_, "/upstream");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr /*output*/) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
         auto state = UpstreamClient_.GetState(message);
         // state — read-only аксессор TConstStateAccessor<TUpstreamState> (действителен в пределах эпохи).

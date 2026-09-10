@@ -23,6 +23,10 @@
 
 #include <yt/yt/core/test_framework/testing_tag.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <library/cpp/yt/compact_containers/compact_vector.h>
+
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 #include <library/cpp/yt/misc/property.h>

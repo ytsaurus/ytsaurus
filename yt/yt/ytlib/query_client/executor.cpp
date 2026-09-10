@@ -25,10 +25,7 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
-
 #include <yt/yt/library/query/engine_api/query_engine_config.h>
-
-#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
@@ -52,6 +49,7 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 

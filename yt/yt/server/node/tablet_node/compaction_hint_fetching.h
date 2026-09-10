@@ -74,6 +74,12 @@ protected:
 
     void ExecuteParse(const std::function<void()>& parser) const;
 
+    IMemoryUsageTrackerPtr MaybeGetMemoryUsageTracker() const;
+
+    NChunkClient::TClientChunkReadOptions CreateChunkReadOptions() const;
+
+    i64 GetEstimatedChunkMetaSize() const;
+
     void OnStoreHasNoHint();
 
     void FinishFetch(NLsm::TStoreCompactionHint::TPayload&& payload);

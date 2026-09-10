@@ -4065,7 +4065,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "((100) * (sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_throttled_writes\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\"}[$__rate_interval])))) / ((sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_throttled_writes\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\"}[$__rate_interval]))) + (sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_write_request_count\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\"}[$__rate_interval]))))",
+                    "expr": "((100) * (sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_throttled_writes\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\", reason=~\"\"}[$__rate_interval])))) / ((sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_throttled_writes\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\", reason=~\"\"}[$__rate_interval]))) + (sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_write_request_count\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\"}[$__rate_interval]))))",
                     "legendFormat": "{{medium}}",
                     "refId": "A"
                 }
@@ -4095,7 +4095,7 @@
             "targets": [
                 {
                     "datasource": null,
-                    "expr": "((100) * (sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_throttled_reads\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\"}[$__rate_interval])))) / ((sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_throttled_reads\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\"}[$__rate_interval]))) + (sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_read_request_count\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\"}[$__rate_interval]))))",
+                    "expr": "((100) * (sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_throttled_reads\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\", reason=~\"\"}[$__rate_interval])))) / ((sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_throttled_reads\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\", reason=~\"\"}[$__rate_interval]))) + (sum by(medium) (rate({cluster=~\"$cluster\", service=~\"yt-data-node.*\", __name__=~\"yt_location_read_request_count\", host=~\"$host\", location_type=~\"store\", location_id=~\"\", medium=~\".+\"}[$__rate_interval]))))",
                     "legendFormat": "{{medium}}",
                     "refId": "A"
                 }

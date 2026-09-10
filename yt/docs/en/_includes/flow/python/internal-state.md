@@ -16,7 +16,23 @@ The Python SDK provides three types of accessors for working with Internal State
 | [RawStateAccessor](#raw-state-accessor) | `bytes` | No serialization (raw bytes) |
 | [ProtoStateAccessor](#proto-state-accessor) | Protobuf | Serializes using Protobuf |
 
-All accessors provide the same set of methods: `get()`, `set(value)`, `clear()`, `get_or_default(default)`.
+All accessors provide the same set of methods: `get()`, `set(value)`, `clear()`, `get_or_default(default)`, `read_only()`.
+
+## Changing the value in place {#in-place}
+
+The value returned by `get()` and `get_or_default()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `get_or_default()` becomes the state value and is written as after `set()`, so it can be changed right away:
+
+```python
+ctx.state("word-state", message).get_or_default({"count": 0})["count"] += 1
+```
+
+`set()` still replaces the whole value, and `clear()` removes the state. A `None` default is not a value and is not stored. A `bytes` object is immutable, so a `RawStateAccessor` state is only written through `set()`.
+
+To detect the changes, a value that was read is re-encoded at the end of the batch. When the computation only reads a state, use `read_only()`: that accessor returns the same object but does not track it, its `get_or_default()` does not create the state, and `set()` and `clear()` raise `ReadOnlyStateError`:
+
+```python
+count = ctx.state("word-state", message).read_only().get_or_default({"count": 0})["count"]
+```
 
 ## YsonStateAccessor {#yson-state-accessor}
 
@@ -41,7 +57,7 @@ state = ctx.state("state-name", timer)
 | `get()` | `dict` or `None` | Deserialize and return the current value |
 | `set(value)` | — | Serialize and save the value (dict or bytes) |
 | `clear()` | — | Delete the state for the current key |
-| `get_or_default(default)` | `dict` | Return the current value or `default` |
+| `get_or_default(default)` | `dict` | Return the current value, or store and return `default` |
 
 ### Example from WordCount
 
@@ -74,7 +90,7 @@ state = ctx.raw_state("state-name", timer)
 | `get()` | `bytes` or `None` | Get the raw bytes |
 | `set(value: bytes)` | — | Save the raw bytes |
 | `clear()` | — | Delete the state for the current key |
-| `get_or_default(default: bytes)` | `bytes` | Return the current value or `default` |
+| `get_or_default(default: bytes)` | `bytes` | Return the current value, or store and return `default` |
 
 ### Usage example
 
@@ -118,7 +134,7 @@ The third argument is the Protobuf message class used for deserialization.
 | `get()` | Proto object or `None` | Deserialize and return the value |
 | `set(value)` | — | Serialize and save the Proto object |
 | `clear()` | — | Delete the state for the current key |
-| `get_or_default(default=None)` | Proto object | Return the value, `default`, or an empty instance of the Proto class |
+| `get_or_default(default=None)` | Proto object | Return the value, or store and return `default` or an empty instance of the Proto class |
 
 {% note info %}
 

@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    chaos_lease.cpp
     config.cpp
     election_manager.cpp
 )
@@ -14,3 +15,7 @@ PEERDIR(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    unittests
+)

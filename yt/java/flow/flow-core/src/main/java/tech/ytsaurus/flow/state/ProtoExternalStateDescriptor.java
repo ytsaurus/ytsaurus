@@ -1,5 +1,6 @@
 package tech.ytsaurus.flow.state;
 
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
 import tech.ytsaurus.flow.row.Keyed;
 import tech.ytsaurus.flow.row.codec.ByteStringCodec;
@@ -11,7 +12,8 @@ import tech.ytsaurus.flow.row.codec.ByteStringCodec;
  *
  * @param <T> protobuf message type of the state
  */
-public final class ProtoExternalStateDescriptor<T extends Message> extends StateDescriptor<T> {
+public final class ProtoExternalStateDescriptor<T extends Message> extends StateDescriptor<T>
+        implements ProtoStateDescriptor {
     private final String name;
     private final Class<T> stateClass;
     private final T defaultInstance;
@@ -42,6 +44,11 @@ public final class ProtoExternalStateDescriptor<T extends Message> extends State
     @Override
     public Class<T> getStateClass() {
         return stateClass;
+    }
+
+    @Override
+    public Descriptors.Descriptor getMessageDescriptor() {
+        return defaultInstance.getDescriptorForType();
     }
 
     @Override

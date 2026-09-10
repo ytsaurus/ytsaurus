@@ -8,6 +8,7 @@ import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,7 +43,7 @@ class ExternalStateAccessorTest {
     void getReturnsEmptyOnSchemalessHolderWhenAbsent() {
         var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, null);
         var acc = accessor(holder);
-        assertTrue(acc.get().isEmpty());
+        assertNull(acc.get());
     }
 
     @Test
@@ -65,7 +66,19 @@ class ExternalStateAccessorTest {
         var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
         var acc = accessor(holder);
         acc.set(value(7L));
-        assertEquals(7L, acc.get().orElseThrow().get("count", Long.class));
+        assertEquals(7L, acc.get().get("count", Long.class));
+    }
+
+    @Test
+    void readOnlyReadsButRejectsWrites() {
+        var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
+        var acc = accessor(holder);
+        acc.set(value(7L));
+        var readOnly = acc.readOnly();
+        assertEquals(7L, readOnly.get().get("count", Long.class));
+        assertThrows(UnsupportedOperationException.class, () -> readOnly.set(value(8L)));
+        assertThrows(UnsupportedOperationException.class, readOnly::clear);
+        assertSame(readOnly, readOnly.readOnly());
     }
 
     @Test
@@ -73,7 +86,9 @@ class ExternalStateAccessorTest {
         var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, STATE_SCHEMA);
         var acc = accessor(holder);
         acc.set(value(7L));
-        assertSame(acc.get().orElseThrow(), acc.get().orElseThrow());
+        var first = acc.get();
+        assertNotNull(first);
+        assertSame(first, acc.get());
     }
 
     @Test
@@ -90,7 +105,7 @@ class ExternalStateAccessorTest {
         var holder = new StatesHolder(STATE_NAME, KEY_SCHEMA, null);
         var acc = accessor(holder);
         acc.clear();
-        assertTrue(acc.get().isEmpty());
+        assertNull(acc.get());
     }
 
     @Test

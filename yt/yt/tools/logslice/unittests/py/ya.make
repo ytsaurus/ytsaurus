@@ -15,6 +15,10 @@ DATA(
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_13061/rotation_outcomes.json
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadmin_58495/authentication_unavailable.json
     arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_58972/preexecution_failure.json
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/access-positive.json.log
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/access-zero-match.json
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/logslice-access-log-family-rejected.txt
+    arcadia/yt/yt/tools/logslice/unittests/py/fixtures/ytadminreq_59543/logslice-nearest-archive-boundary.txt
 )
 
 SIZE(SMALL)

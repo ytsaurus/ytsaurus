@@ -83,7 +83,13 @@ class TestQueueConnector(FlowTestBase):
             ],
         )
 
-    def prepare_swift_pipeline_config(self, sync, source_filter=None, extra_sink_params=None):
+    def prepare_swift_pipeline_config(
+        self,
+        sync,
+        source_filter=None,
+        extra_sink_params=None,
+        extra_dynamic_sink_params=None,
+    ):
         pipeline_config = get_yson_config(PIPELINE_SWIFT_CONFIG_PATH)
 
         pipeline_config["spec"]["computations"]["reader"]["source_streams"]["queue"]["parameters"].update(
@@ -104,6 +110,14 @@ class TestQueueConnector(FlowTestBase):
             sink_spec["parameters"]["producer_path"] = f"<cluster=primary>{self.producer}"
         if extra_sink_params:
             sink_spec["parameters"].update(extra_sink_params)
+        if extra_dynamic_sink_params:
+            dynamic_sink_parameters = (
+                pipeline_config["dynamic_spec"]["computations"]["reader"]
+                .setdefault("sinks", {})
+                .setdefault("queue", {})
+                .setdefault("parameters", {})
+            )
+            dynamic_sink_parameters.update(extra_dynamic_sink_params)
 
         self.patch_config(pipeline_config)
 
@@ -208,6 +222,53 @@ class TestQueueConnector(FlowTestBase):
     def test_swift_write_async(self, workers_count, controllers_count, problems):
         pipeline_config_path = self.prepare_swift_pipeline_config(False)
         self.check(pipeline_config_path, workers_count, controllers_count, problems)
+
+    @pytest.mark.authors(["pechatnov"])
+    def test_async_sink_live_reconfigure(self):
+        run_yt_sync("primary", self.work_yt_path, TABLET_COUNT)
+        pipeline_config_path = self.prepare_swift_pipeline_config(
+            False,
+            extra_dynamic_sink_params={
+                "write_period": "1h",
+                "max_rows_per_write": 1_000_000,
+                "max_bytes_per_write": 1_000_000_000,
+            },
+        )
+
+        with self.start_flow_process_federation(
+            pipeline_binary_args={"--config": pipeline_config_path},
+            workers_count=1,
+            controllers_count=1,
+        ):
+            self.wait_pipeline_state("working")
+            self.wait_jobs_initialized()
+
+            def get_output_counts():
+                rows = self.client.select_rows(f"data, flow_queue_meta from [{self.output_queue}]")
+                return collections.Counter(
+                    row["data"] for row in rows if not row.get("flow_queue_meta", {}).get("pure_heartbeat", False)
+                )
+
+            def apply_writer_parameters(parameters):
+                dynamic_spec = self.client.get_pipeline_dynamic_spec(self.pipeline_path)
+                writer_parameters = dynamic_spec["spec"]["computations"]["reader"]["sinks"]["queue"]["parameters"]
+                writer_parameters.update(parameters)
+                self.client.set_pipeline_dynamic_spec(
+                    self.pipeline_path,
+                    dynamic_spec["spec"],
+                    expected_version=dynamic_spec["version"],
+                )
+
+            apply_writer_parameters(
+                {
+                    "write_period": "10ms",
+                    "max_rows_per_write": 1,
+                    "max_bytes_per_write": 1,
+                }
+            )
+            self.client.insert_rows(self.input_queue, INPUT_DATA[:1])
+            wait(lambda: get_output_counts() == {"payload_0": 1}, timeout=60)
+            assert self.client.get_pipeline_state(self.pipeline_path) == "working"
 
     @pytest.mark.authors(["mikari"])
     @pytest.mark.parametrize(

@@ -107,8 +107,8 @@
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/library/query/base/functions.h>
-#include <yt/yt/library/query/base/query_preparer.h>
 #include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/new_range_inferrer.h>
@@ -1705,7 +1705,9 @@ TDuration TClient::CheckPermissionsForQuery(
 
         auto permissionOrError = WaitFor(Connection_->GetQueryPoolPermissionCache()->Get(key));
         if (!permissionOrError.IsOK() && !permissionOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            permissionOrError.ThrowOnError();
+            THROW_ERROR_EXCEPTION("Cannot use query pool %Qv",
+                *options.ExecutionPool)
+                .With(std::move(permissionOrError));
         }
     }
 
@@ -1886,8 +1888,8 @@ bool HeavyRangeInferenceImprovesJoinSubquery(
             .ObjectId = joinClause->ForeignObjectId,
             .Ranges = MakeSharedRange(
                 TRowRanges{{
-                    buffer->CaptureRow(NTableClient::MinKey().Get()),
-                    buffer->CaptureRow(NTableClient::MaxKey().Get())
+                    buffer->CaptureRow(MinKey().Get()),
+                    buffer->CaptureRow(MaxKey().Get()),
                 }},
                 buffer),
         },
@@ -1898,8 +1900,8 @@ bool HeavyRangeInferenceImprovesJoinSubquery(
 
     for (const auto& range : inferredResult.first.Ranges) {
         bool isFullScan =
-            CompareRows(range.first, NTableClient::MinKey().Get()) <= 0 &&
-            CompareRows(range.second, NTableClient::MaxKey().Get()) == 0;
+            CompareRows(range.first, MinKey().Get()) <= 0 &&
+            CompareRows(range.second, MaxKey().Get()) == 0;
 
         if (isFullScan) {
             return false;

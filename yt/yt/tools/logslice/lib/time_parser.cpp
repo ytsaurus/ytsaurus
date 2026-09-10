@@ -292,37 +292,102 @@ std::optional<TInstant> ParseLogLineTime(TStringBuf line)
 {
     // "YYYY-MM-DD HH:MM:SS,uuuuuu"
     constexpr int PrefixLength = 26;
-    if (std::ssize(line) < PrefixLength) {
-        return std::nullopt;
-    }
-    const char* p = line.data();
-    if (!IsDigits(p, 4) || p[4] != '-' || !IsDigits(p + 5, 2) || p[7] != '-' ||
-        !IsDigits(p + 8, 2) || p[10] != ' ' || !IsDigits(p + 11, 2) || p[13] != ':' ||
-        !IsDigits(p + 14, 2) || p[16] != ':' || !IsDigits(p + 17, 2) || p[19] != ',' ||
-        !IsDigits(p + 20, 6))
-    {
-        return std::nullopt;
+    if (std::ssize(line) >= PrefixLength) {
+        const char* p = line.data();
+        if (IsDigits(p, 4) && p[4] == '-' && IsDigits(p + 5, 2) && p[7] == '-' &&
+            IsDigits(p + 8, 2) && p[10] == ' ' && IsDigits(p + 11, 2) && p[13] == ':' &&
+            IsDigits(p + 14, 2) && p[16] == ':' && IsDigits(p + 17, 2) && p[19] == ',' &&
+            IsDigits(p + 20, 6))
+        {
+            // Cache the second-resolution epoch keyed by the 19-char prefix:
+            // consecutive log lines very often share the same second, and
+            // mktime is comparatively slow.
+            thread_local bool CacheValid = false;
+            thread_local char CacheKey[19];
+            thread_local time_t CacheEpoch = 0;
+
+            time_t epoch;
+            if (CacheValid && std::memcmp(CacheKey, p, 19) == 0) {
+                epoch = CacheEpoch;
+            } else {
+                epoch = LocalBrokenDownToEpoch(
+                    ReadInt(p, 4), ReadInt(p + 5, 2), ReadInt(p + 8, 2),
+                    ReadInt(p + 11, 2), ReadInt(p + 14, 2), ReadInt(p + 17, 2));
+                std::memcpy(CacheKey, p, 19);
+                CacheEpoch = epoch;
+                CacheValid = true;
+            }
+
+            return TInstant::Seconds(epoch) + TDuration::MicroSeconds(ReadInt(p + 20, 6));
+        }
     }
 
-    // Cache the second-resolution epoch keyed by the 19-char prefix: consecutive
-    // log lines very often share the same second, and mktime is comparatively slow.
-    thread_local bool CacheValid = false;
-    thread_local char CacheKey[19];
-    thread_local time_t CacheEpoch = 0;
-
-    time_t epoch;
-    if (CacheValid && std::memcmp(CacheKey, p, 19) == 0) {
-        epoch = CacheEpoch;
-    } else {
-        epoch = LocalBrokenDownToEpoch(
-            ReadInt(p, 4), ReadInt(p + 5, 2), ReadInt(p + 8, 2),
-            ReadInt(p + 11, 2), ReadInt(p + 14, 2), ReadInt(p + 17, 2));
-        std::memcpy(CacheKey, p, 19);
-        CacheEpoch = epoch;
-        CacheValid = true;
+    // Structured access logs are JSON lines. Callers probing a compressed block
+    // may pass a prefix containing several records, but the result must describe
+    // the first line. The standard formatter adds its trusted system timestamp
+    // after payload fields, so use the last valid occurrence within that line.
+    if (auto newline = line.find('\n'); newline != TStringBuf::npos) {
+        line = line.SubStr(0, newline);
     }
+    constexpr TStringBuf InstantKey = "instant";
+    std::optional<TInstant> result;
+    int objectDepth = 0;
+    for (size_t offset = 0; offset < line.size();) {
+        if (line[offset] == '{') {
+            ++objectDepth;
+            ++offset;
+            continue;
+        }
+        if (line[offset] == '}') {
+            --objectDepth;
+            ++offset;
+            continue;
+        }
+        if (line[offset] != '"') {
+            ++offset;
+            continue;
+        }
 
-    return TInstant::Seconds(epoch) + TDuration::MicroSeconds(ReadInt(p + 20, 6));
+        const auto stringStart = ++offset;
+        while (offset < line.size() && line[offset] != '"') {
+            if (line[offset] == '\\' && offset + 1 < line.size()) {
+                offset += 2;
+            } else {
+                ++offset;
+            }
+        }
+        if (offset == line.size()) {
+            break;
+        }
+        const auto stringEnd = offset++;
+        if (objectDepth != 1 || line.SubStr(stringStart, stringEnd - stringStart) != InstantKey) {
+            continue;
+        }
+
+        auto rest = line.SubStr(offset);
+        while (!rest.empty() && IsAsciiSpace(rest.front())) {
+            rest.Skip(1);
+        }
+        if (rest.empty() || rest.front() != ':') {
+            continue;
+        }
+        rest.Skip(1);
+        while (!rest.empty() && IsAsciiSpace(rest.front())) {
+            rest.Skip(1);
+        }
+        if (rest.empty() || rest.front() != '"') {
+            continue;
+        }
+        rest.Skip(1);
+        auto end = rest.find('"');
+        if (end == TStringBuf::npos) {
+            continue;
+        }
+        if (auto instant = TryParseLocalFull(rest.SubStr(0, end))) {
+            result = instant;
+        }
+    }
+    return result;
 }
 
 std::string FormatLogTime(TInstant instant)

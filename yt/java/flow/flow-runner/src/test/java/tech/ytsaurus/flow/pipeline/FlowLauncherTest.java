@@ -455,7 +455,7 @@ class FlowLauncherTest {
     void testBuildExtendedConfigPatchesStreamSchemas() {
         var words = FlowStreams.typed("words", Word.class);
 
-        YTreeNode extended = launcher.buildExtendedConfig(pipelinePath, Map.of(words.getStreamId(), words));
+        YTreeNode extended = launcher.buildExtendedConfig(pipelinePath, Map.of(words.getStreamId(), words), List.of());
 
         YTreeMapNode spec = extended.mapNode().getOrThrow("spec").mapNode();
         assertEquals(
@@ -480,7 +480,7 @@ class FlowLauncherTest {
         var words = FlowStreams.typed("words", Word.class);
 
         YTreeNode extended = launcher.buildExtendedConfig(
-                patchedPath.toString(), Map.of(words.getStreamId(), words));
+                patchedPath.toString(), Map.of(words.getStreamId(), words), List.of());
 
         YTreeMapNode spec = extended.mapNode().getOrThrow("spec").mapNode();
         assertEquals(
@@ -505,7 +505,7 @@ class FlowLauncherTest {
 
         var error = assertThrows(
                 IllegalStateException.class,
-                () -> launcher.buildExtendedConfig(patchedPath.toString(), Map.of()));
+                () -> launcher.buildExtendedConfig(patchedPath.toString(), Map.of(), List.of()));
         assertTrue(error.getMessage().contains("main_class"));
     }
 
@@ -515,7 +515,7 @@ class FlowLauncherTest {
         config.mapNode().getOrThrow("vanilla").mapNode().put("enable", YTree.booleanNode(false));
         Path patchedPath = writeConfig(config);
 
-        YTreeNode extended = launcher.buildExtendedConfig(patchedPath.toString(), Map.of());
+        YTreeNode extended = launcher.buildExtendedConfig(patchedPath.toString(), Map.of(), List.of());
 
         YTreeMapNode parameters = extended.mapNode()
                 .getOrThrow("spec").mapNode()

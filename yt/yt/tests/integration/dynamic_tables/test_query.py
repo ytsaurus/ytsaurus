@@ -3306,11 +3306,19 @@ class TestQueryRpcProxy(TestQuery):
         assert statistics[length//2] != 0
         assert all(map(lambda x : x == 0, statistics[(length//2+3):]))
 
-    @authors("dtorilov")
-    def test_yt_27954_1(self):
+    @pytest.fixture
+    def enable_heavy_range_inference_in_joins(self):
         set("//sys/rpc_proxies/@config", {})
         set("//sys/rpc_proxies/@config/query_engine_config", {})
-        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+        config_path = "//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins"
+        set(config_path, True)
+        try:
+            yield
+        finally:
+            set(config_path, False)
+
+    @authors("dtorilov")
+    def test_yt_27954_1(self, enable_heavy_range_inference_in_joins):
         sync_create_cells(1)
         self._create_table(
             "//tmp/l",
@@ -3358,13 +3366,9 @@ class TestQueryRpcProxy(TestQuery):
         ]
         actual = select_rows(query, allow_join_without_index=False)
         assert expected == actual
-        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
 
     @authors("dtorilov")
-    def test_yt_27954_2(self):
-        set("//sys/rpc_proxies/@config", {})
-        set("//sys/rpc_proxies/@config/query_engine_config", {})
-        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+    def test_yt_27954_2(self, enable_heavy_range_inference_in_joins):
         sync_create_cells(1)
         self._create_table(
             "//tmp/l",
@@ -3412,13 +3416,9 @@ class TestQueryRpcProxy(TestQuery):
         ]
         actual = select_rows(query, allow_join_without_index=False)
         assert expected == actual
-        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
 
     @authors("dtorilov")
-    def test_yt_27954_3(self):
-        set("//sys/rpc_proxies/@config", {})
-        set("//sys/rpc_proxies/@config/query_engine_config", {})
-        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", True)
+    def test_yt_27954_3(self, enable_heavy_range_inference_in_joins):
         sync_create_cells(1)
         self._create_table(
             "//tmp/l",
@@ -3461,7 +3461,6 @@ class TestQueryRpcProxy(TestQuery):
         )
         with raises_yt_error("Foreign table key is not used in the join clause"):
             select_rows(query, allow_join_without_index=False)
-        set("//sys/rpc_proxies/@config/query_engine_config/allow_heavy_range_inference_in_joins", False)
 
     @authors("dtorilov")
     def test_reverse_scan_for_order_by_1(self):

@@ -644,6 +644,19 @@ class FlowTestBase:
                 )
             )
 
+    def wait_jobs_initialized(self, timeout=180):
+        def jobs_initialized():
+            statuses = self.client.get_flow_view(
+                self.pipeline_path,
+                view_path="/feedback/partition_job_statuses",
+                cache=False,
+            )
+            return bool(statuses) and all(
+                status.get("current_job_status", {}).get("inited_time") is not None for status in statuses.values()
+            )
+
+        wait(jobs_initialized, timeout=timeout, ignore_exceptions=True)
+
     def ask_key_visitor_to_complete(self, computation_id, stream_id):
         """Ask a running key visitor to finish sweeping.
 

@@ -15,6 +15,7 @@ PEERDIR(
 
 SRCS(
     yql_ytflow_datasink_exec_ut.cpp
+    yql_ytflow_logical_optimize_ut.cpp
     yql_ytflow_physical_finalizing_setup.cpp
     yql_ytflow_physical_finalizing_ut.cpp
 )

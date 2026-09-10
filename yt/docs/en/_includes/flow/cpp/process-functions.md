@@ -2,7 +2,7 @@
 
 ## Why you need it
 
-The classic way to write a [Computation](../../../flow/concepts/computation.md) in C++ is to inherit from `TTransformComputation` (or `TSwiftMapComputation` / `TSwiftOrderedSourceComputation`) and override the `DoProcessMessage`, `DoProcessTimer`, `DoProcessVisit`, and `DoInit` methods. In this approach, your custom logic becomes tightly coupled with the `Computation` object: it inherits dozens of protected methods and can only be constructed from a fully built `TComputationContext` (which includes {{product-name}} clients, stores, the state manager, and so on). As a result, it’s nearly impossible to test this logic in isolation with unit tests.
+Implement new C++ user logic only as a process function. Direct inheritance from `TTransformComputation`, `TSwiftMapComputation`, `TSwiftOrderedSourceComputation`, or `TTransformOrderedSourceComputation` is a low-level API for framework and legacy maintenance, not an authoring model for new user computations. Such logic is tightly coupled with the `Computation` object, inherits dozens of protected methods, and can only be constructed from a fully built `TComputationContext`, so it’s nearly impossible to test in isolation with unit tests.
 
 A process function moves your custom logic into a separate, lightweight object. This object receives its dependencies (`IOutputCollector`, `IRuntimeContext`) as narrow interfaces and doesn’t depend on the `Computation` object itself. This lets you test the function in isolation with unit tests.
 
@@ -23,9 +23,9 @@ You can run the same function under different adapters without rebuilding the bi
 
 ## Interfaces
 
-The library is `library/cpp/common` (`common/process_function.h`). The function’s methods mirror the worker’s `Do*` methods. The function selects **one** processing granularity by inheriting the corresponding interface. The spec determines which `Computation` (source, swift map, or transform) the function attaches to (see [Registration](#registration)). The base `IProcessFunctionBase` only includes `Init(initContext)` — initialization at the start of an [epoch](../../../flow/concepts/glossary.md#epoch) (analogous to `TTransformComputation::DoInit`). By default, this is a no-op. The granularity interfaces add the actual processing methods.
+The library is `library/cpp/common` (`common/process_function.h`). The function selects **one** processing granularity by inheriting the corresponding interface. The spec determines which `Computation` (source, swift map, or transform) the function attaches to (see [Registration](#registration)). The base `IProcessFunctionBase` only includes `Init(initContext)` — initialization at the start of an [epoch](../../../flow/concepts/glossary.md#epoch). By default, this is a no-op. The granularity interfaces add the actual processing methods.
 
-Choose the interface based on how you want to process the epoch’s input: one entity at a time, the entire batch at once, or by key. Then override only the methods you need. The worker will call them with the same states and exactly-once semantics as a regular `Computation`.
+Choose the interface based on how you want to process the epoch’s input: one entity at a time, the entire batch at once, or by key. Then override only the methods you need. The worker will call them with the state and exactly-once semantics of the selected mode.
 
 The function inherits one granularity interface and, if needed, the `ISyncProcessFunction` mix-in:
 
@@ -68,17 +68,17 @@ classDiagram
     ISyncProcessFunction <|.. TUserFunction : sync mix-in
 ```
 
-- `IProcessFunction` — element-wise processing (the most common case). The worker calls a method for each entity in the epoch (similar to `TTransformComputation::DoProcessMessage`, etc.). Override the methods you need; all are no-op by default:
+- `IProcessFunction` — element-wise processing (the most common case). The worker calls a method for each entity in the epoch. Override the methods you need; all are no-op by default:
     - `ProcessMessage(message, output, context)` — handles a single message.
     - `ProcessTimer(timer, output, context)` — handles a single [timer](../../../flow/concepts/glossary.md#timer).
     - `ProcessVisit(visit, output, context)` — handles a single visit.
 
     In source mode, only messages arrive, so `ProcessTimer` and `ProcessVisit` aren’t called.
-- `IBatchProcessFunction` — processes the entire epoch input in a single call (similar to `TTransformComputation::DoProcess`). Override `Process(input, output, context)` when your logic works with the whole batch at once (for example, a single batched external request). The input isn’t grouped by key. To combine batch work with per-entity handling — say, [one state preload](../../../flow/cpp/state.md#external-state-preload) for the whole batch — call the dispatch helpers `ProcessMessages` / `ProcessTimers` / `ProcessVisits(input, output, context, callback)` from `Process`: each sets the parents and tags errors with the key exactly as the worker does around `IProcessFunction` hooks, and takes a `TCallback` — `BIND(&TMyFunction::ProcessMessage, MakeStrong(this))` or a `BIND` of a lambda.
+- `IBatchProcessFunction` — processes the entire epoch input in a single call. Override `Process(input, output, context)` when your logic works with the whole batch at once (for example, a single batched external request). The input isn’t grouped by key. To combine batch work with per-entity handling — say, [one state preload](../../../flow/cpp/state.md#external-state-preload) for the whole batch — call the dispatch helpers `ProcessMessages` / `ProcessTimers` / `ProcessVisits(input, output, context, callback)` from `Process`: each sets the parents and tags errors with the key exactly as the worker does around `IProcessFunction` hooks, and takes a `TCallback` — `BIND(&TMyFunction::ProcessMessage, MakeStrong(this))` or a `BIND` of a lambda.
 - `IKeyedBatchProcessFunction` — processes by key using group-by, for keyed modes (swift map and transform). The worker groups the epoch’s input by key and calls `ProcessKey` for each key:
-    - `ProcessKey(input, output, context)` — handles all input for a single key (messages, timers, and visits together; similar to `TTransformComputation::DoProcessKey`). It’s no-op by default. Override it when your logic relies on the entire key batch at once (for example, to reconcile messages and timers via the key’s shared state).
+    - `ProcessKey(input, output, context)` — handles all input for a single key (messages, timers, and visits together). It’s no-op by default. Override it when your logic relies on the entire key batch at once (for example, to reconcile messages and timers via the key’s shared state).
 - `ISyncProcessFunction` — an optional mix-in for functions that commit side effects in a separate sync phase at the end of the epoch. You inherit it in addition to the granularity interface:
-    - `Sync(transaction, context)` — commits side effects in the `transaction` (similar to `TTransformComputation::DoSync`). The `context` gives access to runtime accessors. You must implement this method. It’s called only by a `Computation` adapter that has a sync phase — among the built-in adapters, that’s `TProcessFunctionComputation` (transform). The spec validation checks this match: you can’t attach a function with `Sync` to a `Computation` without a sync phase.
+    - `Sync(transaction, context)` — commits side effects in the `transaction`. The `context` gives access to runtime accessors. You must implement this method. It’s called only by a `Computation` adapter that has a sync phase — among the built-in adapters, that’s `TProcessFunctionComputation` (transform) and `TProcessFunctionTransformOrderedSourceComputation` (ordered source). The spec validation checks this match: you can’t attach a function with `Sync` to a `Computation` without a sync phase.
 
 In `Process` (`IBatchProcessFunction`) and `ProcessKey`, the `output` doesn’t have parent messages set — you must set them yourself via `output->SetParents(...)`. In the element-wise methods of `IProcessFunction` (`ProcessMessage`, `ProcessTimer`, `ProcessVisit`), they’re already set for the corresponding entity.
 
@@ -133,7 +133,7 @@ A process function is `TRefCounted`, so you must always create it via `New<...>(
 
 ## States
 
-States work the same way as in `Computation`: typed clients (`TMutableStateKeyClient<T>` and others) are stored as function fields and initialized in `Init` via `IRuntimeInitContext` (`common/runtime_init_context.h`), which mirrors the `IJobInitContext` API:
+Typed state clients (`TMutableStateKeyClient<T>` and others) are stored as function fields and initialized in `Init` via `IRuntimeInitContext` (`common/runtime_init_context.h`):
 
 ```cpp
 void Init(const IRuntimeInitContextPtr& initContext) override

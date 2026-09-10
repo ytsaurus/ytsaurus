@@ -15,9 +15,6 @@ class TComputationBase;
 DECLARE_REFCOUNTED_STRUCT(IMessageFilter);
 DECLARE_REFCOUNTED_STRUCT(IOutputCollector);
 
-DECLARE_REFCOUNTED_STRUCT(TOutputStoreStreamOrchidState);
-DECLARE_REFCOUNTED_STRUCT(TUniversalComputationOrchidState);
-
 DECLARE_REFCOUNTED_CLASS(TRootOutputCollector);
 DECLARE_REFCOUNTED_STRUCT(IOutputCollector);
 

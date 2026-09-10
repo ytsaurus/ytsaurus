@@ -82,6 +82,8 @@ void RegisterNodeInfoStruct(TRegistrar registrar)
         .Default();
     registrar.BaseClassParameter("vcpu_factor", &TNodeInfoBase::VcpuFactor)
         .Default();
+    registrar.BaseClassParameter("vcpu_limit", &TNodeInfoBase::VcpuLimit)
+        .Default();
     registrar.BaseClassParameter("build_version", &TNodeInfoBase::BuildVersion)
         .Default();
     registrar.BaseClassParameter("flow_core_version", &TNodeInfoBase::FlowCoreVersion)

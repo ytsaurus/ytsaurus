@@ -24,7 +24,8 @@ public final class State implements YTreeConvertible {
     private @Nullable ByteString bytes;
     // Decoded value: the one handed to set(), or memoized by getValue() on first read.
     private @Nullable Object value;
-    // Encodes |value| into |bytes| on first read; set only for an entry created from a value.
+    // Encodes the value into the bytes: set for an entry created from a value, and for one whose
+    // value was handed out as mutable.
     private @Nullable ByteStringCodec<Object> codec;
 
     public State(ByteString bytes) {
@@ -83,6 +84,38 @@ public final class State implements YTreeConvertible {
             value = codec.decode(Objects.requireNonNull(bytes, "Non-reset state must have bytes"));
         }
         return (T) value;
+    }
+
+    /**
+     * Returns the value like {@link #getValue} and keeps {@code codec}, so that
+     * {@link #syncBytes} re-encodes the value: changes made to the returned object in place
+     * reach the wire.
+     *
+     * @param codec codec of the bytes.
+     * @param <T>   value type.
+     * @return the value.
+     */
+    @SuppressWarnings("unchecked")
+    <T> T getMutableValue(ByteStringCodec<T> codec) {
+        T result = getValue(codec);
+        this.codec = (ByteStringCodec<Object>) codec;
+        return result;
+    }
+
+    /**
+     * Re-encodes a mutable value and reports whether the bytes changed. An entry that has no
+     * bytes yet is encoded on the first {@link #getBytes} instead.
+     */
+    boolean syncBytes() {
+        if (codec == null || bytes == null) {
+            return false;
+        }
+        ByteString encoded = codec.encode(value);
+        if (encoded.equals(bytes)) {
+            return false;
+        }
+        bytes = encoded;
+        return true;
     }
 
     @Override

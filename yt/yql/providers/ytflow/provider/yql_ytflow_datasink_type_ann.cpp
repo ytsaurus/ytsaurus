@@ -45,7 +45,8 @@ public:
         ADD_HANDLER(TYtflowIntermediateSink, HandleIntermediateSink);
         ADD_HANDLER(TYtflowPersistentSink, HandlePersistentSink);
         ADD_HANDLER(TYtflowOutput, HandleOutput);
-        ADD_HANDLER(TYtflowSourceMap, HandleSourceMap);
+        ADD_HANDLER(TYtflowSourceMap, HandleSourceMapBase);
+        ADD_HANDLER(TYtflowTransformSourceMap, HandleSourceMapBase);
         ADD_HANDLER(TYtflowTransformMap, HandleTransformMap);
         ADD_HANDLER(TYtflowSwiftMap, HandleSwiftMap);
         ADD_HANDLER(TYtflowExtend, HandleExtend);
@@ -496,7 +497,7 @@ private:
         return TStatus::Ok;
     }
 
-    TStatus HandleSourceMap(const TExprNode::TPtr& input, TExprContext& ctx) {
+    TStatus HandleSourceMapBase(const TExprNode::TPtr& input, TExprContext& ctx) {
         if (!EnsureArgsCount(*input, 5, ctx)) {
             return TStatus::Error;
         }
@@ -512,7 +513,7 @@ private:
             ctx.AddError(TIssue(
                 ctx.GetPosition(input->Pos()),
                 TStringBuilder()
-                    << TYtflowSourceMap::CallableName()
+                    << input->Content()
                     << " doesn't support multiple inputs"));
 
             return TStatus::Error;

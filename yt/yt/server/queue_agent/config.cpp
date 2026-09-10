@@ -4,11 +4,11 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <yt/yt/library/discovery_client/config.h>
-
 #include <yt/yt/ytlib/queue_client/config.h>
 
 #include <yt/yt/client/security_client/public.h>
+
+#include <yt/yt/library/discovery_client/config.h>
 
 #include <yt/yt/library/re2/re2.h>
 

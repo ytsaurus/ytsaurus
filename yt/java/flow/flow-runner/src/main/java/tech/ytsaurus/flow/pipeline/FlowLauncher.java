@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -14,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.flow.config.EnvironmentReader;
 import tech.ytsaurus.flow.config.PipelineRunnerConfig;
+import tech.ytsaurus.flow.state.StateDescriptor;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.yson.ClosableYsonConsumer;
 import tech.ytsaurus.yson.YsonTextWriter;
@@ -59,8 +61,9 @@ public class FlowLauncher {
     }
 
     /**
-     * Enriches the pipeline config with everything the registered pipeline implies, runs
-     * flow_server on it, and returns its exit code.
+     * Enriches the pipeline config with the registered streams, runs flow_server on it, and
+     * returns its exit code. Declares no states: a profile state must then carry its own
+     * descriptor source in the spec.
      *
      * @param configPath      path to the pipeline config in YSON format.
      * @param flowBin         path to the {@code flow_server} binary that performs the launch.
@@ -75,6 +78,31 @@ public class FlowLauncher {
             Map<String, FlowStream<?>> streams,
             List<String> flowServerFlags
     ) throws IOException, InterruptedException {
+        return launch(configPath, flowBin, streams, List.of(), flowServerFlags);
+    }
+
+    /**
+     * Enriches the pipeline config with everything the registered pipeline implies, runs
+     * flow_server on it, and returns its exit code.
+     *
+     * @param configPath      path to the pipeline config in YSON format.
+     * @param flowBin         path to the {@code flow_server} binary that performs the launch.
+     * @param streams         streams registered by the pipeline; their schemas are written into
+     *                        {@code spec.streams}.
+     * @param states          states declared by the pipeline; the descriptor sources of profile
+     *                        states are filled from them.
+     * @param flowServerFlags extra flags forwarded to {@code flow_server} verbatim, such as
+     *                        {@code --validate-only}.
+     * @throws IllegalArgumentException if the launch is misconfigured, or if a profile state of the
+     *                                  spec cannot be described from the declared states.
+     */
+    public int launch(
+            @Nullable String configPath,
+            @Nullable String flowBin,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states,
+            List<String> flowServerFlags
+    ) throws IOException, InterruptedException {
         if (configPath == null || configPath.isEmpty()) {
             throw new IllegalArgumentException("--config <pipeline.yson> is required to launch the pipeline");
         }
@@ -84,7 +112,7 @@ public class FlowLauncher {
 
         String flowBinAbs = Paths.get(flowBin).toAbsolutePath().toString();
 
-        YTreeNode pipelineConfig = buildExtendedConfig(configPath, streams);
+        YTreeNode pipelineConfig = buildExtendedConfig(configPath, streams, states);
         Path extendedConfig = writeExtendedConfig(pipelineConfig);
         try {
             List<String> command = new ArrayList<>(List.of(flowBinAbs, "--config", extendedConfig.toString()));
@@ -122,7 +150,11 @@ public class FlowLauncher {
     /**
      * Loads the pipeline config and applies every enrichment the launch needs. Visible for tests.
      */
-    YTreeNode buildExtendedConfig(String configPath, Map<String, FlowStream<?>> streams) {
+    YTreeNode buildExtendedConfig(
+            String configPath,
+            Map<String, FlowStream<?>> streams,
+            Collection<StateDescriptor<?>> states
+    ) {
         PipelineRunnerConfig runnerConfig = new PipelineRunnerConfig(configPath, envReader);
         YTreeNode pipelineConfig = runnerConfig.getFullSpec();
         YTreeMapNode root = pipelineConfig.mapNode();
@@ -135,6 +167,9 @@ public class FlowLauncher {
         // The registered pipeline is the source of truth for stream schemas, whether or not the
         // runner also submits a vanilla operation.
         PipelineSpecEnricher.patchStreamSchemas(spec, streams);
+        // The declared states describe the profile states whose spec names no descriptor source:
+        // the worker never compiles the user's proto, so the descriptors travel in the spec.
+        ProfileStateSpecEnricher.patch(spec, states);
 
         YTreeMapNode vanilla = root
                 .get("vanilla")

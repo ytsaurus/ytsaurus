@@ -73,12 +73,16 @@ public:
     }
 
     void BuildSchedulingAttributesStringForNode(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
         const ISchedulingHeartbeatContextPtr& /*schedulingHeartbeatContext*/,
         TNodeId /*nodeId*/,
         TDelimitedStringBuilderWrapper& /*delimitedBuilder*/) const override
     { }
 
-    void BuildSchedulingAttributesForNode(TNodeId /*nodeId*/, TFluentMap /*fluent*/) const override
+    void BuildSchedulingAttributesForNode(
+        const TPoolTreeSnapshotPtr& /*treeSnapshot*/,
+        TNodeId /*nodeId*/,
+        TFluentMap /*fluent*/) const override
     { }
 
     NLogging::TLoggingTagList BuildSchedulingAttributeTagsForOngoingAllocations(

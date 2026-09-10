@@ -118,7 +118,7 @@ class StateProtoMapperTest {
                 .encode(new PayloadBuilder(STATE_SCHEMA).set("count", 7L).finish());
         holder.set(CODECS.getKeyCodec().decode(key(1)), new State(bytes));
 
-        var proto = mapper.toProto(holder);
+        var proto = mapper.toProto(holder, holder.collectModifiedStates());
 
         assertEquals(STATE_SCHEMA, TableSchema.fromYTree(YsonUtils.yTreeFromProto(proto.getSchema())));
         assertEquals(1, proto.getStateItemsCount());
@@ -183,7 +183,7 @@ class StateProtoMapperTest {
         var bytes = ByteString.copyFrom(new byte[]{1, 2, 3});
         holder.set(CODECS.getKeyCodec().decode(key(1)), new State(bytes));
 
-        var proto = mapper.toProto(holder);
+        var proto = mapper.toProto(holder, holder.collectModifiedStates());
 
         assertTrue(proto.getSchema().isEmpty());
         assertEquals(1, proto.getStateItemsCount());
@@ -211,11 +211,11 @@ class StateProtoMapperTest {
         assertEquals(PROTO_TYPE, holder.getProtoType());
 
         var acc = protoAccessor(holder, key);
-        assertEquals(42, acc.get().orElseThrow().getCount());
+        assertEquals(42, acc.get().getCount());
 
         // Write back and map to the response: format and proto type are stamped.
         acc.set(message(43));
-        TState out = mapper.toProto(holder);
+        TState out = mapper.toProto(holder, holder.collectModifiedStates());
         assertEquals(StateFormat.PROTO.getWireValue(), out.getFormat());
         assertEquals(PROTO_TYPE, out.getProtoType());
         assertEquals(1, out.getStateItemsCount());
@@ -229,7 +229,7 @@ class StateProtoMapperTest {
         var holder = protoHolder();
         // An all-default message serializes to zero bytes; it must still be sent.
         protoAccessor(holder, keyPayload(1)).set(TTestMessage.getDefaultInstance());
-        TState out = mapper.toProto(holder);
+        TState out = mapper.toProto(holder, holder.collectModifiedStates());
         assertEquals(1, out.getStateItemsCount());
         assertFalse(out.getStateItems(0).getReset());
         assertTrue(out.getStateItems(0).getState().isEmpty());

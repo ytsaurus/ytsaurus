@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/core/concurrency/context_switch.h>
+
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -175,6 +177,8 @@ NLogging::TLoggingTagList TPoolTreeElement::BuildLoggingTags() const
 
 NLogging::TLoggingTagList TPoolTreeElement::GetLoggingTags(const TPoolTreeSnapshotPtr& treeSnapshot) const
 {
+    NConcurrency::TForbidContextSwitchGuard guard;
+
     auto tags = BuildLoggingTags();
     tags.Add(TreeElementHost_->BuildElementLoggingTags(treeSnapshot, this));
 

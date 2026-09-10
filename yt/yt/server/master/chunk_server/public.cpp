@@ -1,4 +1,4 @@
-#include "public.h"
+#include "private.h"
 
 #include "chunk.h"
 

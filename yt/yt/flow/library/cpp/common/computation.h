@@ -139,19 +139,6 @@ DEFINE_REFCOUNTED_TYPE(IComputationRunContext);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Base class for computation orchid state.
-struct TComputationOrchidState
-    : public NYTree::TYsonStruct
-{
-    REGISTER_YSON_STRUCT(TComputationOrchidState);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TComputationOrchidState);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TComputationStatus
     : public NYTree::TYsonStruct
 {
@@ -275,8 +262,6 @@ public:
         THashMap<TStreamId, TStreamTraverseDataPtr> inputStreams) = 0;
 
     virtual TComputationStatusPtr GetStatus() = 0;
-
-    virtual TComputationOrchidStatePtr GetOrchidState() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IComputation);

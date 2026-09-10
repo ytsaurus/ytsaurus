@@ -279,7 +279,11 @@ class ComputationHarness:
             resources=dict(self._resources),
         )
 
-        return self._computation.do_process(request_ctx), joined_holders
+        response_ctx = self._computation.do_process(request_ctx)
+        # Pick up the values changed in place, as the response path does before serializing.
+        for holder in response_ctx.internal_states.values():
+            holder.collect_modified()
+        return response_ctx, joined_holders
 
     @staticmethod
     def _coerce_internal_state(value) -> State:

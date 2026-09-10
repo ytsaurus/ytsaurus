@@ -1,5 +1,6 @@
 #include "yql_ytflow_map_computation_graph_with_codecs.h"
 #include "yql_ytflow_common_parameters.h"
+#include "yql_ytflow_source_transformer.h"
 #include "yql_ytflow_timing_guard.h"
 #include "yql_ytflow_utils.h"
 
@@ -8,7 +9,6 @@
 #include <yql/essentials/minikql/runtime_settings/runtime_settings_serialization.h>
 #include <yql/essentials/utils/yql_panic.h>
 
-#include <yt/yql/providers/ytflow/job/yql_ytflow_source_transformer.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>

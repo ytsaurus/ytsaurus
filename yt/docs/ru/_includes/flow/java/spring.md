@@ -132,10 +132,10 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
 
 {% endlist %}
 
-Как альтернативу отдельным бинам, стримы можно объявить в одном месте, реализовав интерфейс `ComputationProvider` (метод `getStreams()`) — см. [Интерфейс ComputationProvider](#computation-provider).
+Как альтернативу отдельным бинам, стримы можно объявить в одном месте, реализовав интерфейс `ComputationProvider` (метод `getStreams()`) — см. [Интерфейс ComputationProvider](#computation-provider). Тот же интерфейс объявляет proto-стейты (профили) пайплайна (`getStates()`), чтобы раннер мог описать их воркеру; бины `StateDescriptor<?>` тоже собираются.
 
 Это всё, что нужно для запуска. Spring Boot Starter автоматически:
-1. Создаст `PipelineContext` и зарегистрирует в нём объекты `Computation` (из аннотированных классов) и стримы.
+1. Создаст `PipelineContext` и зарегистрирует в нём объекты `Computation` (из аннотированных классов), стримы и стейты.
 2. Создаст и настроит `GrpcServerExecution`.
 3. Запустит gRPC-сервер при старте приложения.
 4. Корректно остановит сервер при завершении приложения.
@@ -181,7 +181,7 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
 
 [Исходный код]({{source-root}}/yt/java/flow/flow-spring-boot-starter/src/main/java/tech/ytsaurus/flow/spring/ComputationProvider.java)
 
-`ComputationProvider` позволяет объявить стримы пайплайна императивно в одном месте — как альтернативу отдельным бинам `FlowStream<?>`. Реализуйте его и зарегистрируйте как Spring `@Configuration`. Компьютейшены через этот интерфейс не регистрируются — для них используйте аннотации `@FlowComputation` / `@FlowSourceComputation`.
+`ComputationProvider` позволяет объявить стримы и стейты пайплайна императивно в одном месте — как альтернативу отдельным бинам `FlowStream<?>` и `StateDescriptor<?>`. Реализуйте его и зарегистрируйте как Spring `@Configuration`. Компьютейшены через этот интерфейс не регистрируются — для них используйте аннотации `@FlowComputation` / `@FlowSourceComputation`.
 
 {% list tabs group=lang %}
 
@@ -193,6 +193,11 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
        * Возвращает список стримов для регистрации в пайплайне.
        */
       List<FlowStream<?>> getStreams();
+
+      /**
+       * Возвращает стейты, объявленные пайплайном; по умолчанию пусто.
+       */
+      default List<StateDescriptor<?>> getStates() { return List.of(); }
   }
   ```
 
@@ -204,10 +209,17 @@ Java SDK Flow (поддерживает Kotlin) предоставляет [Spri
        * Возвращает список стримов для регистрации в пайплайне.
        */
       fun getStreams(): List<FlowStream<*>>
+
+      /**
+       * Возвращает стейты, объявленные пайплайном; по умолчанию пусто.
+       */
+      fun getStates(): List<StateDescriptor<*>> = emptyList()
   }
   ```
 
 {% endlist %}
+
+`getStates()` объявляет proto-стейты (профили) пайплайна: раннер сам записывает в спеку их descriptor set из объявленных классов сообщений, так что спека не содержит дескрипторов. Стейты с одним именем должны быть одного типа — владелец стейта и компьютейшены, которые его джойнят, объявляют его под одним именем, — а стейтам разных типов нужны разные имена.
 
 ### Использование Spring DI в ProcessFunction
 

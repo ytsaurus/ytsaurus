@@ -62,6 +62,7 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 #include <yt/yt/core/misc/mpsc_queue.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -79,8 +80,6 @@
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
 #include <yt/yt/library/query/engine_api/query_engine_config.h>
-
-#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/library/query/misc/rowset_subrange_reader.h>
 
@@ -440,7 +439,7 @@ public:
     TExecutePlan Build(const TJoinSubqueryOptionsPatch& patch) const
     {
         auto joinSubqueryOptions = GetJoinSubqueryOptions(BaseOptions_);
-        joinSubqueryOptions = ApplyPatch(joinSubqueryOptions, patch);
+        joinSubqueryOptions = ApplyJoinSubqueryOptionsPatch(joinSubqueryOptions, patch);
         return [
             joinSubqueryOptions,
             remoteExecutor = RemoteExecutor_,
@@ -462,11 +461,11 @@ public:
     }
 
 private:
-    IExecutorPtr RemoteExecutor_;
-    TConstExternalCGInfoPtr ExternalCGInfo_;
-    IInvokerPtr Invoker_;
-    TFeatureFlags RequestFeatureFlags_;
-    TQueryOptions BaseOptions_;
+    const IExecutorPtr RemoteExecutor_;
+    const TConstExternalCGInfoPtr ExternalCGInfo_;
+    const IInvokerPtr Invoker_;
+    const TFeatureFlags RequestFeatureFlags_;
+    const TQueryOptions BaseOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

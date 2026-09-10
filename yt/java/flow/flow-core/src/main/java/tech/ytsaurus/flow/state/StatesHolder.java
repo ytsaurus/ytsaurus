@@ -32,7 +32,8 @@ public class StatesHolder implements YTreeConvertible {
     private final @Nullable String protoType;
     private final Map<UnversionedRow, State> states;
     /**
-     * States whose value was changed during the current epoch via {@link #set} by state accessors.
+     * States whose value was changed during the current epoch: via {@link #set} by state
+     * accessors, or in place through a mutable value, swept up by {@link #collectModifiedStates}.
      */
     private final Map<UnversionedRow, State> modifiedStates;
     /**
@@ -127,25 +128,22 @@ public class StatesHolder implements YTreeConvertible {
     }
 
     /**
-     * States modified during the current epoch via {@link #set} by state accessors, keyed by
-     * their {@link UnversionedRow} key.
+     * Collects the states modified during the current epoch, keyed by their
+     * {@link UnversionedRow} key. Re-encodes the values handed out as mutable, so the changes
+     * made to them in place count as modifications too.
      *
      * <p>Returned for allocation-free iteration on the response-encoding hot path.
      * Callers must not mutate it.
      *
      * @return Map of modified states.
      */
-    public Map<UnversionedRow, State> getModifiedStates() {
+    public Map<UnversionedRow, State> collectModifiedStates() {
+        for (var entry : states.entrySet()) {
+            if (entry.getValue().syncBytes()) {
+                modifiedStates.put(entry.getKey(), entry.getValue());
+            }
+        }
         return modifiedStates;
-    }
-
-    /**
-     * Whether any state was modified during the current epoch via {@link #set}.
-     *
-     * @return {@code true} if there is at least one modified state.
-     */
-    public boolean hasModifiedStates() {
-        return !modifiedStates.isEmpty();
     }
 
     /**

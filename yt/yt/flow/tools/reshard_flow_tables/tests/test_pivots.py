@@ -25,6 +25,17 @@ def test_prefix_sorts_first():
     assert sort_keys([["stream", "a", 0], ["stream", "a"]]) == [["stream", "a"], ["stream", "a", 0]]
 
 
+def test_binary_source_keys_sort_as_bytes():
+    # A source key that is not valid UTF-8 arrives from the flow view as a YsonStringProxy, which is
+    # neither str nor bytes.
+    binary = yson.make_byte_key(b"\xff\xfe")
+    assert sort_keys([["stream", binary], ["stream", "a"], ["stream", 1]]) == [
+        ["stream", 1],
+        ["stream", "a"],
+        ["stream", binary],
+    ]
+
+
 def test_type_order_matches_yt():
     # EValueType order: Int64 < Uint64 < Double < Boolean < String.
     columns = ["string", True, 1.5, yson.YsonUint64(7), -3]

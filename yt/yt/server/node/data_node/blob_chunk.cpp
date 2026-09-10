@@ -569,7 +569,7 @@ void TBlobChunkBase::DoReadSession(
     auto memoryGuardOrError = TMemoryUsageTrackerGuard::TryAcquire(memoryTracker, alignedPendingDataSize);
     if (!memoryGuardOrError.IsOK()) {
         YT_TLOG_DEBUG("Read session aborted due to memory pressure");
-        Location_->ReportThrottledRead();
+        Location_->ReportThrottledRead(ELocationReadThrottlingReason::ReadMemoryTrackerLimitExceeded);
 
         auto error = TError("Read session aborted due to memory pressure");
         for (auto i = 0; i < session->EntryCount; ++i) {

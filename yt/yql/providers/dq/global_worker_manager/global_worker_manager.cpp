@@ -53,28 +53,50 @@ static_assert(sizeof(TDqResourceId) == 8);
 
 class TWorkerStopFilter {
 public:
-    TWorkerStopFilter(const Yql::DqsProto::JobStopRequest& request)
+    static constexpr TDuration MaxStopFilterDuration = TDuration::Minutes(10);
+
+    TWorkerStopFilter(const Yql::DqsProto::JobStopRequest& request, TInstant now)
         : Revision(request.GetRevision())
         , ClusterName(request.GetClusterName())
         , WorkerId(GetGuid(request.GetWorkerId()))
         , NegativeRevision(request.GetNegativeRevision())
-        , LastUpdate(TInstant::Now())
+        , LastUpdate(now)
     {
         for (const auto& attr : request.GetAttribute()) {
             Attributes.emplace(attr.GetKey(), attr.GetValue());
         }
+
+        if (!request.GetForce() && request.GetTtlSeconds() != 0) {
+            if (request.GetTtlSeconds() < 0) {
+                Valid = false;
+            } else {
+                Deadline = now + Min(
+                    TDuration::Seconds(request.GetTtlSeconds()),
+                    MaxStopFilterDuration);
+            }
+        }
     }
 
-    bool Match(const TWorkerInfo& workerInfo) const {
-        return MatchInternal(workerInfo);
+    bool IsValid() const {
+        return Valid;
     }
 
-    TInstant GetLastUpdate() const {
-        return LastUpdate;
+    bool Match(const TWorkerInfo& workerInfo, TInstant now) const {
+        if (IsExpired(now)) {
+            return false;
+        }
+        return MatchInternal(workerInfo, now);
+    }
+
+    bool IsExpired(TInstant now) const {
+        if (Deadline) {
+            return now >= *Deadline;
+        }
+        return now - LastUpdate > MaxStopFilterDuration;
     }
 
 private:
-    bool MatchInternal(const TWorkerInfo& workerInfo) const {
+    bool MatchInternal(const TWorkerInfo& workerInfo, TInstant now) const {
         if (!Revision.empty() && NegativeRevision == (Revision == workerInfo.Revision)) {
             return false;
         }
@@ -95,7 +117,7 @@ private:
             }
         }
 
-        LastUpdate = TInstant::Now();
+        LastUpdate = now;
 
         return true;
     }
@@ -107,6 +129,8 @@ private:
     THashMap<TString, TString> Attributes;
 
     mutable TInstant LastUpdate;
+    TMaybe<TInstant> Deadline;
+    bool Valid = true;
 };
 
 // used for fast state recovery on restarted jobs
@@ -365,9 +389,9 @@ private:
         HHFunc(TEvGetMasterRequest, OnGetMasterStub)
         HHFunc(TEvConfigureFailureInjectorRequest, OnConfigureFailureInjectorStub)
         HHFunc(TEvOperationStop, OnOperationStopStub)
+        HHFunc(TEvJobStop, OnJobStopStub)
 
         cFunc(TEvents::TEvPoison::EventType, PassAway)
-        IgnoreFunc(TEvJobStop)
         HHFunc(TEvRoutesRequest, this->OnRoutesRequest)
     })
 
@@ -797,21 +821,23 @@ private:
 
             std::tie(workerInfo, needResume) = Workers.CreateOrUpdate(nodeId, newWorkerId, *mutableRequest);
 
+            const auto now = TActivationContext::Now();
             for (auto i = StopFilters.begin(); i != StopFilters.end(); ) {
-                if (workerInfo && !workerInfo->IsDead && i->Match(*workerInfo)) {
+                if (i->IsExpired(now)) {
+                    i = StopFilters.erase(i);
+                    continue;
+                }
+
+                if (workerInfo && !workerInfo->IsDead && i->Match(*workerInfo, now)) {
                     workerInfo->Stopping = true;
-                    if (request.GetRunningWorkers() == 0) {
+                    if (workerInfo->RunningRequests == 0 && workerInfo->RunningWorkerActors == 0) {
                         YQL_CLOG(DEBUG, ProviderDq) << "Stop worker on user request " << GetGuidAsString(workerId);
                         Send(MakeWorkerManagerActorID(nodeId), new TEvents::TEvPoison);
                         return;
                     }
                 }
 
-                if ((TInstant::Now() - i->GetLastUpdate()) > TDuration::Seconds(600)) {
-                    i = StopFilters.erase(i);
-                } else {
-                    ++i;
-                }
+                ++i;
             }
 
             if (needResume) {
@@ -1065,18 +1091,41 @@ private:
 
         YQL_CLOG(DEBUG, ProviderDq) << "JobStop " << requestStr;
 
-        if (request.GetForce()) {
-            TWorkerStopFilter filter(request);
-            Workers.Visit([&](const TWorkerInfo::TPtr& workerInfo) {
-                if (!workerInfo->IsDead && filter.Match(*workerInfo)) {
-                    workerInfo->Stopping = true;
-                    YQL_CLOG(DEBUG, ProviderDq) << "Force stop worker on user request " << GetGuidAsString(workerInfo->WorkerId);
+        const auto now = TActivationContext::Now();
+        StopFilters.remove_if([now](const TWorkerStopFilter& filter) {
+            return filter.IsExpired(now);
+        });
+
+        TWorkerStopFilter filter(request, now);
+        if (!filter.IsValid()) {
+            const TString error = TStringBuilder()
+                << "Invalid JobStop TTL: " << request.GetTtlSeconds() << " seconds";
+            YQL_CLOG(ERROR, ProviderDq) << error;
+            Send(ev->Sender, new TEvJobStopResponse(error));
+            return;
+        }
+
+        Workers.Visit([&](const TWorkerInfo::TPtr& workerInfo) {
+            if (!workerInfo->IsDead && filter.Match(*workerInfo, now)) {
+                workerInfo->Stopping = true;
+                if (request.GetForce() ||
+                    (workerInfo->RunningRequests == 0 && workerInfo->RunningWorkerActors == 0))
+                {
+                    YQL_CLOG(DEBUG, ProviderDq) << "Stop worker on user request " << GetGuidAsString(workerInfo->WorkerId);
                     Send(MakeWorkerManagerActorID(workerInfo->NodeId), new TEvents::TEvPoison);
                 }
-            });
-        } else {
-            StopFilters.emplace_back(request);
+            }
+        });
+
+        if (!request.GetForce() && !filter.IsExpired(now)) {
+            StopFilters.push_back(std::move(filter));
         }
+
+        Send(ev->Sender, new TEvJobStopResponse());
+    }
+
+    void OnJobStopStub(TEvJobStop::TPtr& ev, const TActorContext&) {
+        Send(ev->Sender, new TEvJobStopResponse("GWM: Waiting for initialization", true));
     }
 
     void OnClusterStatusStub(TEvClusterStatus::TPtr& ev, const TActorContext& ctx) {

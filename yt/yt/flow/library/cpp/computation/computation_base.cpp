@@ -623,33 +623,6 @@ void TOutputCollector::AddTimer(TTimer&& timer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOutputStoreStreamOrchidState::Register(TRegistrar registrar)
-{
-    registrar.Parameter("used_count", &TThis::UsedCount)
-        .Default();
-    registrar.Parameter("limit_count", &TThis::LimitCount)
-        .Default();
-
-    registrar.Parameter("used_bytes", &TThis::UsedBytes)
-        .Default();
-    registrar.Parameter("limit_bytes", &TThis::LimitBytes)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TUniversalComputationOrchidState::Register(TRegistrar registrar)
-{
-    registrar.Parameter("partition_description", &TThis::PartitionDescription)
-        .Default();
-    registrar.Parameter("epoch_parts_wall_time", &TThis::EpochPartsWallTime)
-        .Default();
-    registrar.Parameter("output_store", &TThis::OutputStore)
-        .Default();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TUniversalComputationBase::TExtendedDynamicParameters::Register(TRegistrar /*registrar*/)
 { }
 
@@ -770,28 +743,6 @@ TUniversalComputationBase::~TUniversalComputationBase()
     for (const auto& [_, visitor] : KeyVisitors_) {
         visitor->Stop();
     }
-}
-
-TComputationOrchidStatePtr TUniversalComputationBase::GetOrchidState()
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    auto state = New<TUniversalComputationOrchidState>();
-    for (const auto& [partName, partState] : Tracer_->GetPartStates()) {
-        state->EpochPartsWallTime[partName] = partState.WallTimeEma;
-    }
-
-    const auto outputStoreCountAndByteSize = OutputStore_->GetCountAndByteSizes();
-    for (const auto& streamId : GetSpec()->OutputStreamIds) {
-        auto [count, byteSize] = outputStoreCountAndByteSize.at(streamId);
-        auto streamState = New<TOutputStoreStreamOrchidState>();
-        streamState->UsedCount = count;
-        streamState->UsedBytes = byteSize;
-        state->OutputStore[streamId] = streamState;
-    }
-
-    state->PartitionDescription = Format("Range: %v-%v", GetContext()->Partition->LowerKey, GetContext()->Partition->UpperKey);
-    return state;
 }
 
 TComputationStatusPtr TUniversalComputationBase::GetStatus()
@@ -1740,14 +1691,10 @@ void TUniversalComputationBase::ValidateTimerStoreLimits(const TDynamicComputati
     NTracing::TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Accounting"));
 
     if (TimerStore_->GetCount() > dynamicSpec->TimerStoreCountLimit) {
-        THROW_ERROR_EXCEPTION("Too much timers in memory: count %v, limit %v",
-            TimerStore_->GetCount(),
-            dynamicSpec->TimerStoreCountLimit);
+        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: count %v, limit %v", TimerStore_->GetCount(), dynamicSpec->TimerStoreCountLimit);
     }
     if (TimerStore_->GetByteSize() > dynamicSpec->TimerStoreByteSizeLimit) {
-        THROW_ERROR_EXCEPTION("Too much timers in memory: byte size %v, limit %v",
-            TimerStore_->GetByteSize(),
-            dynamicSpec->TimerStoreByteSizeLimit);
+        THROW_ERROR_EXCEPTION(EErrorCode::TimerStoreLimitExceeded, "Too much timers in memory: byte size %v, limit %v", TimerStore_->GetByteSize(), dynamicSpec->TimerStoreByteSizeLimit);
     }
 }
 

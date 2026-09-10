@@ -122,6 +122,7 @@ struct IYqlPlugin
     virtual TQueryResult Run(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         NYson::TYsonString credentials,
         TString queryText,
         NYson::TYsonString settings,
@@ -140,6 +141,7 @@ struct IYqlPlugin
     virtual TGetDeclaredParametersInfoResult GetDeclaredParametersInfo(
         TQueryId queryId,
         TString user,
+        TString queryIdentityToken,
         TString queryText,
         NYson::TYsonString settings,
         NYson::TYsonString credentials) = 0;

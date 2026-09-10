@@ -1,14 +1,16 @@
 #include "helpers.h"
 
+#include "proto_visitor.h"
 #include "wire_string.h"
 
 #include <yt/yt/core/ypath/token.h>
-#include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/tree_builder.h>
 
+#include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/parser.h>
 #include <yt/yt/core/yson/protobuf_interop.h>
 #include <yt/yt/core/yson/writer.h>
 
@@ -30,6 +32,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
+using NProtoBuf::Descriptor;
 using NProtoBuf::EnumValueDescriptor;
 using NProtoBuf::FieldDescriptor;
 using NProtoBuf::Message;
@@ -43,6 +46,144 @@ constexpr int ProtobufMapKeyFieldNumber = 1;
 constexpr int ProtobufMapValueFieldNumber = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool IsYsonStringField(const FieldDescriptor* fieldDescriptor)
+{
+    return fieldDescriptor && fieldDescriptor->options().GetExtension(NYson::NProto::yson_string);
+}
+
+void ValidateYsonString(TStringBuf value)
+{
+    if (!value.empty()) {
+        ParseYsonStringBuffer(value, EYsonType::Node, GetNullYsonConsumer());
+    }
+}
+
+namespace {
+
+// Null messages let TProtoVisitor follow the schema without reading actual values.
+class TYsonStringFieldDescriptorVisitor final
+    : public TProtoVisitor<const Message*, TYsonStringFieldDescriptorVisitor>
+{
+    friend class TProtoVisitor<const Message*, TYsonStringFieldDescriptorVisitor>;
+
+public:
+    TYsonStringFieldDescriptorVisitor()
+    {
+        SetMissingFieldPolicy(EMissingFieldPolicy::Force);
+    }
+
+    const FieldDescriptor* Find(const Descriptor* rootDescriptor, NYPath::TYPathBuf path)
+    {
+        if (!rootDescriptor) {
+            return nullptr;
+        }
+
+        CurrentDescriptor_ = rootDescriptor;
+        try {
+            Visit(static_cast<const Message*>(nullptr), path);
+        } catch (const TErrorException&) {
+            return nullptr;
+        }
+
+        return Result_;
+    }
+
+private:
+    const Descriptor* CurrentDescriptor_ = nullptr;
+    const FieldDescriptor* Result_ = nullptr;
+
+    void VisitMessage(const Message* /*message*/, EVisitReason reason)
+    {
+        TProtoVisitor::VisitRegularMessage(nullptr, CurrentDescriptor_, reason);
+    }
+
+    void VisitPresentSingularField(
+        const Message* /*message*/,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        VisitFieldDescriptor(fieldDescriptor, reason);
+    }
+
+    void VisitRepeatedField(
+        const Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor) && PathComplete()) {
+            Result_ = fieldDescriptor;
+            return;
+        }
+
+        TProtoVisitor::VisitRepeatedField(message, fieldDescriptor, reason);
+    }
+
+    void VisitRepeatedFieldEntry(
+        const Message* /*message*/,
+        const FieldDescriptor* fieldDescriptor,
+        int /*index*/,
+        EVisitReason reason)
+    {
+        VisitFieldDescriptor(fieldDescriptor, reason);
+    }
+
+    void VisitFieldDescriptor(
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (IsYsonStringField(fieldDescriptor)) {
+            if (PathComplete()) {
+                Result_ = fieldDescriptor;
+            }
+            return;
+        }
+
+        if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
+            CurrentDescriptor_ = fieldDescriptor->message_type();
+            VisitMessage(nullptr, reason);
+        }
+    }
+
+    void VisitRepeatedFieldEntryRelative(
+        const Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason)
+    {
+        VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+
+    void OnIndexError(
+        const Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason,
+        TError error)
+    {
+        if (error.GetCode() != EErrorCode::OutOfBounds) {
+            TProtoVisitor::OnIndexError(message, fieldDescriptor, reason, std::move(error));
+            return;
+        }
+
+        auto indexToken = GetLiteralValue();
+        AdvanceOver(indexToken);
+        VisitRepeatedFieldEntry(message, fieldDescriptor, /*index*/ 0, EVisitReason::Path);
+    }
+};
+
+} // namespace
+
+const FieldDescriptor* FindYsonStringFieldDescriptor(
+    const TProtobufElement& rootElement,
+    NYPath::TYPathBuf path)
+{
+    const auto* messageElement = std::get_if<std::unique_ptr<TProtobufMessageElement>>(&rootElement);
+    return messageElement
+        ? TYsonStringFieldDescriptorVisitor().Find(
+            UnreflectProtobufMessageType((*messageElement)->Type),
+            path)
+        : nullptr;
+}
 
 std::string RandomString(int length, TStringBuf charset)
 {
@@ -107,9 +248,12 @@ NYTree::INodePtr ConvertProtobufToNode(
     return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload), options);
 }
 
-NYTree::INodePtr ConvertProtobufElementToNode(
+namespace {
+
+NYTree::INodePtr DoConvertProtobufElementToNode(
     const TProtobufElement& element,
     const TWireString& wireStringPayload,
+    bool ysonString,
     const TProtobufParserOptions& options)
 {
     auto parseMessage = [&] (const TProtobufMessageType* type) -> NYTree::INodePtr {
@@ -186,7 +330,21 @@ NYTree::INodePtr ConvertProtobufElementToNode(
                         GetNodeTypeByProtobufScalarElement(scalarElement));
             }
         },
-        [](const TProtobufRepeatedElement&) -> NYTree::INodePtr {
+        [&] (const TProtobufRepeatedElement& repeatedElement) -> NYTree::INodePtr {
+            if (ysonString &&
+                std::holds_alternative<std::unique_ptr<TProtobufAnyElement>>(repeatedElement.Element))
+            {
+                auto result = GetEphemeralNodeFactory()->CreateList();
+                for (auto wireStringPart : wireStringPayload) {
+                    result->AddChild(DoConvertProtobufElementToNode(
+                        repeatedElement.Element,
+                        TWireString{wireStringPart},
+                        ysonString,
+                        options));
+                }
+                return result;
+            }
+
             THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
                 "Conversion of repeated protobuf element to node is not supported");
         },
@@ -194,10 +352,49 @@ NYTree::INodePtr ConvertProtobufElementToNode(
             THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
                 "Conversion of map protobuf element to node is not supported");
         },
-        [](const TProtobufAnyElement&) -> NYTree::INodePtr {
-            THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
-                "Conversion of any protobuf element to node is not supported");
+        [&] (const TProtobufAnyElement&) -> NYTree::INodePtr {
+            // The caller identifies yson_string by the typed attribute or protobuf field descriptor.
+            if (!ysonString) {
+                THROW_ERROR_EXCEPTION(EErrorCode::Unimplemented,
+                    "Conversion of any protobuf element to node is not supported");
+            }
+            auto wireStringPart = wireStringPayload.LastOrEmptyPart();
+            if (wireStringPart.AsSpan().empty()) {
+                return GetEphemeralNodeFactory()->CreateEntity();
+            }
+            return ConvertToNode(TYsonString(wireStringPart.AsStringView()));
         });
+}
+
+} // namespace
+
+NYTree::INodePtr ConvertProtobufElementToNode(
+    const TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const TProtobufParserOptions& options)
+{
+    return DoConvertProtobufElementToNode(element, wireStringPayload, /*ysonString*/ false, options);
+}
+
+NYTree::INodePtr ConvertProtobufElementToNode(
+    const TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const FieldDescriptor* fieldDescriptor,
+    const TProtobufParserOptions& options)
+{
+    return DoConvertProtobufElementToNode(
+        element,
+        wireStringPayload,
+        IsYsonStringField(fieldDescriptor),
+        options);
+}
+
+NYTree::INodePtr ConvertYsonStringProtobufElementToNode(
+    const TProtobufElement& element,
+    const TWireString& wireStringPayload,
+    const TProtobufParserOptions& options)
+{
+    return DoConvertProtobufElementToNode(element, wireStringPayload, /*ysonString*/ true, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

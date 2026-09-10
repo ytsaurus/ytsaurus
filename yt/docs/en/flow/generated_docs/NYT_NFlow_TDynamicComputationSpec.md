@@ -37,7 +37,7 @@ If the epoch is empty, the `Computation` sleeps for the specified additional tim
 **Default value**: `{}`
 Arbitrary dynamic parameters of the `Computation` class. ||
 || `processing_function_parameters` | **Type**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
- ||
+Dynamic process-function parameters. Their type is declared in `YT_FLOW_DEFINE_PROCESS_FUNCTION` registration. ||
 || `source_streams` | **Type**: `THashMap<NYT::NFlow::TStrongIdentifierTypedef<NYT::NFlow::TStreamIdTag>, NYT::TIntrusivePtr<`[NYT::NFlow::TDynamicSourceSpec](./all_yson_structs#NYT_NFlow_TDynamicSourceSpec)`>>`
 **Default value**: `{}`
 Dynamic parameters of all `Sources`. ||

@@ -2,6 +2,7 @@ package tech.ytsaurus.flow.internal.request.mapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -69,14 +70,15 @@ public abstract class StateProtoMapper {
     /**
      * Converts a {@link StatesHolder} to a protobuf {@link TState} carrying its modified states.
      *
-     * @param statesHolder the states holder
+     * @param statesHolder   the states holder
+     * @param modifiedStates the states to send back, as collected from {@code statesHolder}
+     *                       by {@link StatesHolder#collectModifiedStates}
      * @return the protobuf state
      */
-    public TState toProto(StatesHolder statesHolder) {
+    public TState toProto(StatesHolder statesHolder, Map<UnversionedRow, State> modifiedStates) {
         TState.Builder stateBuilder = TState.newBuilder();
         stateBuilder.setName(statesHolder.getName());
         describeState(stateBuilder, statesHolder);
-        var modifiedStates = statesHolder.getModifiedStates();
         var stateItems = new ArrayList<TStateItem>(modifiedStates.size());
         for (var entry : modifiedStates.entrySet()) {
             State state = entry.getValue();

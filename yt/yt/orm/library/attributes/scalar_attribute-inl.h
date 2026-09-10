@@ -37,6 +37,7 @@ concept CScalarAttributeTriviallyComparable =
         std::same_as<T, TString> ||
         std::same_as<T, std::string> ||
         std::same_as<T, TStringBuf> ||
+        std::same_as<T, NYson::TYsonString> ||
         std::same_as<T, TGuid> ||
         std::same_as<T, TInstant> ||
         std::same_as<T, double> ||

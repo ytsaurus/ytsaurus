@@ -110,6 +110,7 @@ public:
 
     NApi::NNative::IClientPtr GetRootClient() const;
     NApi::NNative::IClientPtr GetDictionariesClient() const;
+    NApi::NNative::IClientPtr GetSqlObjectsClient() const;
     NApi::NNative::IClientPtr CreateClient(const std::string& user) const;
     NApi::NNative::IClientPtr CreateClient(
         const std::string& user,

@@ -7,13 +7,13 @@
 || **Параметр** | **Описание** ||
 || `computation_class_name` | **Тип**: `std::string`
 **Обязательный параметр**
-Имя класса Computation.
+Имя встроенного класса Computation или адаптера process function.
 
-Класс должен быть зарегистрирован с помощью макроса `YT_FLOW_DEFINE_COMPUTATION` ||
+Для новой пользовательской логики на C++ выберите один из встроенных адаптеров `TProcessFunction*Computation`. Саму функцию зарегистрируйте через `YT_FLOW_DEFINE_PROCESS_FUNCTION` и укажите в `processing_function`. Пользовательские классы Computation создавать не следует. ||
 || `processing_function` | **Тип**: `std::optional<std::string>`
- ||
+Полное имя process function, зарегистрированной через `YT_FLOW_DEFINE_PROCESS_FUNCTION`. Обязательно для адаптеров `TProcessFunction*Computation`. ||
 || `processing_function_parameters` | **Тип**: `NYT::TIntrusivePtr<NYT::NYTree::IMapNode>`
- ||
+Статические параметры process function. Тип параметров задаётся при регистрации `YT_FLOW_DEFINE_PROCESS_FUNCTION`. ||
 || `group_by_schema` | **Тип**: `NYT::TIntrusivePtr<NYT::NTableClient::TTableSchema>`
 **Значение по умолчанию**: `{'value': [], 'attributes': {'strict': true, 'unique_keys': false}}`
 Схема для группировки всех входных потоков, является схемой динтаблицы. Свойства и требования к схеме:
@@ -69,13 +69,13 @@
 Настройки всех `sink`. Ключи должны соответствовать `[0-9A-Za-z_-]+`. ||
 || `external_state_managers` | **Тип**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TExternalStateManagerSpec](./all_yson_structs#NYT_NFlow_TExternalStateManagerSpec)`>>`
 **Значение по умолчанию**: `{}`
-Декларативное объявление [external state](../cpp/state.md#external-state) менеджеров для этого `Computation`. Ключ — имя клиента, на которое подписывается `Computation` через `IJobInitContext::InitExternalStateClient` (должен начинаться с `/`, например `/state`); значение содержит имя класса менеджера и его параметры. ||
+Декларативное объявление [external state](../cpp/state.md#external-state) менеджеров для этого `Computation`. Ключ — имя клиента, которое process function передаёт в `InitExternalStateClient` (должен начинаться с `/`, например `/state`); значение содержит имя класса менеджера и его параметры. ||
 || `external_state_joiners` | **Тип**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TExternalStateJoinerSpec](./all_yson_structs#NYT_NFlow_TExternalStateJoinerSpec)`>>`
 **Значение по умолчанию**: `{}`
-Декларативное объявление [external state](../cpp/state.md#external-state-joiner) joiner'ов (read-only-доступ к внешним стейтам через join по ключу) для этого `Computation`. Ключ — имя клиента, на которое подписывается `Computation` через `IJobInitContext::InitExternalStateClient` (должен начинаться с `/`, например `/state`); значение содержит имя класса joiner'а и его параметры. ||
+Декларативное объявление [external state](../cpp/state.md#external-state-joiner) joiner'ов (read-only-доступ к внешним стейтам через join по ключу) для этого `Computation`. Ключ — имя клиента, которое process function передаёт в `InitExternalStateClient` (должен начинаться с `/`, например `/state`); значение содержит имя класса joiner'а и его параметры. ||
 || `state_joiners` | **Тип**: `THashMap<std::string, NYT::TIntrusivePtr<`[NYT::NFlow::TStateJoinerSpec](./all_yson_structs#NYT_NFlow_TStateJoinerSpec)`>>`
 **Значение по умолчанию**: `{}`
-Декларативное объявление [state](../cpp/state.md#state-joiner) joiner'ов (read-only-доступ к внутреннему стейту другого `Computation` через join по ключу) для этого `Computation`. Ключ — имя клиента, на которое подписывается `Computation` через `IJobInitContext::InitClient` (должен начинаться с `/`); значение указывает целевой `computation_id`, его `state_name` и `join_on`. ||
+Декларативное объявление [state](../cpp/state.md#state-joiner) joiner'ов (read-only-доступ к внутреннему стейту другого `Computation` через join по ключу) для этого `Computation`. Ключ — имя клиента, которое process function передаёт в `InitClient` (должен начинаться с `/`); значение указывает целевой `computation_id`, его `state_name` и `join_on`. ||
 || `heavy_hitters` | **Тип**: [NYT::NFlow::THeavyHittersSpec](./all_yson_structs#NYT_NFlow_THeavyHittersSpec)
 **Значение по умолчанию**: `{}`
 Настройки обнаружения высокочастотных ключей. ||

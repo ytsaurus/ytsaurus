@@ -444,13 +444,14 @@ def map_process_batch_response(stream_specs: StreamSpecs, response: ResponseCont
 
         data.output.append(group)
 
-    # Only states changed via accessors are sent back; skip holders with no modifications.
+    # Only changed states are sent back; collect_modified() is what picks up the values changed
+    # in place, so holders with no modifications are skipped after it ran.
     for states_holder in response.internal_states.values():
-        if states_holder.has_modified():
+        if states_holder.collect_modified():
             data.internal_states.append(internal_states_to_proto(states_holder, TState, TStateItem))
 
     for states_holder in response.external_states.values():
-        if states_holder.has_modified():
+        if states_holder.collect_modified():
             data.external_states.append(external_states_to_proto(states_holder, TState, TStateItem))
 
     return data

@@ -42,7 +42,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько т�
 
 | Метод | Описание |
 | --- | --- |
-| `get()` | Получить текущее значение стейта (`Optional<T>`) |
+| `get()` | Получить текущее значение стейта (`T`, `null` если значения нет) |
 | `set(T value)` | Установить новое значение стейта |
 | `getOrDefault(T defaultValue)` | Получить значение или вернуть значение по умолчанию |
 | `clear()` | Удалить стейт для текущего ключа |
@@ -165,7 +165,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько т�
 
 | Метод | Описание |
 | --- | --- |
-| `get()` | Получить текущее значение стейта (`Optional<Payload>`) |
+| `get()` | Получить текущее значение стейта (`Payload`, `null` если значения нет) |
 | `getOrDefault()` | Получить значение или пустой `Payload` |
 | `set(Payload value)` | Установить новое значение стейта |
 | `clear()` | Удалить стейт для текущего ключа |
@@ -245,7 +245,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько т�
       ExternalStateAccessor stateAccessor =
               ctx.getExternalStateAccessor("join-state", timer);
 
-      Payload joinState = stateAccessor.get().orElseThrow();
+      Payload joinState = Objects.requireNonNull(stateAccessor.get());
 
       // обработка стейта и генерация выходных сообщений
       var messageBuilder = ctx.createMessageBuilder("output_stream");
@@ -264,7 +264,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько т�
   override fun onTimer(timer: Timer, output: OutputCollector, ctx: RuntimeContext) {
       val stateAccessor = ctx.getExternalStateAccessor("join-state", timer)
 
-      val joinState = stateAccessor.get().orElseThrow()
+      val joinState = stateAccessor.get()!!
 
       // обработка стейта и генерация выходных сообщений
       val messageBuilder = ctx.createMessageBuilder("output_stream")

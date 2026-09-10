@@ -29,7 +29,8 @@ All accessors implement the common `StateAccessor<T>` interface.
   ```java
   public interface StateAccessor<T> {
       /** Get the state value. */
-      Optional<T> get();
+      @Nullable
+      T get();
 
       /** Get the state value or a default value. */
       default T getOrDefault(T defaultValue);
@@ -50,7 +51,7 @@ All accessors implement the common `StateAccessor<T>` interface.
   ```kotlin
   interface StateAccessor<T> {
       /** Get the state value. */
-      fun get(): Optional<T>
+      fun get(): T?
 
       /** Get the state value or a default value. */
       fun getOrDefault(defaultValue: T): T
@@ -64,6 +65,46 @@ All accessors implement the common `StateAccessor<T>` interface.
       /** Get the state class. */
       fun getStateClass(): Class<T>
   }
+  ```
+
+{% endlist %}
+
+### Changing the value in place {#in-place}
+
+The value returned by `get()` and `getOrDefault()` is live: it is decoded once per key and batch, every accessor for that key returns the same object, and the changes made to it are written to the state at the end of the batch without a `set()` call. Nothing is written when the value did not change. The default from `getOrDefault()` becomes the state value and is written as after `set()`, so it can be changed right away:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  ctx.getState(COUNTER, message).getOrDefault(new CounterState()).count += 1;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  ctx.getState(COUNTER, message).getOrDefault(CounterState()).count += 1
+  ```
+
+{% endlist %}
+
+`set()` still replaces the whole value, and `clear()` removes the state. Protobuf messages are immutable, so their new value goes through `set()`.
+
+To detect the changes, a value that was read is re-encoded once at the end of the batch — even when the computation only inspects the state. `readOnly()` takes that work away: the accessor returns the same value but does not track it, so the state is neither re-encoded at the end of the batch nor sent to the worker. Use it wherever a state is only read. Its `getOrDefault()` does not create the state, and `set()` and `clear()` throw:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  long count = ctx.getState(COUNTER, message).readOnly().getOrDefault().count;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  val count = ctx.getState(COUNTER, message).readOnly().getOrDefault().count
   ```
 
 {% endlist %}
@@ -468,9 +509,8 @@ Use `RawStateAccessor` to work with raw bytes without serialization or deseriali
   ```java
   RawStateAccessor stateAccessor = ctx.getRawStateAccessor("raw-state", message);
 
-  Optional<byte[]> maybeBytes = stateAccessor.get();
-  if (maybeBytes.isPresent()) {
-      byte[] data = maybeBytes.get();
+  byte[] data = stateAccessor.get();
+  if (data != null) {
       // Process raw data...
   }
 
@@ -486,9 +526,8 @@ Use `RawStateAccessor` to work with raw bytes without serialization or deseriali
   ```kotlin
   val stateAccessor: RawStateAccessor = ctx.getRawStateAccessor("raw-state", message)
 
-  val maybeBytes: Optional<ByteArray> = stateAccessor.get()
-  if (maybeBytes.isPresent) {
-      val data: ByteArray = maybeBytes.get()
+  val data: ByteArray? = stateAccessor.get()
+  if (data != null) {
       // Process raw data...
   }
 
@@ -538,7 +577,7 @@ Use `RawStateAccessor` to work with raw bytes without serialization or deseriali
           NoOpStateAccessor stateAccessor = ctx.getNoOpStateAccessor("seen-keys", message);
 
           // Check if the key was already processed
-          if (stateAccessor.get().isPresent()) {
+          if (stateAccessor.get() != null) {
               // The key is already processed, skip it
               return;
           }
@@ -560,7 +599,7 @@ Use `RawStateAccessor` to work with raw bytes without serialization or deseriali
           val stateAccessor: NoOpStateAccessor = ctx.getNoOpStateAccessor("seen-keys", message)
 
           // Check if the key was already processed
-          if (stateAccessor.get().isPresent) {
+          if (stateAccessor.get() != null) {
               // The key is already processed, skip it
               return
           }

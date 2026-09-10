@@ -6,6 +6,8 @@ This page describes the specifics of working with states in C++. For a language-
 
 {% endnote %}
 
+All user-logic examples on this page use [process functions](../../../flow/cpp/process-functions.md). Don’t create a custom `Computation` subclass to work with state.
+
 ## Internal State {#internal-state}
 
 This is the simplest way to store a state inside a `Computation`. Data is automatically loaded at the start of the [epoch](../../../flow/concepts/glossary.md#epoch) and written on commit. You don’t need to create tables yourself — Flow manages them automatically.
@@ -23,8 +25,8 @@ By default, a state is considered empty if it equals the default value (`TMyStat
 
 You need to:
 
-1. Declare a `TMutableStateKeyClient<TMyState> MyStateClient_` field in your `TComputation`.
-2. Override `DoInit(IJobInitContextPtr initContext)` and call the initialization `initContext->InitClient<TMyState>(MyStateClient_, "my_state")` in it. Use a string that’s unique within the `Computation` as the name.
+1. Declare a `TMutableStateKeyClient<TMyState> MyStateClient_` field in your process function.
+2. Override `Init(const IRuntimeInitContextPtr& initContext)` and call `initContext->InitClient<TMyState>(MyStateClient_, "my_state")` in it. Use a string that’s unique within the computation as the name.
 3. To get the state by key, use `MyStateClient_.GetState(message->Key)`. The returned accessor `TStateAccessor<TMyState>` behaves like a smart pointer to `TMyState` (`state->...`, `*state`) and is valid only within the current epoch — you can’t store it in fields.
 4. To clear the state (delete the row from the table), call `state.Clear()` on the accessor.
 
@@ -47,31 +49,31 @@ struct TMyState
     }
 };
 
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitClient(MyStateClient_, "my_state");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr output) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
         auto state = MyStateClient_.GetState(message->Key);
         state->SomeValue = 42;
         // ...
     }
 
-    void DoProcessTimer(
-        const TTimer& timer,
-        IOutputCollectorPtr output) override
+    void ProcessTimer(
+        const TInputTimerConstPtr& timer,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
-        auto state = MyStateClient_.GetState(timer.Key);
+        auto state = MyStateClient_.GetState(timer->Key);
         // Clear the state (delete the row from the table):
         state.Clear();
     }
@@ -106,27 +108,26 @@ The external state manager is declared in the `Computation` spec under a unique 
 
 To work with External State, you need to:
 
-1. Declare a `TMutableStateKeyClient<TState> StateClient_` field in your `TComputation`, where `TState` is the state type returned by the corresponding external state manager (see below for specific implementations).
-2. Override `DoInit(IJobInitContextPtr initContext)` and call `initContext->InitExternalStateClient(StateClient_, "/state")` in it. Use a string that’s unique within the `Computation` as the name — this same name must appear in the spec.
+1. Declare a `TMutableStateKeyClient<TState> StateClient_` field in your process function, where `TState` is the state type returned by the corresponding external state manager (see below for specific implementations).
+2. Override `Init(const IRuntimeInitContextPtr& initContext)` and call `initContext->InitExternalStateClient(StateClient_, "/state")` in it. Use a string that’s unique within the computation as the name — this same name must appear in the spec.
 3. To get the state by key, use `StateClient_.GetState(message->Key)`. The returned accessor `TStateAccessor<TState>` behaves like a smart pointer to `TState` and is valid only within the current epoch.
 
 Example:
 
 ```cpp
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitExternalStateClient(StateClient_, "/state");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr /*output*/) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
         auto state = StateClient_.GetState(message->Key);
         i64 count = state->GetColumnValue<std::optional<i64>>("count").value_or(0);
@@ -155,26 +156,9 @@ private:
 
 ### Preload and `auto_preload` {#external-state-preload}
 
-By default (`auto_preload = %true`) the framework preloads every external state manager before each `DoProcess` with all message, timer and visit keys of the epoch — one lookup per key. With `"auto_preload" = %false;` in the manager's spec the `Computation` loads only the keys it needs through the client: `PreloadKeyStates(THashSet<TKey>)`, `PreloadKeyStates(IInputContextPtr)` or `PreloadKeyStates(IInputContextPtr, TExtractKeysOptions)`; the options select the entity kinds whose keys are taken, for example `{.Visits = false}` for a state that a visit handler does not read. Preload is incremental: it may be called several times within an epoch, only keys not loaded yet are fetched, and an already loaded (possibly modified) state is left as is. `GetState` on a key that was not preloaded in the epoch throws. `auto_preload = %false` is not allowed for companion computations.
+By default (`auto_preload = %true`), the framework preloads every external state manager before processing an epoch with all message, timer, and visit keys — one lookup per key. With `"auto_preload" = %false;`, the process function loads only the keys it needs through the client: `PreloadKeyStates(THashSet<TKey>)`, `PreloadKeyStates(IInputContextPtr)`, or `PreloadKeyStates(IInputContextPtr, TExtractKeysOptions)`. The options select the entity kinds whose keys are taken, for example `{.Visits = false}` for a state that a visit handler doesn’t read. Preload is incremental: it may be called several times within an epoch, only keys not loaded yet are fetched, and an already loaded, possibly modified state is left as is. `GetState` on a key that wasn’t preloaded in the epoch throws. `auto_preload = %false` isn’t allowed for companion computations.
 
-```cpp
-void DoProcess(IInputContextPtr input, IOutputCollectorPtr output) override
-{
-    if (!GetSpec()->ExternalStateManagers.at("/state")->AutoPreload) {
-        // Messages need the row; visits only need the key.
-        WaitFor(StateClient_.PreloadKeyStates(input, {.Visits = false})).ThrowOnError();
-    }
-    for (const auto& message : input->GetMessages()) {
-        auto state = StateClient_.GetState(message);
-        // ...
-    }
-    for (const auto& visit : input->GetVisits()) {
-        // Key-only work: no lookup was paid for this key.
-    }
-}
-```
-
-A process function does the same in `IBatchProcessFunction::Process`, dispatching entities through the helpers described in [Process functions](../../../flow/cpp/process-functions.md):
+In `IBatchProcessFunction::Process`, dispatch entities through the helpers described in [Process functions](../../../flow/cpp/process-functions.md):
 
 ```cpp
 void Process(const IInputContextPtr& input, const IOutputCollectorPtr& output, const IRuntimeContextPtr& context) override
@@ -225,13 +209,11 @@ Unlike `TSimpleExternalStateManager`, `TProfileManager` is parameterized by a us
 
 ```cpp
 // header: connect the client with the state type bound to the profile.
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitExternalStateClient(StateClient_, "/state");
     }
@@ -245,8 +227,8 @@ private:
 ```
 
 ```cpp
-// register.cpp: register the computation and the manager itself.
-YT_FLOW_DEFINE_COMPUTATION(TMyComputation);
+// register.cpp: register the process function and the manager itself.
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TMyFunction);
 YT_FLOW_DEFINE_EXTERNAL_STATE_MANAGER(NYT::NFlow::NBigRTExtensions::TProfileManager<TMyProfile>);
 ```
 
@@ -275,20 +257,19 @@ You declare an external state joiner in the `Computation` spec under a unique na
 This works similarly to the external state manager:
 
 ```cpp
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitExternalStateClient(StateReaderClient_, "/reference");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr /*output*/) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
         auto state = StateReaderClient_.GetState(message->Key);
         // state is a read-only accessor TConstStateAccessor<TSimpleExternalState> (valid within the epoch).
@@ -328,7 +309,7 @@ Dynamic spec (set the cache TTL via the `cache` section):
 
 ### TStaticTableKeyVisitorJoiner {#static-table-key-visitor-joiner}
 
-`TStaticTableKeyVisitorJoiner` is an external state joiner over a **static** sorted table. It works only with the [key-visitor stream](../../../flow/concepts/key_visitor.md#static-table-joiner). Unlike `TSimpleExternalStateJoiner`, it doesn’t perform random reads. The background visitor scan reads the table sequentially using the same key ranges as the internal state, and the table row becomes available in `DoProcessVisit` as a read-only state for the visit key. If a key isn’t in the table, it returns an empty state (`IsEmpty() == true`).
+`TStaticTableKeyVisitorJoiner` is an external state joiner over a **static** sorted table. It works only with the [key-visitor stream](../../../flow/concepts/key_visitor.md#static-table-joiner). Unlike `TSimpleExternalStateJoiner`, it doesn’t perform random reads. The background visitor scan reads the table sequentially using the same key ranges as the internal state, and the table row becomes available in `ProcessVisit` as a read-only state for the visit key. If a key isn’t in the table, it returns an empty state (`IsEmpty() == true`).
 
 You bind the joiner to a visit stream by listing its name in the `external_names` field of the `key_visitor_streams` section (see [static spec parameters](../../../flow/concepts/key_visitor.md#static-params)). You can bind one joiner to no more than one visit stream (the system checks this when you submit the spec). `join_on/key_schema_override` isn’t supported; the key is always the joiner’s own `group_by_schema`.
 
@@ -345,28 +326,27 @@ The system doesn’t validate computed column expressions. The source’s partit
 The canonical pattern is mirroring (reconciliation). The table’s keys participate in the scan alongside the keys of your own state. That means a visit arrives for a key that isn’t yet in the state (you need to create it) and for a key that’s no longer in the table (you need to delete it). A periodic scan thus aligns the `Computation`’s state with the external table:
 
 ```cpp
-class TMirrorComputation
-    : public TTransformComputation
+class TMirrorFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitClient<TMirrorState>(MirroredState_, "/mirror");
         initContext->InitExternalStateClient(SourceState_, "/source");
     }
 
-    void DoProcessVisit(
-        const TVisit& visit,
-        IOutputCollectorPtr /*output*/) override
+    void ProcessVisit(
+        const TInputVisitConstPtr& visit,
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
-        auto src = SourceState_.GetState(visit.Key);
+        auto src = SourceState_.GetState(visit->Key);
         if (!src.IsInitialized()) {
             // The source range wasn’t read (mark_unreadable): the key’s state is unknown.
             return;
         }
-        auto mirror = MirroredState_.GetState(visit.Key);
+        auto mirror = MirroredState_.GetState(visit->Key);
         if (src.IsEmpty()) {
             mirror.Clear();
         } else {
@@ -468,20 +448,19 @@ You’re responsible for the following (the framework doesn’t check them):
 ### Usage
 
 ```cpp
-class TMyComputation
-    : public TTransformComputation
+class TMyFunction
+    : public IProcessFunction
 {
 public:
-    using TTransformComputation::TTransformComputation;
-
-    void DoInit(IJobInitContextPtr initContext) override
+    void Init(const IRuntimeInitContextPtr& initContext) override
     {
         initContext->InitClient(UpstreamClient_, "/upstream");
     }
 
-    void DoProcessMessage(
+    void ProcessMessage(
         const TInputMessageConstPtr& message,
-        IOutputCollectorPtr /*output*/) override
+        const IOutputCollectorPtr& /*output*/,
+        const IRuntimeContextPtr& /*context*/) override
     {
         auto state = UpstreamClient_.GetState(message);
         // state — read-only accessor TConstStateAccessor<TUpstreamState> (valid within the epoch).

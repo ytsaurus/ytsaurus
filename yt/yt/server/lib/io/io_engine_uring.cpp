@@ -76,6 +76,10 @@ struct TUringIOEngineConfig
     //! Limits the number of concurrent (outstanding) #IIOEngine requests per a single uring thread.
     int MaxConcurrentRequestsPerThread;
 
+    //! Limits the number of bounded io-wq workers for each ring (per NUMA node in kernels 5.15 - 6.3).
+    //! Zero leaves the current kernel setting unchanged.
+    int BoundedIowqMaxWorkers;
+
     bool FlushAfterWrite;
 
     // Request size in bytes.
@@ -99,6 +103,9 @@ struct TUringIOEngineConfig
             .GreaterThan(0)
             .LessThanOrEqual(MaxUringConcurrentRequestsPerThread)
             .Default(22);
+        registrar.Parameter("bounded_iowq_max_workers", &TThis::BoundedIowqMaxWorkers)
+            .GreaterThanOrEqual(0)
+            .Default(0);
 
         registrar.Parameter("flush_after_write", &TThis::FlushAfterWrite)
             .Default(false);
@@ -155,6 +162,17 @@ public:
     {
         int result = HandleUringEintr(io_uring_register_buffers, &Uring_, iovs.Begin(), iovs.Size());
         return result == 0 ? TError() : TError::FromSystem(-result);
+    }
+
+    //! On success returns previous values.
+    TErrorOr<std::pair<unsigned, unsigned>> TrySetBoundedIowqMaxWorkers(unsigned boundedMaxWorkers, unsigned unboundedMaxWorkers)
+    {
+        std::array<unsigned, 2> values = {boundedMaxWorkers, unboundedMaxWorkers};
+        if (int result = HandleUringEintr(io_uring_register_iowq_max_workers, &Uring_, values.data()); result < 0) {
+            return TError::FromSystem(-result);
+        }
+
+        return std::make_pair(values[0], values[1]);
     }
 
     io_uring_cqe* WaitCqe()
@@ -251,19 +269,41 @@ struct TUringRequest
 
     EUringRequestType Type;
     EWorkloadCategory Category;
-    std::optional<TRequestStatsGuard> RequestTimeGuard_;
+    std::optional<TRequestStatsGuard> RequestStatsGuard;
+    std::optional<TEventTimerGuard> TotalTimeGuard;
     TRequestCounterGuard RequestCounterGuard;
+    bool WaitTimeRecorded = false;
 
     virtual ~TUringRequest();
 
-    void StartTimeTracker(const TIOEngineSensors::TRequestSensors& sensors)
+    void StartTotalTimeTracker(const TIOEngineSensors::TRequestSensors& sensors)
     {
-        RequestTimeGuard_.emplace(sensors);
+        YT_VERIFY(!TotalTimeGuard);
+        TotalTimeGuard.emplace(sensors.TotalTimer);
     }
 
-    void StopTimeTracker()
+    void RecordWaitTime(const TIOEngineSensors::TRequestSensors& sensors)
     {
-        RequestTimeGuard_.reset();
+        YT_VERIFY(TotalTimeGuard);
+        if (!WaitTimeRecorded) {
+            sensors.WaitTimer.Record(TotalTimeGuard->GetElapsedTime());
+            WaitTimeRecorded = true;
+        }
+    }
+
+    void StopTotalTimeTracker()
+    {
+        TotalTimeGuard.reset();
+    }
+
+    void StartStatsTracker(const TIOEngineSensors::TRequestSensors& sensors)
+    {
+        RequestStatsGuard.emplace(sensors);
+    }
+
+    void StopStatsTracker()
+    {
+        RequestStatsGuard.reset();
     }
 
     virtual void SetPromise() = 0;
@@ -429,6 +469,7 @@ struct TUringConfigProvider final
 
     YT_DECLARE_ATOMIC_FIELD(int, UringThreadCount)
     YT_DECLARE_ATOMIC_FIELD(int, MaxConcurrentRequestsPerThread)
+    YT_DECLARE_ATOMIC_FIELD(int, BoundedIowqMaxWorkers)
     YT_DECLARE_ATOMIC_FIELD(int, DirectIOBlockSize)
     YT_DECLARE_ATOMIC_FIELD(bool, FlushAfterWrite)
     YT_DECLARE_ATOMIC_FIELD(int, DesiredRequestSize)
@@ -451,6 +492,7 @@ struct TUringConfigProvider final
     {
         YT_STORE_ATOMIC_FIELD(newConfig, UringThreadCount)
         YT_STORE_ATOMIC_FIELD(newConfig, MaxConcurrentRequestsPerThread)
+        YT_STORE_ATOMIC_FIELD(newConfig, BoundedIowqMaxWorkers)
         YT_STORE_ATOMIC_FIELD(newConfig, DirectIOBlockSize)
         YT_STORE_ATOMIC_FIELD(newConfig, FlushAfterWrite)
         YT_STORE_ATOMIC_FIELD(newConfig, DesiredRequestSize)
@@ -495,11 +537,24 @@ public:
         , Config_(std::move(config))
         , ThreadIndex_(index)
         , EnableIOUringLogging_(Config_->EnableIOUringLogging)
+        , IsIowqMaxWorkersSupported_(ParseLinuxKernelVersion() >= std::vector{5, 15})
         , Uring_(MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount)
         , AllIovBuffers_(MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount)
         , Sensors_(std::move(sensors))
     {
+        YT_TLOG_WARNING_IF(Config_->GetBoundedIowqMaxWorkers() > 0 && !IsIowqMaxWorkersSupported_,
+            "Bounded io-wq worker limit requires Linux kernel 5.15 or newer; option will be ignored")
+            .With("ThreadPool", ThreadPool_->Name())
+            .With("ThreadIndex", ThreadIndex_)
+            .With("KernelVersion", GetLinuxKernelVersion())
+            .With("MaxWorkers", Config_->GetBoundedIowqMaxWorkers());
+
         InitIovBuffers();
+    }
+
+    void Reconfigure()
+    {
+        ConfigureBoundedIowqMaxWorkers();
     }
 
 private:
@@ -507,6 +562,7 @@ private:
     const TUringConfigProviderPtr Config_;
     const int ThreadIndex_;
     const bool EnableIOUringLogging_;
+    const bool IsIowqMaxWorkersSupported_;
 
     TUring Uring_;
 
@@ -519,6 +575,9 @@ private:
     TNotificationHandle StopNotificationHandle_{true};
     bool Stopping_ = false;
 
+    // Accessed only from the reconfigure thread.
+    int BoundedIowqMaxWorkers_ = 0;
+
     std::vector<TUringIovBuffer> AllIovBuffers_;
     std::vector<TUringIovBuffer*> FreeIovBuffers_;
 
@@ -528,7 +587,6 @@ private:
     std::array<iovec, UringEngineNotificationCount> NotificationIov_;
 
     const TIOEngineSensorsPtr Sensors_;
-
 
     void InitIovBuffers()
     {
@@ -599,6 +657,32 @@ private:
         SubmitSqes();
     }
 
+    void ConfigureBoundedIowqMaxWorkers()
+    {
+        int maxWorkers = Config_->GetBoundedIowqMaxWorkers();
+        if (!IsIowqMaxWorkersSupported_ || maxWorkers == 0 || maxWorkers == BoundedIowqMaxWorkers_) {
+            return;
+        }
+
+        auto resultOrError = Uring_.TrySetBoundedIowqMaxWorkers(maxWorkers, /*unboundedMaxWorkers*/ 0);
+        if (!resultOrError.IsOK()) {
+            YT_TLOG_ERROR("Failed to configure bounded io-wq worker limit")
+                .With("ThreadPool", ThreadPool_->Name())
+                .With("ThreadIndex", ThreadIndex_)
+                .With("MaxWorkers", maxWorkers)
+                .With(resultOrError);
+            return;
+        }
+
+        BoundedIowqMaxWorkers_ = maxWorkers;
+
+        YT_TLOG_INFO("Bounded io-wq worker limit configured")
+            .With("ThreadPool", ThreadPool_->Name())
+            .With("ThreadIndex", ThreadIndex_)
+            .With("MaxWorkers", maxWorkers)
+            .With("PreviousMaxWorkers", resultOrError.Value().first);
+    }
+
     TUringRequestPtr TryDequeue()
     {
         if (Stopping_) {
@@ -658,9 +742,11 @@ private:
     {
         switch (request->Type) {
             case EUringRequestType::Read:
+                request->RecordWaitTime(Sensors_->ReadSensors[request->Category]);
                 HandleReadRequest(static_cast<TReadUringRequest*>(request));
                 break;
             case EUringRequestType::Write:
+                request->RecordWaitTime(Sensors_->WriteSensors[request->Category]);
                 HandleWriteRequest(static_cast<TWriteUringRequest*>(request));
                 break;
             case EUringRequestType::FlushFile:
@@ -887,7 +973,7 @@ private:
     void HandleCompletion(const io_uring_cqe* cqe)
     {
         auto [request, _] = GetRequestUserData<TUringRequest>(cqe);
-        request->StopTimeTracker();
+        request->StopStatsTracker();
         switch (request->Type) {
             case EUringRequestType::Read:
                 HandleReadCompletion(cqe);
@@ -1140,7 +1226,7 @@ private:
         const TIOEngineSensors::TRequestSensors& sensors,
         int subrequestIndex = 0)
     {
-        request->StartTimeTracker(sensors);
+        request->StartStatsTracker(sensors);
 
         auto userData = reinterpret_cast<void*>(
             reinterpret_cast<uintptr_t>(request) |
@@ -1164,6 +1250,7 @@ private:
         YT_TLOG_DEBUG_IF(EnableIOUringLogging_, "Request disposed")
             .With("Request", request);
 
+        request->StopTotalTimeTracker();
         ThreadPool_->MarkFinished(ThreadIndex_, TUringRequestPtr(request));
     }
 };
@@ -1521,6 +1608,7 @@ public:
     void InitializeRefCounted()
     {
         ResizeThreads();
+        ReconfigureThreads();
     }
 
     ~TUringThreadPoolBase()
@@ -1629,6 +1717,14 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(ReconfigureInvoker_);
 
         ResizeThreads();
+        ReconfigureThreads();
+    }
+
+    void ReconfigureThreads()
+    {
+        for (const auto& thread : Threads_) {
+            thread->Reconfigure();
+        }
     }
 
     void ResizeThreads()
@@ -1775,6 +1871,7 @@ public:
             uringRequest->Type = EUringRequestType::Write;
             uringRequest->Category = category;
             uringRequest->WriteRequest = std::move(slice);
+            uringRequest->StartTotalTimeTracker(Sensors_->WriteSensors[category]);
             uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write, category);
 
             futures.push_back(uringRequest->Promise.ToFuture());
@@ -1865,6 +1962,7 @@ private:
                 auto uringRequest = std::make_unique<TReadUringRequest>(readRequestCombiner);
                 uringRequest->Type = EUringRequestType::Read;
                 uringRequest->Category = category;
+                uringRequest->StartTotalTimeTracker(Sensors_->ReadSensors[category]);
 
                 uringRequest->ReadSubrequests.reserve(1);
                 uringRequest->ReadSubrequestStates.reserve(1);

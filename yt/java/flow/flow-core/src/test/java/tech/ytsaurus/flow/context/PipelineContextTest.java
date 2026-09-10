@@ -11,13 +11,17 @@ import tech.ytsaurus.flow.computation.SourceComputation;
 import tech.ytsaurus.flow.function.BatchFunction;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.row.FlowMessage;
+import tech.ytsaurus.flow.state.StateDescriptor;
+import tech.ytsaurus.flow.state.StateDescriptors;
 import tech.ytsaurus.flow.stream.FlowStreams;
 import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class PipelineContextTest {
 
@@ -168,5 +172,59 @@ public class PipelineContextTest {
 
         assertNull(snapshot.getComputation("computation_id_2"));
         assertNull(snapshot.getStreamContext().getStream("stream_id_2"));
+    }
+
+    @Test
+    public void registerStatesRegistersEveryStateInOrder() {
+        var context = new PipelineContext();
+        var state = StateDescriptors.external("/state");
+
+        context.registerState(state);
+        context.registerStates(List.of(
+                StateDescriptors.externalReadOnly("/joined-state"),
+                StateDescriptors.raw("counter")
+        ));
+
+        assertEquals(
+                List.of("/state", "/joined-state", "counter"),
+                context.getStates().stream().map(StateDescriptor::getName).toList());
+        assertSame(state, context.getStates().get(0));
+    }
+
+    @Test
+    public void registerStateIgnoresTheSameDescriptorTwice() {
+        var context = new PipelineContext();
+        var state = StateDescriptors.external("/state");
+
+        context.registerState(state);
+        context.registerState(state);
+
+        assertEquals(List.of(state), context.getStates());
+    }
+
+    @Test
+    public void registerStateKeepsDescriptorsOfOneNameAndType() {
+        // The owner of an external state and the computation joining it declare it under one name.
+        var context = new PipelineContext();
+        var owned = StateDescriptors.external("/state");
+        var joined = StateDescriptors.externalReadOnly("/state");
+
+        context.registerState(owned);
+        context.registerStates(List.of(joined, StateDescriptors.external("/state")));
+
+        assertEquals(3, context.getStates().size());
+        assertSame(owned, context.getStates().get(0));
+        assertSame(joined, context.getStates().get(1));
+    }
+
+    @Test
+    public void registerStateRejectsAnotherTypeUnderOneName() {
+        var context = new PipelineContext();
+        context.registerState(StateDescriptors.external("/state"));
+
+        var error = assertThrows(
+                IllegalArgumentException.class, () -> context.registerState(StateDescriptors.raw("/state")));
+        assertTrue(error.getMessage().contains("/state"));
+        assertThrows(NullPointerException.class, () -> context.registerState((StateDescriptor<?>) null));
     }
 }

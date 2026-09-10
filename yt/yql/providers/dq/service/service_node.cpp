@@ -5,6 +5,7 @@
 #include <yql/essentials/utils/yql_panic.h>
 
 #include <contrib/ydb/library/yql/providers/dq/actors/execution_helpers.h>
+#include <contrib/ydb/library/yql/providers/dq/worker_manager/interface/events.h>
 
 #include <contrib/ydb/library/grpc/server/actors/logger.h>
 
@@ -150,7 +151,16 @@ namespace NYql {
                            .SetLogger(CreateActorSystemLogger(*ActorSystem, 413)); // 413 - NKikimrServices::GRPC_SERVER
 
         Server = MakeHolder<TGRpcServer>(options);
-        Service = TIntrusivePtr<IGRpcService>(new TDqsGrpcService(*ActorSystem, MetricsRegistry->GetSensors(), dqTaskPreprocessorFactories));
+        const auto workerManagerActorId = Config.WorkerManagerActorId
+            ? Config.WorkerManagerActorId
+            : NDqs::MakeWorkerManagerActorID(Config.NodeId);
+        YQL_CLOG(DEBUG, ProviderDq) << "gRPC service config"
+            << " serviceNodeId=" << Config.NodeId
+            << " grpcPort=" << Config.GrpcPort
+            << " interconnectPort=" << Config.Port
+            << " targetWorkerManagerActorId=" << workerManagerActorId
+            << " usesGlobalWorkerManager=" << static_cast<bool>(Config.WorkerManagerActorId);
+        Service = TIntrusivePtr<IGRpcService>(new TDqsGrpcService(*ActorSystem, MetricsRegistry->GetSensors(), dqTaskPreprocessorFactories, workerManagerActorId));
         Server->AddService(Service);
         Server->Start();
     }

@@ -29,7 +29,8 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```java
   public interface StateAccessor<T> {
       /** Получить значение стейта. */
-      Optional<T> get();
+      @Nullable
+      T get();
 
       /** Получить значение стейта или дефолтное значение. */
       default T getOrDefault(T defaultValue);
@@ -50,7 +51,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```kotlin
   interface StateAccessor<T> {
       /** Получить значение стейта. */
-      fun get(): Optional<T>
+      fun get(): T?
 
       /** Получить значение стейта или дефолтное значение. */
       fun getOrDefault(defaultValue: T): T
@@ -64,6 +65,46 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
       /** Получить класс стейта. */
       fun getStateClass(): Class<T>
   }
+  ```
+
+{% endlist %}
+
+### Изменение значения на месте {#in-place}
+
+Значение, которое возвращают `get()` и `getOrDefault()`, живое: для каждого ключа оно декодируется один раз за батч, все аксессоры этого ключа возвращают один и тот же объект, а изменения, сделанные в нём, записываются в стейт по окончании батча без вызова `set()`. Если значение не изменилось, запись не выполняется. Дефолт из `getOrDefault()` становится значением стейта и записывается, как после `set()`, поэтому его можно сразу изменять:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  ctx.getState(COUNTER, message).getOrDefault(new CounterState()).count += 1;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  ctx.getState(COUNTER, message).getOrDefault(CounterState()).count += 1
+  ```
+
+{% endlist %}
+
+`set()` по-прежнему заменяет значение целиком, `clear()` удаляет стейт. Protobuf-объекты неизменяемы, поэтому для них новое значение задаётся через `set()`.
+
+Чтобы отследить изменения, прочитанное значение один раз перекодируется по окончании батча — даже если вычисление стейт только просматривает. Убрать эту работу позволяет `readOnly()`: аксессор возвращает то же значение, но не отслеживает его, поэтому по окончании батча стейт не перекодируется и не отправляется воркеру. Используйте его везде, где стейт только читают. `getOrDefault()` у такого аксессора не создаёт стейт, а `set()` и `clear()` бросают исключение:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  long count = ctx.getState(COUNTER, message).readOnly().getOrDefault().count;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  val count = ctx.getState(COUNTER, message).readOnly().getOrDefault().count
   ```
 
 {% endlist %}
@@ -468,9 +509,8 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```java
   RawStateAccessor stateAccessor = ctx.getRawStateAccessor("raw-state", message);
 
-  Optional<byte[]> maybeBytes = stateAccessor.get();
-  if (maybeBytes.isPresent()) {
-      byte[] data = maybeBytes.get();
+  byte[] data = stateAccessor.get();
+  if (data != null) {
       // Обработка сырых данных...
   }
 
@@ -486,9 +526,8 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
   ```kotlin
   val stateAccessor: RawStateAccessor = ctx.getRawStateAccessor("raw-state", message)
 
-  val maybeBytes: Optional<ByteArray> = stateAccessor.get()
-  if (maybeBytes.isPresent) {
-      val data: ByteArray = maybeBytes.get()
+  val data: ByteArray? = stateAccessor.get()
+  if (data != null) {
       // Обработка сырых данных...
   }
 
@@ -538,7 +577,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
           NoOpStateAccessor stateAccessor = ctx.getNoOpStateAccessor("seen-keys", message);
 
           // Проверяем, был ли ключ уже обработан
-          if (stateAccessor.get().isPresent()) {
+          if (stateAccessor.get() != null) {
               // Ключ уже обработан, пропускаем
               return;
           }
@@ -560,7 +599,7 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
           val stateAccessor: NoOpStateAccessor = ctx.getNoOpStateAccessor("seen-keys", message)
 
           // Проверяем, был ли ключ уже обработан
-          if (stateAccessor.get().isPresent) {
+          if (stateAccessor.get() != null) {
               // Ключ уже обработан, пропускаем
               return
           }

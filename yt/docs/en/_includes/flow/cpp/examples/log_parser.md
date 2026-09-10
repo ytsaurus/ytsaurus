@@ -1,6 +1,6 @@
 # Log parser in {{product-name}} Flow (C++)
 
-This example shows [`TTransformOrderedSourceComputation`](../../../../flow/concepts/computation.md#ttransformorderedsourcecomputation) (for details, see [Computation (C++)](../../../../flow/cpp/computation.md#ttransformorderedsourcecomputation)): the [pipeline]({{source-root}}/yt/yt/flow/examples/cpp/log_parser) reads log lines from a queue and parses them right when reading the source, without an intermediate passthrough computation and a `TTransformComputation`. The parsing logic itself is written as a [process function](../../../../flow/cpp/process-functions.md) and runs under the built-in adapter. The example also shows reading from a `Source` and maintaining your own durable state that survives restarts (see [State](#state)).
+This example shows a [process function](../../../../flow/cpp/process-functions.md) in materialized ordered-source mode. The [pipeline]({{source-root}}/yt/yt/flow/examples/cpp/log_parser) reads log lines from a queue and parses them while reading the source, without an intermediate passthrough computation. The built-in `TProcessFunctionTransformOrderedSourceComputation` executes the function. The example also shows reading from a `Source` and maintaining durable state that survives restarts (see [State](#state)).
 
 [Source code]({{source-root}}/yt/yt/flow/examples/cpp/log_parser)
 
@@ -37,7 +37,7 @@ The remaining fields of the `parser` record describe the connections: `source_st
 
 ## State {#state}
 
-`TLogParserProcessFunction` is stateful. It keeps the `TWorstSeverityState` state in the `TMutableStateKeyClient<TWorstSeverityState> StateClient_` field, exactly as `TTransformComputation` does (see [Working with states (C++)](../../../../flow/cpp/state.md#internal-state)). The `TProcessFunctionTransformOrderedSourceComputation` adapter does the rest: it calls `Init(const IRuntimeInitContextPtr& initContext)`, where the client connects to the state by calling `initContext->InitClient(StateClient_, WorstSeverityStateName)` (the state name is `worst_severity`), and `ProcessMessage`, where the state is read through the `GetState(message->Key)` accessor and the output records are converted into messages via `context->ConvertToMessage(...)`.
+`TLogParserProcessFunction` is stateful. It keeps the `TWorstSeverityState` state in the `TMutableStateKeyClient<TWorstSeverityState> StateClient_` field (see [Working with states (C++)](../../../../flow/cpp/state.md#internal-state)). The `TProcessFunctionTransformOrderedSourceComputation` adapter calls `Init(const IRuntimeInitContextPtr& initContext)`, where the client connects to the state via `initContext->InitClient(StateClient_, WorstSeverityStateName)` (the state name is `worst_severity`), and `ProcessMessage`, where the state is read through `GetState(message->Key)` and output records are converted into messages via `context->ConvertToMessage(...)`.
 
 The computation instance is bound to a single source partition, so all messages carry the same key and address the same state row: `state->WorstSeverity = std::max(state->WorstSeverity, SeverityRank(record.Level))`.
 

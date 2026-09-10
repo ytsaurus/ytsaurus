@@ -85,9 +85,10 @@ public class ResponseProtoMapper {
         );
         var protoStates = new ArrayList<tech.ytsaurus.flow.rpc.TState>();
         for (var namedState : response.getInternalStates().values()) {
-            // Only states changed via accessors are sent back; skip holders with no modifications.
-            if (namedState.hasModifiedStates()) {
-                protoStates.add(internalStateMapper.toProto(namedState));
+            // Only modified states are sent back.
+            var modifiedStates = namedState.collectModifiedStates();
+            if (!modifiedStates.isEmpty()) {
+                protoStates.add(internalStateMapper.toProto(namedState, modifiedStates));
             }
         }
         builder.addAllInternalStates(protoStates);
@@ -99,9 +100,10 @@ public class ResponseProtoMapper {
         );
         var externalProtoStates = new ArrayList<tech.ytsaurus.flow.rpc.TState>();
         for (var namedState : response.getExternalStates().values()) {
-            // Only states changed via accessors are sent back; skip holders with no modifications.
-            if (namedState.hasModifiedStates()) {
-                externalProtoStates.add(externalStateMapper.toProto(namedState));
+            // Only modified states are sent back.
+            var modifiedStates = namedState.collectModifiedStates();
+            if (!modifiedStates.isEmpty()) {
+                externalProtoStates.add(externalStateMapper.toProto(namedState, modifiedStates));
             }
         }
         builder.addAllExternalStates(externalProtoStates);

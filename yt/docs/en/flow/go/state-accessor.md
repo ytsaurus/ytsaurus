@@ -18,7 +18,7 @@ Working with the table directly (reading, writing, and deleting data) is done by
 
 New values are written to the state table transactionally within an [epoch](../../flow/concepts/glossary.md#epoch).
 
-What travels back to the worker isn’t the whole state but a delta: only the changed records. For Raw, Proto, and External states, the write is performed via `Set` or `Clear`; for a YSON state, by changing the value from `Value()` or by calling `Clear`. A plain read sends nothing.
+What travels back to the worker isn’t the whole state but a delta: only the changed records. For Raw and External states, the write is performed via `Set` or `Clear`; YSON and Proto states are written by [changing the value in place](internal-state.md#in-place). A plain read sends nothing.
 
 `Clear` doesn’t erase the record from the accessor, it marks the record as deleted, and the deletion reaches the worker in exactly that form. For the computation there is no difference: a state the request didn’t bring and a state cleared in this request are both read as missing — the computation sees the state as it will be after the response.
 
@@ -36,34 +36,37 @@ The Go SDK provides five types of accessors:
 |----------|--------|----------|----------|
 | [RawStateAccessor](internal-state.md#raw-state-accessor) | `[]byte` | `flow.OpenRawState(rt, name, input)` | Raw bytes without serialization |
 | [YSONState](internal-state.md#yson-state) | YSON | `flow.OpenYSONState[T](rt, name, input)` | Serialization of a Go value into YSON |
-| [ProtoStateAccessor](internal-state.md#proto-state-accessor) | Protobuf | `flow.OpenProtoState[T](rt, name, input)` | Serialization via Protobuf |
+| [ProtoState](internal-state.md#proto-state) | Protobuf | `flow.OpenProtoState[T](rt, name, input)` | Serialization via Protobuf |
 | [ExternalStateAccessor](external-state.md) | Go structure (table row) | `flow.OpenExternalState(rt, "/name", input)` | Reading and writing a row of an external table |
 | [JoinedExternalStateAccessor](external-state.md) | Go structure | `flow.OpenJoinedExternalState(rt, "/name", input)` | Read-only access to another computation’s state table |
 
-The first three work with [internal state](internal-state.md), whose tables are managed by Flow. `ProtoStateAccessor` serializes explicit writes on top of `RawStateAccessor`. `YSONState` holds a mutable value and saves it automatically after a successful batch.
+The first three work with [internal state](internal-state.md), whose tables are managed by Flow. `RawStateAccessor` serializes explicit writes; `YSONState` and `ProtoState` hold a mutable value and save it automatically after a successful batch.
 
 `ExternalStateAccessor` and `JoinedExternalStateAccessor` work with [external state](external-state.md) — a dynamic table that you create yourself. They differ in rights: the first is available to the computation that owns the state, the second to the computation that only reads it.
 
 ## Internal state API {#common-api}
 
-The Raw and Proto accessors use explicit read and write operations:
-
-| Method | `RawStateAccessor` | `ProtoStateAccessor[T, PT]` |
-|-------|--------------------|-----------------------------|
-| `Get()` | `([]byte, bool)` | `(PT, bool, error)` |
-| `Or(fallback)` | `[]byte` | `(PT, error)` |
-| `Set(value)` | `error` | `error` |
-| `Clear()` | `error` | `error` |
-
-A YSON state is changed in place:
+The Raw accessor uses explicit read and write operations:
 
 | Method | Result type | Description |
 |-------|----------------|----------|
-| `Empty()` | `bool` | The value is missing |
-| `Value()` | `*T` | The mutable value; creates a zero value if the state is missing |
-| `Clear()` | — | Delete the value |
+| `Get()` | `([]byte, bool)` | A copy of the saved bytes |
+| `Or(fallback []byte)` | `[]byte` | The current value or `fallback` |
+| `Set(data []byte)` | `error` | Save the bytes |
+| `Clear()` | `error` | Delete the state |
 
-YSON deserialization is performed in `OpenYSONState`. Changes made through `Value()` are saved automatically only after all the batch handlers have completed successfully.
+YSON and Proto states are changed in place:
+
+| Method | `YSONState[T]` | `ProtoState[T, PT]` |
+|-------|----------------|---------------------|
+| `Empty()` | `bool` | `bool` |
+| `Get()` | `(*T, bool)` | `(PT, bool)` |
+| `Value()` / `Or(fallback)` | `*T` | `PT` |
+| `Set(value)` | no method | `error` |
+| `Clear()` | no result | no result |
+| `ReadOnly()` | `ReadOnlyYSONState[T]` | `ReadOnlyProtoState[T, PT]` |
+
+Deserialization is performed on opening. Changes to the value are saved automatically only after all the batch handlers have completed successfully — see [Changing the value in place](internal-state.md#in-place).
 
 `ExternalStateAccessor` converts a table row into a Go structure:
 

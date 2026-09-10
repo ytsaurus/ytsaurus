@@ -245,8 +245,6 @@ void TOrderedSourceBase::Init(IInitContextPtr initContext)
 
     SourceTotalCount_.Update(0);
     SourceTotalBytes_.Update(0);
-    OfferedCount_.Update(0);
-    OfferedBytes_.Update(0);
     PersistedCount_.Update(0);
     PersistedBytes_.Update(0);
 
@@ -345,11 +343,6 @@ double TOrderedSourceBase::GetSourceTotalBytes() const
     return SourceTotalBytes_.GetTotal();
 }
 
-double TOrderedSourceBase::GetOfferedCount() const
-{
-    return OfferedCount_.GetTotal();
-}
-
 std::optional<TSystemTimestamp> TOrderedSourceBase::GetLastPersistedWriteTimestamp() const
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
@@ -387,13 +380,17 @@ void TOrderedSourceBase::FlushDelayedPartitionInfoUpdates()
                 TryIncreaseMaxOffsetExclusive(*update.CommittedOffsetExclusive, false);
             }
             if (CommittedOffsetExclusive_ > NextReadOffset_) {
-                if (!CanCommittedOffsetExceedNextReadOffset()) {
+                if (update.Repositioned) {
+                    YT_TLOG_INFO("Skip NextReadOffset forward to an external position")
+                        .With("NewNextReadOffset", CommittedOffsetExclusive_)
+                        .With("OldNextReadOffset", NextReadOffset_);
+                } else if (!CanCommittedOffsetExceedNextReadOffset()) {
                     YT_TLOG_ERROR("Rewind NextReadOffset up to CommittedOffsetExclusive. Probably some input data was trimmed before reading")
                         .With("NewNextReadOffset", CommittedOffsetExclusive_)
                         .With("OldNextReadOffset", NextReadOffset_);
                 }
                 NextReadOffset_ = CommittedOffsetExclusive_;
-                MarkMissingMessagesPersisted();
+                MarkMissingMessagesPersisted(/*trimmed*/ !update.Repositioned);
             }
             if (update.MaxOffsetExclusive) {
                 TryIncreaseMaxOffsetExclusive(*update.MaxOffsetExclusive, true);
@@ -499,7 +496,7 @@ void TOrderedSourceBase::CleanUpInflightOffsets()
     MarkMissingMessagesPersisted();
 }
 
-void TOrderedSourceBase::MarkMissingMessagesPersisted()
+void TOrderedSourceBase::MarkMissingMessagesPersisted(bool trimmed)
 {
     YT_VERIFY(GetCurrentInvoker() == GetContext()->SerializedInvoker);
 
@@ -510,7 +507,7 @@ void TOrderedSourceBase::MarkMissingMessagesPersisted()
         .With("NewPersistedOffsetExclusive", firstNotPersistedMessageOffset)
         .With("OldPersistedOffsetExclusive", State_->PersistedOffsetExclusive);
     if (firstNotPersistedMessageOffset > State_->PersistedOffsetExclusive) {
-        if (AreOffsetsConsecutive()) {
+        if (trimmed && AreOffsetsConsecutive()) {
             YT_TLOG_ERROR("Rewind PersistedOffsetExclusive up to first not persisted message offset. Probably some input data was trimmed before reading")
                 .With("OldPersistedOffsetExclusive", State_->PersistedOffsetExclusive)
                 .With("FirstNotPersistedMessageOffset", firstNotPersistedMessageOffset);
@@ -689,8 +686,8 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
             inflight->InflightMetrics->NewBytesPerSec.value_or(0),
             std::max(0.0, backlogRate->BytesPerSecond));
     }
-    inflight->InflightMetrics->OfferedCountPerSec = OfferedCount_.GetDecayedRate();
-    inflight->InflightMetrics->OfferedBytesPerSec = OfferedBytes_.GetDecayedRate();
+    inflight->InflightMetrics->OfferedCountPerSec = inflight->InflightMetrics->NewCountPerSec;
+    inflight->InflightMetrics->OfferedBytesPerSec = inflight->InflightMetrics->NewBytesPerSec;
     inflight->InflightMetrics->ProcessedCountPerSec = PersistedCount_.GetDecayedRate();
     inflight->InflightMetrics->ProcessedBytesPerSec = PersistedBytes_.GetDecayedRate();
 
@@ -772,8 +769,6 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
     }
 
     std::vector<ISource::TMessageBatch> parsedMessages;
-    i64 offeredCount = 0;
-    i64 offeredBytes = 0;
     for (i64 recordIndex = 0; recordIndex < std::ssize(records); ++recordIndex) {
         auto& record = records[recordIndex];
         const bool isLastRecord = (recordIndex + 1 == std::ssize(records));
@@ -887,8 +882,6 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
                 .Cookie = TSourceMessageBatchCookie(std::any(TMessageCookieData{.OffsetInfoIt = offsetInfoIt})),
                 .Messages = std::move(messages),
             });
-            offeredCount += offsetInfoIt->Count;
-            offeredBytes += offsetInfoIt->ByteSize;
         }
         TryCollapseOffsetInfo(std::prev(InflightOffsets_.end()));
     }
@@ -897,8 +890,6 @@ std::vector<ISource::TMessageBatch> TOrderedSourceBase::PrepareMessages(std::vec
         State_->LastIdleInstant = TInstant::Zero();
         TryIncreaseMaxOffsetExclusive(NextReadOffset_, false);
     }
-    OfferedCount_.Inc(offeredCount);
-    OfferedBytes_.Inc(offeredBytes);
     CleanUpInflightOffsets();
     return parsedMessages;
 }

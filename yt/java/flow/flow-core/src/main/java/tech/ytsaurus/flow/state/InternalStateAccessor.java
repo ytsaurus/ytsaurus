@@ -1,23 +1,28 @@
 package tech.ytsaurus.flow.state;
 
-import java.util.Optional;
-
+import com.google.protobuf.ByteString;
+import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
+import tech.ytsaurus.flow.row.codec.ByteStringCodec;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.flow.row.codec.InternalStateValueCodec;
 
 /**
  * {@link StateAccessor} for the Flow internal state.
  *
+ * <p>The value it returns is live: it is decoded once per key and request, every accessor for
+ * that key hands out the same object, and the changes made to it in place are written back at
+ * the end of the request without a {@link #set} call. Nothing is written when the value encodes
+ * to the bytes it arrived with. {@link #readOnly()} gives the untracked view.
+ *
  * @param <T> state value type.
  */
-public final class InternalStateAccessor<T> implements StateAccessor<T> {
-    private final Payload key;
-    private final InternalStateDescriptor<T> descriptor;
-    private final ByteArrayCodec<T> codec;
-    private final InternalStateValueCodec wireCodec;
-    private final StatesHolder statesHolder;
+public class InternalStateAccessor<T> implements StateAccessor<T> {
+    final Payload key;
+    final InternalStateDescriptor<T> descriptor;
+    final ByteStringCodec<T> codec;
+    final StatesHolder statesHolder;
 
     InternalStateAccessor(
             Payload key,
@@ -33,27 +38,62 @@ public final class InternalStateAccessor<T> implements StateAccessor<T> {
             StatesHolder statesHolder,
             InternalStateValueCodec wireCodec
     ) {
+        this(key, descriptor, statesHolder, new ValueCodec<>(descriptor.getCodec(), wireCodec));
+    }
+
+    InternalStateAccessor(
+            Payload key,
+            InternalStateDescriptor<T> descriptor,
+            StatesHolder statesHolder,
+            ByteStringCodec<T> codec
+    ) {
         this.key = key;
         this.descriptor = descriptor;
-        this.codec = descriptor.getCodec();
-        this.wireCodec = wireCodec;
+        this.codec = codec;
         this.statesHolder = statesHolder;
     }
 
     /**
      * {@inheritDoc}
-     *
-     * <p>Decodes the value on every call — its type may be mutable, and a change made to the
-     * returned object reaches the state only through {@link #set} — from the entry bytes, which
-     * are taken out of the wire once.
      */
     @Override
-    public Optional<T> get() {
+    public @Nullable T get() {
         State state = statesHolder.get(key.getRow());
         if (state == null || state.isReset()) {
-            return Optional.empty();
+            return null;
         }
-        return Optional.of(codec.decode(state.getValue(wireCodec)));
+        return state.getMutableValue(codec);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default becomes the state value and is written back, as if it had been {@link #set}.
+     */
+    @Override
+    public T getOrDefault(T defaultValue) {
+        T value = get();
+        if (value == null) {
+            set(defaultValue);
+            return defaultValue;
+        }
+        return value;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The default becomes the state value and is written back, as if it had been {@link #set}.
+     */
+    @Override
+    public T getOrDefault() {
+        T value = get();
+        if (value == null) {
+            T defaultValue = descriptor.defaultValue();
+            set(defaultValue);
+            return defaultValue;
+        }
+        return value;
     }
 
     /**
@@ -61,8 +101,7 @@ public final class InternalStateAccessor<T> implements StateAccessor<T> {
      */
     @Override
     public void set(T value) {
-        byte[] bytes = codec.encode(value);
-        statesHolder.set(key.getRow(), new State(wireCodec.encode(bytes), bytes));
+        statesHolder.set(key.getRow(), new State(value, codec));
     }
 
     /**
@@ -85,8 +124,32 @@ public final class InternalStateAccessor<T> implements StateAccessor<T> {
      * {@inheritDoc}
      */
     @Override
-    public T getOrDefault() {
-        Optional<T> value = get();
-        return value.isPresent() ? value.get() : descriptor.defaultValue();
+    public StateAccessor<T> readOnly() {
+        return new ReadOnlyInternalStateAccessor<>(this);
+    }
+
+    /**
+     * Value ⇄ wire bytes: the descriptor codec followed by the wire codec. {@link State} memoizes one value
+     * and one codec, so that {@link StatesHolder#collectModifiedStates} can re-encode a mutable value with no
+     * accessor in reach; hence a single self-contained value-to-wire codec.
+     */
+    private static final class ValueCodec<T> implements ByteStringCodec<T> {
+        private final ByteArrayCodec<T> codec;
+        private final InternalStateValueCodec wireCodec;
+
+        ValueCodec(ByteArrayCodec<T> codec, InternalStateValueCodec wireCodec) {
+            this.codec = codec;
+            this.wireCodec = wireCodec;
+        }
+
+        @Override
+        public ByteString encode(T value) {
+            return wireCodec.encode(codec.encode(value));
+        }
+
+        @Override
+        public T decode(ByteString bytes) {
+            return codec.decode(wireCodec.decode(bytes));
+        }
     }
 }

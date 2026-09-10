@@ -479,7 +479,9 @@ TQueryOptions GetJoinSubqueryOptions(const TQueryOptions& queryOptions)
     return result;
 }
 
-TQueryOptions ApplyPatch(const TQueryOptions& base, const TJoinSubqueryOptionsPatch& patch)
+TQueryOptions ApplyJoinSubqueryOptionsPatch(
+    const TQueryOptions& base,
+    const TJoinSubqueryOptionsPatch& patch)
 {
     auto result = base;
 

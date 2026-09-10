@@ -5,9 +5,9 @@
 #include "private.h"
 #include "queue_export_manager.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_teleporter.h>
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -23,11 +23,11 @@
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/helpers.h>
 
+#include <yt/yt/client/queue_client/config.h>
+
 #include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
-
-#include <yt/yt/client/queue_client/config.h>
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
