@@ -86,7 +86,7 @@
 
 {% include [_](./NYT_NFlow_NFileStorage_TFileStorageConfig.md) %}
 
-{% include [_](./NYT_NFlow_NStaticTableConnectorV2_TTableTimestampLocatorSpec.md) %}
+{% include [_](./NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec.md) %}
 
 {% include [_](./NYT_NFlow_NWorker_TWorkerConfig.md) %}
 

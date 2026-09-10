@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "source_public.h"
 
 #include <yt/yt/flow/library/cpp/common/public.h>
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_source_base.h>
@@ -11,7 +11,7 @@
 
 #include <yt/yt/library/re2/public.h>
 
-namespace NYT::NFlow::NStaticTableConnectorV2 {
+namespace NYT::NFlow::NStaticTableConnector {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -145,4 +145,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTableSourcePartitionSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NFlow::NStaticTableConnectorV2
+} // namespace NYT::NFlow::NStaticTableConnector

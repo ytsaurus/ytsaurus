@@ -14,10 +14,10 @@ List of tables to read with cluster specifications. This parameter is an alterna
 Path to a directory with static tables, including either one cluster or an ordered list of replica clusters. This parameter is an alternative to `tables`. ||
 || `table_name_filter` | **Type**: `NYT::TIntrusivePtr<NYT::NRe2::TRe2>`
 Regular expression to filter tables by name: only tables whose name matches the expression are read. The expression syntax is [RE2](https://github.com/google/re2/wiki/Syntax). ||
-|| `event_timestamp_locator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnectorV2::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnectorV2_TTableTimestampLocatorSpec)`>`
+|| `event_timestamp_locator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnector::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec)`>`
 **Default value**: `{'attribute': 'key'}`
 By default, takes the timestamp from the table name. This time corresponds to the data creation time and is forwarded to the EventTimestamp of messages. Tables with the same timestamp are ordered persistently; new tables must not appear behind the already processed event-time frontier. ||
-|| `system_timestamp_locator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnectorV2::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnectorV2_TTableTimestampLocatorSpec)`>`
+|| `system_timestamp_locator` | **Type**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnector::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec)`>`
 **Default value**: `{'attribute': 'creation_time'}`
 By default, takes the timestamp from the table creation time. This time corresponds to when the data is written to the source. That is, the moment when the pipeline can see this data and start reading. This time is forwarded to the SystemTimestamp of messages. ||
 || `ignore_symlinks` | **Type**: `bool`

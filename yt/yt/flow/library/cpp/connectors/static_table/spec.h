@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/flow/library/cpp/connectors/static_table_v2/spec.h>
+#include "source_spec.h"
 
 #include <yt/yt/flow/library/cpp/common/public.h>
 #include <yt/yt/flow/library/cpp/common/sink.h>

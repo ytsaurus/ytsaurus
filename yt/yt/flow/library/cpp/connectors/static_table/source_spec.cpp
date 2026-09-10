@@ -1,4 +1,4 @@
-#include "spec.h"
+#include "source_spec.h"
 
 #include <util/generic/hash_set.h>
 
@@ -8,7 +8,7 @@
 
 #include <library/cpp/timezone_conversion/civil.h>
 
-namespace NYT::NFlow::NStaticTableConnectorV2 {
+namespace NYT::NFlow::NStaticTableConnector {
 
 using namespace NYTree;
 
@@ -170,4 +170,4 @@ void TDynamicTableSourcePartitionSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NFlow::NStaticTableConnectorV2
+} // namespace NYT::NFlow::NStaticTableConnector
