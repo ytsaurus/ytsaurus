@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/hydra/serialize.h>
 
+#include <yt/yt/core/rpc/service_detail.h>
+
 namespace NYT::NHydraStressTest {
 
 using namespace NHydra;

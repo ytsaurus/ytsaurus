@@ -1,4 +1,5 @@
 #include "private.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
 #include "tablet_service.h"
 

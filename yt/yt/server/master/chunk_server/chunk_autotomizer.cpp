@@ -33,6 +33,8 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;

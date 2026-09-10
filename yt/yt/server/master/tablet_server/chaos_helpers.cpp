@@ -1,8 +1,10 @@
 #include "chaos_helpers.h"
 
-#include <yt/yt/client/table_client/helpers.h>
-
 #include <yt/yt/server/master/table_server/table_node.h>
+
+#include <yt/yt/client/chaos_client/replication_card.h>
+
+#include <yt/yt/client/table_client/helpers.h>
 
 namespace NYT::NTabletServer {
 

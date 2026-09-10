@@ -97,6 +97,8 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -140,6 +142,7 @@
 #include <yt/yt/library/profiling/simple_sensor_impl.h>
 
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/parallel_runner.h>
 

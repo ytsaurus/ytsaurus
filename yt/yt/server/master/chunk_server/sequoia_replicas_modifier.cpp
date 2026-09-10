@@ -27,6 +27,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 #include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NChunkServer {

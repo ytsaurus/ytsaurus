@@ -1,6 +1,5 @@
 #pragma once
 
-#include "object_detail.h"
 #include "object_manager.h"
 #include "private.h"
 #include "type_handler.h"

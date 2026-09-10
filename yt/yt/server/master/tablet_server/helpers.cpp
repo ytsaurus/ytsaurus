@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
 
 #include <yt/yt/server/master/table_server/table_node.h>
 

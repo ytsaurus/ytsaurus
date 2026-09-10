@@ -30,7 +30,7 @@
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 
-#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NChunkServer {
 

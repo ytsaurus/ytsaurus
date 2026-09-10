@@ -6,8 +6,13 @@
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
+
+#include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/master/transaction_server/config.h>
 #include <yt/yt/server/master/transaction_server/transaction.h>

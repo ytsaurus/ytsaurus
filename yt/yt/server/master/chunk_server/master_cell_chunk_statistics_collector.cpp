@@ -15,6 +15,8 @@
 
 #include <yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
