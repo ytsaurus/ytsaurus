@@ -140,7 +140,7 @@ INodePtr MakeFileNode(TObjectId objectId, TRevision revision, i64 size)
         .BeginAttributes()
             .Item("id").Value(objectId)
             .Item("type").Value(EObjectType::File)
-            .Item("revision").Value(revision)
+            .Item("content_revision").Value(revision)
             .Item("uncompressed_data_size").Value(size)
         .EndAttributes()
         .Entity();
@@ -149,7 +149,7 @@ INodePtr MakeFileNode(TObjectId objectId, TRevision revision, i64 size)
 
 INodePtr MakeTableNode(
     TObjectId objectId,
-    TRevision contentRevision,
+    TRevision revision,
     bool dynamic = false,
     TTableSchemaPtr schema = GetYTFileProviderBlobTableSchema())
 {
@@ -159,7 +159,7 @@ INodePtr MakeTableNode(
             .Item("id").Value(objectId)
             .Item("type").Value(EObjectType::Table)
             .Item("dynamic").Value(dynamic)
-            .Item("content_revision").Value(contentRevision)
+            .Item("content_revision").Value(revision)
             .Item("schema").Value(schema)
         .EndAttributes()
         .Entity();
@@ -212,7 +212,8 @@ void ExpectSnapshotTransaction(
     const TYPath& lockPath,
     TObjectId objectId,
     const INodePtr& node,
-    const ITableReaderPtr& reader = nullptr)
+    const ITableReaderPtr& reader = nullptr,
+    const IFileReaderPtr& fileReader = nullptr)
 {
     auto transaction = New<testing::StrictMock<TMockTransaction>>();
     EXPECT_CALL(*client, StartTransaction(ETransactionType::Master, _))
@@ -228,47 +229,114 @@ void ExpectSnapshotTransaction(
         EXPECT_CALL(*transaction, CreateTableReader(_, _))
             .WillOnce(testing::Return(MakeFuture<ITableReaderPtr>(reader)));
     }
+    if (fileReader) {
+        EXPECT_CALL(*transaction, CreateFileReader(TYPath(Format("#%v", objectId)), _))
+            .WillOnce(testing::Return(MakeFuture<IFileReaderPtr>(fileReader)));
+    }
     EXPECT_CALL(*transaction, Abort(_))
         .WillOnce(testing::Return(MakeFuture<void>(TError())));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TYTFileProviderTest, DiscoversCypressFileAndDownloadsExactRevision)
+TEST(TYTFileProviderTest, RejectsChangedSourceBeforeReading)
+{
+    for (bool isTable : {false, true}) {
+        for (bool replaceObject : {false, true}) {
+            auto objectId = isTable ? MakeTableId(1) : MakeFileId(1);
+            auto currentId = replaceObject
+                ? (isTable ? MakeTableId(2) : MakeFileId(2))
+                : objectId;
+            auto currentRevision = replaceObject ? TRevision{11} : TRevision{12};
+            auto client = New<testing::StrictMock<TMockClient>>();
+            auto provider = MakeProvider("//current", client);
+            ExpectSnapshotTransaction(client.Get(), "//current", objectId, isTable ? MakeTableNode(objectId, TRevision{11}) : MakeFileNode(objectId, TRevision{11}, 6));
+            auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+            ExpectSnapshotTransaction(client.Get(), "//current", currentId, isTable ? MakeTableNode(currentId, currentRevision) : MakeFileNode(currentId, currentRevision, 1024));
+            TTempDir root;
+            EXPECT_THROW_WITH_SUBSTRING(
+                WaitFor(provider->Download(revision, root.Name())).ThrowOnError(),
+                "source changed since discovery");
+            EXPECT_FALSE((TFsPath(root.Name()) / "data").Exists());
+        }
+    }
+}
+
+TEST(TYTFileProviderTest, DownloadsOriginalTargetAfterRejectedReplacement)
+{
+    auto objectId = MakeFileId(1);
+    auto replacementId = MakeFileId(2);
+    auto client = New<testing::StrictMock<TMockClient>>();
+    auto provider = MakeProvider("//current", client);
+    ExpectSnapshotTransaction(client.Get(), "//current", objectId, MakeFileNode(objectId, TRevision{11}, 6));
+    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    TTempDir root;
+    ExpectSnapshotTransaction(client.Get(), "//current", replacementId, MakeFileNode(replacementId, TRevision{12}, 3));
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(provider->Download(revision, root.Name())).ThrowOnError(),
+        "source changed since discovery");
+    ExpectSnapshotTransaction(client.Get(), "//current", objectId, MakeFileNode(objectId, TRevision{11}, 6), nullptr, New<TTestFileReader>(objectId, TRevision{11}, std::vector<std::string>{"source"}));
+    WaitFor(provider->Download(revision, root.Name())).ThrowOnError();
+    EXPECT_EQ(TFileInput((TFsPath(root.Name()) / "data").GetPath()).ReadAll(), "source");
+}
+
+TEST(TYTFileProviderTest, ContentChangesInvalidateCache)
 {
     auto objectId = MakeFileId(1);
     auto client = New<testing::StrictMock<TMockClient>>();
-    ExpectSnapshotTransaction(
-        client.Get(),
-        "//dir/file",
-        objectId,
-        MakeFileNode(objectId, TRevision{11}, 6));
     auto provider = MakeProvider("//dir/file", client);
+    ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, MakeFileNode(objectId, TRevision{11}, 6));
+    auto first = WaitFor(provider->Discover()).ValueOrThrow();
+    ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, MakeFileNode(objectId, TRevision{12}, 6));
+    auto second = WaitFor(provider->Discover()).ValueOrThrow();
 
-    auto revision = WaitFor(provider->Discover()).ValueOrThrow();
+    EXPECT_NE(first->ObjectId, second->ObjectId);
+    ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, MakeFileNode(objectId, TRevision{12}, 6));
+    EXPECT_EQ(second->ObjectId, WaitFor(provider->Discover()).ValueOrThrow()->ObjectId);
+}
 
-    EXPECT_EQ(
-        revision->ObjectId.Underlying(),
-        Format("yt_file:v1:primary:%v:11", objectId));
-    EXPECT_EQ(revision->Size, 6);
-    EXPECT_EQ(
-        revision->Locator->GetChildValueOrThrow<EYTFileProviderObjectKind>("object_kind"),
-        EYTFileProviderObjectKind::CypressFile);
-    EXPECT_FALSE(revision->Locator->FindChild("basename"));
+TEST(TYTFileProviderTest, ReplacingObjectInvalidatesCacheWithSameContentRevision)
+{
+    for (bool isTable : {false, true}) {
+        auto client = New<testing::StrictMock<TMockClient>>();
+        auto provider = MakeProvider("//current", client);
+        auto discover = [&] (int index) {
+            auto objectId = isTable ? MakeTableId(index) : MakeFileId(index);
+            auto node = isTable
+                ? MakeTableNode(objectId, TRevision{42})
+                : MakeFileNode(objectId, TRevision{42}, 6);
+            ExpectSnapshotTransaction(client.Get(), "//current", objectId, node);
+            return WaitFor(provider->Discover()).ValueOrThrow();
+        };
+        auto first = discover(1);
+        auto second = discover(2);
 
-    EXPECT_CALL(*client, CreateFileReader(TYPath(Format("#%v", objectId)), _))
-        .WillOnce(testing::Return(MakeFuture<IFileReaderPtr>(
-            New<TTestFileReader>(objectId, TRevision{11}, std::vector<std::string>{"one", "two"}))));
-    TTempDir root;
-    WaitFor(provider->Download(revision, root.Name())).ThrowOnError();
-    EXPECT_EQ(TFileInput((TFsPath(root.Name()) / "data").GetPath()).ReadAll(), "onetwo");
+        EXPECT_NE(first->ObjectId, second->ObjectId);
+        EXPECT_EQ(first->Locator->GetChildValueOrThrow<TYPath>("object_path"), "//current");
+        EXPECT_EQ(second->Locator->GetChildValueOrThrow<TYPath>("object_path"), "//current");
+        EXPECT_EQ(second->ObjectId, discover(2)->ObjectId);
+    }
+}
 
-    EXPECT_CALL(*client, CreateFileReader(TYPath(Format("#%v", objectId)), _))
-        .WillOnce(testing::Return(MakeFuture<IFileReaderPtr>(
-            New<TTestFileReader>(objectId, TRevision{12}, std::vector<std::string>{"new"}))));
-    EXPECT_THROW_WITH_SUBSTRING(
-        WaitFor(provider->Download(revision, root.Name())).ThrowOnError(),
-        "changed between discovery and download");
+TEST(TYTFileProviderTest, IgnoresAttributeOnlyChanges)
+{
+    for (bool isTable : {false, true}) {
+        auto objectId = isTable ? MakeTableId(1) : MakeFileId(1);
+        auto node = isTable
+            ? MakeTableNode(objectId, TRevision{11})
+            : MakeFileNode(objectId, TRevision{11}, 6);
+        auto client = New<testing::StrictMock<TMockClient>>();
+        auto provider = MakeProvider("//dir/file", client);
+        node->MutableAttributes()->Set("revision", TRevision{12});
+        ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, node);
+        auto first = WaitFor(provider->Discover()).ValueOrThrow();
+        node->MutableAttributes()->Set("revision", TRevision{13});
+        ExpectSnapshotTransaction(client.Get(), "//dir/file", objectId, node);
+        auto second = WaitFor(provider->Discover()).ValueOrThrow();
+
+        EXPECT_EQ(first->ObjectId, second->ObjectId);
+        EXPECT_EQ(first->DisplayVersion, second->DisplayVersion);
+    }
 }
 
 TEST(TYTFileProviderTest, DiscoversBlobTableThroughLinkAndDownloadsAllFiles)
@@ -284,15 +352,13 @@ TEST(TYTFileProviderTest, DiscoversBlobTableThroughLinkAndDownloadsAllFiles)
 
     auto revision = WaitFor(provider->Discover()).ValueOrThrow();
 
-    EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_blob_table:v1:"));
+    EXPECT_TRUE(revision->ObjectId.Underlying().starts_with("yt_file:v1:"));
     EXPECT_FALSE(revision->Size);
-    EXPECT_EQ(
-        revision->Locator->GetChildValueOrThrow<EYTFileProviderObjectKind>("object_kind"),
-        EYTFileProviderObjectKind::BlobTable);
+    EXPECT_EQ(revision->Locator->GetChildCount(), 4);
 
     ExpectSnapshotTransaction(
         client.Get(),
-        Format("#%v", objectId),
+        "//current",
         objectId,
         MakeTableNode(objectId, TRevision{42}),
         MakeTableReader({
@@ -322,7 +388,7 @@ TEST(TYTFileProviderTest, EmptyBlobTableMaterializesAnEmptyDirectory)
 
     ExpectSnapshotTransaction(
         client.Get(),
-        Format("#%v", objectId),
+        "//empty",
         objectId,
         MakeTableNode(objectId, TRevision{1}),
         MakeTableReader({}));
@@ -370,12 +436,12 @@ TEST(TYTFileProviderTest, RejectsUnsupportedDynamicOrIncompatibleNode)
         "incompatible schema");
 }
 
-TEST(TYTFileProviderTest, RejectsChangedBlobTableBeforeReadingRows)
+TEST(TYTFileProviderTest, DownloadsChangedBlobTableAfterRediscovery)
 {
     auto objectId = MakeTableId(7);
     auto client = New<testing::StrictMock<TMockClient>>();
     auto provider = MakeProvider("//blob", client);
-    auto revision = MakeYTBlobTableFileProviderRevision(
+    auto revision = MakeYTFileProviderRevision(
         TypeName<TYTFileProvider>(),
         TRichYPath("//blob"),
         "primary",
@@ -383,14 +449,24 @@ TEST(TYTFileProviderTest, RejectsChangedBlobTableBeforeReadingRows)
         TRevision{42});
     ExpectSnapshotTransaction(
         client.Get(),
-        Format("#%v", objectId),
+        "//blob",
         objectId,
         MakeTableNode(objectId, TRevision{43}));
 
     TTempDir root;
     EXPECT_THROW_WITH_SUBSTRING(
         WaitFor(provider->Download(revision, root.Name())).ThrowOnError(),
-        "changed between discovery and download");
+        "source changed since discovery");
+    ExpectSnapshotTransaction(client.Get(), "//blob", objectId, MakeTableNode(objectId, TRevision{43}));
+    revision = WaitFor(provider->Discover()).ValueOrThrow();
+    ExpectSnapshotTransaction(
+        client.Get(),
+        "//blob",
+        objectId,
+        MakeTableNode(objectId, TRevision{43}),
+        MakeTableReader({{"file", 0, "updated"}}));
+    WaitFor(provider->Download(revision, root.Name())).ThrowOnError();
+    EXPECT_EQ(TFileInput((TFsPath(root.Name()) / "file").GetPath()).ReadAll(), "updated");
 }
 
 TEST(TYTFileProviderTest, RejectsInvalidBlobTableRows)
@@ -398,7 +474,7 @@ TEST(TYTFileProviderTest, RejectsInvalidBlobTableRows)
     auto objectId = MakeTableId(8);
     auto client = New<testing::StrictMock<TMockClient>>();
     auto provider = MakeProvider("//blob", client);
-    auto revision = MakeYTBlobTableFileProviderRevision(
+    auto revision = MakeYTFileProviderRevision(
         TypeName<TYTFileProvider>(),
         TRichYPath("//blob"),
         "primary",
@@ -406,7 +482,7 @@ TEST(TYTFileProviderTest, RejectsInvalidBlobTableRows)
         TRevision{1});
     ExpectSnapshotTransaction(
         client.Get(),
-        Format("#%v", objectId),
+        "//blob",
         objectId,
         MakeTableNode(objectId, TRevision{1}),
         MakeTableReader(

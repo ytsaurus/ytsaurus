@@ -1145,7 +1145,7 @@ TEST_F(TFileResourceTest, RegistryValidatesNamedProviders)
     invalidPipelineSpec->Resources[TResourceId("resource")] = invalidName;
     EXPECT_THROW_WITH_SUBSTRING(
         ValidatePipelineSpec(invalidPipelineSpec),
-        "single normal path component");
+        "Invalid file provider ID");
 
     EXPECT_THROW_WITH_SUBSTRING(
         TRegistry::Get()->ValidateResourceSpec(MakeNamedResourceSpec({})),

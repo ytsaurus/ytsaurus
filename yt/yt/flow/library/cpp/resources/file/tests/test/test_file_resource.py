@@ -1,6 +1,7 @@
 import io
 import os
 import tarfile
+import time
 
 import requests
 import pytest
@@ -306,6 +307,110 @@ class TestFileResourceLifecycle(FlowTestBase):
             self.wait_output("before", "first")
             self.write_cypress_file(file_path, b"second")
             self.wait_for_updated_output("updated", "second")
+
+    @pytest.mark.authors(["mikari"])
+    @pytest.mark.parametrize("directory_last", [False, True])
+    @pytest.mark.parametrize("object_type", ["file", "table"])
+    def test_selected_file_reload_without_job_restart(self, directory_last, object_type):
+        directory = f"{self.work_yt_path}/versions"
+        self.client.create("map_node", directory)
+        file_path = f"{directory}/001"
+
+        def write_payload(payload):
+            if object_type == "file":
+                self.write_cypress_file(file_path, payload)
+            elif self.client.exists(file_path):
+                self.client.write_table(file_path, [{"filename": "file", "part_index": 0, "data": payload}])
+            else:
+                self.write_blob_file(file_path, payload)
+
+        write_payload(b"first")
+        provider_class = "TYTDirectoryLastFileProvider" if directory_last else "TYTFileProvider"
+        pipeline = self.prepare_pipeline(
+            f"NYT::NFlow::{provider_class}",
+            f"<cluster=primary>{directory if directory_last else file_path}",
+        )
+        config = get_yson_config(pipeline)
+        config["spec"]["resources"]["text"]["always_on"] = True
+        pipeline = self.dump_config_to_log_dir(config, "reload-pipeline.yson")
+        node_config, cache_paths, worker_overrides = self.make_node_config(workers_count=2)
+
+        def wait_for_reload(previous_id=None):
+            result = None
+
+            def converged():
+                nonlocal result
+                counts = self.snapshot_state_counts("active")
+                if len(counts) != 1:
+                    return False
+                snapshot_id, count = next(iter(counts.items()))
+                if count != 2 or snapshot_id == previous_id:
+                    return False
+                result = snapshot_id
+                return True
+
+            wait(converged, timeout=120, ignore_exceptions=True)
+            return result
+
+        def job_ids():
+            return set(
+                self.client.get_flow_view(
+                    self.pipeline_path, view_path="/state/execution_spec/layout/jobs", cache=False
+                )
+            )
+
+        with self.start_flow_process_federation(
+            node_config=node_config,
+            workers_count=2,
+            pipeline_binary_args={"--config": pipeline},
+            worker_node_config_overrides=worker_overrides,
+        ):
+            self.write_input("before")
+            self.wait_output("before", "first")
+            first_id = wait_for_reload()
+            initial_jobs = job_ids()
+            assert initial_jobs
+            cached_before = [self.count_cached_objects(path) for path in cache_paths]
+
+            content_revision = self.client.get(f"{file_path}/@content_revision")
+            self.client.set(f"{file_path}/@reload_test", 1)
+            assert self.client.get(f"{file_path}/@content_revision") == content_revision
+            time.sleep(2)
+            assert self.snapshot_state_counts("active") == {first_id: 2}
+            assert [self.count_cached_objects(path) for path in cache_paths] == cached_before
+
+            write_payload(b"second")
+            second_id = wait_for_reload(first_id)
+            assert all(self.count_cached_objects(path) > count for path, count in zip(cache_paths, cached_before))
+            self.write_input("after-reload")
+            row = self.wait_output("after-reload", "second")
+            assert row["file_snapshot_id"] == second_id
+
+            old_object_id = self.client.get(f"{file_path}/@id")
+            cached_before_replace = [self.count_cached_objects(path) for path in cache_paths]
+            with self.client.Transaction():
+                self.client.remove(file_path)
+                write_payload(b"replacement")
+            assert self.client.get(f"{file_path}/@id") != old_object_id
+            replacement_id = wait_for_reload(second_id)
+            assert all(
+                self.count_cached_objects(path) > count for path, count in zip(cache_paths, cached_before_replace)
+            )
+            self.write_input("after-replace")
+            row = self.wait_output("after-replace", "replacement")
+            assert row["file_snapshot_id"] == replacement_id
+
+            write_payload(b"corrupt")
+            self.wait_for_pipeline_error("Test file resource rejected corrupt payload")
+            self.write_input("failed-reload")
+            self.wait_output("failed-reload", "replacement")
+
+            write_payload(b"third")
+            third_id = wait_for_reload(replacement_id)
+            self.write_input("recovered")
+            row = self.wait_output("recovered", "third")
+            assert row["file_snapshot_id"] == third_id
+            assert job_ids() == initial_jobs
 
     @pytest.mark.authors(["mikari"])
     def test_two_workers_report_independent_cache_and_rollout_state(self):

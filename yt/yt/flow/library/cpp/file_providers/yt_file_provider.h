@@ -11,13 +11,6 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EYTFileProviderObjectKind,
-    ((CypressFile) (0))
-    ((BlobTable)   (1))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_STRUCT(TYTFileProviderLocator);
 
 struct TYTFileProviderLocator
@@ -26,8 +19,7 @@ struct TYTFileProviderLocator
     std::string Cluster;
     NYPath::TYPath ObjectPath;
     NObjectClient::TObjectId ObjectId;
-    NHydra::TRevision Revision;
-    EYTFileProviderObjectKind ObjectKind = EYTFileProviderObjectKind::CypressFile;
+    NHydra::TRevision ContentRevision;
 
     REGISTER_YSON_STRUCT(TYTFileProviderLocator);
 
@@ -43,15 +35,8 @@ TFileProviderRevisionPtr MakeYTFileProviderRevision(
     const NYPath::TRichYPath& originalPath,
     const std::string& cluster,
     NObjectClient::TObjectId objectId,
-    NHydra::TRevision revision,
-    i64 size);
-
-TFileProviderRevisionPtr MakeYTBlobTableFileProviderRevision(
-    TStringBuf fileProviderClassName,
-    const NYPath::TRichYPath& originalPath,
-    const std::string& cluster,
-    NObjectClient::TObjectId objectId,
-    NHydra::TRevision contentRevision);
+    NHydra::TRevision contentRevision,
+    std::optional<i64> size = std::nullopt);
 
 TFuture<TFileProviderRevisionPtr> DiscoverYTFileProvider(
     const TFileProviderContextPtr& context,

@@ -66,13 +66,13 @@ struct TFileProviderRevision
 {
     // Registered #IFileProvider implementation that interprets |Locator|.
     std::string FileProviderClassName;
-    // Stable object identity; equal values guarantee byte-identical downloaded files.
+    // Cache identity of one discovered generation.
     NFileStorage::TFileStorageObjectId ObjectId;
     // Human-readable version for diagnostics; it does not participate in content identity.
     std::string DisplayVersion;
     // Expected downloaded payload size, when the provider can determine it during discovery.
     std::optional<i64> Size;
-    // Provider-specific coordinates of this exact revision.
+    // Provider-specific download coordinates.
     NYTree::IMapNodePtr Locator;
 
     REGISTER_YSON_STRUCT(TFileProviderRevision);
@@ -121,7 +121,7 @@ struct IFileProvider
 
     virtual TFuture<TFileProviderRevisionPtr> Discover() = 0;
 
-    // Materializes exactly |revision|; current dynamic parameters must not reselect its version.
+    // Materializes |revision|; current dynamic parameters must not reselect its source.
     virtual TFuture<void> Download(
         const TFileProviderRevisionPtr& revision,
         const std::string& stagingDirectory) = 0;
