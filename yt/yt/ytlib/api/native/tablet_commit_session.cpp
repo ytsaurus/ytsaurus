@@ -429,15 +429,15 @@ private:
             return firstBatchError << TErrorAttribute("retry_skip_reason", "uniform_prepare_signature_disabled");
         }
 
-        int batchCount = std::ssize(Batches_);
-        CellCommitSession_->GetPrepareSignatureGenerator()->UnregisterRequests(batchCount);
-        CellCommitSession_->UnregisterTabletCommitSession(TabletInfo_->TabletId);
-        //TODO(alexelexa, kvk1920): update commit signatures as well.
-
         const auto& cellCommitSession = CellCommitSessionProvider_->GetOrCreateCellCommitSession(newTabletInfo->CellId);
         if (auto error = validateCellCommitSession(cellCommitSession, newTabletInfo->CellId); !error.IsOK()) {
             return error;
         }
+
+        int batchCount = std::ssize(Batches_);
+        CellCommitSession_->GetPrepareSignatureGenerator()->UnregisterRequests(batchCount);
+        CellCommitSession_->UnregisterTabletCommitSession(TabletInfo_->TabletId);
+        //TODO(alexelexa, kvk1920): update commit signatures as well.
 
         cellCommitSession->GetPrepareSignatureGenerator()->RegisterRequests(batchCount, /*adjustRequestIndex*/ true);
         cellCommitSession->RegisterTabletCommitSession(TabletInfo_->TabletId);
