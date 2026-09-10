@@ -13,6 +13,16 @@ namespace NYql {
 
 struct TWorkerRuntimeData;
 
+struct TGlobalWorkerManagerActorIdOptions {
+    // Register GWM under MakeWorkerManagerActorID in addition to its dedicated id.
+    // Must be false when LWM and GWM are hosted by the same actor system.
+    bool RegisterLegacyActorId = true;
+
+    // Address GWM nodes by MakeGlobalWorkerManagerActorID. Keep false until every
+    // possible target has the dedicated id registered.
+    bool UseGlobalActorId = false;
+};
+
 class ICoordinationHelper: public TThrRefBase {
 public:
     using TPtr = TIntrusivePtr<ICoordinationHelper>;
@@ -34,11 +44,17 @@ public:
 
     virtual NActors::IActor* CreateLock(const TString& lockName, bool temporary = true) = 0;
 
-    virtual NActors::IActor* CreateServiceNodePinger(const IServiceNodeResolver::TPtr& ptr, const TResourceManagerOptions& rmOptions, const THashMap<TString, TString>& attributes = {}) = 0;
+    virtual NActors::IActor* CreateServiceNodePinger(
+        const IServiceNodeResolver::TPtr& ptr,
+        const TResourceManagerOptions& rmOptions,
+        const THashMap<TString, TString>& attributes = {}) = 0;
 
     virtual void StartRegistrator(NActors::TActorSystem* actorSystem) = 0;
 
-    virtual void StartGlobalWorker(NActors::TActorSystem* actorSystem, const TVector<TResourceManagerOptions>& resourceUploaderOptions, IMetricsRegistryPtr metricsRegistry) = 0;
+    virtual void StartGlobalWorker(
+        NActors::TActorSystem* actorSystem,
+        const TVector<TResourceManagerOptions>& resourceUploaderOptions,
+        IMetricsRegistryPtr metricsRegistry) = 0;
 
     virtual void StartCleaner(NActors::TActorSystem* actorSystem, const TMaybe<TString>& role) = 0;
 
@@ -60,6 +76,13 @@ public:
     virtual TString GetRevision() = 0;
 };
 
-ICoordinationHelper::TPtr CreateCoordiantionHelper(const NProto::TDqConfig::TYtCoordinator& config, const NProto::TDqConfig::TScheduler& schedulerConfig, const TString& role, ui16 interconnectPort, const TString& host, const TString& ip);
+ICoordinationHelper::TPtr CreateCoordiantionHelper(
+    const NProto::TDqConfig::TYtCoordinator& config,
+    const NProto::TDqConfig::TScheduler& schedulerConfig,
+    const TString& role,
+    ui16 interconnectPort,
+    const TString& host,
+    const TString& ip,
+    TGlobalWorkerManagerActorIdOptions actorIdOptions = {});
 
 } // namespace NYql

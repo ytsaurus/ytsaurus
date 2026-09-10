@@ -52,7 +52,8 @@ public:
         const THashMap<TString, TString>& attributes,
         const IServiceNodeResolver::TPtr& resolver,
         const ICoordinationHelper::TPtr& coordinator,
-        const TResourceManagerOptions& options)
+        const TResourceManagerOptions& options,
+        TGlobalWorkerManagerActorIdOptions actorIdOptions)
         : TActor<TServiceNodePinger>(&TServiceNodePinger::Handler)
         , NodeId(nodeId)
         , Address(address)
@@ -64,6 +65,7 @@ public:
         , Options(options)
         , RuntimeData(coordinator->GetRuntimeData())
         , Coordinator(coordinator)
+        , ActorIdOptions(actorIdOptions)
     {
         CreateGuid(&Guid);
 
@@ -127,18 +129,20 @@ private:
         auto now = TInstant::Now();
         auto delta = now - LastPingTime;
         if (delta > HeartbeatPeriod) {
-//            YQL_CLOG(DEBUG, ProviderDq) << "Ping Now";
             Send(SelfId(), new TEvents::TEvBootstrap);
         } else {
-            //         YQL_CLOG(DEBUG, ProviderDq) << "Ping After " << (HeartbeatPeriod - delta).MilliSeconds();
             Schedule(HeartbeatPeriod - delta, new TEvents::TEvBootstrap);
         }
     }
 
     void OnRegisterNodeResponse(TEvRegisterNodeResponse::TPtr& ev, const TActorContext& ctx) {
-//        YQL_CLOG(DEBUG, ProviderDq) << "Pong";
-
         if (ev->Get()->Error) {
+            YQL_CLOG(DEBUG, ProviderDq) << "Worker ping failed"
+                << " nodeId=" << NodeId
+                << " role=" << Role
+                << " address=" << Address
+                << " port=" << Port
+                << " errors=" << (Errors + 1);
             Errors += 1;
             Oks = 0;
             if (Options.ExitOnPingFail && Errors > 3) {
@@ -173,8 +177,7 @@ private:
 
         TVector<TResourceFile> downloadList;
         for (auto& file : resp.GetDownloadList()) {
-            if (Downloading.contains(file.GetObjectId()) || (Options.FileCache && Options.FileCache->Contains(file.GetObjectId())))
-            {
+            if (Downloading.contains(file.GetObjectId()) || (Options.FileCache && Options.FileCache->Contains(file.GetObjectId()))) {
                 continue;
             }
             TResourceFile resource;
@@ -192,7 +195,7 @@ private:
 
             downloadList.push_back(resource);
 
-            YQL_CLOG(DEBUG, ProviderDq) << "Start downloading: " << file.GetObjectId();
+            YQL_CLOG(TRACE, ProviderDq) << "Start downloading: " << file.GetObjectId() << ", resource.RemoteFileName: " << resource.RemoteFileName;
 
             Downloading.insert(file.GetObjectId());
         }
@@ -273,26 +276,47 @@ private:
         auto selfId = SelfId();
 
         Resolver->GetConnection()
-            .Apply([actorSystem, selfId, req, maybeResolver=std::weak_ptr<IServiceNodeResolver>(Resolver), timeout=HeartbeatPeriod, lastPingTime=LastPingTime, errors=Errors, oks=Oks] (const NThreading::TFuture<IServiceNodeResolver::TConnectionResult>& resultFuture) {
+            .Apply([actorSystem, selfId, req, maybeResolver=std::weak_ptr<IServiceNodeResolver>(Resolver), timeout=HeartbeatPeriod, lastPingTime=LastPingTime, errors=Errors, oks=Oks, nodeId=NodeId, role=Role, address=Address, port=Port, actorIdOptions=ActorIdOptions] (const NThreading::TFuture<IServiceNodeResolver::TConnectionResult>& resultFuture) {
                 const auto& result = resultFuture.GetValueSync();
                 if (!result.Success()) {
-                    YQL_CLOG(DEBUG, ProviderDq) << "Cannot resolve service node";
+                    TString errorMsg = result.Issues().Empty()
+                        ? "unknown"
+                        : result.Issues().begin()->GetMessage();
+                    YQL_CLOG(DEBUG, ProviderDq) << "Cannot resolve service node"
+                        << " workerNodeId=" << nodeId
+                        << " role=" << role
+                        << " address=" << address
+                        << " port=" << port
+                        << " error=" << errorMsg;
                     actorSystem->Send(selfId, new TEvRegisterNodeResponse());
                     return;
                 }
+
+                const bool useGrpcPing = !lastPingTime || errors > 1 || oks < 2 || !result.NodeId;
+                YQL_CLOG(TRACE, ProviderDq) << "Resolved service node"
+                    << " workerNodeId=" << nodeId
+                    << " role=" << role
+                    << " target=" << result.Location
+                    << " serviceNodeId=" << result.NodeId
+                    << " useGrpcPing=" << useGrpcPing;
 
                 if (!maybeResolver.lock()) {
                     return;
                 }
 
-                if (!lastPingTime || errors > 1 || oks < 2 || !result.NodeId) {
+                if (useGrpcPing) {
                     // GRPC ping
                     NYdbGrpc::TCallMeta meta;
                     meta.Timeout = NYdb::TDeadline::SafeDurationCast(timeout);
                     result.Connection->DoRequest<Yql::DqsProto::RegisterNodeRequest, Yql::DqsProto::RegisterNodeResponse>(
                         req, [=] (NYdbGrpc::TGrpcStatus&& status, Yql::DqsProto::RegisterNodeResponse&& resp) {
                             if (!status.Ok()) {
-                                YQL_CLOG(DEBUG, ProviderDq) << "Error on service node ping " << status.Msg;
+                                YQL_CLOG(WARN, ProviderDq) << "Error on service node ping"
+                                    << " workerNodeId=" << nodeId
+                                    << " role=" << role
+                                    << " target=" << result.Location
+                                    << " grpcCode=" << status.GRpcStatusCode
+                                    << " msg=" << status.Msg;
                                 if (auto resolver = maybeResolver.lock()) {
                                     resolver->InvalidateCache();
                                 }
@@ -325,8 +349,11 @@ private:
 
                     TActorId callbackId = actorSystem->Register(callback.Release());
 
+                    const auto workerManagerActorId = actorIdOptions.UseGlobalActorId
+                        ? NDqs::MakeGlobalWorkerManagerActorID(result.NodeId)
+                        : NDqs::MakeWorkerManagerActorID(result.NodeId);
                     actorSystem->Send(new IEventHandle(
-                        NDqs::MakeWorkerManagerActorID(result.NodeId),
+                        workerManagerActorId,
                         callbackId,
                         ev.Release(),
                         IEventHandle::FlagTrackDelivery));
@@ -369,6 +396,7 @@ private:
     TResourceManagerOptions Options;
     TWorkerRuntimeData* RuntimeData;
     const ICoordinationHelper::TPtr Coordinator;
+    const TGlobalWorkerManagerActorIdOptions ActorIdOptions;
 
     THashSet<TString> Downloading;
     THashMap<TActorId, TVector<TResourceFile>> DownloadProcess;
@@ -390,9 +418,19 @@ IActor* CreateServiceNodePinger(
     const THashMap<TString, TString>& attributes,
     const IServiceNodeResolver::TPtr& ptr,
     const ICoordinationHelper::TPtr& coordinator,
-    const TResourceManagerOptions& rmOptions)
+    const TResourceManagerOptions& rmOptions,
+    TGlobalWorkerManagerActorIdOptions actorIdOptions)
 {
-    return new TServiceNodePinger(nodeId, address, port, role, attributes, ptr, coordinator, rmOptions);
+    return new TServiceNodePinger(
+        nodeId,
+        address,
+        port,
+        role,
+        attributes,
+        ptr,
+        coordinator,
+        rmOptions,
+        actorIdOptions);
 }
 
 } // namespace NYql

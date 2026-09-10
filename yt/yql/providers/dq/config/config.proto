@@ -190,4 +190,7 @@ message TDqConfig {
 
     optional uint64 OpenSessionTimeoutMs = 17 [default = 15000];
     optional uint64 RequestTimeoutMs = 18 [default = 720000];
+
+    // Enable dq.Clique routing and client-side artifact upload via CreateDqGatewayWithUploader.
+    optional bool EnableClique = 19 [default = false];
 }
