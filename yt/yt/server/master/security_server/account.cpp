@@ -1,6 +1,7 @@
 #include "account.h"
 #include "private.h"
 #include "helpers.h"
+#include "security_manager.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 

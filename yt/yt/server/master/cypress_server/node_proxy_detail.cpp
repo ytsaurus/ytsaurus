@@ -46,6 +46,7 @@
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 

@@ -67,6 +67,7 @@
 #include <yt/yt/ytlib/election/cell_manager.h>
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>

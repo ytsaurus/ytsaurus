@@ -6,18 +6,24 @@
 #include "tablet_action.h"
 #include "tablet_action_manager.h"
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 #include <yt/yt/server/master/cell_server/cell_base.h>
+
+#include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 

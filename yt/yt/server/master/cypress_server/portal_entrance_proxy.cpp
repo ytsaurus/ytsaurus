@@ -6,6 +6,10 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/core/ytree/ypath_proxy.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NYTree;

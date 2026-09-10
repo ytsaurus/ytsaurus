@@ -64,8 +64,10 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/subject.h>
+#include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
@@ -77,6 +79,7 @@
 #include <yt/yt/server/node/tablet_node/serialize.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/public.h>
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
@@ -84,13 +87,10 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
-#include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
-
-#include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>

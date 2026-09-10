@@ -72,6 +72,7 @@
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/concurrency/quantized_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 

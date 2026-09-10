@@ -8,6 +8,8 @@
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;

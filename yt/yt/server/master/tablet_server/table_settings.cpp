@@ -5,6 +5,7 @@
 #include "hunk_storage_node.h"
 #include "mount_config_storage.h"
 #include "public.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_owner_base.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>

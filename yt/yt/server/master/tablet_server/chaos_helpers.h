@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/yt/client/chaos_client/replication_card.h>
+#include <yt/yt/client/chaos_client/public.h>
 
 namespace NYT::NTabletServer {
 

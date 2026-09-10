@@ -8,7 +8,10 @@
 
 #include <yt/yt/core/misc/object_pool.h>
 
-#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/public.h>
 
 namespace NYT::NHydra {
 

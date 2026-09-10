@@ -15,10 +15,19 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/master/security_server/access_log.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/user.h>
+
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/library/profiling/producer.h>

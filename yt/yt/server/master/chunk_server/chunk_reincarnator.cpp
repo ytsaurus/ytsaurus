@@ -32,6 +32,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;

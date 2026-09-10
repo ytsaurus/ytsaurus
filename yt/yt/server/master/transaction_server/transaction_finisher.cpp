@@ -17,6 +17,10 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/rpc/service.h>
+
 namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;

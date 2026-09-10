@@ -9,8 +9,10 @@
 #include "tablet_action.h"
 #include "tablet_action_type_handler.h"
 #include "tablet_cell.h"
+#include "tablet_cell_bundle.h"
 #include "tablet_manager.h"
 
+#include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>

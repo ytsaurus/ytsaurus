@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 namespace NYT::NCypressServer {

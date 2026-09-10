@@ -7,8 +7,6 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
-#include <yt/yt/server/master/cypress_server/node_detail.h>
-
 #include <yt/yt/server/master/tablet_server/public.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_owner_base.h>

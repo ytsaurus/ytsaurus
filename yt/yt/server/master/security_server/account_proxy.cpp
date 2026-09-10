@@ -21,6 +21,7 @@
 #include <yt/yt/ytlib/security_client/proto/account_ypath.pb.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/yson/async_writer.h>
 
