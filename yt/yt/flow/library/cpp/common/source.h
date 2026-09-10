@@ -123,6 +123,8 @@ public:
         std::vector<TInputMessageConstPtr> Messages;
     };
 
+    //! Must complete quickly: callers may invoke it before the partition's first status update, so
+    //! blocking here can delay graph progress.
     virtual void Init(IInitContextPtr initContext) = 0;
 
     //! Must be called at finish if Init() was called.
