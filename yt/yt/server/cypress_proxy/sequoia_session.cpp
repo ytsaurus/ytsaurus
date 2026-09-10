@@ -502,6 +502,7 @@ TSequoiaSession::TPagedSubtreeFetcher::TPagedSubtreeFetcher(
 TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
     const TAuthenticationIdentity& authenticationIdentity,
+    std::string description,
     TTransactionId cypressTransactionId,
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds)
 {
@@ -525,12 +526,18 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     auto nativeAuthenticatedClient = bootstrap->GetNativeConnection()->CreateNativeClient(clientOptions);
 
     const auto& masterConnector = bootstrap->GetMasterConnector();
+
+    TTransactionStartOptions transactionStartOptions;
+    transactionStartOptions.Attributes = CreateEphemeralAttributes();
+    transactionStartOptions.Attributes->Set("title", description);
+
     auto sequoiaTransaction = WaitFor(
         StartCypressProxyTransaction(
             sequoiaClient,
             ESequoiaTransactionType::CypressModification,
             masterConnector->GetSequoiaTransactionFeatures(),
-            cypressPrerequisiteTransactionIds))
+            cypressPrerequisiteTransactionIds,
+            transactionStartOptions))
         .ValueOrThrow();
 
     std::vector<TTransactionId> cypressTransactions;
