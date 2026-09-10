@@ -2657,7 +2657,7 @@ def add_dirtable_parser(root_subparsers):
 
 
 def add_livy_parser(add_parser):
-    parser = add_parser("livy", pythonic_help="SPYT Livy commands")
+    parser = add_parser("livy", pythonic_help="SPYT Livy commands. Deprecated and unavailable starting with SPYT 2.10.0.")
     livy_subparsers = parser.add_subparsers(metavar="livy_command", **SUBPARSER_KWARGS)
     add_spyt_liyv_subparser = add_subparser(livy_subparsers, params_argument=False)
     add_strawberry_ctl_parser(add_spyt_liyv_subparser, "livy")

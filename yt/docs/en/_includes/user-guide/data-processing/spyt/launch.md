@@ -41,7 +41,7 @@ This method is applicable for intensive cluster usage. In this mode {{product-na
 
 - Launching high-frequent tasks (more than once per hour). The efficiency is achieved because the task startup time in standalone cluster is significantly less than {{product-name}} operation startup time.
 - Ad-hoc analytics in Jupyter notebooks.
-- Ad-hoc analytics using Query tracker and livy.
+- Ad-hoc analytics using Query Tracker and [Livy](../../../../user-guide/data-processing/spyt/cluster/livy.md) in SPYT versions below 2.10.0. Starting with SPYT 2.10.0 and Query Tracker 0.4, use [SPYT Connect](../../../../user-guide/data-processing/spyt/connect.md).
 
 For launching an inner standalone Spark cluster follow these steps:
 
