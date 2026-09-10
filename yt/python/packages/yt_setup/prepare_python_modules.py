@@ -141,7 +141,10 @@ def prepare_python_modules(
     packages_dir = os.path.join(output_path, "yt", "packages")
 
     if should_patch_os_files:
-        patch_os_files([os.path.join(output_path, "yt/wrapper/client.py")], to_os=True)
+        patch_os_files([
+            os.path.join(output_path, "yt/environment/init_operations_archive.py"),
+            os.path.join(output_path, "yt/wrapper/client.py"),
+        ], to_os=True)
 
     # Prepare contribs
     for package_name in YT_PYTHON_PACKAGE_LIST:
