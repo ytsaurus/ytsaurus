@@ -212,9 +212,6 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
           // Модификация стейта
           state.setCount(state.getCount() + 1);
           state.setLastUpdate(message.getEventTimestamp());
-
-          // Сохранение стейта
-          stateAccessor.set(state);
       }
   }
   ```
@@ -233,9 +230,6 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
           // Модификация стейта
           state.count = state.count + 1
           state.lastUpdate = message.getEventTimestamp()
-
-          // Сохранение стейта
-          stateAccessor.set(state)
       }
   }
   ```
@@ -439,7 +433,6 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
 
           CounterState state = stateAccessor.getOrDefault(new CounterState());
           state.setCount(state.getCount() + 1);
-          stateAccessor.set(state);
       }
   }
   ```
@@ -469,7 +462,6 @@ Java SDK Flow (Java и Kotlin) предоставляет несколько в�
 
           val state: CounterState = stateAccessor.getOrDefault(CounterState())
           state.count = state.count + 1
-          stateAccessor.set(state)
       }
   }
   ```

@@ -37,7 +37,6 @@ public class UrlDownloadFunction implements RowFunction {
         StateAccessor<HostState> accessor = ctx.getState(HOST_STATE, message);
         HostState state = accessor.getOrDefault(new HostState(host));
         state.getPendingUrls().add(url);
-        accessor.set(state);
 
         output.addTimer(System.currentTimeMillis() / 1000 + 5, 0L);
         log.debug("Queued url (Host: {}, Url: {})", host, url);

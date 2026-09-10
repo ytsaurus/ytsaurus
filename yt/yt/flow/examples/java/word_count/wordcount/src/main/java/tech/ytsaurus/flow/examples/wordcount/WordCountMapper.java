@@ -25,7 +25,6 @@ public class WordCountMapper implements RowFunction {
         StateAccessor<WordCountState> stateAccessor = ctx.getState(WORD_STATE, message);
         var state = stateAccessor.getOrDefault(new WordCountState(input.getWord(), 0));
         state.setCount(state.getCount() + 1);
-        stateAccessor.set(state);
     }
     // [END on_message]
 }
