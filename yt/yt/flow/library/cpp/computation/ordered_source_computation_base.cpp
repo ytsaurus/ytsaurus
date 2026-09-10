@@ -1,7 +1,5 @@
 #include "ordered_source_computation_base.h"
 
-#include "message_filter.h"
-
 #include <yt/yt/flow/library/cpp/connectors/common/ordered_source.h>
 
 #include <algorithm>
@@ -28,13 +26,7 @@ TOrderedSourceComputationBase::TOrderedSourceComputationBase(
         OrderedSource_ = DynamicPointerCast<IOrderedSource>(ActiveSource_);
         THROW_ERROR_EXCEPTION_UNLESS(OrderedSource_, "Expected IOrderedSource for source %Qv in computation %Qv", ActiveSourceStreamId_, GetComputationId());
     }
-    Filter_ = CreateMessageFilter(GetDynamicSpec()->SkipIfExpression);
     SkippedByExpressionCounter_ = GetContext()->Profiler.WithPrefix("/source_streams").Counter("/skipped_by_expression_count");
-    SubscribeOnReconfigure(
-        BIND([this] {
-            Filter_->Reconfigure(GetDynamicSpec()->SkipIfExpression);
-        }),
-        EWatchReconfigure::DynamicComputationSpec);
 }
 
 void TOrderedSourceComputationBase::DoPrepare(const IComputationRunContextPtr& context)

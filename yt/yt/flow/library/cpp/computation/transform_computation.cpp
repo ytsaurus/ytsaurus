@@ -137,15 +137,20 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             .With("Timers", inputTimers.size())
             .With("Visits", inputVisits.size());
 
+        TLineageDelta inputLineageDelta;
+        auto emptyInput = inputs.empty() && inputTimers.empty() && inputVisits.empty();
+        auto filteredInputs = FilterInputBatch(context, std::move(inputs), &inputLineageDelta);
+
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
-            auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, deduplicateInput);
+            auto [processedInput, unprocessedInputs] = InputStore_->Filter(filteredInputs, deduplicateInput);
             YT_TLOG_INFO("Filtered already processed")
                 .With("Inputs", processedInput.size());
             context->MarkDeduplicated(processedInput);
             return unprocessedInputs;
         }();
 
+        AddLineageInputs(&inputLineageDelta, GetSpec(), unprocessedInputs, inputTimers, inputVisits);
         ThrottleInputBatch(unprocessedInputs, inputTimers, inputVisits);
 
         TRootOutputCollector::TTransformResult processResult;
@@ -195,7 +200,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             DoSync(tx);
             YT_TLOG_INFO("Transaction prepared");
         }
-        AddLineageInputs(&processResult.LineageDelta, GetSpec(), unprocessedInputs, inputTimers, inputVisits);
+        AddLineageDelta(std::move(inputLineageDelta));
         AddLineageDelta(std::move(processResult.LineageDelta));
         Commit(context, tx);
 
@@ -205,14 +210,13 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
 
         FinishRunIteration();
 
-        WaitForBackoff(dynamicSpec, outputLimitsCheckResult,
-            /*emptyInput*/ inputs.empty() && inputTimers.empty() && inputVisits.empty());
+        WaitForBackoff(dynamicSpec, outputLimitsCheckResult, emptyInput);
 
         ClearAsynchronously(
-            std::move(inputs),
             std::move(inputTimers),
             std::move(inputVisits),
             std::move(unprocessedInputs),
+            std::move(filteredInputs),
             std::move(processResult));
     }
     YT_TLOG_INFO("Completed DoExecute");

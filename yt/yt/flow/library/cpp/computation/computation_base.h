@@ -428,6 +428,11 @@ protected:
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights(
         const IComputationRunContextPtr& context) const;
 
+    std::vector<TInputMessageConstPtr> FilterInputBatch(
+        const IComputationRunContextPtr& context,
+        std::vector<TInputMessageConstPtr> messages,
+        TLineageDelta* lineageDelta);
+
     void RegisterInputBeforeProcessing(
         const std::vector<TInputMessageConstPtr>& inputMessages,
         const std::vector<TInputTimerConstPtr>& inputTimers,
@@ -601,6 +606,7 @@ protected:
     const THashMap<TStreamId, TKeyVisitorPtr> KeyVisitors_;
     const IComputationTracerPtr Tracer_;
     const IEventTimestampAssignerPtr EventTimestampAssigner_;
+    const IMessageFilterPtr Filter_;
 
 private:
     struct TStreamMessageCounters
@@ -610,6 +616,7 @@ private:
     };
 
     const TInstant StartTime_;
+    const NProfiling::TCounter InputSkippedByExpressionCounter_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LimitsLock_);
     THashMap<std::string, THashMap<TStreamId, TJobEntityLimitStatus>> InputLimits_;

@@ -174,15 +174,20 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             .With("Timers", inputTimers.size())
             .With("Visits", inputVisits.size());
 
+        TLineageDelta inputLineageDelta;
+        auto emptyInput = inputs.empty() && inputTimers.empty() && inputVisits.empty();
+        auto filteredInputs = FilterInputBatch(context, std::move(inputs), &inputLineageDelta);
+
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
-            auto [processedInput, unprocessedInputs] = InputStore_->Filter(inputs, /*checkState*/ false);
+            auto [processedInput, unprocessedInputs] = InputStore_->Filter(filteredInputs, /*checkState*/ false);
             YT_TLOG_INFO("Filtered already processed")
                 .With("Inputs", processedInput.size());
             context->MarkDeduplicated(processedInput);
             return unprocessedInputs;
         }();
 
+        AddLineageInputs(&inputLineageDelta, GetSpec(), unprocessedInputs, inputTimers, inputVisits);
         ThrottleInputBatch(unprocessedInputs, inputTimers, inputVisits);
 
         // For batching we need uniqueSeqNo before Process to seed the merge meta setter; wait outside the
@@ -311,7 +316,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
 
         // May be empty to enforce lease check.
         auto tx = PrepareTransaction(context);
-        AddLineageInputs(&lineageDelta, GetSpec(), unprocessedInputs, inputTimers, inputVisits);
+        AddLineageDelta(std::move(inputLineageDelta));
         AddLineageDelta(std::move(lineageDelta));
         Commit(context, tx);
 
@@ -319,14 +324,13 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         isFinished = UpdateStatus(/*reportTime*/ now, GetInputSystemWatermark(), BuildInflights(context));
         FinishRunIteration();
 
-        WaitForBackoff(dynamicSpec, outputLimitsCheckResult,
-            /*emptyInput*/ inputs.empty() && inputTimers.empty() && inputVisits.empty());
+        WaitForBackoff(dynamicSpec, outputLimitsCheckResult, emptyInput);
 
         ClearAsynchronously(
-            std::move(inputs),
             std::move(inputTimers),
             std::move(inputVisits),
             std::move(unprocessedInputs),
+            std::move(filteredInputs),
             std::move(outputMessages),
             std::move(outputParents));
     }

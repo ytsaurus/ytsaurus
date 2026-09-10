@@ -50,6 +50,34 @@ class Test(FlowTestBase):
 
         return self.dump_config_to_log_dir(pipeline_config, "pipeline.yson")
 
+    @pytest.mark.authors(["mikari"])
+    def test_fully_filtered_input_lineage(self):
+        run_yt_sync("primary", self.work_yt_path)
+        observation_path = os.path.join(self.path_to_flow_logs, "filtered_lineage_commit")
+        config = get_yson_config(PIPELINE_CONFIG_PATH)
+        config["spec"]["computations"]["processor"]["parameters"]["lineage_commit_path"] = observation_path
+        processor = config["dynamic_spec"]["computations"]["processor"]
+        processor["skip_if_expression"] = "true"
+        processor["parameters"]["desired_partition_count"] = 1
+        self.patch_config(config)
+        config_path = self.dump_config_to_log_dir(config, "pipeline.yson")
+
+        with self.start_flow_process_federation(
+            node_config={"enable_porto_resource_tracker": False},
+            pipeline_binary_args={"--config": config_path},
+            workers_count=1,
+            controllers_count=1,
+            problems=False,
+        ):
+            # Observe the actual committed delta, without waiting for the lineage EMA to mature.
+            wait(lambda: os.path.exists(observation_path), timeout=120)
+            with open(observation_path) as observation:
+                output_count, input_count, output_bytes, input_bytes = map(float, observation.read().split())
+            assert input_count > 0
+            assert input_bytes > 0
+            assert output_count == 0
+            assert output_bytes == 0
+
     @pytest.mark.authors(["pechatnov"])
     def test_telemetry(self):
         run_yt_sync("primary", self.work_yt_path)
