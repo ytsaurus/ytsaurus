@@ -293,6 +293,10 @@ TNodeId CreatePipelineNode(
     const TYPath& path,
     const TCreateNodeOptions& options)
 {
+    auto attributes = options.Attributes ? options.Attributes->Clone() : CreateEphemeralAttributes();
+    auto initializeTables = attributes->GetAndRemove<bool>("initialize_tables", true);
+    attributes->Set(PipelineFormatVersionAttribute, CurrentPipelineFormatVersion);
+
     auto getTablePath = [&path] (TStringBuf tableName) {
         return YPathJoin(path, ToYPathLiteral(tableName));
     };
@@ -309,16 +313,12 @@ TNodeId CreatePipelineNode(
     }();
 
     auto pipelineNodeId = [&] {
-        auto attributes = options.Attributes ? options.Attributes->Clone() : CreateEphemeralAttributes();
-        attributes->Set(PipelineFormatVersionAttribute, CurrentPipelineFormatVersion);
         auto createNodeOptions = options;
         createNodeOptions.Attributes = std::move(attributes);
         return WaitFor(transaction->CreateNode(path, EObjectType::MapNode, createNodeOptions))
             .ValueOrThrow();
     }();
 
-    auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
-    auto initializeTables = attributes->Get<bool>("initialize_tables", true);
     if (initializeTables) {
         std::vector<TFuture<void>> createTableFutures;
         for (const auto& [tableName, tableAttributes] : GetTables()) {
