@@ -398,8 +398,8 @@ void ProcessSource(
             parameters->AddChild(
                 "consumer_path", NYT::NYTree::ConvertToNode(consumerRichPath));
 
-            parameters->AddChild(
-                "source_type", NYT::NYTree::ConvertToNode(ESourceType::YT));
+            computationSpec->Parameters->AddChild(
+                "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Yt)));
         } else if (settings.Is<NProto::TPQSourceMessage>()) {
             sourceSpec->SourceClassName = "NYT::NFlow::TLogbrokerSource";
 
@@ -432,8 +432,8 @@ void ProcessSource(
             parameters->AddChild(
                 "consumer", NYT::NYTree::ConvertToNode(maybeConsumerPath.GetRef()));
 
-            parameters->AddChild(
-                "source_type", NYT::NYTree::ConvertToNode(ESourceType::Logbroker));
+            computationSpec->Parameters->AddChild(
+                "source_type", NYT::NYTree::ConvertToNode(NYT::Format("%lv", ESourceType::Logbroker)));
 
             if (auto maybeToken = input.Cast<TYtflowReadWrap>().Token()) {
                 auto tokenName = maybeToken.Cast().Name().StringValue();

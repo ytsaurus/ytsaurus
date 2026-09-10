@@ -1,5 +1,7 @@
 #pragma once
 
+#include "yql_ytflow_source_transformer.h"
+
 #include <yql/essentials/public/langver/yql_langver.h>
 
 #include <util/generic/string.h>
@@ -28,6 +30,7 @@ struct TCommonMapParameters
 {
     TString LambdaFile;
     bool InjectInputMessageId;
+    ESourceType SourceType;
 
     REGISTER_YSON_STRUCT(TCommonMapParameters);
 

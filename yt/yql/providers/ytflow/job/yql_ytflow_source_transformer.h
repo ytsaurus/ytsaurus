@@ -8,7 +8,7 @@
 namespace NYql::NYtflow {
 
 DEFINE_ENUM(ESourceType,
-    ((YT)        (0))
+    ((Yt)        (0))
     ((Logbroker) (1))
 );
 

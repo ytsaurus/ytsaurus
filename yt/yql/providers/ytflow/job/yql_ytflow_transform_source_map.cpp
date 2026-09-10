@@ -56,11 +56,7 @@ public:
 
         const auto& parameters = GetParameters();
 
-        const auto& sourceStreams = GetSpec()->SourceStreams;
-        YQL_ENSURE(sourceStreams.size() == 1);
-        const auto& sourceParameters = sourceStreams.begin()->second->Parameters;
-        auto sourceType = sourceParameters->GetChildValueOrThrow<ESourceType>("source_type");
-        SourceTransformer = CreateSourceTransformer(sourceType);
+        SourceTransformer = CreateSourceTransformer(parameters->SourceType);
         SourceSchema = parameters->SourceSchema;
 
         const auto& outputIndicesByOutputStreamId = parameters->OutputIndicesByOutputStreamId;
