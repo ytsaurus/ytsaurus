@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTransactionSupervisor {
@@ -82,7 +84,11 @@ TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
 
 void TCommit::SetResponseMessage(TSharedRefArray message)
 {
-    ResponseMessagePromise_.TrySet(std::move(message));
+    BIND([promise = ResponseMessagePromise_, message = std::move(message)] () mutable {
+        promise.TrySet(std::move(message));
+    })
+        .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Run();
 }
 
 bool TCommit::IsPrepareOnlyParticipant(TCellId cellId) const

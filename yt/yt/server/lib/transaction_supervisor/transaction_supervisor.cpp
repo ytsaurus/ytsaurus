@@ -2769,14 +2769,17 @@ private:
         TransientAbortMap_.erase(transactionId);
     }
 
-
-    void GenerateCommitTimestamps(TCommit* commit)
+    TFuture<std::vector<std::pair<TCellTag, TTimestamp>>> DoGenerateCommitTimestamps(
+        TTransactionId transactionId,
+        bool inheritCommitTimestamp,
+        std::vector<TCellId> participantCellIds)
     {
-        auto transactionId = commit->GetTransactionId();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TFuture<TTimestamp> asyncCoordinatorTimestamp;
         std::vector<TFuture<std::pair<TCellTag, TTimestamp>>> asyncTimestamps;
         THashSet<TCellTag> timestampProviderCellTags;
+
         auto generateFor = [&] (TCellId cellId) {
             try {
                 auto cellTag = CellTagFromId(cellId);
@@ -2788,7 +2791,7 @@ private:
                 auto timestampProvider = participant->GetTimestampProviderOrThrow();
 
                 TFuture<TTimestamp> asyncTimestamp;
-                if (commit->GetInheritCommitTimestamp() && cellId != SelfCellId_) {
+                if (inheritCommitTimestamp && cellId != SelfCellId_) {
                     YT_LOG_DEBUG("Inheriting commit timestamp (TransactionId: %v, ParticipantCellId: %v)",
                         transactionId,
                         cellId);
@@ -2812,11 +2815,27 @@ private:
         };
 
         generateFor(SelfCellId_);
-        for (auto cellId : commit->ParticipantCellIds()) {
+        for (auto cellId : participantCellIds) {
             generateFor(cellId);
         }
 
-        AllSucceeded(asyncTimestamps)
+        return AllSucceeded(asyncTimestamps);
+    }
+
+    void GenerateCommitTimestamps(TCommit* commit)
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        auto transactionId = commit->GetTransactionId();
+
+        BIND(
+            &TTransactionSupervisor::DoGenerateCommitTimestamps,
+            MakeStrong(this),
+            commit->GetTransactionId(),
+            commit->GetInheritCommitTimestamp(),
+            commit->ParticipantCellIds())
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+            .Run()
             .Subscribe(BIND(&TTransactionSupervisor::OnCommitTimestampsGenerated, MakeStrong(this), transactionId)
                 .Via(EpochAutomatonInvoker_));
     }
