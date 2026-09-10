@@ -185,7 +185,7 @@ public:
 
     // Lease tracking.
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransactionRawPtr, LeaseTransaction);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, LastSeenLeaseTransactionTimeout);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, LeaseTransactionTimeoutBeforeExtension);
 
     // Exec Node stuff.
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TExecNodeStatistics, ExecNodeStatistics);
