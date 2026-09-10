@@ -1304,10 +1304,10 @@ void TSchedulingPolicy::DoProcessSchedulingHeartbeat(
         .ValueOrThrow();
 
     const auto& nodeDescriptor = schedulingHeartbeatContext->GetNodeDescriptor();
-    const auto Logger = MakeNodeLogger(nodeDescriptor);
     auto node = GetOrDefault(Nodes_, nodeDescriptor->Id);
 
     if (!node) {
+        const auto Logger = MakeNodeLogger(nodeDescriptor);
         YT_LOG_WARNING("Skipping scheduling heartbeat because node is not registered");
         return;
     }
