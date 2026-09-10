@@ -66,16 +66,22 @@ public:
 
     void RegisterTabletCommitSession(TTabletId tabletId) override
     {
+        auto guard = Guard(TabletsLock_);
+
         EmplaceOrCrash(Tablets_, tabletId);
     }
 
     void UnregisterTabletCommitSession(TTabletId tabletId) override
     {
+        auto guard = Guard(TabletsLock_);
+
         EraseOrCrash(Tablets_, tabletId);
     }
 
     bool HasRegisteredTabletCommitSessions() const override
     {
+        auto guard = Guard(TabletsLock_);
+
         return !Tablets_.empty();
     }
 
@@ -121,7 +127,10 @@ private:
 
     const TLogger Logger;
 
+    // NB: All accesses are non-concurrent by construction; add a lock if that ever changes.
     std::vector<TTransactionActionData> Actions_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TabletsLock_);
     THashSet<TTabletId> Tablets_;
 
     TFuture<void> SendTabletActions(const TTransactionPtr& owner)
