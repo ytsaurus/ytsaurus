@@ -7,7 +7,7 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.yson.YsonConsumer;
 
 public class DecimalType extends TiType {
-    public static final int MAX_PRECISION = 35;
+    public static final int MAX_PRECISION = 76;
 
     final int precision;
     final int scale;
@@ -18,7 +18,7 @@ public class DecimalType extends TiType {
             throw new RuntimeException(String.format("TODO: precision must be in range [1, %d]", MAX_PRECISION));
         }
 
-        if (scale < 0 || scale > MAX_PRECISION) {
+        if (scale < 0 || scale > precision) {
             throw new RuntimeException(String.format("TODO: scale must be in range [0, precision (=%d)]", precision));
         }
 
