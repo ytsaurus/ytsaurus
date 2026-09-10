@@ -35,6 +35,7 @@ private:
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
+            .SetMandatory(true)
             .SetReplicated(true));
     }
 
