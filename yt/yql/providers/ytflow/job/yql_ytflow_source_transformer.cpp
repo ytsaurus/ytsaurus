@@ -9,7 +9,7 @@ namespace NYql::NYtflow {
 
 THolder<ISourceTransformer> CreateSourceTransformer(ESourceType sourceType) {
     switch (sourceType) {
-        case ESourceType::YT:
+        case ESourceType::Yt:
             return CreateDefaultSourceTransformer();
         case ESourceType::Logbroker:
             return CreateLogbrokerSourceTransformer();
