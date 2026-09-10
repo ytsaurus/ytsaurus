@@ -2029,7 +2029,9 @@ class TestCrossCellCopy(YTEnvSetup):
                 administer_permission,
             ])
 
-            wait(lambda: administer_permission in get(f"{self.DST}/@acl"))
+            # The scion's @acl can be updated on master before the ACL used by
+            # the Cypress proxy is replicated to the ground.
+            wait(lambda: check_permission(user, "administer", self.DST)["action"] == "allow")
 
             # In order to preserve account user has to have "use" permission for the account.
             for account in self.AVAILABLE_ACCOUNTS:
