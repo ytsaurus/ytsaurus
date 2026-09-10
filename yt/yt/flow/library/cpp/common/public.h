@@ -113,7 +113,7 @@ DEFINE_ENUM(EPartitionState,
     ((Executing)       (1))
     // Partition processing is interrupting. It cannot receive input messages, but can distribute output.
     ((Interrupting)    (2))
-    // Partition processing has been successfully completed. Cleaning states and other partition data.
+    // Partition processing has completed. It only distributes persisted output, then cleans owned state.
     ((Completing)      (3))
     // Partition processing has been successfully completed and fully cleaned. So, it will never start again.
     ((Completed)       (4))
