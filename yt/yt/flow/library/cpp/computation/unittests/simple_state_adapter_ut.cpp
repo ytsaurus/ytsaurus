@@ -36,7 +36,6 @@ using namespace NTableClient;
 using namespace NYTree;
 
 using ::testing::_;
-using ::testing::Invoke;
 
 using NYT::ToProto;
 
@@ -153,13 +152,13 @@ protected:
     void SetUp() override
     {
         EXPECT_CALL(*MockClient_, LookupRows(_, _, _, _))
-            .WillRepeatedly(Invoke([this] (
+            .WillRepeatedly([this] (
                 const NYPath::TYPath& /*path*/,
                 TNameTablePtr /*nameTable*/,
                 const TSharedRange<TLegacyKey>& keys,
                 const NApi::TLookupRowsOptions& /*options*/) {
                 return MakeFuture(MakeLookupResult(keys));
-            }));
+            });
     }
 
     TPayload MakeStatePayload(i64 integerValue, TStringBuf stringValue)
