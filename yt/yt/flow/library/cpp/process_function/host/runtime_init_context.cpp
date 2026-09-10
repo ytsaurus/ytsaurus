@@ -13,13 +13,17 @@ TRuntimeInitContext::TRuntimeInitContext(
     TPartitionId partitionId,
     NYTree::IMapNodePtr parametersNode,
     THashMap<TResourceId, IResourcePtr> staticResources,
-    NProfiling::TProfiler profiler)
+    NProfiling::TProfiler profiler,
+    NHttp::IClientPtr httpClient,
+    NHttp::IClientPtr httpsClient)
     : Underlying_(std::move(underlying))
     , StateManager_(std::move(stateManager))
     , PartitionId_(partitionId)
     , ParametersNode_(parametersNode ? std::move(parametersNode) : NYTree::GetEphemeralNodeFactory()->CreateMap())
     , StaticResources_(std::move(staticResources))
     , Profiler_(std::move(profiler))
+    , HttpClient_(std::move(httpClient))
+    , HttpsClient_(std::move(httpsClient))
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TRuntimeInitContext::CreateMutableStateKeyProvider(std::function<IStateHolderPtr()> ctor) const
@@ -50,7 +54,9 @@ IRuntimeInitContextPtr TRuntimeInitContext::WithPrefix(TStringBuf prefix) const
         PartitionId_,
         ParametersNode_,
         StaticResources_,
-        Profiler_);
+        Profiler_,
+        HttpClient_,
+        HttpsClient_);
 }
 
 const std::string& TRuntimeInitContext::GetPrefix() const
@@ -75,6 +81,22 @@ IResourcePtr TRuntimeInitContext::GetStaticResource(const TResourceId& resourceI
 NProfiling::TProfiler TRuntimeInitContext::GetProfiler() const
 {
     return Profiler_;
+}
+
+NHttp::IClientPtr TRuntimeInitContext::GetHttpClient() const
+{
+    if (!HttpClient_) {
+        THROW_ERROR_EXCEPTION("HTTP client is not available in this init context");
+    }
+    return HttpClient_;
+}
+
+NHttp::IClientPtr TRuntimeInitContext::GetHttpsClient() const
+{
+    if (!HttpsClient_) {
+        THROW_ERROR_EXCEPTION("HTTPS client is not available in this init context");
+    }
+    return HttpsClient_;
 }
 
 TPartitionId TRuntimeInitContext::GetPartitionId() const

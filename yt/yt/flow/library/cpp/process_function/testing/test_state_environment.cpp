@@ -90,6 +90,16 @@ public:
         return Underlying_->GetProfiler();
     }
 
+    NHttp::IClientPtr GetHttpClient() const override
+    {
+        return Underlying_->GetHttpClient();
+    }
+
+    NHttp::IClientPtr GetHttpsClient() const override
+    {
+        return Underlying_->GetHttpsClient();
+    }
+
     TPartitionId GetPartitionId() const override
     {
         return Underlying_->GetPartitionId();
@@ -159,6 +169,18 @@ void TTestStateEnvironment::SetProfiler(NProfiling::TProfiler profiler)
     RebuildInitContext();
 }
 
+void TTestStateEnvironment::SetHttpClient(NHttp::IClientPtr client)
+{
+    HttpClient_ = std::move(client);
+    RebuildInitContext();
+}
+
+void TTestStateEnvironment::SetHttpsClient(NHttp::IClientPtr client)
+{
+    HttpsClient_ = std::move(client);
+    RebuildInitContext();
+}
+
 void TTestStateEnvironment::RebuildInitContext()
 {
     InitContext_ = New<TExternalAwareInitContext>(
@@ -168,7 +190,9 @@ void TTestStateEnvironment::RebuildInitContext()
             ManagerContext_->PartitionId,
             ParametersNode_,
             /*staticResources*/ THashMap<TResourceId, IResourcePtr>{},
-            Profiler_),
+            Profiler_,
+            HttpClient_,
+            HttpsClient_),
         ExternalManagers_,
         ExternalJoiners_,
         StaticResources_);
