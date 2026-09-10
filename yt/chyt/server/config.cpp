@@ -106,6 +106,8 @@ void TTestingSettings::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_after_refresh_commit", &TThis::ThrowExceptionAfterRefreshCommit)
         .Default(false);
+    registrar.Parameter("fail_materialized_view_refresh_query_response_for_partition", &TThis::FailMaterializedViewRefreshQueryResponseForPartition)
+        .Default();
     registrar.Parameter("subquery_allocation_size", &TThis::SubqueryAllocationSize)
         .Default(0);
 
