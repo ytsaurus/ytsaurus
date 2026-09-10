@@ -1974,7 +1974,6 @@ void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& conte
         if (!keyVisitorMutations.empty()) {
             keyVisitorStates->Write(transaction, keyVisitorMutations);
         }
-        StateManager_->Sync(transaction);
         WaitFor(GetTransactionManager()->CommitTransaction(transaction)).ThrowOnError();
     }
 
