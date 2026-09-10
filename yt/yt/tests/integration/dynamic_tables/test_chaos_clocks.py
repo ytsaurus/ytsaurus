@@ -25,14 +25,6 @@ class ChaosClockBase(ChaosTestBase):
     NUM_TIMESTAMP_PROVIDERS = 1
     USE_PRIMARY_CLOCKS = False
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "transaction_manager": {
