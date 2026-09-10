@@ -50,6 +50,7 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
         this->StateManager_,
         this->GetPartitionId(),
         this->GetSpec()->ProcessingFunctionParameters,
+        TRegistry::Get()->ParseProcessFunctionParameters(this->GetSpec()),
         this->GetContext()->StaticResources,
         this->GetContext()->Profiler,
         this->GetContext()->HttpClient,

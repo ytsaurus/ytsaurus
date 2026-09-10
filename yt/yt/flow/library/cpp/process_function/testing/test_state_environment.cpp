@@ -76,6 +76,11 @@ public:
         return Underlying_->GetParametersNode();
     }
 
+    NYTree::TYsonStructPtr GetParametersObject() const override
+    {
+        return Underlying_->GetParametersObject();
+    }
+
     IResourcePtr GetStaticResource(const TResourceId& resourceId) const override
     {
         auto iter = StaticResources_->find(resourceId);
@@ -157,9 +162,10 @@ TTestStateEnvironment::TTestStateEnvironment(NTableClient::TTableSchemaPtr keySc
     RebuildInitContext();
 }
 
-void TTestStateEnvironment::SetStaticParametersNode(NYTree::IMapNodePtr node)
+void TTestStateEnvironment::SetStaticParameters(const NYTree::TYsonStructPtr& parameters)
 {
-    ParametersNode_ = std::move(node);
+    StaticParametersNode_ = NYTree::ConvertTo<NYTree::IMapNodePtr>(parameters);
+    StaticParametersObject_ = parameters;
     RebuildInitContext();
 }
 
@@ -188,7 +194,8 @@ void TTestStateEnvironment::RebuildInitContext()
             StateManager_->CreateContext(),
             StateManager_,
             ManagerContext_->PartitionId,
-            ParametersNode_,
+            StaticParametersNode_,
+            StaticParametersObject_,
             /*staticResources*/ THashMap<TResourceId, IResourcePtr>{},
             Profiler_,
             HttpClient_,

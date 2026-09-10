@@ -12,6 +12,7 @@ TRuntimeInitContext::TRuntimeInitContext(
     TJobStateManagerPtr stateManager,
     TPartitionId partitionId,
     NYTree::IMapNodePtr parametersNode,
+    NYTree::TYsonStructPtr parametersObject,
     THashMap<TResourceId, IResourcePtr> staticResources,
     NProfiling::TProfiler profiler,
     NHttp::IClientPtr httpClient,
@@ -20,6 +21,7 @@ TRuntimeInitContext::TRuntimeInitContext(
     , StateManager_(std::move(stateManager))
     , PartitionId_(partitionId)
     , ParametersNode_(parametersNode ? std::move(parametersNode) : NYTree::GetEphemeralNodeFactory()->CreateMap())
+    , ParametersObject_(std::move(parametersObject))
     , StaticResources_(std::move(staticResources))
     , Profiler_(std::move(profiler))
     , HttpClient_(std::move(httpClient))
@@ -53,6 +55,7 @@ IRuntimeInitContextPtr TRuntimeInitContext::WithPrefix(TStringBuf prefix) const
         StateManager_,
         PartitionId_,
         ParametersNode_,
+        ParametersObject_,
         StaticResources_,
         Profiler_,
         HttpClient_,
@@ -67,6 +70,11 @@ const std::string& TRuntimeInitContext::GetPrefix() const
 NYTree::IMapNodePtr TRuntimeInitContext::GetParametersNode() const
 {
     return ParametersNode_;
+}
+
+NYTree::TYsonStructPtr TRuntimeInitContext::GetParametersObject() const
+{
+    return ParametersObject_;
 }
 
 IResourcePtr TRuntimeInitContext::GetStaticResource(const TResourceId& resourceId) const

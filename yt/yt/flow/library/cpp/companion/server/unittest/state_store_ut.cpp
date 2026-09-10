@@ -5,6 +5,7 @@
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
+#include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
@@ -541,9 +542,12 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
 {
     auto store = MakeStore();
     auto parameters = ConvertTo<IMapNodePtr>(NYson::TYsonString(TStringBuf("{answer=42}")));
-    auto initContext = New<TCompanionRuntimeInitContext>(store, parameters);
+    auto parametersObject = New<TEmptyProcessFunctionParameters>();
+    auto initContext = New<TCompanionRuntimeInitContext>(store, parameters, parametersObject);
 
     EXPECT_EQ(initContext->GetParametersNode()->GetChildOrThrow("answer")->AsInt64()->GetValue(), 42);
+    EXPECT_EQ(initContext->GetParametersObject(), parametersObject);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetParametersObject(), parametersObject);
 
     TMutableStateKeyClient<i64> client;
     initContext->InitClient(client, "counter");

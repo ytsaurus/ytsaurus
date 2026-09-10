@@ -10,12 +10,14 @@ namespace NYT::NFlow::NCompanionServer {
 TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     TCompanionStateStorePtr stateStore,
     NYTree::IMapNodePtr parametersNode,
+    NYTree::TYsonStructPtr parametersObject,
     THashMap<TResourceId, IResourcePtr> resources,
     std::string prefix)
     : StateStore_(std::move(stateStore))
     , ParametersNode_(parametersNode
             ? std::move(parametersNode)
             : NYTree::GetEphemeralNodeFactory()->CreateMap())
+    , ParametersObject_(std::move(parametersObject))
     , Resources_(std::move(resources))
     , Prefix_(std::move(prefix))
 { }
@@ -47,6 +49,7 @@ IRuntimeInitContextPtr TCompanionRuntimeInitContext::WithPrefix(TStringBuf prefi
     return New<TCompanionRuntimeInitContext>(
         StateStore_,
         ParametersNode_,
+        ParametersObject_,
         Resources_,
         ExtendStateNamePrefix(Prefix_, prefix));
 }
@@ -59,6 +62,11 @@ const std::string& TCompanionRuntimeInitContext::GetPrefix() const
 NYTree::IMapNodePtr TCompanionRuntimeInitContext::GetParametersNode() const
 {
     return ParametersNode_;
+}
+
+NYTree::TYsonStructPtr TCompanionRuntimeInitContext::GetParametersObject() const
+{
+    return ParametersObject_;
 }
 
 IResourcePtr TCompanionRuntimeInitContext::GetStaticResource(const TResourceId& resourceId) const

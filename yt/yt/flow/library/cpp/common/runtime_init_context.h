@@ -64,14 +64,19 @@ public:
     template <class TStateHolder>
     void InitExternalStateClient(TJoinedStateKeyClient<TStateHolder>& client, TStringBuf name) const;
 
-    //! Deserializes the static ``function_parameters`` block of the computation spec into
-    //! the user's YSON struct |T| (defaults applied if the block is absent).
+    //! The static ``function_parameters`` as the YSON struct |T| the function registered (defaults
+    //! applied if absent). |T| must match the registered static-parameters type (throws otherwise).
     template <class T>
     TIntrusivePtr<T> GetParameters() const;
 
     //! Raw ``function_parameters`` map from the static computation spec (never null; an empty
     //! map when the block is absent). Prefer the typed GetParameters<T>() helper.
     virtual NYTree::IMapNodePtr GetParametersNode() const = 0;
+
+    //! The static ``function_parameters`` block parsed into the registered YSON struct (defaults
+    //! applied), parsed once at job init. The test environment serves the struct supplied via
+    //! SetStaticParameters instead; null when none was set (possible only there).
+    virtual NYTree::TYsonStructPtr GetParametersObject() const = 0;
 
     //! Returns a resource the hosting computation declared in its
     //! ``required_resource_ids`` (worker side). Throws if the resource is not found there.

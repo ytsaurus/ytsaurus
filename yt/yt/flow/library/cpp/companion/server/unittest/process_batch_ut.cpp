@@ -107,9 +107,58 @@ public:
     { }
 };
 
+//! Static parameters of TUnittestOffsetFunction: the offset added to every key.
+struct TUnittestOffsetParameters
+    : public NYTree::TYsonStruct
+{
+    ui64 Offset = 0;
+
+    REGISTER_YSON_STRUCT(TUnittestOffsetParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("offset", &TThis::Offset)
+            .Default(0);
+    }
+};
+
+//! Reads its static parameters in Init and emits every key shifted by the offset.
+class TUnittestOffsetFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        Offset_ = initContext->GetParameters<TUnittestOffsetParameters>()->Offset;
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        auto builder = context->MakeOutputMessageBuilder(std::nullopt);
+        builder.SetMessageId(TMessageId(Format("out-%v", message->MessageId)));
+        builder.SetSystemTimestamp(message->SystemTimestamp);
+        builder.SetAlignmentTimestamp(message->AlignmentTimestamp);
+        builder.Payload().Set(GetColumnValue<ui64>(*message, 0) + Offset_, "key");
+        output->AddMessage(builder.Finish());
+    }
+
+private:
+    ui64 Offset_ = 0;
+};
+
+//! Registered without a parameters type but asks for a typed one; used to test the mismatch path.
+class TUnittestMismatchedParametersFunction
+    : public TUnittestOffsetFunction
+{ };
+
 // The passthrough function is registered through the typed pipeline API in the
 // fixture; the extra spec-selectable functions keep using the macro.
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestCountingFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestOffsetFunction, TUnittestOffsetParameters);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestMismatchedParametersFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestBusyFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestSyncFunction);
 
@@ -170,25 +219,30 @@ protected:
         Server_->Stop();
     }
 
-    std::string BuildSpecYson(const std::string& functionName)
+    std::string BuildSpecYson(
+        const std::string& functionName,
+        const std::string& processingFunctionParametersYson)
     {
         return Format(R"({
                 computation_class_name = "NYT::NFlow::NCompanion::TTransformCompanionComputation";
                 processing_function = %Qv;
+                processing_function_parameters = %v;
                 group_by_schema = %v;
                 input_stream_ids = ["input"];
                 output_stream_ids = ["output"];
                 parameters = {internal_states = ["counter"]};
             })",
             functionName,
+            processingFunctionParametersYson,
             KeySchemaYson);
     }
 
     void FillJobInfo(
         NProto::NCompanion::TJobInfo* jobInfo,
-        const std::string& functionName)
+        const std::string& functionName,
+        const std::string& processingFunctionParametersYson)
     {
-        jobInfo->set_spec(BuildSpecYson(functionName));
+        jobInfo->set_spec(BuildSpecYson(functionName, processingFunctionParametersYson));
         jobInfo->set_dynamic_spec("{}");
         for (const auto& [streamId, specId, schema] : {
                 std::tuple{TStreamId("input"), TStreamSpecId(1), Schema_},
@@ -201,14 +255,16 @@ protected:
         }
     }
 
-    auto BuildRequest(const std::optional<std::string>& functionName)
+    auto BuildRequest(
+        const std::optional<std::string>& functionName,
+        const std::string& processingFunctionParametersYson = "{}")
     {
         auto req = Proxy_->ProcessBatch();
         ToProto(req->mutable_request_id(), TGuid::Create());
         ToProto(req->mutable_job_id(), JobId_);
         req->set_computation_id("my_computation");
         if (functionName) {
-            FillJobInfo(req->mutable_job_info(), *functionName);
+            FillJobInfo(req->mutable_job_info(), *functionName, processingFunctionParametersYson);
         }
         return req;
     }
@@ -425,6 +481,28 @@ TEST_F(TProcessBatchTest, UnknownComputationFails)
     EXPECT_THAT(
         ToString(static_cast<const TError&>(rspOrError)),
         testing::HasSubstr("is not registered in this companion"));
+}
+
+TEST_F(TProcessBatchTest, StaticParametersParsedIntoRegisteredType)
+{
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestOffsetFunction", "{offset = 40}");
+    AddMessage(req, 2, "m1");
+    auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+    ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    ASSERT_EQ(rsp->data().output_size(), 1);
+    auto message = FromProto<TMessage>(rsp->data().output(0).messages(0), StreamSpecs_);
+    EXPECT_EQ(GetColumnValue<ui64>(message, 0), ui64{42});
+}
+
+TEST_F(TProcessBatchTest, StaticParametersTypeMismatchFails)
+{
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestMismatchedParametersFunction", "{offset = 40}");
+    AddMessage(req, 2, "m1");
+    auto rspOrError = req->Invoke().BlockingGet();
+    ASSERT_FALSE(rspOrError.IsOK());
+    EXPECT_THAT(
+        ToString(static_cast<const TError&>(rspOrError)),
+        testing::HasSubstr("Static function parameters type mismatch"));
 }
 
 TEST_F(TProcessBatchTest, SyncFunctionRejected)

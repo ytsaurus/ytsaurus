@@ -21,6 +21,7 @@ public:
         TJobStateManagerPtr stateManager,
         TPartitionId partitionId,
         NYTree::IMapNodePtr parametersNode = {},
+        NYTree::TYsonStructPtr parametersObject = {},
         THashMap<TResourceId, IResourcePtr> staticResources = {},
         NProfiling::TProfiler profiler = {},
         NHttp::IClientPtr httpClient = {},
@@ -36,6 +37,7 @@ public:
     const std::string& GetPrefix() const override;
 
     NYTree::IMapNodePtr GetParametersNode() const override;
+    NYTree::TYsonStructPtr GetParametersObject() const override;
 
     IResourcePtr GetStaticResource(const TResourceId& resourceId) const override;
 
@@ -56,6 +58,9 @@ private:
     const TJobStateManagerPtr StateManager_;
     const TPartitionId PartitionId_;
     const NYTree::IMapNodePtr ParametersNode_;
+    //! The parameters node parsed into the registered static-parameters type (see
+    //! TRegistry::ParseProcessFunctionParameters); null when no processing function is named.
+    const NYTree::TYsonStructPtr ParametersObject_;
     const THashMap<TResourceId, IResourcePtr> StaticResources_;
     const NProfiling::TProfiler Profiler_;
     const NHttp::IClientPtr HttpClient_;
