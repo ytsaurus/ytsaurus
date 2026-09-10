@@ -85,6 +85,10 @@ DOCS_INCLUDE_SOURCES(
 
 END()
 
+RECURSE_FOR_TESTS(
+    ai/tools
+)
+
 IF (NOT OPENSOURCE)
     RECURSE(
         yandex-specific
