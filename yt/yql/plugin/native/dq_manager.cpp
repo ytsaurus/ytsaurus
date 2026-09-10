@@ -18,6 +18,8 @@
 
 #include <library/cpp/digest/md5/md5.h>
 
+#include <util/folder/path.h>
+
 namespace NYT::NYqlPlugin {
 
 using namespace NYql;
@@ -53,7 +55,31 @@ void TDqManagerConfig::Register(TRegistrar registrar)
 
 TDqManager::TDqManager(const TDqManagerConfigPtr& config)
     : Config_(config)
-{ }
+{
+    YT_VERIFY(Config_->FileStorage);
+
+    NYson::TProtobufWriterOptions protobufWriterOptions;
+    protobufWriterOptions.ConvertSnakeToCamelCase = true;
+
+    NYql::NProto::TDqConfig::TYtBackend backend;
+    backend.ParseFromStringOrThrow(NYson::YsonStringToProto(
+        ConvertToYsonString(Config_->YtBackends.front()),
+        NYson::ReflectProtobufMessageType<NYql::NProto::TDqConfig::TYtBackend>(),
+        protobufWriterOptions));
+
+    const auto& vanillaJobLite = backend.GetVanillaJobLite();
+    YT_VERIFY(!vanillaJobLite.empty());
+
+    VanillaJobLite_ = Config_->FileStorage->PutFile(vanillaJobLite, TFsPath(vanillaJobLite).GetName());
+    // Keep the stripped copy alive, as yqlworker does.
+    StrippedVanillaJobLite_ = Config_->FileStorage->PutFileStripped(VanillaJobLite_->GetPath(), VanillaJobLite_->GetMd5());
+}
+
+NYql::TFileLinkPtr TDqManager::GetVanillaJobLite() const
+{
+    YT_VERIFY(VanillaJobLite_);
+    return VanillaJobLite_;
+}
 
 void TDqManager::Start()
 {
@@ -165,6 +191,9 @@ void TDqManager::Start()
             ConvertToYsonString(ytBackendConfig),
             NYson::ReflectProtobufMessageType<NYql::NProto::TDqConfig::TYtBackend>(),
             protobufWriterOptions));
+
+        rmOptions.YtBackend.SetVanillaJobLite(VanillaJobLite_->GetPath());
+        rmOptions.YtBackend.SetVanillaJobLiteMd5(VanillaJobLite_->GetMd5());
 
         if (!rmOptions.YtBackend.HasICSettings()) {
             *rmOptions.YtBackend.MutableICSettings() = iCSettings;
