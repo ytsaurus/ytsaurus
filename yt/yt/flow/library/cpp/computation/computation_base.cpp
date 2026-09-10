@@ -2,6 +2,7 @@
 
 #include "computation_tracer.h"
 #include "event_timestamp_assigner.h"
+#include "message_filter.h"
 #include "meta_setter.h"
 #include "stores/compact_output_store.h"
 #include "stores/input_store.h"
@@ -671,7 +672,9 @@ TUniversalComputationBase::TUniversalComputationBase(
     , KeyVisitors_(CreateKeyVisitors())
     , Tracer_(CreateComputationTracer(GetContext(), GetSpec(), GetDynamicSpec()->Tracer))
     , EventTimestampAssigner_(CreateEventTimestampAssigner(GetSpec()->WatermarkStrategy->EventTimestampAssigner))
+    , Filter_(CreateMessageFilter(GetDynamicSpec()->SkipIfExpression))
     , StartTime_(TInstant::Now())
+    , InputSkippedByExpressionCounter_(GetContext()->Profiler.WithPrefix("/input_streams").Counter("/skipped_by_expression_count"))
     , RunIterationStartPromise_(NewPromise<void>())
     , BeforeCommitInIterationPromise_(NewPromise<void>())
     , RunIterationFinishPromise_(NewPromise<void>())
@@ -709,6 +712,7 @@ TUniversalComputationBase::TUniversalComputationBase(
                 dynamicContext->Draining = GetDynamicSpec()->Draining;
                 visitor->Reconfigure(std::move(dynamicContext));
             }
+            Filter_->Reconfigure(GetDynamicSpec()->SkipIfExpression);
             OutputStore_->Reconfigure(GetDynamicSpec()->OutputStore);
             Tracer_->Reconfigure(GetDynamicSpec()->Tracer);
             auto dynamicManagerContext = New<TDynamicJobStateManagerContext>();
@@ -1250,6 +1254,32 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::B
     }
 
     return inflights;
+}
+
+std::vector<TInputMessageConstPtr> TUniversalComputationBase::FilterInputBatch(
+    const IComputationRunContextPtr& context,
+    std::vector<TInputMessageConstPtr> messages,
+    TLineageDelta* lineageDelta)
+{
+    if (Filter_->IsEnabled()) {
+        auto [kept, skipped] = Filter_->Partition(std::move(messages));
+        if (!skipped.empty()) {
+            AddLineageInputs(lineageDelta, GetSpec(), skipped, {}, {});
+            std::vector<TMessageId> skippedMessageIds;
+            skippedMessageIds.reserve(skipped.size());
+            for (const auto& message : skipped) {
+                skippedMessageIds.push_back(message->MessageId);
+            }
+            InputSkippedByExpressionCounter_.Increment(skippedMessageIds.size());
+            YT_TLOG_INFO("Skipped input messages by expression")
+                .With("Skipped", skipped.size())
+                .With("Kept", kept.size());
+            context->MarkPersisted(skippedMessageIds);
+            ClearAsynchronously(std::move(skipped));
+        }
+        messages = std::move(kept);
+    }
+    return messages;
 }
 
 void TUniversalComputationBase::RegisterInputBeforeProcessing(

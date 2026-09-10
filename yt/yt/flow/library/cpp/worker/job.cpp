@@ -23,8 +23,6 @@
 #include <yt/yt/flow/library/cpp/common/message_migration.h>
 #include <yt/yt/flow/library/cpp/common/stream_spec_storage.h>
 
-#include <yt/yt/flow/library/cpp/computation/message_filter.h>
-
 #include <yt/yt/flow/library/cpp/distributed_throttler/client.h>
 #include <yt/yt/flow/library/cpp/distributed_throttler/config.h>
 
@@ -161,8 +159,6 @@ public:
         , ControlSerializedInvoker_(JobContext_->ControlSerializedInvoker)
         , JobSerializedInvoker_(JobContext_->SerializedInvoker)
         , EvaluatorCache_(JobContext_->EvaluatorCache)
-        , MessageFilter_(CreateMessageFilter(DynamicJobSpec_->DynamicComputationSpec->SkipIfExpression))
-        , SkippedByExpressionCounter_(Profiler.WithPrefix("/input_streams").Counter("/skipped_by_expression_count"))
         , MetricsInvoker_(NConcurrency::CreateSerializedInvoker(JobContext_->PoolInvoker))
         , GlobalHeavyHittersCounter_(CreateGlobalHeavyHitterCounter(JobSpec_->ComputationSpec))
         , StreamHeavyHittersCounters_(CreateStreamHeavyHitterCounters(JobSpec_->ComputationSpec))
@@ -261,8 +257,6 @@ public:
         Computation_->Reconfigure(dynamicComputationContext);
 
         InputBuffer_->Reconfigure(DynamicJobSpec_->DynamicComputationSpec);
-
-        MessageFilter_->Reconfigure(DynamicJobSpec_->DynamicComputationSpec->SkipIfExpression);
 
         YT_TLOG_DEBUG("Job reconfiguration completed")
             .With("Draining", DynamicJobSpec_->DynamicComputationSpec->Draining);
@@ -494,9 +488,6 @@ public:
             .Apply(BIND([weakThis = MakeWeak(this)] (TErrorOr<std::vector<TInputMessageConstPtr>>&& errorOrMessages) -> std::vector<TInputMessageConstPtr> {
                 if (auto this_ = weakThis.Lock()) {
                     auto inputMessages = std::move(errorOrMessages).ValueOrThrow();
-                    if (this_->MessageFilter_->IsEnabled()) {
-                        inputMessages = this_->DropSkippedMessages(std::move(inputMessages));
-                    }
                     // Input metrics only drive repartition, so compute them off the fetch critical
                     // path: the executor fiber must not block on the per-key sketch work.
                     // TODO(pechatnov): hand the batch over as a shared range instead of copying the
@@ -640,9 +631,6 @@ private:
     const IInvokerPtr JobSerializedInvoker_;
     const NQueryClient::IColumnEvaluatorCachePtr EvaluatorCache_;
 
-    const IMessageFilterPtr MessageFilter_;
-    const NProfiling::TCounter SkippedByExpressionCounter_;
-
     std::atomic<bool> IsRunning_ = false;
 
     TInstant StartTime_;
@@ -707,26 +695,6 @@ private:
         auto context = New<TComputationRunContext>(MakeWeak(this));
         Computation_->Run(context);
         YT_TLOG_INFO("Computation::Run completed");
-    }
-
-    std::vector<TInputMessageConstPtr> DropSkippedMessages(std::vector<TInputMessageConstPtr> messages)
-    {
-        auto [kept, skipped] = MessageFilter_->Partition(std::move(messages));
-
-        if (!skipped.empty()) {
-            std::vector<TMessageId> skippedMessageIds;
-            skippedMessageIds.reserve(skipped.size());
-            for (const auto& message : skipped) {
-                skippedMessageIds.push_back(message->MessageId);
-            }
-            SkippedByExpressionCounter_.Increment(skippedMessageIds.size());
-            YT_TLOG_INFO("Skipped input messages by expression")
-                .With("Skipped", skippedMessageIds.size())
-                .With("Kept", kept.size());
-            MarkPersisted(skippedMessageIds);
-        }
-
-        return std::move(kept);
     }
 
     void RegisterInputBatch(const std::vector<TInputMessageConstPtr>& messages)
