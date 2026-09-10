@@ -37,9 +37,11 @@ struct TExternalStateManagerContext
     NTableClient::TTableSchemaPtr KeySchema;
 
     NClient::NCache::IClientsCachePtr ClientsCache;
+    THashMap<TResourceId, IResourcePtr> StaticResources;
     NYPath::TRichYPath PipelinePath;
     IInvokerPtr SerializedInvoker;
     IStatusProfilerPtr StatusProfiler;
+    NProfiling::TProfiler Profiler;
 
     NLogging::TLogger Logger;
 };

@@ -1300,6 +1300,7 @@ TYsonString TFlowExecutor::ReadStates(const std::string& /*command*/, const TYso
                     YTConnector_->GetPipelinePath(),
                     Authenticator_,
                     RootStatusProfiler_,
+                    ControllerProfiler().WithPrefix("/flow_executor"),
                     converterCache,
                     Logger);
                 auto externalFilters = BuildExternalStateFilters(
@@ -1392,6 +1393,7 @@ TYsonString TFlowExecutor::DeleteStates(const std::string& /*command*/, const TY
                     YTConnector_->GetPipelinePath(),
                     Authenticator_,
                     RootStatusProfiler_,
+                    ControllerProfiler().WithPrefix("/flow_executor"),
                     converterCache,
                     Logger);
                 auto externalFilters = BuildExternalStateFilters(

@@ -310,9 +310,11 @@ TExternalStateManagerContextPtr TJobStateManager::CreateExternalStateManagerCont
     result->StateCache = context->StateCache ? context->StateCache->WithName(name) : nullptr;
     result->KeySchema = context->KeySchema;
     result->ClientsCache = context->ClientsCache;
+    result->StaticResources = context->StaticResources;
     result->PipelinePath = context->PipelinePath;
     result->SerializedInvoker = context->SerializedInvoker;
     result->StatusProfiler = context->StatusProfiler;
+    result->Profiler = context->Profiler.WithTag("external_state_manager", name);
     result->Logger = context->Logger.WithTag("ExternalStateManager", name);
     return result;
 }
