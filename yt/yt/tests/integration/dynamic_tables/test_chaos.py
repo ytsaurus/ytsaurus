@@ -71,14 +71,6 @@ class TestChaos(ChaosTestBase):
         },
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
         "21": {"roles": ["chunk_host", "cypress_node_host"]},
     }
@@ -4919,14 +4911,6 @@ class TestChaosSpecial(ChaosTestBase):
         },
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
         "21": {"roles": ["chunk_host", "cypress_node_host"]},
     }
@@ -5306,14 +5290,6 @@ class TestChaosNativeProxy(ChaosTestBase):
         "enable_read_from_async_replicas": True,
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     @authors("osidorkin")
     def test_partial_pull_rows(self):
         metadata_cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -5577,7 +5553,6 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
     DELTA_MASTER_CACHE_CONFIG = {
         "cluster_connection": {
             "chaos_residency_cache": {
-                "use_has_chaos_object": True,
                 "expire_after_successful_update_time": 60000,
                 "expire_after_failed_update_time": 60000,
                 "expire_after_access_time": 60000,
@@ -5847,14 +5822,6 @@ class TestChaosMetaCluster(ChaosTestBase):
                     "replication_card_keep_alive_period": 0,
                 },
                 "leftover_migration_period": 5,
-            },
-        },
-    }
-
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
             },
         },
     }
@@ -6909,14 +6876,6 @@ class TestChaosMetaClusterNativeProxyWithAlerts(ChaosTestBase):
         },
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     @authors("osidorkin")
     def test_forsake_shortcut(self):
         cluster_names = self.get_cluster_names()
@@ -7011,14 +6970,6 @@ class TestChaosSingleCluster(ChaosTestBase):
 
     NUM_REMOTE_CLUSTERS = 0
     NUM_CHAOS_NODES = 1
-
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
 
     @authors("osidorkin")
     def test_multiple_chaos_slots_on_single_node(self):
@@ -7167,14 +7118,6 @@ class ChaosSingleClusterNativeProxyBase(ChaosTestBase):
         "enable_read_from_async_replicas": True,
     }
 
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
-
     def _create_cross_shard_directory(self):
         raise NotImplementedError()
 
@@ -7289,14 +7232,6 @@ class TestChaosSingleClusterNativeProxySequoia(ChaosSingleClusterNativeProxyBase
 class TestChaosWriteRetries(WriteRetriesBase, ChaosTestBase):
     NUM_CHAOS_NODES = 2
     NUM_REMOTE_CLUSTERS = 1
-
-    DELTA_MASTER_CACHE_CONFIG = {
-        "cluster_connection": {
-            "chaos_residency_cache": {
-                "use_has_chaos_object": True,
-            },
-        },
-    }
 
     def _prepare_test(self, path, failure_probability, retry_count, cell_count=4):
         self._configure_retries(failure_probability, retry_count)
