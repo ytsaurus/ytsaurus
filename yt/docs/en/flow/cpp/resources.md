@@ -146,7 +146,7 @@ protected:
 };
 ```
 
-Flow discovers an exact revision for every named provider and combines them into one snapshot. On
+Flow discovers a download generation for every named provider and combines them into one snapshot. On
 each worker, the snapshot is downloaded, initialized, and validated in order. New data becomes
 available only after all three steps succeed for every file. If a step fails, the resource retries
 after `file_provider_update_retry_period`. During initial loading, `Load()` remains pending until a
@@ -158,7 +158,15 @@ loads the active snapshot and then prepares the next one. The controller admits 
 snapshot after one current resource instance on the current target revision validates it. This is
 a canary admission check, not an all-worker barrier or quorum. After admission, workers converge
 asynchronously and may complete the switch at different times, but each worker receives the same
-set of exact file revisions.
+set of sources and download generations.
+
+For `TYTFileProvider` and `TYTDirectoryLastFileProvider`, the cache key consists of the cluster,
+selected path, resolved object ID, and `content_revision`. Changed contents or a replaced object
+create a new download generation that passes the usual preparation and admission checks. Changes to
+other attributes do not trigger a reload. Jobs and worker processes continue running; existing
+accessors retain their previous data until released. `file_snapshot_min_creation_period` limits
+generation creation frequency; multiple changes during that period are coalesced into the latest
+discovered state.
 
 If a user-defined resource does not need the standard preparation order, `TResourceBase` also
 provides the protected `MaterializeFileProvider()` and `MaterializeFileProviders()` methods for
@@ -307,13 +315,19 @@ file_providers = {
 Every file starts at part index zero and part indexes are consecutive. Filenames must be single
 path components.
 
-One table represents one immutable revision of the complete file set. To publish the next revision,
-create a new table and atomically repoint the link configured in `path`. Do not modify an already
-published table.
+The provider also supports a regular {{product-name}} file: its contents are materialized as `data`
+in the provider root.
 
-The controller snapshot-locks the object referenced by `path` and identifies a revision by cluster,
-table object ID, and content revision. Workers lock and verify that exact table before streaming
-its rows.
+The controller observes the object ID and `content_revision` at the configured path. A change to
+either invalidates the cache and triggers a resource reload on workers. For each download, a worker
+snapshot-locks the object at the selected path and checks its ID and content revision against the
+locator before reading any data. If either differs, the download fails and the resource waits for
+a newly discovered version. The worker reads the matching version within the same transaction.
+Repointing a link to another table also triggers a reload, even if its numeric content revision is
+the same.
+
+Workers switch to the latest discovered generation asynchronously. Publish new versions at separate
+immutable paths to keep previous versions available for downloading.
 
 ### Latest BLOB table in a {{product-name}} directory
 
