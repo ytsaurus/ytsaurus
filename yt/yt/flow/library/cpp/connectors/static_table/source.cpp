@@ -1,4 +1,4 @@
-#include "source.h"
+#include "source_impl.h"
 
 #include <yt/yt/flow/library/cpp/common/flow_view.h>
 #include <yt/yt/flow/library/cpp/common/schema.h>
@@ -44,7 +44,7 @@
 #include <algorithm>
 #include <optional>
 
-namespace NYT::NFlow::NStaticTableConnectorV2 {
+namespace NYT::NFlow::NStaticTableConnector {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -722,9 +722,8 @@ TSourceController::TSourceController(
 void TSourceController::Init(IInitContextPtr initContext)
 {
     initContext->InitClient<TSourceControllerState>(State_, "v0");
-    InitializeMigrationState(
-        State_.Get(),
-        GetContext()->SourceSpec->SourceClassName == TypeName<TSource>());
+    const bool isNativeV2Source = GetContext()->SourceSpec->SourceClassName != TypeName<TSource>();
+    InitializeMigrationState(State_.Get(), isNativeV2Source);
 }
 
 void TSourceController::Sync()
@@ -1947,4 +1946,4 @@ std::optional<TStreamTraverseDataPtr> TSourceController::GetFutureKeysStreamTrav
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NFlow::NStaticTableConnectorV2
+} // namespace NYT::NFlow::NStaticTableConnector

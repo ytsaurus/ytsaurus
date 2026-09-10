@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/flow/library/cpp/connectors/static_table_v2/source.h>
+#include <yt/yt/flow/library/cpp/connectors/static_table/source.h>
 
 #include <yt/yt/flow/library/cpp/common/unittests/mock/state.h>
 #include <yt/yt/flow/library/cpp/common/unittests/mock/time_provider.h>
@@ -31,7 +31,7 @@
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/library/re2/re2.h>
 
-namespace NYT::NFlow::NStaticTableConnectorV2 {
+namespace NYT::NFlow::NStaticTableConnector {
 namespace {
 
 using namespace NYPath;
@@ -2239,4 +2239,4 @@ TEST(TMultiClusterSpecTest, RejectsDuplicateClusters)
 
 
 } // namespace
-} // namespace NYT::NFlow::NStaticTableConnectorV2
+} // namespace NYT::NFlow::NStaticTableConnector

@@ -14,10 +14,10 @@
 Путь до директории со статическими таблицами с указанием одного кластера или упорядоченного списка кластеров-реплик. Этот параметр альтернативен `tables`. ||
 || `table_name_filter` | **Тип**: `NYT::TIntrusivePtr<NYT::NRe2::TRe2>`
 Регулярное выражение для фильтрации таблиц по имени: читаются только те таблицы, имя которых совпадает с выражением. Синтаксис выражений &mdash; [RE2](https://github.com/google/re2/wiki/Syntax). ||
-|| `event_timestamp_locator` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnectorV2::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnectorV2_TTableTimestampLocatorSpec)`>`
+|| `event_timestamp_locator` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnector::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec)`>`
 **Значение по умолчанию**: `{'attribute': 'key'}`
 По умолчанию берёт таймстемп из имени таблицы. Это время соответствует времени создания данных, оно будет проброшено в EventTimestamp сообщений. Таблицы с одинаковым таймстемпом упорядочиваются персистентно; новые таблицы не должны появляться позади уже обработанного event-time frontier. ||
-|| `system_timestamp_locator` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnectorV2::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnectorV2_TTableTimestampLocatorSpec)`>`
+|| `system_timestamp_locator` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NFlow::NStaticTableConnector::TTableTimestampLocatorSpec](./all_yson_structs#NYT_NFlow_NStaticTableConnector_TTableTimestampLocatorSpec)`>`
 **Значение по умолчанию**: `{'attribute': 'creation_time'}`
 По умолчанию берёт таймстемп из времени создания таблицы. Это время соответствует времени записи данных в сорс. То есть моменту, когда пайплайн может увидеть эти данные и начать читать. Это время пробрасывается в SystemTimestamp сообщений. ||
 || `ignore_symlinks` | **Тип**: `bool`

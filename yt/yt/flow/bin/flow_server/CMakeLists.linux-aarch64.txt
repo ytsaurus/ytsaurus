@@ -43,6 +43,7 @@ target_link_libraries(flow_server PUBLIC
   cpp-connectors-servicelog
   cpp-connectors-sorted_dynamic_table
   cpp-connectors-static_table
+  cpp-connectors-static_table_v2
   library-cpp-resources
   library-cpp-runner
 )
