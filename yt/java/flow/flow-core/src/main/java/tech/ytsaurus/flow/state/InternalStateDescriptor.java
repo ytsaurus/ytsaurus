@@ -23,6 +23,7 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
     private final Class<T> stateClass;
     private final ByteArrayCodec<T> codec;
     private final @Nullable Supplier<T> defaultValueSupplier;
+    private final boolean readOnly;
 
     InternalStateDescriptor(
             String name,
@@ -30,10 +31,7 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
             ByteArrayCodec<T> codec,
             @Nullable Supplier<T> defaultValueSupplier
     ) {
-        this.name = name;
-        this.stateClass = stateClass;
-        this.codec = codec;
-        this.defaultValueSupplier = defaultValueSupplier;
+        this(name, stateClass, codec, defaultValueSupplier, /*readOnly*/ false);
     }
 
     InternalStateDescriptor(
@@ -42,6 +40,20 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
             ByteArrayCodec<T> codec
     ) {
         this(name, stateClass, codec, null);
+    }
+
+    private InternalStateDescriptor(
+            String name,
+            Class<T> stateClass,
+            ByteArrayCodec<T> codec,
+            @Nullable Supplier<T> defaultValueSupplier,
+            boolean readOnly
+    ) {
+        this.name = name;
+        this.stateClass = stateClass;
+        this.codec = codec;
+        this.defaultValueSupplier = defaultValueSupplier;
+        this.readOnly = readOnly;
     }
 
     /**
@@ -84,12 +96,32 @@ public final class InternalStateDescriptor<T> extends StateDescriptor<T> {
         return defaultValueSupplier.get();
     }
 
+    /**
+     * Returns a descriptor of the same state cell whose accessors reject writes: {@code set()} and
+     * {@code clear()} throw {@link UnsupportedOperationException}, and {@code getOrDefault()}
+     * returns the default without attaching it to the key. Declaring it once here spares every
+     * access site a {@link StateAccessor#readOnly()} call; the two do the same thing at different
+     * levels.
+     *
+     * <p>Read-only is a property of the accessor, not of the state: the state a writable accessor
+     * has already read in this request stays tracked whichever descriptor reads it next.
+     *
+     * @return read-only descriptor of the same state, or this one when it is read-only already.
+     */
+    public InternalStateDescriptor<T> readOnly() {
+        if (readOnly) {
+            return this;
+        }
+        return new InternalStateDescriptor<>(name, stateClass, codec, defaultValueSupplier, /*readOnly*/ true);
+    }
+
     @Override
     InternalStateAccessor<T> create(Keyed key, StateBackend backend) {
-        return new InternalStateAccessor<>(
+        var accessor = new InternalStateAccessor<>(
                 key.getKey(),
                 this,
                 backend.getOrCreateInternalStateHolder(name)
         );
+        return readOnly ? new ReadOnlyInternalStateAccessor<>(accessor) : accessor;
     }
 }
