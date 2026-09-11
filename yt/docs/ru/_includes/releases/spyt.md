@@ -1,106 +1,131 @@
 ## SPYT
 
 
-Выпускается в виде docker-образа.
+Is released as a docker image.
 
 
 
 
-**Релизы:**
+**Releases:**
 
-{% cut "**2.11.0**" %}
+{% cut "**2.11.1**" %}
 
-**Дата релиза:** 2026-07-31
-
-
-**Страница релиза:** [2.11.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.11.0)
+**Release date:** 2026-08-25
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.11.0](https://github.com/orgs/ytsaurus/packages/container/spyt/1085278761?tag=2.11.0)
+**Release page:** [2.11.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.11.1)
 
 
-Основной релиз, добавляющий поддержку Spark 4.2.x и возможность отправлять джобы во внутренний кластер без JVM.
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.11.1](https://github.com/orgs/ytsaurus/packages/container/spyt/1169310265?tag=2.11.1)
 
-- Поддержка Spark 4.2.x и Java 25
-- Поддержка Java 21 для Spark 4.0.x и новее
-- Рефакторинг отправки во внутренний standalone-кластер: теперь используется реализация на чистом Python без JVM
-- Поддержка включения сервиса перемешивания YTsaurus для каждого приложения на standalone-кластерах
-- Push-режим для сервиса перемешивания YTsaurus, включается с помощью `spark.ytsaurus.shuffle.push.enabled`
-- Асинхронное создание задач чтения для ytPartitioning, ограниченное новой опцией `spark.ytsaurus.throttling.maxConcurrency`
-- Префикс `spark.ytsaurus.*` стал основным для конфигурации, `spark.yt.*` сохранён как запасной алиас
-- Экспорт логов в Monium, включается с помощью `spark.ytsaurus.logs.export.enabled`
-- Spark Connect driver использует временный токен своей ванильной операции, опция `spark.ytsaurus.connect.token.refresh.period` удалена
-- Исправлены зависания driver при распределённой записи в случае ошибок
-- Исправлены дубликаты ключей конфигурации Spark, повторно внедряемых из окружения
-- Прочие мелкие исправления и улучшения
+
+Maintenance release with minor enhancements and bug fixes
+
+- Support for `schema_hint` methods in Spark Connect sessions
+- UDF support for python binaries submitted via Spark Connect
+- Extended UInt64 support for Spark Connect
+- Support for specifying pool for Spark Connect driver operation
+- Spark Connect endpoint availability check
+- Reuse Hadoop configuration across reader factories
+- Fixed reading columns with dots in their names from lookup tables
+- Other minor fixes and improvements
 
 {% endcut %}
 
 
-{% cut "**2.10.0**" %}
+{% cut "**2.11.0**" %}
 
-**Дата релиза:** 2026-05-27
-
-
-**Страница релиза:** [2.10.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.10.0)
+**Release date:** 2026-07-31
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.10.0](https://github.com/orgs/ytsaurus/packages/container/spyt/894673032?tag=2.10.0)
+**Release page:** [2.11.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.11.0)
 
 
-Основной релиз, добавляющий поддержку Spark 4.0.x и 4.1.x.
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.11.0](https://github.com/orgs/ytsaurus/packages/container/spyt/1085278761?tag=2.11.0)
 
-- Добавлена поддержка Scala 2.13 наряду с Scala 2.12
-- Поддержка Python-пакета pyspark-client для написания клиентской логики с использованием протокола Spark Connect без JVM
-- Транзакционный стриминг
-- Прекращена поддержка Spark 3.2.x
-- Прекращена поддержка Java 11, все JVM-классы компилируются с Java 17
-- Прекращена поддержка Python 3.8, 3.9 и 3.10
-- Прекращена поддержка Livy для интеграции с Query Tracker
+
+Major release that enables support for Spark 4.2.x and submitting jobs to an inner cluster without JVM.
+
+- Spark 4.2.x and Java 25 support
+- Java 21 support for Spark 4.0.x and above
+- Refactor submit to an inner standalone cluster to use pure Python implementation without JVM
+- Support for enabling YTsaurus shuffle service on per application basis for standalone clusters
+- Push based mode for the YTsaurus shuffle service, enabled with `spark.ytsaurus.shuffle.push.enabled`
+- Asynchronous read task creation for ytPartitioning, limited by the new `spark.ytsaurus.throttling.maxConcurrency` option 
+- `spark.ytsaurus.*` became the primary configuration prefix, `spark.yt.*` is kept as a fallback alias
+- Log export to Monium, enabled with `spark.ytsaurus.logs.export.enabled`
+- Spark Connect driver uses the temporary token of its vanilla operation, the `spark.ytsaurus.connect.token.refresh.period` option is removed
+- Fixed driver hangs for distributed writes in case of errors
+- Fixed duplicates of Spark configuration keys re-injected from the environment
+- Other minor fixes and improvements
 
 {% endcut %}
 
 
 {% cut "**2.9.3**" %}
 
-**Дата релиза:** 2026-07-13
+**Release date:** 2026-07-13
 
 
-**Страница релиза:** [2.9.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.3)
+**Release page:** [2.9.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.3)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.9.3](https://github.com/orgs/ytsaurus/packages/container/spyt/1028609465?tag=2.9.3)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.9.3](https://github.com/orgs/ytsaurus/packages/container/spyt/1028609465?tag=2.9.3)
 
 
-Сопроводительный релиз с незначительными улучшениями
+Maintenance release with minor enhancements
 
-- Сервис перемешивания YTsaurus включается для каждого приложения, а не глобально на standalone-кластерах
-- Исправлена совместимость operation_alias и enable_multi_operation_mode
-- Исправлены зависания driver при распределённой записи в случае ошибок
-- Прочие мелкие исправления и улучшения
+- Enable YTsaurus shuffle service per application instead of globally on standalone clusters
+- Fix operation_alias and enable_multi_operation_mode compatibility
+- Fix driver hangs for distributed writes in case of errors
+- Other minor fixes and improvements
+
+{% endcut %}
+
+
+{% cut "**2.10.0**" %}
+
+**Release date:** 2026-05-27
+
+
+**Release page:** [2.10.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.10.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.10.0](https://github.com/orgs/ytsaurus/packages/container/spyt/894673032?tag=2.10.0)
+
+
+Major release that enables support for Spark 4.0.x and 4.1.x.
+
+- Added Scala 2.13 support along with Scala 2.12
+- pyspark-client Python package support for writing client-side logic using Spark Connect protocol without JVM
+- Transactional Streaming
+- Drop Spark 3.2.x support
+- Drop Java 11 support, all JVM classes are compiled with Java 17
+- Drop Python 3.8, 3.9 and 3.10 support
+- Drop Livy support for Query Tracker integration
 
 {% endcut %}
 
 
 {% cut "**2.9.2**" %}
 
-**Дата релиза:** 2026-05-22
+**Release date:** 2026-05-22
 
 
-**Страница релиза:** [2.9.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.2)
+**Release page:** [2.9.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.2)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.9.2](https://github.com/orgs/ytsaurus/packages/container/spyt/884346974?tag=2.9.2)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.9.2](https://github.com/orgs/ytsaurus/packages/container/spyt/884346974?tag=2.9.2)
 
 
-Сопроводительный релиз с незначительными улучшениями
+Maintenance release with minor enhancements
 
-- Поддержка runtime-фильтров (динамическое отсечение партиций) для dataframe API
-- Исправлен stacktrace при отключённых метриках
-- Метод wait_for_spark_connect_endpoint перенесён в spyt.connect
-- Распространение nullable в pushStructMetadata при обрезке колонок
-- Исправлена запись nullable-значений составных колонок в динамические таблицы
-- Прочие мелкие исправления и улучшения
+- Support runtime filters functionality (dynamic partition pruning) for dataframe API
+- Fix stacktrace for disabled metrics
+- Move wait_for_spark_connect_endpoint method to spyt.connect
+- Propagate nullable in pushStructMetadata during column pruning
+- Fix writing nullable values of composite columns in dynamic tables
+- Other minor fixes and improvements
 
 
 {% endcut %}
@@ -108,153 +133,154 @@
 
 {% cut "**2.9.1**" %}
 
-**Дата релиза:** 2026-05-08
+**Release date:** 2026-05-08
 
 
-**Страница релиза:** [2.9.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.1)
+**Release page:** [2.9.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.1)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.9.1](https://github.com/orgs/ytsaurus/packages/container/spyt/851298038?tag=2.9.1)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.9.1](https://github.com/orgs/ytsaurus/packages/container/spyt/851298038?tag=2.9.1)
 
 
-Сопроводительный релиз с незначительными улучшениями
+Maintenance release with minor enhancements
 
-- Ускорение блокировки нескольких таблиц при транзакционном чтении за счёт асинхронных запросов на блокировку
-- Исправлено применение pushdown-фильтров для Spark SQL API
-- Поддержка указания пользовательских атрибутов при создании таблицы
-- Добавлено ytPartitioning по сжатому размеру таблицы YT вместо веса данных. Может улучшить производительность для lookup-таблиц. Отключено по умолчанию; включите с помощью `spark.yt.read.ytPartitioning.compressedSize.enable=true`.
-- Исправлена запись вложенных беззнаковых типов в динамические таблицы
-- Прочие мелкие исправления и улучшения
+- Boost multiple table locking under transactional reading by using asynchronous lock requests
+- Fixed pushdown filters application for Spark SQL API
+- Support for specifying custom attributes when creating table
+- Added ytPartitioning by YT table compressed size instead of data weight. May improve performance for lookup tables. Disabled by default; enable with `spark.yt.read.ytPartitioning.compressedSize.enable=true`.
+- Fixed writing nested unsigned types to dyn tables
+- Other minor fixes and improvements
 
 {% endcut %}
 
 
 {% cut "**2.9.0**" %}
 
-**Дата релиза:** 2026-03-30
+**Release date:** 2026-03-30
 
 
-**Страница релиза:** [2.9.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.0)
+**Release page:** [2.9.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.9.0)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.9.0](https://github.com/orgs/ytsaurus/packages/container/spyt/765852936?tag=2.9.0)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.9.0](https://github.com/orgs/ytsaurus/packages/container/spyt/765852936?tag=2.9.0)
 
 
-- Поддержка Spark Connect во внутреннем Spark Standalone-кластере
-- Поддержка безопасности на уровне строк и колонок (RLS/CLS)
-- Обновлённая статистика чтения и записи
-- Исправления производительности и стабильности
+- Support for Spark Connect in Spark Standalone inner cluster
+- Row and column level security (RLS/CLS) support
+- Updated read and write statistics
+- Perfomance and stability fixes
 
 {% endcut %}
 
 
 {% cut "**2.8.2**" %}
 
-**Дата релиза:** 2025-12-23
+**Release date:** 2025-12-23
 
 
-**Страница релиза:** [2.8.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.8.2)
+**Release page:** [2.8.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.8.2)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.8.2](https://github.com/orgs/ytsaurus/packages/container/spyt/621174080?tag=2.8.2)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.8.2](https://github.com/orgs/ytsaurus/packages/container/spyt/621174080?tag=2.8.2)
 
 
-Сопроводительный релиз с незначительными улучшениями
+Maintenance release with minor enhancements
 
-- Повышение стабильности поддержки распределённого API записи и чтения
-- Прочие мелкие исправления
+- Improving stability of distributed write and read API support
+- Other minor fixes
 
 {% endcut %}
 
 
 {% cut "**2.8.0**" %}
 
-**Дата релиза:** 2025-11-27
+**Release date:** 2025-11-27
 
 
-**Страница релиза:** [2.8.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.8.0)
+**Release page:** [2.8.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.8.0)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.8.0](https://github.com/orgs/ytsaurus/packages/container/spyt/591865107?tag=2.8.0)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.8.0](https://github.com/orgs/ytsaurus/packages/container/spyt/591865107?tag=2.8.0)
 
 
-- Поддержка динамического выделения ресурсов в сценариях прямого запуска
-- Поддержка распределённого API чтения и записи YTsaurus
-- Автоматическое завершение работы driver при сбоях executor
-- Улучшения интеграции Spark Connect
+- Dynamic allocation support in direct submit scenarios
+- YTsaurus distributed read and write API support
+- Driver auto-shutdown on executor failures
+- Spark connect integration improvements
 
 {% endcut %}
 
 
 {% cut "**2.7.5**" %}
 
-**Дата релиза:** 2025-11-05
+**Release date:** 2025-11-05
 
 
-**Страница релиза:** [2.7.5](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.5)
+**Release page:** [2.7.5](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.5)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.7.5](https://github.com/orgs/ytsaurus/packages/container/spyt/566520656?tag=2.7.5)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.7.5](https://github.com/orgs/ytsaurus/packages/container/spyt/566520656?tag=2.7.5)
 
 
-Сопроводительный релиз с незначительными улучшениями
+Maintenance release with minor enhancements
 
-- Корректное чтение беззнаковых типов (uint8, uint16, uint32) в форматах arrow и wire
+- Correct reading of unsigned types (uint8, uint16, uint32) in arrow and wire formats
 
 {% endcut %}
 
 
 {% cut "**2.7.4**" %}
 
-**Дата релиза:** 2025-10-07
+**Release date:** 2025-10-07
 
 
-**Страница релиза:** [2.7.4](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.4)
+**Release page:** [2.7.4](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.4)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.7.4](https://github.com/orgs/ytsaurus/packages/container/spyt/536915303?tag=2.7.4)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.7.4](https://github.com/orgs/ytsaurus/packages/container/spyt/536915303?tag=2.7.4)
 
 
-Сопроводительный релиз с незначительными улучшениями
+Maintenance release with minor enhancements
 
-- Более надёжная обработка стриминговых офсетов
+- More reliable processing of streaming offsets
 
 {% endcut %}
 
 
 {% cut "**2.7.3**" %}
 
-**Дата релиза:** 2025-09-08
+**Release date:** 2025-09-08
 
 
-**Страница релиза:** [2.7.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.3)
+**Release page:** [2.7.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.3)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.7.3](https://github.com/orgs/ytsaurus/packages/container/spyt/508561375?tag=2.7.3)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.7.3](https://github.com/orgs/ytsaurus/packages/container/spyt/508561375?tag=2.7.3)
 
 
-Сопроводительный релиз с незначительными улучшениями
+Maintenance release with minor enhancements
 
-- Рефакторинг записи и чтения данных перемешивания
-- Улучшения метрик
+- Refactor shuffle data writing and reading
+- Metrics improvements
 
 {% endcut %}
 
+
 {% cut "**2.7.2**" %}
 
-**Дата релиза:** 2025-09-01
+**Release date:** 2025-09-01
 
 
-**Страница релиза:** [2.7.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.2)
+**Release page:** [2.7.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.2)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.7.2](https://github.com/orgs/ytsaurus/packages/container/spyt/501679957?tag=2.7.2)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.7.2](https://github.com/orgs/ytsaurus/packages/container/spyt/501679957?tag=2.7.2)
 
 
-Релиз поддержки с небольшими улучшениями
+Maintenance release with minor enhancements
 
-- Улучшение интеграции с сервисом перемешивания YTsaurus
-- Обёртка Spark connect server для SPYT
+- Improving YTsaurus shuffle service integration
+- Spark connect server wrapper for SPYT
 
 
 {% endcut %}
@@ -262,25 +288,25 @@
 
 {% cut "**2.7.1**" %}
 
-**Дата релиза:** 2025-08-15
+**Release date:** 2025-08-15
 
 
-**Страница релиза:** [2.7.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.1)
+**Release page:** [2.7.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.1)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.7.1](https://github.com/orgs/ytsaurus/packages/container/spyt/487987719?tag=2.7.1)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.7.1](https://github.com/orgs/ytsaurus/packages/container/spyt/487987719?tag=2.7.1)
 
 
-Релиз поддержки с небольшими улучшениями
+Maintenance release with minor enhancements
 
-- Оптимизация количества запросов к мастеру в сценариях массового чтения
-- Скрытие конфиденциальной информации из командной строки драйвера и передача её через защищённое хранилище
-- Исправление hostname исполнителей в сетевом проекте
-- Отображение id операции исполнителя в описании операции драйвера
-- Исправление экранирования java-свойств
-- Включение контекста парсинга в исключения парсинга
-- Исправление joins по колонкам uint64
-- Поддержка настройки защищённого хранилища в сценариях direct submit
+- Optimizing the number of requests to master in bulk reading scenarios
+- Hiding sensitive information from driver command line and passing it via secure vault
+- Fix executors hostname in network project
+- Showing executor operation id in driver operation description
+- Fix java properties escaping
+- Including parsing context in parsing exceptions
+- Fix joins by uint64 columns
+- Support for setting secure vault in direct submit scenarios
 
 
 {% endcut %}
@@ -288,42 +314,42 @@
 
 {% cut "**2.7.0**" %}
 
-**Дата релиза:** 2025-07-24
+**Release date:** 2025-07-24
 
 
-**Страница релиза:** [2.7.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.0)
+**Release page:** [2.7.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.7.0)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.7.0](https://github.com/orgs/ytsaurus/packages/container/spyt/469733902?tag=2.7.0)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.7.0](https://github.com/orgs/ytsaurus/packages/container/spyt/469733902?tag=2.7.0)
 
 
-- Поддержка сервиса перемешивания YTsaurus
-- Рефакторинг метрик для режимов внутреннего кластера и direct submit
-- Запросы к динамическим таблицам через SQL API больше не требуют явного указания timestamp
-- Исправления ошибок и повышение стабильности:
-- - Исправление ошибок OutOfMemory для оптимизированных под сканирование отсортированных таблиц
-- - Исправление приведения типов к uint64 в codegen
-- - Исправление ошибки YT "Manually specified and authenticated users mismatch" в direct submit
-- - Прочие мелкие исправления
+- YTsaurus shuffle service support
+- Metrics refactoring for inner cluster and direct submit modes
+- Dynamic table queries via SQL API doesn't require explicit timestamp
+- Bugs and stability fixes:
+- - Fix OutOfMemory errors for optimized-for scan sorted tables
+- - Fix casting types to uint64 in codegen
+- - Fix "Manually specified and authenticated users mismatch" YT error in direct submit
+- - Other minor fixes
 
 {% endcut %}
 
 
 {% cut "**2.6.5**" %}
 
-**Дата релиза:** 2025-06-08
+**Release date:** 2025-06-08
 
 
-**Страница релиза:** [2.6.5](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.6.5)
+**Release page:** [2.6.5](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.6.5)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.6.5](https://github.com/orgs/ytsaurus/packages/container/spyt/433480410?tag=2.6.5)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.6.5](https://github.com/orgs/ytsaurus/packages/container/spyt/433480410?tag=2.6.5)
 
 
-Релиз поддержки с небольшими улучшениями
+Maintenance release with minor enhancements
 
-- Поддержка Spark 3.5.6
-- Небольшие улучшения поддержки Spark Streaming в YTsaurus
+- Support for Spark 3.5.6
+- Minor improvements for Spark Streaming support in YTsaurus
 
 
 {% endcut %}
@@ -331,23 +357,23 @@
 
 {% cut "**2.6.4**" %}
 
-**Дата релиза:** 2025-05-16
+**Release date:** 2025-05-16
 
 
-**Страница релиза:** [2.6.4](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.6.4)
+**Release page:** [2.6.4](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.6.4)
 
 
-**Docker-образ:** [ghcr.io/ytsaurus/spyt:2.6.4](https://github.com/orgs/ytsaurus/packages/container/spyt/417318819?tag=2.6.4)
+**Docker image:** [ghcr.io/ytsaurus/spyt:2.6.4](https://github.com/orgs/ytsaurus/packages/container/spyt/417318819?tag=2.6.4)
 
 
-Релиз поддержки с небольшими улучшениями и исправлениями ошибок
+Maintenance release with minor enhancements and bug fixes
 
-- Поддержка получения id операции драйвера в сценариях direct submit
-- Сокращение количества потоков YTsaurusClient за счёт повторного использования экземпляров клиента
-- Исправление JSON-конфигурации для log4j2
-- Названия транзакций для транзакций SPYT
-- Исправление конфигурации метрик prometeus
-- Исправление выделенного режима драйвера для автономного кластера
+- Support for retrieving driver operation id in direct submit scenarios
+- Reducing YTsaurusClient threads by reusing client instances
+- Fix JSON layout for log4j2
+- Transaction titles for SPYT transactions
+- Fix prometeus metrics configuration
+- Fix dedicated driver mode for standalone cluster
 
 
 {% endcut %}
@@ -355,39 +381,39 @@
 
 {% cut "**2.6.0**" %}
 
-**Дата релиза:** 2025-04-23
+**Release date:** 2025-04-23
 
 
-**Страница релиза:** [2.6.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.6.0)
+**Release page:** [2.6.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.6.0)
 
 
-- Поддержка Java 17
-- Поддержка типов YTsaurus UUID и Json
-- Поддержка RPC-job proxy в direct submit
-- Поддержка дополнительных параметров задач в спецификации операции YTsaurus через Spark config в direct submit
-- Поддержка взятия блокировок слепков во время чтения
-- Явный флаг для усечённого результата запросов Query Tracker
-- Исправление совместимости со Spark 3.5.4 и 3.5.5
-- Исправление date- и timestamp SQL-функций через Query Tracker
-- Множество исправлений стабильности и других ошибок
+- Java 17 support
+- Support for UUID and Json YTsaurus types
+- Support for RPC-job proxy in direct submit
+- Support for additional task parameters in YTsaurus operation specification via Spark config in direct submit
+- Support for taking snapshots locks at reading time
+- Explicit flag for truncated result of Query Tracker queries
+- Fix compatibility with Spark 3.5.4 and 3.5.5
+- Fix for date- and timestamp SQL-functions via Query Tracker
+- Many stability and other bug fixes
 
 {% endcut %}
 
 
 {% cut "**2.5.0**" %}
 
-**Дата релиза:** 2024-12-25
+**Release date:** 2024-12-25
 
 
-**Страница релиза:** [2.5.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.5.0)
+**Release page:** [2.5.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.5.0)
 
 
-Основной релиз, добавляющий поддержку Spark 3.4.x и 3.5.x.
+Major release that enables support for Spark 3.4.x and 3.5.x. 
 
-- Версия Spark на этапе компиляции изменена с 3.2.2 на 3.5.4;
-- Начиная с этого релиза версия Spark на этапе компиляции SPYT будет последней доступной поддерживаемой версией;
-- Обратная совместимость сохраняется вплоть до Spark 3.2.2;
-- Модульные тесты можно запускать с версией Spark, отличной от используемой на этапе компиляции, с помощью флага sbt `-DtestSparkVersion=3.x.x`
+- Compile-time Spark version is changed from 3.2.2 to 3.5.4;
+- SPYT compile-time Spark version will be the latest available supported version since this release;
+- Backward compatibility is still preserved down to Spark 3.2.2;
+- Unit tests can be run over different Spark version than used at compile time via `-DtestSparkVersion=3.x.x` sbt flag
 
 
 {% endcut %}
@@ -395,15 +421,15 @@
 
 {% cut "**2.4.4**" %}
 
-**Дата релиза:** 2024-12-20
+**Release date:** 2024-12-20
 
 
-**Страница релиза:** [2.4.4](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.4)
+**Release page:** [2.4.4](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.4)
 
 
-Релиз поддержки с исправлениями ошибок:
+Maintenance release with bug fixes:
 
-- Указание сетевого проекта для Livy через аргумент командной строки
+- Providing network project for Livy via command line argument
 
 
 {% endcut %}
@@ -411,129 +437,130 @@
 
 {% cut "**2.4.3**" %}
 
-**Дата релиза:** 2024-12-16
+**Release date:** 2024-12-16
 
 
-**Страница релиза:** [2.4.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.3)
+**Release page:** [2.4.3](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.3)
 
 
-Релиз поддержки с исправлениями ошибок:
+Maintenance release with bug fixes:
 
-- Указание сетевого проекта для direct submit и его настройка из Livy
-- Исправление чтения и записи для структур со значением float с использованием Dataset API
+- Specifying network project for direct submit and setting it from Livy
+- Fix read and write for structs with float value using Dataset API
 
 {% endcut %}
 
 
 {% cut "**2.4.2**" %}
 
-**Дата релиза:** 2024-12-06
+**Release date:** 2024-12-06
 
 
-**Страница релиза:** [2.4.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.2)
+**Release page:** [2.4.2](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.2)
 
 
-Релиз поддержки с исправлениями ошибок:
+Maintenance release with bug fixes:
 
-- Автоприведение DatetimeType к TimestampType в spark udf
-- Добавлен парсинг spark.executorEnv и spark.ytsaurus.driverEnv и установка SPARK_LOCAL_DIRS
-- Исправление параметров worker_disk_limit и worker_disk_account для автономного кластера
-- Использование совместимых версий SPYT вместо последних для direct submit
-- Разделение роли прокси на клиентскую (spark.hadoop.yt.proxyRole) и кластерную (spark.hadoop.yt.clusterProxyRole)
-- Добавлен флаг spark.ytsaurus.driver.watch для отслеживания операции драйвера
-- Исправление чтения логов Livy
+- Autocast DatetimeType to TimestampType in spark udf
+- Add parsing spark.executorEnv and spark.ytsaurus.driverEnv and set SPARK_LOCAL_DIRS
+- Fix worker_disk_limit and worker_disk_account parameters for standalone cluster
+- Using compatible SPYT versions instead of latest for direct submit
+- Separate proxy role into client (spark.hadoop.yt.proxyRole) and cluster (spark.hadoop.yt.clusterProxyRole)
+- Add flag spark.ytsaurus.driver.watch for watching driver operation
+- Fix reading Livy logs
 
 {% endcut %}
 
 
 {% cut "**2.4.1**" %}
 
-**Дата релиза:** 2024-11-12
+**Release date:** 2024-11-12
 
 
-**Страница релиза:** [2.4.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.1)
+**Release page:** [2.4.1](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.1)
 
 
-Релиз поддержки с исправлениями ошибок:
+Maintenance release with bug fixes:
 
-- Исправление создания таблиц через Spark SQL без явного указания схемы ytTable
-- Исправление сериализации и десериализации вложенных временных типов
-- Исправление приведения NULL во вложенных структурах данных
+- Fix creating tables via Spark SQL without explicitly specifying ytTable schema
+- Fix serializing and deserializing nested time types
+- Fix casting NULL in nested data structures
 
 {% endcut %}
 
 
 {% cut "**2.4.0**" %}
 
-**Дата релиза:** 2024-10-31
+**Release date:** 2024-10-31
 
 
-**Страница релиза:** [2.4.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.0)
+**Release page:** [2.4.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.4.0)
 
 
-* Поддержка запуска локальных файлов и их зависимостей в режиме direct submit с загрузкой в кэш YTsaurus
-* Поддержка отправки скомпилированных python-бинарников в качестве spark-приложений через direct submit
-* Подсказки схемы при записи Dataframe
-* Исправления ошибок:
-* * Запись во внешний S3 из YTsaurus
-* * Чтение значений float из вложенных структур
-* * Чтение в колоночном формате для Spark 3.3.x
-* * Чтение произвольных файлов из Кипариса при использовании Spark 3.3.x
+* Support for running local files and their dependencies in direct submit mode by uploading it to YTsaurus cache
+* Support for submitting compiled python binaries as spark applications via direct submit
+* Dataframe write schema hints 
+* Bug fixes:
+* * Writing to external S3 from YTsaurus
+* * Reading float values from nested structures
+* * Columnar format reading for Spark 3.3.x
+* * Reading arbitrary files from Cypress when using Spark 3.3.x
 
 {% endcut %}
 
+
 {% cut "**2.3.0**" %}
 
-**Дата релиза:** 2024-09-11
+**Release date:** 2024-09-11
 
 
-**Страница релиза:** [2.3.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.3.0)
+**Release page:** [2.3.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.3.0)
 
 
-Основная возможность SPYT 2.3.0 — поддержка Spark 3.3.x. Другие заметные изменения:
+The major feature of SPYT 2.3.0 is support for Spark 3.3.x. Other notable features are:
 
-* поддержка расширенных типов Datetime, таких как Date32, Datetime32, Timestamp64, Interval64;
-* поддержка табличных свойств в Spark SQL;
-* поддержка записи с использованием схемы партиционирования Hive;
-* поддержка указания случайного порта для Shuffle-сервиса во внутреннем автономном кластере;
-* исправление статистики выполнения;
-* исправления ошибок для пользовательской схемы и сохранения датафреймов.
+* Support for extended Datetime types such as Date32, Datetime32, Timestamp64, Interval64;
+* Support for table properties in Spark SQL;
+* Support for writing using Hive partitioning schema;
+* Support for specifying random port for Shuffle service in inner standalone cluster;
+* Fix for runtime statistics;
+* Bug-Fixes for user-provided schema and for dataframes persisting.
 
 {% endcut %}
 
 
 {% cut "**2.2.0**" %}
 
-**Дата релиза:** 2024-08-14
+**Release date:** 2024-08-14
 
 
-**Страница релиза:** [2.2.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.2.0)
+**Release page:** [2.2.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.2.0)
 
 
-- поддержка чтения из нескольких кластеров YTsaurus;
-- передача аннотаций для операций YTsaurus через параметры конфигурации;
-- поддержка указания пользовательской схемы при чтении;
-- поддержка параметра `--archives` в spark-submit;
-- исправление для int8 и int16 как вложенных полей;
-- исправление транзакционного чтения;
-- прочие мелкие исправления.
+- Support for reading from multiple YTsaurus clusters
+- Supplying annotations for YTsaurus operations via conf parameters
+- Support for specifying custom schema on read
+- Support for --archives parameter in spark-submit
+- Fix for int8 and int16 as nested fields
+- Transactional read fix
+- Other minor fixes
 
 {% endcut %}
 
 
 {% cut "**2.1.0**" %}
 
-**Дата релиза:** 2024-06-19
+**Release date:** 2024-06-19
 
 
-**Страница релиза:** [2.1.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.1.0)
+**Release page:** [2.1.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.1.0)
 
 
-* поддержка запуска приложений с использованием GPU;
-* поддержка версий Spark 3.2.2–3.2.4;
-* поддержка History Server для сценариев прямого сабмита;
-* поддержка https и TCP-прокси в сценариях прямого сабмита;
-* прочие мелкие исправления и улучшения.
+* Support for running applications using GPU
+* Support for Spark versions 3.2.2-3.2.4
+* History server support for direct submit scenarios
+* Support for https and TCP proxy in direct submit scenarios
+* Other minor fixes and improvements
 
 
 {% endcut %}
@@ -541,18 +568,19 @@
 
 {% cut "**2.0.0**" %}
 
-**Дата релиза:** 2024-05-29
+**Release date:** 2024-05-29
 
 
-**Страница релиза:** [2.0.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.0.0)
+**Release page:** [2.0.0](https://github.com/ytsaurus/ytsaurus-spyt/releases/tag/spyt/2.0.0)
 
 
-SPYT 2.0.0 — первый релиз в рамках новой схемы релизов и в отдельном репозитории ytsaurus-spyt. Основная особенность этого релиза — мы наконец перешли с форка Apache Spark, использовавшегося в предыдущих релизах, на оригинальный дистрибутив Apache Spark. Релиз SPYT 2.0.0 по-прежнему использует Apache Spark 3.2.2, но в ближайшее время мы планируем поддерживать все релизы Apache Spark 3.x.x.
+SPYT 2.0.0 is the first release under the new release scheme and in the separate ytsaurus-spyt repository. The main feature of this release is that we have finally switched from Apache Spark fork that was used in previous releases to original Apache Spark distributive. The 2.0.0 SPYT release is still using Apache Spark 3.2.2, but we plan to support all Apache Spark 3.x.x releases in the nearest future!
 
-Другие заметные изменения:
-- поддержка прямого сабмита с использованием Livy через Query Tracker;
-- разделение модуля data-source на data-source-base, использующий стандартные типы Spark для всех типов YTsaurus, и data-source-extended для нашей реализации пользовательских типов YTsaurus, не имеющих прямых соответствий в системе типов Spark;
-- поддержка прямого сабмита из Jupyter-ноутбуков;
-- пользовательский UDT для типа datetime в YTsaurus.
+Other notable changes are:
+- Support for direct submit on using Livy via Query Tracker;
+- Split data-source module into data-source-base that uses standard Spark types for all YTsaurus types, and data-source-extended for our implementation of custom YTsaurus types that don't have direct matches in Spark type system;
+- Support for direct submit from Jupyter notebooks;
+- Custom UDT for YTsaurus datetime type.
 
 {% endcut %}
+
