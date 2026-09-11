@@ -412,10 +412,15 @@ int TObjectServiceCache::GetAdvisedEntryStickyGroupSize(const TObjectServiceCach
 {
     auto totalByteRate = entry->GetTotalByteRate();
     int advisedSize = 1 + static_cast<int>(totalByteRate / EntryByteRateLimit_.load(std::memory_order::relaxed));
-    return std::clamp(
+    advisedSize = std::clamp(
         advisedSize,
         MinAdvisedStickyGroupSize_.load(std::memory_order::relaxed),
         MaxAdvisedStickyGroupSize_.load(std::memory_order::relaxed));
+    YT_TLOG_DEBUG("Cache entry sticky group size calculated")
+        .With("Key", entry->GetKey())
+        .With("TotalByteRate", totalByteRate)
+        .With("AdvisedSize", advisedSize);
+    return advisedSize;
 }
 
 IYPathServicePtr TObjectServiceCache::GetOrchidService()
