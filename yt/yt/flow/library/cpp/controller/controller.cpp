@@ -445,8 +445,10 @@ public:
         , LeaseManager_(CreateLeaseManager(
             Connector_,
             Config_->LeaseManager,
-            Config_->ElectionManager.GetType() == EElectionBackend::Dyntable,
-            Config_->PersistedStateManager->MaxWritesPerTransaction))
+            Config_->ElectionManager.GetType(),
+            Config_->ElectionManager.TryGetConcrete<TChaosElectionBackendConfig>(),
+            Config_->PersistedStateManager->MaxWritesPerTransaction,
+            invoker))
         , MutationMetrics_(Profiler_)
         , CurrentEpochGauge_(Profiler_.Gauge("/current_epoch"))
         , ComputationCountGauge_(Profiler_.Gauge("/computation_count"))

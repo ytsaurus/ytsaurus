@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/actions/public.h>
+
 namespace NYT::NFlow::NController {
 
 struct ILeaseManager
@@ -25,10 +27,15 @@ struct ILeaseManager
 
 DEFINE_REFCOUNTED_TYPE(ILeaseManager);
 
+//! |backend| selects the lease flavour: rows of the leases table for Dyntable, chaos leases for
+//! Chaos (|chaosConfig| names their bundle) and master lease transactions otherwise.
+//! |invoker| carries the chaos lease pings and must die with the leadership.
 ILeaseManagerPtr CreateLeaseManager(
     IYTConnectorPtr connector,
     TLeaseManagerConfigPtr config,
-    bool dyntableLeases,
-    i64 maxWritesPerTransaction);
+    EElectionBackend backend,
+    TChaosElectionBackendConfigPtr chaosConfig,
+    i64 maxWritesPerTransaction,
+    IInvokerPtr invoker);
 
 } // namespace NYT::NFlow::NController

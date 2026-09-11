@@ -143,6 +143,17 @@ PIPELINE_TABLES: dict[str, Any] = {
             {"name": "value", "type": "any", "group": "default"},
         ],
     },
+    # One row per election group for the chaos election backend; stays empty under the Cypress one.
+    # Mirrors NChaosElection::GetChaosElectionLockTableSchema().
+    "leader_election_lock": {
+        "schema": [
+            {"name": "lock_key", "type": "string", "sort_order": "ascending", "group": "default"},
+            {"name": "leader_lease_id", "type": "string", "group": "default"},
+            {"name": "leader_name", "type": "string", "group": "default"},
+            {"name": "lease_timeout", "type": "uint64", "group": "default"},
+            {"name": "last_ping_time", "type": "uint64", "group": "default"},
+        ],
+    },
 }
 
 

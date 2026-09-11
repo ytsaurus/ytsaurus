@@ -5,6 +5,12 @@
 
 #include <yt/yt/client/cypress_client/public.h>
 
+#include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/server/lib/chaos_election/election_manager.h>
+
 #include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT::NFlow {
@@ -13,9 +19,12 @@ namespace {
 using namespace NApi;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NTableClient;
 using namespace NYPath;
+using namespace NYTree;
 
 using ::testing::_;
+using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 
@@ -79,6 +88,42 @@ TEST(TPipelineInitTest, IgnoreExistingPropagatesToInnerTables)
     }
     EXPECT_TRUE(sawPipelineNode);
     EXPECT_TRUE(sawInnerTable);
+}
+
+// The leader election lock table is created here, but its layout belongs to the chaos election
+// manager; the two definitions are apart because that library is server-side.
+TEST(TPipelineInitTest, LeaderElectionLockTableMatchesTheElectionManagerSchema)
+{
+    auto client = New<NiceMock<TMockClient>>();
+    auto transaction = New<NiceMock<TMockTransaction>>();
+
+    THashMap<TYPath, TCreateNodeOptions> createNodeCalls;
+
+    ON_CALL(*client, StartTransaction(_, _))
+        .WillByDefault(Return(MakeFuture<ITransactionPtr>(transaction)));
+
+    ON_CALL(*transaction, CreateNode(_, _, _))
+        .WillByDefault(Invoke([&] (
+            const TYPath& path,
+            EObjectType /*type*/,
+            const TCreateNodeOptions& options) {
+            createNodeCalls[path] = options;
+            return MakeFuture<TNodeId>(TNodeId(TGuid::Create()));
+        }));
+
+    ON_CALL(*transaction, Commit(_))
+        .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));
+
+    ON_CALL(*client, MountTable(_, _))
+        .WillByDefault(Return(OKFuture));
+
+    CreatePipelineNode(client, "//tmp/pipeline", {});
+
+    auto lockTableOptions = createNodeCalls.find(Format("//tmp/pipeline/%v", LeaderElectionLockTableName));
+    ASSERT_NE(lockTableOptions, createNodeCalls.end());
+
+    auto schema = lockTableOptions->second.Attributes->Get<TTableSchemaPtr>("schema");
+    EXPECT_EQ(*schema, *NChaosElection::GetChaosElectionLockTableSchema());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

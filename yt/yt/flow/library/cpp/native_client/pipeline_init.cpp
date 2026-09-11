@@ -209,6 +209,21 @@ IAttributeDictionaryPtr GetFlowControlTableAttributes()
     return attributes;
 }
 
+IAttributeDictionaryPtr GetLeaderElectionLockTableAttributes()
+{
+    // NB: The layout belongs to the chaos election manager (NChaosElection). It is repeated here
+    // rather than taken from there because that library is server-side and this one is reachable
+    // from ytlib; the unittests compare the two schemas so they cannot drift apart.
+    return CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("lock_key", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("leader_lease_id", EValueType::String),
+            TColumnSchema("leader_name", EValueType::String),
+            TColumnSchema("lease_timeout", EValueType::Uint64),
+            TColumnSchema("last_ping_time", EValueType::Uint64),
+        }));
+}
+
 IAttributeDictionaryPtr GetPartitionTransactionsTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
@@ -283,6 +298,7 @@ auto GetTables()
         {FlowControlTableName, GetFlowControlTableAttributes()},
         {PartitionTransactionsTableName, GetPartitionTransactionsTableAttributes()},
         {LeasesTableName, GetLeasesTableAttributes()},
+        {LeaderElectionLockTableName, GetLeaderElectionLockTableAttributes()},
     };
 }
 

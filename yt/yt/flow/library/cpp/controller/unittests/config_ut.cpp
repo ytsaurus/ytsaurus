@@ -53,11 +53,24 @@ TEST(TElectionManagerConfigTest, DyntableBackend)
     auto backendConfig = config->ElectionManager.GetConcrete<TDyntableElectionBackendConfig>();
     EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Seconds(15));
     EXPECT_EQ(backendConfig->DetachTimeout, TDuration::Seconds(20));
-    // The shared parameters are registered by the base struct and apply to both backends.
+    // The shared parameters are registered by the base struct and apply to every backend.
     EXPECT_EQ(backendConfig->LockAcquisitionPeriod, TDuration::Seconds(2));
 }
 
-// A parameter of the other backend is simply unrecognized, as anywhere else in a yson struct:
+TEST(TElectionManagerConfigTest, ChaosBackend)
+{
+    auto config = LoadControllerConfig(
+        R"({election_manager={backend=chaos;chaos_cell_bundle="test-chaos";lease_timeout="13s";lock_acquisition_period="2s"}})");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Chaos);
+    auto backendConfig = config->ElectionManager.GetConcrete<TChaosElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->ChaosCellBundle, "test-chaos");
+    EXPECT_EQ(backendConfig->LeaseTimeout, TDuration::Seconds(13));
+    // The shared parameters are registered by the base struct and apply to every backend.
+    EXPECT_EQ(backendConfig->LockAcquisitionPeriod, TDuration::Seconds(2));
+}
+
+// A parameter of another backend is simply unrecognized, as anywhere else in a yson struct:
 // switching the backend silently drops the settings that no longer apply.
 TEST(TElectionManagerConfigTest, IgnoresForeignBackendParameters)
 {
@@ -109,6 +122,61 @@ TEST(TElectionManagerConfigTest, AcceptsLeaseTimeoutCoveringTheLeaderLeaseTtl)
         R"(election_manager={backend=dyntable;leader_lease_ttl="10s"}})");
 
     EXPECT_EQ(config->LeaseManager->LeaseTimeout, TDuration::Seconds(60));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Chaos job leases are pinged by the leader alone, so they have to outlast the whole handover:
+// the dead leader's own lease, the lock acquisition and the warm-up of the replacement.
+
+TEST(TElectionManagerConfigTest, RejectsLeaseTimeoutBelowTheChaosHandover)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        LoadControllerConfig(
+            R"({warm_up_time="5s";lease_manager={lease_timeout="30s"};)"
+            R"(election_manager={backend=chaos;lease_timeout="15s";lock_acquisition_period="1s"}})"),
+        "lease_timeout");
+}
+
+TEST(TElectionManagerConfigTest, AcceptsLeaseTimeoutCoveringTheChaosHandover)
+{
+    auto config = LoadControllerConfig(
+        R"({warm_up_time="5s";lease_manager={lease_timeout="60s";lease_ping_period="2s"};)"
+        R"(election_manager={backend=chaos;lease_timeout="15s";lock_acquisition_period="1s"}})");
+
+    EXPECT_EQ(config->LeaseManager->LeaseTimeout, TDuration::Seconds(60));
+}
+
+// The handover is covered by what is LEFT of a job lease, and a lease is up to a ping period old
+// when the leader dies. A timeout that covers the handover exactly is therefore not enough: with
+// this ping period the lease reaches the handover with a minute already spent.
+TEST(TElectionManagerConfigTest, RejectsLeaseTimeoutEatenByALongPingPeriod)
+{
+    EXPECT_THROW_WITH_SUBSTRING(
+        LoadControllerConfig(
+            R"({warm_up_time="5s";lease_manager={lease_timeout="72s";lease_ping_period="60s"};)"
+            R"(election_manager={backend=chaos;lease_timeout="30s";lock_acquisition_period="1s"}})"),
+        "lease_timeout");
+}
+
+// The same handover with the ping period paid for on top.
+TEST(TElectionManagerConfigTest, AcceptsLeaseTimeoutCoveringTheHandoverAndThePingPeriod)
+{
+    auto config = LoadControllerConfig(
+        R"({warm_up_time="5s";lease_manager={lease_timeout="132s";lease_ping_period="60s"};)"
+        R"(election_manager={backend=chaos;lease_timeout="30s";lock_acquisition_period="1s"}})");
+
+    EXPECT_EQ(config->LeaseManager->LeaseTimeout, TDuration::Seconds(132));
+}
+
+// The dyntable relation is checked against its own leader lease, so a chaos config must not be
+// judged by it and the other way round.
+TEST(TElectionManagerConfigTest, DoesNotApplyTheChaosCheckToOtherBackends)
+{
+    auto config = LoadControllerConfig(
+        R"({warm_up_time="5s";lease_manager={lease_timeout="30s"};election_manager={backend=cypress}})");
+
+    EXPECT_EQ(config->ElectionManager.GetType(), EElectionBackend::Cypress);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

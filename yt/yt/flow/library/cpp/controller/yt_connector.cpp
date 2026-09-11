@@ -32,6 +32,9 @@
 
 #include <yt/yt/library/lock_election/election_manager.h>
 
+#include <yt/yt/server/lib/chaos_election/config.h>
+#include <yt/yt/server/lib/chaos_election/election_manager.h>
+
 namespace NYT::NFlow::NController {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +53,9 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ControllerLogger;
+
+//! Election group the controllers of one pipeline compete in.
+constexpr TStringBuf ElectionGroupName = "FlowController";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,19 +161,38 @@ public:
             .ThrowOnError();
     }
 
-    //! Fences the transaction with the current leadership: with the Cypress backend the
-    //! leadership prerequisite id is added to prerequisites; with the Dyntable backend a tablet
-    //! transaction is fenced by validating and touching the leader row inside it (master
-    //! transactions cannot be fenced this way and are started as is — they must stay advisory).
+    //! Fences the transaction with the current leadership. Cypress and Chaos add the leadership
+    //! prerequisite id to prerequisites — a master transaction of the leader for the former, a
+    //! chaos lease for the latter, and a chaos lease is accepted only by commits that touch chaos
+    //! tables, so under Chaos it fences tablet transactions alone. Dyntable instead fences a
+    //! tablet transaction by validating and touching the leader row inside it. Master
+    //! transactions that cannot be fenced are started as is — they must stay advisory.
     TFuture<ITransactionPtr> StartTransaction(
         ETransactionType type,
         TTransactionStartOptions options = {}) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        if (Config_->ElectionManager.GetType() == EElectionBackend::Cypress) {
-            options.PrerequisiteTransactionIds.push_back(GetPrerequisiteId());
-            return GetClient()->StartTransaction(type, options);
+        switch (Config_->ElectionManager.GetType()) {
+            case EElectionBackend::Cypress:
+                options.PrerequisiteTransactionIds.push_back(GetPrerequisiteId());
+                return GetClient()->StartTransaction(type, options);
+
+            // A chaos lease is accepted only by commits that touch chaos tables — that is, by
+            // tablet transactions of a chaos pipeline; master transactions of a chaos-elected
+            // leader stay unfenced and are therefore advisory (see #TryPublishLeadership, which
+            // confirms the published address instead of relying on the write being atomic with
+            // leadership).
+            case EElectionBackend::Chaos:
+                if (type == ETransactionType::Tablet) {
+                    options.PrerequisiteTransactionIds.push_back(GetPrerequisiteId());
+                } else {
+                    ValidateLeader();
+                }
+                return GetClient()->StartTransaction(type, options);
+
+            case EElectionBackend::Dyntable:
+                break;
         }
 
         ValidateLeader();
@@ -305,7 +330,7 @@ private:
                 auto backendConfig = electionConfig.GetConcrete<TCypressElectionBackendConfig>();
 
                 auto config = New<TCypressElectionManagerConfig>();
-                config->LockPath = YPathJoin(GetPipelinePath().GetPath(), "leader_controller_lock");
+                config->LockPath = YPathJoin(GetPipelinePath().GetPath(), LeaderControllerLockName);
                 config->TransactionTimeout = backendConfig->TransactionTimeout;
                 config->TransactionPingPeriod = backendConfig->TransactionPingPeriod;
                 config->LockAcquisitionPeriod = backendConfig->LockAcquisitionPeriod;
@@ -315,7 +340,7 @@ private:
                 auto options = New<TCypressElectionManagerOptions>();
                 auto attrs = CreateEphemeralAttributes();
                 attrs->Set("host", NodeInfo_->GetIdentifyingString());
-                options->GroupName = "FlowController";
+                options->GroupName = ElectionGroupName;
                 options->MemberName = Format("%v(%v;%v)", NodeInfo_->Name, NodeInfo_->RpcAddress, NodeInfo_->IncarnationId);
                 options->TransactionAttributes = std::move(attrs);
                 return CreateCypressElectionManager(
@@ -345,6 +370,29 @@ private:
                 }
                 return manager;
             }
+            case EElectionBackend::Chaos: {
+                auto backendConfig = electionConfig.GetConcrete<TChaosElectionBackendConfig>();
+
+                auto config = New<NChaosElection::TChaosElectionManagerConfig>();
+                // The lock table is provisioned by yt_sync like every other pipeline table; until
+                // it appears, lock acquisition keeps failing and retrying.
+                config->LockTablePath = YPathJoin(GetPipelinePath().GetPath(), LeaderElectionLockTableName);
+                config->ChaosCellBundle = backendConfig->ChaosCellBundle;
+                config->LeaseTimeout = backendConfig->LeaseTimeout;
+                config->LeasePingPeriod = backendConfig->LeasePingPeriod;
+                config->LockAcquisitionPeriod = backendConfig->LockAcquisitionPeriod;
+                config->LeaderCacheUpdatePeriod = backendConfig->LeaderCacheUpdatePeriod;
+
+                auto options = New<NChaosElection::TChaosElectionManagerOptions>();
+                options->GroupName = ElectionGroupName;
+                options->MemberName = Format("%v(%v;%v)", NodeInfo_->Name, NodeInfo_->RpcAddress, NodeInfo_->IncarnationId);
+
+                return NChaosElection::CreateChaosElectionManager(
+                    GetClient(),
+                    SerializedInvoker_,
+                    std::move(config),
+                    std::move(options));
+            }
         }
         YT_ABORT();
     }
@@ -369,7 +417,8 @@ private:
         // Follower state.
         State_.store(EYTConnectorState::Follower);
         ElectionManager_->Start();
-        YT_TLOG_INFO("YTConnector following started");
+        YT_TLOG_INFO("YTConnector following started")
+            .With("ElectionBackend", Config_->ElectionManager.GetType());
     }
 
     void DoDisconnect()
@@ -449,6 +498,9 @@ private:
         try {
             TTransactionStartOptions options;
             options.Timeout = TDuration::Seconds(1);
+            // Under the chaos backend this master transaction carries no leadership prerequisite
+            // (see #StartTransaction), so a demoted controller can still overwrite the attribute;
+            // the incarnation check below is what makes the publication trustworthy.
             auto transaction = WaitFor(StartTransaction(ETransactionType::Master, options)).ValueOrThrow();
             TSetNodeOptions setOptions;
             setOptions.Recursive = true;

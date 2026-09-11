@@ -21,6 +21,12 @@
 #include <yt/yt/core/ypath/helpers.h>
 
 #include <library/cpp/containers/concurrent_hash_set/concurrent_hash_set.h>
+#include <library/cpp/iterator/zip.h>
+#include <library/cpp/yt/threading/atomic_object.h>
+#include <yt/yt/client/api/chaos_client.h>
+#include <yt/yt/client/api/prerequisite.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/server/lib/chaos_election/chaos_lease.h>
 
 namespace NYT::NFlow::NController {
 
@@ -34,18 +40,47 @@ constinit const auto Logger = ControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Fences jobs by YT lease transactions: every job owns a master transaction whose id workers
-//! attach to their commits as a prerequisite.
-class TTransactionLeaseManager
+//! Job leases: the prerequisites workers attach to the commits of their epochs.
+//!
+//! A lease is created by the leader when a job appears and lives as long as the leader keeps it
+//! alive; a worker that lost its lease can no longer commit, which is what makes a job removal safe.
+//! Leases outlive leadership: a new leader re-attaches to the ones recorded in the flow view instead
+//! of recreating them, so a controller failover does not disturb the running jobs.
+//!
+//! Two flavours, following the election backend (see EElectionBackend):
+//!   - Cypress: a master transaction, kept alive by the client's own pinger;
+//!   - Chaos: a chaos lease, which nothing pings on its own — the manager does it. Commits touching
+//!     chaos tables accept no other kind of prerequisite.
+class TPrerequisiteLeaseManager
     : public ILeaseManager
 {
 public:
-    TTransactionLeaseManager(
+    TPrerequisiteLeaseManager(
         IYTConnectorPtr connector,
-        TLeaseManagerConfigPtr config)
+        TLeaseManagerConfigPtr config,
+        TChaosElectionBackendConfigPtr chaosConfig,
+        IInvokerPtr invoker)
         : Connector_(std::move(connector))
         , Config_(std::move(config))
+        , ChaosLeaseFactory_(chaosConfig
+                ? New<NChaosElection::TChaosLeaseFactory>(Connector_->GetClient(), chaosConfig->ChaosCellBundle)
+                : nullptr)
+        , PingExecutor_(ChaosLeaseFactory_
+                ? New<TPeriodicExecutor>(
+                    std::move(invoker),
+                    BIND(&TPrerequisiteLeaseManager::PingLeases, MakeWeak(this)),
+                    Config_->LeasePingPeriod)
+                : nullptr)
     { }
+
+    void Initialize()
+    {
+        // Pinging runs off the scheduling cycle: a cycle that stalls must not cost the pipeline its
+        // jobs. The executor lives on the leader's cancelable invoker and stops with the leadership.
+        if (PingExecutor_) {
+            PingExecutor_->Start();
+        }
+    }
 
     void TerminateStrayLeases(const TFlowViewPtr& flowView) override
     {
@@ -56,7 +91,7 @@ public:
         }
 
         std::vector<TLeaseId> leasesToTerminate;
-        for (const auto& [leaseId, transaction] : Leases_) {
+        for (const auto& [leaseId, lease] : Leases_) {
             if (knownLeases.contains(leaseId) || ExpiredLeases_.Contains(leaseId)) {
                 continue;
             }
@@ -78,9 +113,14 @@ public:
             terminatingLeases = {};
         };
 
+        TPrerequisiteAbortOptions abortOptions;
+        // A chaos lease is aborted by removing its object: if it expired just now, the removal must
+        // not fail the whole scheduling iteration.
+        abortOptions.Force = static_cast<bool>(ChaosLeaseFactory_);
+
         for (const auto& leaseId : leasesToTerminate) {
             terminatingLeases.push_back(leaseId);
-            abortFutures.emplace_back(GetOrCrash(Leases_, leaseId)->Abort());
+            abortFutures.emplace_back(GetOrCrash(Leases_, leaseId)->Abort(abortOptions));
             if (std::ssize(abortFutures) >= Config_->MaxConcurrentRequests) {
                 flush();
             }
@@ -98,7 +138,7 @@ public:
         ui64 attachedLeases = 0;
         ui64 totalLeases = 0;
 
-        std::vector<TJobPtr> expiredLeaseJobs;
+        std::vector<TJobPtr> jobsToAttach;
 
         for (const auto& [jobId, job] : layout->Jobs) {
             if (job->LeaseId == NullLeaseId) {
@@ -107,19 +147,23 @@ public:
             totalLeases += 1;
 
             if (!Leases_.contains(job->LeaseId)) {
-                NApi::TTransactionAttachOptions options;
-                options.PingPeriod = Config_->LeasePingPeriod;
-                auto transaction = Connector_->GetClient()->AttachTransaction(job->LeaseId, options);
-                RegisterLease(transaction);
-                attachedLeases += 1;
+                jobsToAttach.push_back(job);
             }
-            if (ExpiredLeases_.Contains(job->LeaseId)) {
+        }
+
+        attachedLeases = AttachLeases(jobsToAttach);
+
+        std::vector<TJobPtr> expiredLeaseJobs;
+        for (const auto& [jobId, job] : layout->Jobs) {
+            if (job->LeaseId != NullLeaseId && ExpiredLeases_.Contains(job->LeaseId)) {
                 expiredLeaseJobs.push_back(job);
             }
         }
 
         for (const auto& job : expiredLeaseJobs) {
             layout->RemoveJob(job->JobId, EJobFinishReason::ExpiredLease);
+            // Nothing refers to a dead lease anymore: the partition's next job gets a fresh one.
+            ForgetLease(job->LeaseId);
 
             auto partition = GetOrCrash(layout->Partitions, job->PartitionId);
             auto error = TError("Job is lost since its lease has expired")
@@ -168,23 +212,15 @@ public:
                 continue;
             }
 
-            auto processTransaction = BIND([weakThis = MakeWeak(this), jobId] (const ITransactionPtr& transaction) {
+            auto registerLease = BIND([weakThis = MakeWeak(this), jobId] (const IPrerequisitePtr& lease) {
                 if (auto strongThis = weakThis.Lock()) {
-                    strongThis->RegisterLease(transaction);
-                    return TCreateJobLease{jobId, transaction->GetId()};
+                    strongThis->RegisterLease(lease);
+                    return TCreateJobLease{jobId, lease->GetId()};
                 }
                 THROW_ERROR_EXCEPTION("Lease manager is dead");
             });
 
-            NApi::TTransactionStartOptions options;
-            options.Timeout = Config_->LeaseTimeout;
-            options.PingPeriod = Config_->LeasePingPeriod;
-            auto attributes = NYTree::CreateEphemeralAttributes();
-            attributes->Set("title", Format("Flow: lease for job %v", jobId));
-            options.Attributes = std::move(attributes);
-            auto future = Connector_->GetClient()->StartTransaction(ETransactionType::Master, options).Apply(processTransaction);
-
-            futures.push_back(std::move(future));
+            futures.push_back(StartLease().Apply(registerLease));
             if (std::ssize(futures) >= Config_->MaxConcurrentRequests) {
                 flush();
             }
@@ -198,19 +234,166 @@ public:
 private:
     const IYTConnectorPtr Connector_;
     const TLeaseManagerConfigPtr Config_;
+    //! Set for the chaos backend only; null selects master transaction leases.
+    const NChaosElection::TChaosLeaseFactoryPtr ChaosLeaseFactory_;
+    const TPeriodicExecutorPtr PingExecutor_;
 
-    THashMap<TLeaseId, ITransactionPtr> Leases_;
+    //! Guards #Leases_ against the ping executor, which runs off the scheduling cycle.
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LeasesLock_);
+    THashMap<TLeaseId, IPrerequisitePtr> Leases_;
     TConcurrentHashSet<TLeaseId> ExpiredLeases_;
 
-    void RegisterLease(ITransactionPtr transaction)
+    //! Ping outcomes of the round being dispatched, summarized by the next one.
+    std::atomic<i64> FailedPingCount_ = 0;
+    NThreading::TAtomicObject<TError> LastPingError_;
+
+    TFuture<IPrerequisitePtr> StartLease()
     {
-        transaction->SubscribeAborted(BIND(&TTransactionLeaseManager::AbortLease, MakeWeak(this), transaction->GetId()));
-        Leases_[transaction->GetId()] = transaction;
+        if (ChaosLeaseFactory_) {
+            // The chaos node keeps no attributes of its own, so the lease carries no job title; the
+            // job to lease mapping lives in the flow view.
+            return ChaosLeaseFactory_->CreateLease(Config_->LeaseTimeout)
+                .Apply(BIND([client = Connector_->GetClient()] (NChaosClient::TChaosLeaseId leaseId) {
+                    TChaosLeaseAttachOptions options;
+                    // The lease has just been created; a confirming ping would only cost a round trip.
+                    options.Ping = false;
+                    return client->AttachChaosLease(leaseId, options);
+                }));
+        }
+
+        TTransactionStartOptions options;
+        options.Timeout = Config_->LeaseTimeout;
+        options.PingPeriod = Config_->LeasePingPeriod;
+        auto attributes = NYTree::CreateEphemeralAttributes();
+        attributes->Set("title", "Flow: job lease");
+        options.Attributes = std::move(attributes);
+        return Connector_->GetClient()->StartTransaction(ETransactionType::Master, options).As<IPrerequisitePtr>();
+    }
+
+    TFuture<IPrerequisitePtr> AttachLease(TLeaseId leaseId)
+    {
+        if (ChaosLeaseFactory_) {
+            // Ping on attach: a lease that is already gone must be reported right here, since after
+            // this point nothing but the periodic ping would notice.
+            return Connector_->GetClient()->AttachChaosLease(leaseId, {});
+        }
+
+        TTransactionAttachOptions options;
+        options.PingPeriod = Config_->LeasePingPeriod;
+        return MakeFuture<IPrerequisitePtr>(Connector_->GetClient()->AttachTransaction(leaseId, options));
+    }
+
+    //! Attaches to the leases of |jobs| and returns how many attachments succeeded. A lease that
+    //! turns out to be gone is recorded as expired, so the next check removes its job.
+    ui64 AttachLeases(const std::vector<TJobPtr>& jobs)
+    {
+        ui64 attachedLeases = 0;
+
+        std::vector<TLeaseId> attachingLeases;
+        std::vector<TFuture<IPrerequisitePtr>> futures;
+
+        auto flush = [&] () {
+            auto results = WaitFor(AllSet(futures)).ValueOrThrow();
+            for (const auto& [leaseId, leaseOrError] : Zip(attachingLeases, results)) {
+                if (leaseOrError.IsOK()) {
+                    RegisterLease(leaseOrError.Value());
+                    attachedLeases += 1;
+                } else if (leaseOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    YT_TLOG_WARNING("Job lease is gone")
+                        .With("LeaseId", leaseId)
+                        .With(leaseOrError);
+                    ExpiredLeases_.Insert(leaseId);
+                } else {
+                    // Transient: the next scheduling iteration retries the attachment.
+                    YT_TLOG_WARNING("Failed to attach to a job lease")
+                        .With("LeaseId", leaseId)
+                        .With(leaseOrError);
+                }
+            }
+            attachingLeases = {};
+            futures = {};
+        };
+
+        for (const auto& job : jobs) {
+            attachingLeases.push_back(job->LeaseId);
+            futures.push_back(AttachLease(job->LeaseId));
+            if (std::ssize(futures) >= Config_->MaxConcurrentRequests) {
+                flush();
+            }
+        }
+
+        flush();
+
+        return attachedLeases;
+    }
+
+    //! Chaos leases have no client-side pinger of their own.
+    void PingLeases()
+    {
+        std::vector<std::pair<TLeaseId, IPrerequisitePtr>> leases;
+        {
+            auto guard = Guard(LeasesLock_);
+            leases.reserve(Leases_.size());
+            for (const auto& [leaseId, lease] : Leases_) {
+                leases.emplace_back(leaseId, lease);
+            }
+        }
+
+        // The failures of the previous round, reported here: a ping is fire-and-forget, so the
+        // outcome is only known after this round has already been dispatched. Jobs whose leases
+        // stop being pinged die, so a silent failure stream must not need a debug log to be seen.
+        if (auto failedPings = FailedPingCount_.exchange(0); failedPings > 0) {
+            YT_TLOG_INFO("Failed to ping job leases")
+                .With("FailedPingCount", failedPings)
+                .With("LastError", LastPingError_.Load());
+        }
+
+        for (const auto& [leaseId, lease] : leases) {
+            if (ExpiredLeases_.Contains(leaseId)) {
+                continue;
+            }
+            // A ping that finds the lease gone fires Aborted by itself, which is what marks the
+            // lease expired; every other outcome is transient and retried by the next round.
+            lease->Ping().Subscribe(BIND([weakThis = MakeWeak(this), leaseId] (const TError& error) {
+                if (error.IsOK()) {
+                    return;
+                }
+                if (auto strongThis = weakThis.Lock()) {
+                    strongThis->FailedPingCount_.fetch_add(1);
+                    strongThis->LastPingError_.Store(error);
+                }
+                YT_TLOG_DEBUG("Failed to ping a job lease")
+                    .With("LeaseId", leaseId)
+                    .With(error);
+            }));
+        }
+
+        YT_TLOG_DEBUG("Pinged job leases")
+            .With("LeaseCount", leases.size());
+    }
+
+    void RegisterLease(const IPrerequisitePtr& lease)
+    {
+        lease->SubscribeAborted(BIND(&TPrerequisiteLeaseManager::AbortLease, MakeWeak(this), lease->GetId()));
+        auto guard = Guard(LeasesLock_);
+        Leases_[lease->GetId()] = lease;
+    }
+
+    void ForgetLease(const TLeaseId& leaseId)
+    {
+        {
+            auto guard = Guard(LeasesLock_);
+            Leases_.erase(leaseId);
+        }
+        ExpiredLeases_.Erase(leaseId);
     }
 
     void UnregisterLease(const TLeaseId& leaseId)
     {
-        Leases_.erase(leaseId);
+        {
+            auto guard = Guard(LeasesLock_);
+            Leases_.erase(leaseId);
+        }
         YT_VERIFY(ExpiredLeases_.Erase(leaseId));
     }
 
@@ -569,16 +752,35 @@ private:
 ILeaseManagerPtr CreateLeaseManager(
     IYTConnectorPtr connector,
     TLeaseManagerConfigPtr config,
-    bool dyntableLeases,
-    i64 maxWritesPerTransaction)
+    EElectionBackend backend,
+    TChaosElectionBackendConfigPtr chaosConfig,
+    i64 maxWritesPerTransaction,
+    IInvokerPtr invoker)
 {
-    if (dyntableLeases) {
-        return New<TDyntableLeaseManager>(
-            std::move(connector),
-            std::move(config),
-            maxWritesPerTransaction);
+    switch (backend) {
+        case EElectionBackend::Dyntable:
+            return New<TDyntableLeaseManager>(
+                std::move(connector),
+                std::move(config),
+                maxWritesPerTransaction);
+
+        case EElectionBackend::Cypress:
+        case EElectionBackend::Chaos: {
+            if (backend != EElectionBackend::Chaos) {
+                chaosConfig = nullptr;
+            } else {
+                YT_VERIFY(chaosConfig);
+            }
+            auto leaseManager = New<TPrerequisiteLeaseManager>(
+                std::move(connector),
+                std::move(config),
+                std::move(chaosConfig),
+                std::move(invoker));
+            leaseManager->Initialize();
+            return leaseManager;
+        }
     }
-    return New<TTransactionLeaseManager>(std::move(connector), std::move(config));
+    YT_ABORT();
 }
 
 } // namespace NYT::NFlow::NController
