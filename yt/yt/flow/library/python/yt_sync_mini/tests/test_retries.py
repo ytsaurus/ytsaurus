@@ -1,4 +1,4 @@
-"""Tests for the bounded resolve retries shared by the creation helpers.
+"""Tests for request construction and bounded resolve retries in creation helpers.
 
 An object created moments earlier is not yet resolvable on every master cell,
 so an operation touching it fails with ``No such object <id>`` until the cells
@@ -7,6 +7,8 @@ catch up. No YT access.
 ``register_consumer`` writes only what the existing registrations lack, so its
 tests live here too.
 """
+
+from unittest import mock
 
 import pytest
 
@@ -142,6 +144,25 @@ def test_create_table_retries(sleeps):
 
     assert action.calls == 4
     assert sleeps == [yt_sync_mini.RETRY_INTERVAL] * 2
+
+
+def test_create_pipeline_uses_pipeline_node_without_native_tables():
+    client = mock.MagicMock()
+
+    yt_sync_mini.create_pipeline(client, "//tmp/pipeline")
+
+    assert client.create.call_args_list[0] == mock.call(
+        "pipeline",
+        "//tmp/pipeline",
+        recursive=True,
+        ignore_existing=True,
+        attributes={
+            yt_sync_mini.PIPELINE_FORMAT_VERSION_ATTRIBUTE: yt_sync_mini.CURRENT_PIPELINE_FORMAT_VERSION,
+            "initialize_tables": False,
+        },
+    )
+    assert all(call.args[0] == "table" for call in client.create.call_args_list[1:])
+    assert client.mount_table.call_count == client.create.call_count - 1
 
 
 def test_register_consumer_retries(sleeps):

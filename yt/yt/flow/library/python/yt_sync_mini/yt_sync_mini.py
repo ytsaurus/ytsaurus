@@ -35,7 +35,6 @@ from yt.yt.flow.library.python.pipeline_tables import PIPELINE_TABLES_PRESET
 
 log = logging.getLogger(__name__)
 
-# Pipeline-map-node attribute.
 PIPELINE_FORMAT_VERSION_ATTRIBUTE = "pipeline_format_version"
 CURRENT_PIPELINE_FORMAT_VERSION = 1
 
@@ -320,14 +319,17 @@ def create_pipeline(client, path, *, tablet_cell_bundle=None):
     :param tablet_cell_bundle: bundle for the inner tables; ``None`` leaves the
         attribute unset, so the tables land in the cluster's default bundle.
     """
-    # 1. Pipeline map node.
+    # 1. Pipeline node.
     _retry_on_resolve_error(
         lambda: client.create(
-            "map_node",
+            "pipeline",
             path,
             recursive=True,
             ignore_existing=True,
-            attributes={PIPELINE_FORMAT_VERSION_ATTRIBUTE: CURRENT_PIPELINE_FORMAT_VERSION},
+            attributes={
+                PIPELINE_FORMAT_VERSION_ATTRIBUTE: CURRENT_PIPELINE_FORMAT_VERSION,
+                "initialize_tables": False,
+            },
         ),
         f"create pipeline node {path}",
     )
