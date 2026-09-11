@@ -1,3 +1,4 @@
+import functools
 import itertools
 import json
 import os
@@ -58,6 +59,36 @@ def get_test_id(request):
     return ".".join(prefix_parts)
 
 
+def ts(seconds):
+    return seconds * 1_000_000
+
+
+def with_ytflow_default_settings(**new_values):
+    def decorator(test):
+        @functools.wraps(test)
+        def wrapper(self, *args, **kwargs):
+            client = self.Env.create_client()
+            config_path = "//sys/yql_agent/config"
+            old_config = client.get(config_path)
+
+            try:
+                for name, value in new_values.items():
+                    self.set_default_setting(name, value, client)
+
+                return test(self, *args, **kwargs)
+            finally:
+                client.set(config_path, old_config)
+                wait_for_dynamic_config_update(
+                    client,
+                    old_config,
+                    "//sys/yql_agent/instances"
+                )
+
+        return wrapper
+
+    return decorator
+
+
 class TestYtflowBase(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -113,6 +144,7 @@ class TestYtflowBase(TestQueueAgentBase):
                 # Balancer timings (ms) merged into the dynamic pipeline spec's job_manager.
                 dict(name='_JobManagerConfig', value='{rebalance_sync_period=500;}'),
                 dict(name='_FiniteStreams', value=str(run_vanilla_operation)),
+                dict(name='_YtUseSourceWatermark', value='false'),
                 dict(name='EnableComputationPatternResources', value='false'),
                 dict(name='_ControllerWriteFullLogsToYT', value='true'),
                 dict(name='_ControllerWriteLogsToFile', value='false'),
@@ -526,6 +558,129 @@ where string_field = "foo" or int64_field >= 100;
         self._assert_yt_table_content(out_table_path, [
             {"string_field": "foo_ytflow", "int64_field": 100, "bool_field": False},
             {"string_field": "foobar_ytflow", "int64_field": 10000, "bool_field": True},
+        ])
+
+    @authors("ngc224")
+    @pytest.mark.timeout(180)
+    @with_ytflow_default_settings(
+        _FiniteStreams="false",
+        _YtUseSourceWatermark="true",
+    )
+    def test_hopping_aggregate_skips_late_data(self, query_tracker, yql_agent, run_query):
+        input_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "key", "type": "string"},
+                {"name": "ts", "type": "uint32"},
+                {"name": "value", "type": "int64"},
+                {"name": "flow_queue_meta", "type": "any"},
+            ]),
+        ))
+
+        output_table_path = self._create_yt_table(dict(
+            schema=self._make_queue_schema([
+                {"name": "window_start", "type": "timestamp"},
+                {"name": "key", "type": "string"},
+                {"name": "sum_values", "type": "int64"},
+            ]),
+        ))
+
+        def data_row(timestamp, value, event_timestamp, key="foo"):
+            return {
+                "key": key,
+                "ts": timestamp,
+                "value": value,
+                "flow_queue_meta": {"event_timestamp": event_timestamp},
+            }
+
+        def heartbeat(timestamp):
+            return {"flow_queue_meta": {
+                "event_watermark": timestamp,
+                "pure_heartbeat": True,
+            }}
+
+        self._write_yt_table(input_table_path, [
+            data_row(timestamp=6, value=1, event_timestamp=6),
+            data_row(timestamp=8, value=10, event_timestamp=8),
+            heartbeat(timestamp=8),
+        ])
+
+        first_window_closed = False
+
+        def output_ready(client, current_state):
+            nonlocal first_window_closed
+
+            rows = self._read_yt_table(output_table_path)
+            first_window_seen = any(
+                row["window_start"] == ts(4)
+                for row in rows
+            )
+
+            if not first_window_closed and first_window_seen:
+                self._write_yt_table(input_table_path, [
+                    data_row(timestamp=7, value=100, event_timestamp=9),
+                    data_row(timestamp=4, value=1000, event_timestamp=9, key="expired"),
+                    data_row(timestamp=9, value=20, event_timestamp=9),
+                    data_row(timestamp=5, value=10000, event_timestamp=9),
+                    data_row(timestamp=13, value=100000, event_timestamp=13, key="non_expired"),
+                    data_row(timestamp=11, value=30, event_timestamp=11),
+                    heartbeat(timestamp=16),
+                ])
+
+                first_window_closed = True
+
+            last_window_seen = any(
+                row["window_start"] == ts(12)
+                for row in rows
+            )
+
+            return last_window_seen
+
+        run_query(f"""
+insert into `{output_table_path}`
+select
+    HOP_START() as window_start,
+    key,
+    sum(value) as sum_values
+from `{input_table_path}`
+group by
+    key,
+    HOP(Datetime::FromSeconds(Unwrap(ts)), "PT2S", "PT4S", "PT0S");
+""",
+            target_state=PipelineState.Working,
+            success_condition=output_ready,
+        )
+
+        self._assert_yt_table_content(output_table_path, [
+            {
+                "window_start": ts(4),
+                "key": "foo",
+                "sum_values": 1,
+            },
+            {
+                "window_start": ts(6),
+                "key": "foo",
+                "sum_values": 131,
+            },
+            {
+                "window_start": ts(8),
+                "key": "foo",
+                "sum_values": 60,
+            },
+            {
+                "window_start": ts(10),
+                "key": "foo",
+                "sum_values": 30,
+            },
+            {
+                "window_start": ts(10),
+                "key": "non_expired",
+                "sum_values": 100000,
+            },
+            {
+                "window_start": ts(12),
+                "key": "non_expired",
+                "sum_values": 100000,
+            },
         ])
 
     @authors("spreis")

@@ -1180,6 +1180,7 @@ private:
         // NOTE: updateStateLambda gets following items:
         //   * stream of key + aggregationState
         //   * old aggregation state (List<Tuple<hop_start_time, hop_aggregation_state>>)
+        //   * input event watermark
         // and produces:
         //   * new aggregation state with same schema
         //   * list of tuples (event timestamp, trigger timestamp) trigger timestamps for newly added timers
@@ -1192,7 +1193,7 @@ private:
                     loadLambda
                     mergeLambda
                     saveLambda)
-                (lambda '(stream savedState) (block '(
+                (lambda '(stream savedState inputWatermark) (block '(
                     (let compositeStateStream (Condense
                         stream
                         (block '(
@@ -1213,7 +1214,13 @@ private:
                             (return '(linearState emptyList))))
                         (lambda '(item compositeState) (Bool 'false))
                         (lambda '(item compositeState) (Fold
-                            (Member item combinedStateField)
+                            (OrderedFilter
+                                (Member item combinedStateField)
+                                (lambda '(combinedStateItem) (Greater
+                                    (Unwrap (Add
+                                        (Nth combinedStateItem '0)
+                                        (Interval timerDelay)))
+                                    inputWatermark)))
                             compositeState
                             (lambda '(combinedStateItem compositeState) (block '(
                                 (let linearState (FromDynamicLinear

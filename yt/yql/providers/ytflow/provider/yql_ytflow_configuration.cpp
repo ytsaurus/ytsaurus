@@ -108,6 +108,7 @@ TYtflowConfiguration::TYtflowConfiguration()
     REGISTER_SETTING(*this, _JobManagerConfig);
 
     REGISTER_SETTING(*this, _FiniteStreams);
+    REGISTER_SETTING(*this, _YtUseSourceWatermark);
 
     REGISTER_SETTING(*this, ControllerCount)
         .Lower(1);
