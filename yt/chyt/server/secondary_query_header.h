@@ -38,7 +38,10 @@ struct TSecondaryQueryHeader
 
     // TODO(dakovalkov): When we make the whole execution plan on a coordinator, these fields should go away.
     THashMap<NYPath::TYPath, TObjectLock> SnapshotLocks;
+    THashMap<std::string, NTransactionClient::TTransactionId> RemoteReadTransactionIds;
+    THashMap<std::string, THashMap<NYPath::TYPath, TObjectLock>> RemoteSnapshotLocks;
     NTransactionClient::TTimestamp DynamicTableReadTimestamp;
+    THashMap<std::string, NTransactionClient::TTimestamp> RemoteDynamicTableReadTimestamps;
     NTransactionClient::TTransactionId ReadTransactionId;
 
     NTransactionClient::TTransactionId WriteTransactionId;

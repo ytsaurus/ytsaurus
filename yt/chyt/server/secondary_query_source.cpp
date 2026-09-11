@@ -64,6 +64,29 @@ TNameTablePtr GetPlanNameTable(TReadPlanWithFilterPtr readPlan)
     return nameTable;
 }
 
+TMultiChunkReaderHostPtr CreateMultiChunkReaderHost(TQueryContext* queryContext)
+{
+    auto localClient = queryContext->Client();
+    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContexts{
+        {
+            .Name = NScheduler::LocalClusterName,
+            .Client = localClient,
+            .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+        },
+    };
+    for (const auto& [cluster, client] : queryContext->GetRemoteClients()) {
+        clusterContexts.push_back({
+            .Name = NScheduler::TClusterName(cluster),
+            .Client = client,
+            .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+        });
+    }
+    return New<TMultiChunkReaderHost>(
+        New<TChunkReaderHost>(localClient),
+        TPerClusterAndCategoryBandwidthThrottlerProvider{},
+        std::move(clusterContexts));
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,8 +101,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions)
         : QueryContext_(storageContext->QueryContext)
         , DataSourceDirectory_(subquerySpec.DataSourceDirectory)
-        , ChunkReaderHost_(New<TMultiChunkReaderHost>(
-            New<TChunkReaderHost>(storageContext->QueryContext->Client())))
+        , ChunkReaderHost_(CreateMultiChunkReaderHost(storageContext->QueryContext))
         , ChunkReadOptions_(chunkReadOptions)
         , TableReaderConfig_(MergeTableReaderConfigs(
             storageContext->Settings->TableReader,
