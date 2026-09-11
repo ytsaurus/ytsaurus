@@ -11,6 +11,7 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/serialized_invoker.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/config.h>
@@ -81,7 +82,9 @@ std::pair<TSinkContextPtr, TDynamicSinkContextPtr> MakeContexts(
     auto context = New<TSinkContext>();
     context->SinkSpec = std::move(spec);
     context->StreamSpecStorage = MakeStreamSpecStorage(schema);
-    context->SerializedInvoker = GetSyncInvoker();
+    context->SerializedInvoker = poller
+        ? CreateSerializedInvoker(poller->GetInvoker())
+        : GetSyncInvoker();
     context->StatusProfiler = CreateSyncStatusProfiler();
     context->Poller = poller;
 
