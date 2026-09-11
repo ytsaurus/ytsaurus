@@ -116,11 +116,11 @@ void PostprocessFileProvider(
             result.Error.ToStringBuf());
     }
 
-    YT_LOG_INFO("File provider postprocessing completed (FileProvider: %v, RawObjectId: %v, CommandDigest: %v, Elapsed: %v)",
-        providerId,
-        revision->ObjectId,
-        GetCommandDigest(*providerSpec->PostprocessCommand),
-        elapsed);
+    YT_TLOG_INFO("File provider postprocessing completed")
+        .With("FileProvider", providerId)
+        .With("RawObjectId", revision->ObjectId)
+        .With("CommandDigest", GetCommandDigest(*providerSpec->PostprocessCommand))
+        .With("Elapsed", elapsed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -246,18 +246,16 @@ inline void TChunk::UpdateAggregatedRequisitionIndex(
 inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const
 {
     const auto& Logger = ChunkServerLogger;
-    YT_LOG_ALERT_IF(
+    YT_TLOG_ALERT_IF(
         AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex && IsNative(),
-        "Chunk has empty requisition "
-        "(ChunkId: %v)",
-        GetId());
+        "Chunk has empty requisition")
+        .With("ChunkId", GetId());
 
     const auto& requisition = registry->GetRequisition(AggregatedRequisitionIndex_);
-    YT_LOG_ALERT_IF(
+    YT_TLOG_ALERT_IF(
         requisition.GetAllEntryCount() == 0 && IsNative(),
-        "Chunk has requisition with zero entry count "
-        "(ChunkId: %v)",
-        GetId());
+        "Chunk has requisition with zero entry count")
+        .With("ChunkId", GetId());
 
     return requisition;
 }
@@ -265,11 +263,10 @@ inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkReq
 inline TChunkRequisitionIndex TChunk::GetAggregatedRequisitionIndex() const
 {
     const auto& Logger = ChunkServerLogger;
-    YT_LOG_ALERT_IF(
+    YT_TLOG_ALERT_IF(
         AggregatedRequisitionIndex_ == EmptyChunkRequisitionIndex && IsNative(),
-        "Chunk has empty requisition "
-        "(ChunkId: %v)",
-        GetId());
+        "Chunk has empty requisition")
+        .With("ChunkId", GetId());
     return AggregatedRequisitionIndex_;
 }
 
@@ -288,11 +285,11 @@ inline const TChunkReplication& TChunk::GetAggregatedReplication(const TChunkReq
     const auto& replication = registry->GetReplication(AggregatedRequisitionIndex_);
 
     const auto& Logger = ChunkServerLogger;
-    YT_LOG_ALERT_IF(
+    YT_TLOG_ALERT_IF(
         !replication.IsValid(),
-        "Chunk has invalid replication "
-        "(ChunkId: %v, Replication: %v)",
-        GetId(), replication);
+        "Chunk has invalid replication")
+        .With("ChunkId", GetId())
+        .With("Replication", replication);
 
     return replication;
 }

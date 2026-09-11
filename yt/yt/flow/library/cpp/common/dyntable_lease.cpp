@@ -411,9 +411,9 @@ TFuture<std::vector<TPartitionId>> TDyntableLeases::ListPartitionLeases(
                 partitionIds.insert(TPartitionId(partitionId));
             }
             if (!unparsedKeys.empty()) {
-                YT_LOG_WARNING("Ignoring unrecognized keys of the leases table (Count: %v, Sample: %v)",
-                    std::ssize(unparsedKeys),
-                    unparsedKeys.front());
+                YT_TLOG_WARNING("Ignoring unrecognized keys of the leases table")
+                    .With("Count", std::ssize(unparsedKeys))
+                    .With("Sample", unparsedKeys.front());
             }
             return std::vector<TPartitionId>(partitionIds.begin(), partitionIds.end());
         }));
