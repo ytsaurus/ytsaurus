@@ -8,6 +8,10 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/core/misc/fs.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yql/plugin/process/config.h>
 
 #include <util/string/vector.h>
@@ -57,6 +61,17 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         if (config->UseQtWorkerYqlPlugin && !config->QtWorkerGatewaysConfigPath) {
             THROW_ERROR_EXCEPTION(
                 "\"qtworker_gateways_config_path\" must be specified when \"use_qtworker_yql_plugin\" is true");
+        }
+
+        if (config->ProcessPluginConfig->Enabled && !config->UseQtWorkerYqlPlugin) {
+            auto fileStorageConfig = config->FileStorageConfig->AsMap();
+            auto pathNode = fileStorageConfig->FindChild("path");
+            if (!pathNode ||
+                !NFS::IsAbsolutePath(pathNode->GetValue<TString>()))
+            {
+                THROW_ERROR_EXCEPTION(
+                    "\"file_storage.path\" must be an absolute path when process plugin is enabled");
+            }
         }
     });
 }
