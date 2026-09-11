@@ -1326,6 +1326,9 @@ class TestLookup(TestSortedDynamicTablesBase):
     @authors("tem-shett")
     @pytest.mark.parametrize("is_versioned", [False, True])
     def test_heavy_hitters_changeable_parameters(self, is_versioned):
+        if self.USE_SEQUOIA:
+            pytest.skip("Test is too long and has no sequoia specifics")
+
         def _check(keys_expected, is_weighted: bool):
             heavy_hitters = get(f"//sys/tablets/{tablet_id}/orchid/lookup_heavy_hitters/{"data_weight" if is_weighted else "row_count"}")
             if len(keys_expected) != len(heavy_hitters):
