@@ -88,6 +88,8 @@ const (
 
 	VerbPartitionTables    Verb = "partition_tables"
 	VerbReadTablePartition Verb = "read_table_partition"
+
+	VerbGetTableColumnarStatistics Verb = "get_table_columnar_statistics"
 )
 
 func (v Verb) hasInput() bool {
@@ -128,7 +130,7 @@ func (v Verb) IsHeavy() bool {
 	case VerbPullQueueConsumer:
 		return true
 
-	case VerbPartitionTables, VerbReadTablePartition:
+	case VerbPartitionTables, VerbReadTablePartition, VerbGetTableColumnarStatistics:
 		return true
 	}
 
@@ -158,7 +160,7 @@ func (v Verb) volatile() bool {
 	case VerbPullQueueConsumer:
 		return false
 
-	case VerbPartitionTables, VerbReadTablePartition:
+	case VerbPartitionTables, VerbReadTablePartition, VerbGetTableColumnarStatistics:
 		return false
 	}
 

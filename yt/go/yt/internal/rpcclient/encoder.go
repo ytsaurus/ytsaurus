@@ -540,6 +540,14 @@ func (e *Encoder) ReadTablePartition(
 	return nil, xerrors.New("implement me")
 }
 
+func (e *Encoder) GetTableColumnarStatistics(
+	ctx context.Context,
+	paths []ypath.YPath,
+	options *yt.GetTableColumnarStatisticsOptions,
+) (statistics []yt.ColumnarStatistics, err error) {
+	return nil, xerrors.New("implement me")
+}
+
 var _ yt.DistributedWriteClient = (*client)(nil)
 
 func (e *Encoder) StartDistributedWriteSession(
