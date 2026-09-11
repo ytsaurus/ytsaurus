@@ -17,25 +17,11 @@ public:
     TAttributes& AttributesOf(const TPoolTreeElement* element);
     const TAttributes& AttributesOf(const TPoolTreeElement* element) const;
 
-    auto begin()
-    {
-        return Attributes_.begin();
-    }
+    auto begin();
+    auto end();
 
-    auto end()
-    {
-        return Attributes_.end();
-    }
-
-    auto begin() const
-    {
-        return Attributes_.begin();
-    }
-
-    auto end() const
-    {
-        return Attributes_.end();
-    }
+    auto begin() const;
+    auto end() const;
 
 private:
     std::vector<TAttributes> Attributes_;

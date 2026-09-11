@@ -32,6 +32,30 @@ const TAttributes& TAttributesList<TAttributes>::AttributesOf(const TPoolTreeEle
     return Attributes_[index];
 }
 
+template <typename TAttributes>
+auto TAttributesList<TAttributes>::begin()
+{
+    return Attributes_.begin();
+}
+
+template <typename TAttributes>
+auto TAttributesList<TAttributes>::end()
+{
+    return Attributes_.end();
+}
+
+template <typename TAttributes>
+auto TAttributesList<TAttributes>::begin() const
+{
+    return Attributes_.begin();
+}
+
+template <typename TAttributes>
+auto TAttributesList<TAttributes>::end() const
+{
+    return Attributes_.end();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NStrategy::NPolicy
