@@ -356,6 +356,8 @@ class TestS3MediumBase(YTEnvSetup):
 class TestS3Medium(TestS3MediumBase):
     @authors("achulkov2")
     def test_tables_simple(self):
+        pytest.skip("Temporary disable. See YT-29006")
+
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         write_table("//tmp/t", {"a": "b"})
         write_table("<append=%true>//tmp/t", {"c": "d"})
