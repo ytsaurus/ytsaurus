@@ -14,7 +14,7 @@ import sys
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 CLUSTER = "freud"
 DOCS_PREFIX = "yt/docs/ru/yql/"
 WORKSPACE_ROOT = "//home/dev/docs-team"
@@ -24,6 +24,34 @@ MAX_QUERY_CHECKS = 20
 MAX_QUERY_BYTES = 32 * 1024
 MAX_EXPECTED_ROWS = 100
 MAX_TEXT_LENGTH = 4000
+MAX_EVIDENCE_ITEMS = 40
+
+SCOPES = {"public", "internal", "both", "unknown"}
+VERDICTS = {
+    "supported",
+    "partially_supported",
+    "yql_only",
+    "not_supported",
+    "uncertain",
+}
+EVIDENCE_KINDS = {
+    "declaration",
+    "implementation",
+    "runtime",
+    "configuration",
+    "test",
+}
+YQL_CODE_PREFIXES = (
+    "yql/essentials/",
+    "yql/providers/",
+    "yql/library/",
+    "yt/yql/",
+)
+QUERY_TRACKER_CODE_PREFIXES = (
+    "yql/api/java/querytracker/",
+    "yt/yt/client/query_tracker_client/",
+    "yt/yt/server/query_tracker/",
+)
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,79}$")
 VALIDATION_BASE_RE = re.compile(
@@ -171,6 +199,82 @@ def _validate_doc_path(value: Any, where: str) -> str:
     return path
 
 
+def _validate_code_path(
+    value: Any,
+    where: str,
+    *,
+    allowed_prefixes: Sequence[str],
+) -> str:
+    path = _require_text(value, where)
+    normalized = Path(path).as_posix()
+    parts = Path(path).parts
+    if (
+        path.startswith("/")
+        or "\\" in path
+        or path != normalized
+        or path.endswith("/")
+        or ".." in parts
+        or "." in parts
+    ):
+        raise ValidationError("INVALID_SCHEMA", f"{where} is not a normalized Arcadia path")
+    if "docs" in parts or Path(path).suffix.lower() in {".md", ".rst"}:
+        raise ValidationError(
+            "INVALID_SCHEMA",
+            f"{where} must cite code or a test, not documentation",
+        )
+    if not any(path.startswith(prefix) for prefix in allowed_prefixes):
+        raise ValidationError(
+            "INVALID_SCHEMA",
+            f"{where} must be below one of {list(allowed_prefixes)}",
+        )
+    return path
+
+
+def _validate_evidence(
+    value: Any,
+    where: str,
+    *,
+    allowed_prefixes: Sequence[str],
+) -> list[dict[str, str]]:
+    if not isinstance(value, list) or not value:
+        raise ValidationError("INVALID_SCHEMA", f"{where} must be a non-empty array")
+    if len(value) > MAX_EVIDENCE_ITEMS:
+        raise ValidationError(
+            "INVALID_SCHEMA",
+            f"{where} exceeds {MAX_EVIDENCE_ITEMS} entries",
+        )
+
+    normalized: list[dict[str, str]] = []
+    for index, raw_item in enumerate(value):
+        item_where = f"{where}[{index}]"
+        if not isinstance(raw_item, dict):
+            raise ValidationError("INVALID_SCHEMA", f"{item_where} must be an object")
+        _require_exact_keys(
+            raw_item,
+            {"path", "anchor", "kind", "finding"},
+            item_where,
+        )
+        kind = _require_text(raw_item["kind"], f"{item_where}.kind")
+        if kind not in EVIDENCE_KINDS:
+            raise ValidationError(
+                "INVALID_SCHEMA",
+                f"{item_where}.kind must be one of {sorted(EVIDENCE_KINDS)}",
+            )
+        normalized.append(
+            {
+                "path": _validate_code_path(
+                    raw_item["path"],
+                    f"{item_where}.path",
+                    allowed_prefixes=allowed_prefixes,
+                ),
+                "anchor": _require_text(raw_item["anchor"], f"{item_where}.anchor"),
+                "kind": kind,
+                "finding": _require_text(raw_item["finding"], f"{item_where}.finding"),
+            }
+        )
+    return normalized
+
+
 def validate_plan(plan: Mapping[str, Any], changed_paths: Iterable[str]) -> dict[str, Any]:
     _require_exact_keys(plan, {"schema_version", "summary", "changes"}, "plan")
     if plan["schema_version"] != SCHEMA_VERSION or isinstance(plan["schema_version"], bool):
@@ -199,7 +303,19 @@ def validate_plan(plan: Mapping[str, Any], changed_paths: Iterable[str]) -> dict
         if kind == "query":
             _require_exact_keys(
                 raw_change,
-                {"id", "path", "kind", "description", "query", "expected"},
+                {
+                    "id",
+                    "path",
+                    "kind",
+                    "description",
+                    "scope",
+                    "verdict",
+                    "yql_evidence",
+                    "query_tracker_evidence",
+                    "gaps",
+                    "query",
+                    "expected",
+                },
                 where,
             )
         elif kind == "na":
@@ -234,6 +350,67 @@ def validate_plan(plan: Mapping[str, Any], changed_paths: Iterable[str]) -> dict
             ),
         }
         if kind == "query":
+            scope = _require_text(raw_change["scope"], f"{where}.scope")
+            if scope not in SCOPES:
+                raise ValidationError(
+                    "INVALID_SCHEMA",
+                    f"{where}.scope must be one of {sorted(SCOPES)}",
+                )
+            verdict = _require_text(raw_change["verdict"], f"{where}.verdict")
+            if verdict not in VERDICTS:
+                raise ValidationError(
+                    "INVALID_SCHEMA",
+                    f"{where}.verdict must be one of {sorted(VERDICTS)}",
+                )
+            if scope == "unknown" and verdict != "uncertain":
+                raise ValidationError(
+                    "INVALID_SCHEMA",
+                    f"{where}.scope 'unknown' requires verdict 'uncertain'",
+                )
+            yql_evidence = _validate_evidence(
+                raw_change["yql_evidence"],
+                f"{where}.yql_evidence",
+                allowed_prefixes=YQL_CODE_PREFIXES,
+            )
+            query_tracker_evidence = _validate_evidence(
+                raw_change["query_tracker_evidence"],
+                f"{where}.query_tracker_evidence",
+                allowed_prefixes=QUERY_TRACKER_CODE_PREFIXES,
+            )
+            raw_gaps = raw_change["gaps"]
+            if not isinstance(raw_gaps, list):
+                raise ValidationError("INVALID_SCHEMA", f"{where}.gaps must be an array")
+            gaps = [
+                _require_text(gap, f"{where}.gaps[{gap_index}]")
+                for gap_index, gap in enumerate(raw_gaps)
+            ]
+            if verdict == "supported":
+                if gaps:
+                    raise ValidationError(
+                        "INVALID_SCHEMA",
+                        f"{where}.gaps must be empty for verdict 'supported'",
+                    )
+                evidence_kinds = {
+                    item["kind"] for item in yql_evidence + query_tracker_evidence
+                }
+                if "test" not in evidence_kinds:
+                    raise ValidationError(
+                        "INVALID_SCHEMA",
+                        f"{where} needs test evidence for verdict 'supported'",
+                    )
+                if not evidence_kinds.intersection(
+                    {"declaration", "implementation", "runtime", "configuration"}
+                ):
+                    raise ValidationError(
+                        "INVALID_SCHEMA",
+                        f"{where} needs code-path evidence for verdict 'supported'",
+                    )
+            elif not gaps:
+                raise ValidationError(
+                    "INVALID_SCHEMA",
+                    f"{where}.gaps must explain a non-supported verdict",
+                )
+
             query = _require_text(raw_change["query"], f"{where}.query")
             if len(query.encode("utf-8")) > MAX_QUERY_BYTES:
                 raise ValidationError(
@@ -241,6 +418,11 @@ def validate_plan(plan: Mapping[str, Any], changed_paths: Iterable[str]) -> dict
                     f"{where}.query exceeds {MAX_QUERY_BYTES} bytes",
                 )
             normalized["query"] = query
+            normalized["scope"] = scope
+            normalized["verdict"] = verdict
+            normalized["yql_evidence"] = yql_evidence
+            normalized["query_tracker_evidence"] = query_tracker_evidence
+            normalized["gaps"] = gaps
             normalized["expected"] = _validate_expected(
                 raw_change["expected"],
                 f"{where}.expected",
@@ -274,6 +456,54 @@ def validate_plan(plan: Mapping[str, Any], changed_paths: Iterable[str]) -> dict
         "summary": summary,
         "changes": normalized_changes,
     }
+
+
+def validate_evidence_files(plan: Mapping[str, Any], repo_root: Path) -> None:
+    """Verify that every cited code file and anchor exists in this checkout."""
+
+    resolved_root = repo_root.resolve()
+    content_cache: dict[Path, bytes] = {}
+    for change_index, change in enumerate(plan["changes"]):
+        if change["kind"] != "query":
+            continue
+        for evidence_field in ("yql_evidence", "query_tracker_evidence"):
+            for evidence_index, evidence in enumerate(change[evidence_field]):
+                where = (
+                    f"plan.changes[{change_index}].{evidence_field}[{evidence_index}]"
+                )
+                candidate = resolved_root.joinpath(*Path(evidence["path"]).parts)
+                try:
+                    resolved_candidate = candidate.resolve(strict=True)
+                except OSError as error:
+                    raise ValidationError(
+                        "MISSING_EVIDENCE_FILE",
+                        f"{where}.path does not exist: {evidence['path']}",
+                    ) from error
+                try:
+                    resolved_candidate.relative_to(resolved_root)
+                except ValueError as error:
+                    raise ValidationError(
+                        "INVALID_EVIDENCE_PATH",
+                        f"{where}.path resolves outside the Arcadia checkout",
+                    ) from error
+                if not resolved_candidate.is_file():
+                    raise ValidationError(
+                        "MISSING_EVIDENCE_FILE",
+                        f"{where}.path is not a file: {evidence['path']}",
+                    )
+                if resolved_candidate not in content_cache:
+                    try:
+                        content_cache[resolved_candidate] = resolved_candidate.read_bytes()
+                    except OSError as error:
+                        raise ValidationError(
+                            "UNREADABLE_EVIDENCE_FILE",
+                            f"cannot read {evidence['path']}: {error}",
+                        ) from error
+                if evidence["anchor"].encode("utf-8") not in content_cache[resolved_candidate]:
+                    raise ValidationError(
+                        "MISSING_EVIDENCE_ANCHOR",
+                        f"{where}.anchor was not found in {evidence['path']}",
+                    )
 
 
 def _without_quoted_strings(query: str) -> str:
@@ -529,6 +759,7 @@ def build_offline_report(
             validate_query(change["query"])
 
     checks: list[dict[str, Any]] = []
+    needs_review = False
     for change in plan["changes"]:
         base = {
             "id": change["id"],
@@ -539,18 +770,34 @@ def build_offline_report(
         if change["kind"] == "na":
             checks.append({**base, "status": "na", "reason": change["reason"]})
             continue
+        code_supported = change["verdict"] == "supported"
+        needs_review = needs_review or not code_supported
         checks.append(
             {
                 **base,
-                "status": "not_executed",
-                "reason": "Remote Query Tracker validation is disabled",
+                "status": "code_supported" if code_supported else "needs_review",
+                "scope": change["scope"],
+                "verdict": change["verdict"],
+                "yql_evidence": change["yql_evidence"],
+                "query_tracker_evidence": change["query_tracker_evidence"],
+                "gaps": change["gaps"],
+                "query": change["query"],
                 "expected": change["expected"],
+                "query_status": "not_executed",
+                "query_status_reason": "Remote Query Tracker validation is disabled",
             }
         )
 
+    if not changed_paths:
+        status = "no_changes"
+    elif needs_review:
+        status = "needs_review"
+    else:
+        status = "code_research_validated"
+
     return {
         "schema_version": SCHEMA_VERSION,
-        "status": "no_changes" if not changed_paths else "plan_validated",
+        "status": status,
         "execution_mode": "offline",
         "remote_execution": False,
         "proposed_cluster": CLUSTER,
@@ -631,9 +878,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "--report-out and --status-out are required unless --print-diff is used",
             )
         plan = validate_plan(parse_plan(os.environ.get(args.plan_env, "")), changed_paths)
+        validate_evidence_files(plan, repo_root)
         report = build_offline_report(plan, changed_paths, validation_base)
         _write_outputs(report, args.report_out, args.status_out)
-        return 0
+        return 1 if report["status"] == "needs_review" else 0
     except ValidationError as error:
         report = _failed_report(error, changed_paths, validation_base)
         if args.report_out is None or args.status_out is None:

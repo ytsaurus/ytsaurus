@@ -8,6 +8,17 @@ import yql_docs_validation_executor as executor
 
 
 DOC_PATH = "yt/docs/ru/yql/reference/example.md"
+YQL_EVIDENCE_PATH = "yql/essentials/core/example.cpp"
+QT_EVIDENCE_PATH = "yt/yt/server/query_tracker/yql_engine.cpp"
+
+
+def evidence(path, anchor, kind, finding):
+    return {
+        "path": path,
+        "anchor": anchor,
+        "kind": kind,
+        "finding": finding,
+    }
 
 
 def query_change(query="SELECT 1 AS value;", expected=None):
@@ -16,6 +27,25 @@ def query_change(query="SELECT 1 AS value;", expected=None):
         "path": DOC_PATH,
         "kind": "query",
         "description": "Validate the documented expression",
+        "scope": "both",
+        "verdict": "supported",
+        "yql_evidence": [
+            evidence(
+                YQL_EVIDENCE_PATH,
+                "YqlFeature",
+                "implementation",
+                "The YQL implementation accepts the expression",
+            )
+        ],
+        "query_tracker_evidence": [
+            evidence(
+                QT_EVIDENCE_PATH,
+                "QueryTrackerFeatureTest",
+                "test",
+                "The Query Tracker path preserves the expression",
+            )
+        ],
+        "gaps": [],
         "query": query,
         "expected": expected or {"mode": "rows", "rows": [{"value": 1}]},
     }
@@ -23,7 +53,7 @@ def query_change(query="SELECT 1 AS value;", expected=None):
 
 def plan(changes):
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "summary": "Validation plan",
         "changes": changes,
     }
@@ -61,6 +91,79 @@ class PlanValidationTest(unittest.TestCase):
         value["comment"] = "ignored"
         with self.assertRaisesRegex(executor.ValidationError, r"extra=\['comment'\]"):
             executor.validate_plan(value, [])
+
+    def test_rejects_missing_yql_evidence(self):
+        change = query_change()
+        change["yql_evidence"] = []
+        with self.assertRaisesRegex(executor.ValidationError, "non-empty array"):
+            executor.validate_plan(plan([change]), [DOC_PATH])
+
+    def test_rejects_query_tracker_evidence_from_unrelated_tree(self):
+        change = query_change()
+        change["query_tracker_evidence"][0]["path"] = YQL_EVIDENCE_PATH
+        with self.assertRaisesRegex(executor.ValidationError, "must be below one of"):
+            executor.validate_plan(plan([change]), [DOC_PATH])
+
+    def test_rejects_documentation_as_code_evidence(self):
+        change = query_change()
+        change["yql_evidence"][0]["path"] = "yql/essentials/docs/example.md"
+        with self.assertRaisesRegex(executor.ValidationError, "not documentation"):
+            executor.validate_plan(plan([change]), [DOC_PATH])
+
+    def test_supported_verdict_requires_test_evidence(self):
+        change = query_change()
+        change["query_tracker_evidence"][0]["kind"] = "runtime"
+        with self.assertRaisesRegex(executor.ValidationError, "needs test evidence"):
+            executor.validate_plan(plan([change]), [DOC_PATH])
+
+    def test_non_supported_verdict_requires_gap(self):
+        change = query_change()
+        change["verdict"] = "yql_only"
+        with self.assertRaisesRegex(executor.ValidationError, "must explain"):
+            executor.validate_plan(plan([change]), [DOC_PATH])
+
+    def test_unknown_scope_requires_uncertain_verdict(self):
+        change = query_change()
+        change["scope"] = "unknown"
+        with self.assertRaisesRegex(executor.ValidationError, "requires verdict"):
+            executor.validate_plan(plan([change]), [DOC_PATH])
+
+
+class EvidenceValidationTest(unittest.TestCase):
+    def _write_evidence_files(self, root):
+        yql_file = root / YQL_EVIDENCE_PATH
+        qt_file = root / QT_EVIDENCE_PATH
+        yql_file.parent.mkdir(parents=True)
+        qt_file.parent.mkdir(parents=True)
+        yql_file.write_text("void YqlFeature();\n", encoding="utf-8")
+        qt_file.write_text("TEST(QueryTrackerFeatureTest) {}\n", encoding="utf-8")
+
+    def test_accepts_existing_files_and_anchors(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_evidence_files(root)
+            validated = executor.validate_plan(plan([query_change()]), [DOC_PATH])
+            executor.validate_evidence_files(validated, root)
+
+    def test_rejects_missing_evidence_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            yql_file = root / YQL_EVIDENCE_PATH
+            yql_file.parent.mkdir(parents=True)
+            yql_file.write_text("void YqlFeature();\n", encoding="utf-8")
+            validated = executor.validate_plan(plan([query_change()]), [DOC_PATH])
+            with self.assertRaisesRegex(executor.ValidationError, "does not exist"):
+                executor.validate_evidence_files(validated, root)
+
+    def test_rejects_missing_evidence_anchor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._write_evidence_files(root)
+            change = query_change()
+            change["yql_evidence"][0]["anchor"] = "MissingSymbol"
+            validated = executor.validate_plan(plan([change]), [DOC_PATH])
+            with self.assertRaisesRegex(executor.ValidationError, "was not found"):
+                executor.validate_evidence_files(validated, root)
 
 
 class QuerySafetyTest(unittest.TestCase):
@@ -177,15 +280,29 @@ class DiffTest(unittest.TestCase):
 
 
 class OfflineReportTest(unittest.TestCase):
-    def test_marks_query_as_not_executed(self):
+    def test_marks_code_supported_and_query_not_executed(self):
         validated = executor.validate_plan(plan([query_change()]), [DOC_PATH])
         report = executor.build_offline_report(validated, [DOC_PATH], "a" * 40)
-        self.assertEqual(report["status"], "plan_validated")
+        self.assertEqual(report["status"], "code_research_validated")
         self.assertEqual(report["execution_mode"], "offline")
         self.assertFalse(report["remote_execution"])
-        self.assertEqual(report["checks"][0]["status"], "not_executed")
+        self.assertEqual(report["checks"][0]["status"], "code_supported")
+        self.assertEqual(report["checks"][0]["query_status"], "not_executed")
+        self.assertEqual(
+            report["checks"][0]["yql_evidence"][0]["path"],
+            YQL_EVIDENCE_PATH,
+        )
         self.assertNotIn("query_url", report["checks"][0])
         self.assertNotIn("query_id", report["checks"][0])
+
+    def test_requires_review_for_non_supported_verdict(self):
+        change = query_change()
+        change["verdict"] = "yql_only"
+        change["gaps"] = ["No Query Tracker support was found"]
+        validated = executor.validate_plan(plan([change]), [DOC_PATH])
+        report = executor.build_offline_report(validated, [DOC_PATH], "a" * 40)
+        self.assertEqual(report["status"], "needs_review")
+        self.assertEqual(report["checks"][0]["status"], "needs_review")
 
     def test_rejects_unsafe_query(self):
         safe = query_change()
@@ -218,10 +335,10 @@ class OfflineReportTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             report_path = Path(directory) / "report.json"
             status_path = Path(directory) / "status"
-            report = {"status": "plan_validated", "checks": []}
+            report = {"status": "code_research_validated", "checks": []}
             executor._write_outputs(report, report_path, status_path)
             self.assertEqual(json.loads(report_path.read_text()), report)
-            self.assertEqual(status_path.read_text(), "plan_validated\n")
+            self.assertEqual(status_path.read_text(), "code_research_validated\n")
 
 
 if __name__ == "__main__":
