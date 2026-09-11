@@ -49,8 +49,6 @@ public class ExternalStateProtoMapper extends StateProtoMapper {
 
     /**
      * {@inheritDoc}
-     *
-     * <p>An all-default proto message serializes to zero bytes, a legal payload.
      */
     @Override
     protected void describeState(TState.Builder stateBuilder, StatesHolder statesHolder) {
@@ -66,5 +64,15 @@ public class ExternalStateProtoMapper extends StateProtoMapper {
                 statesHolder.getStateSchema(), "External state must have a schema"
         );
         stateBuilder.setSchema(YsonUtils.protoFromYTree(stateSchema.toYTree()));
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>An all-default proto message serializes to zero bytes, a legal payload.
+     */
+    @Override
+    protected boolean allowsEmptyPayload(StatesHolder statesHolder) {
+        return statesHolder.getFormat() == StateFormat.PROTO;
     }
 }

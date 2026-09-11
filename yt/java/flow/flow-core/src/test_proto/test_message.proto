@@ -10,3 +10,8 @@ message TTestMessage {
     required double value = 4;
     required bool is_value = 5;
 }
+
+// All fields optional, so an all-default instance builds and serializes to zero bytes.
+message TOptionalTestMessage {
+    optional int64 count = 1;
+}

@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.google.protobuf.ByteString;
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.core.GUID;
@@ -57,7 +58,7 @@ public abstract class StateProtoMapper {
             for (var stateItem : protoState.getStateItemsList()) {
                 UnversionedRow key = keyCodec.decode(stateItem.getKey());
                 if (stateItem.getReset()) {
-                    stateHolder.load(key, State.RESET);
+                    stateHolder.loadReset(key);
                     continue;
                 }
                 validateItem(protoState, stateHolder, jobId, requestId);
@@ -80,20 +81,26 @@ public abstract class StateProtoMapper {
         stateBuilder.setName(statesHolder.getName());
         describeState(stateBuilder, statesHolder);
         var stateItems = new ArrayList<TStateItem>(modifiedStates.size());
+        boolean emptyPayloadAllowed = allowsEmptyPayload(statesHolder);
         for (var entry : modifiedStates.entrySet()) {
-            State state = entry.getValue();
-            var stateItemBuilder = TStateItem.newBuilder()
-                    .setKey(keyCodec.encode(entry.getKey()))
-                    .setReset(state.isReset());
-            if (!state.isReset()) {
-                stateItemBuilder.setState(
-                        Objects.requireNonNull(state.getBytes(), "Non-reset state must have bytes")
-                );
-            }
-            stateItems.add(stateItemBuilder.build());
+            stateItems.add(toProtoItem(entry.getKey(), entry.getValue(), emptyPayloadAllowed));
         }
         stateBuilder.addAllStateItems(stateItems);
         return stateBuilder.build();
+    }
+
+    private TStateItem toProtoItem(UnversionedRow key, State state, boolean emptyPayloadAllowed) {
+        var stateItemBuilder = TStateItem.newBuilder().setKey(keyCodec.encode(key));
+        if (state.isReset()) {
+            return stateItemBuilder.setReset(true).build();
+        }
+        ByteString bytes = Objects.requireNonNull(state.getBytes(), "Non-reset state must have bytes");
+        if (bytes.isEmpty() && !emptyPayloadAllowed) {
+            // A value that encodes to no bytes is no value, and a reset is the only way the wire
+            // spells that: the worker rejects a non-reset item with an empty payload.
+            return stateItemBuilder.setReset(true).build();
+        }
+        return stateItemBuilder.setReset(false).setState(bytes).build();
     }
 
     /**
@@ -112,5 +119,13 @@ public abstract class StateProtoMapper {
      * format — before the items are added.
      */
     protected void describeState(TState.Builder stateBuilder, StatesHolder statesHolder) {
+    }
+
+    /**
+     * Tells whether a value of {@code statesHolder} may go out as a non-reset item with an empty
+     * payload.
+     */
+    protected boolean allowsEmptyPayload(StatesHolder statesHolder) {
+        return false;
     }
 }

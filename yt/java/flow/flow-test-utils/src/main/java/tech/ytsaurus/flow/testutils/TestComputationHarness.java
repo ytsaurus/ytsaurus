@@ -17,9 +17,12 @@ import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.context.PipelineContext;
 import tech.ytsaurus.flow.context.PipelineContextSnapshot;
+import tech.ytsaurus.flow.internal.request.mapper.ExternalStateProtoMapper;
+import tech.ytsaurus.flow.internal.request.mapper.InternalStateProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.JobProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.ResponseProtoMapper;
 import tech.ytsaurus.flow.job.JobContext;
+import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.flow.service.CompanionRequestProcessor;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreams;
@@ -103,27 +106,29 @@ public class TestComputationHarness {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+        var jobId = ProtoUtils.fromProto(protoRequest.getJobId());
+        var requestId = ProtoUtils.fromProto(protoRequest.getRequestId());
         // Reconstruct Job from the proto request to get StreamSpecs and keySchema for deserialization.
         var jobMapper = new JobProtoMapper(streamContext);
-        var job = jobMapper.fromProto(
-                ProtoUtils.fromProto(protoRequest.getJobId()),
-                protoRequest.getComputationId(),
-                protoRequest.getJobInfo()
-        );
+        var job = jobMapper.fromProto(jobId, protoRequest.getComputationId(), protoRequest.getJobInfo());
         var responseMapper = new ResponseProtoMapper();
         var responseContext = responseMapper.fromProto(
                 processBatchResult.getData(),
                 job.getStreamSpecs(),
                 job.getGroupBySchema(),
-                ProtoUtils.fromProto(protoRequest.getJobId()),
-                ProtoUtils.fromProto(protoRequest.getRequestId())
+                jobId,
+                requestId
         );
-        return new TestDoProcessResponse(
-                responseContext,
-                request.getExternalStates(),
-                request.getInternalStates(),
-                externalStateSchemas
-        );
+        // Read the request states back off the wire with the mappers the worker's side uses, so
+        // the response views show exactly what the computation was handed: a seed the request
+        // cannot express is invisible to the assertions too.
+        var keyCodec = CodecRegistry.getInstance().getKeyCodec();
+        var keySchema = job.getGroupBySchema();
+        var requestExternalStates = new ExternalStateProtoMapper(keySchema, keyCodec)
+                .fromProto(protoRequest.getExternalStatesList(), jobId, requestId);
+        var requestInternalStates = new InternalStateProtoMapper(keySchema, keyCodec)
+                .fromProto(protoRequest.getInternalStatesList(), jobId, requestId);
+        return new TestDoProcessResponse(responseContext, requestExternalStates, requestInternalStates);
     }
 
     /**

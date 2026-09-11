@@ -65,10 +65,7 @@ public class ExternalStateAccessor implements StateAccessor<Payload> {
      */
     @Override
     public void clear() {
-        statesHolder.set(
-                key.getRow(),
-                State.RESET
-        );
+        statesHolder.clear(key.getRow());
     }
 
     /**
