@@ -1077,7 +1077,6 @@ private:
             }
         }
 
-        auto sequenceNumber = mutationContext ? mutationContext->GetSequenceNumber() : 0;
         YT_TLOG_DEBUG("Reliable outcoming message added")
             .With("MutationType", message->Type)
             .With("SrcCellId", SelfCellId_)
@@ -1085,7 +1084,7 @@ private:
                 builder->AppendFormat("%v=>%v", dstId.first, dstId.second);
             }))
             .WithIf(mutationContext, "LogicalTime", logicalTime)
-            .WithIf(mutationContext, "SequenceNumber", sequenceNumber);
+            .WithIf(mutationContext, "SequenceNumber", YT_LAZY(mutationContext->GetSequenceNumber()));
     }
 
     void UnreliablePostMessage(TRange<TMailboxHandle> mailboxes, const TSerializedMessagePtr& message)

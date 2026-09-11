@@ -3508,7 +3508,7 @@ private:
                 SessionOptions_.Cookie.has_value(),
                 "Cookie",
                 "%x",
-                SessionOptions_.Cookie.value_or(0));
+                YT_LAZY(*SessionOptions_.Cookie));
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3824,7 +3824,7 @@ private:
                 SessionOptions_.Cookie.has_value(),
                 "Cookie",
                 "%x",
-                SessionOptions_.Cookie.value_or(0));
+                YT_LAZY(*SessionOptions_.Cookie));
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -4331,7 +4331,7 @@ private:
                 SessionOptions_.Cookie.has_value(),
                 "Cookie",
                 "%x",
-                SessionOptions_.Cookie.value_or(0));
+                YT_LAZY(*SessionOptions_.Cookie));
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -4861,7 +4861,7 @@ private:
                 queuedBatch.Session->SessionOptions_.Cookie.has_value(),
                 "Cookie",
                 "%x",
-                queuedBatch.Session->SessionOptions_.Cookie.value_or(0));
+                YT_LAZY(*queuedBatch.Session->SessionOptions_.Cookie));
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_block_indexes(), std::move(blockIndexes));
         req->SetAcknowledgementTimeout(std::nullopt);
@@ -4900,7 +4900,7 @@ private:
                 queuedBatch.Session->SessionOptions_.Cookie.has_value(),
                 "Cookie",
                 "%x",
-                queuedBatch.Session->SessionOptions_.Cookie.value_or(0));
+                YT_LAZY(*queuedBatch.Session->SessionOptions_.Cookie));
 
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
