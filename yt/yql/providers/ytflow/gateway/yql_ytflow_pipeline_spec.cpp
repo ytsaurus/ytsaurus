@@ -375,6 +375,23 @@ void ProcessSource(
         if (settings.Is<NProto::TQYTSourceMessage>()) {
             sourceSpec->SourceClassName = "NYT::NFlow::TQueueSource";
 
+            auto useSourceWatermark = config->_YtUseSourceWatermark.Get();
+            YQL_ENSURE(
+                useSourceWatermark,
+                "Ytflow._YtUseSourceWatermark system setting is not set");
+
+            if (*useSourceWatermark) {
+                if (!computationSpec->WatermarkStrategy->WatermarkGenerator) {
+                    computationSpec->WatermarkStrategy->WatermarkGenerator =
+                        NYT::New<NYT::NFlow::TWatermarkGeneratorSpec>();
+                }
+
+                computationSpec
+                    ->WatermarkStrategy
+                    ->WatermarkGenerator
+                    ->UseSourceWatermark = true;
+            }
+
             NProto::TQYTSourceMessage qytSourceSettings;
             settings.UnpackTo(&qytSourceSettings);
 
@@ -1099,7 +1116,8 @@ void ProcessHoppingAggregate(
             hoppingAggregate.UpdateStateLambda(),
             {
                 {"YtflowInputStream", ETypeAnnotationKind::Stream},
-                {"YtflowInputState", ETypeAnnotationKind::List}
+                {"YtflowInputState", ETypeAnnotationKind::List},
+                {"YtflowInputWatermark", ETypeAnnotationKind::Data}
             },
             lambdaBuilder,
             compiler,

@@ -116,6 +116,7 @@ constexpr auto DefaultYtflowGatewaySettings = std::to_array<std::pair<TStringBuf
     {"_MasterLockTimeout", "2m"},
     {"_MasterLockPingPeriod", "30s"},
     {"_FiniteStreams", "0"},
+    {"_YtUseSourceWatermark", "0"},
     {"EnableComputationPatternResources", "false"},
     {"GracefulUpdate", "1"},
     {"UpdateTimeout", "600s"},

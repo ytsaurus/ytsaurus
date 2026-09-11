@@ -947,7 +947,7 @@ private:
         auto* columnType = savedStateTupleType->GetItems()[0];
 
         auto& updateStateLambda = input->ChildRef(TYtflowHoppingAggregate::idx_UpdateStateLambda);
-        if (auto status = ConvertToLambda(updateStateLambda, ctx, 2, 2);
+        if (auto status = ConvertToLambda(updateStateLambda, ctx, 3, 3);
             status != TStatus::Ok
         ) {
             return status;
@@ -955,7 +955,8 @@ private:
 
         auto updateStateLambdaArgTypes = std::vector<const TTypeAnnotationNode*>{
             ctx.MakeType<TStreamExprType>(sourceStructType),
-            savedStateType
+            savedStateType,
+            ctx.MakeType<TDataExprType>(EDataSlot::Timestamp)
         };
 
         if (!UpdateLambdaAllArgumentsTypes(

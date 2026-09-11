@@ -44,6 +44,7 @@ public:
     NCommon::TConfSetting<TString, Static> _JobManagerConfig;
 
     NCommon::TConfSetting<bool, Static> _FiniteStreams;
+    NCommon::TConfSetting<bool, Static> _YtUseSourceWatermark;
 
     NCommon::TConfSetting<uint64_t, Static> ControllerCount;
     NCommon::TConfSetting<double, Static> ControllerCpuLimit;
