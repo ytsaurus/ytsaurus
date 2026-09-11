@@ -30,8 +30,11 @@ import tech.ytsaurus.flow.job.JobContext;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Message;
 import tech.ytsaurus.flow.row.Payload;
+import tech.ytsaurus.flow.state.InternalStateDescriptor;
+import tech.ytsaurus.flow.state.ProtoExternalStateDescriptor;
 import tech.ytsaurus.flow.state.StateDescriptors;
 import tech.ytsaurus.flow.stream.FlowStream;
+import tech.ytsaurus.flow.test.TOptionalTestMessage;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
@@ -62,6 +65,12 @@ class TestComputationHarnessTest {
     // StateDescriptors.external(...).
     private static final String EXT_STATE_A = "/state-a";
     private static final String EXT_STATE_B = "/state-b";
+    private static final String INT_PROTO_STATE = "proto-state";
+    private static final InternalStateDescriptor<TOptionalTestMessage> INT_PROTO =
+            StateDescriptors.protobuf(INT_PROTO_STATE, TOptionalTestMessage.class);
+    private static final String EXT_PROTO_STATE = "/proto-state-external";
+    private static final ProtoExternalStateDescriptor<TOptionalTestMessage> EXT_PROTO =
+            StateDescriptors.externalProto(EXT_PROTO_STATE, TOptionalTestMessage.class);
 
     private static String spec;
     private static String jinjaSpec;
@@ -166,6 +175,54 @@ class TestComputationHarnessTest {
                     .endMap().build());
         }
         return node;
+    }
+
+    /**
+     * A copy of the base spec with the given internal states declared on {@link #COMPUTATION_ID},
+     * so the computation is allowed to access those internal states.
+     */
+    private static YTreeNode specDeclaringInternalStates(List<String> stateNames) {
+        var node = YTreeTextSerializer.deserialize(spec);
+        var parameters = node.asMap().get("spec").asMap()
+                .get("computations").asMap()
+                .get(COMPUTATION_ID).asMap()
+                .get("parameters").asMap();
+        var states = YTree.builder().beginList();
+        stateNames.forEach(states::value);
+        parameters.put("internal_states", states.endList().build());
+        return node;
+    }
+
+    /**
+     * Computation that records, per incoming message, whether {@link #INT_PROTO} holds a value
+     * for the message key. Used to observe a seeded state exactly as a computation sees it.
+     */
+    private static Computation internalStateProbe(String computationId, List<Boolean> observed) {
+        return Computation.builder()
+                .setComputationId(computationId)
+                .setProcessFunction(new RowFunction() {
+                    @Override
+                    public void onMessage(ExtendedMessage message, OutputCollector output, RuntimeContext ctx) {
+                        observed.add(ctx.getState(INT_PROTO, message).get() != null);
+                    }
+                })
+                .build();
+    }
+
+    /**
+     * Computation that records, per incoming message, whether {@link #EXT_PROTO} holds a value
+     * for the message key.
+     */
+    private static Computation externalProtoStateProbe(String computationId, List<Boolean> observed) {
+        return Computation.builder()
+                .setComputationId(computationId)
+                .setProcessFunction(new RowFunction() {
+                    @Override
+                    public void onMessage(ExtendedMessage message, OutputCollector output, RuntimeContext ctx) {
+                        observed.add(ctx.getState(EXT_PROTO, message).get() != null);
+                    }
+                })
+                .build();
     }
 
     /**
@@ -928,6 +985,34 @@ class TestComputationHarnessTest {
         }
 
         @Test
+        @DisplayName("getOrDefault(): a declared state the computation left alone reads its default")
+        void testDeclaredUnmodifiedExternalStateHasDefault() {
+            // Given: A passthrough computation and an external state declared on the harness but
+            // never written. The request carries that state's schema, so the computation reads a
+            // default value for it; both views must agree, the modified one included.
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(ctx(COMPUTATION_ID, false))
+                    .setPipelineSpec(spec)
+                    .addExternalStateSchema(EXT_STATE_A, PAYLOAD_SCHEMA)
+                    .build();
+            var response = harness.doProcess(TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .build());
+            var extA = StateDescriptors.external(EXT_STATE_A);
+            var someKey = new Payload(TestDataUtils.createUnversionedRow(KEY_SCHEMA, 10), KEY_SCHEMA);
+
+            // Then: Both views hand out the empty payload instead of failing for a missing schema.
+            assertAll(
+                    () -> assertEquals(
+                            PAYLOAD_SCHEMA,
+                            response.allStates().get(extA, someKey).getOrDefault().getSchema()),
+                    () -> assertEquals(
+                            PAYLOAD_SCHEMA,
+                            response.modifiedStates().get(extA, someKey).getOrDefault().getSchema())
+            );
+        }
+
+        @Test
         @DisplayName("state readers are empty (not null) for unknown names and keys")
         void testStateAccessorsAreNullSafe() {
             // Given: A processed request with no states at all.
@@ -998,6 +1083,75 @@ class TestComputationHarnessTest {
                     () -> assertNotNull(allValue),
                     () -> assertEquals(modifiedValue, allValue),
                     () -> assertNotEquals(prePayload, allValue)
+            );
+        }
+    }
+
+    @Nested
+    @DisplayName("State Seeding Tests")
+    class StateSeedingTests {
+
+        @Test
+        @DisplayName("a seeded value that encodes to no bytes is observed as absent")
+        void testSeededEmptyProtoStateIsAbsent() {
+            // Given: An all-default protobuf message seeded as an internal state. Setting one in
+            // production sends a reset, the worker drops the row, and the next request carries no
+            // entry for the key: the seeding path must reproduce that, or the test would certify a
+            // state the pipeline cannot be in.
+            var observed = new ArrayList<Boolean>();
+            var context = new PipelineContext();
+            context.registerComputation(internalStateProbe(COMPUTATION_ID, observed));
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(context)
+                    .setPipelineSpec(specDeclaringInternalStates(List.of(INT_PROTO_STATE)))
+                    .build();
+            var messages = extMessages(1);
+            var key = messages.get(0).getKey();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(messages)
+                    .setState(INT_PROTO, key, TOptionalTestMessage.getDefaultInstance())
+                    .build();
+
+            // When: Processing the request.
+            var response = harness.doProcess(request);
+
+            // Then: The computation sees no value for the key, and so does the response view: the
+            // assertion surface must not certify a state the computation was never handed.
+            assertAll(
+                    () -> assertEquals(List.of(false), observed),
+                    () -> assertNull(response.allStates().get(INT_PROTO, key).get())
+            );
+        }
+
+        @Test
+        @DisplayName("a seeded all-default proto external state is observed as present")
+        void testSeededEmptyProtoExternalStateIsPresent() {
+            // Given: The same all-default message seeded as an external state. The proto wire
+            // format keeps an empty payload distinct from an absent one, so here the key stays
+            // present — the view must follow the wire, not guess.
+            var observed = new ArrayList<Boolean>();
+            var context = new PipelineContext();
+            context.registerComputation(externalProtoStateProbe(COMPUTATION_ID, observed));
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(context)
+                    .setPipelineSpec(specDeclaringExternalStates(List.of(EXT_PROTO_STATE)))
+                    .build();
+            var messages = extMessages(1);
+            var key = messages.get(0).getKey();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(messages)
+                    .setState(EXT_PROTO, key, TOptionalTestMessage.getDefaultInstance())
+                    .build();
+
+            // When: Processing the request.
+            var response = harness.doProcess(request);
+
+            // Then: The computation sees the value, and so does the response view.
+            assertAll(
+                    () -> assertEquals(List.of(true), observed),
+                    () -> assertEquals(
+                            TOptionalTestMessage.getDefaultInstance(),
+                            response.allStates().get(EXT_PROTO, key).get())
             );
         }
     }

@@ -122,6 +122,9 @@ public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>An all-default message serializes to zero bytes and is still stored as a value: the
+     * proto wire format keeps such a payload distinct from an absent one.
      */
     @Override
     public void set(T value) {
@@ -134,7 +137,7 @@ public class ProtoStateAccessor<T extends Message> implements StateAccessor<T> {
      */
     @Override
     public void clear() {
-        statesHolder.set(key.getRow(), State.RESET);
+        statesHolder.clear(key.getRow());
     }
 
     /**

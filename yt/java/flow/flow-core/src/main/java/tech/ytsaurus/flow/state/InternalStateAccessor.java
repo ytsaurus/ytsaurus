@@ -92,6 +92,9 @@ public class InternalStateAccessor<T> implements StateAccessor<T> {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>A value that encodes to zero bytes is indistinguishable from no value on the wire and
+     * is sent back as a removal.
      */
     @Override
     public void set(T value) {
@@ -103,7 +106,7 @@ public class InternalStateAccessor<T> implements StateAccessor<T> {
      */
     @Override
     public void clear() {
-        statesHolder.set(key.getRow(), State.RESET);
+        statesHolder.clear(key.getRow());
     }
 
     /**

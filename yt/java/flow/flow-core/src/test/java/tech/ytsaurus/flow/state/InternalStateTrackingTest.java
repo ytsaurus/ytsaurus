@@ -18,6 +18,7 @@ import tech.ytsaurus.flow.row.PayloadBuilder;
 import tech.ytsaurus.flow.row.codec.ByteArrayCodec;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.flow.rpc.TState;
+import tech.ytsaurus.flow.test.TOptionalTestMessage;
 import tech.ytsaurus.typeinfo.TiType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -35,10 +36,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class InternalStateTrackingTest {
     private static final String COUNTER_STATE = "counter-state";
     private static final String RAW_STATE = "raw-state";
+    private static final String PROTO_STATE = "proto-state";
     private static final CounterCodec CODEC = new CounterCodec();
     private static final InternalStateDescriptor<Counter> COUNTER =
             StateDescriptors.custom(COUNTER_STATE, Counter.class, CODEC, Counter::new);
     private static final InternalStateDescriptor<byte[]> RAW = StateDescriptors.raw(RAW_STATE);
+    private static final InternalStateDescriptor<TOptionalTestMessage> PROTO =
+            StateDescriptors.protobuf(PROTO_STATE, TOptionalTestMessage.class);
 
     private TableSchema keySchema;
     private ExtendedMessage message;
@@ -74,7 +78,7 @@ class InternalStateTrackingTest {
         message = message("k1");
         internalStates = new HashMap<>();
         var backend = new DefaultStateBackend(
-                Set.of(COUNTER_STATE, RAW_STATE),
+                Set.of(COUNTER_STATE, RAW_STATE, PROTO_STATE),
                 Set.of(),
                 Set.of(),
                 internalStates,
@@ -211,6 +215,21 @@ class InternalStateTrackingTest {
 
         assertTrue(modifiedOf(RAW_STATE).isEmpty());
         assertEquals(0, proto(RAW_STATE).getStateItemsCount());
+    }
+
+    @Test
+    @DisplayName("a value that encodes to no bytes goes out as a reset")
+    void emptyValueGoesOutAsReset() {
+        // An all-default protobuf message serializes to zero bytes, and the worker rejects a
+        // non-reset item with an empty payload: no bytes is no value, and a reset is how the
+        // wire spells that. Only an external state in the proto format is exempt, see
+        // StateProtoMapperTest.
+        ctx.getState(PROTO, message).set(TOptionalTestMessage.getDefaultInstance());
+
+        TState out = proto(PROTO_STATE);
+        assertEquals(1, out.getStateItemsCount());
+        assertTrue(out.getStateItems(0).getReset());
+        assertTrue(out.getStateItems(0).getState().isEmpty());
     }
 
     @Test
