@@ -23,6 +23,11 @@ CHYT_DESCRIPTION = """
 Is released as a docker image.
 """
 
+FLOW_DESCRIPTION = """
+One release covers every Flow component: the server as a docker image, the Java SDK in
+Maven Central and the Python SDK in PyPI, all at the same version.
+"""
+
 K8S_DESCRIPTION = """
 Is released as helm charts on [GitHub Packages](https://github.com/ytsaurus/ytsaurus-k8s-operator/pkgs/container/ytop-chart).
 """
@@ -298,6 +303,28 @@ COMPONENTS = [
         filename="chyt.md",
         artifacts=[
             DockerArtifact(label="Docker image", repo_name="ytsaurus", image_repo="chyt", tag_templates=["stable-{version}", "{version}"]),
+        ],
+    ),
+    Component(
+        repo_name="ytsaurus",
+        component_name="Flow",
+        tag_name="flow",
+        description=FLOW_DESCRIPTION,
+        filename="flow.md",
+        artifacts=[
+            DockerArtifact(label="Docker image", repo_name="ytsaurus", image_repo="flow", tag_templates=["{version}"]),
+            Artifact(
+                label="Java SDK in Maven Central",
+                kind="package",
+                page_url="https://central.sonatype.com/artifact/tech.ytsaurus/flow-core/versions",
+                version_url_template="https://central.sonatype.com/artifact/tech.ytsaurus/flow-core/{version}",
+            ),
+            Artifact(
+                label="Python SDK in PyPI",
+                kind="package",
+                page_url="https://pypi.org/project/ytsaurus-flow-companion/",
+                version_url_template="https://pypi.org/project/ytsaurus-flow-companion/{version}/",
+            ),
         ],
     ),
     Component(

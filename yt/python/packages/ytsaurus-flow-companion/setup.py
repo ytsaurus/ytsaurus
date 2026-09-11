@@ -1,7 +1,5 @@
 PACKAGE_NAME = "ytsaurus-flow-companion"
 
-MAJOR_VERSION = "0.0"
-
 # The exact protoc/gencode version is fixed by the grpcio-tools pin in pyproject.toml;
 # these are the matching runtime floors for the generated stubs.
 GRPCIO_RUNTIME = "grpcio>=1.70.0"
@@ -30,17 +28,11 @@ CORE_PROTOS = [
 
 
 def get_version():
-    # In the ytsaurus package-build flow (build_ytsaurus_packages.sh does
-    # `pip install -e yt/python/packages` first) versioning goes through
-    # yt_setup.helpers, honoring YTSAURUS_PACKAGE_VERSION / YTSAURUS_COMMIT_HASH.
-    # For a standalone `pip install <this dir>` yt_setup may be absent, so fall
-    # back to the plain major-dev version.
-    try:
-        from yt_setup.helpers import get_package_version
+    # The flow/X.Y.Z tag is the only source of the version: the release workflow exports it
+    # as YTSAURUS_PACKAGE_VERSION. A plain local build gets a dev version.
+    import os
 
-        return get_package_version(MAJOR_VERSION)
-    except ImportError:
-        return MAJOR_VERSION + ".0"
+    return os.environ.get("YTSAURUS_PACKAGE_VERSION") or "0.0.dev0"
 
 
 def main():
@@ -50,8 +42,8 @@ def main():
     from setuptools.command.build_py import build_py
 
     here = os.path.dirname(os.path.abspath(__file__))
-    # This setup.py lives at yt/yt/flow/tools/python_companion_package/; the repo root is five levels up.
-    repo_root = os.path.normpath(os.path.join(here, *[os.pardir] * 5))
+    # This setup.py lives at yt/python/packages/ytsaurus-flow-companion/; the repo root is four levels up.
+    repo_root = os.path.normpath(os.path.join(here, *[os.pardir] * 4))
     proto_root = os.path.join(repo_root, "yt")
 
     class BuildPyWithProtoStubs(build_py):
@@ -85,7 +77,7 @@ def main():
             if missing:
                 raise RuntimeError(
                     "Proto sources not found (build from a full ytsaurus checkout, "
-                    "e.g. `pip install <checkout>/yt/yt/flow/tools/python_companion_package`): " + ", ".join(missing)
+                    "e.g. `pip install <checkout>/yt/python/packages/ytsaurus-flow-companion`): " + ", ".join(missing)
                 )
 
             gen_dir = tempfile.mkdtemp(prefix="flow_companion_protos_")
@@ -144,20 +136,22 @@ def main():
             "yt.yt.flow.library.python.runner",
         ],
         package_dir={
-            "yt.yt.flow.library.python.companion": "../../library/python/companion",
-            "yt.yt.flow.library.python.companion.test_harness": "../../library/python/companion/test_harness",
-            "yt.yt.flow.library.python.runner": "../../library/python/runner",
+            "yt.yt.flow.library.python.companion": "../../../../yt/yt/flow/library/python/companion",
+            "yt.yt.flow.library.python.companion.test_harness": "../../../../yt/yt/flow/library/python/companion/test_harness",
+            "yt.yt.flow.library.python.runner": "../../../../yt/yt/flow/library/python/runner",
         },
         cmdclass={"build_py": BuildPyWithProtoStubs},
+        author="timoninmaxim, sergeypozdeev, blinkov",
+        author_email="timoninmaxim@ytsaurus.tech, sergeypozdeev@ytsaurus.tech, blinkov@ytsaurus.tech",
         license="Apache 2.0",
-        description="Flow companion SDK: write YT Flow computations in Python.",
+        description="Flow Python SDK: write YT Flow computations in Python.",
         long_description="YTsaurus — is a platform for distributed storage and processing of large amounts of data with support of MapReduce, "
         "distributed file system and NoSQL key-value storage."
         "\n\n"
-        "This library provides the Python companion SDK for YT Flow pipelines: the gRPC server the Flow worker "
+        "This library provides the Python SDK for YT Flow pipelines: the gRPC server the Flow worker "
         "drives, the computation/state/timer API, a test harness for unit-testing computations without a cluster, "
-        "and the runner helper that ships the companion into the pipeline's vanilla jobs.",
-        keywords="yt ytsaurus flow companion streaming pipeline",
+        "and the runner helper that ships the user code into the pipeline's vanilla jobs.",
+        keywords="yt ytsaurus flow sdk streaming pipeline",
         install_requires=[
             GRPCIO_RUNTIME,
             PROTOBUF_RUNTIME,

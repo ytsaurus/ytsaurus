@@ -17,6 +17,8 @@ PEERDIR(
     yt/yt_proto/yt/core
 )
 
+INCLUDE(${ARCADIA_ROOT}/yt/gradle.inc)
+
 EXCLUDE_TAGS(GO_PROTO)
 
 END()

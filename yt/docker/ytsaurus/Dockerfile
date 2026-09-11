@@ -375,6 +375,17 @@ RUN chmod 755 /setup_cluster_for_chyt.sh
 
 ##########################################################################################
 
+FROM base AS flow
+
+# Flow binary. A single binary serves as controller, worker and runner; the role
+# is chosen at startup by YT_FLOW_MODE.
+COPY ./flow_server /usr/bin/flow_server
+
+# Flow credits files.
+COPY ./credits/flow_server.CREDITS /usr/bin/flow_server.CREDITS
+
+##########################################################################################
+
 FROM base-ytsaurus-python-packages AS base-query-tracker
 
 # Libpython shared objects that are needed for YQL system python UDFs to work.

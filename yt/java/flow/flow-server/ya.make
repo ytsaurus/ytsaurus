@@ -2,6 +2,8 @@ JAVA_LIBRARY(flow-server)
 
 DEFAULT_JDK_VERSION(17)
 
+INCLUDE(${ARCADIA_ROOT}/yt/gradle.inc)
+
 PEERDIR(
     yt/java/flow/flow-core
 

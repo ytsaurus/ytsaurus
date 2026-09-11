@@ -118,6 +118,16 @@ if [[ "${component}" == "ytsaurus" ]]; then
 
     cp -r ${credits}/*.CREDITS ${output_path}/credits
 
+elif [[ "${component}" == "flow" ]]; then
+
+    flow_server="${ytsaurus_build_path}/yt/yt/flow/bin/flow_server/flow_server"
+
+    flow_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/flow"
+
+    cp ${flow_server} ${output_path}
+
+    cp -r ${flow_credits}/*.CREDITS ${output_path}/credits
+
 elif [[ "${component}" == "chyt" ]]; then
 
     ytserver_clickhouse="${ytsaurus_build_path}/yt/chyt/server/bin/ytserver-clickhouse"
