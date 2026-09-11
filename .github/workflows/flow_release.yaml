@@ -1,0 +1,356 @@
+name: Release Flow
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag like 0.1.dev"
+        required: true
+        type: string
+      build_types:
+        description: 'JSON array: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
+        required: false
+        default: '["relwithdebinfo"]'
+        type: string
+  push:
+    tags:
+      - 'flow/[0-9]+\.[0-9]+\.[0-9]+'
+      - 'flow-test/[0-9]+\.[0-9]+\.[0-9]+'
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+  # Released Java SDK version the Flow artifacts depend on. Gradle publishes the Flow
+  # modules at the Flow version and writes this one into their POMs for ytsaurus-client
+  # and the proto libraries, so it must be a version that is already in Maven Central.
+  YTSAURUS_JAVA_SDK_VERSION: 1.2.17
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v2.1.0
+        with:
+          mode: start
+          retry-timeout: PT5M
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 16
+          memory: 32GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 279GB
+          public-ip: false
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          ttl: PT24H
+          runner-home-dir: /actions-runner
+
+  tag:
+    name: Parse tag
+    outputs:
+      test-image-tag: ${{ steps.tag.outputs.TEST_IMAGE_TAG }}
+      prod-image-tag: ${{ steps.tag.outputs.PROD_IMAGE_TAG }}
+      release-type: ${{ steps.tag.outputs.RELEASE_TYPE }}
+      build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Parse tag
+        id: tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
+            PROD_IMAGE_TAG="${{ github.event.inputs.tag }}"
+          else
+            tmp="${GITHUB_REF#refs/*/}"; if [[ "${tmp%%/*}" == "flow-test" ]]
+            then
+                echo "RELEASE_TYPE=test" >> $GITHUB_OUTPUT
+            elif [[ "${tmp%%/*}" == "flow" ]]
+            then
+                echo "RELEASE_TYPE=prod" >> $GITHUB_OUTPUT
+            fi
+
+            PROD_IMAGE_TAG="${tmp#flow/}"
+            PROD_IMAGE_TAG="${PROD_IMAGE_TAG#flow-test/}"
+          fi
+
+          echo "PROD_IMAGE_TAG=$PROD_IMAGE_TAG" >> "$GITHUB_OUTPUT"
+          echo "TEST_IMAGE_TAG=dev-$PROD_IMAGE_TAG" >> $GITHUB_OUTPUT
+
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
+          else
+            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
+          fi
+
+  verify-tags:
+    name: Verify tags
+    needs:
+      - tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        if: ${{ needs.tag.outputs.release-type == 'prod' }}
+        uses: actions/checkout@v4
+
+      - name: Verify that the test tag points at this commit
+        if: ${{ needs.tag.outputs.release-type == 'prod' }}
+        run: |
+          set -euo pipefail
+
+          # The prod image is a retag of the one built from the test tag, while the Java and
+          # Python artifacts are rebuilt from this commit; both tags must name the same commit.
+          test_tag="flow-test/${{ needs.tag.outputs.prod-image-tag }}"
+          git fetch --depth=1 origin "+refs/tags/${test_tag}:refs/tags/${test_tag}"
+          test_sha=$(git rev-parse "${test_tag}^{}")
+          if [[ "${test_sha}" != "${GITHUB_SHA}" ]]; then
+            echo "::error::${test_tag} points at ${test_sha}, but the prod tag points at ${GITHUB_SHA}"
+            exit 1
+          fi
+
+  checkout:
+    name: Checkout
+    needs:
+      - start-vm
+      - tag
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ytsaurus
+
+  build:
+    name: Build
+    needs:
+      - start-vm
+      - checkout
+      - tag
+    if: ${{ needs.tag.outputs.release-type == 'test' }}
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
+      build-flow: true
+      build-types: ${{ needs.tag.outputs.build-types }}
+    secrets:
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+    uses: ./.github/workflows/build-jobs.yaml
+
+  release:
+    name: Release Test
+    needs:
+      - start-vm
+      - build
+      - tag
+    if: ${{ needs.tag.outputs.release-type == 'test' }}
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      cpp-build-system: ya-make
+      publish-flow: true
+      image-tag: ${{ needs.tag.outputs.test-image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.test-image-tag }}
+      build-types: ${{ needs.tag.outputs.build-types }}
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      GH_USERNAME: ${{ secrets.GH_USERNAME }}
+    uses: ./.github/workflows/docker-jobs.yaml
+
+  push-test-to-prod:
+    name: Release Prod
+    if: ${{ needs.tag.outputs.release-type == 'prod' }}
+    needs:
+      - start-vm
+      - tag
+      - verify-tags
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Decide which images to push
+        id: types
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUILD_TYPES='${{ needs.tag.outputs.build-types }}'
+
+          has() {
+            python3 -c 'import json,sys; arr=json.loads(sys.argv[1]); print("true" if sys.argv[2] in arr else "false")' \
+              "$BUILD_TYPES" "$1"
+          }
+
+          echo "release=$(has release)" >> "$GITHUB_OUTPUT"
+          echo "relwithdebinfo=$(has relwithdebinfo)" >> "$GITHUB_OUTPUT"
+
+      - name: Docker login
+        run: |
+          echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
+
+      - name: Docker Pull And Push (release)
+        if: ${{ steps.types.outputs.release == 'true' }}
+        run: |
+          docker pull ghcr.io/ytsaurus/flow-nightly:${{ needs.tag.outputs.test-image-tag }}
+          docker tag  ghcr.io/ytsaurus/flow-nightly:${{ needs.tag.outputs.test-image-tag }} \
+                      ghcr.io/ytsaurus/flow:${{ needs.tag.outputs.prod-image-tag }}
+          docker push ghcr.io/ytsaurus/flow:${{ needs.tag.outputs.prod-image-tag }}
+
+      - name: Docker Pull And Push (relwithdebinfo)
+        if: ${{ steps.types.outputs.relwithdebinfo == 'true' }}
+        run: |
+          docker pull ghcr.io/ytsaurus/flow-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo
+          docker tag  ghcr.io/ytsaurus/flow-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo \
+                      ghcr.io/ytsaurus/flow:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
+          docker push ghcr.io/ytsaurus/flow:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
+
+  publish-java:
+    name: Publish Java SDK
+    needs:
+      - tag
+      - verify-tags
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          # A SNAPSHOT version routes publish.gradle.kts to the Sonatype snapshot
+          # repository and makes signing optional, the way a test tag should behave.
+          if [[ "${{ needs.tag.outputs.release-type }}" == "prod" ]]; then
+            echo "VERSION=${{ needs.tag.outputs.prod-image-tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ needs.tag.outputs.prod-image-tag }}-SNAPSHOT" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v3
+
+      - name: Execute Gradle build
+        run: |
+          ./gradlew \
+            :yt:java:flow:flow-core:build \
+            :yt:java:flow:flow-runner:build \
+            :yt:java:flow:flow-server:build \
+            :yt:java:flow:flow-spring-boot-starter:build \
+            :yt:java:flow:flow-test-utils:build
+
+      - name: Run tests
+        run: |
+          ./gradlew \
+            :yt:java:flow:flow-core:test \
+            :yt:java:flow:flow-runner:test \
+            :yt:java:flow:flow-server:test \
+            :yt:java:flow:flow-spring-boot-starter:test \
+            :yt:java:flow:flow-test-utils:test
+
+      - name: Publish
+        run: |
+          ./gradlew \
+            :yt:yt:flow:library:cpp:common:proto:publish \
+            :yt:yt:flow:library:cpp:companion:proto:publish \
+            :yt:java:flow:flow-core:publish \
+            :yt:java:flow:flow-runner:publish \
+            :yt:java:flow:flow-server:publish \
+            :yt:java:flow:flow-spring-boot-starter:publish \
+            :yt:java:flow:flow-test-utils:publish \
+            -PflowRelease=true -PflowVersion=${{ steps.version.outputs.VERSION }} -Pversion=${YTSAURUS_JAVA_SDK_VERSION} -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}"
+
+      - name: Upload to Central Publisher Portal
+        if: ${{ needs.tag.outputs.release-type == 'prod' }}
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+        run: |
+          curl -v -u "$OSSRH_USERNAME:$OSSRH_PASSWORD" -X POST "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/tech.ytsaurus"
+
+  publish-python:
+    name: Publish Python packages
+    needs:
+      - tag
+      - verify-tags
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tooling
+        run: |
+          # No build isolation: the wheels are built in place, so setup.py needs the codegen
+          # toolchain from the environment.
+          python3 -m pip install --upgrade pip build setuptools wheel
+          python3 -m pip install "grpcio-tools==1.70.0"
+
+      - name: Build wheels
+        env:
+          YTSAURUS_PACKAGE_VERSION: ${{ needs.tag.outputs.prod-image-tag }}
+        run: |
+          python3 -m build --wheel --no-isolation --outdir dist yt/python/packages/ytsaurus-flow-companion
+          python3 -m build --wheel --no-isolation --outdir dist yt/python/packages/ytsaurus-flow-yt-sync-mini
+          ls -l dist
+
+      - name: Publish package distributions to TestPyPI
+        if: ${{ needs.tag.outputs.release-type == 'test' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+      - name: Publish package distributions to PyPI
+        if: ${{ needs.tag.outputs.release-type == 'prod' }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - release
+      - push-test-to-prod
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v2.1.0
+        with:
+          mode: stop
+          retry-timeout: PT5M
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}
+
+  send-notifications:
+    name: Send notifications
+    needs:
+      - stop-vm
+      - publish-java
+      - publish-python
+    if: ${{ failure() }}
+    uses: ./.github/workflows/send_telegram_notification.yaml
+    with:
+      notification_type: workflow_failure
+      runner: ubuntu-latest
+    secrets:
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}

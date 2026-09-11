@@ -1,7 +1,7 @@
 UNION()
 
 FILES(
-    setup.py
+    flow_server.CREDITS
 )
 
 END()
