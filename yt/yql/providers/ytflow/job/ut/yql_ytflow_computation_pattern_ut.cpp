@@ -518,6 +518,18 @@ private:
     ui32 Position = 0;
 };
 
+class TUncachebleOp final : public NKikimr::NMiniKQL::TExternalComputationNode {
+    using TBase = TExternalComputationNode;
+
+public:
+    using TBase::TBase;
+
+private:
+    bool IsSuitableForCache() const final {
+        return false;
+    }
+};
+
 bool BuildCorePatternAndGetSuitability()
 {
     using namespace NKikimr::NMiniKQL;
@@ -528,19 +540,18 @@ bool BuildCorePatternAndGetSuitability()
     TProgramBuilder programBuilder(env, *registry);
     TCallableBuilder callableBuilder(
         env,
-        "MultiHoppingCore",
+        "UncachebleOp",
         programBuilder.NewDataType(NUdf::TDataType<bool>::Id));
     auto root = TRuntimeNode(callableBuilder.Build(), /*isImmediate=*/false);
 
     TExploringNodeVisitor explorer;
     explorer.Walk(root.GetNode(), env.GetNodeStack());
     auto nodeFactory = GetCompositeWithBuiltinFactory({
-        [](TCallable& callable, const TComputationNodeFactoryContext& ctx) {
-            if (callable.GetType()->GetName() == "MultiHoppingCore") {
-                return static_cast<IComputationNode*>(
-                    new TExternalComputationNode(ctx.Mutables));
+        [](TCallable& callable, const TComputationNodeFactoryContext& ctx) -> IComputationNode* {
+            if (callable.GetType()->GetName() == "UncachebleOp") {
+                return new TUncachebleOp(ctx.Mutables);
             }
-            return static_cast<IComputationNode*>(nullptr);
+            return nullptr;
         },
     });
     auto runtimeSettings = MakeRuntimeSettings();
