@@ -176,69 +176,52 @@ class DiffTest(unittest.TestCase):
         self.assertEqual(actual, validation_base)
 
 
-class FakeQueryTrackerClient:
-    def __init__(self, rows=None, state="completed"):
-        self.rows = rows if rows is not None else [{"value": 1}]
-        self.state = state
-        self.started = []
-
-    def start(self, change_id, query):
-        self.started.append((change_id, query))
-        return "12345678-12345678-12345678-12345678"
-
-    def wait(self, query_id):
-        return {"state": self.state, "result_count": 1, "error": {"code": 0}}
-
-    def read_rows(self, query_id):
-        return self.rows
-
-
-class ExecutionTest(unittest.TestCase):
-    def test_reports_matching_rows_and_query_link(self):
+class OfflineReportTest(unittest.TestCase):
+    def test_marks_query_as_not_executed(self):
         validated = executor.validate_plan(plan([query_change()]), [DOC_PATH])
-        report, passed = executor.execute_plan(
-            validated,
-            [DOC_PATH],
-            "a" * 40,
-            FakeQueryTrackerClient(),
-        )
-        self.assertTrue(passed)
-        self.assertEqual(report["status"], "passed")
-        self.assertEqual(
-            report["checks"][0]["query_url"],
-            "https://yt.yandex-team.ru/freud/queries/"
-            "12345678-12345678-12345678-12345678",
-        )
+        report = executor.build_offline_report(validated, [DOC_PATH], "a" * 40)
+        self.assertEqual(report["status"], "plan_validated")
+        self.assertEqual(report["execution_mode"], "offline")
+        self.assertFalse(report["remote_execution"])
+        self.assertEqual(report["checks"][0]["status"], "not_executed")
+        self.assertNotIn("query_url", report["checks"][0])
+        self.assertNotIn("query_id", report["checks"][0])
 
-    def test_reports_row_mismatch(self):
-        validated = executor.validate_plan(plan([query_change()]), [DOC_PATH])
-        report, passed = executor.execute_plan(
-            validated,
-            [DOC_PATH],
-            "a" * 40,
-            FakeQueryTrackerClient(rows=[{"value": 2}]),
-        )
-        self.assertFalse(passed)
-        self.assertEqual(report["checks"][0]["status"], "failed")
-
-    def test_prevalidates_all_queries_before_start(self):
+    def test_rejects_unsafe_query(self):
         safe = query_change()
         unsafe = query_change("DELETE FROM `//home/dev/docs-team/table`;")
         unsafe["id"] = "unsafe-query"
         validated = executor.validate_plan(plan([safe, unsafe]), [DOC_PATH])
-        client = FakeQueryTrackerClient()
         with self.assertRaises(executor.ValidationError):
-            executor.execute_plan(validated, [DOC_PATH], "a" * 40, client)
-        self.assertEqual(client.started, [])
+            executor.build_offline_report(validated, [DOC_PATH], "a" * 40)
+
+    def test_preserves_na_reason(self):
+        change = {
+            "id": "documentation-only",
+            "path": DOC_PATH,
+            "kind": "na",
+            "description": "Clarify wording",
+            "reason": "No executable behavior changed",
+        }
+        validated = executor.validate_plan(plan([change]), [DOC_PATH])
+        report = executor.build_offline_report(validated, [DOC_PATH], "a" * 40)
+        self.assertEqual(report["checks"][0]["status"], "na")
+        self.assertEqual(report["checks"][0]["reason"], change["reason"])
+
+    def test_reports_no_changes(self):
+        validated = executor.validate_plan(plan([]), [])
+        report = executor.build_offline_report(validated, [], "a" * 40)
+        self.assertEqual(report["status"], "no_changes")
+        self.assertFalse(report["remote_execution"])
 
     def test_writes_compact_report_and_status(self):
         with tempfile.TemporaryDirectory() as directory:
             report_path = Path(directory) / "report.json"
             status_path = Path(directory) / "status"
-            report = {"status": "passed", "checks": []}
+            report = {"status": "plan_validated", "checks": []}
             executor._write_outputs(report, report_path, status_path)
             self.assertEqual(json.loads(report_path.read_text()), report)
-            self.assertEqual(status_path.read_text(), "passed\n")
+            self.assertEqual(status_path.read_text(), "plan_validated\n")
 
 
 if __name__ == "__main__":

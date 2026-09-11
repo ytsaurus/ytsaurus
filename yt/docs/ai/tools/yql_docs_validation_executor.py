@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Fail-closed executor for agent-produced YQL documentation checks."""
+"""Offline validator for agent-produced YQL documentation check plans."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-import time
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
@@ -27,7 +26,6 @@ MAX_EXPECTED_ROWS = 100
 MAX_TEXT_LENGTH = 4000
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,79}$")
-QUERY_ID_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{8}){3}", re.IGNORECASE)
 VALIDATION_BASE_RE = re.compile(
     r"(?m)^YQL_DOC_SYNC_VALIDATION_BASE: (?P<revision>[0-9a-f]{40})$"
 )
@@ -521,160 +519,16 @@ def get_validation_diff(
     ).stdout
 
 
-class QueryTrackerClient:
-    def __init__(
-        self,
-        repo_root: Path,
-        *,
-        query_timeout: float,
-        total_deadline: float,
-        runner: CommandRunner = subprocess.run,
-        poll_interval: float = 2.0,
-    ):
-        self.repo_root = repo_root
-        self.yt = str(repo_root / "ya")
-        self.query_timeout = query_timeout
-        self.total_deadline = total_deadline
-        self.runner = runner
-        self.poll_interval = poll_interval
-
-    def _remaining(self, upper_bound: float = 60.0) -> float:
-        remaining = self.total_deadline - time.monotonic()
-        if remaining <= 0:
-            raise ValidationError(
-                "TOTAL_TIMEOUT",
-                "validation flow exceeded its total execution deadline",
-            )
-        return min(upper_bound, remaining)
-
-    def _call(self, arguments: Sequence[str], upper_bound: float = 60.0) -> str:
-        completed = _run_command(
-            [self.yt, "tool", "yt", "--proxy", CLUSTER, *arguments],
-            cwd=self.repo_root,
-            timeout=self._remaining(upper_bound),
-            runner=self.runner,
-        )
-        return completed.stdout.strip()
-
-    def start(self, change_id: str, query: str) -> str:
-        title = f"YQL docs sync validation: {change_id}"
-        annotations = '{title="' + title + '";}'
-        output = self._call(
-            ["start-query", "yql", query, "--annotations", annotations],
-            upper_bound=90,
-        )
-        ids = QUERY_ID_RE.findall(output)
-        if len(ids) != 1:
-            raise ValidationError(
-                "INVALID_QUERY_ID",
-                f"start-query returned {len(ids)} query ids",
-            )
-        return ids[0]
-
-    def wait(self, query_id: str) -> dict[str, Any]:
-        query_deadline = min(
-            time.monotonic() + self.query_timeout,
-            self.total_deadline,
-        )
-        while True:
-            output = self._call(
-                [
-                    "get-query",
-                    query_id,
-                    "--attribute",
-                    "state",
-                    "--attribute",
-                    "result_count",
-                    "--attribute",
-                    "error",
-                    "--format",
-                    "json",
-                ]
-            )
-            try:
-                attributes = json.loads(output)
-            except json.JSONDecodeError as error:
-                raise ValidationError(
-                    "INVALID_QUERY_STATUS",
-                    "get-query returned non-JSON status",
-                ) from error
-            if not isinstance(attributes, dict):
-                raise ValidationError(
-                    "INVALID_QUERY_STATUS",
-                    "get-query status must be an object",
-                )
-            state = attributes.get("state")
-            if state in {"completed", "failed", "aborted"}:
-                return attributes
-            if time.monotonic() >= query_deadline:
-                try:
-                    self._call(["abort-query", query_id], upper_bound=30)
-                except ValidationError:
-                    pass
-                raise ValidationError(
-                    "QUERY_TIMEOUT",
-                    f"query {query_id} did not finish within {self.query_timeout:.0f}s",
-                )
-            time.sleep(min(self.poll_interval, max(0.0, query_deadline - time.monotonic())))
-
-    def read_rows(self, query_id: str) -> list[dict[str, Any]]:
-        output = self._call(
-            [
-                "read-query-result",
-                query_id,
-                "--params",
-                "{lower_row_index=0;upper_row_index=101;}",
-                "--format",
-                "json",
-            ]
-        )
-        if not output:
-            return []
-        rows: list[dict[str, Any]] = []
-        for index, line in enumerate(output.splitlines()):
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError as error:
-                raise ValidationError(
-                    "INVALID_QUERY_RESULT",
-                    f"result row {index} is not JSON",
-                ) from error
-            if not isinstance(row, dict):
-                raise ValidationError(
-                    "INVALID_QUERY_RESULT",
-                    f"result row {index} is not an object",
-                )
-            rows.append(row)
-        if len(rows) > MAX_EXPECTED_ROWS:
-            raise ValidationError(
-                "QUERY_RESULT_TOO_LARGE",
-                f"result contains more than {MAX_EXPECTED_ROWS} rows",
-            )
-        return rows
-
-
-def _bounded_error(value: Any) -> Any:
-    try:
-        encoded = json.dumps(value, ensure_ascii=False)
-    except (TypeError, ValueError):
-        return str(value)[:4000]
-    if len(encoded) <= 8000:
-        return value
-    return encoded[:8000] + "..."
-
-
-def execute_plan(
+def build_offline_report(
     plan: Mapping[str, Any],
     changed_paths: Sequence[str],
     validation_base: str,
-    client: QueryTrackerClient,
-) -> tuple[dict[str, Any], bool]:
+) -> dict[str, Any]:
     for change in plan["changes"]:
         if change["kind"] == "query":
             validate_query(change["query"])
 
     checks: list[dict[str, Any]] = []
-    all_passed = True
     for change in plan["changes"]:
         base = {
             "id": change["id"],
@@ -685,82 +539,27 @@ def execute_plan(
         if change["kind"] == "na":
             checks.append({**base, "status": "na", "reason": change["reason"]})
             continue
-
-        query_id: str | None = None
-        try:
-            query_id = client.start(change["id"], change["query"])
-            attributes = client.wait(query_id)
-            query_url = f"https://yt.yandex-team.ru/{CLUSTER}/queries/{query_id}"
-            if attributes.get("state") != "completed":
-                all_passed = False
-                checks.append(
-                    {
-                        **base,
-                        "status": "failed",
-                        "query_id": query_id,
-                        "query_url": query_url,
-                        "state": attributes.get("state"),
-                        "error": _bounded_error(attributes.get("error")),
-                    }
-                )
-                continue
-
-            expected = change["expected"]
-            if expected["mode"] == "success":
-                checks.append(
-                    {
-                        **base,
-                        "status": "passed",
-                        "query_id": query_id,
-                        "query_url": query_url,
-                        "state": "completed",
-                    }
-                )
-                continue
-
-            actual_rows = client.read_rows(query_id)
-            passed = actual_rows == expected["rows"]
-            all_passed = all_passed and passed
-            checks.append(
-                {
-                    **base,
-                    "status": "passed" if passed else "failed",
-                    "query_id": query_id,
-                    "query_url": query_url,
-                    "state": "completed",
-                    "expected_rows": expected["rows"],
-                    "actual_rows": actual_rows,
-                }
-            )
-        except ValidationError as error:
-            all_passed = False
-            failed_check = {
+        checks.append(
+            {
                 **base,
-                "status": "failed",
-                "error": {"code": error.code, "message": error.message},
+                "status": "not_executed",
+                "reason": "Remote Query Tracker validation is disabled",
+                "expected": change["expected"],
             }
-            if query_id is not None:
-                failed_check["query_id"] = query_id
-                failed_check["query_url"] = (
-                    f"https://yt.yandex-team.ru/{CLUSTER}/queries/{query_id}"
-                )
-            checks.append(failed_check)
+        )
 
-    status = "no_changes" if not changed_paths else ("passed" if all_passed else "failed")
-    return (
-        {
-            "schema_version": SCHEMA_VERSION,
-            "status": status,
-            "cluster": CLUSTER,
-            "workspace_root": WORKSPACE_ROOT,
-            "read_only": True,
-            "validation_base": validation_base,
-            "summary": plan["summary"],
-            "changed_paths": list(changed_paths),
-            "checks": checks,
-        },
-        all_passed,
-    )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "status": "no_changes" if not changed_paths else "plan_validated",
+        "execution_mode": "offline",
+        "remote_execution": False,
+        "proposed_cluster": CLUSTER,
+        "proposed_workspace_root": WORKSPACE_ROOT,
+        "validation_base": validation_base,
+        "summary": plan["summary"],
+        "changed_paths": list(changed_paths),
+        "checks": checks,
+    }
 
 
 def _write_outputs(report: Mapping[str, Any], report_out: Path, status_out: Path) -> None:
@@ -782,9 +581,10 @@ def _failed_report(
     return {
         "schema_version": SCHEMA_VERSION,
         "status": "failed",
-        "cluster": CLUSTER,
-        "workspace_root": WORKSPACE_ROOT,
-        "read_only": True,
+        "execution_mode": "offline",
+        "remote_execution": False,
+        "proposed_cluster": CLUSTER,
+        "proposed_workspace_root": WORKSPACE_ROOT,
         "validation_base": validation_base,
         "changed_paths": list(changed_paths),
         "checks": [],
@@ -799,8 +599,6 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--report-out", type=Path)
     parser.add_argument("--status-out", type=Path)
     parser.add_argument("--print-diff", action="store_true")
-    parser.add_argument("--query-timeout-seconds", type=float, default=180)
-    parser.add_argument("--total-timeout-seconds", type=float, default=1800)
     return parser
 
 
@@ -833,17 +631,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "--report-out and --status-out are required unless --print-diff is used",
             )
         plan = validate_plan(parse_plan(os.environ.get(args.plan_env, "")), changed_paths)
-        query_count = sum(change["kind"] == "query" for change in plan["changes"])
-        if query_count and not os.environ.get("YT_TOKEN"):
-            raise ValidationError("MISSING_YT_TOKEN", "YT_TOKEN is not set for executor")
-        client = QueryTrackerClient(
-            repo_root,
-            query_timeout=args.query_timeout_seconds,
-            total_deadline=time.monotonic() + args.total_timeout_seconds,
-        )
-        report, passed = execute_plan(plan, changed_paths, validation_base, client)
+        report = build_offline_report(plan, changed_paths, validation_base)
         _write_outputs(report, args.report_out, args.status_out)
-        return 0 if passed else 1
+        return 0
     except ValidationError as error:
         report = _failed_report(error, changed_paths, validation_base)
         if args.report_out is None or args.status_out is None:
@@ -851,7 +641,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         _write_outputs(report, args.report_out, args.status_out)
         return 1
-    except Exception as error:  # Fail closed without leaking the agent plan or token.
+    except Exception as error:  # Fail closed without leaking the agent plan.
         report = _failed_report(
             ValidationError("INTERNAL_ERROR", f"{type(error).__name__}: {error}"),
             changed_paths,
