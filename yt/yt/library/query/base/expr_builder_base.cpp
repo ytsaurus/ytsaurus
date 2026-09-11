@@ -506,22 +506,8 @@ std::optional<TValue> FoldConstants(
                 CHECK_TYPE();
                 switch (lhs.Type) {
                     case EValueType::Int64:
-                        if (rhs.Data.Int64 == 0) {
-                            THROW_ERROR_EXCEPTION("Division by zero");
-                        }
-
-                        if (lhs.Data.Int64 == std::numeric_limits<i64>::min() && rhs.Data.Int64 == -1) {
-                            THROW_ERROR_EXCEPTION("Division of INT_MIN by -1");
-                        }
-
-                        lhs.Data.Int64 %= rhs.Data.Int64;
-                        return lhs;
                     case EValueType::Uint64:
-                        if (rhs.Data.Uint64 == 0) {
-                            THROW_ERROR_EXCEPTION("Division by zero");
-                        }
-                        lhs.Data.Uint64 %= rhs.Data.Uint64;
-                        return lhs;
+                        return EvaluateModulo(lhs, rhs);
                     default:
                         break;
                 }
