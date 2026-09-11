@@ -30,8 +30,11 @@ public:
 protected:
     const NTransactionClient::TTransactionSignature TargetSignature_;
 
-    std::atomic<ui32> RequestCount_ = 0;
-    std::atomic<ui32> RequestIndex_ = 0;
+    // Packed (requestIndex, requestCount).
+    std::atomic<ui64> SignatureGeneratorState_ = 0;
+
+    static ui64 PackState(ui32 requestIndex, ui32 requestCount);
+    static std::pair<ui32, ui32> UnpackState(ui64 state);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
