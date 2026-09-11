@@ -49,6 +49,7 @@ target_sources(cpp-connectors-common PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/sink_controller_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/source_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/source_controller_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/sync_replica.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/sync_sink_base.cpp
 )
 

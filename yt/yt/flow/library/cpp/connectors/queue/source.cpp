@@ -4,6 +4,7 @@
 #include <yt/yt/flow/library/cpp/common/schema.h>
 
 #include <yt/yt/flow/library/cpp/connectors/common/flow_queue_meta.h>
+#include <yt/yt/flow/library/cpp/connectors/common/sync_replica.h>
 
 #include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
@@ -218,26 +219,11 @@ TQueueSourceImpl::TSyncReplica TQueueSourceImpl::ResolveSyncReplica()
     options.ReadFrom = NApi::EMasterChannelKind::Cache;
     auto replicasYson = NConcurrency::WaitFor(QueueClient_->GetNode(queuePath + "/@replicas", options))
         .ValueOrThrow();
-    auto replicasNode = NYTree::ConvertToNode(replicasYson)->AsMap();
-
-    for (const auto& [replicaId, descriptor] : replicasNode->GetChildren()) {
-        const auto& attributes = descriptor->AsMap();
-        if (attributes->GetChildOrThrow("mode")->AsString()->GetValue() != "sync") {
-            continue;
-        }
-        if (auto stateChild = attributes->FindChild("state");
-            stateChild && stateChild->AsString()->GetValue() != "enabled")
-        {
-            continue;
-        }
-        return TSyncReplica{
-            .Client = GetContext()->ClientsCache->GetClient(
-                attributes->GetChildOrThrow("cluster_name")->AsString()->GetValue()),
-            .Path = NYPath::TYPath(attributes->GetChildOrThrow("replica_path")->AsString()->GetValue()),
-        };
-    }
-
-    THROW_ERROR_EXCEPTION("No enabled synchronous queue replica found for replicated queue %v", queuePath);
+    auto location = FindEnabledSyncReplica(NYTree::ConvertToNode(replicasYson)->AsMap(), queuePath);
+    return TSyncReplica{
+        .Client = GetContext()->ClientsCache->GetClient(location.ClusterName),
+        .Path = std::move(location.Path),
+    };
 }
 
 TQueueSourceImpl::TTrimInfo TQueueSourceImpl::FetchTrimInfo()

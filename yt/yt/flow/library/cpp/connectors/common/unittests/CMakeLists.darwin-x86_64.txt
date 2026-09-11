@@ -55,6 +55,7 @@ target_link_options(yt-flow-library-cpp-connectors-common-unittests PRIVATE
 target_sources(yt-flow-library-cpp-connectors-common-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/unittests/ordered_batching_async_sink_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/unittests/ordered_source_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/connectors/common/unittests/sync_replica_ut.cpp
 )
 
 
