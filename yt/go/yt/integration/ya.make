@@ -1,5 +1,7 @@
 GO_TEST()
 
+EXPLICIT_DATA()
+
 TAG(ya:huge_logs)
 
 SIZE(MEDIUM)

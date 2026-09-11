@@ -1,5 +1,7 @@
 GTEST()
 
+EXPLICIT_DATA()
+
 INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
 SRCS(
