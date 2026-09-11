@@ -103,11 +103,18 @@ class TestSchedulerAlerts(TestSchedulerAlertsBase):
         set("//sys/cluster_nodes/{}/@user_tags".format(nodes[0]), ["my_tag"])
         set("//sys/pool_trees/default/@config/node_tag_filter", "my_tag")
 
-        alert = wait_single_scheduler_alert("nodes_without_pool_tree")
-        attributes = alert["attributes"]
+        # The scheduler may apply the new tag filter before the tagged node's user tags
+        # reach it, so the first alert can transiently list all nodes.
+        def alert_converged():
+            alerts = get("//sys/scheduler/@alerts")
+            if len(alerts) != 1:
+                return False
+            attributes = alerts[0]["attributes"]
+            return attributes.get("alert_type") == "nodes_without_pool_tree" and len(attributes.get("node_addresses", [])) == 2
 
-        assert len(attributes["node_addresses"]) == 2
-        assert attributes["node_count"] == 2
+        wait(alert_converged)
+
+        assert get("//sys/scheduler/@alerts")[0]["attributes"]["node_count"] == 2
 
         set("//sys/pool_trees/default/@config/node_tag_filter", "")
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
