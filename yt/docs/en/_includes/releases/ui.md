@@ -8,6 +8,75 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.23.0**" %}
+
+**Release date:** 2026-08-26
+
+
+**Release page:** [3.23.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.23.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.23.0](https://github.com/orgs/ytsaurus/packages/container/ui/1174308505?tag=3.23.0)
+
+
+#### [3.23.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.22.0...ui-v3.23.0) (2026-08-26)
+
+
+#### Features
+
+* **Scheduling:** add pool sort filter [YTFRONT-5930] ([1896c53](https://github.com/ytsaurus/ytsaurus-ui/commit/1896c53e5fd17fe63da3bc3c1fb4dc97385d1cdc))
+* **System:** add new master status icons [YTFRONT-5992] ([af32c83](https://github.com/ytsaurus/ytsaurus-ui/commit/af32c832db22c227ff5c1ad060041b79d0b7fc75))
+
+
+#### Bug Fixes
+
+* **Navigation:** broken download path [YTFRONT-5990] ([e710716](https://github.com/ytsaurus/ytsaurus-ui/commit/e710716fd493e248621e4048b0f17f59c876f8b4))
+* **Operations:** vanilla operation statuses [YTFRONT-5967] ([f987558](https://github.com/ytsaurus/ytsaurus-ui/commit/f98755882c5a92ea1addf44ffe061a77281ee472))
+* **Operations:** progress can be null [YTFRONT-5928] ([856f188](https://github.com/ytsaurus/ytsaurus-ui/commit/856f188b057909ef6630a2edb62027c6bdcbd903))
+* **Queries:** double scroll [YTFRONT-5943] ([291e254](https://github.com/ytsaurus/ytsaurus-ui/commit/291e254580d8c6f500bdc70227afd7a55cb68c32))
+* **UI:** range date selector buttons [YTFRONT-5755] ([6c482c1](https://github.com/ytsaurus/ytsaurus-ui/commit/6c482c1ca7aee5935e719d3746d76c22e16a9668))
+
+{% endcut %}
+
+
+{% cut "**3.22.0**" %}
+
+**Release date:** 2026-08-19
+
+
+**Release page:** [3.22.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.22.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.22.0](https://github.com/orgs/ytsaurus/packages/container/ui/1149494747?tag=3.22.0)
+
+
+#### [3.22.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.21.1...ui-v3.22.0) (2026-08-19)
+
+
+#### Features
+
+* **ACL:** hide 'Full read' under 'Additional permissions' [YTFRONT-5871] ([a5a2f36](https://github.com/ytsaurus/ytsaurus-ui/commit/a5a2f364c3d7e35ca0ee9e9335e3dba8c69b4d32))
+* **Navigation/Content:** render nirvana block url and fixes [YTFRONT-5942] ([5a2e917](https://github.com/ytsaurus/ytsaurus-ui/commit/5a2e9171fc7e4a04a65e0e0818e5f8a824d2dc1a))
+* **Navigation/Tablets:** filter by pivot [YTFRONT-5931] ([366ceba](https://github.com/ytsaurus/ytsaurus-ui/commit/366cebad9705cdea4b4e0ce280a5bfd8e38b43df))
+* **Queries/Navigation:** add external schema columns [YTFRONT-5891] ([0fb198c](https://github.com/ytsaurus/ytsaurus-ui/commit/0fb198c185d7da4694939a11cacbfed1d1ded4da))
+
+
+#### Bug Fixes
+
+* **Accounts:** last open tab [YTFRONT-5963] ([6d7330d](https://github.com/ytsaurus/ytsaurus-ui/commit/6d7330d5b9a968eabd231db1a905eb1792dc63ce))
+* **ACL:** allow tvm apps as responsibles [YTFRONT-5933] ([5c9b25b](https://github.com/ytsaurus/ytsaurus-ui/commit/5c9b25b4ec011d39c9e3774d5eb37a8f8f9b14ac))
+* **ACL:** do not display RLS-meta item for live_preview [YTFRONT-5889] ([1156e7e](https://github.com/ytsaurus/ytsaurus-ui/commit/1156e7e8d9b5523abb445325fd01796c6170e6d5))
+* **Flow/Worker:** use 'worker_groups' instead of 'groups' [YTFRONT-5944] ([a91f8c2](https://github.com/ytsaurus/ytsaurus-ui/commit/a91f8c2909e4545332bd617d7a1beaaaf07e104d))
+* incorrect removal of the page favicon [YTFRONT-5965] ([366c92b](https://github.com/ytsaurus/ytsaurus-ui/commit/366c92bf0bedc3bbcf87bf03e2aeaebfca171c02))
+* **makeDirectDownloadPath:** do not ignore `secure` flag for `proxy` field [YTFRONT-5795] ([5d50d13](https://github.com/ytsaurus/ytsaurus-ui/commit/5d50d131956837771da59eb35c9ee3446db26adc))
+* **Operations/Details:** edit operation attributes modal title [YTFRONT-5902] ([32015e1](https://github.com/ytsaurus/ytsaurus-ui/commit/32015e1c6e5d00f8dd6c7d2b8dc87e89d72f3eda))
+* **Operations/Details:** edit operation attributes weight format [YTFRONT-5902] ([9d0aeeb](https://github.com/ytsaurus/ytsaurus-ui/commit/9d0aeeb55553cf36acae56770093d53ae07198de))
+* **Queries:** wrong clique in shared query [YTFRONT-5924] ([066df2e](https://github.com/ytsaurus/ytsaurus-ui/commit/066df2e6c66dba892344f998be56df066d57488d))
+* **Scheduling:** operation attributes [YTFRONT-5954] ([ff23973](https://github.com/ytsaurus/ytsaurus-ui/commit/ff23973eba977259dd10a31f1b5f04d61ffd1bb7))
+
+{% endcut %}
+
+
 {% cut "**3.19.0**" %}
 
 **Release date:** 2026-07-13

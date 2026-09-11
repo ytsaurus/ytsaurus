@@ -8,6 +8,36 @@ All main components are released as docker images.
 
 **Releases:**
 
+{% cut "**25.4.1**" %}
+
+**Release date:** 2026-09-03
+
+
+**Release page:** [25.4.1](https://github.com/ytsaurus/ytsaurus/releases/tag/docker/ytsaurus/25.4.1)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ytsaurus:stable-25.4.1](https://github.com/orgs/ytsaurus/packages/container/ytsaurus/1234034982?tag=stable-25.4.1)
+
+
+#### Overview
+
+YTsaurus 25.4.1 is a patch release on top of **25.4.0**. For the full list of changes, features and
+migration notes see the [25.4.0 release notes](https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F25.4.0).
+
+YTsaurus Server 25.4.x is supported since [0.27.0](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.27.0) version of the Kubernetes operator.
+
+#### What's changed since 25.4.0
+
+#### Dynamic Tables
+- Bulk insert under user transaction is now enabled by default, [c6644b5](https://github.com/ytsaurus/ytsaurus/commit/c6644b5d24d).
+
+#### Scheduler
+- Fix precision error when comparing operation demand with module capacity in scheduling segments, [c91fcbe](https://github.com/ytsaurus/ytsaurus/commit/c91fcbe2cd0).
+
+
+{% endcut %}
+
+
 {% cut "**25.4.0**" %}
 
 **Release date:** 2026-07-29
