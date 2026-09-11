@@ -39,6 +39,7 @@ void AppendAttributes(TStringBuilderBase* builder, const IAttributeDictionary& a
         attrWriter.OnRaw(value);
     }
     attrWriter.OnEndAttributes();
+    attrWriter.Flush();
 
     builder->AppendString(attrString);
 }
