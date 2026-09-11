@@ -75,6 +75,7 @@ SRCS(
     api/native/tablet_action_type_handler.cpp
     api/native/tablet_commit_session.cpp
     api/native/tablet_helpers.cpp
+    api/native/tablet_operation.cpp
     api/native/tablet_request_batcher.cpp
     api/native/tablet_sync_replica_cache.cpp
     api/native/transaction_helpers.cpp

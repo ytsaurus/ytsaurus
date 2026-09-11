@@ -3,6 +3,7 @@
 #include "client.h"
 #include "options.h"
 #include "private.h"
+#include "tablet_operation.h"
 
 #include <yt/yt/ytlib/chaos_client/alien_cell.h>
 
@@ -1306,13 +1307,14 @@ private:
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
 
-    template <class TReq>
+    template <CTabletOperationRequest TRequest>
     void ExecuteTabletServiceRequest(
         const NYPath::TYPath& path,
         TStringBuf action,
-        TReq* req);
+        TRequest request,
+        const TMutatingOptions& options);
 
-    NTabletClient::NProto::TReqReshard MakeReshardRequest(
+    NTableClient::NProto::TReqReshard MakeReshardRequest(
         const TReshardTableOptions& options);
     NTableClient::TTableYPathProxy::TReqReshardPtr MakeYPathReshardRequest(
         const NYPath::TYPath& path,

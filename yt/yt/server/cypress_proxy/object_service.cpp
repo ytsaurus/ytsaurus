@@ -21,6 +21,11 @@
 
 #include <yt/yt/server/lib/object_server/helpers.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/options.h>
+#include <yt/yt/ytlib/api/native/tablet_operation.h>
+
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -37,6 +42,8 @@
 #include <yt/yt/ytlib/sequoia_client/connection.h>
 #include <yt/yt/ytlib/sequoia_client/prerequisite_revision.h>
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
+
+#include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -99,6 +106,18 @@ public:
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
             .SetRequestQueueProvider(RequestQueueProvider_));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Mount)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Unmount)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Remount)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Freeze)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Unfreeze)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Reshard)
+            .SetHeavy(true));
 
         DeclareServerFeature(EMasterFeature::Portals);
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
@@ -128,6 +147,36 @@ public:
 
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
+
+    // COMPAT(danilalexeev)
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Mount);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Unmount);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Remount);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Freeze);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Unfreeze);
+    DECLARE_RPC_SERVICE_METHOD(NTableClient::NProto, Reshard);
+
+    template <NNative::CTabletOperationRequest TRequest>
+    void ExecuteTabletOperation(
+        const auto& context,
+        const TRequest& request,
+        TStringBuf action)
+    {
+        auto path = NYPath::TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+        context->SetRequestInfo("Path: %v", path);
+
+        auto clientOptions = NNative::TClientOptions::FromAuthenticationIdentity(
+            context->GetAuthenticationIdentity());
+        auto client = Connection_->CreateNativeClient(clientOptions);
+
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        auto target = NNative::ResolveTabletOperationTarget(proxy, path);
+        // TODO(danilalexeev): Add Sequoia bundle |use| and table |mount| permission checks
+        // for Sequoia nodes.
+        NNative::ExecuteTabletOperationViaMaster(client, target, action, request);
+        context->Reply();
+    }
 
     const NNative::IConnectionPtr Connection_;
 
@@ -1284,6 +1333,38 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
         cellTag,
         masterChannelKind);
     session->Run();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Mount)
+{
+    ExecuteTabletOperation<NTableClient::NProto::TReqMount>(context, *request, "Mounting");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Unmount)
+{
+    ExecuteTabletOperation<NTableClient::NProto::TReqUnmount>(context, *request, "Unmounting");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Remount)
+{
+    ExecuteTabletOperation<NTableClient::NProto::TReqRemount>(context, *request, "Remounting");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Freeze)
+{
+    ExecuteTabletOperation<NTableClient::NProto::TReqFreeze>(context, *request, "Freezing");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Unfreeze)
+{
+    ExecuteTabletOperation<NTableClient::NProto::TReqUnfreeze>(context, *request, "Unfreezing");
+}
+
+DEFINE_RPC_SERVICE_METHOD(TObjectService, Reshard)
+{
+    ExecuteTabletOperation<NTableClient::NProto::TReqReshard>(context, *request, "Resharding");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
