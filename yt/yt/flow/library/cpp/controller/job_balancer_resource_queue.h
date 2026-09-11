@@ -15,4 +15,19 @@ TRebalanceResult DoBalanceResourceQueue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Test-only view of the fitted balancing context.
+struct TResourceContextSnapshot
+{
+    THashMap<TComputationId, THashMap<TResourceId, double>> ResourceConsumptionMultiplier;
+    THashMap<TComputationId, double> TotalConsumptionMultiplier;
+    THashMap<std::string, double> WorkerTotalCapacity;
+};
+
+TResourceContextSnapshot CollectResourceContextForTesting(
+    const TFlowViewPtr& flowView,
+    const TDynamicJobBalancerSpecPtr& balancerSpec,
+    const TWorkerGroupId& workerGroup);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow::NBalancer

@@ -368,11 +368,34 @@ TResourceBalanceContext CollectResourceContext(
         // A multiplier is invalid when no worker had both non-zero rps for that computation
         // AND non-zero put_rate for that resource (the linear system had no useful data).
         // In that case, replace the multiplier with a fallback in priority order:
+        //   0. The resource is deployed (some worker hosts a partition of a computation requiring
+        //      it) yet no worker of the group reports it (a silent resource: a model, a client
+        //      factory, an encoder) — it has no queue and consumes nothing: 0. A resource of a
+        //      computation with no placed partitions (a new stage, only strays) is not silent, it
+        //      just has not started; nor is anything on cold start (nothing reported at all), where
+        //      1.0 keeps loads comparable.
         //   1. Average of valid multipliers for the same resource across other computations.
         //   2. Average of valid multipliers for the same computation across other resources.
         //   3. Average of all valid multipliers.
         //   4. 1.0 (last resort).
         {
+            THashSet<TResourceId> resourcesWithFeedback;
+            for (const auto& [workerAddress, workerInfo] : tmpWorkerInfoSet) {
+                for (const auto& [resourceId, stat] : workerInfo.ResourceStats) {
+                    resourcesWithFeedback.insert(resourceId);
+                }
+            }
+            THashSet<TResourceId> deployedResources;
+            for (const auto& [partitionId, partitionInfo] : context.Partitions) {
+                if (!partitionInfo.WorkerId) {
+                    continue;
+                }
+                const auto& computationInfo = GetOrCrash(context.Computations, partitionInfo.ComputationId);
+                for (const auto& [resourceId, consumptionMultiplier] : computationInfo.ResourceConsumptionMultiplier) {
+                    deployedResources.insert(resourceId);
+                }
+            }
+
             // Pre-compute averages of valid multipliers grouped by resource and by computation.
             THashMap<TResourceId, double> validSumByResource;
             THashMap<TResourceId, int> validCountByResource;
@@ -401,6 +424,14 @@ TResourceBalanceContext CollectResourceContext(
                 for (auto& [resourceId, multiplier] : computationInfo.ResourceConsumptionMultiplier) {
                     if (isValidMultiplier(computationId, resourceId)) {
                         continue; // Already valid.
+                    }
+                    // Priority 0: silent resource.
+                    if (!resourcesWithFeedback.empty() &&
+                        deployedResources.contains(resourceId) &&
+                        !resourcesWithFeedback.contains(resourceId))
+                    {
+                        multiplier = 0.;
+                        continue;
                     }
                     // Priority 1: average over other computations using the same resource.
                     auto byResIt = validCountByResource.find(resourceId);
@@ -459,6 +490,14 @@ TResourceBalanceContext CollectResourceContext(
             }
         }
 
+        // A worker carrying a meaningful standing backlog drains at its measured FetchRate, no
+        // matter what incomingLoad says (see the cap below).
+        constexpr double kBackloggedQueueFraction = 0.25;
+        auto isBacklogged = [&] (const TTmpResourceStat& total) {
+            double rate = (total.PutRate + total.FetchRate) / 2.0;
+            return total.QueueSize > kBackloggedQueueFraction * zeroQueueLatencySeconds * rate;
+        };
+
         for (auto& [workerAddress, workerInfo] : context.Workers) {
             auto& tmpWorkerInfo = GetOrCrash(tmpWorkerInfoSet, workerAddress);
             const auto& total = tmpWorkerInfo.TotalResourceStats;
@@ -483,6 +522,11 @@ TResourceBalanceContext CollectResourceContext(
                 }
             }
             workerInfo.TotalCapacity = incomingLoad - total.QueueGrowthRate;
+            // Cap a loaded backlogged worker here, before the per-capability averaging below, so
+            // idle peers borrow the real drain rate rather than incomingLoad.
+            if (!workerInfo.Underloaded && isBacklogged(total)) {
+                workerInfo.TotalCapacity = std::min(workerInfo.TotalCapacity, total.FetchRate);
+            }
         }
 
         // Fix TotalCapacity for Underloaded workers.
@@ -564,15 +608,12 @@ TResourceBalanceContext CollectResourceContext(
         // measured FetchRate (real drain rate). This must run AFTER the std::max above: for the
         // backlogged workers we target, the base capacity (incomingLoad) exceeds FetchRate, so capping
         // the estimate before the max would just be discarded by it. Near-empty workers are untouched,
-        // so cold-start spreading onto idle workers is unaffected.
-        {
-            constexpr double kBackloggedQueueFraction = 0.25;
-            for (auto& [workerAddress, workerInfo] : context.Workers) {
-                const auto& total = GetOrCrash(tmpWorkerInfoSet, workerAddress).TotalResourceStats;
-                double rate = (total.PutRate + total.FetchRate) / 2.0;
-                if (workerInfo.TotalQueueSize > kBackloggedQueueFraction * zeroQueueLatencySeconds * rate) {
-                    workerInfo.TotalCapacity = std::min(workerInfo.TotalCapacity, total.FetchRate);
-                }
+        // so cold-start spreading onto idle workers is unaffected. Loaded (!Underloaded) backlogged
+        // workers were already capped above, before their capacity was lent to peers.
+        for (auto& [workerAddress, workerInfo] : context.Workers) {
+            const auto& total = GetOrCrash(tmpWorkerInfoSet, workerAddress).TotalResourceStats;
+            if (workerInfo.Underloaded && isBacklogged(total)) {
+                workerInfo.TotalCapacity = std::min(workerInfo.TotalCapacity, total.FetchRate);
             }
         }
     }
@@ -760,6 +801,27 @@ TResourceBalanceContext CollectResourceContext(
 }
 
 } // anonymous namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResourceContextSnapshot CollectResourceContextForTesting(
+    const TFlowViewPtr& flowView,
+    const TDynamicJobBalancerSpecPtr& balancerSpec,
+    const TWorkerGroupId& workerGroup)
+{
+    auto context = CollectResourceContext(flowView, balancerSpec, workerGroup);
+    TResourceContextSnapshot snapshot;
+    for (const auto& [computationId, computationInfo] : context.Computations) {
+        snapshot.ResourceConsumptionMultiplier[computationId] = computationInfo.ResourceConsumptionMultiplier;
+        snapshot.TotalConsumptionMultiplier[computationId] = computationInfo.TotalConsumptionMultiplier;
+    }
+    for (const auto& [workerAddress, workerInfo] : context.Workers) {
+        snapshot.WorkerTotalCapacity[workerAddress] = workerInfo.TotalCapacity;
+    }
+    return snapshot;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TRebalanceResult DoBalanceResourceQueue(
     const TFlowViewPtr& flowView,

@@ -321,6 +321,11 @@ protected:
         auto balancerSpec = MakeBalancerSpec(planningHorizonSeconds);
         return DoBalanceResourceQueue(FlowView, balancerSpec, Group);
     }
+
+    TResourceContextSnapshot Snapshot()
+    {
+        return CollectResourceContextForTesting(FlowView, MakeBalancerSpec(), Group);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1505,6 +1510,178 @@ TEST_F(TResourceBalancerTest, NoEqualizationChurnWhenNearlyBalanced)
 
     // Already balanced (absolute CV drop < threshold) → no equalization moves, no churn.
     EXPECT_TRUE(GetDelActions(result).empty());
+}
+
+//! A resource no worker of the group reports (a model, a client factory, an encoder) has no queue
+//! and must get consumption multiplier 0, not the average of the computation's other resources.
+//! With five resources and feedback from one, the fallback made TotalConsumptionMultiplier 5x, so a
+//! computation that keeps up looked 80% starved and Step 2 pulled in an extra worker every round.
+//! Observable: no preload Add on the idle worker (Step 4.5 is inert with a single partition).
+TEST_F(TResourceBalancerTest, SilentResourcesGetZeroMultiplier)
+{
+    auto compId = MakeComputationId("comp1");
+    auto queueRes = MakeResourceId("queue");
+    auto modelRes = MakeResourceId("model");
+    std::vector<TResourceId> silent = {modelRes, MakeResourceId("client"), MakeResourceId("encoder"), MakeResourceId("workingset")};
+
+    SetResourceSpec(queueRes, MakeResourceSpec());
+    SetResourceSpec(modelRes, MakeResourceSpec({}, /*preloadRequired=*/true));
+    for (const auto& resId : silent) {
+        if (resId != modelRes) {
+            SetResourceSpec(resId, MakeResourceSpec());
+        }
+    }
+    std::vector<TResourceId> all = silent;
+    all.push_back(queueRes);
+    SetComputationSpec(compId, MakeComputationSpec(Group, all));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    SetPreloadCompleted(FlowView, "worker1", modelRes);
+
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/10.0, "worker1");
+
+    // Only the queue resource reports: worker1 keeps up (put == fetch) with a small standing queue,
+    // so its capacity is capped at the measured fetch rate (10) — exactly the multiplied consumption.
+    SetWorkerResourceStatus(FlowView, "worker1", queueRes,
+        /*putRate=*/10.0,
+        /*fetchRate=*/10.0,
+        /*queueSize=*/5.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto snapshot = Snapshot();
+    const auto& multipliers = snapshot.ResourceConsumptionMultiplier.at(compId);
+    EXPECT_DOUBLE_EQ(multipliers.at(queueRes), 1.0);
+    for (const auto& resId : silent) {
+        EXPECT_DOUBLE_EQ(multipliers.at(resId), 0.0) << resId.Underlying();
+    }
+    EXPECT_DOUBLE_EQ(snapshot.TotalConsumptionMultiplier.at(compId), 1.0);
+
+    auto result = RunBalancer();
+
+    // Not starving → Step 2 adds no worker → no preload issued on worker2.
+    for (const auto& action : GetPreloadAddActions(result)) {
+        EXPECT_NE(action.WorkerAddress, "worker2");
+    }
+    EXPECT_TRUE(GetDelActions(result).empty());
+}
+
+//! A resource that reports on some worker is not silent even when this computation has no valid
+//! pair for it: the priority 1 average over other computations applies, not 0.
+TEST_F(TResourceBalancerTest, ReportedElsewhereUsesResourceAverageNotZero)
+{
+    auto compA = MakeComputationId("compA");
+    auto compB = MakeComputationId("compB");
+    auto sharedRes = MakeResourceId("shared");
+    auto queueB = MakeResourceId("queueB");
+
+    SetResourceSpec(sharedRes, MakeResourceSpec());
+    SetResourceSpec(queueB, MakeResourceSpec());
+    SetComputationSpec(compA, MakeComputationSpec(Group, {sharedRes}));
+    SetComputationSpec(compB, MakeComputationSpec(Group, {sharedRes, queueB}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddPartition(FlowView, MakePartitionId(1), compA, /*rps=*/10.0, "worker1");
+    AddPartition(FlowView, MakePartitionId(2), compB, /*rps=*/10.0, "worker2");
+
+    // worker1 reports shared for compA (multiplier 2); worker2 reports only queueB.
+    SetWorkerResourceStatus(FlowView, "worker1", sharedRes, /*putRate=*/20.0, /*fetchRate=*/20.0);
+    SetWorkerResourceStatus(FlowView, "worker2", queueB, /*putRate=*/10.0, /*fetchRate=*/10.0);
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compA).at(sharedRes), 2.0);
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compB).at(sharedRes), 2.0);
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compB).at(queueB), 1.0);
+    EXPECT_DOUBLE_EQ(snapshot.TotalConsumptionMultiplier.at(compB), 3.0);
+}
+
+//! Cold start: no worker reports anything, so no resource is silent and every multiplier is 1.0.
+TEST_F(TResourceBalancerTest, ColdStartKeepsUnitMultipliers)
+{
+    auto compId = MakeComputationId("comp1");
+    auto queueRes = MakeResourceId("queue");
+    auto modelRes = MakeResourceId("model");
+
+    SetResourceSpec(queueRes, MakeResourceSpec());
+    SetResourceSpec(modelRes, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {queueRes, modelRes}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/10.0, "worker1");
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compId).at(queueRes), 1.0);
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compId).at(modelRes), 1.0);
+    EXPECT_DOUBLE_EQ(snapshot.TotalConsumptionMultiplier.at(compId), 2.0);
+}
+
+//! A computation with no placed partitions (a new stage, only strays) has nothing reporting for
+//! it, but its resources are not silent: nothing is deployed yet. It must keep the averaging
+//! fallback, otherwise Consumption is 0, Step 1 adds a single worker and Step 6 packs every stray
+//! on it because each partition weighs 0.
+TEST_F(TResourceBalancerTest, NotYetRunningStageSpreadsOverWorkers)
+{
+    auto compA = MakeComputationId("compA");
+    auto compB = MakeComputationId("compB");
+    auto queueA = MakeResourceId("queueA");
+    auto queueB = MakeResourceId("queueB");
+
+    SetResourceSpec(queueA, MakeResourceSpec());
+    SetResourceSpec(queueB, MakeResourceSpec());
+    SetComputationSpec(compA, MakeComputationSpec(Group, {queueA}));
+    SetComputationSpec(compB, MakeComputationSpec(Group, {queueB}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+
+    // compA runs on worker1 and reports; compB has only strays and nobody reports queueB.
+    AddPartition(FlowView, MakePartitionId(1), compA, /*rps=*/10.0, "worker1");
+    SetWorkerResourceStatus(FlowView, "worker1", queueA, /*putRate=*/10.0, /*fetchRate=*/10.0);
+    std::vector<TPartitionId> strays;
+    for (int i = 2; i <= 5; ++i) {
+        strays.push_back(MakePartitionId(i));
+        AddPartition(FlowView, strays.back(), compB, /*rps=*/10.0, std::nullopt);
+    }
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.ResourceConsumptionMultiplier.at(compB).at(queueB), 1.0);
+
+    auto result = RunBalancer();
+    auto adds = GetAddActions(result);
+    THashSet<TWorkerId> workersUsed;
+    for (const auto& partitionId : strays) {
+        ASSERT_TRUE(adds.contains(partitionId));
+        workersUsed.insert(adds.at(partitionId));
+    }
+    EXPECT_GT(workersUsed.size(), 1u);
+}
+
+//! An idle worker borrows the capacity of its loaded peers. A backlogged peer must lend its
+//! measured FetchRate, not incomingLoad: the cap has to apply before the per-capability averaging.
+TEST_F(TResourceBalancerTest, IdleWorkerBorrowsCappedCapacityFromBackloggedPeer)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps=*/100.0, "worker1");
+
+    // worker1: incoming 100/s (multiplier 1), drains 50/s, queue 200 >= ZeroQueueLatency * rate.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate=*/100.0,
+        /*fetchRate=*/50.0,
+        /*queueSize=*/200.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.WorkerTotalCapacity.at("worker1"), 50.0);
+    EXPECT_DOUBLE_EQ(snapshot.WorkerTotalCapacity.at("worker2"), 50.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
