@@ -131,8 +131,29 @@ A tool for common cypress method.
                     {
                         "name": "attributes",
                         "field_type": Optional[List[str]],
-                        "description": "List of operation attributes. Some attributes are large (\"progress\", \"full_spec\"). Valid attributes are \"id\", \"state\", \"type\", \"operation_type\", \"authenticated_user\", \"start_time\", \"finish_time\", \"suspended\", \"result\", \"alerts\", \"task_names\", \"has_failed_jobs\", \"provided_spec\", \"spec\", \"events\", \"progress\"",  # noqa
+                        "description": (
+                            "List of operation attributes. Some attributes are large "
+                            "(\"progress\", \"full_spec\"). Valid attributes are "
+                            "\"id\", \"state\", \"authenticated_user\", \"type\", "
+                            "\"operation_type\", \"progress\", \"spec\", \"provided_spec\", "
+                            "\"experiment_assignments\", \"experiment_assignment_names\", "
+                            "\"full_spec\", \"unrecognized_spec\", \"brief_progress\", "
+                            "\"brief_spec\", \"runtime_parameters\", \"start_time\", "
+                            "\"finish_time\", \"result\", \"events\", \"memory_usage\", "
+                            "\"suspended\", \"scheduling_attributes_per_pool_tree\", "
+                            "\"slot_index_per_pool_tree\", \"alerts\", \"task_names\", "
+                            "\"controller_features\", \"alert_events\", \"has_failed_jobs\"."
+                        ),
                         "default": ["id", "state", "type", "operation_type", "authenticated_user", "start_time", "finish_time", "suspended", "result", "alerts", "task_names", "has_failed_jobs"],
+                    },
+                    {
+                        "name": "include_runtime",
+                        "field_type": Optional[bool],
+                        "description": (
+                            "Fetch live progress, brief_progress, and memory_usage from the "
+                            "scheduler and controller agent when available."
+                        ),
+                        "default": False,
                     },
                 ]
             },
