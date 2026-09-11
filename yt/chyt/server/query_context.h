@@ -83,7 +83,7 @@ public:
     std::string CurrentAddress;
     std::string InitialUser;
     std::string InitialAddress;
-    TQueryId InitialQueryId;
+    std::string InitialQueryId;
     std::optional<TQueryId> ParentQueryId;
     //! Text of the initial query. Used for better debugging.
     std::optional<TString> InitialQuery;

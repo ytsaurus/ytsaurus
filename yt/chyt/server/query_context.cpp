@@ -222,7 +222,7 @@ TQueryContext::TQueryContext(
 
     InitialUser = clientInfo.initial_user;
     InitialAddress = (clientInfo.initial_address != nullptr) ? clientInfo.initial_address->toString() : "";
-    InitialQueryId = TQueryId::FromString(clientInfo.initial_query_id);
+    InitialQueryId = clientInfo.initial_query_id;
 
     if (QueryKind == EQueryKind::InitialQuery) {
         const auto& queryParams = context->getQueryParameters();
