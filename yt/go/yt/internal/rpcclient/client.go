@@ -3,7 +3,6 @@ package rpcclient
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"net"
 	"net/http"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/library/go/core/xerrors"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/proto/core/misc"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -40,9 +38,21 @@ type client struct {
 	httpClient *http.Client
 	proxySet   *internal.ProxySet
 
-	connPool *ConnPool
-	stop     *internal.StopGroup
+	transport transport
+	stop      *internal.StopGroup
 }
+
+type transport interface {
+	Send(ctx context.Context, addr string, call *Call, rsp proto.Message, creds yt.Credentials) ([][]byte, error)
+	Discard(addr string)
+	// ProxyType is the type= value for discover_proxies ("rpc" or "grpc").
+	ProxyType() string
+	Stop()
+}
+
+var _ ConnDiscarder = (transport)(nil)
+
+type transportFactory func(c *client, httpTransport *http.Transport) transport
 
 func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 	if c.HTTPClient != nil {
@@ -82,6 +92,21 @@ func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
 }
 
 func NewClient(conf *yt.Config) (*client, error) {
+	return newClient(conf, func(c *client, ht *http.Transport) transport {
+		return newBusTransport(c, ht)
+	})
+}
+
+func NewGRPCClient(conf *yt.Config) (*client, error) {
+	if conf.UseTVMOnlyEndpoint {
+		return nil, xerrors.New("gRPC client does not support UseTVMOnlyEndpoint: there is no TVM-only gRPC proxy port")
+	}
+	return newClient(conf, func(c *client, ht *http.Transport) transport {
+		return newGRPCTransport(c, ht)
+	})
+}
+
+func newClient(conf *yt.Config, newTransport transportFactory) (*client, error) {
 	clusterURL, err := conf.GetClusterURL()
 	if err != nil {
 		return nil, err
@@ -100,7 +125,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 		return nil, err
 	}
 
-	transport, ok := c.httpClient.Transport.(*http.Transport)
+	httpTransport, ok := c.httpClient.Transport.(*http.Transport)
 	if !ok {
 		return nil, xerrors.Errorf("expected *http.Transport, got %T: rpc client does not support other transports", c.httpClient.Transport)
 	}
@@ -111,30 +136,8 @@ func NewClient(conf *yt.Config) (*client, error) {
 		c.credentials = &yt.TokenCredentials{Token: token}
 	}
 
-	c.proxySet = &internal.ProxySet{UpdateFn: c.listRPCProxies}
-
-	c.connPool = NewConnPool(func(ctx context.Context, addr string) BusConn {
-		clientOpts := []bus.ClientOption{
-			bus.WithLogger(c.log.Logger()),
-			bus.WithDefaultProtocolVersionMajor(ProtocolVersionMajor),
-			bus.WithNetwork(conf.GetIPVersion().Network()),
-		}
-		if conf.UseTLS && transport.TLSClientConfig != nil {
-			busTLSConfig := transport.TLSClientConfig.Clone()
-			if conf.PeerAlternativeHostName != "" {
-				// TODO(khlebnikov) use custom VerifyPeerCertificate.
-				busTLSConfig.ServerName = conf.PeerAlternativeHostName
-			} else if host, _, err := net.SplitHostPort(addr); err == nil {
-				// VerifyHostname expects FQDN or IP, both without port.
-				busTLSConfig.ServerName = host
-			} else {
-				busTLSConfig.ServerName = addr
-			}
-			clientOpts = append(clientOpts, bus.WithEncryptionMode(bus.EncryptionModeRequired))
-			clientOpts = append(clientOpts, bus.WithTLSConfig(busTLSConfig))
-		}
-		return bus.NewClient(ctx, addr, clientOpts...)
-	}, c.log)
+	c.proxySet = &internal.ProxySet{UpdateFn: c.listProxies}
+	c.transport = newTransport(c, httpTransport)
 
 	c.Encoder.StartCall = c.startCall
 	c.Encoder.Invoke = c.invoke
@@ -142,7 +145,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 	c.Encoder.InvokeReadRow = c.doReadRow
 	c.Encoder.InvokeMultiLookup = c.doMultiLookup
 
-	proxyBouncer := &ProxyBouncer{Log: c.log, ProxySet: c.proxySet, ConnPool: c.connPool}
+	proxyBouncer := &ProxyBouncer{Log: c.log, ProxySet: c.proxySet, ConnPool: c.transport}
 	requestLogger := &LoggingInterceptor{Structured: c.log}
 	requestTracer := &TracingInterceptor{Tracer: c.tracer}
 	mutationRetrier := &MutationRetrier{Log: c.log}
@@ -168,14 +171,12 @@ func (c *client) doReadRow(
 	call *Call,
 	rsp ProtoRowset,
 ) (yt.TableReader, error) {
-	var rspAttachments [][]byte
-
-	err := c.Invoke(ctx, call, rsp, bus.WithResponseAttachments(&rspAttachments))
+	err := c.Invoke(ctx, call, rsp)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := decodeFromWire(rspAttachments)
+	rows, err := decodeFromWire(call.rspAttachments)
 	if err != nil {
 		err := xerrors.Errorf("unable to decode response from wire format: %w", err)
 		return nil, err
@@ -189,9 +190,7 @@ func (c *client) doMultiLookup(
 	call *Call,
 	rsp ProtoMultiLookupResp,
 ) ([]yt.TableReader, error) {
-	var rspAttachments [][]byte
-
-	err := c.Invoke(ctx, call, rsp, bus.WithResponseAttachments(&rspAttachments))
+	err := c.Invoke(ctx, call, rsp)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +210,7 @@ func (c *client) doMultiLookup(
 
 	for i, subresponse := range rsp.GetSubresponses() {
 		attachmentCount := int(subresponse.GetAttachmentCount())
-		subAttachments := rspAttachments[attachmentOffset : attachmentOffset+attachmentCount]
+		subAttachments := call.rspAttachments[attachmentOffset : attachmentOffset+attachmentCount]
 		attachmentOffset += attachmentCount
 
 		rows, err := decodeFromWire(subAttachments)
@@ -240,41 +239,31 @@ func (c *client) invoke(
 	ctx context.Context,
 	call *Call,
 	rsp proto.Message,
-	opts ...bus.SendOption,
 ) error {
+	attachments, err := c.invokeRaw(ctx, call, rsp)
+	call.rspAttachments = attachments
+	return err
+}
+
+func (c *client) invokeRaw(
+	ctx context.Context,
+	call *Call,
+	rsp proto.Message,
+) ([][]byte, error) {
 	addr := call.RequestedProxy
 	if addr == "" {
 		var err error
 		addr, err = c.pickRPCProxy(ctx)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 	call.SelectedProxy = addr
 
-	opts = append(opts,
-		bus.WithRequestID(call.CallID),
-	)
-
 	credentials, err := c.requestCredentials(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if credentials != nil {
-		opts = append(opts, bus.WithCredentials(credentials))
-	}
-
-	if call.Attachments != nil {
-		opts = append(opts, bus.WithAttachments(call.Attachments...))
-	}
-
-	c.injectTracing(ctx, &opts)
-
-	conn, err := c.getConn(ctx, addr)
-	if err != nil {
-		return err
-	}
-	defer conn.Release()
 
 	ctxlog.Debug(ctx, c.log.Logger(), "sending RPC request",
 		log.String("proxy", call.SelectedProxy),
@@ -282,7 +271,7 @@ func (c *client) invoke(
 	)
 
 	start := time.Now()
-	err = conn.Send(ctx, "ApiService", string(call.Method), call.Req, rsp, opts...)
+	attachments, err := c.transport.Send(ctx, addr, call, rsp, credentials)
 	duration := time.Since(start)
 
 	ctxlog.Debug(ctx, c.log.Logger(), "received RPC response",
@@ -291,11 +280,7 @@ func (c *client) invoke(
 		log.Bool("ok", err == nil),
 		log.Duration("duration", duration))
 
-	if errors.Is(err, bus.ErrConnClosed) {
-		conn.Discard()
-	}
-
-	return err
+	return attachments, err
 }
 
 type requestWithTransactionalOptions interface {
@@ -306,7 +291,6 @@ func (c *client) invokeInTx(
 	ctx context.Context,
 	call *Call,
 	rsp proto.Message,
-	opts ...bus.SendOption,
 ) error {
 	req, ok := call.Req.(requestWithTransactionalOptions)
 	if !ok {
@@ -336,9 +320,10 @@ func (c *client) invokeInTx(
 
 	commandCall := *call
 	commandCall.DisableRetries = true
-	if err := tx.(*TxInterceptor).Invoke(ctx, &commandCall, rsp, opts...); err != nil {
+	if err := tx.(*TxInterceptor).Invoke(ctx, &commandCall, rsp); err != nil {
 		return err
 	}
+	call.rspAttachments = commandCall.rspAttachments
 
 	if err := tx.Commit(); err != nil {
 		return err
@@ -375,18 +360,8 @@ func (c *client) requestCredentials(ctx context.Context) (yt.Credentials, error)
 	return c.credentials, nil
 }
 
-func (c *client) getConn(ctx context.Context, addr string) (*Conn, error) {
-	dial, ok := GetDialer(ctx)
-	if ok {
-		conn := dial(ctx, addr)
-		wrapped := NewConn(addr, conn, nil)
-		return wrapped, nil
-	}
-	return c.connPool.Conn(ctx, addr)
-}
-
 func (c *client) Stop() {
-	c.connPool.Stop()
+	c.transport.Stop()
 	c.stop.Stop()
 	c.httpClient.CloseIdleConnections()
 }
@@ -397,19 +372,6 @@ func (c *client) startCall() *Call {
 	return &Call{
 		Backoff: bf,
 	}
-}
-
-func (c *client) injectTracing(ctx context.Context, opts *[]bus.SendOption) {
-	if c.conf.TraceFn == nil {
-		return
-	}
-
-	traceID, spanID, flags, ok := c.conf.TraceFn(ctx)
-	if !ok {
-		return
-	}
-
-	*opts = append(*opts, bus.WithTracing(traceID, spanID, flags))
 }
 
 // LockRows wraps encoder's implementation with transaction.

@@ -7,7 +7,6 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"go.ytsaurus.tech/library/go/core/log"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -24,6 +23,8 @@ type Call struct {
 	SelectedProxy  string
 	Backoff        backoff.BackOff
 	DisableRetries bool
+
+	rspAttachments [][]byte
 }
 
 type Request interface {
@@ -52,15 +53,15 @@ type ProtoRowset interface {
 	GetRowsetDescriptor() *rpc_proxy.TRowsetDescriptor
 }
 
-type CallInvoker func(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error)
+type CallInvoker func(ctx context.Context, call *Call, rsp proto.Message) (err error)
 
 func (c CallInvoker) Wrap(interceptor CallInterceptor) CallInvoker {
-	return func(ctx context.Context, call *Call, rsp proto.Message, opts ...bus.SendOption) (err error) {
-		return interceptor(ctx, call, c, rsp, opts...)
+	return func(ctx context.Context, call *Call, rsp proto.Message) (err error) {
+		return interceptor(ctx, call, c, rsp)
 	}
 }
 
-type CallInterceptor func(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error)
+type CallInterceptor func(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message) (err error)
 
 type ReadRowInvoker func(ctx context.Context, call *Call, rsp ProtoRowset) (r yt.TableReader, err error)
 

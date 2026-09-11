@@ -7,7 +7,6 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
 )
 
@@ -38,9 +37,9 @@ func (l *LoggingInterceptor) logFinish(ctx context.Context, err error, fields ..
 	}
 }
 
-func (l *LoggingInterceptor) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
+func (l *LoggingInterceptor) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message) (err error) {
 	ctx = l.logStart(ctx, call)
-	err = invoke(ctx, call, rsp, opts...)
+	err = invoke(ctx, call, rsp)
 	var rspFields []log.Field
 	if err == nil && rsp != nil {
 		rspFields = responseLogFields(call, rsp)

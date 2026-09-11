@@ -11,7 +11,6 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yterrors"
@@ -27,10 +26,10 @@ type MutatingRequest interface {
 	SetRetry(retry bool)
 }
 
-func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message, opts ...bus.SendOption) (err error) {
+func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker, rsp proto.Message) (err error) {
 	req, ok := call.Req.(MutatingRequest)
 	if !ok || call.DisableRetries {
-		return invoke(ctx, call, rsp, opts...)
+		return invoke(ctx, call, rsp)
 	}
 
 	if !req.HasMutatingOptions() {
@@ -43,7 +42,7 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 	}
 
 	for i := 0; ; i++ {
-		err = invoke(ctx, call, rsp, opts...)
+		err = invoke(ctx, call, rsp)
 		if err == nil || !r.shouldRetry(err) {
 			return
 		}

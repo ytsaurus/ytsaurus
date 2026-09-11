@@ -8,7 +8,6 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/xerrors"
-	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
@@ -201,13 +200,12 @@ func (t *TxInterceptor) Intercept(
 	call *Call,
 	next CallInvoker,
 	rsp proto.Message,
-	opts ...bus.SendOption,
 ) (err error) {
 	if err = t.setTxID(call); err != nil {
 		return
 	}
 
-	return next(ctx, call, rsp, opts...)
+	return next(ctx, call, rsp)
 }
 
 func (t *TxInterceptor) ReadRow(

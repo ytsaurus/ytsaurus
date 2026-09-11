@@ -82,7 +82,6 @@ func (c *client) invoke(
 	ctx context.Context,
 	call *rpcclient.Call,
 	rsp proto.Message,
-	opts ...bus.SendOption,
 ) error {
 	addr, err := c.pickDiscoveryServer(ctx)
 	if err != nil {
@@ -90,9 +89,9 @@ func (c *client) invoke(
 	}
 	call.SelectedProxy = addr
 
-	opts = append(opts,
+	opts := []bus.SendOption{
 		bus.WithRequestID(call.CallID),
-	)
+	}
 
 	credentials, err := c.requestCredentials(ctx)
 	if err != nil {
