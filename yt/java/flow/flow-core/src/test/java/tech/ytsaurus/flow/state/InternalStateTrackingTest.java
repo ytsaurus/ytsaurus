@@ -31,7 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Tests for internal state tracking: the value handed out by {@link InternalStateAccessor} is live
  * and written back when the holder's modified states are collected, while unchanged states and
- * states read through {@link StateAccessor#readOnly()} produce no write.
+ * states read through {@link StateAccessor#readOnly()} or {@link InternalStateDescriptor#readOnly()}
+ * produce no write.
  */
 class InternalStateTrackingTest {
     private static final String COUNTER_STATE = "counter-state";
@@ -40,6 +41,7 @@ class InternalStateTrackingTest {
     private static final CounterCodec CODEC = new CounterCodec();
     private static final InternalStateDescriptor<Counter> COUNTER =
             StateDescriptors.custom(COUNTER_STATE, Counter.class, CODEC, Counter::new);
+    private static final InternalStateDescriptor<Counter> COUNTER_READ_ONLY = COUNTER.readOnly();
     private static final InternalStateDescriptor<byte[]> RAW = StateDescriptors.raw(RAW_STATE);
     private static final InternalStateDescriptor<TOptionalTestMessage> PROTO =
             StateDescriptors.protobuf(PROTO_STATE, TOptionalTestMessage.class);
@@ -310,6 +312,73 @@ class InternalStateTrackingTest {
         readOnly.value = 2L;
 
         assertEquals(wire(2L), modified().get(key(message)).getBytes());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor: reading writes nothing")
+    void readOnlyDescriptorReadWritesNothing() {
+        seed(message, 1L);
+
+        var value = ctx.getState(COUNTER_READ_ONLY, message).get();
+        assertEquals(1L, value.value);
+        value.value = 2L;
+
+        assertTrue(modified().isEmpty());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor: getOrDefault() does not create the state")
+    void readOnlyDescriptorGetOrDefaultDoesNotCreateTheState() {
+        var state = ctx.getState(COUNTER_READ_ONLY, message);
+        assertEquals(0L, state.getOrDefault().value);
+        assertEquals(3L, state.getOrDefault(counter(3L)).value);
+
+        assertNull(state.get());
+        assertTrue(modified().isEmpty());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor: set() and clear() throw")
+    void readOnlyDescriptorRejectsWrites() {
+        var state = ctx.getState(COUNTER_READ_ONLY, message);
+
+        assertThrows(UnsupportedOperationException.class, () -> state.set(counter(1L)));
+        assertThrows(UnsupportedOperationException.class, state::clear);
+        assertSame(state, state.readOnly());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor reads the cell the writable descriptor writes")
+    void readOnlyDescriptorSharesTheStateCell() {
+        seed(message, 1L);
+
+        ctx.getState(COUNTER, message).getOrDefault().value = 2L;
+
+        assertEquals(2L, ctx.getState(COUNTER_READ_ONLY, message).get().value);
+        assertEquals(wire(2L), modified().get(key(message)).getBytes());
+    }
+
+    @Test
+    @DisplayName("read-only descriptor does not untrack a state the writable accessor has read")
+    void readOnlyDescriptorDoesNotUntrackTheState() {
+        seed(message, 1L);
+
+        ctx.getState(COUNTER, message).get();
+        ctx.getState(COUNTER_READ_ONLY, message).get().value = 2L;
+
+        assertEquals(wire(2L), modified().get(key(message)).getBytes());
+    }
+
+    @Test
+    @DisplayName("readOnly() carries the state identity and stays read-only")
+    void readOnlyCarriesTheStateIdentity() {
+        assertEquals(COUNTER.getName(), COUNTER_READ_ONLY.getName());
+        assertEquals(COUNTER.getStateClass(), COUNTER_READ_ONLY.getStateClass());
+
+        assertSame(COUNTER_READ_ONLY, COUNTER_READ_ONLY.readOnly());
+
+        var state = ctx.getState(COUNTER_READ_ONLY, message);
+        assertThrows(UnsupportedOperationException.class, () -> state.set(counter(1L)));
     }
 
     @Test

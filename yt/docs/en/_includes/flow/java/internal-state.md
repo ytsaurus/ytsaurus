@@ -109,6 +109,32 @@ To detect the changes, a value that was read is re-encoded once at the end of th
 
 {% endlist %}
 
+The same intent can be declared once on the descriptor: `InternalStateDescriptor.readOnly()` returns a descriptor of the same state whose accessors are read-only, so no access site needs a `readOnly()` call of its own. Declare it once as a constant next to the original:
+
+{% list tabs group=lang %}
+
+- Java
+
+  ```java
+  private static final InternalStateDescriptor<CounterState> COUNTER_READ_ONLY = COUNTER.readOnly();
+
+  long count = ctx.getState(COUNTER_READ_ONLY, message).getOrDefault().count;
+  ```
+
+- Kotlin
+
+  ```kotlin
+  private val COUNTER_READ_ONLY: InternalStateDescriptor<CounterState> = COUNTER.readOnly()
+
+  val count = ctx.getState(COUNTER_READ_ONLY, message).getOrDefault().count
+  ```
+
+{% endlist %}
+
+An internal state lives within a single computation: the worker serves only the names listed in the `internal_states` of its parameters. A read-only descriptor therefore reads the state of the computation it is used in: it is not a way to read a state that another computation writes — that is what [External State](../../../flow/java/external-state.md) joiners are for.
+
+Read-only is a discipline of access, not a property of the state: the tracking lives on the state itself. If the value for the same key was already read through a writable accessor in this batch, the state is already tracked, and a change made in place afterwards reaches the worker whichever accessor handed the value out. The descriptor guarantees "this accessor does not write", not "this state is not tracked".
+
 ## YsonStateAccessor {#yson-state-accessor}
 
 `YsonStateAccessor` uses YSON serialization. The state class must be annotated with `@YTreeObject`.
