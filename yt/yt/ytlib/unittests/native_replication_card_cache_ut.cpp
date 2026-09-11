@@ -88,7 +88,7 @@ public:
             New<TCellDirectoryConfig>(),
             std::move(channelFactory),
             /*clusterDirectory*/ {},
-            {"default"},
+            /*networks*/ {"default"},
             TestLogger))
         , ChaosCellDirectorySynchronizer_(New<TNoopChaosCellDirectorySynchronizer>())
     { }
@@ -252,7 +252,7 @@ protected:
     {
         ConnectionQueue_ = New<TActionQueue>("ReplicationCardCacheConnection");
         ServiceQueue_ = New<TActionQueue>("ReplicationCardCacheService");
-        MemoryTracker_ = CreateNodeMemoryTracker(32_MB, New<TNodeMemoryTrackerConfig>(), {});
+        MemoryTracker_ = CreateNodeMemoryTracker(32_MB, New<TNodeMemoryTrackerConfig>());
         Service_ = New<TFakeChaosNodeService>(ServiceQueue_->GetInvoker());
 
         THashMap<std::string, IServicePtr> addressToService;
