@@ -40,6 +40,9 @@ struct ITabletCommitSession
 
     virtual void MemorizeHunkInfo(const NTableClient::THunkChunksInfo& hunkInfo) = 0;
 
+    //! NB: Must be called for all sessions before the first #Invoke.
+    virtual void CalculateBatchSignatures() = 0;
+
     virtual TFuture<void> Invoke(int retryIndex = 0) = 0;
 
     virtual NTabletClient::TTableMountInfoPtr GetTableMountInfo() const = 0;
