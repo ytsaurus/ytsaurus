@@ -710,6 +710,18 @@ class YTEnvSetup(object):
         delta_global_cluster_connection_config = {
             "object_life_stage_check_period": 100,
         }
+        # Exercise tablet operation routing for Cypress nodes with trunk Cypress Proxies.
+        # Released Cypress Proxies do not support tablet operation RPCs yet.
+        # The Sequoia implementation is introduced separately.
+        if (
+            cypress_proxy_count > 0
+            and not cls.get_param("USE_SEQUOIA", index)
+            and not any(
+                version != "trunk" and "cypress-proxy" in components
+                for version, components in cls.ARTIFACT_COMPONENTS.items()
+            )
+        ):
+            delta_global_cluster_connection_config["use_cypress_proxy_for_tablet_operations"] = True
 
         if cls.get_param("USE_SEQUOIA", index):
             update_inplace(delta_global_cluster_connection_config, {

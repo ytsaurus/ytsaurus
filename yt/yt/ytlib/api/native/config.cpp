@@ -590,6 +590,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_reshard_with_slicing_by_default", &TThis::EnableReshardWithSlicingByDefault)
         .Default(true);
 
+    registrar.Parameter("use_cypress_proxy_for_tablet_operations", &TThis::UseCypressProxyForTabletOperations)
+        .Default(false);
+
     registrar.Parameter("get_job_trace_batch_size", &TThis::GetJobTraceBatchSize)
         .Default(2'500)
         .GreaterThan(0);

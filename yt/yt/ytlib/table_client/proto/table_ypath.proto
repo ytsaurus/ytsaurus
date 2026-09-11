@@ -86,6 +86,9 @@ message TReqReshard
     // For sorted tables only.
     repeated bytes pivot_keys = 3;
     required int32 tablet_count = 4;
+    repeated int64 trimmed_row_counts = 5;
+    // For ordered tables only.
+    repeated int64 cumulative_data_weights = 6;
 }
 
 message TRspReshard

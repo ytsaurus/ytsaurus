@@ -9,7 +9,7 @@ from yt_commands import (
     remount_table, sync_flush_table, select_rows, insert_rows, alter_table,
     sync_enable_table_replica, create_table_replica,
     cancel_tablet_transition, raises_yt_error, create_user, remove,
-    multicell_sleep, create_area, ls, write_table, map)
+    multicell_sleep, create_area, ls, write_table, map, generate_uuid)
 
 from yt.environment.helpers import assert_items_equal, are_items_equal
 
@@ -153,6 +153,16 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
             "unfreeze": lambda x: unfreeze_table(x),
         }
         return callbacks[command]
+
+    @authors("danilalexeev")
+    def test_tablet_operation_retry(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        mutation_id = generate_uuid()
+        mount_table("//tmp/t", mutation_id=mutation_id)
+        mount_table("//tmp/t", mutation_id=mutation_id, retry=True)
+        wait_for_tablet_state("//tmp/t", "mounted")
 
     @pytest.mark.parametrize(
         ["initial", "command"],
