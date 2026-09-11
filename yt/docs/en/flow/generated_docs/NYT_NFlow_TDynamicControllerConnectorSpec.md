@@ -14,6 +14,9 @@ Period for rediscovering the controller. ||
 || `controller_heartbeat_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `1s`
 Period of worker heartbeats to the controller. ||
+|| `worker_statistics_report_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
+**Default value**: `30s`
+ ||
 || `controller_heartbeat_rpc_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10s`
 Heartbeat timeout. ||

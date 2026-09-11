@@ -14,6 +14,9 @@
 || `controller_heartbeat_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `1s`
 Период хартбитов воркера в контроллер. ||
+|| `worker_statistics_report_period` | **Тип**: [TDuration](./all_yson_structs#TDuration)
+**Значение по умолчанию**: `30s`
+ ||
 || `controller_heartbeat_rpc_timeout` | **Тип**: [TDuration](./all_yson_structs#TDuration)
 **Значение по умолчанию**: `10s`
 Таймаут хартбита. ||
