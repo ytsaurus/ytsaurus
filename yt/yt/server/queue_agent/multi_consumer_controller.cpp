@@ -100,10 +100,9 @@ THashSet<std::string> SelectConsumerNamesFromUserTable(
 
         // NB: A truncated result would look like missing names and cause spurious deletes from state.
         if (selectResult.Statistics.IncompleteInput || selectResult.Statistics.IncompleteOutput) {
-            auto error = TError("Incomplete result while selecting consumer names from user table")
-                .With("path", path)
-                .With("batch_size", batchSize);
-            YT_LOG_ALERT_AND_THROW(error);
+            YT_TLOG_ALERT_AND_THROW("Incomplete result while selecting consumer names from user table")
+                .With("Path", path)
+                .With("BatchSize", batchSize);
         }
 
         for (const auto& row : rows) {
@@ -120,14 +119,12 @@ THashSet<std::string> SelectConsumerNamesFromUserTable(
         lastName = std::move(newLastName);
     }
 
-    auto error = TError("Exceeded maximum number of iterations while selecting consumer names from user table")
-        .With("path", path)
-        .With("batch_size", batchSize)
-        .With("max_iterations", MaxSelectConsumerNamesIterations)
-        .With("consumer_name_count", consumerNames.size())
-        .With("last_name", lastName);
-
-    YT_LOG_ALERT_AND_THROW(error);
+    YT_TLOG_ALERT_AND_THROW("Exceeded maximum number of iterations while selecting consumer names from user table")
+        .With("Path", path)
+        .With("BatchSize", batchSize)
+        .With("MaxIterations", MaxSelectConsumerNamesIterations)
+        .With("ConsumerNameCount", consumerNames.size())
+        .With("LastName", lastName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -175,11 +175,10 @@ private:
         } else {
             Profile_.FinishedWithErrorCount.Increment(1);
             Profile_.FinishedWithErrorReplicaCount.Increment(ReplicaCount_);
-            YT_LOG_TRACE(
-                result,
-                "Sequoia replica modification finished with error (TransactionType: %v, ReplicaCount: %v)",
-                TransactionType_,
-                ReplicaCount_);
+            YT_TLOG_TRACE("Sequoia replica modification finished with error")
+                .With("TransactionType", TransactionType_)
+                .With("ReplicaCount", ReplicaCount_)
+                .With(result);
             result.ThrowOnError();
         }
     }
