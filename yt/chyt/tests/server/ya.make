@@ -48,10 +48,15 @@ DEPENDS(
 ENV(YT_ENABLE_TRACE_LOG=1)
 ENV(YT_ENABLE_TRACE_LOGGING=1)
 
-TEST_SRCS(
-    conftest.py
+PY_SRCS(
     base.py
     helpers.py
+)
+
+NO_CHECK_IMPORTS(base)
+
+TEST_SRCS(
+    conftest.py
     test_atomicity.py
     test_clickhouse_schema.py
     test_columnar_read.py

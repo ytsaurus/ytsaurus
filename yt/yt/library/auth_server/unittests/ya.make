@@ -1,5 +1,7 @@
 GTEST(unittester-library-auth_server)
 
+EXPLICIT_DATA()
+
 SRCS(
     blackbox_ut.cpp
     login_auth_ut.cpp

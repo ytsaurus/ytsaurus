@@ -6,7 +6,7 @@ from yt_type_helpers import optional_type
 
 from base import ClickHouseTestBase, Clique, QueryFailedError, enable_sequoia
 
-from .helpers import get_disabled_cache_config
+from helpers import get_disabled_cache_config
 
 import yt.yson as yson
 
