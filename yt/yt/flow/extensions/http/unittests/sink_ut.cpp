@@ -43,17 +43,6 @@ using namespace NYTree;
 const TStreamId StreamId("input");
 const auto CompletionTimeout = TDuration::Seconds(10);
 
-NHttp::IClientPtr CreateTestHttpClient(
-    const TAsyncHttpSinkParameters& parameters,
-    const NConcurrency::IPollerPtr& poller)
-{
-    auto config = New<NHttp::TClientConfig>();
-    config->MaxRedirectCount = 0;
-    config->MaxIdleConnections = parameters.KeepAlive ? parameters.MaxIdleConnections : 0;
-    config->OmitQuestionMarkForEmptyQuery = true;
-    return NHttp::CreateClient(std::move(config), poller);
-}
-
 TComputationStreamSpecStoragePtr MakeStreamSpecStorage(const TTableSchemaPtr& schema)
 {
     auto streamSpec = New<TStreamSpec>();
@@ -512,7 +501,7 @@ TEST(TAsyncHttpOrderedStateTest, SendsEmptyQueryWithoutQuestionMarkOnTheWire)
     TRawRequestTargetServer server(port);
     auto parameters = New<TAsyncHttpSinkParameters>();
     parameters->Url = Format("http://127.0.0.1:%v/post", port);
-    auto client = CreateTestHttpClient(*parameters, poller);
+    auto client = CreateAsyncHttpClients(*parameters, poller).Http;
 
     auto response = WaitFor(client->Post(
         parameters->Url,
