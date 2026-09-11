@@ -74,11 +74,19 @@ DBPoco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
                 case DB::ClientInfo::QueryKind::NO_QUERY:
                     THROW_ERROR_EXCEPTION("Attempt to process an uninitialized query object");
                 case DB::ClientInfo::QueryKind::INITIAL_QUERY: {
-                    traceContext = New<TTraceContext>(TSpanContext{.TraceId = TTraceId::Create()}, "TcpHandler");
-                    queryId = traceContext->GetTraceId();
-                    auto queryIdStr = ToString(queryId);
-                    context->setInitialQueryId(queryIdStr);
-                    context->setCurrentQueryId(queryIdStr);
+                    if (auto initialIdStr = context->getInitialQueryId(); initialIdStr.empty()) {
+                        queryId = TGuid::Create();
+                        auto queryIdStr = ToString(queryId);
+                        context->setCurrentQueryId(queryIdStr);
+                        context->setInitialQueryId(queryIdStr);
+                    } else if (!TGuid::FromString(initialIdStr, &queryId)) {
+                        queryId = TGuid::Create();
+                        context->setCurrentQueryId(ToString(queryId));
+                        // setCurrentQueryId overrides initial_query_id, so let's bring it back.
+                        context->setInitialQueryId(initialIdStr);
+                    }
+
+                    traceContext = New<TTraceContext>(TSpanContext{.TraceId = queryId}, "TcpHandler");
                     break;
                 }
                 case DB::ClientInfo::QueryKind::SECONDARY_QUERY: {
