@@ -173,8 +173,17 @@ TFuture<TSquashFSVolumePtr> TSquashFSVolumeCache::DownloadAndPrepareVolume(
         .With("Tag", tag)
         .With("CypressPath", artifactKey.data_source().path());
 
+    auto downloadCpuStart = GetCpuInstant();
     return ArtifactCache_->DownloadArtifact(artifactKey, downloadOptions)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifact) {
+            auto downloadCpuDuration = GetCpuInstant() - downloadCpuStart;
+
+            // SquashFS volumes do not require a separate Porto import step,
+            // so import duration is zero.
+            if (downloadOptions.OnLayerDownloaded) {
+                downloadOptions.OnLayerDownloaded(downloadCpuDuration, /*importCpuDuration*/ 0);
+            }
+
             auto tagSet = TVolumeProfilerCounters::MakeTagSet(
                 /*volume type*/ "squashfs",
                 /*Cypress path*/ "n/a");
