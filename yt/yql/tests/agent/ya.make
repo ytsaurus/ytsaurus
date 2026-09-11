@@ -17,7 +17,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/tests/integration/YaMakeBoilerplateForTests.txt)
 DEPENDS(
     yt/yt/packages/tests_package
     yt/yql/agent/bin
-
     yt/yql/tools/mrjob
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file
@@ -29,7 +28,6 @@ DEPENDS(
 )
 
 PEERDIR(
-    library/python/port_manager
     yql/library/langver/python
     yql/essentials/providers/common/proto
     yt/yt/tests/conftest_lib
@@ -37,6 +35,7 @@ PEERDIR(
 )
 
 IF (NOT OPENSOURCE)
+    INCLUDE(ya_ytflow.inc)
     INCLUDE(ya_non_opensource.inc)
 ENDIF()
 

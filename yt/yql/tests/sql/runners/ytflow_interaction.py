@@ -84,6 +84,11 @@ Ytflow {
     }
 
     DefaultSettings {
+        Name: "_YtUseSourceWatermark"
+        Value: "false"
+    }
+
+    DefaultSettings {
         Name: "EnableComputationPatternResources"
         Value: "false"
     }
