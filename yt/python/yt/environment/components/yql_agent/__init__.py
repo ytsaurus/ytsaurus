@@ -461,6 +461,10 @@ class YqlAgent(YTServerComponentBase, YTComponent):
 
         if process_plugin_config:
             config["yql_agent"]["process_plugin_config"] = process_plugin_config
+            config["yql_agent"]["file_storage_config"].setdefault(
+                "path",
+                os.path.join(process_plugin_config["slots_root_path"], "file_storage"),
+            )
 
         return config
 

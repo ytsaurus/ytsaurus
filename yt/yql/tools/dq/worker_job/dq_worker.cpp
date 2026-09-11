@@ -1,4 +1,5 @@
 #include "dq_worker.h"
+#include "child_environment.h"
 
 #include <yql/essentials/utils/signals/signals.h>
 #include <yql/essentials/utils/network/bind_in_range.h>
@@ -274,8 +275,22 @@ namespace NYql::NDq::NWorker {
         pfOptions.ExecPath = GetExecPath();
         pfOptions.FileCache = fileCache;
 
-        if (backendConfig.GetUseLocalLDLibraryPath()) {
-            pfOptions.Env["LD_LIBRARY_PATH"] = ".";
+        const auto jobSandboxPath = NFs::CurrentWorkingDirectory();
+        const bool enablePorto = backendConfig.GetEnablePorto() == "isolate";
+        const bool useLocalLdLibraryPath = backendConfig.GetUseLocalLDLibraryPath();
+        NDetail::ConfigureChildLdLibraryPath(
+            &pfOptions.Env,
+            useLocalLdLibraryPath,
+            enablePorto,
+            jobSandboxPath);
+        if (useLocalLdLibraryPath) {
+            if (enablePorto) {
+                YQL_LOG(WARN) << "Dynamic runtime libraries from the YT job sandbox may be unavailable "
+                              << "to a relocated DQ executor in Porto mode";
+            } else {
+                YQL_LOG(INFO) << "Using absolute YT job sandbox path as LD_LIBRARY_PATH for DQ child: "
+                              << jobSandboxPath;
+            }
         }
 
         if (deterministicMode) {
@@ -297,7 +312,7 @@ namespace NYql::NDq::NWorker {
             pfOptions.Env["YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB"] = "0";
             pfOptions.Env["YT_FORBID_REQUESTS_FROM_JOB"] = "1";
         }
-        pfOptions.EnablePorto = backendConfig.GetEnablePorto() == "isolate";
+        pfOptions.EnablePorto = enablePorto;
         pfOptions.PortoLayer = backendConfig.GetPortoLayer().size() == 0 ? "" : layerDir;
         pfOptions.MaxProcesses = capacity*1.5;
         pfOptions.ContainerName = "Outer";
