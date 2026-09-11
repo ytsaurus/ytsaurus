@@ -120,9 +120,11 @@ struct TJob
     std::string WorkerAddress;
     TIncarnationId WorkerIncarnationId;
     TPartitionId PartitionId;
+    //! The prerequisite the worker attaches to the commits of this job's epochs: a master
+    //! transaction of the leader under the Cypress backend, a chaos lease under the Chaos one.
     TLeaseId LeaseId;
     //! When set, the job is fenced by rows of the pipeline's leases dynamic table instead of a
-    //! lease transaction prerequisite (LeaseId stays null).
+    //! prerequisite (LeaseId stays null).
     //!
     //! The counterpart of #LeaseId for the dyntable backend: both are filled once the fence of
     //! this job exists — the rows are committed by their own transaction before the layout that

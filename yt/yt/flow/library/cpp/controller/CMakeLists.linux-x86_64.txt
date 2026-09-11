@@ -53,6 +53,7 @@ target_link_libraries(library-cpp-controller PUBLIC
   yt-library-orchid
   library-profiling-solomon
   library-query-engine_api
+  server-lib-chaos_election
 )
 
 target_sources(library-cpp-controller PRIVATE

@@ -1013,6 +1013,29 @@ public:
                     .Name = "value",
                     .Type = "any"
                 }
+            })},
+            {"leader_election_lock", BuildTableAttributes({
+                TField{
+                    .Name = "lock_key",
+                    .Type = "string",
+                    .IsKeyField = true
+                },
+                TField{
+                    .Name = "leader_lease_id",
+                    .Type = "string"
+                },
+                TField{
+                    .Name = "leader_name",
+                    .Type = "string"
+                },
+                TField{
+                    .Name = "lease_timeout",
+                    .Type = "uint64"
+                },
+                TField{
+                    .Name = "last_ping_time",
+                    .Type = "uint64"
+                }
             })}
         };
 

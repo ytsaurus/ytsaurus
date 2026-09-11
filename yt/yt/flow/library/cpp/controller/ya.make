@@ -47,6 +47,7 @@ PEERDIR(
     yt/yt/library/orchid
     yt/yt/library/profiling/solomon
     yt/yt/library/query/engine_api
+    yt/yt/server/lib/chaos_election
 )
 
 END()

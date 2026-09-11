@@ -67,6 +67,20 @@ void TDyntableElectionBackendConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChaosElectionBackendConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("chaos_cell_bundle", &TThis::ChaosCellBundle)
+        .Default("chaos");
+    // The lease must outlive a few missed pings: losing it costs a leadership round trip, while
+    // holding it too long only delays the takeover of a dead controller.
+    registrar.Parameter("lease_timeout", &TThis::LeaseTimeout)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("lease_ping_period", &TThis::LeasePingPeriod)
+        .Default(TDuration::Seconds(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TControllerServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("set_spec_retry_count", &TThis::SetSpecRetryCount)
@@ -127,6 +141,37 @@ void TControllerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
+        if (config->ElectionManager.GetType() == EElectionBackend::Chaos) {
+            // A job lease has to outlast a change of leader. Nothing but the leader pings it, and
+            // the pinger stops with the leadership, so the clock keeps running while the follower
+            // waits out the dead leader's own lease, wins the lock, recovers the state and warms
+            // up — only then does it re-attach the leases and resume pinging. A lease that
+            // expires inside that window costs the pipeline every one of its jobs, on a routine
+            // failover.
+            const auto& backendConfig = config->ElectionManager.GetConcrete<TChaosElectionBackendConfig>();
+            auto handoverTime =
+                backendConfig->LeaseTimeout +
+                backendConfig->LockAcquisitionPeriod +
+                config->WarmUpTime;
+            // What has to cover the handover is not the whole timeout but what is left of it. Job
+            // leases are pinged by a periodic executor of their own, unrelated to the one that
+            // renews the leader lease, so a leader that dies right before a ping round leaves its
+            // leases a whole ping period old.
+            auto minLeaseTimeout =
+                MinLeaseTimeoutToChaosHandoverRatio * handoverTime +
+                config->LeaseManager->LeasePingPeriod;
+            if (config->LeaseManager->LeaseTimeout < minLeaseTimeout) {
+                THROW_ERROR_EXCEPTION("%Qv is too small to survive a change of leader", "lease_timeout")
+                    .With("lease_timeout", config->LeaseManager->LeaseTimeout)
+                    .With("lease_ping_period", config->LeaseManager->LeasePingPeriod)
+                    .With("leader_lease_timeout", backendConfig->LeaseTimeout)
+                    .With("lock_acquisition_period", backendConfig->LockAcquisitionPeriod)
+                    .With("warm_up_time", config->WarmUpTime)
+                    .With("min_lease_timeout", minLeaseTimeout);
+            }
+            return;
+        }
+
         if (config->ElectionManager.GetType() != EElectionBackend::Dyntable) {
             return;
         }

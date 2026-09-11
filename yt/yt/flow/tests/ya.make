@@ -66,6 +66,7 @@ ENDIF()
 IF (NOT OPENSOURCE)
     # Use replicated/chaos tables — out of yt_sync_mini's scope.
     RECURSE(
+        chaos_leases
         read_chaos_tables
         sorted_dynamic_table
     )

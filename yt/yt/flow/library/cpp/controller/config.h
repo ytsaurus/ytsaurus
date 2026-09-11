@@ -70,6 +70,14 @@ inline constexpr int MinLeaderLeaseTtlToCadenceRatio = 3;
 //! handover the same kind of margin the cadence check leaves an iteration.
 inline constexpr int MinLeaseTimeoutToLeaderLeaseTtlRatio = 3;
 
+//! How many handovers a job lease must outlast under the chaos backend, checked at config load.
+//! Chaos job leases are pinged by the leader alone and the pinger stops with its leadership, so a
+//! lease has to survive the whole change of leader: waiting out the dead leader's own lease,
+//! winning the lock, recovering the state and warming up. Those make up the handover estimate;
+//! doubling it leaves room for the recovery, whose duration the config cannot know. The lease is
+//! also up to a ping period old by then, so that period is added on top rather than counted in.
+inline constexpr int MinLeaseTimeoutToChaosHandoverRatio = 2;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Settings shared by every mechanism that elects the leader and fences its transactions.
@@ -125,6 +133,25 @@ DEFINE_REFCOUNTED_TYPE(TDyntableElectionBackendConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A chaos lease recorded in the pipeline's leader election lock table; the same bundle hosts the
+//! per-job leases the workers commit under.
+struct TChaosElectionBackendConfig
+    : public TElectionBackendConfigBase
+{
+    std::string ChaosCellBundle;
+
+    TDuration LeaseTimeout;
+    TDuration LeasePingPeriod;
+
+    REGISTER_YSON_STRUCT(TChaosElectionBackendConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosElectionBackendConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! The discriminator stays "backend" rather than the default "type": the parameter predates the
 //! polymorphic layout and is already written in deployed configs.
 //!
@@ -140,7 +167,8 @@ DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_CUSTOM_DISCRIMINATOR_AND_DEFAULT(
     EElectionBackend,
     Cypress,
     TElectionBackendConfigBase,
-    ((Cypress)(TCypressElectionBackendConfig))((Dyntable)(TDyntableElectionBackendConfig)));
+    ((Cypress)(TCypressElectionBackendConfig))((Dyntable)(TDyntableElectionBackendConfig))(
+        (Chaos)(TChaosElectionBackendConfig)));
 
 ////////////////////////////////////////////////////////////////////////////////
 

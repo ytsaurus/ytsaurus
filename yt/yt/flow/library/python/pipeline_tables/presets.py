@@ -202,6 +202,22 @@ PIPELINE_TABLES_PRESET = {
             },
         },
     },
+    "leader_election_lock": {
+        "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
+        "clusters": {
+            "_all_data_clusters": {
+                "attributes": {
+                    # A single tiny row rewritten on every lease ping.
+                    "in_memory_mode": "uncompressed",
+                    "mount_config": {
+                        "enable_lookup_hash_table": True,
+                    },
+                    "erasure_codec": "none",
+                    "compression_codec": "none",
+                },
+            },
+        },
+    },
     "partition_transactions": {
         "$merge_presets": ["builtin:pipeline_sorted_table_preset"],
         "clusters": {
