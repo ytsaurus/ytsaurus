@@ -60,10 +60,14 @@ afterEvaluate {
 // Flow ships on its own flow/X.Y.Z tag at its own version. The Java SDK modules it depends
 // on keep -Pversion, so the POM points at a released ytsaurus-client.
 version = project.properties["flowVersion"]
+// Project coordinates only: both proto modules are named "proto", so with a shared group
+// Gradle would resolve one as the other. The published groupId is set on the publication.
+group = "tech.ytsaurus.flow.proto.common"
 
 publishing {
     publications {
         create<MavenPublication>("mavenJava") {
+            groupId = "tech.ytsaurus"
             artifactId = "flow-proto-common"
             from(components["java"])
 
