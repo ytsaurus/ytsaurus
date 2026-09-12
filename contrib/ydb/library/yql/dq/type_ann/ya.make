@@ -1,6 +1,7 @@
 LIBRARY()
 
 PEERDIR(
+    contrib/ydb/library/yql/dq/common
     contrib/ydb/library/yql/dq/expr_nodes
     contrib/ydb/library/yql/dq/proto
     yql/essentials/ast
