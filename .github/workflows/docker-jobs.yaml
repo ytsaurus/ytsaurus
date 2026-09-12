@@ -164,20 +164,23 @@ jobs:
           docker tag ghcr.io/ytsaurus/chyt:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
           retry docker push ghcr.io/ytsaurus/chyt-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
 
-      - name: Flow image (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
+      - name: Flow images (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
         if: ${{ inputs.publish-flow }}
         run: |
           source docker-jobs-retry.sh
           output_path=../docker-flow-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component flow --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
+          # flow is the bare server; flow-java adds a JRE for pipelines with Java companions.
+          for component in flow flow-java; do
+            retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component ${component} --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
 
-          if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
-            retry docker push ghcr.io/ytsaurus/flow:${{ steps.vars.outputs.IMAGE_TAG }}
-          fi
-          docker tag ghcr.io/ytsaurus/flow:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/flow-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
-          retry docker push ghcr.io/ytsaurus/flow-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
+            if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
+              retry docker push ghcr.io/ytsaurus/${component}:${{ steps.vars.outputs.IMAGE_TAG }}
+            fi
+            docker tag ghcr.io/ytsaurus/${component}:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/${component}-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
+            retry docker push ghcr.io/ytsaurus/${component}-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
+          done
 
       - name: Local image (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
         if: ${{ inputs.publish-local }}

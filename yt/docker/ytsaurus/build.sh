@@ -118,7 +118,7 @@ if [[ "${component}" == "ytsaurus" ]]; then
 
     cp -r ${credits}/*.CREDITS ${output_path}/credits
 
-elif [[ "${component}" == "flow" ]]; then
+elif [[ "${component}" == "flow" || "${component}" == "flow-java" ]]; then
 
     flow_server="${ytsaurus_build_path}/yt/yt/flow/bin/flow_server/flow_server"
 
