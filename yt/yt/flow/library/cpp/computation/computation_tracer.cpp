@@ -39,7 +39,7 @@ public:
         if (RandomNumber<double>() < TraceProbability_.load(std::memory_order::relaxed)) {
             PrepareSampledTraceContext(context);
         }
-        RegisterPart("Init", context);
+        RegisterPart("Init", context, EEpochPartKind::Processing);
         return context;
     }
 
@@ -64,33 +64,48 @@ public:
         EpochTraceContext_->AddLoggingTag("EpochId", epochId);
         YT_VERIFY(!EpochTraceContext_->IsFinished());
         ++EpochInRoot_;
-        RegisterPart("Unknown", EpochTraceContext_);
+        RegisterPart("Unknown", EpochTraceContext_, EEpochPartKind::Processing);
         return EpochTraceContext_;
     }
 
-    TTraceContextPtr CreateEpochPartTraceContext(TStringBuf partName) override
+    TTraceContextPtr CreateEpochPartTraceContext(TStringBuf partName, std::optional<EEpochPartKind> kind) override
     {
         const std::string name{partName};
         YT_VERIFY(EpochTraceContext_);
         YT_VERIFY(!EpochTraceContext_->IsFinished());
         auto parentTraceContext = EpochTraceContext_;
+        auto parentKind = EEpochPartKind::Processing;
 
         // If current trace context is from our hierarchy, then take it instead of epoch root.
         if (const auto* currentTraceContext = TryGetCurrentTraceContext();
             currentTraceContext && currentTraceContext != parentTraceContext.Get())
         {
             auto guard = Guard(Lock_);
-            for (const auto& [traceContext, partPtr] : Reversed(Parts_)) {
-                if (traceContext.Get() == currentTraceContext) {
-                    parentTraceContext = traceContext;
+            for (const auto& part : Reversed(Parts_)) {
+                if (part.TraceContext.Get() == currentTraceContext) {
+                    parentTraceContext = part.TraceContext;
+                    parentKind = part.Kind;
                     break;
                 }
             }
         }
 
         auto partTraceContext = parentTraceContext->CreateChild(Format("%v.%v", parentTraceContext->GetSpanName(), name));
-        RegisterPart(name, partTraceContext);
+        RegisterPart(name, partTraceContext, kind.value_or(parentKind));
         return partTraceContext;
+    }
+
+    THashMap<EEpochPartKind, TPartState> GetPartStatesByKind() override
+    {
+        auto guard = Guard(Lock_);
+        Flush(guard);
+        const TInstant now = GetInstant();
+        const auto halfDecayPeriod = TDuration::Seconds(WallTimeHalfDecayPeriodSeconds_.load(std::memory_order::relaxed));
+        for (auto& [kind, part] : PartStatesByKind_) {
+            DecayWallTime(part, now, halfDecayPeriod);
+        }
+
+        return PartStatesByKind_;
     }
 
     THashMap<std::string, TPartState> GetPartStates() override
@@ -124,7 +139,17 @@ private:
     // Guarded fields.
     TInstant FlushInstant_ = TInstant::Zero();
     THashMap<std::string, TPartState> PartStates_;
-    std::list<std::pair<TTraceContextPtr, TPartState*>> Parts_;
+    THashMap<EEpochPartKind, TPartState> PartStatesByKind_;
+
+    struct TActivePart
+    {
+        TTraceContextPtr TraceContext;
+        TPartState* State = nullptr;
+        TPartState* KindState = nullptr;
+        EEpochPartKind Kind = EEpochPartKind::Processing;
+    };
+
+    std::list<TActivePart> Parts_;
 
 private:
     void DoReconfigure(const TDynamicPartitionTracerSpecPtr& tracerSpec)
@@ -159,7 +184,7 @@ private:
         context->AddProfilingTag("ytflow.computation_class_name", Spec_->ComputationClassName);
     }
 
-    void RegisterPart(const std::string& partName, TTraceContextPtr context)
+    void RegisterPart(const std::string& partName, TTraceContextPtr context, EEpochPartKind kind)
     {
         auto guard = Guard(Lock_);
         Flush(guard);
@@ -167,7 +192,8 @@ private:
         if (emplaced) {
             it->second.Timer = Context_->Profiler.WithTag("part", partName).Timer("/epoch_parts_time_distribution");
         }
-        Parts_.push_back({std::move(context), &it->second});
+        auto& kindState = PartStatesByKind_[kind];
+        Parts_.push_back({std::move(context), &it->second, &kindState, kind});
         guard.Release();
         if (emplaced) {
             // Use func counter to provide properties:
@@ -211,20 +237,26 @@ private:
         while (!Parts_.empty()) {
             auto it = Parts_.end();
             --it;
-            auto context = it->first;
+            auto context = it->TraceContext;
             if (!context->IsFinished()) {
                 if (now > FlushInstant_) {
-                    incrementDurations(*it->second, now);
-                    it->second->MaxDuration = std::max(it->second->MaxDuration, now - context->GetStartTime());
+                    for (auto* state : {it->State, it->KindState}) {
+                        incrementDurations(*state, now);
+                        state->MaxDuration = std::max(state->MaxDuration, now - context->GetStartTime());
+                    }
                     FlushInstant_ = now;
                 }
                 break;
             }
-            it->second->MaxDuration = std::max(it->second->MaxDuration, context->GetDuration());
-            it->second->Timer.Record(context->GetDuration());
+            for (auto* state : {it->State, it->KindState}) {
+                state->MaxDuration = std::max(state->MaxDuration, context->GetDuration());
+                state->Timer.Record(context->GetDuration());
+            }
             auto finishTime = context->GetStartTime() + context->GetDuration();
             if (finishTime > FlushInstant_) {
-                incrementDurations(*it->second, finishTime);
+                for (auto* state : {it->State, it->KindState}) {
+                    incrementDurations(*state, finishTime);
+                }
                 FlushInstant_ = finishTime;
             }
             Parts_.erase(it);
@@ -234,7 +266,7 @@ private:
         }
         // Cleanup old not interesting spans.
         for (auto it = Parts_.begin(); it != Parts_.end();) {
-            auto context = it->first;
+            auto context = it->TraceContext;
             if (context->IsFinished()) {
                 Parts_.erase(it++);
             } else {
