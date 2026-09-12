@@ -251,7 +251,8 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
                 evaluator,
                 keys,
                 allKeys,
-                options.Timestamp)
+                options.Timestamp,
+                Logger)
             : GetReplicatedTableInSyncReplicas(
                 tableInfo,
                 nameTable,

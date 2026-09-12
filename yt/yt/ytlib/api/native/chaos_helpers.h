@@ -32,7 +32,8 @@ std::vector<NTabletClient::TTableReplicaId> GetChaosTableInSyncReplicas(
     const NQueryClient::TColumnEvaluatorPtr& columnEvaluator,
     const TSharedRange<NTableClient::TLegacyKey>& keys,
     bool allKeys,
-    NHiveClient::TTimestamp userTimestamp);
+    NHiveClient::TTimestamp userTimestamp,
+    const NLogging::TLogger& logger);
 
 NChaosClient::TReplicationCardPtr GetSyncReplicationCard(
     const IConnectionPtr& connection,
