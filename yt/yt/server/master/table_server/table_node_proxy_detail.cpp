@@ -465,7 +465,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetReplicated(true)
         .SetRemovable(true)
-        .SetPresent(table->GetHunkStorage()));
+        .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AssignedMountConfigExperiments)
         .SetPresent(isDynamic)
         .SetOpaque(true));
@@ -1096,13 +1096,15 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::HunkStorageId: {
-            const auto* hunkStorage = table->GetHunkStorage();
-            if (!hunkStorage) {
+            if (!isDynamic) {
                 break;
             }
 
+            const auto* hunkStorage = table->GetHunkStorage();
+            auto hunkStorageId = hunkStorage ? hunkStorage->GetId() : NullObjectId;
             BuildYsonFluently(consumer)
-                .Value(hunkStorage->GetId());
+                .Value(hunkStorageId);
+
             return true;
         }
 
@@ -1521,6 +1523,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 
         case EInternedAttributeKey::HunkStorageId: {
             auto* lockedTable = LockThisImpl();
+            lockedTable->ValidateAllTabletsUnmounted("Cannot remove hunk storage");
             lockedTable->ResetHunkStorage();
             return true;
         }
@@ -1950,6 +1953,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto objectId = ConvertTo<TObjectId>(value);
             auto* object = objectManager->GetObjectOrThrow(objectId);
 
+            lockedTable->ValidateAllTabletsUnmounted("Cannot reset hunk storage");
             lockedTable->ValidateAndSetHunkStorage(object);
 
             return true;
