@@ -27,7 +27,10 @@ namespace NYT::NHiveClient {
 class TClusterDirectory
     : public TClusterDirectoryBase<NApi::NNative::IConnection>
 {
+private:
     using TBase = TClusterDirectoryBase<NApi::NNative::IConnection>;
+
+    class TClustersOrchid;
 
 public:
     using TBase::TBase;
@@ -36,6 +39,8 @@ public:
         const std::string& name,
         const NYTree::INodePtr& connectionConfig) override;
     NObjectClient::TCellTagList GetCellTags(const TCluster& cluster) override;
+
+    NYTree::IYPathServicePtr GetOrchidService();
 };
 
 DEFINE_REFCOUNTED_TYPE(TClusterDirectory)
