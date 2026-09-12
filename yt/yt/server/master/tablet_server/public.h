@@ -19,6 +19,7 @@
 namespace NYT::NTableClient::NProto {
 
 class TRspCheckBackup;
+class TRspCheckDynamicTableLock;
 class TTabletStatistics;
 class TTableReplicaStatistics;
 
@@ -127,6 +128,7 @@ struct TCreateTabletActionOptions;
 struct TTabletStatistics;
 
 class TTabletResources;
+class TTabletCellBundleResources;
 
 struct TUnmountTabletOptions;
 struct TTableSettings;

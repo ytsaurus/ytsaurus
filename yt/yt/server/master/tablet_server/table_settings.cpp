@@ -12,6 +12,7 @@
 #include <yt/yt/server/master/chunk_server/domestic_medium.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
+#include <yt/yt/server/master/object_server/object_proxy.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
 #include <yt/yt/server/master/table_server/table_node_proxy.h>

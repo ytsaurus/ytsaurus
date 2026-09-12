@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
+#include <yt/yt/core/ytree/interned_attributes.h>
+
 namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////

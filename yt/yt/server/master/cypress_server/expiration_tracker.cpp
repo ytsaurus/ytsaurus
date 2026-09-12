@@ -27,8 +27,10 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/core/ytree/ypath_proxy.h>
+
 #include <yt/yt/core/yson/protobuf_helpers.h>
+
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/library/profiling/producer.h>
 

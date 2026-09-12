@@ -10,6 +10,7 @@
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/ytree/request_complexity_limits.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/public.h>
 

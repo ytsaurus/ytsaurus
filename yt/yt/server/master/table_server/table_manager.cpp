@@ -57,8 +57,8 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/core/concurrency/throughput_throttler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/random_access_queue.h>
 
