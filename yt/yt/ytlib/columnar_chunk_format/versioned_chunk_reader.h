@@ -67,14 +67,11 @@ NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using THolderPtr = TIntrusivePtr<TRefCounted>;
-
 // Chunk view support.
 TSharedRange<NTableClient::TRowRange> ClipRanges(
     TSharedRange<NTableClient::TRowRange> ranges,
-    NTableClient::TUnversionedRow lower,
-    NTableClient::TUnversionedRow upper,
-    THolderPtr holder);
+    const NTableClient::TLegacyOwningKey& lowerBound,
+    const NTableClient::TLegacyOwningKey& upperBound);
 
 ////////////////////////////////////////////////////////////////////////////////
 
