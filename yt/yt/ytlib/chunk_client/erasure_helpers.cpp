@@ -114,6 +114,7 @@ std::vector<TPartRange> Union(const std::vector<TPartRange>& ranges_)
             }
         } else {
             opened = true;
+            start = range.Begin;
             end = range.End;
         }
     }
