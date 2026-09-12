@@ -386,6 +386,18 @@ COPY ./credits/flow_server.CREDITS /usr/bin/flow_server.CREDITS
 
 ##########################################################################################
 
+FROM flow AS flow-java
+
+# Flow server with a Java runtime, for pipelines whose computations run in the Java SDK:
+# the worker starts the companion inside its own job, so the JRE has to sit next to
+# flow_server. The path matches the eclipse-temurin images, so jdk_bin_path stays
+# /opt/java/openjdk/bin/java.
+COPY --from=eclipse-temurin:17-jre /opt/java/openjdk /opt/java/openjdk
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="/opt/java/openjdk/bin:${PATH}"
+
+##########################################################################################
+
 FROM base-ytsaurus-python-packages AS base-query-tracker
 
 # Libpython shared objects that are needed for YQL system python UDFs to work.
