@@ -290,3 +290,49 @@ class TestScanString(TestCase):
             self.assertEqual(
                 scanstring(u'\\ud834\\udd1e"', 0, None, True),
                 (u'\U0001d11e', 13))
+
+    def test_single_char_escape_error_parity(self):
+        # Regression: for an invalid single-character escape (``\X``), the C
+        # scanstring reported the position of the backslash, while
+        # py_scanstring reports the position of the offending escape
+        # character itself. Because the "Invalid \\X escape sequence %r"
+        # message renders %r as the character at that position, the C path
+        # produced the nonsensical "Invalid \\X escape sequence '\\'" (naming
+        # the backslash, which is always a valid escape introducer) instead
+        # of naming the actual bad character. This asserts exact parity
+        # (position and rendered message) between the two backends, matching
+        # the \\uXXXX parity already covered by test_escape_error_parity.
+        if simplejson.decoder.c_scanstring is None:
+            return
+
+        def get_exc(scanstring, s):
+            try:
+                scanstring(s, 0, None, True)
+            except json.JSONDecodeError as e:
+                return (e.pos, str(e).split(': line ')[0])
+            return None
+
+        # Each case: (input, escape_char_index). The rendered message must
+        # name the character at escape_char_index, never the backslash.
+        cases = [
+            (u'\\x41"', 1),
+            (u'a\\q"', 2),
+            (u'\\ "', 1),
+            (u'prefix\\z"', 7),
+            (u'\\!"', 1),
+        ]
+        for s, esc_idx in cases:
+            expected = (
+                esc_idx,
+                "Invalid \\X escape sequence %r" % (s[esc_idx],))
+            py = get_exc(simplejson.decoder.py_scanstring, s)
+            c = get_exc(simplejson.decoder.c_scanstring, s)
+            self.assertEqual(py, expected,
+                             'py_scanstring(%r) expected %r, got %r' %
+                             (s, expected, py))
+            self.assertEqual(c, expected,
+                             'c_scanstring(%r) expected %r, got %r' %
+                             (s, expected, c))
+            # The reported position must land on the bad char, not the '\\'.
+            self.assertNotEqual(s[c[0]], u'\\',
+                                'c_scanstring(%r) pointed at the backslash' % (s,))
