@@ -6618,6 +6618,100 @@ class TestChaosMetaCluster(ChaosTestBase):
 
 
 class TestChaosMetaClusterNativeProxy(TestChaosMetaCluster):
+    @authors("shamteev")
+    def test_chaos_lease_manager_waits_for_removal_before_disabling(self):
+        [alpha_cell, beta_cell] = self._create_dedicated_areas_and_cells()
+        cluster_names = self.get_cluster_names()
+        drivers = self._get_drivers()
+        alpha_driver = drivers[-2]
+        beta_driver = drivers[-1]
+        coordinator_driver = drivers[0]
+
+        coordinator_peer_cluster_names = cluster_names[:1]
+        coordinator_meta_cluster_names = cluster_names[1:]
+        create_chaos_area(
+            "coordinator_c",
+            "c",
+            coordinator_peer_cluster_names,
+            meta_cluster_names=coordinator_meta_cluster_names)
+        create_chaos_area(
+            "coordinator_d",
+            "c",
+            coordinator_peer_cluster_names,
+            meta_cluster_names=coordinator_meta_cluster_names)
+
+        align_chaos_cell_tag()
+        coordinator_cell_c = self._sync_create_chaos_cell(
+            name="c",
+            peer_cluster_names=coordinator_peer_cluster_names,
+            meta_cluster_names=coordinator_meta_cluster_names,
+            area="coordinator_c")
+        coordinator_cell_d = self._sync_create_chaos_cell(
+            name="c",
+            peer_cluster_names=coordinator_peer_cluster_names,
+            meta_cluster_names=coordinator_meta_cluster_names,
+            area="coordinator_d")
+
+        def get_lease_manager_orchid(path):
+            return self._get_chaos_cell_orchid(
+                alpha_cell,
+                f"/chaos_lease_manager/{path}",
+                driver=alpha_driver)
+
+        def get_beta_lease_manager_state():
+            return self._get_chaos_cell_orchid(
+                beta_cell,
+                "/chaos_lease_manager/internal/state",
+                driver=beta_driver)
+
+        lease_id = create_chaos_lease(alpha_cell, attributes={"timeout": 120000})
+        expected_coordinator_cell_ids = {
+            alpha_cell,
+            beta_cell,
+            coordinator_cell_c,
+            coordinator_cell_d,
+        }
+
+        def check_lease_coordinators():
+            coordinators = get_lease_manager_orchid(f"chaos_leases/{lease_id}/coordinators")
+            return (
+                builtins.set(coordinators) == expected_coordinator_cell_ids and
+                all(state == "granted" for state in coordinators.values()))
+
+        wait(check_lease_coordinators)
+        coordinator_d_area_id = get(
+            f"#{coordinator_cell_d}/@area_id",
+            driver=coordinator_driver)
+
+        def check_only_coordinator_d_is_revoking():
+            coordinators = get_lease_manager_orchid(f"chaos_leases/{lease_id}/coordinators")
+            return coordinators == {coordinator_cell_d: "revoking"}
+
+        try:
+            with self.CellsDisabled(
+                    clusters=coordinator_peer_cluster_names,
+                    area_ids=[coordinator_d_area_id]):
+                remove_response = execute_command(
+                    "remove",
+                    {"path": f"#{lease_id}"},
+                    return_response=True)
+                wait(lambda: get_lease_manager_orchid(
+                    f"chaos_leases/{lease_id}/state") == "revoking_shortcuts_for_removal")
+                wait(check_only_coordinator_d_is_revoking)
+
+                suspend_chaos_cells([alpha_cell])
+
+                assert not remove_response.is_set()
+                assert get_lease_manager_orchid("internal/state") == "disabling"
+                wait(lambda: get_beta_lease_manager_state() == "enabling")
+
+            remove_response.wait()
+            assert remove_response.is_ok()
+            wait(lambda: get_lease_manager_orchid("internal/state") == "disabled")
+            wait(lambda: get_beta_lease_manager_state() == "enabled")
+        finally:
+            resume_chaos_cells([alpha_cell])
+
     @authors("osidorkin")
     def test_forsake_revoking_coordinator(self):
         cluster_names = self.get_cluster_names()

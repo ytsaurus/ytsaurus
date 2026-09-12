@@ -52,6 +52,7 @@ DEFINE_ENUM(EChaosReign,
     ((SecondaryIndices)                         (300501)) // sabdenovch
     ((SecondaryIndexTransitionStates)           (300502)) // sabdenovch
     ((BlockCardPropagationOnAlter)              (300503)) // osidorkin
+    ((WaitForChaosLeaseRemovalBeforeDisabling)  (300504)) // shamteev
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");

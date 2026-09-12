@@ -731,18 +731,24 @@ private:
                 bool hasChaosLeases = false;
                 // COMPAT(osidorkin)
                 auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
-                if (reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration) {
+                if (reign >= EChaosReign::RevokeChaosLeaseShortcutsOnMigration &&
+                    reign < EChaosReign::WaitForChaosLeaseRemovalBeforeDisabling)
+                {
                     for (const auto& [_, chaosLease] : ChaosLeaseMap_) {
                         if (chaosLease->IsNormalState()) {
                             hasChaosLeases = true;
                             break;
                         }
                     }
-
                 }
 
                 MigrateAllChaosLeases();
                 State_ = nextState;
+
+                // COMPAT(shamteev)
+                if (reign >= EChaosReign::WaitForChaosLeaseRemovalBeforeDisabling) {
+                    hasChaosLeases = !ChaosLeaseMap_.empty();
+                }
 
                 if (!hasChaosLeases) {
                     MakeStateTransition(EChaosLeaseManagerState::Disabling, EChaosLeaseManagerState::Disabled);
