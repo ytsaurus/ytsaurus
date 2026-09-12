@@ -1911,9 +1911,32 @@ bool IsReplicaDecommissioned(TChunkLocation* replica)
     return replica->GetNode()->IsDecommissioned();
 }
 
-bool IsReplicaOnPendingRestartNode(TChunkLocation* replica)
+int ComputeReplicaDeficit(
+    int targetReplicaCount,
+    int availableReplicaCount,
+    int temporarilyUnavailableReplicaCount,
+    int additionalRackFailureTolerance,
+    int maxReplicasPerRack)
 {
-    return replica->GetNode()->IsPendingRestart();
+    constexpr int MinSurvivingReplicaCount = 1;
+
+    auto targetReplicaDeficit = std::max<i64>(
+        static_cast<i64>(targetReplicaCount) -
+            availableReplicaCount -
+            temporarilyUnavailableReplicaCount,
+        0);
+    auto availableReplicaCountAfterTargetReplication = availableReplicaCount + targetReplicaDeficit;
+
+    auto replicaReserveForAdditionalRackFailures =
+        static_cast<i64>(additionalRackFailureTolerance) * maxReplicasPerRack;
+    auto requiredAvailableReplicaCount = std::min<i64>(
+        targetReplicaCount,
+        MinSurvivingReplicaCount + replicaReserveForAdditionalRackFailures);
+    auto failureToleranceReplicaDeficit = std::max<i64>(
+        requiredAvailableReplicaCount - availableReplicaCountAfterTargetReplication,
+        0);
+
+    return static_cast<int>(targetReplicaDeficit + failureToleranceReplicaDeficit);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

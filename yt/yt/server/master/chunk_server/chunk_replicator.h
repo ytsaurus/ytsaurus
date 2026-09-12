@@ -266,9 +266,6 @@ private:
 
     void MaybeRememberPartMissingChunk(TChunk* chunk);
 
-    static constexpr int MinAvailableReplicaCount = 1;
-    static constexpr int MaxTemporarilyUnavailableReplicaCount = 1;
-
     // COMPAT(grphil)
     void DoRefreshLocationSequoiaUnsafe(TNodeId nodeId, NNodeTrackerClient::TChunkLocationIndex locationIndex);
 

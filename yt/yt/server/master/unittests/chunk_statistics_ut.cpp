@@ -3,6 +3,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_requisition.h>
 #include <yt/yt/server/master/chunk_server/chunk_statistics.h>
 #include <yt/yt/server/master/chunk_server/domestic_medium.h>
+#include <yt/yt/server/master/chunk_server/helpers.h>
 
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
 #include <yt/yt/server/master/node_tracker_server/host.h>
@@ -79,6 +80,11 @@ public:
         MaxReplicasPerDataCenter_ = maxReplicasPerDataCenter;
     }
 
+    void SetMaxReplicasPerRack(int maxReplicasPerRack)
+    {
+        MaxReplicasPerRack_ = maxReplicasPerRack;
+    }
+
     int GetConsistentPlacementWriteTargetsCallCount() const
     {
         return ConsistentPlacementWriteTargetsCallCount_;
@@ -112,7 +118,7 @@ public:
 
     int GetMaxReplicasPerRack(int /*mediumIndex*/, const TChunk* /*chunk*/) const override
     {
-        return 1;
+        return MaxReplicasPerRack_;
     }
 
     int GetMaxReplicasPerDataCenter(
@@ -121,6 +127,14 @@ public:
         const TDataCenter* /*dataCenter*/) const override
     {
         return MaxReplicasPerDataCenter_.value_or(Max<int>());
+    }
+
+    bool IsDataCenterTemporarilyUnavailable(const TDataCenter* dataCenter) const override
+    {
+        const auto& dataCenterName = dataCenter->GetName();
+        return DynamicConfig_->UseDataCenterAwareReplicator &&
+            DynamicConfig_->StorageDataCenters.contains(dataCenterName) &&
+            DynamicConfig_->TemporarilyUnavailableStorageDataCenters.contains(dataCenterName);
     }
 
     TNodeList GetConsistentPlacementWriteTargets(
@@ -137,11 +151,98 @@ private:
     TMediumMap<TMedium*> MediaByIndex_;
     TTestingMediumMap Media_;
     TNodeList ConsistentPlacementWriteTargets_;
+    int MaxReplicasPerRack_ = 1;
     std::optional<int> MaxReplicasPerDataCenter_;
     mutable int ConsistentPlacementWriteTargetsCallCount_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestingChunkStatisticsCalculatorCallbacks)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChunkStatisticsHelpersTest, ReplicaDeficitGrid)
+{
+    struct TTestCase
+    {
+        const char* Name;
+        int TargetReplicaCount;
+        int AvailableReplicaCount;
+        int TemporarilyUnavailableReplicaCount;
+        int AdditionalRackFailureTolerance;
+        int MaxReplicasPerRack;
+        int ExpectedReplicaDeficit;
+    };
+
+    const std::vector<TTestCase> testCases{
+        {
+            .Name = "TargetReplicaDeficitDominates",
+            .TargetReplicaCount = 5,
+            .AvailableReplicaCount = 1,
+            .TemporarilyUnavailableReplicaCount = 2,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 1,
+            .ExpectedReplicaDeficit = 2,
+        },
+        {
+            .Name = "FailureToleranceReplicaDeficitDominates",
+            .TargetReplicaCount = 5,
+            .AvailableReplicaCount = 1,
+            .TemporarilyUnavailableReplicaCount = 4,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 1,
+            .ExpectedReplicaDeficit = 1,
+        },
+        {
+            .Name = "AtSafetyBoundary",
+            .TargetReplicaCount = 5,
+            .AvailableReplicaCount = 2,
+            .TemporarilyUnavailableReplicaCount = 3,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 1,
+            .ExpectedReplicaDeficit = 0,
+        },
+        {
+            .Name = "FailureTargetIsCappedAtTargetReplicaCount",
+            .TargetReplicaCount = 5,
+            .AvailableReplicaCount = 4,
+            .TemporarilyUnavailableReplicaCount = 0,
+            .AdditionalRackFailureTolerance = 2,
+            .MaxReplicasPerRack = 3,
+            .ExpectedReplicaDeficit = 1,
+        },
+        {
+            .Name = "AtLeastOneReplicaIsRequiredWhenTemporaryCountExceedsTarget",
+            .TargetReplicaCount = 5,
+            .AvailableReplicaCount = 0,
+            .TemporarilyUnavailableReplicaCount = 6,
+            .AdditionalRackFailureTolerance = 0,
+            .MaxReplicasPerRack = 1,
+            .ExpectedReplicaDeficit = 1,
+        },
+        {
+            .Name = "AvailableReplicaCountExceedsTarget",
+            .TargetReplicaCount = 5,
+            .AvailableReplicaCount = 6,
+            .TemporarilyUnavailableReplicaCount = 0,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 1,
+            .ExpectedReplicaDeficit = 0,
+        },
+    };
+
+    for (const auto& testCase : testCases) {
+        SCOPED_TRACE(testCase.Name);
+
+        EXPECT_EQ(
+            ComputeReplicaDeficit(
+                testCase.TargetReplicaCount,
+                testCase.AvailableReplicaCount,
+                testCase.TemporarilyUnavailableReplicaCount,
+                testCase.AdditionalRackFailureTolerance,
+                testCase.MaxReplicasPerRack),
+            testCase.ExpectedReplicaDeficit);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -628,6 +729,271 @@ TEST_F(TChunkStatisticsCalculatorTest, RegularReplicaStateGrid)
     }
 }
 
+TEST_F(TChunkStatisticsCalculatorTest, RegularReplicaInTemporarilyUnavailableDataCenterGrid)
+{
+    struct TTestCase
+    {
+        const char* Name;
+        EChunkStatus ExpectedStatus;
+        ECrossMediumChunkStatus ExpectedCrossMediumStatus;
+        int ExpectedTemporarilyUnavailableReplicaCount;
+        int ReplicationFactor;
+        int OtherAvailableReplicaCount;
+        bool UseDataCenterAwareReplicator;
+        bool IsStorageDataCenter;
+        bool IsDataCenterTemporarilyUnavailable;
+        bool IsPendingRestart;
+        int MaxReplicasPerDataCenter;
+    };
+
+    const std::vector<TTestCase> testCases{
+        {
+            .Name = "TemporarilyUnavailableStorageDataCenter",
+            .ExpectedStatus = EChunkStatus::TemporarilyUnavailable,
+            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::None,
+            .ExpectedTemporarilyUnavailableReplicaCount = 1,
+            .ReplicationFactor = 3,
+            .OtherAvailableReplicaCount = 2,
+            .UseDataCenterAwareReplicator = true,
+            .IsStorageDataCenter = true,
+            .IsDataCenterTemporarilyUnavailable = true,
+            .IsPendingRestart = false,
+            .MaxReplicasPerDataCenter = Max<int>(),
+        },
+        {
+            .Name = "StorageDataCenterIsAvailable",
+            .ExpectedStatus = EChunkStatus::None,
+            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::None,
+            .ExpectedTemporarilyUnavailableReplicaCount = 0,
+            .ReplicationFactor = 3,
+            .OtherAvailableReplicaCount = 2,
+            .UseDataCenterAwareReplicator = true,
+            .IsStorageDataCenter = true,
+            .IsDataCenterTemporarilyUnavailable = false,
+            .IsPendingRestart = false,
+            .MaxReplicasPerDataCenter = Max<int>(),
+        },
+        {
+            .Name = "DataCenterAwarenessDisabled",
+            .ExpectedStatus = EChunkStatus::None,
+            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::None,
+            .ExpectedTemporarilyUnavailableReplicaCount = 0,
+            .ReplicationFactor = 3,
+            .OtherAvailableReplicaCount = 2,
+            .UseDataCenterAwareReplicator = false,
+            .IsStorageDataCenter = true,
+            .IsDataCenterTemporarilyUnavailable = true,
+            .IsPendingRestart = false,
+            .MaxReplicasPerDataCenter = Max<int>(),
+        },
+        {
+            .Name = "NonStorageDataCenter",
+            .ExpectedStatus = EChunkStatus::UnsafelyPlaced,
+            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::None,
+            .ExpectedTemporarilyUnavailableReplicaCount = 0,
+            .ReplicationFactor = 3,
+            .OtherAvailableReplicaCount = 2,
+            .UseDataCenterAwareReplicator = true,
+            .IsStorageDataCenter = false,
+            .IsDataCenterTemporarilyUnavailable = true,
+            .IsPendingRestart = false,
+            .MaxReplicasPerDataCenter = 0,
+        },
+        {
+            .Name = "OnlyReplicaInTemporaryDataCenterIsLost",
+            .ExpectedStatus = EChunkStatus::Lost |
+                EChunkStatus::Underreplicated |
+                EChunkStatus::TemporarilyUnavailable,
+            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::Lost |
+                ECrossMediumChunkStatus::Precarious |
+                ECrossMediumChunkStatus::Deficient,
+            .ExpectedTemporarilyUnavailableReplicaCount = 1,
+            .ReplicationFactor = 1,
+            .OtherAvailableReplicaCount = 0,
+            .UseDataCenterAwareReplicator = true,
+            .IsStorageDataCenter = true,
+            .IsDataCenterTemporarilyUnavailable = true,
+            .IsPendingRestart = false,
+            .MaxReplicasPerDataCenter = Max<int>(),
+        },
+        {
+            .Name = "PendingRestartInTemporaryDataCenterIsLost",
+            .ExpectedStatus = EChunkStatus::Lost |
+                EChunkStatus::Underreplicated |
+                EChunkStatus::TemporarilyUnavailable,
+            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::Lost |
+                ECrossMediumChunkStatus::Precarious |
+                ECrossMediumChunkStatus::Deficient,
+            .ExpectedTemporarilyUnavailableReplicaCount = 1,
+            .ReplicationFactor = 1,
+            .OtherAvailableReplicaCount = 0,
+            .UseDataCenterAwareReplicator = true,
+            .IsStorageDataCenter = true,
+            .IsDataCenterTemporarilyUnavailable = true,
+            .IsPendingRestart = true,
+            .MaxReplicasPerDataCenter = Max<int>(),
+        },
+    };
+
+    auto* dataCenter = CreateDataCenter();
+
+    for (const auto& testCase : testCases) {
+        SCOPED_TRACE(testCase.Name);
+
+        DynamicConfig_->UseDataCenterAwareReplicator = testCase.UseDataCenterAwareReplicator;
+        Callbacks_->SetMaxReplicasPerDataCenter(testCase.MaxReplicasPerDataCenter);
+        DynamicConfig_->StorageDataCenters.clear();
+        if (testCase.IsStorageDataCenter) {
+            DynamicConfig_->StorageDataCenters.insert(dataCenter->GetName());
+        }
+        DynamicConfig_->TemporarilyUnavailableStorageDataCenters.clear();
+        if (testCase.IsDataCenterTemporarilyUnavailable) {
+            DynamicConfig_->TemporarilyUnavailableStorageDataCenters.insert(dataCenter->GetName());
+        }
+
+        auto chunk = CreateChunk();
+        SetChunkReplication(chunk.get(), {
+            {
+                .MediumIndex = DefaultStoreMediumIndex,
+                .ReplicationFactor = testCase.ReplicationFactor,
+            },
+        });
+
+        TStoredChunkReplicaList replicas;
+        for (int index = 0; index < testCase.OtherAvailableReplicaCount; ++index) {
+            replicas.push_back(CreateReplica());
+        }
+        auto* dataCenterNode = CreateNodeInRack(CreateRack(dataCenter));
+        if (testCase.IsPendingRestart) {
+            YT_VERIFY(dataCenterNode->SetMaintenanceFlag(
+                NMaintenanceTrackerServer::EMaintenanceType::PendingRestart,
+                "test",
+                TInstant::Zero()));
+        }
+        replicas.push_back(CreateReplica(dataCenterNode));
+
+        auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
+
+        const auto& mediumStatistics = statistics.PerMediumStatistics[DefaultStoreMediumIndex];
+        EXPECT_EQ(mediumStatistics.Status, testCase.ExpectedStatus);
+        EXPECT_EQ(
+            mediumStatistics.TemporarilyUnavailableReplicaCount[NChunkClient::GenericChunkReplicaIndex],
+            testCase.ExpectedTemporarilyUnavailableReplicaCount);
+        EXPECT_EQ(statistics.Status, testCase.ExpectedCrossMediumStatus);
+    }
+}
+
+TEST_F(TChunkStatisticsCalculatorTest, RegularTemporarilyUnavailableRackFailureToleranceGrid)
+{
+    constexpr int ReplicationFactor = 5;
+
+    struct TTestCase
+    {
+        const char* Name;
+        int AvailableReplicaCount;
+        int TemporarilyUnavailableReplicaCount;
+        bool ExpectedUnderreplicated;
+        int AdditionalRackFailureTolerance;
+        int MaxReplicasPerRack;
+    };
+
+    const std::vector<TTestCase> testCases{
+        {
+            .Name = "ZeroToleranceAtBoundary",
+            .AvailableReplicaCount = 1,
+            .TemporarilyUnavailableReplicaCount = 4,
+            .ExpectedUnderreplicated = false,
+            .AdditionalRackFailureTolerance = 0,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "ZeroToleranceWithMissingReplica",
+            .AvailableReplicaCount = 1,
+            .TemporarilyUnavailableReplicaCount = 3,
+            .ExpectedUnderreplicated = true,
+            .AdditionalRackFailureTolerance = 0,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "OneAdditionalRackFailureAtBoundary",
+            .AvailableReplicaCount = 2,
+            .TemporarilyUnavailableReplicaCount = 3,
+            .ExpectedUnderreplicated = false,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "OneAdditionalRackFailureBelowBoundary",
+            .AvailableReplicaCount = 2,
+            .TemporarilyUnavailableReplicaCount = 3,
+            .ExpectedUnderreplicated = true,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 2,
+        },
+        {
+            .Name = "OneAdditionalRackFailureWithRackLimitTwoAtBoundary",
+            .AvailableReplicaCount = 3,
+            .TemporarilyUnavailableReplicaCount = 2,
+            .ExpectedUnderreplicated = false,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 2,
+        },
+        {
+            .Name = "TwoAdditionalRackFailuresAtBoundary",
+            .AvailableReplicaCount = 3,
+            .TemporarilyUnavailableReplicaCount = 2,
+            .ExpectedUnderreplicated = false,
+            .AdditionalRackFailureTolerance = 2,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "TwoAdditionalRackFailuresBelowBoundary",
+            .AvailableReplicaCount = 2,
+            .TemporarilyUnavailableReplicaCount = 3,
+            .ExpectedUnderreplicated = true,
+            .AdditionalRackFailureTolerance = 2,
+            .MaxReplicasPerRack = 1,
+        },
+    };
+
+    for (const auto& testCase : testCases) {
+        SCOPED_TRACE(testCase.Name);
+
+        DynamicConfig_->TemporarilyUnavailableExtraFailureDomainTolerance = testCase.AdditionalRackFailureTolerance;
+        Callbacks_->SetMaxReplicasPerRack(testCase.MaxReplicasPerRack);
+
+        auto chunk = CreateChunk();
+        SetChunkReplication(chunk.get(), {
+            {
+                .MediumIndex = DefaultStoreMediumIndex,
+                .ReplicationFactor = ReplicationFactor,
+            },
+        });
+
+        TStoredChunkReplicaList replicas;
+        for (int index = 0; index < testCase.AvailableReplicaCount; ++index) {
+            replicas.push_back(CreateReplica(EReplicaAvailability::Available));
+        }
+        for (int index = 0; index < testCase.TemporarilyUnavailableReplicaCount; ++index) {
+            replicas.push_back(CreateReplica(EReplicaAvailability::TemporarilyUnavailable));
+        }
+
+        auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
+
+        const auto& mediumStatistics = statistics.PerMediumStatistics[DefaultStoreMediumIndex];
+        auto expectedStatus = EChunkStatus::TemporarilyUnavailable;
+        if (testCase.ExpectedUnderreplicated) {
+            expectedStatus |= EChunkStatus::Underreplicated;
+        }
+        EXPECT_EQ(mediumStatistics.Status, expectedStatus);
+        EXPECT_EQ(
+            statistics.Status,
+            testCase.ExpectedUnderreplicated
+                ? ECrossMediumChunkStatus::Deficient
+                : ECrossMediumChunkStatus::None);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Aggregated replication.
 
@@ -909,42 +1275,74 @@ TEST_F(TChunkStatisticsCalculatorTest, ErasureErasedPartsGrid)
     }
 }
 
-TEST_F(TChunkStatisticsCalculatorTest, ErasureTemporarilyUnavailablePartsGrid)
+TEST_F(TChunkStatisticsCalculatorTest, ErasureTemporarilyUnavailableRackFailureToleranceGrid)
 {
-    // Temporary unavailability is safe as long as the number of unavailable parts
-    // plus the per-rack replica limit (1 in these tests) does not exceed the
-    // guaranteed repairable part count of the codec.
     struct TTestCase
     {
         const char* Name;
         int TemporarilyUnavailablePartCount;
-        EChunkStatus ExpectedStatus;
-        ECrossMediumChunkStatus ExpectedCrossMediumStatus;
+        bool ExpectedMissing;
+        int AdditionalRackFailureTolerance;
+        int MaxReplicasPerRack;
     };
 
     const std::vector<TTestCase> testCases{
         {
-            .Name = "SinglePartIsSafe",
-            .TemporarilyUnavailablePartCount = 1,
-            .ExpectedStatus = EChunkStatus::TemporarilyUnavailable,
-            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::None,
-        },
-        {
-            .Name = "RepairGuaranteeBoundaryIsSafe",
-            .TemporarilyUnavailablePartCount = TestErasureGuaranteedRepairablePartCount - 1,
-            .ExpectedStatus = EChunkStatus::TemporarilyUnavailable,
-            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::None,
-        },
-        {
-            .Name = "BeyondRepairGuaranteeIsMissing",
+            .Name = "ZeroToleranceAtBoundary",
             .TemporarilyUnavailablePartCount = TestErasureGuaranteedRepairablePartCount,
-            .ExpectedStatus = EChunkStatus::DataMissing | EChunkStatus::TemporarilyUnavailable,
-            .ExpectedCrossMediumStatus = ECrossMediumChunkStatus::Deficient | ECrossMediumChunkStatus::DataMissing,
+            .ExpectedMissing = false,
+            .AdditionalRackFailureTolerance = 0,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "OneAdditionalRackFailureAtBoundary",
+            .TemporarilyUnavailablePartCount = TestErasureGuaranteedRepairablePartCount - 1,
+            .ExpectedMissing = false,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "OneAdditionalRackFailureBeyondBoundary",
+            .TemporarilyUnavailablePartCount = TestErasureGuaranteedRepairablePartCount,
+            .ExpectedMissing = true,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "OneAdditionalRackFailureWithRackLimitTwoAtBoundary",
+            .TemporarilyUnavailablePartCount = TestErasureGuaranteedRepairablePartCount - 2,
+            .ExpectedMissing = false,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 2,
+        },
+        {
+            .Name = "OneAdditionalRackFailureWithRackLimitTwoBeyondBoundary",
+            .TemporarilyUnavailablePartCount = TestErasureGuaranteedRepairablePartCount - 1,
+            .ExpectedMissing = true,
+            .AdditionalRackFailureTolerance = 1,
+            .MaxReplicasPerRack = 2,
+        },
+        {
+            .Name = "TwoAdditionalRackFailuresAtBoundary",
+            .TemporarilyUnavailablePartCount = TestErasureGuaranteedRepairablePartCount - 2,
+            .ExpectedMissing = false,
+            .AdditionalRackFailureTolerance = 2,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "TwoAdditionalRackFailuresBeyondBoundary",
+            .TemporarilyUnavailablePartCount = TestErasureGuaranteedRepairablePartCount - 1,
+            .ExpectedMissing = true,
+            .AdditionalRackFailureTolerance = 2,
+            .MaxReplicasPerRack = 1,
         },
     };
 
     for (const auto& testCase : testCases) {
         SCOPED_TRACE(testCase.Name);
+
+        DynamicConfig_->TemporarilyUnavailableExtraFailureDomainTolerance = testCase.AdditionalRackFailureTolerance;
+        Callbacks_->SetMaxReplicasPerRack(testCase.MaxReplicasPerRack);
 
         auto chunk = CreateErasureChunk();
 
@@ -967,10 +1365,84 @@ TEST_F(TChunkStatisticsCalculatorTest, ErasureTemporarilyUnavailablePartsGrid)
 
         const auto& mediumStatistics =
             statistics.PerMediumStatistics[DefaultStoreMediumIndex];
-        EXPECT_EQ(mediumStatistics.Status, testCase.ExpectedStatus);
-        EXPECT_EQ(statistics.Status, testCase.ExpectedCrossMediumStatus);
+        auto expectedStatus = EChunkStatus::TemporarilyUnavailable;
+        if (testCase.ExpectedMissing) {
+            expectedStatus |= EChunkStatus::DataMissing;
+        }
+        EXPECT_EQ(mediumStatistics.Status, expectedStatus);
+        EXPECT_EQ(
+            statistics.Status,
+            testCase.ExpectedMissing
+                ? ECrossMediumChunkStatus::Deficient | ECrossMediumChunkStatus::DataMissing
+                : ECrossMediumChunkStatus::None);
         EXPECT_EQ(mediumStatistics.TemporarilyUnavailableReplicaCount[0], 1);
     }
+}
+
+TEST_F(TChunkStatisticsCalculatorTest, ErasedPartPromotesTemporarilyUnavailablePart)
+{
+    constexpr int TemporarilyUnavailableDataPartIndex = 0;
+    constexpr int ErasedParityPartIndex = TestErasureTotalPartCount - 1;
+
+    auto chunk = CreateErasureChunk();
+
+    TStoredChunkReplicaList replicas;
+    for (int replicaIndex = 0; replicaIndex < TestErasureTotalPartCount; ++replicaIndex) {
+        if (replicaIndex == ErasedParityPartIndex) {
+            continue;
+        }
+
+        replicas.push_back(replicaIndex == TemporarilyUnavailableDataPartIndex
+            ? CreateReplica(
+                EReplicaAvailability::TemporarilyUnavailable,
+                DefaultStoreMediumIndex,
+                replicaIndex)
+            : CreateReplica(
+                nullptr,
+                DefaultStoreMediumIndex,
+                replicaIndex));
+    }
+
+    auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
+
+    EXPECT_EQ(
+        statistics.PerMediumStatistics[DefaultStoreMediumIndex].Status,
+        EChunkStatus::TemporarilyUnavailable |
+            EChunkStatus::DataMissing |
+            EChunkStatus::ParityMissing);
+    EXPECT_EQ(
+        statistics.Status,
+        ECrossMediumChunkStatus::Deficient |
+            ECrossMediumChunkStatus::DataMissing |
+            ECrossMediumChunkStatus::ParityMissing);
+}
+
+TEST_F(TChunkStatisticsCalculatorTest, ErasureReplicaInTemporarilyUnavailableDataCenter)
+{
+    DynamicConfig_->UseDataCenterAwareReplicator = true;
+    auto* dataCenter = CreateDataCenter();
+    DynamicConfig_->StorageDataCenters.insert(dataCenter->GetName());
+    DynamicConfig_->TemporarilyUnavailableStorageDataCenters.insert(dataCenter->GetName());
+
+    auto chunk = CreateErasureChunk();
+
+    TStoredChunkReplicaList replicas;
+    for (int replicaIndex = 0; replicaIndex < TestErasureTotalPartCount; ++replicaIndex) {
+        auto* node = replicaIndex == 0
+            ? CreateNodeInRack(CreateRack(dataCenter))
+            : nullptr;
+        replicas.push_back(CreateReplica(
+            node,
+            DefaultStoreMediumIndex,
+            replicaIndex));
+    }
+
+    auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
+
+    const auto& mediumStatistics = statistics.PerMediumStatistics[DefaultStoreMediumIndex];
+    EXPECT_EQ(mediumStatistics.Status, EChunkStatus::TemporarilyUnavailable);
+    EXPECT_EQ(mediumStatistics.TemporarilyUnavailableReplicaCount[0], 1);
+    EXPECT_EQ(statistics.Status, ECrossMediumChunkStatus::None);
 }
 
 TEST_F(TChunkStatisticsCalculatorTest, ErasureDecommissionedPartGrid)
@@ -1317,6 +1789,7 @@ TEST_F(TChunkStatisticsCalculatorTest, RackAwarePlacementGrid)
         int ExtraRacklessReplicaCount;
         EChunkStatus ExpectedStatus;
         int ExpectedReplicationIndexCount;
+        int MaxReplicasPerRack;
     };
 
     const std::vector<TTestCase> testCases{
@@ -1325,6 +1798,14 @@ TEST_F(TChunkStatisticsCalculatorTest, RackAwarePlacementGrid)
             .ExtraRacklessReplicaCount = 1,
             .ExpectedStatus = EChunkStatus::UnsafelyPlaced,
             .ExpectedReplicationIndexCount = 1,
+            .MaxReplicasPerRack = 1,
+        },
+        {
+            .Name = "RackLimitBoundaryIsSafe",
+            .ExtraRacklessReplicaCount = 1,
+            .ExpectedStatus = EChunkStatus::None,
+            .ExpectedReplicationIndexCount = 0,
+            .MaxReplicasPerRack = 2,
         },
         {
             // Overreplication takes precedence over unsafe placement.
@@ -1332,11 +1813,14 @@ TEST_F(TChunkStatisticsCalculatorTest, RackAwarePlacementGrid)
             .ExtraRacklessReplicaCount = 2,
             .ExpectedStatus = EChunkStatus::Overreplicated | EChunkStatus::UnexpectedOverreplicated,
             .ExpectedReplicationIndexCount = 0,
+            .MaxReplicasPerRack = 1,
         },
     };
 
     for (const auto& testCase : testCases) {
         SCOPED_TRACE(testCase.Name);
+
+        Callbacks_->SetMaxReplicasPerRack(testCase.MaxReplicasPerRack);
 
         auto chunk = CreateChunk();
 
@@ -1388,6 +1872,43 @@ TEST_F(TChunkStatisticsCalculatorTest, DataCenterLimitViolationIsUnsafe)
     EXPECT_EQ(statistics.Status, ECrossMediumChunkStatus::None);
 }
 
+TEST_F(TChunkStatisticsCalculatorTest, RackLimitIsEnforcedIndependentlyOfDataCenterLimit)
+{
+    Callbacks_->SetMaxReplicasPerRack(1);
+    Callbacks_->SetMaxReplicasPerDataCenter(2);
+
+    auto* dataCenter = CreateDataCenter();
+
+    for (bool replicasShareRack : {false, true}) {
+        SCOPED_TRACE(replicasShareRack ? "SameRack" : "DistinctRacks");
+
+        auto chunk = CreateChunk();
+        auto* firstRack = CreateRack(dataCenter);
+        auto* secondRack = replicasShareRack
+            ? firstRack
+            : CreateRack(dataCenter);
+        TStoredChunkReplicaList replicas{
+            CreateReplica(CreateNodeInRack(firstRack)),
+            CreateReplica(CreateNodeInRack(secondRack)),
+            CreateReplica(),
+        };
+
+        auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
+
+        const auto& mediumStatistics =
+            statistics.PerMediumStatistics[DefaultStoreMediumIndex];
+        EXPECT_EQ(
+            mediumStatistics.Status,
+            replicasShareRack
+                ? EChunkStatus::UnsafelyPlaced
+                : EChunkStatus::None);
+        EXPECT_EQ(
+            static_cast<bool>(mediumStatistics.UnsafelyPlacedReplica),
+            replicasShareRack);
+        EXPECT_EQ(statistics.Status, ECrossMediumChunkStatus::None);
+    }
+}
+
 TEST_F(TChunkStatisticsCalculatorTest, HostAwarePlacementGrid)
 {
     struct TTestCase
@@ -1433,21 +1954,81 @@ TEST_F(TChunkStatisticsCalculatorTest, HostAwarePlacementGrid)
     }
 }
 
-TEST_F(TChunkStatisticsCalculatorTest, ErasurePartsInSameRackAreUnsafelyPlaced)
+TEST_F(TChunkStatisticsCalculatorTest, ErasureRackLimitPlacementGrid)
+{
+    constexpr int FirstPlacedPartIndex = 3;
+    constexpr int SecondPlacedPartIndex = 4;
+
+    Callbacks_->SetMaxReplicasPerRack(1);
+    Callbacks_->SetMaxReplicasPerDataCenter(2);
+
+    auto* dataCenter = CreateDataCenter();
+    for (bool partsShareRack : {false, true}) {
+        SCOPED_TRACE(partsShareRack ? "SameRack" : "DistinctRacks");
+
+        auto chunk = CreateErasureChunk();
+        auto* firstRack = CreateRack(dataCenter);
+        auto* secondRack = partsShareRack
+            ? firstRack
+            : CreateRack(dataCenter);
+
+        TStoredChunkReplicaList replicas;
+        for (int replicaIndex = 0; replicaIndex < TestErasureTotalPartCount; ++replicaIndex) {
+            TNode* node = nullptr;
+            if (replicaIndex == FirstPlacedPartIndex) {
+                node = CreateNodeInRack(firstRack);
+            } else if (replicaIndex == SecondPlacedPartIndex) {
+                node = CreateNodeInRack(secondRack);
+            }
+            replicas.push_back(CreateReplica(
+                node,
+                DefaultStoreMediumIndex,
+                replicaIndex));
+        }
+
+        auto statistics = StatisticsCalculator_->ComputeChunkStatistics(chunk.get(), replicas);
+
+        const auto& mediumStatistics =
+            statistics.PerMediumStatistics[DefaultStoreMediumIndex];
+        EXPECT_EQ(
+            mediumStatistics.Status,
+            partsShareRack
+                ? EChunkStatus::UnsafelyPlaced
+                : EChunkStatus::None);
+        if (partsShareRack) {
+            EXPECT_EQ(
+                mediumStatistics.ReplicationIndexes,
+                (TCompactVector<int, TypicalReplicaCount>{SecondPlacedPartIndex}));
+            ASSERT_TRUE(mediumStatistics.UnsafelyPlacedReplica);
+            EXPECT_EQ(mediumStatistics.UnsafelyPlacedReplica.GetReplicaIndex(), SecondPlacedPartIndex);
+        } else {
+            EXPECT_TRUE(mediumStatistics.ReplicationIndexes.empty());
+            EXPECT_FALSE(mediumStatistics.UnsafelyPlacedReplica);
+        }
+        EXPECT_EQ(statistics.Status, ECrossMediumChunkStatus::None);
+    }
+}
+
+TEST_F(TChunkStatisticsCalculatorTest, ErasureDataCenterLimitViolationIsUnsafe)
 {
     constexpr int FirstClashingPartIndex = 3;
     constexpr int SecondClashingPartIndex = 4;
 
-    auto chunk = CreateErasureChunk();
+    Callbacks_->SetMaxReplicasPerRack(2);
+    Callbacks_->SetMaxReplicasPerDataCenter(1);
 
-    auto* rack = CreateRack();
+    auto chunk = CreateErasureChunk();
+    auto* dataCenter = CreateDataCenter();
+
     TStoredChunkReplicaList replicas;
     for (int replicaIndex = 0; replicaIndex < TestErasureTotalPartCount; ++replicaIndex) {
-        auto inRack =
+        auto inDataCenter =
             replicaIndex == FirstClashingPartIndex ||
             replicaIndex == SecondClashingPartIndex;
         replicas.push_back(CreateReplica(
-            inRack ? CreateNodeInRack(rack) : nullptr,
+            inDataCenter
+                ? CreateNodeInRack(CreateRack(dataCenter))
+                : nullptr,
             DefaultStoreMediumIndex,
             replicaIndex));
     }

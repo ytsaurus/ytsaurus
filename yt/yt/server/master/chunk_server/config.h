@@ -872,6 +872,13 @@ struct TDynamicChunkManagerConfig
     //! Set of storage data centers on which replica placement is forbidden.
     THashSet<std::string> BannedStorageDataCenters;
 
+    //! Set of storage data centers that are temporarily unavailable due to planned maintenance.
+    //! Must be disjoint from |BannedStorageDataCenters|.
+    THashSet<std::string> TemporarilyUnavailableStorageDataCenters;
+
+    //! Number of additional rack failures a chunk must tolerate while some replicas are temporarily unavailable.
+    int TemporarilyUnavailableExtraFailureDomainTolerance;
+
     TDynamicDataCenterFailureDetectorConfigPtr DataCenterFailureDetector;
 
     TDuration ProfilingPeriod;
