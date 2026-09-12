@@ -1273,11 +1273,40 @@ class TestSmoothMovementWithMountCacheDelay(SmoothMovementBase):
             h.wait_for_action()
 
     @authors("ifsmirnov")
-    def test_lookup_retries(self):
+    def test_lookup_retries_simple(self):
         rows = self._prepare()
         keys = [{"key": row["key"]} for row in rows]
 
         # lookup_rows must succeed and return correct data despite the stale mount cache.
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+    @authors("ifsmirnov")
+    def test_lookup_retries_with_multiple_mount_cache_entries(self):
+        sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "0"}]
+        keys = [{"key": 0}]
+        insert_rows("//tmp/t", rows)
+
+        table_id = get("//tmp/t/@id")
+
+        # Keep the path entry stale after smooth movement.
+        assert_items_equal(lookup_rows("//tmp/t", keys), rows)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        helper = SmoothMovementHelper(tablet_id)
+        helper.start()
+        helper.wait_for_action()
+
+        # Add an up-to-date entry for the same table under a different cache key.
+        assert_items_equal(lookup_rows(f"#{table_id}", keys), rows)
+
+        set("//sys/@config/table_manager/testing/get_mount_info_delay", 30000)
+
+        # The stale path entry must be patched from the redirection hint despite the newer entry.
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
     @authors("ifsmirnov")
