@@ -2537,6 +2537,7 @@ class YTInstance(object):
         self._run_builtin_yt_component("proxy", name="rpc_proxy")
 
         client = self._create_cluster_client()
+        client.config["proxy"]["retries"]["enable"] = False
 
         expected_endpoints = set()
         proxies_ports = []
