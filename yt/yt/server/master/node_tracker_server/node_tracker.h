@@ -16,8 +16,6 @@
 
 #include <yt/yt/ytlib/hydra/public.h>
 
-#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
-
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>

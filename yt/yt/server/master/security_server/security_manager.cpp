@@ -64,6 +64,8 @@
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/server/lib/security_server/detailed_master_memory.h>
 #include <yt/yt/server/lib/security_server/helpers.h>
 
@@ -76,6 +78,7 @@
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/core/concurrency/fls.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/intern_registry.h>
 

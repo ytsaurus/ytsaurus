@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/lib/hydra/hydra_context.h>
+
 namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;

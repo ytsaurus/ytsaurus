@@ -19,6 +19,8 @@
 #include <yt/yt/server/master/object_server/object.h>
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>

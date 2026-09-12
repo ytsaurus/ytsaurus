@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include "hunk_storage_node.h"
 #include "hunk_tablet.h"
+#include "tablet_cell_bundle.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>

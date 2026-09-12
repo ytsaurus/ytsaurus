@@ -20,6 +20,8 @@
 
 #include <yt/yt/server/master/object_server/helpers.h>
 
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>

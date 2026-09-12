@@ -35,6 +35,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/rpc/dispatcher.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;

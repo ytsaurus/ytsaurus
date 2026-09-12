@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
-#include <yt/yt/server/master/object_server/object_detail.h>
+#include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/cluster_resources.h>

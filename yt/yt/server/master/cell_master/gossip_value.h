@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/serialize.h>
+
 #include <util/generic/hash.h>
 
 namespace NYT::NCellMaster {
