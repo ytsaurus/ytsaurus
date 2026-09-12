@@ -44,6 +44,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 
 #include <yt/yt/server/master/table_server/table_manager.h>
+#include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/master/cell_master/proto/multicell_node_statistics.pb.h>
 
@@ -76,6 +77,7 @@
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
+#include <yt/yt/server/master/tablet_server/tablet_owner_base.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>

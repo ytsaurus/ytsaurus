@@ -4,6 +4,11 @@
 
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
+#include <yt/yt/server/master/security_server/security_manager.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 

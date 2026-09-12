@@ -3,10 +3,13 @@
 #include "cell_statistics.h"
 #include "config.h"
 #include "config_manager.h"
+#include "multicell_manager.h"
 #include "private.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+
+#include <yt/yt/server/lib/hydra/mutation_context.h>
 
 namespace NYT::NCellMaster {
 

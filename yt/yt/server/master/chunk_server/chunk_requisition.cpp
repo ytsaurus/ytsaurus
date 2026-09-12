@@ -8,6 +8,8 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/object_server/object_manager.h>
+
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
