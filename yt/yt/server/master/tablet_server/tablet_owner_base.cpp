@@ -3,6 +3,8 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_base.h"
 
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;

@@ -21,6 +21,8 @@
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 
+#include <yt/yt/server/master/security_server/security_manager.h>
+
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>

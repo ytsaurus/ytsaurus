@@ -14,6 +14,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
@@ -22,6 +23,7 @@
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 #include <yt/yt/server/master/chunk_server/proto/data_node_tracker.pb.h>
 
+#include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/object_service.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>

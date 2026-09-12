@@ -1,9 +1,11 @@
 #include "network_project_proxy.h"
 #include "network_project.h"
 
-#include <yt/yt/server/lib/misc/interned_attributes.h>
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
