@@ -69,7 +69,9 @@ TCellId GetCoordinatorCellId(
 
     if (watchedReplicationCard->CoordinatorCellIds.empty()) {
         YT_TLOG_DEBUG("Watched replication card contains no coordinators")
-            .With("ReplicationCard", *replicationCard);
+            .With("ReplicationCardId", replicationCardId)
+            .With("ReplicationCardEra", watchedReplicationCard->Era)
+            .With("ReplicationCardCurrentTimestamp", watchedReplicationCard->CurrentTimestamp);
 
         return NullCellId;
     }
@@ -188,8 +190,11 @@ std::vector<TTableReplicaId> GetChaosTableInSyncReplicas(
     const TColumnEvaluatorPtr& columnEvaluator,
     const TSharedRange<TLegacyKey>& keys,
     bool allKeys,
-    TTimestamp userTimestamp)
+    TTimestamp userTimestamp,
+    const TLogger& logger)
 {
+    const auto& Logger = logger;
+
     auto evaluatedKeys = PermuteAndEvaluateKeys(tableInfo, nameTable, keys, columnEvaluator);
     std::vector<TTableReplicaId> replicaIds;
 
@@ -199,18 +204,42 @@ std::vector<TTableReplicaId> GetChaosTableInSyncReplicas(
             IsTimestampInSync(userTimestamp, replicationTimestamp);
     };
 
-    auto isReplicaInSync = [&] (const auto& replica) {
+    auto getLastHistoryItemTimestamp = [] (const auto& replica) {
+        return replica.History.empty() ? NullTimestamp : replica.History.back().Timestamp;
+    };
+
+    auto isReplicaInSync = [&] (auto replicaId, const auto& replica) {
         if (allKeys) {
             auto timestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
-            return isReplicationProgressGood(replica, timestamp);
+            if (!isReplicationProgressGood(replica, timestamp)) {
+                YT_TLOG_DEBUG("Replica is out of sync")
+                    .With("ReplicaId", replicaId)
+                    .With("Mode", replica.Mode)
+                    .With("State", replica.State)
+                    .With("LastHistoryItemTimestamp", getLastHistoryItemTimestamp(replica))
+                    .With("MinTimestamp", timestamp)
+                    .With("UserTimestamp", userTimestamp);
+
+                return false;
+            }
         } else {
             for (auto key : evaluatedKeys) {
                 auto timestamp = GetReplicationProgressTimestampForKeyOrThrow(replica.ReplicationProgress, key);
                 if (!isReplicationProgressGood(replica, timestamp)) {
+                    YT_TLOG_DEBUG("Replica is out of sync for key")
+                        .With("ReplicaId", replicaId)
+                        .With("Mode", replica.Mode)
+                        .With("State", replica.State)
+                        .With("LastHistoryItemTimestamp", getLastHistoryItemTimestamp(replica))
+                        .With("Key", key)
+                        .With("KeySegmentTimestamp", timestamp)
+                        .With("UserTimestamp", userTimestamp);
+
                     return false;
                 }
             }
         }
+
         return true;
     };
 
@@ -220,7 +249,8 @@ std::vector<TTableReplicaId> GetChaosTableInSyncReplicas(
         } else if (!tableInfo->IsSorted() && replica.ContentType != ETableReplicaContentType::Queue) {
             continue;
         }
-        if (isReplicaInSync(replica)) {
+
+        if (isReplicaInSync(replicaId, replica)) {
             replicaIds.push_back(replicaId);
         }
     }
@@ -250,7 +280,8 @@ TTableReplicaInfoPtrList PickInSyncChaosReplicas(
         /*allKeys*/ true,
         connectionConfig->EnableReadFromInSyncAsyncReplicas
             ? options.Timestamp
-            : SyncLastCommittedTimestamp);
+            : SyncLastCommittedTimestamp,
+        Logger);
 
     auto bannedReplicaTracker = connection->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId);
     bannedReplicaTracker->SyncReplicas(replicationCard);
@@ -259,7 +290,8 @@ TTableReplicaInfoPtrList PickInSyncChaosReplicas(
         .With("TablePath", tableInfo->Path)
         .With("ReplicaIds", replicaIds)
         .With("Timestamp", options.Timestamp)
-        .With("ReplicationCard", *replicationCard);
+        .With("ReplicationCardEra", replicationCard->Era)
+        .With("ReplicationCardCurrentTimestamp", replicationCard->CurrentTimestamp);
 
     TTableReplicaInfoPtrList inSyncReplicas;
     inSyncReplicas.reserve(replicaIds.size());
