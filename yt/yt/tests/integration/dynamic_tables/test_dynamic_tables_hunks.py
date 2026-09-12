@@ -2151,6 +2151,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
+        sync_unmount_table("//tmp/t")
         remove("//tmp/t/@hunk_storage_id")
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
@@ -5434,7 +5435,7 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
 
         alter_table("//tmp/t", dynamic=True)
         assert get("//tmp/h/@associated_nodes") == []
-        assert not exists("//tmp/t/@hunk_storage_id")
+        assert get("//tmp/t/@hunk_storage_id") == "0-0-0-0"
 
         sync_mount_table("//tmp/t")
         rows2 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10, 20)]

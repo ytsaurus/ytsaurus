@@ -73,8 +73,10 @@ private:
         auto isExternal = node->IsExternal();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReadQuorum)
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WriteQuorum)
+            .SetWritable(true)
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumRowCount)
             .SetExternal(isExternal)
@@ -193,6 +195,44 @@ private:
         }
 
         return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::ReadQuorum:
+            case EInternedAttributeKey::WriteQuorum: {
+                ValidateStorageParametersUpdate();
+
+                auto quorum = ConvertTo<int>(value);
+                auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+                auto* node = TBase::LockThisImpl<THunkStorageNode>(lockRequest);
+                if (key == EInternedAttributeKey::ReadQuorum) {
+                    node->SetReadQuorum(quorum);
+                } else {
+                    node->SetWriteQuorum(quorum);
+                }
+
+                return true;
+            }
+
+            case EInternedAttributeKey::ErasureCodec:
+                ValidateStorageParametersUpdate();
+                // Underyling class will further verify the change and perform the update.
+                break;
+
+            default:
+                break;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value, force);
+    }
+
+    void ValidateStorageParametersUpdate() override
+    {
+        TBase::ValidateStorageParametersUpdate();
+
+        GetThisImpl()->ValidateAllTabletsUnmounted("Cannot change hunk storage parameters");
     }
 
     bool DoInvoke(const IYPathServiceContextPtr& context) override

@@ -927,7 +927,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 hunk_storage_id = self._create_hunk_storage("//tmp/h", external_cell_tag=external_cell_tag)
             else:
                 hunk_storage_id = self._create_hunk_storage("//tmp/h")
+            sync_unmount_table("//tmp/t")
             set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+            sync_mount_table("//tmp/t")
             sync_mount_table("//tmp/h")
 
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
@@ -1401,7 +1403,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 hunk_storage_id = self._create_hunk_storage("//tmp/h", external_cell_tag=external_cell_tag)
             else:
                 hunk_storage_id = self._create_hunk_storage("//tmp/h")
+            sync_unmount_table("//tmp/t")
             set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+            sync_mount_table("//tmp/t")
             sync_mount_table("//tmp/h")
 
         replica_id1 = create_table_replica(

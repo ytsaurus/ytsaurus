@@ -2,6 +2,7 @@ from .logger import logger
 from lib.schema import RandomStringGenerator
 
 import yt.wrapper as yt
+import yt.yson as yson
 
 from yt.wrapper.retries import run_with_retries
 
@@ -299,6 +300,15 @@ class Queue:
             self._ensure_hunk_storage()
         yt.mount_table(self.path, sync=True)
 
+    def _has_hunk_storage(self):
+        hunk_storage_id_attribute = f"{self.path}/@hunk_storage_id"
+        # TODO(akozhikhov): Remove the existence check once all supported masters expose
+        # hunk_storage_id as a nullable attribute.
+        return (
+            yt.exists(hunk_storage_id_attribute) and
+            yt.get(hunk_storage_id_attribute) != yson.YsonEntity()
+        )
+
     def _ensure_hunk_storage(self):
         # Create (if missing), mount and link the queue's hunk storage. Idempotent: on resume
         # the storage exists and the queue is already linked, so this only ensures it is
@@ -317,7 +327,7 @@ class Queue:
             yt.create("hunk_storage", self.hunk_storage_path, attributes=attributes)
         if yt.get(f"{self.hunk_storage_path}/@tablet_state") != "mounted":
             yt.mount_table(self.hunk_storage_path, sync=True)
-        if not yt.exists(f"{self.path}/@hunk_storage_id"):
+        if not self._has_hunk_storage():
             hunk_storage_id = yt.get(f"{self.hunk_storage_path}/@id")
             logger.info(f"Linking hunk storage {self.hunk_storage_path} to queue {self.path}")
             yt.set(f"{self.path}/@hunk_storage_id", hunk_storage_id)
@@ -378,7 +388,7 @@ class Queue:
 
         # hunks change the schema (max_inline_hunk_size) and require a linked hunk storage —
         # neither can be toggled in place, so the link's presence must match the config.
-        actual_hunks = yt.exists(f"{self.path}/@hunk_storage_id")
+        actual_hunks = self._has_hunk_storage()
         if actual_hunks != bool(self.hunks):
             mismatches.append(f"hunks: config={bool(self.hunks)}, actual(linked hunk_storage)={actual_hunks}")
 
