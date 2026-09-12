@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "chunk_requisition.h"
 #include "chunk_replica.h"
 #include "chunk_tree.h"
