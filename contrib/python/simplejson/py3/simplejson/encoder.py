@@ -43,6 +43,35 @@ del i
 
 FLOAT_REPR = repr
 
+_NAN = float('nan')
+_INFINITY = float('inf')
+
+
+def _encode_decimal(d, _floatstr):
+    """Return the JSON representation of a ``Decimal``.
+
+    Finite Decimals are stringified as-is, preserving precision and trailing
+    zeros.  Non-finite Decimals (``NaN``, ``sNaN``, ``Infinity``) are routed
+    through the same ``allow_nan``/``ignore_nan`` handling as floats so they
+    never emit invalid JSON (see #149).
+
+    ``str(Decimal)`` yields a leading ``-`` sign at most (never ``+``); a
+    finite value's first significant character is always a digit, while a
+    non-finite value's is a letter (``N``, ``s`` or ``I``).  So a single
+    ``str()`` plus a one/two character check distinguishes the two.
+    """
+    s = str(d)
+    c0 = s[:1]
+    c = s[1:2] if c0 == '-' else c0
+    if '0' <= c <= '9':
+        # First significant character is a digit: finite Decimal.
+        return s
+    # Non-finite Decimal. ``N``/``s`` -> NaN (float(Decimal('sNaN')) raises,
+    # so map both quiet and signaling NaN to a plain NaN); ``I`` -> Infinity.
+    if c == 'I':
+        return _floatstr(-_INFINITY if c0 == '-' else _INFINITY)
+    return _floatstr(_NAN)
+
 # dict-like types that should be encoded as JSON objects.
 # frozendict is a builtin added in CPython 3.15 (PEP 814).
 if sys.version_info >= (3, 15):
@@ -536,7 +565,7 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
                 elif isinstance(value, float):
                     yield buf + _floatstr(value)
                 elif _use_decimal and isinstance(value, Decimal):
-                    yield buf + str(value)
+                    yield buf + _encode_decimal(value, _floatstr)
                 else:
                     yield buf
                     for_json = _for_json and call_method(value, 'for_json')
@@ -596,7 +625,7 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
                 key = int(key)
             key = str(key)
         elif _use_decimal and isinstance(key, Decimal):
-            key = str(key)
+            key = _encode_decimal(key, _floatstr)
         elif _skipkeys:
             key = None
         else:
@@ -668,7 +697,7 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
                 elif isinstance(value, float):
                     yield _floatstr(value)
                 elif _use_decimal and isinstance(value, Decimal):
-                    yield str(value)
+                    yield _encode_decimal(value, _floatstr)
                 else:
                     for_json = _for_json and call_method(value, 'for_json')
                     if for_json:
@@ -744,7 +773,7 @@ def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
                     for chunk in _iterencode_dict(o, _current_indent_level):
                         yield chunk
                 elif _use_decimal and isinstance(o, Decimal):
-                    yield str(o)
+                    yield _encode_decimal(o, _floatstr)
                 else:
                     while _iterable_as_array:
                         # Markers are not checked here because it is valid for

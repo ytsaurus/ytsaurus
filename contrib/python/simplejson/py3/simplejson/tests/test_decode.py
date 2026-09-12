@@ -165,6 +165,33 @@ class TestDecode(TestCase):
                 self.assertIn(expected_msg, str(e),
                     "Wrong error for %r: %s" % (doc, e))
 
+    def test_trailing_comma_position(self):
+        # The reported position is the comma itself, not the closing
+        # bracket and not whatever whitespace happens to precede it.
+        # Same positions as the stdlib json module. Runs on both the C
+        # and the pure-Python scanner.
+        test_cases = [
+            ('[42,]', 3),
+            ('[42, ]', 3),
+            ('[42,\n]', 3),
+            ('[123  , ]', 6),
+            ('{"spam":42,}', 10),
+            ('{"spam":42 , }', 11),
+            ('{"spam":42,\n}', 10),
+            ('[[1, 2],]', 7),
+            ('{"a": {"b": 1,},}', 13),
+        ]
+        for doc, expected_pos in test_cases:
+            try:
+                json.loads(doc)
+                self.fail("Expected JSONDecodeError for %r" % (doc,))
+            except json.JSONDecodeError as e:
+                self.assertEqual(doc[e.pos], ',',
+                    "Position %d of %r is %r, not the comma"
+                    % (e.pos, doc, doc[e.pos]))
+                self.assertEqual(e.pos, expected_pos,
+                    "Wrong position for %r: %d" % (doc, e.pos))
+
     def test_nonascii_digits_rejected(self):
         # Non-ASCII digits (e.g. fullwidth digits) must not be accepted
         # as JSON numbers. Matches CPython gh-125687.

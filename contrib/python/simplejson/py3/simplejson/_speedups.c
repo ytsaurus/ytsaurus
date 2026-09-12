@@ -429,6 +429,8 @@ static PyObject *
 encoder_long_to_str(PyObject *obj);
 static PyObject *
 encoder_encode_float(PyEncoderObject *s, PyObject *obj);
+static PyObject *
+encoder_encode_decimal(PyEncoderObject *s, PyObject *obj);
 static int
 encoder_accumulate_newline_indent(PyEncoderObject *s, _speedups_state *state,
                                   JSON_Accu *rval, Py_ssize_t indent_level);
@@ -1062,7 +1064,7 @@ encoder_stringify_key(PyEncoderObject *s, PyObject *key)
         return encoder_long_to_str(key);
     }
     else if (s->use_decimal && PyObject_TypeCheck(key, (PyTypeObject *)s->Decimal)) {
-        return PyObject_Str(key);
+        return encoder_encode_decimal(s, key);
     }
     if (s->skipkeys) {
         Py_INCREF(Py_None);
@@ -1365,7 +1367,7 @@ scanstring_str(_speedups_state *state, PyObject *pystr, Py_ssize_t end,
                 default: c = 0;
             }
             if (c == 0) {
-                raise_errmsg(state, ERR_STRING_ESC1, pystr, end - 2);
+                raise_errmsg(state, ERR_STRING_ESC1, pystr, end - 1);
                 goto bail;
             }
         }
@@ -1564,7 +1566,7 @@ scanstring_unicode(_speedups_state *state, PyObject *pystr, Py_ssize_t end,
                 default: c = 0;
             }
             if (c == 0) {
-                raise_errmsg(state, ERR_STRING_ESC1, pystr, end - 2);
+                raise_errmsg(state, ERR_STRING_ESC1, pystr, end - 1);
                 goto bail;
             }
         }
@@ -1755,7 +1757,7 @@ scanstring_unicode(_speedups_state *state, PyObject *pystr, Py_ssize_t end,
                 default: c = 0;
             }
             if (c == 0) {
-                raise_errmsg(state, ERR_STRING_ESC1, pystr, end - 2);
+                raise_errmsg(state, ERR_STRING_ESC1, pystr, end - 1);
                 goto bail;
             }
         }
@@ -2786,32 +2788,37 @@ _encoded_const(_speedups_state *state, PyObject *obj)
 }
 
 static PyObject *
+encoder_encode_nonfinite(PyEncoderObject *s, int sign)
+{
+    _speedups_state *state = get_speedups_state(s->module_ref);
+
+    if (!s->allow_or_ignore_nan) {
+        PyErr_SetString(PyExc_ValueError, "Out of range float values are not JSON compliant");
+        return NULL;
+    }
+    if (s->allow_or_ignore_nan & JSON_IGNORE_NAN) {
+        return _encoded_const(state, Py_None);
+    }
+    /* JSON_ALLOW_NAN is set */
+    if (sign > 0) {
+        Py_INCREF(state->JSON_Infinity);
+        return state->JSON_Infinity;
+    }
+    if (sign < 0) {
+        Py_INCREF(state->JSON_NegInfinity);
+        return state->JSON_NegInfinity;
+    }
+    Py_INCREF(state->JSON_NaN);
+    return state->JSON_NaN;
+}
+
+static PyObject *
 encoder_encode_float(PyEncoderObject *s, PyObject *obj)
 {
     /* Return the JSON representation of a PyFloat */
-    _speedups_state *state = get_speedups_state(s->module_ref);
     double i = PyFloat_AS_DOUBLE(obj);
     if (!Py_IS_FINITE(i)) {
-        if (!s->allow_or_ignore_nan) {
-            PyErr_SetString(PyExc_ValueError, "Out of range float values are not JSON compliant");
-            return NULL;
-        }
-        if (s->allow_or_ignore_nan & JSON_IGNORE_NAN) {
-            return _encoded_const(state, Py_None);
-        }
-        /* JSON_ALLOW_NAN is set */
-        else if (i > 0) {
-            Py_INCREF(state->JSON_Infinity);
-            return state->JSON_Infinity;
-        }
-        else if (i < 0) {
-            Py_INCREF(state->JSON_NegInfinity);
-            return state->JSON_NegInfinity;
-        }
-        else {
-            Py_INCREF(state->JSON_NaN);
-            return state->JSON_NaN;
-        }
+        return encoder_encode_nonfinite(s, i > 0 ? 1 : (i < 0 ? -1 : 0));
     }
     /* Use a better float format here? */
     if (PyFloat_CheckExact(obj)) {
@@ -2828,6 +2835,61 @@ encoder_encode_float(PyEncoderObject *s, PyObject *obj)
         Py_DECREF(tmp);
         return res;
     }
+}
+
+static PyObject *
+encoder_encode_decimal(PyEncoderObject *s, PyObject *obj)
+{
+    /* Return the JSON representation of a Decimal. Finite Decimals are
+       stringified as-is (preserving precision and trailing zeros); non-finite
+       Decimals (NaN, sNaN, Infinity) are routed through the same
+       allow_nan/ignore_nan handling as floats so they never emit invalid
+       JSON. See https://github.com/simplejson/simplejson/issues/149
+
+       str(Decimal) carries a leading '-' sign at most (never '+'); a finite
+       value's first significant character is always a digit while a non-finite
+       value's is a letter ('N'/'s' for [s]NaN, 'I' for Infinity). So a single
+       str() plus a one/two character check distinguishes the two. */
+    PyObject *str = PyObject_Str(obj);
+    Py_ssize_t len;
+    int negative;
+    JSON_UNICHR c;
+#if PY_MAJOR_VERSION >= 3
+    int kind;
+    void *data;
+#else
+    const char *data;
+#endif
+    if (str == NULL)
+        return NULL;
+#if PY_MAJOR_VERSION >= 3
+    if (PyUnicode_READY(str)) {
+        Py_DECREF(str);
+        return NULL;
+    }
+    len = PyUnicode_GET_LENGTH(str);
+    kind = PyUnicode_KIND(str);
+    data = PyUnicode_DATA(str);
+    negative = (len > 0 && PyUnicode_READ(kind, data, 0) == '-');
+    c = (JSON_UNICHR)0;
+    if (len > (negative ? 1 : 0))
+        c = PyUnicode_READ(kind, data, negative ? 1 : 0);
+#else
+    len = PyString_GET_SIZE(str);
+    data = PyString_AS_STRING(str);
+    negative = (len > 0 && data[0] == '-');
+    c = (JSON_UNICHR)0;
+    if (len > (negative ? 1 : 0))
+        c = (unsigned char)data[negative ? 1 : 0];
+#endif
+    if (IS_DIGIT(c)) {
+        /* First significant character is a digit: finite Decimal, emit as-is. */
+        return str;
+    }
+    /* Non-finite Decimal; use the same allow_nan/ignore_nan path as floats
+       without creating a temporary float. */
+    Py_DECREF(str);
+    return encoder_encode_nonfinite(s, c == 'I' ? (negative ? -1 : 1) : 0);
 }
 
 static PyObject *
@@ -3090,7 +3152,7 @@ encoder_listencode_obj(PyEncoderObject *s, JSON_Accu *rval, PyObject *obj, Py_ss
         Py_LeaveRecursiveCall();
     }
     else if (s->use_decimal && PyObject_TypeCheck(obj, (PyTypeObject *)s->Decimal)) {
-        PyObject *encoded = PyObject_Str(obj);
+        PyObject *encoded = encoder_encode_decimal(s, obj);
         if (encoded != NULL)
             rv = _steal_accumulate(state, rval, encoded);
     }
