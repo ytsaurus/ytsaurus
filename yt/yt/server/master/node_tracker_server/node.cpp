@@ -689,7 +689,7 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ResourceLimitsOverrides_);
     Save(context, Host_);
     Save(context, LeaseTransaction_);
-    Save(context, LastSeenLeaseTransactionTimeout_);
+    Save(context, LeaseTransactionTimeoutBeforeExtension_);
     Save(context, Cellars_);
     Save(context, Annotations_);
     Save(context, Version_);
@@ -747,7 +747,13 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Host_);
     Load(context, LeaseTransaction_);
-    Load(context, LastSeenLeaseTransactionTimeout_);
+    Load(context, LeaseTransactionTimeoutBeforeExtension_);
+    // COMPAT(danilalexeev)
+    if (context.GetVersion() < EMasterReign::PersistNodeLeaseTimeoutBeforeExtension &&
+        !IsPendingRestart())
+    {
+        LeaseTransactionTimeoutBeforeExtension_.reset();
+    }
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);
