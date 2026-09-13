@@ -815,7 +815,7 @@ private:
     static void BuildYsonCellar(const TNode::TCellar& cellar, TFluentAny fluent)
     {
         fluent
-            .DoListFor(cellar, [] (TFluentList fluent, const TNode::TCellSlot& slot) {
+            .DoListFor(cellar, [] (TFluentList fluent, const TCellSlot& slot) {
                 fluent
                     .Item().BeginMap()
                     .Item("state").Value(slot.PeerState)
