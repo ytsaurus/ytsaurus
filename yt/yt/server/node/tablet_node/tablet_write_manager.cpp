@@ -654,10 +654,7 @@ public:
             return;
         }
 
-        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
-            ? TTransactionExternalizationToken(
-                GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId()))
-            : TTransactionExternalizationToken{};
+        auto externalizationToken = GetTransactionExternalizationToken();
 
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
@@ -754,10 +751,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
-            ? TTransactionExternalizationToken(
-                GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId()))
-            : TTransactionExternalizationToken{};
+        auto externalizationToken = GetTransactionExternalizationToken();
 
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
@@ -1857,6 +1851,17 @@ private:
     TCodicilGuard MakeCodicilGuard()
     {
         return TCodicilGuard(MakeNonOwningCodicilBuilder(Tablet_->GetLoggingTag()));
+    }
+
+    TTransactionExternalizationToken GetTransactionExternalizationToken() const
+    {
+        const auto& movementData = Tablet_->SmoothMovementData();
+        if (movementData.GetRole() == ESmoothMovementRole::Target && !Tablet_->IsActiveServant()) {
+            return TTransactionExternalizationToken(
+                GetSiblingAvenueEndpointId(movementData.GetSiblingAvenueEndpointId()));
+        }
+
+        return {};
     }
 };
 
