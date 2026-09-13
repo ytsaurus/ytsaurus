@@ -355,8 +355,6 @@ void TSortedChunkStore::Initialize()
         upperBoundIsExclusive = false;
     }
 
-    ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
-
     CompactionHints_.Initialize(this);
 
     if (UpperBoundKey_ < MinKey_) {
@@ -411,8 +409,6 @@ void TSortedChunkStore::Initialize()
 
         UpperBoundKey_ = WidenKey(UpperBoundKey_, KeyColumnCount_);
         YT_VERIFY(UpperBoundKey_ == MinKey_);
-
-        ClippingRange_ = MakeSingletonRowRange(MinKey_, UpperBoundKey_);
     }
 }
 
@@ -494,10 +490,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     ranges = NColumnarChunkFormat::ClipRanges(
-        ranges,
-        ClippingRange_.Front().first,
-        ClippingRange_.Front().second,
-        ClippingRange_.GetHolder());
+        std::move(ranges),
+        MinKey_,
+        UpperBoundKey_);
 
     // Fast lane:
     // - ranges do not intersect with chunk view;
