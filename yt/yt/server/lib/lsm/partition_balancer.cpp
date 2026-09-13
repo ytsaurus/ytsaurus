@@ -315,13 +315,22 @@ private:
             int estimatedOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount() +
                 tablet->Partitions()[firstPartitionIndex]->Stores().size() +
                 tablet->Partitions()[lastPartitionIndex]->Stores().size();
+            i64 mergedDataSize =
+                tablet->Partitions()[firstPartitionIndex]->GetCompressedDataSize() +
+                tablet->Partitions()[lastPartitionIndex]->GetCompressedDataSize();
+            bool willRunMerge =
+                mergedDataSize <= mountConfig->MaxPartitionDataSize &&
+                estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount;
 
             YT_LOG_DEBUG("Found candidate partitions to merge (FirstPartitionIndex: %v, "
-                "LastPartitionIndex: %v, EstimatedOsc: %v, WillRunMerge: %v",
+                "LastPartitionIndex: %v, MergedDataSize: %v, MaxPartitionDataSize: %v, "
+                "EstimatedOsc: %v, WillRunMerge: %v",
                 firstPartitionIndex,
                 lastPartitionIndex,
+                mergedDataSize,
+                mountConfig->MaxPartitionDataSize,
                 estimatedOverlappingStoreCount,
-                estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount);
+                willRunMerge);
 
             std::vector<TPartitionId> partitionIds;
             for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
@@ -331,7 +340,7 @@ private:
                 }
             }
 
-            if (estimatedOverlappingStoreCount < maxAllowedOverlappingStoreCount) {
+            if (willRunMerge) {
                 return TMergePartitionsRequest{
                     .Tablet = MakeStrong(tablet),
                     .FirstPartitionIndex = firstPartitionIndex,
