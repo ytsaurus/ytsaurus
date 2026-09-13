@@ -82,7 +82,7 @@ TIncrementalHeartbeatCounters::TIncrementalHeartbeatCounters(const TProfiler& pr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNode::TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
+void TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Cell);
@@ -1010,7 +1010,7 @@ int TNode::GetTotalHintedSessionCount(int chunkHostMasterCellCount) const
             TotalHintedReplicationSessionCount_);
 }
 
-TNode::TCellSlot* TNode::FindCellSlot(const TCellBase* cell)
+TCellSlot* TNode::FindCellSlot(const TCellBase* cell)
 {
     if (auto* cellar = FindCellar(cell->GetCellarType())) {
         auto predicate = [cell] (const auto& slot) {
@@ -1026,7 +1026,7 @@ TNode::TCellSlot* TNode::FindCellSlot(const TCellBase* cell)
     return nullptr;
 }
 
-TNode::TCellSlot* TNode::GetCellSlot(const TCellBase* cell)
+TCellSlot* TNode::GetCellSlot(const TCellBase* cell)
 {
     auto* slot = FindCellSlot(cell);
     YT_VERIFY(slot);
@@ -1437,7 +1437,7 @@ i64 TNode::ComputeTotalReplicaCount(int mediumIndex) const
         });
 }
 
-bool TNode::TCellSlot::IsWarmedUp() const
+bool TCellSlot::IsWarmedUp() const
 {
     return
         PreloadPendingStoreCount == 0 &&
