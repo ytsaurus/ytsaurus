@@ -32,6 +32,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/gossip_value_helpers.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -4322,13 +4323,13 @@ private:
         for (auto* cellBase : cellManager->Cells(ECellarType::Tablet)) {
             YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
             auto* cell = cellBase->As<TTabletCell>();
-            cell->GossipStatistics().Initialize(Bootstrap_);
+            InitializeGossipValue(&cell->GossipStatistics(), Bootstrap_);
         }
 
         for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
             YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
             auto* bundle = bundleBase->As<TTabletCellBundle>();
-            bundle->ResourceUsage().Initialize(Bootstrap_);
+            InitializeGossipValue(&bundle->ResourceUsage(), Bootstrap_);
         }
 
         TabletActionManager_->OnAfterCellManagerSnapshotLoaded();
@@ -4425,7 +4426,7 @@ private:
         options->SnapshotAccount = DefaultStoreAccountName;
 
         auto holder = TPoolAllocator::New<TTabletCellBundle>(id);
-        holder->ResourceUsage().Initialize(Bootstrap_);
+        InitializeGossipValue(&holder->ResourceUsage(), Bootstrap_);
         cellBundle = cellManager->CreateCellBundle(name, std::move(holder), std::move(options))
             ->As<TTabletCellBundle>();
         return true;
