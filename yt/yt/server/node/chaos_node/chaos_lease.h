@@ -41,6 +41,8 @@ public:
     bool IsNormalState() const override;
     bool IsRoot() const;
 
+    NChaosClient::TChaosLeasePtr ConvertToClientLease() const;
+
     void SetState(EChaosLeaseState newState);
     EChaosLeaseState GetState() const;
 

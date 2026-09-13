@@ -28,6 +28,7 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chaos_client/chaos_leases_watcher.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -100,6 +101,9 @@ public:
         , SnapshotQueue_(New<TActionQueue>(creationContext.SnapshotThreadName))
         , ReplicationCardsWatcher_(CreateReplicationCardsWatcher(
             Config_->ReplicationCardsWatcher,
+            bootstrap->GetConnection()->GetInvoker()))
+        , ChaosLeasesWatcher_(CreateChaosLeasesWatcher(
+            Config_->ChaosLeasesWatcher,
             bootstrap->GetConnection()->GetInvoker()))
         , AutomatonThreadTagsGuard_(RegisterThreadGuard(
             creationContext.AutomatonThreadName,
@@ -230,6 +234,13 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ReplicationCardsWatcher_;
+    }
+
+    const IChaosLeasesWatcherPtr& GetChaosLeasesWatcher() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return ChaosLeasesWatcher_;
     }
 
     const ICoordinatorManagerPtr& GetCoordinatorManager() const override
@@ -486,6 +497,8 @@ private:
 
     const TActionQueuePtr SnapshotQueue_;
     const IReplicationCardsWatcherPtr ReplicationCardsWatcher_;
+    const IChaosLeasesWatcherPtr ChaosLeasesWatcher_;
+
     TResourceTrackerTagsGuard AutomatonThreadTagsGuard_;
     TResourceTrackerTagsGuard SnapThreadTagsGuard_;
 

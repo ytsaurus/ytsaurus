@@ -7,7 +7,19 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/transaction_client/public.h>
+
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <util/generic/hash_set.h>
 
 #include <util/random/random.h>
 
@@ -16,8 +28,10 @@
 namespace NYT::NCppTests {
 
 using namespace NApi;
+using namespace NChaosClient;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -318,6 +332,89 @@ TEST_P(TChaosLeaseTest, PingFailsAfterExpiration)
     ASSERT_TRUE(aborted.load());
     YT_TLOG_INFO("Ping after expiration failed as expected")
         .With("Error", result.GetCode());
+}
+
+TEST_P(TChaosLeaseTest, WatchCoordinatorChange)
+{
+    auto lease = CreateLease(EnabledCell_, TDuration::Seconds(120));
+    auto leaseId = lease->GetId();
+
+    auto connectionConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(
+        WaitFor(Client_->GetNode("//sys/@cluster_connection"))
+            .ValueOrThrow());
+    auto nativeConnection = NNative::CreateConnection(std::move(connectionConfig));
+    auto terminateConnectionGuard = Finally([&] {
+        nativeConnection->Terminate();
+    });
+
+    auto watchCellId = EnabledCell_;
+    auto invokeWatch = [&] (TTimestamp cacheTimestamp) {
+        TChaosNodeServiceProxy proxy(nativeConnection->GetChaosChannelByCellId(watchCellId));
+        proxy.SetDefaultTimeout(TDuration::Seconds(120));
+
+        auto request = proxy.WatchChaosLease();
+        ToProto(request->mutable_chaos_lease_id(), leaseId);
+        request->set_chaos_lease_cache_timestamp(ToProto(cacheTimestamp));
+        return request->Invoke();
+    };
+
+    THashSet<TCellId> expectedInitialCoordinatorCellIds{ChaosCell1_, ChaosCell2_};
+
+    auto cacheTimestamp = NullTimestamp;
+    auto watchFuture = invokeWatch(cacheTimestamp);
+    auto waitForCoordinators = [&] (const THashSet<TCellId>& expectedCoordinatorCellIds) {
+        WaitUntil(
+            [&] {
+                auto response = WaitFor(watchFuture)
+                    .ValueOrThrow();
+                if (response->has_chaos_lease_not_changed()) {
+                    watchFuture = invokeWatch(cacheTimestamp);
+                    return false;
+                }
+
+                if (!response->has_chaos_lease_changed()) {
+                    THROW_ERROR_EXCEPTION("Unexpected WatchChaosLease response")
+                        .With("response_case", static_cast<int>(response->chaos_lease_state_case()));
+                }
+
+                const auto& changedLease = response->chaos_lease_changed();
+                cacheTimestamp = FromProto<TTimestamp>(changedLease.chaos_lease_cache_timestamp());
+
+                auto coordinatorCellIds = FromProto<THashSet<TCellId>>(changedLease.coordinator_cell_ids());
+                if (coordinatorCellIds == expectedCoordinatorCellIds) {
+                    return true;
+                }
+
+                watchFuture = invokeWatch(cacheTimestamp);
+                return false;
+            },
+            "lease did not acquire expected coordinators",
+            {.Timeout = TDuration::Seconds(120)});
+    };
+
+    waitForCoordinators(expectedInitialCoordinatorCellIds);
+
+    MaybeMigrate();
+    if (GetParam()) {
+        watchCellId = EnabledCell_;
+        ResumeBothCells();
+        watchFuture = invokeWatch(cacheTimestamp);
+        waitForCoordinators(expectedInitialCoordinatorCellIds);
+    }
+
+    watchFuture = invokeWatch(cacheTimestamp);
+
+    auto expectedUpdatedCoordinatorCellIds = expectedInitialCoordinatorCellIds;
+    auto coordinatorToSuspend = ChaosCell2_;
+    expectedUpdatedCoordinatorCellIds.erase(coordinatorToSuspend);
+    WaitFor(Client_->SuspendCoordinator(coordinatorToSuspend))
+        .ThrowOnError();
+    auto resumeCoordinatorGuard = Finally([&] {
+        WaitFor(Client_->ResumeCoordinator(coordinatorToSuspend))
+            .ThrowOnError();
+    });
+
+    waitForCoordinators(expectedUpdatedCoordinatorCellIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

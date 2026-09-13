@@ -2,6 +2,8 @@
 
 #include "serialize.h"
 
+#include <yt/yt/client/chaos_client/chaos_lease.h>
+
 namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,6 +16,20 @@ bool TChaosLease::IsRoot() const
 bool TChaosLease::IsNormalState() const
 {
     return State_ == EChaosLeaseState::Normal;
+}
+
+NChaosClient::TChaosLeasePtr TChaosLease::ConvertToClientLease() const
+{
+    auto clientLease = New<NChaosClient::TChaosLease>();
+    clientLease->Timeout = GetTimeout();
+    clientLease->CoordinatorCellIds.reserve(Coordinators().size());
+    for (const auto& [cellId, info] : Coordinators()) {
+        if (info.State == EShortcutState::Granted) {
+            clientLease->CoordinatorCellIds.push_back(cellId);
+        }
+    }
+
+    return clientLease;
 }
 
 void TChaosLease::SetState(EChaosLeaseState newState)
