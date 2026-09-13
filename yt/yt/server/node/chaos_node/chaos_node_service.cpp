@@ -9,6 +9,7 @@
 #include "replication_card_collocation.h"
 #include "replication_card_serialization.h"
 
+#include <yt/yt/server/lib/chaos_node/chaos_lease_watcher_service_callbacks.h>
 #include <yt/yt/server/lib/chaos_node/config.h>
 #include <yt/yt/server/lib/chaos_node/replication_card_watcher_service_callbacks.h>
 
@@ -85,6 +86,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ForsakeCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChaosLease));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChaosObject));
@@ -570,7 +572,9 @@ private:
         const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
         chaosLeaseManager->ValidateEnabledState();
         auto* chaosLease = chaosLeaseManager->GetChaosLeaseOrThrow(chaosLeaseId);
-        response->set_timeout(ToProto(chaosLease->GetTimeout()));
+        auto clientLease = chaosLease->ConvertToClientLease();
+        response->set_timeout(ToProto(clientLease->Timeout));
+        ToProto(response->mutable_coordinator_cell_ids(), clientLease->CoordinatorCellIds);
 
         auto futureLastPingTime = chaosLeaseManager->GetChaosLeaseTracker()->GetLastPingTime(chaosLeaseId)
             .Apply(BIND([=] (TInstant lastPingTime) {
@@ -578,6 +582,24 @@ private:
             }));
 
         context->ReplyFrom(futureLastPingTime);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchChaosLease)
+    {
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
+        auto cacheTimestamp = FromProto<TTimestamp>(request->chaos_lease_cache_timestamp());
+
+        context->SetRequestInfo("ChaosLeaseId: %v, Timestamp: %v",
+            chaosLeaseId,
+            cacheTimestamp);
+
+        const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        chaosLeaseManager->ValidateEnabledState();
+
+        Slot_->GetChaosLeasesWatcher()->WatchObject(
+            chaosLeaseId,
+            cacheTimestamp,
+            CreateChaosLeaseWatcherCallbacks(std::move(context)));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveChaosLease)

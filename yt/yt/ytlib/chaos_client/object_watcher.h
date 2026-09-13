@@ -65,6 +65,9 @@ struct IObjectWatcher
         const TObjectPtr& object,
         NTransactionClient::TTimestamp timestamp) = 0;
 
+    virtual void AdvanceObjectCacheTimestamps(
+        NTransactionClient::TTimestamp timestamp) = 0;
+
     virtual void OnObjectRemoved(TChaosObjectId objectId) = 0;
     virtual void OnObjectsMigrated(
         const std::vector<std::pair<TChaosObjectId, NObjectClient::TCellId>>& objectIds) = 0;
@@ -110,6 +113,9 @@ public:
     void OnObjectUpdated(
         TChaosObjectId objectId,
         const TObjectPtr& object,
+        NTransactionClient::TTimestamp timestamp) override;
+
+    void AdvanceObjectCacheTimestamps(
         NTransactionClient::TTimestamp timestamp) override;
 
     void OnObjectRemoved(TChaosObjectId objectId) override;
