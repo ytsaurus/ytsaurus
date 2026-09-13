@@ -736,12 +736,17 @@ TEST(TAsyncHttpOrderedStateTest, CompletesHighCardinalityDelayedHeadIterativelyI
             std::lock_guard guard(completionOrderMutex);
             completionOrder.push_back(index);
         });
+        TMessageBuilder builder(StreamId, schema);
+        builder.SetMessageId(TMessageId(Format("message-%08d", index)));
+        builder.SetSystemTimestamp(TSystemTimestamp(100));
+        builder.SetAlignmentTimestamp(TSystemTimestamp(100));
+        builder.SetEventTimestamp(TSystemTimestamp(100));
+        // Null payloads complete through the same ordered queue without opening thousands of connections.
+        if (index == 0 || index == MessageCount - 1) {
+            builder.Payload().Set(index == 0 ? "first" : "second", "payload");
+        }
         sink->Distribute(
-            MakeMessage(
-                schema,
-                context->StreamSpecStorage,
-                Format("message-%08d", index),
-                index == 0 ? "first" : Format("message-%08d", index)),
+            New<TOutputMessage>(builder.Finish(), context->StreamSpecStorage),
             tracker.AddDestination());
         tracker.Activate();
         fired.push_back(std::move(completion));
@@ -751,14 +756,14 @@ TEST(TAsyncHttpOrderedStateTest, CompletesHighCardinalityDelayedHeadIterativelyI
     stateManager->Sync();
     sink->Commit();
     handler->WaitForFirstRequest();
-    handler->WaitForRequestCount(MessageCount - 1);
+    handler->WaitForSecondResponse();
     RunEpochs(sink, stateManager, 100);
     for (const auto& completion : fired) {
         EXPECT_FALSE(completion->load());
     }
 
     handler->ReleaseFirstResponse();
-    handler->WaitForRequestCount(MessageCount);
+    handler->WaitForRequestCount(2);
     RunEpochsUntilFired(sink, stateManager, fired.back());
     for (const auto& completion : fired) {
         EXPECT_TRUE(completion->load());
