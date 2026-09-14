@@ -51,6 +51,12 @@ void TChytEngineConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("progress_poll_period", &TThis::ProgressPollPeriod)
         .Default();
+    registrar.Parameter("enable_full_result_write", &TThis::EnableFullResultWrite)
+        .Default(false);
+    registrar.Parameter("full_result_table_path_prefix", &TThis::FullResultTablePathPrefix)
+        .Default("//tmp/chyt");
+    registrar.Parameter("full_result_table_expiration_timeout", &TThis::FullResultTableExpirationTimeout)
+        .Default(TDuration::Hours(24));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

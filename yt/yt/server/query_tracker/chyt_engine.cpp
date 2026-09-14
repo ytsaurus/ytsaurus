@@ -32,6 +32,8 @@
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/node.h>
 
+#include <util/string/cast.h>
+
 namespace NYT::NQueryTracker {
 
 using namespace NApi;
@@ -59,6 +61,8 @@ struct TChytSettings
 
     TDuration QueryTimeout;
 
+    std::optional<bool> EnableFullResultWrite;
+
     THashMap<std::string, std::string> QuerySettings;
 
     REGISTER_YSON_STRUCT(TChytSettings);
@@ -73,6 +77,8 @@ struct TChytSettings
             .Default();
         registrar.Parameter("query_timeout", &TThis::QueryTimeout)
             .Default(DefaultChytQueryTimeout);
+        registrar.Parameter("enable_full_result_write", &TThis::EnableFullResultWrite)
+            .Default();
         registrar.Parameter("query_settings", &TThis::QuerySettings)
             .Default();
         registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -302,18 +308,28 @@ private:
 
         auto req = proxy.ExecuteQuery();
 
-        SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
-        req->set_row_count_limit(Config_->RowCountLimit);
-        ToProto(req->mutable_query_id(), QueryId_);
-        auto* chytRequest = req->mutable_chyt_request();
-        chytRequest->set_query(Query_);
-
         for (const auto& [key, value] : GetUnrecognizedFlattenedSettings()) {
             auto [_, inserted] = Settings_->QuerySettings.emplace(key, value);
             if (!inserted) {
                 THROW_ERROR_EXCEPTION("Setting %v is present multiple times", key);
             }
         }
+
+        auto enableFullResultWrite = IsFullResultWriteEnabled();
+        SetFullResultWriteQuerySetting(enableFullResultWrite);
+
+        SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
+        req->set_row_count_limit(Config_->RowCountLimit);
+        ToProto(req->mutable_query_id(), QueryId_);
+        if (enableFullResultWrite) {
+            auto* fullResultOptions = req->mutable_full_result_options();
+            fullResultOptions->set_table_path_prefix(Config_->FullResultTablePathPrefix);
+            fullResultOptions->set_cluster(Cluster_);
+            fullResultOptions->set_expiration_timeout_milliseconds(Config_->FullResultTableExpirationTimeout.MilliSeconds());
+        }
+
+        auto* chytRequest = req->mutable_chyt_request();
+        chytRequest->set_query(Query_);
 
         auto* settings = chytRequest->mutable_settings();
         for (const auto& [key, value] : Settings_->QuerySettings) {
@@ -339,6 +355,55 @@ private:
         PollQueryProgress(proxy, instanceChannel->GetEndpointDescription());
 
         return result.ValueOrThrow();
+    }
+
+    bool IsFullResultWriteEnabled() const
+    {
+        if (Settings_->EnableFullResultWrite) {
+            return *Settings_->EnableFullResultWrite;
+        }
+
+        if (auto value = GetFullResultWriteQuerySetting()) {
+            return *value;
+        }
+
+        return Config_->EnableFullResultWrite;
+    }
+
+    std::optional<bool> GetFullResultWriteQuerySetting() const
+    {
+        for (const auto* key : {"chyt.enable_full_result_write", "chyt_enable_full_result_write"}) {
+            auto it = Settings_->QuerySettings.find(key);
+            if (it == Settings_->QuerySettings.end()) {
+                continue;
+            }
+
+            return ParseBooleanQuerySetting(key, it->second);
+        }
+
+        return std::nullopt;
+    }
+
+    void SetFullResultWriteQuerySetting(bool enabled)
+    {
+        Settings_->QuerySettings.erase("chyt.enable_full_result_write");
+        Settings_->QuerySettings.erase("chyt_enable_full_result_write");
+        Settings_->QuerySettings.emplace("chyt.enable_full_result_write", enabled ? "1" : "0");
+    }
+
+    bool ParseBooleanQuerySetting(TStringBuf key, const std::string& value) const
+    {
+        auto stringValue = TString(value);
+        if (int intValue; TryIntFromString<10>(stringValue, intValue) && intValue >= 0 && intValue <= 1) {
+            return intValue == 1;
+        }
+
+        if (bool boolValue; TryFromString<bool>(stringValue, boolValue)) {
+            return boolValue;
+        }
+
+        THROW_ERROR_EXCEPTION("Cannot parse boolean CHYT setting %Qv", key)
+            .With("Value", value);
     }
 
     void PollQueryProgress(TQueryServiceProxy coordinator, std::string endpoint)
@@ -427,9 +492,16 @@ private:
         for (int index = 0; index < std::ssize(rsp->Attachments()); ++index) {
             const auto& ref = rsp->Attachments()[index];
             if (!ref.Empty()) {
+                TYsonString fullResult;
+                if (index < rsp->full_result_size()) {
+                    if (const auto& rawFullResult = rsp->full_result(index)) {
+                        fullResult = TYsonString(rawFullResult);
+                    }
+                }
                 wireRowsetOrErrors.emplace_back(TWireRowset{
                     .Rowset = ref,
                     .IsTruncated = index < rsp->is_truncated_size() && rsp->is_truncated(index),
+                    .FullResult = std::move(fullResult),
                 });
             }
         }

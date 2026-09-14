@@ -9,14 +9,26 @@
 
 #include <yt/chyt/client/query_service_proxy.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
+
+#include <yt/yt/client/api/cypress_client.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/core/actions/current_invoker.h>
 
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yt/core/ypath/helpers.h>
+
+#include <yt/yt/core/ytree/attributes.h>
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 
@@ -48,12 +60,17 @@ extern const SettingsBool implicit_select;
 
 namespace NYT::NClickHouseServer {
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NLogging;
+using namespace NObjectClient;
 using namespace NProto;
 using namespace NRpc;
 using namespace NRpc::NProto;
 using namespace NTableClient;
+using namespace NYPath;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,6 +84,13 @@ struct TRowset
     TSharedRef Rowset;
     i64 TotalRowCount;
     bool IsTruncated;
+    TYsonString FullResult;
+};
+
+struct TMaterializedResult
+{
+    TYsonString FullResult;
+    IUnversionedWriterPtr Writer;
 };
 
 template <class TRequest>
@@ -124,6 +148,7 @@ private:
     DB::ContextMutablePtr QueryContext_;
     DB::BlockIO BlockIO_;
     TConversionSettingsPtr ConversionSettings_;
+    TQuerySettingsPtr QuerySettings_;
     std::vector<TRowset> Result_;
 
     void Run()
@@ -201,11 +226,11 @@ private:
         QueryContext_->checkSettingsConstraints(settingsChanges, DB::SettingSource::QUERY);
         QueryContext_->applySettingsChanges(settingsChanges);
 
-        auto querySettings = ParseCustomSettings(
+        QuerySettings_ = ParseCustomSettings(
             Host_->GetConfig()->QuerySettings,
             QueryContext_->getSettingsRef().changes(),
             Logger);
-        ConversionSettings_ = querySettings->Conversion;
+        ConversionSettings_ = QuerySettings_->Conversion;
         ConversionSettings_->Composite->ConvertUnsupportedTypesToString = true;
     }
 
@@ -239,31 +264,166 @@ private:
         DB::Block block;
         auto rowBuffer = New<TRowBuffer>();
         std::vector<TUnversionedRow> rowset;
-        auto rowCountLimitExceeded = [&] {
-            if (!Request_->has_row_count_limit()) {
-                return false;
-            }
-            return std::ssize(rowset) > Request_->row_count_limit();
-        };
-        while (!rowCountLimitExceeded() && executor.pull(block)) {
+
+        auto rowCountLimit = GetRowCountLimit();
+        auto resultIndex = std::ssize(Result_);
+        std::optional<TMaterializedResult> materializedResult;
+        i64 totalRowCount = 0;
+        bool isTruncated = false;
+
+        while (executor.pull(block)) {
             if (!block) {
                 continue;
             }
             auto rowRange = ToRowRange(block, dataTypes, columnIndexToId, ConversionSettings_);
-            auto capturedRows = rowBuffer->CaptureRows(rowRange);
-            rowset.insert(rowset.end(), capturedRows.begin(), capturedRows.end());
+            totalRowCount += rowRange.Size();
+
+            if (!isTruncated) {
+                auto capturedRows = rowBuffer->CaptureRows(rowRange);
+                rowset.insert(rowset.end(), capturedRows.begin(), capturedRows.end());
+
+                if (rowCountLimit && std::ssize(rowset) > *rowCountLimit) {
+                    isTruncated = true;
+
+                    if (IsFullResultMaterializationEnabled()) {
+                        materializedResult = CreateFullResultTable(
+                            schema,
+                            TNameTable::FromSchema(schema),
+                            resultIndex);
+
+                        auto fullResultRows = rowset;
+                        WriteFullResultRows(
+                            materializedResult->Writer,
+                            MakeSharedRange(std::move(fullResultRows), rowBuffer));
+                    }
+
+                    rowset.resize(*rowCountLimit);
+
+                    if (!materializedResult) {
+                        break;
+                    }
+                }
+            } else if (materializedResult) {
+                WriteFullResultRows(materializedResult->Writer, rowRange);
+            }
         }
 
-        bool isTruncated = rowCountLimitExceeded();
-        if (isTruncated) {
-            rowset.resize(Request_->row_count_limit());
+        if (materializedResult) {
+            CloseFullResultWriter(materializedResult->Writer);
         }
-
-        auto totalRowCount = std::ssize(rowset);
 
         auto wireRowset = ConvertToWireRowset(schema, rowset);
-        Result_.emplace_back(TRowset{wireRowset, totalRowCount, isTruncated});
+        Result_.emplace_back(TRowset{
+            .Rowset = wireRowset,
+            .TotalRowCount = totalRowCount,
+            .IsTruncated = isTruncated,
+            .FullResult = materializedResult ? materializedResult->FullResult : TYsonString(),
+        });
         BlockIO_.onFinish();
+    }
+
+    std::optional<i64> GetRowCountLimit() const
+    {
+        if (!Request_->has_row_count_limit()) {
+            return std::nullopt;
+        }
+
+        auto rowCountLimit = Request_->row_count_limit();
+        if (rowCountLimit < 0) {
+            THROW_ERROR_EXCEPTION("Row count limit cannot be negative")
+                .With("RowCountLimit", rowCountLimit);
+        }
+
+        return rowCountLimit;
+    }
+
+    bool IsFullResultMaterializationEnabled() const
+    {
+        return QuerySettings_->EnableFullResultWrite &&
+            Request_->has_full_result_options() &&
+            Request_->full_result_options().has_table_path_prefix() &&
+            !Request_->full_result_options().table_path_prefix().empty();
+    }
+
+    TMaterializedResult CreateFullResultTable(
+        const TTableSchema& schema,
+        TNameTablePtr nameTable,
+        int resultIndex)
+    {
+        const auto& options = Request_->full_result_options();
+        auto tablePath = GetFullResultTablePath();
+
+        YT_TLOG_INFO("Creating full result table")
+            .With("Path", tablePath)
+            .With("ResultIndex", resultIndex);
+
+        auto queryContext = GetQueryContext(QueryContext_);
+        auto attributes = ConvertToAttributes(Host_->GetConfig()->CreateTableDefaultAttributes);
+        attributes->Set("schema", schema);
+
+        auto expirationTimeout = options.expiration_timeout_milliseconds();
+        if (expirationTimeout > 0) {
+            attributes->Set("expiration_timeout", expirationTimeout);
+        }
+
+        TCreateNodeOptions createOptions;
+        createOptions.Attributes = std::move(attributes);
+        createOptions.Recursive = true;
+        WaitFor(queryContext->Client()->CreateNode(tablePath, EObjectType::Table, createOptions))
+            .ValueOrThrow();
+
+        auto writerOptions = New<NTableClient::TTableWriterOptions>();
+        writerOptions->EnableColumnarValueStatistics = false;
+        writerOptions->EnableRowCountInColumnarStatistics = false;
+
+        auto writer = WaitFor(CreateSchemalessTableWriter(
+            queryContext->SessionSettings->TableWriter,
+            std::move(writerOptions),
+            TRichYPath(tablePath),
+            std::move(nameTable),
+            queryContext->Client(),
+            /*localHostName*/ TString(),
+            /*transaction*/ nullptr,
+            /*writeBlocksOptions*/ {}))
+            .ValueOrThrow();
+
+        auto fullResult = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("cluster").Value(options.cluster())
+                .Item("table_path").Value(tablePath)
+            .EndMap();
+
+        return TMaterializedResult{
+            .FullResult = std::move(fullResult),
+            .Writer = std::move(writer),
+        };
+    }
+
+    TYPath GetFullResultTablePath() const
+    {
+        TYPath rootPath(Request_->full_result_options().table_path_prefix());
+        // Strip trailing slashes without turning the Cypress root into an empty path.
+        while (rootPath.length() > 2 && rootPath.back() == '/') {
+            rootPath.pop_back();
+        }
+
+        return YPathJoin(rootPath, User_, ToString(TQueryId::Create()));
+    }
+
+    void WriteFullResultRows(const IUnversionedWriterPtr& writer, TRange<TUnversionedRow> rows)
+    {
+        if (!writer->Write(rows)) {
+            WaitFor(writer->GetReadyEvent())
+                .ThrowOnError();
+        }
+    }
+
+    void CloseFullResultWriter(const IUnversionedWriterPtr& writer)
+    {
+        YT_TLOG_INFO("Closing full result writer");
+        WaitFor(writer->Close())
+            .ThrowOnError();
+        YT_TLOG_INFO("Full result writer closed");
     }
 
     TSharedRef ConvertToWireRowset(const TTableSchema& schema, const std::vector<TUnversionedRow>& rowset)
@@ -364,6 +524,11 @@ private:
             for (auto& rowset : rowsetsOrError.Value()) {
                 attachments.push_back(std::move(rowset.Rowset));
                 response->add_is_truncated(rowset.IsTruncated);
+                if (rowset.FullResult) {
+                    response->add_full_result(TString(rowset.FullResult.AsStringBuf()));
+                } else {
+                    response->add_full_result();
+                }
             }
             response->Attachments() = std::move(attachments);
         } else {
