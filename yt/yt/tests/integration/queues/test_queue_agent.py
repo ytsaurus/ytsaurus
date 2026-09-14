@@ -6833,6 +6833,7 @@ class TestExportWithHunkStorage(TestQueueStaticExportBase):
 
         sync_unmount_table(queue_path)
         remove(f"{queue_path}/@hunk_storage_id")
+        assert get(f"{queue_path}/@hunk_storage_id") == "0-0-0-0"
         remove(f"{queue_path}/@static_export_config")
         self._wait_for_global_sync()
         assert get(f"{queue_path}/@locks") == []
