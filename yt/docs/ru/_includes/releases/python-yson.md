@@ -47,7 +47,7 @@
 Новые возможности:
   - Поддержка формата ORC
   - Доступ к thread local переменным через noinline функции
-  - Поддержка Python 3.13 (отказ от устаревшей PyImport_ImportModuleNoBlock)
+  - Поддержка Python 3.13 (отказ от устаревшей `PyImport_ImportModuleNoBlock`)
 
 {% endcut %}
 
@@ -82,6 +82,6 @@
 
 
 - Добавлена реализация `upload_parquet`
-- Исправлен недопустимый доступ к памяти в YsonStringProxy
+- Исправлен недопустимый доступ к памяти в `YsonStringProxy`
 
 {% endcut %}

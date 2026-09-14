@@ -13,6 +13,6 @@
 
 Мы рады сообщить о первом публичном релизе Helm-чарта YTsaurus Excel Integration.
 
-Ознакомьтесь с руководством по установке: [Excel integration](https://ytsaurus.tech/docs/en/admin-guide/install-excel)
+Ознакомьтесь с руководством по установке: [Excel integration](https://ytsaurus.tech/docs/ru/admin-guide/install-excel)
 
 {% endcut %}

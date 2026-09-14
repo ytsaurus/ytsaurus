@@ -23,7 +23,7 @@
 
 #### Queue Agent
 ##### Исправления:
-- Исправлено создание вторичного индекса в скрипте init_queue_agent_state, [9840c02](https://github.com/ytsaurus/ytsaurus/commit/9840c02ebe08e450b88ba00efa23c5af0a8b1eda)
+- Исправлено создание вторичного индекса в скрипте `init_queue_agent_state`, [9840c02](https://github.com/ytsaurus/ytsaurus/commit/9840c02ebe08e450b88ba00efa23c5af0a8b1eda)
 
 {% endcut %}
 
@@ -49,13 +49,13 @@ YTsaurus Server 25.3.0 поддерживается начиная с верси
 
 - Добавлено обнаружение GPU через gpu-agent.
 
-- Автоматическая подстройка размера джобов для упорядоченных и сортированных типов и стадий операций: стадии sorted_merge, ordered_merge, sorted_reduce, ordered_map, ordered_map и sorted_reduce операции Map-Reduce.
+- Автоматическая подстройка размера джобов для упорядоченных и сортированных типов и стадий операций: стадии `sorted_merge`, `ordered_merge`, `sorted_reduce`, `ordered_map`, `ordered_map` и `sorted_reduce` операции Map-Reduce.
 
 - Поддержка ограничений `compressed_data_size` для MR-операций.
 
 - Протокол распределённой записи для файлов.
 
-- Поддержка row cache для следующих за таблет-селлом пиров (в среде с несколькими пирами в таблет-селле).
+- Поддержка `row_cache` для следующих за таблет-селлом пиров (в среде с несколькими пирами в таблет-селле).
 
 - [экспериментально] Поддержка сложных типов данных в формате Arrow.
 
@@ -110,7 +110,7 @@ YTsaurus Server 25.3.0 поддерживается начиная с верси
 - Исправлена потенциальная потеря данных при множественном экспорте из очереди
 из-за некорректного объединения прогрессов экспорта очередей, [bd5d92a](https://github.com/ytsaurus/ytsaurus/commit/bd5d92a8bcb0c45743bc4d0fec0c6da8dee4ebdb).
 - Исправлена передача мутирующих опций в `CreateQueueProducerSession` в RPC-прокси, [8ab3c7d](https://github.com/ytsaurus/ytsaurus/commit/8ab3c7da89fa380a0187b5c04dd8857b4d88da0a).
-- Устанавливается атрибут `treat_as_queue_producer=%true` при создании queue_producer, [4537011](https://github.com/ytsaurus/ytsaurus/commit/4537011fd63851d5c09441195ac43f675b63b30d).
+- Устанавливается атрибут `treat_as_queue_producer=%true` при создании `queue_producer`, [4537011](https://github.com/ytsaurus/ytsaurus/commit/4537011fd63851d5c09441195ac43f675b63b30d).
 
 #### Прокси
 ##### Новые возможности и изменения:
@@ -354,9 +354,9 @@ CA оценивает вес данных, которые будут прочи�
 
 #### Существенные изменения
 - Добавлена поддержка GPU Nvidia в k8s-operator. Улучшено обнаружение GPU-устройств в контейнере джоба.
-[Документация](https://ytsaurus.tech/docs/en/admin-guide/gpu).
-- Добавлен bundle controller для управления бандлами таблеточных ячеек на небольших кластерах. Этот компонент распределяет таблеточные узлы по бандлам, управляет обслуживанием узлов и контролирует распределение CPU и памяти по таблеточным узлам. [Документация](https://ytsaurus.tech/docs/en/admin-guide/bundle-controller).
-- Добавлена поддержка multiproxy-режима в RPC-прокси. RPC-прокси (включая RPC Proxy в Job Proxy) могут быть настроены для работы с удалёнными кластерами. [Документация](https://ytsaurus.tech/docs/en/admin-guide/multiproxy).
+[Документация](https://ytsaurus.tech/docs/ru/admin-guide/gpu).
+- Добавлен bundle controller для управления бандлами таблеточных ячеек на небольших кластерах. Этот компонент распределяет таблеточные узлы по бандлам, управляет обслуживанием узлов и контролирует распределение CPU и памяти по таблеточным узлам. [Документация](https://ytsaurus.tech/docs/ru/admin-guide/bundle-controller).
+- Добавлена поддержка multiproxy-режима в RPC-прокси. RPC-прокси (включая RPC Proxy в Job Proxy) могут быть настроены для работы с удалёнными кластерами. [Документация](https://ytsaurus.tech/docs/ru/admin-guide/multiproxy).
 
 #### Возможности языка запросов
 - Добавлены функции `cardinality_state` и `cardinality_merge`.
@@ -369,7 +369,7 @@ CA оценивает вес данных, которые будут прочи�
 - Включено удалённое копирование hunk'ов по умолчанию.
 - Включён учёт ресурсов таблетов по бандлам по умолчанию.
 - Операции Remote Copy устанавливают некоторые системные атрибуты целевой таблицы, даже если в спецификации `copy_attributes` имеет значение false; эти атрибуты: `compression_codec`, `erasure_codec`, `optimize_for`.
-- Объявлен устаревшим `list_node`. Мастер-серверы теперь будут выдавать предупреждение в журнале (уровень alert) после загрузки слепка, если он содержит list-узел. Это поведение можно отключить с помощью опции `alert_on_list_node_load`. Рекомендуется перейти на другие типы и удалить или заменить все оставшиеся list-узлы. Если этого не сделать, мастер-сервер не запустится в следующем мажорном обновлении. В этот релиз включён скрипт, который должен помочь в миграции в большинстве случаев. Его можно найти в `yt/yt/scripts/master/replace_list_nodes`. Мы опубликовали статью в блоге, объясняющую причины отказа от этого типа и предлагающую другие методы миграции. Подробнее [здесь](https://ytsaurus.tech/en/blog/ytsaurus-25-2-0#deprecation).
+- Объявлен устаревшим `list_node`. Мастер-серверы теперь будут выдавать предупреждение в журнале (уровень alert) после загрузки слепка, если он содержит list-узел. Это поведение можно отключить с помощью опции `alert_on_list_node_load`. Рекомендуется перейти на другие типы и удалить или заменить все оставшиеся list-узлы. Если этого не сделать, мастер-сервер не запустится в следующем мажорном обновлении. В этот релиз включён скрипт, который должен помочь в миграции в большинстве случаев. Его можно найти в `yt/yt/scripts/master/replace_list_nodes`. Мы опубликовали статью в блоге, объясняющую причины отказа от этого типа и предлагающую другие методы миграции. Подробнее [здесь](https://ytsaurus.tech/ru/blog/ytsaurus-25-2-0#deprecation).
 
 ---
 #### Полный журнал изменений
@@ -412,7 +412,7 @@ CA оценивает вес данных, которые будут прочи�
   - Исправлено чтение таблиц с колонками типа date, [1a23993](https://github.com/ytsaurus/ytsaurus/commit/1a239934462e269550c103cf81b813997ce473cc).
   - Добавлена возможность чтения таблиц с разным количеством колонок в метаданных чанка в формате Arrow, [6210035](https://github.com/ytsaurus/ytsaurus/commit/6210035056c12e3b078f7a3e01b562030f946192).
 - Изменены опции кэширования в конфиге CypressUserManager для OAuthAuthenticator. Перейдите на опции, совместимые с AsyncExpiringCache ("expire\_after\_\*\_time"). Более старые опции ("cache\_ttl", "optimistic\_cache\_ttl") объявлены устаревшими и будут удалены в будущих версиях, [1ecabbc](https://github.com/ytsaurus/ytsaurus/commit/1ecabbc9831fb6fd8b41b12feb5173309a70d21b).
-- Исправление для CVE-2023-33460: утечка памяти в yajl 2.1.0 при использовании функции yajl_tree_parse. [f7b9064](https://github.com/ytsaurus/ytsaurus/commit/f7b9064f099d977cdfb2644f4ef11a57745049f7)
+- Исправление для CVE-2023-33460: утечка памяти в yajl 2.1.0 при использовании функции `yajl_tree_parse`. [f7b9064](https://github.com/ytsaurus/ytsaurus/commit/f7b9064f099d977cdfb2644f4ef11a57745049f7)
 - Исправлена возможная взаимоблокировка в кэше метаданных чанков, [7c68dbe](https://github.com/ytsaurus/ytsaurus/commit/7c68dbe45457d1254046e1d9c22c6bff55cf3138).
 - Исправлен расчёт `state_counts` и `type_counts` в методе `list_jobs`, [84d7713](https://github.com/ytsaurus/ytsaurus/commit/84d7713a74b8f7c311ea523408d8d42d51eb8fa6).
 - Устанавливается атрибут `treat_as_queue_producer=%true` при создании queue_producer, [88eac20](https://github.com/ytsaurus/ytsaurus/commit/88eac20c53b28015773e0f854ac2f62ded5fcf56).

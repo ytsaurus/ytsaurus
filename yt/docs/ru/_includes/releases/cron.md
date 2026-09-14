@@ -20,7 +20,7 @@
 
 
 #### Новые возможности
-- Добавлены cron-задачи для обработки слепков. Подробнее см. в [документации](https://ytsaurus.tech/docs/en/admin-guide/install-cron#process_master_snapshot). [fdacc5428e1cfc107c71dc1dc0212ec23c708edd]
+- Добавлены cron-задачи для обработки снапшотов. Подробнее см. в [документации](https://ytsaurus.tech/docs/ru/admin-guide/install-cron#process_master_snapshot). [fdacc5428e1cfc107c71dc1dc0212ec23c708edd]
 
 #### Исправления
 - Исправлен короткий таймаут в cron-задаче `clear-tmp` [511aa1ce1f053263182382aa2a6a33b4e2989ff3]
@@ -67,8 +67,8 @@
     - clear_tmp_files
     - clear_tmp_trash
     - prune_offline_servers
-- Поддержка пользовательских задач через additionalJobs
+- Поддержка пользовательского определения джобов через `additionalJobs`
 - Безопасная настройка токена через прямое значение или Kubernetes Secret
-- Настраиваемые параметры ресурсов, политики расписания и управление параллелизмом
+- Настраиваемые параметры ресурсов, политики расписания и управление конкурентностью
 
 {% endcut %}

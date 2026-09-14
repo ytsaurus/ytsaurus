@@ -1154,7 +1154,7 @@
 
 #### Исправления ошибок
 
-* **BFF** исправлено логирование ошибок axios в функции sendAndLogError ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
+* **BFF** исправлено логирование ошибок axios в функции `sendAndLogError` ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
 * **Navigation:** всплывающее окно выбора пула [YTFRONT-4380] ([f52eb90](https://github.com/ytsaurus/ytsaurus-ui/commit/f52eb90da82306d6bf191a0d1375f3c30eaa3aac))
 * **Navigation/Consumer,Navigation/Queue:** отображение ошибок [YTFRONT-4144] ([914a6a0](https://github.com/ytsaurus/ytsaurus-ui/commit/914a6a066ce30928673749bd8e2250c51a3e637b))
 * **Navigation/Table/CellPreview:** исправлено открытие предпросмотра для таблицы со смещением [[#778](https://github.com/ytsaurus/ytsaurus-ui/issues/778)] ([7347349](https://github.com/ytsaurus/ytsaurus-ui/commit/7347349c9adaedb1a8d7ea4a933a8316f2b296d2))
@@ -2092,7 +2092,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 * **Operations/Details:** мелкий css-фикс [YTFRONT-3518] ([91d9b01](https://github.com/ytsaurus/ytsaurus-ui/commit/91d9b0172dd8de0c1d610bc9eb1ca8d2117b1dd6))
 * **Scheduling/PoolEditor:** корректное значение для fifo_sort_parameters [YTFRONT-3957] ([34d5cdb](https://github.com/ytsaurus/ytsaurus-ui/commit/34d5cdb672b0eeadce80f10d1f828f1579e326ac))
-* **SupportForm:** переработан api функции makeSupportContent [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
+* **SupportForm:** переработан api функции `makeSupportContent` [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
 
 {% endcut %}
 
