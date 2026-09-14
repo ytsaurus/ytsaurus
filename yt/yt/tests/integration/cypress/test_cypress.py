@@ -5012,6 +5012,19 @@ class TestCypressPortal(TestCypressMulticell):
         "13": {"roles": ["chunk_host"]},
     }
 
+    @authors("kvk1920")
+    def test_cross_cell_prerequisite_revision(self):
+        tx = start_transaction()
+
+        create("map_node", "//tmp/m")
+        m_revision = get("//tmp/m/@revision")
+        root_revision = get("//@revision")
+        with raises_yt_error("Request is cross-cell"):
+            exists("//tmp/m/@type", tx=tx, prerequisite_revisions=[{"path": "/", "revision": root_revision}])
+
+        with raises_yt_error("Prerequisite check failed"):
+            exists("//@type", tx=tx, prerequisite_revisions=[{"path": "//tmp/m", "revision": m_revision}])
+
     @authors("h0pless")
     def test_cyclic_link_through_portal(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})

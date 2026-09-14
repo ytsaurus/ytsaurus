@@ -2198,9 +2198,24 @@ private:
             } else {
                 subrequest->RemoteTransactionReplicationFuture
                     .WithTimeout(timeLeft)
-                    .Subscribe(
+                    .Apply(
                         BIND(onRemoteTransactionReplicated)
-                            .Via(LocalReadInvoker_));
+                            .Via(LocalReadInvoker_))
+                    .Subscribe(BIND([Logger = Logger, weakThis = MakeWeak(this), requestId = GetRequestId()] (const TError& error) {
+                        if (error.IsOK()) {
+                            return;
+                        }
+
+                        YT_TLOG_ALERT(
+                            "Unexpected error while handling remote transaction replication")
+                            .With("RequestId", requestId)
+                            .With(error);
+
+                        auto this_ = weakThis.Lock();
+                        if (this_ && !this_->RpcContext_->IsReplied()) {
+                            this_->Reply(error);
+                        }
+                    }));
             }
         } else {
             YT_VERIFY(subrequest->MutationResponseFuture);

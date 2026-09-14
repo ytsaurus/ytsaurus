@@ -467,6 +467,46 @@ public:
 
     void Invoke(const IYPathServiceContextPtr& context) override
     {
+        try {
+            GuardedInvoke(context);
+        } catch (const std::exception& ex) {
+            if (context->IsReplied()) {
+                YT_TLOG_ALERT("Exception caught while forwarding remote request; request is already replied")
+                    .With("RequestId", context->GetRequestId())
+                    .With(ex);
+            } else {
+                context->Reply(ex);
+            }
+        }
+    }
+
+    void DoWriteAttributesFragment(
+        IAsyncYsonConsumer* /*consumer*/,
+        const TAttributeFilter& /*attributeFilter*/,
+        bool /*stable*/) override
+    {
+        YT_TLOG_ALERT("TObjectManager::TRemoteProxy::DoWriteAttributesFragment called")
+            .With("ObjectId", ObjectId_)
+            .With("ForwardedCellTag", ForwardedCellTag_);
+
+        THROW_ERROR_EXCEPTION("Unexpected error: TRemoteProxy::DoWriteAttributesFragment called, please report this")
+            .With("object_id", ObjectId_)
+            .With("forwarded_cell_tag", ForwardedCellTag_);
+    }
+
+    bool ShouldHideAttributes() override
+    {
+        return false;
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+    const TObjectId ObjectId_;
+    const TCellTag ForwardedCellTag_;
+    const int ResolveDepth_;
+
+    void GuardedInvoke(const IYPathServiceContextPtr& context)
+    {
         auto* mutationContext = TryGetCurrentMutationContext();
         if (mutationContext) {
             mutationContext->SetResponseKeeperSuppressed(true);
@@ -665,31 +705,6 @@ public:
                 }
             }).Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
-
-    void DoWriteAttributesFragment(
-        IAsyncYsonConsumer* /*consumer*/,
-        const TAttributeFilter& /*attributeFilter*/,
-        bool /*stable*/) override
-    {
-        YT_TLOG_ALERT("TObjectManager::TRemoteProxy::DoWriteAttributesFragment called")
-            .With("ObjectId", ObjectId_)
-            .With("ForwardedCellTag", ForwardedCellTag_);
-
-        THROW_ERROR_EXCEPTION("Unexpected error: TRemoteProxy::DoWriteAttributesFragment called, please report this")
-            .With("object_id", ObjectId_)
-            .With("forwarded_cell_tag", ForwardedCellTag_);
-    }
-
-    bool ShouldHideAttributes() override
-    {
-        return false;
-    }
-
-private:
-    TBootstrap* const Bootstrap_;
-    const TObjectId ObjectId_;
-    const TCellTag ForwardedCellTag_;
-    const int ResolveDepth_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
