@@ -1017,6 +1017,10 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
+        for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
+            tabletCommitSession->CalculateBatchSignatures();
+        }
+
         std::vector<TFuture<void>> futures;
         futures.reserve(TabletCommitSessions_.size());
         if (SequoiaTransactionOptions_.SequenceTabletCommitSessions) {
