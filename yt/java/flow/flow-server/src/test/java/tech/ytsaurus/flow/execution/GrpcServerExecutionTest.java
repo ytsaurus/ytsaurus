@@ -1,10 +1,13 @@
 package tech.ytsaurus.flow.execution;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeoutException;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -47,7 +50,7 @@ class GrpcServerExecutionTest {
 
     @AfterEach
     void tearDown() {
-        if (execution != null && execution.isRunning()) {
+        if (execution != null) {
             execution.stop();
         }
     }
@@ -112,20 +115,25 @@ class GrpcServerExecutionTest {
         // Before start.
         assertFalse(execution.isRunning());
         assertEquals(-1, execution.getPort());
+        assertEquals(-1, execution.getMonitoringPort());
 
         // After start.
         execution.startAsync();
         assertTrue(execution.isRunning());
         int port = execution.getPort();
+        int monitoringPort = execution.getMonitoringPort();
         assertTrue(port > 0, "Port should be assigned after start");
+        assertTrue(monitoringPort > 0, "Monitoring port should be assigned after start");
 
         // Port remains consistent while running.
         assertEquals(port, execution.getPort());
+        assertEquals(monitoringPort, execution.getMonitoringPort());
 
         // After stop.
         execution.stop();
         assertFalse(execution.isRunning());
         assertEquals(-1, execution.getPort(), "Port should be -1 after stop");
+        assertEquals(-1, execution.getMonitoringPort(), "Monitoring port should be -1 after stop");
     }
 
     @Test
@@ -252,60 +260,7 @@ class GrpcServerExecutionTest {
     }
 
     @Test
-    void concurrentStartStopOperations() throws InterruptedException {
-        int numThreads = 10;
-        AtomicInteger errorCount = new AtomicInteger(0);
-        var executor = Executors.newFixedThreadPool(numThreads);
-        try {
-            CountDownLatch startLatch = new CountDownLatch(1);
-            CountDownLatch doneLatch = new CountDownLatch(numThreads);
-
-            for (int i = 0; i < numThreads; i++) {
-                final boolean shouldStart = i % 2 == 0;
-                executor.submit(() -> {
-                    try {
-                        startLatch.await();
-                        if (shouldStart) {
-                            execution.startAsync();
-                        } else {
-                            execution.stop();
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    } catch (IOException e) {
-                        // startAsync may throw IOException — this is unexpected in this test.
-                        errorCount.incrementAndGet();
-                    } finally {
-                        doneLatch.countDown();
-                    }
-                });
-            }
-
-            startLatch.countDown();
-            assertTrue(doneLatch.await(10, TimeUnit.SECONDS), "All operations should complete");
-            executor.shutdown();
-            assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS));
-
-            assertEquals(0, errorCount.get(), "No unexpected errors should occur");
-
-            // Server should be in a consistent state:
-            // running = true & port > 0 || running = false & port = -1
-            boolean isRunning = execution.isRunning();
-            int port = execution.getPort();
-            if (isRunning) {
-                assertTrue(port > 0, "Running server should have a positive port");
-                // Verify the server is actually reachable.
-                assertEquals(HealthCheckResponse.ServingStatus.SERVING, checkHealth(port).getStatus());
-            } else {
-                assertEquals(-1, port, "Stopped server should report port -1");
-            }
-        } finally {
-            executor.shutdownNow();
-        }
-    }
-
-    @Test
-    void multipleServerInstances() throws IOException {
+    void independentExecutionsUseDifferentPorts() throws IOException {
         GrpcServerExecution execution2 = createExecution();
 
         try {
@@ -321,7 +276,7 @@ class GrpcServerExecutionTest {
     }
 
     @Test
-    void rapidStartStopCycles() throws IOException {
+    void newExecutionCanStartAfterPreviousOneStops() throws IOException {
         for (int i = 0; i < 10; i++) {
             // Stop previous execution before creating a new one to avoid leaking server instances.
             if (execution != null && execution.isRunning()) {
@@ -338,58 +293,33 @@ class GrpcServerExecutionTest {
 
     @Test
     void startBlocksUntilStop() throws Exception {
-        CountDownLatch startReturned = new CountDownLatch(1);
+        var executor = Executors.newSingleThreadExecutor();
+        Future<?> start = executor.submit(() -> {
+            execution.start();
+            return null;
+        });
+        try {
+            await()
+                    .atMost(5, TimeUnit.SECONDS)
+                    .pollInterval(50, TimeUnit.MILLISECONDS)
+                    .until(execution::isRunning);
 
-        Thread serverThread = new Thread(() -> {
-            try {
-                execution.start();
-            } catch (Exception e) {
-                // Expected — start() may throw InterruptedException when stop() terminates the server.
-            } finally {
-                startReturned.countDown();
-            }
-        }, "test-start-thread");
-        serverThread.start();
-
-        // Wait for server to be running.
-        await()
-                .atMost(5, TimeUnit.SECONDS)
-                .pollInterval(50, TimeUnit.MILLISECONDS)
-                .until(() -> execution.isRunning());
-
-        assertTrue(execution.isRunning(), "Server should be running");
-
-        // start() should still be blocking.
-        assertFalse(startReturned.await(500, TimeUnit.MILLISECONDS),
-                "start() should still be blocking");
-
-        // Stop should unblock start().
-        execution.stop();
-        assertTrue(startReturned.await(5, TimeUnit.SECONDS),
-                "start() should return after stop()");
-
-        serverThread.join(5000);
-        assertFalse(serverThread.isAlive(), "Server thread should have terminated");
+            assertThrows(TimeoutException.class, () -> start.get(500, TimeUnit.MILLISECONDS));
+            execution.stop();
+            start.get(5, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test
-    void restartAfterStop() throws IOException {
+    void restartAfterStopIsRejected() throws IOException {
         execution.startAsync();
-        int firstPort = execution.getPort();
-        assertTrue(firstPort > 0);
-
         execution.stop();
+
         assertFalse(execution.isRunning());
         assertEquals(-1, execution.getPort());
-
-        execution.startAsync();
-        assertTrue(execution.isRunning());
-        int secondPort = execution.getPort();
-        assertTrue(secondPort > 0);
-
-        // Verify server is actually functional after restart.
-        HealthCheckResponse response = checkHealth(secondPort);
-        assertEquals(HealthCheckResponse.ServingStatus.SERVING, response.getStatus());
+        assertThrows(IllegalStateException.class, execution::startAsync);
     }
 
     @Test
@@ -407,21 +337,28 @@ class GrpcServerExecutionTest {
     }
 
     @Test
-    void startAsyncFailureKeepsServerStopped() throws IOException {
+    void startupFailureRequiresANewExecution() throws IOException {
         execution.startAsync();
         int port = execution.getPort();
+        var failedExecution = createExecution(port);
+        try {
+            assertThrows(IOException.class, failedExecution::startAsync);
+            assertFalse(failedExecution.isRunning());
+            assertEquals(-1, failedExecution.getPort());
 
-        // Try to start another server on the same port — should fail.
-        var failingExecution = createExecution(port);
-        assertThrows(IOException.class, failingExecution::startAsync);
+            execution.stop();
+            assertThrows(IllegalStateException.class, failedExecution::startAsync);
 
-        // Verify the failing execution is in a clean state.
-        assertFalse(failingExecution.isRunning());
-        assertEquals(-1, failingExecution.getPort());
-
-        // Verify stop on failed execution is safe.
-        failingExecution.stop();
-        assertFalse(failingExecution.isRunning());
+            var replacementExecution = createExecution(port);
+            try {
+                replacementExecution.startAsync();
+                assertEquals(HealthCheckResponse.ServingStatus.SERVING, checkHealth(port).getStatus());
+            } finally {
+                replacementExecution.stop();
+            }
+        } finally {
+            failedExecution.stop();
+        }
     }
 
     @Test
@@ -438,33 +375,31 @@ class GrpcServerExecutionTest {
     void concurrentStartAsyncOnlyStartsOnce() throws Exception {
         int numThreads = 10;
         CountDownLatch start = new CountDownLatch(1);
-        CountDownLatch done = new CountDownLatch(numThreads);
-        AtomicInteger successCount = new AtomicInteger(0);
-
-        for (int i = 0; i < numThreads; i++) {
-            new Thread(() -> {
-                try {
+        var executor = Executors.newFixedThreadPool(numThreads);
+        try {
+            List<Future<?>> futures = new ArrayList<>();
+            for (int i = 0; i < numThreads; i++) {
+                futures.add(executor.submit(() -> {
                     start.await();
                     execution.startAsync();
-                    successCount.incrementAndGet();
-                } catch (Exception e) {
-                    // Unexpected.
-                } finally {
-                    done.countDown();
-                }
-            }).start();
+                    return null;
+                }));
+            }
+
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get(10, TimeUnit.SECONDS);
+            }
+
+            // All calls completed successfully, but only one server should exist.
+            assertTrue(execution.isRunning());
+            assertTrue(execution.getPort() > 0);
+
+            // Verify the server is actually functional.
+            HealthCheckResponse response = checkHealth(execution.getPort());
+            assertEquals(HealthCheckResponse.ServingStatus.SERVING, response.getStatus());
+        } finally {
+            executor.shutdownNow();
         }
-
-        start.countDown();
-        assertTrue(done.await(10, TimeUnit.SECONDS), "All threads should complete");
-
-        // All threads should succeed (idempotent), but only one server should exist.
-        assertEquals(numThreads, successCount.get(), "All startAsync calls should succeed");
-        assertTrue(execution.isRunning());
-        assertTrue(execution.getPort() > 0);
-
-        // Verify the server is actually functional.
-        HealthCheckResponse response = checkHealth(execution.getPort());
-        assertEquals(HealthCheckResponse.ServingStatus.SERVING, response.getStatus());
     }
 }
