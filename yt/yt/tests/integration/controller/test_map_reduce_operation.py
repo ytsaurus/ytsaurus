@@ -13,7 +13,6 @@ from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, m
 
 from yt_helpers import skip_if_old, skip_if_component_old
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 import yt_error_codes
 import yt.yson as yson
@@ -652,7 +651,6 @@ print("x={0}\ty={1}".format(x, y))
         assert len(read_table("//tmp/t_out", verbose=False)) > 0
 
     @authors("levysotsky")
-    @not_implemented_in_sequoia  # ACL
     def test_intermediate_live_preview(self):
         create_user("u")
         create("table", "//tmp/t1")
@@ -717,7 +715,6 @@ print("x={0}\ty={1}".format(x, y))
             wait(lambda: get("//sys/operations/@acl") == get("//sys/operations&/@acl"))
 
     @authors("levysotsky")
-    @not_implemented_in_sequoia  # ACL
     def test_intermediate_new_live_preview(self):
         partition_map_vertex = "partition_map(0)"
 
@@ -768,7 +765,6 @@ print("x={0}\ty={1}".format(x, y))
             remove("//sys/operations&/@acl/-1")
 
     @authors("dagorokhov")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize(
         "output_format,extract_names,expected_error",
         [

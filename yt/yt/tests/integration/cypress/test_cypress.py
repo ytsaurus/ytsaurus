@@ -2526,7 +2526,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("koloshmet")
-    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_time_authorized(self):
         auth_user1, auth_user2 = ("u1", "u2")
         create_user(auth_user1)
@@ -2561,7 +2560,6 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("koloshmet")
-    @not_implemented_in_sequoia
     def test_copy_dont_preserve_expiration_time_authorized(self):
         auth_user1, auth_user2 = ("u1", "u2")
         create_user(auth_user1)
@@ -2595,7 +2593,6 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("koloshmet")
-    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_timeout_authorized(self):
         auth_user1, auth_user2 = ("u1", "u2")
         create_user(auth_user1)
@@ -4977,7 +4974,6 @@ class TestCypressMulticell(TestCypress):
         assert not exists("//tmp/t/@external_cell_bias")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize("use_offloading", [False, True])
     def test_virtual_map_read_authenticated_user_propagation(self, use_offloading):
         if use_offloading:

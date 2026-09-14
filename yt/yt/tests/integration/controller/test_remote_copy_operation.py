@@ -575,7 +575,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             )
 
     @authors("asaitgalin", "ignat")
-    @not_implemented_in_sequoia
     def test_acl(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         create("table", "//tmp/t2")

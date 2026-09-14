@@ -1403,7 +1403,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert bundle_controller_config == get(config_path, authenticated_user="looser212")
 
     @authors("danilalexeev")
-    @not_implemented_in_sequoia
     def test_mount_permission_denied_by_ancestor(self):
         sync_create_cells(1)
         create("map_node", "//tmp/d")

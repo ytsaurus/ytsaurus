@@ -916,7 +916,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: self._is_account_disk_space_limit_violated("max"))
 
     @authors("shakurov", "kiselyovp")
-    @not_implemented_in_sequoia
     def test_disk_space_limits4(self):
         create("map_node", "//tmp/a")
         create("file", "//tmp/a/f1")
@@ -2037,7 +2036,6 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: check_chunk_requisition(chunk_id, expected_requisition))
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_inherited_account_override_yt_8391(self):
         create_account("a1")
         create_account("a2")
