@@ -1,5 +1,5 @@
 from yt.sequoia_tools.descriptors import DESCRIPTORS
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, is_asan_build
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, is_asan_build, with_portals_dir
 
 from yt_commands import (
     authors, wait, create, get, set, ls, copy, move, remove,
@@ -719,6 +719,7 @@ class TestJournalsPortal(TestJournalsMulticell):
     }
 
     @authors("gritukan", "danilalexeev")
+    @with_portals_dir
     def test_copy_sealed_journal_cross_shard(self):
         create("journal", "//tmp/j")
         self._write_and_wait_until_sealed("//tmp/j", PAYLOAD)

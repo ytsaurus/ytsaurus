@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, with_portals_dir
 
 from yt_commands import (
     assert_yt_error, authors, create, ls, get, set, copy, move, remove, create_domestic_medium, exists, multiset_attributes,
@@ -2857,6 +2857,7 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
     }
 
     @authors("shakurov")
+    @with_portals_dir
     def test_columnar_acl_copy_yt_12749(self):
         set(
             "//sys/@config/multicell_manager/cell_descriptors",
@@ -2874,6 +2875,7 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
         self._test_columnar_acl_copy_yt_12749("//portals/p", "//tmp")
 
     @authors("shakurov")
+    @with_portals_dir
     def test_special_acd_holders(self):
         super(TestCypressAclsPortal, self).test_special_acd_holders()
 

@@ -1,4 +1,4 @@
-from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
+from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE, with_portals_dir)
 from yt_queue_agent_test_base import (GenericObjectPath, OrchidWithRegularPasses, QueueStaticExportHelpers, TestQueueAgentBase, ReplicatedObjectBase, QueueAgentOrchid,
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
@@ -5559,6 +5559,7 @@ class QueueStaticExportCrossCellBase(TestQueueStaticExport):
     EXPORT_DIR = None
 
     @authors("achulkov2", "nadya73")
+    @with_portals_dir
     def test_different_native_cells(self):
         _, queue_id = self._create_queue(self.QUEUE_PATH)
 
