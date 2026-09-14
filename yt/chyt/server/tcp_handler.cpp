@@ -75,12 +75,12 @@ DBPoco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
                     THROW_ERROR_EXCEPTION("Attempt to process an uninitialized query object");
                 case DB::ClientInfo::QueryKind::INITIAL_QUERY: {
                     if (auto initialIdStr = context->getInitialQueryId(); initialIdStr.empty()) {
-                        queryId = TGuid::Create();
+                        queryId = TQueryId::Create();
                         auto queryIdStr = ToString(queryId);
                         context->setCurrentQueryId(queryIdStr);
                         context->setInitialQueryId(queryIdStr);
                     } else if (!TGuid::FromString(initialIdStr, &queryId)) {
-                        queryId = TGuid::Create();
+                        queryId = TQueryId::Create();
                         context->setCurrentQueryId(ToString(queryId));
                         // setCurrentQueryId overrides initial_query_id, so let's bring it back.
                         context->setInitialQueryId(initialIdStr);
