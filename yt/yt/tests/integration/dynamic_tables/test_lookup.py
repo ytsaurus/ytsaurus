@@ -6,7 +6,7 @@ from yt_env_setup import is_sanitizer_build, Restarter, NODES_SERVICE
 
 from yt_helpers import profiler_factory
 
-from yt_sequoia_helpers import not_implemented_in_sequoia, select_rows_from_ground
+from yt_sequoia_helpers import select_rows_from_ground
 
 from yt_commands import (
     authors, print_debug, select_rows, wait, create, ls, get, set, remove, exists, copy, insert_rows,
@@ -944,7 +944,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         key_filter_checker.check([{"key": 0}, {"key": 1}], [{"key": 1, "value": "1"}],)
         key_filter_checker.check(keys, rows)
 
-    @not_implemented_in_sequoia
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for, chunk_format", [
         ("lookup", "table_versioned_slim"),
@@ -1217,7 +1216,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         wait(_wait_metrics)
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_rls(self):
         sync_create_cells(1)
         create_user("u")
