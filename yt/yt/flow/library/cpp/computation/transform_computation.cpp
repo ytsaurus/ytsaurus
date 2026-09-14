@@ -140,20 +140,18 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             .With("Timers", inputTimers.size())
             .With("Visits", inputVisits.size());
 
-        TLineageDelta inputLineageDelta;
         auto emptyInput = inputs.empty() && inputTimers.empty() && inputVisits.empty();
-        auto filteredInputs = FilterInputBatch(context, std::move(inputs), &inputLineageDelta);
+        auto filteredInputs = FilterInputBatch(context, std::move(inputs));
 
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
-            auto [processedInput, unprocessedInputs] = InputStore_->Filter(filteredInputs, deduplicateInput);
+            auto [processedInput, unprocessedInputs] = InputStore_->Filter(filteredInputs.Messages, deduplicateInput);
             YT_TLOG_INFO("Filtered already processed")
                 .With("Inputs", processedInput.size());
             context->MarkDeduplicated(processedInput);
             return unprocessedInputs;
         }();
 
-        AddLineageInputs(&inputLineageDelta, GetSpec(), unprocessedInputs, inputTimers, inputVisits);
         ThrottleInputBatch(unprocessedInputs, inputTimers, inputVisits);
 
         TRootOutputCollector::TTransformResult processResult;
@@ -166,6 +164,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             PreloadKeyStates(inputContext);
             DoProcess(inputContext, outputCollector->SetParents(inputContext->GetMessages(), inputContext->GetTimers(), inputContext->GetVisits()));
             processResult = outputCollector->CollectResult();
+            RegisterResults(inputContext, std::move(processResult.LineageDelta), std::move(filteredInputs.SkippedStatistics));
         }
 
         YT_TLOG_INFO("Process completed")
@@ -203,8 +202,6 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             DoSync(tx);
             YT_TLOG_INFO("Transaction prepared");
         }
-        AddLineageDelta(std::move(inputLineageDelta));
-        AddLineageDelta(std::move(processResult.LineageDelta));
         Commit(context, tx);
 
         context->MarkPersisted(unprocessedInputs);

@@ -6,6 +6,7 @@
 #include "job_state/state_manager.h"
 #include "key_visitor.h"
 #include "lineage_accumulator.h"
+#include "processing_rate_estimator.h"
 #include "universal_controller.h"
 
 #include <yt/yt/flow/library/cpp/common/computation.h>
@@ -159,7 +160,8 @@ protected:
         TSystemTimestamp reportTime,
         TSystemTimestamp systemWatermark,
         const THashMap<TStreamId, TInflightStreamTraverseDataPtr>& inflights,
-        i64 iterationCycle);
+        i64 iterationCycle,
+        TComputationProcessingRatesPtr processingRates);
 
     //! Returns the distributed throttler client for the given id.
     //! Throws if |throttlerId| is not in the dynamic pipeline spec's
@@ -228,12 +230,10 @@ public:
         TLineageDelta LineageDelta;
     };
 
-    //! Set |collectLineage| to false when output publication is deferred beyond this collector.
     TRootOutputCollector(
         TComputationSpecPtr spec,
         IMetaSetterPtr metaSetter,
-        bool supportsDistribute = false,
-        bool collectLineage = true);
+        bool supportsDistribute = false);
 
     [[nodiscard]] IOutputCollectorPtr SetParents(
         const std::vector<TInputMessageConstPtr>& messages,
@@ -254,8 +254,6 @@ private:
     const IMetaSetterPtr MetaSetter_;
     //! Whether messages with |distribute| = false remain available for watermark handling.
     const bool SupportsDistribute_;
-    //! Swift ordered source counts only outputs accepted after delay and deduplication.
-    const bool CollectLineage_;
     TLineageAccumulator LineageAccumulator_;
     TTransformResult Result_;
 };
@@ -428,10 +426,15 @@ protected:
     THashMap<TStreamId, TInflightStreamTraverseDataPtr> BuildInflights(
         const IComputationRunContextPtr& context) const;
 
-    std::vector<TInputMessageConstPtr> FilterInputBatch(
+    struct TFilteredInputBatch
+    {
+        std::vector<TInputMessageConstPtr> Messages;
+        THashMap<TStreamId, TBatchStatistics> SkippedStatistics;
+    };
+
+    TFilteredInputBatch FilterInputBatch(
         const IComputationRunContextPtr& context,
-        std::vector<TInputMessageConstPtr> messages,
-        TLineageDelta* lineageDelta);
+        std::vector<TInputMessageConstPtr> messages);
 
     void RegisterInputBeforeProcessing(
         const std::vector<TInputMessageConstPtr>& inputMessages,
@@ -484,7 +487,6 @@ protected:
 
     TRunIterationGuard StartRunIteration(const IComputationRunContextPtr& context);
     IRetryableTransactionPtr PrepareTransaction(const IComputationRunContextPtr& context);
-    void AddLineageDelta(TLineageDelta delta);
     void Commit(IComputationRunContextPtr context, IRetryableTransactionPtr transaction);
     void FinishRunIteration();
 
@@ -493,6 +495,11 @@ protected:
         const IComputation::TDynamicPartitionSpecPtr& dynamicPartitionSpec);
     void InitBufferWarmupState();
     void RefreshBufferWarmupState();
+
+    void RegisterResults(
+        const IInputContextPtr& inputs,
+        TLineageDelta lineageDelta,
+        THashMap<TStreamId, TBatchStatistics> skipped = {});
 
     void WaitForBackoff(
         const TDynamicComputationSpecPtr& dynamicSpec,
@@ -643,7 +650,9 @@ private:
 
     TIntrusivePtr<TPendingDistributedOutputs> PendingProcessedOutputs_;
 
-private:
+    TProcessingRateEstimator ProcessingRateEstimator_{StartTime_};
+    TComputationProcessingRatesPtr ProcessingRates_;
+
     std::optional<TStreamId> CreateActiveSourceStreamId();
     ISourcePtr CreateActiveSource();
     THashMap<TSinkId, ISinkPtr> CreateSinks();

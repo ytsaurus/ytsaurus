@@ -7,12 +7,11 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Holds lineage produced by the current job epoch until that epoch is committed.
+//! Records completed processing observations in the worker lineage statistics.
 struct IJobLineageTracker
     : public TRefCounted
 {
     virtual void Add(TLineageDelta delta) = 0;
-    virtual void Commit() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobLineageTracker);

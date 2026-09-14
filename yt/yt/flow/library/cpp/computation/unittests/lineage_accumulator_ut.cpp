@@ -85,6 +85,15 @@ const TLineageDeltaValue& GetDeltaValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TLineageAccumulatorTest, EmptyInputsHaveZeroStatistics)
+{
+    TLineageDelta delta;
+    const auto statistics = AddLineageInputs(&delta, New<TComputationSpec>(), *New<TInputContext>(std::vector<TInputMessageConstPtr>{}, std::vector<TInputTimerConstPtr>{}), {});
+    EXPECT_EQ(statistics.Count, 0);
+    EXPECT_EQ(statistics.ByteSize, 0);
+    EXPECT_TRUE(delta.empty());
+}
+
 TEST(TLineageAccumulatorTest, CountsInputsOncePerDeclaredEdgeIncludingZeroOutput)
 {
     const TStreamId input("input");
@@ -104,7 +113,9 @@ TEST(TLineageAccumulatorTest, CountsInputsOncePerDeclaredEdgeIncludingZeroOutput
         accumulator.Add(message, parents);
     }
     auto delta = accumulator.Finish();
-    AddLineageInputs(&delta, spec, messages, timers, visits);
+    const auto statistics = AddLineageInputs(&delta, spec, *New<TInputContext>(messages, timers, visits), {});
+    EXPECT_EQ(statistics.Count, 4);
+    EXPECT_EQ(statistics.ByteSize, messages[0]->ByteSize + messages[1]->ByteSize + timers[0]->ByteSize + visits[0]->ByteSize);
 
     const auto& messageDelta = GetDeltaValue(delta, output, input);
     EXPECT_DOUBLE_EQ(messageDelta.Count, 50);
@@ -121,11 +132,19 @@ TEST(TLineageAccumulatorTest, CountsInputsOncePerDeclaredEdgeIncludingZeroOutput
     EXPECT_EQ(delta.at(filtered).size(), 1u);
     EXPECT_DOUBLE_EQ(GetDeltaValue(delta, filtered, input).Count, 0);
     EXPECT_DOUBLE_EQ(GetDeltaValue(delta, filtered, input).InputCount, 2);
+}
 
-    AddLineageInput(&delta, spec, input, 3, 100);
-    EXPECT_DOUBLE_EQ(GetDeltaValue(delta, output, input).InputCount, 5);
-    EXPECT_DOUBLE_EQ(GetDeltaValue(delta, filtered, input).InputCount, 5);
-    EXPECT_DOUBLE_EQ(GetDeltaValue(delta, output, input).Count, 50);
+TEST(TLineageAccumulatorTest, CountsProcessingWithoutDependentOutputs)
+{
+    const TStreamId input("input");
+    auto spec = New<TComputationSpec>();
+    const std::vector<TInputMessageConstPtr> messages{MakeParent(input, 0), MakeParent(input, 1)};
+
+    TLineageDelta delta;
+    const auto statistics = AddLineageInputs(&delta, spec, *New<TInputContext>(messages, std::vector<TInputTimerConstPtr>{}), {});
+    EXPECT_EQ(statistics.Count, 2);
+    EXPECT_EQ(statistics.ByteSize, messages[0]->ByteSize + messages[1]->ByteSize);
+    EXPECT_TRUE(delta.empty());
 }
 
 TEST(TLineageAccumulatorTest, AttributesBatchOutputsUniformlyAcrossParents)
@@ -287,31 +306,60 @@ TEST(TLineageAccumulatorTest, CollectorCountsOnlyDistributedSourceOutputs)
     EXPECT_DOUBLE_EQ(GetDeltaValue(result.LineageDelta, output, input).ByteSize, distributedByteSize);
 }
 
-TEST(TLineageAccumulatorTest, CollectorCanDeferSourceLineageUntilPublication)
+TEST(TLineageAccumulatorTest, SkippedInputsContributeZeroOutput)
+{
+    const TStreamId input("input");
+    const TStreamId skippedInput("skipped");
+    const TStreamId output("output");
+    auto spec = New<TComputationSpec>();
+    spec->StreamsDependency[output] = {input, skippedInput};
+    auto parent = MakeParent(input, 0);
+    auto collector = New<TRootOutputCollector>(spec, New<TIdentityMetaSetter>(), /*supportsDistribute*/ true);
+    auto parents = New<TMessageParents>(
+        std::vector<TInputMessageConstPtr>{parent},
+        std::vector<TInputTimerConstPtr>{},
+        std::vector<TInputVisitConstPtr>{});
+    for (auto& message : MakeOutputs(output, 2)) {
+        collector->AddMessage(std::move(message), parents, TOutputMessageIdSuffix::FromSequenceNumber(), true);
+    }
+    auto result = collector->CollectResult();
+    const auto statistics = AddLineageInputs(
+        &result.LineageDelta,
+        spec,
+        *New<TInputContext>(std::vector<TInputMessageConstPtr>{parent}, std::vector<TInputTimerConstPtr>{}),
+        {{input, {.Count = 3, .ByteSize = 100}}, {skippedInput, {.Count = 5, .ByteSize = 200}}});
+    EXPECT_EQ(statistics.Count, 9);
+    EXPECT_EQ(statistics.ByteSize, parent->ByteSize + 300);
+    const auto& keptDelta = GetDeltaValue(result.LineageDelta, output, input);
+    EXPECT_DOUBLE_EQ(keptDelta.Count, 2);
+    EXPECT_DOUBLE_EQ(keptDelta.InputCount, 4);
+    EXPECT_DOUBLE_EQ(keptDelta.InputByteSize, parent->ByteSize + 100);
+    const auto& skippedDelta = GetDeltaValue(result.LineageDelta, output, skippedInput);
+    EXPECT_DOUBLE_EQ(skippedDelta.Count, 0);
+    EXPECT_DOUBLE_EQ(skippedDelta.ByteSize, 0);
+    EXPECT_DOUBLE_EQ(skippedDelta.InputCount, 5);
+    EXPECT_DOUBLE_EQ(skippedDelta.InputByteSize, 200);
+}
+
+TEST(TLineageAccumulatorTest, FullySkippedInputsDoNotRequireProcessingContextData)
 {
     const TStreamId input("input");
     const TStreamId output("output");
-    auto parents = New<TMessageParents>(
-        std::vector<TInputMessageConstPtr>{MakeParent(input, 0)},
-        std::vector<TInputTimerConstPtr>{},
-        std::vector<TInputVisitConstPtr>{});
-    auto collector = New<TRootOutputCollector>(
-        New<TComputationSpec>(),
-        New<TIdentityMetaSetter>(),
-        /*supportsDistribute*/ true,
-        /*collectLineage*/ false);
-
-    TMessage distributed;
-    distributed.StreamId = output;
-    collector->AddMessage(
-        std::move(distributed),
-        parents,
-        TOutputMessageIdSuffix::FromSequenceNumber(),
-        /*distribute*/ true);
-
-    const auto result = collector->CollectResult();
-
-    EXPECT_TRUE(result.LineageDelta.empty());
+    auto spec = New<TComputationSpec>();
+    spec->StreamsDependency[output] = {input};
+    TLineageDelta delta;
+    const auto statistics = AddLineageInputs(
+        &delta,
+        spec,
+        *New<TInputContext>(std::vector<TInputMessageConstPtr>{}, std::vector<TInputTimerConstPtr>{}),
+        {{input, {.Count = 3, .ByteSize = 100}}});
+    EXPECT_EQ(statistics.Count, 3);
+    EXPECT_EQ(statistics.ByteSize, 100);
+    const auto& value = GetDeltaValue(delta, output, input);
+    EXPECT_DOUBLE_EQ(value.Count, 0);
+    EXPECT_DOUBLE_EQ(value.ByteSize, 0);
+    EXPECT_DOUBLE_EQ(value.InputCount, 3);
+    EXPECT_DOUBLE_EQ(value.InputByteSize, 100);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

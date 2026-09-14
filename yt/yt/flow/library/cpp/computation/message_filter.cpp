@@ -186,6 +186,9 @@ public:
         result.Kept.reserve(messages.size());
         for (auto& message : messages) {
             if (compiled->ShouldSkip(*message)) {
+                auto& statistics = result.SkippedStatistics[message->StreamId];
+                ++statistics.Count;
+                statistics.ByteSize += message->ByteSize;
                 result.Skipped.push_back(std::move(message));
             } else {
                 result.Kept.push_back(std::move(message));
