@@ -30,7 +30,7 @@ bool IsTabletRoutingEnabled(const TQueueSinkTabletRoutingParameters& parameters)
 
 //! Owns a #TTabletIndexEvaluator plus the tablet count it reduces against. With an explicit
 //! |tablet_count| the count is fixed and no queue read happens; otherwise the queue's live
-//! @tablet_count is resolved once at #Start and refreshed periodically (error-resilient).
+//! @tablet_count is resolved on the first #Start and refreshed periodically (error-resilient).
 class TTabletRouter
     : public TRefCounted
 {
@@ -46,7 +46,8 @@ public:
     ~TTabletRouter() override;
 
     //! With no explicit count, resolves the queue's @tablet_count once (throws on failure) and
-    //! starts periodic refresh. No-op when the count is explicit.
+    //! starts periodic refresh. Calls after a successful start and calls with an explicit count
+    //! are no-ops.
     void Start();
 
     //! Tablet index for |payload| using the current (live or explicit) tablet count.
@@ -63,6 +64,7 @@ private:
     NApi::IClientPtr Client_;
     std::atomic<i64> TabletCount_ = 0;
     NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
+    NConcurrency::TDelayedExecutorCookie RefreshStartCookie_;
 
     i64 GetTabletCount() const;
     i64 FetchTabletCount();
