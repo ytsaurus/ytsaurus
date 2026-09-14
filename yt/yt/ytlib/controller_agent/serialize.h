@@ -128,6 +128,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SerializableLoggerTagPayload)          (302305))
     ((InputChunkSliceUncompressedDataSize)   (302306))
     ((DropLegacyDataSliceRepresentation)     (302307))
+    ((DropInvalidatedJoblets)                (302308))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
