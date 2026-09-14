@@ -385,7 +385,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetChaosObjectResidency)
                 request->force_refresh_chaos_object_cell_tag()))
             : std::optional<TCellTag>();
 
-    context->SetRequestInfo("ChaosObjectId: %v, ChaosObjectType: %v CellTagToForceRefresh: %v",
+    context->SetRequestInfo("ChaosObjectId: %v, ChaosObjectType: %v, CellTagToForceRefresh: %v",
         chaosObjectId,
         TypeFromId(chaosObjectId),
         cellTagToForceRefresh);
