@@ -47,6 +47,7 @@ struct ITabletManager
 
     virtual const ITabletChunkManagerPtr& GetTabletChunkManager() const = 0;
     virtual const ITabletActionManagerPtr& GetTabletActionManager() const = 0;
+    virtual const IInvokerPtr& GetStoresUpdateThrottlerInvoker() const = 0;
 
     virtual void PrepareMount(
         TTabletOwnerBase* table,
