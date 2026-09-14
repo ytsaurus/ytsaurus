@@ -840,6 +840,16 @@ func (e *Encoder) ReadTablePartition(
 	return e.InvokeReadRow(ctx, call)
 }
 
+func (e *Encoder) GetTableColumnarStatistics(
+	ctx context.Context,
+	paths []ypath.YPath,
+	options *yt.GetTableColumnarStatisticsOptions,
+) (statistics []yt.ColumnarStatistics, err error) {
+	call := e.newCall(NewGetTableColumnarStatisticsParams(paths, options))
+	err = e.do(ctx, call, GetTableColumnarStatisticsResultDecoder(&statistics))
+	return statistics, err
+}
+
 func (e *Encoder) tableSchema(ctx context.Context, path ypath.YPath) (*schema.Schema, error) {
 	var attrs struct {
 		Schema     schema.Schema `yson:"schema"`

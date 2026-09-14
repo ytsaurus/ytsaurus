@@ -434,6 +434,18 @@ const (
 	PartitionModeUnordered PartitionMode = "unordered"
 )
 
+// ColumnarStatisticsFetcherMode selects where columnar statistics are fetched from.
+type ColumnarStatisticsFetcherMode string
+
+const (
+	// ColumnarStatisticsFetcherModeFromNodes fetches statistics from data nodes. This is the default.
+	ColumnarStatisticsFetcherModeFromNodes ColumnarStatisticsFetcherMode = "from_nodes"
+	// ColumnarStatisticsFetcherModeFromMaster uses statistics stored in chunk meta on master.
+	ColumnarStatisticsFetcherModeFromMaster ColumnarStatisticsFetcherMode = "from_master"
+	// ColumnarStatisticsFetcherModeFallback fetches from master and falls back to data nodes when needed.
+	ColumnarStatisticsFetcherModeFallback ColumnarStatisticsFetcherMode = "fallback"
+)
+
 type OrderedTableBackupMode string
 
 const (

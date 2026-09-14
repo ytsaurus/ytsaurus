@@ -592,6 +592,32 @@ type TablePartitionReader interface {
 	TableReader
 }
 
+type GetTableColumnarStatisticsOptions struct {
+	FetcherMode              *ColumnarStatisticsFetcherMode `http:"fetcher_mode,omitnil"`
+	MaxChunksPerNodeFetch    *int                           `http:"max_chunks_per_node_fetch,omitnil"`
+	EnableEarlyFinish        *bool                          `http:"enable_early_finish,omitnil"`
+	EnableReadSizeEstimation *bool                          `http:"enable_read_size_estimation,omitnil"`
+
+	*TransactionOptions
+}
+
+// ColumnarStatistics holds per-column statistics of a single table (or table range).
+//
+// Maps are keyed by column name. Value statistics (min, max, non-null counts) and
+// estimated unique counts are present only when the table chunks carry them.
+type ColumnarStatistics struct {
+	ColumnDataWeights           map[string]int64 `yson:"column_data_weights"`
+	TimestampTotalWeight        *int64           `yson:"timestamp_total_weight,omitempty"`
+	LegacyChunksDataWeight      int64            `yson:"legacy_chunks_data_weight"`
+	ColumnMinValues             map[string]any   `yson:"column_min_values,omitempty"`
+	ColumnMaxValues             map[string]any   `yson:"column_max_values,omitempty"`
+	ColumnNonNullValueCounts    map[string]int64 `yson:"column_non_null_value_counts,omitempty"`
+	ColumnEstimatedUniqueCounts map[string]int64 `yson:"column_estimated_unique_counts,omitempty"`
+	ChunkRowCount               *int64           `yson:"chunk_row_count,omitempty"`
+	LegacyChunkRowCount         *int64           `yson:"legacy_chunk_row_count,omitempty"`
+	ReadSizeEstimate            *int64           `yson:"read_size_estimate,omitempty"`
+}
+
 type TableClient interface {
 	// WriteTable opens low-level table writer. Use yt.WriteTable() function instead of calling this method directly.
 	//
@@ -634,6 +660,19 @@ type TableClient interface {
 		cookie []byte,
 		options *ReadTablePartitionOptions,
 	) (r TablePartitionReader, err error)
+
+	// GetTableColumnarStatistics returns per-column statistics for each of the given tables.
+	//
+	// Columns are taken from the column selector of each path (e.g. ypath.Rich with Columns set).
+	// For a path without a column selector, statistics are reported for all columns of the table schema.
+	//
+	// http:verb:"get_table_columnar_statistics"
+	// http:params:"paths"
+	GetTableColumnarStatistics(
+		ctx context.Context,
+		paths []ypath.YPath,
+		options *GetTableColumnarStatisticsOptions,
+	) (statistics []ColumnarStatistics, err error)
 }
 
 type StartOperationOptions struct {
