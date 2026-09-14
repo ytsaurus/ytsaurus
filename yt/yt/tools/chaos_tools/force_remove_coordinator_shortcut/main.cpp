@@ -26,7 +26,6 @@ int main(int /*argc*/, char* argv[])
             NRpc::NBus::CreateTcpBusChannelFactory(New<NBus::NTcp::TBusConfig>())->CreateChannel(addr),
             coordinatorCellId);
 
-
         auto proxy = TCoordinatorServiceProxy(channel);
         auto req = proxy.ForsakeShortcut();
         ToProto(req->mutable_chaos_object_id(), chaosObjectId);
