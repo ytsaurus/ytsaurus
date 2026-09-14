@@ -1684,6 +1684,206 @@ TEST_F(TResourceBalancerTest, IdleWorkerBorrowsCappedCapacityFromBackloggedPeer)
     EXPECT_DOUBLE_EQ(snapshot.WorkerTotalCapacity.at("worker2"), 50.0);
 }
 
+//! Packed layout: two computations, each entirely on its own saturated worker (load == capacity,
+//! standing queue above the zero level), three idle workers with preloads done. Step 4.5 enrolls
+//! the idle workers, Step 8 spreads onto them (each partition takes its queue share along, so the
+//! spread stops at even loads instead of evacuating the source), Step 9 accepts because the
+//! deviation over the enrolled workers drops.
+TEST_F(TResourceBalancerTest, PackedComputationsSpreadToIdleWorkers)
+{
+    auto comp1 = MakeComputationId("comp1");
+    auto comp2 = MakeComputationId("comp2");
+    auto res1 = MakeResourceId("res1");
+    auto res2 = MakeResourceId("res2");
+
+    SetResourceSpec(res1, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetResourceSpec(res2, MakeResourceSpec({}, /*preloadRequired=*/true));
+    SetComputationSpec(comp1, MakeComputationSpec(Group, {res1}));
+    SetComputationSpec(comp2, MakeComputationSpec(Group, {res2}));
+
+    const std::vector<TWorkerId> loaded = {"worker1", "worker2"};
+    const std::vector<TWorkerId> idle = {"worker3", "worker4", "worker5"};
+    for (const auto& w : loaded) {
+        AddWorker(FlowView, w, Group);
+    }
+    for (const auto& w : idle) {
+        AddWorker(FlowView, w, Group);
+        SetPreloadCompleted(FlowView, w, res1);
+        SetPreloadCompleted(FlowView, w, res2);
+    }
+    SetPreloadCompleted(FlowView, "worker1", res1);
+    SetPreloadCompleted(FlowView, "worker2", res2);
+
+    THashMap<TPartitionId, TComputationId> partitionComputation;
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), comp1, /*rps=*/10.0, "worker1");
+        AddPartition(FlowView, MakePartitionId(10 + i), comp2, /*rps=*/10.0, "worker2");
+        partitionComputation[MakePartitionId(i)] = comp1;
+        partitionComputation[MakePartitionId(10 + i)] = comp2;
+    }
+
+    // Both loaded workers keep up (put == fetch) with a standing queue of 1.5 s of their rate;
+    // idle workers report nothing.
+    SetWorkerResourceStatus(FlowView, "worker1", res1,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+    SetWorkerResourceStatus(FlowView, "worker2", res2,
+        /*putRate=*/100.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/150.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto result = RunBalancer();
+
+    auto dels = GetDelActions(result);
+    auto adds = GetAddActions(result);
+    ASSERT_FALSE(dels.empty());
+    ASSERT_EQ(adds.size(), dels.size());
+
+    THashMap<TWorkerId, THashSet<TComputationId>> received;
+    THashMap<TComputationId, int> movedPerComputation;
+    for (const auto& [partitionId, workerAddress] : adds) {
+        EXPECT_TRUE(dels.contains(partitionId));
+        EXPECT_TRUE(std::find(idle.begin(), idle.end(), workerAddress) != idle.end()) << workerAddress;
+        received[workerAddress].insert(partitionComputation.at(partitionId));
+        ++movedPerComputation[partitionComputation.at(partitionId)];
+    }
+    for (const auto& w : idle) {
+        EXPECT_TRUE(received[w].contains(comp1)) << w;
+        EXPECT_TRUE(received[w].contains(comp2)) << w;
+    }
+    // A spread, not an evacuation: each loaded worker keeps a share of its own computation.
+    for (const auto& [computationId, moved] : movedPerComputation) {
+        EXPECT_LE(moved, 8) << computationId.Underlying();
+    }
+}
+
+//! Step 8 tie-break: idle workers all project to queue 0, so ties break by load/capacity and the
+//! moves round-robin across them instead of saturating the first one found; the source keeps its
+//! even share.
+TEST_F(TResourceBalancerTest, IdleWorkersTiedByLoadShare)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    const std::vector<TWorkerId> idle = {"worker2", "worker3", "worker4"};
+    AddWorker(FlowView, "worker1", Group);
+    for (const auto& w : idle) {
+        AddWorker(FlowView, w, Group);
+    }
+    for (int i = 1; i <= 30; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps=*/1.0, "worker1");
+    }
+    // worker1 keeps up with a standing queue above the zero level; idle workers report nothing.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate=*/30.0,
+        /*fetchRate=*/30.0,
+        /*queueSize=*/45.0,
+        /*queueGrowthRate=*/0.0);
+
+    auto result = RunBalancer();
+
+    THashMap<TWorkerId, int> received;
+    for (const auto& [partitionId, workerAddress] : GetAddActions(result)) {
+        ++received[workerAddress];
+    }
+    int minReceived = std::numeric_limits<int>::max();
+    int maxReceived = 0;
+    int totalReceived = 0;
+    for (const auto& w : idle) {
+        minReceived = std::min(minReceived, received[w]);
+        maxReceived = std::max(maxReceived, received[w]);
+        totalReceived += received[w];
+    }
+    EXPECT_GE(minReceived, 1);
+    EXPECT_LE(maxReceived - minReceived, 1);
+    // worker1 keeps its share: the moves spread the partitions over four workers, not three.
+    EXPECT_LT(totalReceived, 30);
+}
+
+//! Below the group's zero-queue level (total projected queue under ZeroQueueLatency worth of
+//! load) there is nothing to balance: uneven but tiny draining queues must not trigger moves,
+//! even though their Cv is large.
+TEST_F(TResourceBalancerTest, NoEqualizationWhenQueuesBelowZeroLevel)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps=*/10.0, "worker1");
+        AddPartition(FlowView, MakePartitionId(10 + i), compId, /*rps=*/10.0, "worker2");
+    }
+    // Both workers drain (fetch > put); queues are 0.3 s and 0.8 s of their rate, well below the
+    // 1 s zero level, but uneven.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate=*/100.0,
+        /*fetchRate=*/150.0,
+        /*queueSize=*/30.0,
+        /*queueGrowthRate=*/-50.0);
+    SetWorkerResourceStatus(FlowView, "worker2", resId,
+        /*putRate=*/100.0,
+        /*fetchRate=*/150.0,
+        /*queueSize=*/80.0,
+        /*queueGrowthRate=*/-50.0);
+
+    auto result = RunBalancer();
+
+    EXPECT_TRUE(GetDelActions(result).empty());
+    EXPECT_TRUE(GetAddActions(result).empty());
+}
+
+//! The metric is dimensional: worker1 carries a growing backlog, worker2 has ample spare capacity
+//! and drains whatever it receives, so after the moves the projected queues keep their shape (one
+//! large, one near zero) but the large one shrinks. A scale-free Cv would reject the plan.
+TEST_F(TResourceBalancerTest, EqualizationAcceptedWhenBacklogDrains)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+
+    SetResourceSpec(resId, MakeResourceSpec());
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+    AddWorker(FlowView, "worker1", Group);
+    AddWorker(FlowView, "worker2", Group);
+
+    for (int i = 1; i <= 10; ++i) {
+        AddPartition(FlowView, MakePartitionId(i), compId, /*rps=*/1.0, "worker1");
+    }
+    AddPartition(FlowView, MakePartitionId(11), compId, /*rps=*/1.0, "worker2");
+
+    // worker1: load 10, capacity 2, queue grows by 8/s.
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate=*/10.0,
+        /*fetchRate=*/2.0,
+        /*queueSize=*/1000.0,
+        /*queueGrowthRate=*/8.0);
+    // worker2: load 1, capacity 100, queue draining.
+    SetWorkerResourceStatus(FlowView, "worker2", resId,
+        /*putRate=*/1.0,
+        /*fetchRate=*/100.0,
+        /*queueSize=*/60.0,
+        /*queueGrowthRate=*/-99.0);
+
+    auto result = RunBalancer();
+
+    auto dels = GetDelActions(result);
+    auto adds = GetAddActions(result);
+    EXPECT_FALSE(dels.empty());
+    for (const auto& partitionId : dels) {
+        ASSERT_TRUE(adds.contains(partitionId));
+        EXPECT_EQ(adds.at(partitionId), "worker2");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
