@@ -7,7 +7,6 @@ from yt_commands import (
 
 from yt.common import date_string_to_datetime
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 import hashlib
 import pytest
@@ -22,7 +21,6 @@ class TestFileCache(YTEnvSetup):
     NUM_NODES = 5
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_get_file_from_cache(self):
         cache_path = "//tmp/file_cache"
         create("file", "//tmp/file")
@@ -58,7 +56,6 @@ class TestFileCache(YTEnvSetup):
         assert get_file_from_cache("", cache_path) == ""
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_put_file_to_cache(self):
         create("map_node", "//tmp/cache")
         create("file", "//tmp/file")
