@@ -542,11 +542,13 @@ const TRegistry::TProcessFunctionDescriptor* TRegistry::FindProcessFunctionDescr
     return it == TypeNameToProcessFunctionDescriptor_.end() ? nullptr : &it->second;
 }
 
-IProcessFunctionBasePtr TRegistry::CreateProcessFunction(const std::string& name) const
+IProcessFunctionBasePtr TRegistry::CreateProcessFunction(
+    const std::string& name,
+    const TProcessFunctionContextPtr& context) const
 {
     const auto* descriptor = FindProcessFunctionDescriptor(name);
     THROW_ERROR_EXCEPTION_UNLESS(descriptor, "Unknown processing function %Qv", name);
-    return descriptor->Factory();
+    return descriptor->Factory(context);
 }
 
 ISyncProcessFunction* TRegistry::ViewProcessFunctionAsSync(const std::string& name, const IProcessFunctionBasePtr& function) const

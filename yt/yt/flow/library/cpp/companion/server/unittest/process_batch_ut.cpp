@@ -154,6 +154,69 @@ class TUnittestMismatchedParametersFunction
     : public TUnittestOffsetFunction
 { };
 
+class TUnittestContextConstructorFunction
+    : public IProcessFunction
+{
+public:
+    explicit TUnittestContextConstructorFunction(const TProcessFunctionContextPtr& context)
+    {
+        Y_UNUSED(context->Logger);
+        SawStatusProfiler = context->StatusProfiler != nullptr;
+        SawNullProfiler = !context->InitContext->GetProfiler().IsEnabled();
+        try {
+            Y_UNUSED(context->InitContext->GetPartitionId());
+        } catch (const std::exception&) {
+            SawNoPartition = true;
+        }
+        SawNullClientsCache = !context->ClientsCache;
+        SawNullInvoker = !context->Invoker;
+        SawNullPrimaryClient = !context->RetryableClient;
+        ConstructorContext = context;
+        ++ConstructionCount;
+    }
+
+    void Init(const IRuntimeInitContextPtr& context) override
+    {
+        SawSameInitContext = context == ConstructorContext->InitContext;
+        ++InitCount;
+    }
+
+    static int ConstructionCount;
+    static int InitCount;
+    static bool SawStatusProfiler;
+    static bool SawNullProfiler;
+    static bool SawNoPartition;
+    static bool SawNullClientsCache;
+    static bool SawNullInvoker;
+    static bool SawNullPrimaryClient;
+    static bool SawSameInitContext;
+
+private:
+    TProcessFunctionContextPtr ConstructorContext;
+};
+
+int TUnittestContextConstructorFunction::ConstructionCount = 0;
+int TUnittestContextConstructorFunction::InitCount = 0;
+bool TUnittestContextConstructorFunction::SawStatusProfiler = false;
+bool TUnittestContextConstructorFunction::SawNullProfiler = false;
+bool TUnittestContextConstructorFunction::SawNoPartition = false;
+bool TUnittestContextConstructorFunction::SawNullClientsCache = false;
+bool TUnittestContextConstructorFunction::SawNullInvoker = false;
+bool TUnittestContextConstructorFunction::SawNullPrimaryClient = false;
+bool TUnittestContextConstructorFunction::SawSameInitContext = false;
+
+class TUnittestClientConstructorFunction
+    : public IProcessFunction
+{
+public:
+    explicit TUnittestClientConstructorFunction(const TProcessFunctionContextPtr& context)
+    {
+        THROW_ERROR_EXCEPTION_UNLESS(
+            context->ClientsCache && context->Invoker && context->RetryableClient,
+            "YT client infrastructure is not available in this companion process");
+    }
+};
+
 // The passthrough function is registered through the typed pipeline API in the
 // fixture; the extra spec-selectable functions keep using the macro.
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestCountingFunction);
@@ -161,6 +224,8 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestOffsetFunction, TUnittestOffsetParamete
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestMismatchedParametersFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestBusyFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestSyncFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestContextConstructorFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestClientConstructorFunction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -514,6 +579,44 @@ TEST_F(TProcessBatchTest, SyncFunctionRejected)
     EXPECT_THAT(
         ToString(static_cast<const TError&>(rspOrError)),
         testing::HasSubstr("sync process functions are not supported"));
+}
+
+TEST_F(TProcessBatchTest, ContextConstructorRunsBeforeInit)
+{
+    TUnittestContextConstructorFunction::ConstructionCount = 0;
+    TUnittestContextConstructorFunction::InitCount = 0;
+    TUnittestContextConstructorFunction::SawStatusProfiler = false;
+    TUnittestContextConstructorFunction::SawNullProfiler = false;
+    TUnittestContextConstructorFunction::SawNoPartition = false;
+    TUnittestContextConstructorFunction::SawNullClientsCache = false;
+    TUnittestContextConstructorFunction::SawNullInvoker = false;
+    TUnittestContextConstructorFunction::SawNullPrimaryClient = false;
+    TUnittestContextConstructorFunction::SawSameInitContext = false;
+
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestContextConstructorFunction");
+    AddMessage(req, 1, "m1");
+    auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+    EXPECT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    EXPECT_EQ(TUnittestContextConstructorFunction::ConstructionCount, 1);
+    EXPECT_EQ(TUnittestContextConstructorFunction::InitCount, 1);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawStatusProfiler);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullProfiler);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNoPartition);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullClientsCache);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullInvoker);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullPrimaryClient);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawSameInitContext);
+}
+
+TEST_F(TProcessBatchTest, ClientDependencyIsRejected)
+{
+    auto req = BuildRequest("NYT::NFlow::NCompanionServer::TUnittestClientConstructorFunction");
+    AddMessage(req, 1, "m1");
+    auto rspOrError = req->Invoke().BlockingGet();
+    ASSERT_FALSE(rspOrError.IsOK());
+    EXPECT_THAT(
+        ToString(static_cast<const TError&>(rspOrError)),
+        testing::HasSubstr("YT client infrastructure is not available"));
 }
 
 TEST_F(TProcessBatchTest, SourceStreamOverride)

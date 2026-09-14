@@ -332,6 +332,7 @@ DECLARE_REFCOUNTED_STRUCT(IKeyedBatchProcessFunction);
 struct ISyncProcessFunction;
 DECLARE_REFCOUNTED_STRUCT(IRuntimeContext);
 DECLARE_REFCOUNTED_STRUCT(IRuntimeInitContext);
+DECLARE_REFCOUNTED_STRUCT(TProcessFunctionContext);
 
 DECLARE_REFCOUNTED_STRUCT(TSourceContext);
 DECLARE_REFCOUNTED_STRUCT(TDynamicSourceContext);

@@ -22,9 +22,13 @@
 
 #include <yt/yt/flow/library/cpp/common/resource.h>
 
+#include <yt/yt/flow/library/cpp/misc/retryable_client.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
+#include <yt/yt/client/cache/cache.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/unittests/mock/client.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
 #include <yt/yt/library/profiling/testing.h>
@@ -420,6 +424,68 @@ private:
     TJoinedStateKeyClient<TSimpleExternalState> ReferenceJoiner_;
 };
 
+class TContextConstructorFunction
+    : public IProcessFunction
+{
+public:
+    explicit TContextConstructorFunction(const TProcessFunctionContextPtr& context)
+        : ConstructorContext(context)
+    { }
+
+    void Init(const IRuntimeInitContextPtr& context) override
+    {
+        EXPECT_EQ(context, ConstructorContext->InitContext);
+        ++InitCallCount;
+    }
+
+    const TProcessFunctionContextPtr ConstructorContext;
+    int InitCallCount = 0;
+};
+
+class TBothConstructorsFunction
+    : public IProcessFunction
+{
+public:
+    TBothConstructorsFunction() = default;
+
+    explicit TBothConstructorsFunction(const TProcessFunctionContextPtr& /*context*/)
+        : UsedContextConstructor(true)
+    { }
+
+    bool UsedContextConstructor = false;
+};
+
+class TDependencyConstructorFunction
+    : public IProcessFunction
+{
+public:
+    explicit TDependencyConstructorFunction(const TProcessFunctionContextPtr& context)
+        : InitContext(context->InitContext)
+        , ClientsCache(context->ClientsCache)
+        , Invoker(context->Invoker)
+        , StatusProfiler(context->StatusProfiler)
+        , PrimaryClient(context->RetryableClient)
+        , HasLogger(static_cast<bool>(context->Logger))
+    { }
+
+    const IRuntimeInitContextPtr InitContext;
+    const NClient::NCache::IClientsCachePtr ClientsCache;
+    const IInvokerPtr Invoker;
+    const IStatusProfilerPtr StatusProfiler;
+    const IRetryableClientPtr PrimaryClient;
+    const bool HasLogger;
+};
+
+class TMockClientsCache
+    : public NClient::NCache::IClientsCache
+{
+public:
+    NApi::IClientPtr GetClient(TStringBuf /*cluster*/) override
+    {
+        return nullptr;
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Register the test functions in the process-function registry (the hosting computation is
@@ -431,6 +497,9 @@ YT_FLOW_DEFINE_PROCESS_FUNCTION(TParameterReadingFunction, TThresholdParameters,
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TSyncingProcessFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TExternalCountingFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TJoinerReadingFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TContextConstructorFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TBothConstructorsFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TDependencyConstructorFunction);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -563,17 +632,158 @@ TEST(TProcessFunctionTest, OutputCollectorStampsParents)
 
 TEST(TProcessFunctionTest, RegistrationUnderFunctionTypeName)
 {
+    TTestStateEnvironment environment;
+    auto context = environment.CreateProcessFunctionContext();
     // Each function is registered in the common registry under its TypeName and can be
     // instantiated by name.
     EXPECT_TRUE(static_cast<bool>(
-        TRegistry::Get()->CreateProcessFunction(std::string(TypeName<TCountingRowFunction>()))));
+        TRegistry::Get()->CreateProcessFunction(std::string(TypeName<TCountingRowFunction>()), context)));
     EXPECT_TRUE(static_cast<bool>(
-        TRegistry::Get()->CreateProcessFunction(std::string(TypeName<TSplitFunction>()))));
+        TRegistry::Get()->CreateProcessFunction(std::string(TypeName<TSplitFunction>()), context)));
     EXPECT_TRUE(static_cast<bool>(
-        TRegistry::Get()->CreateProcessFunction(std::string(TypeName<TBatchSplitFunction>()))));
+        TRegistry::Get()->CreateProcessFunction(std::string(TypeName<TBatchSplitFunction>()), context)));
 
     // An unknown function name throws.
-    EXPECT_THROW(TRegistry::Get()->CreateProcessFunction("NoSuchFunction"), std::exception);
+    EXPECT_THROW(TRegistry::Get()->CreateProcessFunction("NoSuchFunction", context), std::exception);
+}
+
+TEST(TProcessFunctionTest, RegistryPrefersProcessFunctionContextConstructor)
+{
+    TTestStateEnvironment environment;
+    auto context = environment.CreateProcessFunctionContext();
+    auto name = std::string(TypeName<TContextConstructorFunction>());
+
+    auto function = DynamicPointerCast<TContextConstructorFunction>(
+        TRegistry::Get()->CreateProcessFunction(name, context));
+    ASSERT_TRUE(function);
+    EXPECT_EQ(function->ConstructorContext, context);
+
+    auto bothName = std::string(TypeName<TBothConstructorsFunction>());
+    auto withContext = DynamicPointerCast<TBothConstructorsFunction>(
+        TRegistry::Get()->CreateProcessFunction(bothName, context));
+    ASSERT_TRUE(withContext);
+    EXPECT_TRUE(withContext->UsedContextConstructor);
+}
+
+TEST(TProcessFunctionTest, HarnessUsesProductionConstructionOrder)
+{
+    TTestStateEnvironment environment;
+    auto harness = TProcessFunctionTestHarness::Create<TContextConstructorFunction>(environment);
+    auto function = harness.GetFunction<TContextConstructorFunction>();
+
+    EXPECT_EQ(function->ConstructorContext->InitContext, environment.GetInitContext());
+    EXPECT_EQ(function->InitCallCount, 0);
+    harness.RunEpoch({}, {}, {});
+    EXPECT_EQ(function->InitCallCount, 1);
+    harness.RunEpoch({}, {}, {});
+    EXPECT_EQ(function->InitCallCount, 1);
+}
+
+TEST(TProcessFunctionTest, MultipleConstructorAwareHarnessesShareEnvironment)
+{
+    TTestStateEnvironment environment;
+    auto firstHarness = TProcessFunctionTestHarness::Create<TContextConstructorFunction>(environment);
+    auto secondHarness = TProcessFunctionTestHarness::Create<TContextConstructorFunction>(environment);
+    auto firstFunction = firstHarness.GetFunction<TContextConstructorFunction>();
+    auto secondFunction = secondHarness.GetFunction<TContextConstructorFunction>();
+
+    EXPECT_NE(firstFunction->ConstructorContext, secondFunction->ConstructorContext);
+    EXPECT_EQ(firstFunction->ConstructorContext->InitContext, secondFunction->ConstructorContext->InitContext);
+
+    firstHarness.RunEpoch({}, {}, {});
+    secondHarness.RunEpoch({}, {}, {});
+    EXPECT_EQ(firstFunction->InitCallCount, 1);
+    EXPECT_EQ(secondFunction->InitCallCount, 1);
+}
+
+TEST(TProcessFunctionTest, ExplicitContextConstructionDoesNotFreezeEnvironment)
+{
+    TTestStateEnvironment environment;
+    auto context = New<TProcessFunctionContext>();
+
+    auto function = DynamicPointerCast<TContextConstructorFunction>(
+        environment.CreateProcessFunction<TContextConstructorFunction>(context));
+    ASSERT_TRUE(function);
+    EXPECT_EQ(function->ConstructorContext, context);
+    EXPECT_NO_THROW(environment.SetLogger(NLogging::TLogger("AfterConstruction")));
+}
+
+TEST(TProcessFunctionTest, HarnessFreezesConstructorContextForInit)
+{
+    TTestStateEnvironment environment;
+    auto harness = TProcessFunctionTestHarness::Create<TContextConstructorFunction>(environment);
+    auto function = harness.GetFunction<TContextConstructorFunction>();
+    auto constructionContext = function->ConstructorContext;
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        environment.SetStaticParameters(New<TThresholdParameters>()),
+        "must be configured before Create<T>()");
+    EXPECT_THROW_WITH_SUBSTRING(
+        environment.SetLogger(NLogging::TLogger("AfterSnapshot")),
+        "must be configured before Create<T>()");
+    ASSERT_EQ(environment.GetInitContext(), constructionContext->InitContext);
+
+    harness.RunEpoch({}, {}, {});
+    EXPECT_EQ(function->ConstructorContext, constructionContext);
+    EXPECT_EQ(function->InitCallCount, 1);
+}
+
+TEST(TProcessFunctionTest, PointerBasedHarnessKeepsLazyEnvironmentContext)
+{
+    TTestStateEnvironment environment;
+    auto function = New<TParameterReadingFunction>();
+    TProcessFunctionTestHarness harness(environment, function);
+
+    auto parameters = New<TThresholdParameters>();
+    parameters->Threshold = 7;
+    environment.SetStaticParameters(parameters);
+
+    harness.RunEpoch({}, {}, {});
+    EXPECT_EQ(function->StaticThreshold, 7);
+}
+
+TEST(TProcessFunctionTest, HarnessProvidesDefaultConstructorDependencies)
+{
+    TTestStateEnvironment environment;
+    auto harness = TProcessFunctionTestHarness::Create<TDependencyConstructorFunction>(environment);
+    auto function = harness.GetFunction<TDependencyConstructorFunction>();
+
+    EXPECT_TRUE(function->InitContext);
+    EXPECT_TRUE(function->ClientsCache);
+    EXPECT_TRUE(function->Invoker);
+    EXPECT_TRUE(function->StatusProfiler);
+    EXPECT_TRUE(function->PrimaryClient);
+    EXPECT_TRUE(function->HasLogger);
+}
+
+TEST(TProcessFunctionTest, ConstructorReceivesRuntimeDependencies)
+{
+    TTestStateEnvironment environment;
+    auto logger = NLogging::TLogger("ConstructorDependenciesTest");
+    auto statusProfiler = CreateSyncStatusProfiler(logger);
+    auto primaryUnderlying = New<NApi::TMockClient>();
+    auto primaryClient = CreateRetryableClient(
+        primaryUnderlying,
+        GetSyncInvoker(),
+        statusProfiler,
+        logger);
+    auto clientsCache = New<TMockClientsCache>();
+    auto invoker = GetSyncInvoker();
+
+    environment.SetLogger(logger);
+    environment.SetStatusProfiler(statusProfiler);
+    environment.SetClientsCache(clientsCache);
+    environment.SetInvoker(invoker);
+    environment.SetPrimaryRetryableClient(primaryClient);
+
+    auto harness = TProcessFunctionTestHarness::Create<TDependencyConstructorFunction>(environment);
+    auto function = harness.GetFunction<TDependencyConstructorFunction>();
+    EXPECT_EQ(function->InitContext, environment.GetInitContext());
+    EXPECT_EQ(function->ClientsCache, clientsCache);
+    EXPECT_EQ(function->Invoker, invoker);
+    EXPECT_EQ(function->StatusProfiler, statusProfiler);
+    EXPECT_EQ(function->PrimaryClient, primaryClient);
+    EXPECT_TRUE(function->HasLogger);
 }
 
 TEST(TProcessFunctionTest, BatchSourceFunctionEmitsWords)
@@ -1120,12 +1330,14 @@ TEST(TProcessFunctionTest, SyncViewResolvesMixin)
 {
     // The registry recovers the sync mix-in without RTTI for a function that opted in, and yields
     // null for one that did not.
+    TTestStateEnvironment environment;
+    auto context = environment.CreateProcessFunctionContext();
     auto syncName = std::string(TypeName<TSyncingProcessFunction>());
-    auto syncFunction = TRegistry::Get()->CreateProcessFunction(syncName);
+    auto syncFunction = TRegistry::Get()->CreateProcessFunction(syncName, context);
     EXPECT_TRUE(TRegistry::Get()->ViewProcessFunctionAsSync(syncName, syncFunction));
 
     auto plainName = std::string(TypeName<TSplitFunction>());
-    auto plainFunction = TRegistry::Get()->CreateProcessFunction(plainName);
+    auto plainFunction = TRegistry::Get()->CreateProcessFunction(plainName, context);
     EXPECT_FALSE(TRegistry::Get()->ViewProcessFunctionAsSync(plainName, plainFunction));
 }
 
@@ -1374,10 +1586,11 @@ private:
 TEST(TProcessFunctionResourceTest, InitContextExposesRegisteredResources)
 {
     TTestStateEnvironment stateEnv;
+    auto processFunctionContext = stateEnv.CreateProcessFunctionContext();
+    auto initContext = processFunctionContext->InitContext;
+
     auto resource = New<TTaggedTestResource>(/*tag*/ 17);
     stateEnv.RegisterStaticResource(TResourceId("TestExecutor"), resource);
-
-    const auto& initContext = stateEnv.GetInitContext();
 
     // The typed As<T> cast returns the very instance that was registered.
     auto fetched = initContext->GetStaticResource("TestExecutor");

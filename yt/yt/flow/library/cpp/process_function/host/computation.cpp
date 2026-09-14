@@ -7,16 +7,18 @@
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
+#include <yt/yt/flow/library/cpp/misc/retryable_client.h>
+
 namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IProcessFunctionBasePtr CreateProcessFunction(const TComputationSpecPtr& spec)
+IProcessFunctionBasePtr CreateProcessFunction(
+    const TComputationSpecPtr& spec,
+    const TProcessFunctionContextPtr& context)
 {
-    // Spec validation (TRegistry::ValidatePipelineSpecParseability) already guaranteed the field
-    // is set and names a registered function for an adapter computation.
     YT_VERIFY(spec->ProcessingFunction);
-    return TRegistry::Get()->CreateProcessFunction(*spec->ProcessingFunction);
+    return TRegistry::Get()->CreateProcessFunction(*spec->ProcessingFunction, context);
 }
 
 ISyncProcessFunction* ViewProcessFunctionAsSync(const TComputationSpecPtr& spec, const IProcessFunctionBasePtr& function)
@@ -32,8 +34,6 @@ TProcessFunctionComputationBase<TBase>::TProcessFunctionComputationBase(
     TComputationContextPtr context,
     TDynamicComputationContextPtr dynamicContext)
     : TBase(std::move(context), std::move(dynamicContext))
-    , Function_(CreateProcessFunction(this->GetSpec()))
-    , Batch_(WrapAsBatch(Function_))
     , RuntimeContext_(New<TComputationRuntimeContext>(
         this->GetSpec(),
         this->GetContext()->StreamSpecStorage,
@@ -45,7 +45,10 @@ TProcessFunctionComputationBase<TBase>::TProcessFunctionComputationBase(
 template <class TBase>
 void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initContext)
 {
-    auto runtimeInitContext = New<TRuntimeInitContext>(
+    YT_VERIFY(!Function_);
+
+    auto context = New<TProcessFunctionContext>();
+    context->InitContext = New<TRuntimeInitContext>(
         std::move(initContext),
         this->StateManager_,
         this->GetPartitionId(),
@@ -55,12 +58,24 @@ void TProcessFunctionComputationBase<TBase>::DoInit(IJobInitContextPtr initConte
         this->GetContext()->Profiler,
         this->GetContext()->HttpClient,
         this->GetContext()->HttpsClient);
-    Function_->Init(runtimeInitContext);
+    context->ClientsCache = this->GetContext()->ClientsCache;
+    context->Invoker = this->GetContext()->SerializedInvoker;
+    context->RetryableClient =
+        this->GetRetryableClient()->WithErrorComponent("/process_function/default");
+    context->Logger =
+        this->Logger.WithTag("ProcessingFunction", *this->GetSpec()->ProcessingFunction);
+    context->StatusProfiler = this->GetContext()->StatusProfiler->WithPrefix("/process_function");
+
+    Function_ = CreateProcessFunction(this->GetSpec(), context);
+    Batch_ = WrapAsBatch(Function_);
+    SyncFunction_ = ViewProcessFunctionAsSync(this->GetSpec(), Function_);
+    Function_->Init(context->InitContext);
 }
 
 template <class TBase>
 void TProcessFunctionComputationBase<TBase>::DoProcess(IInputContextPtr input, IOutputCollectorPtr output)
 {
+    YT_VERIFY(Batch_);
     RefreshRuntimeContext();
     Batch_->Process(input, output, RuntimeContext_);
 }
@@ -68,6 +83,7 @@ void TProcessFunctionComputationBase<TBase>::DoProcess(IInputContextPtr input, I
 template <class TBase>
 void TProcessFunctionComputationBase<TBase>::DoSyncIfPresent(IRetryableTransactionPtr transaction)
 {
+    YT_VERIFY(Function_);
     if (SyncFunction_) {
         RefreshRuntimeContext();
         SyncFunction_->Sync(transaction, RuntimeContext_);
