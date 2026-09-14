@@ -25,6 +25,7 @@ PEERDIR(
     yt/yql/providers/dq/actors
     yt/yql/providers/dq/actors/yt
     yt/yql/providers/dq/global_worker_manager
+    yt/yql/tools/dq/job_config
     yql/essentials/utils/signals
 )
 
