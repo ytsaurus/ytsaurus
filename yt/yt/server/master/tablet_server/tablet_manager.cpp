@@ -199,12 +199,13 @@ public:
         , TabletService_(CreateTabletService(Bootstrap_))
         , TabletBalancer_(CreateTabletBalancer(Bootstrap_))
         , TabletCellDecommissioner_(CreateTabletCellDecommissioner(Bootstrap_))
+        , StoresUpdateThrottlerActionQueue_(New<TActionQueue>("StoresUpdThrt"))
         , TabletActionManager_(CreateTabletActionManager(
             Bootstrap_,
             this,
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager)))
-        , TabletChunkManager_(CreateTabletChunkManager(Bootstrap_))
+        , TabletChunkManager_(CreateTabletChunkManager(Bootstrap_, StoresUpdateThrottlerActionQueue_->GetInvoker()))
         , TabletMap_(TEntityMapTypeTraits<TTabletBase>(Bootstrap_))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
@@ -293,6 +294,7 @@ public:
 
         TabletService_->Initialize();
         TabletActionManager_->Initialize();
+        TabletChunkManager_->Initialize();
     }
 
     IYPathServicePtr GetOrchidService() override
@@ -311,6 +313,11 @@ public:
     const ITabletActionManagerPtr& GetTabletActionManager() const override
     {
         return TabletActionManager_;
+    }
+
+    const IInvokerPtr& GetStoresUpdateThrottlerInvoker() const override
+    {
+        return StoresUpdateThrottlerActionQueue_->GetInvoker();
     }
 
     void OnTabletCellBundleDestroyed(TCellBundle* cellBundle)
@@ -2806,6 +2813,7 @@ private:
     const ITabletServicePtr TabletService_;
     const ITabletBalancerPtr TabletBalancer_;
     const ITabletCellDecommissionerPtr TabletCellDecommissioner_;
+    const TActionQueuePtr StoresUpdateThrottlerActionQueue_;
     const ITabletActionManagerPtr TabletActionManager_;
     const ITabletChunkManagerPtr TabletChunkManager_;
 

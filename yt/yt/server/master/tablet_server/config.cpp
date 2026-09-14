@@ -157,6 +157,29 @@ void TDynamicTabletManagerTestingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TStoresUpdateThrottlerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("throttler", &TThis::Throttler)
+        .DefaultNew();
+    registrar.Parameter("bundle_limit", &TThis::BundleLimit)
+        .GreaterThanOrEqual(0)
+        .Default(500);
+    registrar.Parameter("flush_relative_limit", &TThis::FlushRelativeLimit)
+        .Default(0.7)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("regular_relative_limit", &TThis::RegularRelativeLimit)
+        .Default(0.7)
+        .InRange(0.0, 1.0);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->Throttler->Limit) {
+            config->Throttler->Limit = 2000;
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("peer_revocation_timeout", &TThis::PeerRevocationTimeout)
@@ -274,6 +297,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_chunks_per_mounted_tablet", &TThis::MaxChunksPerMountedTablet)
         .Default(15000);
+
+    registrar.Parameter("stores_update_throttler", &TThis::StoresUpdateThrottler)
+        .DefaultNew();
 
     registrar.Parameter("enable_hunk_specific_media", &TThis::EnableHunkSpecificMedia)
         .Default(true);
