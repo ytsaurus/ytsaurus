@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, Restarter, MASTERS_SERVICE, with_additional_threads)
+    YTEnvSetup, Restarter, MASTERS_SERVICE, with_additional_threads, with_portals_dir)
 
 from yt_sequoia_helpers import not_implemented_in_sequoia
 
@@ -5013,6 +5013,7 @@ class TestCypressPortal(TestCypressMulticell):
     }
 
     @authors("h0pless")
+    @with_portals_dir
     def test_cyclic_link_through_portal(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
@@ -5026,6 +5027,7 @@ class TestCypressPortal(TestCypressMulticell):
             link("//portals/p/r/l2", "//portals/p/r/l2", force=True)
 
     @authors("h0pless")
+    @with_portals_dir
     def test_node_copy_rollback(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
@@ -5038,6 +5040,7 @@ class TestCypressPortal(TestCypressMulticell):
         remove("//sys/@config/cypress_manager/max_locks_per_transaction_subtree")
 
     @authors("shakurov")
+    @with_portals_dir
     def test_cross_shard_copy_inheritable_attributes(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
@@ -5063,6 +5066,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//portals/p/d2/@tablet_cell_bundle") == "b"
 
     @authors("aleksandra-zh")
+    @with_portals_dir
     def test_cross_shard_copy_builtin_attributes(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
@@ -5096,6 +5100,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//tmp/t2/@enable_skynet_sharing")
 
     @authors("shakurov")
+    @with_portals_dir
     def test_cross_shard_copy_w_tx(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})
 
@@ -5109,6 +5114,7 @@ class TestCypressPortal(TestCypressMulticell):
         move("//tmp/t2", "//portals/p/t2_copy", tx=tx)
 
     @authors("cherepashka")
+    @with_portals_dir
     def test_access_time_in_shard_copy(self):
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 11})
         create("table", "//tmp/t1")
@@ -5118,6 +5124,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//tmp/t1/@access_time") > creation_time
 
     @authors("avmatrosov")
+    @with_portals_dir
     def test_annotation_portal(self):
         set("//sys/@config/cypress_manager/graft_synchronization_period", 1000)
         set("//portals/@annotation", "test")
@@ -5139,6 +5146,7 @@ class TestCypressPortal(TestCypressMulticell):
         pass
 
     @authors("avmatrosov")
+    @with_portals_dir
     def test_preserve_owner(self):
         create_user("u1")
         create("document", "//tmp/doc", authenticated_user="u1")
@@ -5149,6 +5157,7 @@ class TestCypressPortal(TestCypressMulticell):
         assert get("//tmp/doc/@owner") == get("//portals/p/doc/@owner") == "u1"
 
     @authors("avmatrosov")
+    @with_portals_dir
     def test_preserve_acl(self):
         create("document", "//tmp/t1")
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 12})

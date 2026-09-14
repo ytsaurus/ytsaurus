@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_portals_dir
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set,
@@ -3222,10 +3222,8 @@ class TestTablesMulticell(TestTables):
 
     @authors("shakurov")
     @not_implemented_in_sequoia  # Cross-cell copy.
+    @with_portals_dir
     def test_cloned_table_statistics_yt_18290(self):
-        if not self.ENABLE_TMP_PORTAL:
-            create("map_node", "//portals", force=True)
-
         create("table", "//tmp/t")
         tx = start_transaction()
         write_table("<append=%true>//tmp/t", [{"foo": "bar"}], tx=tx)

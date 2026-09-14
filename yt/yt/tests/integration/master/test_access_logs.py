@@ -1,6 +1,6 @@
 import collections
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_portals_dir
 
 from yt_commands import (
     authors, get_driver, insert_rows, wait, create, ls, get, set, copy, move,
@@ -776,6 +776,7 @@ class TestAccessLogPortal(TestAccessLog):
         pass
 
     @authors("shakurov")
+    @with_portals_dir
     def test_logs_portal(self):
         log_list = []
 

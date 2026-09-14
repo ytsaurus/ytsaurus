@@ -1,6 +1,6 @@
 from yt_chaos_test_base import ChaosTestBase
 
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_portals_dir
 
 from yt_commands import (authors, get, create, remove, start_transaction, commit_transaction, copy, alter_table,
                          raises_yt_error, set)
@@ -599,6 +599,7 @@ class TestQueueAgentObjectsRevisionsPortal(TestQueueAgentObjectRevisions):
     }
 
     @authors("achulkov2", "nadya73")
+    @with_portals_dir
     def test_objects_from_different_cells(self):
         create("portal_entrance", "//portals/p1", attributes={"exit_cell_tag": 11})
         create("portal_entrance", "//portals/p2", attributes={"exit_cell_tag": 12})
