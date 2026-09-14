@@ -65,6 +65,7 @@ jobs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
       nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
       version-patch: ${{ steps.tag.outputs.VERSION_PATCH }}
+      is-release-branch: ${{ steps.tag.outputs.IS_RELEASE_BRANCH }}
     steps:
       - name: Calculate docker tag
         id: tag
@@ -94,6 +95,13 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
+          if [[ $GITHUB_REF =~ ^refs/heads/(stable|query-tracker|chyt)/ ]]; then
+            IS_RELEASE_BRANCH=true
+          else
+            IS_RELEASE_BRANCH=false
+          fi
+          echo "IS_RELEASE_BRANCH=$IS_RELEASE_BRANCH" >> $GITHUB_OUTPUT
+
           # Compute VERSION_PATCH as YYMMDDnnn (date of last commit + commit index within that day).
           LAST_COMMIT_DATE=$(git -C ytsaurus log -n 1 --format="%cd" --date=format:"%y%m%d")
           COMMITS_THIS_DAY=$(git -C ytsaurus log --after="20${LAST_COMMIT_DATE} 00:00:00" --oneline | wc -l | tr -d ' ')
@@ -111,6 +119,7 @@ jobs:
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
+      build-flow-tests: ${{ needs.tag.outputs.is-release-branch != 'true' }}
       build-query-tracker: true
       build-python: true
       build-chyt: true
@@ -164,6 +173,7 @@ jobs:
     name: Check
     needs:
       - start-vm
+      - tag
       - docker-ya-make-relwithdebinfo
     if: ${{ !cancelled() && needs.start-vm.result == 'success' && needs.docker-ya-make-relwithdebinfo.result != 'skipped' }}
     with:
@@ -171,7 +181,7 @@ jobs:
       build-dir: build_ya-make_relwithdebinfo
       run-unittests: true
       run-integration-tests: true
-      run-flow-tests: true
+      run-flow-tests: ${{ needs.tag.outputs.is-release-branch != 'true' }}
       run-python-tests: true
       run-odin-tests: true
     uses: ./.github/workflows/check-jobs.yaml
