@@ -1156,12 +1156,6 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t{c, b}") == read_table("//tmp/t1{c, b}")
         assert read_table("//tmp/t{zzzzz}") == read_table("//tmp/t1{zzzzz}")
 
-        assert read_table("//tmp/t{a}") == read_table("//tmp/t1{a}")
-        assert read_table("//tmp/t{a, }") == read_table("//tmp/t1{a, }")
-        assert read_table("//tmp/t{a, a}") == read_table("//tmp/t1{a, a}")
-        assert read_table("//tmp/t{c, b}") == read_table("//tmp/t1{c, b}")
-        assert read_table("//tmp/t{zzzzz}") == read_table("//tmp/t1{zzzzz}")
-
     @authors("babenko", "h0pless")
     @pytest.mark.parametrize(
         "optimize_for, merge_mode",
