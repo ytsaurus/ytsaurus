@@ -4,6 +4,8 @@
 #include "chunk_placement.h"
 #endif
 
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
 #include <yt/yt/server/master/node_tracker_server/host.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
 

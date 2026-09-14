@@ -257,6 +257,11 @@ protected:
 
     TCustomAttributeDictionaryPtr CustomAttributesImpl_;
 
+    TFuture<NYson::TYsonString> FetchFromShepherd(const NYPath::TYPath& path);
+
+    std::vector<TFuture<NYson::TYsonString>> FetchYsonFromSwarm(
+        NYTree::TInternedAttributeKey key);
+
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
@@ -289,8 +294,6 @@ protected:
     {
         return Object_->As<TActualImpl>();
     }
-
-    TFuture<NYson::TYsonString> FetchFromShepherd(const NYPath::TYPath& path);
 
     template <class T>
     TFuture<std::vector<T>> FetchFromSwarm(NYTree::TInternedAttributeKey key);

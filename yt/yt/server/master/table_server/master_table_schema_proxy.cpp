@@ -4,6 +4,8 @@
 #include "master_table_schema.h"
 #include "table_manager.h"
 
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
+
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/security_server/account.h>

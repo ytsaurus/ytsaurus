@@ -14,6 +14,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node_detail.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
