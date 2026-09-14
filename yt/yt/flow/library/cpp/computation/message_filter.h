@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include <yt/yt/flow/library/cpp/common/computation_statistics.h>
 #include <yt/yt/flow/library/cpp/common/message.h>
 
 #include <library/cpp/yt/memory/ref_counted.h>
@@ -29,6 +30,7 @@ struct TMessageFilterResult
 {
     std::vector<TInputMessageConstPtr> Kept;
     std::vector<TInputMessageConstPtr> Skipped;
+    THashMap<TStreamId, TBatchStatistics> SkippedStatistics;
 };
 
 //! A filter driven by the dynamic-spec ``skip_if_expression``.

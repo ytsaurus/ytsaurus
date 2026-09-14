@@ -24,73 +24,48 @@ public:
 
     void Add(TLineageDelta delta) override
     {
-        if (!PendingDelta_) {
-            PendingDelta_ = std::move(delta);
-            return;
-        }
-
-        for (const auto& [outputStreamId, parentDeltas] : delta) {
-            auto& pendingParentDeltas = (*PendingDelta_)[outputStreamId];
-            for (const auto& [parentStreamId, value] : parentDeltas) {
-                auto& pendingValue = pendingParentDeltas[parentStreamId];
-                pendingValue.Count += value.Count;
-                pendingValue.ByteSize += value.ByteSize;
-                pendingValue.InputCount += value.InputCount;
-                pendingValue.InputByteSize += value.InputByteSize;
-            }
-        }
-    }
-
-    void Commit() override
-    {
-        if (!PendingDelta_) {
-            return;
-        }
-        auto delta = std::exchange(PendingDelta_, std::nullopt);
-        LineageTracker_->Commit(ComputationId_, ComputationSpec_, *delta);
+        LineageTracker_->Add(ComputationId_, ComputationSpec_, delta);
     }
 
 private:
     const TLineageTrackerPtr LineageTracker_;
     const TComputationId ComputationId_;
     const TComputationSpecPtr ComputationSpec_;
-
-    std::optional<TLineageDelta> PendingDelta_;
 };
 
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLineageTracker::Commit(
+void TLineageTracker::Add(
     const TComputationId& computationId,
     const TComputationSpecPtr& computationSpec,
     const TLineageDelta& delta)
 {
     auto guard = Guard(Lock_);
-    DoCommit(computationId, computationSpec, delta, TInstant::Now());
+    DoAdd(computationId, computationSpec, delta, TInstant::Now());
 }
 
-void TLineageTracker::Commit(
+void TLineageTracker::Add(
     const TComputationId& computationId,
     const TComputationSpecPtr& computationSpec,
     const TLineageDelta& delta,
     TInstant now)
 {
     auto guard = Guard(Lock_);
-    DoCommit(computationId, computationSpec, delta, now);
+    DoAdd(computationId, computationSpec, delta, now);
 }
 
-void TLineageTracker::DoCommit(
+void TLineageTracker::DoAdd(
     const TComputationId& computationId,
     const TComputationSpecPtr& computationSpec,
     const TLineageDelta& delta,
     TInstant now)
 {
-    if (now <= LastCommitTime_) {
-        now = LastCommitTime_ + TDuration::MicroSeconds(1);
+    if (now <= LastObservationTime_) {
+        now = LastObservationTime_ + TDuration::MicroSeconds(1);
     }
-    LastCommitTime_ = now;
+    LastObservationTime_ = now;
 
     auto updateEdge = [&] (
         const TStreamId& localOutputStreamId,
@@ -137,7 +112,7 @@ void TLineageTracker::DoCommit(
 TLineageRates TLineageTracker::GetRates(TInstant now)
 {
     auto guard = Guard(Lock_);
-    return DoGetRates(std::max(now, LastCommitTime_));
+    return DoGetRates(std::max(now, LastObservationTime_));
 }
 
 TLineageRates TLineageTracker::DoGetRates(TInstant now)

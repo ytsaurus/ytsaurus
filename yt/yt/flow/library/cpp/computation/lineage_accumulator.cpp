@@ -6,53 +6,42 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddLineageInput(
+TBatchStatistics AddLineageInputs(
     TLineageDelta* delta,
     const TComputationSpecPtr& spec,
-    const TStreamId& inputStreamId,
-    i64 count,
-    i64 byteSize)
+    const IInputContext& inputs,
+    THashMap<TStreamId, TBatchStatistics> skipped)
 {
-    for (const auto& [outputStreamId, parents] : spec->StreamsDependency) {
-        if (parents.contains(inputStreamId)) {
-            auto& value = (*delta)[outputStreamId][inputStreamId];
-            value.InputCount += count;
-            value.InputByteSize += byteSize;
-        }
-    }
-}
-
-void AddLineageInputs(
-    TLineageDelta* delta,
-    const TComputationSpecPtr& spec,
-    const std::vector<TInputMessageConstPtr>& messages,
-    const std::vector<TInputTimerConstPtr>& timers,
-    const std::vector<TInputVisitConstPtr>& visits)
-{
-    THashMap<TStreamId, std::pair<i64, i64>> totals;
+    auto totals = std::move(skipped);
     auto add = [&] (const auto& input) {
-        auto& [count, byteSize] = totals[input->StreamId];
-        ++count;
-        byteSize += input->ByteSize;
+        auto& total = totals[input->StreamId];
+        ++total.Count;
+        total.ByteSize += input->ByteSize;
     };
-    for (const auto& message : messages) {
+    for (const auto& message : inputs.GetMessages()) {
         add(message);
     }
-    for (const auto& timer : timers) {
+    for (const auto& timer : inputs.GetTimers()) {
         add(timer);
     }
-    for (const auto& visit : visits) {
+    for (const auto& visit : inputs.GetVisits()) {
         add(visit);
+    }
+    TBatchStatistics result;
+    for (const auto& [_, total] : totals) {
+        result.Count += total.Count;
+        result.ByteSize += total.ByteSize;
     }
     for (const auto& [outputStreamId, parents] : spec->StreamsDependency) {
         for (const auto& inputStreamId : parents) {
             if (const auto* total = totals.FindPtr(inputStreamId)) {
                 auto& value = (*delta)[outputStreamId][inputStreamId];
-                value.InputCount += total->first;
-                value.InputByteSize += total->second;
+                value.InputCount += total->Count;
+                value.InputByteSize += total->ByteSize;
             }
         }
     }
+    return result;
 }
 
 void TLineageAccumulator::Add(

@@ -6,6 +6,7 @@
 #include "persisted_state_control.h"
 #include "spec.h"
 #include "stream_spec_storage_state.h"
+#include "stream_statistics.h"
 #include "timestamp_statistics.h"
 #include "traverse.h"
 
@@ -784,19 +785,6 @@ struct TStreamTraverseDataMetrics
 };
 
 DEFINE_REFCOUNTED_TYPE(TStreamTraverseDataMetrics);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TStreamSpeedStatistics
-    : public NYTree::TYsonStructLite
-{
-    double ProcessedMessagesPerSecond{};
-    double ProcessedBytesPerSecond{};
-
-    REGISTER_YSON_STRUCT_LITE(TStreamSpeedStatistics);
-
-    static void Register(TRegistrar registrar);
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

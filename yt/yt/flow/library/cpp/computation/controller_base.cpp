@@ -705,13 +705,16 @@ TProcessPartitionTraverseDataResultPtr TComputationControllerBase::ProcessPartit
         preparedTraverseData = GetValues(relevantTraverseData);
     }
     if (futurePartitionsTraverse.has_value()) {
+        // Future partitions do not execute work and contribute known zeros, not missing observations.
+        auto rates = New<TComputationProcessingRates>();
+        rates->Rate1m.emplace().Capacity.emplace();
+        rates->Rate10m.emplace().Capacity.emplace();
+        (*futurePartitionsTraverse)->ProcessingRates = std::move(rates);
         preparedTraverseData.push_back(*futurePartitionsTraverse);
     }
     auto result = New<TProcessPartitionTraverseDataResult>();
     result->StreamMetrics = ComputeStreamMetrics(preparedTraverseData, GetSpec());
-    result->AcceptedTraverseData = AdvanceNodeTraverseData(
-        currentTraverseData,
-        MergeNodeTraverseData(preparedTraverseData));
+    result->AcceptedTraverseData = AdvanceNodeTraverseData(currentTraverseData, MergeNodeTraverseData(preparedTraverseData));
 
     // Published only once every step above has succeeded. Suppression silences a group's errors, and a
     // traverse whose result is discarded hides no watermark, so publishing early would leave the pipeline

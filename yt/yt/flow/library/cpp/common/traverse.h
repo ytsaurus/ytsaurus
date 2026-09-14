@@ -1,6 +1,8 @@
 #pragma once
 #include "public.h"
 
+#include "computation_statistics.h"
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NFlow {
@@ -88,7 +90,7 @@ struct TLineageDeltaValue
     double InputByteSize{};
 };
 
-//! Paired input totals and attributed output totals per committed epoch, keyed by computation-local streams.
+//! Paired input totals and attributed output totals per completed processing observation, keyed by computation-local streams.
 using TLineageDelta = THashMap<TStreamId, THashMap<TStreamId, TLineageDeltaValue>>;
 
 //! Paired input and attributed output rates with the same decay, keyed by pipeline-global streams.
@@ -154,6 +156,7 @@ struct TNodeTraverseData
     TSystemTimestamp ReportTime;
 
     std::optional<i64> IterationCycle;
+    TComputationProcessingRatesPtr ProcessingRates;
 
     THashMap<TStreamId, TStreamTraverseDataPtr> Streams;
 
