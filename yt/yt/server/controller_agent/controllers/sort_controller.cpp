@@ -1534,7 +1534,6 @@ protected:
             std::vector<TJobletPtr> partitionJoblets(ActiveJoblets_[partitionIndex].begin(), ActiveJoblets_[partitionIndex].end());
             for (const auto& joblet : partitionJoblets) {
                 Controller_->AbortJob(joblet->JobId, EAbortReason::ChunkMappingInvalidated);
-                InvalidatedJoblets_[partitionIndex].insert(joblet);
             }
             for (const auto& jobOutput : JobOutputs_[partitionIndex]) {
                 auto tableIndex = Controller_->GetRowCountLimitTableIndex();
@@ -1557,7 +1556,6 @@ protected:
             Partitions_.push_back(std::move(partition));
 
             EnsureVectorIndex(ActiveJoblets_, partitionIndex);
-            EnsureVectorIndex(InvalidatedJoblets_, partitionIndex);
             EnsureVectorIndex(JobOutputs_, partitionIndex);
 
             Controller_->UpdateTask(this);
@@ -1617,9 +1615,6 @@ protected:
 
         //! Partition index -> list of active joblets.
         std::vector<THashSet<TJobletPtr>> ActiveJoblets_;
-
-        //! Partition index -> list of invalidated joblets.
-        std::vector<THashSet<TJobletPtr>> InvalidatedJoblets_;
 
         struct TJobOutput
         {
@@ -1683,9 +1678,7 @@ protected:
 
             auto partitionIndex = *joblet->InputStripeList->GetOutputChunkPoolIndex();
             EraseOrCrash(ActiveJoblets_[partitionIndex], joblet);
-            if (!InvalidatedJoblets_[partitionIndex].contains(joblet)) {
-                JobOutputs_[partitionIndex].emplace_back(TJobOutput{joblet, jobSummary});
-            }
+            JobOutputs_[partitionIndex].emplace_back(TJobOutput{joblet, jobSummary});
 
             return result;
         }
@@ -3225,9 +3218,7 @@ void TSortControllerBase::TSortedMergeTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, SortedMergeChunkPools_);
     PHOENIX_REGISTER_FIELD(6, ActiveJoblets_,
         .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>());
-    PHOENIX_REGISTER_FIELD(7, InvalidatedJoblets_,
-        .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>());
-    PHOENIX_REGISTER_FIELD(8, JobOutputs_);
+    PHOENIX_REGISTER_FIELD(7, JobOutputs_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortedMergeTask);
