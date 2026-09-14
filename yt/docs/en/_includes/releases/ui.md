@@ -8,6 +8,34 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**3.24.0**" %}
+
+**Release date:** 2026-09-03
+
+
+**Release page:** [3.24.0](https://github.com/ytsaurus/ytsaurus-ui/releases/tag/ui-v3.24.0)
+
+
+**Docker image:** [ghcr.io/ytsaurus/ui:3.24.0](https://github.com/orgs/ytsaurus/packages/container/ui/1206054167?tag=3.24.0)
+
+
+#### [3.24.0](https://github.com/ytsaurus/ytsaurus-ui/compare/ui-v3.23.0...ui-v3.24.0) (2026-09-03)
+
+
+#### Features
+
+* **Navigation:** host metadata [YTFRONT-5757] ([8e8edae](https://github.com/ytsaurus/ytsaurus-ui/commit/8e8edaeeab0ea8f9fa58872336bad998efc81ed3))
+* **server/configs:** add setting [YTFRONT-5702] ([36cab9c](https://github.com/ytsaurus/ytsaurus-ui/commit/36cab9c98d5060a1a26bc573b42fc569118bbccb))
+
+
+#### Bug Fixes
+
+* **Navigation/Table:** download file as application/octet-stream [YTFRONT-5970] ([3fd7a9b](https://github.com/ytsaurus/ytsaurus-ui/commit/3fd7a9be4225f4f204ec4ff9b5483e401498b884))
+* **Queries:** change yql version default logic [YTFRONT-5876] ([2956e03](https://github.com/ytsaurus/ytsaurus-ui/commit/2956e03c5f644b7d1eb09bd4e1373d747c7060f1))
+
+{% endcut %}
+
+
 {% cut "**3.23.0**" %}
 
 **Release date:** 2026-08-26
@@ -1260,7 +1288,7 @@ Is released as a docker image.
 
 #### Bug Fixes
 
-* **BFF** fix logging of axios error in `sendAndLogError` function ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
+* **BFF** fix logging of axios error in sendAndLogError function ([b9239dc](https://github.com/ytsaurus/ytsaurus-ui/commit/b9239dc43feab214b4e3520b21e662755be4f33a))
 * **Navigation:** pool tree select popup [YTFRONT-4380] ([f52eb90](https://github.com/ytsaurus/ytsaurus-ui/commit/f52eb90da82306d6bf191a0d1375f3c30eaa3aac))
 * **Navigation/Consumer,Navigation/Queue:** show errors [YTFRONT-4144] ([914a6a0](https://github.com/ytsaurus/ytsaurus-ui/commit/914a6a066ce30928673749bd8e2250c51a3e637b))
 * **Navigation/Table/CellPreview:** fix opening preview for table with offset [[#778](https://github.com/ytsaurus/ytsaurus-ui/issues/778)] ([7347349](https://github.com/ytsaurus/ytsaurus-ui/commit/7347349c9adaedb1a8d7ea4a933a8316f2b296d2))
@@ -2201,7 +2229,7 @@ ui/commit/b39aa3e873f44dd45da2c7bf8005ccb93294a40e))
 
 * **Operations/Details:** minor css fix [YTFRONT-3518] ([91d9b01](https://github.com/ytsaurus/ytsaurus-ui/commit/91d9b0172dd8de0c1d610bc9eb1ca8d2117b1dd6))
 * **Scheduling/PoolEditor:** correct value for fifo_sort_parameters [YTFRONT-3957] ([34d5cdb](https://github.com/ytsaurus/ytsaurus-ui/commit/34d5cdb672b0eeadce80f10d1f828f1579e326ac))
-* **SupportForm:** rework api of `makeSupportContent` [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
+* **SupportForm:** rework api of makeSupportContent [YTFRONT-3994] ([a563179](https://github.com/ytsaurus/ytsaurus-ui/commit/a563179b6ce5d85e79e24a58a4aa425b5708b281))
 
 {% endcut %}
 

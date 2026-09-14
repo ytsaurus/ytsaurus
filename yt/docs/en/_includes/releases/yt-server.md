@@ -218,7 +218,7 @@ To install YTsaurus Server 25.3.1 [update](https://github.com/ytsaurus/ytsaurus-
 
 #### Queue Agent
 ##### Fixes:
-- Fix secondary index creation in `init_queue_agent_state` script, [9840c02](https://github.com/ytsaurus/ytsaurus/commit/9840c02ebe08e450b88ba00efa23c5af0a8b1eda)
+- Fix secondary index creation in init_queue_agent_state script, [9840c02](https://github.com/ytsaurus/ytsaurus/commit/9840c02ebe08e450b88ba00efa23c5af0a8b1eda)
 
 {% endcut %}
 
@@ -244,7 +244,7 @@ YTsaurus Server 25.3.0 is supported since [0.27.0](https://github.com/ytsaurus/y
 
 - Added GPU discovery via gpu-agent.
 
-- Automatic job size adjustment for ordered and sorted operation types and stages: `sorted_merge`, `ordered_merge`, `sorted_reduce`, `ordered_map`, `ordered_map` and `sorted_reduce` stages of Map-Reduce operation. 
+- Automatic job size adjustment for ordered and sorted operation types and stages: sorted_merge, ordered_merge, sorted_reduce, ordered_map, ordered_map and sorted_reduce stages of Map-Reduce operation. 
 
 - Support compressed_data_size job constraints for MR-operations.
 
@@ -305,7 +305,7 @@ by default performed on per-bundle basis instead of per-account. This is only ap
 - Fix potential data loss in case of multiple exports per queue
 due to incorrect merging of queue export progresses, [bd5d92a](https://github.com/ytsaurus/ytsaurus/commit/bd5d92a8bcb0c45743bc4d0fec0c6da8dee4ebdb).
 - Fix passing mutating options in `CreateQueueProducerSession` in RPC proxy, [8ab3c7d](https://github.com/ytsaurus/ytsaurus/commit/8ab3c7da89fa380a0187b5c04dd8857b4d88da0a).
-- Set attribute `treat_as_queue_producer=%true` during `queue_producer` creation, [4537011](https://github.com/ytsaurus/ytsaurus/commit/4537011fd63851d5c09441195ac43f675b63b30d).
+- Set attribute `treat_as_queue_producer=%true` during queue_producer creation, [4537011](https://github.com/ytsaurus/ytsaurus/commit/4537011fd63851d5c09441195ac43f675b63b30d).
 
 #### Proxy
 ##### New Features & Changes:
@@ -609,7 +609,7 @@ To install YTsaurus Server 25.2.0 [update](https://github.com/ytsaurus/ytsaurus-
   - Fixed reading of tables with date type columns, [1a23993](https://github.com/ytsaurus/ytsaurus/commit/1a239934462e269550c103cf81b813997ce473cc).
   - Added the ability to read tables with different number of columns in chunk meta in arrow format, [6210035](https://github.com/ytsaurus/ytsaurus/commit/6210035056c12e3b078f7a3e01b562030f946192).
 - Changed caching options in config of CypressUserManager for OAuthAuthenticator. Migrate to options compatible with AsyncExpiringCache ("expire\_after\_\*\_time"). Older options ("cache\_ttl", "optimistic\_cache\_ttl") are deprecated and will be removed in future versions, [1ecabbc](https://github.com/ytsaurus/ytsaurus/commit/1ecabbc9831fb6fd8b41b12feb5173309a70d21b).
-- Fixed for CVE-2023-33460: Memory leak in yajl 2.1.0 with use of `yajl_tree_parse` function. [f7b9064](https://github.com/ytsaurus/ytsaurus/commit/f7b9064f099d977cdfb2644f4ef11a57745049f7)
+- Fixed for CVE-2023-33460: Memory leak in yajl 2.1.0 with use of yajl_tree_parse function. [f7b9064](https://github.com/ytsaurus/ytsaurus/commit/f7b9064f099d977cdfb2644f4ef11a57745049f7)
 - Fixed possible deadlock in the chunk meta cache, [7c68dbe](https://github.com/ytsaurus/ytsaurus/commit/7c68dbe45457d1254046e1d9c22c6bff55cf3138).
 - Fixing the calculation of `state_counts` and `type_counts` in `list_jobs` method, [84d7713](https://github.com/ytsaurus/ytsaurus/commit/84d7713a74b8f7c311ea523408d8d42d51eb8fa6).
 - Set attribute `treat_as_queue_producer=%true` during queue_producer creation, [88eac20](https://github.com/ytsaurus/ytsaurus/commit/88eac20c53b28015773e0f854ac2f62ded5fcf56).
