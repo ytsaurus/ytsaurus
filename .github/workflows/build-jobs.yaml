@@ -22,6 +22,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-flow-tests:
+        default: false
+        required: false
+        type: boolean
       build-query-tracker:
         default: false
         required: false
@@ -366,6 +370,15 @@ jobs:
             ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_xl"
 
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${INTEGRATION_TEST_TARGETS} -A --test-prepare
+
+      - name: Build flow tests dependencies (ya-make, ${{ matrix.build-type }})
+        if: ${{ inputs.build-flow-tests && (matrix.build-type == 'relwithdebinfo') }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+          BUILD_FLAGS=$(echo ${BUILD_FLAGS} | sed 's/--thinlto//')
 
           # Programs and C++ unit tests required by the exported Flow examples.
           FLOW_PROGRAM_TARGETS="../ytsaurus/ytsaurus/yt/yt/flow/bin/flow_server"

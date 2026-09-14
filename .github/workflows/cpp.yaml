@@ -72,6 +72,7 @@ jobs:
       nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
       build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
       version-patch: ${{ steps.tag.outputs.VERSION_PATCH }}
+      is-release-branch: ${{ steps.tag.outputs.IS_RELEASE_BRANCH }}
     steps:
       - name: Calculate docker tag
         id: tag
@@ -101,6 +102,13 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
           echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
+          if [[ $GITHUB_REF =~ ^refs/heads/(stable|query-tracker|chyt)/ ]]; then
+            IS_RELEASE_BRANCH=true
+          else
+            IS_RELEASE_BRANCH=false
+          fi
+          echo "IS_RELEASE_BRANCH=$IS_RELEASE_BRANCH" >> $GITHUB_OUTPUT
+
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
           else
@@ -124,6 +132,7 @@ jobs:
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
+      build-flow-tests: ${{ needs.tag.outputs.is-release-branch != 'true' }}
       build-query-tracker: true
       build-python: true
       build-chyt: true
@@ -177,13 +186,14 @@ jobs:
     name: Check
     needs:
       - start-vm
+      - tag
       - build-ya-make
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-dir: build_ya-make_relwithdebinfo
       run-unittests: true
       run-integration-tests: true
-      run-flow-tests: true
+      run-flow-tests: ${{ needs.tag.outputs.is-release-branch != 'true' }}
       run-python-tests: true
       run-odin-tests: true
     uses: ./.github/workflows/check-jobs.yaml
