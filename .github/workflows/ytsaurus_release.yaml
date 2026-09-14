@@ -7,11 +7,6 @@ on:
         description: "Image tag like 25.4.1.dev"
         required: true
         type: string
-      build_types:
-        description: 'JSON array: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
-        required: false
-        default: '["relwithdebinfo"]'
-        type: string
   push:
     tags:
       - 'docker/ytsaurus/[0-9]+\.[0-9]+\.[0-9]+*'
@@ -59,7 +54,6 @@ jobs:
       test-image-tag: stable-${{ steps.tag.outputs.TEST_IMAGE_TAG }}
       prod-image-tag: stable-${{ steps.tag.outputs.PROD_IMAGE_TAG }}
       release-type: ${{ steps.tag.outputs.RELEASE_TYPE }}
-      build-types: ${{ steps.tag.outputs.BUILD_TYPES }}
       version-patch: ${{ steps.tag.outputs.VERSION_PATCH }}
       version-branch: ${{ steps.tag.outputs.VERSION_BRANCH }}
     runs-on: ${{ needs.start-vm.outputs.label }}
@@ -100,12 +94,6 @@ jobs:
           echo "VERSION_PATCH=$VERSION_PATCH" >> "$GITHUB_OUTPUT"
           echo "VERSION_BRANCH=$VERSION_BRANCH" >> "$GITHUB_OUTPUT"
 
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo 'BUILD_TYPES=${{ github.event.inputs.build_types }}' >> "$GITHUB_OUTPUT"
-          else
-            echo 'BUILD_TYPES=["release","relwithdebinfo"]' >> "$GITHUB_OUTPUT"
-          fi
-
   checkout:
     name: Checkout
     needs:
@@ -119,7 +107,7 @@ jobs:
           path: ytsaurus
 
   build:
-    name: Build
+    name: Build profile artifacts
     needs:
       - start-vm
       - checkout
@@ -130,7 +118,7 @@ jobs:
       cpp-build-system: ya-make
       build-python: true
       build-ytsaurus: true
-      build-types: ${{ needs.tag.outputs.build-types }}
+      build-types: '["relwithdebinfo"]'
       version-patch: ${{ needs.tag.outputs.version-patch }}
       version-branch: ${{ needs.tag.outputs.version-branch }}
     secrets:
@@ -138,8 +126,8 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  release:
-    name: Release Test
+  release-relwithdebinfo:
+    name: Release Test (relwithdebinfo)
     needs:
       - start-vm
       - build
@@ -151,7 +139,58 @@ jobs:
       publish-ytsaurus: true
       image-tag: ${{ needs.tag.outputs.test-image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.test-image-tag }}
-      build-types: ${{ needs.tag.outputs.build-types }}
+      build-types: '["relwithdebinfo"]'
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      GH_USERNAME: ${{ secrets.GH_USERNAME }}
+    uses: ./.github/workflows/docker-jobs.yaml
+
+  clear-caches:
+    name: Clear caches
+    needs:
+      - start-vm
+      - release-relwithdebinfo
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    timeout-minutes: 120
+    steps:
+      - name: Clear local caches
+        run: |
+          set -euxo pipefail
+
+          df -h
+          ./ytsaurus/ya gc cache \
+            --cache-size=0GiB \
+            --tools-cache-size=0GiB \
+            --symlinks-ttl=0h
+          docker buildx prune --all --force
+          docker system prune --all --force --volumes
+          df -h
+
+  prepare-release:
+    name: Prepare release layout and strip artifacts
+    needs:
+      - start-vm
+      - clear-caches
+    uses: ./.github/workflows/strip-artifacts.yaml
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      source: ../build_ya-make_relwithdebinfo
+      destination: ../build_ya-make_release
+
+  release:
+    name: Release Test (release)
+    needs:
+      - start-vm
+      - prepare-release
+      - tag
+    if: ${{ needs.tag.outputs.release-type == 'test' }}
+    with:
+      cpp-build-system: ya-make
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      publish-ytsaurus: true
+      image-tag: ${{ needs.tag.outputs.test-image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.test-image-tag }}
+      build-types: '["release"]'
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
@@ -165,28 +204,11 @@ jobs:
       - tag
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
-      - name: Decide which images to push
-        id: types
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          BUILD_TYPES='${{ needs.tag.outputs.build-types }}'
-
-          has() {
-            python3 -c 'import json,sys; arr=json.loads(sys.argv[1]); print("true" if sys.argv[2] in arr else "false")' \
-              "$BUILD_TYPES" "$1"
-          }
-
-          echo "release=$(has release)" >> "$GITHUB_OUTPUT"
-          echo "relwithdebinfo=$(has relwithdebinfo)" >> "$GITHUB_OUTPUT"
-
       - name: Docker login
         run: |
           echo '${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}' | docker login ghcr.io --username ${{ secrets.GH_USERNAME }} --password-stdin
 
       - name: Docker Pull And Push (release)
-        if: ${{ steps.types.outputs.release == 'true' }}
         run: |
           docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}
           docker tag  ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }} \
@@ -194,7 +216,6 @@ jobs:
           docker push ghcr.io/ytsaurus/ytsaurus:${{ needs.tag.outputs.prod-image-tag }}
 
       - name: Docker Pull And Push (relwithdebinfo)
-        if: ${{ steps.types.outputs.relwithdebinfo == 'true' }}
         run: |
           docker pull ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo
           docker tag  ghcr.io/ytsaurus/ytsaurus-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo \
@@ -205,6 +226,10 @@ jobs:
     name: Stop VM
     needs:
       - start-vm
+      - build
+      - release-relwithdebinfo
+      - clear-caches
+      - prepare-release
       - release
       - push-test-to-prod
     runs-on: trampoline
