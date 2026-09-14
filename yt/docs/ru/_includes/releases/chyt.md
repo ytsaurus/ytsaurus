@@ -20,8 +20,8 @@
 
 **Исправления:**
 
-* Исправлено использование функций `enable_distinct_read_optimization` и `enable_min_max_optimization` со словарями поверх таблиц YTsaurus (ea82d76ea5beedc7405a30275ae37e8426953f85)
-* Исправлен вывод диапазона чтения для сложных фильтров (cdb1a6c84ee02e9ee1e65cc878c3f5ba288d592b, 03fdd7e3a2785702604419df0d3ef5e9ac305d57)
+* Исправлено использование функций `enable_distinct_read_optimization` и `enable_min_max_optimization` со словарями над таблицами YTsaurus (ea82d76ea5beedc7405a30275ae37e8426953f85)
+* Исправлен вывод диапазона чтения с учётом сложных фильтров (cdb1a6c84ee02e9ee1e65cc878c3f5ba288d592b, 03fdd7e3a2785702604419df0d3ef5e9ac305d57)
 
 
 **Примечания:**
@@ -70,8 +70,8 @@
 
 **Исправления:**
 
-* Добавлены недостающие функции extractKeyValuePairs в целевой компонент CHYT (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
-* Использование FetcherInvoker для TableAttributeCache (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
+* Добавлены недостающие функции `extractKeyValuePairs` в целевой компонент CHYT (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
+* Использование FetcherInvoker для `TableAttributeCache` (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
 
 
 {% endcut %}
@@ -150,7 +150,7 @@
 - Добавлена оптимизация для повышения производительности запросов с min/max на основе колоночной статистики с узлов, [d83cd46](https://github.com/ytsaurus/ytsaurus/commit/d83cd46c0b5830fbbcdd23c00106b387b439542b).
 - Добавлена оптимизация для повышения производительности при rle- и словарном кодировании (с использованием только уникальных значений без материализации), [c777591](https://github.com/ytsaurus/ytsaurus/commit/c77759151d82bbfc8720cc269a3c295555974bdf).
 - Добавлена проверка ревизии в AttributeCache для более стабильной производительности, [3f3be85](https://github.com/ytsaurus/ytsaurus/commit/3f3be8596e05dd30054e7ddc7bfb15421ffd9afc).
-- Добавлен EnableComlexOptionalConversion для предотвращения преобразования массивов (не могут быть nullable в ClickHouse; в будущем значение по умолчанию будет изменено на false), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
+- Добавлен EnableComplexOptionalConversion для предотвращения преобразования массивов (не могут быть nullable в ClickHouse; в будущем значение по умолчанию будет изменено на false), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
 - Добавлена поддержка параллельного insert-select в storage\_distributor, [4632de8](https://github.com/ytsaurus/ytsaurus/commit/4632de8546d04ef8f3dedb9b9a26007a5384288b).
 
 #### Исправления:
@@ -176,8 +176,8 @@
 - Бэкпорт YT-25206: настройка сервиса транзакций Cypress на прокси-серверах Cypress (коммит: eb104f198aeb5bd30208e0214c03fd50f0535655)
 - Бэкпорт поддержки TLS в YT (коммит: fde3ac361bd81d5c8df21e3bcc13c9710cb446a8)
 - Исправлено использование CTE в распределенных запросах (коммит: e275fa81599ff28fbb6a41de4c7c6c9fee0417fd)
-- Добавлена поддержка aklomp-base64 для функций base64 (коммит: 5708583fcc58051627bfcd4f9849de6f7915afcf)
-- Добавлено использование нового анализатора в функции ytTables (коммит: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
+- Добавлена поддержка aklomp-base64 для функций `base64` (коммит: 5708583fcc58051627bfcd4f9849de6f7915afcf)
+- Добавлено использование нового анализатора в функции `ytTables` (коммит: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
 
 {% endcut %}
 
@@ -213,7 +213,7 @@
 - Оптимизация чтения по порядку (PR #757)
 - Новый алгоритм PREWHERE на уровне преобразования данных, включен по умолчанию
 - Преобразование типа данных `bool` в `Bool` вместо `YtBoolean`. Тип `YtBoolean` устарел
-- Преобразование типа данных `dict` в `Map` вместо `Array(Typle(Key, Value))`
+- Преобразование типа данных `dict` в `Map` вместо `Array(Tuple(Key, Value))`
 - Преобразование типа данных `timestamp` в `DateTime64` вместо `UInt64`
 - Поддержка чтения и записи типов данных `date32`, `datetime64`, `timestamp64`, `interval64`
 - Поддержка чтения типа данных `json` как `String`

@@ -44,7 +44,7 @@
 - Добавлена поддержка параметра размера сжатых данных в методе `PartitionTables` [212229494209279cdea52254cc1af67369ff08f2]
 
 #### Исправления:
-- Исправлен NPE в потоковом writer, когда `onPayload` приходит до `onStartStream` [7e625a51db05eb717f010ce00b33e135de029268]
+- Исправлен NPE в потоковой записи, когда `onPayload` приходит до `onStartStream` [7e625a51db05eb717f010ce00b33e135de029268]
 
 {% endcut %}
 
@@ -257,8 +257,8 @@
 **Maven Central:** [1.2.5](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.5)
 
 
-* Добавлен MultiYTsaurusClient.
-* Поддержка запроса MultiLookupRows.
+* Добавлен `MultiYTsaurusClient`.
+* Поддержка запроса `MultiLookupRows`.
 * Исправлена ошибка, из-за которой при сбое подключения происходило бесконечное ожидание обнаружения прокси.
 * Исправлена ошибка, из-за которой выходная таблица операции создавалась без указанной пользователем транзакции.
 
@@ -317,10 +317,10 @@
 **Maven Central:** [1.2.2](https://central.sonatype.com/artifact/tech.ytsaurus/ytsaurus-client/1.2.2)
 
 
-* Добавлена поддержка значений-плейсхолдеров в SelectRowsRequest.
+* Добавлена поддержка значений-плейсхолдеров в `SelectRowsRequest`.
 * Добавлена поддержка указания имени сети прокси.
 * Добавлена поддержка set(Input/Output)Format в CommandSpec.
-* Исправлена ошибка, из-за которой в SyncTableReader возникало исключение NoSuchElementException.
+* Исправлена ошибка, из-за которой в SyncTableReader возникало исключение `NoSuchElementException`.
 * Исправлена ошибка, из-за которой таблица пересоздавалась при записи без параметра "append".
 
 {% endcut %}
@@ -338,7 +338,7 @@
 
 
 * Добавлена поддержка сериализуемого mapper/reducer.
-* Добавлен метод completeOperation.
+* Добавлен метод `completeOperation`.
 * Реализованы три метода API YT Queues: registerQueueConsumer, advanceConsumer, pullConsumer.
 * В MultiTablePartition добавлен AggregateStatistics.
 * Прочие небольшие исправления ошибок.

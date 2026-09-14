@@ -78,7 +78,7 @@
 - Добавлена мета "assigned_engine" для YQL-запросов
 - Таймаут YQL-запросов стал настраиваемым
 - Поддержка версий языка YQL в cli\sdk QT.
-https://ytsaurus.tech/docs/en/yql/changelog/#general-description-of-yql-versions
+https://ytsaurus.tech/docs/ru/yql/changelog/#general-description-of-yql-versions
 - Поддержка возврата AST YQL-запросов в get_query cli\sdk
 
 **Улучшения**
