@@ -1,6 +1,8 @@
 #include "dq_worker.h"
 #include "child_environment.h"
 
+#include <yt/yql/tools/dq/job_config/job_config.h>
+
 #include <yql/essentials/utils/signals/signals.h>
 #include <yql/essentials/utils/network/bind_in_range.h>
 
@@ -11,6 +13,7 @@
 #include <yt/yql/providers/dq/global_worker_manager/coordination_helper.h>
 
 #include <yt/yql/providers/dq/runtime/file_cache.h>
+#include <yt/yql/providers/dq/runtime/task_runner_invoker_factory.h>
 #include <contrib/ydb/library/yql/providers/dq/runtime/runtime_data.h>
 #include <contrib/ydb/library/yql/providers/dq/worker_manager/local_worker_manager.h>
 
@@ -21,9 +24,6 @@
 #include <yql/essentials/utils/yql_panic.h>
 #include <yql/essentials/utils/range_walker.h>
 
-#include <yt/yt/core/actions/invoker.h>
-#include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/config.h>
 
@@ -37,38 +37,9 @@
 #include <util/system/execpath.h>
 
 using namespace NYql::NDqs;
+using namespace NYql::NDq::NJobConfig;
 
 namespace {
-    const TString CoordinatorConfigFile = "yt_coordinator.cfg";
-    const TString BackendConfigFile = "yt_backend.cfg";
-    const TString YtTokenVaultKey = "YT_TOKEN";
-
-    TString ReadProtoConfigText(const TString& vaultKey, const TString& fileName) {
-        TString fromVault = GetEnv(TString("YT_SECURE_VAULT_") + vaultKey, "");
-        if (!fromVault.empty()) {
-            return fromVault;
-        }
-        if (NFs::Exists(fileName)) {
-            return TFileInput(fileName).ReadAll();
-        }
-        return "";
-    }
-
-    void ApplyTokenFromVault(NYql::NProto::TDqConfig::TYtCoordinator& coordinatorConfig, NYql::NProto::TDqConfig::TYtBackend& backendConfig) {
-        if (coordinatorConfig.HasToken()) {
-            if (!backendConfig.HasToken()) {
-                backendConfig.SetToken(coordinatorConfig.GetToken());
-            }
-            return;
-        }
-        TString token = GetEnv(TString("YT_SECURE_VAULT_") + YtTokenVaultKey, "");
-        if (token.empty()) {
-            return;
-        }
-        coordinatorConfig.SetToken(token);
-        backendConfig.SetToken(token);
-    }
-
     template <typename TMessage>
     THolder<TMessage> ParseProtoConfig(const TString& cfgFile) {
         auto config = MakeHolder<TMessage>();
@@ -88,33 +59,6 @@ namespace {
     static void OnTerminate(int) {
         ShouldContinue.SetValue();
     }
-
-    class TSerializedTaskRunnerInvoker: public ITaskRunnerInvoker {
-    public:
-        TSerializedTaskRunnerInvoker(const NYT::IInvokerPtr& invoker)
-            : Invoker(NYT::NConcurrency::CreateSerializedInvoker(invoker))
-        { }
-
-        void Invoke(const std::function<void(void)>& f) override {
-            Invoker->Invoke(BIND(f));
-        }
-
-    private:
-        const NYT::IInvokerPtr Invoker;
-    };
-
-    class TConcurrentInvokerFactory: public ITaskRunnerInvokerFactory {
-    public:
-        TConcurrentInvokerFactory(int capacity)
-            : ThreadPool(NYT::NConcurrency::CreateThreadPool(capacity, "WorkerActor"))
-        { }
-
-        ITaskRunnerInvoker::TPtr Create() override {
-            return new TSerializedTaskRunnerInvoker(ThreadPool->GetInvoker());
-        }
-
-        NYT::NConcurrency::IThreadPoolPtr ThreadPool;
-    };
 
     void ConfigurePorto(const NYql::NProto::TDqConfig::TYtBackend& config, const TString portoCtl) {
         TString settings[][2] = {
@@ -408,7 +352,7 @@ namespace NYql::NDq::NWorker {
         clusterMapping["plato"] = backendConfig.GetClusterName();
 
         auto proxyFactory = NTaskRunnerProxy::CreatePipeFactory(pfOptions);
-        ITaskRunnerInvokerFactory::TPtr invokerFactory = new TConcurrentInvokerFactory(2*capacity);
+        auto invokerFactory = CreateConcurrentInvokerFactory(2 * capacity);
         auto taskRunnerActorFactory = NTaskRunnerActor::CreateTaskRunnerActorFactory(proxyFactory, invokerFactory, coordinator->GetRuntimeData());
 
         TLocalWorkerManagerOptions lwmOptions;
