@@ -3,7 +3,6 @@
 #include "client.h"
 #include "options.h"
 #include "private.h"
-#include "tablet_operation.h"
 
 #include <yt/yt/ytlib/chaos_client/alien_cell.h>
 
@@ -72,6 +71,17 @@
 #include <yt/yt/core/misc/lazy_ptr.h>
 
 namespace NYT::NApi::NNative {
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(omgronny): Do we really two separate vectors for finished and running jobs?
+struct TListJobsFromControllerAgentResult
+{
+    std::vector<TJob> FinishedJobs;
+    int TotalFinishedJobCount = 0;
+    std::vector<TJob> InProgressJobs;
+    int TotalInProgressJobCount = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1307,14 +1317,13 @@ private:
         const std::vector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options);
 
-    template <CTabletOperationRequest TRequest>
+    template <class TReq>
     void ExecuteTabletServiceRequest(
         const NYPath::TYPath& path,
         TStringBuf action,
-        TRequest request,
-        const TMutatingOptions& options);
+        TReq* req);
 
-    NTableClient::NProto::TReqReshard MakeReshardRequest(
+    NTabletClient::NProto::TReqReshard MakeReshardRequest(
         const TReshardTableOptions& options);
     NTableClient::TTableYPathProxy::TReqReshardPtr MakeYPathReshardRequest(
         const NYPath::TYPath& path,

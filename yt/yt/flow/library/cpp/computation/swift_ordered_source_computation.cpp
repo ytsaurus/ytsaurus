@@ -178,18 +178,18 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
 
         if (publishResult.EmptyEpoch) {
             if (!DelayedMessages_.empty()) {
-                TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.InjectionDelay"));
+                TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.InjectionDelay", EEpochPartKind::Waiting));
                 YT_TLOG_INFO("Injection delayed epoch")
                     .With("DelayedTimestamp", DelayedMessages_.front().Timestamp)
                     .With("DelayedUnparsedMessages", DelayedMessages_.size());
                 TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
             } else if (!alignmentCheck) {
-                TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.WatermarkAlignment"));
+                TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.WatermarkAlignment", EEpochPartKind::Waiting));
                 YT_TLOG_INFO("Watermark unaligned epoch")
                     .With("PartitionReadWatermark", partitionReadWatermark);
                 TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
             } else if (!windowCheck) {
-                TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.ReadWindow"));
+                TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.ReadWindow", EEpochPartKind::Waiting));
                 YT_TLOG_INFO("Read window by alignment timestamp is too long")
                     .With("Window", OrderedSource_->GetAlignmentTimestampWindow())
                     .With("MaxWindow", GetDynamicParameters()->MaxReadWindow);

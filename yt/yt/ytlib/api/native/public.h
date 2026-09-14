@@ -1,7 +1,6 @@
 #pragma once
 
 #include <yt/yt/client/api/public.h>
-#include <yt/yt/client/api/operation_client.h>
 
 #include <yt/yt/client/tablet_client/public.h>
 
@@ -73,15 +72,6 @@ DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EChaosResidencyCacheType, i8,
     (MasterCache)
     (Client)
 );
-
-// TODO(omgronny): Do we really two separate vectors for finished and running jobs?
-struct TListJobsFromControllerAgentResult
-{
-    std::vector<TJob> FinishedJobs;
-    int TotalFinishedJobCount = 0;
-    std::vector<TJob> InProgressJobs;
-    int TotalInProgressJobCount = 0;
-};
 
 struct TLockNodeDetailedResult
 {

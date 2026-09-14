@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/table_server/table_node.h>
 
+#include <yt/yt/server/lib/hydra/mutation_context.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NTableServer;

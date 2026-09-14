@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/hive/public.h>
 
+#include <yt/yt/client/node_tracker_client/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTabletBalancer {

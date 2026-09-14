@@ -10,6 +10,8 @@
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/node_tracker_server/node.h>
+
 #include <yt/yt/ytlib/cell_balancer/cell_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
@@ -161,7 +163,7 @@ private:
 
         auto fillSlot = [&] (
             NCellBalancerClient::NProto::TSlot* protoSlot,
-            const NNodeTrackerServer::TNode::TCellSlot& slot)
+            const NNodeTrackerServer::TCellSlot& slot)
         {
             if (!slot.Cell) {
                 return;

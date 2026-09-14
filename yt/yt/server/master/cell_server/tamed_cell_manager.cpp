@@ -14,6 +14,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/gossip_value_helpers.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -473,7 +474,7 @@ public:
             cell->SetLeadingPeerId(0);
         }
 
-        cell->GossipStatus().Initialize(Bootstrap_);
+        InitializeGossipValue(&cell->GossipStatus(), Bootstrap_);
 
         MaybeRegisterGlobalCell(cell);
         ReconfigureCell(cell);
@@ -1248,7 +1249,7 @@ private:
                 }
             }
 
-            cell->GossipStatus().Initialize(Bootstrap_);
+            InitializeGossipValue(&cell->GossipStatus(), Bootstrap_);
         }
 
         AfterSnapshotLoaded_.Fire();
@@ -1683,7 +1684,7 @@ private:
         for (int slotIndex = 0; slotIndex < request->cell_slots_size(); ++slotIndex) {
             // Pre-erase slot.
             auto& slot = (*cellar)[slotIndex];
-            slot = TNode::TCellSlot();
+            slot = TCellSlot();
 
             const auto& slotInfo = request->cell_slots(slotIndex);
 

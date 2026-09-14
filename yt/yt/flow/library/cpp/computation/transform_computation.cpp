@@ -113,7 +113,10 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Fetch"));
             auto inputsFuture = context->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams);
             inputTimers = TimerStore_->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams, dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch);
-            inputs = WaitFor(inputsFuture).ValueOrThrow();
+            {
+                TTraceContextGuard waitGuard(Tracer_->CreateEpochPartTraceContext("Input.WaitForBatch", EEpochPartKind::Waiting));
+                inputs = WaitFor(inputsFuture).ValueOrThrow();
+            }
 
             std::vector<TKeyVisitorPtr> allowedVisitors;
             for (const auto& [streamId, visitor] : KeyVisitors_) {

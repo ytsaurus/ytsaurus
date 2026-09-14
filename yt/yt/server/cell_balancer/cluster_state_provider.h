@@ -28,7 +28,7 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(CellBundle, NCellServer::TCellBundle);
 
-    bool IsSlotWarmedUp(const NNodeTrackerServer::TNode::TCellSlot* slot) const;
+    bool IsSlotWarmedUp(const NNodeTrackerServer::TCellSlot* slot) const;
     bool CheckIfNodeCanHostCells(const NNodeTrackerServer::TNode* node) const;
     const THashSet<NCellServer::TCellBase*>& Cells(NCellarClient::ECellarType cellarType);
     bool IsAlienPeer(const NCellServer::TCellBase* cell, int peerId) const;
@@ -43,7 +43,7 @@ private:
     THashMap<NNodeTrackerServer::TNodeId, std::unique_ptr<NNodeTrackerServer::TNode>> NodeMap_;
     THashMap<const NCellServer::TArea*, THashSet<const NNodeTrackerServer::TNode*>> AreaToNodesMap_;
 
-    THashSet<const NNodeTrackerServer::TNode::TCellSlot*> WarmedUpSlots_;
+    THashSet<const NNodeTrackerServer::TCellSlot*> WarmedUpSlots_;
     THashSet<const NNodeTrackerServer::TNode*> CellHostNodes_;
     THashMap<std::string, NCellServer::TCellSet> AddressToCell_;
     THashMap<NCellarClient::ECellarType, THashSet<NCellServer::TCellBase*>> CellsPerTypeMap_;

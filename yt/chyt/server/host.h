@@ -13,6 +13,8 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
+#include <yt/yt/client/api/client_common.h>
+
 #include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/core/actions/public.h>

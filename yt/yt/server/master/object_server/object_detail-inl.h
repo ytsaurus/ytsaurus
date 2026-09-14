@@ -4,6 +4,7 @@
 #include "object_detail.h"
 #endif
 
+#include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/security_server/security_manager.h>

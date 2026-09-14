@@ -28,11 +28,11 @@ Most options are available starting with version 1.23.0 if otherwise is not spec
 | `spark.hadoop.yt.user` | - | Name of {{product-name}} user |
 | `spark.hadoop.yt.timeout` | - | Token of {{product-name}} user |
 | `spark.yt.read.ytPartitioning.enabled` | `true` | Use {{product-name}} API for table partitioning |
-| `spark.yt.read.planOptimization.enabled` | `false` | Enable agregation and join optimization rules for sorted data |
+| `spark.yt.read.planOptimization.enabled` | `false` | Enable aggregation and join optimization rules for sorted data |
 | `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Use key table ranges for reading, required for plan optimization |
 | `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | The maximum number of partitions that need to be merged when key table ranges are used |
 
-## Agregation and join optimizations
+## Aggregation and join optimizations
 
 Spark cluster ignores a sort metadata about {{product-name}} tables and creates many Shuffle and Sort operations, even if it's not required. For these cases extra optimization rules were added. When a logical plan is being constructing, a rule adds sort mark to source vertexes of sorted tables. Later on generating physical plan stage the marks are transformed to nodes that will not do data processing but it will notify optimizer about sorting and partitioning.
 

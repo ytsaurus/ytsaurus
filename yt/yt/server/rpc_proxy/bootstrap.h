@@ -21,6 +21,7 @@
 #include <yt/yt/library/signature/components/public.h>
 
 #include <yt/yt/core/bus/public.h>
+#include <yt/yt/core/bus/tcp/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
 

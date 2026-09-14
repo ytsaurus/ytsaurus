@@ -10,6 +10,7 @@
 #include <yt/yt/core/net/listener.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -53,6 +54,8 @@ DECLARE_REFCOUNTED_CLASS(TNbdServer)
 
 struct TNbdNetworkBufferTag
 { };
+
+constexpr auto ConnectionTeardownTimeout = TDuration::Seconds(5);
 
 class TNbdServer
     : public INbdServer
@@ -290,6 +293,7 @@ private:
 
         IBlockDevicePtr Device_;
         std::atomic<bool> Abort_ = false;
+        TCallback<void(const TError&)> DeviceErrorCallback_;
 
         struct TStatus
         {
@@ -317,6 +321,9 @@ private:
         void FiberMain()
         {
             auto unregisterGuard = Finally([&] {
+                if (Device_) {
+                    Device_->UnsubscribeError(DeviceErrorCallback_);
+                }
                 Server_->UnregisterConnection(ConnectionId_);
             });
 
@@ -512,6 +519,13 @@ private:
                 .Flags = HostToInet(flags),
             };
             WritePod(message);
+
+            DeviceErrorCallback_ = BIND([weakThis = MakeWeak(this)] (const TError& /*error*/) {
+                if (auto this_ = weakThis.Lock()) {
+                    this_->AbortConnection();
+                }
+            });
+            Device_->SubscribeError(DeviceErrorCallback_);
         }
 
         void WriteOptionErrorResponseOnNonemptyPayload(EClientOption option)
@@ -585,8 +599,8 @@ private:
                     .With("Length", length)
                     .With("Flags", flags);
 
-                Device_->SetError(TError("Test error on NBD_CMD_READ"));
                 WriteServerResponse(EServerError::NBD_EIO, cookie);
+                Device_->SetError(TError("Test error on NBD_CMD_READ"));
                 return;
             }
 
@@ -654,14 +668,13 @@ private:
                                 .With("Duration", duration)
                                 .With(result);
 
-                            Device_->SetError(result);
-
                             TNbdProfilerCounters::Get()->GetCounter(
                                 TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
                                 "/device/read_errors")
                                 .Increment(1);
 
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
+                            Device_->SetError(result);
                             return;
                         }
 
@@ -671,9 +684,6 @@ private:
                             .Increment(length);
 
                         const auto& response = result.Value();
-                        if (response.ShouldStopUsingDevice) {
-                            Device_->SetError(TError("Stop using device"));
-                        }
 
                         YT_TLOG_DEBUG("Finished serving NBD_CMD_READ request")
                             .WithFormat("Cookie", "%x", cookie)
@@ -683,6 +693,10 @@ private:
                         const auto& payload = response.Data;
                         YT_VERIFY(payload.size() == length);
                         WriteServerResponse(EServerError::NBD_OK, cookie, payload);
+
+                        if (response.ShouldStopUsingDevice) {
+                            Device_->SetError(TError("Stop using device"));
+                        }
                     }));
         }
 
@@ -700,8 +714,9 @@ private:
                     .With("Offset", offset)
                     .With("Length", length)
                     .With("Flags", flags);
-                Device_->SetError(TError("Test error on NBD_CMD_WRITE"));
+
                 WriteServerResponse(EServerError::NBD_EIO, cookie);
+                Device_->SetError(TError("Test error on NBD_CMD_WRITE"));
                 return;
             }
 
@@ -782,14 +797,13 @@ private:
                                 .With("Duration", duration)
                                 .With(result);
 
-                            Device_->SetError(result);
-
                             TNbdProfilerCounters::Get()->GetCounter(
                                 TNbdProfilerCounters::MakeTagSet(Device_->GetProfileSensorTag()),
                                 "/device/write_errors")
                                 .Increment(1);
 
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
+                            Device_->SetError(result);
                             return;
                         }
 
@@ -799,9 +813,6 @@ private:
                             .Increment(length);
 
                         const auto& response = result.Value();
-                        if (response.ShouldStopUsingDevice) {
-                            Device_->SetError(TError("Stop using device"));
-                        }
 
                         YT_TLOG_DEBUG("Finished serving NBD_CMD_WRITE request")
                             .WithFormat("Cookie", "%x", cookie)
@@ -809,6 +820,10 @@ private:
                             .With("Duration", duration);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
+
+                        if (response.ShouldStopUsingDevice) {
+                            Device_->SetError(TError("Stop using device"));
+                        }
                     }));
         }
 
@@ -962,6 +977,27 @@ private:
             YT_TLOG_INFO("Received NBD_CMD_DISC request, closing connection");
 
             Abort_ = true;
+        }
+
+        // The device is permanently dead. The kernel NBD client does not close its end
+        // after EIO, so the handler fiber parked in ReadPod() has to be failed explicitly.
+        //
+        // The abort is delayed so the queued error replies have time to reach the socket —
+        // a reply's slot on ResponseInvoker_ may itself sit behind a WriteBuffer() blocked
+        // on a client that stopped reading. AbortIO is thread-safe, so it needs no
+        // sequencing through the invoker.
+        void AbortConnection()
+        {
+            YT_TLOG_INFO("Aborting connection due to device error");
+
+            Abort_ = true;
+
+            TDelayedExecutor::Submit(
+                BIND([this, this_ = MakeStrong(this)] {
+                    YT_TLOG_DEBUG("Connection teardown delay elapsed, aborting connection");
+                    YT_UNUSED_FUTURE(Connection_->Abort());
+                }),
+                ConnectionTeardownTimeout);
         }
 
         void WriteServerResponse(EServerError error, ui64 cookie, TSharedRef payload = {})

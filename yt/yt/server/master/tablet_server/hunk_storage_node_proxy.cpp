@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
+
 #include <util/generic/xrange.h>
 
 namespace NYT::NTabletServer {

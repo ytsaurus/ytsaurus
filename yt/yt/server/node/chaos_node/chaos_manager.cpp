@@ -1543,6 +1543,7 @@ private:
         auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
         bool suspended = request->suspended();
         std::vector<TReplicationCardId> replicationCardIds;
+        std::vector<TChaosLeaseId> chaosLeaseIds;
 
         for (const auto& shortcut : request->shortcuts()) {
             auto era = shortcut.era();
@@ -1581,6 +1582,8 @@ private:
 
             if (IsReplicationCardType(TypeFromId(chaosObjectId))) {
                 replicationCardIds.push_back(chaosObjectId);
+            } else if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
+                chaosLeaseIds.push_back(chaosObjectId);
             }
 
             chaosObject->Coordinators()[coordinatorCellId].State = EShortcutState::Granted;
@@ -1619,15 +1622,17 @@ private:
         YT_TLOG_DEBUG("Shortcuts granted")
             .With("CoordinatorCellId", coordinatorCellId)
             .With("Suspended", suspended)
-            .With("ReplicationCardIds", replicationCardIds);
+            .With("ReplicationCardIds", replicationCardIds)
+            .With("ChaosLeaseIds", chaosLeaseIds);
 
-        NotifyWatchers(std::move(replicationCardIds));
+        NotifyWatchers(std::move(replicationCardIds), std::move(chaosLeaseIds));
     }
 
     void HydraRspRevokeShortcuts(NChaosNode::NProto::TRspRevokeShortcuts* request)
     {
         auto coordinatorCellId = FromProto<TCellId>(request->coordinator_cell_id());
         std::vector<TReplicationCardId> replicationCardIds;
+        std::vector<TChaosLeaseId> chaosLeaseIds;
 
         for (const auto& shortcut : request->shortcuts()) {
             auto era = shortcut.era();
@@ -1684,6 +1689,7 @@ private:
 
             // TODO(gryzlov-ad): Add common logic for removal to TChaosObjectBase
             if (IsChaosLeaseType(TypeFromId(chaosObjectId))) {
+                chaosLeaseIds.push_back(chaosObjectId);
                 auto* chaosLease = static_cast<TChaosLease*>(chaosObject);
                 Slot_->GetChaosLeaseManager()->HandleChaosLeaseStateTransition(chaosLease);
             }
@@ -1691,9 +1697,10 @@ private:
 
         YT_TLOG_DEBUG("Shortcuts revoked")
             .With("CoordinatorCellId", coordinatorCellId)
-            .With("ReplicationCardIds", replicationCardIds);
+            .With("ReplicationCardIds", replicationCardIds)
+            .With("ChaosLeaseIds", chaosLeaseIds);
 
-        NotifyWatchers(std::move(replicationCardIds));
+        NotifyWatchers(std::move(replicationCardIds), std::move(chaosLeaseIds));
     }
 
     std::vector<std::pair<TCellId, NChaosNode::NProto::TReqRevokeShortcuts>> BuildRevokeShortcutsRequests(
@@ -3580,7 +3587,9 @@ private:
         });
     }
 
-    void NotifyWatchers(std::vector<TReplicationCardId> replicationCardIds)
+    void NotifyWatchers(
+        std::vector<TReplicationCardId> replicationCardIds,
+        std::vector<TChaosLeaseId> chaosLeaseIds)
     {
         if (!IsLeader()) {
             return;
@@ -3590,12 +3599,14 @@ private:
             .Subscribe(BIND(
                 &TChaosManager::OnNotifyWatchersTimestampGenerated,
                 MakeStrong(this),
-                std::move(replicationCardIds))
+                std::move(replicationCardIds),
+                std::move(chaosLeaseIds))
                 .Via(AutomatonInvoker_));
     }
 
     void OnNotifyWatchersTimestampGenerated(
         const std::vector<TReplicationCardId>& replicationCardIds,
+        const std::vector<TChaosLeaseId>& chaosLeaseIds,
         const TErrorOr<TTimestamp>& timestampOrError)
     {
         if (!IsLeader()) {
@@ -3630,6 +3641,11 @@ private:
             auto cardTimestamp = std::max(timestamp, replicationCard->GetCurrentTimestamp());
             auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
             ReplicationCardWatcher_->OnObjectUpdated(replicationCardId, clientReplicationCard, cardTimestamp);
+        }
+
+        const auto& chaosLeaseManager = Slot_->GetChaosLeaseManager();
+        for (auto chaosLeaseId : chaosLeaseIds) {
+            chaosLeaseManager->OnChaosLeaseUpdated(chaosLeaseId, timestamp);
         }
     }
 

@@ -16,6 +16,8 @@
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
+#include <yt/yt/server/master/table_server/table_node.h>
+
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/core/ytree/convert.h>

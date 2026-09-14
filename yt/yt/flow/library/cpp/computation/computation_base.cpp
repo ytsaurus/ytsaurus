@@ -1698,19 +1698,19 @@ void TUniversalComputationBase::WaitForBackoff(
     bool emptyInput) const
 {
     if (outputLimitsCheckResult.OutputStoreOverflow) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputStoreOverflow", EEpochPartKind::Waiting));
         YT_TLOG_INFO("Output store overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (outputLimitsCheckResult.OutputBufferOverflow) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.OutputBufferOverflow", EEpochPartKind::Waiting));
         YT_TLOG_INFO("Output buffer overflow epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (outputLimitsCheckResult.BlockedByController) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.BlockedByController"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.BlockedByController", EEpochPartKind::Waiting));
         YT_TLOG_INFO("Blocked by controller epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     } else if (emptyInput) {
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Empty"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Empty", EEpochPartKind::Waiting));
         YT_TLOG_INFO("Empty epoch");
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     }
@@ -1895,7 +1895,7 @@ void TUniversalComputationBase::DoInterrupt(const IComputationRunContextPtr& con
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
         FinishRunIteration();
-        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.InterruptedPartitionOutputMessages"));
+        TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.InterruptedPartitionOutputMessages", EEpochPartKind::Waiting));
         TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
     }
 
@@ -1935,7 +1935,7 @@ void TUniversalComputationBase::DoComplete(const IComputationRunContextPtr& cont
 
             isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, BuildInflights(context));
             FinishRunIteration();
-            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.CompletingPartitionOutputMessages"));
+            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.CompletingPartitionOutputMessages", EEpochPartKind::Waiting));
             TDelayedExecutor::WaitForDuration(dynamicSpec->EmptyBatchBackoff);
         }
     } else {

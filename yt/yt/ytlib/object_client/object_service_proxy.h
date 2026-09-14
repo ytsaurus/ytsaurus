@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_service.pb.h>
 
-#include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -56,12 +54,6 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
-    DEFINE_RPC_PROXY_METHOD(NTableClient::NProto, Mount);
-    DEFINE_RPC_PROXY_METHOD(NTableClient::NProto, Unmount);
-    DEFINE_RPC_PROXY_METHOD(NTableClient::NProto, Remount);
-    DEFINE_RPC_PROXY_METHOD(NTableClient::NProto, Freeze);
-    DEFINE_RPC_PROXY_METHOD(NTableClient::NProto, Unfreeze);
-    DEFINE_RPC_PROXY_METHOD(NTableClient::NProto, Reshard);
 
     //! Executes a single typed request.
     template <class TTypedRequest>

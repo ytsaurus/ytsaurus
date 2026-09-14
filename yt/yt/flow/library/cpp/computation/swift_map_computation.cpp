@@ -151,7 +151,10 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Fetch"));
             auto inputsFuture = context->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams);
             inputTimers = TimerStore_->GetNextBatch(outputLimitsCheckResult.AllowedInputStreams, dynamicSpec->MaxRowsPerBatch, dynamicSpec->MaxBytesPerBatch);
-            inputs = WaitFor(inputsFuture).ValueOrThrow();
+            {
+                TTraceContextGuard waitGuard(Tracer_->CreateEpochPartTraceContext("Input.WaitForBatch", EEpochPartKind::Waiting));
+                inputs = WaitFor(inputsFuture).ValueOrThrow();
+            }
 
             std::vector<TKeyVisitorPtr> allowedVisitors;
             for (const auto& [streamId, visitor] : KeyVisitors_) {
@@ -193,6 +196,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
         // For batching we need uniqueSeqNo before Process to seed the merge meta setter; wait outside the
         // Process trace guard so the wait isn't billed to "Process". Non-batching keeps the original overlap.
         if (allowBatchingWithRelaxedGuarantees) {
+            auto partGuard = TTraceContextFinishGuard(Tracer_->CreateEpochPartTraceContext("Input.Timestamp"));
             WaitUntilSet(generateReportTimeFuture.AsVoid());
         }
 

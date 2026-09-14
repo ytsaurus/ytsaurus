@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 
+#include <yt/yt/client/api/operation_client.h>
+
 namespace NYT::NJobProxy {
 
 using namespace NChunkClient;

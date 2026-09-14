@@ -3,6 +3,7 @@
 #include <yt/yt/ytlib/api/native/transaction_helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <barrier>
 
