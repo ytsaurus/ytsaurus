@@ -18,8 +18,6 @@ from yt_commands import (
     update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
-
 from yt_helpers import skip_if_component_old, profiler_factory
 from yt_type_helpers import make_column, make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
@@ -1220,7 +1218,6 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     @pytest.mark.parametrize("abuse_via", ["ypath", "omit_inaccessible_columns"])
-    @not_implemented_in_sequoia
     def test_columnar_acl(self, abuse_via):
         skip_if_component_old(self.Env, (25, 3), "controller-agent")
         for user in [

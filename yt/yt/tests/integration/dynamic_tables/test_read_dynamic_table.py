@@ -10,8 +10,6 @@ from yt_commands import (
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table,
     sync_compact_table, get_driver, make_externalized_tx_id, print_debug, raises_yt_error)
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
-
 from yt.environment.helpers import assert_items_equal
 import pytest
 
@@ -67,7 +65,6 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         assert get("//tmp/t/@chunk_count") == 2
 
     @authors("savrus")
-    @not_implemented_in_sequoia
     def test_read_snapshot_lock(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", enable_dynamic_store_read=False)

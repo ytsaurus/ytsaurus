@@ -2067,7 +2067,6 @@ class TestCrossCellCopy(YTEnvSetup):
 
     # Maybe move set to the test below to save up on time?
     @authors("h0pless")
-    @not_implemented_in_sequoia
     def test_opaque_subtree(self):
         src_path = f"{self.SRC}/subtree"
         dst_path = f"{self.DST}/subtree"

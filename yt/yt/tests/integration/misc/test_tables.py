@@ -10,8 +10,6 @@ from yt_commands import (
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
-
 from yt_helpers import (
     wait_until_unlocked
 )
@@ -3221,7 +3219,6 @@ class TestTablesMulticell(TestTables):
             )
 
     @authors("shakurov")
-    @not_implemented_in_sequoia  # Cross-cell copy.
     @with_portals_dir
     def test_cloned_table_statistics_yt_18290(self):
         create("table", "//tmp/t")
