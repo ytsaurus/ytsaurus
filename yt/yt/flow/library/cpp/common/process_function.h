@@ -12,8 +12,28 @@
 #include <yt/yt/flow/library/cpp/misc/public.h>
 
 #include <yt/yt/core/actions/callback.h>
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/client/cache/public.h>
 
 namespace NYT::NFlow {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProcessFunctionContext
+    : public TRefCounted
+{
+    IRuntimeInitContextPtr InitContext;
+
+    NClient::NCache::IClientsCachePtr ClientsCache;
+    IInvokerPtr Invoker;
+    IRetryableClientPtr RetryableClient;
+
+    NLogging::TLogger Logger;
+    IStatusProfilerPtr StatusProfiler;
+};
+
+DEFINE_REFCOUNTED_TYPE(TProcessFunctionContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +48,11 @@ struct IProcessFunctionBase
 };
 
 DEFINE_REFCOUNTED_TYPE(IProcessFunctionBase)
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TFunction>
+IProcessFunctionBasePtr ConstructProcessFunction(const TProcessFunctionContextPtr& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,3 +174,7 @@ IBatchProcessFunctionPtr WrapAsBatch(const IProcessFunctionBasePtr& function);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow
+
+#define PROCESS_FUNCTION_INL_H_
+#include "process_function-inl.h"
+#undef PROCESS_FUNCTION_INL_H_

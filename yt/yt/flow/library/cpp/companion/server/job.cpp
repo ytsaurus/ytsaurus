@@ -2,12 +2,15 @@
 
 #include "codec.h"
 #include "output_collector.h"
+#include "private.h"
 #include "resource_store.h"
 #include "runtime_context.h"
 #include "runtime_init_context.h"
 
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/flow/library/cpp/process_function/host/computation.h>
 
@@ -193,13 +196,6 @@ bool TJob::EnsureInitialized()
         "the C++ companion hosts process functions only",
         ComputationId_);
 
-    auto function = CreateProcessFunction(Spec_);
-    THROW_ERROR_EXCEPTION_IF(
-        ViewProcessFunctionAsSync(Spec_, function),
-        "Process function %Qv overrides Sync; "
-        "sync process functions are not supported in companions",
-        *Spec_->ProcessingFunction);
-
     THashMap<std::string, TCompanionExternalStateJoinerConfig> joinedStateConfigs;
     for (const auto& [name, joinerSpec] : Spec_->ExternalStateJoiners) {
         const auto& joinOn = joinerSpec->JoinOn;
@@ -223,7 +219,21 @@ bool TJob::EnsureInitialized()
         Spec_->ProcessingFunctionParameters,
         TRegistry::Get()->ParseProcessFunctionParameters(Spec_),
         std::move(*resources));
-    function->Init(initContext);
+    auto context = New<TProcessFunctionContext>();
+    context->InitContext = initContext;
+    context->Logger = CompanionServerLogger()
+        .WithTag("JobId", JobId_)
+        .WithTag("ComputationId", ComputationId_)
+        .WithTag("ProcessingFunction", *Spec_->ProcessingFunction);
+    context->StatusProfiler = CreateSyncStatusProfiler(context->Logger);
+
+    auto function = CreateProcessFunction(Spec_, context);
+    THROW_ERROR_EXCEPTION_IF(
+        ViewProcessFunctionAsSync(Spec_, function),
+        "Process function %Qv overrides Sync; "
+        "sync process functions are not supported in companions",
+        *Spec_->ProcessingFunction);
+    function->Init(context->InitContext);
 
     BatchFunction_ = WrapAsBatch(function);
     RuntimeContext_ = New<TCompanionRuntimeContext>(

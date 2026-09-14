@@ -184,8 +184,8 @@ void TRegistry::RegisterProcessFunction()
     auto [it, success] = TypeNameToProcessFunctionDescriptor_.try_emplace(
         TypeName<TFunction>(),
         TProcessFunctionDescriptor{
-            .Factory = [] {
-                return IProcessFunctionBasePtr(New<TFunction>());
+            .Factory = [] (const TProcessFunctionContextPtr& context) {
+                return ConstructProcessFunction<TFunction>(context);
             },
             .SyncView = [] (IProcessFunctionBase* function) -> ISyncProcessFunction* {
                 if constexpr (std::is_base_of_v<ISyncProcessFunction, TFunction>) {
