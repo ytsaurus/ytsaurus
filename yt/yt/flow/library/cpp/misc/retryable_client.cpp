@@ -326,21 +326,8 @@ bool IsFlowRetriableError(const TError& error, bool retryProxyBanned)
         // A participant tablet cell can transiently fail to prepare a transaction (e.g. cell restart or leader switch),
         // wrapping an inner NoSuchTransaction; this aborts the 2PC, so the commit can be safely retried.
         error.FindMatching(NTransactionClient::EErrorCode::ParticipantFailedToPrepare) ||
-        // A tablet mid smooth movement transiently rejects writes; the move completes on its own.
-        error.FindMatching(NTabletClient::EErrorCode::TabletServantIsNotActive) ||
-        error.FindMatching(NTabletClient::EErrorCode::ReadOnlySmoothMovementStage) ||
-        // Same for an in-place tablet reshard: writes bounce until the mount cache catches up.
-        error.FindMatching(NTabletClient::EErrorCode::TabletResharded) ||
-        // COMPAT(pechatnov): Temporary fallback for old binaries that don't use the error codes yet
-        // (NChunkClient::EErrorCode::ReaderRetryCountLimitExceeded + NChunkClient::EErrorCode::ReaderTimeout).
-        error.FindMatching([] (const TError& error) {
-            return error.GetMessage().find("Chunk fragment reader has exceeded") != std::string::npos;
-        }) ||
-        // COMPAT(pechatnov): Temporary fallback for old binaries that don't use the error codes yet.
-        // Codes will be added in YT-20959.
-        error.FindMatching([] (const TError& error) {
-            return error.GetMessage().find("Cannot write into tablet since it is a smooth movement") != std::string::npos;
-        });
+        // During an in-place tablet reshard, reads can be redirected until the mount cache catches up.
+        error.FindMatching(NTabletClient::EErrorCode::TabletResharded);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
