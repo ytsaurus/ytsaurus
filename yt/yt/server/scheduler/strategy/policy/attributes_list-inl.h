@@ -13,23 +13,47 @@ namespace NYT::NScheduler::NStrategy::NPolicy {
 
 template <typename TAttributes>
 TAttributesList<TAttributes>::TAttributesList(int size)
-    : std::vector<TAttributes>(size)
+    : Attributes_(size)
 { }
 
 template <typename TAttributes>
 TAttributes& TAttributesList<TAttributes>::AttributesOf(const TPoolTreeElement* element)
 {
     int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
-    return (*this)[index];
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(Attributes_));
+    return Attributes_[index];
 }
 
 template <typename TAttributes>
 const TAttributes& TAttributesList<TAttributes>::AttributesOf(const TPoolTreeElement* element) const
 {
     int index = element->GetTreeIndex();
-    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(*this));
-    return (*this)[index];
+    YT_ASSERT(index != UnassignedTreeIndex && index < std::ssize(Attributes_));
+    return Attributes_[index];
+}
+
+template <typename TAttributes>
+auto TAttributesList<TAttributes>::begin()
+{
+    return Attributes_.begin();
+}
+
+template <typename TAttributes>
+auto TAttributesList<TAttributes>::end()
+{
+    return Attributes_.end();
+}
+
+template <typename TAttributes>
+auto TAttributesList<TAttributes>::begin() const
+{
+    return Attributes_.begin();
+}
+
+template <typename TAttributes>
+auto TAttributesList<TAttributes>::end() const
+{
+    return Attributes_.end();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
