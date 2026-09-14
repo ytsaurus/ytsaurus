@@ -28,6 +28,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/node_detail.h>
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NSecurityServer {
 

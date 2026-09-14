@@ -10,6 +10,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cell_server/cell_base.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>

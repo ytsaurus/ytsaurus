@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/ytree/ypath_proxy.h>
+
 namespace NYT::NCellServer {
 
 using namespace NApi;
