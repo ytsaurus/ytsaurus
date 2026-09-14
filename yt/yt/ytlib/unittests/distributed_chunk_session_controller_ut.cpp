@@ -204,6 +204,22 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartSession)
     {
+        auto nodeDirectory = New<TNodeDirectory>();
+        nodeDirectory->MergeFrom(request->node_directory());
+
+        for (auto replica : FromProto<TChunkReplicaWithMediumList>(request->chunk_replicas())) {
+            const auto* descriptor = nodeDirectory->FindDescriptor(replica.GetNodeId());
+            THROW_ERROR_EXCEPTION_IF(
+                !descriptor,
+                "Missing descriptor for write target node %v",
+                replica.GetNodeId());
+            THROW_ERROR_EXCEPTION_IF(
+                descriptor->GetDefaultAddress() != Format("local:%v", replica.GetNodeId()),
+                "Write target node %v has unexpected address %Qv",
+                replica.GetNodeId(),
+                descriptor->GetDefaultAddress());
+        }
+
         context->Reply();
     }
 
