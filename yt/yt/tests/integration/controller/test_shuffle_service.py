@@ -88,7 +88,6 @@ class TestShuffleService(YTEnvSetup):
     }
 
     DELTA_RPC_PROXY_CONFIG = {
-        "enable_shuffle_service": True,
         "signature_components": {
             "generation": {
                 "generator": {},
