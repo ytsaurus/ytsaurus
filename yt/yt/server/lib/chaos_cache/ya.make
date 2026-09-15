@@ -9,8 +9,13 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/server/lib/chaos_node
     yt/yt_proto/yt/client
     yt/yt/ytlib
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    unittests
+)

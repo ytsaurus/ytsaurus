@@ -35,7 +35,7 @@ NYT::NRpc::IChannelPtr CreateChaosCacheChannel(
     TChaosCacheChannelConfigPtr config);
 
 void SetChaosCacheStickyGroupBalancingHint(
-    const TReplicationCardId& replicationCardId,
+    const TChaosObjectId& chaosObjectId,
     NRpc::NProto::TBalancingExt* balancingHeaderExt);
 
 void SetChaosCacheCachingHeader(
