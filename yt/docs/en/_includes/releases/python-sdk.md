@@ -639,7 +639,7 @@ Available as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
   * Apply destination path attributes to temporary objects within parallel upload
 
 #### Fixes
-  * YSON: unescape invalid seqs as in bindings implementation.
+  * YSON: unescape invalid seqs as in bingings implementation.
   * Fix `generate_traceparent`
   * Remove `typing_extensions` module imports for newer python versions
   * Fix native driver configuration

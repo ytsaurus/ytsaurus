@@ -112,8 +112,8 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 
 **Fixes:**
 
-* Add missing `extractKeyValuePairs` functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
-* Use FetcherInvoker for `TableAttributeCache` (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
+* Add missing extractKeyValuePairs functions to CHYT target (a5206fe1757f4a57fdafa48c15e314a3245ad4f7)
+* Use FetcherInvoker for TableAttributeCache (bf1f96f4707ae86b977649d3ef7f143f67ce280f)
 
 
 {% endcut %}
@@ -192,7 +192,7 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 - Add optimization for better performance with min/max queries using columnar statistics from nodes, [d83cd46](https://github.com/ytsaurus/ytsaurus/commit/d83cd46c0b5830fbbcdd23c00106b387b439542b).
 - Add optimization for better performance with rle and dictionary encoding (using only distinct values without materialization), [c777591](https://github.com/ytsaurus/ytsaurus/commit/c77759151d82bbfc8720cc269a3c295555974bdf).
 - Add revision check to AttributeCache for more stable performance, [3f3be85](https://github.com/ytsaurus/ytsaurus/commit/3f3be8596e05dd30054e7ddc7bfb15421ffd9afc).
-- Add EnableComplexOptionalConversion to prevent conversion of arrays (can't be nullable in Clickhouse, will change default to false in future), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
+- Add EnableComlexOptionalConversion to prevent conversion of arrays (can't be nullable in Clickhouse, will change default to false in future), [57a298a](https://github.com/ytsaurus/ytsaurus/commit/57a298ac4c98659fe014d43cea872925d9750424).
 - Add parallel insert-select support in storage\_distributor, [4632de8](https://github.com/ytsaurus/ytsaurus/commit/4632de8546d04ef8f3dedb9b9a26007a5384288b).
 
 #### Fixes:
@@ -218,8 +218,8 @@ If you are using the `enable_read_range_inferring` flag since version 2.18, we s
 - Backport YT-25206: Set up Cypress Transaction Service on Cypress Proxies (Commit: eb104f198aeb5bd30208e0214c03fd50f0535655)
 - Backport YT TLS support (Commit: fde3ac361bd81d5c8df21e3bcc13c9710cb446a8)
 - Fix usage of CTE in distributed queries (Commit: e275fa81599ff28fbb6a41de4c7c6c9fee0417fd)
-- Add aklomp-base64 support for `base64` functions (Commit: 5708583fcc58051627bfcd4f9849de6f7915afcf)
-- Add usage of new analyzer to `ytTables` function (Commit: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
+- Add aklomp-base64 support for base64 functions (Commit: 5708583fcc58051627bfcd4f9849de6f7915afcf)
+- Add usage of new analyzer to ytTables function (Commit: 29a8f6cefa043b8365949e2f6e54aadf40434c6b)
 
 {% endcut %}
 
@@ -255,7 +255,7 @@ No description
 - Read in order optimization (PR #757)
 - New PREWHERE algorithm on a data conversion level, turned on by default
 - Convert `bool` data type to `Bool` instread of `YtBoolean`. `YtBoolean` type is deprecated
-- Convert `dict` data type to `Map` instead of `Array(Tuple(Key, Value))`
+- Convert `dict` data type to `Map` instead of `Array(Typle(Key, Value))`
 - Convert `timestamp` data type to `DateTime64` instead of `UInt64`
 - Support reading and writing `date32`, `datetime64`, `timestamp64`, `interval64` data types
 - Support reading `json` data type as `String`
