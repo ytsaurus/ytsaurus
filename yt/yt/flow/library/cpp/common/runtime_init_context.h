@@ -83,9 +83,7 @@ public:
     //! String literals convert implicitly (TResourceId is a semi-strong typedef).
     virtual IResourcePtr GetStaticResource(const TResourceId& resourceId) const = 0;
 
-    //! The computation's profiler, already tagged with its ``computation_id``. Build the
-    //! function's sensors from it in Init() and keep them. Sensors aggregate over the partitions
-    //! a worker hosts, and are no-ops out of process.
+    //! The computation profiler, tagged with |computation_id| and stable across hosting modes.
     virtual NProfiling::TProfiler GetProfiler() const = 0;
 
     //! The hosting process' shared plain-HTTP client, running on its HTTP poller.

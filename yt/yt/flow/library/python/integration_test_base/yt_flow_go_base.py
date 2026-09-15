@@ -23,6 +23,7 @@ _COMPANION_MANAGER_CLASS = "NYT::NFlow::NCompanion::TCompanionManager"
 class FlowTestGoBase(FlowTestBase):
     FLOW_BINARY_PATH = yatest.common.binary_path("yt/yt/flow/bin/flow_server/flow_server")
     GO_COMPANION_BINARY: str  # Path to GO_PROGRAM binary.
+    # Node RPC/monitoring and companion RPC; Go exposes no monitoring endpoint.
     VANILLA_WORKER_PORT_COUNT = 3
 
     @contextmanager

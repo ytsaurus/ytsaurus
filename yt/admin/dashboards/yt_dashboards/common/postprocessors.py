@@ -98,7 +98,9 @@ class GrafanaTagPostprocessor(TagPostprocessorBase):
         alternatives = sensor_name.split("|")
         if any(alternative.endswith(".rate") for alternative in alternatives):
             tags[GrafanaSystemTags.Rate] = True
-            sensor_name = "|".join(alternative.removesuffix(".rate") for alternative in alternatives)
+            # Stripping ".rate" may create duplicates; preserve the first occurrence.
+            sensor_name = "|".join(
+                dict.fromkeys(alternative.removesuffix(".rate") for alternative in alternatives))
         sensor_name = sensor_name.replace(".", "_")
 
         if SystemFields.LegendFormat in tags:

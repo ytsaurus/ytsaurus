@@ -2,6 +2,7 @@
 
 #include "job.h"
 #include "job_registry.h"
+#include "profiling.h"
 #include "resource_store.h"
 
 #include "private.h"
@@ -15,7 +16,12 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <util/system/datetime.h>
 #include <util/system/getpid.h>
@@ -80,7 +86,8 @@ class TCompanionService
 public:
     TCompanionService(
         TPipeline pipeline,
-        IInvokerPtr invoker)
+        IInvokerPtr invoker,
+        const NProfiling::TSolomonRegistryPtr& registry)
         : TServiceBase(
             std::move(invoker),
             NCompanion::TCompanionProxy::GetDescriptor(),
@@ -91,6 +98,7 @@ public:
         , ResourceStore_(New<TResourceStore>(
             Pipeline_.GetResourceClassNames(),
             GetDefaultInvoker()))
+        , Profiler_(New<TCompanionProfiler>(JobRegistry_, registry))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessBatch));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompanionInfo));
@@ -106,16 +114,29 @@ private:
     const NYson::TYsonString CompanionInfoPayload_;
     const TJobRegistryPtr JobRegistry_;
     const TResourceStorePtr ResourceStore_;
+    const TCompanionProfilerPtr Profiler_;
 
-    TJobPtr CreateJob(
-        const TJobId& jobId,
-        const TComputationId& computationId,
-        const NProto::NCompanion::TJobInfo& jobInfo)
+    void ValidateComputationHosted(const TComputationId& computationId)
     {
         THROW_ERROR_EXCEPTION_UNLESS(Pipeline_.HasComputation(computationId),
             "Computation %Qv is not registered in this companion",
             computationId);
-        return New<TJob>(jobId, computationId, jobInfo, ResourceStore_);
+    }
+
+    TJobPtr CreateJob(
+        const TJobId& jobId,
+        const TComputationId& computationId,
+        const NProto::NCompanion::TJobInfo& jobInfo,
+        const TComputationCountersPtr& counters)
+    {
+        ValidateComputationHosted(computationId);
+        return New<TJob>(
+            jobId,
+            computationId,
+            jobInfo,
+            ResourceStore_,
+            Profiler_->GetComputationProfiler(computationId),
+            counters);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, ProcessBatch);
@@ -149,17 +170,48 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
 
     InitializeResponseMetrics(response->mutable_metrics());
 
-    if (request->has_job_info()) {
-        JobRegistry_->PutJob(CreateJob(jobId, computationId, request->job_info()));
+    // Validate before creating lifetime-scoped per-computation sensors.
+    ValidateComputationHosted(computationId);
+
+    NProfiling::TWallTimer requestTimer;
+    TComputationCountersPtr counters;
+    std::optional<TJobRegistry::TJobExecution> execution;
+    if (!request->has_job_info()) {
+        execution = JobRegistry_->AcquireJob(jobId);
+        if (execution) {
+            counters = execution->Job->GetCounters();
+        }
     }
-    auto execution = JobRegistry_->AcquireJob(jobId);
+    if (!counters) {
+        counters = Profiler_->GetComputationCounters(computationId);
+    }
+
+    counters->RequestCount.Increment();
+    counters->RequestSize.Record(NRpc::GetMessageBodySize(context->GetRequestMessage()));
+    auto timerGuard = Finally([&] {
+        counters->RequestDuration.Record(requestTimer.GetElapsedTime());
+    });
+    auto responseStatus = NProto::NCompanion::RS_ERROR;
+    auto responseGuard = Finally([&] {
+        counters->ProfileResponse(responseStatus);
+    });
+
+    if (request->has_job_info()) {
+        counters->JobRecreationCount.Increment();
+        JobRegistry_->PutJob(CreateJob(jobId, computationId, request->job_info(), counters));
+        execution = JobRegistry_->AcquireJob(jobId);
+    }
     if (!execution) {
         // The worker retries with the job info attached: this process was
         // restarted, or a re-forked fan-out sibling is serving the channel.
+        responseStatus = NProto::NCompanion::RS_JOB_NOT_FOUND;
         response->set_status(NProto::NCompanion::RS_JOB_NOT_FOUND);
         context->Reply();
         return;
     }
+
+    const auto& job = execution->Job;
+    job->ProfileRequestStateSizes(*request);
 
     // Count queued callbacks too: a timed-out RPC may be retried while its
     // original handler is still running, and both must keep using the same
@@ -222,8 +274,11 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ProcessBatch)
     response->set_status(outcome.Status);
     if (outcome.Status == NProto::NCompanion::RS_OK) {
         response->mutable_metrics()->set_cpu_time_ns(outcome.CpuTimeNs);
+        counters->RequestCpuTime.Add(TDuration::MicroSeconds(outcome.CpuTimeNs / 1000));
+        job->ProfileResponseStateSizes(response->data());
     }
 
+    responseStatus = outcome.Status;
     context->Reply();
 }
 
@@ -254,7 +309,11 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, PutJob)
     *response->mutable_job_id() = request->job_id();
 
     InitializeResponseMetrics(response->mutable_metrics());
-    JobRegistry_->PutJob(CreateJob(jobId, computationId, request->job_info()));
+    JobRegistry_->PutJob(CreateJob(
+        jobId,
+        computationId,
+        request->job_info(),
+        Profiler_->GetComputationCounters(computationId)));
     response->set_status(NProto::NCompanion::RS_OK);
 
     context->Reply();
@@ -307,6 +366,7 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, ResourceExecute)
         ResourceStore_->Execute(resourceId, command, argument))
         .ValueOrThrow();
 
+    Profiler_->ProfileResourceExecute(command, outcome.Status);
     response->set_status(static_cast<NProto::NCompanion::EResourceExecuteStatus>(outcome.Status));
     if (!outcome.Error.IsOK()) {
         ToProto(response->mutable_error(), outcome.Error);
@@ -327,11 +387,13 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, GetJfr)
 
 IServicePtr CreateCompanionService(
     TPipeline pipeline,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    NProfiling::TSolomonRegistryPtr registry)
 {
     return New<TCompanionService>(
         std::move(pipeline),
-        std::move(invoker));
+        std::move(invoker),
+        registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

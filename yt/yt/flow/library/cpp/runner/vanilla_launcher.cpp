@@ -62,11 +62,11 @@ namespace {
 constexpr int DefaultRpcPort = 10080;
 constexpr int DefaultMonitoringPort = 10081;
 constexpr int DefaultCompanionPort = 10082;
+constexpr int DefaultCompanionMonitoringPort = 10083;
 
-// Default `port_count` for tasks without a network project: rpc + monitoring for the
-// controller, plus the companion port for the worker.
+// Default port counts include RPC and monitoring endpoints for each task.
 constexpr int DefaultControllerPortCount = 2;
-constexpr int DefaultWorkerPortCount = 3;
+constexpr int DefaultWorkerPortCount = 4;
 
 // In-job file names for the binary and the node config; also the keys under vanilla/files.
 constexpr TStringBuf BinaryFileName = "flow_server";
@@ -397,11 +397,8 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
     std::optional<std::string> proxyRole,
     std::optional<int> workerPortCount)
 {
-    // Only the worker hosts a companion, and only a worker left on fixed ports may keep the
-    // fixed companion port: once the task asks YT for ports it runs on a host where fixed ones
-    // collide, and there 10082 could well be a neighbouring worker's companion. Requesting
-    // fewer than three ports then leaves the companion without one — a failure the companion
-    // manager reports, rather than a silent cross-wiring.
+    // YT-allocated ports imply a shared-network host, where a fixed companion port may belong
+    // to another job. Omit fixed companion ports there rather than risk cross-wiring.
     bool useFixedCompanionPort = workerPortCount.value_or(0) == 0;
 
     // clang-format off
@@ -417,6 +414,7 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
             .DoIf(useFixedCompanionPort, [&] (auto fluent) {
                 fluent.Item("companion").BeginMap()
                     .Item("port").Value(DefaultCompanionPort)
+                    .Item("monitoring_port").Value(DefaultCompanionMonitoringPort)
                 .EndMap();
             })
             .Item("abort_on_unrecognized_options").Value(false)

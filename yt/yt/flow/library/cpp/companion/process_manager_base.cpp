@@ -242,7 +242,8 @@ void TProcessManagerBase::ValidateCompanionPort() const
     // so say up front where the port comes from instead of looping over dead incarnations.
     THROW_ERROR_EXCEPTION_UNLESS(CompanionConfig_->Port > 0,
         "Companion port is not configured; set companion.port in the node config or request "
-        "three ports for the vanilla task (port_count = 3) to receive it via YT_PORT_2");
+        "at least three ports for the vanilla task to receive it via YT_PORT_2; a fourth port "
+        "enables companion monitoring via YT_PORT_3");
 }
 
 void TProcessManagerBase::DoStart()

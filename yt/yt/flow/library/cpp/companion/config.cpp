@@ -3,7 +3,18 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
 
+#include <yt/yt/library/profiling/solomon/config.h>
+
 namespace NYT::NFlow::NCompanion {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCompanionMonitoringConfig::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([] (TThis* config) {
+        config->EnableSolomonAggregates = true;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +41,8 @@ void TCompanionExecutionConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("pipeline_path", &TThis::PipelinePath)
         .Default();
+    registrar.Parameter("monitoring", &TThis::Monitoring)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,11 +50,15 @@ void TCompanionExecutionConfig::Register(TRegistrar registrar)
 TCompanionExecutionConfigPtr BuildCompanionExecutionConfig(
     const TCompanionConfigPtr& userConfig,
     const std::string& clusterUrl,
-    const NYPath::TYPath& pipelinePath)
+    const NYPath::TYPath& pipelinePath,
+    const NProfiling::TSolomonExporterConfigPtr& solomonExporterConfig)
 {
     auto config = ConvertTo<TCompanionExecutionConfigPtr>(userConfig);
     config->ClusterUrl = clusterUrl;
     config->PipelinePath = pipelinePath;
+    if (solomonExporterConfig) {
+        config->Monitoring = ConvertTo<TCompanionMonitoringConfigPtr>(solomonExporterConfig);
+    }
     config->Postprocess();
     return config;
 }

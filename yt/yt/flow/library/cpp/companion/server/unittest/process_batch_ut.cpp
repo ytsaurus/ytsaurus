@@ -162,7 +162,7 @@ public:
     {
         Y_UNUSED(context->Logger);
         SawStatusProfiler = context->StatusProfiler != nullptr;
-        SawNullProfiler = !context->InitContext->GetProfiler().IsEnabled();
+        SawEnabledProfiler = context->InitContext->GetProfiler().IsEnabled();
         try {
             Y_UNUSED(context->InitContext->GetPartitionId());
         } catch (const std::exception&) {
@@ -184,7 +184,7 @@ public:
     static int ConstructionCount;
     static int InitCount;
     static bool SawStatusProfiler;
-    static bool SawNullProfiler;
+    static bool SawEnabledProfiler;
     static bool SawNoPartition;
     static bool SawNullClientsCache;
     static bool SawNullInvoker;
@@ -198,7 +198,7 @@ private:
 int TUnittestContextConstructorFunction::ConstructionCount = 0;
 int TUnittestContextConstructorFunction::InitCount = 0;
 bool TUnittestContextConstructorFunction::SawStatusProfiler = false;
-bool TUnittestContextConstructorFunction::SawNullProfiler = false;
+bool TUnittestContextConstructorFunction::SawEnabledProfiler = false;
 bool TUnittestContextConstructorFunction::SawNoPartition = false;
 bool TUnittestContextConstructorFunction::SawNullClientsCache = false;
 bool TUnittestContextConstructorFunction::SawNullInvoker = false;
@@ -586,7 +586,7 @@ TEST_F(TProcessBatchTest, ContextConstructorRunsBeforeInit)
     TUnittestContextConstructorFunction::ConstructionCount = 0;
     TUnittestContextConstructorFunction::InitCount = 0;
     TUnittestContextConstructorFunction::SawStatusProfiler = false;
-    TUnittestContextConstructorFunction::SawNullProfiler = false;
+    TUnittestContextConstructorFunction::SawEnabledProfiler = false;
     TUnittestContextConstructorFunction::SawNoPartition = false;
     TUnittestContextConstructorFunction::SawNullClientsCache = false;
     TUnittestContextConstructorFunction::SawNullInvoker = false;
@@ -600,7 +600,7 @@ TEST_F(TProcessBatchTest, ContextConstructorRunsBeforeInit)
     EXPECT_EQ(TUnittestContextConstructorFunction::ConstructionCount, 1);
     EXPECT_EQ(TUnittestContextConstructorFunction::InitCount, 1);
     EXPECT_TRUE(TUnittestContextConstructorFunction::SawStatusProfiler);
-    EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullProfiler);
+    EXPECT_TRUE(TUnittestContextConstructorFunction::SawEnabledProfiler);
     EXPECT_TRUE(TUnittestContextConstructorFunction::SawNoPartition);
     EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullClientsCache);
     EXPECT_TRUE(TUnittestContextConstructorFunction::SawNullInvoker);
