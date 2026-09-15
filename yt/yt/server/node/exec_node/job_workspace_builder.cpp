@@ -788,7 +788,7 @@ private:
                     SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
                 })
                 .AsyncVia(Invoker_))
-            // TODO: Remove it (YT-27698)
+            // TODO(krasovav): Remove it (YT-27698)
             .ToUncancelable();
     }
 
