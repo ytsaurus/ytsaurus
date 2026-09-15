@@ -34,21 +34,18 @@ protected:
     }
 
 private:
-    IMemoryUsageTrackerPtr MaybeGetMemoryUsageTracker() const
+    i64 GetEstimatedMinHashBlockSize() const
     {
-        auto nodeMemoryTracker = Store_->GetTablet()->TryGetNodeMemoryUsageTracker();
-        return nodeMemoryTracker
-            ? nodeMemoryTracker->WithCategory(EMemoryCategory::TabletBackground)
-            : nullptr;
-    }
+        static const auto DefaultWriterConfig = New<NTableClient::TMinHashDigestConfig>();
 
-    TClientChunkReadOptions CreateChunkReadOptions() const
-    {
-        return {
-            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
-            .ReadSessionId = TReadSessionId::Create(),
-            .MemoryUsageTracker = MaybeGetMemoryUsageTracker(),
-        };
+        i64 totalTimestampCount = DefaultWriterConfig->GetTotalTimestampCount();
+
+        if (auto writerConfig = Store_->GetTablet()->GetSettings().MountConfig->CompactionHints->MinHashDigest->ChunkWriter) {
+            totalTimestampCount = writerConfig->GetTotalTimestampCount();
+        }
+
+        // Estimate before compression, including the format version and two min-hash headers.
+        return sizeof(ui32) * 5 + totalTimestampCount * TTimestampedHash<std::less<ui32>>::SerializedSize;
     }
 
     void DoFetch() override
@@ -68,6 +65,7 @@ private:
                 chunkReader->GetMeta(
                     IChunkReader::TGetMetaOptions{
                         .ClientOptions = chunkReadOptions,
+                        .MetaSize = GetEstimatedChunkMetaSize(),
                     },
                     /*partitionTags*/ {},
                     /*extensionTags*/ std::vector<int>{
@@ -112,7 +110,8 @@ private:
         SubscribeWithErrorHandling(
             chunkReader->ReadBlocks(
                 IChunkReader::TReadBlocksOptions{
-                    .ClientOptions = chunkReadOptions
+                    .ClientOptions = chunkReadOptions,
+                    .EstimatedSize = GetEstimatedMinHashBlockSize(),
                 },
                 {blockIndex.GetBlockIndex()}).AsUnique(),
             std::bind_front(&TMinHashDigestFetchPipeline::OnMinHashDigestReceived, this));
