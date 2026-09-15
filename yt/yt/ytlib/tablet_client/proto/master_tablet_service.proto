@@ -164,3 +164,17 @@ message TRspGetTableBalancingAttributes
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqThrottleTabletStoresUpdate
+{
+    optional string bundle_name = 1;
+    required int32 update_reason = 2; // ETabletStoresUpdateReason
+    repeated int32 store_counts = 3;
+}
+
+message TRspThrottleTabletStoresUpdate
+{
+    required int32 accepted_request_count = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

@@ -20,6 +20,8 @@ namespace NYT::NTabletServer {
 struct ITabletChunkManager
     : public virtual TRefCounted
 {
+    virtual void Initialize() = 0;
+
     virtual void CopyChunkListsIfShared(
         NTableServer::TTableNode* table,
         int firstTabletIndex,
@@ -50,6 +52,13 @@ struct ITabletChunkManager
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount) = 0;
+
+    //! Returns the length of the accepted prefix of #storeCounts: requests within
+    //! [0, result) may proceed, the rest are throttled.
+    virtual int ThrottleTabletStoresUpdate(
+        const std::string& bundleName,
+        NTabletClient::ETabletStoresUpdateReason updateReason,
+        const std::vector<int>& storeCounts) = 0;
 
     virtual void PrepareUpdateTabletStores(
         TTablet* tablet,
@@ -97,7 +106,9 @@ DEFINE_REFCOUNTED_TYPE(ITabletChunkManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITabletChunkManagerPtr CreateTabletChunkManager(NCellMaster::TBootstrap* bootstrap);
+ITabletChunkManagerPtr CreateTabletChunkManager(
+    NCellMaster::TBootstrap* bootstrap,
+    IInvokerPtr storesUpdateThrottlerInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
