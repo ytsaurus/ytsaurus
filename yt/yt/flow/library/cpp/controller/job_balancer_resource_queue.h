@@ -8,10 +8,12 @@ namespace NYT::NFlow::NBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! |now| is used to compute the age of partitions (warmup); tests pass a simulated clock.
 TRebalanceResult DoBalanceResourceQueue(
     const TFlowViewPtr& flowView,
     const TDynamicJobBalancerSpecPtr& balancerSpec,
-    const TWorkerGroupId& workerGroup);
+    const TWorkerGroupId& workerGroup,
+    TInstant now = TInstant::Now());
 
 ////////////////////////////////////////////////////////////////////////////////
 
