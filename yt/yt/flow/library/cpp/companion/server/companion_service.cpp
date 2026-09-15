@@ -86,12 +86,13 @@ class TCompanionService
 public:
     TCompanionService(
         TPipeline pipeline,
-        IInvokerPtr invoker,
+        TCompanionServerContextPtr context,
         const NProfiling::TSolomonRegistryPtr& registry)
         : TServiceBase(
-            std::move(invoker),
+            context->Invoker,
             NCompanion::TCompanionProxy::GetDescriptor(),
             CompanionServerLogger())
+        , Context_(std::move(context))
         , Pipeline_(std::move(pipeline))
         , CompanionInfoPayload_(Pipeline_.BuildCompanionInfoPayload())
         , JobRegistry_(New<TJobRegistry>(GetDefaultInvoker()))
@@ -110,6 +111,7 @@ public:
     }
 
 private:
+    const TCompanionServerContextPtr Context_;
     const TPipeline Pipeline_;
     const NYson::TYsonString CompanionInfoPayload_;
     const TJobRegistryPtr JobRegistry_;
@@ -136,7 +138,8 @@ private:
             jobInfo,
             ResourceStore_,
             Profiler_->GetComputationProfiler(computationId),
-            counters);
+            counters,
+            Context_);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto::NCompanion, ProcessBatch);
@@ -387,12 +390,12 @@ DEFINE_RPC_SERVICE_METHOD(TCompanionService, GetJfr)
 
 IServicePtr CreateCompanionService(
     TPipeline pipeline,
-    IInvokerPtr invoker,
+    TCompanionServerContextPtr context,
     NProfiling::TSolomonRegistryPtr registry)
 {
     return New<TCompanionService>(
         std::move(pipeline),
-        std::move(invoker),
+        std::move(context),
         registry);
 }
 

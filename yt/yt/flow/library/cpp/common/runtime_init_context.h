@@ -86,8 +86,9 @@ public:
     //! The computation profiler, tagged with |computation_id| and stable across hosting modes.
     virtual NProfiling::TProfiler GetProfiler() const = 0;
 
-    //! The hosting process' shared plain-HTTP client, running on its HTTP poller.
-    //! Throws where the hosting process runs no HTTP client (out of process).
+    //! The hosting process' shared plain-HTTP client, running on its HTTP poller
+    //! (the worker's in process, the companion's out of process). Throws where no
+    //! client was configured.
     virtual NHttp::IClientPtr GetHttpClient() const = 0;
     virtual NHttp::IClientPtr GetHttpsClient() const = 0;
 

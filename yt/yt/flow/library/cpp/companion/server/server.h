@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include "pipeline.h"
+#include "server_context.h"
 
 #include <yt/yt/flow/library/cpp/companion/config.h>
 
@@ -16,7 +17,8 @@ namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Owns the companion gRPC server and its worker thread pool.
+//! Owns the companion gRPC server, its worker thread pool and the process-wide
+//! #TCompanionServerContext (HTTP poller and clients).
 class TCompanionServer
     : public TRefCounted
 {
@@ -37,6 +39,7 @@ private:
     const NCompanion::TCompanionExecutionConfigPtr Config_;
     const TCompanionMonitoringPtr Monitoring_;
     NConcurrency::IThreadPoolPtr ThreadPool_;
+    TCompanionServerContextPtr Context_;
     NRpc::IServerPtr RpcServer_;
 };
 

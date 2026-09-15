@@ -17,6 +17,7 @@ SRCS(
     runtime_context.cpp
     runtime_init_context.cpp
     server.cpp
+    server_context.cpp
     state_store.cpp
 )
 
@@ -26,6 +27,9 @@ PEERDIR(
     yt/yt/flow/library/cpp/process_function/host
     yt/yt/library/profiling/solomon
     yt/yt/library/program
+
+    yt/yt/core/http
+    yt/yt/core/https
 )
 
 END()

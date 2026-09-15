@@ -30,6 +30,8 @@ PEERDIR(
     yt/yt/library/process
     yt/yt/library/profiling/solomon
 
+    yt/yt/core/http
+    yt/yt/core/https
     yt/yt/core/rpc/grpc
 
     yt/yt/flow/library/cpp/common

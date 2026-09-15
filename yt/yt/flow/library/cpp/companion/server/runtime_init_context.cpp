@@ -13,7 +13,8 @@ TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     NYTree::TYsonStructPtr parametersObject,
     THashMap<TResourceId, IResourcePtr> resources,
     std::string prefix,
-    NProfiling::TProfiler profiler)
+    NProfiling::TProfiler profiler,
+    TCompanionServerContextPtr serverContext)
     : StateStore_(std::move(stateStore))
     , ParametersNode_(parametersNode
             ? std::move(parametersNode)
@@ -22,6 +23,7 @@ TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     , Resources_(std::move(resources))
     , Prefix_(std::move(prefix))
     , Profiler_(std::move(profiler))
+    , ServerContext_(std::move(serverContext))
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TCompanionRuntimeInitContext::CreateMutableStateKeyProvider(
@@ -54,7 +56,8 @@ IRuntimeInitContextPtr TCompanionRuntimeInitContext::WithPrefix(TStringBuf prefi
         ParametersObject_,
         Resources_,
         ExtendStateNamePrefix(Prefix_, prefix),
-        Profiler_);
+        Profiler_,
+        ServerContext_);
 }
 
 const std::string& TCompanionRuntimeInitContext::GetPrefix() const
@@ -89,12 +92,16 @@ NProfiling::TProfiler TCompanionRuntimeInitContext::GetProfiler() const
 
 NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpClient() const
 {
-    THROW_ERROR_EXCEPTION("HTTP clients are not available in a companion process");
+    THROW_ERROR_EXCEPTION_UNLESS(ServerContext_ && ServerContext_->HttpClient,
+        "HTTP client is not available in this companion init context");
+    return ServerContext_->HttpClient;
 }
 
 NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpsClient() const
 {
-    THROW_ERROR_EXCEPTION("HTTP clients are not available in a companion process");
+    THROW_ERROR_EXCEPTION_UNLESS(ServerContext_ && ServerContext_->HttpsClient,
+        "HTTPS client is not available in this companion init context");
+    return ServerContext_->HttpsClient;
 }
 
 TPartitionId TCompanionRuntimeInitContext::GetPartitionId() const

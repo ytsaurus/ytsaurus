@@ -25,6 +25,9 @@ PEERDIR(
     yt/yt/flow/library/cpp/companion/server
     yt/yt/flow/library/cpp/process_function/testing
     yt/yt/flow/library/cpp/resources
+
+    yt/yt/core/http
+    yt/yt/core/https
 )
 
 SIZE(SMALL)
