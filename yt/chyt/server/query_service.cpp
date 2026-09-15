@@ -207,6 +207,8 @@ private:
             Logger);
         ConversionSettings_ = querySettings->Conversion;
         ConversionSettings_->Composite->ConvertUnsupportedTypesToString = true;
+        ConversionSettings_->Composite->AnnotateResultSchemaWithNativeTypes =
+            Request_->annotate_result_schema_with_native_types();
     }
 
     void BuildPipeline(const TString& query)
