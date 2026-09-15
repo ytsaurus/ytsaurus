@@ -150,6 +150,7 @@ public:
     static TSequoiaSessionPtr Start(
         IBootstrap* bootstrap,
         const NRpc::TAuthenticationIdentity& authenticationIdentity,
+        std::string description,
         NCypressClient::TTransactionId cypressTransactionId = NCypressClient::NullTransactionId,
         const std::vector<NCypressClient::TTransactionId>& cypressPrerequisiteTransactionIds = {});
 
