@@ -179,7 +179,7 @@ TFuture<TSquashFSVolumePtr> TSquashFSVolumeCache::DownloadAndPrepareVolume(
             auto downloadCpuDuration = GetCpuInstant() - downloadCpuStart;
 
             if (downloadOptions.OnLayerDownloaded) {
-                downloadOptions.OnLayerDownloaded(downloadCpuDuration, /*importCpuDuration*/ 0);
+                downloadOptions.OnLayerDownloaded(downloadCpuDuration, /*importCpuDuration*/ 0, /*importSize*/ 0);
             }
 
             auto tagSet = TVolumeProfilerCounters::MakeTagSet(
@@ -1369,7 +1369,7 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
             auto importCpuDuration = GetCpuInstant() - importCpuStart;
 
             if (downloadOptions.OnLayerDownloaded) {
-                downloadOptions.OnLayerDownloaded(downloadCpuDuration, importCpuDuration);
+                downloadOptions.OnLayerDownloaded(downloadCpuDuration, importCpuDuration, artifactKey.GetCompressedDataSize());
             }
 
             return New<TLayer>(layerMeta, artifactKey, location);
