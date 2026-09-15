@@ -108,6 +108,8 @@ int main(int argc, const char** argv)
 };
 ```
 
+Process function в компаньоне может брать в `Init` HTTP-клиенты из `IRuntimeInitContext` (`GetHttpClient()`, `GetHttpsClient()`). Клиенты настраиваются полями `http_client_config`, `https_client_config` и `http_poller_threads` блока `companion` конфига воркера ([TCompanionConfig](../../../flow/generated_docs/all_yson_structs.md#NYT_NFlow_NCompanion_TCompanionConfig)).
+
 Ограничения первой версии C++ компаньона:
 
 - не поддерживаются sync process function-ы (у протокола компаньона нет фазы Sync);

@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "server_context.h"
 #include "state_store.h"
 
 #include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
@@ -23,7 +24,8 @@ public:
         NYTree::TYsonStructPtr parametersObject = {},
         THashMap<TResourceId, IResourcePtr> resources = {},
         std::string prefix = {},
-        NProfiling::TProfiler profiler = {});
+        NProfiling::TProfiler profiler = {},
+        TCompanionServerContextPtr serverContext = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(
         std::function<IStateHolderPtr()> ctor) const override;
@@ -44,9 +46,9 @@ public:
     //! Profiler for the hosted computation.
     NProfiling::TProfiler GetProfiler() const override;
 
-    //! Throws because companion processes have no HTTP client.
+    //! The companion process' shared HTTP clients from #TCompanionServerContext, running
+    //! on its HTTP poller; throw when the context was built without one.
     NHttp::IClientPtr GetHttpClient() const override;
-
     NHttp::IClientPtr GetHttpsClient() const override;
 
     //! Throws because the wire protocol does not identify a partition.
@@ -65,6 +67,9 @@ private:
     const THashMap<TResourceId, IResourcePtr> Resources_;
     const std::string Prefix_;
     const NProfiling::TProfiler Profiler_;
+    //! Process-wide facilities of the hosting companion; null only when a test
+    //! constructs the context directly.
+    const TCompanionServerContextPtr ServerContext_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionRuntimeInitContext);

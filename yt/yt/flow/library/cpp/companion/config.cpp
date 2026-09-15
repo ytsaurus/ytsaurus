@@ -1,5 +1,8 @@
 #include "config.h"
 
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/https/config.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/node.h>
 
@@ -31,6 +34,25 @@ void TCompanionConfig::Register(TRegistrar registrar)
     registrar.Parameter("companion_process_count", &TThis::CompanionProcessCount)
         .Default(0)
         .GreaterThanOrEqual(0);
+    registrar.Parameter("http_client_config", &TThis::HttpClientConfig)
+        .DefaultNew();
+    registrar.Parameter("https_client_config", &TThis::HttpsClientConfig)
+        .DefaultNew();
+    registrar.Parameter("http_poller_threads", &TThis::HttpPollerThreads)
+        .GreaterThan(0)
+        .Default(1);
+
+    registrar.Postprocessor([] (TThis* config) {
+        const auto& httpsConfig = config->HttpsClientConfig;
+        if (!httpsConfig || !httpsConfig->Credentials || !httpsConfig->Credentials->PrivateKey) {
+            return;
+        }
+
+        const auto& privateKey = httpsConfig->Credentials->PrivateKey;
+        THROW_ERROR_EXCEPTION_UNLESS(
+            privateKey->FileName && !privateKey->EnvironmentVariable && !privateKey->Value,
+            "Companion HTTPS client private key must use \"file_name\"");
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

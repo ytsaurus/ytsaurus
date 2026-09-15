@@ -96,12 +96,14 @@ TJob::TJob(
     const NProto::NCompanion::TJobInfo& jobInfo,
     TResourceStorePtr resourceStore,
     NProfiling::TProfiler profiler,
-    TComputationCountersPtr counters)
+    TComputationCountersPtr counters,
+    TCompanionServerContextPtr serverContext)
     : JobId_(jobId)
     , ComputationId_(std::move(computationId))
     , ResourceStore_(std::move(resourceStore))
     , Profiler_(std::move(profiler))
     , Counters_(std::move(counters))
+    , ServerContext_(std::move(serverContext))
     // A companion never evaluates expression columns: stream schemas cannot have them, keys arrive
     // on the wire, and joined-state keys are stripped by TCompanionExternalStateJoiner. This keeps
     // the query engine out of every binary users ship, at the price of ComputeKey() on a computed
@@ -271,7 +273,8 @@ bool TJob::EnsureInitialized()
         TRegistry::Get()->ParseProcessFunctionParameters(Spec_),
         std::move(*resources),
         /*prefix*/ std::string(),
-        Profiler_);
+        Profiler_,
+        ServerContext_);
     auto context = New<TProcessFunctionContext>();
     context->InitContext = initContext;
     context->Logger = CompanionServerLogger()

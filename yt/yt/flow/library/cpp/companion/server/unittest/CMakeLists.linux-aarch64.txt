@@ -44,6 +44,8 @@ target_link_libraries(yt-flow-library-cpp-companion-server-unittest PUBLIC
   cpp-companion-server
   cpp-process_function-testing
   library-cpp-resources
+  yt-core-http
+  yt-core-https
 )
 
 target_allocator(yt-flow-library-cpp-companion-server-unittest

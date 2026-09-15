@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "server_context.h"
 #include "state_store.h"
 
 #include <yt/yt/flow/library/cpp/common/process_function.h>
@@ -66,7 +67,8 @@ public:
         const NProto::NCompanion::TJobInfo& jobInfo,
         TResourceStorePtr resourceStore = nullptr,
         NProfiling::TProfiler profiler = {},
-        TComputationCountersPtr counters = nullptr);
+        TComputationCountersPtr counters = nullptr,
+        TCompanionServerContextPtr serverContext = nullptr);
 
     const TJobId& GetJobId() const;
     const TComputationId& GetComputationId() const;
@@ -106,6 +108,9 @@ private:
     const TResourceStorePtr ResourceStore_;
     const NProfiling::TProfiler Profiler_;
     const TComputationCountersPtr Counters_;
+    //! Process-wide facilities of the hosting companion; null only when a test
+    //! constructs the job directly.
+    const TCompanionServerContextPtr ServerContext_;
 
     TComputationSpecPtr Spec_;
     TDynamicComputationSpecPtr DynamicSpec_;

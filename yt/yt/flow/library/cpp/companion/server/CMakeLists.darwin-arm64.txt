@@ -36,6 +36,8 @@ target_link_libraries(cpp-companion-server PUBLIC
   cpp-process_function-host
   library-profiling-solomon
   yt-library-program
+  yt-core-http
+  yt-core-https
 )
 
 target_sources(cpp-companion-server PRIVATE
@@ -53,6 +55,7 @@ target_sources(cpp-companion-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/runtime_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/runtime_init_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/server.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/server_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/state_store.cpp
 )
 

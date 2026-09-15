@@ -2,6 +2,9 @@
 
 #include "public.h"
 
+#include <yt/yt/core/http/public.h>
+#include <yt/yt/core/https/public.h>
+
 #include <yt/yt/core/ypath/public.h>
 
 #include <yt/yt/library/profiling/solomon/config.h>
@@ -31,6 +34,14 @@ struct TCompanionConfig
     int Port{};
     int MonitoringPort{};
     int CompanionProcessCount{};
+
+    //! HTTP clients handed to the process functions hosted by a C++ companion
+    //! (IRuntimeInitContext::GetHttpClient); mirror the same-named TFlowNodeConfig
+    //! fields. Companions in other languages ignore them. The config travels in the
+    //! companion process environment; an HTTPS private key must use "file_name".
+    NHttp::TClientConfigPtr HttpClientConfig;
+    NHttps::TClientConfigPtr HttpsClientConfig;
+    int HttpPollerThreads{};
 
     REGISTER_YSON_STRUCT(TCompanionConfig);
 

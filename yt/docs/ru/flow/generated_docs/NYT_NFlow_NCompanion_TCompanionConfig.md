@@ -14,5 +14,14 @@
 || `companion_process_count` | **Тип**: `int`
 **Значение по умолчанию**: `0`
  ||
+|| `http_client_config` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NHttp::TClientConfig](./all_yson_structs#NYT_NHttp_TClientConfig)`>`
+**Значение по умолчанию**: `{}`
+Конфиг HTTP-клиента, который C++-компаньон отдаёт process function-ам через `IRuntimeInitContext::GetHttpClient()`. Зеркалит одноимённое поле `TFlowNodeConfig`; компаньоны на других языках его игнорируют. ||
+|| `https_client_config` | **Тип**: `NYT::TIntrusivePtr<`[NYT::NHttps::TClientConfig](./all_yson_structs#NYT_NHttps_TClientConfig)`>`
+**Значение по умолчанию**: `{}`
+Конфиг HTTPS-клиента, который C++-компаньон отдаёт process function-ам через `IRuntimeInitContext::GetHttpsClient()`. Зеркалит одноимённое поле `TFlowNodeConfig`; компаньоны на других языках его игнорируют. Конфиг передаётся компаньону через окружение процесса. Для `credentials.private_key` поддерживается только `file_name`; inline-значения и ссылки через переменные окружения запрещены. ||
+|| `http_poller_threads` | **Тип**: `int`
+**Значение по умолчанию**: `1`
+Число потоков HTTP-поллера C++-компаньона, на котором работают его HTTP- и HTTPS-клиенты. Компаньоны на других языках его игнорируют. ||
 |#
 

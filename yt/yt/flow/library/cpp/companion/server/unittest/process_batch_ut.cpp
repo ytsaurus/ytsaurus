@@ -16,6 +16,16 @@
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
 
+#include <yt/yt/core/concurrency/scheduler_api.h>
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+
+#include <yt/yt/core/http/client.h>
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/http/http.h>
+#include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/misc/finally.h>
+
 #include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -217,11 +227,55 @@ public:
     }
 };
 
+struct TUnittestHttpParameters
+    : public NYTree::TYsonStruct
+{
+    std::string Url;
+
+    REGISTER_YSON_STRUCT(TUnittestHttpParameters);
+
+    static void Register(TRegistrar registrar)
+    {
+        registrar.Parameter("url", &TThis::Url);
+    }
+};
+
+class TUnittestHttpFunction
+    : public IProcessFunction
+{
+public:
+    void Init(const IRuntimeInitContextPtr& initContext) override
+    {
+        Client_ = initContext->GetHttpClient();
+        Url_ = initContext->GetParameters<TUnittestHttpParameters>()->Url;
+    }
+
+    void ProcessMessage(
+        const TInputMessageConstPtr& message,
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
+    {
+        auto rsp = NConcurrency::WaitFor(Client_->Get(Url_)).ValueOrThrow();
+
+        auto builder = context->MakeOutputMessageBuilder(std::nullopt);
+        builder.SetMessageId(TMessageId(Format("out-%v", message->MessageId)));
+        builder.SetSystemTimestamp(message->SystemTimestamp);
+        builder.SetAlignmentTimestamp(message->AlignmentTimestamp);
+        builder.Payload().Set(static_cast<ui64>(rsp->GetStatusCode()), "key");
+        output->AddMessage(builder.Finish());
+    }
+
+private:
+    NHttp::IClientPtr Client_;
+    std::string Url_;
+};
+
 // The passthrough function is registered through the typed pipeline API in the
 // fixture; the extra spec-selectable functions keep using the macro.
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestCountingFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestOffsetFunction, TUnittestOffsetParameters);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestMismatchedParametersFunction);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestHttpFunction, TUnittestHttpParameters);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestBusyFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestSyncFunction);
 YT_FLOW_DEFINE_PROCESS_FUNCTION(TUnittestContextConstructorFunction);
@@ -557,6 +611,43 @@ TEST_F(TProcessBatchTest, StaticParametersParsedIntoRegisteredType)
     ASSERT_EQ(rsp->data().output_size(), 1);
     auto message = FromProto<TMessage>(rsp->data().output(0).messages(0), StreamSpecs_);
     EXPECT_EQ(GetColumnValue<ui64>(message, 0), ui64{42});
+}
+
+class TUnittestOkHttpHandler
+    : public NHttp::IHttpHandler
+{
+public:
+    void HandleRequest(const NHttp::IRequestPtr& /*req*/, const NHttp::IResponseWriterPtr& rsp) override
+    {
+        rsp->SetStatus(NHttp::EStatusCode::OK);
+        NConcurrency::WaitFor(rsp->Close()).ThrowOnError();
+    }
+};
+
+TEST_F(TProcessBatchTest, HttpClientReachesProcessFunction)
+{
+    auto httpPort = ::NTesting::GetFreePort();
+    auto poller = NConcurrency::CreateThreadPoolPoller(1, "UnittestHttpSrv");
+    auto serverConfig = New<NHttp::TServerConfig>();
+    serverConfig->Port = httpPort;
+    auto httpServer = NHttp::CreateServer(serverConfig, poller);
+    httpServer->AddHandler("/ok", New<TUnittestOkHttpHandler>());
+    httpServer->Start();
+    auto cleanup = Finally([&] {
+        httpServer->Stop();
+        poller->Shutdown();
+    });
+
+    auto req = BuildRequest(
+        "NYT::NFlow::NCompanionServer::TUnittestHttpFunction",
+        Format("{url = %Qv}", Format("http://localhost:%v/ok", static_cast<int>(httpPort))));
+    AddMessage(req, 1, "m1");
+    auto rsp = req->Invoke().BlockingGet().ValueOrThrow();
+    ASSERT_EQ(rsp->status(), NProto::NCompanion::RS_OK);
+    ASSERT_EQ(rsp->data().output_size(), 1);
+    ASSERT_EQ(rsp->data().output(0).messages_size(), 1);
+    auto message = FromProto<TMessage>(rsp->data().output(0).messages(0), StreamSpecs_);
+    EXPECT_EQ(GetColumnValue<ui64>(message, 0), ui64{200});
 }
 
 TEST_F(TProcessBatchTest, StaticParametersTypeMismatchFails)

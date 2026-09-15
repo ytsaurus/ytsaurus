@@ -2,6 +2,9 @@
 #include <yt/yt/flow/library/cpp/companion/companion_manager.h>
 #include <yt/yt/flow/library/cpp/companion/config.h>
 
+#include <yt/yt/core/http/config.h>
+#include <yt/yt/core/https/config.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/library/profiling/solomon/config.h>
@@ -24,6 +27,62 @@ TEST(TCompanionConfigTest, CompanionProcessCountParses)
     })"));
     auto config = NYTree::ConvertTo<TCompanionConfigPtr>(yson);
     EXPECT_EQ(4, config->CompanionProcessCount);
+}
+
+TEST(TCompanionConfigTest, HttpSettingsDefault)
+{
+    auto config = New<TCompanionConfig>();
+    EXPECT_TRUE(config->HttpClientConfig);
+    EXPECT_TRUE(config->HttpsClientConfig);
+    EXPECT_EQ(1, config->HttpPollerThreads);
+}
+
+TEST(TCompanionConfigTest, HttpSettingsParse)
+{
+    auto yson = NYson::TYsonString(TStringBuf(R"({
+        "http_poller_threads" = 3;
+        "https_client_config" = {"allow_http" = %true};
+    })"));
+    auto config = NYTree::ConvertTo<TCompanionConfigPtr>(yson);
+    EXPECT_EQ(3, config->HttpPollerThreads);
+    EXPECT_TRUE(config->HttpsClientConfig->AllowHttp);
+}
+
+TEST(TCompanionConfigTest, NonPositiveHttpPollerThreadsThrows)
+{
+    auto yson = NYson::TYsonString(TStringBuf(R"({"http_poller_threads" = 0;})"));
+    EXPECT_ANY_THROW(NYTree::ConvertTo<TCompanionConfigPtr>(yson));
+}
+
+TEST(TCompanionConfigTest, HttpsPrivateKeyMustUseFile)
+{
+    for (const auto* yson : {
+            R"({"https_client_config" = {"credentials" = {"private_key" = {"value" = "secret";};};};})",
+            R"({"https_client_config" = {"credentials" = {"private_key" = {"environment_variable" = "PRIVATE_KEY";};};};})"})
+    {
+        EXPECT_THROW_WITH_SUBSTRING(
+            NYTree::ConvertTo<TCompanionConfigPtr>(NYson::TYsonString(TStringBuf(yson))),
+            "must use \"file_name\"");
+    }
+
+    auto config = NYTree::ConvertTo<TCompanionConfigPtr>(NYson::TYsonString(TStringBuf(
+        R"({"https_client_config" = {"credentials" = {"private_key" = {"file_name" = "client.key";};};};})")));
+    ASSERT_TRUE(config->HttpsClientConfig->Credentials->PrivateKey->FileName);
+    EXPECT_EQ(*config->HttpsClientConfig->Credentials->PrivateKey->FileName, "client.key");
+}
+
+TEST(TCompanionConfigTest, ExecutionConfigKeepsHttpSettings)
+{
+    auto userConfig = NYTree::ConvertTo<TCompanionConfigPtr>(NYson::TYsonString(TStringBuf(R"({
+        "port" = 12345;
+        "http_poller_threads" = 3;
+        "https_client_config" = {"allow_http" = %true};
+    })")));
+    auto config = BuildCompanionExecutionConfig(userConfig, "cluster", "//tmp/pipeline");
+    EXPECT_EQ(12345, config->Port);
+    EXPECT_EQ(3, config->HttpPollerThreads);
+    EXPECT_TRUE(config->HttpsClientConfig->AllowHttp);
+    EXPECT_EQ("cluster", config->ClusterUrl);
 }
 
 TEST(TCompanionManagerParametersTest, JobReconciliationPeriodDefaultsAndRejectsNonPositive)

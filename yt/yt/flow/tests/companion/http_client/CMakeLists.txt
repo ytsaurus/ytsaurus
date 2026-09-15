@@ -12,6 +12,4 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(resource)
-add_subdirectory(all_states_cpp)
-add_subdirectory(http_client)
+add_subdirectory(companion)

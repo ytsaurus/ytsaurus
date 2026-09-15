@@ -7,6 +7,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/rpc/grpc/config.h>
@@ -58,10 +59,11 @@ TCompanionServer::TCompanionServer(
     ThreadPool_ = CreateThreadPool(
         static_cast<int>(NSystemInfo::CachedNumberOfCpus()),
         "Companion");
+    Context_ = CreateCompanionServerContext(Config_, ThreadPool_->GetInvoker());
     RpcServer_ = NRpc::NGrpc::CreateServer(BuildGrpcServerConfig(Config_->Port));
     RpcServer_->RegisterService(CreateCompanionService(
         std::move(pipeline),
-        ThreadPool_->GetInvoker(),
+        Context_,
         std::move(registry)));
 }
 
@@ -79,6 +81,8 @@ void TCompanionServer::Stop()
     // NB: Stop is called from the plain main thread at shutdown, not from a fiber.
     RpcServer_->Stop().BlockingGet().ThrowOnError();
     ThreadPool_->Shutdown();
+    // User code on the pool may hold the HTTP clients; the pool goes first.
+    Context_->HttpPoller->Shutdown();
     Monitoring_->Stop();
 }
 
