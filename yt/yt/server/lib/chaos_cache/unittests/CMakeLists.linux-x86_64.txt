@@ -14,37 +14,73 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(yt-ytlib-test_framework)
+add_executable(unittester-chaos-cache)
 
 
-target_compile_options(yt-ytlib-test_framework PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(yt-ytlib-test_framework PUBLIC
+target_link_libraries(unittester-chaos-cache PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-query-engine
-  query-unittests-helpers
-  library-query-row_comparer
-  yt-yt-build
+  build-cow-on
+  library-cpp-cpuid_check
+  cpp-testing-gtest
+  cpp-testing-gtest_main
   yt-yt-core
   yt-core-test_framework
+  server-lib-chaos_cache
   yt-yt-ytlib
-  contrib-libs-sparsehash
-  cpp-http-server
+  yt-ytlib-test_framework
 )
 
-target_sources(yt-ytlib-test_framework PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/test_framework/chaos_client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/test_framework/chaos_node_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/test_framework/test_connection.cpp
+target_allocator(unittester-chaos-cache
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
+target_link_options(unittester-chaos-cache PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
+  -fPIC
+  -fPIC
+  -lrt
+  -ldl
+  -lutil
+)
+
+target_sources(unittester-chaos-cache PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_cache/unittests/chaos_cache_service_ut.cpp
+)
+
+
+add_test(
+  NAME
+  unittester-chaos-cache
+  COMMAND
+  unittester-chaos-cache
+)
+
+set_property(
+  TEST
+  unittester-chaos-cache
+  PROPERTY
+  LABELS
+  SMALL
+)
+
+set_property(
+  TEST
+  unittester-chaos-cache
+  PROPERTY
+  ENVIRONMENT
+)
+
+vcs_info(unittester-chaos-cache)
+
+set_property(
+  TEST
+  unittester-chaos-cache
+  PROPERTY
+  PROCESSORS
+  1
+)

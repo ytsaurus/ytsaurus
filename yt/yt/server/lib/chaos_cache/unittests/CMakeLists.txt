@@ -12,36 +12,9 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(yt-ytlib-test_framework)
-
-
-target_compile_options(yt-ytlib-test_framework PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(yt-ytlib-test_framework PUBLIC
-  contrib-libs-cxxsupp
-  yutil
-  library-query-engine
-  query-unittests-helpers
-  library-query-row_comparer
-  yt-yt-build
-  yt-yt-core
-  yt-core-test_framework
-  yt-yt-ytlib
-  contrib-libs-sparsehash
-  cpp-http-server
-)
-
-target_sources(yt-ytlib-test_framework PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/test_framework/chaos_client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/test_framework/chaos_node_service.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/test_framework/test_connection.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
