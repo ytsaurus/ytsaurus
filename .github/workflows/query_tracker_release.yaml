@@ -235,7 +235,7 @@ jobs:
           docker push ghcr.io/ytsaurus/query-tracker:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo
 
   stop-vm:
-    name: Stop VM
+    name: Keep VM for debugging
     needs:
       - start-vm
       - build
@@ -248,15 +248,9 @@ jobs:
     runs-on: trampoline
     if: ${{ always() }}
     steps:
-      - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v2.1.0
-        with:
-          mode: stop
-          retry-timeout: PT5M
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-vm.outputs.label }}
-          instance-id: ${{ needs.start-vm.outputs.instance-id }}
+      - name: Keep YC runner for debugging
+        run: |
+          echo "Keeping VM ${{ needs.start-vm.outputs.instance-id }} (runner ${{ needs.start-vm.outputs.label }}) for debugging."
 
   send-notifications:
     name: Send notifications
