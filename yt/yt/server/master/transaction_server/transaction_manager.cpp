@@ -4059,7 +4059,7 @@ private:
             .With("BarrierCount", std::ssize(barriers))
             .With("TagsAssociatedWithPresentBarriers", tagsAssociatedWithPresentBarriers);
 
-        auto updateMetrics = BIND([this, this_ = MakeStrong(this), start = now] {
+        auto updateMetrics = BIND([this, this_ = MakeStrong(this), start = now] (const TError& error) {
             auto guard = Guard(BarrierProfilingLock_);
             auto& counter = BarrierTimestampStartMap_[start];
             --counter;
@@ -4070,6 +4070,8 @@ private:
             if (counter == 0) {
                 BarrierTimestampStartMap_.erase(start);
             }
+
+            return error;
         });
 
         auto newBarriers = AllSucceeded(barriers)
@@ -4226,6 +4228,10 @@ private:
             barrier.Clear(error);
         }
         TagToBarrier_.clear();
+
+        // Not clearing BarrierTimestampStartMap_ on purpose here, since it's
+        // tied not to the automaton state, but to the requests that are being
+        // currently executed.
     }
 
     void Clear() override
