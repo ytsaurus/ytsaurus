@@ -117,6 +117,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((TooManySlicesInJobs)                         (46))
     ((SpecIsTooLarge)                              (47))
     ((HighJobThreadCount)                          (48))
+    ((InconsistentJobCountAndPivotKeys)            (49))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
