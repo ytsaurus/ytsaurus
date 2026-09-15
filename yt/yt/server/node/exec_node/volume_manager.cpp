@@ -663,7 +663,7 @@ public:
                         }
 
                         auto placePath = "//" + NFS::JoinPaths(result->Volume->GetPath(), "place");
-                        // TODO If an exception is thrown here, then all volumes must be properly cleaned up.
+                        // TODO(krasovav): If an exception is thrown here, then all volumes must be properly cleaned up.
                         return DoCreateOverlayVolume(
                             tag,
                             jobId,
