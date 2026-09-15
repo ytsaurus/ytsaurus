@@ -72,7 +72,8 @@ struct TResourceBalanceContext
 TResourceBalanceContext CollectResourceContext(
     const TFlowViewPtr& flowView,
     const TDynamicJobBalancerSpecPtr& balancerSpec,
-    const TWorkerGroupId& workerGroup)
+    const TWorkerGroupId& workerGroup,
+    TInstant now)
 {
     const auto& layout = flowView->State->ExecutionSpec->Layout;
     const auto& pipelineSpec = flowView->CurrentSpec->GetValue();
@@ -94,7 +95,6 @@ TResourceBalanceContext CollectResourceContext(
     };
 
     THashMap<TWorkerId, TTmpWorkerInfo> tmpWorkerInfoSet;
-    auto now = TInstant::Now();
 
     // Collect partition info.
     {
@@ -809,7 +809,7 @@ TResourceContextSnapshot CollectResourceContextForTesting(
     const TDynamicJobBalancerSpecPtr& balancerSpec,
     const TWorkerGroupId& workerGroup)
 {
-    auto context = CollectResourceContext(flowView, balancerSpec, workerGroup);
+    auto context = CollectResourceContext(flowView, balancerSpec, workerGroup, TInstant::Now());
     TResourceContextSnapshot snapshot;
     for (const auto& [computationId, computationInfo] : context.Computations) {
         snapshot.ResourceConsumptionMultiplier[computationId] = computationInfo.ResourceConsumptionMultiplier;
@@ -826,14 +826,15 @@ TResourceContextSnapshot CollectResourceContextForTesting(
 TRebalanceResult DoBalanceResourceQueue(
     const TFlowViewPtr& flowView,
     const TDynamicJobBalancerSpecPtr& balancerSpec,
-    const TWorkerGroupId& workerGroup)
+    const TWorkerGroupId& workerGroup,
+    TInstant now)
 {
     const double planningHorizonSeconds = balancerSpec->PlanningHorizon.SecondsFloat();
     const double zeroQueueLatencySeconds = balancerSpec->ZeroQueueLatency.SecondsFloat();
     TRebalanceResult rebalanceResult;
 
     // Collect current context (partitions, workers, computations with multipliers).
-    auto context = CollectResourceContext(flowView, balancerSpec, workerGroup);
+    auto context = CollectResourceContext(flowView, balancerSpec, workerGroup, now);
 
     // =========================================================================
     // Step 1: Determine which computations need more workers.
