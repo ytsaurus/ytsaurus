@@ -1,0 +1,83 @@
+#pragma once
+
+#include "public.h"
+
+#include <library/cpp/yt/string/format.h>
+#include <library/cpp/yt/string/string_builder.h>
+
+#include <util/generic/fwd.h>
+
+#include <array>
+
+namespace NYT::NTabletBalancer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr double MinimumAcceptableMetricValue = 1e-30;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <int Size>
+class TGenericMetric
+{
+    static_assert(1 <= Size && Size <= MaxMetricCount);
+
+public:
+    Y_FORCE_INLINE TGenericMetric() = default;
+
+    Y_FORCE_INLINE TGenericMetric(const std::array<double, Size>& values);
+
+    Y_FORCE_INLINE TGenericMetric operator+(TGenericMetric other) const;
+
+    Y_FORCE_INLINE TGenericMetric operator-(TGenericMetric other) const;
+
+    Y_FORCE_INLINE TGenericMetric operator*(TGenericMetric other) const;
+
+    Y_FORCE_INLINE TGenericMetric operator/(TGenericMetric other) const;
+
+    Y_FORCE_INLINE TGenericMetric operator+(double scalar) const;
+
+    Y_FORCE_INLINE TGenericMetric operator-(double scalar) const;
+
+    Y_FORCE_INLINE TGenericMetric operator*(double scalar) const;
+
+    Y_FORCE_INLINE TGenericMetric operator/(double scalar) const;
+
+    Y_FORCE_INLINE TGenericMetric& operator+=(TGenericMetric other);
+
+    Y_FORCE_INLINE TGenericMetric& operator-=(TGenericMetric other);
+
+    Y_FORCE_INLINE TGenericMetric& operator*=(TGenericMetric other);
+
+    Y_FORCE_INLINE TGenericMetric& operator/=(TGenericMetric other);
+
+    Y_FORCE_INLINE TGenericMetric& operator+=(double scalar);
+
+    Y_FORCE_INLINE TGenericMetric& operator-=(double scalar);
+
+    Y_FORCE_INLINE TGenericMetric& operator*=(double scalar);
+
+    Y_FORCE_INLINE TGenericMetric& operator/=(double scalar);
+
+    Y_FORCE_INLINE double GetTotalValue() const;
+
+    Y_FORCE_INLINE TGenericMetric GetNormalizedMetric(double scalar) const;
+
+    const std::array<double, Size>& ToArray() const;
+
+private:
+    std::array<double, Size> Values_ = {};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <int Size>
+void FormatValue(TStringBuilderBase* builder, TGenericMetric<Size> metric, TStringBuf /*spec*/);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletBalancer
+
+#define METRIC_INL_H_
+#include "metric-inl.h"
+#undef METRIC_INL_H_
