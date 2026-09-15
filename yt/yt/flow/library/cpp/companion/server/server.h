@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/library/profiling/solomon/public.h>
+
 namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,15 +21,21 @@ class TCompanionServer
     : public TRefCounted
 {
 public:
+    //! |registry| defaults to the process-wide sensor registry.
     TCompanionServer(
         NCompanion::TCompanionExecutionConfigPtr config,
-        TPipeline pipeline);
+        TPipeline pipeline,
+        NProfiling::TSolomonRegistryPtr registry = nullptr);
 
     void Start();
     void Stop();
 
+    //! Monitoring server; inert when disabled.
+    const TCompanionMonitoringPtr& GetMonitoring() const;
+
 private:
     const NCompanion::TCompanionExecutionConfigPtr Config_;
+    const TCompanionMonitoringPtr Monitoring_;
     NConcurrency::IThreadPoolPtr ThreadPool_;
     NRpc::IServerPtr RpcServer_;
 };

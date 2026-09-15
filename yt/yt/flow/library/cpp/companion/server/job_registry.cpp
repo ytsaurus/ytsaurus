@@ -88,6 +88,12 @@ std::vector<TJobId> TJobRegistry::ListJobIds()
     return GetKeys(Jobs_);
 }
 
+int TJobRegistry::GetJobCount()
+{
+    auto guard = Guard(Lock_);
+    return std::ssize(Jobs_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFlow::NCompanionServer

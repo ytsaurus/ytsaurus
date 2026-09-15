@@ -6,14 +6,13 @@
 
 #include <yt/yt/flow/library/cpp/common/runtime_init_context.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NFlow::NCompanionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Companion-side IRuntimeInitContext: state key clients are bound to the
-//! per-job #TCompanionStateStore; static resources resolve against the
-//! companion-hosted instances acquired for the job; internal-state joiners
-//! are not available out of process.
+//! Companion implementation of #IRuntimeInitContext.
 class TCompanionRuntimeInitContext
     : public IRuntimeInitContext
 {
@@ -23,7 +22,8 @@ public:
         NYTree::IMapNodePtr parametersNode,
         NYTree::TYsonStructPtr parametersObject = {},
         THashMap<TResourceId, IResourcePtr> resources = {},
-        std::string prefix = {});
+        std::string prefix = {},
+        NProfiling::TProfiler profiler = {});
 
     TFuture<IMutableStateKeyProviderPtr> CreateMutableStateKeyProvider(
         std::function<IStateHolderPtr()> ctor) const override;
@@ -41,17 +41,15 @@ public:
 
     IResourcePtr GetStaticResource(const TResourceId& resourceId) const override;
 
-    //! Null profiler: the computation profiler does not cross the process boundary.
+    //! Profiler for the hosted computation.
     NProfiling::TProfiler GetProfiler() const override;
 
-    //! Throws: a companion process runs no HTTP client of its own, and there is nothing in its
-    //! startup config to build one from. A function needing HTTP stays in process.
+    //! Throws because companion processes have no HTTP client.
     NHttp::IClientPtr GetHttpClient() const override;
 
     NHttp::IClientPtr GetHttpsClient() const override;
 
-    //! Throws: the hosting partition is not identified on the wire, and a null id would
-    //! silently collapse every partition into one value.
+    //! Throws because the wire protocol does not identify a partition.
     TPartitionId GetPartitionId() const override;
 
 protected:
@@ -61,14 +59,12 @@ protected:
 private:
     const TCompanionStateStorePtr StateStore_;
     const NYTree::IMapNodePtr ParametersNode_;
-    //! The parameters node parsed into the registered static-parameters type (see
-    //! TRegistry::ParseProcessFunctionParameters). A job always holds one, default-filled when the
-    //! spec carries no block; null only when a test constructs the context directly.
+    //! Parsed static parameters; null only in direct tests.
     const NYTree::TYsonStructPtr ParametersObject_;
-    //! Companion-hosted resources acquired for the job, keyed by their
-    //! required-resource alias; immutable for the context's lifetime.
+    //! Companion resources keyed by required-resource alias.
     const THashMap<TResourceId, IResourcePtr> Resources_;
     const std::string Prefix_;
+    const NProfiling::TProfiler Profiler_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompanionRuntimeInitContext);

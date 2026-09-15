@@ -277,7 +277,7 @@ TEST_F(TProcessManagerBaseTest, ThrowsWhenCompanionPortIsNotConfigured)
             return TError();
         });
 
-    EXPECT_THROW_WITH_SUBSTRING(manager->Start(), "port_count = 3");
+    EXPECT_THROW_WITH_SUBSTRING(manager->Start(), "at least three ports");
     EXPECT_EQ(0, manager->GetIncarnationCount());
 
     manager->Shutdown();

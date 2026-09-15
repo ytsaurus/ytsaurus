@@ -7,10 +7,15 @@ namespace NYT::NFlow::NCompanionServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 using NCompanion::ECompanionComputationType;
+using NCompanion::ECompanionResourceCommand;
+using NCompanion::ECompanionResourceExecuteStatus;
 using NCompanion::ECompanionResponseStatus;
 
 class TPipeline;
 
+DECLARE_REFCOUNTED_CLASS(TCompanionMonitoring);
+DECLARE_REFCOUNTED_CLASS(TCompanionProfiler);
+DECLARE_REFCOUNTED_CLASS(TComputationCounters);
 DECLARE_REFCOUNTED_CLASS(TCompanionServer);
 DECLARE_REFCOUNTED_CLASS(TJob);
 DECLARE_REFCOUNTED_CLASS(TJobRegistry);

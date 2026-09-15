@@ -51,6 +51,32 @@ def build_companion_manager(backend="monitoring"):
     ).owner
 
 
+# Java and C++ companions use different Solomon metric spellings.
+
+
+def companion_counter(name):
+    """Return Java and C++ counter spellings in one selector."""
+    return f"{name}|{name}.rate"
+
+
+# Java timers use milliseconds; convert only their dashboard series to seconds.
+JAVA_MILLIS_TO_SECONDS = "({query}) / 1000"
+
+
+def companion_max(name, configure, java_transformation=None):
+    """Return Java-tagged and C++-suffixed maximum series.
+
+    |java_transformation| applies only to the Java series.
+    """
+    java_expr = MonitoringExpr(FlowWorker(name)).value("metric_type", "max")
+    if java_transformation is not None:
+        java_expr = java_expr.query_transformation(java_transformation)
+    return MultiSensor(
+        configure(java_expr),
+        configure(MonitoringExpr(FlowWorker(f"{name}.max"))),
+    )
+
+
 def build_companion_requests():
     return (
         Rowset()
@@ -59,41 +85,88 @@ def build_companion_requests():
         .row()
         .cell(
             "Process batch request rate",
-            MonitoringExpr(FlowWorker("yt.flow.companion.request.count"))
+            MonitoringExpr(FlowWorker(companion_counter("yt.flow.companion.request.count")))
             .value("request_type", "process_batch")
             .all("computation_id")
             .alias("{{computation_id}} - {{host}}")
             .unit("UNIT_COUNTS_PER_SECOND"),
-            description="Number of ProcessBatch requests handled by the Java companion per second.",
+            description="Number of ProcessBatch requests handled by the companion per second.",
         )
         .cell(
             "Process batch request size, max",
-            MonitoringExpr(FlowWorker("yt.flow.companion.request.size"))
-            .value("request_type", "process_batch")
-            .value("metric_type", "max")
-            .all("computation_id")
-            .alias("{{computation_id}} - {{host}}")
-            .unit("UNIT_BYTES_SI"),
+            companion_max(
+                "yt.flow.companion.request.size",
+                lambda expr: expr
+                .value("request_type", "process_batch")
+                .all("computation_id")
+                .alias("{{computation_id}} - {{host}}"),
+            ).unit("UNIT_BYTES_SI"),
             description="Largest serialized ProcessBatch request received during the aggregation interval.",
         )
         .cell(
             "Process batch duration, max",
-            MonitoringExpr(FlowWorker("yt.flow.companion.request.duration"))
-            .value("request_type", "process_batch")
-            .value("metric_type", "max")
-            .all("computation_id")
-            .alias("{{computation_id}} - {{host}}")
-            .unit("UNIT_SECONDS"),
-            description="Longest Java companion ProcessBatch processing time during the aggregation interval.",
+            companion_max(
+                "yt.flow.companion.request.duration",
+                lambda expr: expr
+                .value("request_type", "process_batch")
+                .all("computation_id")
+                .alias("{{computation_id}} - {{host}}"),
+                java_transformation=JAVA_MILLIS_TO_SECONDS,
+            ).unit("UNIT_SECONDS"),
+            description="Longest companion ProcessBatch processing time during the aggregation interval.",
         )
         .cell(
             "Job recreation attempt rate",
-            MonitoringExpr(FlowWorker("yt.flow.companion.job.recreation.count"))
+            MonitoringExpr(FlowWorker(companion_counter("yt.flow.companion.job.recreation.count")))
             .value("request_type", "process_batch")
             .all("computation_id")
             .alias("{{computation_id}} - {{host}}")
             .unit("UNIT_COUNTS_PER_SECOND"),
             description="Rate of attempts to recreate jobs from JobInfo after the companion forgot their definitions.",
+        )
+    ).owner
+
+
+def build_companion_internals():
+    """Build panels for C++-only companion metrics."""
+    return (
+        Rowset()
+        .stack(False)
+        .all("host")
+        .row()
+        .cell(
+            "Registered jobs",
+            MonitoringExpr(FlowWorker("yt.flow.companion.job.count")).unit("UNIT_COUNT"),
+            description="Jobs whose definitions the companion currently holds. Tracks the worker's own job count; a gap that does not close means jobs the worker no longer runs are still registered here. C++ companions only.",
+        )
+        .cell(
+            "Process batch CPU time",
+            MonitoringExpr(FlowWorker("yt.flow.companion.request.cpu_time.rate"))
+            .value("request_type", "process_batch")
+            .all("computation_id")
+            .alias("{{computation_id}} - {{host}}")
+            .unit("UNIT_NONE"),
+            description="CPU seconds per second spent inside ProcessBatch, per computation: the share of one core each computation burns in the companion. C++ companions only.",
+        )
+        .cell(
+            "Job not found rate",
+            MonitoringExpr(FlowWorker("yt.flow.companion.request.response.count.rate"))
+            .value("request_type", "process_batch")
+            .value("status", "RS_JOB_NOT_FOUND")
+            .all("computation_id")
+            .alias("{{computation_id}} - {{host}}")
+            .unit("UNIT_COUNTS_PER_SECOND"),
+            description="Rate of batches answered with RS_JOB_NOT_FOUND, which asks the worker to resend the job definition. A burst right after a companion restart is expected; a sustained rate means the companion keeps losing jobs, for instance in a crash loop. C++ companions only.",
+        )
+        .cell(
+            "Resource not initialized rate",
+            MonitoringExpr(FlowWorker("yt.flow.companion.request.response.count.rate"))
+            .value("request_type", "process_batch")
+            .value("status", "RS_RESOURCE_NOT_INITIALIZED")
+            .all("computation_id")
+            .alias("{{computation_id}} - {{host}}")
+            .unit("UNIT_COUNTS_PER_SECOND"),
+            description="Rate of batches rejected because a companion resource the computation requires is not initialized in this process. Heals once the worker re-runs the resource's init; a sustained rate means that init keeps failing. C++ companions only.",
         )
     ).owner
 
@@ -106,55 +179,59 @@ def build_companion_state_sizes():
         .row()
         .cell(
             "Internal state request size, max",
-            MonitoringExpr(FlowWorker("yt.flow.companion.state.size"))
-            .value("request_type", "process_batch")
-            .value("direction", "request")
-            .value("state_type", "internal")
-            .value("metric_type", "max")
-            .all("computation_id")
-            .all("state_name")
-            .alias("{{computation_id}} / {{state_name}} - {{host}}")
-            .unit("UNIT_BYTES_SI"),
-            description="Largest serialized internal state sent to the Java companion per request.",
+            companion_max(
+                "yt.flow.companion.state.size",
+                lambda expr: expr
+                .value("request_type", "process_batch")
+                .value("direction", "request")
+                .value("state_type", "internal")
+                .all("computation_id")
+                .all("state_name")
+                .alias("{{computation_id}} / {{state_name}} - {{host}}"),
+            ).unit("UNIT_BYTES_SI"),
+            description="Largest serialized internal state sent to the companion per request.",
         )
         .cell(
             "External state request size, max",
-            MonitoringExpr(FlowWorker("yt.flow.companion.state.size"))
-            .value("request_type", "process_batch")
-            .value("direction", "request")
-            .value("state_type", "external")
-            .value("metric_type", "max")
-            .all("computation_id")
-            .all("state_name")
-            .alias("{{computation_id}} / {{state_name}} - {{host}}")
-            .unit("UNIT_BYTES_SI"),
-            description="Largest serialized external state sent to the Java companion per request.",
+            companion_max(
+                "yt.flow.companion.state.size",
+                lambda expr: expr
+                .value("request_type", "process_batch")
+                .value("direction", "request")
+                .value("state_type", "external")
+                .all("computation_id")
+                .all("state_name")
+                .alias("{{computation_id}} / {{state_name}} - {{host}}"),
+            ).unit("UNIT_BYTES_SI"),
+            description="Largest serialized external state sent to the companion per request.",
         )
         .cell(
             "Joined state request size, max",
-            MonitoringExpr(FlowWorker("yt.flow.companion.state.size"))
-            .value("request_type", "process_batch")
-            .value("direction", "request")
-            .value("state_type", "joined_external")
-            .value("metric_type", "max")
-            .all("computation_id")
-            .all("state_name")
-            .alias("{{computation_id}} / {{state_name}} - {{host}}")
-            .unit("UNIT_BYTES_SI"),
-            description="Largest serialized joined external state sent to the Java companion per request.",
+            companion_max(
+                "yt.flow.companion.state.size",
+                lambda expr: expr
+                .value("request_type", "process_batch")
+                .value("direction", "request")
+                .value("state_type", "joined_external")
+                .all("computation_id")
+                .all("state_name")
+                .alias("{{computation_id}} / {{state_name}} - {{host}}"),
+            ).unit("UNIT_BYTES_SI"),
+            description="Largest serialized joined external state sent to the companion per request.",
         )
         .cell(
             "Modified state response size, max",
-            MonitoringExpr(FlowWorker("yt.flow.companion.state.size"))
-            .value("request_type", "process_batch")
-            .value("direction", "response")
-            .value("metric_type", "max")
-            .all("computation_id")
-            .all("state_type")
-            .all("state_name")
-            .alias("{{computation_id}} / {{state_type}} / {{state_name}} - {{host}}")
-            .unit("UNIT_BYTES_SI"),
-            description="Largest serialized modified state returned by the Java companion per request.",
+            companion_max(
+                "yt.flow.companion.state.size",
+                lambda expr: expr
+                .value("request_type", "process_batch")
+                .value("direction", "response")
+                .all("computation_id")
+                .all("state_type")
+                .all("state_name")
+                .alias("{{computation_id}} / {{state_type}} / {{state_name}} - {{host}}"),
+            ).unit("UNIT_BYTES_SI"),
+            description="Largest serialized modified state returned by the companion per request.",
         )
     ).owner
 
@@ -213,6 +290,7 @@ def build_companion_jvm_gc():
             "GC pause time, max",
             MonitoringExpr(FlowWorker("jvm.gc.pause"))
             .value("metric_type", "max")
+            .query_transformation(JAVA_MILLIS_TO_SECONDS)
             .alias("{{cause}} - {{host}}")
             .unit("UNIT_SECONDS"),
             description="Max GC pause duration. GC pauses block all application threads.",
@@ -313,6 +391,7 @@ def build_flow_companion_manager(backend="monitoring"):
     def fill(d):
         d.add(build_companion_manager(backend))
         d.add(build_companion_requests())
+        d.add(build_companion_internals())
         d.add(build_companion_state_sizes())
         d.add(build_companion_jvm_memory())
         d.add(build_companion_jvm_gc())

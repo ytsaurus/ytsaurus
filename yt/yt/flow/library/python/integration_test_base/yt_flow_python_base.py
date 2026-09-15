@@ -23,7 +23,7 @@ _COMPANION_MANAGER_CLASS = "NYT::NFlow::NCompanion::TCompanionManager"
 class FlowTestPythonBase(FlowTestBase):
     FLOW_BINARY_PATH = yatest.common.binary_path("yt/yt/flow/bin/flow_server/flow_server")
     PYTHON_COMPANION_BINARY: str  # Path to PY3_PROGRAM binary.
-    # rpc + monitoring + companion: the worker spawns the python companion on a third YT port.
+    # Node RPC/monitoring and companion RPC; Python exposes no monitoring endpoint.
     VANILLA_WORKER_PORT_COUNT = 3
 
     @contextmanager

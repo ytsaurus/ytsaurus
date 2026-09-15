@@ -24,8 +24,8 @@ _COMPANION_MANAGER_CLASS = "NYT::NFlow::NCompanion::TCompanionManager"
 class FlowTestCppCompanionBase(FlowTestBase):
     FLOW_BINARY_PATH = yatest.common.binary_path("yt/yt/flow/bin/flow_server/flow_server")
     CPP_COMPANION_BINARY: str  # Path to the companion PROGRAM binary.
-    # rpc + monitoring + companion: the worker spawns the companion on a third YT port.
-    VANILLA_WORKER_PORT_COUNT = 3
+    # Node RPC/monitoring and companion RPC/monitoring.
+    VANILLA_WORKER_PORT_COUNT = 4
 
     @contextmanager
     def start_flow_process_federation(

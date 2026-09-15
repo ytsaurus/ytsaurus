@@ -8,6 +8,7 @@ TEST_SRCS(
 )
 
 PEERDIR(
+    contrib/python/requests
     yt/yt/flow/library/python/queue
 )
 

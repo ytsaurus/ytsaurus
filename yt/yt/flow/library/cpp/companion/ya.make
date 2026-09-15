@@ -28,6 +28,7 @@ PEERDIR(
     yt/yt/flow/library/cpp/companion/proto
 
     yt/yt/library/process
+    yt/yt/library/profiling/solomon
 
     yt/yt/core/rpc/grpc
 
