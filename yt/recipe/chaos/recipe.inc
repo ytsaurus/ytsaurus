@@ -23,6 +23,13 @@ DEFAULT(YT_CLUSTER_CONFIG_PATCHES {primary={}})
 DEFAULT(YT_DB_MODE "replicated")
 DEFAULT(YT_TABLET_CELL_BUNDLE_NAME "")
 
+DEFAULT(YT_REMOVE_RUNTIME_DATA no)
+
+SET(YT_RECIPE_STOP_ARGS)
+IF (YT_REMOVE_RUNTIME_DATA == yes)
+    SET_APPEND(YT_RECIPE_STOP_ARGS --remove-runtime-data)
+ENDIF()
+
 USE_RECIPE(
     yt/recipe/chaos/yt_recipe
     --cluster-names ${YT_CLUSTER_NAMES}
@@ -33,4 +40,5 @@ USE_RECIPE(
     --package-dir ${YT_PACKAGE_DIR}
     --db-mode ${YT_DB_MODE}
     --tablet-cell-bundle-name '${YT_TABLET_CELL_BUNDLE_NAME}'
+    ${YT_RECIPE_STOP_ARGS}
 )
