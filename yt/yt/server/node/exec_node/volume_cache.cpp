@@ -177,7 +177,7 @@ TFuture<TSquashFSVolumePtr> TSquashFSVolumeCache::DownloadAndPrepareVolume(
             // SquashFS volumes do not require a separate Porto import step,
             // so import duration is zero.
             if (downloadOptions.OnLayerDownloaded) {
-                downloadOptions.OnLayerDownloaded(downloadCpuDuration, /*importCpuDuration*/ 0);
+                downloadOptions.OnLayerDownloaded(downloadCpuDuration, /*importCpuDuration*/ 0, /*importSize*/ 0);
             }
 
             auto tagSet = TVolumeProfilerCounters::MakeTagSet(
@@ -1355,7 +1355,7 @@ TFuture<TLayerPtr> TLayerCache::DownloadAndImportLayer(
             auto importCpuDuration = GetCpuInstant() - importCpuStart;
 
             if (downloadOptions.OnLayerDownloaded) {
-                downloadOptions.OnLayerDownloaded(downloadCpuDuration, importCpuDuration);
+                downloadOptions.OnLayerDownloaded(downloadCpuDuration, importCpuDuration, artifactKey.GetCompressedDataSize());
             }
 
             return New<TLayer>(layerMeta, artifactKey, location);

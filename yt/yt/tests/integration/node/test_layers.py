@@ -3942,12 +3942,14 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
 
         # First job must have downloaded and imported the layer.
         assert stats1["exec_agent"]["artifacts"]["layers_downloaded_size"]["sum"] > 0
+        assert stats1["exec_agent"]["artifacts"]["layers_imported_size"]["sum"] > 0
 
         # Second job in same allocation must not have downloaded or imported any layers.
         assert stats2["exec_agent"]["artifacts"]["layers_cached_size"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_downloaded_size"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_downloaded_total_duration"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_import_total_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_imported_size"]["sum"] == 0
 
     @authors("pogorelov")
     def test_layer_evicted_when_allocation_not_reused(self):
