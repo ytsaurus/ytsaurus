@@ -11,6 +11,7 @@ PEERDIR(
     library/python/testing/recipe
     library/python/testing/yatest_common
     yt/python/client
+    yt/python/yt/environment/arcadia_interop
     yt/python/yt/wrapper
 )
 
