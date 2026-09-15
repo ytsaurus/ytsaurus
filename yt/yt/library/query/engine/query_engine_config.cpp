@@ -44,7 +44,8 @@ void TQueryEngineDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("max_projection_count", &TThis::MaxProjectionCount)
         .GreaterThan(0)
-        .Default(DefaultMaxProjectionCount);
+        .Default(DefaultMaxProjectionCount)
+        .DontSerializeDefault();
 
     registrar.Parameter("codegen_optimization_level", &TThis::OptimizationLevel)
         .Optional();
