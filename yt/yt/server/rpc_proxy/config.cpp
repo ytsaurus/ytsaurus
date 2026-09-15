@@ -120,9 +120,6 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
 
-    registrar.Parameter("enable_shuffle_service", &TThis::EnableShuffleService)
-        .Default(false);
-
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
 
