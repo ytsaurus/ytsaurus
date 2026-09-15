@@ -664,6 +664,39 @@ TEST_F(TGpuAllocationAssignmentPlanUpdateTest, ReinitializeWithChangedNeededReso
     EXPECT_EQ(*operation->InitialGroupedNeededResources(), changedGroupedNeededResources);
 }
 
+TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestOperationKind)
+{
+    auto uninitializedOperation = New<TOperation>(
+        TOperationId(TGuid::Create()),
+        EOperationType::Vanilla,
+        /*gang*/ false,
+        /*specifiedSchedulingModules*/ std::nullopt,
+        TSchedulingTagFilter());
+    EXPECT_FALSE(uninitializedOperation->GetKind());
+
+    EXPECT_EQ(
+        CreateFullHostTestOperation(/*allocationCount*/ 2, EOperationType::Vanilla, /*gang*/ true)->GetKind(),
+        EGpuOperationKind::FullHostModuleBound);
+    EXPECT_EQ(
+        CreateFullHostTestOperation(/*allocationCount*/ 2, EOperationType::Vanilla, /*gang*/ false)->GetKind(),
+        EGpuOperationKind::FullHostNonGang);
+    EXPECT_EQ(
+        CreateFullHostTestOperation(/*allocationCount*/ 2, EOperationType::Map)->GetKind(),
+        EGpuOperationKind::FullHostNonGang);
+    EXPECT_EQ(
+        CreateSimpleTestOperation(/*gpuCount*/ 1)->GetKind(),
+        EGpuOperationKind::Regular);
+    EXPECT_EQ(
+        CreateSingleGroupTestOperation(
+            UnitResources * 4,
+            /*allocationCount*/ 2,
+            EOperationType::Vanilla,
+            /*specifiedSchedulingModules*/ {},
+            /*schedulingTagFilter*/ {},
+            /*gang*/ true)->GetKind(),
+        EGpuOperationKind::Regular);
+}
+
 TEST_F(TGpuAllocationAssignmentPlanUpdateTest, TestSimpleFullHost)
 {
     auto nodes = CreateSingleModuleTestNodes();

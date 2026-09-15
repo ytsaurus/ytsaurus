@@ -171,6 +171,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             assigned_gpu_usage=1,
             assignment_count=1,
             enabled=True,
+            kind="regular",
         )
 
         job_id = list(op.get_running_jobs())[0]
@@ -229,6 +230,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             assigned_gpu_usage=8,
             assignment_count=1,
             enabled=True,
+            kind="full_host_non_gang",
         )
 
         job_id = list(op.get_running_jobs())[0]
@@ -509,6 +511,7 @@ class TestAllocationGpuSchedulingPolicy(AllocatingGpuSchedulingPolicyBaseConfig)
             assigned_gpu_usage=16,
             assignment_count=2,
             enabled=True,
+            kind="full_host_module_bound",
         )
 
         allocation_ids = [get_allocation_id_from_job_id(job_id) for job_id in list(op.get_running_jobs())]

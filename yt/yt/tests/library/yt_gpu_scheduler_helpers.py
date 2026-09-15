@@ -70,7 +70,18 @@ def wait_for_assignments_in_gpu_policy_orchid(operation, assignment_count, tree=
         wait(lambda: len(get(gpu_scheduler_orchid_operation_path(operation.id, tree=tree) + "/assignments")) >= assignment_count)
 
 
-def check_operation_from_gpu_policy_orchid(operation, is_gang, group_name, allocation_count, min_needed_gpu_per_allocation, assigned_gpu_usage, assignment_count, enabled=None, scheduling_module=None):
+def check_operation_from_gpu_policy_orchid(
+    operation,
+    is_gang,
+    group_name,
+    allocation_count,
+    min_needed_gpu_per_allocation,
+    assigned_gpu_usage,
+    assignment_count,
+    enabled=None,
+    scheduling_module=None,
+    kind=None
+):
     assert operation["gang"] == is_gang
     assert group_name in operation["initial_grouped_needed_resources"]
     assert operation["initial_grouped_needed_resources"][group_name]["allocation_count"] == allocation_count
@@ -81,6 +92,8 @@ def check_operation_from_gpu_policy_orchid(operation, is_gang, group_name, alloc
         assert operation["enabled"] == enabled
     if scheduling_module is not None:
         assert operation["scheduling_module"] == scheduling_module
+    if kind is not None:
+        assert operation["kind"] == kind
 
 
 def get_operation_gpu_allocations_from_gpu_policy_orchid(operation, tree="gpu"):

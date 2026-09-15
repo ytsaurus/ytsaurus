@@ -166,6 +166,20 @@ bool TOperation::IsFullHostNonGang() const
     return IsFullHost() && !IsGang();
 }
 
+std::optional<EGpuOperationKind> TOperation::GetKind() const
+{
+    if (!IsInitialized()) {
+        return {};
+    }
+    if (IsFullHostModuleBound()) {
+        return EGpuOperationKind::FullHostModuleBound;
+    }
+    if (IsFullHostNonGang()) {
+        return EGpuOperationKind::FullHostNonGang;
+    }
+    return EGpuOperationKind::Regular;
+}
+
 int TOperation::GetInitialNeededAllocationCount() const
 {
     return DoGetNeededAllocationCount(*InitialGroupedNeededResources_);
@@ -374,6 +388,7 @@ void Serialize(const TOperation& operation, NYson::IYsonConsumer* consumer)
             .Item("type").Value(operation.GetType())
             .Item("enabled").Value(operation.IsEnabled())
             .Item("gang").Value(operation.IsGang())
+            .OptionalItem("kind", operation.GetKind())
             .Item("initial_grouped_needed_resources").Value(operation.InitialGroupedNeededResources())
             .Item("assigned_resource_usage").Value(operation.AssignedResourceUsage())
             .Item("specified_scheduling_modules").Value(operation.SpecifiedSchedulingModules())

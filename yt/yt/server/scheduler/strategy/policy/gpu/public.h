@@ -23,6 +23,13 @@ DEFINE_ENUM(EGpuAssignmentPlanningStage,
     (LimitsCheck)
 );
 
+//! Classifies an operation by the assignment plan update stage that plans it.
+DEFINE_ENUM(EGpuOperationKind,
+    (FullHostModuleBound)
+    (FullHostNonGang)
+    (Regular)
+);
+
 DEFINE_ENUM(EGpuSchedulingLogEventType,
     (OperationRegistered)
     (OperationUnregistered)

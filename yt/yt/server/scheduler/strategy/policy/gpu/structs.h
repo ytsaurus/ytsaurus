@@ -176,6 +176,8 @@ public:
     bool IsFullHostModuleBound() const;
     bool IsFullHostNonGang() const;
 
+    std::optional<EGpuOperationKind> GetKind() const;
+
     int GetInitialNeededAllocationCount() const;
     int GetReadyToAssignNeededAllocationCount() const;
     int GetExtraNeededAllocationCount() const;
