@@ -50,6 +50,11 @@ on:
         description: 'JSON array of build types: ["release"], ["relwithdebinfo"], or ["release","relwithdebinfo"]'
         required: true
         type: string
+      link-threads:
+        description: 'Concurrent ya-make link tasks; 0 keeps the ya default.'
+        required: false
+        type: number
+        default: 0
       version-patch:
         description: 'Passed to ya make as -DYT_VERSION_PATCH. If empty, not set.'
         required: false
@@ -273,6 +278,10 @@ jobs:
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
             BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
+          fi
+
+          if [ "${{ inputs.link-threads }}" != "0" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} --link-threads=${{ inputs.link-threads }}"
           fi
 
           STRIP_VALUE=no

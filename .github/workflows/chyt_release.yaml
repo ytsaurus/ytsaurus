@@ -100,6 +100,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
+      link-threads: 1
       build-python: true
       build-chyt: true
       build-types: '["relwithdebinfo"]'
