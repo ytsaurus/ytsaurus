@@ -1087,6 +1087,35 @@ class TestInputFetching(ClickHouseTestBase):
             clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is not null', exact=4)
 
     @authors("buyval01")
+    def test_min_max_filtering_optional_tagged_string(self):
+        create("table", "//tmp/t", attributes={"schema": [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type_v3": optional_type({
+                "type_name": "tagged",
+                "tag": "AggregateFunction(uniq, Nullable(String))",
+                "item": "string",
+            })},
+        ]})
+        write_table("//tmp/t", [{"key": 1, "value": "foo"}])
+        write_table("<append=%true>//tmp/t", [{"key": 2, "value": None}])
+        write_table("<append=%true>//tmp/t", [{"key": 3, "value": "bar"}])
+        foo = yson.dumps("foo", yson_format="binary").hex().upper()
+        bar = yson.dumps("bar", yson_format="binary").hex().upper()
+
+        with Clique(1) as clique:
+            assert clique.make_query(
+                'select key, hex(value) as value, toTypeName(value) as type from "//tmp/t" order by key'
+            ) == [
+                {"key": 1, "value": foo, "type": "Nullable(String)"},
+                {"key": 2, "value": None, "type": "Nullable(String)"},
+                {"key": 3, "value": bar, "type": "Nullable(String)"},
+            ]
+            assert clique.make_query_and_validate_read_row_count(
+                f"select key from `//tmp/t` where value = unhex('{foo}') "
+                'settings optimize_move_to_prewhere = 0', min=2, max=3
+            ) == [{"key": 1}]
+
+    @authors("buyval01")
     def test_predicate_pushdown_through_subquery(self):
         table_path = "//tmp/t"
         create("table", table_path, attributes={"schema": [{"name": "a", "type": "int64"}]})
