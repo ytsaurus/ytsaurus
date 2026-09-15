@@ -919,7 +919,7 @@ private:
     {
         for (auto nodeId : nodeIdsToValidateNotMissing) {
             const auto& rspOrError = GetOrCrash(nodeIdToRspOrError, nodeId);
-            if (rspOrError.IsOK()) {
+            if (!rspOrError.IsOK()) {
                 if (auto error = WrapRetriableResolveError(rspOrError, nodeId); !error.IsOK()) {
                     // A race on the target node should be retried.
                     THROW_ERROR error;
