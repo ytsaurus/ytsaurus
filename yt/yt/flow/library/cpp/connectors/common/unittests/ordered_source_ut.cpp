@@ -111,6 +111,11 @@ public:
         Error_ = std::move(error);
     }
 
+    void SetProgressRecord(i64 offsetExclusive)
+    {
+        ProgressOffsetExclusive_ = offsetExclusive;
+    }
+
     void SetExtraError(TError error)
     {
         ExtraErrorState_->SetError(std::move(error));
@@ -137,8 +142,11 @@ private:
         TOffset nextOffsetAsKey,
         std::optional<TOffset> offsetLimitOptionalAsKey) final
     {
-        i64 nextOffset = OffsetToInt(nextOffsetAsKey);
-        std::optional<i64> offsetLimitOptional = offsetLimitOptionalAsKey ? std::optional(OffsetToInt(*offsetLimitOptionalAsKey)) : std::nullopt;
+        auto nextPosition = OffsetToInt(nextOffsetAsKey);
+        std::optional<i64> offsetLimitPosition;
+        if (offsetLimitOptionalAsKey) {
+            offsetLimitPosition = OffsetToInt(*offsetLimitOptionalAsKey);
+        }
 
         ReadErrorState_->SetError(Error_);
 
@@ -147,35 +155,48 @@ private:
             return MakeFuture(records);
         }
 
-        const i64 offsetLimit = std::min({
-            offsetLimitOptional.value_or(std::numeric_limits<i64>::max()),
-            nextOffset + settings->MaxRowsPerBatch,
-            MaxOffsetExclusive_,
-        });
-
         TPayloadBuilder builder(Schema_);
-        while (nextOffset < offsetLimit) {
-            builder.SetValue(MakeUnversionedUint64Value(nextOffset), "data");
+        while (std::ssize(records) < settings->MaxRowsPerBatch &&
+            nextPosition < MaxOffsetExclusive_ &&
+            (!offsetLimitPosition || nextPosition < *offsetLimitPosition))
+        {
+            builder.SetValue(MakeUnversionedUint64Value(nextPosition), "data");
 
-            auto writeTimestamp = nextOffset < std::ssize(WriteTimestamps_) ? TSystemTimestamp(WriteTimestamps_[nextOffset]) : TSystemTimestamp(nextOffset + 1);
+            auto writeTimestamp = nextPosition < std::ssize(WriteTimestamps_)
+                ? TSystemTimestamp(WriteTimestamps_[nextPosition])
+                : TSystemTimestamp(nextPosition + 1);
 
             TRecord record = {
-                .Offset = IntToOffset(nextOffset),
+                .Offset = IntToOffset(nextPosition),
                 .WriteTimestamp = writeTimestamp,
-                .CreateTimestamp = TSystemTimestamp(nextOffset + 1),
+                .CreateTimestamp = TSystemTimestamp(nextPosition + 1),
                 .Payloads = {builder.Finish()},
                 .PayloadSchema = builder.GetSchema(),
             };
 
             records.push_back(record);
-            nextOffset += 1;
+            ++nextPosition;
+        }
+        if (ProgressOffsetExclusive_ && nextPosition >= MaxOffsetExclusive_) {
+            auto continuationOffsetExclusive = *ProgressOffsetExclusive_;
+            if (offsetLimitPosition) {
+                continuationOffsetExclusive = std::min(continuationOffsetExclusive, *offsetLimitPosition);
+            }
+            if (continuationOffsetExclusive > nextPosition) {
+                records.push_back(TRecord{
+                    .Offset = IntToOffset(continuationOffsetExclusive - 1),
+                    .WriteTimestamp = TSystemTimestamp(continuationOffsetExclusive),
+                    .CreateTimestamp = TSystemTimestamp(continuationOffsetExclusive),
+                    .PayloadSchema = Schema_,
+                });
+            }
         }
         return BIND(
-            [records] () {
+            [records = std::move(records)] () mutable {
                 for (int i = 0; i < 10; ++i) { // Imitate delay without wasting time.
                     NConcurrency::Yield();
                 }
-                return records;
+                return std::move(records);
             })
             .AsyncVia(GetContext()->SerializedInvoker)
             .Run();
@@ -200,6 +221,7 @@ private:
     i64 MaxOffsetExclusive_ = 0;
     TError Error_;
     std::vector<ui64> WriteTimestamps_;
+    std::optional<i64> ProgressOffsetExclusive_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTestSource);
@@ -434,6 +456,93 @@ TEST_F(TOrderedSourceTest, Simple)
         ASSERT_EQ(OffsetToInt(persistedState->PersistedOffsetExclusive), 3LL);
         ASSERT_EQ(OffsetToInt(persistedState->PublishedOffsetExclusive), 3LL);
     }
+}
+
+TEST_F(TOrderedSourceTest, PayloadlessRecordAdvancesWithoutMessages)
+{
+    const auto initialMessageId = RunInInvoker([&] {
+        return Source->GetMaxPersistedMessageIdExclusive();
+    });
+
+    const auto [state, alignmentTimestamp] = RunInInvoker([&] {
+        Source->SetProgressRecord(5);
+        auto batches = WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow();
+        EXPECT_TRUE(batches.empty());
+        auto alignmentTimestamp = Source->GetReadAlignmentTimestamp();
+        Source->Sync();
+        StateManager->Sync();
+        return std::pair(
+            ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0")),
+            alignmentTimestamp);
+    });
+
+    EXPECT_EQ(OffsetToInt(state->PersistedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(state->PublishedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(state->MaxOffsetExclusive), 5);
+    EXPECT_TRUE(state->OffsetMemory->empty());
+    EXPECT_TRUE(state->AlignmentTimestampMemory->empty());
+    EXPECT_EQ(state->LastPersistedWriteTimestamp, TSystemTimestamp(5));
+    EXPECT_EQ(alignmentTimestamp, TSystemTimestamp(5));
+    EXPECT_GT(state->PersistedMessageIdExclusive, initialMessageId);
+}
+
+TEST_F(TOrderedSourceTest, PayloadlessRecordWaitsForInflightRecord)
+{
+    const auto data = RunInInvoker([&] {
+        Source->SetMaxOffset(1);
+        return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    ASSERT_EQ(data.size(), 1u);
+
+    const auto blockedState = RunInInvoker([&] {
+        Source->SetProgressRecord(5);
+        auto batches = WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow();
+        EXPECT_TRUE(batches.empty());
+        Source->Sync();
+        StateManager->Sync();
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0"));
+    });
+    EXPECT_EQ(OffsetToInt(blockedState->PersistedOffsetExclusive), 0);
+    EXPECT_EQ(OffsetToInt(blockedState->PublishedOffsetExclusive), 0);
+    EXPECT_EQ(OffsetToInt(blockedState->MaxOffsetExclusive), 5);
+
+    const auto advancedState = RunInInvoker([&] {
+        Source->MarkPublished(data[0].Cookie);
+        Source->MarkPersisted(data[0].Cookie);
+        Source->Sync();
+        StateManager->Sync();
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0"));
+    });
+    EXPECT_EQ(OffsetToInt(advancedState->PersistedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(advancedState->PublishedOffsetExclusive), 5);
+    EXPECT_TRUE(advancedState->OffsetMemory->empty());
+    EXPECT_EQ(advancedState->LastPersistedWriteTimestamp, TSystemTimestamp(5));
+}
+
+TEST_F(TOrderedSourceTest, PayloadRecordsWithProgressTailAdvanceToContinuation)
+{
+    const auto data = RunInInvoker([&] {
+        Source->SetMaxOffset(2);
+        Source->SetProgressRecord(5);
+        return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+    });
+    ASSERT_EQ(data.size(), 2u);
+
+    const auto state = RunInInvoker([&] {
+        for (const auto& item : data) {
+            Source->MarkPublished(item.Cookie);
+            Source->MarkPersisted(item.Cookie);
+        }
+        Source->Sync();
+        StateManager->Sync();
+        return ConvertTo<TOrderedSourcePartitionStatePtr>(StateManager->Get("/source/v0"));
+    });
+
+    EXPECT_EQ(OffsetToInt(state->PersistedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(state->PublishedOffsetExclusive), 5);
+    EXPECT_EQ(OffsetToInt(state->MaxOffsetExclusive), 5);
+    EXPECT_TRUE(state->OffsetMemory->empty());
+    EXPECT_EQ(state->LastPersistedWriteTimestamp, TSystemTimestamp(5));
 }
 
 TEST_F(TOrderedSourceTest, SourceTotalCounters)

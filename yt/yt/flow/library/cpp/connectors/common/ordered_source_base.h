@@ -15,6 +15,7 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
+#include <functional>
 #include <list>
 #include <map>
 
@@ -75,6 +76,8 @@ struct TOrderedSourcePartitionState
     void EnsureInvariants() const;
 
     void SyncObsoleteOffsets();
+
+    void NormalizeOffsets(const std::function<TOffset(const TOffset&)>& normalizeOffset);
 
     REGISTER_YSON_STRUCT(TOrderedSourcePartitionState);
 
@@ -156,6 +159,7 @@ protected:
 
         std::vector<TPayload> Payloads;
         NTableClient::TTableSchemaPtr PayloadSchema;
+        std::optional<TOffset> OffsetMemoryKey;
     };
 
     struct TPartitionInfoUpdate
@@ -171,6 +175,7 @@ protected:
     // To implement.
 
     virtual TOffset GetNextOffset(const TOffset& offset) const = 0;
+    virtual TOffset NormalizeOffset(const TOffset& offset) const;
     virtual std::string ConvertOffsetToLexicographicallyComparableString(const TOffset& offset) const = 0;
     virtual bool AreOffsetsConsecutive() const = 0;
     virtual bool CanCommittedOffsetExceedNextReadOffset() const = 0;
@@ -266,7 +271,6 @@ private:
     std::vector<TPartitionInfoUpdate> DelayedPartitionInfoUpdates_;
 
 private:
-    bool AreOffsetsEquivalent(const TOffset& lhs, const TOffset& rhs) const;
     void TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclusive, bool confirmed);
     std::vector<TMessageBatch> PrepareMessages(std::vector<TRecord>&& records);
     void FlushDelayedPartitionInfoUpdates();
