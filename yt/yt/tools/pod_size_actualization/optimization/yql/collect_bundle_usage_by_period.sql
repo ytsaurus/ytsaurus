@@ -177,6 +177,9 @@ $same_size = ($h_vcpu, $h_mem, $h_net, $g_vcpu, $g_mem, $g_net) -> {
         AND (NOT $net_known($h_net) OR NOT $net_known($g_net) OR $h_net == $g_net);
 };
 
+-- Не все кластеры управляются через Nanny: например, у активных инстансов
+-- Keynes nanny_service_id пустой. Поэтому наличие Nanny-сервиса не используем
+-- как признак активности ни для нод, ни для проксей.
 $node_hosts = (
     SELECT h.day AS day, h.cluster AS cluster, h.bundle AS bundle, h.host AS host
     FROM (
@@ -184,7 +187,7 @@ $node_hosts = (
                tablet_node_vcpu AS vcpu, tablet_node_memory AS memory,
                tablet_node_net_bytes AS net
         FROM RANGE($nodes_spec, $start_s, $end_s)
-        WHERE nanny_service_id IS NOT NULL AND host IS NOT NULL
+        WHERE host IS NOT NULL
     ) AS h
     INNER JOIN $spec_by_day AS s
         ON h.day == s.day AND h.cluster == s.cluster AND h.bundle == s.bundle
@@ -204,8 +207,7 @@ $proxy_hosts = (
                host AS host, rpc_proxy_vcpu AS vcpu, rpc_proxy_memory AS memory,
                rpc_proxy_net_bytes AS net
         FROM RANGE($proxies_spec, $start_s, $end_s)
-        WHERE nanny_service_id IS NOT NULL
-          AND allocated AND bundle IS NOT NULL AND bundle != "" AND host IS NOT NULL
+        WHERE allocated AND bundle IS NOT NULL AND bundle != "" AND host IS NOT NULL
     ) AS h
     INNER JOIN $spec_by_day AS s
         ON h.day == s.day AND h.cluster == s.cluster AND h.bundle == s.bundle
