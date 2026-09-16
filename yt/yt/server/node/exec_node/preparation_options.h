@@ -39,60 +39,13 @@ struct TOverlayLayerPreparationOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkNbdVolumeSpec
-{
-    int MediumIndex = 0;
-
-    //! Params to connect to chosen data nodes.
-    TDuration DataNodeRpcTimeout;
-    std::optional<std::string> DataNodeAddress;
-
-    //! Params for NBD requests to data nodes.
-    TDuration DataNodeNbdServiceRpcTimeout;
-    TDuration DataNodeNbdServiceMakeTimeout;
-
-    //! Params to get suitable data nodes from master.
-    TDuration MasterRpcTimeout;
-    int MinDataNodeCount = 0;
-    int MaxDataNodeCount = 0;
-
-    //! Number of TCP connections to use for NBD RPC requests.
-    int MultiplexingParallelism = DefaultNbdMultiplexingParallelism;
-
-    bool operator==(const TChunkNbdVolumeSpec&) const = default;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TChunkNbdVolumeSpec& volumeSpec, TStringBuf spec);
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TRWNbdVolumeBackendSpec = std::variant<TChunkNbdVolumeSpec>;
-
-//! Sandbox NBD root volume as requested by the job spec.
-struct TSandboxNbdRootVolumeSpec
-{
-    //! Identifier of NBD disk within NBD server.
-    std::string DeviceId;
-
-    //! Volume params.
-    i64 DeviceSize = 0;
-    NNbd::EFilesystemType FilesystemType = NNbd::EFilesystemType::Ext4;
-
-    TRWNbdVolumeBackendSpec BackendSpec;
-
-    bool operator==(const TSandboxNbdRootVolumeSpec&) const = default;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeSpec& volumeSpec, TStringBuf spec);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO(ignat): refactor this class and its usages.
 // For example: it looks weird as an agrument in PrepareVolume in TVolumeManager,
 // and some of the options is irrelevant for TVolumeManager..
 struct TUserSandboxOptions
 {
     std::vector<TVolumeMountPtr> JobVolumeMounts;
+    TBaseVolumeParamsPtr RootVolumeParams;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
     bool DisableRbindRootVolume = false;
@@ -111,7 +64,6 @@ struct TVolumePreparationOptions
     TJobId JobId;
     TUserSandboxOptions UserSandboxOptions;
     TArtifactDownloadOptions ArtifactDownloadOptions;
-    std::optional<TSandboxNbdRootVolumeSpec> SandboxNbdRootVolumeSpec;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
