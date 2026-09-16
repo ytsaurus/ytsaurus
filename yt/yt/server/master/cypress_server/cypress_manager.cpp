@@ -35,6 +35,7 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/cypress_integration.h>
 #include <yt/yt/server/master/cell_server/cypress_integration.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
@@ -1161,6 +1162,7 @@ public:
         RegisterHandler(CreateTabletMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateTabletActionMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateAreaMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateMasterCellGroupMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateHunkStorageTypeHandler(Bootstrap_));
         RegisterHandler(CreateCellOrchidTypeHandler(Bootstrap_));
         RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(Bootstrap_));

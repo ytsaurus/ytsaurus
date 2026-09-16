@@ -7,6 +7,7 @@
 #include "epoch_history_manager.h"
 #include "hive_profiling_manager.h"
 #include "hydra_facade.h"
+#include "master_cell_group_manager.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
 #include "multicell_statistics_collector.h"
@@ -350,6 +351,11 @@ const IConfigManagerPtr& TBootstrap::GetConfigManager() const
 const TDynamicClusterConfigPtr& TBootstrap::GetDynamicConfig() const
 {
     return ConfigManager_->GetConfig();
+}
+
+const IMasterCellGroupManagerPtr& TBootstrap::GetMasterCellGroupManager() const
+{
+    return MasterCellGroupManager_;
 }
 
 const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
@@ -900,6 +906,8 @@ void TBootstrap::DoInitialize()
     // because its state depends on proper list of master cells.
     MulticellManager_ = CreateMulticellManager(this);
 
+    MasterCellGroupManager_ = CreateMasterCellGroupManager(this);
+
     WorldInitializer_ = CreateWorldInitializer(this);
 
     IncumbentManager_ = CreateIncumbentManager(this);
@@ -1030,6 +1038,7 @@ void TBootstrap::DoInitialize()
     // Recalculates roles for master cells.
     // If you need to know cell roles, initialize it below MulticellManager_.
     MulticellManager_->Initialize();
+    MasterCellGroupManager_->Initialize();
     IncumbentManager_->Initialize();
     SecurityManager_->Initialize();
     TransactionManager_->Initialize();

@@ -17,6 +17,7 @@ TEST_SRCS(
     test_master_cache.py
     test_master_cell_addition.py
     test_master_cell_chunk_statistics_collector.py
+    test_master_cell_groups.py
     test_master_cells_sync.py
     test_master_hydra.py
     test_master_snapshots.py
