@@ -32,7 +32,7 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr auto ConnectionTeardownTimeout = TDuration::Seconds(5);
+constexpr auto ConnectionAbortDelay = TDuration::Seconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -423,6 +423,11 @@ private:
                 flags |= ETransmissionFlags::NBD_FLAG_CAN_MULTI_CONN;
             }
 
+            if (auto error = Device_->GetError(); !error.IsOK()) {
+                THROW_ERROR_EXCEPTION("Device %Qv has already failed", name)
+                    << error;
+            }
+
             TServerExportNameMessage message{
                 .Size = HostToInet<ui64>(Device_->GetTotalSize()),
                 .Flags = HostToInet(flags),
@@ -432,11 +437,7 @@ private:
             DeviceErrorSubscriptionId_ = TGuid::Create();
             Device_->SubscribeForErrors(
                 DeviceErrorSubscriptionId_,
-                BIND([weakThis = MakeWeak(this)] {
-                    if (auto this_ = weakThis.Lock()) {
-                        this_->AbortConnection();
-                    }
-                }));
+                BIND(&TConnectionHandler::AbortConnection, MakeWeak(this)));
         }
 
         void WriteOptionErrorResponseOnNonemptyPayload(EClientOption option)
@@ -777,7 +778,7 @@ private:
         //
         // The abort is delayed so the queued error replies have time to reach the socket —
         // a reply's slot on ResponseInvoker_ may itself sit behind a WriteBuffer() blocked
-        // on a client that stopped reading. AbortIO is thread-safe, so it needs no
+        // on a client that stopped reading. Connection abort is thread-safe, so it needs no
         // sequencing through the invoker.
         void AbortConnection()
         {
@@ -787,14 +788,14 @@ private:
                 return;
             }
 
-            YT_LOG_INFO("Aborting connection due to device error");
+            YT_LOG_INFO(Device_->GetError(), "Aborting connection due to device error");
 
             TDelayedExecutor::Submit(
                 BIND([this, this_ = MakeStrong(this)] {
-                    YT_LOG_DEBUG("Connection teardown delay elapsed, aborting connection");
+                    YT_LOG_DEBUG("Connection abort delay elapsed, aborting connection");
                     YT_UNUSED_FUTURE(Connection_->Abort());
                 }),
-                ConnectionTeardownTimeout);
+                ConnectionAbortDelay);
         }
 
         void WriteServerResponse(EServerError error, ui64 cookie, TSharedRef payload = {})
