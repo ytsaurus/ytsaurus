@@ -295,6 +295,8 @@ message TQtRunnerConfig {
     optional uint32 QtTaskPollingIntervalMs = 11;
     optional uint32 QtTaskStatusUpdateIntervalMs = 12;
     optional uint32 QtTaskAbortTimeoutMs = 13;
+    optional uint32 YtClientPoolIdleTtlSeconds = 14 [default = 127];
+    optional uint32 YtClientPoolMaxIdleClients = 15 [default = 256];
 
 }
 
