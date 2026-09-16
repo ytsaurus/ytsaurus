@@ -16,7 +16,6 @@ from yt.yson import to_yson_type, YsonEntity
 from yt.common import YtError
 
 from yt_helpers import profiler_factory, account_usage_all_zero
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from flaky import flaky
 
