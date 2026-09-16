@@ -60,6 +60,7 @@ IYqlAgentPtr CreateYqlAgent(
     NHiveClient::TClusterDirectoryPtr clusterDirectory,
     NHiveClient::TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
+    ITokenManagerPtr tokenManager,
     TString agentId);
 
 ////////////////////////////////////////////////////////////////////////////////

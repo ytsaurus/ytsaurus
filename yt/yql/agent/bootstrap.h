@@ -61,6 +61,11 @@ private:
     NHttp::IServerPtr HttpServer_;
     NCoreDump::ICoreDumperPtr CoreDumper_;
 
+    NConcurrency::TActionQueuePtr TokenManagerQueue_;
+    NBus::IBusServerPtr TokenBusServer_;
+    NRpc::IServerPtr TokenRpcServer_;
+    ITokenManagerPtr TokenManager_;
+
     NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker_;
 
     NApi::NNative::IConnectionPtr NativeConnection_;

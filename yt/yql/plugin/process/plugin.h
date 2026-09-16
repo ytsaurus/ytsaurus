@@ -14,7 +14,9 @@ std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     TSingletonsConfigPtr singletonsConfig,
     TYqlPluginDynamicConfigPtr pluginInitialDynamicConfig,
     NApi::NNative::TConnectionCompoundConfigPtr clusterConnectionConfig,
-    const NProfiling::TProfiler& profiler);
+    const NProfiling::TProfiler& profiler,
+    bool useTokenResolver = false,
+    std::string tokenServiceSocketPath = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -9,9 +9,13 @@ namespace NYT::NYqlAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IYqlAgent;
+struct ITokenManager;
+struct TTokenServiceConfig;
 struct TYqlRef;
 
 DECLARE_REFCOUNTED_STRUCT(IYqlAgent)
+DECLARE_REFCOUNTED_STRUCT(ITokenManager)
+DECLARE_REFCOUNTED_STRUCT(TTokenServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TYqlAgentConfig)
 DECLARE_REFCOUNTED_STRUCT(TYqlAgentDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TYqlAgentServerConfig)
@@ -24,6 +28,7 @@ DECLARE_REFCOUNTED_CLASS(TUdfMetaManager)
 
 using TAgentId = TString;
 using TQueryId = TGuid;
+using TExecutionId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -34,6 +34,7 @@ struct TYqlNativePluginOptions
     NYson::TYsonString FileStorageConfig;
     NYson::TYsonString TvmConfig;
     NYson::TYsonString YtAccessProviderConfig;
+    NYson::TYsonString YtTokenResolverConfig;
     NYson::TYsonString OperationAttributes;
     NYson::TYsonString Libraries;
 
@@ -53,6 +54,7 @@ struct TYqlQTWorkerPluginOptions
     THolder<TLogBackend> QtWorkerLogBackend;
     int QtWorkerInspectorPort = 32391;
     TString GatewaysConfigPath;
+    bool EnableGetUsedClusters = true;
 };
 
 struct TQueryResult
@@ -165,13 +167,16 @@ TYqlNativePluginOptions ConvertToNativePluginOptions(
     TYqlPluginDynamicConfigPtr initialDynamicConfig,
     NYson::TYsonString singletonsConfigString,
     THolder<TLogBackend> logBackend,
-    bool startDqManager = false);
+    bool startDqManager = false,
+    bool useTokenResolver = false,
+    const std::string& tokenServiceSocketPath = {});
 
 TYqlQTWorkerPluginOptions ConvertToQtWorkerPluginOptions(
     TYqlNativePluginOptions nativeOptions,
     THolder<TLogBackend> qtWorkerLogBackend,
     int qtWorkerInspectorPort,
-    TString gatewaysConfigPath);
+    TString gatewaysConfigPath,
+    bool enableGetUsedClusters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

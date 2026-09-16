@@ -17,6 +17,11 @@ void TProcessYqlPluginInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("plugin_dynamic_config", &TThis::PluginDynamicConfig)
         .DefaultNew();
+
+    registrar.Parameter("use_token_resolver", &TThis::UseTokenResolver)
+        .Default(false);
+    registrar.Parameter("token_service_socket_path", &TThis::TokenServiceSocketPath)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
