@@ -227,6 +227,14 @@ void TOrderedSourceBase::TryIncreaseMaxOffsetExclusive(TOffset newMaxOffsetExclu
         }
         State_->MaxOffsetIsConfirmed |= confirmed;
     }
+
+    if (confirmed && !SourceMaxOffsetObserved_ && newMaxOffsetExclusive == State_->MaxOffsetExclusive) {
+        // The first observed maximum is inventory, not an arrival interval.
+        auto now = TInstant::Now();
+        SourceTotalCount_.ResetRate(now);
+        SourceTotalBytes_.ResetRate(now);
+        SourceMaxOffsetObserved_ = true;
+    }
 }
 
 TOrderedSourceBase::TOrderedSourceBase(
@@ -689,8 +697,10 @@ TInflightStreamTraverseDataPtr TOrderedSourceBase::BuildInflight()
         inflight->InflightMetrics->LastIdleTimestamp = TSystemTimestamp(State_->LastIdleInstant.Seconds());
     }
 
-    inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetLastRate();
-    inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetLastRate();
+    if (SourceMaxOffsetObserved_) {
+        inflight->InflightMetrics->NewCountPerSec = SourceTotalCount_.GetLastRate();
+        inflight->InflightMetrics->NewBytesPerSec = SourceTotalBytes_.GetLastRate();
+    }
     if (auto backlogRate = EstimateBacklogRate()) {
         inflight->InflightMetrics->NewCountPerSec = std::max(
             inflight->InflightMetrics->NewCountPerSec.value_or(0),

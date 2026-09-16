@@ -73,14 +73,24 @@ public:
 
     TTestSource(
         TSourceContextPtr context,
-        TDynamicSourceContextPtr dynamicContext)
+        TDynamicSourceContextPtr dynamicContext,
+        std::optional<i64> initialMaxOffset = 0,
+        i64 initialCommittedOffset = 0)
         : TIntegerOffsetOrderedSourceBase(std::move(context), std::move(dynamicContext))
         , Schema_(
             New<TTableSchema>(std::vector{
                 TColumnSchema("data", EValueType::Uint64),
             }))
+        , MaxOffsetExclusive_(initialMaxOffset.value_or(0))
     {
-        UpdatePartitionInfo(TPartitionInfoUpdate{.MaxOffsetExclusive = IntToOffset(MaxOffsetExclusive_)});
+        auto update = TPartitionInfoUpdate{};
+        if (initialMaxOffset) {
+            update.MaxOffsetExclusive = IntToOffset(*initialMaxOffset);
+        }
+        if (initialCommittedOffset > 0) {
+            update.CommittedOffsetExclusive = IntToOffset(initialCommittedOffset);
+        }
+        UpdatePartitionInfo(update);
     }
 
     using TOrderedSourceBase::GetSourceTotalBytes;
@@ -289,10 +299,13 @@ public:
         return ctx;
     }
 
-    TTestSourcePtr MakeTestSource(const TSourceSpecPtr& spec)
+    TTestSourcePtr MakeTestSource(
+        const TSourceSpecPtr& spec,
+        std::optional<i64> initialMaxOffset = 0,
+        i64 initialCommittedOffset = 0)
     {
         SourceContext->SourceSpec = spec;
-        return New<TTestSource>(SourceContext, MakeDynamicSourceContext());
+        return New<TTestSource>(SourceContext, MakeDynamicSourceContext(), initialMaxOffset, initialCommittedOffset);
     }
 
     template <typename TFunctor>
@@ -1299,44 +1312,119 @@ TEST_F(TOrderedSourceTest, UnorderedUpdates)
     ASSERT_EQ(data.size(), 5u);
 }
 
-TEST_F(TOrderedSourceTest, ArrivalRateIgnoresLowerMaximum)
+TEST_F(TOrderedSourceTest, ArrivalRateExcludesInitialBacklogAndIgnoresLowerMaximum)
 {
-    auto source = RunInInvoker([&] {
+    struct TCase
+    {
+        std::string Name;
+        i64 CommittedOffset;
+        i64 RestoredMaximum;
+        TTestSourcePtr Source;
+        TInflightMetricsPtr Before;
+    };
+
+    std::vector<TCase> cases{
+        {"fresh", 0, 0, {}, {}},
+        {"trimmed", 50, 0, {}, {}},
+        {"restored", 50, 70, {}, {}},
+        {"restored_equal", 50, 100, {}, {}},
+    };
+    TTestSourcePtr unconfirmedSource;
+    RunInInvoker([&] {
         auto spec = CloneYsonStruct(SourceSpec);
         spec->Parameters->AddChild("update_info_period", ConvertToNode(TDuration::Hours(1)));
-        auto result = MakeTestSource(spec);
-        result->Init(StateManager->CreateContext()->WithPrefix("source_rate"));
-        result->BuildInflight();
-        return result;
+        unconfirmedSource = MakeTestSource(spec, std::nullopt);
+        unconfirmedSource->Init(StateManager->CreateContext()->WithPrefix("unconfirmed_source_rate"));
+        for (auto& testCase : cases) {
+            auto prefix = "source_rate_" + testCase.Name;
+            if (testCase.RestoredMaximum) {
+                auto state = New<TOrderedSourcePartitionState>();
+                state->MaxOffsetExclusive = IntToOffset(testCase.RestoredMaximum);
+                state->MaxOffsetIsConfirmed = true;
+                StateManager->Set("/" + prefix + "/v0", ConvertToYsonString(state));
+            }
+            testCase.Source = MakeTestSource(spec, 100, testCase.CommittedOffset);
+            testCase.Source->Init(StateManager->CreateContext()->WithPrefix(prefix));
+            TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1));
+            testCase.Source->BuildInflight();
+        }
     });
 
-    // Warm up the real counter without adding a test clock to the source API.
+    // Warm up the real counters together without adding a test clock to the source API.
     RunInInvoker([&] {
         TDelayedExecutor::WaitForDuration(TDuration::Seconds(31));
     });
-    auto before = RunInInvoker([&] {
-        source->SetMaxOffset(100);
-        return source->BuildInflight()->InflightMetrics;
+    auto unconfirmed = RunInInvoker([&] {
+        unconfirmedSource->SetCommittedOffset(10);
+        return unconfirmedSource->BuildInflight()->InflightMetrics;
     });
-    ASSERT_TRUE(before->NewCountPerSec);
-    ASSERT_GT(*before->NewCountPerSec, 0);
+    EXPECT_FALSE(unconfirmed->NewCountPerSec);
+    EXPECT_FALSE(unconfirmed->NewBytesPerSec);
+    EXPECT_FALSE(unconfirmed->OfferedCountPerSec);
+    EXPECT_FALSE(unconfirmed->OfferedBytesPerSec);
 
-    auto afterLower = RunInInvoker([&] {
-        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
-        source->SetMaxOffset(10);
-        return source->BuildInflight()->InflightMetrics;
-    });
-    EXPECT_EQ(afterLower->NewCountPerSec, before->NewCountPerSec);
-    EXPECT_EQ(afterLower->NewBytesPerSec, before->NewBytesPerSec);
-    EXPECT_EQ(afterLower->OfferedCountPerSec, before->NewCountPerSec);
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        const auto& source = testCase.Source;
+        auto initial = RunInInvoker([&] {
+            source->SetMaxOffset(100);
+            return source->BuildInflight()->InflightMetrics;
+        });
+        ASSERT_TRUE(initial->NewCountPerSec);
+        ASSERT_TRUE(initial->NewBytesPerSec);
+        EXPECT_DOUBLE_EQ(*initial->NewCountPerSec, 0);
+        EXPECT_DOUBLE_EQ(*initial->NewBytesPerSec, 0);
+        EXPECT_EQ(initial->OfferedCountPerSec, initial->NewCountPerSec);
+        EXPECT_EQ(initial->OfferedBytesPerSec, initial->NewBytesPerSec);
+        EXPECT_EQ(initial->ReadyCount, 100 - testCase.CommittedOffset);
+        EXPECT_DOUBLE_EQ(source->GetSourceTotalCount(), 100 - testCase.RestoredMaximum);
+        EXPECT_DOUBLE_EQ(source->GetSourceTotalBytes(), 100 - testCase.RestoredMaximum);
+    }
 
-    auto afterUnchanged = RunInInvoker([&] {
+    RunInInvoker([&] {
         TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
-        source->SetMaxOffset(100);
-        return source->BuildInflight()->InflightMetrics;
     });
-    ASSERT_TRUE(afterUnchanged->NewCountPerSec);
-    EXPECT_LT(*afterUnchanged->NewCountPerSec, *before->NewCountPerSec);
+    for (auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        testCase.Before = RunInInvoker([&] {
+            testCase.Source->SetMaxOffset(200);
+            return testCase.Source->BuildInflight()->InflightMetrics;
+        });
+        ASSERT_TRUE(testCase.Before->NewCountPerSec);
+        ASSERT_TRUE(testCase.Before->NewBytesPerSec);
+        EXPECT_GT(*testCase.Before->NewCountPerSec, 0);
+        EXPECT_GT(*testCase.Before->NewBytesPerSec, 0);
+    }
+
+    RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    });
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        auto afterLower = RunInInvoker([&] {
+            testCase.Source->SetMaxOffset(10);
+            return testCase.Source->BuildInflight()->InflightMetrics;
+        });
+        EXPECT_EQ(afterLower->NewCountPerSec, testCase.Before->NewCountPerSec);
+        EXPECT_EQ(afterLower->NewBytesPerSec, testCase.Before->NewBytesPerSec);
+        EXPECT_EQ(afterLower->OfferedCountPerSec, testCase.Before->NewCountPerSec);
+        EXPECT_EQ(afterLower->OfferedBytesPerSec, testCase.Before->NewBytesPerSec);
+    }
+
+    RunInInvoker([&] {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    });
+    for (const auto& testCase : cases) {
+        SCOPED_TRACE(testCase.Name);
+        auto afterUnchanged = RunInInvoker([&] {
+            testCase.Source->SetMaxOffset(200);
+            return testCase.Source->BuildInflight()->InflightMetrics;
+        });
+        ASSERT_TRUE(afterUnchanged->NewCountPerSec);
+        ASSERT_TRUE(afterUnchanged->NewBytesPerSec);
+        EXPECT_LT(*afterUnchanged->NewCountPerSec, *testCase.Before->NewCountPerSec);
+        EXPECT_LT(*afterUnchanged->NewBytesPerSec, *testCase.Before->NewBytesPerSec);
+    }
 }
 
 TEST_F(TOrderedSourceTest, Timestamps)
