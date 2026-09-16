@@ -686,6 +686,20 @@ class TestMasterTransactions(YTEnvSetup):
         # Should not crash or alert.
         sleep(3.0)
 
+    @authors("ivpiskarev")
+    def test_transaction_owner_change(self):
+        create_user("u")
+        create_user("v")
+        create_group("g")
+
+        tx = start_transaction()
+        set(f"#{tx}/@owner", "u", authenticated_user="u")
+        set(f"#{tx}/@owner", "v", authenticated_user="v")
+        set(f"#{tx}/@owner", "u", authenticated_user="root")
+        with raises_yt_error("Transaction owner must be a user"):
+            set(f"#{tx}/@owner", "g", authenticated_user="root")
+        commit_transaction(tx)
+
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True

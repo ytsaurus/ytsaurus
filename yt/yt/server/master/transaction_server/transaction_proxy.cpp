@@ -240,6 +240,16 @@ private:
                         transaction,
                         TDuration::MilliSeconds(ConvertTo<i64>(value)));
                 return true;
+
+            case EInternedAttributeKey::Owner: {
+                auto* subject = Bootstrap_
+                    ->GetSecurityManager()
+                    ->GetSubjectByNameOrAliasOrThrow(ConvertTo<std::string>(value), /*activeLifeStageOnly*/ true);
+                // There are Owner->AsUser() casts in CommitTransaction() and AbortTransaction(), see YT-29619.
+                THROW_ERROR_EXCEPTION_UNLESS(subject->IsUser(), "Transaction owner must be a user");
+                break;
+            }
+
             default:
                 break;
         }
