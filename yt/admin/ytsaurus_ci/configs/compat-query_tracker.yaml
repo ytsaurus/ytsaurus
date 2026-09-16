@@ -34,6 +34,11 @@ main:
   constraints:
     operator: ">=0.30.0"
     ytsaurus: ">=25.4"
+0.4.1:
+  source: stable
+  constraints:
+    operator: ">=0.30.0"
+    ytsaurus: ">=25.4"
 0.5:
   source: release
   constraints:
