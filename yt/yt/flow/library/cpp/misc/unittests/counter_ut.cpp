@@ -20,6 +20,53 @@ TEST(TSimpleEmaCounterTest, KeepsLatestObservedRate)
     EXPECT_DOUBLE_EQ(counter.GetTotal(), 90000000);
 }
 
+TEST(TSimpleEmaCounterTest, ResetRatePreservesTotalAndConfiguredWindow)
+{
+    auto start = TInstant::Seconds(1000);
+    auto window = TDuration::Seconds(90);
+    for (bool changeWindow : {false, true}) {
+        TSimpleEmaCounter counter(changeWindow ? TDuration::Seconds(10) : window);
+        if (changeWindow) {
+            counter.SetWindow(window);
+        }
+        counter.Update(0, start);
+        counter.Inc(10000, start + window);
+        ASSERT_TRUE(counter.GetLastRate());
+        ASSERT_GT(*counter.GetLastRate(), 0);
+
+        auto resetTime = start + window * 2;
+        counter.ResetRate(resetTime);
+        EXPECT_DOUBLE_EQ(counter.GetTotal(), 10000);
+        EXPECT_FALSE(counter.GetLastRate());
+        EXPECT_FALSE(counter.GetDecayedRate(resetTime + TDuration::Seconds(30)));
+
+        TSimpleEmaCounter reference(window);
+        reference.Update(10000, resetTime);
+        for (int seconds : {30, 90}) {
+            auto now = resetTime + TDuration::Seconds(seconds);
+            counter.Update(10000 + 100 * seconds, now);
+            reference.Update(10000 + 100 * seconds, now);
+            EXPECT_EQ(counter.GetLastRate(), reference.GetLastRate());
+        }
+        ASSERT_TRUE(counter.GetLastRate());
+        EXPECT_GT(*counter.GetLastRate(), 80);
+        EXPECT_LT(*counter.GetLastRate(), 100);
+        EXPECT_DOUBLE_EQ(counter.GetTotal(), 19000);
+    }
+}
+
+TEST(TSimpleEmaCounterTest, ResetRateBeforeFirstUpdate)
+{
+    auto start = TInstant::Seconds(1000);
+    TSimpleEmaCounter counter;
+    counter.ResetRate(start);
+    EXPECT_DOUBLE_EQ(counter.GetTotal(), 0);
+    EXPECT_FALSE(counter.GetLastRate());
+    counter.Inc(0, start + TDuration::Seconds(30));
+    ASSERT_TRUE(counter.GetLastRate());
+    EXPECT_DOUBLE_EQ(*counter.GetLastRate(), 0);
+}
+
 TEST(TSimpleEmaCounterTest, ReadingDoesNotProvideObservationHistory)
 {
     TSimpleEmaCounter counter;

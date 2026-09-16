@@ -259,6 +259,7 @@ private:
 
     TOffsetInfos InflightOffsets_;
 
+    bool SourceMaxOffsetObserved_ = false;
     TSimpleEmaCounter SourceTotalCount_;
     TSimpleEmaCounter SourceTotalBytes_;
     TSimpleEmaCounter PersistedCount_;

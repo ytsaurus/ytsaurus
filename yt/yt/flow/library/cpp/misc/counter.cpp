@@ -20,6 +20,12 @@ void TSimpleEmaCounter::Inc(double count, TInstant now)
     Counter_.Update(Total_, now);
 }
 
+void TSimpleEmaCounter::ResetRate(TInstant now)
+{
+    Counter_ = NYT::TEmaCounter<double, 1>(Counter_.WindowDurations);
+    Counter_.Update(Total_, now);
+}
+
 std::optional<double> TSimpleEmaCounter::GetLastRate() const
 {
     if (!Counter_.LastTimestamp) {

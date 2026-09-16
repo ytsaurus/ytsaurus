@@ -35,6 +35,13 @@ TRandomSource::TRandomSource(
     UpdatePartitionInfo(TPartitionInfoUpdate{.CommittedOffsetExclusive = IntToOffset(0)});
 }
 
+void TRandomSource::DoInit()
+{
+    auto now = TInstant::Now();
+    GeneratedCount_.Update(0, now);
+    GeneratedBytes_.Update(0, now);
+}
+
 void TRandomSource::DoReportPersistedOffset(TOffset offsetExclusive)
 {
     auto partitionMessageCount = GetDynamicParameters()->PartitionMessageCount;
@@ -48,12 +55,23 @@ void TRandomSource::DoReportPersistedOffset(TOffset offsetExclusive)
 std::optional<TBacklogRate> TRandomSource::EstimateBacklogRate()
 {
     const auto& parameters = *GetDynamicParameters();
-    if (!parameters.ReportedBacklogBytesPerSecond) {
+    if (parameters.ReportedBacklogBytesPerSecond) {
+        return TBacklogRate{
+            .BytesPerSecond = *parameters.ReportedBacklogBytesPerSecond,
+            .MessagesPerSecond = parameters.ReportedBacklogMessagesPerSecond.value_or(0.0),
+        };
+    }
+
+    // Random data is produced on reads, so reading throughput estimates its arrival rate.
+    auto now = TInstant::Now();
+    auto countRate = GeneratedCount_.GetDecayedRate(now);
+    auto byteRate = GeneratedBytes_.GetDecayedRate(now);
+    if (!countRate || !byteRate) {
         return std::nullopt;
     }
     return TBacklogRate{
-        .BytesPerSecond = *parameters.ReportedBacklogBytesPerSecond,
-        .MessagesPerSecond = parameters.ReportedBacklogMessagesPerSecond.value_or(0.0),
+        .BytesPerSecond = *byteRate,
+        .MessagesPerSecond = *countRate,
     };
 }
 
@@ -115,6 +133,10 @@ TFuture<std::vector<TRandomSource::TRecord>> TRandomSource::DoReadNextBatch(cons
         records.push_back(std::move(record));
         nextOffset += 1;
     }
+
+    auto generatedAt = TInstant::Now();
+    GeneratedCount_.Inc(std::ssize(records), generatedAt);
+    GeneratedBytes_.Inc(bytes, generatedAt);
 
     return MakeFuture(std::move(records));
 }

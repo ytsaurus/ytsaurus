@@ -7,6 +7,7 @@
 #include <yt/yt/flow/library/cpp/connectors/common/source_controller_base.h>
 
 #include <yt/yt/flow/library/cpp/common/registry.h>
+#include <yt/yt/flow/library/cpp/misc/counter.h>
 
 #include <util/random/mersenne.h>
 
@@ -31,6 +32,8 @@ public:
     std::optional<TBacklogRate> EstimateBacklogRate() override;
 
 private:
+    void DoInit() final;
+
     TFuture<std::vector<TRecord>> DoReadNextBatch(const TMessageBatcherSettingsPtr& settings, TOffset nextOffset, std::optional<TOffset> offsetLimit) final;
 
     void DoReportPersistedOffset(TOffset offsetExclusive) final;
@@ -41,6 +44,8 @@ private:
     int DataId_ = 0;
 
     TMersenne<ui64> Generator_;
+    TSimpleEmaCounter GeneratedCount_;
+    TSimpleEmaCounter GeneratedBytes_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRandomSource);
