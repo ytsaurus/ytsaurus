@@ -327,6 +327,8 @@ class Computation:
             joined_external_states=getattr(request_ctx, "joined_external_states", {}),
             joiner_state_names=job.joiner_state_names,
             resources=getattr(request_ctx, "resources", {}),
+            http_client=getattr(request_ctx, "http_client", None),
+            https_client=getattr(request_ctx, "https_client", None),
         )
 
         # Process messages.

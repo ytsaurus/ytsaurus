@@ -8,6 +8,7 @@ PY_SRCS(
     row.py
     computation.py
     context.py
+    http_client.py
     state.py
     job.py
     stream.py
@@ -28,7 +29,20 @@ PEERDIR(
     yt/python/yt/yson
     yt/python/yt/wrapper
     contrib/python/grpcio
+    yt/python/contrib/python-requests
+    yt/python/contrib/python-urllib3
+    yt/python/contrib/python-idna
 )
+
+IF (OPENSOURCE)
+    PEERDIR(
+        contrib/python/charset-normalizer
+    )
+ELSE()
+    PEERDIR(
+        yt/python/contrib/python-chardet
+    )
+ENDIF()
 
 END()
 

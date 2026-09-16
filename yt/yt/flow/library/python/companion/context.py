@@ -7,7 +7,7 @@ import copy
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
 from .computation import TransformResult
 from .row import (
@@ -26,6 +26,9 @@ from .state import (
     StatesHolder,
 )
 from .stream import FlowStream, FlowStreamsContext, StreamSpecs
+
+if TYPE_CHECKING:
+    from .http_client import HttpClient
 
 log = logging.getLogger(__name__)
 
@@ -352,6 +355,8 @@ class DefaultRuntimeContext:
         joined_external_states: Optional[Dict[str, StatesHolder]] = None,
         joiner_state_names: Optional[Set[str]] = None,
         resources: Optional[Dict[str, Any]] = None,
+        http_client: Optional["HttpClient"] = None,
+        https_client: Optional["HttpClient"] = None,
     ):
         self._internal_state_names = internal_state_names
         self._stream_specs = stream_specs
@@ -365,6 +370,8 @@ class DefaultRuntimeContext:
         self._joined_external_states = joined_external_states or {}
         self._joiner_state_names = joiner_state_names or set()
         self._resources = resources or {}
+        self._http_client = http_client
+        self._https_client = https_client
 
     # --- Pythonic shorthand API ---
 
@@ -450,6 +457,32 @@ class DefaultRuntimeContext:
             )
         return resource
 
+    @property
+    def http_client(self) -> "HttpClient":
+        """Companion-hosted plain HTTP client, shared by every serving thread.
+
+        Mirrors the C++ ``GetHttpClient()``: built once per process from the
+        companion config's ``http_client_config`` block.
+        """
+        return self._require_http_client(self._http_client, "http_client")
+
+    @property
+    def https_client(self) -> "HttpClient":
+        """Companion-hosted HTTPS client, shared by every serving thread.
+
+        Mirrors the C++ ``GetHttpsClient()``: built once per process from the
+        companion config's ``https_client_config`` block.
+        """
+        return self._require_http_client(self._https_client, "https_client")
+
+    @staticmethod
+    def _require_http_client(client: Optional["HttpClient"], name: str) -> "HttpClient":
+        if client is None:
+            raise ValueError(
+                f"{name} is not available in this runtime context; " f"it is provided by the companion server"
+            )
+        return client
+
     def _get_or_create_state_holder(self, state_name: str) -> StatesHolder:
         self._validate_internal_state_name(state_name)
         states_holder = self._internal_states.get(state_name)
@@ -495,6 +528,8 @@ class RequestContext:
     job: Any = None
     stream_specs_override: Optional[StreamSpecs] = None
     resources: Dict[str, Any] = field(default_factory=dict)
+    http_client: Optional["HttpClient"] = None
+    https_client: Optional["HttpClient"] = None
 
 
 # ---------- ResponseContext ----------

@@ -11,9 +11,14 @@ from the computation's ``required_resource_ids`` entry.
 import logging
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
 import yt.yson as yson
+
+from .http_client import get_http_clients
+
+if TYPE_CHECKING:
+    from .http_client import HttpClient
 
 log = logging.getLogger(__name__)
 
@@ -43,11 +48,15 @@ class ResourceContext:
         parameters: Dict[str, Any],
         dynamic_parameters: Dict[str, Any],
         dependencies: Dict[str, "FlowResource"],
+        http_client: Optional["HttpClient"] = None,
+        https_client: Optional["HttpClient"] = None,
     ):
         self.resource_id = resource_id
         self.parameters = parameters
         self.dynamic_parameters = dynamic_parameters
         self.dependencies = dependencies
+        self.http_client = http_client
+        self.https_client = https_client
 
 
 class FlowResource:
@@ -711,6 +720,7 @@ class ResourceStore:
         # Bars late commands: handlers may still be running when the store is
         # drained.
         self._closed = False
+        self._http_clients = get_http_clients()
 
     def execute(self, resource_id: str, command: int, argument: Optional[bytes]) -> CommandOutcome:
         """Dispatches one ResourceExecute command. User-code failures are
@@ -935,6 +945,8 @@ class ResourceStore:
             parameters=_extract_parameters(arg.spec),
             dynamic_parameters=_extract_parameters(arg.dynamic_spec),
             dependencies=dependencies,
+            http_client=self._http_clients.http,
+            https_client=self._http_clients.https,
         )
         resource: Optional[FlowResource] = None
         built = False
@@ -1009,6 +1021,8 @@ class ResourceStore:
             parameters=previous_context.parameters,
             dynamic_parameters=_extract_parameters(arg.dynamic_spec),
             dependencies=previous_context.dependencies,
+            http_client=self._http_clients.http,
+            https_client=self._http_clients.https,
         )
         try:
             handle.resource.reconfigure(context)

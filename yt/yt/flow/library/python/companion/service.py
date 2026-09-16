@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from .context import PipelineContext
+from .http_client import HttpClients, get_http_clients
 from .job import Job, JobContext
 from .proto_mapper import (
     _guid_to_str,
@@ -48,6 +49,11 @@ class CompanionRequestProcessor:
         self._job_context = job_context
         self._resource_monitor = ResourceMonitor()
         self._resource_store = ResourceStore(pipeline_context.get_resource_factories())
+        self._http_clients = get_http_clients()
+
+    @property
+    def http_clients(self) -> HttpClients:
+        return self._http_clients
 
     @property
     def resource_store(self) -> ResourceStore:
@@ -105,6 +111,8 @@ class CompanionRequestProcessor:
                 stream_context = self._pipeline_context.get_stream_context()
                 request_ctx = map_process_batch_request(request, job, stream_context)
                 request_ctx.resources = lease.resources
+                request_ctx.http_client = self._http_clients.http
+                request_ctx.https_client = self._http_clients.https
                 response_ctx = computation.do_process(request_ctx)
 
                 result["data"] = map_process_batch_response(request_ctx.stream_specs, response_ctx, proto_module)

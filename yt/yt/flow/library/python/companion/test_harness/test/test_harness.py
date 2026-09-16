@@ -5,6 +5,7 @@ import pytest
 from yt.yt.flow.library.python.companion.computation import (
     RowFunction,
 )
+from yt.yt.flow.library.python.companion.http_client import HttpClient
 from yt.yt.flow.library.python.companion.row import (
     ExtendedMessage,
     Message,
@@ -187,6 +188,25 @@ def test_processing_passthrough():
     with h.processing([msg]) as r:
         assert len(r.messages) == 1
         assert r.messages[0].stream_id == "input"
+
+
+def test_processing_provides_http_clients():
+    class ClientCapturingFunction(RowFunction):
+        def __init__(self):
+            self.http_client = None
+            self.https_client = None
+
+        def on_message(self, message, output, ctx):
+            self.http_client = ctx.http_client
+            self.https_client = ctx.https_client
+
+    function = ClientCapturingFunction()
+    h = ComputationHarness(function, streams={"input": schema(x="string")})
+    msg = h.build_message("input", x="hello")
+
+    with h.processing([msg]):
+        assert isinstance(function.http_client, HttpClient)
+        assert isinstance(function.https_client, HttpClient)
 
 
 def test_processing_timers():
