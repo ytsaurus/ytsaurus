@@ -5,6 +5,7 @@
 #endif
 
 #include "helpers.h"
+#include "incumbency_epoch.h"
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 

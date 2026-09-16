@@ -1,9 +1,8 @@
 #pragma once
 
-#include "public.h"
-#include "chunk_replica.h"
+#include "private.h"
+
 #include "chunk_tree_statistics.h"
-#include "config.h"
 #include "cumulative_statistics.h"
 #include "stored_chunk_replica.h"
 

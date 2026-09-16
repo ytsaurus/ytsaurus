@@ -1,5 +1,4 @@
 #include "chunk_scanner.h"
-#include "chunk_manager.h"
 
 #include "chunk.h"
 #include "helpers.h"

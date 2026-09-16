@@ -1,9 +1,11 @@
 #include "chunk_placement.h"
-#include "private.h"
+
 #include "chunk.h"
+#include "chunk_location.h"
 #include "chunk_manager.h"
 #include "config.h"
-#include "chunk_location.h"
+#include "consistent_chunk_placement.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -21,8 +23,8 @@
 
 #include <util/random/random.h>
 
-#include <ranges>
 #include <array>
+#include <ranges>
 
 namespace NYT::NChunkServer {
 

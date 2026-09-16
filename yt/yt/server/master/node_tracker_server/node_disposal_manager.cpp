@@ -13,6 +13,7 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
+#include <yt/yt/server/master/chunk_server/data_node_tracker.h>
 
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 
