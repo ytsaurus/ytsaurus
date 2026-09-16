@@ -634,7 +634,7 @@ private:
     TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const override
     {
         auto options = TUnorderedControllerBase::GetUnorderedChunkPoolOptions();
-        if (Config_->EnableMapJobSizeAdjustment) {
+        if (Options_->EnableMapJobSizeAdjustment) {
             options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
         }
 

@@ -475,6 +475,13 @@ void TSimpleOperationOptions::Register(TRegistrar registrar)
 
 void TMapOperationOptions::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable_map_job_size_adjustment", &TThis::EnableMapJobSizeAdjustment)
+        .Default(true);
+    registrar.Parameter(
+        "enable_ordered_map_job_size_adjustment",
+        &TThis::EnableOrderedMapJobSizeAdjustment)
+        .Default(false);
+
     registrar.Preprocessor([&] (TMapOperationOptions* options) {
         options->DataWeightPerJob = 128_MB;
         options->JobSizeAdjuster = New<TJobSizeAdjusterConfig>();
@@ -573,6 +580,21 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
 
     registrar.Parameter("sorted_merge_job_size_adjuster", &TThis::SortedMergeJobSizeAdjuster)
         .DefaultNew();
+
+    // By default we disable job size adjustment for partition maps,
+    // since it may lead to partition data skew between nodes.
+    registrar.Parameter(
+        "enable_partition_map_job_size_adjustment",
+        &TThis::EnablePartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter(
+        "enable_ordered_partition_map_job_size_adjustment",
+        &TThis::EnableOrderedPartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter(
+        "enable_sorted_merge_in_sort_job_size_adjustment",
+        &TThis::EnableSortedMergeInSortJobSizeAdjustment)
+        .Default(false);
 
     registrar.Parameter("data_balancer", &TThis::DataBalancer)
         .DefaultNew();
@@ -1094,10 +1116,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("udf_registry_path", &TThis::UdfRegistryPath)
         .Default();
 
-    registrar.Parameter("enable_map_job_size_adjustment", &TThis::EnableMapJobSizeAdjustment)
-        .Default(true);
-    registrar.Parameter("enable_ordered_map_job_size_adjustment", &TThis::EnableOrderedMapJobSizeAdjustment)
-        .Default(true);
     registrar.Parameter("enable_job_splitting", &TThis::EnableJobSplitting)
         .Default(true);
     registrar.Parameter("enable_job_interrupts", &TThis::EnableJobInterrupts)
@@ -1112,15 +1130,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("heavy_job_spec_slice_count_threshold", &TThis::HeavyJobSpecSliceCountThreshold)
         .Default(1'000)
         .GreaterThan(0);
-
-    //! By default we disable job size adjustment for partition maps,
-    //! since it may lead to partition data skew between nodes.
-    registrar.Parameter("enable_partition_map_job_size_adjustment", &TThis::EnablePartitionMapJobSizeAdjustment)
-        .Default(false);
-    registrar.Parameter("enable_ordered_partition_map_job_size_adjustment", &TThis::EnableOrderedPartitionMapJobSizeAdjustment)
-        .Default(false);
-    registrar.Parameter("enable_sorted_merge_in_sort_job_size_adjustment", &TThis::EnableSortedMergeInSortJobSizeAdjustment)
-        .Default(false);
 
     registrar.Parameter("user_job_memory_digest_precision", &TThis::UserJobMemoryDigestPrecision)
         .Default(0.01)

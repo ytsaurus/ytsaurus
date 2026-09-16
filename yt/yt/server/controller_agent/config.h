@@ -435,6 +435,9 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 struct TMapOperationOptions
     : public TSimpleOperationOptions
 {
+    bool EnableMapJobSizeAdjustment;
+    bool EnableOrderedMapJobSizeAdjustment;
+
     REGISTER_YSON_STRUCT(TMapOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -537,6 +540,9 @@ struct TSortOperationOptionsBase
     i64 MaxValueCountPerSimpleSortJob;
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
     NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
+    bool EnablePartitionMapJobSizeAdjustment;
+    bool EnableOrderedPartitionMapJobSizeAdjustment;
+    bool EnableSortedMergeInSortJobSizeAdjustment;
     TDataBalancerOptionsPtr DataBalancer;
     i64 DefaultPartitionDataWeightForMerging;
     bool EnableFinalPartitionsMergingByDefault;
@@ -1060,17 +1066,6 @@ struct TControllerAgentConfig
 
     //! Maximum number of foreign chunks to locate per request.
     int MaxChunksPerLocateRequest;
-
-    //! Enables dynamic change of job sizes.
-    bool EnablePartitionMapJobSizeAdjustment;
-
-    //! Enables dynamic change of job sizes.
-    bool EnableOrderedPartitionMapJobSizeAdjustment;
-
-    bool EnableSortedMergeInSortJobSizeAdjustment;
-
-    bool EnableMapJobSizeAdjustment;
-    bool EnableOrderedMapJobSizeAdjustment;
 
     //! Enables splitting of long jobs.
     // TODO(gritukan): Remove it.

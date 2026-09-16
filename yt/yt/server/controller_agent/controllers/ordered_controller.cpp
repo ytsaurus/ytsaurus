@@ -924,7 +924,9 @@ private:
     TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
     {
         auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
-        options.JobSizeAdjusterConfig = Config_->EnableOrderedMapJobSizeAdjustment ? Options_->JobSizeAdjuster : nullptr;
+        if (Options_->EnableOrderedMapJobSizeAdjustment) {
+            options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        }
         return options;
     }
 
