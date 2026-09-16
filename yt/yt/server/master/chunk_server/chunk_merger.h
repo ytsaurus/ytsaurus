@@ -1,9 +1,10 @@
 #pragma once
 
 #include "private.h"
+
 #include "chunk_merger_traversal_info.h"
 #include "chunk_owner_data_statistics.h"
-#include "chunk_replacer.h"
+#include "chunk_replica.h"
 #include "chunk_tree_balancer.h"
 #include "job.h"
 #include "job_controller.h"

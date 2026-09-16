@@ -5,9 +5,8 @@
 #endif
 
 #include "chunk.h"
-#include "private.h"
 #include "chunk_list.h"
-#include "data_node_tracker.h"
+#include "private.h"
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 

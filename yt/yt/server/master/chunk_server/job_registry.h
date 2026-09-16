@@ -1,7 +1,6 @@
 #pragma once
 
 #include "private.h"
-#include "chunk.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -27,9 +26,6 @@
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <library/cpp/yt/misc/property.h>
-
-#include <functional>
-#include <deque>
 
 namespace NYT::NChunkServer {
 

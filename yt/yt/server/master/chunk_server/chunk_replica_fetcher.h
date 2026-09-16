@@ -1,7 +1,7 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
+
 #include "chunk_replica.h"
 #include "stored_chunk_replica.h"
 

@@ -1,7 +1,7 @@
 #include "data_node_tracker_service.h"
 
-#include "private.h"
 #include "data_node_tracker.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>

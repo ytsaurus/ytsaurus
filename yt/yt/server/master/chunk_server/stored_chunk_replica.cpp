@@ -1,7 +1,7 @@
 #include "stored_chunk_replica.h"
 
-#include "medium_base.h"
 #include "chunk_location.h"
+#include "medium_base.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 

@@ -1,7 +1,6 @@
 #include "domestic_medium_proxy.h"
 
 #include "chunk_manager.h"
-#include "config.h"
 #include "domestic_medium.h"
 #include "medium_proxy_base.h"
 

@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/yt/server/master/chunk_server/chunk_replica.h>
+#include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/lib/chunk_server/proto/job.pb.h>
 

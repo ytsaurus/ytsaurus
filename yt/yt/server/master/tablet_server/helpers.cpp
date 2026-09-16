@@ -4,6 +4,9 @@
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
 
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_tree.h>
+
 #include <yt/yt/server/master/table_server/table_node.h>
 
 #include <yt/yt/server/lib/hydra/mutation_context.h>

@@ -1,11 +1,10 @@
 #include "master_cell_chunk_statistics_collector.h"
 
-#include "private.h"
-
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "chunk_scanner.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>

@@ -1,9 +1,8 @@
 #include "chunk_list_proxy.h"
-#include "private.h"
+
+#include "chunk_list.h"
 #include "chunk_view.h"
 #include "dynamic_store.h"
-#include "chunk_list.h"
-#include "chunk_manager.h"
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
