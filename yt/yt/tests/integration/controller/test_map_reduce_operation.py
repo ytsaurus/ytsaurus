@@ -1337,7 +1337,6 @@ print("x={0}\ty={1}".format(x, y))
         skip_if_component_old(self.Env, (26, 2), "controller-agent")
         self.skip_if_legacy_sorted_pool()
 
-
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(15)]
         for row in original_data:
