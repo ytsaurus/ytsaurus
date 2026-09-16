@@ -500,7 +500,8 @@ private:
 
         if (parentId) {
             auto* parent = GetChaosLeaseOrThrow(parentId);
-            if (parent->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && parent->Coordinators().empty())
+            if (parent->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval &&
+                parent->Coordinators().empty())
             {
                 TryRemoveLeaseBottomUp(parent);
             }
@@ -513,7 +514,9 @@ private:
     {
         auto reign = static_cast<EChaosReign>(GetCurrentMutationContext()->Request().Reign);
 
-        if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval && chaosLease->Coordinators().empty()) {
+        if (chaosLease->GetState() == EChaosLeaseState::RevokingShortcutsForRemoval &&
+            chaosLease->Coordinators().empty())
+        {
             // COMPAT(gryzlov-ad)
             if (reign >= EChaosReign::ChaosLeaseRemoveLeaseOnlyAfterChildren) {
                 TryRemoveLeaseBottomUp(chaosLease);
