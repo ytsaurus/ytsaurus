@@ -2075,7 +2075,6 @@ class TestAccounts(AccountsTestSuiteBase):
         assert get("//tmp/dir1/dir2/@account") == "a2"
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_recursive_create_with_explicit_account(self):
         create_account("a")
         create(
