@@ -8,6 +8,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/ytgrpc"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
 )
@@ -25,6 +26,15 @@ func NewRPCClient(t *testing.T, l log.Structured) yt.Client {
 	t.Helper()
 
 	yc, err := ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
+	require.NoError(t, err)
+
+	return yc
+}
+
+func NewGRPCClient(t *testing.T, l log.Structured) yt.Client {
+	t.Helper()
+
+	yc, err := ytgrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
 	require.NoError(t, err)
 
 	return yc
