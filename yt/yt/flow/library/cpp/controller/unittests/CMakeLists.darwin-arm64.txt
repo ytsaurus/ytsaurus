@@ -75,6 +75,7 @@ target_sources(yt-flow-library-cpp-controller-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/partitioning_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/resource_balancer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/state_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/controller/unittests/yt_connector_ut.cpp
 )
 
 

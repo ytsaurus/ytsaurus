@@ -23,4 +23,27 @@ bool IsTransientTabletError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ELeaderConfirmationResult,
+    // The cluster reached the controller at the published address.
+    (Confirmed)
+    // Not attempted: skipped by #SkipLeaderProxyConfirmationEnvVarName.
+    (SkippedByEnvironment)
+    // Attempted and hopeless: the cluster requires TLS the controller cannot serve.
+    (SkippedWithoutTlsMaterial)
+    // Attempted and failed; worth retrying.
+    (Failed)
+);
+
+//! Classifies the outcome of the leadership confirmation through the RPC proxy. |confirmationError|
+//! is OK when the confirmation succeeded and is not inspected when the confirmation was skipped by
+//! the environment. |busServerHasTlsMaterial| tells whether the controller bus server holds both a
+//! certificate chain and a private key, without which it cannot serve TLS at all.
+ELeaderConfirmationResult ClassifyLeaderConfirmation(
+    bool skipConfirmationFromEnv,
+    const TError& confirmationError,
+    const std::string& controllerAddress,
+    bool busServerHasTlsMaterial);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NFlow::NController

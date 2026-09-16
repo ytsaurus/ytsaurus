@@ -115,7 +115,10 @@
 #include <library/cpp/yt/mlock/mlock.h>
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
+#include <util/string/cast.h>
 #include <util/string/split.h>
+
+#include <util/system/env.h>
 
 #include <cstdlib>
 
@@ -136,6 +139,22 @@ using namespace NYTree;
 constinit const auto Logger = NodeLogger;
 
 constexpr auto& JaegerCollectorAddressSuffix = NInternalUrls::JaegerCollectorAddressSuffix;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Parsed once at startup: the leadership publication must never fail on a malformed value, since
+//! it runs in a fiber that owns the already published leadership.
+bool ParseSkipLeaderProxyConfirmation()
+{
+    auto value = GetEnv(TString(NController::SkipLeaderProxyConfirmationEnvVarName), "0");
+    bool result = false;
+    if (!TryFromString(value, result)) {
+        THROW_ERROR_EXCEPTION("Cannot parse environment variable %v as a boolean",
+            NController::SkipLeaderProxyConfirmationEnvVarName)
+            .With("Value", value);
+    }
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -605,7 +624,13 @@ private:
     void PrepareController()
     {
         ChannelFactory_ = NRpc::NBus::CreateTcpBusChannelFactory(Config_->Controller->Bus);
-        ControllerYTConnector_ = CreateYTConnector(Config_->Controller, NodeInfo_, CommonYTConnector_, ControlQueue_);
+        ControllerYTConnector_ = CreateYTConnector(
+            Config_->Controller,
+            NodeInfo_,
+            CommonYTConnector_,
+            ControlQueue_,
+            ParseSkipLeaderProxyConfirmation(),
+            /*busServerHasTlsMaterial*/ Config_->BusServer->CertificateChain && Config_->BusServer->PrivateKey);
 
         ControllerStatusProfiler_ = CreateStatusProfiler(
             ControlQueue_->GetInvoker(NController::EControlQueue::Default),

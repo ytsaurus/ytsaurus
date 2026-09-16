@@ -103,7 +103,9 @@ IYTConnectorPtr CreateYTConnector(
     TControllerConfigPtr config,
     TNodeInfoPtr nodeInfo,
     ICommonYTConnectorPtr commonYTConnector,
-    TControlActionQueuePtr controlQueue);
+    TControlActionQueuePtr controlQueue,
+    bool skipLeaderConfirmation,
+    bool busServerHasTlsMaterial);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -59,6 +59,12 @@ DEFINE_ENUM(EElectionBackend,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Env var that makes the controller skip the leadership confirmation through the RPC proxy ("1").
+//! Meant for a cluster that cannot connect to the controller at all.
+constexpr TStringBuf SkipLeaderProxyConfirmationEnvVarName = "YT_FLOW_SKIP_LEADER_PROXY_CONFIRMATION";
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(IYTConnector)
 DECLARE_REFCOUNTED_STRUCT(IWorkerTracker)
 DECLARE_REFCOUNTED_STRUCT(IController)
