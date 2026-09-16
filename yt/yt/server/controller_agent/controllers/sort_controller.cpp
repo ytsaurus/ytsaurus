@@ -2786,7 +2786,7 @@ protected:
             GetOutputTablePaths().size(),
             ExpectedPartitionCount_);
         chunkPoolOptions.Logger = Logger().WithTag("Name", name);
-        if (Config_->EnableSortedMergeInSortJobSizeAdjustment) {
+        if (Options_->EnableSortedMergeInSortJobSizeAdjustment) {
             chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
         }
 
@@ -4417,8 +4417,8 @@ private:
                     MapperSinkEdges_.end());
 
                 bool useJobSizeAdjuster = Spec_->Ordered
-                    ? Config_->EnableOrderedPartitionMapJobSizeAdjustment
-                    : Config_->EnablePartitionMapJobSizeAdjustment;
+                    ? Options_->EnableOrderedPartitionMapJobSizeAdjustment
+                    : Options_->EnablePartitionMapJobSizeAdjustment;
 
                 auto chunkPool = CreateRootPartitionPool(
                     useJobSizeAdjuster

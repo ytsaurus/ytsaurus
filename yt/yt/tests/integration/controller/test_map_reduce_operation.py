@@ -113,10 +113,10 @@ class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
                     "tolerance": 1.0,
                 },
                 "sorted_merge_job_size_adjuster": {},
+                "enable_partition_map_job_size_adjustment": True,
+                "enable_ordered_partition_map_job_size_adjustment": True,
+                "enable_sorted_merge_in_sort_job_size_adjustment": True,
             },
-            "enable_partition_map_job_size_adjustment": True,
-            "enable_ordered_partition_map_job_size_adjustment": True,
-            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 
@@ -1288,6 +1288,7 @@ print("x={0}\ty={1}".format(x, y))
     @authors("klyachin", "coteeq")
     @pytest.mark.parametrize("ordered", [True, False])
     def test_map_reduce_job_size_adjuster_boost(self, ordered):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
         skip_if_old(self.Env, (25, 2), "No multiple_jobs in 25.1")
 
         create("table", "//tmp/t_input")
@@ -1325,6 +1326,8 @@ print("x={0}\ty={1}".format(x, y))
     @authors("coteeq")
     @pytest.mark.timeout(300)
     def test_map_reduce_job_size_adjuster_sorted_merge(self):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
+
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(15)]
         for row in original_data:

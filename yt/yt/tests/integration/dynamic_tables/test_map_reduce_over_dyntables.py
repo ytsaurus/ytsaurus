@@ -1559,7 +1559,9 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
             "operation_options": {
                 "min_uncompressed_block_size": 1,
             },
-            "enable_partition_map_job_size_adjustment": True,
+            "map_reduce_operation_options": {
+                "enable_partition_map_job_size_adjustment": True,
+            },
         }
     }
 
