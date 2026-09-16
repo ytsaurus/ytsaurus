@@ -2,7 +2,7 @@
 #include <yt/yt/flow/library/cpp/common/registry.h>
 #include <yt/yt/flow/library/cpp/common/yson_message.h>
 
-#include <yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_computation.h>
+#include <yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_process_function.h>
 
 #include <yt/yt/flow/library/cpp/runner/init.h>
 #include <yt/yt/flow/library/cpp/runner/simple_runner_program.h>
@@ -79,29 +79,31 @@ struct TTestUserState
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestMultiplexerComputation
-    : public TDynamicTableMultiplexerComputation<TTestUserState>
+class TTestMultiplexerProcessFunction
+    : public TDynamicTableMultiplexerProcessFunction<TTestUserState>
 {
 public:
-    using TDynamicTableMultiplexerComputation::TDynamicTableMultiplexerComputation;
+    using TDynamicTableMultiplexerProcessFunction::TDynamicTableMultiplexerProcessFunction;
 
-    void DoOnInputMessage(
+    void OnInputMessage(
         const TKey& /*key*/,
         const TInputMessageConstPtr& message,
-        TStateAccessor<TTestUserState>& userState) override
+        TStateAccessor<TTestUserState>& userState,
+        const IRuntimeContextPtr& context) override
     {
-        auto input = ConvertToYsonMessage<TKeyMessage>(message);
+        auto input = context->ConvertToYsonMessage<TKeyMessage>(message);
         userState->Payload = input->Payload;
     }
 
-    void DoBuildOutputForRow(
+    void BuildOutputForRow(
         const TKey& key,
         const TPayload& rowPayload,
         const NTableClient::TTableSchemaPtr& rowSchema,
         TStateAccessor<TTestUserState>& userState,
-        IOutputCollectorPtr output) override
+        const IOutputCollectorPtr& output,
+        const IRuntimeContextPtr& context) override
     {
-        auto inputKey = ConvertToYsonKey<TKeyMessage>(key);
+        auto inputKey = context->ConvertToYsonKey<TKeyMessage>(key);
 
         auto row = New<TRowMessage>();
         row->Key = inputKey->Key;
@@ -109,11 +111,14 @@ public:
         row->Region = GetColumnValue<std::string>(rowPayload, rowSchema, "region");
         row->Payload = userState->Payload;
 
-        output->AddMessage(ConvertToMessage(row));
+        output->AddMessage(context->ConvertToMessage(row));
     }
 };
 
-YT_FLOW_DEFINE_COMPUTATION(TTestMultiplexerComputation);
+YT_FLOW_DEFINE_PROCESS_FUNCTION(
+    TTestMultiplexerProcessFunction,
+    TDynamicTableMultiplexerParameters,
+    TDynamicMultiplexerParameters);
 
 ////////////////////////////////////////////////////////////////////////////////
 

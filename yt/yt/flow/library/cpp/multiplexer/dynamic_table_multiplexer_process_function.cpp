@@ -1,4 +1,4 @@
-#include "dynamic_table_multiplexer_computation.h"
+#include "dynamic_table_multiplexer_process_function.h"
 
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -14,9 +14,12 @@ void TDynamicTableMultiplexerParameters::Register(TRegistrar registrar)
     registrar.Parameter("table_path", &TThis::TablePath)
         .Default();
 
-    registrar.Postprocessor([] (TDynamicTableMultiplexerParameters* spec) {
-        if (spec->TablePath.GetPath().empty()) {
+    registrar.Postprocessor([] (TDynamicTableMultiplexerParameters* parameters) {
+        if (parameters->TablePath.GetPath().empty()) {
             THROW_ERROR_EXCEPTION("\"table_path\" must be set and have a non-empty path");
+        }
+        if (!parameters->TablePath.GetCluster()) {
+            THROW_ERROR_EXCEPTION("\"table_path\" must specify a cluster");
         }
     });
 }
@@ -49,8 +52,7 @@ std::pair<NTableClient::TTableSchemaPtr, std::vector<std::string>> SplitTableSch
                 tableColumn.Name());
         }
         // Compare types ignoring required/optional wrapping: computed columns
-        // (e.g. farm_hash(key)) cannot be marked required, but they hold the
-        // same underlying type as the corresponding group_by_schema column.
+        // cannot be marked required, but hold the same underlying type.
         const auto& tableType = *NTableClient::MakeOptionalIfNot(tableColumn.LogicalType());
         const auto& groupByType = *NTableClient::MakeOptionalIfNot(groupByColumn.LogicalType());
         if (tableType != groupByType) {
@@ -84,10 +86,7 @@ std::pair<NTableClient::TTableSchemaPtr, std::vector<std::string>> SplitTableSch
 
 namespace {
 
-//! Format a single TUnversionedValue as a SQL literal suitable for inlining
-//! into a SELECT WHERE clause. For Any columns wraps the YSON bytes in
-//! `yson_string_to_any(...)` — that's the only way to compare Any-typed
-//! columns in YT's query language.
+//! Formats a value as a SQL literal suitable for a SELECT WHERE clause.
 std::string FormatValueLiteral(
     const NTableClient::TUnversionedValue& value,
     NTableClient::EValueType columnType)
@@ -112,14 +111,11 @@ std::string FormatValueLiteral(
     }
 }
 
-//! Builds a parenthesized list of column names: "(col1,col2)".
 std::string BuildColumnList(const std::vector<std::string>& columns)
 {
     return Format("(%v)", JoinSeq(",", columns));
 }
 
-//! Builds a parenthesized tuple of literals matching the column types of
-//! |keySchema|: "(literal_for_col1, literal_for_col2, ...)".
 std::string BuildLiteralTuple(
     const TKey& key,
     const NTableClient::TTableSchema& keySchema)
@@ -135,7 +131,6 @@ std::string BuildLiteralTuple(
     return Format("(%v)", JoinSeq(",", literals));
 }
 
-//! Builds a comparison clause: "(col1,col2) <op> (literal1, literal2)".
 std::string BuildComparisonClause(
     const std::vector<std::string>& columnNames,
     TStringBuf op,
@@ -202,9 +197,7 @@ TParameterizedSelectQuery BuildSelectQuery(
         whereClauses.push_back(Format("(%v)", additionalWhere));
     }
 
-    // YT requires ORDER BY to use the full table sort-key prefix; using only
-    // the secondary key columns is not accepted even if the group_by columns
-    // are pinned by an equality predicate.
+    // YT requires ORDER BY to use the full table sort-key prefix.
     std::vector<std::string> orderByColumns = groupByColumnNames;
     orderByColumns.insert(orderByColumns.end(), secondaryKeyColumns.begin(), secondaryKeyColumns.end());
 
