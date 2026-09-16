@@ -119,7 +119,7 @@ protected:
 
     TNodeTraverseDataPtr GetNodeTraverse();
 
-    //! Applies pending states at the start of a run iteration.
+    //! Applies states received since the previous call.
     //! Must be called from JobSerializedInvoker_.
     void ApplyPendingStates();
 
@@ -455,8 +455,7 @@ protected:
     void RegisterOutputMessages(
         const IComputationRunContextPtr& context,
         std::span<const TOutputMessageConstPtr> messages,
-        const std::optional<TKey>& parentKey,
-        const TDynamicComputationSpecPtr& dynamicSpec);
+        const std::optional<TKey>& parentKey);
 
     template <class TCallback>
     void SubscribeRunIterationStart(TCallback callback)
@@ -521,6 +520,7 @@ protected:
     }
 
     void InitOutputStoreDistribution(const IComputationRunContextPtr& context);
+    void InitSinks();
 
     void Run(const IComputationRunContextPtr& context) final;
 
@@ -536,8 +536,7 @@ protected:
     //! dedup state if the key's range is later re-read.
     virtual bool HasPersistedKeyedOutput() const;
 
-    ISinkPtr GetOrCreateSink(const TSinkId& sinkId, const std::optional<TKey>& parentKey, const TDynamicComputationSpecPtr& dynamicSpec);
-    std::vector<std::tuple<TSinkId, std::optional<TKey>, ISinkPtr>> GetAllSinks() const;
+    ISinkPtr GetSink(const TSinkId& sinkId) const;
 
     void PreloadKeyStates(const IInputContextPtr& inputContext);
 
@@ -603,7 +602,7 @@ protected:
     const std::optional<TStreamId> ActiveSourceStreamId_;
     const ISourcePtr ActiveSource_;
 
-    THashMap<TSinkId, THashMap<std::optional<TKey>, ISinkPtr>> Sinks_;
+    THashMap<TSinkId, ISinkPtr> Sinks_;
 
     const IInputStorePtr InputStore_;
     const ITimerStorePtr TimerStore_;
@@ -671,17 +670,17 @@ private:
 
     void ObserveEpochEventLags(TInstant commitNow);
 
+    void ValidateOutputParentKey(const std::optional<TKey>& parentKey) const;
+    void ClearStateOwners();
+
     // Common implementation for RegisterOutputMessages and InitOutputStoreDistribution.
     // Iterates over |messages|, distributes each to the appropriate sink, registers
     // with context, and activates all trackers.
-    //   getKey(i)                  -> const std::optional<TKey>&  (used for GetOrCreateSink)
-    //   makeTrackerCallback(i, cookie) -> callable()              (stored in TDistributingTracker)
-    template <class TGetKey, class TMakeTrackerCallback>
+    // |makeTrackerCallback(i)| returns the completion callback stored in the tracker for |messages[i]|.
+    template <class TMakeTrackerCallback>
     void DistributeOutputMessagesImpl(
         const IComputationRunContextPtr& context,
         std::span<const TOutputMessageConstPtr> messages,
-        const TDynamicComputationSpecPtr& dynamicSpec,
-        TGetKey&& getKey,
         TMakeTrackerCallback&& makeTrackerCallback);
 
     void DrainDistributedOutputs(const IComputationRunContextPtr& context);

@@ -307,7 +307,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             // Register all output messages in one batch.
             std::vector<TOutputMessageConstPtr> outputMessagesBase(outputMessages.begin(), outputMessages.end());
             OutputStore_->TryRegisterBatch(outputMessagesBase, /*persist=*/false);
-            RegisterOutputMessages(context, outputMessagesBase, std::nullopt, dynamicSpec);
+            RegisterOutputMessages(context, outputMessagesBase, std::nullopt);
 
             YT_TLOG_INFO("Process completed")
                 .With("OutputMessages", outputMessages.size());

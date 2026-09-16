@@ -686,7 +686,7 @@ TUniversalComputationBase::TUniversalComputationBase(
 
     SubscribeOnReconfigure(BIND(
         [this] () {
-            for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+            for (const auto& [sinkId, sink] : Sinks_) {
                 auto dynamicSinkContext = New<TDynamicSinkContext>();
                 dynamicSinkContext->DynamicSinkSpec = GetOrDefault(GetDynamicSpec()->Sinks, sinkId, New<TDynamicSinkSpec>());
                 sink->Reconfigure(dynamicSinkContext);
@@ -1352,12 +1352,10 @@ void TUniversalComputationBase::RegisterInputBeforeProcessing(
     }
 }
 
-template <class TGetKey, class TMakeTrackerCallback>
+template <class TMakeTrackerCallback>
 void TUniversalComputationBase::DistributeOutputMessagesImpl(
     const IComputationRunContextPtr& context,
     std::span<const TOutputMessageConstPtr> messages,
-    const TDynamicComputationSpecPtr& dynamicSpec,
-    TGetKey&& getKey,
     TMakeTrackerCallback&& makeTrackerCallback)
 {
     OutputEventLagObserver_.ObserveBatch(messages);
@@ -1371,7 +1369,7 @@ void TUniversalComputationBase::DistributeOutputMessagesImpl(
             if (!sinkSpec->InputStreamIds.contains(outputMessage->StreamId)) {
                 continue;
             }
-            auto sink = GetOrCreateSink(sinkId, getKey(i), dynamicSpec);
+            auto sink = GetSink(sinkId);
             sink->Distribute(outputMessage, trackers.back().AddDestination());
         }
     }
@@ -1388,20 +1386,16 @@ void TUniversalComputationBase::DistributeOutputMessagesImpl(
 void TUniversalComputationBase::RegisterOutputMessages(
     const IComputationRunContextPtr& context,
     std::span<const TOutputMessageConstPtr> messages,
-    const std::optional<TKey>& parentKey,
-    const TDynamicComputationSpecPtr& dynamicSpec)
+    const std::optional<TKey>& parentKey)
 {
     if (messages.empty()) {
         return;
     }
 
+    ValidateOutputParentKey(parentKey);
     DistributeOutputMessagesImpl(
         context,
         messages,
-        dynamicSpec,
-        /*getKey*/ [&] (size_t) -> const std::optional<TKey>& {
-            return parentKey;
-        },
         /*makeTrackerCallback*/ [&] (size_t i) {
             return [pendingOutputs = PendingProcessedOutputs_, msg = TOutputMessageConstPtr(messages[i])] () mutable {
                 pendingOutputs->PushNormal(std::move(msg));
@@ -1452,7 +1446,7 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     if (TimerStore_) {
         TimerStore_->UpdateWatermarkState(GetWatermarkState());
     }
-    for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+    for (const auto& [_, sink] : Sinks_) {
         sink->UpdateWatermarkState(GetWatermarkState());
     }
     if (InputStore_) {
@@ -1551,7 +1545,7 @@ void TUniversalComputationBase::Commit(
         for (const auto& [_, visitor] : KeyVisitors_) {
             visitor->Sync(transaction);
         }
-        for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+        for (const auto& [_, sink] : Sinks_) {
             sink->Sync(transaction);
         }
         RefreshBufferWarmupState();
@@ -1576,7 +1570,7 @@ void TUniversalComputationBase::Commit(
         for (const auto& [_, visitor] : KeyVisitors_) {
             visitor->Commit();
         }
-        for (const auto& [sinkId, key, sink] : GetAllSinks()) {
+        for (const auto& [_, sink] : Sinks_) {
             sink->Commit();
         }
         YT_TLOG_INFO("Transaction committed");
@@ -1767,11 +1761,10 @@ void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRu
 
     auto iterGuard = StartRunIteration(context);
 
-    const auto dynamicSpec = GetDynamicSpec();
-
     std::vector<TOutputMessageConstPtr> outputMessages;
     outputMessages.reserve(outputs.size());
     for (auto& [msg, key] : outputs) {
+        ValidateOutputParentKey(key);
         outputMessages.push_back(std::move(msg));
     }
 
@@ -1779,10 +1772,6 @@ void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRu
     DistributeOutputMessagesImpl(
         context,
         std::span<const TOutputMessageConstPtr>(outputMessages),
-        dynamicSpec,
-        /*getKey*/ [&] (size_t i) -> const std::optional<TKey>& {
-            return outputs[i].second;
-        },
         /*makeTrackerCallback*/ [&] (size_t i) {
             return [pendingOutputs = PendingProcessedOutputs_, msg = outputMessages[i]] () mutable {
                 pendingOutputs->PushInit(std::move(msg));
@@ -1790,6 +1779,34 @@ void TUniversalComputationBase::InitOutputStoreDistribution(const IComputationRu
         });
 
     FinishRunIteration();
+}
+
+void TUniversalComputationBase::InitSinks()
+{
+    const auto& dynamicSpec = GetDynamicSpec();
+    for (const auto& [sinkId, sinkSpec] : GetSpec()->Sinks) {
+        auto context = New<TSinkContext>();
+        static_cast<TComputationContextBase&>(*context) = *GetContext();
+        context->SinkId = sinkId;
+        context->Profiler = context->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
+        context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
+        context->Logger = context->Logger.WithTag("SinkId", sinkId);
+        context->SinkSpec = sinkSpec;
+
+        auto dynamicSinkContext = New<TDynamicSinkContext>();
+        dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
+        auto sink = TRegistry::Get()->CreateSink(context, dynamicSinkContext);
+        sink->UpdateWatermarkState(GetWatermarkState());
+
+        const auto stateName = Format("sinks/%v", sinkId);
+        const auto initContext = StateManager_->CreateContext();
+        if (const auto& sourceKey = GetContext()->Partition->SourceKey) {
+            sink->Init(initContext->AsKey(*sourceKey)->WithPrefix(stateName));
+        } else {
+            sink->Init(initContext->AsPartition()->WithPrefix(stateName));
+        }
+        EmplaceOrCrash(Sinks_, sinkId, std::move(sink));
+    }
 }
 
 void TUniversalComputationBase::InitBufferWarmupState()
@@ -1861,6 +1878,8 @@ void TUniversalComputationBase::Run(const IComputationRunContextPtr& context)
     YT_TLOG_INFO("Starting execution");
     auto initTraceContextGuard = TTraceContextGuard(Tracer_->CreateInitTraceContext());
 
+    ApplyPendingStates();
+    InitSinks();
     DoPrepare(context);
     InitBufferWarmupState();
 
@@ -2008,6 +2027,8 @@ void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& conte
 
     {
         auto transaction = PrepareTransaction(context);
+        // Release local state owners after draining callbacks; flushing them here would undo the erases.
+        ClearStateOwners();
         keyStates->Erase(transaction, keysToErase);
         partitionStates->Erase(transaction, partitionsToErase);
         if (!keyVisitorMutations.empty()) {
@@ -2022,36 +2043,29 @@ void TUniversalComputationBase::DoCleanup(const IComputationRunContextPtr& conte
     YT_TLOG_INFO("Completed DoCleanup");
 }
 
-ISinkPtr TUniversalComputationBase::GetOrCreateSink(const TSinkId& sinkId, const std::optional<TKey>& parentKey, const TDynamicComputationSpecPtr& dynamicSpec)
+void TUniversalComputationBase::ClearStateOwners()
+{
+    Sinks_.clear();
+    BufferWarmupState_.Reset();
+    StateManager_->Clear();
+}
+
+void TUniversalComputationBase::ValidateOutputParentKey(const std::optional<TKey>& parentKey) const
+{
+    if (Sinks_.empty()) {
+        return;
+    }
+    THROW_ERROR_EXCEPTION_UNLESS(
+        parentKey == GetContext()->Partition->SourceKey,
+        "Sink parent key does not match partition source key")
+        .With("parent_key", parentKey)
+        .With("source_key", GetContext()->Partition->SourceKey);
+}
+
+ISinkPtr TUniversalComputationBase::GetSink(const TSinkId& sinkId) const
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
-
-    if (auto sink = GetOrDefault(GetOrDefault(Sinks_, sinkId), parentKey)) {
-        return sink;
-    }
-
-    auto context = New<TSinkContext>();
-    static_cast<TComputationContextBase&>(*context) = *GetContext();
-    context->SinkId = sinkId;
-    context->Profiler = context->Profiler.WithPrefix("/sink").WithTag("sink_id", sinkId.Underlying());
-    context->StatusProfiler = context->StatusProfiler->WithPrefix(Format("/sinks/%v", sinkId));
-    context->Logger = context->Logger.WithTag("SinkId", sinkId);
-    context->SinkId = sinkId;
-    context->SinkSpec = GetOrCrash(GetSpec()->Sinks, sinkId);
-    auto dynamicSinkContext = New<TDynamicSinkContext>();
-    dynamicSinkContext->DynamicSinkSpec = GetOrDefault(dynamicSpec->Sinks, sinkId, New<TDynamicSinkSpec>());
-    auto sink = TRegistry::Get()->CreateSink(context, dynamicSinkContext);
-    sink->UpdateWatermarkState(GetWatermarkState());
-
-    const auto stateName = Format("sinks/%v", sinkId);
-    const auto initContext = StateManager_->CreateContext();
-    if (parentKey) {
-        sink->Init(initContext->AsKey(*parentKey)->WithPrefix(stateName));
-    } else {
-        sink->Init(initContext->AsPartition()->WithPrefix(stateName));
-    }
-    Sinks_[sinkId][parentKey] = sink;
-    return sink;
+    return GetOrCrash(Sinks_, sinkId);
 }
 
 THashMap<std::string, THashSet<TKey>> TUniversalComputationBase::CollectVisitorDrivenJoinerKeys(
@@ -2172,18 +2186,6 @@ void TUniversalComputationBase::PreloadKeyStates(const IInputContextPtr& inputCo
             StateManager_->PreloadVisitorDrivenJoiners(visitorDrivenJoinerKeys),
             }))
         .ThrowOnError();
-}
-
-std::vector<std::tuple<TSinkId, std::optional<TKey>, ISinkPtr>> TUniversalComputationBase::GetAllSinks() const
-{
-    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
-    std::vector<std::tuple<TSinkId, std::optional<TKey>, ISinkPtr>> result;
-    for (const auto& [sinkId, sinks] : Sinks_) {
-        for (const auto& [parentKey, sink] : sinks) {
-            result.push_back(std::tuple(sinkId, parentKey, sink));
-        }
-    }
-    return result;
 }
 
 auto TUniversalComputationBase::CreateStreamMessageCounters(const NProfiling::TProfiler& profiler, const TComputationSpecPtr& spec)

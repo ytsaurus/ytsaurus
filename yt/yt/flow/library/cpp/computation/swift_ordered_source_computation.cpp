@@ -419,7 +419,7 @@ TSwiftOrderedSourceComputation::TPublishResult TSwiftOrderedSourceComputation::C
     }
     // Register all accumulated output messages in one batch.
     OutputStore_->TryRegisterKeyedBatch(allOutputMessages, *GetContext()->Partition->SourceKey, /*persist*/ false);
-    RegisterOutputMessages(context, allOutputMessages, *GetContext()->Partition->SourceKey, dynamicSpec);
+    RegisterOutputMessages(context, allOutputMessages, *GetContext()->Partition->SourceKey);
 
     YT_TLOG_INFO("Publishing batch")
         .With("SourceBatches", publishedInputBatches)
