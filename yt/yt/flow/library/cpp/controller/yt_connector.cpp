@@ -17,6 +17,8 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/bus/public.h>
+
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -67,13 +69,17 @@ public:
         TControllerConfigPtr config,
         TNodeInfoPtr nodeInfo,
         ICommonYTConnectorPtr commonYTConnector,
-        TControlActionQueuePtr controlQueue)
+        TControlActionQueuePtr controlQueue,
+        bool skipLeaderConfirmation,
+        bool busServerHasTlsMaterial)
         : Config_(std::move(config))
         , NodeInfo_(std::move(nodeInfo))
         , CommonYTConnector_(std::move(commonYTConnector))
         , ControlQueue_(std::move(controlQueue))
         , SerializedInvoker_(ControlQueue_->GetInvoker(EControlQueue::YTConnector))
         , DyntableLeases_(FlowControlTablePath(), LeasesTablePath())
+        , SkipLeaderConfirmation_(skipLeaderConfirmation)
+        , BusServerHasTlsMaterial_(busServerHasTlsMaterial)
     {
         YT_VERIFY(SerializedInvoker_->IsSerialized());
     }
@@ -279,6 +285,8 @@ private:
     const TControlActionQueuePtr ControlQueue_;
     const IInvokerPtr SerializedInvoker_;
     const TDyntableLeases DyntableLeases_;
+    const bool SkipLeaderConfirmation_;
+    const bool BusServerHasTlsMaterial_;
     TFuture<void> PublisherFuture_;
 
     std::atomic<EYTConnectorState> State_ = EYTConnectorState::Disconnected;
@@ -519,17 +527,44 @@ private:
             return false;
         }
 
-        try {
-            WaitFor(CheckControllerLeaderNodeIncarnationIdExternally(NodeInfo_->IncarnationId)).ThrowOnError();
-            YT_TLOG_INFO("Confirmed published leader controller address")
-                .With("Address", NodeInfo_->RpcAddress);
-        } catch (const std::exception& ex) {
-            YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to confirm leader_controller_address")
-                .With(ex);
-            return false;
+        TError confirmationError;
+        if (!SkipLeaderConfirmation_) {
+            confirmationError = WaitFor(CheckControllerLeaderNodeIncarnationIdExternally(NodeInfo_->IncarnationId));
         }
 
-        return true;
+        switch (ClassifyLeaderConfirmation(
+            SkipLeaderConfirmation_,
+            confirmationError,
+            NodeInfo_->RpcAddress,
+            BusServerHasTlsMaterial_))
+        {
+            case ELeaderConfirmationResult::Confirmed:
+                YT_TLOG_INFO("Confirmed published leader controller address")
+                    .With("Address", NodeInfo_->RpcAddress);
+                return true;
+
+            case ELeaderConfirmationResult::SkippedByEnvironment:
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning,
+                    "Leadership confirmation through the RPC proxy is skipped; "
+                    "the cluster cannot connect to this controller, so user flow commands (yt flow, SDK clients) and the UI will not work")
+                    .With("EnvironmentVariable", SkipLeaderProxyConfirmationEnvVarName)
+                    .With("Address", NodeInfo_->RpcAddress);
+                return true;
+
+            case ELeaderConfirmationResult::SkippedWithoutTlsMaterial:
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning,
+                    "Leadership confirmation through the RPC proxy is skipped; "
+                    "the cluster requires TLS to connect to this controller, but the controller bus server has no TLS certificate and key, "
+                    "so user flow commands (yt flow, SDK clients) and the UI will not work")
+                    .With("Address", NodeInfo_->RpcAddress)
+                    .With(confirmationError);
+                return true;
+
+            case ELeaderConfirmationResult::Failed:
+                YT_TLOG_EVENT(PublicControllerLogger, NLogging::ELogLevel::Warning, "Failed to confirm leader_controller_address")
+                    .With(confirmationError);
+                return false;
+        }
     }
 
     static void PublishLeadership(TWeakPtr<TYTConnector> weakConnector, TPrerequisiteId prerequisiteId)
@@ -603,13 +638,45 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ELeaderConfirmationResult ClassifyLeaderConfirmation(
+    bool skipConfirmationFromEnv,
+    const TError& confirmationError,
+    const std::string& controllerAddress,
+    bool busServerHasTlsMaterial)
+{
+    if (skipConfirmationFromEnv) {
+        return ELeaderConfirmationResult::SkippedByEnvironment;
+    }
+    if (confirmationError.IsOK()) {
+        return ELeaderConfirmationResult::Confirmed;
+    }
+    if (busServerHasTlsMaterial) {
+        return ELeaderConfirmationResult::Failed;
+    }
+    // The bus client of the RPC proxy attaches the address it dials, which is the published controller address.
+    auto sslError = confirmationError.FindMatching(NBus::EErrorCode::SslError);
+    return sslError && sslError->Attributes().Find<std::string>("address") == controllerAddress
+        ? ELeaderConfirmationResult::SkippedWithoutTlsMaterial
+        : ELeaderConfirmationResult::Failed;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYTConnectorPtr CreateYTConnector(
     TControllerConfigPtr config,
     TNodeInfoPtr nodeInfo,
     ICommonYTConnectorPtr commonYTConnector,
-    TControlActionQueuePtr controlQueue)
+    TControlActionQueuePtr controlQueue,
+    bool skipLeaderConfirmation,
+    bool busServerHasTlsMaterial)
 {
-    return New<TYTConnector>(std::move(config), std::move(nodeInfo), std::move(commonYTConnector), std::move(controlQueue));
+    return New<TYTConnector>(
+        std::move(config),
+        std::move(nodeInfo),
+        std::move(commonYTConnector),
+        std::move(controlQueue),
+        skipLeaderConfirmation,
+        busServerHasTlsMaterial);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
