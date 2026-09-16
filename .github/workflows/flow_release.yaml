@@ -280,7 +280,9 @@ jobs:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
         run: |
-          curl -v -u "$OSSRH_USERNAME:$OSSRH_PASSWORD" -X POST "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/tech.ytsaurus"
+          # publishing_type=automatic releases the deployment once validation passes; the default,
+          # user_managed, would leave it waiting for a button in the Publisher Portal instead.
+          curl -v --fail-with-body -u "$OSSRH_USERNAME:$OSSRH_PASSWORD" -X POST "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/tech.ytsaurus?publishing_type=automatic"
 
   publish-python:
     name: Publish Python packages
