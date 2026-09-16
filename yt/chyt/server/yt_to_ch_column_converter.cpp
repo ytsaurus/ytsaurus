@@ -526,8 +526,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: there is an important difference on how optional<T> works for outermost case with
-// simple T (so called V1 optional scenario) and the rest of cases.
+// NB: outermost optionals with a non-composite wire type use the V1 representation.
 //
 // For V1 optionals input unversioned values may be either of type T or of type Null.
 // Input native YT columns will also be properly typed, i.e. input column will be of type T
@@ -1542,11 +1541,7 @@ private:
 
     IConverterPtr CreateOptionalConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost)
     {
-        // These fields represent either a first non-nullable type inside ours, or will all be nullopt/nullptr
-        // in when the innermost type is null/void.
         std::optional<TComplexTypeFieldDescriptor> innerDescriptor;
-        TLogicalTypePtr innerLogicalType;
-        std::optional<ELogicalMetatype> innerMetatype;
 
         // Number of outermost optional's + possibly one if the innermost type is null or void. E.g.:
         // optional<int> -> 1
@@ -1562,8 +1557,6 @@ private:
             while (true) {
                 if (!currentDescriptor.GetType()->IsNullable()) {
                     innerDescriptor = std::move(currentDescriptor);
-                    innerLogicalType = innerDescriptor->GetType();
-                    innerMetatype = innerLogicalType->GetMetatype();
                     break;
                 }
 
@@ -1583,9 +1576,7 @@ private:
 
         YT_VERIFY(nestingLevel > 0);
 
-        bool isV1Optional = isOutermost && nestingLevel == 1 &&
-            (innerMetatype == ELogicalMetatype::Simple || innerMetatype == ELogicalMetatype::Decimal ||
-             innerMetatype == std::nullopt);
+        bool isV1Optional = isOutermost && nestingLevel == 1 && !IsV3Composite(descriptor.GetType());
 
         IConverterPtr underlyingConverter;
 

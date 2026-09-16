@@ -22,6 +22,37 @@ using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+std::vector<bool> ComputeUseMinMaxBounds(const TTableSchema& schema)
+{
+    std::vector<bool> result;
+    result.reserve(schema.GetColumnCount());
+    for (const auto& columnSchema : schema.Columns()) {
+        const auto& columnType = columnSchema.LogicalType();
+        auto valueType = columnType;
+        if (valueType->GetMetatype() == ELogicalMetatype::Tagged &&
+            valueType->AsTaggedTypeRef().GetTag() == LowCardinalityTag)
+        {
+            valueType = DetagLogicalType(valueType);
+        }
+        while (valueType->GetMetatype() == ELogicalMetatype::Optional) {
+            valueType = valueType->GetElement();
+        }
+
+        // YSON serialization does not preserve value ordering.
+        result.push_back(!IsV3Composite(columnType) &&
+            *valueType != *SimpleLogicalType(ESimpleLogicalValueType::Any) &&
+            valueType->GetMetatype() != ELogicalMetatype::Tagged);
+    }
+
+    return result;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGranuleMinMaxFilter
     : public IGranuleFilter
 {
@@ -35,6 +66,7 @@ public:
         : KeyCondition_(std::move(keyCondition))
         , QueryRealColumnsSchema_(std::move(queryRealColumnsSchema))
         , ColumnDataTypes_(ToDataTypes(*QueryRealColumnsSchema_, settings))
+        , UseMinMaxBounds_(ComputeUseMinMaxBounds(*QueryRealColumnsSchema_))
         , StatisticsSampleCallback_(std::move(statisticsSampleCallback))
         , FilterActions_(std::move(filterActions))
     { }
@@ -48,12 +80,11 @@ public:
             return false;
         }
 
-        auto typeAny = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
-
         std::vector<DB::Range> columnRanges;
         columnRanges.reserve(QueryRealColumnsSchema_->GetColumnCount());
 
-        for (const auto& columnSchema : QueryRealColumnsSchema_->Columns()) {
+        for (int columnIndex = 0; columnIndex < QueryRealColumnsSchema_->GetColumnCount(); ++columnIndex) {
+            const auto& columnSchema = QueryRealColumnsSchema_->Columns()[columnIndex];
             auto columnId = granuleNameTable->FindId(columnSchema.Name());
 
             if (!columnId || *columnId >= statistics.GetColumnCount() || statistics.ColumnNonNullValueCounts[*columnId] == 0) {
@@ -67,8 +98,7 @@ public:
                     ? DB::Range::createWholeUniverse()
                     : DB::Range::createWholeUniverseWithoutNull();
 
-                // 'Any' columns are converted to yson strings, so min/max statistics are meaningless for them.
-                if (*columnType != *typeAny) {
+                if (UseMinMaxBounds_[columnIndex]) {
                     if (statistics.ColumnMinValues[*columnId].Type() != EValueType::Min && !hasNull) {
                         range.left = ToField(statistics.ColumnMinValues[*columnId], columnType);
                         range.left_included = true;
@@ -94,6 +124,7 @@ private:
     const DB::KeyCondition KeyCondition_;
     const TTableSchemaPtr QueryRealColumnsSchema_;
     const DB::DataTypes ColumnDataTypes_;
+    const std::vector<bool> UseMinMaxBounds_;
     const TCallback<void(const TStatisticPath&, i64)> StatisticsSampleCallback_;
     std::shared_ptr<DB::ActionsDAG> FilterActions_;
 };
