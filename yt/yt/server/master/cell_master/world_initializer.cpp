@@ -852,6 +852,11 @@ private:
                 EObjectType::GroupMap);
 
             ScheduleCreateNode(
+                "//sys/master_cell_groups",
+                transactionId,
+                EObjectType::MasterCellGroupMap);
+
+            ScheduleCreateNode(
                 "//sys/network_projects",
                 transactionId,
                 EObjectType::NetworkProjectMap);

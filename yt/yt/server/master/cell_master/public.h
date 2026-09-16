@@ -2,7 +2,13 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/server/master/object_server/public.h>
+
+#include <yt/yt/server/lib/hydra/public.h>
+
 #include <yt/yt/client/cell_master_client/public.h>
+
+#include <yt/yt/client/object_client/public.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -42,12 +48,19 @@ DECLARE_REFCOUNTED_STRUCT(IConfigManager)
 DECLARE_REFCOUNTED_STRUCT(IEpochHistoryManager)
 DECLARE_REFCOUNTED_STRUCT(IResponseKeeperManager)
 DECLARE_REFCOUNTED_STRUCT(IHydraFacade)
+DECLARE_REFCOUNTED_STRUCT(IMasterCellGroupManager)
 DECLARE_REFCOUNTED_STRUCT(IMulticellManager)
 DECLARE_REFCOUNTED_STRUCT(IWorldInitializer)
 DECLARE_REFCOUNTED_STRUCT(IMulticellStatisticsCollector)
 DECLARE_REFCOUNTED_STRUCT(IHiveProfilingManager)
 
 DECLARE_REFCOUNTED_CLASS(TBootstrap);
+
+using TMasterCellGroupId = NObjectClient::TObjectId;
+
+DECLARE_ENTITY_TYPE(TMasterCellGroup, TMasterCellGroupId, NObjectClient::TObjectIdEntropyHash)
+
+DECLARE_MASTER_OBJECT_TYPE(TMasterCellGroup)
 
 enum class EMasterReign;
 class TLoadContext;
@@ -137,6 +150,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TransactionFinisher)
     (ExpirationTracker)
     (SequoiaActionExecutor)
+    (MasterCellGroupManager)
 );
 
 using NCellMasterClient::EMasterCellRole;

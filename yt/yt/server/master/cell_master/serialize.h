@@ -223,6 +223,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistNodeLeaseTimeoutBeforeExtension)                       (3348))  // danilalexeev
     ((MiscHunkStorageFixes)                                         (3349))  // akozhikhov
     ((IntroduceStoresUpdateThrottler)                               (3350))  // alexelexa
+    ((MasterCellGroups)                                             (3351))  // evanevannnn
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
