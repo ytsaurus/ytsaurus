@@ -181,7 +181,7 @@ void TTransformOrderedSourceComputation::DoExecute(const IComputationRunContextP
         {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Distribute.Start"));
             OutputStore_->TryRegisterKeyedBatch(outputMessages, *GetContext()->Partition->SourceKey, /*persist*/ true);
-            RegisterOutputMessages(context, outputMessages, *GetContext()->Partition->SourceKey, dynamicSpec);
+            RegisterOutputMessages(context, outputMessages, *GetContext()->Partition->SourceKey);
         }
 
         for (const auto& sourceBatch : sourceMessageBatches) {

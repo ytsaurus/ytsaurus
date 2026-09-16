@@ -221,6 +221,16 @@ TFuture<void> TJobStateManager::PreloadKeyStates(const IInputContextPtr& inputCo
     return AllSucceeded(futures);
 }
 
+void TJobStateManager::Clear()
+{
+    PartitionMutableStateProviders_.clear();
+    KeyMutableStateProviders_.clear();
+    MutableStateKeyProviders_.clear();
+    JoinedStateKeyProviders_.clear();
+    ExternalStateManagers_.clear();
+    ExternalStateJoiners_.clear();
+}
+
 void TJobStateManager::Sync(IRetryableTransactionPtr transaction)
 {
     auto doSync = [&] (auto& providers) {

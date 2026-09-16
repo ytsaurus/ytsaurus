@@ -42,6 +42,7 @@ target_link_libraries(yt-flow-library-cpp-computation-unittests PUBLIC
   client-unittests-mock
   library-cpp-computation
   common-unittests-mock
+  cpp-connectors-common
   cpp-connectors-random
   tables-unittests-mock
   library-profiling-solomon
@@ -76,6 +77,7 @@ target_sources(yt-flow-library-cpp-computation-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/input_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/simple_external_state_joiner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/simple_external_state_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/sink_init_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/static_table_key_visitor_joiner_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/key_visitor_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/computation/unittests/key_visitor_ut.cpp

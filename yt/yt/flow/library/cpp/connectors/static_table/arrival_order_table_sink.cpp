@@ -274,9 +274,9 @@ void TArrivalOrderTableSink::EnsureInitialized()
     if (Initialized_) {
         return;
     }
-    // Deliberately not done in #Init(): that runs from #DoPrepare() when a restarted job replays its
-    // output store, and blocking there would leave the partition without traverse data, freezing
-    // the watermark of the whole pipeline. #Commit() runs after the epoch is already durable.
+    // Deliberately not done in #Init(): it runs before the partition's first traverse update,
+    // and this remote-master initialization may block for a long time. #Commit() runs after the
+    // epoch is already durable.
     auto progress = InitializeExternalState();
     // Not retried: a foreign owner never resolves itself; the operator has to hand the directory over.
     ValidateProgressOwnership(progress);

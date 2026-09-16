@@ -186,7 +186,7 @@ void TTransformComputation::DoExecute(const IComputationRunContextPtr& context, 
                 outputMessagePtrs.push_back(New<TOutputMessage>(std::move(outputMessage), specStorage));
             }
             OutputStore_->RegisterBatch(outputMessagePtrs);
-            RegisterOutputMessages(context, outputMessagePtrs, std::nullopt, dynamicSpec);
+            RegisterOutputMessages(context, outputMessagePtrs, std::nullopt);
         }
         {
             TimerStore_->Unregister(inputTimers);

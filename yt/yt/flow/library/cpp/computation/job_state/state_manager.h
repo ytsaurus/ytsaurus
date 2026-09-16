@@ -81,6 +81,9 @@ public:
     TFuture<void> PreloadKeyStates(const IInputContextPtr& inputContext);
     void Sync(IRetryableTransactionPtr transaction);
 
+    //! Unregisters state providers and releases external managers and joiners without flushing them.
+    void Clear();
+
     IJobInitContextPtr CreateContext(std::string prefix = "");
 
     TFuture<IMutableStateProviderPtr> CreatePartitionMutableStateProvider(std::string path, std::function<IStateHolderPtr()> ctor);
@@ -110,8 +113,8 @@ private:
     THashMap<std::string, TWeakPtr<TJobJoinedStateKeyProvider>> JoinedStateKeyProviders_;
     THashMap<std::string, TDynamicStateJoinerSpecPtr> DynamicStateJoiners_;
 
-    const THashMap<std::string, IExternalStateManagerPtr> ExternalStateManagers_;
-    const THashMap<std::string, IExternalStateJoinerPtr> ExternalStateJoiners_;
+    THashMap<std::string, IExternalStateManagerPtr> ExternalStateManagers_;
+    THashMap<std::string, IExternalStateJoinerPtr> ExternalStateJoiners_;
 
 private:
     TJobStateClientContextPtr CreateStateClientContext(const std::string& path) const;
