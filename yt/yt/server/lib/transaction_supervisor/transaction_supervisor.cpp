@@ -2764,9 +2764,6 @@ private:
                     return;
                 }
 
-                auto participant = GetParticipant(cellId);
-                auto timestampProvider = participant->GetTimestampProviderOrThrow();
-
                 TFuture<TTimestamp> asyncTimestamp;
                 if (inheritCommitTimestamp && cellId != SelfCellId_) {
                     YT_TLOG_DEBUG("Inheriting commit timestamp")
@@ -2804,6 +2801,11 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transactionId = commit->GetTransactionId();
+
+        GetParticipant(SelfCellId_);
+        for (auto cellId : commit->ParticipantCellIds()) {
+            GetParticipant(cellId);
+        }
 
         BIND(
             &TTransactionSupervisor::DoGenerateCommitTimestamps,
