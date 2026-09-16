@@ -582,6 +582,7 @@ void TSchedulingSegmentManager::LogOperationFairShareTransitions(TUpdateScheduli
                 .Item("resource_demand").Value(element->ResourceDemand())
                 .Item("fair_resources").Value(element->GetTotalResourceLimits() * fairShare);
         }
+
         operation->PreemptibleAtLastUpdate = isPreemptible;
     }
 }
