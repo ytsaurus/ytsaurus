@@ -401,7 +401,8 @@ public:
         try {
             Stop();
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING("Parallel table reader was finished with exception: %v", ex.what());
+            YT_TLOG_WARNING("Parallel table reader finished with an exception")
+                .With("Error", ex.what());
         }
     }
 
@@ -433,8 +434,8 @@ private:
                 }
             }
         } catch (const std::exception& exception) {
-            YT_LOG_ERROR("Exception in parallel reader thread: %v",
-                exception.what());
+            YT_TLOG_ERROR("Exception in parallel reader thread")
+                .With("Error", exception.what());
             TGuard<TMutex> guard(Lock_);
             Exception_ = std::current_exception();
             DoStop();
@@ -445,9 +446,9 @@ private:
                 DoStop();
             }
             --RunningThreadCount_;
-            YT_LOG_DEBUG("%v/%v parallel reader threads finished",
-                static_cast<int>(Threads_.size()) - RunningThreadCount_,
-                Threads_.size());
+            YT_TLOG_DEBUG("Parallel reader threads finished")
+                .With("FinishedThreadCount", static_cast<int>(Threads_.size()) - RunningThreadCount_)
+                .With("ThreadCount", Threads_.size());
         }
     }
 
@@ -675,7 +676,9 @@ private:
             buffer->FirstRowIndex = rowIndex;
 
             if (rangeIndex != expectedRangeIndex) {
-                YT_LOG_DEBUG("Expected range_index does not exist in the response, it is empty: RangeIndex = %d, ExpectedRangeIndex = %d", rangeIndex, expectedRangeIndex);
+                YT_TLOG_DEBUG("Expected range index does not exist in the response; the range is empty")
+                    .With("RangeIndex", rangeIndex)
+                    .With("ExpectedRangeIndex", expectedRangeIndex);
                 buffer->Rows.resize(0);
             } else {
                 ReadRows(reader, Config_.BatchSize, buffer);
@@ -694,8 +697,8 @@ private:
     void DoStop() override
     {
         with_lock(WaitTimeMutex_) {
-            YT_LOG_DEBUG("Finishing ordered parallel read manager; total wait time is %v seconds",
-                WaitTime_.SecondsFloat());
+            YT_TLOG_DEBUG("Finishing ordered parallel read manager")
+                .With("WaitTime", WaitTime_);
         }
         FilledBuffers_.Stop();
         for (auto& queue : EmptyBuffers_) {
@@ -943,11 +946,10 @@ std::unique_ptr<TReadManagerBase<TRow>> CreateReadManager(
         config.ThreadCount = options.ThreadCount_;
         config.BatchSize = batchSize;
         config.BatchCount = batchCount;
-        YT_LOG_DEBUG("Starting unordered processing parallel reader: "
-            "ThreadCount = %d, BatchSize = %d, BatchCount = %d",
-            config.ThreadCount,
-            config.BatchSize,
-            config.BatchCount);
+        YT_TLOG_DEBUG("Starting unordered processing parallel reader")
+            .With("ThreadCount", config.ThreadCount)
+            .With("BatchSize", config.BatchSize)
+            .With("BatchCount", config.BatchCount);
         return std::make_unique<TProcessingUnorderedReadManager<TRow>>(
             std::move(rangeReaderClient),
             std::move(rangeReaderPaths),
@@ -962,12 +964,11 @@ std::unique_ptr<TReadManagerBase<TRow>> CreateReadManager(
         config.BatchSize = batchSize;
         config.BatchCount = batchCount;
         config.RangeCount = options.RangeCount_;
-        YT_LOG_DEBUG("Starting ordered parallel reader: "
-            "ThreadCount = %d, BatchSize = %d, BatchCount = %d, RangeCount = %d",
-            config.ThreadCount,
-            config.BatchSize,
-            config.BatchCount,
-            config.RangeCount);
+        YT_TLOG_DEBUG("Starting ordered parallel reader")
+            .With("ThreadCount", config.ThreadCount)
+            .With("BatchSize", config.BatchSize)
+            .With("BatchCount", config.BatchCount)
+            .With("RangeCount", config.RangeCount);
         return std::make_unique<TOrderedReadManager<TRow>>(
             std::move(rangeReaderClient),
             std::move(rangeReaderPaths),
@@ -978,11 +979,10 @@ std::unique_ptr<TReadManagerBase<TRow>> CreateReadManager(
         config.ThreadCount = options.ThreadCount_;
         config.BatchSize = batchSize;
         config.BatchCount = batchCount;
-        YT_LOG_DEBUG("Starting unordered parallel reader: "
-            "ThreadCount = %d, BatchSize = %d, BatchCount = %d",
-            config.ThreadCount,
-            config.BatchSize,
-            config.BatchCount);
+        YT_TLOG_DEBUG("Starting unordered parallel reader")
+            .With("ThreadCount", config.ThreadCount)
+            .With("BatchSize", config.BatchSize)
+            .With("BatchCount", config.BatchCount);
         return std::make_unique<TUnorderedReadManager<TRow>>(
             std::move(rangeReaderClient),
             std::move(rangeReaderPaths),

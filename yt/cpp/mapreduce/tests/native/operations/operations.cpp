@@ -3388,12 +3388,19 @@ TEST(Operations, DISABLED_UnrecognizedSpecWarnings)
                 ("blah2", 2)));
 
     TNode unrecognizedSpec;
-    TStringBuf prefix = "WARNING! Unrecognized spec for operation";
+    // The spec is the trailing tag of the log event, so it runs to the closing paren.
+    constexpr TStringBuf marker = "UnrecognizedSpec: ";
     for (TStringBuf line : StringSplitter(stream.Str()).Split('\n')) {
-        if (line.StartsWith(prefix)) {
-            unrecognizedSpec = NodeFromYsonString(line.After(':'));
-            break;
+        auto pos = line.find(marker);
+        if (pos == TStringBuf::npos) {
+            continue;
         }
+        auto spec = line.substr(pos + marker.size());
+        if (spec.EndsWith(')')) {
+            spec.Chop(1);
+        }
+        unrecognizedSpec = NodeFromYsonString(spec);
+        break;
     }
 
     EXPECT_EQ(unrecognizedSpec.GetType(), TNode::Map);
