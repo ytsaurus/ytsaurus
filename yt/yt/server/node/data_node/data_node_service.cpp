@@ -1,0 +1,3100 @@
+#include "data_node_service.h"
+
+#include "ally_replica_manager.h"
+#include "bootstrap.h"
+#include "chunk.h"
+#include "chunk_meta_manager.h"
+#include "chunk_registry.h"
+#include "chunk_store.h"
+#include "config.h"
+#include "location.h"
+#include "location_manager.h"
+#include "master_connector.h"
+#include "medium_aware_block_cache_manager.h"
+#include "network_statistics.h"
+#include "offloaded_chunk_read_session.h"
+#include "p2p.h"
+#include "private.h"
+#include "session.h"
+#include "session_manager.h"
+
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
+
+#include <yt/yt/server/lib/io/chunk_file_reader.h>
+#include <yt/yt/server/lib/io/chunk_fragment.h>
+#include <yt/yt/server/lib/io/io_engine.h>
+
+#include <yt/yt/server/lib/rpc/per_workload_category_request_queue_provider.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
+
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
+
+#include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_slice.h>
+#include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/helpers.h>
+#include <yt/yt/ytlib/table_client/key_set.h>
+#include <yt/yt/ytlib/table_client/samples_fetcher.h>
+#include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
+
+#include <yt/yt/client/api/rpc_proxy/helpers.h>
+
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/versioned_reader.h>
+
+#include <yt/yt/client/rpc/helpers.h>
+
+#include <yt/yt/client/chunk_client/read_limit.h>
+
+#include <yt/yt/client/misc/io_tags.h>
+#include <yt/yt/client/misc/workload.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
+
+#include <yt/yt/core/bus/bus.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/random.h>
+#include <yt/yt/core/misc/serialize.h>
+
+#include <yt/yt/core/utilex/random.h>
+
+#include <yt/yt/core/rpc/overload_controlling_service_base.h>
+#include <yt/yt/core/rpc/service_detail.h>
+
+#include <optional>
+
+namespace NYT::NDataNode {
+
+using namespace NChunkClient::NProto;
+using namespace NChunkClient;
+using namespace NClusterNode;
+using namespace NConcurrency;
+using namespace NIO;
+using namespace NNodeTrackerClient;
+using namespace NProfiling;
+using namespace NRpc;
+using namespace NTableClient::NProto;
+using namespace NTableClient;
+using namespace NTracing;
+
+using NChunkClient::TChunkReaderStatistics;
+using NYT::FromProto;
+using NYT::ToProto;
+using TRefCountedColumnarStatisticsSubresponse = TRefCountedProto<TRspGetColumnarStatistics::TSubresponse>;
+using TRefCountedColumnarStatisticsSubresponsePtr = TIntrusivePtr<TRefCountedColumnarStatisticsSubresponse>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+THashMap<std::string, std::string> MakeWriteIOTags(
+    const std::string& method,
+    const ISessionPtr& session,
+    const IServiceContextPtr& context)
+{
+    auto& location = session->GetStoreLocation();
+    return {
+        {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
+        {FormatIOTag(ERawIOTag::WriteSessionId), ToString(session->GetId())},
+        {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
+        {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
+        {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
+        {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
+        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
+        {FormatIOTag(EAggregateIOTag::Direction), "write"},
+        {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(session->GetChunkId()).Id)},
+    };
+}
+
+THashMap<std::string, std::string> MakeReadIOTags(
+    const std::string& method,
+    const TChunkLocationPtr& location,
+    const IServiceContextPtr& context,
+    const TChunkId& chunkId,
+    TGuid readSessionId = TGuid())
+{
+    THashMap<std::string, std::string> result{
+        {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
+        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
+        {FormatIOTag(EAggregateIOTag::Direction), "read"},
+    };
+    if (location) {
+        result[FormatIOTag(ERawIOTag::LocationId)] = ToString(location->GetId());
+        result[FormatIOTag(EAggregateIOTag::LocationType)] = FormatEnum(location->GetType());
+        result[FormatIOTag(EAggregateIOTag::Medium)] = location->GetMediumName();
+        result[FormatIOTag(EAggregateIOTag::DiskFamily)] = location->GetDiskFamily();
+    }
+    if (chunkId) {
+        result[FormatIOTag(ERawIOTag::ChunkId)] = ToString(DecodeChunkId(chunkId).Id);
+    }
+    if (readSessionId) {
+        result[FormatIOTag(ERawIOTag::ReadSessionId)] = ToString(readSessionId);
+    }
+
+    return result;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDataNodeService
+    : public TOverloadControllingServiceBase<TServiceBase>
+{
+public:
+    TDataNodeService(
+        TDataNodeConfigPtr config,
+        IBootstrap* bootstrap)
+        : TOverloadControllingServiceBase<TServiceBase>(
+            bootstrap->GetOverloadController(),
+            bootstrap->GetStorageLightInvoker(),
+            TDataNodeServiceProxy::GetDescriptor(),
+            DataNodeLogger(),
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
+        , Config_(std::move(config))
+        , DynamicConfigManager_(bootstrap->GetDynamicConfigManager())
+        , Bootstrap_(bootstrap)
+    {
+        YT_VERIFY(Config_);
+        YT_VERIFY(Bootstrap_);
+
+        // TODO(prime): disable RPC attachment checksums for methods receiving/returning blocks
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunk)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CancelChunk));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbePutBlocks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PutBlocks)
+            .SetQueueSizeLimit(100)
+            .SetConcurrencyLimit(100)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateP2PBlocks)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushBlocks)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeChunkSet)
+            .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeBlockSet)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
+            .SetCancelable(true)
+            .SetQueueSizeLimit(1'000)
+            .SetConcurrencyLimit(1'000)
+            .SetRequestQueueProvider(GetBlockSetQueue_));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
+            .SetCancelable(true)
+            .SetQueueSizeLimit(1'000)
+            .SetConcurrencyLimit(1'000)
+            .SetRequestQueueProvider(GetBlockRangeQueue_));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkFragmentSet)
+            .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
+            .SetQueueSizeLimit(100'000)
+            .SetConcurrencyLimit(100'000)
+            .SetRequestQueueProvider(GetChunkFragmentSetQueue_));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
+            .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
+            .SetCancelable(true)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
+            .SetCancelable(true)
+            .SetQueueSizeLimit(5'000)
+            .SetConcurrencyLimit(5'000)
+            .SetHeavy(true)
+            .SetRequestQueueProvider(GetChunkMetaQueue_));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSliceDataWeights)
+            .SetCancelable(true)
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
+            .SetCancelable(true)
+            .SetHeavy(true)
+            .SetResponseCodec(NCompression::ECodec::Lz4));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
+            .SetCancelable(true)
+            .SetHeavy(true)
+            .SetResponseCodec(NCompression::ECodec::Lz4));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations)
+            .SetInvoker(Bootstrap_->GetControlInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DestroyChunkLocations)
+            .SetInvoker(Bootstrap_->GetControlInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations)
+            .SetInvoker(Bootstrap_->GetControlInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AnnounceChunkReplicas)
+            .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
+
+        DeclareServerFeature(EChunkClientFeature::MultiplePartitionTags);
+    }
+
+private:
+    struct TGetBlockResponseTemplate
+    {
+        TChunkId ChunkId;
+        IChunkPtr Chunk;
+        TWorkloadDescriptor WorkloadDescriptor;
+        bool HasCompleteChunk;
+        bool NetThrottling;
+        long NetQueueSize;
+        bool DiskThrottling;
+        long DiskQueueSize;
+        bool ThrottledLargeBlock;
+        TChunkReaderStatisticsPtr ChunkReaderStatistics;
+    };
+
+    const TDataNodeConfigPtr Config_;
+    const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
+    IBootstrap* const Bootstrap_;
+
+    IRequestQueueProviderPtr GetBlockSetQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetBlockRangeQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetChunkFragmentSetQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+    IRequestQueueProviderPtr GetChunkMetaQueue_ = CreatePerWorkloadCategoryRequestQueueProvider();
+
+    TDataNodeDynamicConfigPtr GetDynamicConfig() const
+    {
+        return DynamicConfigManager_->GetConfig()->DataNode;
+    }
+
+    std::optional<double> GetFallbackTimeoutFraction() const
+    {
+        return GetDynamicConfig()->FallbackTimeoutFraction;
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, StartChunk)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+
+        TSessionOptions options;
+        options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
+        options.SyncOnClose = request->sync_on_close();
+        options.EnableMultiplexing = request->enable_multiplexing();
+        options.PlacementId = FromProto<TPlacementId>(request->placement_id());
+        options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
+        options.UseProbePutBlocks = GetDynamicConfig()->UseProbePutBlocks && request->use_probe_put_blocks();
+        options.PreallocateDiskSpace = GetDynamicConfig()->PreallocateDiskSpace && request->preallocate_disk_space();
+        options.UseDirectIo = request->use_direct_io();
+
+        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v,"\
+            "DisableSendBlocks: %v, UseProbePutBlocks: %v, PreallocateDiskSpace: %v, UseDirectIo: %v",
+            sessionId,
+            options.WorkloadDescriptor,
+            options.SyncOnClose,
+            options.EnableMultiplexing,
+            options.PlacementId,
+            options.DisableSendBlocks,
+            options.UseProbePutBlocks,
+            options.PreallocateDiskSpace,
+            options.UseDirectIo);
+
+        ValidateOnline();
+
+        ValidateNetInThrottling(context, options.WorkloadDescriptor);
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->StartSession(sessionId, options);
+        response->set_use_probe_put_blocks(session->ShouldUseProbePutBlocks());
+        ToProto(response->mutable_location_uuid(), session->GetStoreLocation()->GetUuid());
+        response->set_location_index(ToProto<ui32>(session->GetStoreLocation()->GetIndex()));
+        context->ReplyFrom(session->Start());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
+    {
+        auto chunkId = FromProto<TChunkId>(request->session_id().chunk_id());
+
+        auto blockCount = request->has_block_count() ? std::make_optional(request->block_count()) : std::nullopt;
+        bool ignoreMissingSession = request->ignore_missing_session();
+
+        auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
+        auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
+        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+
+        context->SetRequestInfo("ChunkId: %v, BlockCount: %v, IgnoreMissingSession: %v, IOConsumed: %v, IOFairShareWeight: %v",
+            chunkId,
+            blockCount,
+            ignoreMissingSession,
+            ioConsumed,
+            ioFairShareWeight);
+
+        ValidateOnline();
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = ignoreMissingSession
+            ? sessionManager->FindSession(chunkId)
+            : sessionManager->GetSessionOrThrow(chunkId);
+        if (!session) {
+            YT_VERIFY(ignoreMissingSession);
+            YT_TLOG_DEBUG("Session is missing")
+                .With("ChunkId", chunkId);
+            context->Reply();
+            return;
+        }
+
+        auto meta = request->has_chunk_meta()
+            ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
+            : nullptr;
+        session->Finish(meta, blockCount, fairShareState)
+            .Subscribe(BIND([
+                =,
+                this,
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<ISession::TFinishResult>& resultOrError) {
+                if (!resultOrError.IsOK()) {
+                    context->Reply(resultOrError);
+                    return;
+                }
+
+                const auto& result = resultOrError.Value();
+                const auto& chunkInfo = result.ChunkInfo;
+                const auto& chunkWriterStatistics = result.ChunkWriterStatistics;
+
+                // Log IO events for blob chunks only. We don't enable logging for journal chunks here, since
+                // they flush the data to disk in FlushBlocks(), not in FinishChunk().
+                const auto& ioTracker = Bootstrap_->GetIOTracker();
+                bool isBlobChunk = IsBlobChunkId(DecodeChunkId(session->GetChunkId()).Id);
+                if (isBlobChunk && chunkInfo.disk_space() > 0 && ioTracker->IsEnabled()) {
+                    auto ioRequests =
+                        chunkWriterStatistics->DataIOWriteRequests.load(std::memory_order::relaxed) +
+                        chunkWriterStatistics->MetaIOWriteRequests.load(std::memory_order::relaxed);
+
+                    ioTracker->Enqueue(
+                        TIOCounters{
+                            .Bytes = chunkInfo.disk_space(),
+                            .IORequests = ioRequests,
+                        },
+                        MakeWriteIOTags("FinishChunk", session, context));
+                }
+
+                *response->mutable_chunk_info() = chunkInfo;
+                ToProto(response->mutable_chunk_writer_statistics(), chunkWriterStatistics);
+
+                context->Reply();
+            }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, CancelChunk)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        bool waitForCancelation = request->wait_for_cancelation();
+
+        context->SetRequestInfo("ChunkId: %v",
+            sessionId);
+
+        const auto& config = GetDynamicConfig()->TestingOptions;
+        if (config->ChunkCancellationDelay) {
+            TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
+        }
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->FindSession(sessionId.ChunkId);
+        if (!session) {
+            YT_TLOG_DEBUG("Session is missing")
+                .With("ChunkId", sessionId.ChunkId);
+            context->Reply();
+            return;
+        }
+
+        session->Cancel(TError("Canceled by client request"));
+
+        if (waitForCancelation) {
+            context->ReplyFrom(session->GetUnregisteredEvent());
+        } else {
+            context->Reply();
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = sessionId.ChunkId;
+        context->SetRequestInfo("ChunkId: %v",
+            chunkId);
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+        const auto& location = session->GetStoreLocation();
+        auto netThrottling = CheckNetOutThrottling(context, session->GetSessionOptions().WorkloadDescriptor);
+
+        session->Ping();
+
+        const auto closeDemanded = IsCloseDemanded(location);
+        response->set_close_demanded(closeDemanded);
+
+        if (session->ShouldUseProbePutBlocks()) {
+            auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
+            auto approvedCumulativeBlockSize = GetReportedApprovedCumulativeBlockSize(context, session);
+
+            response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
+            response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
+
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v, "
+                "RequestedCumulativeBlockSize: %v, "
+                "ApprovedCumulativeBlockSize: %v, "
+                "NetThrottling: %v, NetQueueSize: %v",
+                sessionId,
+                closeDemanded,
+                maxRequestedCumulativeBlockSize,
+                approvedCumulativeBlockSize,
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
+        } else {
+            context->SetResponseInfo("SessionId: %v, CloseDemanded: %v, NetThrottling: %v, NetQueueSize: %v",
+                sessionId,
+                closeDemanded,
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
+        }
+
+        // Inform writer about net state on data node.
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbePutBlocks)
+    {
+        auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
+        auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
+        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+
+        context->SetRequestInfo(
+            "SessionId: %v, CumulativeBlockSize: %v, IOConsumed: %v, IOFairShareWeight: %v",
+            request->session_id(),
+            request->cumulative_block_size(),
+            ioConsumed,
+            ioFairShareWeight);
+
+        const auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        const auto cumulativeBlockSize = request->cumulative_block_size();
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+
+        session->ProbePutBlocks(cumulativeBlockSize, fairShareState);
+
+        auto maxRequestedCumulativeBlockSize = session->GetMaxRequestedCumulativeBlockSize();
+        auto approvedCumulativeBlockSize = GetReportedApprovedCumulativeBlockSize(context, session);
+
+        response->mutable_probe_put_blocks_state()->set_requested_cumulative_block_size(maxRequestedCumulativeBlockSize);
+        response->mutable_probe_put_blocks_state()->set_approved_cumulative_block_size(approvedCumulativeBlockSize);
+
+        context->SetResponseInfo("SessionId: %v, MaxRequestedCumulativeBlockSize: %v, ApprovedCumulativeBlockSize: %v",
+            request->session_id(),
+            maxRequestedCumulativeBlockSize,
+            approvedCumulativeBlockSize);
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
+    {
+        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        int firstBlockIndex = request->first_block_index();
+        int blockCount = std::ssize(request->Attachments());
+        int lastBlockIndex = firstBlockIndex + blockCount - 1;
+        bool populateCache = request->populate_cache();
+        bool flushBlocks = request->flush_blocks();
+        i64 cumulativeBlockSize = request->cumulative_block_size();
+        auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
+        auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
+        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+
+        ValidateOnline();
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+
+        const auto& location = session->GetStoreLocation();
+        auto options = session->GetSessionOptions();
+        auto blocksWindowShifted = cumulativeBlockSize == 0 || cumulativeBlockSize != 0 && firstBlockIndex >= session->GetWindowSize();
+
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, "
+            "FlushBlocks: %v, Medium: %v, "
+            "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v, IoConsumed: %v, IoFairShareWeight: %v",
+            chunkId,
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
+            populateCache,
+            flushBlocks,
+            location->GetMediumName(),
+            options.DisableSendBlocks,
+            cumulativeBlockSize,
+            blocksWindowShifted,
+            ioConsumed,
+            ioFairShareWeight);
+
+        auto throttlingResult = location->CheckWriteThrottling(
+            session->GetChunkId(),
+            session->GetWorkloadDescriptor(),
+            blocksWindowShifted,
+            options.UseProbePutBlocks);
+        throttlingResult.Error.ThrowOnError();
+
+        TWallTimer timer;
+
+        response->set_close_demanded(IsCloseDemanded(location));
+
+        // NB: Block checksums are validated before writing to disk.
+        // NB: Journal block checksums are validated within DoPutBlocks call.
+        auto result = session->PutBlocks(
+            firstBlockIndex,
+            GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
+            cumulativeBlockSize,
+            fairShareState,
+            populateCache);
+
+        auto voidResult = result.AsVoid();
+
+        // Flush blocks if needed.
+        if (flushBlocks) {
+            voidResult = result
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOCounters& putCounters) mutable {
+                    response->mutable_statistics()->set_data_bytes_written_to_medium(putCounters.Bytes);
+                    response->mutable_statistics()->set_io_requests(putCounters.IORequests);
+
+                    auto result = session->FlushBlocks(lastBlockIndex);
+                    return result
+                        .Apply(BIND([
+                            =,
+                            this,
+                            this_ = MakeStrong(this)
+                        ] (const TErrorOr<ISession::TFlushBlocksResult>& resultOrError) {
+                            if (!resultOrError.IsOK()) {
+                                return;
+                            }
+                            const auto& result = resultOrError.Value();
+                            const auto& counters = result.IOCounters;
+                            const auto& chunkWriterStatistics = result.ChunkWriterStatistics;
+
+                            const auto& ioTracker = Bootstrap_->GetIOTracker();
+
+                            // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
+                            // the data to disk in FinishChunk().
+                            bool isJournalChunk = IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id);
+                            if (isJournalChunk && counters.Bytes > 0 && ioTracker->IsEnabled()) {
+                                ioTracker->Enqueue(
+                                    counters,
+                                    MakeWriteIOTags("FlushBlocks", session, context));
+                            }
+
+                            ToProto(response->mutable_chunk_writer_statistics(), chunkWriterStatistics);
+                        }));
+                }));
+        } else {
+            // Remains to wait on throttlers, hence mark as complete.
+            context->SetComplete();
+        }
+
+        voidResult.Subscribe(BIND([=] (const TError& error) {
+            if (!error.IsOK()) {
+                return;
+            }
+            location->GetPerformanceCounters().PutBlocksWallTime.Record(timer.GetElapsedTime());
+        }));
+
+        context->ReplyFrom(voidResult, Bootstrap_->GetStorageLightInvoker());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
+    {
+        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        int firstBlockIndex = request->first_block_index();
+        int blockCount = request->block_count();
+        int lastBlockIndex = firstBlockIndex + blockCount - 1;
+        i64 cumulativeBlockSize = request->cumulative_block_size();
+        auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
+        auto ioConsumed = YT_OPTIONAL_FROM_PROTO(*request, io_consumed);
+        auto ioFairShareWeight = YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight);
+        auto fairShareState = MakeIOFairShareState(ioConsumed, ioFairShareWeight);
+
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, CumulativeBlockSize: %v, Target: %v, IoConsumed: %v, IoFairShareWeight: %v",
+            chunkId,
+            FormatBlockIndexRange(firstBlockIndex, lastBlockIndex),
+            cumulativeBlockSize,
+            targetDescriptor,
+            ioConsumed,
+            ioFairShareWeight);
+
+        ValidateOnline();
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+
+        auto sessionOptions = session->GetSessionOptions();
+        auto netThrottling = CheckNetOutThrottling(context, sessionOptions.WorkloadDescriptor);
+        auto alwaysThrottleOnSendBlocks = GetDynamicConfig()->TestingOptions->AlwaysThrottleNetOnSendBlocks.value_or(false);
+        netThrottling.Enabled |= alwaysThrottleOnSendBlocks;
+
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        auto enableSendBlocksNetThrottling = GetDynamicConfig()->EnableSendBlocksNetThrottling.value_or(Config_->EnableSendBlocksNetThrottling);
+
+        if (enableSendBlocksNetThrottling && netThrottling.Enabled) {
+            context->SetResponseInfo(
+                "NetThrottling: %v, "
+                "NetQueueSize: %v",
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
+            context->Reply();
+            return;
+        }
+
+        auto fraction = GetFallbackTimeoutFraction().value_or(1);
+        auto timeout = *context->GetTimeout() * fraction;
+        context->ReplyFrom(session->SendBlocks(
+            firstBlockIndex,
+            blockCount,
+            cumulativeBlockSize,
+            fairShareState,
+            timeout,
+            enableSendBlocksNetThrottling,
+            targetDescriptor)
+            .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& rspOrError) {
+                if (rspOrError.IsOK()) {
+                    const auto& rsp = rspOrError.Value();
+                    context->SetResponseInfo(
+                        "NetThrottling: %v, "
+                        "NetQueueSize: %v",
+                        rsp.NetThrottling,
+                        netThrottling.QueueSize);
+                    if (rsp.NetThrottling) {
+                        response->set_net_throttling(true);
+                        return TError();
+                    }
+
+                    YT_VERIFY(rsp.TargetNodePutBlocksResult);
+                    response->set_close_demanded(rsp.TargetNodePutBlocksResult->close_demanded());
+                    return TError();
+                } else {
+                    return TError(
+                        NChunkClient::EErrorCode::SendBlocksFailed,
+                        "Error putting blocks to %v",
+                        targetDescriptor.GetDefaultAddress())
+                        .With(rspOrError);
+                }
+            })));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
+    {
+        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
+        int blockIndex = request->block_index();
+
+        context->SetRequestInfo("ChunkId: %v, Block: %v",
+            chunkId,
+            blockIndex);
+
+        ValidateOnline();
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+        const auto& location = session->GetStoreLocation();
+        auto result = session->FlushBlocks(blockIndex);
+
+        response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
+        auto voidResult = result.Apply(BIND([
+            =,
+            this,
+            this_ = MakeStrong(this)
+        ] (const TErrorOr<ISession::TFlushBlocksResult>& resultOrError) {
+            if (!resultOrError.IsOK()) {
+                return;
+            }
+
+            // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
+            // the data to disk in FinishChunk(), not in FlushBlocks().
+            const auto& result = resultOrError.Value();
+            const auto& counters = result.IOCounters;
+            const auto& chunkWriterStatistics = result.ChunkWriterStatistics;
+
+            const auto& ioTracker = Bootstrap_->GetIOTracker();
+            if (IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id) && counters.Bytes > 0 && ioTracker->IsEnabled()) {
+                ioTracker->Enqueue(
+                    counters,
+                    MakeWriteIOTags("FlushBlocks", session, context));
+            }
+
+            ToProto(response->mutable_chunk_writer_statistics(), chunkWriterStatistics);
+        }));
+
+        context->ReplyFrom(voidResult);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdateP2PBlocks)
+    {
+        auto sessionId = FromProto<TGuid>(request->session_id());
+        context->SetRequestInfo("SessionId: %v, Iteration: %v, ReceivedBlockCount: %v",
+            sessionId,
+            request->iteration(),
+            request->block_indexes_size());
+
+        ValidateOnline();
+
+        const auto& blockCache = Bootstrap_->GetP2PBlockCache();
+
+        auto blocks = GetRpcAttachedBlocks(request, true /*validateChecksums*/);
+        if (std::ssize(blocks) != request->block_indexes_size()) {
+            THROW_ERROR_EXCEPTION("Number of attached blocks is different from blocks field length")
+                .With("attached_block_count", blocks.size())
+                .With("blocks_length", request->block_indexes_size());
+        }
+
+        if (request->chunk_ids_size() != request->chunk_block_count_size()) {
+            THROW_ERROR_EXCEPTION("Invalid block count")
+                .With("chunk_count", request->chunk_ids_size())
+                .With("block_count", request->chunk_block_count_size());
+        }
+
+        int j = 0;
+        for (int i = 0; i < request->chunk_ids_size(); i++) {
+            auto chunkId = FromProto<TChunkId>(request->chunk_ids(i));
+
+            auto blockCount = request->chunk_block_count(i);
+
+            std::vector<int> blockIndexes;
+            std::vector<NChunkClient::TBlock> chunkBlocks;
+
+            for (int k = 0; k < blockCount; k++) {
+                if (j + k >= std::ssize(blocks)) {
+                    THROW_ERROR_EXCEPTION("Invalid chunk block count");
+                }
+
+                blockIndexes.push_back(request->block_indexes(j + k));
+                chunkBlocks.push_back(blocks[j + k]);
+            }
+
+            blockCache->HoldBlocks(
+                chunkId,
+                blockIndexes,
+                chunkBlocks);
+
+            j += blockCount;
+        }
+
+        blockCache->FinishSessionIteration(sessionId, request->iteration());
+
+        context->Reply();
+    }
+
+    template <class TContext>
+    void SuggestAllyReplicas(const TContext& context)
+    {
+        const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+
+        const auto* request = &context->Request();
+        auto* response = &context->Response();
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+
+        if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
+            auto allyReplicasRevision = FromProto<NHydra::TRevision>(request->ally_replicas_revision());
+            if (allyReplicas.Revision > allyReplicasRevision) {
+                ToProto(response->mutable_ally_replicas(), allyReplicas);
+                YT_TLOG_DEBUG("Ally replicas suggested")
+                    .With("ChunkId", chunkId)
+                    .With("AllyReplicas", allyReplicas)
+                    .With("ClientAllyReplicasRevision", allyReplicasRevision);
+            }
+        }
+    }
+
+    TFuture<void> WaitP2PBarriers(const TReqGetBlockSet* request)
+    {
+        const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
+        std::vector<TFuture<void>> barrierFutures;
+
+        for (const auto& barrier : request->wait_barriers()) {
+            if (static_cast<TNodeId>(barrier.if_node_id()) != Bootstrap_->GetNodeId()) {
+                continue;
+            }
+
+            auto sessionId = FromProto<TGuid>(barrier.session_id());
+            auto barrierFuture = p2pBlockCache->WaitSessionIteration(sessionId, barrier.iteration());
+
+            if (!barrierFuture.IsSet()) {
+                YT_TLOG_DEBUG("Waiting for P2P barrier")
+                    .With("SessionId", sessionId)
+                    .With("Iteration", barrier.iteration());
+                barrierFutures.push_back(barrierFuture);
+            }
+        }
+
+        return AllSucceeded(barrierFutures);
+    }
+
+    void AddBlockPeers(
+        google::protobuf::RepeatedPtrField<TPeerDescriptor>* peers,
+        const std::vector<TP2PSuggestion>& blockPeers)
+    {
+        for (const auto& suggestion : blockPeers) {
+            auto peerDescriptor = peers->Add();
+
+            peerDescriptor->set_block_index(suggestion.BlockIndex);
+            ToProto(peerDescriptor->mutable_node_ids(), suggestion.Peers);
+
+            auto* barrier = peerDescriptor->mutable_delivery_barrier();
+
+            barrier->set_iteration(suggestion.P2PIteration);
+            ToProto(barrier->mutable_session_id(), suggestion.P2PSessionId);
+        }
+    }
+
+    void FillNodeDirectory(
+        NNodeTrackerClient::NProto::TNodeDirectory* protoDirectory,
+        const std::vector<TP2PSuggestion>& blockPeers)
+    {
+        TNodeDirectoryBuilder nodeDirectoryBuilder(Bootstrap_->GetNodeDirectory(), protoDirectory);
+
+        for (const auto& suggestion : blockPeers) {
+            for (const auto& peer : suggestion.Peers) {
+                nodeDirectoryBuilder.Add(peer);
+            }
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeChunkSet)
+    {
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+
+        auto chunkCount = request->chunk_ids_size();
+        context->SetRequestInfo("ChunkCount: %v, Workload: %v",
+            chunkCount,
+            workloadDescriptor);
+
+        ValidateOnline();
+
+        YT_VERIFY(
+            request->ally_replicas_revisions_size() == 0 ||
+            request->ally_replicas_revisions_size() == request->chunk_ids_size());
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+
+        int completeChunkCount = 0;
+        for (int chunkIndex = 0; chunkIndex < request->chunk_ids_size(); ++chunkIndex) {
+            auto chunkId = FromProto<TChunkId>(request->chunk_ids(chunkIndex));
+
+            auto* subresponse = response->add_subresponses();
+
+            auto chunk = chunkRegistry->FindChunk(chunkId);
+
+            bool hasCompleteChunk = chunk.operator bool();
+            subresponse->set_has_complete_chunk(hasCompleteChunk);
+            if (hasCompleteChunk) {
+                ++completeChunkCount;
+            }
+
+            auto diskThrottling = chunk
+                ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ true)
+                : TChunkLocation::TReadThrottlingResult{};
+            subresponse->set_disk_throttling(diskThrottling.IsEnabled());
+            subresponse->set_disk_queue_size(diskThrottling.QueueSize);
+
+            if (chunk) {
+                subresponse->set_medium_index(chunk->GetLocation()->GetMediumIndex());
+            }
+
+            YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+                .With(diskThrottling.Error);
+
+            const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+            if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
+                // COMPAT(akozhikhov): Empty revision list.
+                if (request->ally_replicas_revisions_size() == 0 ||
+                    FromProto<NHydra::TRevision>(request->ally_replicas_revisions(chunkIndex)) < allyReplicas.Revision)
+                {
+                    auto clientAllyReplicasRevision = request->ally_replicas_revisions_size() == 0
+                        ? std::nullopt
+                        : std::make_optional(FromProto<NHydra::TRevision>(request->ally_replicas_revisions(chunkIndex)));
+
+                    ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
+                    YT_TLOG_DEBUG("Ally replicas suggested")
+                        .With("ChunkId", chunkId)
+                        .With("AllyReplicas", allyReplicas)
+                        .With("ClientAllyReplicasRevision", clientAllyReplicasRevision);
+                }
+            }
+        }
+
+        auto netThrottling = CheckNetOutThrottling(
+            context,
+            workloadDescriptor,
+            /*incrementCounter*/ false);
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        context->SetResponseInfo(
+            "ChunkCount: %v, CompleteChunkCount: %v, "
+            "NetThrottling: %v, NetQueueSize: %v",
+            chunkCount,
+            completeChunkCount,
+            netThrottling.Enabled,
+            netThrottling.QueueSize);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeBlockSet)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        bool enableP2P = request->enable_p2p();
+        bool fetchNodeDescriptors = request->fetch_node_descriptors();
+
+        context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
+            chunkId,
+            MakeCompactIntervalView(blockIndexes),
+            blockIndexes.size(),
+            workloadDescriptor);
+
+        ValidateOnline();
+
+        if (auto executionDelay = GetDynamicConfig()->TestingOptions->DelayBeforeProbeBlockSetExecution) {
+            TDelayedExecutor::WaitForDuration(*executionDelay);
+        }
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->FindChunk(chunkId);
+
+        bool hasCompleteChunk = chunk.operator bool();
+        response->set_has_complete_chunk(hasCompleteChunk);
+
+        auto diskThrottling = chunk
+            ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ true)
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
+        response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        if (chunk) {
+            response->set_medium_index(chunk->GetLocation()->GetMediumIndex());
+        }
+
+        YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+            .With(diskThrottling.Error);
+
+        auto netThrottling = CheckNetOutThrottling(
+            context,
+            workloadDescriptor,
+            /*incrementCounter*/ false);
+        if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
+            YT_TLOG_WARNING("Simulating network throttling for ProbeBlockSet")
+                .With("ChunkId", chunkId);
+            netThrottling.Enabled = true;
+        }
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        SuggestAllyReplicas(context);
+
+        if (enableP2P) {
+            const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+            auto blockPeers = p2pSnooper->OnBlockProbe(chunkId, blockIndexes);
+
+            AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+            if (fetchNodeDescriptors) {
+                FillNodeDirectory(response->mutable_node_directory(), blockPeers);
+            }
+        }
+
+        auto cachedBlockSize = 0L;
+
+        if (GetDynamicConfig()->PropagateCachedBlockInfosToProbing) {
+            THashSet<NChunkClient::TBlockInfo> cachedBlocks;
+            if (auto blockCache = Bootstrap_->GetBlockCache()) {
+                cachedBlocks = blockCache->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
+            }
+            if (auto manager = Bootstrap_->GetMediumAwareBlockCacheManager()) {
+                auto perMediumCachedBlocks = manager->GetCachedBlocksByChunkId(
+                    chunkId,
+                    EBlockType::CompressedData);
+                cachedBlocks.insert(perMediumCachedBlocks.begin(), perMediumCachedBlocks.end());
+            }
+            for (const auto& blockInfo : cachedBlocks) {
+                auto* protoBlockInfo = response->add_cached_blocks();
+                protoBlockInfo->set_block_index(blockInfo.BlockIndex);
+                protoBlockInfo->set_block_size(blockInfo.BlockSize);
+                cachedBlockSize += blockInfo.BlockSize;
+            }
+        }
+
+        context->SetResponseInfo(
+            "ChunkId: %v, HasCompleteChunk: %v, "
+            "NetThrottling: %v, NetQueueSize: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, "
+            "PeerDescriptorCount: %v, CachedBlockCount: %v, "
+            "CachedBlockSize: %v",
+            chunkId,
+            hasCompleteChunk,
+            netThrottling.Enabled,
+            netThrottling.QueueSize,
+            diskThrottling.IsEnabled(),
+            diskThrottling.QueueSize,
+            response->peer_descriptors_size(),
+            response->cached_blocks_size(),
+            cachedBlockSize);
+
+        context->Reply();
+    }
+
+    template <class TContext, class TRequest>
+    TChunkReadOptions PrepareChunkReadOptions(
+        const TIntrusivePtr<TContext>& context,
+        const TRequest* request,
+        const IChunkPtr& chunk,
+        bool fetchFromCache,
+        bool fetchFromDisk,
+        const TChunkReaderStatisticsPtr& chunkReaderStatistics)
+    {
+        TChunkReadOptions options;
+        options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
+        options.PopulateCache = request->populate_cache();
+        options.BlockCache = chunk
+            ? Bootstrap_->GetBlockCacheForMedium(chunk->GetLocation()->GetMediumIndex())
+            : Bootstrap_->GetBlockCache();
+        options.FetchFromCache = fetchFromCache;
+        options.FetchFromDisk = fetchFromDisk;
+        options.ReadIORequestsMode = GetReadIORequestsMode(Config_, GetDynamicConfig());
+        options.MaxInFlightReadRequestCount = GetDynamicConfig()->MaxInFlightReadRequestCount.value_or(
+            Config_->MaxInFlightReadRequestCount);
+        options.MaxInFlightReadDataSize = GetDynamicConfig()->MaxInFlightReadDataSize.value_or(
+            Config_->MaxInFlightReadDataSize);
+        options.ReturnBlocksIfSessionFails = GetDynamicConfig()->ReturnBlocksIfSessionFails.value_or(Config_->ReturnBlocksIfSessionFails);
+        options.FailSessionAtReadBlocksDeadline = GetDynamicConfig()->FailSessionAtReadBlocksDeadline.value_or(Config_->FailSessionAtReadBlocksDeadline);
+        options.ChunkReaderStatistics = chunkReaderStatistics;
+        options.ReadSessionId = FromProto<TReadSessionId>(request->read_session_id());
+        options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+        options.FairShareState = MakeIOFairShareState(
+            YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
+
+        if (context->GetTimeout() && context->GetStartTime()) {
+            options.ReadBlocksDeadline =
+                *context->GetStartTime() +
+                *context->GetTimeout() * GetDynamicConfig()->TestingOptions->BlockReadTimeoutFraction;
+        }
+
+        auto readMetaTimeoutFraction = GetDynamicConfig()->ReadMetaTimeoutFraction;
+
+        if (context->GetTimeout() && context->GetStartTime() && readMetaTimeoutFraction) {
+            auto fraction = *readMetaTimeoutFraction;
+            options.ReadMetaDeadLine =
+                *context->GetStartTime() +
+                *context->GetTimeout() * fraction;
+        }
+
+        return options;
+    }
+
+    template <class TContext, class TResponse>
+    TFuture<void> PrepareGetBlocksResponse(
+        const TIntrusivePtr<TContext>& context,
+        TResponse* response,
+        TGetBlockResponseTemplate responseTemplate,
+        const std::vector<NChunkClient::TBlock>& blocks) const
+    {
+        auto netThrottling = responseTemplate.NetThrottling;
+        auto hasCompleteChunk = responseTemplate.HasCompleteChunk;
+
+        if (!netThrottling) {
+            SetRpcAttachedBlocks(response, blocks);
+        }
+
+        auto blocksSize = GetByteSize(response->Attachments());
+        if (blocksSize == 0 && responseTemplate.ThrottledLargeBlock) {
+            netThrottling = true;
+        }
+
+        response->set_net_throttling(netThrottling);
+
+        auto chunkReaderStatistics = responseTemplate.ChunkReaderStatistics;
+        auto bytesReadFromDisk =
+            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
+        auto chunk = responseTemplate.Chunk;
+        const auto& ioTracker = Bootstrap_->GetIOTracker();
+
+        if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
+            auto ioRequests =
+                chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed) +
+                chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed);
+
+            ioTracker->Enqueue(
+                TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = ioRequests},
+                MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId()));
+        }
+
+        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
+
+        int blocksWithData = std::count_if(
+            response->Attachments().begin(),
+            response->Attachments().end(),
+            [] (const auto& block) -> bool { return static_cast<bool>(block); });
+
+        context->SetResponseInfo(
+            "ChunkId: %v, HasCompleteChunk: %v, "
+            "NetThrottling: %v, NetQueueSize: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, "
+            "ThrottledLargeBlock: %v, "
+            "BlocksWithData: %v, BlocksSize: %v, "
+            "DataBytesReadFromDisk: %v, DataBytesReadFromCache: %v",
+            responseTemplate.ChunkId,
+            hasCompleteChunk,
+            netThrottling,
+            responseTemplate.NetQueueSize,
+            responseTemplate.DiskThrottling,
+            responseTemplate.DiskQueueSize,
+            responseTemplate.ThrottledLargeBlock,
+            blocksWithData,
+            blocksSize,
+            chunkReaderStatistics->DataBytesReadFromDisk.load(),
+            chunkReaderStatistics->DataBytesReadFromCache.load());
+
+        if (blocksSize == 0) {
+            return OKFuture;
+        }
+
+        // NB: We throttle only heavy responses that contain a non-empty attachment
+        // as we want responses containing the information about disk/net throttling
+        // to be delivered immediately.
+
+        context->SetComplete();
+
+        const auto& netThrottler = Bootstrap_->GetOutThrottler(responseTemplate.WorkloadDescriptor);
+        auto resultFuture = netThrottler->Throttle(blocksSize);
+
+        auto timeoutFraction = GetFallbackTimeoutFraction();
+
+        if (!(context->GetTimeout() && context->GetStartTime() && timeoutFraction)) {
+            return resultFuture;
+        }
+
+        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+
+        auto throttleFuture = resultFuture
+            .Apply(BIND([] { return false; }));
+        auto fallbackFuture = TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
+            .Apply(BIND([] { return true; }));
+        return AnySet<bool>({std::move(throttleFuture), std::move(fallbackFuture)})
+            .Apply(BIND([=] (bool isThrottled) {
+                if (isThrottled) {
+                    response->set_net_throttling(true);
+                    response->clear_block_checksums();
+                    response->Attachments().clear();
+
+                    // Override response info.
+                    context->SetResponseInfo(
+                        "ChunkId: %v, HasCompleteChunk: %v,"
+                        "NetThrottling: %v",
+                        responseTemplate.ChunkId,
+                        hasCompleteChunk,
+                        true);
+                }
+
+                // Directly hold current request context.
+                Y_UNUSED(context);
+            }));
+    }
+
+    template <class T, class TContext>
+    TFuture<T> WrapWithTimeout(
+        TFuture<T> future,
+        const TIntrusivePtr<TContext>& context,
+        TCallback<T()> fallbackValue)
+    {
+        auto timeoutFraction = GetFallbackTimeoutFraction();
+
+        if (!(context->GetTimeout() && context->GetStartTime() && timeoutFraction)) {
+            return future;
+        }
+
+        auto deadline = *context->GetStartTime() + *context->GetTimeout() * timeoutFraction.value();
+
+        return AnySet<T>({
+            future
+                .AsUnique().Apply(BIND([fallbackValue] (TErrorOr<T>&& resultOrError) {
+                    if (!resultOrError.IsOK() && resultOrError.FindMatching(NChunkClient::EErrorCode::ReadMetaTimeout)) {
+                        return fallbackValue();
+                    } else if (!resultOrError.IsOK()) {
+                        THROW_ERROR_EXCEPTION(resultOrError);
+                    } else {
+                        return resultOrError.Value();
+                    }
+                })),
+            TDelayedExecutor::MakeDelayed(deadline - TInstant::Now())
+                .Apply(fallbackValue)
+        });
+    }
+
+    template <class TContext>
+    TChunkReadOptions BuildReadMetaOption(const TIntrusivePtr<TContext>& context)
+    {
+        TChunkReadOptions options;
+        options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
+        options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        auto readMetaTimeoutFraction = GetDynamicConfig()->ReadMetaTimeoutFraction;
+
+        if (context->GetTimeout() && context->GetStartTime() && readMetaTimeoutFraction) {
+            options.ReadMetaDeadLine =
+                *context->GetStartTime() +
+                *context->GetTimeout() * readMetaTimeoutFraction.value();
+        }
+
+        return options;
+    }
+
+    template <class TContext, class TRequest>
+    TChunkReadOptions BuildReadMetaOption(
+        const TIntrusivePtr<TContext>& context,
+        const TRequest* request)
+    {
+        auto options = BuildReadMetaOption(context);
+        options.FairShareState = MakeIOFairShareState(
+            YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
+        return options;
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        bool populateCache = request->populate_cache();
+        bool fetchFromCache = request->fetch_from_cache();
+        bool fetchFromDisk = request->fetch_from_disk();
+        bool enableP2P = request->enable_p2p();
+        bool fetchNodeDescriptors = request->fetch_node_descriptors();
+
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, "
+            "PopulateCache: %v, FetchFromCache: %v, "
+            "FetchFromDisk: %v, Workload: %v, IoConsumed: %v, IoFairShareWeight: %v",
+            chunkId,
+            MakeCompactIntervalView(blockIndexes),
+            populateCache,
+            fetchFromCache,
+            fetchFromDisk,
+            workloadDescriptor,
+            YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
+
+        ValidateOnline();
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->FindChunk(chunkId);
+
+        bool hasCompleteChunk = chunk.operator bool();
+        response->set_has_complete_chunk(hasCompleteChunk);
+
+        auto diskThrottling = chunk
+            ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
+        response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+            .With(diskThrottling.Error);
+
+        auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        if (GetDynamicConfig()->TestingOptions->SimulateNetworkThrottlingForGetBlockSet) {
+            YT_TLOG_WARNING("Simulating network throttling for GetBlockSet")
+                .With("ChunkId", chunkId);
+            netThrottling.Enabled = true;
+        }
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        SuggestAllyReplicas(context);
+
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        struct TReadBlocksResult
+        {
+            bool ReadFromP2P = false;
+            std::vector<TBlock> Blocks;
+        };
+
+        auto readBlocks = BIND([=, this, this_ = MakeStrong(this)] {
+            bool readFromP2P = false;
+            TFuture<std::vector<TBlock>> blocksFuture;
+
+            if (fetchFromCache || fetchFromDisk) {
+                auto options = PrepareChunkReadOptions(
+                    context,
+                    request,
+                    chunk,
+                    fetchFromCache && !netThrottling.Enabled,
+                    fetchFromDisk && !netThrottling.Enabled && !diskThrottling.IsEnabled(),
+                    chunkReaderStatistics);
+
+                if (!chunk && options.FetchFromCache && enableP2P) {
+                    readFromP2P = true;
+
+                    auto blocks = Bootstrap_->GetP2PBlockCache()->LookupBlocks(chunkId, blockIndexes);
+                    chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                        GetByteSize(blocks),
+                        std::memory_order::relaxed);
+                    blocksFuture = MakeFuture(blocks);
+                } else if (chunk) {
+                    blocksFuture = chunk->ReadBlockSet(
+                        blockIndexes,
+                        options);
+                } else {
+                    blocksFuture = MakeFuture(std::vector<TBlock>());
+                }
+            } else {
+                blocksFuture = MakeFuture(std::vector<TBlock>());
+            }
+
+            return blocksFuture
+                .AsUnique().Apply(BIND([=] (std::vector<TBlock>&& blocks) {
+                    return TReadBlocksResult{
+                        .ReadFromP2P = readFromP2P,
+                        .Blocks = std::move(blocks),
+                    };
+                }));
+        });
+
+        auto blocksFuture = WrapWithTimeout(
+            WaitP2PBarriers(request)
+                .Apply(readBlocks),
+            context,
+            BIND([] { return TReadBlocksResult(); }));
+
+        // Usually, when subscribing, there are more free fibers than when calling wait for,
+        // and the lack of free fibers during a forced context switch leads to the creation
+        // of a new fiber and an increase in the number of stacks.
+        auto onBlocksRead = BIND([=, this, this_ = MakeStrong(this)] (TReadBlocksResult&& result) {
+            auto readFromP2P = result.ReadFromP2P;
+            auto& blocks = result.Blocks;
+
+            bool throttledLargeBlock = false;
+
+            if (enableP2P) {
+                // NB: P2P manager might steal blocks and assign null values.
+                const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+                auto blockPeers = p2pSnooper->OnBlockRead(
+                    chunkId,
+                    blockIndexes,
+                    &blocks,
+                    &throttledLargeBlock,
+                    readFromP2P);
+                AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+                if (fetchNodeDescriptors) {
+                    FillNodeDirectory(response->mutable_node_directory(), blockPeers);
+                }
+            }
+
+            return PrepareGetBlocksResponse(
+                context,
+                response,
+                TGetBlockResponseTemplate{
+                    .ChunkId = chunkId,
+                    .Chunk = chunk,
+                    .WorkloadDescriptor = workloadDescriptor,
+                    .HasCompleteChunk = hasCompleteChunk,
+                    .NetThrottling = netThrottling.Enabled,
+                    .NetQueueSize = netThrottling.QueueSize,
+                    .DiskThrottling = diskThrottling.IsEnabled(),
+                    .DiskQueueSize = diskThrottling.QueueSize,
+                    .ThrottledLargeBlock = throttledLargeBlock,
+                    .ChunkReaderStatistics = chunkReaderStatistics,
+                },
+                std::move(result.Blocks));
+        });
+
+        context->ReplyFrom(blocksFuture.AsUnique().Apply(onBlocksRead));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        int firstBlockIndex = request->first_block_index();
+        int blockCount = request->block_count();
+        bool populateCache = request->populate_cache();
+
+        context->SetRequestInfo(
+            "ChunkId: %v, Blocks: %v, PopulateCache: %v, Workload: %v, IoConsumed: %v, IoFairShareWeight: %v",
+            chunkId,
+            FormatBlockIndexRange(firstBlockIndex, firstBlockIndex + blockCount - 1),
+            populateCache,
+            workloadDescriptor,
+            YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
+
+        ValidateOnline();
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->FindChunk(chunkId);
+
+        bool hasCompleteChunk = chunk.operator bool();
+        response->set_has_complete_chunk(hasCompleteChunk);
+
+        auto diskThrottling = chunk
+            ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
+            : TChunkLocation::TReadThrottlingResult{};
+        response->set_disk_throttling(diskThrottling.IsEnabled());
+        response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+            .With(diskThrottling.Error);
+
+        auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+        auto options = PrepareChunkReadOptions(
+            context,
+            request,
+            chunk,
+            !netThrottling.Enabled,
+            !netThrottling.Enabled && !diskThrottling.IsEnabled(),
+            chunkReaderStatistics);
+
+        auto blocksFuture = chunk
+            ? WrapWithTimeout(
+                chunk->ReadBlockRange(
+                    firstBlockIndex,
+                    blockCount,
+                    options),
+                context,
+                BIND([] { return std::vector<TBlock>(); }))
+            : MakeFuture(std::vector<TBlock>());
+
+        // Usually, when subscribing, there are more free fibers than when calling wait for,
+        // and the lack of free fibers during a forced context switch leads to the creation
+        // of a new fiber and an increase in the number of stacks.
+        auto onBlocksRead = BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) {
+            return PrepareGetBlocksResponse(
+                context,
+                response,
+                TGetBlockResponseTemplate{
+                    .ChunkId = chunkId,
+                    .Chunk = chunk,
+                    .WorkloadDescriptor = workloadDescriptor,
+                    .HasCompleteChunk = hasCompleteChunk,
+                    .NetThrottling = netThrottling.Enabled,
+                    .NetQueueSize = netThrottling.QueueSize,
+                    .DiskThrottling = diskThrottling.IsEnabled(),
+                    .DiskQueueSize = diskThrottling.QueueSize,
+                    .ThrottledLargeBlock = false,
+                    .ChunkReaderStatistics = chunkReaderStatistics,
+                },
+                blocks);
+        });
+
+        context->ReplyFrom(blocksFuture.Apply(onBlocksRead));
+    }
+
+    template <class TRequest, class TResponse, class TContext>
+    void ReadWholeBlocksAndExtractFragments(
+        TRequest* request,
+        TResponse* response,
+        const TIntrusivePtr<TContext>& context,
+        std::vector<IChunkPtr> chunksToReadWholeBlocks,
+        TWorkloadDescriptor workloadDescriptor,
+        TReadSessionId readSessionId,
+        int blockCountToPrecache)
+    {
+        YT_VERIFY(std::ssize(chunksToReadWholeBlocks) == request->subrequests_size());
+
+        struct TChunkWithBlockRequests
+        {
+            IChunkPtr Chunk;
+            THashMap<int, int> BlockIndexToIndexInResponse;
+        };
+
+        std::vector<TChunkWithBlockRequests> chunkWithBlockRequestsList;
+        chunkWithBlockRequestsList.resize(chunksToReadWholeBlocks.size());
+        for (int index = 0; index < std::ssize(chunksToReadWholeBlocks); ++index) {
+            chunkWithBlockRequestsList[index].Chunk = std::move(chunksToReadWholeBlocks[index]);
+        }
+
+        auto chunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        std::vector<TFuture<std::vector<TBlock>>> futures;
+        futures.reserve(chunkWithBlockRequestsList.size());
+
+        int requestedChunkCount = 0;
+        int requestedBlockCount = 0;
+        for (int index = 0; index < std::ssize(chunkWithBlockRequestsList); ++index) {
+            const auto& subrequest = request->subrequests(index);
+            auto& chunkWithBlockRequests = chunkWithBlockRequestsList[index];
+            if (!chunkWithBlockRequests.Chunk) {
+                futures.push_back(MakeFuture<std::vector<TBlock>>({}));
+                continue;
+            }
+
+            ++requestedChunkCount;
+
+            TChunkReadOptions options;
+            options.WorkloadDescriptor = workloadDescriptor;
+            options.PopulateCache = true;
+            options.FetchFromCache = true;
+            options.FetchFromDisk = true;
+            options.BlockCache = Bootstrap_->GetBlockCacheForMedium(
+                chunkWithBlockRequests.Chunk->GetLocation()->GetMediumIndex());
+            options.ReadIORequestsMode = GetReadIORequestsMode(Config_, GetDynamicConfig());
+            options.MaxInFlightReadRequestCount = GetDynamicConfig()->MaxInFlightReadRequestCount.value_or(
+                Config_->MaxInFlightReadRequestCount);
+            options.MaxInFlightReadDataSize = GetDynamicConfig()->MaxInFlightReadDataSize.value_or(
+                Config_->MaxInFlightReadDataSize);
+            options.ChunkReaderStatistics = chunkReaderStatistics;
+            options.ReadSessionId = readSessionId;
+            options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+            // Specific options.
+            options.ReadCompleteBlockSetAndCache = true;
+            options.BlockType = EBlockType::ChunkFragmentsData;
+            options.BlockCountToPrecache = blockCountToPrecache;
+
+            std::vector<int> blockIndexes;
+            blockIndexes.reserve(subrequest.fragments_size());
+            for (int fragmentIndex = 0; fragmentIndex < subrequest.fragments_size(); ++fragmentIndex) {
+                const auto& fragment = subrequest.fragments(fragmentIndex);
+                blockIndexes.push_back(fragment.block_index());
+            }
+
+            SortUnique(blockIndexes);
+            requestedBlockCount += std::ssize(blockIndexes);
+
+            int indexInRequest = 0;
+            for (auto blockIndex : blockIndexes) {
+                EmplaceOrCrash(
+                    chunkWithBlockRequests.BlockIndexToIndexInResponse,
+                    blockIndex,
+                    indexInRequest++);
+            }
+
+            YT_VERIFY(indexInRequest == std::ssize(blockIndexes));
+
+            futures.push_back(chunkWithBlockRequests.Chunk->ReadBlockSet(blockIndexes, options));
+        }
+
+        YT_TLOG_DEBUG("Will fetch blocks to extract fragments")
+            .With("ReadSessionId", readSessionId)
+            .With("ChunkCount", requestedChunkCount)
+            .With("BlockCount", requestedBlockCount);
+
+        context->ReplyFrom(AllSucceeded(std::move(futures)).Apply(BIND([
+            =,
+            this,
+            this_ = MakeStrong(this),
+            chunkWithBlockRequestsList = std::move(chunkWithBlockRequestsList)
+        ] (const std::vector<std::vector<TBlock>>& blockResponsesPerChunk) {
+            YT_VERIFY(blockResponsesPerChunk.size() == chunkWithBlockRequestsList.size());
+
+            for (int index = 0; index < std::ssize(blockResponsesPerChunk); ++index) {
+                const auto& subrequest = request->subrequests(index);
+                const auto& chunkWithBlockRequests = chunkWithBlockRequestsList[index];
+                const auto& blockResponses = blockResponsesPerChunk[index];
+
+                auto previousAttachmentCount = response->Attachments().size();
+                if (!chunkWithBlockRequests.Chunk) {
+                    response->Attachments().resize(previousAttachmentCount + subrequest.fragments_size());
+                    continue;
+                }
+
+                YT_VERIFY(blockResponses.size() == chunkWithBlockRequests.BlockIndexToIndexInResponse.size());
+
+                for (const auto& fragment : subrequest.fragments()) {
+                    auto indexInResponse = GetOrCrash(
+                        chunkWithBlockRequests.BlockIndexToIndexInResponse,
+                        fragment.block_index());
+
+                    YT_VERIFY(fragment.length() != WholeBlockFragmentRequestLength);
+                    auto fragmentData = blockResponses[indexInResponse].Data.Slice(
+                        fragment.block_offset(),
+                        fragment.block_offset() + fragment.length());
+                    response->Attachments().push_back(std::move(fragmentData));
+                }
+
+                YT_VERIFY(response->Attachments().size() == previousAttachmentCount + subrequest.fragments_size());
+            }
+
+            auto bytesReadFromDisk =
+                chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+                chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
+            auto ioRequests =
+                chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed) +
+                chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed);
+
+            const auto& ioTracker = Bootstrap_->GetIOTracker();
+            if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
+                ioTracker->Enqueue(
+                    TIOCounters{
+                        .Bytes = bytesReadFromDisk,
+                        .IORequests = ioRequests,
+                    },
+                    MakeReadIOTags(
+                        "GetChunkFragmentSetFromWholeBlocks",
+                        /*location*/ nullptr,
+                        context,
+                        NullChunkId,
+                        readSessionId));
+            }
+
+            ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
+            if (const auto* traceContext = TryGetCurrentTraceContext()) {
+                FlushCurrentTraceContextElapsedTime();
+                response->mutable_chunk_reader_statistics()->set_remote_cpu_time(
+                    traceContext->GetElapsedTime().GetValue());
+            }
+
+            auto totalFragmentSize = GetByteSize(response->Attachments());
+
+            context->SetResponseInfo(
+                "ReadSessionId: %v, Workload: %v, "
+                "TotalFragmentSize: %v, DataBytesReadFromCache: %v, BytesReadFromDisk: %v, IORequests: %v",
+                readSessionId,
+                workloadDescriptor,
+                totalFragmentSize,
+                chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed),
+                bytesReadFromDisk,
+                ioRequests);
+
+            const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+            if (netThrottler->IsOverdraft()) {
+                context->SetComplete();
+                return netThrottler->Throttle(totalFragmentSize);
+            } else {
+                netThrottler->Acquire(totalFragmentSize);
+                return OKFuture;
+            }
+        })
+            .AsyncVia(Bootstrap_->GetStorageLookupInvoker())));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkFragmentSet)
+    {
+        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        auto useDirectIO = request->use_direct_io();
+        bool readAndCacheWholeBlocks = request->read_and_cache_whole_blocks();
+        int blockCountToPrecache = request->block_count_to_precache();
+
+        if (blockCountToPrecache < 0) {
+            THROW_ERROR_EXCEPTION("BlockCountToPrecache cannot be negative");
+        }
+        if (!readAndCacheWholeBlocks && blockCountToPrecache != 0) {
+            THROW_ERROR_EXCEPTION("BlockCountToPrecache cannot be nonzero when ReadAndCacheWholeBlocks is set to false");
+        }
+
+        int totalFragmentCount = 0;
+        i64 totalFragmentSize = 0;
+        for (const auto& subrequest : request->subrequests()) {
+            for (const auto& fragment : subrequest.fragments()) {
+                totalFragmentCount += 1;
+                if (fragment.length() != WholeBlockFragmentRequestLength) {
+                    totalFragmentSize += fragment.length();
+                } else if (readAndCacheWholeBlocks) {
+                    THROW_ERROR_EXCEPTION("Currently GetChunkFragmentSet call in ReadAndCacheWholeBlocks mode "
+                        "only supports requests of specific fragments, so that whole block requests are not accepted");
+                }
+            }
+        }
+
+        context->SetRequestInfo("ReadSessionId: %v, Workload: %v, ReadAndCacheWholeBlocks: %v, BlockCountToPrecache: %v, "
+            "SubrequestCount: %v, FragmentsSize: %v/%v",
+            readSessionId,
+            workloadDescriptor,
+            readAndCacheWholeBlocks,
+            blockCountToPrecache,
+            request->subrequests_size(),
+            totalFragmentSize,
+            totalFragmentCount);
+
+        ValidateOnline();
+
+        auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        response->set_net_throttling(netThrottling.Enabled);
+
+        auto enableThrottling = GetDynamicConfig()->EnableGetChunkFragmentSetThrottling;
+        if (enableThrottling && netThrottling.Enabled) {
+            context->SetResponseInfo("NetThrottling: %v, NetQueueSize: %v",
+                netThrottling.Enabled,
+                netThrottling.QueueSize);
+            context->Reply();
+            return;
+        }
+
+        THashMap<TChunkLocation*, int> locationToLocationIndex;
+        std::vector<std::pair<TChunkLocation*, int>> requestedLocations;
+
+        struct TChunkRequestInfo
+        {
+            TChunkReadGuard Guard;
+            int LocationIndex;
+        };
+        std::vector<TChunkRequestInfo> chunkRequestInfos;
+        chunkRequestInfos.reserve(request->subrequests_size());
+
+        std::vector<TFuture<void>> prepareReaderFutures;
+
+        std::vector<IChunkPtr> chunksToReadWholeBlocks;
+        if (readAndCacheWholeBlocks) {
+            chunksToReadWholeBlocks.reserve(request->subrequests_size());
+        }
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        for (const auto& subrequest : request->subrequests()) {
+            auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+            auto chunk = chunkRegistry->FindChunk(chunkId);
+
+            auto* subresponse = response->add_subresponses();
+
+            const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+            if (auto allyReplicas = allyReplicaManager->GetAllyReplicas(chunkId)) {
+                auto allyReplicasRevision = FromProto<NHydra::TRevision>(subrequest.ally_replicas_revision());
+                if (allyReplicas.Revision > allyReplicasRevision) {
+                    ToProto(subresponse->mutable_ally_replicas(), allyReplicas);
+                    YT_TLOG_DEBUG("Ally replicas suggested")
+                        .With("ChunkId", chunkId)
+                        .With("AllyReplicas", allyReplicas)
+                        .With("ClientAllyReplicasRevision", allyReplicasRevision);
+                }
+            }
+
+            auto diskThrottling = chunk
+                ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
+                : TChunkLocation::TReadThrottlingResult{};
+            YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+                .With(diskThrottling.Error);
+
+            auto diskThrottlingActive = enableThrottling && diskThrottling.IsEnabled();
+
+            bool chunkAvailable = false;
+            if (chunk) {
+                subresponse->set_disk_throttling(diskThrottlingActive);
+
+                if (readAndCacheWholeBlocks && !diskThrottlingActive) {
+                    chunksToReadWholeBlocks.push_back(std::move(chunk));
+                    chunkAvailable = true;
+                } else if (
+                    auto guard = TChunkReadGuard::TryAcquire(std::move(chunk));
+                    guard && !diskThrottlingActive)
+                {
+                    auto* location = guard.GetChunk()->GetLocation().Get();
+                    auto [it, emplaced] = locationToLocationIndex.try_emplace(
+                        location,
+                        std::ssize(locationToLocationIndex));
+                    if (emplaced) {
+                        requestedLocations.emplace_back(location, 0);
+                    }
+                    requestedLocations[it->second].second += subrequest.fragments_size();
+
+                    TClientChunkReadOptions options{
+                        .WorkloadDescriptor = workloadDescriptor,
+                        .ReadSessionId = readSessionId,
+                        .MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker()
+                    };
+
+                    if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {
+                        YT_TLOG_DEBUG("Will wait for chunk reader to become prepared")
+                            .With("ChunkId", guard.GetChunk()->GetId());
+                        prepareReaderFutures.push_back(std::move(future));
+                    }
+                    chunkRequestInfos.push_back({
+                        .Guard = std::move(guard),
+                        .LocationIndex = it->second,
+                    });
+
+                    chunkAvailable = true;
+                }
+            }
+
+            if (!chunkAvailable) {
+                if (readAndCacheWholeBlocks) {
+                    chunksToReadWholeBlocks.emplace_back();
+                } else {
+                    chunkRequestInfos.emplace_back();
+                }
+            }
+
+            subresponse->set_has_complete_chunk(chunkAvailable);
+        }
+
+        if (readAndCacheWholeBlocks) {
+            ReadWholeBlocksAndExtractFragments(
+                request,
+                response,
+                context,
+                std::move(chunksToReadWholeBlocks),
+                workloadDescriptor,
+                readSessionId,
+                blockCountToPrecache);
+            return;
+        }
+
+        auto afterReadersPrepared =
+            [
+                =,
+                this,
+                this_ = MakeStrong(this),
+                requestedLocations = std::move(requestedLocations),
+                chunkRequestInfos = std::move(chunkRequestInfos)
+            ] (const TError& error) mutable {
+                if (!error.IsOK()) {
+                    context->Reply(error);
+                    return;
+                }
+
+                std::vector<std::vector<int>> locationFragmentIndices(requestedLocations.size());
+                std::vector<std::vector<TReadRequest>> locationRequests(requestedLocations.size());
+
+                for (auto [_, locationRequestCount] : requestedLocations) {
+                    locationFragmentIndices.reserve(locationRequestCount);
+                    locationRequests.reserve(locationRequestCount);
+                }
+
+                int fragmentIndex = 0;
+                int fragmentsSizeToRead = 0;
+                try {
+                    for (int subrequestIndex = 0; subrequestIndex < request->subrequests_size(); ++subrequestIndex) {
+                        const auto& subrequest = request->subrequests(subrequestIndex);
+                        const auto& chunkRequestInfo = chunkRequestInfos[subrequestIndex];
+                        const auto& chunk = chunkRequestInfo.Guard.GetChunk();
+                        if (!chunk) {
+                            fragmentIndex += subrequest.fragments().size();
+                            continue;
+                        }
+
+                        auto locationIndex = chunkRequestInfo.LocationIndex;
+                        for (const auto& fragment : subrequest.fragments()) {
+                            auto readRequest = chunk->MakeChunkFragmentReadRequest(
+                                TChunkFragmentDescriptor{
+                                    .Length = fragment.length(),
+                                    .BlockIndex = fragment.block_index(),
+                                    .BlockOffset = fragment.block_offset()
+                                },
+                                useDirectIO);
+
+                            fragmentsSizeToRead += readRequest.Size;
+                            locationRequests[locationIndex].push_back(std::move(readRequest));
+                            locationFragmentIndices[locationIndex].push_back(fragmentIndex);
+                            ++fragmentIndex;
+                        }
+                    }
+                } catch (const std::exception& ex) {
+                    context->Reply(ex);
+                    return;
+                }
+
+                TMemoryUsageTrackerGuard memoryGuard;
+                if (GetDynamicConfig()->EnableGetChunkFragmentSetMemoryTracking) {
+                    memoryGuard = TMemoryUsageTrackerGuard::TryAcquire(
+                        Bootstrap_->GetReadBlockMemoryUsageTracker(),
+                        fragmentsSizeToRead)
+                        .ValueOrThrow();
+                }
+
+                response->Attachments().resize(fragmentIndex);
+
+                std::vector<TFuture<TReadResponse>> readFutures;
+                readFutures.reserve(requestedLocations.size());
+
+                for (int index = 0; index < std::ssize(requestedLocations); ++index) {
+                    auto [location, locationRequestCount] = requestedLocations[index];
+                    YT_VERIFY(locationRequestCount == std::ssize(locationRequests[index]));
+                    YT_TLOG_DEBUG("Reading block fragments")
+                        .With("LocationId", location->GetId())
+                        .With("LocationUuid", location->GetUuid())
+                        .With("LocationIndex", location->GetIndex())
+                        .With("FragmentCount", locationRequestCount);
+                    const auto& ioEngine = location->GetIOEngine();
+
+                    struct TChunkFragmentBuffer
+                    { };
+                    readFutures.push_back(ioEngine->Read(
+                        std::move(locationRequests[index]),
+                        workloadDescriptor.Category,
+                        GetRefCountedTypeCookie<TChunkFragmentBuffer>(),
+                        readSessionId));
+                }
+
+                AllSucceeded(std::move(readFutures))
+                    .AsUnique().Subscribe(BIND(
+                        [
+                            =,
+                            this,
+                            this_ = MakeStrong(this),
+                            memoryGuard = std::move(memoryGuard),
+                            chunkRequestInfos = std::move(chunkRequestInfos),
+                            locationFragmentIndices = std::move(locationFragmentIndices),
+                            requestedLocations = std::move(requestedLocations)
+                        ] (TErrorOr<std::vector<TReadResponse>>&& resultsOrError) {
+                            if (!resultsOrError.IsOK()) {
+                                context->Reply(resultsOrError);
+                                return;
+                            }
+
+                            auto& results = resultsOrError.Value();
+                            YT_VERIFY(results.size() == locationFragmentIndices.size());
+
+                            i64 dataBytesReadFromDisk = 0;
+                            i64 dataIORequests = 0;
+                            for (int resultIndex = 0; resultIndex < std::ssize(results); ++resultIndex) {
+                                auto& result = results[resultIndex];
+                                const auto& fragmentIndices = locationFragmentIndices[resultIndex];
+                                YT_VERIFY(result.OutputBuffers.size() == fragmentIndices.size());
+                                for (int index = 0; index < std::ssize(fragmentIndices); ++index) {
+                                    response->Attachments()[fragmentIndices[index]] = std::move(result.OutputBuffers[index]);
+                                }
+
+                                const auto& ioTracker = Bootstrap_->GetIOTracker();
+                                if (result.PaddedBytes > 0 && ioTracker->IsEnabled()) {
+                                    ioTracker->Enqueue(
+                                        TIOCounters{
+                                            .Bytes = result.PaddedBytes,
+                                            .IORequests = result.IORequests,
+                                        },
+                                        // NB: Now we do not track chunk id for this method.
+                                        MakeReadIOTags(
+                                            "GetChunkFragmentSet",
+                                            requestedLocations[resultIndex].first,
+                                            context,
+                                            NullChunkId,
+                                            readSessionId));
+                                }
+
+                                dataBytesReadFromDisk += result.PaddedBytes;
+                                dataIORequests += result.IORequests;
+                            }
+
+                            response->mutable_chunk_reader_statistics()->set_data_bytes_read_from_disk(dataBytesReadFromDisk);
+                            response->mutable_chunk_reader_statistics()->set_data_io_requests(dataIORequests);
+                            if (const auto* traceContext = TryGetCurrentTraceContext()) {
+                                FlushCurrentTraceContextElapsedTime();
+                                response->mutable_chunk_reader_statistics()->set_remote_cpu_time(
+                                    traceContext->GetElapsedTime().GetValue());
+                            }
+
+                            auto totalFragmentSize = GetByteSize(response->Attachments());
+                            const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+
+                            if (netThrottler->IsOverdraft()) {
+                                context->SetComplete();
+                                context->ReplyFrom(netThrottler->Throttle(totalFragmentSize));
+                            } else {
+                                netThrottler->Acquire(totalFragmentSize);
+                                context->Reply();
+                            }
+                        }));
+            };
+
+        if (prepareReaderFutures.empty()) {
+            afterReadersPrepared(TError());
+        } else {
+            AllSucceeded(std::move(prepareReaderFutures))
+                .Subscribe(BIND(std::move(afterReadersPrepared))
+                    .Via(Bootstrap_->GetStorageLookupInvoker()));
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LookupRows)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        auto populateCache = request->populate_cache();
+        auto enableHashChunkIndex = request->enable_hash_chunk_index();
+        const auto& schemaData = request->schema_data();
+
+        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
+            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v",
+            chunkId,
+            readSessionId,
+            workloadDescriptor,
+            populateCache,
+            enableHashChunkIndex,
+            schemaData.has_schema());
+
+        ValidateOnline();
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->GetChunkOrThrow(chunkId);
+
+        // NB: Heating table schema caches up is of higher priority than advisory throttling.
+        // COMPAT(akozhikhov): Get rid of schemaRequested field and related logic.
+        auto [tableSchema, schemaRequested] = FindTableSchemaForOffloadedReadSession(
+            chunkId,
+            readSessionId,
+            schemaData,
+            Bootstrap_->GetTableSchemaCache());
+        if (!tableSchema) {
+            response->set_fetched_rows(false);
+            response->set_request_schema(true);
+            context->SetResponseInfo(
+                "ChunkId: %v, ReadSessionId: %v, Workload: %v, SchemaRequested: %v",
+                chunkId,
+                readSessionId,
+                workloadDescriptor,
+                schemaRequested);
+            context->Reply();
+            return;
+        }
+        YT_VERIFY(!schemaRequested);
+
+        auto diskThrottling = chunk
+            ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor)
+            : TChunkLocation::TReadThrottlingResult{};
+        // COMPAT(akozhikhov): For YT-18378. Drop this after all tablet nodes are updated.
+        if (diskThrottling.IsEnabled()) {
+            ++diskThrottling.QueueSize;
+        }
+        response->set_disk_throttling(diskThrottling.IsEnabled());
+        response->set_disk_queue_size(diskThrottling.QueueSize);
+
+        YT_TLOG_DEBUG_UNLESS(diskThrottling.Error.IsOK(), "Disk throttling detected")
+            .With(diskThrottling.Error);
+
+        auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        response->set_net_throttling(netThrottling.Enabled);
+        response->set_net_queue_size(netThrottling.QueueSize);
+
+        auto timestamp = FromProto<NTransactionClient::TTimestamp>(request->timestamp());
+        auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
+        auto codecId = FromProto<NCompression::ECodec>(request->compression_codec());
+        auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
+        auto overrideTimestamp = FromProto<NTransactionClient::TTimestamp>(request->override_timestamp());
+        auto useDirectIO = request->use_direct_io();
+
+        auto chunkReadSession = CreateOffloadedChunkReadSession(
+            Bootstrap_,
+            chunk,
+            readSessionId,
+            workloadDescriptor,
+            std::move(columnFilter),
+            timestamp,
+            produceAllVersions,
+            std::move(tableSchema),
+            codecId,
+            overrideTimestamp,
+            populateCache,
+            enableHashChunkIndex,
+            useDirectIO);
+
+        context->SetResponseInfo(
+            "ChunkId: %v, ReadSessionId: %v, Workload: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, NetThrottling: %v, NetQueueSize: %v",
+            chunkId,
+            readSessionId,
+            workloadDescriptor,
+            diskThrottling.IsEnabled(),
+            diskThrottling.QueueSize,
+            netThrottling.Enabled,
+            netThrottling.QueueSize);
+
+        context->ReplyFrom(chunkReadSession->Lookup(request->Attachments())
+            .Apply(BIND([=, this, this_ = MakeStrong(this), chunk = std::move(chunk)] (const TSharedRef& result) {
+                response->Attachments().push_back(result);
+                response->set_fetched_rows(true);
+
+                const auto& chunkReaderStatistics = chunkReadSession->GetChunkReaderStatistics();
+                if (const auto* traceContext = TryGetCurrentTraceContext()) {
+                    FlushCurrentTraceContextElapsedTime();
+                    chunkReaderStatistics->RemoteCpuTime.fetch_add(
+                        traceContext->GetElapsedTime().GetValue(),
+                        std::memory_order::relaxed);
+                }
+                ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
+
+                auto bytesReadFromDisk =
+                    chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+                    chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
+                const auto& ioTracker = Bootstrap_->GetIOTracker();
+
+                if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
+                    auto ioRequests =
+                        chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed) +
+                        chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed);
+
+                    ioTracker->Enqueue(
+                        TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = ioRequests},
+                        MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId(), readSessionId));
+                }
+
+                context->SetComplete();
+
+                const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+                return netThrottler->Throttle(GetByteSize(response->Attachments()));
+            })));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto partitionTags = GetOptionalPartitionTags(*request);
+        auto extensionTags = request->all_extension_tags()
+            ? std::nullopt
+            : std::make_optional(FromProto<std::vector<int>>(request->extension_tags()));
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+        bool enableThrottling = request->enable_throttling();
+        auto supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
+
+        context->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTags: %v, Workload: %v, EnableThrottling: %v, IoConsumed: %v, IoFairShareWeight: %v",
+            chunkId,
+            extensionTags,
+            partitionTags,
+            workloadDescriptor,
+            enableThrottling,
+            YT_OPTIONAL_FROM_PROTO(*request, io_consumed),
+            YT_OPTIONAL_FROM_PROTO(*request, io_fair_share_weight));
+
+        ValidateOnline();
+
+        auto netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
+        response->set_net_throttling(netThrottling.Enabled);
+
+        context->SetResponseInfo("NetThrottling: %v",
+            netThrottling.Enabled);
+
+        if (enableThrottling && netThrottling.Enabled) {
+            context->Reply();
+            return;
+        }
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->GetChunkOrThrow(chunkId, AllMediaIndex);
+
+        auto options = BuildReadMetaOption(context, request);
+
+        struct TReadMetaResult
+        {
+            TRefCountedChunkMetaPtr Meta;
+            bool Throttled = false;
+        };
+
+        auto result = chunk->ReadMeta(options, extensionTags)
+            .AsUnique().Apply(BIND([] (TRefCountedChunkMetaPtr&& meta) {
+                return TReadMetaResult{
+                    .Meta = std::move(meta),
+                    .Throttled = false,
+                };
+            }));
+        auto chunkMetaFuture = WrapWithTimeout(
+            result,
+            context,
+            BIND([] { return TReadMetaResult{.Throttled = true}; }));
+
+        context->ReplyFrom(chunkMetaFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TReadMetaResult& readMetaResult) {
+            if (context->IsCanceled()) {
+                throw TFiberCanceledException();
+            }
+
+            if (readMetaResult.Throttled) {
+                response->set_net_throttling(true);
+                context->SetResponseInfo("NetThrottling: %v", true);
+                return;
+            }
+
+            const auto& meta = readMetaResult.Meta;
+            YT_VERIFY(meta);
+
+            auto chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
+            if (Any(chunkFeatures & EChunkFeatures::Unknown)) {
+                THROW_ERROR_EXCEPTION(
+                    NChunkClient::EErrorCode::UnsupportedChunkFeature,
+                    "Chunk %v has unknown features",
+                    chunkId)
+                    .With("chunk_features", meta->features());
+            }
+
+            ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
+
+            if (partitionTags) {
+                const auto& blockMetaCache = Bootstrap_->GetDataNodeBootstrap()->GetChunkMetaManager()->GetBlockMetaCache();
+                auto cachedBlockMeta = blockMetaCache->Find(chunkId);
+                if (!cachedBlockMeta) {
+                    auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(meta->extensions());
+                    cachedBlockMeta = New<TCachedBlockMeta>(chunkId, std::move(blockMetaExt));
+                    blockMetaCache->TryInsert(cachedBlockMeta);
+                }
+
+                *response->mutable_chunk_meta() = FilterChunkMetaByPartitionTags(*meta, cachedBlockMeta, *partitionTags);
+            } else {
+                *response->mutable_chunk_meta() = static_cast<TChunkMeta>(*meta);
+            }
+
+            ToProto(response->mutable_chunk_reader_statistics(), options.ChunkReaderStatistics);
+            ToProto(response->mutable_location_uuid(), chunk->GetLocation()->GetUuid());
+        }).AsyncVia(Bootstrap_->GetStorageHeavyInvoker())));
+    }
+
+    template <class TContext, class TRequests>
+    TFuture<std::vector<TErrorOr<TRefCountedChunkMetaPtr>>> GetChunkMetasForRequests(
+        const TIntrusivePtr<TContext>& context,
+        const TRequests& requests)
+    {
+        auto options = BuildReadMetaOption(context);
+
+        std::vector<TFuture<TRefCountedChunkMetaPtr>> chunkMetaFutures;
+        for (const auto& request : requests) {
+            auto chunkId = FromProto<TChunkId>(request.chunk_id());
+            auto chunk = Bootstrap_->GetChunkStore()->FindChunk(chunkId);
+            if (chunk) {
+                chunkMetaFutures.push_back(chunk->ReadMeta(options));
+            } else {
+                chunkMetaFutures.push_back(MakeFuture<TRefCountedChunkMetaPtr>(TError(
+                    NChunkClient::EErrorCode::NoSuchChunk,
+                    "No such chunk %v",
+                    chunkId)));
+            }
+        }
+        return AllSet(chunkMetaFutures);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSliceDataWeights)
+    {
+        auto requestCount = request->chunk_requests_size();
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+
+        context->SetRequestInfo("RequestCount: %v, Workload: %v",
+            requestCount,
+            workloadDescriptor);
+
+        ValidateOnline();
+
+        GetChunkMetasForRequests(context, request->chunk_requests())
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
+                    return;
+                }
+
+                if (context->IsCanceled()) {
+                    return;
+                }
+
+                TNameTablePtr nameTable;
+                if (request->has_name_table()) {
+                    nameTable = FromProto<TNameTablePtr>(request->name_table());
+                }
+
+                const auto& results = resultsError.Value();
+                YT_VERIFY(std::ssize(results) == requestCount);
+
+                for (int requestIndex = 0; requestIndex < requestCount; ++requestIndex) {
+                    const auto& chunkRequest = request->chunk_requests(requestIndex);
+
+                    std::optional<std::vector<TColumnStableName>> columnStableNames;
+
+                    if (chunkRequest.has_column_filter()) {
+                        YT_VERIFY(nameTable);
+
+                        columnStableNames.emplace();
+                        columnStableNames->reserve(chunkRequest.column_filter().indexes_size());
+
+                        for (auto columnIndex : chunkRequest.column_filter().indexes()) {
+                            columnStableNames->push_back(TColumnStableName(std::string(nameTable->GetName(columnIndex))));
+                        }
+                    }
+
+                    ProcessSliceSize(
+                        chunkRequest,
+                        response->add_chunk_responses(),
+                        results[requestIndex],
+                        columnStableNames);
+                }
+
+                context->Reply();
+        }).Via(Bootstrap_->GetStorageHeavyInvoker()));
+    }
+
+    void ProcessSliceSize(
+        const TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
+        TRspGetChunkSliceDataWeights::TWeightedChunk* weightedChunkResponse,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError,
+        const std::optional<std::vector<TColumnStableName>>& columnStableNames)
+    {
+        auto chunkId = FromProto<TChunkId>(weightedChunkRequest.chunk_id());
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+                chunkId);
+
+            const auto& chunkMeta = metaOrError.Value();
+            auto type = FromProto<EChunkType>(chunkMeta->type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
+                    chunkId,
+                    EChunkType::Table,
+                    type);
+            }
+
+            auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+            if (!miscExt.sorted()) {
+                THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
+            }
+
+            auto dataWeight = GetChunkSliceDataWeight(
+                weightedChunkRequest,
+                *chunkMeta,
+                columnStableNames);
+
+            weightedChunkResponse->set_data_weight(dataWeight);
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            YT_TLOG_WARNING("Error building chunk slices")
+                .With("ChunkId", chunkId)
+                .With(error);
+            ToProto(weightedChunkResponse->mutable_error(), error);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
+    {
+        auto requestCount = request->slice_requests_size();
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+
+        context->SetRequestInfo(
+            "RequestCount: %v, Workload: %v",
+            requestCount,
+            workloadDescriptor);
+
+        ValidateOnline();
+
+        GetChunkMetasForRequests(context, request->slice_requests())
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
+                    return;
+                }
+
+                if (context->IsCanceled()) {
+                    return;
+                }
+
+                const auto& results = resultsError.Value();
+                YT_VERIFY(std::ssize(results) == requestCount);
+
+                auto keysWriter = New<TKeySetWriter>();
+                auto keyBoundsWriter = New<TKeySetWriter>();
+
+                for (int requestIndex = 0; requestIndex < requestCount; ++requestIndex) {
+                    ProcessSlice(
+                        request->slice_requests(requestIndex),
+                        response->add_slice_responses(),
+                        keysWriter,
+                        keyBoundsWriter,
+                        results[requestIndex]);
+                }
+
+                response->Attachments().push_back(keysWriter->Finish());
+                response->Attachments().push_back(keyBoundsWriter->Finish());
+                context->Reply();
+            }).Via(Bootstrap_->GetStorageHeavyInvoker()));
+    }
+
+    void ProcessSlice(
+        const TSliceRequest& sliceRequest,
+        TRspGetChunkSlices::TSliceResponse* sliceResponse,
+        const TKeySetWriterPtr& keysWriter,
+        const TKeySetWriterPtr& keyBoundsWriter,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+    {
+        auto chunkId = FromProto<TChunkId>(sliceRequest.chunk_id());
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+                chunkId);
+
+            const auto& chunkMeta = metaOrError.Value();
+            auto type = FromProto<EChunkType>(chunkMeta->type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
+                    chunkId,
+                    EChunkType::Table,
+                    type);
+            }
+
+            auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+            if (!miscExt.sorted()) {
+                THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
+            }
+
+            auto slices = SliceChunk(
+                sliceRequest,
+                *chunkMeta);
+
+            for (const auto& slice : slices) {
+                ToProto(keysWriter, keyBoundsWriter, sliceResponse->add_chunk_slices(), slice);
+            }
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            YT_TLOG_WARNING("Error building chunk slices")
+                .With("ChunkId", chunkId)
+                .With(error);
+            ToProto(sliceResponse->mutable_error(), error);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetTableSamples)
+    {
+        auto samplingPolicy = ESamplingPolicy(request->sampling_policy());
+        auto keyColumns = FromProto<TKeyColumns>(request->key_columns());
+        auto requestCount = request->sample_requests_size();
+        auto maxSampleSize = request->max_sample_size();
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+
+        context->SetRequestInfo("SamplingPolicy: %v, KeyColumns: %v, RequestCount: %v, Workload: %v",
+            samplingPolicy,
+            keyColumns,
+            requestCount,
+            workloadDescriptor);
+
+        ValidateOnline();
+
+        GetChunkMetasForRequests(context, request->sample_requests())
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+                if (!resultsError.IsOK()) {
+                    context->Reply(resultsError);
+                    return;
+                }
+
+                if (context->IsCanceled()) {
+                    return;
+                }
+
+                const auto& results = resultsError.Value();
+                YT_VERIFY(std::ssize(results) == requestCount);
+
+                auto keySetWriter = New<TKeySetWriter>();
+
+                for (int requestIndex = 0; requestIndex < requestCount; ++requestIndex) {
+                    ProcessChunkSamples(
+                        request->sample_requests(requestIndex),
+                        response->add_sample_responses(),
+                        samplingPolicy,
+                        keyColumns,
+                        maxSampleSize,
+                        keySetWriter,
+                        results[requestIndex]);
+                }
+
+                response->Attachments().push_back(keySetWriter->Finish());
+                context->Reply();
+            }).Via(Bootstrap_->GetStorageHeavyInvoker()));
+    }
+
+    void ProcessChunkSamples(
+        const TReqGetTableSamples::TSampleRequest& sampleRequest,
+        TRspGetTableSamples::TChunkSamples* sampleResponse,
+        ESamplingPolicy samplingPolicy,
+        const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
+        const TKeySetWriterPtr& keySetWriter,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+    {
+        auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta of chunk %v",
+                chunkId);
+            const auto& meta = *metaOrError.Value();
+
+            auto type = FromProto<EChunkType>(meta.type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION("Invalid type of chunk %v: expected %Qlv, actual %Qlv",
+                    chunkId,
+                    EChunkType::Table,
+                    type);
+            }
+
+            switch (samplingPolicy) {
+                case ESamplingPolicy::Sorting:
+                    ProcessSortingSamples(sampleRequest, sampleResponse, keyColumns, maxSampleSize, keySetWriter, meta);
+                    break;
+
+                case ESamplingPolicy::Partitioning:
+                    ProcessPartitioningSamples(sampleRequest, sampleResponse, keyColumns, keySetWriter, meta);
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            YT_TLOG_WARNING("Error building chunk samples")
+                .With("ChunkId", chunkId)
+                .With(error);
+            ToProto(sampleResponse->mutable_error(), error);
+        }
+    }
+
+    static void SerializeSample(
+        TRspGetTableSamples::TSample* protoSample,
+        TUnversionedValueRange values,
+        i32 maxSampleSize,
+        i64 weight,
+        const TKeySetWriterPtr& keySetWriter,
+        const TRowBufferPtr& truncatedSampleValueBuffer)
+    {
+        auto truncatedValues = TruncateUnversionedValues(values, truncatedSampleValueBuffer, {.ClipAfterOverflow = true, .MaxTotalSize = maxSampleSize});
+
+        protoSample->set_key_index(keySetWriter->WriteValueRange(truncatedValues.Values));
+        protoSample->set_incomplete(truncatedValues.Clipped);
+        protoSample->set_weight(weight);
+    }
+
+
+    void ProcessPartitioningSamples(
+        const TReqGetTableSamples::TSampleRequest& sampleRequest,
+        TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const TKeyColumns& keyColumns,
+        const TKeySetWriterPtr& keySetWriter,
+        const TChunkMeta& chunkMeta)
+    {
+        auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
+
+        // COMPAT(psushin)
+        TKeyColumns chunkKeyColumns;
+        auto optionalKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+        if (optionalKeyColumnsExt) {
+            chunkKeyColumns = FromProto<TKeyColumns>(*optionalKeyColumnsExt);
+        } else {
+            auto schemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
+            chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
+        }
+
+        bool isCompatibleKeyColumns =
+            keyColumns.size() >= chunkKeyColumns.size() &&
+            std::equal(
+                chunkKeyColumns.begin(),
+                chunkKeyColumns.end(),
+                keyColumns.begin());
+
+        // Requested key can be wider than stored.
+        if (!isCompatibleKeyColumns) {
+            auto error = TError("Incompatible key columns in chunk %v: requested key columns %v, chunk key columns %v",
+                chunkId,
+                keyColumns,
+                chunkKeyColumns);
+            YT_TLOG_WARNING("Failed to process partitioning samples")
+                .With(error);
+            ToProto(chunkSamples->mutable_error(), error);
+            return;
+        }
+
+        auto lowerKey = sampleRequest.has_lower_key()
+            ? FromProto<TLegacyOwningKey>(sampleRequest.lower_key())
+            : MinKey();
+
+        auto upperKey = sampleRequest.has_upper_key()
+            ? FromProto<TLegacyOwningKey>(sampleRequest.upper_key())
+            : MaxKey();
+
+        auto blockMeta = GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions());
+
+        std::vector<TLegacyOwningKey> samples;
+        for (const auto& block : blockMeta.data_blocks()) {
+            YT_VERIFY(block.has_last_key());
+            auto key = FromProto<TLegacyOwningKey>(block.last_key());
+            if (key >= lowerKey && key < upperKey) {
+                samples.push_back(WidenKey(key, keyColumns.size()));
+            }
+        }
+
+        // Don't return more than requested.
+        std::random_shuffle(samples.begin(), samples.end());
+        auto count = std::min<int>(
+            std::ssize(samples),
+            sampleRequest.sample_count());
+        samples.erase(samples.begin() + count, samples.end());
+
+        for (const auto& sample : samples) {
+            auto* protoSample = chunkSamples->add_samples();
+            protoSample->set_key_index(keySetWriter->WriteKey(sample));
+            protoSample->set_incomplete(false);
+            protoSample->set_weight(1);
+        }
+    }
+
+    void ProcessSortingSamples(
+        const TReqGetTableSamples::TSampleRequest& sampleRequest,
+        TRspGetTableSamples::TChunkSamples* chunkSamples,
+        const TKeyColumns& keyColumns,
+        i32 maxSampleSize,
+        const TKeySetWriterPtr& keySetWriter,
+        const TChunkMeta& chunkMeta)
+    {
+        TNameTablePtr nameTable;
+        std::vector<int> keyIds;
+
+        try {
+            auto nameTableExt = FindProtoExtension<TNameTableExt>(chunkMeta.extensions());
+            if (nameTableExt) {
+                nameTable = FromProto<TNameTablePtr>(*nameTableExt);
+            } else {
+                auto schemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
+                nameTable = TNameTable::FromSchema(FromProto<TTableSchema>(schemaExt));
+            }
+
+            for (const auto& column : keyColumns) {
+                keyIds.push_back(nameTable->GetIdOrRegisterName(column));
+            }
+        } catch (const std::exception& ex) {
+            auto chunkId = FromProto<TChunkId>(sampleRequest.chunk_id());
+            YT_TLOG_WARNING("Failed to gather chunk samples")
+                .With("ChunkId", chunkId)
+                .With(ex);
+
+            // We failed to deserialize name table, so we don't return any samples.
+            return;
+        }
+
+        std::vector<int> idToKeyIndex(nameTable->GetSize(), -1);
+        for (int i = 0; i < std::ssize(keyIds); ++i) {
+            idToKeyIndex[keyIds[i]] = i;
+        }
+
+        auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
+
+        auto truncatedSampleValueBuffer = New<TRowBuffer>();
+
+        // TODO(psushin): respect sampleRequest lower_limit and upper_limit.
+        // Old chunks do not store samples weights.
+        bool hasWeights = samplesExt.weights_size() > 0;
+        for (int index = 0;
+            index < samplesExt.entries_size() && chunkSamples->samples_size() < sampleRequest.sample_count();
+            ++index)
+        {
+            int remaining = samplesExt.entries_size() - index;
+            if (std::rand() % remaining >= sampleRequest.sample_count() - chunkSamples->samples_size()) {
+                continue;
+            }
+
+            auto row = FromProto<TUnversionedOwningRow>(samplesExt.entries(index));
+            std::vector<TUnversionedValue> values(
+                keyColumns.size(),
+                MakeUnversionedSentinelValue(EValueType::Null));
+
+            for (const auto& value : row) {
+                int keyIndex = idToKeyIndex[value.Id];
+                if (keyIndex < 0) {
+                    continue;
+                }
+                values[keyIndex] = value;
+            }
+
+            SerializeSample(
+                chunkSamples->add_samples(),
+                values,
+                maxSampleSize,
+                hasWeights ? samplesExt.weights(index) : samplesExt.entries(index).length(),
+                keySetWriter,
+                truncatedSampleValueBuffer);
+        }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetColumnarStatistics)
+    {
+        auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
+
+        std::optional<TDuration> earlyFinishTimeout;
+        if (request->enable_early_finish() && context->GetTimeout()) {
+            earlyFinishTimeout = *context->GetTimeout() * GetDynamicConfig()->TestingOptions->ColumnarStatisticsReadTimeoutFraction;
+        }
+
+        context->SetRequestInfo(
+            "SubrequestCount: %v, Workload: %v, EarlyFinishTimeout: %v",
+            request->subrequests_size(),
+            workloadDescriptor,
+            earlyFinishTimeout);
+
+        ValidateOnline();
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+
+        std::vector<TFuture<TRefCountedColumnarStatisticsSubresponsePtr>> futures;
+
+        auto nameTable = FromProto<TNameTablePtr>(request->name_table());
+
+        std::vector<int> subresponseIndices;
+        subresponseIndices.reserve(request->subrequests_size());
+        response->mutable_subresponses()->Reserve(request->subrequests_size());
+        for (int index = 0; index < request->subrequests_size(); ++index) {
+            response->add_subresponses();
+        }
+
+        const auto& heavyInvoker = Bootstrap_->GetStorageHeavyInvoker();
+        for (int index = 0; index < request->subrequests_size(); ++index) {
+            const auto& subrequest = request->subrequests(index);
+            auto chunkId = FromProto<TChunkId>(subrequest.chunk_id());
+
+            auto chunk = chunkStore->FindChunk(chunkId);
+            if (!chunk) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::NoSuchChunk,
+                    "No such chunk %v",
+                    chunkId);
+                YT_TLOG_WARNING("No such chunk")
+                    .With("ChunkId", chunkId);
+                ToProto(response->mutable_subresponses(index)->mutable_error(), error);
+                continue;
+            }
+
+            auto columnIds = FromProto<std::vector<int>>(subrequest.column_ids());
+            std::vector<TColumnStableName> columnStableNames;
+            columnStableNames.reserve(columnIds.size());
+            for (auto id : columnIds) {
+                columnStableNames.emplace_back(std::string(nameTable->GetNameOrThrow(id)));
+            }
+
+            auto options = BuildReadMetaOption(context);
+
+            auto chunkMetaFuture = chunk->ReadMeta(options)
+                .Apply(BIND(
+                    &TDataNodeService::ExtractColumnarStatisticsFromChunkMeta,
+                    MakeStrong(this),
+                    Passed(std::move(columnStableNames)),
+                    chunkId,
+                    subrequest.enable_read_size_estimation())
+                .AsyncVia(heavyInvoker));
+            // Fault-injection for tests.
+            if (auto optionalDelay = GetDynamicConfig()->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay) {
+                chunkMetaFuture = chunkMetaFuture
+                    .Apply(BIND([=, Logger = Logger, config = Config_] (const TRefCountedColumnarStatisticsSubresponsePtr& result) {
+                        auto delay = index * *optionalDelay / request->subrequests_size();
+                        YT_TLOG_DEBUG("Injected a random delay after a chunk meta fetch")
+                            .With("Delay", delay);
+                        TDelayedExecutor::WaitForDuration(delay);
+                        return result;
+                    })
+                    .AsyncVia(heavyInvoker));
+            }
+            futures.push_back(chunkMetaFuture);
+            subresponseIndices.push_back(index);
+        }
+
+        YT_TLOG_DEBUG("Awaiting asynchronous part of columnar statistics fetching");
+
+        auto combinedResult = (earlyFinishTimeout ? AllSetWithTimeout(futures, *earlyFinishTimeout) : AllSet(futures));
+        context->SubscribeCanceled(BIND([Logger = Logger, combinedResult = combinedResult] (const TError& error) {
+            YT_TLOG_DEBUG("Columnar statistics fetch cancelled, propagating cancellation to chunk meta reading");
+            combinedResult.Cancel(error);
+        }));
+        context->ReplyFrom(combinedResult.Apply(BIND(
+            &TDataNodeService::CombineColumnarStatisticsSubresponses,
+            MakeWeak(this),
+            context,
+            subresponseIndices)));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, DisableChunkLocations)
+    {
+        auto locationManager = Bootstrap_->GetLocationManager();
+        auto locationUuids = FromProto<std::vector<TGuid>>(request->location_uuids());
+
+        context->SetRequestInfo("LocationUuids: %v", locationUuids);
+
+        context->ReplyFrom(locationManager->DisableChunkLocations({locationUuids.begin(), locationUuids.end()})
+            .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
+                context->SetResponseInfo("LocationUuids: %v", locationUuids);
+
+                ToProto(response->mutable_location_uuids(), locationUuids);
+            })));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, DestroyChunkLocations)
+    {
+        auto locationManager = Bootstrap_->GetLocationManager();
+        auto recoverUnlinkedDisks = request->recover_unlinked_disks();
+        auto locationUuids = FromProto<std::vector<TGuid>>(request->location_uuids());
+
+        context->SetRequestInfo("RecoverUnlinkedDisks: %v, LocationUuids: %v",
+            recoverUnlinkedDisks,
+            locationUuids);
+
+        context->ReplyFrom(locationManager->DestroyChunkLocations(
+            recoverUnlinkedDisks,
+            {locationUuids.begin(), locationUuids.end()})
+            .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
+                context->SetResponseInfo("LocationUuids: %v", locationUuids);
+
+                ToProto(response->mutable_location_uuids(), locationUuids);
+            })));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ResurrectChunkLocations)
+    {
+        auto locationManager = Bootstrap_->GetLocationManager();
+        auto locationUuids = FromProto<std::vector<TGuid>>(request->location_uuids());
+
+        context->SetRequestInfo("LocationUuids: %v", locationUuids);
+
+        context->ReplyFrom(locationManager->ResurrectChunkLocations({locationUuids.begin(), locationUuids.end()})
+            .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
+                context->SetResponseInfo("LocationUuids: %v", locationUuids);
+
+                ToProto(response->mutable_location_uuids(), locationUuids);
+            })));
+    }
+
+    void CombineColumnarStatisticsSubresponses(
+        const TCtxGetColumnarStatisticsPtr& context,
+        const std::vector<int>& subresponseIndices,
+        const std::vector<TErrorOr<TRefCountedColumnarStatisticsSubresponsePtr>>& subresponsesOrErrors)
+    {
+        YT_TLOG_DEBUG("Combining columnar statistics subresponses")
+            .With("SubresponseCount", subresponsesOrErrors.size());
+
+        int successCount = 0;
+        int timeoutCount = 0;
+        int errorCount = 0;
+
+        auto& response = context->Response();
+        for (int index = 0; index < std::ssize(subresponsesOrErrors); ++index) {
+            if (subresponsesOrErrors[index].IsOK()) {
+                response.mutable_subresponses(subresponseIndices[index])->Swap(subresponsesOrErrors[index].Value().Get());
+
+                if (subresponsesOrErrors[index].Value()->has_error()) {
+                    ++errorCount;
+                } else {
+                    ++successCount;
+                }
+            } else {
+                ToProto(
+                    response.mutable_subresponses(subresponseIndices[index])->mutable_error(),
+                    subresponsesOrErrors[index]);
+                ++timeoutCount;
+            }
+        }
+
+        context->SetResponseInfo(
+            "SuccessCount: %v, TimeoutCount: %v, ErrorCount: %v",
+            successCount,
+            timeoutCount,
+            errorCount);
+    }
+
+    static void FillColumnarStatisticsFromChunkMeta(
+        TRspGetColumnarStatistics::TSubresponse* subresponse,
+        const std::vector<TColumnStableName>& columnStableNames,
+        const TNameTablePtr& nameTable,
+        const TChunkMeta& meta)
+    {
+        auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
+        if (!optionalColumnarStatisticsExt) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::MissingExtension,
+                "Columnar statistics chunk meta extension missing");
+        }
+        const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
+        auto largeColumnarStatisticsExt = FindProtoExtension<TLargeColumnarStatisticsExt>(meta.extensions());
+
+        i64 chunkRowCount = GetProtoExtension<TMiscExt>(meta.extensions()).row_count();
+
+        auto columnarStatistics = FromProto<TColumnarStatistics>(
+            columnarStatisticsExt,
+            largeColumnarStatisticsExt ? &*largeColumnarStatisticsExt : nullptr,
+            chunkRowCount);
+        auto selectedStatistics = columnarStatistics.SelectByColumnNames(nameTable, columnStableNames);
+        ToProto(subresponse->mutable_columnar_statistics(),
+            selectedStatistics);
+
+        const auto& largeStatistics = selectedStatistics.LargeStatistics;
+        if (!largeStatistics.IsEmpty()) {
+            ToProto(subresponse->mutable_large_columnar_statistics(), largeStatistics);
+        }
+    }
+
+    TRefCountedColumnarStatisticsSubresponsePtr ExtractColumnarStatisticsFromChunkMeta(
+        const std::vector<TColumnStableName>& columnStableNames,
+        TChunkId chunkId,
+        bool enableReadSizeEstimation,
+        const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
+    {
+        YT_TLOG_DEBUG("Extracting columnar statistics from chunk meta")
+            .With("ChunkId", chunkId);
+
+        auto subresponse = New<TRefCountedColumnarStatisticsSubresponse>();
+        try {
+            THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Error getting meta");
+            const auto& meta = *metaOrError.Value();
+
+            auto type = FromProto<EChunkType>(meta.type());
+            if (type != EChunkType::Table) {
+                THROW_ERROR_EXCEPTION(
+                    "Invalid type: expected %Qlv, actual %Qlv",
+                    EChunkType::Table,
+                    type);
+            }
+
+            auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
+            TNameTablePtr nameTable;
+            TTableSchemaPtr schema;
+            if (nameTableExt) {
+                nameTable = FromProto<TNameTablePtr>(*nameTableExt);
+            } else {
+                auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
+                schema = FromProto<TTableSchemaPtr>(schemaExt);
+                nameTable = TNameTable::FromSchemaStable(*schema);
+            }
+
+            if (enableReadSizeEstimation) {
+                auto readDataSizeEstimate = EstimateReadDataSizeForColumns(columnStableNames, meta, schema, chunkId, Logger);
+                if (readDataSizeEstimate) {
+                    subresponse->set_read_data_size_estimate(*readDataSizeEstimate);
+                }
+            }
+
+            FillColumnarStatisticsFromChunkMeta(subresponse.get(), columnStableNames, nameTable, meta);
+
+            YT_TLOG_DEBUG("Columnar statistics extracted from chunk meta")
+                .With("ChunkId", chunkId);
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Error fetching columnar statistics")
+                .With("ChunkId", chunkId)
+                .With(ex);
+            auto error = TError("Error fetching columnar statistics for chunk %v", chunkId)
+                .With(ex);
+            ToProto(subresponse->mutable_error(), error);
+        }
+
+        return subresponse;
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
+    {
+        // NB: This method is no longer used, but noop stub is kept here for smooth rolling update.
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AnnounceChunkReplicas)
+    {
+        context->SetRequestInfo("SubrequestCount: %v, SourceNodeId: %v",
+            request->announcements_size(),
+            request->source_node_id());
+
+        const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
+        allyReplicaManager->OnAnnouncementsReceived(
+            TRange(request->announcements()),
+            FromProto<TNodeId>(request->source_node_id()));
+
+        context->Reply();
+    }
+
+    bool IsCloseDemanded(const TStoreLocationPtr& location)
+    {
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        return location->IsSick() || sessionManager->GetDisableWriteSessions();
+    }
+
+    void ValidateOnline()
+    {
+        if (!Bootstrap_->GetMasterConnector()->IsOnline()) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::MasterNotConnected,
+                "Master is not connected");
+        }
+    }
+
+    template <class TContextPtr>
+    void ValidateNetInThrottling(
+        const TContextPtr& context,
+        const TWorkloadDescriptor& workloadDescriptor) const
+    {
+        if (!GetDynamicConfig()->EnableInThrottlerQueueWritableCheck.value_or(false)) {
+            return;
+        }
+
+        auto netThrottling = CheckNetInThrottling(context, workloadDescriptor);
+        if (netThrottling.Enabled) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::WriteThrottlingActive,
+                "Pending network in throttling queue size exceeds throttling limit")
+                .With("net_queue_size", netThrottling.QueueSize);
+        }
+    }
+
+    template <class TContextPtr>
+    i64 GetReportedApprovedCumulativeBlockSize(
+        const TContextPtr& context,
+        const ISessionPtr& session) const
+    {
+        const bool isNetInThrottling =
+            GetDynamicConfig()->EnableInThrottlerQueueWritableCheck.value_or(false) &&
+            CheckNetInThrottling(context, session->GetWorkloadDescriptor()).Enabled;
+
+        return isNetInThrottling
+            ? 0
+            : session->GetApprovedCumulativeBlockSize();
+    }
+
+    template <class TContextPtr>
+    TNetThrottlingResult CheckNetOutThrottling(
+        const TContextPtr& context,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const
+    {
+        return Bootstrap_->CheckNetOutThrottling(
+            context->GetBusNetworkStatistics().PendingOutBytes,
+            context->GetEndpointAttributes().Get("network", NBus::DefaultNetworkName),
+            workloadDescriptor,
+            incrementCounter);
+    }
+
+    template <class TContextPtr>
+    TNetThrottlingResult CheckNetInThrottling(
+        const TContextPtr& context,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const
+    {
+        return Bootstrap_->CheckNetInThrottling(
+            context->GetEndpointAttributes().Get("network", NBus::DefaultNetworkName),
+            workloadDescriptor,
+            incrementCounter);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IServicePtr CreateDataNodeService(
+    TDataNodeConfigPtr config,
+    IBootstrap* bootstrap)
+{
+    return New<TDataNodeService>(
+        config,
+        bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NDataNode

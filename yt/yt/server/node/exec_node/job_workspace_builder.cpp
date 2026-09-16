@@ -1,0 +1,1441 @@
+#include "job_workspace_builder.h"
+
+#include "allocation.h"
+#include "job_fs_secretary.h"
+#include "job_gpu_checker.h"
+#include "slot.h"
+#include "volume.h"
+
+#include <yt/yt/server/lib/exec_node/helpers.h>
+
+#include <yt/yt/library/containers/cri/image_cache.h>
+
+#include <yt/yt/core/actions/cancelable_context.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <yt/yt/core/misc/fs.h>
+
+namespace NYT::NExecNode {
+
+using namespace NContainers::NCri;
+using namespace NConcurrency;
+using namespace NContainers;
+using namespace NJobAgent;
+using namespace NFS;
+
+static const std::string SetupCommandsTag = "setup";
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobWorkspaceBuilder::TJobWorkspaceBuilder(
+    IInvokerPtr invoker,
+    TJobWorkspaceBuildingContext context,
+    IJobDirectoryManagerPtr directoryManager)
+    : Invoker_(std::move(invoker))
+    , Context_(std::move(context))
+    , DirectoryManager_(std::move(directoryManager))
+    , Logger(Context_.Logger)
+{
+    YT_VERIFY(Context_.Slot);
+    YT_VERIFY(Context_.Job);
+    YT_VERIFY(DirectoryManager_);
+}
+
+template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+TFuture<void> TJobWorkspaceBuilder::GuardedAction()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto jobPhase = Context_.Job->GetPhase();
+
+    switch (jobPhase) {
+        case EJobPhase::WaitingForCleanup:
+        case EJobPhase::Cleanup:
+        case EJobPhase::Finished:
+            YT_TLOG_DEBUG("Skip workspace building action")
+                .With("JobPhase", jobPhase)
+                .With("ActionName", GetStepName<Step>());
+            return OKFuture;
+
+        case EJobPhase::Created:
+            YT_VERIFY(Context_.Job->GetState() == EJobState::Waiting);
+            break;
+
+        default:
+            YT_VERIFY(Context_.Job->GetState() == EJobState::Running);
+            break;
+    }
+
+    TForbidContextSwitchGuard contextSwitchGuard;
+
+    YT_TLOG_DEBUG("Run guarded workspace building action")
+        .With("JobPhase", jobPhase)
+        .With("ActionName", GetStepName<Step>());
+
+    return (*this.*Step)();
+}
+
+template <TFuture<void>(TJobWorkspaceBuilder::*Step)()>
+constexpr const char* TJobWorkspaceBuilder::GetStepName()
+{
+    if (Step == &TJobWorkspaceBuilder::DoPrepareRootVolume) {
+        return "DoPrepareRootVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareNonRootVolumes) {
+        return "DoPrepareNonRootVolumes";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareLayers) {
+        return "DoPrepareLayers";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareGpuCheckVolume) {
+        return "DoPrepareGpuCheckVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoBindRootVolume) {
+        return "DoBindRootVolume";
+    } else if (Step == &TJobWorkspaceBuilder::DoLinkVolumes) {
+        return "DoLinkVolumes";
+    } else if (Step == &TJobWorkspaceBuilder::DoValidateRootFS) {
+        return "DoValidateRootFS";
+    } else if (Step == &TJobWorkspaceBuilder::DoPrepareSandboxDirectories) {
+        return "DoPrepareSandboxDirectories";
+    } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
+        return "DoRunSetupCommand";
+    } else if (Step == &TJobWorkspaceBuilder::DoRunCustomPreparations) {
+        return "DoRunCustomPreparations";
+    } else if (Step == &TJobWorkspaceBuilder::DoRunGpuCheckCommand) {
+        return "DoRunGpuCheckCommand";
+    }
+}
+
+template <TFuture<void>(TJobWorkspaceBuilder::*Method)()>
+TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    return BIND([this, this_ = MakeStrong(this)] {
+        return GuardedAction<Method>();
+    }).AsyncVia(Invoker_);
+}
+
+void TJobWorkspaceBuilder::ValidateJobPhase(EJobPhase expectedPhase) const
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto jobPhase = Context_.Job->GetPhase();
+    if (jobPhase != expectedPhase) {
+        // COMPAT(krasovav)
+        if (expectedPhase == EJobPhase::CachingArtifacts && jobPhase == EJobPhase::DownloadingArtifacts) {
+            return;
+        }
+
+        YT_TLOG_DEBUG("Unexpected job phase during workspace preparation")
+            .With("Actual", jobPhase)
+            .With("Expected", expectedPhase);
+
+        THROW_ERROR_EXCEPTION("Unexpected job phase")
+            .With("expected_phase", expectedPhase)
+            .With("actual_phase", jobPhase);
+    }
+}
+
+void TJobWorkspaceBuilder::SetJobPhase(EJobPhase phase)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    UpdateBuilderPhase_.Fire(phase);
+}
+
+void TJobWorkspaceBuilder::UpdateArtifactStatistics(
+    i64 compressedDataSize,
+    bool cacheHit,
+    bool isLayer)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit, isLayer);
+}
+
+void TJobWorkspaceBuilder::MakeArtifactSymlinks()
+{
+    const auto& slot = Context_.Slot;
+
+    YT_TLOG_INFO("Making artifact symlinks")
+        .With("ArtifactCount", std::size(Context_.FSSecretary->GetArtifactDescriptors()));
+
+    for (const auto& artifact : Context_.FSSecretary->GetArtifactDescriptors()) {
+        // Artifact is passed into the job via symlink.
+        if (!artifact.BypassArtifactCache && !artifact.CopyFile) {
+            const auto& preparedArtifact = Context_.FSSecretary->GetArtifactByName(artifact.Name);
+
+            YT_TLOG_INFO("Making symlink for artifact")
+                .With("FileName", artifact.Name)
+                .With("Executable", artifact.Executable)
+                .With("SandboxKind", artifact.SandboxKind)
+                .With("CompressedDataSize", artifact.Key.GetCompressedDataSize());
+
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
+            auto symlinkPath = CombinePaths(sandboxPath, artifact.Name);
+
+            WaitFor(slot->MakeLink(
+                Context_.Job->GetId(),
+                artifact.Name,
+                artifact.SandboxKind,
+                preparedArtifact->GetFileName(),
+                symlinkPath,
+                artifact.Executable))
+                .ThrowOnError();
+
+            YT_TLOG_INFO("Symlink for artifact is successfully made")
+                .With("FileName", artifact.Name)
+                .With("Executable", artifact.Executable)
+                .With("SandboxKind", artifact.SandboxKind)
+                .With("CompressedDataSize", artifact.Key.GetCompressedDataSize());
+        } else {
+            YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+        }
+    }
+
+    YT_TLOG_INFO("Artifact symlinks are made");
+}
+
+void TJobWorkspaceBuilder::MakeFilesForArtifactBinds()
+{
+    const auto& slot = Context_.Slot;
+
+    const auto& artifacts = Context_.FSSecretary->GetArtifactDescriptors();
+
+    YT_TLOG_INFO("Setting permissions for artifacts")
+        .With("ArtifactCount", std::size(artifacts));
+
+    std::vector<TFuture<void>> ioOperationFutures;
+    ioOperationFutures.reserve(size(artifacts));
+
+    for (const auto& artifact : artifacts) {
+        if (artifact.AccessedViaBind) {
+            const auto& preparedArtifact = Context_.FSSecretary->GetArtifactByName(artifact.Name);
+
+            auto sandboxPath = slot->GetSandboxPath(artifact.SandboxKind, ResultHolder_.RootVolume, Context_.TestRootFS);
+            auto artifactPath = CombinePaths(sandboxPath, artifact.Name);
+
+            YT_TLOG_INFO("Set permissions for artifact")
+                .With("FileName", artifact.Name)
+                .With("Executable", artifact.Executable)
+                .With("SandboxKind", artifact.SandboxKind)
+                .With("CompressedDataSize", artifact.Key.GetCompressedDataSize());
+
+            ioOperationFutures.push_back(slot->MakeFileForSandboxBind(
+                Context_.Job->GetId(),
+                artifact.Name,
+                artifact.SandboxKind,
+                preparedArtifact->GetFileName(),
+                artifactPath,
+                artifact.Executable));
+        } else {
+            YT_VERIFY(artifact.SandboxKind == ESandboxKind::User);
+        }
+    }
+
+    auto allSetFuture = AllSet(ioOperationFutures);
+    auto errors = WaitFor(allSetFuture).ValueOrThrow();
+    for (const auto& error : errors) {
+        error.ThrowOnError();
+    }
+
+    YT_TLOG_INFO("Permissions for artifacts set");
+}
+
+void TJobWorkspaceBuilder::SetNowTime(std::optional<TInstant>& timeField)
+{
+    timeField = TInstant::Now();
+    UpdateTimePoints_.Fire(TimePoints_);
+}
+
+TFuture<void> TJobWorkspaceBuilder::Run()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto future = MakeStep<&TJobWorkspaceBuilder::DoPrepareLayers>()
+        .Run()
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareNonRootVolumes>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoBindRootVolume>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoLinkVolumes>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoValidateRootFS>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunCustomPreparations>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
+            YT_TLOG_INFO("Job workspace building finished")
+                .With(result);
+
+            ResultHolder_.LastBuildError = result;
+        }).AsyncVia(Invoker_));
+
+    future.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError&) {
+        // Drop reference to close race with check in TJob::Cleanup() on cancellation.
+        Context_.Slot.Reset();
+    }).Via(Invoker_));
+
+    return future;
+}
+
+//! Extract and move the workspace building result.
+//! Can only be called once after Run() completes.
+TJobWorkspaceBuildingResult TJobWorkspaceBuilder::ExtractResult()
+{
+    if (std::exchange(ResultExtracted_, true)) {
+        YT_TLOG_FATAL("Result has already been extracted");
+    }
+
+    // It is expected that a situation where volumes are not linked will be triggered only when canceling job_workspace_builder.
+    // The return of non-linked volumes is necessary in order to delete them correctly and set "disable" if an error occurs.
+    if (ResultHolder_.PreparedNonRootVolumes.empty()) {
+        ResultHolder_.PreparedNonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
+    }
+
+    return std::move(ResultHolder_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleJobWorkspaceBuilder
+    : public TJobWorkspaceBuilder
+{
+public:
+    TSimpleJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildingContext context,
+        IJobDirectoryManagerPtr directoryManager)
+        : TJobWorkspaceBuilder(
+            std::move(invoker),
+            std::move(context),
+            std::move(directoryManager))
+    { }
+
+private:
+    TRootFS MakeWritableRootFS()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(ResultHolder_.RootVolume);
+
+        auto binds = Context_.Binds;
+
+        for (const auto& bind : ResultHolder_.RootBinds) {
+            binds.push_back(bind);
+        }
+
+        return TRootFS{
+            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            .IsRootReadOnly = false,
+            .Binds = std::move(binds),
+        };
+    }
+
+    TFuture<void> DoPrepareLayers() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("Layer preparation is not needed");
+
+        ValidateJobPhase(EJobPhase::CachingArtifacts);
+        SetJobPhase(EJobPhase::PreparingLayers);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoPrepareRootVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("Root volume preparation is not supported in simple workspace");
+
+        ValidateJobPhase(EJobPhase::PreparingLayers);
+        SetJobPhase(EJobPhase::PreparingVolumes);
+
+        if (Context_.FSSecretary->GetRootVolumeParams()) {
+            return MakeFuture(TError(
+                NExecNode::EErrorCode::LayerUnpackingFailed,
+                "Root volume are not supported in simple job environment"));
+        }
+
+        if (Context_.FSSecretary->GetDockerImage()) {
+            return MakeFuture(TError(
+                NExecNode::EErrorCode::DockerImagePullingFailed,
+                "External docker image is not supported in simple job environment"));
+        }
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoPrepareNonRootVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        SetNowTime(TimePoints_.PrepareNonRootVolumesStartTime);
+
+        const auto& volumes = Context_.FSSecretary->GetNonRootVolumesToPrepare();
+        if (volumes.empty()) {
+            SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
+            return OKFuture;
+        }
+
+        const auto& slot = Context_.Slot;
+
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData;
+        perVolumeOverlayData.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            perVolumeOverlayData.push_back(Context_.FSSecretary->GetPreparedNonRootVolumeOverlayData(*volume));
+        }
+
+        return slot->PrepareNonRootVolumes(
+            Context_.Job->GetId(),
+            ResultHolder_.RootVolume,
+            volumes,
+            std::move(perVolumeOverlayData),
+            Context_.UserSandboxOptions.JobVolumeMounts,
+            Context_.TestRootFS)
+            .AsUnique().Apply(BIND([
+                jobId = Context_.Job->GetId(),
+                slot,
+                this,
+                this_ = MakeStrong(this)
+            ] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
+                if (!volumeResultsOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumePreparationFailed, "Failed to prepare non-root volumes")
+                        .With(volumeResultsOrError);
+                }
+
+                auto& volumeResults = volumeResultsOrError.Value();
+
+                YT_TLOG_DEBUG("Prepared non-root volumes")
+                    .With("Volumes", MakeFormattableView(
+                        volumeResults,
+                        [] (auto* builder, const TVolumeResultPtr& result) {
+                            builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                                result->VolumeId,
+                                result->Volume->GetPath());
+                        }));
+
+                Context_.PreparedNonRootVolumes = std::move(volumeResults);
+
+                SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
+            }).AsyncVia(Invoker_));
+    }
+
+    TFuture<void> DoPrepareGpuCheckVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("GPU check volume preparation is not supported in simple workspace");
+
+        ValidateJobPhase(EJobPhase::PreparingVolumes);
+        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoBindRootVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        YT_TLOG_DEBUG("Root volume binding is not needed in simple workspace");
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoLinkVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ResultHolder_.PreparedNonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
+
+        YT_TLOG_DEBUG("Link non-root volumes is not needed in simple workspace");
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoValidateRootFS() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
+        SetJobPhase(EJobPhase::ValidatingRootFS);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::ValidatingRootFS);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
+        YT_TLOG_INFO("Started preparing sandbox directories");
+
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+            .Apply(BIND([this, this_ = MakeStrong(this)] {
+                MakeArtifactSymlinks();
+
+                YT_TLOG_INFO("Finished preparing sandbox directories");
+            }).AsyncVia(Invoker_));
+    }
+
+    TFuture<void> DoRunSetupCommand() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("Setup command is not supported in simple workspace");
+
+        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
+        SetJobPhase(EJobPhase::RunningSetupCommands);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoRunCustomPreparations() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("There are no custom preparations in simple workspace");
+
+        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        SetJobPhase(EJobPhase::RunningCustomPreparations);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoRunGpuCheckCommand() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("GPU check is not supported in simple workspace");
+
+        ValidateJobPhase(EJobPhase::RunningCustomPreparations);
+        // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
+
+        return OKFuture;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
+    IInvokerPtr invoker,
+    TJobWorkspaceBuildingContext context,
+    IJobDirectoryManagerPtr directoryManager)
+{
+    return New<TSimpleJobWorkspaceBuilder>(
+        std::move(invoker),
+        std::move(context),
+        std::move(directoryManager));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
+
+class TPortoJobWorkspaceBuilder
+    : public TJobWorkspaceBuilder
+{
+public:
+    TPortoJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildingContext context,
+        IJobDirectoryManagerPtr directoryManager,
+        TGpuManagerPtr gpuManager)
+        : TJobWorkspaceBuilder(
+            std::move(invoker),
+            std::move(context),
+            std::move(directoryManager))
+        , GpuManager_(std::move(gpuManager))
+    { }
+
+private:
+    const TGpuManagerPtr GpuManager_;
+
+    TFuture<void> DoPrepareLayers() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::CachingArtifacts);
+        SetJobPhase(EJobPhase::PreparingLayers);
+
+        const auto& slot = Context_.Slot;
+        const auto& fsSecretary = Context_.FSSecretary;
+
+        THashSet<TArtifactKey> uniqueLayers;
+        auto tryInsertLayerKey = [&] (const TArtifactKey& key) {
+            if (!fsSecretary->HasPreparedLayer(key)) {
+                uniqueLayers.insert(key);
+            }
+        };
+
+        if (!fsSecretary->GetRootVolume()) {
+            if (auto rootVolumeParams = fsSecretary->GetRootVolumeParams(); rootVolumeParams) {
+                for (const auto& key : rootVolumeParams->LayerArtifactKeys.GetAll()) {
+                    tryInsertLayerKey(key);
+                }
+            }
+        }
+
+        if (auto gpuVolumeParams = fsSecretary->GetGpuCheckVolumeParams(); gpuVolumeParams) {
+            for (const auto& key : gpuVolumeParams->LayerArtifactKeys.GetAll()) {
+                tryInsertLayerKey(key);
+            }
+        }
+
+        for (const auto& params : fsSecretary->GetNonRootVolumesToPrepare()) {
+            for (const auto& key : params->LayerArtifactKeys.GetAll()) {
+                tryInsertLayerKey(key);
+            }
+        }
+
+        const TVirtualSandboxOptions* virtualSandboxOptions = nullptr;
+        if (!fsSecretary->GetRootVolume()) {
+            if (const auto& data = fsSecretary->GetVirtualSandboxOptions();
+                data && !fsSecretary->HasPreparedLayer(data->ArtifactKey))
+            {
+                virtualSandboxOptions = &*data;
+            }
+        }
+
+        if (uniqueLayers.empty() && !virtualSandboxOptions) {
+            YT_TLOG_DEBUG("Layer preparation is not needed");
+            return OKFuture;
+        }
+
+        SetNowTime(TimePoints_.PrepareLayersStartTime);
+
+        auto totalLayerCount = uniqueLayers.size() + (virtualSandboxOptions ? 1 : 0);
+        YT_TLOG_INFO("Preparing layers")
+            .With("LayerCount", totalLayerCount);
+
+        std::vector<TOverlayLayerPreparationOptions> layerOptions;
+        layerOptions.reserve(totalLayerCount);
+        for (const auto& key : uniqueLayers) {
+            UpdateArtifactStatistics(
+                key.GetCompressedDataSize(),
+                slot->IsLayerCached(key),
+                /*isLayer*/ true);
+            layerOptions.push_back(TOverlayLayerPreparationOptions{
+                .ArtifactKey = key,
+            });
+        }
+        if (virtualSandboxOptions) {
+            layerOptions.push_back(TOverlayLayerPreparationOptions{
+                .ArtifactKey = virtualSandboxOptions->ArtifactKey,
+                .ImageReader = virtualSandboxOptions->Reader,
+            });
+        }
+
+        auto layerFutures = slot->PrepareLayers(
+            Context_.Job->GetId(),
+            layerOptions,
+            Context_.ArtifactDownloadOptions);
+        YT_VERIFY(layerFutures.size() == layerOptions.size());
+
+        return AllSucceeded(std::move(layerFutures))
+            .ToImmediatelyCancelable()
+            .AsUnique()
+            .Apply(BIND([
+                this,
+                this_ = MakeStrong(this),
+                layerOptions = std::move(layerOptions)
+            ] (TErrorOr<std::vector<TOverlayData>>&& overlayDataArrayOrError) mutable {
+                if (!overlayDataArrayOrError.IsOK()) {
+                    YT_TLOG_WARNING("Failed to prepare overlay layers")
+                        .With(overlayDataArrayOrError);
+
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::OverlayLayerPreparationFailed, "Failed to prepare overlay layers")
+                        .With(overlayDataArrayOrError);
+                }
+
+                auto& overlayDataArray = overlayDataArrayOrError.Value();
+                YT_VERIFY(overlayDataArray.size() == layerOptions.size());
+                TPreparedLayers preparedLayers;
+                for (int i = 0; i < std::ssize(layerOptions); ++i) {
+                    EmplaceOrCrash(
+                        preparedLayers.ArtifactKeyToOverlayData,
+                        std::move(layerOptions[i].ArtifactKey),
+                        std::move(overlayDataArray[i]));
+                }
+                Context_.FSSecretary->AddPreparedLayers(std::move(preparedLayers));
+
+                YT_TLOG_INFO("All layers prepared");
+                SetNowTime(TimePoints_.PrepareLayersFinishTime);
+            }).AsyncVia(Invoker_));
+    }
+
+    TFuture<void> DoPrepareRootVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingLayers);
+        SetJobPhase(EJobPhase::PreparingVolumes);
+
+        const auto& slot = Context_.Slot;
+        auto rootVolumeParams = Context_.FSSecretary->GetRootVolumeParams();
+
+        if (Context_.FSSecretary->GetDockerImage() && !rootVolumeParams) {
+            return MakeFuture(TError(
+                NExecNode::EErrorCode::DockerImagePullingFailed,
+                "External docker image is not supported in Porto job environment"));
+        }
+
+        // Check if root volume can be reused from previous job in the allocation.
+        if (const auto& existingRootVolume = Context_.FSSecretary->GetRootVolume()) {
+            YT_VERIFY(Context_.FSSecretary->IsRootVolumeReusable());
+
+            YT_TLOG_INFO("Reusing root volume from previous job")
+                .With("VolumePath", existingRootVolume->GetPath());
+
+            SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
+            ResultHolder_.RootVolume = existingRootVolume;
+            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+            return OKFuture;
+        }
+
+        if (rootVolumeParams) {
+            SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
+
+            YT_TLOG_INFO("Preparing root volume")
+                .With("LayerCount", rootVolumeParams->LayerArtifactKeys.GetAll().size())
+                .With("HasVirtualSandbox", Context_.UserSandboxOptions.VirtualSandboxOptions.has_value());
+
+            TVolumePreparationOptions options;
+            options.JobId = Context_.Job->GetId();
+            options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
+            options.UserSandboxOptions = Context_.UserSandboxOptions;
+
+            return slot->PrepareRootVolume(
+                Context_.FSSecretary->GetPreparedRootVolumeOverlayData(),
+                rootVolumeParams,
+                options)
+                    .Apply(
+                        BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                            if (!volumeOrError.IsOK()) {
+                                YT_TLOG_WARNING("Failed to prepare root volume")
+                                    .With(volumeOrError);
+
+                                THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                                    .With(volumeOrError);
+                            }
+
+                            ResultHolder_.RootVolume = volumeOrError.Value();
+
+                            return slot->CreateSlotDirectories(
+                                std::move(volumeOrError.Value()),
+                                Context_.UserSandboxOptions.UserId)
+                                    .Apply(
+                                        BIND([this, this_ = MakeStrong(this)] {
+                                            YT_TLOG_DEBUG("Root volume prepared");
+                                            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+                                        })
+                                        .AsyncVia(Invoker_));
+
+                        })
+                        .AsyncVia(Invoker_));
+        } else {
+            YT_TLOG_DEBUG("Root volume preparation is not needed");
+            return OKFuture;
+        }
+    }
+
+    TFuture<void> DoPrepareNonRootVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        SetNowTime(TimePoints_.PrepareNonRootVolumesStartTime);
+
+        const auto& volumes = Context_.FSSecretary->GetNonRootVolumesToPrepare();
+        if (volumes.empty()) {
+            SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
+            return OKFuture;
+        }
+
+        const auto& slot = Context_.Slot;
+
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData;
+        perVolumeOverlayData.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            perVolumeOverlayData.push_back(Context_.FSSecretary->GetPreparedNonRootVolumeOverlayData(*volume));
+        }
+
+        return slot->PrepareNonRootVolumes(
+            Context_.Job->GetId(),
+            ResultHolder_.RootVolume,
+            volumes,
+            std::move(perVolumeOverlayData),
+            Context_.UserSandboxOptions.JobVolumeMounts,
+            Context_.TestRootFS)
+            .AsUnique()
+            .Apply(
+                BIND([slot, this, this_ = MakeStrong(this)] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
+                    if (!volumeResultsOrError.IsOK()) {
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumePreparationFailed, "Failed to prepare non-root volumes")
+                            .With(volumeResultsOrError);
+                    }
+
+                    Context_.PreparedNonRootVolumes = std::move(volumeResultsOrError.Value());
+
+                    YT_TLOG_DEBUG("Prepared non-root volumes")
+                        .With("Volumes", MakeFormattableView(
+                            Context_.PreparedNonRootVolumes,
+                            [] (auto* builder, const TVolumeResultPtr& result) {
+                                builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                                    result->VolumeId,
+                                    result->Volume->GetPath());
+                            }));
+                    SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
+                })
+                .AsyncVia(Invoker_))
+            // TODO(krasovav): Remove it (YT-27698)
+            .ToUncancelable();
+    }
+
+    TFuture<void> DoPrepareGpuCheckVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingVolumes);
+        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
+
+        const auto& slot = Context_.Slot;
+        const auto gpuVolumeParams = Context_.FSSecretary->GetGpuCheckVolumeParams();
+
+        if (gpuVolumeParams) {
+            SetNowTime(TimePoints_.PrepareGpuCheckVolumeStartTime);
+
+            YT_TLOG_INFO("Preparing GPU check volume")
+                .With("Volume", gpuVolumeParams);
+
+            TVolumePreparationOptions options;
+            options.JobId = Context_.Job->GetId();
+            options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
+
+            return slot->PrepareGpuCheckVolume(
+                Context_.FSSecretary->GetPreparedGpuCheckVolumeOverlayData(),
+                gpuVolumeParams,
+                options)
+                .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                    if (!volumeOrError.IsOK()) {
+                        YT_TLOG_WARNING("Failed to prepare GPU check volume")
+                            .With(volumeOrError);
+
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare GPU check volume")
+                            .With(volumeOrError);
+                    }
+
+                    YT_TLOG_DEBUG("GPU check volume prepared");
+
+                    ResultHolder_.GpuCheckVolume = volumeOrError.Value();
+
+                    SetNowTime(TimePoints_.PrepareGpuCheckVolumeFinishTime);
+                }));
+        } else {
+            YT_TLOG_DEBUG("GPU check volume preparation is not needed");
+            return OKFuture;
+        }
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoBindRootVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        auto slot = Context_.Slot;
+        if (ResultHolder_.RootVolume && !Context_.UserSandboxOptions.DisableRbindRootVolume) {
+            return slot->RbindRootVolume(ResultHolder_.RootVolume)
+                .Apply(BIND(
+                    [
+                        this,
+                        this_ = MakeStrong(this)
+                    ] (const TErrorOr<IVolumePtr>& volumeOrError) {
+                        if (!volumeOrError.IsOK()) {
+                            YT_TLOG_WARNING("Failed to prepare root volume")
+                                .With(volumeOrError);
+
+                            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::RootVolumePreparationFailed, "Failed to prepare root volume")
+                                .With(volumeOrError);
+                        }
+
+                        ResultHolder_.RootVolume = std::move(volumeOrError.Value());
+                    })
+                    .AsyncVia(Invoker_))
+                .ToImmediatelyCancelable();
+        } else {
+            YT_TLOG_DEBUG("Root volume binding is not needed");
+        }
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoLinkVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
+
+        SetNowTime(TimePoints_.LinkVolumesStartTime);
+
+        // Combine newly prepared volumes with reused volumes.
+        std::vector<TVolumeResultPtr> allVolumes;
+        allVolumes.reserve(Context_.PreparedNonRootVolumes.size() + Context_.ReusedNonRootVolumes.size());
+        allVolumes.insert(allVolumes.end(), Context_.PreparedNonRootVolumes.begin(), Context_.PreparedNonRootVolumes.end());
+        allVolumes.insert(allVolumes.end(), Context_.ReusedNonRootVolumes.begin(), Context_.ReusedNonRootVolumes.end());
+
+        const auto& slot = Context_.Slot;
+        return slot->LinkVolumes(ResultHolder_.RootVolume, allVolumes, Context_.UserSandboxOptions.JobVolumeMounts, Context_.TestRootFS)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) mutable {
+                if (!error.IsOK()) {
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumeLinkingFailed, "Failed to link non-root volumes")
+                        .With(error);
+                }
+
+                YT_TLOG_DEBUG("Linked non-root volumes")
+                    .With("PreparedVolumes", MakeFormattableView(
+                        Context_.PreparedNonRootVolumes,
+                        [] (auto* builder, const TVolumeResultPtr& result) {
+                            builder->AppendFormat(
+                                "{VolumeId: %v, VolumePath: %v}",
+                                result->VolumeId,
+                                result->Volume->GetPath());
+                        }))
+                    .With("ReusedVolumes", MakeFormattableView(
+                        Context_.ReusedNonRootVolumes,
+                        [] (auto* builder, const TVolumeResultPtr& result) {
+                            builder->AppendFormat(
+                                "{VolumeId: %v, VolumePath: %v}",
+                                result->VolumeId,
+                                result->Volume->GetPath());
+                        }));
+
+                // Only pass newly prepared volumes to ResultHolder_.
+                // Reused volumes are already in FSSecretary's NonRootVolumes_ map.
+                ResultHolder_.PreparedNonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
+                Context_.ReusedNonRootVolumes.clear();
+
+                SetNowTime(TimePoints_.LinkVolumesFinishTime);
+            }).AsyncVia(Invoker_))
+            .ToUncancelable();
+    }
+
+    TFuture<void> DoValidateRootFS() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
+        SetJobPhase(EJobPhase::ValidatingRootFS);
+
+        if (!ResultHolder_.RootVolume || Context_.TestRootFS) {
+            return OKFuture;
+        }
+
+        SetNowTime(TimePoints_.ValidateRootFSStartTime);
+        const auto& slot = Context_.Slot;
+        return slot->ValidateRootFS(ResultHolder_.RootVolume)
+            .Apply(BIND([this, this_ = MakeStrong(this)] () {
+                SetNowTime(TimePoints_.ValidateRootFSFinishTime);
+            })
+            .AsyncVia(Invoker_));
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::ValidatingRootFS);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
+        YT_TLOG_INFO("Started preparing sandbox directories");
+
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+            .Apply(BIND([this, this_ = MakeStrong(this)] {
+                if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
+                    MakeFilesForArtifactBinds();
+                } else {
+                    MakeArtifactSymlinks();
+                }
+
+                YT_TLOG_INFO("Finished preparing sandbox directories");
+            }).AsyncVia(Invoker_));
+    }
+
+    TRootFS MakeWritableRootFS()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(ResultHolder_.RootVolume);
+
+        auto binds = Context_.Binds;
+
+        for (const auto& bind : ResultHolder_.RootBinds) {
+            binds.push_back(bind);
+        }
+
+        return TRootFS{
+            .RootPath = ResultHolder_.RootVolume->GetPath(),
+            .IsRootReadOnly = false,
+            .Binds = std::move(binds),
+        };
+    }
+
+    TRootFS MakeWritableGpuCheckRootFS()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(ResultHolder_.GpuCheckVolume);
+
+        std::vector<NContainers::TBind> binds;
+        for (const auto& path : GpuManager_->GetRequiredHostPaths()) {
+            binds.push_back(NContainers::TBind{
+                .SourcePath = path,
+                .TargetPath = path,
+                .ReadOnly = true,
+            });
+        }
+
+        return TRootFS{
+            .RootPath = ResultHolder_.GpuCheckVolume->GetPath(),
+            .IsRootReadOnly = false,
+            .Binds = std::move(binds),
+        };
+    }
+
+    TFuture<void> DoRunSetupCommand() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
+        SetJobPhase(EJobPhase::RunningSetupCommands);
+
+        if (!ResultHolder_.RootVolume) {
+            return OKFuture;
+        }
+
+        const auto& slot = Context_.Slot;
+
+        const auto& commands = Context_.SetupCommands;
+        ResultHolder_.SetupCommandCount = commands.size();
+
+        if (commands.empty()) {
+            YT_TLOG_DEBUG("No setup command is needed");
+
+            return OKFuture;
+        }
+
+        YT_TLOG_INFO("Running setup commands");
+
+        return slot->RunPreparationCommands(
+            Context_.Job->GetId(),
+            commands,
+            MakeWritableRootFS(),
+            Context_.CommandUser,
+            /*devices*/ std::nullopt,
+            /*hostName*/ std::nullopt,
+            /*ipAddresses*/ {},
+            /*tag*/ SetupCommandsTag,
+            /*throwOnFailedCommand*/ true)
+            .AsVoid();
+    }
+
+    TFuture<void> DoRunCustomPreparations() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("Running custom preparations");
+
+        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        SetJobPhase(EJobPhase::RunningCustomPreparations);
+
+        if (!Context_.NeedGpu) {
+            return OKFuture;
+        }
+
+        auto networkPriority = Context_.Job->GetAllocation()->GetNetworkPriority();
+
+        return BIND([this, this_ = MakeStrong(this), networkPriority] {
+            GpuManager_->ApplyNetworkPriority(networkPriority);
+        })
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    TFuture<void> DoRunGpuCheckCommand() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::RunningCustomPreparations);
+
+        if (Context_.GpuCheckOptions) {
+            SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+
+            YT_VERIFY(ResultHolder_.GpuCheckVolume);
+
+            auto options = *Context_.GpuCheckOptions;
+
+            auto context = TJobGpuCheckerContext{
+                .Slot = Context_.Slot,
+                .Job = Context_.Job,
+                .RootFS = MakeWritableGpuCheckRootFS(),
+                .CommandUser = Context_.CommandUser,
+                .Type = EGpuCheckType::Preliminary,
+                .Options = options,
+                .CurrentStartIndex = ResultHolder_.SetupCommandCount,
+                // It is preliminary (not extra) GPU check.
+                .TestExtraGpuCheckCommandFailure = false,
+            };
+
+            auto checker = New<TJobGpuChecker>(std::move(context), Logger);
+
+            checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
+                SetNowTime(TimePoints_.GpuCheckStartTime);
+            }));
+
+            checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
+                SetNowTime(TimePoints_.GpuCheckFinishTime);
+            }));
+
+            YT_TLOG_INFO("Starting preliminary GPU check");
+
+            return BIND(&TJobGpuChecker::RunGpuCheck, std::move(checker))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
+                    ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
+                    if (!result.IsOK()) {
+                        auto checkError = TError(NExecNode::EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
+                            .With(std::move(result));
+                        THROW_ERROR checkError;
+                    }
+
+                    YT_TLOG_INFO("Preliminary GPU check command finished");
+                }).AsyncVia(Invoker_));
+        } else {
+            // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
+            YT_TLOG_INFO("No preliminary GPU check is needed");
+
+            return OKFuture;
+        }
+    }
+};
+
+TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
+    IInvokerPtr invoker,
+    TJobWorkspaceBuildingContext context,
+    IJobDirectoryManagerPtr directoryManager,
+    TGpuManagerPtr gpuManager)
+{
+    return New<TPortoJobWorkspaceBuilder>(
+        std::move(invoker),
+        std::move(context),
+        std::move(directoryManager),
+        std::move(gpuManager));
+}
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCriJobWorkspaceBuilder
+    : public TJobWorkspaceBuilder
+{
+public:
+    TCriJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildingContext context,
+        IJobDirectoryManagerPtr directoryManager,
+        ICriImageCachePtr imageCache)
+        : TJobWorkspaceBuilder(
+            std::move(invoker),
+            std::move(context),
+            std::move(directoryManager))
+        , ImageCache_(std::move(imageCache))
+    { }
+
+private:
+    TFuture<void> DoPrepareLayers() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("Layer preparation is not needed in CRI job environment");
+
+        ValidateJobPhase(EJobPhase::CachingArtifacts);
+        SetJobPhase(EJobPhase::PreparingLayers);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoPrepareRootVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingLayers);
+        SetJobPhase(EJobPhase::PreparingVolumes);
+
+        const auto& dockerImage = Context_.FSSecretary->GetDockerImage();
+
+        if (!dockerImage && Context_.FSSecretary->GetRootVolumeParams()) {
+            return MakeFuture(TError(
+                NExecNode::EErrorCode::LayerUnpackingFailed,
+                "Layers are not supported in CRI job environment"));
+        }
+
+        if (dockerImage) {
+            SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
+
+            TCriImageDescriptor imageDescriptor {
+                .Image = *dockerImage,
+            };
+
+            YT_TLOG_INFO("Preparing root volume")
+                .With("Image", imageDescriptor);
+
+            return ImageCache_->PullImage(
+                imageDescriptor,
+                Context_.DockerAuth)
+                .Apply(BIND([
+                    =,
+                    this,
+                    this_ = MakeStrong(this),
+                    authenticated = bool(Context_.DockerAuth)
+                ] (const TErrorOr<TCriImageCacheEntryPtr>& imageOrError) {
+                    if (!imageOrError.IsOK()) {
+                        YT_TLOG_WARNING("Failed to prepare root volume")
+                            .With("Image", imageDescriptor)
+                            .With(imageOrError);
+
+                        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
+                            .With("docker_image", imageDescriptor.Image)
+                            .With("authenticated", authenticated)
+                            .With(imageOrError);
+                    }
+
+                    const auto& cachedImage = imageOrError.Value()->Image();
+                    YT_TLOG_INFO("Root volume prepared")
+                        .With("Image", cachedImage);
+
+                    ResultHolder_.DockerImage = cachedImage.Image;
+                    ResultHolder_.DockerImageId = cachedImage.Id;
+
+                    SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+                }));
+        } else {
+            YT_TLOG_DEBUG("Root volume preparation is not needed");
+            return OKFuture;
+        }
+    }
+
+    TFuture<void> DoPrepareNonRootVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        SetNowTime(TimePoints_.PrepareNonRootVolumesStartTime);
+
+        const auto& volumes = Context_.FSSecretary->GetNonRootVolumesToPrepare();
+        if (volumes.empty()) {
+            SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
+            return OKFuture;
+        }
+
+        const auto& slot = Context_.Slot;
+
+        std::vector<std::vector<TOverlayData>> perVolumeOverlayData;
+        perVolumeOverlayData.reserve(volumes.size());
+        for (const auto& volume : volumes) {
+            perVolumeOverlayData.push_back(Context_.FSSecretary->GetPreparedNonRootVolumeOverlayData(*volume));
+        }
+
+        return slot->PrepareNonRootVolumes(
+            Context_.Job->GetId(),
+            ResultHolder_.RootVolume,
+            volumes,
+            std::move(perVolumeOverlayData),
+            Context_.UserSandboxOptions.JobVolumeMounts,
+            Context_.TestRootFS)
+            .AsUnique()
+            .Apply(BIND([
+                jobId = Context_.Job->GetId(),
+                slot,
+                this,
+                this_ = MakeStrong(this)
+            ] (TErrorOr<std::vector<TVolumeResultPtr>>&& volumeResultsOrError) {
+                if (!volumeResultsOrError.IsOK()) {
+                    THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NonRootVolumePreparationFailed, "Failed to prepare non-root volumes")
+                        .With(volumeResultsOrError);
+                }
+
+                auto& volumeResults = volumeResultsOrError.Value();
+
+                YT_TLOG_DEBUG("Prepared non-root volumes")
+                    .With("Volumes", MakeFormattableView(
+                        volumeResults,
+                        [] (auto* builder, const TVolumeResultPtr& result) {
+                            builder->AppendFormat("{VolumeId: %v, VolumePath: %v}",
+                                result->VolumeId,
+                                result->Volume->GetPath());
+                        }));
+
+                Context_.PreparedNonRootVolumes = std::move(volumeResults);
+
+                SetNowTime(TimePoints_.PrepareNonRootVolumesFinishTime);
+            }).AsyncVia(Invoker_));
+    }
+
+    TFuture<void> DoPrepareGpuCheckVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG_IF(Context_.GpuCheckOptions, "Skip preparing GPU check volume since GPU check is not support in CRI environment");
+
+        ValidateJobPhase(EJobPhase::PreparingVolumes);
+        SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoBindRootVolume() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingGpuCheckVolume);
+        SetJobPhase(EJobPhase::LinkingVolumes);
+
+        YT_TLOG_DEBUG("Root volume binding is not needed in cri workspace");
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoLinkVolumes() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
+
+        YT_TLOG_DEBUG("Link volumes is not supported in cri workspace");
+
+        ResultHolder_.PreparedNonRootVolumes = std::move(Context_.PreparedNonRootVolumes);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoValidateRootFS() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::LinkingVolumes);
+        SetJobPhase(EJobPhase::ValidatingRootFS);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoPrepareSandboxDirectories() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::ValidatingRootFS);
+        SetJobPhase(EJobPhase::PreparingSandboxDirectories);
+
+        YT_TLOG_INFO("Started preparing sandbox directories");
+
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+            .Apply(BIND([this, this_ = MakeStrong(this)] {
+                MakeFilesForArtifactBinds();
+
+                YT_TLOG_INFO("Finished preparing sandbox directories");
+            }).AsyncVia(Invoker_));
+    }
+
+    TFuture<void> DoRunSetupCommand() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
+        SetJobPhase(EJobPhase::RunningSetupCommands);
+
+        if (Context_.SetupCommands.empty()) {
+            YT_TLOG_DEBUG("No setup command is needed");
+            return OKFuture;
+        }
+
+        YT_TLOG_INFO("Running setup commands");
+
+        TRootFS rootFS{
+            .Binds = Context_.Binds,
+        };
+
+        rootFS.Binds.push_back(TBind{
+            .SourcePath = Context_.Slot->GetSlotPath(),
+            .TargetPath = "/slot",
+            .ReadOnly = false,
+        });
+
+        ResultHolder_.SetupCommandCount = Context_.SetupCommands.size();
+        return Context_.Slot->RunPreparationCommands(
+            Context_.Job->GetId(),
+            Context_.SetupCommands,
+            rootFS,
+            Context_.CommandUser,
+            /*devices*/ std::nullopt,
+            /*hostName*/ std::nullopt,
+            /*ipAddresses*/ {},
+            /*tag*/ SetupCommandsTag,
+            /*throwOnFailedCommand*/ true)
+            .AsVoid();
+    }
+
+    TFuture<void> DoRunCustomPreparations() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("There are no custom preparations in CRI workspace");
+
+        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        SetJobPhase(EJobPhase::RunningCustomPreparations);
+
+        return OKFuture;
+    }
+
+    TFuture<void> DoRunGpuCheckCommand() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG_IF(Context_.GpuCheckOptions, "GPU check is not supported in CRI workspace");
+
+        ValidateJobPhase(EJobPhase::RunningCustomPreparations);
+        // NB: we intentionally do not set running_gpu_check_command phase, since this phase is empty.
+
+        return OKFuture;
+    }
+
+private:
+    const ICriImageCachePtr ImageCache_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
+    IInvokerPtr invoker,
+    TJobWorkspaceBuildingContext context,
+    IJobDirectoryManagerPtr directoryManager,
+    ICriImageCachePtr imageCache)
+{
+    return New<TCriJobWorkspaceBuilder>(
+        std::move(invoker),
+        std::move(context),
+        std::move(directoryManager),
+        std::move(imageCache));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecNode

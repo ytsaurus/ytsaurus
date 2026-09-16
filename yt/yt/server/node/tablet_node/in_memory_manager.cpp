@@ -1,0 +1,1241 @@
+#include "in_memory_manager.h"
+
+#include "bootstrap.h"
+#include "config.h"
+#include "error_manager.h"
+#include "in_memory_service_proxy.h"
+#include "private.h"
+#include "slot_manager.h"
+#include "smooth_movement_tracker.h"
+#include "sorted_chunk_store.h"
+#include "store_manager.h"
+#include "structured_logger.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
+
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/yt/ytlib/chunk_client/block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/dispatcher.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
+
+#include <yt/yt/client/chunk_client/data_statistics.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
+
+#include <yt/yt/library/numeric/algorithm_helpers.h>
+
+#include <yt/yt/core/compression/codec.h>
+
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
+#include <yt/yt/core/concurrency/prioritized_invoker.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
+#include <yt/yt/core/rpc/local_channel.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+
+#include <yt/yt/library/undumpable/ref.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <library/cpp/yt/threading/spin_lock.h>
+#include <library/cpp/yt/threading/rw_spin_lock.h>
+
+namespace NYT::NTabletNode {
+
+using namespace NApi;
+using namespace NRpc;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHydra;
+using namespace NNodeTrackerClient;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTracing;
+
+using NChunkClient::NProto::TMiscExt;
+using NChunkClient::NProto::TBlocksExt;
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto& Logger = TabletNodeLogger;
+
+using TInMemorySessionId = TGuid;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CollocateInMemoryBlocks(std::vector<NChunkClient::TBlock>& blocks, const INodeMemoryTrackerPtr& memoryUsageTracker)
+{
+    i64 totalSize = 0;
+    for (const auto& block : blocks) {
+        totalSize += block.Data.Size();
+    }
+
+    YT_TLOG_DEBUG("Collocating memory blocks")
+        .With("BlockCount", blocks.size())
+        .With("TotalByteCount", totalSize);
+
+    auto buffer = TSharedMutableRef::Allocate<TPreloadedBlockTag>(totalSize, {.InitializeStorage = false});
+    auto trackedBuffer = TrackMemory(memoryUsageTracker, EMemoryCategory::TabletStatic, MarkUndumpable(buffer));
+
+    i64 offset = 0;
+
+    for (auto& block : blocks) {
+        // Slice the untracked and mutable buffer to avoid const_cast.
+        auto slice = TMutableRef(buffer).Slice(offset, offset + block.Data.Size());
+        ::memcpy(slice.Begin(), block.Data.Begin(), block.Data.Size());
+        block.Data = trackedBuffer.Slice(offset, offset + block.Data.Size());
+        offset += block.Data.Size();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInMemoryChunkDataPtr CreateInMemoryChunkData(
+    NChunkClient::TChunkId chunkId,
+    NTabletClient::EInMemoryMode mode,
+    int startBlockIndex,
+    std::vector<NChunkClient::TBlock> blocks,
+    const NTableClient::TCachedVersionedChunkMetaPtr& versionedChunkMeta,
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const INodeMemoryTrackerPtr& memoryUsageTracker,
+    const IMemoryUsageTrackerPtr& memoryTracker)
+{
+    CollocateInMemoryBlocks(blocks, memoryUsageTracker);
+
+    if (versionedChunkMeta->GetChunkFormat() == NChunkClient::EChunkFormat::TableVersionedColumnar &&
+        mode == EInMemoryMode::Uncompressed)
+    {
+        YT_VERIFY(startBlockIndex == 0);
+
+        class TBlockProvider
+            : public NColumnarChunkFormat::IBlockDataProvider
+        {
+        public:
+            explicit TBlockProvider(const std::vector<TBlock>& blocks)
+                : Blocks_(blocks)
+            { }
+
+            const char* GetBlock(ui32 blockIndex) override
+            {
+                YT_VERIFY(blockIndex < Blocks_.size());
+                return Blocks_[blockIndex].Data.Begin();
+            }
+
+        private:
+            const std::vector<TBlock>& Blocks_;
+        } blockProvider{blocks};
+
+        // Prepare new meta.
+        versionedChunkMeta->GetPreparedChunkMeta(&blockProvider);
+    }
+
+    NTableClient::TChunkLookupHashTablePtr lookupHashTable;
+
+    auto metaMemoryTrackerGuard = TMemoryUsageTrackerGuard::Acquire(
+        memoryTracker,
+        versionedChunkMeta->GetMemoryUsage(),
+        MemoryUsageGranularity);
+
+    if (tabletSnapshot->HashTableSize > 0) {
+        lookupHashTable = CreateChunkLookupHashTable(
+            chunkId,
+            startBlockIndex,
+            blocks,
+            versionedChunkMeta,
+            tabletSnapshot->PhysicalSchema,
+            tabletSnapshot->RowKeyComparer.UUComparer,
+            memoryTracker);
+        if (lookupHashTable) {
+            metaMemoryTrackerGuard.IncreaseSize(lookupHashTable->GetByteSize());
+        }
+    }
+
+    return New<TInMemoryChunkData>(
+        mode,
+        startBlockIndex,
+        versionedChunkMeta,
+        lookupHashTable,
+        std::move(metaMemoryTrackerGuard),
+        std::move(blocks));
+}
+
+EBlockType GetBlockTypeFromInMemoryMode(EInMemoryMode mode)
+{
+    switch (mode) {
+        case EInMemoryMode::Compressed:
+            return EBlockType::CompressedData;
+
+        case EInMemoryMode::Uncompressed:
+            return EBlockType::UncompressedData;
+
+        case EInMemoryMode::None:
+            return EBlockType::None;
+
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TInMemoryManager)
+
+class TInMemoryManager
+    : public IInMemoryManager
+{
+public:
+    explicit TInMemoryManager(IBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , CompressionInvoker_(CreateFixedPriorityInvoker(
+            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
+            GetConfig()->WorkloadDescriptor.GetPriority()))
+        , PreloadSemaphore_(New<TAsyncSemaphore>(GetConfig()->MaxConcurrentPreloads))
+    {
+        const auto& slotManager = Bootstrap_->GetSlotManager();
+        slotManager->SubscribeScanSlot(BIND_NO_PROPAGATE(&TInMemoryManager::ScanSlot, MakeWeak(this)));
+
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
+    }
+
+    TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto guard = WriterGuard(InterceptedDataSpinLock_);
+
+        auto it = ChunkIdToData_.find(chunkId);
+        if (it == ChunkIdToData_.end()) {
+            return nullptr;
+        }
+
+        auto chunkData = std::move(it->second);
+        ChunkIdToData_.erase(it);
+
+        YT_TLOG_INFO("Intercepted chunk data evicted")
+            .With("ChunkId", chunkId)
+            .With("Mode", chunkData->InMemoryMode);
+
+        return chunkData;
+    }
+
+    TInMemoryChunkDataPtr GetInterceptedChunkData(TChunkId chunkId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(InterceptedDataSpinLock_);
+
+        auto chunkData = GetOrDefault(ChunkIdToData_, chunkId);
+
+        guard.Release();
+
+        if (chunkData) {
+            YT_TLOG_DEBUG("Intercepted chunk data retrieved")
+                .With("ChunkId", chunkId)
+                .With("Mode", chunkData->InMemoryMode);
+        }
+
+        return chunkData;
+    }
+
+    void FinalizeChunk(TChunkId chunkId, TInMemoryChunkDataPtr chunkData) override
+    {
+        {
+            auto guard = WriterGuard(InterceptedDataSpinLock_);
+
+            // Replace the old data, if any, by a new one.
+            ChunkIdToData_[chunkId] = chunkData;
+        }
+
+        // Schedule eviction.
+        TDelayedExecutor::Submit(
+            BIND(IgnoreResult(&TInMemoryManager::EvictInterceptedChunkData), MakeStrong(this), chunkId),
+            GetConfig()->InterceptedDataRetentionTime);
+    }
+
+    TInMemoryManagerConfigPtr GetConfig() const override
+    {
+        return Config_.Acquire();
+    }
+
+private:
+    TAtomicIntrusivePtr<TInMemoryManagerConfig> Config_{New<TInMemoryManagerConfig>()};
+
+    IBootstrap* const Bootstrap_;
+    const IInvokerPtr CompressionInvoker_;
+
+    const TAsyncSemaphorePtr PreloadSemaphore_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, InterceptedDataSpinLock_);
+    THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
+
+
+    void OnDynamicConfigChanged(
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& staticConfig = Bootstrap_->GetTabletNodeConfig()->InMemoryManager;
+        auto config = staticConfig->ApplyDynamic(newNodeConfig->InMemoryManager);
+        Config_.Store(config);
+
+        PreloadSemaphore_->SetTotal(config->MaxConcurrentPreloads);
+    }
+
+    void ScanSlot(const ITabletSlotPtr& slot)
+    {
+        const auto& tabletManager = slot->GetTabletManager();
+        for (auto [tabletId, tablet] : tabletManager->Tablets()) {
+            ScanTablet(slot, tablet);
+        }
+    }
+
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
+    {
+        auto state = tablet->GetState();
+        if (IsInUnmountWorkflow(state)) {
+            return;
+        }
+
+        const auto& storeManager = tablet->GetStoreManager();
+
+        while (true) {
+            auto store = storeManager->PeekStoreForPreload();
+
+            if (!store) {
+                break;
+            }
+            auto guard = TAsyncSemaphoreGuard::TryAcquire(PreloadSemaphore_);
+            if (!guard) {
+                break;
+            }
+
+            auto preloadStoreCallback =
+                BIND(
+                    &TInMemoryManager::PreloadStore,
+                    MakeStrong(this),
+                    Passed(std::move(guard)),
+                    slot,
+                    tablet,
+                    store,
+                    storeManager)
+                .AsyncVia(tablet->GetEpochAutomatonInvoker());
+            storeManager->BeginStorePreload(store, preloadStoreCallback);
+        }
+    }
+
+    void PreloadStore(
+        TAsyncSemaphoreGuard /*guard*/,
+        const ITabletSlotPtr& slot,
+        TTablet* tablet,
+        const IChunkStorePtr& store,
+        const IStoreManagerPtr& storeManager)
+    {
+        YT_ASSERT_INVOKERS_AFFINITY(std::vector{
+            tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
+            tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)
+        });
+
+        auto readSessionId = TReadSessionId::Create();
+        auto mode = store->GetInMemoryMode();
+
+        auto Logger = TabletNodeLogger()
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("StoreId", store->GetId())
+            .WithTag("Mode", mode)
+            .WithTag("ReadSessionId", readSessionId);
+
+        auto traceContext = TTraceContext::NewRoot("InMemoryManager");
+        TTraceContextGuard traceContextGuard(traceContext);
+
+        YT_TLOG_INFO("Preloading in-memory store");
+
+        YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
+
+        if (mode == EInMemoryMode::None) {
+            // Mode has been changed while current action was waiting in action queue
+            YT_TLOG_INFO("In-memory mode has been changed");
+
+            store->SetPreloadState(EStorePreloadState::None);
+            tablet->GetStructuredLogger()->OnStorePreloadStateChanged(store);
+            store->SetPreloadFuture(TFuture<void>());
+            return;
+        }
+
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
+        if (!tabletSnapshot) {
+            YT_TLOG_INFO("Tablet snapshot is missing");
+
+            store->UpdatePreloadAttempt(/*isBackoff*/ false);
+            storeManager->BackoffStorePreload(store);
+            return;
+        }
+
+        PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::Preload, tabletSnapshot);
+
+        bool failed = false;
+        auto readerProfiler = New<TReaderProfiler>();
+        auto profileGuard = Finally([&] {
+            readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Preload, failed);
+        });
+
+        try {
+            // This call may suspend the current fiber.
+            auto chunkData = PreloadInMemoryStore(
+                tabletSnapshot,
+                store,
+                readSessionId,
+                Bootstrap_->GetNodeMemoryUsageTracker(),
+                CompressionInvoker_,
+                readerProfiler,
+                Bootstrap_->GetNodeMemoryUsageTracker(),
+                GetConfig()->EnablePreliminaryNetworkThrottling,
+                Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletPreload));
+
+            YT_ASSERT_INVOKERS_AFFINITY(std::vector{
+                tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
+                tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)
+            });
+
+            YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
+
+            store->Preload(std::move(chunkData));
+            storeManager->EndStorePreload(store);
+
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Preload].Store(TError());
+        } catch (const std::exception& ex) {
+            // Do not back off if fiber cancellation exception was thrown.
+            // SetInMemoryMode with other mode was called during current action execution.
+
+            YT_TLOG_ERROR("Error preloading tablet store, backing off")
+                .With(ex);
+            store->UpdatePreloadAttempt(/*isBackoff*/ true);
+            storeManager->BackoffStorePreload(store);
+
+            auto error = TError(ex)
+                .With("tablet_id", tabletSnapshot->TabletId)
+                .With("background_activity", ETabletBackgroundActivity::Preload);
+
+            Bootstrap_->GetErrorManager()->HandleError(error, "Preload", tabletSnapshot);
+
+            failed = true;
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Preload].Store(std::move(error));
+        } catch (const TFiberCanceledException&) {
+            YT_TLOG_DEBUG("Preload cancelled");
+            throw;
+        } catch (...) {
+            YT_TLOG_DEBUG("Unknown exception in preload");
+            throw;
+        }
+
+        snapshotStore->RegisterTabletSnapshot(slot, tablet);
+
+        slot->GetSmoothMovementTracker()->CheckTablet(tablet);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
+
+IInMemoryManagerPtr CreateInMemoryManager(IBootstrap* bootstrap)
+{
+    return New<TInMemoryManager>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<i64> GetEstimatedBlockRangeSize(
+    bool enablePreliminaryNetworkThrottling,
+    const TCachedVersionedChunkMetaPtr& meta,
+    int startBlockIndex,
+    int blocksCount)
+{
+    if (!enablePreliminaryNetworkThrottling) {
+        return {};
+    }
+
+    const auto& metaMisc = meta->Misc();
+    if (metaMisc.compressed_data_size() == 0 || metaMisc.uncompressed_data_size() == 0) {
+        return {};
+    }
+
+    i64 uncompressedSize = 0;
+    const auto& dataBlockMeta = meta->DataBlockMeta();
+    for (int index = startBlockIndex; index < startBlockIndex + blocksCount; ++index) {
+        uncompressedSize += dataBlockMeta->data_blocks(index).uncompressed_size();
+    }
+
+    auto compressionRatio = static_cast<double>(metaMisc.compressed_data_size()) / metaMisc.uncompressed_data_size();
+    return uncompressedSize * compressionRatio;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInMemoryChunkDataPtr PreloadInMemoryStore(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    const IChunkStorePtr& store,
+    TReadSessionId readSessionId,
+    const INodeMemoryTrackerPtr& memoryTracker,
+    const IInvokerPtr& compressionInvoker,
+    const TReaderProfilerPtr& readerProfiler,
+    const INodeMemoryTrackerPtr& memoryUsageTracker,
+    bool enablePreliminaryNetworkThrottling,
+    const IThroughputThrottlerPtr& networkThrottler)
+{
+    const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
+    auto mode = mountConfig->InMemoryMode;
+
+    auto Logger = TabletNodeLogger()
+        .WithTags(tabletSnapshot->LoggingTags)
+        .WithTag("StoreId", store->GetId())
+        .WithTag("Mode", mode)
+        .WithTag("ReadSessionId", readSessionId);
+
+    YT_TLOG_INFO("Store preload started");
+
+    IChunkReader::TReadBlocksOptions readBlocksOptions{
+        .ClientOptions = TClientChunkReadOptions{
+            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPreload),
+            .ReadSessionId = readSessionId,
+        },
+        .DisableBandwidthThrottler = enablePreliminaryNetworkThrottling,
+    };
+
+    readerProfiler->SetChunkReaderStatistics(readBlocksOptions.ClientOptions.ChunkReaderStatistics);
+
+    auto reader = store->GetBackendReaders(EWorkloadCategory::SystemTabletPreload).ChunkReader;
+    auto meta = WaitFor(reader->GetMeta(IChunkReader::TGetMetaOptions{
+        .ClientOptions = readBlocksOptions.ClientOptions,
+    }))
+        .ValueOrThrow();
+
+    auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
+    auto format = FromProto<EChunkFormat>(meta->format());
+
+    if (format == EChunkFormat::TableUnversionedSchemalessHorizontal ||
+        format == EChunkFormat::TableUnversionedColumnar)
+    {
+        // For unversioned chunks verify that block size is correct
+        if (auto blockSizeLimit = mountConfig->MaxUnversionedBlockSize) {
+            if (miscExt.max_data_block_size() > *blockSizeLimit) {
+                THROW_ERROR_EXCEPTION("Maximum block size limit violated")
+                    .With("tablet_id", tabletSnapshot->TabletId)
+                    .With("chunk_id", store->GetId())
+                    .With("block_size", miscExt.max_data_block_size())
+                    .With("block_size_limit", *blockSizeLimit);
+            }
+        }
+    }
+
+    auto compressionCodecId = FromProto<NCompression::ECodec>(miscExt.compression_codec());
+    auto* compressionCodec = NCompression::GetCodec(compressionCodecId);
+    auto erasureCodecId = FromProto<NErasure::ECodec>(miscExt.erasure_codec());
+
+    auto versionedChunkMeta = TCachedVersionedChunkMeta::Create(
+        /*prepareColumnarMeta*/ false,
+        /*memoryTracker*/ nullptr,
+        meta);
+
+    auto dataBlockCount = versionedChunkMeta->DataBlockMeta()->data_blocks_size();
+
+    int commonKeyPrefix = GetCommonKeyPrefix(
+        versionedChunkMeta->ChunkSchema()->GetKeyColumns(),
+        tabletSnapshot->PhysicalSchema->GetKeyColumns());
+
+    // Expected to be equal for dynamic tables.
+    YT_VERIFY(commonKeyPrefix == versionedChunkMeta->ChunkSchema()->GetKeyColumnCount());
+
+    auto sortOrders = GetSortOrders(tabletSnapshot->PhysicalSchema->GetSortColumns());
+
+    int startBlockIndex;
+    int endBlockIndex;
+
+    // TODO(ifsmirnov): support columnar chunks (YT-11707).
+    bool canDeduceBlockRange =
+        format == EChunkFormat::TableUnversionedSchemalessHorizontal ||
+        format == EChunkFormat::TableVersionedSimple;
+
+    if (store->IsSorted() && canDeduceBlockRange) {
+        auto sortedStore = store->AsSortedChunk();
+        auto lowerBound = std::max(tabletSnapshot->PivotKey, sortedStore->GetMinKey());
+        auto upperBound = std::min(tabletSnapshot->NextPivotKey, sortedStore->GetUpperBoundKey());
+
+        const auto& blockLastKeys = versionedChunkMeta->BlockLastKeys();
+
+        YT_VERIFY(dataBlockCount == std::ssize(blockLastKeys));
+
+        startBlockIndex = BinarySearch(0, dataBlockCount, [&] (int index) {
+            return !TestKeyWithWidening(
+                ToKeyRef(blockLastKeys[index], commonKeyPrefix),
+                ToKeyBoundRef(lowerBound, /*upper*/ false, sortOrders.size()),
+                sortOrders);
+        });
+
+        endBlockIndex = BinarySearch(0, dataBlockCount, [&] (int index) {
+            return TestKeyWithWidening(
+                ToKeyRef(blockLastKeys[index], commonKeyPrefix),
+                ToKeyBoundRef(upperBound, /*upper*/ true, sortOrders.size()),
+                sortOrders);
+        });
+        if (endBlockIndex < dataBlockCount) {
+            ++endBlockIndex;
+        }
+    } else {
+        startBlockIndex = 0;
+        endBlockIndex = dataBlockCount;
+    }
+
+    i64 preallocatedMemory = 0;
+    i64 compressedDataSize = 0;
+
+    TDuration decompressionTime;
+
+    if (erasureCodecId == NErasure::ECodec::None) {
+        auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions());
+        YT_VERIFY(dataBlockCount <= blocksExt.blocks_size());
+        for (int i = startBlockIndex; i < endBlockIndex; ++i) {
+            preallocatedMemory += blocksExt.blocks(i).size();
+        }
+    } else {
+        // NB: For erasure case we overestimate preallocated memory size
+        // because we cannot predict repair. Memory usage will be adjusted at the end of preload.
+        preallocatedMemory = miscExt.compressed_data_size();
+    }
+
+    if (mode == EInMemoryMode::Uncompressed &&
+        compressionCodecId != NCompression::ECodec::None)
+    {
+        for (int i = startBlockIndex; i < endBlockIndex; ++i) {
+            preallocatedMemory += versionedChunkMeta->DataBlockMeta()->data_blocks(i).uncompressed_size();
+        }
+    }
+
+    if (memoryTracker) {
+        auto freeMemory = memoryTracker->GetFree(EMemoryCategory::TabletStatic);
+        if (freeMemory < preallocatedMemory) {
+            THROW_ERROR_EXCEPTION("Preload is cancelled due to memory pressure")
+                .With("free_memory", freeMemory)
+                .With("requested_memory", preallocatedMemory);
+        }
+    }
+
+    auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
+        memoryTracker->WithCategory(EMemoryCategory::TabletStatic),
+        preallocatedMemory,
+        MemoryUsageGranularity);
+
+    std::vector<NChunkClient::TBlock> blocks;
+    blocks.reserve(endBlockIndex - startBlockIndex);
+
+    auto preThrottledBytes = GetEstimatedBlockRangeSize(
+        enablePreliminaryNetworkThrottling,
+        versionedChunkMeta,
+        startBlockIndex,
+        endBlockIndex - startBlockIndex);
+
+    if (preThrottledBytes) {
+        YT_TLOG_DEBUG("Preliminary throttling of network bandwidth for preload")
+            .With("Blocks", FormatBlockIndexRange(startBlockIndex, endBlockIndex))
+            .With("Bytes", preThrottledBytes);
+
+        WaitFor(networkThrottler->Throttle(*preThrottledBytes))
+            .ThrowOnError();
+    }
+
+    for (int blockIndex = startBlockIndex; blockIndex < endBlockIndex;) {
+        YT_TLOG_DEBUG("Started reading chunk blocks")
+            .With("FirstBlock", blockIndex);
+
+        YT_VERIFY(blockIndex < dataBlockCount);
+        auto compressedBlocks = WaitFor(reader->ReadBlocks(
+            readBlocksOptions,
+            blockIndex,
+            endBlockIndex - blockIndex))
+            .ValueOrThrow();
+
+        int readBlockCount = compressedBlocks.size();
+        YT_TLOG_DEBUG("Finished reading chunk blocks")
+            .With("Blocks", FormatBlockIndexRange(blockIndex, blockIndex + readBlockCount - 1));
+
+        for (const auto& compressedBlock : compressedBlocks) {
+            compressedDataSize += compressedBlock.Size();
+        }
+        readerProfiler->SetCompressedDataSize(compressedDataSize);
+
+        switch (mode) {
+            case EInMemoryMode::Compressed: {
+                for (const auto& compressedBlock : compressedBlocks) {
+                    auto block = TBlock(compressedBlock.Data, compressedBlock.Checksum);
+                    blocks.push_back(std::move(block));
+                }
+
+                break;
+            }
+
+            case EInMemoryMode::Uncompressed: {
+                YT_TLOG_DEBUG("Decompressing chunk blocks")
+                    .With("Blocks", FormatBlockIndexRange(blockIndex, blockIndex + readBlockCount - 1))
+                    .With("Codec", compressionCodec->GetId());
+
+                std::vector<TFuture<std::pair<TSharedRef, TDuration>>> asyncUncompressedBlocks;
+                asyncUncompressedBlocks.reserve(compressedBlocks.size());
+                for (auto& compressedBlock : compressedBlocks) {
+                    asyncUncompressedBlocks.push_back(
+                        BIND([&] {
+                                NProfiling::TFiberWallTimer timer;
+                                auto block = compressionCodec->Decompress(compressedBlock.Data);
+                                return std::pair(std::move(block), timer.GetElapsedTime());
+                            })
+                            .AsyncVia(compressionInvoker)
+                            .Run());
+                }
+
+                auto results = WaitFor(AllSucceeded(std::move(asyncUncompressedBlocks)))
+                    .ValueOrThrow();
+
+                for (auto& [block, duration] : results) {
+                    blocks.emplace_back(std::move(block));
+                    decompressionTime += duration;
+                }
+
+                break;
+            }
+
+            default:
+                YT_ABORT();
+        }
+
+        blockIndex += readBlockCount;
+    }
+
+    if (enablePreliminaryNetworkThrottling) {
+        auto difference = compressedDataSize - preThrottledBytes.value_or(0);
+        YT_TLOG_DEBUG("Throttling the difference between received and estimated data size")
+            .With("Estimated", preThrottledBytes)
+            .With("Received", compressedDataSize);
+
+        WaitFor(networkThrottler->Throttle(std::max(0l, difference)))
+            .ThrowOnError();
+    }
+
+    TCodecStatistics decompressionStatistics;
+    decompressionStatistics.Append(TCodecDuration{compressionCodecId, decompressionTime});
+    readerProfiler->SetCodecStatistics(decompressionStatistics);
+
+    i64 allocatedMemory = 0;
+    for (auto& block : blocks) {
+        allocatedMemory += block.Size();
+    }
+
+    if (memoryUsageGuard) {
+        memoryUsageGuard.SetSize(0);
+    }
+
+    auto chunkData = CreateInMemoryChunkData(
+        store->GetChunkId(),
+        mode,
+        startBlockIndex,
+        std::move(blocks),
+        versionedChunkMeta,
+        tabletSnapshot,
+        memoryUsageTracker,
+        memoryTracker->WithCategory(EMemoryCategory::TabletStatic));
+
+    YT_TLOG_INFO("Store preload completed")
+        .With("MemoryUsage", allocatedMemory)
+        .With("PreallocatedMemory", preallocatedMemory)
+        .With("LookupHashTable", static_cast<bool>(chunkData->LookupHashTable));
+
+    return chunkData;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TNode)
+
+struct TNode
+    : public TRefCounted
+{
+    const TNodeDescriptor Descriptor;
+    const TInMemorySessionId SessionId;
+    const TDuration ControlRpcTimeout;
+
+    TInMemoryServiceProxy Proxy;
+    TPeriodicExecutorPtr PingExecutor;
+
+    TNode(
+        const TNodeDescriptor& descriptor,
+        TInMemorySessionId sessionId,
+        IChannelPtr channel,
+        const TDuration controlRpcTimeout)
+        : Descriptor(descriptor)
+        , SessionId(sessionId)
+        , ControlRpcTimeout(controlRpcTimeout)
+        , Proxy(std::move(channel))
+    { }
+
+    void SendPing()
+    {
+        YT_TLOG_DEBUG("Sending ping")
+            .With("Address", Descriptor.GetDefaultAddress())
+            .With("SessionId", SessionId);
+
+        auto req = Proxy.PingSession();
+        req->SetTimeout(ControlRpcTimeout);
+        ToProto(req->mutable_session_id(), SessionId);
+        req->Invoke().Subscribe(
+            BIND([=, this, this_ = MakeStrong(this)] (const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    YT_TLOG_WARNING("Ping failed")
+                        .With("Address", Descriptor.GetDefaultAddress())
+                        .With("SessionId", SessionId)
+                        .With(rspOrError);
+                }
+            }));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TNode)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteInMemoryBlockCache
+    : public IRemoteInMemoryBlockCache
+{
+public:
+    TRemoteInMemoryBlockCache(
+        std::vector<TNodePtr> nodes,
+        EInMemoryMode inMemoryMode,
+        i64 remoteSendBatchSize,
+        const TDuration controlRpcTimeout,
+        const TDuration heavyRpcTimeout)
+        : InMemoryMode_(inMemoryMode)
+        , RemoteSendBatchSize_(remoteSendBatchSize)
+        , ControlRpcTimeout_(controlRpcTimeout)
+        , HeavyRpcTimeout_(heavyRpcTimeout)
+        , Nodes_(std::move(nodes))
+    { }
+
+    void PutBlock(
+        const TBlockId& id,
+        EBlockType type,
+        const TBlock& data) override
+    {
+        if (type != GetBlockTypeFromInMemoryMode(InMemoryMode_)) {
+            return;
+        }
+
+        if (Dropped_.load()) {
+            return;
+        }
+
+        bool batchIsReady;
+        {
+            auto guard = Guard(SpinLock_);
+            Blocks_.emplace_back(id, data.Data);
+            CurrentSize_ += data.Data.Size();
+            batchIsReady = CurrentSize_ > RemoteSendBatchSize_;
+        }
+
+        if (batchIsReady) {
+            bool expected = false;
+            if (Sending_.compare_exchange_strong(expected, true)) {
+                ReadyEvent_ = SendNextBatch();
+                ReadyEvent_.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError&) {
+                    Sending_ = false;
+                }));
+            }
+        }
+    }
+
+    TCachedBlock FindBlock(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return TCachedBlock();
+    }
+
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return CreateActiveCachedBlockCookie();
+    }
+
+    EBlockType GetSupportedBlockTypes() const override
+    {
+        return GetBlockTypeFromInMemoryMode(InMemoryMode_);
+    }
+
+    bool IsBlockTypeActive(EBlockType blockType) const override
+    {
+        return Any(GetSupportedBlockTypes() & blockType);
+    }
+
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
+    TFuture<void> Finish(const std::vector<TChunkInfo>& chunkInfos) override
+    {
+        bool expected = false;
+        if (Sending_.compare_exchange_strong(expected, true)) {
+            ReadyEvent_ = SendNextBatch();
+        }
+
+        return ReadyEvent_
+            .Apply(BIND(
+                &TRemoteInMemoryBlockCache::DoFinish,
+                MakeStrong(this),
+                chunkInfos));
+    }
+
+private:
+    const EInMemoryMode InMemoryMode_;
+    const i64 RemoteSendBatchSize_;
+    const TDuration ControlRpcTimeout_;
+    const TDuration HeavyRpcTimeout_;
+
+    std::vector<TNodePtr> Nodes_;
+
+    TFuture<void> ReadyEvent_ = OKFuture;
+    std::atomic<bool> Sending_ = false;
+    std::atomic<bool> Dropped_ = false;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
+    i64 CurrentSize_ = 0;
+
+
+    TFuture<void> SendNextBatch()
+    {
+        return BIND([this_ = MakeStrong(this), this] {
+            while (DoSendNextBatch())
+            { }
+        })
+        .AsyncVia(GetCurrentInvoker())
+        .Run();
+    }
+
+    bool DoSendNextBatch()
+    {
+        auto guard = Guard(SpinLock_);
+        if (Blocks_.empty()) {
+            return false;
+        }
+
+        if (Nodes_.empty()) {
+            Dropped_ = true;
+            Blocks_.clear();
+            CurrentSize_ = 0;
+            THROW_ERROR_EXCEPTION("All sessions are dropped");
+        }
+
+        std::vector<std::pair<TBlockId, TSharedRef>> blocks;
+        i64 groupSize = 0;
+        while (!Blocks_.empty() && groupSize < RemoteSendBatchSize_) {
+            auto block = std::move(Blocks_.front());
+            groupSize += block.second.Size();
+            blocks.push_back(std::move(block));
+            Blocks_.pop_front();
+        }
+
+        CurrentSize_ -= groupSize;
+
+        guard.Release();
+
+        std::vector<TFuture<TInMemoryServiceProxy::TRspPutBlocksPtr>> asyncResults;
+        for (const auto& node : Nodes_) {
+            auto req = node->Proxy.PutBlocks();
+            req->SetResponseHeavy(true);
+            req->SetTimeout(HeavyRpcTimeout_);
+            ToProto(req->mutable_session_id(), node->SessionId);
+
+            for (const auto& block : blocks) {
+                YT_TLOG_DEBUG("Sending in-memory block")
+                    .With("ChunkId", block.first.ChunkId)
+                    .With("Block", block.first.BlockIndex)
+                    .With("SessionId", node->SessionId)
+                    .With("Address", node->Descriptor.GetDefaultAddress());
+
+                ToProto(req->add_block_ids(), block.first);
+                req->Attachments().push_back(block.second);
+            }
+
+            asyncResults.push_back(req->Invoke());
+        }
+
+        auto future = AllSet(asyncResults)
+            .Apply(BIND(&TRemoteInMemoryBlockCache::OnSendResponse, MakeStrong(this)));
+
+        WaitFor(future).
+            ThrowOnError();
+
+        return true;
+    }
+
+    void OnSendResponse(
+        const std::vector<TErrorOr<TInMemoryServiceProxy::TRspPutBlocksPtr>>& results)
+    {
+        std::vector<TNodePtr> activeNodes;
+        for (size_t index = 0; index < results.size(); ++index) {
+            if (!results[index].IsOK()) {
+                YT_TLOG_WARNING("Error sending batch")
+                    .With("SessionId", Nodes_[index]->SessionId)
+                    .With("Address", Nodes_[index]->Descriptor.GetDefaultAddress());
+                continue;
+            }
+
+            auto result = results[index].Value();
+
+            if (result->dropped()) {
+                YT_TLOG_WARNING("Dropped in-memory session")
+                    .With("SessionId", Nodes_[index]->SessionId)
+                    .With("Address", Nodes_[index]->Descriptor.GetDefaultAddress());
+                continue;
+            }
+
+            activeNodes.push_back(Nodes_[index]);
+        }
+
+        Nodes_.swap(activeNodes);
+    }
+
+    TFuture<void> DoFinish(const std::vector<TChunkInfo>& chunkInfos)
+    {
+        YT_TLOG_DEBUG("Finishing in-memory sessions")
+            .With(
+                "SessionIds",
+                MakeFormattableView(Nodes_, [] (TStringBuilderBase* builder, const TNodePtr& node) {
+                    FormatValue(builder, node->SessionId, TStringBuf());
+                }));
+
+        std::vector<TFuture<void>> asyncResults;
+        for (const auto& node : Nodes_) {
+            if (node->PingExecutor) {
+                YT_UNUSED_FUTURE(node->PingExecutor->Stop());
+                node->PingExecutor.Reset();
+            }
+
+            auto req = node->Proxy.FinishSession();
+            req->SetTimeout(HeavyRpcTimeout_);
+            ToProto(req->mutable_session_id(), node->SessionId);
+
+            for (const auto& chunkInfo : chunkInfos) {
+                ToProto(req->add_chunk_id(), chunkInfo.ChunkId);
+                *req->add_chunk_meta() = *chunkInfo.ChunkMeta;
+                ToProto(req->add_tablet_id(), chunkInfo.TabletId);
+                req->add_mount_revision(ToProto(chunkInfo.MountRevision));
+                req->add_target_servant_mount_revision(ToProto(chunkInfo.TargetServantMountRevision));
+            }
+
+            asyncResults.push_back(req->Invoke().As<void>());
+        }
+
+        return AllSucceeded(asyncResults);
+    }
+};
+
+class TDummyInMemoryBlockCache
+    : public IRemoteInMemoryBlockCache
+{
+public:
+    void PutBlock(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/,
+        const TBlock& /*data*/) override
+    { }
+
+    TCachedBlock FindBlock(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return TCachedBlock();
+    }
+
+    std::unique_ptr<ICachedBlockCookie> GetBlockCookie(
+        const TBlockId& /*id*/,
+        EBlockType /*type*/) override
+    {
+        return CreateActiveCachedBlockCookie();
+    }
+
+    EBlockType GetSupportedBlockTypes() const override
+    {
+        return EBlockType::None;
+    }
+
+    bool IsBlockTypeActive(EBlockType /*blockType*/) const override
+    {
+        return false;
+    }
+
+    void RemoveChunkBlocks(const TChunkId& /*chunkId*/) override
+    { }
+
+    THashSet<TBlockInfo> GetCachedBlocksByChunkId(TChunkId /*chunkId*/, EBlockType /*type*/) override
+    {
+        return {};
+    }
+
+    TFuture<void> Finish(const std::vector<TChunkInfo>& /*chunkInfos*/) override
+    {
+        return OKFuture;
+    }
+};
+
+IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
+    const NNative::IClientPtr& client,
+    const IInvokerPtr& controlInvoker,
+    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
+    NRpc::IServerPtr localRpcServer,
+    const std::vector<NHiveClient::TConstCellDescriptorPtr>& cellDescriptors,
+    EInMemoryMode inMemoryMode,
+    const TInMemoryManagerConfigPtr& config)
+{
+    THashMap<std::string, TNodeDescriptor> nodeDescriptors;
+
+    auto addCellPeers = [&] (const NHiveClient::TConstCellDescriptorPtr& cellDescriptor) {
+        for (const auto& target : cellDescriptor->Peers) {
+            nodeDescriptors.emplace(target.GetDefaultAddress(), target);
+        }
+    };
+
+    for (const auto& cellDescriptor : cellDescriptors) {
+        addCellPeers(cellDescriptor);
+    }
+
+    std::vector<TNodePtr> nodes;
+    for (const auto& [address, target] : nodeDescriptors) {
+        auto channel = address == localDescriptor.GetDefaultAddress()
+            ? CreateLocalChannel(localRpcServer)
+            : client->GetChannelFactory()->CreateChannel(target);
+
+        YT_TLOG_DEBUG("Starting in-memory session")
+            .With("Address", address);
+
+        TInMemoryServiceProxy proxy(channel);
+
+        auto req = proxy.StartSession();
+        req->SetTimeout(config->ControlRpcTimeout);
+        req->set_in_memory_mode(ToProto(inMemoryMode));
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error starting in-memory session at node %v",
+                address)
+                .With(rspOrError);
+        }
+
+        const auto& rsp = rspOrError.Value();
+        auto sessionId = FromProto<TInMemorySessionId>(rsp->session_id());
+
+        YT_TLOG_DEBUG("In-memory session started")
+            .With("Address", address)
+            .With("SessionId", sessionId);
+
+        auto node = New<TNode>(
+            target,
+            sessionId,
+            std::move(channel),
+            config->ControlRpcTimeout);
+
+        node->PingExecutor = New<TPeriodicExecutor>(
+            controlInvoker,
+            BIND(&TNode::SendPing, MakeWeak(node)),
+            config->PingPeriod);
+        node->PingExecutor->Start();
+
+        nodes.push_back(node);
+    }
+
+    return New<TRemoteInMemoryBlockCache>(
+        std::move(nodes),
+        inMemoryMode,
+        config->RemoteSendBatchSize,
+        config->ControlRpcTimeout,
+        config->HeavyRpcTimeout);
+}
+
+TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
+    NNative::IClientPtr client,
+    IInvokerPtr controlInvoker,
+    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
+    NRpc::IServerPtr localRpcServer,
+    const TTabletSnapshotPtr& tabletSnapshot,
+    EInMemoryMode inMemoryMode,
+    TInMemoryManagerConfigPtr config)
+{
+    if (inMemoryMode == EInMemoryMode::None) {
+        return MakeFuture<IRemoteInMemoryBlockCachePtr>(New<TDummyInMemoryBlockCache>());
+    }
+
+    const auto& cellDirectory = client->GetNativeConnection()->GetCellDirectory();
+
+    std::vector<NHiveClient::TConstCellDescriptorPtr> cellDescriptors;
+    cellDescriptors.push_back(
+        cellDirectory->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId));
+
+    {
+        const auto& movementData = tabletSnapshot->TabletRuntimeData->SmoothMovementData;
+        if (movementData.IsActiveServant.load() &&
+            movementData.Role.load() == ESmoothMovementRole::Source)
+        {
+            // NB: May be absent in case of concurrent modification.
+            if (auto cellId = movementData.SiblingServantCellId.Load()) {
+                cellDescriptors.push_back(
+                    cellDirectory->GetDescriptorByCellIdOrThrow(cellId));
+            }
+        }
+    }
+
+    return BIND(&DoCreateRemoteInMemoryBlockCache)
+        .AsyncVia(controlInvoker)
+        .Run(
+            std::move(client),
+            controlInvoker,
+            localDescriptor,
+            std::move(localRpcServer),
+            std::move(cellDescriptors),
+            inMemoryMode,
+            std::move(config));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

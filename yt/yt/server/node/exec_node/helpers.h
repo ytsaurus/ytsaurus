@@ -1,0 +1,115 @@
+#pragma once
+
+#include "artifact.h"
+#include "bootstrap.h"
+#include "volume_helpers.h"
+#include "private.h"
+
+#include <yt/yt/server/node/exec_node/preparation_options.h>
+
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
+
+#include <yt/yt/ytlib/controller_agent/proto/controller_agent_descriptor.pb.h>
+
+#include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
+
+#include <yt/yt/client/api/public.h>
+
+#include <yt/yt/client/hydra/public.h>
+
+#include <yt/yt/client/ypath/rich.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/core/logging/public.h>
+
+namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFetchedArtifactKey
+{
+    NHydra::TRevision ContentRevision = NHydra::NullRevision;
+    std::optional<TArtifactKey> ArtifactKey;
+};
+
+TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
+    const NYPath::TYPath& path,
+    NHydra::TRevision contentRevision,
+    IBootstrap const* bootstrap,
+    const NLogging::TLogger& logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TControllerAgentDescriptor
+{
+    std::string Address;
+    NScheduler::TIncarnationId IncarnationId;
+
+    bool operator==(const TControllerAgentDescriptor& other) const = default;
+
+    explicit operator bool() const noexcept;
+};
+
+class TControllerAgentAffiliationInfo
+{
+public:
+    TControllerAgentAffiliationInfo();
+    explicit TControllerAgentAffiliationInfo(TControllerAgentDescriptor descriptor);
+
+    const TControllerAgentDescriptor& GetDescriptor() const noexcept;
+
+    TInstant GetDescriptorResetTime() const noexcept;
+
+    void SetDescriptor(TControllerAgentDescriptor descriptor);
+
+    void ResetControllerAgent();
+
+private:
+    TControllerAgentDescriptor Descriptor_;
+    TInstant DescriptorResetTime_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TControllerAgentDescriptor& controllerAgentDescriptor,
+    TStringBuf /*format*/);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
+    const NControllerAgent::NProto::TControllerAgentDescriptor& proto,
+    const NNodeTrackerClient::TNetworkPreferenceList& localNetworks);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SetNodeInfoToRequest(
+    NNodeTrackerClient::TNodeId nodeId,
+    const NNodeTrackerClient::TNodeDescriptor& nodeDescriptor,
+    const auto& request);
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TAbsoluteNormalizedPath& GetVolumeMountPathByVolumeId(const std::string& volumeId, const std::vector<TVolumeMountPtr>& volumeMounts);
+const TVolumeResultPtr& GetNonRootVolumeResultByVolumeId(const std::string& volumeId, const std::vector<TVolumeResultPtr>& volumes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TSandboxNbdRootVolumeSpec* nbd, const NScheduler::NProto::TNbdDiskRequest& protoNbd);
+void FromProto(TTmpfsVolumeParams* tmpfs, const NScheduler::NProto::TTmpfsStorageRequest& protoTmpfs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecNode
+
+template <>
+struct THash<NYT::NExecNode::TControllerAgentDescriptor>
+{
+    size_t operator()(const NYT::NExecNode::TControllerAgentDescriptor& descriptor) const;
+};
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

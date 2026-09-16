@@ -1,0 +1,1663 @@
+#include "layer_location.h"
+
+#include "private.h"
+#include "volume.h"
+#include "volume_counters.h"
+#include "volume_options.h"
+
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
+#include <yt/yt/server/node/data_node/config.h>
+
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/helpers.h>
+
+#include <yt/yt/server/lib/misc/disk_health_checker.h>
+#include <yt/yt/server/lib/misc/private.h>
+
+#include <yt/yt/library/containers/porto_executor.h>
+
+#include <yt/yt/core/concurrency/delayed_executor.h>
+
+#include <yt/yt/core/misc/checksum.h>
+#include <yt/yt/core/misc/fs.h>
+
+#include <yt/yt/core/net/local_address.h>
+
+#include <library/cpp/yt/string/string.h>
+
+#include <util/system/fs.h>
+
+namespace NYT::NExecNode {
+
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NContainers;
+using namespace NNode;
+using namespace NProfiling;
+using namespace NServer;
+using namespace NTools;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLayerLocation::TLayerLocation(
+    NDataNode::TLayerLocationConfigPtr locationConfig,
+    NClusterNode::TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
+    TDiskHealthCheckerConfigPtr healthCheckerConfig,
+    IPortoExecutorPtr volumeExecutor,
+    IPortoExecutorPtr layerExecutor,
+    IPortoExecutorPtr fastLayerExecutor,
+    const std::string& id)
+    : TDiskLocation(locationConfig, id, ExecNodeLogger())
+    , Config_(locationConfig)
+    , DynamicConfigManager_(dynamicConfigManager)
+    , VolumeExecutor_(std::move(volumeExecutor))
+    , LayerExecutor_(std::move(layerExecutor))
+    , FastLayerExecutor_(std::move(fastLayerExecutor))
+    , LocationQueue_(New<TActionQueue>(id))
+    , VolumesPath_(NFS::CombinePaths(Config_->Path, VolumesName))
+    , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
+    , LayersPath_(NFS::CombinePaths(Config_->Path, LayersName))
+    , LayersMetaPath_(NFS::CombinePaths(Config_->Path, LayersMetaName))
+    // If true, location is placed on a YT-specific drive, bound into container from dom0 host,
+    // so it has absolute path relative to dom0 root.
+    // Otherwise, location is placed inside a persistent volume, and should be treated differently.
+    // More details here: PORTO-460.
+    , PlacePath_((Config_->LocationIsAbsolute ? "" : "//") + Config_->Path)
+{
+    auto profiler = ExecNodeProfiler()
+        .WithPrefix("/layer")
+        .WithTag("location_id", Id_);
+
+    InitializeDiskLocationProfiling(profiler);
+
+    PerformanceCounters_ = TLayerLocationPerformanceCounters{profiler};
+
+    if (healthCheckerConfig) {
+        HealthChecker_ = New<NServer::TDiskHealthChecker>(
+            healthCheckerConfig,
+            Config_->Path,
+            LocationQueue_->GetInvoker(),
+            Logger,
+            profiler);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> TLayerLocation::Initialize()
+{
+    DynamicConfig_.Store(DynamicConfigManager_->GetConfig()->ExecNode->SlotManager->VolumeManager->LayerCache);
+
+    return BIND(&TLayerLocation::DoInitialize, MakeStrong(this))
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+TFuture<TLayerMeta> TLayerLocation::ImportLayer(
+    const TArtifactKey& artifactKey,
+    const std::string& archivePath,
+    const std::string& container,
+    TLayerId layerId,
+    TGuid tag)
+{
+    return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, container, layerId, tag)
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+TFuture<void> TLayerLocation::RemoveLayer(const TLayerId& layerId)
+{
+    return BIND(&TLayerLocation::DoRemoveLayer, MakeStrong(this), layerId)
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+TError TLayerLocation::GetAlert()
+{
+    auto guard = Guard(SpinLock_);
+    return Alert_;
+}
+
+TFuture<TVolumeMeta> TLayerLocation::CreateNbdVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TNbdConfigPtr nbdConfig,
+    TCreateNbdVolumeOptions options)
+{
+    return BIND(
+        &TLayerLocation::DoCreateNbdVolume,
+        MakeStrong(this),
+        tag,
+        Passed(std::move(tagSet)),
+        Passed(std::move(nbdConfig)),
+        Passed(std::move(options)))
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+TFuture<TVolumeMeta> TLayerLocation::CreateLoopVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    TLocalDiskVolumeParamsPtr tmpfsVolume)
+{
+    return BIND(
+        &TLayerLocation::DoCreateLoopVolume,
+        MakeStrong(this),
+        tag,
+        Passed(std::move(tagSet)),
+        Passed(std::move(volumeCreateTimeGuard)),
+        Passed(std::move(tmpfsVolume)))
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+TFuture<TVolumeMeta> TLayerLocation::CreateTmpfsVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    TTmpfsVolumeParamsPtr tmpfsVolume)
+{
+    return BIND(
+        &TLayerLocation::DoCreateTmpfsVolume,
+        MakeStrong(this),
+        tag,
+        Passed(std::move(tagSet)),
+        Passed(std::move(volumeCreateTimeGuard)),
+        Passed(std::move(tmpfsVolume)))
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+//! TODO(yuryalekseev): Remove me when slot rbind is removed.
+TFuture<IVolumePtr> TLayerLocation::RbindRootVolume(
+    const IVolumePtr& volume,
+    const std::string& slotPath)
+{
+    ValidateEnabled();
+
+    THashMap<std::string, std::string> volumeProperties {
+        {"backend", "rbind"},
+        {"storage", slotPath},
+    };
+
+    return BIND([volume, slotPath, volumeProperties = std::move(volumeProperties), this, this_ = MakeStrong(this)]() {
+        // TODO(dgolear): Switch to std::string.
+        std::string path = NFS::CombinePaths(volume->GetPath(), "slot");
+
+        if (!NFS::Exists(path)) {
+            YT_TLOG_DEBUG("Creating rbind directory")
+                .With("Path", path);
+
+            NFS::MakeDirRecursive(path);
+        }
+
+        YT_TLOG_DEBUG("Rbinding root volume")
+            .With("Path", path)
+            .With("SlotPath", slotPath);
+
+        // The rbind volume is destroyed when the passed in root volume is destroyed.
+        return VolumeExecutor_->CreateVolume(path, volumeProperties);
+    })
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run()
+        .Apply(BIND([volume](const std::string&) {
+            // Just return the passed in volume.
+            return volume;
+        }));
+}
+
+TFuture<TVolumeMeta> TLayerLocation::CreateOverlayVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    int userId,
+    const std::optional<std::string>& placePath,
+    std::optional<i64> diskSpaceLimit,
+    std::optional<i64> inodeLimit,
+    const std::vector<TOverlayData>& overlayDataArray,
+    bool placeInUserSlot)
+{
+    return BIND(
+        &TLayerLocation::DoCreateOverlayVolume,
+        MakeStrong(this),
+        tag,
+        Passed(std::move(tagSet)),
+        Passed(std::move(volumeCreateTimeGuard)),
+        userId,
+        placePath,
+        diskSpaceLimit,
+        inodeLimit,
+        overlayDataArray,
+        placeInUserSlot)
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+TFuture<TVolumeMeta> TLayerLocation::CreateSquashFSVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    const TArtifactKey& artifactKey,
+    const std::string& squashFSFilePath)
+{
+    return BIND(
+        &TLayerLocation::DoCreateSquashFSVolume,
+        MakeStrong(this),
+        tag,
+        Passed(std::move(tagSet)),
+        Passed(std::move(volumeCreateTimeGuard)),
+        artifactKey,
+        squashFSFilePath)
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+TFuture<void> TLayerLocation::RemoveVolume(
+    TTagSet tagSet,
+    TVolumeId volumeId,
+    std::optional<std::string> portoPlacePath)
+{
+    return BIND(&TLayerLocation::DoRemoveVolume, MakeStrong(this), std::move(tagSet), std::move(volumeId), std::move(portoPlacePath))
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run()
+        .ToUncancelable();
+}
+
+TFuture<void> TLayerLocation::LinkVolume(
+    TGuid tag,
+    const std::string& source,
+    const std::string& target)
+{
+    return BIND(
+        &TLayerLocation::DoLinkVolume,
+        MakeStrong(this),
+        tag,
+        source,
+        target)
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+TFuture<void> TLayerLocation::UnlinkVolume(
+    const std::string& source,
+    const std::string& target)
+{
+    return BIND(
+        &TLayerLocation::DoUnlinkVolume,
+        MakeStrong(this),
+        source,
+        target)
+        .AsyncVia(LocationQueue_->GetInvoker())
+        .Run();
+}
+
+std::vector<TLayerMeta> TLayerLocation::GetAllLayers() const
+{
+    std::vector<TLayerMeta> layers;
+    {
+        auto guard = Guard(SpinLock_);
+        layers.reserve(LayerIdToMeta_.size());
+        for (const auto& [id, meta] : LayerIdToMeta_) {
+            layers.push_back(meta);
+        }
+    }
+    return layers;
+}
+
+TFuture<void> TLayerLocation::GetVolumeReleaseEvent()
+{
+    return VolumesReleasePromise_.ToFuture();
+}
+
+void TLayerLocation::Disable(const TError& error, bool persistentDisable)
+{
+    if (NFS::IsOutOfDiskSpaceError(error) || error.FindMatching(EPortoErrorCode::NoSpace)) {
+        PerformanceCounters_.EnospcRate.Increment();
+
+        // Do not disable on out of disk space.
+        return;
+    }
+
+    // TODO(don-dron): Research and fix unconditional Disabled.
+    if (auto oldState = ChangeState(ELocationState::Disabled); oldState != ELocationState::Enabled) {
+        return;
+    }
+
+    YT_TLOG_WARNING("Layer location disabled")
+        .With("Path", Config_->Path);
+
+    if (HealthChecker_) {
+        // It should not be a problem to stop health checker asynchronously.
+        HealthChecker_->Stop()
+            .Subscribe(BIND(
+                [
+                    this,
+                    weakThis = MakeWeak(this)
+                ] (const TError& error) {
+                    if (auto this_ = weakThis.Lock()) {
+                        // By calling YT_TLOG_WARNING_IF we use Logger from TDiskLocation.
+                        YT_TLOG_WARNING_IF(!error.IsOK(), "Layer location health checker stopping failed")
+                            .With(error);
+                    }
+                }));
+    }
+
+    {
+        auto guard = Guard(SpinLock_);
+
+        Alert_ = TError(NExecNode::EErrorCode::LayerLocationDisabled, "Layer location disabled")
+            .With("path", Config_->Path)
+            .With(error);
+
+        if (persistentDisable) {
+            // Save the reason in a file and exit.
+            // Location will be disabled during the scan in the restarted process.
+            auto lockFilePath = NFS::CombinePaths(Config_->Path, NServer::DisabledLockFileName);
+            try {
+                TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+                TFileOutput fileOutput(file);
+                fileOutput << ConvertToYsonString(error, NYson::EYsonFormat::Pretty).AsStringBuf();
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Error creating location lock file")
+                    .With(ex);
+                // Exit anyway.
+            }
+
+            YT_TLOG_ERROR("Volume manager disabled; terminating")
+                .With(error);
+
+            if (DynamicConfigManager_->GetConfig()->DataNode->AbortOnLocationDisabled) {
+                YT_TLOG_FATAL("Volume manager disabled; terminating")
+                    .With(error);
+            }
+        }
+
+        AvailableSpace_ = 0;
+        UsedSpace_ = 0;
+        VolumeIdToMeta_.clear();
+        LayerIdToMeta_.clear();
+        PerformanceCounters_ = {};
+    }
+
+    VolumesReleasePromise_.TrySet();
+}
+
+TLayerLocationPerformanceCounters& TLayerLocation::GetPerformanceCounters()
+{
+    return PerformanceCounters_;
+}
+
+int TLayerLocation::GetLayerCount() const
+{
+    auto guard = Guard(SpinLock_);
+    return LayerIdToMeta_.size();
+}
+
+int TLayerLocation::GetVolumeCount() const
+{
+    auto guard = Guard(SpinLock_);
+    return VolumeIdToMeta_.size();
+}
+
+bool TLayerLocation::IsFull()
+{
+    return GetAvailableSpace() < Config_->LowWatermark;
+}
+
+bool TLayerLocation::IsLayerImportInProgress() const
+{
+    return LayerImportsInProgress_.load() > 0;
+}
+
+i64 TLayerLocation::GetCapacity()
+{
+    return std::max<i64>(0, GetUsedSpace() + GetAvailableSpace() - Config_->LowWatermark);
+}
+
+i64 TLayerLocation::GetUsedSpace() const
+{
+    auto guard = Guard(SpinLock_);
+    return UsedSpace_;
+}
+
+i64 TLayerLocation::GetAvailableSpace()
+{
+    if (!IsEnabled()) {
+        return 0;
+    }
+
+    const auto& path = Config_->Path;
+
+    try {
+        auto statistics = NFS::GetDiskSpaceStatistics(path);
+        {
+            auto guard = Guard(SpinLock_);
+            AvailableSpace_ = statistics.AvailableSpace;
+        }
+    } catch (const std::exception& ex) {
+        auto error = TError("Failed to compute available space")
+            .With(ex);
+        Disable(error);
+    }
+
+    i64 availableSpace;
+    {
+        auto guard = Guard(SpinLock_);
+        i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - UsedSpace_);
+        availableSpace = std::min(AvailableSpace_, remainingQuota);
+        AvailableSpace_ = availableSpace;
+    }
+
+    return availableSpace;
+}
+
+bool TLayerLocation::ResidesOnTmpfs() const
+{
+    return Config_->ResidesOnTmpfs;
+}
+
+void TLayerLocation::OnDynamicConfigChanged(
+    const TLayerCacheDynamicConfigPtr& oldConfig,
+    const TLayerCacheDynamicConfigPtr& newConfig)
+{
+    if (*newConfig == *oldConfig) {
+        return;
+    }
+
+    DynamicConfig_.Store(newConfig);
+
+    VolumeExecutor_->OnDynamicConfigChanged(newConfig->VolumePortoExecutor);
+    LayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
+    if (FastLayerExecutor_) {
+        FastLayerExecutor_->OnDynamicConfigChanged(newConfig->LayerPortoExecutor);
+    }
+
+    TDiskLocation::Reconfigure(std::invoke([&] {
+        auto diskLocationConfig = CloneYsonStruct<TDiskLocationConfig>(Config_);
+        diskLocationConfig->ApplyDynamicInplace(*newConfig->LocationConfigPatch);
+        return diskLocationConfig;
+    }));
+
+    if (HealthChecker_) {
+        HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*newConfig->DiskHealthChecker));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string TLayerLocation::GetLayerPath(const TLayerId& id) const
+{
+    return NFS::CombinePaths(LayersPath_, ToString(id));
+}
+
+std::string TLayerLocation::GetLayerMetaPath(const TLayerId& id) const
+{
+    return NFS::CombinePaths(LayersMetaPath_, ToString(id)) + ".meta";
+}
+
+std::string TLayerLocation::GetVolumePath(
+    const TVolumeId& id,
+    const std::optional<std::string>& portoPlacePath) const
+{
+    if (portoPlacePath) {
+        return NFS::CombinePaths(NFS::CombinePaths(portoPlacePath.value(), VolumesName), ToString(id));
+    }
+    return NFS::CombinePaths(VolumesPath_, ToString(id));
+}
+
+std::string TLayerLocation::GetVolumeMetaPath(
+    const TVolumeId& id,
+    const std::optional<std::string>& portoPlacePath) const
+{
+    if (portoPlacePath) {
+        return NFS::CombinePaths(NFS::CombinePaths(portoPlacePath.value(), VolumesMetaName), ToString(id)) + ".meta";
+    }
+    return NFS::CombinePaths(VolumesMetaPath_, ToString(id)) + ".meta";
+}
+
+void TLayerLocation::ValidateEnabled() const
+{
+    if (!IsEnabled()) {
+        THROW_ERROR_EXCEPTION(
+            //EErrorCode::SlotLocationDisabled,
+            "Layer location at %v is disabled",
+            Config_->Path);
+    }
+}
+
+THashSet<TLayerId> TLayerLocation::LoadLayerIds()
+{
+    auto fileNames = NFS::EnumerateFiles(LayersMetaPath_);
+    THashSet<TGuid> fileIds;
+    for (const auto& fileName : fileNames) {
+        auto filePath = NFS::CombinePaths(LayersMetaPath_, fileName);
+        if (fileName.ends_with(NFS::TempFileSuffix)) {
+            YT_TLOG_DEBUG("Remove temporary file")
+                .With("Path", filePath);
+            NFS::Remove(filePath);
+            continue;
+        }
+
+        auto nameWithoutExtension = NFS::GetFileNameWithoutExtension(fileName);
+        TGuid id;
+        if (!TGuid::FromString(nameWithoutExtension, &id)) {
+            YT_TLOG_WARNING("Unrecognized file in layer location directory")
+                .With("Path", filePath);
+            continue;
+        }
+
+        fileIds.insert(id);
+    }
+
+    THashSet<TGuid> confirmedIds;
+    auto layerNames = WaitFor(LayerExecutor_->ListLayers(PlacePath_))
+        .ValueOrThrow();
+
+    for (const auto& layerName : layerNames) {
+        TGuid id;
+        if (!TGuid::FromString(layerName, &id)) {
+            YT_TLOG_ERROR("Unrecognized layer name in layer location directory")
+                .With("LayerName", layerName);
+            continue;
+        }
+
+        if (!fileIds.contains(id)) {
+            YT_TLOG_DEBUG("Remove directory without a corresponding meta file")
+                .With("LayerName", layerName);
+            WaitFor(LayerExecutor_->RemoveLayer(layerName, PlacePath_, DynamicConfig_.Acquire()->EnableAsyncLayerRemoval))
+                .ThrowOnError();
+            continue;
+        }
+
+        YT_VERIFY(confirmedIds.insert(id).second);
+        YT_VERIFY(fileIds.erase(id) == 1);
+    }
+
+    for (const auto& id : fileIds) {
+        auto path = GetLayerMetaPath(id);
+        YT_TLOG_DEBUG("Remove layer meta file with no matching layer")
+            .With("Path", path);
+        NFS::Remove(path);
+    }
+
+    return confirmedIds;
+}
+
+void TLayerLocation::LoadLayers()
+{
+    auto ids = LoadLayerIds();
+
+    for (const auto& id : ids) {
+        auto metaFileName = GetLayerMetaPath(id);
+
+        TFile metaFile(
+            metaFileName,
+            OpenExisting | RdOnly | Seq | CloseOnExec);
+
+        if (metaFile.GetLength() < static_cast<ssize_t>(sizeof(TLayerMetaHeader))) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::IncorrectLayerFileSize,
+                "Layer meta file %v is too short: at least %v bytes expected",
+                metaFileName,
+                sizeof(TLayerMetaHeader));
+        }
+
+        auto metaFileBlob = TSharedMutableRef::Allocate(metaFile.GetLength());
+
+        NFS::WrapIOErrors([&] {
+            TFileInput metaFileInput(metaFile);
+            metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
+        });
+
+        const auto* metaHeader = reinterpret_cast<const TLayerMetaHeader*>(metaFileBlob.Begin());
+        if (metaHeader->Signature != TLayerMetaHeader::ExpectedSignature) {
+            THROW_ERROR_EXCEPTION(
+                "Incorrect layer header signature %x in layer meta file %v",
+                metaHeader->Signature,
+                metaFileName);
+        }
+
+        auto metaBlob = TRef(metaFileBlob.Begin() + sizeof(TLayerMetaHeader), metaFileBlob.End());
+        if (metaHeader->MetaChecksum != GetChecksum(metaBlob)) {
+            THROW_ERROR_EXCEPTION(
+                "Incorrect layer meta checksum in layer meta file %v",
+                metaFileName);
+        }
+
+        NProto::TLayerMeta protoMeta;
+        if (!TryDeserializeProtoWithEnvelope(&protoMeta, metaBlob)) {
+            THROW_ERROR_EXCEPTION(
+                "Failed to parse chunk meta file %v",
+                metaFileName);
+        }
+
+        TLayerMeta meta;
+        meta.MergeFrom(protoMeta);
+        meta.Id = id;
+        meta.Path = GetLayerPath(id);
+
+        {
+            auto guard = Guard(SpinLock_);
+            YT_VERIFY(LayerIdToMeta_.emplace(id, meta).second);
+
+            UsedSpace_ += meta.size();
+        }
+    }
+}
+
+i64 TLayerLocation::GetQuota() const
+{
+    return Config_->Quota.value_or(std::numeric_limits<i64>::max());
+}
+
+void TLayerLocation::DoInitialize()
+{
+    {
+        auto guard = Guard(SpinLock_);
+        ChangeState(ELocationState::Enabled);
+    }
+
+    try {
+        NFS::MakeDirRecursive(Config_->Path, 0755);
+
+        if (HealthChecker_) {
+            HealthChecker_->RunCheck();
+        }
+    } catch (const std::exception& ex) {
+        auto error = TError(ex);
+        Disable(
+            ex,
+            /*persistentDisable*/ !error.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
+
+        THROW_ERROR_EXCEPTION(
+            "Failed to initialize layer location %v",
+            Config_->Path)
+            .With(ex);
+    }
+
+    try {
+        RemoveVolumes(TDuration::Minutes(20));
+
+        RunTool<TRemoveDirAsRootTool>(VolumesPath_);
+        RunTool<TRemoveDirAsRootTool>(VolumesMetaPath_);
+
+        NFS::MakeDirRecursive(VolumesPath_, 0755);
+        NFS::MakeDirRecursive(LayersPath_, 0755);
+        NFS::MakeDirRecursive(VolumesMetaPath_, 0755);
+        NFS::MakeDirRecursive(LayersMetaPath_, 0755);
+        // This is requires to use directory as place.
+        NFS::MakeDirRecursive(NFS::CombinePaths(Config_->Path, "porto_volumes"), 0755);
+        NFS::MakeDirRecursive(NFS::CombinePaths(Config_->Path, "porto_storage"), 0755);
+
+        ValidateMinimumSpace();
+
+        LoadLayers();
+
+        if (HealthChecker_) {
+            HealthChecker_->SubscribeFailed(BIND([=, this, weakThis = MakeWeak(this)] (const TError& result) {
+                if (auto this_ = weakThis.Lock()) {
+                    Disable(
+                        result,
+                        /*persistentDisable*/ !result.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
+                }
+            }).Via(LocationQueue_->GetInvoker()));
+            HealthChecker_->Start();
+        }
+    } catch (const std::exception& ex) {
+        Disable(ex);
+        THROW_ERROR_EXCEPTION(
+            "Failed to initialize layer location %v",
+            Config_->Path)
+            .With(ex);
+    }
+}
+
+void TLayerLocation::DoFinalizeLayerImport(const TLayerMeta& layerMeta, TGuid tag)
+{
+    auto metaBlob = SerializeProtoToRefWithEnvelope(layerMeta);
+
+    TLayerMetaHeader header;
+    header.MetaChecksum = GetChecksum(metaBlob);
+
+    auto layerMetaFileName = GetLayerMetaPath(layerMeta.Id);
+    auto temporaryLayerMetaFileName = layerMetaFileName + std::string(NFS::TempFileSuffix);
+
+    TFile metaFile(
+        temporaryLayerMetaFileName,
+        CreateAlways | WrOnly | Seq | CloseOnExec);
+    metaFile.Write(&header, sizeof(header));
+    metaFile.Write(metaBlob.Begin(), metaBlob.Size());
+    metaFile.FlushData();
+    metaFile.Close();
+
+    NFS::Rename(temporaryLayerMetaFileName, layerMetaFileName);
+
+    i64 usedSpace;
+    i64 availableSpace;
+    {
+        auto guard = Guard(SpinLock_);
+        ValidateEnabled();
+        LayerIdToMeta_[layerMeta.Id] = layerMeta;
+
+        i64 layerMetaSize = layerMeta.size();
+        AvailableSpace_ -= layerMetaSize;
+        UsedSpace_ += layerMetaSize;
+
+        usedSpace = UsedSpace_;
+        availableSpace = AvailableSpace_;
+    }
+
+    YT_TLOG_INFO("Finished layer import")
+        .With("LayerId", layerMeta.Id)
+        .With("LayerPath", layerMeta.Path)
+        .With("UsedSpace", usedSpace)
+        .With("AvailableSpace", availableSpace)
+        .With("Tag", tag);
+}
+
+TLayerMeta TLayerLocation::DoImportLayer(const TArtifactKey& artifactKey, const std::string& archivePath, const std::string& container, TLayerId layerId, TGuid tag)
+{
+    ValidateEnabled();
+
+    auto dynamicConfig = DynamicConfig_.Acquire();
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag", tag)
+        .WithTag("LayerId", layerId);
+
+    LayerImportsInProgress_.fetch_add(1);
+
+    auto finally = Finally([&]{
+        LayerImportsInProgress_.fetch_add(-1);
+    });
+    try {
+        YT_TLOG_DEBUG("Ensure that cached layer archive is not in use")
+            .With("ArchivePath", archivePath);
+
+        {
+            // Take exclusive lock in blocking fashion to ensure that no
+            // forked process is holding an open descriptor to the source file.
+            TFile file(archivePath, RdOnly | CloseOnExec);
+            file.Flock(LOCK_EX);
+        }
+
+        auto layerDirectory = GetLayerPath(layerId);
+        i64 layerSize = 0;
+        auto layerGuard = Finally([&] {
+            try {
+                WaitFor(LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, /*async*/ false))
+                    .ThrowOnError();
+            } catch (const std::exception& cleanupEx) {
+                YT_TLOG_WARNING("Failed to clean up partially-imported layer")
+                    .With("LayerId", layerId)
+                    .With(cleanupEx);
+            }
+
+            auto metaFileName = GetLayerMetaPath(layerId);
+            auto tempMetaFileName = metaFileName + std::string(NFS::TempFileSuffix);
+
+            try {
+                if (NFS::Exists(metaFileName)) {
+                    NFS::Remove(metaFileName);
+                }
+                if (NFS::Exists(tempMetaFileName)) {
+                    NFS::Remove(tempMetaFileName);
+                }
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Failed to remove layer meta")
+                    .With("MetaFileName", metaFileName)
+                    .With("TempMetaFileName", tempMetaFileName)
+                    .With(ex);
+            }
+        });
+
+        try {
+            YT_TLOG_DEBUG("Unpack layer")
+                .With("Path", layerDirectory);
+
+            TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
+            WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(layerId), PlacePath_, container))
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Layer unpacking failed")
+                .With("ArchivePath", archivePath)
+                .With(ex);
+            THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::LayerUnpackingFailed, "Layer unpacking failed")
+                .With(ex);
+        }
+
+        auto config = New<TGetDirectorySizesAsRootConfig>();
+        config->Paths = {layerDirectory};
+        config->IgnoreUnavailableFiles = true;
+        config->DeduplicateByINodes = true;
+
+        layerSize = RunTool<TGetDirectorySizesAsRootTool>(config).front();
+        YT_TLOG_DEBUG("Calculated layer size")
+            .With("Size", layerSize)
+            .With("Tag", tag);
+
+        TLayerMeta layerMeta;
+        layerMeta.Path = layerDirectory;
+        layerMeta.Id = layerId;
+        layerMeta.mutable_artifact_key()->MergeFrom(artifactKey);
+        layerMeta.set_size(layerSize);
+        ToProto(layerMeta.mutable_id(), layerId);
+
+        DoFinalizeLayerImport(layerMeta, tag);
+
+        layerGuard.Release();
+
+        if (auto delay = dynamicConfig->DelayAfterLayerImported) {
+            TDelayedExecutor::WaitForDuration(*delay);
+        }
+
+        return layerMeta;
+    } catch (const std::exception& ex) {
+        auto error = TError("Failed to import layer %v", layerId)
+            .With("layer_path", artifactKey.data_source().path())
+            .With(ex);
+
+        auto innerError = TError(ex);
+        if (innerError.GetCode() == NExecNode::EErrorCode::LayerUnpackingFailed) {
+            THROW_ERROR(error);
+        }
+
+        if (ResidesOnTmpfs()) {
+            // Don't disable location if it resides on tmpfs.
+            THROW_ERROR(error);
+        }
+
+        Disable(error);
+
+        if (dynamicConfig->AbortOnOperationWithLayerFailed) {
+            YT_TLOG_FATAL("Failed to import layer")
+                .With("LayerId", layerId)
+                .With("LayerPath", artifactKey.data_source().path())
+                .With(ex);
+        } else {
+            THROW_ERROR(error);
+        }
+    }
+}
+
+void TLayerLocation::DoRemoveLayer(const TLayerId& layerId)
+{
+    auto config = DynamicConfig_.Acquire();
+
+    auto layerPath = GetLayerPath(layerId);
+    auto layerMetaPath = GetLayerMetaPath(layerId);
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("LayerId", layerId)
+        .WithTag("LayerPath", layerPath);
+
+    {
+        auto guard = Guard(SpinLock_);
+        ValidateEnabled();
+
+        if (!LayerIdToMeta_.contains(layerId)) {
+            YT_TLOG_FATAL("Layer already removed");
+        }
+    }
+
+    try {
+        YT_TLOG_INFO("Removing layer");
+
+        YT_UNUSED_FUTURE(LayerExecutor_->RemoveLayer(ToString(layerId), PlacePath_, config->EnableAsyncLayerRemoval));
+
+        NFS::Remove(layerMetaPath);
+
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (!IsEnabled()) {
+                return;
+            }
+
+            i64 layerMetaSize = LayerIdToMeta_[layerId].size();
+
+            YT_VERIFY(LayerIdToMeta_.erase(layerId));
+
+            UsedSpace_ -= layerMetaSize;
+            AvailableSpace_ += layerMetaSize;
+        }
+    } catch (const std::exception& ex) {
+        auto error = TError(
+            "Failed to remove layer %v",
+            layerId)
+            .With(ex);
+        Disable(error);
+
+        if (config->AbortOnOperationWithLayerFailed) {
+            YT_TLOG_FATAL("Failed to remove layer")
+                .With("LayerId", layerId)
+                .With(ex);
+        } else {
+            THROW_ERROR(error);
+        }
+    }
+}
+
+TVolumeMeta TLayerLocation::DoCreateVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    std::optional<TEventTimerGuard> volumeCreateTimeGuard,
+    TVolumeMeta volumeMeta,
+    THashMap<std::string, std::string> volumeProperties,
+    std::optional<std::string> portoPlacePath)
+{
+    ValidateEnabled();
+
+    auto guard = std::move(volumeCreateTimeGuard);
+
+    auto volumeId = TVolumeId::Create();
+    auto volumePath = GetVolumePath(volumeId, portoPlacePath);
+    auto volumeType = FromProto<EVolumeType>(volumeMeta.type());
+    // TODO(dgolear): Switch to std::string.
+    std::string mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Tag", tag)
+        .WithTag("VolumeType", volumeType)
+        .WithTag("VolumeId", volumeId);
+
+    try {
+        YT_TLOG_DEBUG("Creating volume");
+
+        NFS::MakeDirRecursive(mountPath, 0755);
+
+        auto path = WaitFor(VolumeExecutor_->CreateVolume(mountPath, volumeProperties))
+            .ValueOrThrow();
+        auto volumeMetaFileName = GetVolumeMetaPath(volumeId, portoPlacePath);
+        auto tempVolumeMetaFileName = volumeMetaFileName + std::string(NFS::TempFileSuffix);
+
+        YT_VERIFY(path == mountPath);
+
+        auto volumeGuard = Finally([&] {
+            try {
+                WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self")).ThrowOnError();
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Failed to unlink volume")
+                    .With("MountPath", mountPath)
+                    .With(ex);
+            }
+
+            try {
+                NFS::RemoveRecursive(volumePath);
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Failed to remove volume path")
+                    .With("VolumePath", volumePath)
+                    .With(ex);
+            }
+
+            try {
+                if (NFS::Exists(volumeMetaFileName)) {
+                    NFS::Remove(volumeMetaFileName);
+                }
+                if (NFS::Exists(tempVolumeMetaFileName)) {
+                    NFS::Remove(tempVolumeMetaFileName);
+                }
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Failed to remove volume meta")
+                    .With("VolumeMetaFileName", volumeMetaFileName)
+                    .With("TempVolumeMetaFileName", tempVolumeMetaFileName)
+                    .With(ex);
+            }
+        });
+
+        YT_TLOG_DEBUG("Created volume")
+            .With("MountPath", mountPath);
+
+        ToProto(volumeMeta.mutable_id(), volumeId);
+        volumeMeta.Id = volumeId;
+        volumeMeta.MountPath = mountPath;
+        volumeMeta.PortoPlacePath = portoPlacePath;
+
+        auto metaBlob = SerializeProtoToRefWithEnvelope(volumeMeta);
+
+        TLayerMetaHeader header;
+        header.MetaChecksum = GetChecksum(metaBlob);
+
+        YT_TLOG_DEBUG("Creating volume meta")
+            .With("MetaFileName", volumeMetaFileName);
+
+        {
+            auto metaFile = std::make_unique<TFile>(
+                tempVolumeMetaFileName,
+                CreateAlways | WrOnly | Seq | CloseOnExec);
+            metaFile->Write(&header, sizeof(header));
+            metaFile->Write(metaBlob.Begin(), metaBlob.Size());
+            metaFile->FlushData();
+            metaFile->Close();
+        }
+
+        NFS::Rename(tempVolumeMetaFileName, volumeMetaFileName);
+
+        YT_TLOG_DEBUG("Created volume meta")
+            .With("MetaFileName", volumeMetaFileName);
+
+        {
+            auto guard = Guard(SpinLock_);
+            ValidateEnabled();
+            YT_VERIFY(VolumeIdToMeta_.emplace(volumeId, volumeMeta).second);
+
+            if (VolumesReleasePromise_.IsSet()) {
+                VolumesReleasePromise_ = NewPromise<void>();
+            }
+        }
+
+        volumeGuard.Release();
+
+        TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+            .Update(VolumeCounters().Increment(tagSet));
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
+
+        return volumeMeta;
+    } catch (const std::exception& ex) {
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/create_errors").Increment(1);
+
+        YT_TLOG_ERROR("Failed to create volume")
+            .With(ex);
+
+        auto error = TError(
+            "Failed to create %Qlv volume %v",
+            volumeType,
+            volumeId)
+            .With(ex);
+
+        // Don't disable location in case of InvalidImage or NBD errors.
+        switch (static_cast<EPortoErrorCode>(TError(ex).GetCode())) {
+            case EPortoErrorCode::InvalidFilesystem:
+                THROW_ERROR_EXCEPTION(
+                    NExecNode::EErrorCode::InvalidImage,
+                    "Invalid filesystem of %Qlv volume %v",
+                    volumeType,
+                    volumeId)
+                    .With(ex);
+
+            case EPortoErrorCode::NbdProtoError:
+            case EPortoErrorCode::NbdSocketError:
+            case EPortoErrorCode::NbdSocketTimeout:
+            case EPortoErrorCode::NbdSocketUnavailable:
+            case EPortoErrorCode::NbdUnknownExport:
+                break;
+
+            default:
+                Disable(error);
+                break;
+        }
+
+        if (DynamicConfig_.Acquire()->AbortOnOperationWithVolumeFailed) {
+            YT_TLOG_FATAL("Failed to create volume")
+                .With("VolumeType", volumeType)
+                .With("VolumeId", volumeId)
+                .With(ex);
+        } else {
+            THROW_ERROR(error);
+        }
+    }
+}
+
+TVolumeMeta TLayerLocation::DoCreateNbdVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TNbdConfigPtr nbdConfig,
+    TCreateNbdVolumeOptions options)
+{
+    ValidateEnabled();
+
+    YT_VERIFY(nbdConfig);
+
+    THashMap<std::string, std::string> volumeProperties = {
+        {"backend", "nbd"},
+        {"place", PlacePath_}
+    };
+
+    if (options.IsReadOnly) {
+        volumeProperties["read_only"] = "true";
+    }
+
+    TStringBuilder builder;
+    if (nbdConfig->Server->UnixDomainSocket) {
+        builder.AppendFormat("unix+tcp:%v?", nbdConfig->Server->UnixDomainSocket->Path);
+    } else {
+        YT_VERIFY(nbdConfig->Server->InternetDomainSocket);
+        builder.AppendFormat("tcp://%v:%v/?", NNet::GetLocalHostName(), nbdConfig->Server->InternetDomainSocket->Port);
+    }
+    builder.AppendFormat("timeout=%v", ToString(nbdConfig->Client->IOTimeout.Seconds()));
+    builder.AppendFormat("&reconn-timeout=%v", ToString(nbdConfig->Client->ReconnectTimeout.Seconds()));
+    builder.AppendFormat("&num-connections=%v", nbdConfig->Client->ConnectionCount);
+    builder.AppendFormat("&export=%v", options.DeviceId);
+    builder.AppendFormat("&fs-type=%v", options.FilesystemType);
+    builder.AppendFormat("&blocksize=%v", options.BlockSize);
+    volumeProperties["storage"] = builder.Flush();
+
+    TVolumeMeta volumeMeta;
+    volumeMeta.set_type(ToProto(EVolumeType::Nbd));
+
+    return DoCreateVolume(
+        tag,
+        std::move(tagSet),
+        /*volumeCreateTimeGuard*/std::nullopt,
+        std::move(volumeMeta),
+        std::move(volumeProperties));
+}
+
+TVolumeMeta TLayerLocation::DoCreateOverlayVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    int userId,
+    const std::optional<std::string>& placePath,
+    std::optional<i64> diskSpaceLimit,
+    std::optional<i64> inodeLimit,
+    const std::vector<TOverlayData>& overlayDataArray,
+    bool placeInUserSlot)
+{
+    ValidateEnabled();
+
+    std::string portoPlacePath;
+
+    if (!placePath) {
+        portoPlacePath = PlacePath_;
+        YT_TLOG_DEBUG("Place overlay volume in layer location")
+            .With("PortoPlace", portoPlacePath);
+    } else {
+        // See PORTO-460 for "//" prefix.
+        portoPlacePath = (!Config_->LocationIsAbsolute && !placePath->starts_with("//") ? "//" : "") + placePath.value();
+        YT_TLOG_DEBUG("Place overlay volume in custom location")
+            .With("PortoPlace", portoPlacePath);
+    }
+
+    THashMap<std::string, std::string> volumeProperties = {
+        {"backend", "overlay"},
+        {"user", ToString(userId)},
+        {"permissions", "0777"},
+        {"place", portoPlacePath},
+    };
+
+    if (diskSpaceLimit) {
+        volumeProperties["space_limit"] = ToString(*diskSpaceLimit);
+    }
+
+    if (inodeLimit) {
+        volumeProperties["inode_limit"] = ToString(*inodeLimit);
+    }
+
+    TStringBuilder builder;
+    JoinToString(
+        &builder,
+        overlayDataArray.begin(),
+        overlayDataArray.end(),
+        [] (TStringBuilderBase* builder, const TOverlayData& volumeOrLayer) {
+            builder->AppendString(volumeOrLayer.GetPath());
+        },
+        ";");
+
+    volumeProperties["layers"] = builder.Flush();
+
+    TVolumeMeta volumeMeta;
+    volumeMeta.set_type(ToProto(EVolumeType::LocalDisk));
+
+    for (const auto& volumeOrLayer : overlayDataArray) {
+        YT_ASSERT(!volumeOrLayer.GetPath().empty());
+        volumeMeta.add_layer_paths(volumeOrLayer.GetPath());
+    }
+
+    return DoCreateVolume(
+        tag,
+        std::move(tagSet),
+        std::move(volumeCreateTimeGuard),
+        std::move(volumeMeta),
+        std::move(volumeProperties),
+        // TODO(krasovav): refactor it
+        placeInUserSlot ? std::move(placePath) : std::nullopt);
+}
+
+TVolumeMeta TLayerLocation::DoCreateSquashFSVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    const TArtifactKey& artifactKey,
+    const std::string& squashFSFilePath)
+{
+    ValidateEnabled();
+
+    THashMap<std::string, std::string> volumeProperties {
+        {"backend", "squash"},
+        {"read_only", "true"},
+        {"layers", squashFSFilePath}
+    };
+
+    TVolumeMeta volumeMeta;
+    volumeMeta.set_type(ToProto(EVolumeType::LocalDisk));
+    volumeMeta.add_layer_artifact_keys()->MergeFrom(artifactKey);
+    volumeMeta.add_layer_paths(squashFSFilePath);
+
+    return DoCreateVolume(
+        tag,
+        std::move(tagSet),
+        std::move(volumeCreateTimeGuard),
+        std::move(volumeMeta),
+        std::move(volumeProperties));
+}
+
+TVolumeMeta TLayerLocation::DoCreateLoopVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    TLocalDiskVolumeParamsPtr volumeParams)
+{
+    ValidateEnabled();
+
+    YT_VERIFY(volumeParams->Size);
+
+    THashMap<std::string, std::string> volumeProperties {
+        {"backend", "loop"},
+        {"fs_type", "ext4"},
+        {"user", ToString(volumeParams->UserId)},
+        {"permissions", "0777"},
+        {"space_limit", ToString(volumeParams->Size)},
+    };
+
+    if (volumeParams->InodeLimit) {
+        volumeProperties["inode_limit"] = ToString(*volumeParams->InodeLimit);
+    }
+
+    TVolumeMeta volumeMeta;
+    volumeMeta.set_type(ToProto(EVolumeType::LocalDisk));
+
+    return DoCreateVolume(
+        tag,
+        std::move(tagSet),
+        std::move(volumeCreateTimeGuard),
+        std::move(volumeMeta),
+        std::move(volumeProperties));
+}
+
+TVolumeMeta TLayerLocation::DoCreateTmpfsVolume(
+    TGuid tag,
+    TTagSet tagSet,
+    TEventTimerGuard volumeCreateTimeGuard,
+    TTmpfsVolumeParamsPtr volumeParams)
+{
+    ValidateEnabled();
+
+    THashMap<std::string, std::string> volumeProperties {
+        {"backend", "tmpfs"},
+        {"user", ToString(volumeParams->UserId)},
+        {"permissions", "0777"},
+        {"space_limit", ToString(volumeParams->Size)},
+    };
+
+    TVolumeMeta volumeMeta;
+    volumeMeta.set_type(ToProto(EVolumeType::Tmpfs));
+
+    return DoCreateVolume(
+        tag,
+        std::move(tagSet),
+        std::move(volumeCreateTimeGuard),
+        std::move(volumeMeta),
+        std::move(volumeProperties));
+}
+
+void TLayerLocation::DoRemoveVolume(
+    TTagSet tagSet,
+    TVolumeId volumeId,
+    std::optional<std::string> portoPlacePath)
+{
+    auto volumePath = GetVolumePath(volumeId, portoPlacePath);
+    // TODO(dgolear): Switch to std::string.
+    std::string mountPath = NFS::CombinePaths(volumePath, MountSuffix);
+    auto volumeMetaPath = GetVolumeMetaPath(volumeId, portoPlacePath);
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("VolumeId", volumeId)
+        .WithTag("VolumePath", volumePath)
+        .WithTag("VolumeMetaPath", volumeMetaPath)
+        .WithTag("PortoPlacePath", portoPlacePath);
+
+    YT_TLOG_DEBUG("Removing volume");
+
+    try {
+        auto removeGuard = Finally([&Logger, &volumePath, &volumeMetaPath, &volumeId, this] {
+            try {
+                NFS::RemoveRecursive(volumePath);
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Failed to remove volume directory")
+                    .With(ex);
+            }
+
+            try {
+                NFS::Remove(volumeMetaPath);
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Failed to remove volume meta")
+                    .With(ex);
+            }
+
+            YT_TLOG_DEBUG("Volume directory and meta removed");
+
+            bool setVolumesReleasePromise = false;
+            {
+                auto guard = Guard(SpinLock_);
+
+                // NB. The location could be disabled while we were getting here.
+                if (VolumeIdToMeta_.erase(volumeId) == 0 && IsEnabled()) {
+                    YT_TLOG_FATAL("Volume already removed");
+                }
+
+                // It is all right to set promise even if location is disabled.
+                if (VolumeIdToMeta_.empty()) {
+                    setVolumesReleasePromise = true;
+                }
+            }
+
+            if (setVolumesReleasePromise) {
+                VolumesReleasePromise_.TrySet();
+            }
+
+            YT_TLOG_DEBUG("Volume removed");
+        });
+
+        auto timeout = TDuration::Minutes(10);
+        auto deadline = TInstant::Now() + timeout;
+        auto checkDeadline = [&] {
+            auto now = TInstant::Now();
+            if (now > deadline) {
+                THROW_ERROR_EXCEPTION("Failed to wait for volume to be removed")
+                    .With("timeout", timeout)
+                    .With("volume_path", mountPath);
+            }
+        };
+
+        while (true) {
+            checkDeadline();
+
+            auto unlinkError = WaitFor(VolumeExecutor_->UnlinkVolume(mountPath, "self"));
+            if (unlinkError.IsOK()) {
+                break;
+            }
+
+            if (unlinkError.GetCode() == EPortoErrorCode::VolumeNotReady) {
+                YT_TLOG_DEBUG("Waiting for volume to become ready");
+                TDelayedExecutor::WaitForDuration(TDuration::Seconds(5));
+                continue;
+            }
+
+            if (unlinkError.GetCode() == EPortoErrorCode::VolumeNotFound ||
+                    unlinkError.GetCode() == EPortoErrorCode::VolumeNotLinked)
+            {
+                if (portoPlacePath) {
+                    // Ignore VolumeNotFound and VolumeNotLinked errors for custom porto places.
+                    YT_TLOG_INFO("Ignoring volume unlink error for custom porto place")
+                        .With(unlinkError);
+                    break;
+                }
+                // For volumes in default locations, these errors should be thrown.
+            }
+
+            unlinkError.ThrowOnError();
+        }
+
+        YT_TLOG_DEBUG("Volume unlinked");
+
+        TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+            .Update(VolumeCounters().Decrement(tagSet));
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
+
+    } catch (const std::exception& ex) {
+        TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
+
+        YT_TLOG_ERROR("Failed to remove volume")
+            .With(ex);
+
+        auto error = TError("Failed to remove volume")
+            .With(ex)
+            .With("volume_id", volumeId);
+
+        // Don't disable location in case of VolumeNotFound, VolumeNotLinked or NBD errors.
+        switch (static_cast<EPortoErrorCode>(TError(ex).GetCode())) {
+            case EPortoErrorCode::VolumeNotFound:
+            case EPortoErrorCode::VolumeNotLinked:
+            case EPortoErrorCode::NbdProtoError:
+            case EPortoErrorCode::NbdSocketError:
+            case EPortoErrorCode::NbdSocketTimeout:
+            case EPortoErrorCode::NbdSocketUnavailable:
+            case EPortoErrorCode::NbdUnknownExport:
+                THROW_ERROR(error);
+            default:
+                break;
+        }
+
+        Disable(error);
+
+        if (DynamicConfig_.Acquire()->AbortOnOperationWithVolumeFailed) {
+            YT_TLOG_FATAL("Failed to remove volume")
+                .With("VolumeId", volumeId)
+                .With(ex);
+        } else {
+            THROW_ERROR(error);
+        }
+    }
+}
+
+void TLayerLocation::DoLinkVolume(
+    TGuid tag,
+    const std::string& source,
+    const std::string& target)
+{
+    YT_TLOG_DEBUG("Linking volume")
+        .With("Tag", tag)
+        .With("Source", source)
+        .With("Target", target);
+
+    NFS::MakeDirRecursive(target, 0755);
+    WaitFor(VolumeExecutor_->LinkVolume(source, "self", target))
+        .ThrowOnError();
+}
+
+void TLayerLocation::DoUnlinkVolume(
+    const std::string& source,
+    const std::string& target)
+{
+    YT_VERIFY(!source.empty());
+    YT_VERIFY(!target.empty());
+
+    YT_TLOG_DEBUG("Unlinking volume")
+        .With("Source", source)
+        .With("Target", target);
+
+    WaitFor(VolumeExecutor_->UnlinkVolume(source, "self", target))
+        .ThrowOnError();
+}
+
+//! Remove porto volumes planted in VolumesPath_.
+//! Volumes are not expected to be used since all jobs must be dead by now.
+void TLayerLocation::RemoveVolumes(TDuration timeout)
+{
+    RemoveVolumes(VolumesPath_, timeout, /*excludedVolumePaths*/ {});
+}
+
+//! Remove layers planted at a given place.
+void TLayerLocation::RemoveLayers(
+    const std::string& place,
+    TDuration timeout)
+{
+    auto startTime = TInstant::Now();
+
+    // See PORTO-460 for "//" prefix.
+    auto portoPlace = (!Config_->LocationIsAbsolute && !place.starts_with("//") ? "//" : "") + place;
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Place", portoPlace);
+
+    YT_TLOG_DEBUG("Removing layers from porto place")
+        .With("Timeout", timeout);
+
+    std::vector<std::string> removedLayers;
+
+    auto executor = FastLayerExecutor_ ? FastLayerExecutor_ : LayerExecutor_;
+
+    auto listLayersResult = WaitFor(executor->ListLayers(portoPlace).WithTimeout(timeout));
+    // Porto returns Permission error when the place is not permitted for this executor.
+    // This can happen during slot initialization when the slot's porto_place has not yet
+    // been registered as a permitted place for the layer executor. In this case there are
+    // no layers to clean up, so we can safely skip.
+    if (listLayersResult.FindMatching(EPortoErrorCode::Permission)) {
+        YT_TLOG_DEBUG("Porto place is not permitted for layer executor, skipping layer cleanup")
+            .With(listLayersResult);
+        return;
+    }
+
+    auto layerIds = listLayersResult.ValueOrThrow();
+
+    std::vector<TFuture<void>> removeFutures;
+    for (const auto& layerId : layerIds) {
+        YT_TLOG_DEBUG("Trying to remove layer")
+            .With("LayerId", layerId);
+
+        removedLayers.push_back(layerId);
+        removeFutures.push_back(executor->RemoveLayer(
+            layerId,
+            portoPlace,
+            /*async*/ false));
+    }
+
+    auto removeResults = WaitFor(AllSetWithTimeout(std::move(removeFutures), timeout))
+        .ValueOrThrow();
+
+    for (const auto& removeError : removeResults) {
+        if (!removeError.IsOK()) {
+            YT_TLOG_WARNING("Failed to remove layer")
+                .With(removeError);
+        }
+    }
+
+    YT_TLOG_DEBUG("Removed layers")
+        .With("LayerNames", MakeShrunkFormattableView(removedLayers, TDefaultFormatter(), 10))
+        .With("Duration", TInstant::Now() - startTime);
+}
+
+//! Remove volumes planted at a given directory, excluding the given porto mount paths.
+void TLayerLocation::RemoveVolumes(
+    const std::string& path,
+    TDuration timeout,
+    const THashSet<std::string>& excludedVolumePaths)
+{
+    auto startTime = TInstant::Now();
+    auto deadline = startTime + timeout;
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("Path", path);
+
+    YT_TLOG_DEBUG("Removing volumes from path")
+        .With("Deadline", deadline);
+
+    auto checkDeadline = [&] {
+        auto now = TInstant::Now();
+        if (now > deadline) {
+            THROW_ERROR_EXCEPTION("Failed to wait for volumes to be removed")
+                .With("timeout", timeout)
+                .With("path", path);
+        }
+    };
+
+    std::vector<std::string> removedVolumes;
+
+    while (true) {
+        checkDeadline();
+
+        auto volumes = WaitFor(VolumeExecutor_->GetVolumes())
+            .ValueOrThrow();
+
+        auto waitForVolumesToBecomeReady = false;
+        std::vector<TFuture<void>> unlinkFutures;
+
+        for (const auto& volume : volumes) {
+            if (!volume.Path.starts_with(path)) {
+                // This volume is not from the given directory.
+                continue;
+            }
+
+            if (excludedVolumePaths.contains(volume.Path)) {
+                continue;
+            }
+
+            if (volume.State == "destroyed") {
+                // Skipping destroyed volumes.
+                YT_TLOG_DEBUG("Skipping volume")
+                    .With("VolumePath", volume.Path)
+                    .With("State", volume.State);
+                continue;
+            }
+
+            if (volume.State != "ready") {
+                waitForVolumesToBecomeReady = true;
+                YT_TLOG_DEBUG("Volume is not ready")
+                    .With("VolumePath", volume.Path)
+                    .With("State", volume.State);
+                continue;
+            }
+
+            YT_TLOG_DEBUG("Trying to unlink volume")
+                .With("VolumeId", volume.Id)
+                .With("VolumePath", volume.Path)
+                .With("State", volume.State);
+
+            // Unlink volume even if it was linked to a different container.
+            removedVolumes.push_back(volume.Path);
+            unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volume.Path, AnyContainer));
+        }
+
+        if (!waitForVolumesToBecomeReady && unlinkFutures.empty()) {
+            // All volumes have been unlinked.
+            break;
+        }
+
+        auto unlinkResults = WaitFor(AllSet(unlinkFutures))
+            .ValueOrThrow();
+
+        for (const auto& unlinkError : unlinkResults) {
+            if (unlinkError.IsOK()) {
+                continue;
+            }
+
+            if (unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked &&
+                    unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound &&
+                    unlinkError.GetCode() != EPortoErrorCode::VolumeNotReady)
+            {
+                THROW_ERROR(unlinkError);
+            }
+        }
+
+        if (waitForVolumesToBecomeReady) {
+            checkDeadline();
+
+            static const TDuration Duration = TDuration::Seconds(30);
+
+            YT_TLOG_DEBUG("Waiting for volumes to become ready")
+                .With("Duration", Duration);
+
+            TDelayedExecutor::WaitForDuration(Duration);
+        }
+    }
+
+    YT_TLOG_DEBUG("Removed volumes")
+        .With("VolumePaths", MakeShrunkFormattableView(removedVolumes, TDefaultFormatter(), 10))
+        .With("Duration", TInstant::Now() - startTime);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_REFCOUNTED_TYPE(TLayerLocation)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecNode

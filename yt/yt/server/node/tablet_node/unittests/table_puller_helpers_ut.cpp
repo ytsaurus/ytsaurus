@@ -1,0 +1,411 @@
+#include <yt/yt/client/chaos_client/replication_card.h>
+#include <yt/yt/client/chaos_client/helpers.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
+
+#include <yt/yt/server/node/tablet_node/table_puller_helpers.h>
+
+#include <yt/yt/core/test_framework/framework.h>
+
+namespace NYT::NTabletNode {
+namespace {
+
+using namespace NChaosClient;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTransactionClient;
+using namespace NLogging;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChaosReplicaDescriptor
+{
+    std::string Cluster;
+    std::string Path;
+    ETableReplicaMode Mode;
+    ETableReplicaContentType ContentType;
+
+    TTimestamp ReplicationProgressTimestamp;
+};
+
+TChaosReplicaDescriptor GenerateDefaultReplica(
+    const std::string& cluster,
+    const std::string& path,
+    ETableReplicaMode mode,
+    ETableReplicaContentType contentType)
+{
+    return TChaosReplicaDescriptor{
+        .Cluster = cluster,
+        .Path = path,
+        .Mode = mode,
+        .ContentType = contentType,
+        .ReplicationProgressTimestamp = MinTimestamp,
+    };
+}
+
+std::vector<TChaosReplicaDescriptor> GenerateDefaultReplicas()
+{
+    std::vector<TChaosReplicaDescriptor> replicas;
+    replicas.reserve(6);
+    replicas.push_back(GenerateDefaultReplica(
+        "primary",
+        "//tmp/pdp",
+        ETableReplicaMode::Sync,
+        ETableReplicaContentType::Data));
+
+    replicas.push_back(GenerateDefaultReplica(
+        "primary",
+        "//tmp/pdq",
+        ETableReplicaMode::Sync,
+        ETableReplicaContentType::Queue));
+
+    replicas.push_back(GenerateDefaultReplica(
+        "remote_0",
+        "//tmp/r0q",
+        ETableReplicaMode::Sync,
+        ETableReplicaContentType::Queue));
+
+    replicas.push_back(GenerateDefaultReplica(
+        "remote_0",
+        "//tmp/r0d",
+        ETableReplicaMode::Sync,
+        ETableReplicaContentType::Data));
+
+    replicas.push_back(GenerateDefaultReplica(
+        "remote_1",
+        "//tmp/r1q",
+        ETableReplicaMode::Async,
+        ETableReplicaContentType::Queue));
+
+    replicas.push_back(GenerateDefaultReplica(
+        "remote_1",
+        "//tmp/r1d",
+        ETableReplicaMode::Async,
+        ETableReplicaContentType::Data));
+
+    return replicas;
+}
+
+TReplicationCardId GenerateReplicationCardId()
+{
+    return MakeReplicationCardId(TGuid::Create());
+}
+
+TReplicationCardPtr CreateReplicationCard(std::span<TChaosReplicaDescriptor> replicas, TReplicationCardId replicationCardId)
+{
+    auto replicationCard = New<TReplicationCard>();
+    replicationCard->Era = InitialReplicationEra;
+
+    TReplicaIdIndex replicaIndex = 0;
+    for (const auto& replica : replicas) {
+        auto newReplicaId = MakeReplicaId(replicationCardId, replicaIndex);
+        ++replicaIndex;
+
+        auto& replicaInfo = EmplaceOrCrash(replicationCard->Replicas, newReplicaId, TReplicaInfo())->second;
+        replicaInfo.ClusterName = replica.Cluster;
+        replicaInfo.ReplicaPath = replica.Path;
+        replicaInfo.Mode = replica.Mode;
+        replicaInfo.ContentType = replica.ContentType;
+        replicaInfo.State = ETableReplicaState::Enabled;
+
+        replicaInfo.ReplicationProgress = TReplicationProgress{
+            .Segments = {{EmptyKey(), replica.ReplicationProgressTimestamp}},
+            .UpperKey = MaxKey(),
+        };
+
+        replicaInfo.History.push_back(TReplicaHistoryItem{
+            .Era = InitialReplicationEra,
+            .Timestamp = replica.ReplicationProgressTimestamp,
+            .Mode = replica.Mode,
+            .State = ETableReplicaState::Enabled,
+        });
+    }
+
+    return replicationCard;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TQueueReplicaSelectorTest, PreferLocal)
+{
+    TLogger logger;
+    TQueueReplicaSelector queueReplicaSelector(logger, /*replicaBanDuration*/ std::nullopt, /*forceSameClusterQueue*/ false);
+
+    auto replicationCardId = GenerateReplicationCardId();
+    auto replicas = GenerateDefaultReplicas();
+    auto replicationCard = CreateReplicationCard(replicas, replicationCardId);
+
+    auto now = TInstant::Now();
+    auto nowTs = InstantToTimestamp(now).second;
+    TReplicaId asyncQueueReplicaId;
+    TReplicaId asyncDataReplicaId;
+    for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+        if (replicaInfo.Mode == ETableReplicaMode::Async) {
+            if (replicaInfo.ContentType == ETableReplicaContentType::Queue) {
+                asyncQueueReplicaId = replicaId;
+            } else {
+                asyncDataReplicaId = replicaId;
+                continue;
+            }
+        }
+
+        replicaInfo.ReplicationProgress = AdvanceReplicationProgress(replicaInfo.ReplicationProgress, nowTs);
+    }
+
+    auto result = queueReplicaSelector.PickQueueReplica(
+        asyncDataReplicaId,
+        replicationCard,
+        replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+        /*extraSameDcQueueClusters*/ {},
+        now);
+
+    ASSERT_TRUE(result.IsOK());
+    const auto& value = result.Value();
+    EXPECT_EQ(asyncQueueReplicaId, std::get<0>(value));
+    EXPECT_EQ(NullTimestamp, std::get<2>(value));
+}
+
+TEST(TQueueReplicaSelectorTest, ForceSameClusterQueue)
+{
+    TLogger logger;
+    TQueueReplicaSelector queueReplicaSelector(logger, /*replicaBanDuration*/ 1, /*forceSameClusterQueue*/ true);
+    auto& bannedReplicaTracker = queueReplicaSelector.GetBannedReplicaTracker();
+
+    auto replicationCardId = GenerateReplicationCardId();
+    auto replicas = GenerateDefaultReplicas();
+    auto replicationCard = CreateReplicationCard(replicas, replicationCardId);
+
+    auto now = TInstant::Now();
+    auto nowTs = InstantToTimestamp(now).second;
+    TReplicaId asyncQueueReplicaId;
+    TReplicaId remote0QueueReplicaId;
+    TReplicaId primaryQueueReplicaId;
+    TReplicaId asyncDataReplicaId;
+    for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+        if (replicaInfo.Mode == ETableReplicaMode::Async) {
+            if (replicaInfo.ContentType == ETableReplicaContentType::Queue) {
+                asyncQueueReplicaId = replicaId;
+            } else {
+                asyncDataReplicaId = replicaId;
+                continue;
+            }
+        } else if (replicaInfo.ContentType == ETableReplicaContentType::Queue) {
+            if (replicaInfo.ClusterName == "remote_0") {
+                remote0QueueReplicaId = replicaId;
+            } else if (replicaInfo.ClusterName == "primary") {
+                primaryQueueReplicaId = replicaId;
+            }
+        }
+
+        replicaInfo.ReplicationProgress = AdvanceReplicationProgress(replicaInfo.ReplicationProgress, nowTs);
+    }
+
+    {
+        auto result = queueReplicaSelector.PickQueueReplica(
+            asyncDataReplicaId,
+            replicationCard,
+            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
+            now);
+
+        ASSERT_TRUE(result.IsOK());
+        const auto& value = result.Value();
+        EXPECT_EQ(asyncQueueReplicaId, std::get<0>(value));
+        EXPECT_EQ(NullTimestamp, std::get<2>(value));
+    }
+
+    bannedReplicaTracker.BanReplica(asyncQueueReplicaId, TError());
+
+    {
+        auto result = queueReplicaSelector.PickQueueReplica(
+            asyncDataReplicaId,
+            replicationCard,
+            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
+            now);
+
+        ASSERT_TRUE(result.IsOK());
+        const auto& value = result.Value();
+        EXPECT_NE(asyncQueueReplicaId, std::get<0>(value));
+        EXPECT_EQ(NullTimestamp, std::get<2>(value));
+    }
+
+    {
+        auto result = queueReplicaSelector.PickQueueReplica(
+            asyncDataReplicaId,
+            replicationCard,
+            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {"remote_0"},
+            now);
+
+        ASSERT_TRUE(result.IsOK());
+        const auto& value = result.Value();
+        EXPECT_EQ(remote0QueueReplicaId, std::get<0>(value));
+        EXPECT_EQ(NullTimestamp, std::get<2>(value));
+    }
+
+    {
+        auto result = queueReplicaSelector.PickQueueReplica(
+            asyncDataReplicaId,
+            replicationCard,
+            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {"primary"},
+            now);
+
+        ASSERT_TRUE(result.IsOK());
+        const auto& value = result.Value();
+        EXPECT_EQ(primaryQueueReplicaId, std::get<0>(value));
+        EXPECT_EQ(NullTimestamp, std::get<2>(value));
+    }
+
+    bannedReplicaTracker.SyncReplicas(replicationCard);
+    ASSERT_FALSE(bannedReplicaTracker.IsReplicaBanned(asyncQueueReplicaId));
+
+    {
+        auto result = queueReplicaSelector.PickQueueReplica(
+            asyncDataReplicaId,
+            replicationCard,
+            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
+            now);
+
+        ASSERT_TRUE(result.IsOK());
+        const auto& value = result.Value();
+        EXPECT_EQ(asyncQueueReplicaId, std::get<0>(value));
+        EXPECT_EQ(NullTimestamp, std::get<2>(value));
+    }
+}
+
+TEST(TQueueReplicaSelectorTest, BanReplicas)
+{
+    TLogger logger;
+    TQueueReplicaSelector queueReplicaSelector(logger, /*replicaBanDuration*/ 1, /*forceSameClusterQueue*/ false);
+    auto& bannedReplicaTracker = queueReplicaSelector.GetBannedReplicaTracker();
+
+    auto replicationCardId = GenerateReplicationCardId();
+    auto replicas = GenerateDefaultReplicas();
+    auto replicationCard = CreateReplicationCard(replicas, replicationCardId);
+
+    auto now = TInstant::Now();
+    auto nowTs = InstantToTimestamp(now).second;
+    TReplicaId asyncQueueReplicaId;
+    TReplicaId asyncDataReplicaId;
+    for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+        if (replicaInfo.Mode == ETableReplicaMode::Async) {
+            if (replicaInfo.ContentType == ETableReplicaContentType::Queue) {
+                asyncQueueReplicaId = replicaId;
+            } else {
+                asyncDataReplicaId = replicaId;
+                continue;
+            }
+        }
+
+        replicaInfo.ReplicationProgress = AdvanceReplicationProgress(replicaInfo.ReplicationProgress, nowTs);
+    }
+
+    bannedReplicaTracker.BanReplica(asyncQueueReplicaId, TError());
+
+    auto result = queueReplicaSelector.PickQueueReplica(
+        asyncDataReplicaId,
+        replicationCard,
+        replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+        /*extraSameDcQueueClusters*/ {},
+        now);
+
+    ASSERT_TRUE(result.IsOK());
+    auto selectedReplicaId = std::get<0>(result.Value());
+    EXPECT_NE(asyncQueueReplicaId, selectedReplicaId);
+    EXPECT_EQ(NullTimestamp, std::get<2>(result.Value()));
+
+    // Check stickiness.
+    for (int i = 0; i < 10; ++i) {
+        auto repeatedResult = queueReplicaSelector.PickQueueReplica(
+            asyncDataReplicaId,
+            replicationCard,
+            replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+            /*extraSameDcQueueClusters*/ {},
+            now);
+
+        ASSERT_TRUE(repeatedResult.IsOK());
+        EXPECT_EQ(selectedReplicaId, std::get<0>(repeatedResult.Value()));
+        EXPECT_EQ(NullTimestamp, std::get<2>(repeatedResult.Value()));
+    }
+
+    // Ban selected queue. Only one remains.
+    bannedReplicaTracker.BanReplica(selectedReplicaId, TError());
+    auto lastReplica = queueReplicaSelector.PickQueueReplica(
+        asyncDataReplicaId,
+        replicationCard,
+        replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+        /*extraSameDcQueueClusters*/ {},
+        now);
+
+    ASSERT_TRUE(lastReplica.IsOK());
+    auto lastQueueReplicaId = std::get<0>(lastReplica.Value());
+    EXPECT_NE(selectedReplicaId, lastQueueReplicaId);
+    EXPECT_EQ(NullTimestamp, std::get<2>(lastReplica.Value()));
+
+    // Ban the last one.
+    bannedReplicaTracker.BanReplica(lastQueueReplicaId, TError());
+    auto noneReplica = queueReplicaSelector.PickQueueReplica(
+        asyncDataReplicaId,
+        replicationCard,
+        replicationCard->GetReplicaOrThrow(asyncDataReplicaId, replicationCardId)->ReplicationProgress,
+        /*extraSameDcQueueClusters*/ {},
+        now);
+
+    ASSERT_FALSE(noneReplica.IsOK());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TBannedReplicaTrackerTest, SyncReplicas)
+{
+    TLogger logger;
+    TBannedReplicaTracker bannedReplicaTracker(logger, /*replicaBanDuration*/ 1);
+
+    auto replicationCardId = GenerateReplicationCardId();
+    auto replicas = GenerateDefaultReplicas();
+    auto replicationCard = CreateReplicationCard(replicas, replicationCardId);
+
+    bannedReplicaTracker.SyncReplicas(replicationCard);
+    EXPECT_EQ(3, std::ssize(bannedReplicaTracker.GetBannedReplicas()));
+
+    TReplicaId asyncQueueReplicaId;
+    for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+        if (replicaInfo.Mode == ETableReplicaMode::Async &&
+            replicaInfo.ContentType == ETableReplicaContentType::Queue)
+        {
+            asyncQueueReplicaId = replicaId;
+            break;
+        }
+    }
+
+    auto asyncQueueReplicaInfo = GetOrCrash(replicationCard->Replicas, asyncQueueReplicaId);
+
+    EraseOrCrash(replicationCard->Replicas, asyncQueueReplicaId);
+    bannedReplicaTracker.SyncReplicas(replicationCard);
+    EXPECT_EQ(2, std::ssize(bannedReplicaTracker.GetBannedReplicas()));
+
+    EmplaceOrCrash(replicationCard->Replicas, asyncQueueReplicaId, asyncQueueReplicaInfo);
+    bannedReplicaTracker.SyncReplicas(replicationCard);
+    EXPECT_EQ(3, std::ssize(bannedReplicaTracker.GetBannedReplicas()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TIterationTimeTrackerTest, Simple)
+{
+    TIterationTimeTracker tracker(/*previousIterationWeight*/ 4, /*currentIterationWeight*/ 1, TDuration::Seconds(5));
+    auto now = TInstant::Now();
+    EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now), TDuration::Seconds(5));
+    EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now + TDuration::Seconds(5)), TDuration::Seconds(5));
+    EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now + TDuration::Seconds(10)), TDuration::Seconds(5));
+    EXPECT_EQ(tracker.CalculateSmoothedIterationDuration(now + TDuration::Seconds(20)), TDuration::Seconds(6));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NTabletNode
+

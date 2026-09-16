@@ -1,0 +1,1560 @@
+#include "job_environment.h"
+
+#include "bootstrap.h"
+#include "job_directory_manager.h"
+#include "job_fs_secretary.h"
+#include "private.h"
+#include "slot_manager.h"
+#include "volume_artifact.h"
+#include "volume_manager.h"
+
+#include "yt/yt/core/concurrency/delayed_executor.h"
+
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
+
+#include <yt/yt/server/node/data_node/config.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/gpu_helpers.h>
+
+#include <yt/yt/server/lib/misc/public.h>
+
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
+
+#include <yt/yt/library/containers/helpers.h>
+#include <yt/yt/library/containers/process.h>
+
+#ifdef _linux_
+#include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
+
+#include <grp.h>
+#endif
+
+#include <yt/yt/ytlib/job_proxy/private.h>
+
+#include <yt/yt/library/containers/cri/cri_executor.h>
+#include <yt/yt/library/containers/cri/image_cache.h>
+
+#include <yt/yt/library/program/program.h>
+
+#include <yt/yt/library/process/process.h>
+
+#include <yt/yt/core/concurrency/scheduler.h>
+
+#include <yt/yt/core/net/connection.h>
+
+#include <yt/yt/core/misc/proc.h>
+
+#include <library/cpp/yt/string/string.h>
+
+#include <util/generic/guid.h>
+
+#include <util/system/execpath.h>
+#include <util/system/user.h>
+
+namespace NYT::NExecNode {
+
+using namespace NClusterNode;
+using namespace NConcurrency;
+using namespace NJobProxy;
+using namespace NContainers;
+using namespace NContainers::NCri;
+using namespace NDataNode;
+using namespace NYTree;
+using namespace NTools;
+using namespace NServer;
+
+using NNet::TIP6Address;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = ExecNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProcessJobEnvironmentBase
+    : public IJobEnvironment
+{
+public:
+    TProcessJobEnvironmentBase(
+        TJobEnvironmentConfig config,
+        IBootstrap* bootstrap)
+        : Config_(std::move(config))
+        , Bootstrap_(bootstrap)
+    { }
+
+    TError Init(int slotCount, double cpuLimit, double idleCpuFraction) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        Bootstrap_->SubscribePopulateAlerts(
+            BIND(&TProcessJobEnvironmentBase::PopulateAlerts, MakeWeak(this)));
+        // Shutdown all possible processes.
+        try {
+            DoInit(slotCount, cpuLimit, idleCpuFraction);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean up processes during initialization")
+                .With(ex);
+            Disable(error);
+            return error;
+        }
+
+        return TError();
+    }
+
+    TFuture<void> InitSlot(int slotIndex) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        return BIND(&IJobEnvironment::CleanProcesses, MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run(slotIndex, ESlotType::Common);
+    }
+
+    TFuture<void> RunJobProxy(
+        const TJobProxyInternalConfigPtr& config,
+        ESlotType slotType,
+        int slotIndex,
+        const std::string& workingDirectory,
+        TJobId jobId,
+        TOperationId operationId,
+        const std::optional<TNumaNodeInfo>& numaNodeAffinity) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateEnabled();
+
+        std::vector<std::string> environmentVariables;
+        environmentVariables.reserve(config->EnvironmentVariables.size());
+        for (const auto& variable: config->EnvironmentVariables) {
+            try {
+                environmentVariables.push_back(Format("%v=%v", variable->Name, variable->LoadValue()));
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Cannot load environment variable %Qv", variable->Name)
+                    .With(ex);
+            }
+        }
+
+        try {
+            const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+            auto dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+            if (dynamicConfig && dynamicConfig->EnableNumaNodeScheduling) {
+                if (numaNodeAffinity) {
+                    UpdateSlotCpuSet(slotIndex, slotType, numaNodeAffinity->CpuSet);
+                } else {
+                    // Without cpu restrictions.
+                    UpdateSlotCpuSet(slotIndex, slotType, EmptyCpuSet);
+                }
+            }
+            auto process = CreateJobProxyProcess(config, slotIndex, slotType, jobId);
+
+            process->AddArguments({
+                "--config", ProxyConfigFileName,
+                "--operation-id", ToString(operationId),
+                "--job-id", ToString(jobId)
+            });
+
+            const auto& stderrPath = config->StderrPath;
+            if (stderrPath) {
+                process->AddArguments({
+                    "--stderr-path", *stderrPath,
+                });
+            }
+
+            process->SetWorkingDirectory(workingDirectory);
+
+            AddArguments(process, slotIndex);
+
+            for (const auto& variable: environmentVariables) {
+                process->AddEnvVar(variable);
+            }
+
+            YT_TLOG_INFO("Spawn job proxy")
+                .With("SlotType", slotType)
+                .With("SlotIndex", slotIndex)
+                .With("JobId", jobId)
+                .With("OperationId", operationId)
+                .With("WorkingDirectory", workingDirectory)
+                .With("StderrPath", stderrPath);
+
+            TJobProxyProcess jobProxyProcess;
+            jobProxyProcess.Process = process;
+            jobProxyProcess.Result = BIND([=] {
+                    // Make forks outside controller thread.
+                    return process->Spawn();
+                })
+                .AsyncVia(ActionQueue_->GetInvoker())
+                .Run();
+
+            JobProxyProcesses_[slotIndex] = jobProxyProcess;
+            return jobProxyProcess.Result;
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to spawn job proxy").With(ex);
+            Disable(error);
+
+            THROW_ERROR error;
+        }
+    }
+
+    bool IsEnabled() const override
+    {
+        return Enabled_.load();
+    }
+
+    void UpdateCpuLimit(double /*cpuLimit*/) override
+    { }
+
+    double GetCpuLimit(ESlotType /*slotType*/) const override
+    {
+        return 0;
+    }
+
+    i64 GetMajorPageFaultCount() const override
+    {
+        return 0;
+    }
+
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, TNonNullPtr<NJobProxy::TJobProxyInternalConfig> /*jobProxyConfig*/) const override
+    { }
+
+    TFuture<std::vector<TShellCommandResult>> RunCommands(
+        int /*slotIndex*/,
+        ESlotType /*slotType*/,
+        TJobId /*jobId*/,
+        const std::vector<TShellCommandConfigPtr>& /*commands*/,
+        const TRootFS& /*rootFS*/,
+        const std::string& /*user*/,
+        const std::optional<std::vector<TDevice>>& /*devices*/,
+        const std::optional<std::string>& /*hostName*/,
+        const std::vector<TIP6Address>& /*ipAddresses*/,
+        std::string /*tag*/,
+        bool /*throwOnFailedCommand*/) override
+    {
+        THROW_ERROR_EXCEPTION(
+            "Running custom commands is not yet supported by %Qlv environment",
+            Config_.GetType());
+    }
+
+    void OnDynamicConfigChanged(
+        const TSlotManagerDynamicConfigPtr& /*oldConfig*/,
+        const TSlotManagerDynamicConfigPtr& /*newConfig*/) override
+    { }
+
+    void Disable(TError error) override
+    {
+        if (!Enabled_.exchange(false)) {
+            return;
+        }
+
+        static constexpr auto Message = "Job environment is disabled"_sb;
+        YT_TLOG_ERROR(Message)
+            .With(error);
+
+        auto alert = TError(NExecNode::EErrorCode::JobEnvironmentDisabled, Message)
+            .With(error);
+
+        Alert_.Store(alert);
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+
+        YT_TLOG_FATAL_IF(dynamicConfig->AbortOnJobsDisabled, Message)
+            .With(error);
+
+        if (dynamicConfig->EnableJobEnvironmentResurrection) {
+            YT_UNUSED_FUTURE(BIND(&TSlotManager::OnJobEnvironmentDisabled, Bootstrap_->GetSlotManager())
+                .AsyncVia(Bootstrap_->GetJobInvoker())
+                .Run(std::move(alert)));
+        }
+    }
+protected:
+    struct TJobProxyProcess
+    {
+        TProcessBasePtr Process;
+        TFuture<void> Result;
+    };
+
+    const TJobEnvironmentConfig Config_;
+    IBootstrap* const Bootstrap_;
+
+    const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobEnvironment");
+
+    THashMap<int, TJobProxyProcess> JobProxyProcesses_;
+
+    TFuture<void> JobProxyResult_;
+
+    std::atomic<bool> Enabled_ = true;
+
+    NThreading::TAtomicObject<TError> Alert_;
+
+
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    virtual void DoInit(int /*slotCount*/, double /*cpuLimit*/, double /*idleCpuFraction*/)
+    {
+    }
+
+    void ValidateEnabled() const
+    {
+        if (!Enabled_.load()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::JobEnvironmentDisabled,
+                "Job environment %Qlv is disabled",
+                Config_.GetType());
+        }
+    }
+
+    void EnsureJobProxyFinished(int slotIndex, bool kill)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto it = JobProxyProcesses_.find(slotIndex);
+        if (it != JobProxyProcesses_.end()) {
+            if (kill) {
+                try {
+                    it->second.Process->Kill(SIGKILL);
+                } catch (const std::exception& ex) {
+                    // If we failed to kill container we ignore it for now.
+                    YT_TLOG_WARNING("Failed to kill container properly")
+                        .With("SlotIndex", slotIndex)
+                        .With(ex);
+                }
+            }
+
+            // Ensure that job proxy process finished.
+            auto error = WaitFor(it->second.Result);
+            YT_TLOG_INFO("Job proxy process finished")
+                .With("SlotIndex", slotIndex)
+                .With(error);
+            // Drop reference to a process.
+            JobProxyProcesses_.erase(it);
+        }
+    }
+
+    virtual void AddArguments(TProcessBasePtr /*process*/, int /*slotIndex*/)
+    { }
+
+private:
+    void PopulateAlerts(std::vector<TError>* alerts)
+    {
+        auto alert = Alert_.Load();
+        if (!alert.IsOK()) {
+            alerts->push_back(std::move(alert));
+        }
+    }
+
+    virtual TProcessBasePtr CreateJobProxyProcess(
+        const TJobProxyInternalConfigPtr& /*config*/,
+        int /*slotIndex*/,
+        ESlotType /*slotType*/,
+        TJobId /*jobId*/)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        return New<TSimpleProcess>(JobProxyProgramName);
+    }
+
+    virtual void UpdateSlotCpuSet(int /*slotIndex*/, ESlotType /*slotType*/, TStringBuf /*cpuSet*/)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSimpleJobEnvironment
+    : public TProcessJobEnvironmentBase
+{
+public:
+    TSimpleJobEnvironment(
+        TJobEnvironmentConfig config,
+        IBootstrap* bootstrap)
+        : TProcessJobEnvironmentBase(config, bootstrap)
+    { }
+
+    void CleanProcesses(int slotIndex, ESlotType slotType) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateEnabled();
+
+        YT_TLOG_DEBUG("Start clean processes")
+            .With("SlotIndex", slotIndex);
+
+        try {
+            EnsureJobProxyFinished(slotIndex, true);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean processes")
+                .With("slot_index", slotIndex)
+                .With("slot_type", slotType)
+                .With(ex);
+            Disable(error);
+            THROW_ERROR error;
+        }
+
+        YT_TLOG_DEBUG("Finish clean processes")
+            .With("SlotIndex", slotIndex);
+    }
+
+    int GetUserId(int /*slotIndex*/) const override
+    {
+        return ::getuid();
+    }
+
+    IJobDirectoryManagerPtr CreateJobDirectoryManager(const std::string& path, int /*locationIndex*/) override
+    {
+        return CreateSimpleJobDirectoryManager(
+            MounterThread_->GetInvoker(),
+            path,
+            Bootstrap_->GetConfig()->ExecNode->SlotManager->DetachedTmpfsUmount);
+    }
+
+    TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildingContext context,
+        IJobDirectoryManagerPtr directoryManager) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        return CreateSimpleJobWorkspaceBuilder(
+            invoker,
+            std::move(context),
+            directoryManager);
+    }
+
+    IVolumeManagerPtr CreateVolumeManager(const std::vector<TSlotLocationConfigPtr>& locations) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto future = CreateSimpleVolumeManager(
+            locations,
+            MounterThread_->GetInvoker(),
+            Bootstrap_->GetConfig()->ExecNode->SlotManager->DetachedTmpfsUmount);
+
+        return WaitFor(future)
+            .ValueOrThrow(
+                EErrorCode::SimpleVolumeManagerFailure,
+                "Failed to initialize volume manager");
+    }
+
+private:
+    const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
+
+    TProcessBasePtr CreateJobProxyProcess(
+        const TJobProxyInternalConfigPtr& /*config*/,
+        int /*slotIndex*/,
+        ESlotType /*slotType*/,
+        TJobId /*jobId*/) override
+    {
+        auto process = New<TSimpleProcess>(JobProxyProgramName);
+        process->CreateProcessGroup();
+        return process;
+    }
+};
+
+class TTestingJobEnvironment
+    : public TSimpleJobEnvironment
+{
+public:
+    TTestingJobEnvironment(
+        TJobEnvironmentConfig config,
+        IBootstrap* bootstrap)
+        : TSimpleJobEnvironment(config, bootstrap)
+        , ConcreteConfig_(config.GetConcrete<TTestingJobEnvironmentConfig>())
+    { }
+
+    i64 GetMajorPageFaultCount() const override
+    {
+        if (ConcreteConfig_->TestingJobEnvironmentScenario == ETestingJobEnvironmentScenario::IncreasingMajorPageFaultCount) {
+            MajorPageFaultCount_ += 1000;
+        }
+
+        return MajorPageFaultCount_;
+    }
+
+private:
+    const TTestingJobEnvironmentConfigPtr ConcreteConfig_;
+
+    mutable i64 MajorPageFaultCount_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _linux_
+
+constexpr int MaxCommandOutputSizeInError = 500;
+
+constexpr double CpuUpdatePrecision = 0.01;
+
+class TPortoJobEnvironment
+    : public TProcessJobEnvironmentBase
+{
+public:
+    TPortoJobEnvironment(
+        TJobEnvironmentConfig config,
+        IBootstrap* bootstrap)
+        : TProcessJobEnvironmentBase(config, bootstrap)
+        , ConcreteConfig_(config.GetConcrete<TPortoJobEnvironmentConfig>())
+        , PortoExecutor_(CreatePortoExecutor(
+            ConcreteConfig_->PortoExecutor,
+            "env_spawn",
+            JobEnvironmentProfiler().WithPrefix("/porto")))
+        , PortoCreateExecutor_(CreatePortoExecutor(
+            ConcreteConfig_->PortoExecutor,
+            "env_create",
+            JobEnvironmentProfiler().WithPrefix("/porto_create")))
+        , PortoDestroyExecutor_(CreatePortoExecutor(
+            ConcreteConfig_->PortoExecutor,
+            "env_destroy",
+            JobEnvironmentProfiler().WithPrefix("/porto_destroy")))
+        , ContainerDestroyFailureCounter_(JobEnvironmentProfiler().Counter("/container_destroy_failures"))
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        auto slotManagerConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+        ShouldCloseDescriptors_.store(slotManagerConfig->ShouldCloseDescriptors);
+    }
+
+    void OnDynamicConfigChanged(
+        const TSlotManagerDynamicConfigPtr& oldConfig,
+        const TSlotManagerDynamicConfigPtr& newConfig) override
+    {
+        auto environmentConfig = newConfig->JobEnvironment;
+
+        if (auto portoConfig = environmentConfig.TryGetConcrete<EJobEnvironmentType::Porto>()) {
+            if (auto executor = PortoExecutor_) {
+                executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
+            }
+
+            if (auto executor = PortoDestroyExecutor_) {
+                executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
+            }
+
+            if (auto executor = PortoCreateExecutor_) {
+                executor->OnDynamicConfigChanged(portoConfig->PortoExecutor);
+            }
+
+            ConcreteConfig_ = std::move(portoConfig);
+        }
+
+        ShouldCloseDescriptors_.store(newConfig->ShouldCloseDescriptors);
+
+        UpdateIdleCpuFraction(newConfig->IdleCpuFraction);
+
+        if (oldConfig->EnableNumaNodeScheduling && !newConfig->EnableNumaNodeScheduling) {
+            ClearSlotCpuSets();
+        }
+    }
+
+    void AddArguments(TProcessBasePtr process, int /*slotIndex*/) override
+    {
+        if (!ShouldCloseDescriptors_.load()) {
+            process->AddArguments({"--do-not-close-descriptors"});
+        }
+    }
+
+    void CleanProcesses(int slotIndex, ESlotType slotType) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateEnabled();
+
+        YT_TLOG_DEBUG("Start clean processes")
+            .With("SlotIndex", slotIndex);
+
+        try {
+            EnsureJobProxyFinished(slotIndex, true);
+
+            auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
+
+            YT_TLOG_DEBUG("Destroy job subcontainers for slot")
+                .With("SlotContainer", slotContainer)
+                .With("SlotIndex", slotIndex);
+
+            DestroyAllSubcontainers(slotContainer);
+
+            YT_TLOG_DEBUG("Reset CPU limit and guarantee")
+                .With("SlotContainer", slotContainer)
+                .With("SlotIndex", slotIndex);
+
+            // Reset CPU guarantee.
+            WaitFor(PortoExecutor_->SetContainerProperty(
+                slotContainer,
+                "cpu_guarantee",
+                "0.05c"))
+                .ThrowOnError();
+
+            // Reset CPU limit.
+            WaitFor(PortoExecutor_->SetContainerProperty(
+                slotContainer,
+                "cpu_limit",
+                "0"))
+                .ThrowOnError();
+
+            YT_TLOG_DEBUG("Drop reference to a job proxy process")
+                .With("SlotContainer", slotContainer)
+                .With("SlotIndex", slotIndex);
+
+            // Drop reference to a process if there were any.
+            JobProxyProcesses_.erase(slotIndex);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean processes")
+                .With("slot_index", slotIndex)
+                .With("slot_type", slotType)
+                .With(ex);
+
+            Disable(error);
+            THROW_ERROR error;
+        }
+    }
+
+    int GetUserId(int slotIndex) const override
+    {
+        return ConcreteConfig_->StartUid + slotIndex;
+    }
+
+    IJobDirectoryManagerPtr CreateJobDirectoryManager(const std::string& path, int locationIndex) override
+    {
+        return CreatePortoJobDirectoryManager(
+            Bootstrap_->GetDynamicConfig()->ExecNode->SlotManager->JobDirectoryManager,
+            Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota,
+            path,
+            locationIndex);
+    }
+
+    TFuture<std::vector<TShellCommandResult>> RunCommands(
+        int slotIndex,
+        ESlotType slotType,
+        TJobId jobId,
+        const std::vector<TShellCommandConfigPtr>& commands,
+        const TRootFS& rootFS,
+        const std::string& user,
+        const std::optional<std::vector<TDevice>>& devices,
+        const std::optional<std::string>& hostName,
+        const std::vector<TIP6Address>& ipAddresses,
+        std::string tag,
+        bool throwOnFailedCommand) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, hostName, ipAddresses, tag, throwOnFailedCommand] {
+            std::vector<TShellCommandResult> outputs;
+            outputs.reserve(commands.size());
+
+            for (int index = 0; index < std::ssize(commands); ++index) {
+                const auto& command = commands[index];
+                YT_TLOG_DEBUG("Running command")
+                    .With("JobId", jobId)
+                    .With("Path", command->Path)
+                    .With("Args", command->Args)
+                    .With("User", user)
+                    .With("Devices", devices);
+
+                auto launcher = CreatePortoInstanceLauncher(
+                    Format("%v_%v_%v",
+                        GetFullJobContainerName(slotIndex, slotType, CommandContainerPrefix, jobId),
+                        tag,
+                        index),
+                    PortoExecutor_);
+                launcher->SetRoot(rootFS);
+                launcher->SetUser(user);
+                if (devices) {
+                    launcher->SetDevices(*devices);
+                }
+
+                if (hostName) {
+                    launcher->SetHostName(*hostName);
+                    launcher->SetIPAddresses(ipAddresses, /*enableNat64*/ false);
+                }
+
+                auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, command->EnvironmentVariables));
+                YT_TLOG_WARNING_IF(!instanceOrError.IsOK(), "Failed to launch command")
+                    .With("JobId", jobId)
+                    .With(instanceOrError);
+                const auto& instance = instanceOrError.ValueOrThrow();
+
+                auto error = WaitFor(instance->Wait());
+
+                TShellCommandResult instanceResult{
+                    .Stdout = instance->GetStdout(),
+                    .Stderr = instance->GetStderr(),
+                };
+
+                if (!error.IsOK()) {
+                    YT_TLOG_WARNING("Command failed")
+                        .With("JobId", jobId)
+                        .With("Stderr", instanceResult.Stderr)
+                        .With("Stdout", instanceResult.Stdout)
+                        .With(error);
+
+                    error.Add("stdout", TruncateString(instanceResult.Stdout, MaxCommandOutputSizeInError));
+                    error.Add("stderr", TruncateString(instanceResult.Stderr, MaxCommandOutputSizeInError));
+
+                    if (throwOnFailedCommand) {
+                        THROW_ERROR error;
+                    }
+                    instanceResult.Error = error;
+                }
+
+                outputs.push_back(instanceResult);
+
+                YT_TLOG_DEBUG("Command finished")
+                    .With("JobId", jobId)
+                    .With("Path", command->Path)
+                    .With("Args", command->Args)
+                    .With("EnvironmentVariables", command->EnvironmentVariables);
+            }
+
+            return outputs;
+        })
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run();
+    }
+
+private:
+    static constexpr TStringBuf JobsMetaContainerName = "jm";
+    static constexpr TStringBuf JobsMetaContainerIdleSuffix = "_idle";
+    static constexpr TStringBuf JobProxyContainerPrefix = "/jp";
+    static constexpr TStringBuf CommandContainerPrefix = "/cm";
+
+    TPortoJobEnvironmentConfigPtr ConcreteConfig_;
+
+    //! Main Porto connection for lightweight operations.
+    IPortoExecutorPtr PortoExecutor_;
+
+    //! Porto connection for container creation that could be long.
+    IPortoExecutorPtr PortoCreateExecutor_;
+
+    //! Porto connection used for container destruction, which is
+    //! possibly a long operation and requires additional retries.
+    IPortoExecutorPtr PortoDestroyExecutor_;
+    NProfiling::TCounter ContainerDestroyFailureCounter_;
+
+    IInstancePtr SelfInstance_;
+    IInstancePtr MetaInstance_;
+    IInstancePtr MetaIdleInstance_;
+
+    std::atomic<bool> ShouldCloseDescriptors_;
+
+    double CpuLimit_ = 0.0;
+    double IdleCpuLimit_ = 0.0;
+    double IdleCpuFraction_ = 0.0;
+    int SlotCount_ = 0;
+
+    void DestroyAllSubcontainers(const std::string& rootContainer)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_DEBUG("Start destroy subcontainers")
+            .With("RootContainer", rootContainer);
+
+        NProfiling::TWallTimer timer;
+
+        // Retry destruction until success.
+        bool destroyed = false;
+        while (!destroyed) {
+            YT_TLOG_DEBUG("Start container destruction attempt")
+                .With("RootContainer", rootContainer);
+
+            auto containers = WaitFor(PortoDestroyExecutor_->ListSubcontainers(rootContainer, false))
+                .ValueOrThrow();
+
+            std::vector<TFuture<void>> futures;
+            for (const auto& container : containers) {
+                YT_TLOG_DEBUG("Destroy subcontainer")
+                    .With("Container", container);
+                futures.push_back(PortoDestroyExecutor_->DestroyContainer(container));
+            }
+
+            auto result = WaitFor(AllSet(futures));
+            if (result.IsOK()) {
+                destroyed = true;
+                for (const auto& error : result.Value()) {
+                    if (!error.IsOK() &&
+                        !error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
+                    {
+                        destroyed = false;
+                        YT_TLOG_WARNING("Failed to destroy subcontainers")
+                            .With("Container", rootContainer)
+                            .With(error);
+                    }
+                }
+            } else {
+                YT_TLOG_WARNING("Failed to destroy subcontainers")
+                    .With("Container", rootContainer)
+                    .With(result);
+            }
+
+            if (!destroyed) {
+                ContainerDestroyFailureCounter_.Increment(1);
+                TDelayedExecutor::WaitForDuration(ConcreteConfig_->ContainerDestructionBackoff);
+            }
+        }
+
+        YT_TLOG_DEBUG("Finish destroy subcontainers")
+            .With("RootContainer", rootContainer)
+            .With("TimeElapsed", timer.GetElapsedTime());
+    }
+
+    void DoInit(int slotCount, double cpuLimit, double idleCpuFraction) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        // We use weak ptr to avoid cyclic references between container manager and job environment.
+        auto portoFatalErrorHandler = BIND(&TPortoJobEnvironment::Disable, MakeWeak(this));
+
+        PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
+        SelfInstance_ = GetSelfPortoInstance(PortoExecutor_);
+
+        CpuLimit_ = cpuLimit;
+        IdleCpuFraction_ = idleCpuFraction;
+        IdleCpuLimit_ = CalculateIdleCpuLimit();
+        SlotCount_ = slotCount;
+
+        YT_VERIFY(!ConcreteConfig_->UseDaemonSubcontainer || SelfInstance_->GetParentName());
+        auto baseContainer = ConcreteConfig_->UseDaemonSubcontainer
+            ? *SelfInstance_->GetParentName()
+            : SelfInstance_->GetName();
+
+        // If we are in the top-level container of current namespace, use names without prefix.
+        auto metaInstanceName = baseContainer.empty()
+            ? std::string(JobsMetaContainerName)
+            : std::string(Format("%v/%v", baseContainer, JobsMetaContainerName));
+
+        auto metaIdleInstanceName = Format("%v%v", metaInstanceName, JobsMetaContainerIdleSuffix);
+
+        auto createContainer = [this] (const std::string& name) {
+            try {
+                // Cleanup leftovers during restart.
+                WaitFor(PortoExecutor_->DestroyContainer(name))
+                    .ThrowOnError();
+            } catch (const TErrorException& ex) {
+                // If container doesn't exist it's ok.
+                if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
+                    throw;
+                }
+            }
+
+            WaitFor(PortoExecutor_->CreateContainer(name))
+                .ThrowOnError();
+        };
+
+        createContainer(metaInstanceName);
+        createContainer(metaIdleInstanceName);
+
+        MetaInstance_ = GetPortoInstance(
+            PortoExecutor_,
+            metaInstanceName);
+        MetaIdleInstance_ = GetPortoInstance(
+            PortoExecutor_,
+            metaIdleInstanceName);
+
+        MetaInstance_->SetIOWeight(ConcreteConfig_->JobsIOWeight);
+        MetaIdleInstance_->SetIOWeight(ConcreteConfig_->JobsIOWeight);
+
+        UpdateContainerCpuLimits();
+    }
+
+    TFuture<void> InitSlot(int slotIndex) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto slotInitFuture = BIND([this, this_ = MakeStrong(this), slotIndex] {
+            for (auto slotType : {ESlotType::Common, ESlotType::Idle}) {
+                auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
+                WaitFor(PortoCreateExecutor_->CreateContainer(slotContainer))
+                    .ThrowOnError();
+
+                // This forces creation of CPU cgroup for this container.
+                WaitFor(PortoExecutor_->SetContainerProperty(
+                    slotContainer,
+                    "cpu_guarantee",
+                    "0.05c"))
+                    .ThrowOnError();
+
+                WaitFor(PortoExecutor_->SetContainerProperty(
+                    slotContainer,
+                    "controllers",
+                    "freezer;cpu;cpuacct;cpuset;net_cls"))
+                    .ThrowOnError();
+
+                if (slotType == ESlotType::Idle) {
+                    WaitFor(PortoExecutor_->SetContainerProperty(
+                        slotContainer,
+                        "cpu_policy",
+                        "idle"))
+                        .ThrowOnError();
+                }
+            }
+            CleanProcesses(slotIndex, ESlotType::Common);
+            CleanProcesses(slotIndex, ESlotType::Idle);
+        })
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run();
+        return slotInitFuture;
+    }
+
+    std::string GetFullSlotMetaContainerName(int slotIndex, ESlotType slotType)
+    {
+        auto instanceName = slotType == ESlotType::Common
+            ? MetaInstance_->GetName()
+            : MetaIdleInstance_->GetName();
+        return Format("%v/s_%03d", instanceName, slotIndex);
+    }
+
+    std::string GetJobContainerName(TStringBuf prefix, TJobId jobId)
+    {
+        auto jobIdAsGuid = jobId.Underlying();
+        return ConcreteConfig_->UseShortContainerNames
+            ? std::string(prefix)
+            : std::string(Format("%v-%x-%x", prefix, jobIdAsGuid.Parts32[3], jobIdAsGuid.Parts32[2]));
+    }
+
+    std::string GetFullJobContainerName(int slotIndex, ESlotType slotType, TStringBuf prefix, TJobId jobId)
+    {
+        return GetFullSlotMetaContainerName(slotIndex, slotType) + GetJobContainerName(prefix, jobId);
+    }
+
+    IInstanceLauncherPtr CreateJobProxyInstanceLauncher(int slotIndex, ESlotType slotType, TJobId jobId)
+    {
+        auto launcher = CreatePortoInstanceLauncher(
+            GetFullJobContainerName(slotIndex, slotType, JobProxyContainerPrefix, jobId),
+            PortoExecutor_);
+        if (ConcreteConfig_->JobProxyCpuWeight) {
+            launcher->SetCpuWeight(*ConcreteConfig_->JobProxyCpuWeight);
+        }
+        launcher->SetEnablePorto(EEnablePorto::Full);
+        launcher->SetIsolate(false);
+        return launcher;
+    }
+
+    void UpdateSlotCpuSet(int slotIndex, ESlotType slotType, TStringBuf cpuSet) override
+    {
+        auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
+
+        YT_TLOG_DEBUG("Start update slot cpu_set")
+            .With("SlotType", slotType)
+            .With("SlotIndex", slotIndex)
+            .With("CpuSet", cpuSet)
+            .With("SlotContainer", slotContainer);
+
+        WaitFor(PortoExecutor_->SetContainerProperty(
+            slotContainer,
+            "cpu_set",
+            std::string{cpuSet}))
+        .ThrowOnError();
+
+        YT_TLOG_DEBUG("Finish update slot cpu_set")
+            .With("SlotType", slotType)
+            .With("SlotIndex", slotIndex)
+            .With("CpuSet", cpuSet)
+            .With("SlotContainer", slotContainer);
+    }
+
+    TProcessBasePtr CreateJobProxyProcess(
+        const TJobProxyInternalConfigPtr& /*config*/,
+        int slotIndex,
+        ESlotType slotType,
+        TJobId jobId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto launcher = CreateJobProxyInstanceLauncher(slotIndex, slotType, jobId);
+        return New<TPortoProcess>(JobProxyProgramName, launcher);
+    }
+
+    void UpdateContainerCpuLimits()
+    {
+        if (MetaInstance_) {
+            MetaInstance_->SetCpuLimit(CpuLimit_ - IdleCpuLimit_);
+        }
+        if (MetaIdleInstance_) {
+            MetaIdleInstance_->SetCpuLimit(IdleCpuLimit_);
+        }
+    }
+
+    void UpdateCpuLimit(double cpuLimit) override
+    {
+        if (std::abs(CpuLimit_ - cpuLimit) < CpuUpdatePrecision) {
+            return;
+        }
+
+        CpuLimit_ = cpuLimit;
+        IdleCpuLimit_ = CalculateIdleCpuLimit();
+        UpdateContainerCpuLimits();
+
+    }
+
+    void UpdateIdleCpuFraction(double idleCpuFraction)
+    {
+        IdleCpuFraction_ = idleCpuFraction;
+        IdleCpuLimit_ = CalculateIdleCpuLimit();
+        UpdateContainerCpuLimits();
+    }
+
+    double CalculateIdleCpuLimit() const
+    {
+        return SelfInstance_
+            ? std::max(0., CpuLimit_ - SelfInstance_->GetCpuGuarantee()) * IdleCpuFraction_
+            : 0;
+    }
+
+    void ClearSlotCpuSets()
+    {
+        for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+            UpdateSlotCpuSet(slotIndex, ESlotType::Common, EmptyCpuSet);
+            UpdateSlotCpuSet(slotIndex, ESlotType::Idle, EmptyCpuSet);
+        }
+    }
+
+    double GetCpuLimit(ESlotType slotType) const override
+    {
+        switch (slotType) {
+            case ESlotType::Common: {
+                return CpuLimit_ - IdleCpuLimit_;
+            }
+            case ESlotType::Idle: {
+                return IdleCpuLimit_;
+            }
+        }
+    }
+
+    i64 GetMajorPageFaultCount() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        if (!SelfInstance_) {
+            THROW_ERROR_EXCEPTION("Job environment disabled");
+        }
+
+        return SelfInstance_->GetMajorPageFaultCount();
+    }
+
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, TNonNullPtr<NJobProxy::TJobProxyInternalConfig> /*jobProxyConfig*/) const override
+    { }
+
+    TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildingContext context,
+        IJobDirectoryManagerPtr directoryManager) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        return CreatePortoJobWorkspaceBuilder(
+            invoker,
+            std::move(context),
+            directoryManager,
+            Bootstrap_->GetGpuManager());
+    }
+
+    IVolumeManagerPtr CreateVolumeManager(const std::vector<TSlotLocationConfigPtr>&) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto future = CreatePortoVolumeManager(
+            Bootstrap_->GetConfig()->DataNode,
+            Bootstrap_->GetDynamicConfigManager(),
+            CreateVolumeArtifactCacheAdapter(Bootstrap_->GetArtifactCache()),
+            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
+            Bootstrap_);
+
+        return WaitFor(future)
+            .ValueOrThrow(
+                EErrorCode::PortoVolumeManagerFailure,
+                "Failed to initialize volume manager");
+    }
+};
+
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCriJobEnvironment
+    : public TProcessJobEnvironmentBase
+{
+public:
+    TCriJobEnvironment(
+        TJobEnvironmentConfig config,
+        IBootstrap* bootstrap)
+        : TProcessJobEnvironmentBase(config, bootstrap)
+        , ConcreteConfig_(config.GetConcrete<TCriJobEnvironmentConfig>())
+        , Executor_(CreateCriExecutor(ConcreteConfig_->CriExecutor))
+        , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
+    { }
+
+    void EnrichJobEnvironmentConfig(int slotIndex, TNonNullPtr<NJobProxy::TJobProxyInternalConfig> jobProxyConfig) const override
+    {
+        auto criJobEnv = jobProxyConfig->JobEnvironment.GetConcrete<TCriJobEnvironmentConfig>();
+
+        criJobEnv->PodDescriptor = PodDescriptors_[slotIndex];
+        criJobEnv->PodSpec = PodSpecs_[slotIndex];
+        if (auto gpuConfig = GetContainerGpuConfig(jobProxyConfig)) {
+            criJobEnv->GpuConfig = std::move(gpuConfig);
+        }
+    }
+
+    void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        Executor_->CleanNamespace();
+
+        PodDescriptors_.clear();
+        PodSpecs_.clear();
+        SlotCpusetCpus_.clear();
+        CpuLimit_ = cpuLimit;
+        FirstSlotInitialized_.Reset();
+
+        PodDescriptors_.resize(slotCount);
+        PodSpecs_.resize(slotCount);
+        SlotCpusetCpus_.resize(slotCount);
+
+        WaitFor(ImageCache_->Initialize())
+            .ThrowOnError();
+
+        WaitFor(Executor_->PullImage(TCriImageDescriptor{
+            .Image = ConcreteConfig_->JobProxyImage,
+        }))
+            .ThrowOnError();
+    }
+
+    TFuture<void> InitSlot(int slotIndex) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        // Wait for first slot initialization to avoid downloading shared resources concurrently.
+        if (FirstSlotInitialized_) {
+            auto error = WaitForFast(FirstSlotInitialized_);
+            if (!error.IsOK()) {
+                return MakeFuture(error);
+            }
+        }
+
+        auto podSpec = New<NCri::TCriPodSpec>();
+        podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
+        podSpec->Resources.CpuLimit = CpuLimit_;
+        PodSpecs_[slotIndex] = podSpec;
+        SlotCpusetCpus_[slotIndex] = EmptyCpuSet;
+
+        auto slotInitFuture = Executor_->RunPodSandbox(podSpec);
+        slotInitFuture
+            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptorPtr>& result){
+                YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+                if (result.IsOK()) {
+                    // Error is handled outside in slot manager.
+                    PodDescriptors_[slotIndex] = result.Value();
+                }  else {
+                    result.ThrowOnError();
+                }
+            })
+            .Via(Bootstrap_->GetJobInvoker()));
+
+        if (!FirstSlotInitialized_) {
+            FirstSlotInitialized_ = slotInitFuture.AsVoid();
+        }
+
+        return slotInitFuture.AsVoid();
+    }
+
+    void CleanProcesses(int slotIndex, ESlotType slotType) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        ValidateEnabled();
+
+        try {
+            EnsureJobProxyFinished(slotIndex, /*kill */ true);
+            Executor_->CleanPodSandbox(PodDescriptors_[slotIndex]);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean processes")
+                .With("slot_index", slotIndex)
+                .With("slot_type", slotType)
+                .With(ex);
+            Disable(error);
+            THROW_ERROR error;
+        }
+    }
+
+    int GetUserId(int slotIndex) const override
+    {
+        return ConcreteConfig_->StartUid + slotIndex;
+    }
+
+    IJobDirectoryManagerPtr CreateJobDirectoryManager(const std::string& path, int /*locationIndex*/) override
+    {
+        return CreateSimpleJobDirectoryManager(
+            MounterThread_->GetInvoker(),
+            path,
+            Bootstrap_->GetConfig()->ExecNode->SlotManager->DetachedTmpfsUmount);
+    }
+
+    TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
+        IInvokerPtr invoker,
+        TJobWorkspaceBuildingContext context,
+        IJobDirectoryManagerPtr directoryManager) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        // Inject default docker image for job workspace.
+        if (!context.FSSecretary->GetDockerImage() && !context.FSSecretary->GetRootVolumeParams()) {
+            context.FSSecretary->SetDockerImage(ConcreteConfig_->JobProxyImage);
+        }
+
+        return CreateCriJobWorkspaceBuilder(
+            invoker,
+            std::move(context),
+            directoryManager,
+            ImageCache_);
+    }
+
+    IVolumeManagerPtr CreateVolumeManager(const std::vector<TSlotLocationConfigPtr>& locations) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto future = CreateSimpleVolumeManager(
+            locations,
+            MounterThread_->GetInvoker(),
+            Bootstrap_->GetConfig()->ExecNode->SlotManager->DetachedTmpfsUmount);
+
+        return WaitFor(future)
+            .ValueOrThrow(
+                EErrorCode::SimpleVolumeManagerFailure,
+                "Failed to initialize volume manager");
+    }
+
+    TFuture<std::vector<TShellCommandResult>> RunCommands(
+        int slotIndex,
+        ESlotType slotType,
+        TJobId jobId,
+        const std::vector<TShellCommandConfigPtr>& commands,
+        const TRootFS& rootFS,
+        const std::string& /*user*/,
+        const std::optional<std::vector<TDevice>>& /*devices*/,
+        const std::optional<std::string>& /*hostName*/,
+        const std::vector<TIP6Address>& /*ipAddresses*/,
+        std::string tag,
+        bool /*throwOnFailedCommand*/) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(slotType == ESlotType::Common);
+
+        auto spec = New<NCri::TCriContainerSpec>();
+
+        // Run setup using default docker image for job workspace.
+        spec->Image.Image = ConcreteConfig_->JobProxyImage;
+
+        spec->Labels[YTJobIdLabel] = ToString(jobId);
+
+        // NB: If nvidia container runtime is used, empty list of devices
+        // should be set explicitly to avoid binding all devices to job container.
+        if (Bootstrap_->GetGpuManager()->HasGpuDevices()) {
+            spec->Environment["NVIDIA_VISIBLE_DEVICES"] = "";
+        }
+
+        // Add bind mounts required for user job.
+        for (const auto& bind : rootFS.Binds) {
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bind.TargetPath,
+                .HostPath = bind.SourcePath,
+                .ReadOnly = bind.ReadOnly,
+            });
+        }
+
+        const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
+        if (cpusetCpu != EmptyCpuSet) {
+            spec->Resources.CpusetCpus = cpusetCpu;
+        }
+
+        std::vector<TFuture<void>> results;
+        results.reserve(std::ssize(commands));
+        for (int index = 0; index < std::ssize(commands); ++index) {
+            spec->Name = Format("command-%v-%v", tag, index);
+
+            const auto& command = commands[index];
+            auto process = Executor_->CreateProcess(
+                command->Path,
+                spec,
+                PodDescriptors_[slotIndex],
+                PodSpecs_[slotIndex]);
+            process->AddArguments(command->Args);
+            // TODO(ignat): add envs.
+            process->SetWorkingDirectory("/slot/home");
+
+            results.push_back(
+                BIND([=] {
+                    return process->Spawn();
+                })
+                .AsyncVia(ActionQueue_->GetInvoker())
+                .Run());
+        }
+
+        return AllSucceeded(std::move(results))
+            .Apply(BIND([this, this_ = MakeStrong(this), slotIndex](const TError& error) {
+                Executor_->CleanPodSandbox(PodDescriptors_[slotIndex]);
+                error.ThrowOnError();
+                return std::vector<TShellCommandResult>{};
+            })
+            .AsyncVia(ActionQueue_->GetInvoker()));
+    }
+
+private:
+    static constexpr TStringBuf SlotPodPrefix = "yt_slot_";
+    static constexpr TStringBuf LocalBinDir = "/usr/local/bin";
+
+    const TCriJobEnvironmentConfigPtr ConcreteConfig_;
+    const ICriExecutorPtr Executor_;
+    const ICriImageCachePtr ImageCache_;
+
+    std::vector<TCriPodDescriptorPtr> PodDescriptors_;
+    std::vector<TCriPodSpecPtr> PodSpecs_;
+    std::vector<std::string> SlotCpusetCpus_;
+    double CpuLimit_ = 0;
+    TFuture<void> FirstSlotInitialized_;
+
+    const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
+
+    TContainerGpuConfigPtr GetContainerGpuConfig(const TNonNullPtr<NJobProxy::TJobProxyInternalConfig>& jobProxyConfig) const
+    {
+        if (!Bootstrap_->GetGpuManager()->HasGpuDevices()) {
+            return nullptr;
+        }
+
+        auto config = New<TContainerGpuConfig>();
+
+        if (Bootstrap_->GetGpuManager()->GetGpuFlavor() == EGpuFlavor::Nvidia) {
+            config->NvidiaDriverCapabilities = Bootstrap_
+                ->GetDynamicConfig()
+                ->ExecNode
+                ->GpuManager
+                ->DefaultNvidiaDriverCapabilities;
+            config->NvidiaVisibleDevices = JoinSeq(",", jobProxyConfig->GpuIndexes);
+        }
+
+        auto infinibandDevices = ListInfinibandDevices();
+        config->InfinibandDevices.reserve(infinibandDevices.size());
+        for (auto& infinibandDevice: infinibandDevices) {
+            config->InfinibandDevices.push_back(std::move(infinibandDevice));
+        }
+        return config;
+    }
+
+    TProcessBasePtr CreateJobProxyProcess(
+        const TJobProxyInternalConfigPtr& config,
+        int slotIndex,
+        ESlotType slotType,
+        TJobId jobId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(slotType == ESlotType::Common);
+
+        auto spec = New<NCri::TCriContainerSpec>();
+
+        spec->Name = "job-proxy";
+
+        // Run job proxy in docker image specified for the job.
+        // For now CRI job-environment does not isolate user jobs from job proxy.
+        spec->Image.Image = config->DockerImage.value_or(ConcreteConfig_->JobProxyImage);
+        spec->Image.Id = config->DockerImageId.value_or("");
+
+        spec->Labels[YTJobIdLabel] = ToString(jobId);
+
+        if (config->DoNotSetUserId) {
+            spec->Credentials.Uid = ::getuid();
+        } else {
+            spec->Credentials.Uid = GetUserId(slotIndex);
+            // FIXME(khlebnikov): Use own group or "nogroup"
+        }
+        spec->Credentials.Gid = ::getgid();
+
+        if (!spec->Environment.contains("USER")) {
+            std::string username;
+            if (config->DoNotSetUserId) {
+                username = ::GetUsername();
+            } else {
+                username = Format("%v%v", SlotPodPrefix, slotIndex);
+            }
+            spec->Environment["USER"] = username;
+            spec->Environment["LOGNAME"] = username;
+        }
+
+        // NB: If nvidia container runtime is used, empty list of devices
+        // should be set explicitly to avoid binding all devices to job container.
+        if (auto gpuContainerConfig = GetContainerGpuConfig(config)) {
+            spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
+            spec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
+
+            for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
+                spec->BindDevices.push_back(NCri::TCriBindDevice{
+                    .ContainerPath = devicePath,
+                    .HostPath = devicePath,
+                    .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
+                });
+            }
+
+            if (!gpuContainerConfig->InfinibandDevices.empty()) {
+                YT_TLOG_DEBUG("Binding InfiniBand devices to job container")
+                    .With("Devices", gpuContainerConfig->InfinibandDevices);
+
+                // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
+                // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
+                spec->CapabilitiesToAdd.push_back("IPC_LOCK");
+            }
+        }
+
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = config->SlotPath,
+            .HostPath = config->SlotPath,
+            .ReadOnly = false,
+        });
+
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = "/slot",
+            .HostPath = config->SlotPath,
+            .ReadOnly = false,
+        });
+
+        for (const auto& bind : ConcreteConfig_->JobProxyBindMounts) {
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bind->InternalPath,
+                .HostPath = bind->ExternalPath,
+                .ReadOnly = bind->ReadOnly,
+            });
+        }
+
+        // Add bind mounts required for user job.
+        for (const auto& bind : config->Binds) {
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bind->InternalPath,
+                .HostPath = bind->ExternalPath,
+                .ReadOnly = bind->ReadOnly,
+            });
+        }
+
+        if (!ConcreteConfig_->UseJobProxyFromImage) {
+            auto jobProxyPath = Format("%v/%v", LocalBinDir, JobProxyProgramName);
+            auto execProgramPath = Format("%v/%v", LocalBinDir, ExecProgramName);
+            auto toolsProgramPath = Format("%v/%v", LocalBinDir, ToolsProgramName);
+
+            spec->Command = {jobProxyPath};
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = jobProxyPath,
+                .HostPath = ResolveBinaryPath(JobProxyProgramName).ValueOrThrow(),
+                .ReadOnly = true,
+            });
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = execProgramPath,
+                .HostPath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                .ReadOnly = true,
+            });
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = toolsProgramPath,
+                .HostPath = ResolveBinaryPath(std::string(ToolsProgramName)).ValueOrThrow(),
+                .ReadOnly = true,
+            });
+        }
+
+        // Required for job_proxy to be able to work with the containerd socket.
+        auto processSocketPath = [&spec] (std::string_view socketPath) {
+            if (socketPath.size() >= 7 && socketPath.starts_with("unix")) {
+                socketPath.remove_prefix(7);
+            }
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = std::string(socketPath),
+                .HostPath = std::string(socketPath),
+                .ReadOnly = false,
+            });
+        };
+        processSocketPath(ConcreteConfig_->CriExecutor->ImageEndpoint);
+        processSocketPath(ConcreteConfig_->CriExecutor->RuntimeEndpoint);
+
+#ifdef _linux_
+        const auto& groupName = ConcreteConfig_->ContainerUserGroupName;
+        if (!groupName.empty()) {
+            const auto* groupRetrieved = getgrnam(groupName.c_str());
+            if (groupRetrieved != nullptr) {
+                spec->Credentials.Groups = {groupRetrieved->gr_gid};
+            } else {
+                THROW_ERROR_EXCEPTION("Cannot find user group by the specified name")
+                    .With("container_user_group_name", groupName);
+            }
+        }
+#endif
+
+        spec->Resources.CpuLimit = config->ContainerCpuLimit;
+        spec->Resources.MemoryLimit = config->SlotContainerMemoryLimit;
+
+        const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
+        if (cpusetCpu != EmptyCpuSet) {
+            spec->Resources.CpusetCpus = cpusetCpu;
+        }
+
+        // Allow strace in job shell.
+        spec->CapabilitiesToAdd.push_back("SYS_PTRACE");
+
+        return Executor_->CreateProcess(JobProxyProgramName, spec, PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
+    }
+
+    void UpdateSlotCpuSet(int slotIndex, ESlotType slotType, TStringBuf cpuSet) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        if (slotType != ESlotType::Common) {
+            return;
+        }
+
+        // TODO(gritukan): This is an ugly way to pass cpuset to container spec.
+        // Let's live with it during testing and then refactor.
+        SlotCpusetCpus_[slotIndex] = cpuSet;
+
+        YT_TLOG_DEBUG("Updated slot cpuset")
+            .With("SlotIndex", slotIndex)
+            .With("CpuSet", cpuSet);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJobEnvironmentPtr CreateJobEnvironment(NJobProxy::TJobEnvironmentConfig config, IBootstrap* bootstrap)
+{
+    switch (config.GetType()) {
+        case EJobEnvironmentType::Simple: {
+            return New<TSimpleJobEnvironment>(
+                std::move(config),
+                bootstrap);
+        }
+
+        case EJobEnvironmentType::Porto: {
+#ifdef _linux_
+            return New<TPortoJobEnvironment>(
+                std::move(config),
+                bootstrap);
+#else
+            THROW_ERROR_EXCEPTION("Porto is not supported for this platform");
+#endif
+        }
+
+        case EJobEnvironmentType::Testing: {
+            return New<TTestingJobEnvironment>(
+                std::move(config),
+                bootstrap);
+        }
+
+        case EJobEnvironmentType::Cri: {
+            return New<TCriJobEnvironment>(
+                std::move(config),
+                bootstrap);
+        }
+
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecNode

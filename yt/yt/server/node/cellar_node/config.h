@@ -1,0 +1,189 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/server/node/cluster_node/public.h>
+
+#include <yt/yt/server/lib/cellar_agent/config.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
+
+#include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/yt/core/concurrency/config.h>
+
+namespace NYT::NCellarNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TMemoryLimitsEnumIndexedVector = TEnumIndexedArray<EMemoryCategory, NClusterNode::TMemoryLimitPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMasterConnectorConfig
+    : public NYTree::TYsonStruct
+{
+    //! Period between consequent cellar node heartbeats.
+    TDuration HeartbeatPeriod;
+
+    //! Splay for cellar node heartbeats.
+    TDuration HeartbeatPeriodSplay;
+
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+
+    REGISTER_YSON_STRUCT(TMasterConnectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMasterConnectorDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
+
+    //! Timeout of the cellar node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
+    REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleControllerConnectorDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enable;
+
+    NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
+
+    TDuration HeartbeatTimeout;
+
+    REGISTER_YSON_STRUCT(TBundleControllerConnectorDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleControllerConnectorDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellarNodeDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    NCellarAgent::TCellarManagerDynamicConfigPtr CellarManager;
+
+    TMasterConnectorDynamicConfigPtr MasterConnector;
+
+    TBundleControllerConnectorDynamicConfigPtr BundleControllerConnector;
+
+    std::optional<bool> DeduceProfilingTagFromBundleName;
+
+    REGISTER_YSON_STRUCT(TCellarNodeDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellarNodeDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellarNodeConfig
+    : public NYTree::TYsonStruct
+{
+    NCellarAgent::TCellarManagerConfigPtr CellarManager;
+
+    TMasterConnectorConfigPtr MasterConnector;
+
+    NTransactionSupervisor::TTransactionLeaseTrackerConfigPtr TransactionLeaseTracker;
+
+    bool DeduceProfilingTagFromBundleName;
+
+    REGISTER_YSON_STRUCT(TCellarNodeConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellarNodeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCpuLimits
+    : public NYTree::TYsonStruct
+{
+    std::optional<int> WriteThreadPoolSize;
+    std::optional<int> LookupThreadPoolSize;
+    std::optional<int> QueryThreadPoolSize;
+    std::optional<int> PullRowsThreadPoolSize;
+
+    REGISTER_YSON_STRUCT(TCpuLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCpuLimits)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMemoryLimits
+    : public NYTree::TYsonStruct
+{
+    std::optional<i64> TabletStatic;
+    std::optional<i64> TabletDynamic;
+    std::optional<i64> CompressedBlockCache;
+    std::optional<i64> UncompressedBlockCache;
+    std::optional<i64> KeyFilterBlockCache;
+    std::optional<i64> VersionedChunkMeta;
+    std::optional<i64> LookupRowCache;
+    std::optional<i64> Query;
+
+    TMemoryLimitsEnumIndexedVector AsEnumIndexedVector() const;
+
+    REGISTER_YSON_STRUCT(TMemoryLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimits)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMediumThroughputLimits
+    : public NYTree::TYsonStruct
+{
+    i64 WriteByteRate;
+    i64 ReadByteRate;
+
+    REGISTER_YSON_STRUCT(TMediumThroughputLimits);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumThroughputLimits)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    TCpuLimitsPtr CpuLimits;
+    TMemoryLimitsPtr MemoryLimits;
+    THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+
+    REGISTER_YSON_STRUCT(TBundleDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCellarNode

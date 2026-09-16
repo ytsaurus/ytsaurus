@@ -1,0 +1,693 @@
+#include "store_flusher.h"
+
+#include "bootstrap.h"
+#include "config.h"
+#include "error_manager.h"
+#include "public.h"
+#include "slot_manager.h"
+#include "store_detail.h"
+#include "store_manager.h"
+#include "structured_logger.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
+
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/ytlib/tablet_client/config.h>
+
+#include <yt/yt/ytlib/transaction_client/action.h>
+
+#include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/core/concurrency/thread_pool.h>
+#include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/scheduler.h>
+
+#include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/core/ytree/composite_map.h>
+#include <yt/yt/core/ytree/virtual.h>
+
+namespace NYT::NTabletNode {
+
+using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHydra;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
+using namespace NTabletClient;
+using namespace NTabletNode::NProto;
+using namespace NTabletServer::NProto;
+using namespace NTransactionClient;
+using namespace NYson;
+using namespace NYTree;
+using namespace NTracing;
+using namespace NServer;
+
+using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFlushTaskInfo::TFlushTaskInfo(
+    TGuid taskId,
+    TTabletId tabletId,
+    NHydra::TRevision mountRevision,
+    NYPath::TYPath tablePath,
+    std::string tabletCellBundle,
+    TStoreId storeId)
+    : TBackgroundActivityTaskInfoBase(
+        taskId,
+        tabletId,
+        mountRevision,
+        std::move(tablePath),
+        std::move(tabletCellBundle))
+    , StoreId(storeId)
+{ }
+
+bool TFlushTaskInfo::ComparePendingTasks(const TFlushTaskInfo& other) const
+{
+    return StoreId < other.StoreId;
+}
+
+void Serialize(const TFlushTaskInfo& task, IYsonConsumer* consumer)
+{
+    auto guard = Guard(task.RuntimeData.SpinLock);
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Do([&] (auto fluent) {
+                Serialize(static_cast<const TBackgroundActivityTaskInfoBase&>(task), fluent.GetConsumer());
+            })
+            .Item("store_id").Value(task.StoreId)
+            .Do([&] (auto fluent) {
+                SerializeFragment(task.RuntimeData, fluent.GetConsumer());
+            })
+        .EndMap();
+}
+
+void Serialize(const TFlushTaskInfoPtr& task, IYsonConsumer* consumer)
+{
+    Serialize(*task, consumer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TFlushOrchid = TBackgroundActivityOrchid<TFlushTaskInfo>;
+using TFlushOrchidPtr = TIntrusivePtr<TFlushOrchid>;
+
+DEFINE_REFCOUNTED_TYPE(TFlushOrchid);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFlushTask
+    : public TGuardedTaskInfo<TFlushTaskInfo>
+{
+    const ITabletSlotPtr Slot;
+    TTablet* Tablet;
+    const IDynamicStorePtr Store;
+    const bool OnlyUpdateRowCache;
+
+    TFlushTask(
+        TFlushTaskInfoPtr info,
+        TFlushOrchidPtr orchid,
+        ITabletSlotPtr slot,
+        TTablet* tablet,
+        IDynamicStorePtr store,
+        bool onlyUpdateRowCache)
+        : TGuardedTaskInfo<TFlushTaskInfo>(
+            std::move(info),
+            std::move(orchid))
+        , Slot(std::move(slot))
+        , Tablet(tablet)
+        , Store(std::move(store))
+        , OnlyUpdateRowCache(onlyUpdateRowCache)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStoreFlusher
+    : public IStoreFlusher
+{
+public:
+    explicit TStoreFlusher(IBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+        , Config_(Bootstrap_->GetTabletNodeConfig())
+        , ThreadPool_(CreateThreadPool(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
+        , Semaphore_(New<TProfiledAsyncSemaphore>(
+            Config_->StoreFlusher->MaxConcurrentFlushes,
+            Profiler_.Gauge("/running_store_flushes")))
+        , Orchid_(New<TFlushOrchid>(
+            Bootstrap_->GetTabletNodeDynamicConfig()->StoreFlusher->Orchid,
+            Profiler_))
+        , OrchidService_(CreateOrchidService())
+    {
+        Bootstrap_->SubscribeTabletNodeConfigChanged(BIND_NO_PROPAGATE(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
+    }
+
+    void Start() override
+    {
+        const auto& slotManager = Bootstrap_->GetSlotManager();
+        slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
+        slotManager->SubscribeScanSlot(BIND(&TStoreFlusher::OnScanSlot, MakeStrong(this)));
+        slotManager->SubscribeEndSlotScan(BIND(&TStoreFlusher::OnEndSlotScan, MakeStrong(this)));
+    }
+
+    IYPathServicePtr GetOrchidService() const override
+    {
+        return OrchidService_;
+    }
+
+private:
+    IBootstrap* const Bootstrap_;
+    const TTabletNodeConfigPtr Config_;
+
+    const NProfiling::TProfiler Profiler_ = TabletNodeProfiler().WithPrefix("/store_flusher");
+
+    const IThreadPoolPtr ThreadPool_;
+    const TProfiledAsyncSemaphorePtr Semaphore_;
+
+    const TFlushOrchidPtr Orchid_;
+    IYPathServicePtr OrchidService_;
+
+    NProfiling::TGauge DynamicMemoryUsageActiveCounter_ = Profiler_.WithTag("memory_type", "active").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsagePassiveCounter_ = Profiler_.WithTag("memory_type", "passive").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageBackingCounter_ = Profiler_.WithTag("memory_type", "backing").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageWriteLogsCounter_ = Profiler_.WithTag("memory_type", "write_logs").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageOtherCounter_ = Profiler_.WithTag("memory_type", "other").Gauge("/dynamic_memory_usage");
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    i64 PassiveMemoryUsage_;
+    i64 ActiveMemoryUsage_;
+    i64 BackingMemoryUsage_;
+    i64 WriteLogsMemoryUsage_;
+
+    IYPathServicePtr CreateOrchidService()
+    {
+        return CreateCompositeMapService()
+            ->AddAttribute(EInternedAttributeKey::Opaque, BIND([] (IYsonConsumer* consumer) {
+                NYTree::BuildYsonFluently(consumer)
+                    .Value(true);
+            }))
+            ->AddChild("flush_tasks", IYPathService::FromProducer(
+                BIND(&TFlushOrchid::Serialize, MakeWeak(Orchid_))))
+            ->Via(Bootstrap_->GetControlInvoker());
+    }
+
+    void OnDynamicConfigChanged(
+        const TTabletNodeDynamicConfigPtr& /*oldNodeConfig*/,
+        const TTabletNodeDynamicConfigPtr& newNodeConfig)
+    {
+        const auto& config = newNodeConfig->StoreFlusher;
+        ThreadPool_->SetThreadCount(config->ThreadPoolSize.value_or(Config_->StoreFlusher->ThreadPoolSize));
+        Semaphore_->SetTotal(config->MaxConcurrentFlushes.value_or(Config_->StoreFlusher->MaxConcurrentFlushes));
+        Orchid_->Reconfigure(config->Orchid);
+    }
+
+    void OnBeginSlotScan()
+    {
+        // NB: Strictly speaking, this locking is redundant.
+        auto guard = Guard(SpinLock_);
+        ActiveMemoryUsage_ = 0;
+        PassiveMemoryUsage_ = 0;
+        BackingMemoryUsage_ = 0;
+        WriteLogsMemoryUsage_ = 0;
+
+        Orchid_->OnProfiling();
+    }
+
+    void OnScanSlot(const ITabletSlotPtr& slot)
+    {
+        auto dynamicConfig = Bootstrap_->GetTabletNodeDynamicConfig()->StoreFlusher;
+        if (!dynamicConfig->Enable) {
+            return;
+        }
+
+        bool isLeader = false;
+        switch (slot->GetAutomatonState()) {
+            case EPeerState::Leading:
+                isLeader = true;
+                break;
+
+            case EPeerState::LeaderRecovery:
+            case EPeerState::Following:
+            case EPeerState::FollowerRecovery:
+                isLeader = false;
+                break;
+
+            default:
+                return;
+        }
+
+        const auto& tabletManager = slot->GetTabletManager();
+        for (auto [tabletId, tablet] : tabletManager->Tablets()) {
+            ScanTablet(slot, tablet, isLeader);
+        }
+    }
+
+    void OnEndSlotScan()
+    {
+        const auto& tracker = Bootstrap_->GetNodeMemoryUsageTracker();
+        auto otherUsage = tracker->GetUsed(EMemoryCategory::TabletDynamic) -
+            ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_ - WriteLogsMemoryUsage_;
+
+        DynamicMemoryUsageActiveCounter_.Update(ActiveMemoryUsage_);
+        DynamicMemoryUsagePassiveCounter_.Update(PassiveMemoryUsage_);
+        DynamicMemoryUsageBackingCounter_.Update(BackingMemoryUsage_);
+        DynamicMemoryUsageWriteLogsCounter_.Update(WriteLogsMemoryUsage_);
+        DynamicMemoryUsageOtherCounter_.Update(otherUsage);
+    }
+
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet, bool isLeader)
+    {
+        if (isLeader) {
+            ScanTabletForRotationErrors(tablet);
+        }
+
+        ScanTabletForFlush(slot, tablet);
+        ScanTabletForLookupCacheReallocation(tablet);
+        ScanTabletForMemoryUsage(tablet);
+    }
+
+    void ScanTabletForRotationErrors(TTablet* tablet)
+    {
+        if (tablet->GetDynamicStoreCount() >= DynamicStoreCountLimit) {
+            static constexpr auto Message = "Dynamic store count limit is exceeded"_sb;
+            YT_TLOG_DEBUG(Message)
+                .With("TabletId", tablet->GetId())
+                .With("BackgroundActivity", ETabletBackgroundActivity::Rotation)
+                .With("Limit", DynamicStoreCountLimit);
+            auto error = TError(Message)
+                .With("tablet_id", tablet->GetId())
+                .With("background_activity", ETabletBackgroundActivity::Rotation)
+                .With("limit", DynamicStoreCountLimit);
+            tablet->RuntimeData()->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Rotation].Store(error);
+            return;
+        }
+
+        tablet->RuntimeData()->Errors
+            .BackgroundErrors[ETabletBackgroundActivity::Rotation].Store(TError());
+    }
+
+    void ScanTabletForFlush(const ITabletSlotPtr& slot, TTablet* tablet)
+    {
+        tablet->UpdateUnflushedTimestamp();
+
+        const auto& rowCache = tablet->GetRowCache();
+        if (rowCache && rowCache->GetReallocatingItems()) {
+            return;
+        }
+
+        auto follower = slot->GetAutomatonState() == EPeerState::Following || slot->GetAutomatonState() == EPeerState::FollowerRecovery;
+        if (follower && !rowCache) {
+            return;
+        }
+
+        auto onlyUpdateRowCache = follower;
+
+        std::vector<std::unique_ptr<TFlushTask>> tasks;
+        std::vector<TFlushTaskInfoPtr> pendingTaskInfos;
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            if (!store->IsDynamic()) {
+                continue;
+            }
+
+            auto dynamicStore = store->AsDynamic();
+
+            if (tablet->GetStoreManager()->IsStoreFlushable(dynamicStore)) {
+                auto taskInfo = New<TFlushTaskInfo>(
+                    TGuid::Create(),
+                    tablet->GetId(),
+                    tablet->GetMountRevision(),
+                    tablet->GetTablePath(),
+                    slot->GetTabletCellBundleName(),
+                    storeId);
+
+                tasks.push_back(std::make_unique<TFlushTask>(taskInfo, Orchid_, slot, tablet, std::move(dynamicStore), onlyUpdateRowCache));
+                pendingTaskInfos.push_back(std::move(taskInfo));
+            }
+        }
+        Orchid_->AddPendingTasks(std::move(pendingTaskInfos));
+
+        for (auto&& task : tasks) {
+            ScanStoreForFlush(std::move(task));
+        }
+    }
+
+    void ScanTabletForLookupCacheReallocation(TTablet* tablet)
+    {
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            if (!store->IsDynamic()) {
+                continue;
+            }
+
+            auto dynamicStore = store->AsDynamic();
+            if (dynamicStore->GetFlushState() == EStoreFlushState::Running) {
+                return;
+            }
+        }
+
+        const auto& rowCache = tablet->GetRowCache();
+        if (!rowCache || rowCache->GetReallocatingItems() || !rowCache->GetAllocator()->IsReallocationNeeded()) {
+            return;
+        }
+
+        rowCache->SetReallocatingItems(true);
+
+        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
+            &TStoreFlusher::ReallocateLookupCacheMemory,
+            MakeStrong(this),
+            tablet));
+    }
+
+    void ReallocateLookupCacheMemory(TTablet* tablet)
+    {
+        auto rowCache = tablet->GetRowCache();
+        if (!rowCache) {
+            return;
+        }
+
+        try {
+            auto reallocateResult = BIND(&TRowCache::ReallocateItems, rowCache, Logger())
+                .AsyncVia(ThreadPool_->GetInvoker())
+                .Run();
+
+            WaitFor(reallocateResult)
+                .ThrowOnError();
+
+            rowCache->SetReallocatingItems(false);
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Error reallocating cache memory")
+                .With("TabletId", tablet->GetId())
+                .With(ex);
+        }
+    }
+
+    void ScanTabletForMemoryUsage(TTablet* tablet)
+    {
+        i64 passiveMemoryUsage = 0;
+        i64 activeMemoryUsage = 0;
+        i64 backingMemoryUsage = 0;
+
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+            auto memoryUsage = store->GetDynamicMemoryUsage();
+            switch (store->GetStoreState()) {
+                case EStoreState::PassiveDynamic:
+                    passiveMemoryUsage += memoryUsage;
+                    break;
+
+                case EStoreState::ActiveDynamic:
+                    activeMemoryUsage += memoryUsage;
+                    break;
+
+                case EStoreState::Persistent:
+                    if (auto backingStore = store->AsChunk()->GetBackingStore()) {
+                        backingMemoryUsage += backingStore->GetDynamicMemoryUsage();
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        auto guard = Guard(SpinLock_);
+        PassiveMemoryUsage_ += passiveMemoryUsage;
+        ActiveMemoryUsage_ += activeMemoryUsage;
+        BackingMemoryUsage_ += backingMemoryUsage;
+        WriteLogsMemoryUsage_ += tablet->RuntimeData()->DynamicMemoryUsagePerType[ETabletDynamicMemoryType::WriteLogs].load(
+            std::memory_order::relaxed);
+    }
+
+    void ScanStoreForFlush(std::unique_ptr<TFlushTask> task)
+    {
+        auto* tablet = task->Tablet;
+        const auto& store = task->Store;
+
+        const auto& movementData = tablet->SmoothMovementData();
+        bool isCommonFlush = movementData.CommonDynamicStoreIds().contains(store->GetId());
+        if (!movementData.IsTabletStoresUpdateAllowed(isCommonFlush)) {
+            return;
+        }
+
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
+        if (!tabletSnapshot) {
+            return;
+        }
+
+        auto guard = TAsyncSemaphoreGuard::TryAcquire(Semaphore_);
+        if (!guard) {
+            return;
+        }
+
+        auto state = tablet->GetState();
+        auto flushCallback = tablet->GetStoreManager()->BeginStoreFlush(
+            store,
+            tabletSnapshot,
+            IsInUnmountWorkflow(state),
+            task->OnlyUpdateRowCache);
+
+        tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
+            &TStoreFlusher::FlushStore,
+            MakeStrong(this),
+            Passed(std::move(guard)),
+            flushCallback,
+            Owned(task.release())));
+    }
+
+    void FlushStore(
+        TAsyncSemaphoreGuard /*guard*/,
+        TStoreFlushCallback flushCallback,
+        TFlushTask* task)
+    {
+        auto* tablet = task->Tablet;
+        auto tabletId = tablet->GetId();
+        auto writerProfiler = New<TWriterProfiler>();
+        const auto& slot = task->Slot;
+        const auto& store = task->Store;
+        const auto& storeManager = tablet->GetStoreManager();
+
+        auto Logger = TabletNodeLogger()
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("StoreId", store->GetId());
+
+        auto traceId = task->Info->TaskId;
+        auto traceContext = TTraceContext::NewRoot("StoreFlusher", traceId);
+        TTraceContextGuard traceContextGuard(traceContext);
+
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+        auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
+        if (!tabletSnapshot) {
+            YT_TLOG_DEBUG("Tablet snapshot is missing, aborting flush");
+            storeManager->BackoffStoreFlush(store);
+            return;
+        }
+
+        PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::StoreFlush, tabletSnapshot);
+
+        task->OnStarted();
+        try {
+            NProfiling::TWallTimer timer;
+
+            YT_TLOG_INFO("Store flush started");
+
+            auto transactionAttributes = CreateEphemeralAttributes();
+            transactionAttributes->Set("title", Format("Store flush: table %v, store %v, tablet %v",
+                tabletSnapshot->TablePath,
+                store->GetId(),
+                tabletId));
+            TTransactionStartOptions transactionOptions;
+            transactionOptions.AutoAbort = false;
+            transactionOptions.Attributes = std::move(transactionAttributes);
+            transactionOptions.CoordinatorMasterCellTag = CellTagFromId(tablet->GetId());
+            transactionOptions.ReplicateToMasterCellTags = {};
+            transactionOptions.StartCypressTransaction = false;
+
+            auto asyncTransaction = Bootstrap_->GetClient()->StartNativeTransaction(
+                NTransactionClient::ETransactionType::Master,
+                transactionOptions);
+            auto transaction = WaitFor(asyncTransaction)
+                .ValueOrThrow();
+
+            const auto& mountConfig = tablet->GetSettings().MountConfig;
+            auto currentTimestamp = transaction->GetStartTimestamp();
+            auto retainedTimestamp = CalculateRetainedTimestamp(currentTimestamp, mountConfig->MinDataTtl);
+
+            YT_TLOG_INFO("Store flush transaction created")
+                .With("TransactionId", transaction->GetId());
+
+            tablet->GetStructuredLogger()->LogEvent("start_flush")
+                .Item("store_id").Value(store->GetId())
+                .Item("tablet_id").Value(tablet->GetId())
+                .Item("transaction_id").Value(transaction->GetId())
+                .Item("trace_id").Value(traceId);
+
+            auto throttler = Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletStoreFlush);
+
+            auto asyncFlushResult = BIND(flushCallback)
+                .AsyncVia(ThreadPool_->GetInvoker())
+                .Run(transaction, std::move(throttler), currentTimestamp, writerProfiler, task->Info);
+
+            auto flushResult = WaitFor(asyncFlushResult)
+                .ValueOrThrow();
+
+            tablet->ThrottleTabletStoresUpdate(slot, Logger());
+
+            if (RandomNumber<double>() < mountConfig->Testing.FlushFailureProbability) {
+                THROW_ERROR_EXCEPTION("Store flush failed for testing purposes");
+            }
+
+            NTabletServer::NProto::TReqUpdateTabletStores updateTabletStoresReq;
+            ToProto(updateTabletStoresReq.mutable_tablet_id(), tabletId);
+            updateTabletStoresReq.set_mount_revision(ToProto(tablet->GetMountRevision()));
+            for (auto& descriptor : flushResult.StoresToAdd) {
+                *updateTabletStoresReq.add_stores_to_add() = std::move(descriptor);
+            }
+            for (auto& descriptor : flushResult.HunkChunksToAdd) {
+                *updateTabletStoresReq.add_hunk_chunks_to_add() = std::move(descriptor);
+            }
+            if (tablet->IsPhysicallySorted()) {
+                if (flushResult.StoresToAdd.empty()) {
+                    ToProto(updateTabletStoresReq.mutable_unleashed_backing_store_id(), store->GetId());
+                }
+
+                updateTabletStoresReq.set_conflict_horizon_timestamp(ToProto(store->GetMaxTimestamp()));
+            }
+
+            updateTabletStoresReq.set_create_hunk_chunks_during_prepare(true);
+
+            ToProto(updateTabletStoresReq.add_stores_to_remove()->mutable_store_id(), store->GetId());
+            updateTabletStoresReq.set_update_reason(ToProto(ETabletStoresUpdateReason::Flush));
+
+            // If dynamic stores for an ordered tablet are requested both with flush and
+            // via AllocateDynamicStore, reordering is possible and dynamic stores will
+            // occur in different order at master and at node.
+            // See YT-15197.
+            bool shouldRequestDynamicStoreId = tabletSnapshot->Settings.MountConfig->EnableDynamicStoreRead &&
+                tabletSnapshot->PhysicalSchema->IsSorted();
+
+            if (shouldRequestDynamicStoreId) {
+                int potentialDynamicStoreCount = tablet->GetUnreservedDynamicStoreIdCount() + tablet->GetDynamicStoreCount();
+
+                // NB: Race is possible here. Consider a tablet with an active store, two passive
+                // dynamic stores and empty pool. If both passive stores are flushed concurrently
+                // then both of them might fill transaction actions when there are three dynamic
+                // stores. Hence dynamic store id will not be requested and the pool will remain
+                // empty after the flush.
+                //
+                // However, this is safe because dynamic store id will be requested upon rotation
+                // and the tablet will have two dynamic stores as usual.
+                if (potentialDynamicStoreCount <= DynamicStoreIdPoolSize) {
+                    updateTabletStoresReq.set_request_dynamic_store_id(true);
+                    YT_TLOG_DEBUG("Dynamic store id requested with flush")
+                        .With("PotentialDynamicStoreCount", potentialDynamicStoreCount);
+                }
+            }
+
+            if (tabletSnapshot->Settings.MountConfig->MergeRowsOnFlush) {
+                updateTabletStoresReq.set_retained_timestamp(ToProto(retainedTimestamp));
+            }
+
+            tablet->GetStructuredLogger()->LogEvent("end_flush")
+                .Item("store_id").Value(store->GetId())
+                .Item("tablet_id").Value(tablet->GetId())
+                .Item("store_ids_to_add")
+                    .BeginList()
+                        .DoFor(flushResult.StoresToAdd, [] (TFluentList fluent, const TAddStoreDescriptor& descriptor) {
+                            fluent
+                                .Item().Value(FromProto<TStoreId>(descriptor.store_id()));
+                        })
+                    .EndList()
+                .Item("hunk_ids_to_add")
+                    .BeginList()
+                        .DoFor(flushResult.HunkChunksToAdd, [] (TFluentList fluent, const TAddHunkChunkDescriptor& descriptor) {
+                            fluent
+                                .Item().Value(FromProto<TChunkId>(descriptor.chunk_id()));
+                        })
+                    .EndList()
+                .Item("trace_id").Value(traceId);
+
+            if (!task->OnlyUpdateRowCache) {
+                auto actionData = MakeTransactionActionData(updateTabletStoresReq);
+                auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
+                transaction->AddAction(masterCellId, actionData);
+                transaction->AddAction(slot->GetCellId(), actionData);
+
+                const auto& tabletManager = slot->GetTabletManager();
+                WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
+                    .ThrowOnError();
+            }
+
+            storeManager->EndStoreFlush(store);
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Flush].Store(TError());
+
+            YT_TLOG_INFO("Store flush completed")
+                .With("WallTime", timer.GetElapsedTime());
+        } catch (const std::exception& ex) {
+            static constexpr auto Message = "Error flushing tablet store, backing off"_sb;
+            auto error = TError(Message)
+                .With("tablet_id", tabletId)
+                .With("background_activity", ETabletBackgroundActivity::Flush)
+                .With(ex);
+
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Flush].Store(error);
+            YT_TLOG_ERROR(Message)
+                .With("TabletId", tabletId)
+                .With("BackgroundActivity", ETabletBackgroundActivity::Flush)
+                .With(ex);
+
+            storeManager->BackoffStoreFlush(store);
+
+            Bootstrap_->GetErrorManager()->HandleError(error, "Flush", tabletSnapshot);
+
+            task->OnFailed(std::move(error));
+        }
+
+        writerProfiler->Profile(
+            tabletSnapshot,
+            EChunkWriteProfilingMethod::StoreFlush,
+            task->IsFailed());
+    }
+};
+
+IStoreFlusherPtr CreateStoreFlusher(IBootstrap* bootstrap)
+{
+    return New<TStoreFlusher>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

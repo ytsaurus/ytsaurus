@@ -1,0 +1,40 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/ytlib/hive/public.h>
+
+#include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/core/concurrency/public.h>
+
+#include <yt/yt/core/ytree/fluent.h>
+
+namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct ITablePuller
+    : public TRefCounted
+{
+    virtual void Enable() = 0;
+    virtual void Disable() = 0;
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ITablePuller)
+
+ITablePullerPtr CreateTablePuller(
+    TTabletManagerConfigPtr config,
+    TTablet* tablet,
+    IAlienClusterClientCachePtr replicatorClientCache,
+    ITabletSlotPtr slot,
+    ITabletSnapshotStorePtr tabletSnapshotStore,
+    IInvokerPtr workerInvoker,
+    NConcurrency::IThroughputThrottlerPtr nodeInThrottler,
+    IMemoryUsageTrackerPtr memoryTracker,
+    IErrorManagerPtr errorManager);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

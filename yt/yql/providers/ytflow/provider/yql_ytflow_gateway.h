@@ -7,6 +7,8 @@
 #include <yql/essentials/core/yql_user_data.h>
 #include <yql/essentials/providers/common/gateway/yql_provider_gateway.h>
 
+#include <yt/yql/providers/yt/lib/yt_token_resolver/yt_token_resolver.h>
+
 #include <library/cpp/threading/future/future.h>
 
 #include <util/generic/maybe.h>
@@ -51,6 +53,8 @@ public:
         OPTION_FIELD(TString, SessionId);
         OPTION_FIELD(TOperationProgressWriter, OperationProgressWriter);
         OPTION_FIELD(TYqlOperationOptions, OperationOptions);
+        OPTION_FIELD(TCredentials::TPtr, Credentials);
+        OPTION_FIELD(IYtTokenResolver::TPtr, YtTokenResolver);
     };
 
     struct TCloseSessionOptions {

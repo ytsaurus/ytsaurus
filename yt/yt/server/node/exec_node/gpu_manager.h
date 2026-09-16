@@ -1,0 +1,205 @@
+#pragma once
+
+#include "artifact.h"
+#include "public.h"
+
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/yt/server/node/cluster_node/public.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/exec_node/gpu_helpers.h>
+
+#include <yt/yt/library/gpu/gpu_info_provider.h>
+
+#include <yt/yt/client/hydra/public.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGpuSlot
+    : public NClusterNode::ISlot
+{
+public:
+    TGpuSlot(
+        TGpuManagerPtr manager,
+        int deviceIndex,
+        std::string deviceName);
+
+    std::string GetDeviceName() const;
+    int GetDeviceIndex() const;
+
+    void ResetState() override;
+
+    ~TGpuSlot();
+
+private:
+    const TGpuManagerPtr Manager_;
+    const int DeviceIndex_;
+    const std::string DeviceName_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuSlot)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuStatistics
+{
+    i64 CumulativeUtilizationGpu = 0;
+    i64 CumulativeUtilizationMemory = 0;
+    i64 CumulativeMemory = 0;
+    i64 CumulativeMemoryMBSec = 0;
+    i64 MaxMemoryUsed = 0;
+    // Index of microseconds when GPU was busy.
+    i64 CumulativeLoad = 0;
+    i64 CumulativeUtilizationPower = 0;
+    i64 CumulativePower = 0;
+    i64 CumulativeUtilizationClocksSM = 0;
+    i64 CumulativeSMClocks = 0;
+    i64 CumulativeSMUtilization = 0;
+    i64 CumulativeSMOccupancy = 0;
+    i64 NvlinkRxBytes = 0;
+    i64 NvlinkTxBytes = 0;
+    i64 PcieRxBytes = 0;
+    i64 PcieTxBytes = 0;
+    i64 MaxStuckDuration = 0;
+    i64 CumulativeTensorActivity = 0;
+    i64 CumulativeDramActivity = 0;
+    TEnumIndexedArray<NGpu::ESlowdownType, i64> CumulativeSlowdowns;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistics, TStringBuf /*format*/);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRdmaStatistics
+{
+    i64 RxByteRate = 0.0;
+    i64 TxByteRate = 0.0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+ * \note
+ * Thread affinity: any
+ */
+class TGpuManager
+    : public TRefCounted
+{
+public:
+    explicit TGpuManager(IBootstrap* bootstrap);
+
+    void Start();
+
+    int GetTotalGpuCount() const;
+    int GetFreeGpuCount() const;
+    int GetUsedGpuCount() const;
+    bool HasGpuDevices() const;
+
+    std::vector<TGpuDeviceDescriptor> GetGpuDevices() const;
+    int GetGpuDeviceCount() const;
+    THashMap<int, NGpu::TGpuInfo> GetGpuInfoMap() const;
+
+    std::vector<NGpu::TRdmaDeviceInfo> GetRdmaDevices() const;
+
+    TErrorOr<TGpuSlotPtr> AcquireGpuSlot();
+
+    TErrorOr<std::vector<TGpuSlotPtr>> AcquireGpuSlots(int slotCount);
+
+    std::vector<TShellCommandConfigPtr> GetSetupCommands();
+    std::vector<TArtifactKey> GetToppingLayers();
+    void VerifyCudaToolkitDriverVersion(const std::string& toolkitVersion);
+
+    std::vector<std::string> GetRequiredHostPaths() const;
+
+    void ReleaseGpuSlot(int deviceIndex);
+
+    NYTree::IYPathServicePtr GetOrchidService() const;
+
+    void OnDynamicConfigChanged(
+        const TGpuManagerDynamicConfigPtr& oldConfig,
+        const TGpuManagerDynamicConfigPtr& newConfig);
+
+    void ApplyNetworkPriority(std::optional<NGpu::TNetworkPriority> networkPriority);
+
+    bool ShouldTestResource() const;
+    bool ShouldTestExtraGpuCheckCommandFailure() const;
+    bool ShouldTestLayers() const;
+    bool ShouldTestSetupCommands() const;
+    EGpuFlavor GetGpuFlavor() const;
+
+private:
+    static inline const NGpu::TNetworkPriority DefaultNetworkPriority = 0;
+
+    IBootstrap* const Bootstrap_;
+    const TGpuManagerConfigPtr StaticConfig_;
+    TAtomicIntrusivePtr<TGpuManagerDynamicConfig> DynamicConfig_;
+
+    const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr RdmaDeviceInfoUpdateExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr TestGpuInfoUpdateExecutor_;
+
+    std::atomic<int> GpuDeviceCount_ = 0;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    THashMap<int, NGpu::TGpuInfo> HealthyGpuInfoMap_;
+    THashSet<int> GpuDeviceIndices_;
+    THashSet<int> LostGpuDeviceIndices_;
+    std::vector<TGpuDeviceDescriptor> GpuDevices_;
+
+    std::vector<NGpu::TRdmaDeviceInfo> RdmaDevices_;
+
+    bool HasGpuDevices_ = false;
+
+    THashSet<int> AcquiredGpuDeviceIndices_;
+    std::vector<int> FreeSlots_;
+
+    bool Enabled_ = true;
+
+    // Error for problems with GPU discovery.
+    TError Error_;
+
+    // Alerts for concrete GPU devices.
+    std::vector<TError> Alerts_;
+
+    TInstant BannedDeadline_ = TInstant::Zero();
+
+    NYPath::TYPath DriverLayerPath_;
+    NHydra::TRevision DriverLayerRevision_ = NHydra::NullRevision;
+    std::optional<TArtifactKey> DriverLayerKey_;
+    std::string DriverVersionString_;
+    TAtomicIntrusivePtr<NGpu::IGpuInfoProvider> GpuInfoProvider_;
+    NGpu::TNetworkPriority CurrentNetworkPriority_ = DefaultNetworkPriority;
+
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    TDuration GetHealthCheckTimeout() const;
+    TDuration GetHealthCheckFailureBackoff() const;
+    THashMap<std::string, std::string> GetCudaToolkitMinDriverVersion() const;
+
+    void OnHealthCheck();
+    void OnFetchDriverLayerInfo();
+    bool IsDriverLayerMissing() const;
+    void PopulateAlerts(std::vector<TError>* alerts) const;
+
+    void OnRdmaDeviceInfoUpdate();
+
+    void OnTestGpuInfoUpdate();
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
+
+    bool ShouldDiscoverNewGpuDevices() const;
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecNode

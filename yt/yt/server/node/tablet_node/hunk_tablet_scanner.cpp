@@ -1,0 +1,499 @@
+#include "hunk_tablet_scanner.h"
+
+#include "private.h"
+#include "bootstrap.h"
+#include "hunk_tablet.h"
+#include "hunk_tablet_manager.h"
+#include "hunk_store.h"
+#include "tablet_slot.h"
+
+#include <yt/yt/server/lib/security_server/resource_limits_manager.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/yt/ytlib/object_client/helpers.h>
+
+#include <yt/yt/ytlib/transaction_client/action.h>
+
+namespace NYT::NTabletNode {
+
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NObjectClient;
+using namespace NTracing;
+using namespace NTransactionClient;
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto TransactionCommitLocalWaitTime = TDuration::MilliSeconds(100);
+static constexpr auto TransactionCommitTotalWaitTime = TDuration::Minutes(5);
+
+const TErrorAttribute OmitBackingOffAttribute("omit_backing_off", true);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class THunkTabletScanner
+    : public IHunkTabletScanner
+{
+public:
+    THunkTabletScanner(
+        IBootstrap* bootstrap,
+        ITabletSlotPtr tabletSlot)
+        : Bootstrap_(bootstrap)
+        , TabletSlot_(MakeWeak(tabletSlot))
+    { }
+
+    void Scan(THunkTablet* tablet) override
+    {
+        auto tabletSlot = TabletSlot_.Lock();
+        if (!tabletSlot) {
+            return;
+        }
+
+        TScanSession(Bootstrap_, tabletSlot, tablet).Run();
+    }
+
+private:
+    class TScanSession
+    {
+    public:
+        TScanSession(
+            IBootstrap* bootstrap,
+            ITabletSlotPtr tabletSlot,
+            THunkTablet* tablet)
+            : Bootstrap_(bootstrap)
+            , TabletSlot_(std::move(tabletSlot))
+            , Tablet_(tablet)
+            , Logger(TabletNodeLogger().WithTag("TabletId", Tablet_->GetId()))
+        { }
+
+        void Run()
+        {
+            // Do not run concurrent scans.
+            if (!Tablet_->TryLockScan()) {
+                return;
+            }
+
+            TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("HunkTabletScanner"));
+
+            auto unlockGuard = Finally([&] {
+                Tablet_->UnlockScan();
+            });
+
+            YT_TLOG_DEBUG("Scanning hunk tablet");
+
+            auto scanBackoffInstant = Tablet_->GetScanBackoffInstant();
+            if (TInstant::Now() < scanBackoffInstant) {
+                YT_TLOG_DEBUG("Scan of tablet is backed off")
+                    .With("TabletId", Tablet_->GetId())
+                    .With("RemainingBackoffTime", (scanBackoffInstant - TInstant::Now()).Seconds());
+                Tablet_->Profiler()->GetHunkTabletScannerCounters()->FailedScanCount.Increment(1);
+                return;
+            }
+
+            try {
+                CheckNoTransactionLock();
+
+                MaybeAllocateStores();
+                MaybeRotateActiveStore();
+                MarkPassiveStoresAsSealable();
+                MaybeRemoveStores();
+            } catch (const std::exception& ex) {
+                TError error(ex);
+                auto omitBackingOff = error.Attributes().Get<bool>("omit_backing_off", false);
+                if (!omitBackingOff) {
+                    Tablet_->SetScanBackoffInstant(TInstant::Now() + Tablet_->MountConfig()->ScanBackoffPeriod);
+                }
+
+                YT_TLOG_ERROR("Failed to scan hunk tablet")
+                    .With(error);
+
+                Tablet_->Profiler()->GetHunkTabletScannerCounters()->FailedScanCount.Increment(1);
+            }
+        }
+
+    private:
+        IBootstrap* const Bootstrap_;
+        const ITabletSlotPtr TabletSlot_;
+        THunkTablet* const Tablet_;
+
+        const NLogging::TLogger Logger;
+
+        void CheckNoTransactionLock() const
+        {
+            // NB: This is not critical for correctness. We wait until previously scheduled transactions are committed.
+            // Such reordering may happen if after cell recovery some 2PC, started on previous iteration, has not finished yet
+            // or if previous scan iteration has failed (i.g. due to timeouts to master) but has scheduled a transaction.
+            if (auto transactionId = Tablet_->GetLockTransactionId()) {
+                THROW_ERROR_EXCEPTION("Tablet is already locked by transaction")
+                    .With("transaction_id", transactionId)
+                    .With(OmitBackingOffAttribute);
+            }
+        }
+
+        void MaybeAllocateStores()
+        {
+            if (Tablet_->GetState() != ETabletState::Mounted) {
+                return;
+            }
+
+            const auto& mountConfig = Tablet_->MountConfig();
+            auto desiredAllocatedStoreCount = mountConfig->DesiredAllocatedStoreCount;
+
+            int storesToAllocate = 0;
+            auto allocatedStoreCount = std::ssize(Tablet_->AllocatedStores());
+            if (allocatedStoreCount < desiredAllocatedStoreCount) {
+                storesToAllocate += desiredAllocatedStoreCount - allocatedStoreCount;
+            }
+
+            if (!Tablet_->GetActiveStore()) {
+                ++storesToAllocate;
+            }
+
+            AllocateStores(storesToAllocate);
+        }
+
+        void MaybeRotateActiveStore()
+        {
+            if (Tablet_->GetState() != ETabletState::Mounted) {
+                return;
+            }
+
+            bool needToRotateActiveStore = false;
+
+            auto activeStore = Tablet_->GetActiveStore();
+            if (activeStore) {
+                const auto& mountConfig = Tablet_->MountConfig();
+                const auto& writerConfig = Tablet_->StoreWriterConfig();
+
+                const auto& writer = activeStore->GetWriter();
+                auto writerStatistics = writer->GetStatistics();
+                if (writerStatistics.HunkCount >= writerConfig->DesiredHunkCountPerChunk) {
+                    YT_TLOG_DEBUG("Rotating active store since there are too many hunks in chunk")
+                        .With("StoreId", activeStore->GetId())
+                        .With("HunkCount", writerStatistics.HunkCount)
+                        .With("DesiredHunkCount", writerConfig->DesiredHunkCountPerChunk);
+
+                    needToRotateActiveStore = true;
+                } else if (writerStatistics.TotalSize >= writerConfig->DesiredChunkSize) {
+                    YT_TLOG_DEBUG("Rotating active store since active store is too large")
+                        .With("StoreId", activeStore->GetId())
+                        .With("StoreSize", writerStatistics.TotalSize)
+                        .With("DesiredChunkSize", writerConfig->DesiredChunkSize);
+
+                    needToRotateActiveStore = true;
+                } else if (activeStore->GetCreationTime() + mountConfig->StoreRotationPeriod < TInstant::Now()) {
+                    YT_TLOG_DEBUG("Rotating active store since active store is too old")
+                        .With("StoreId", activeStore->GetId())
+                        .With("StoreCreationInstant", activeStore->GetCreationTime())
+                        .With("StoreRotationPeriod", mountConfig->StoreRotationPeriod);
+
+                    needToRotateActiveStore = true;
+                } else if (writer->IsCloseDemanded()) {
+                    YT_TLOG_DEBUG("Rotating active store since writer close is demanded")
+                        .With("StoreId", activeStore->GetId());
+
+                    needToRotateActiveStore = true;
+                }
+            } else {
+                YT_TLOG_DEBUG("Rotating active store since there is no active store");
+
+                needToRotateActiveStore = true;
+            }
+
+            if (!needToRotateActiveStore) {
+                return;
+            }
+
+            if (Tablet_->AllocatedStores().empty()) {
+                YT_TLOG_DEBUG("Cannot rotate active store since there are no allocated stores; allocating new store");
+
+                AllocateStores(/*storeCount*/ 1);
+            }
+
+            // NB: Active store could have been changed during stores allocation.
+            if (!Tablet_->GetActiveStore() || Tablet_->GetActiveStore() == activeStore) {
+                Tablet_->RotateActiveStore();
+                Tablet_->Profiler()->GetHunkTabletScannerCounters()->StoreRotationCount.Increment(1);
+            }
+        }
+
+        void MarkPassiveStoresAsSealable()
+        {
+            std::vector<TStoreId> storeIdsToMarkSealable;
+            for (const auto& store : Tablet_->PassiveStores()) {
+                // NB: Wait until store is closed, because sealing forcefully closes write sessions.
+                if (store->IsClosing()) {
+                    continue;
+                }
+
+                if (!store->GetMarkedSealable()) {
+                    YT_TLOG_DEBUG("Passive store is not marked as sealable; marking")
+                        .With("StoreId", store->GetId());
+
+                    storeIdsToMarkSealable.push_back(store->GetId());
+                }
+            }
+
+            if (storeIdsToMarkSealable.empty()) {
+                return;
+            }
+
+            auto actionRequest = MakeActionRequest();
+            for (auto storeId : storeIdsToMarkSealable) {
+                auto* storeToMarkSealable = actionRequest.add_stores_to_mark_sealable();
+                ToProto(storeToMarkSealable->mutable_store_id(), storeId);
+            }
+
+            auto transaction = CreateTransaction();
+            AddTransactionAction(transaction, actionRequest);
+            CommitTransaction(transaction);
+
+            Tablet_->Profiler()->GetHunkTabletScannerCounters()->StoreSealCount.Increment(storeIdsToMarkSealable.size());
+        }
+
+        void MaybeRemoveStores()
+        {
+            const auto& mountConfig = Tablet_->MountConfig();
+
+            std::vector<TStoreId> storeIdsToRemove;
+            auto state = Tablet_->GetState();
+            for (const auto& store : Tablet_->PassiveStores()) {
+                if (store->IsLocked()) {
+                    continue;
+                }
+
+                if (!store->GetMarkedSealable()) {
+                    continue;
+                }
+
+                if (store->GetLastWriteTime() + mountConfig->StoreRemovalGracePeriod > TInstant::Now() &&
+                    state == ETabletState::Mounted)
+                {
+                    continue;
+                }
+
+                YT_TLOG_DEBUG("Removing hunk store")
+                    .With("StoreId", store->GetId());
+
+                storeIdsToRemove.push_back(store->GetId());
+            }
+
+            if (storeIdsToRemove.empty()) {
+                return;
+            }
+
+            auto actionRequest = MakeActionRequest();
+            for (auto storeId : storeIdsToRemove) {
+                auto* storeToRemove = actionRequest.add_stores_to_remove();
+                ToProto(storeToRemove->mutable_store_id(), storeId);
+            }
+
+            auto transaction = CreateTransaction();
+            AddTransactionAction(transaction, actionRequest);
+            CommitTransaction(transaction);
+
+            Tablet_->Profiler()->GetHunkTabletScannerCounters()->StoreRemovalCount.Increment(storeIdsToRemove.size());
+        }
+
+        NApi::NNative::ITransactionPtr CreateTransaction()
+        {
+            YT_TLOG_DEBUG("Creating hunk tablet stores update transaction");
+
+            auto transactionAttributes = CreateEphemeralAttributes();
+            transactionAttributes->Set("title", Format("Updating stores of tablet %v",
+                Tablet_->GetId()));
+
+            NApi::TTransactionStartOptions transactionOptions;
+            transactionOptions.Attributes = std::move(transactionAttributes);
+            transactionOptions.CoordinatorMasterCellTag = CellTagFromId(Tablet_->GetId());
+            transactionOptions.ReplicateToMasterCellTags = TCellTagList();
+            transactionOptions.StartCypressTransaction = false;
+            auto asyncTransaction = Bootstrap_->GetClient()->StartNativeTransaction(
+                NTransactionClient::ETransactionType::Master,
+                transactionOptions);
+            auto transaction = WaitFor(asyncTransaction)
+                .ValueOrThrow();
+
+            YT_TLOG_DEBUG("Hunk tablet stores update transaction created")
+                .With("TransactionId", transaction->GetId());
+
+            return transaction;
+        }
+
+        void CommitTransaction(const NApi::NNative::ITransactionPtr& transaction)
+        {
+            NApi::TTransactionCommitOptions commitOptions{
+                .GeneratePrepareTimestamp = false,
+            };
+            WaitFor(transaction->Commit(commitOptions))
+                .ThrowOnError();
+
+            YT_TLOG_DEBUG("Will wait for transaction to unlock tablet")
+                .With("TransactionId", transaction->GetId());
+
+            auto waitStartInstant = TInstant::Now();
+
+            // NB: Because of eager commit mode we want to ensure local state has actually changed after transaction commit.
+            while (TInstant::Now() - waitStartInstant < TransactionCommitTotalWaitTime) {
+                auto lockTransactionId = Tablet_->GetLockTransactionId();
+                if (lockTransactionId == transaction->GetId()) {
+                    TDelayedExecutor::WaitForDuration(TransactionCommitLocalWaitTime);
+                } else if (lockTransactionId) {
+                    THROW_ERROR_EXCEPTION("Hunk tablet scanner encountered lock from unexpected transaction")
+                        .With("expected_transaction_id", transaction->GetId())
+                        .With("actual_transaction_id", lockTransactionId)
+                        .With(OmitBackingOffAttribute);
+                } else {
+                    YT_TLOG_DEBUG("Finished waiting for transaction to unlock tablet");
+                    return;
+                }
+            }
+
+            static constexpr auto Message = "Aborting hunk tablet scan"_sb;
+            YT_TLOG_ALERT(Message)
+                .With("TransactionId", transaction->GetId());
+            auto error = TError(Message)
+                .With("transaction_id", transaction->GetId());
+            THROW_ERROR_EXCEPTION(error);
+        }
+
+        void AllocateStores(int storeCount)
+        {
+            try {
+                DoAllocateStores(storeCount);
+            } catch (const std::exception& ex) {
+                auto error = TError(NTabletClient::EErrorCode::HunkStoreAllocationFailed,
+                    "Hunk tablet scanner failed to allocate stores")
+                    .With(ex);
+                Tablet_->OnStoreAllocationFailed(error);
+                THROW_ERROR(error);
+            }
+        }
+
+        void DoAllocateStores(int storeCount)
+        {
+            if (storeCount == 0) {
+                return;
+            }
+
+            YT_TLOG_DEBUG("Allocating stores for hunk tablet")
+                .With("StoreCount", storeCount);
+
+            const auto& writerOptions = Tablet_->StoreWriterOptions();
+            const auto& resourceLimitsManager = TabletSlot_->GetResourceLimitsManager();
+            resourceLimitsManager->ValidateResourceLimits(
+                writerOptions->Account,
+                writerOptions->MediumName);
+
+            auto transaction = CreateTransaction();
+            auto actionRequest = MakeActionRequest();
+            auto chunkIds = DoCreateChunks(transaction->GetId(), storeCount);
+            for (auto chunkId : chunkIds) {
+                auto* storeToAdd = actionRequest.add_stores_to_add();
+                ToProto(storeToAdd->mutable_session_id(), chunkId);
+            }
+
+            AddTransactionAction(transaction, actionRequest);
+            CommitTransaction(transaction);
+
+            Tablet_->Profiler()->GetHunkTabletScannerCounters()->StoreAllocationCount.Increment(chunkIds.size());
+        }
+
+        std::vector<TSessionId> DoCreateChunks(
+            TTransactionId transactionId,
+            int chunkCount)
+        {
+            const auto& writerOptions = Tablet_->StoreWriterOptions();
+
+            auto masterChannel = Bootstrap_->GetClient()->GetMasterChannelOrThrow(
+                NApi::EMasterChannelKind::Leader,
+                /*cellTag*/ CellTagFromId(Tablet_->GetId()));
+            TChunkServiceProxy proxy(masterChannel);
+
+            NProfiling::TEventTimerGuard timingGuard(Tablet_->Profiler()->GetJournalWriterCounters()->CreateChunkTimer);
+
+            std::vector<TSessionId> chunkIds;
+            chunkIds.reserve(chunkCount);
+
+            std::vector<TFuture<TChunkServiceProxy::TRspCreateChunkPtr>> futures;
+            futures.reserve(chunkCount);
+            for (int index = 0; index < chunkCount; ++index) {
+                auto req = proxy.CreateChunk();
+                GenerateMutationId(req);
+                auto chunkType = writerOptions->ErasureCodec == NErasure::ECodec::None
+                    ? EObjectType::JournalChunk
+                    : EObjectType::ErasureJournalChunk;
+
+                req->set_type(ToProto(chunkType));
+                req->set_account(writerOptions->Account);
+                ToProto(req->mutable_transaction_id(), transactionId);
+                req->set_replication_factor(writerOptions->ReplicationFactor);
+                req->set_erasure_codec(ToProto(writerOptions->ErasureCodec));
+                req->set_medium_name(writerOptions->MediumName);
+                req->set_read_quorum(writerOptions->ReadQuorum);
+                req->set_write_quorum(writerOptions->WriteQuorum);
+                req->set_movable(true);
+                req->set_vital(true);
+
+                futures.push_back(req->Invoke());
+            }
+
+            auto rspsOrError = WaitFor(AllSucceeded(std::move(futures)));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspsOrError,
+                "Error creating chunks");
+
+            const auto& rsps = rspsOrError.Value();
+            for (const auto& rsp : rsps) {
+                chunkIds.push_back(FromProto<TSessionId>(rsp->session_id()));
+            }
+            return chunkIds;
+        }
+
+        NTabletServer::NProto::TReqUpdateHunkTabletStores MakeActionRequest()
+        {
+            NTabletServer::NProto::TReqUpdateHunkTabletStores actionRequest;
+            ToProto(actionRequest.mutable_tablet_id(), Tablet_->GetId());
+            actionRequest.set_mount_revision(ToProto(Tablet_->GetMountRevision()));
+
+            return actionRequest;
+        }
+
+        void AddTransactionAction(
+            const NApi::NNative::ITransactionPtr& transaction,
+            const NTabletServer::NProto::TReqUpdateHunkTabletStores& action)
+        {
+            auto actionData = MakeTransactionActionData(action);
+            auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(Tablet_->GetId()));
+            transaction->AddAction(masterCellId, actionData);
+            transaction->AddAction(TabletSlot_->GetCellId(), actionData);
+        }
+    };
+
+    IBootstrap* const Bootstrap_;
+    const TWeakPtr<ITabletSlot> TabletSlot_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IHunkTabletScannerPtr CreateHunkTabletScanner(
+    IBootstrap* bootstrap,
+    ITabletSlotPtr tabletSlot)
+{
+    return New<THunkTabletScanner>(bootstrap, std::move(tabletSlot));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

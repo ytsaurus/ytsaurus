@@ -105,18 +105,26 @@ NYT::NYPath::TRichYPath MakeYtConsumerRichPath(
 TString GetAuth(
     TString cluster,
     const TYtflowSettings& config,
-    const TConfigClusters& configClusters)
+    const TConfigClusters& configClusters,
+    const IYtTokenResolver::TPtr& ytTokenResolver,
+    const TCredentials& credentials)
 {
-    TString token;
-    if (auto auth = config.Auth.Get()) {
-        token = *auth;
-    } else {
-        token = configClusters.GetAuth(cluster);
+    if (auto auth = config.Auth.Get(); auth && !auth->empty()) {
+        return *auth;
     }
 
-    YQL_ENSURE(token, "No valid ytflow token provided");
+    if (auto token = configClusters.GetAuth(cluster)) {
+        return token;
+    }
 
-    return token;
+    if (ytTokenResolver) {
+        auto ytName = configClusters.GetRealName(cluster);
+        if (auto token = ytTokenResolver->ResolveClusterToken(ytName, credentials)) {
+            return *token;
+        }
+    }
+
+    YQL_ENSURE(false, "No valid ytflow token provided");
 }
 
 TString MakeOperationTitle(const TYqlOperationOptions& operationOptions)

@@ -1,0 +1,252 @@
+#include <gtest/gtest.h>
+#include <gmock/gmock.h>
+
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
+#include <yt/yt/server/node/data_node/config.h>
+#include <yt/yt/server/node/data_node/chunk_store.h>
+#include <yt/yt/server/node/data_node/chunk_detail.h>
+#include <yt/yt/server/node/data_node/blob_reader_cache.h>
+#include <yt/yt/server/node/data_node/chunk_reader_sweeper.h>
+#include <yt/yt/server/node/data_node/location.h>
+#include <yt/yt/server/node/data_node/chunk_meta_manager.h>
+#include <yt/yt/server/node/data_node/journal_chunk.h>
+#include <yt/yt/server/node/data_node/journal_dispatcher.h>
+#include <yt/yt/server/node/data_node/journal_manager.h>
+#include <yt/yt/server/node/data_node/private.h>
+
+#include <yt/yt/server/lib/hydra/file_changelog.h>
+
+#include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <library/cpp/testing/common/env.h>
+
+#include <util/system/file.h>
+
+namespace NYT::NDataNode {
+namespace {
+
+using namespace NConcurrency;
+using namespace NChunkClient;
+using namespace NClusterNode;
+using namespace NDataNode;
+using namespace ::testing;
+
+static NLogging::TLogger Logger{"JournalTest"};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TFakeChunkStoreHost)
+
+class TFakeChunkStoreHost
+    : public IChunkStoreHost
+{
+public:
+    void ScheduleMasterHeartbeat() override
+    { }
+
+    NObjectClient::TCellId GetCellId() override
+    {
+        return TGuid::FromString("1-2-3-4");
+    }
+
+    void SubscribePopulateAlerts(TCallback<void(std::vector<TError>*)> /*callback*/) override
+    { }
+
+    NClusterNode::TMasterEpoch GetMasterEpoch() override
+    {
+        return 1;
+    }
+
+    INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() override
+    {
+        return MemoryUsageTracker_;
+    }
+
+    void CancelLocationSessions(const TChunkLocationPtr& /*location*/) override
+    { }
+
+    bool CanPassSessionOutOfTurn(TChunkId /*chunkId*/) override
+    {
+        return false;
+    }
+
+    void RemoveChunkFromCache(TChunkId /*chunkId*/) override
+    { }
+
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler()  override
+    {
+        return FairShareHierarchicalScheduler_;
+    }
+
+    const NIO::IHugePageManagerPtr& GetHugePageManager()  override
+    {
+        return HugePageManager_;
+    }
+
+    THashSet<NObjectClient::TCellTag> GetMasterCellTags() const override
+    {
+        return {};
+    }
+
+private:
+    const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs, New<TNodeMemoryTrackerConfig>());
+    const TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_ = nullptr;
+    const NIO::IHugePageManagerPtr HugePageManager_ = nullptr;
+};
+
+DEFINE_REFCOUNTED_TYPE(TFakeChunkStoreHost)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJournalTest
+    : public ::testing::Test
+{
+protected:
+    const IBlockCachePtr BlockCache_ = GetNullBlockCache();
+    const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JournalTest");
+
+    const TDataNodeConfigPtr Config_ = New<TDataNodeConfig>();
+    const TClusterNodeDynamicConfigPtr DynamicConfig_ = New<TClusterNodeDynamicConfig>();
+    const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(DynamicConfig_);
+
+    const INodeMemoryTrackerPtr MemoryTracker_ = CreateNodeMemoryTracker(1_GBs, New<TNodeMemoryTrackerConfig>());
+    const IChunkMetaManagerPtr ChunkMetaManager_ = CreateChunkMetaManager(
+        Config_,
+        DynamicConfigManager_,
+        MemoryTracker_);
+
+    const IChunkStoreHostPtr ChunkStoreHost_ = New<TFakeChunkStoreHost>();
+    const IBlobReaderCachePtr BlobReaderCache_ = CreateBlobReaderCache(
+        Config_,
+        DynamicConfigManager_,
+        ChunkMetaManager_);
+
+    const TChunkReaderSweeperPtr ChunkReaderSweeper_ = New<TChunkReaderSweeper>(
+        DynamicConfigManager_,
+        ActionQueue_->GetInvoker());
+    const IJournalDispatcherPtr JournalDispatcher_ = CreateJournalDispatcher(
+        Config_,
+        DynamicConfigManager_);
+
+    const TChunkContextPtr ChunkContext_ = New<TChunkContext>(TChunkContext{
+        .ChunkMetaManager = ChunkMetaManager_,
+
+        .StorageHeavyInvoker = CreatePrioritizedInvoker(ActionQueue_->GetInvoker()),
+        .StorageLightInvoker = ActionQueue_->GetInvoker(),
+        .DataNodeConfig = Config_,
+
+        .ChunkReaderSweeper = ChunkReaderSweeper_,
+        .JournalDispatcher = JournalDispatcher_,
+        .BlobReaderCache = BlobReaderCache_,
+    });
+
+    TChunkStorePtr ChunkStore_;
+
+    void Start()
+    {
+        auto locationConfig = New<TStoreLocationConfig>();
+        locationConfig->Path = GetOutputPath() / ::testing::UnitTest::GetInstance()->current_test_info()->name() / "store";
+        locationConfig->Postprocess();
+
+        Config_->StoreLocations.push_back(locationConfig);
+        Config_->Postprocess();
+
+        DynamicConfig_->Postprocess();
+
+        ChunkStore_ = New<TChunkStore>(
+            Config_,
+            DynamicConfigManager_,
+            ActionQueue_->GetInvoker(),
+            ChunkContext_,
+            ChunkStoreHost_);
+
+        WaitFor(BIND([&] {
+            ChunkStore_->Initialize();
+        })
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run())
+            .ThrowOnError();
+    }
+
+    void Stop()
+    {
+        WaitFor(BIND([&] {
+            ChunkStore_->Shutdown();
+        })
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run())
+            .ThrowOnError();
+    }
+
+    void SetUp() override
+    {
+        Start();
+    }
+
+    void TearDown() override
+    {
+        Stop();
+    }
+};
+
+TEST_F(TJournalTest, Write)
+{
+    auto journalManager = ChunkStore_->Locations()[0]->GetJournalManager();
+
+    for (bool multiplexed : {true, false}) {
+        auto journalId = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
+
+        auto changelog = WaitForFast(journalManager->CreateChangelog(journalId, multiplexed, TWorkloadDescriptor{}))
+            .ValueOrThrow();
+
+        auto r0 = TSharedRef::FromString(std::string("r0"));
+        auto r1 = TSharedRef::FromString(std::string("r1"));
+
+        WaitForFast(changelog->Append({r0, r1}))
+            .ThrowOnError();
+
+        WaitForFast(changelog->Close())
+            .ThrowOnError();
+    }
+}
+
+TEST_F(TJournalTest, SealReplicaAfterRecoveringOrphanedSeal)
+{
+    auto location = ChunkStore_->Locations().front();
+    NNode::TChunkDescriptor descriptor;
+    descriptor.Id = MakeRandomId(NObjectClient::EObjectType::JournalChunk, NObjectClient::TCellTag(1));
+
+    // An interrupted replica deletion left only the seal on disk.
+    TFile(TString(location->GetChunkPath(descriptor.Id) + "." + SealedFlagExtension), CreateNew).Close();
+    WaitFor(BIND([&] {
+        ChunkStore_->Shutdown();
+        ChunkStore_->Initialize();
+    })
+        .AsyncVia(ActionQueue_->GetInvoker())
+        .Run())
+        .ThrowOnError();
+
+    location = ChunkStore_->Locations().front();
+    auto journalManager = location->GetJournalManager();
+    auto changelog = WaitFor(journalManager->CreateChangelog(descriptor.Id, /*enableMultiplexing*/ false, {}))
+        .ValueOrThrow();
+    WaitFor(changelog->Close())
+        .ThrowOnError();
+
+    auto chunk = New<TJournalChunk>(ChunkContext_, location, descriptor);
+    auto sealResult = WaitFor(journalManager->SealChangelog(chunk));
+    EXPECT_TRUE(location->IsEnabled());
+    EXPECT_TRUE(sealResult.IsOK()) << ToString(sealResult);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT::NDataNode

@@ -1,0 +1,848 @@
+#include "table_replicator.h"
+
+#include "config.h"
+#include "error_manager.h"
+#include "hint_manager.h"
+#include "private.h"
+#include "relative_replication_throttler.h"
+#include "replication_log.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_reader.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
+#include "transaction_manager.h"
+
+#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
+
+#include <yt/yt/server/node/tablet_node/helpers.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/ytlib/transaction_client/action.h>
+
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
+
+#include <yt/yt/ytlib/security_client/public.h>
+
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/helpers.h>
+
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+
+#include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/client/misc/workload.h>
+
+#include <yt/yt/core/actions/cancelable_context.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+
+#include <yt/yt/core/misc/finally.h>
+
+#include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/core/utilex/random.h>
+
+namespace NYT::NTabletNode {
+
+using namespace NApi;
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NHiveClient;
+using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NTracing;
+using namespace NTransactionClient;
+using namespace NYPath;
+using namespace NHydra;
+using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const int TabletRowsPerRead = 1000;
+
+DEFINE_ENUM(EReaderTerminationReason,
+    ((None)                       (0))
+    ((TimestampBoundViolation)    (1))
+    ((ThrottlerOverdraft)         (2))
+    ((NullBatch)                  (3))
+    ((SaturatedBatch)             (4))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTableReplicator::TImpl
+    : public TRefCounted
+{
+public:
+    TImpl(
+        TTabletManagerConfigPtr config,
+        TTablet* tablet,
+        TTableReplicaInfo* replicaInfo,
+        NNative::IConnectionPtr localConnection,
+        ITabletSlotPtr slot,
+        ITabletSnapshotStorePtr tabletSnapshotStore,
+        IHintManagerPtr hintManager,
+        IInvokerPtr workerInvoker,
+        EWorkloadCategory workloadCategory,
+        IThroughputThrottlerPtr nodeOutThrottler,
+        IMemoryUsageTrackerPtr memoryTracker,
+        IErrorManagerPtr errorManager)
+        : Config_(std::move(config))
+        , LocalConnection_(std::move(localConnection))
+        , Slot_(std::move(slot))
+        , TabletSnapshotStore_(std::move(tabletSnapshotStore))
+        , HintManager_(std::move(hintManager))
+        , WorkerInvoker_(std::move(workerInvoker))
+        , TabletId_(tablet->GetId())
+        , MountRevision_(tablet->GetMountRevision())
+        , TableSchema_(tablet->GetTableSchema())
+        , NameTable_(TNameTable::FromSchema(*TableSchema_))
+        , ReplicaId_(replicaInfo->GetId())
+        , ClusterName_(replicaInfo->GetClusterName())
+        , ReplicaPath_(replicaInfo->GetReplicaPath())
+        , MountConfig_(tablet->GetSettings().MountConfig)
+        , Logger(TabletNodeLogger()
+            .WithTags(tablet->GetLoggingTags())
+            .WithTag("ReplicaId", ReplicaId_))
+        , ReplicationLogParser_(CreateReplicationLogParser(
+            TableSchema_,
+            tablet->GetPhysicalSchema(),
+            MountConfig_,
+            workloadCategory,
+            Logger))
+        , WorkloadCategory_(workloadCategory)
+        , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
+            std::move(nodeOutThrottler),
+            CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)}))
+        , RelativeThrottler_(CreateRelativeReplicationThrottler(
+            MountConfig_->RelativeReplicationThrottler))
+        , MemoryTracker_(std::move(memoryTracker))
+        , ErrorManager_(std::move(errorManager))
+        , SoftErrorBackoff_(TBackoffStrategy(TExponentialBackoffOptions{
+            .MinBackoff = Config_->ReplicatorSoftBackoffTime,
+            .MaxBackoff = Config_->ReplicatorHardBackoffTime,
+            .BackoffJitter = 0.0,
+        }))
+    { }
+
+    void Enable()
+    {
+        Disable();
+
+        ReplicationExecutor_ = New<TPeriodicExecutor>(
+            Slot_->GetHydraManager()->GetAutomatonCancelableContext()->CreateInvoker(WorkerInvoker_),
+            BIND(&TImpl::OnReplicationTick, MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = MountConfig_->ReplicationTickPeriod,
+                .DelayMode = EPeriodicExecutorDelayMode::FromPreviousStart,
+            });
+        ReplicationExecutor_->Start();
+
+        YT_TLOG_INFO("Table replicator enabled");
+    }
+
+    void Disable()
+    {
+        if (auto executor = std::exchange(ReplicationExecutor_, nullptr)) {
+            YT_UNUSED_FUTURE(executor->Stop());
+        }
+        HasActiveReplicationIteration_.store(false);
+
+        YT_TLOG_INFO("Table replicator disabled");
+    }
+
+    bool HasActiveReplicationIteration()
+    {
+        return HasActiveReplicationIteration_;
+    }
+
+private:
+    const TTabletManagerConfigPtr Config_;
+    const NNative::IConnectionPtr LocalConnection_;
+    const ITabletSlotPtr Slot_;
+    const ITabletSnapshotStorePtr TabletSnapshotStore_;
+    const IHintManagerPtr HintManager_;
+    const IInvokerPtr WorkerInvoker_;
+
+    const TTabletId TabletId_;
+    const TRevision MountRevision_;
+    const TTableSchemaPtr TableSchema_;
+    const TNameTablePtr NameTable_;
+    const TTableReplicaId ReplicaId_;
+    const std::string ClusterName_;
+    const TYPath ReplicaPath_;
+    const TTableMountConfigPtr MountConfig_;
+
+    const NLogging::TLogger Logger;
+
+    const IReplicationLogParserPtr ReplicationLogParser_;
+    const EWorkloadCategory WorkloadCategory_;
+    const IThroughputThrottlerPtr Throttler_;
+    const IRelativeReplicationThrottlerPtr RelativeThrottler_;
+    const IMemoryUsageTrackerPtr MemoryTracker_;
+    const IErrorManagerPtr ErrorManager_;
+
+    TBackoffStrategy SoftErrorBackoff_;
+
+    TPeriodicExecutorPtr ReplicationExecutor_;
+
+    std::atomic<bool> HasActiveReplicationIteration_ = false;
+
+    void OnReplicationTick()
+    {
+        TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("TableReplicator"));
+
+        TTableReplicaSnapshotPtr replicaSnapshot;
+        TTabletSnapshotPtr tabletSnapshot;
+        try {
+            tabletSnapshot = TabletSnapshotStore_->FindTabletSnapshot(TabletId_, MountRevision_);
+            if (!tabletSnapshot) {
+                THROW_ERROR_EXCEPTION("No tablet snapshot is available")
+                    .With(HardErrorAttribute);
+            }
+
+            replicaSnapshot = tabletSnapshot->FindReplicaSnapshot(ReplicaId_);
+            if (!replicaSnapshot) {
+                THROW_ERROR_EXCEPTION("No table replica snapshot is available")
+                    .With(HardErrorAttribute);
+            }
+
+            auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(ClusterName_);
+            if (!alienConnection) {
+                THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
+                    .With(HardErrorAttribute);
+            }
+
+            if (auto* traceContext = TryGetCurrentTraceContext()) {
+                PackBaggageFromTabletSnapshot(traceContext, ETabletIOCategory::Replication, tabletSnapshot);
+            }
+
+            const auto& tabletRuntimeData = tabletSnapshot->TabletRuntimeData;
+            const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
+            auto& counters = replicaSnapshot->Counters;
+
+            auto countError = Finally([&] {
+                HasActiveReplicationIteration_.store(false);
+
+                if (std::uncaught_exceptions() > 0) {
+                    counters.ReplicationErrorCount.Increment();
+                }
+            });
+
+            std::optional<TDuration> throttleTime;
+            std::optional<TDuration> relativeThrottleTime;
+            std::optional<TDuration> transactionStartTime;
+            std::optional<TDuration> transactionCommitTime;
+            std::optional<TDuration> rowsReadTime;
+            std::optional<TDuration> rowsWriteTime;
+
+            {
+                auto throttleFuture = Throttler_->Throttle(1);
+                if (throttleFuture.IsSet()) {
+                    throttleFuture.GetOrCrash().ThrowOnError();
+                } else {
+                    TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
+                    YT_TLOG_DEBUG("Started waiting for replication throttling");
+                    WaitFor(throttleFuture)
+                        .ThrowOnError();
+                    YT_TLOG_DEBUG("Finished waiting for replication throttling");
+                    throttleTime = timerGuard.GetElapsedTime();
+                }
+            }
+
+            {
+                auto throttleFuture = RelativeThrottler_->Throttle();
+                if (throttleFuture.IsSet()) {
+                    throttleFuture.GetOrCrash().ThrowOnError();
+                } else {
+                    TEventTimerGuard timerGuard(counters.ReplicationThrottleTime);
+                    YT_TLOG_DEBUG("Started waiting for relative replication throttling");
+                    WaitFor(throttleFuture)
+                        .ThrowOnError();
+                    relativeThrottleTime = timerGuard.GetElapsedTime();
+                    YT_TLOG_DEBUG("Finished waiting for relative replication throttling")
+                        .With("ElapsedTime", relativeThrottleTime);
+                }
+            }
+
+            // YT-8542: Fetch the last barrier timestamp _first_ to ensure proper serialization between
+            // replicator and tablet slot threads.
+            auto lastBarrierTimestamp = Slot_->GetRuntimeData()->BarrierTimestamp.load();
+            auto lastReplicationRowIndex = replicaRuntimeData->CurrentReplicationRowIndex.load();
+            auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
+            auto totalRowCount = tabletRuntimeData->TotalRowCount.load();
+            auto backupCheckpointTimestamp = tabletRuntimeData->BackupCheckpointTimestamp.load();
+            if (replicaRuntimeData->PreparedReplicationRowIndex > lastReplicationRowIndex) {
+                // Some log rows are prepared for replication, hence replication cannot proceed.
+                // Seeing this is not typical since we're waiting for the replication commit to complete (see below).
+                // However we may occasionally run into this check on epoch change or when commit times out
+                // due to broken replica participant.
+                replicaRuntimeData->Error.Store(TError());
+                return;
+            }
+
+            TTimestamp currentBatchFirstTimestamp = NullTimestamp;
+
+            auto updateCountersGuard = Finally([&] {
+                auto lagRowCount = std::max(
+                    static_cast<i64>(0),
+                    tabletRuntimeData->TotalRowCount.load() - replicaRuntimeData->CurrentReplicationRowIndex.load());
+                counters.LagRowCount.Update(lagRowCount);
+
+                if (lagRowCount == 0) {
+                    counters.LagTime.Update(TDuration::Zero());
+                } else {
+                    auto lastReplicationTimestamp = replicaRuntimeData->LastReplicationTimestamp.load();
+                    if (lastReplicationTimestamp == NullTimestamp) {
+                        lastReplicationTimestamp = currentBatchFirstTimestamp;
+                    }
+
+                    // Do not post infinite lag time if actual last replication timestamp cannot be deduced.
+                    if (lastReplicationTimestamp != NullTimestamp) {
+                        auto latestTimestamp = LocalConnection_->GetTimestampProvider()->GetLatestTimestamp();
+                        counters.LagTime.Update(
+                            TimestampToInstant(latestTimestamp).second - TimestampToInstant(lastReplicationTimestamp).first);
+                    }
+                }
+            });
+
+            auto isReplicaClusterBanned = [&] {
+                bool isBanned = HintManager_->IsReplicaClusterBanned(ClusterName_);
+                YT_TLOG_DEBUG_IF(isBanned, "Skipping table replication iteration due to ban of replica cluster")
+                    .With("ClusterName", ClusterName_);
+                return isBanned;
+            };
+
+            if (isReplicaClusterBanned()) {
+                return;
+            }
+
+            HasActiveReplicationIteration_.store(true);
+
+            // NB: Double-check to avoid short race between checking for the first time and storing in HasActiveReplicationIteration_
+            if (isReplicaClusterBanned()) {
+                return;
+            }
+
+            auto isVersioned = TableSchema_->IsSorted()
+                ? replicaRuntimeData->PreserveTimestamps.load()
+                : replicaRuntimeData->PreserveTimestamps.load() && ReplicationLogParser_->GetTimestampColumnId();
+
+            if (totalRowCount <= lastReplicationRowIndex) {
+                // All committed rows are replicated.
+                if (lastReplicationTimestamp < lastBarrierTimestamp) {
+                    replicaRuntimeData->LastReplicationTimestamp.store(lastBarrierTimestamp);
+                }
+                replicaRuntimeData->Error.Store(TError());
+                return;
+            }
+
+            NNative::ITransactionPtr localTransaction;
+            ITransactionPtr alienTransaction;
+            {
+                TEventTimerGuard timerGuard(counters.ReplicationTransactionStartTime);
+
+                YT_TLOG_DEBUG("Starting replication transactions");
+
+                auto localClient = LocalConnection_->CreateNativeClient(NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+                localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
+                    .ValueOrThrow();
+
+                if (backupCheckpointTimestamp && localTransaction->GetStartTimestamp() >= backupCheckpointTimestamp) {
+                    YT_TLOG_DEBUG("Skipping table replication iteration since tablet has passed backup checkpoint");
+                    return;
+                }
+
+                auto alienClient = alienConnection->CreateClient(NNative::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
+
+                auto alienTableMountCache = alienClient->GetTableMountCache();
+                auto replicaTableInfo = WaitFor(alienTableMountCache->GetTableInfo(ReplicaPath_))
+                    .ValueOrThrow();
+
+                if (replicaTableInfo->IsSorted() != TableSchema_->IsSorted()) {
+                    THROW_ERROR_EXCEPTION("Replicated table and replica table should be either both sorted or both ordered, "
+                        "but replicated table is %v and replica table is %v",
+                        TableSchema_->IsSorted() ? "sorted": "ordered",
+                        replicaTableInfo->IsSorted() ? "sorted" :  "ordered")
+                        .With(HardErrorAttribute);
+                    return;
+                }
+
+                TAlienTransactionStartOptions transactionStartOptions;
+                if (!isVersioned) {
+                    transactionStartOptions.Atomicity = replicaRuntimeData->Atomicity;
+                }
+                transactionStartOptions.StartTimestamp = localTransaction->GetStartTimestamp();
+
+                alienTransaction = WaitFor(StartAlienTransaction(localTransaction, alienClient, transactionStartOptions))
+                    .ValueOrThrow();
+
+                YT_TLOG_DEBUG("Replication transactions started")
+                    .With("TransactionId", localTransaction->GetId());
+                transactionStartTime = timerGuard.GetElapsedTime();
+            }
+
+            TRowBufferPtr rowBuffer;
+            std::vector<TRowModification> replicationRows;
+
+            i64 startRowIndex = lastReplicationRowIndex;
+            i64 newReplicationRowIndex;
+            TTimestamp newReplicationTimestamp;
+            i64 batchRowCount;
+            i64 batchDataWeight;
+
+            TClientChunkReadOptions chunkReadOptions{
+                .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletReplication),
+                .ReadSessionId = TReadSessionId::Create(),
+            };
+
+            auto updateChunkReaderStatisticsGuard = Finally([&] {
+                counters.ChunkReaderStatisticsCounters.Increment(
+                    chunkReadOptions.ChunkReaderStatistics,
+                    /*failed*/ std::uncaught_exceptions() > 0);
+            });
+
+            EReaderTerminationReason readerResult = EReaderTerminationReason::None;
+            {
+                TEventTimerGuard timerGuard(counters.ReplicationRowsReadTime);
+                auto readReplicationBatch = [&] {
+                    return ReadReplicationBatch(
+                        MountConfig_,
+                        tabletSnapshot,
+                        replicaSnapshot,
+                        chunkReadOptions,
+                        startRowIndex,
+                        &replicationRows,
+                        &rowBuffer,
+                        &newReplicationRowIndex,
+                        &newReplicationTimestamp,
+                        &currentBatchFirstTimestamp,
+                        &batchRowCount,
+                        &batchDataWeight,
+                        isVersioned);
+                };
+
+                readerResult = readReplicationBatch();
+                if (readerResult == EReaderTerminationReason::TimestampBoundViolation) {
+                    auto startRowIndexOrNullopt = ReplicationLogParser_->ComputeStartRowIndex(
+                        tabletSnapshot,
+                        replicaSnapshot->StartReplicationTimestamp,
+                        chunkReadOptions,
+                        /*lowerRowIndex*/ std::nullopt,
+                        [] {
+                            THROW_ERROR_EXCEPTION("No replication log rows are available")
+                                .With(HardErrorAttribute);
+                        });
+                    YT_VERIFY(startRowIndexOrNullopt);
+
+                    startRowIndex = *startRowIndexOrNullopt;
+                    readerResult = readReplicationBatch();
+                    YT_VERIFY(readerResult != EReaderTerminationReason::TimestampBoundViolation);
+                }
+
+                rowsReadTime = timerGuard.GetElapsedTime();
+            }
+            YT_VERIFY(readerResult != EReaderTerminationReason::None);
+
+            RelativeThrottler_->OnReplicationBatchProcessed(
+                currentBatchFirstTimestamp,
+                newReplicationTimestamp);
+
+            if (replicationRows.empty()) {
+                if (readerResult == EReaderTerminationReason::ThrottlerOverdraft) {
+                    THROW_ERROR_EXCEPTION("Table replicator did not write any rows due to network throttler overdraft");
+                } else {
+                    THROW_ERROR_EXCEPTION("Replication reader returned zero rows")
+                        .With(HardErrorAttribute);
+                }
+            }
+
+            {
+                TEventTimerGuard timerGuard(counters.ReplicationRowsWriteTime);
+
+                TModifyRowsOptions options;
+                options.UpstreamReplicaId = ReplicaId_;
+                alienTransaction->ModifyRows(
+                    ReplicaPath_,
+                    NameTable_,
+                    MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)),
+                    options);
+
+                rowsWriteTime = timerGuard.GetElapsedTime();
+            }
+
+            {
+                NProto::TReqReplicateRows req;
+                ToProto(req.mutable_tablet_id(), TabletId_);
+                ToProto(req.mutable_replica_id(), ReplicaId_);
+                req.set_prev_replication_row_index(lastReplicationRowIndex);
+                req.set_new_replication_row_index(newReplicationRowIndex);
+                req.set_new_replication_timestamp(ToProto(newReplicationTimestamp));
+                localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
+            }
+
+            {
+                TEventTimerGuard timerGuard(counters.ReplicationTransactionCommitTime);
+                YT_TLOG_DEBUG("Started committing replication transaction");
+
+                TTransactionCommitOptions commitOptions;
+                commitOptions.CoordinatorCellId = Slot_->GetCellId();
+                commitOptions.Force2PC = true;
+                commitOptions.CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy;
+                commitOptions.GeneratePrepareTimestamp = !replicaRuntimeData->PreserveTimestamps;
+                if (backupCheckpointTimestamp) {
+                    commitOptions.MaxAllowedCommitTimestamp = backupCheckpointTimestamp;
+                }
+                WaitFor(localTransaction->Commit(commitOptions))
+                    .ThrowOnError();
+
+                YT_TLOG_DEBUG("Finished committing replication transaction");
+                transactionCommitTime = timerGuard.GetElapsedTime();
+            }
+
+            if (lastReplicationTimestamp > newReplicationTimestamp) {
+                YT_TLOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored")
+                    .WithFormat("LastReplicationTimestamp", "%v -> %v", lastReplicationTimestamp, newReplicationTimestamp);
+            } else {
+                replicaRuntimeData->LastReplicationTimestamp.store(newReplicationTimestamp);
+            }
+            replicaRuntimeData->Error.Store(TError());
+
+            counters.ReplicationBatchRowCount.Record(batchRowCount);
+            counters.ReplicationBatchDataWeight.Record(batchDataWeight);
+            counters.ReplicationRowCount.Increment(batchRowCount);
+            counters.ReplicationDataWeight.Increment(batchDataWeight);
+
+            YT_TLOG_DEBUG("Rows replicated")
+                .With("RowCount", batchRowCount)
+                .With("DataWeight", batchDataWeight)
+                .With("ThrottleTime", throttleTime)
+                .With("RelativeThrottleTime", relativeThrottleTime)
+                .With("TransactionStartTime", transactionStartTime)
+                .With("RowsReadTime", rowsReadTime)
+                .With("RowsWriteTime", rowsWriteTime)
+                .With("TransactionCommitTime", transactionCommitTime);
+
+            SoftErrorBackoff_.Restart();
+        } catch (const std::exception& ex) {
+            TError error(ex);
+            if (replicaSnapshot) {
+                replicaSnapshot->RuntimeData->Error.Store(
+                    error.With("tablet_id", TabletId_));
+            }
+
+            if (tabletSnapshot) {
+                ErrorManager_->HandleError(error, "Replication", tabletSnapshot);
+            }
+
+            if (error.Attributes().Get<bool>("hard", false)) {
+                DoHardBackoff(error);
+            } else if (error.FindMatching(NTabletClient::EErrorCode::UpstreamReplicaMismatch)) {
+                DoHardBackoff(error);
+            } else if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                DoHardBackoff(error);
+            } else {
+                DoSoftBackoff(error);
+            }
+        }
+    }
+
+    EReaderTerminationReason ReadReplicationBatch(
+        const TTableMountConfigPtr& mountConfig,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TTableReplicaSnapshotPtr& replicaSnapshot,
+        const TClientChunkReadOptions& chunkReadOptions,
+        i64 startRowIndex,
+        std::vector<TRowModification>* replicationRows,
+        TRowBufferPtr* rowBuffer,
+        i64* newReplicationRowIndex,
+        TTimestamp* newReplicationTimestamp,
+        TTimestamp* firstBatchTimestamp,
+        i64* batchRowCount,
+        i64* batchDataWeight,
+        bool isVersioned)
+    {
+        auto sessionId = TReadSessionId::Create();
+        YT_TLOG_DEBUG("Started building replication batch")
+            .With("StartRowIndex", startRowIndex)
+            .With("ReadSessionId", sessionId);
+
+        auto reader = CreateSchemafulRangeTabletReader(
+            tabletSnapshot,
+            TColumnFilter(),
+            MakeRowBound(startRowIndex),
+            MakeRowBound(std::numeric_limits<i64>::max()),
+            {.Timestamp = AsyncLastCommittedTimestamp},
+            chunkReadOptions,
+            /*tabletThrottlerKind*/ std::nullopt,
+            WorkloadCategory_);
+
+        int timestampCount = 0;
+        int rowCount = 0;
+        i64 currentRowIndex = startRowIndex;
+        i64 dataWeight = 0;
+
+        struct TTableReplicatorReaderTag
+        { };
+
+        *rowBuffer = New<TRowBuffer>(
+            TTableReplicatorReaderTag{},
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            /*tracker*/ MemoryTracker_);
+        replicationRows->clear();
+
+        std::vector<TUnversionedRow> readerRows;
+        readerRows.reserve(TabletRowsPerRead);
+
+        // This default only makes sense if the batch turns out to be empty.
+        auto prevTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
+
+        // Throttling control.
+        i64 dataWeightToThrottle = 0;
+        auto acquireThrottler = [&] {
+            replicaSnapshot->Counters.ReplicationBytesThrottled.Increment(dataWeightToThrottle);
+            Throttler_->Acquire(dataWeightToThrottle);
+            dataWeightToThrottle = 0;
+        };
+        auto isThrottlerOverdraft = [&] {
+            if (!Throttler_->IsOverdraft()) {
+                return false;
+            }
+            YT_TLOG_DEBUG("Bandwidth limit reached; interrupting batch")
+                .With("QueueTotalCount", Throttler_->GetQueueTotalAmount());
+            return true;
+        };
+
+        auto result = EReaderTerminationReason::None;
+        while (result == EReaderTerminationReason::None) {
+            auto batch = reader->Read();
+            if (!batch) {
+                result = EReaderTerminationReason::NullBatch;
+                break;
+            }
+
+            if (batch->IsEmpty()) {
+                YT_TLOG_DEBUG("Waiting for replicated rows from tablet reader")
+                    .With("StartRowIndex", currentRowIndex);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+
+            auto readerRows = batch->MaterializeRows();
+
+            YT_TLOG_DEBUG("Got replicated rows from tablet reader")
+                .With("StartRowIndex", currentRowIndex)
+                .With("RowCount", readerRows.size());
+
+            for (auto row : readerRows) {
+                TTypeErasedRow replicationRow;
+                ERowModificationType modificationType;
+                i64 rowIndex;
+                TTimestamp timestamp;
+
+                ReplicationLogParser_->ParseLogRow(
+                    tabletSnapshot,
+                    row,
+                    *rowBuffer,
+                    &replicationRow,
+                    &modificationType,
+                    &rowIndex,
+                    &timestamp,
+                    isVersioned);
+
+                if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
+                    YT_VERIFY(row.GetHeader() == readerRows[0].GetHeader());
+                    YT_TLOG_INFO("Replication log row violates timestamp bound")
+                        .With("StartReplicationTimestamp", replicaSnapshot->StartReplicationTimestamp)
+                        .With("LogRecordTimestamp", timestamp);
+                    return EReaderTerminationReason::TimestampBoundViolation;
+                }
+
+                if (currentRowIndex != rowIndex) {
+                    THROW_ERROR_EXCEPTION("Replication log row index mismatch in tablet %v: expected %v, got %v",
+                        tabletSnapshot->TabletId,
+                        currentRowIndex,
+                        rowIndex)
+                        .With(HardErrorAttribute);
+                }
+
+                if (*firstBatchTimestamp == NullTimestamp) {
+                    *firstBatchTimestamp = timestamp;
+                }
+
+                if (timestamp != prevTimestamp) {
+                    acquireThrottler();
+
+                    if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
+                        dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
+                        timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit ||
+                        TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second >
+                            mountConfig->MaxReplicationBatchSpan)
+                    {
+                        YT_TLOG_INFO("Replication batch saturated")
+                            .WithFormat("Rows", "%v/%v", rowCount, mountConfig->MaxRowsPerReplicationCommit)
+                            .WithFormat("DataWeight", "%v/%v", dataWeight, mountConfig->MaxDataWeightPerReplicationCommit)
+                            .WithFormat("TimestampCount", "%v/%v", timestampCount, mountConfig->MaxTimestampsPerReplicationCommit)
+                            .WithFormat(
+                                "BatchSpan",
+                                "%v/%v",
+                                TimestampToInstant(timestamp).first - TimestampToInstant(*firstBatchTimestamp).second,
+                                mountConfig->MaxReplicationBatchSpan);
+
+                        result = EReaderTerminationReason::SaturatedBatch;
+                        break;
+                    }
+                    if (isThrottlerOverdraft()) {
+                        result = EReaderTerminationReason::ThrottlerOverdraft;
+                        break;
+                    }
+
+                    ++timestampCount;
+                }
+
+                ++currentRowIndex;
+                ++rowCount;
+
+                auto rowDataWeight = GetDataWeight(row);
+                dataWeight += rowDataWeight;
+                dataWeightToThrottle += rowDataWeight;
+                switch (modificationType) {
+                    case ERowModificationType::Write:
+                        replicationRows->push_back(NRowModifications::TWriteRow(TUnversionedRow(replicationRow)));
+                        break;
+
+                    case ERowModificationType::Delete:
+                        replicationRows->push_back(NRowModifications::TDeleteRow(TLegacyKey(replicationRow)));
+                        break;
+
+                    case ERowModificationType::VersionedWrite:
+                        replicationRows->push_back(NRowModifications::TVersionedWriteRow(replicationRow));
+                        break;
+
+                    default:
+                        // ParseLogRow does not produce ERowModificationType::WriteAndLock.
+                        YT_ABORT();
+                }
+
+                prevTimestamp = timestamp;
+            }
+        }
+        acquireThrottler();
+
+        YT_VERIFY(result != EReaderTerminationReason::None);
+
+        *newReplicationRowIndex = startRowIndex + rowCount;
+        *newReplicationTimestamp = prevTimestamp;
+        *batchRowCount = rowCount;
+        *batchDataWeight = dataWeight;
+
+        YT_TLOG_DEBUG("Finished building replication batch")
+            .With("StartRowIndex", startRowIndex)
+            .With("RowCount", rowCount)
+            .With("DataWeight", dataWeight)
+            .With("NewReplicationRowIndex", *newReplicationRowIndex)
+            .With("NewReplicationTimestamp", *newReplicationTimestamp)
+            .With("ReaderTerminationReason", result);
+
+        return result;
+    }
+
+
+    void DoSoftBackoff(const TError& error)
+    {
+        SoftErrorBackoff_.Next();
+        auto backoffTime = SoftErrorBackoff_.GetBackoff();
+        YT_TLOG_INFO("Doing soft backoff")
+            .With("BackoffTime", backoffTime)
+            .With(error);
+        TDelayedExecutor::WaitForDuration(backoffTime);
+    }
+
+    void DoHardBackoff(const TError& error)
+    {
+        YT_TLOG_INFO("Doing hard backoff")
+            .With("BackoffTime", Config_->ReplicatorHardBackoffTime)
+            .With(error);
+        TDelayedExecutor::WaitForDuration(Config_->ReplicatorHardBackoffTime);
+    }
+
+    static TLegacyOwningKey MakeRowBound(i64 rowIndex)
+    {
+        return MakeUnversionedOwningRow(
+            -1, // tablet id, fake
+            rowIndex);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableReplicator::TTableReplicator(
+    TTabletManagerConfigPtr config,
+    TTablet* tablet,
+    TTableReplicaInfo* replicaInfo,
+    NNative::IConnectionPtr localConnection,
+    ITabletSlotPtr slot,
+    ITabletSnapshotStorePtr tabletSnapshotStore,
+    IHintManagerPtr hintManager,
+    IInvokerPtr workerInvoker,
+    EWorkloadCategory workloadCategory,
+    IThroughputThrottlerPtr nodeOutThrottler,
+    IMemoryUsageTrackerPtr memoryTracker,
+    IErrorManagerPtr errorManager)
+    : Impl_(New<TImpl>(
+        std::move(config),
+        tablet,
+        replicaInfo,
+        std::move(localConnection),
+        std::move(slot),
+        std::move(tabletSnapshotStore),
+        std::move(hintManager),
+        std::move(workerInvoker),
+        workloadCategory,
+        std::move(nodeOutThrottler),
+        std::move(memoryTracker),
+        std::move(errorManager)))
+{ }
+
+TTableReplicator::~TTableReplicator() = default;
+
+void TTableReplicator::Enable()
+{
+    Impl_->Enable();
+}
+
+void TTableReplicator::Disable()
+{
+    Impl_->Disable();
+}
+
+bool TTableReplicator::HasActiveReplicationIteration()
+{
+    return Impl_->HasActiveReplicationIteration();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

@@ -1,0 +1,345 @@
+#include "data_node_nbd_service.h"
+
+#include "bootstrap.h"
+#include "chunk_store.h"
+#include "nbd_session.h"
+#include "session.h"
+#include "session_manager.h"
+
+#include <yt/yt/server/lib/nbd/config.h>
+
+#include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
+
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+
+#include <yt/yt/ytlib/chunk_client/proto/data_node_nbd_service.pb.h>
+
+#include <yt/yt/core/rpc/service_detail.h>
+
+namespace NYT::NDataNode {
+
+using namespace NChunkClient;
+using namespace NLogging;
+using namespace NObjectClient;
+using namespace NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDataNodeNbdService
+    : public TServiceBase
+{
+public:
+    TDataNodeNbdService(
+        IBootstrap* bootstrap,
+        TLogger logger)
+        : TServiceBase(
+            bootstrap->GetStorageLightInvoker(),
+            TDataNodeNbdServiceProxy::GetDescriptor(),
+            logger,
+            TServiceOptions{
+                .Authenticator = bootstrap->GetNativeAuthenticator(),
+            })
+        , Bootstrap_(bootstrap)
+        , Logger(std::move(logger))
+    {
+        YT_VERIFY(Bootstrap_);
+
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(OpenSession)
+            .SetQueueSizeLimit(50)
+            .SetConcurrencyLimit(5));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CloseSession)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
+            .SetQueueSizeLimit(500)
+            .SetConcurrencyLimit(50)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Write)
+            .SetQueueSizeLimit(500)
+            .SetConcurrencyLimit(50)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadBatch)
+            .SetQueueSizeLimit(500)
+            .SetConcurrencyLimit(50)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteBatch)
+            .SetQueueSizeLimit(500)
+            .SetConcurrencyLimit(50)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Flush)
+            .SetQueueSizeLimit(500)
+            .SetConcurrencyLimit(50)
+            .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(KeepSessionAlive));
+    }
+
+private:
+    IBootstrap* const Bootstrap_;
+    TLogger Logger;
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, OpenSession)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto size = FromProto<i64>(request->size());
+        auto fsType = FromProto<NYT::NNbd::EFilesystemType>(request->fs_type());
+
+        context->SetRequestInfo("SessionId: %v, Size: %v, FsType: %v",
+            sessionId,
+            size,
+            fsType);
+
+        if (TypeFromId(sessionId.ChunkId) != EObjectType::NbdChunk) {
+            THROW_ERROR_EXCEPTION("Invalid chunk type in session id")
+                .With("chunk_id", sessionId.ChunkId)
+                .With("expected_chunk_type", EObjectType::NbdChunk)
+                .With("actual_chunk_type", TypeFromId(sessionId.ChunkId));
+        }
+
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+
+        if (sessionManager->FindSession(sessionId.ChunkId)) {
+            // Session is already opened.
+            context->Reply();
+            return;
+        }
+
+        // Open a new session.
+        TSessionOptions options;
+        options.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
+        options.NbdChunkSize = size;
+        options.MinLocationAvailableSpace = size;
+        options.NbdChunkFsType = fsType;
+        auto session = sessionManager->StartSession(sessionId, options);
+        context->ReplyFrom(session->Start());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, CloseSession)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+
+        context->SetRequestInfo("SessionId: %v",
+            sessionId);
+
+        auto session = GetSessionOrThrow(sessionId);
+
+        // Destroy removes session from session manager.
+        context->ReplyFrom(session->Destroy());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, Read)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto offset = FromProto<i64>(request->offset());
+        auto length = FromProto<i64>(request->length());
+        auto cookie = FromProto<ui64>(request->cookie());
+
+        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %x",
+            sessionId,
+            offset,
+            length,
+            cookie);
+
+        auto session = GetSessionOrThrow(sessionId);
+        auto future = session->Read(offset, length, cookie).Apply(BIND([response] (const TBlock& block) {
+            SetRpcAttachedBlocks(response, {block});
+        }));
+
+        response->set_cookie(cookie);
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
+            sessionId,
+            cookie,
+            shouldCloseSession);
+
+        context->ReplyFrom(future);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, Write)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto offset = FromProto<i64>(request->offset());
+        auto blocks = GetRpcAttachedBlocks(request, false);
+        auto cookie = FromProto<ui64>(request->cookie());
+        auto flush = request->has_flush() ? request->flush() : false;
+
+        YT_VERIFY(blocks.size() == 1);
+
+        context->SetRequestInfo("SessionId: %v, Offset: %v, Length: %v, Cookie: %x, Flush: %v",
+            sessionId,
+            offset,
+            blocks[0].Size(),
+            cookie,
+            flush);
+
+        auto session = GetSessionOrThrow(sessionId);
+        auto writeFuture = session->Write(offset, blocks[0], cookie);
+
+        // If FUA (flush) is requested, flush the written range to disk after the write.
+        TFuture<void> future = flush
+            ? writeFuture.AsVoid().Apply(BIND([=] () {
+                return session->FlushRange(offset, blocks[0].Size());
+            }))
+            : writeFuture.AsVoid();
+
+        response->set_cookie(cookie);
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
+            sessionId,
+            cookie,
+            shouldCloseSession);
+
+        context->ReplyFrom(future);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, ReadBatch)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto cookie = FromProto<ui64>(request->cookie());
+
+        context->SetRequestInfo("SessionId: %v, Cookie: %x, SubrequestCount: %v",
+            sessionId,
+            cookie,
+            request->subrequests_size());
+
+        auto session = GetSessionOrThrow(sessionId);
+
+        // Build subrequests for batch IO.
+        std::vector<TNbdReadSubrequest> subrequests;
+        subrequests.reserve(request->subrequests_size());
+        for (const auto& sub : request->subrequests()) {
+            subrequests.push_back({.Offset = sub.offset(), .Length = sub.length()});
+        }
+
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_cookie(cookie);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
+            sessionId,
+            cookie,
+            shouldCloseSession);
+
+        // Issue single batched read — one lock + one IOEngine_->Read call for all subrequests.
+        context->ReplyFrom(session->ReadBatch(subrequests, cookie).Apply(BIND([response] (const std::vector<NChunkClient::TBlock>& blocks) {
+            for (const auto& block : blocks) {
+                response->Attachments().push_back(block.Data);
+            }
+        })));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, WriteBatch)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto cookie = FromProto<ui64>(request->cookie());
+        const auto& attachments = request->Attachments();
+
+        YT_VERIFY(attachments.size() == static_cast<size_t>(request->subrequests_size()));
+
+        context->SetRequestInfo("SessionId: %v, Cookie: %x, SubrequestCount: %v",
+            sessionId,
+            cookie,
+            request->subrequests_size());
+
+        auto session = GetSessionOrThrow(sessionId);
+
+        // Issue all sub-writes in parallel.
+        std::vector<TFuture<NIO::TIOCounters>> writeFutures;
+        writeFutures.reserve(request->subrequests_size());
+        for (int i = 0; i < request->subrequests_size(); ++i) {
+            writeFutures.push_back(session->Write(request->subrequests(i).offset(), NChunkClient::TBlock{attachments[i]}, cookie));
+        }
+
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_cookie(cookie);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
+            sessionId,
+            cookie,
+            shouldCloseSession);
+
+        context->ReplyFrom(AllSucceeded(writeFutures).AsVoid());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, Flush)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto cookie = request->cookie();
+
+        context->SetRequestInfo("SessionId: %v, Cookie: %x",
+            sessionId,
+            cookie);
+
+        auto session = GetSessionOrThrow(sessionId);
+
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_cookie(cookie);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
+            sessionId,
+            cookie,
+            shouldCloseSession);
+
+        context->ReplyFrom(session->Flush(cookie));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NNbd::NProto, KeepSessionAlive)
+    {
+        auto sessionId = FromProto<TSessionId>(request->session_id());
+
+        context->SetRequestInfo("SessionId: %v",
+            sessionId);
+
+        bool shouldCloseSession = false;
+        try {
+            auto session = GetSessionOrThrow(sessionId);
+            session->Ping();
+            shouldCloseSession = ShouldCloseSession(session);
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Failed to get session")
+                .With("SessionId", sessionId)
+                .With(ex);
+            shouldCloseSession = true;
+        }
+
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, ShouldCloseSession: %v",
+            sessionId,
+            shouldCloseSession);
+
+        context->Reply();
+    }
+
+    TNbdSessionPtr GetSessionOrThrow(const TSessionId& sessionId)
+    {
+        return DynamicPointerCast<TNbdSession>(
+            Bootstrap_->GetSessionManager()->GetSessionOrThrow(sessionId.ChunkId));
+    }
+
+    bool ShouldCloseSession(const ISessionPtr& session)
+    {
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        return session->GetStoreLocation()->IsSick() || sessionManager->GetDisableWriteSessions();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IServicePtr CreateDataNodeNbdService(
+    IBootstrap* bootstrap,
+    TLogger logger)
+{
+    return New<TDataNodeNbdService>(
+        bootstrap,
+        std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NDataNode

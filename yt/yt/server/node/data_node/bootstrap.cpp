@@ -1,0 +1,693 @@
+#include "bootstrap.h"
+
+#include "config.h"
+
+#include "ally_replica_manager.h"
+#include "blob_reader_cache.h"
+#include "chunk_detail.h"
+#include "chunk_store.h"
+#include "data_node_service.h"
+#include "data_node_nbd_service.h"
+#include "chunk_meta_manager.h"
+#include "io_throughput_meter.h"
+#include "job_controller.h"
+#include "journal_dispatcher.h"
+#include "location_manager.h"
+#include "master_connector.h"
+#include "medium_aware_block_cache_manager.h"
+#include "medium_directory_manager.h"
+#include "medium_updater.h"
+#include "network_statistics.h"
+#include "orchid.h"
+#include "p2p.h"
+#include "private.h"
+#include "session_manager.h"
+#include "skynet_http_handler.h"
+#include "table_schema_cache.h"
+
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
+#include <yt/yt/server/node/tablet_node/config.h>
+
+#include <yt/yt/server/lib/distributed_chunk_session_server/session_service.h>
+
+#include <yt/yt/ytlib/chunk_client/medium_directory.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/library/query/engine_api/config.h>
+
+#include <yt/yt/library/disk_manager/hotswap_manager.h>
+
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
+#include <yt/yt/core/bus/tcp/dispatcher.h>
+
+#include <yt/yt/core/bus/public.h>
+
+#include <yt/yt/core/concurrency/poller.h>
+
+#include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/concurrency/fair_share_thread_pool.h>
+
+#include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/core/rpc/overload_controller.h>
+
+namespace NYT::NDataNode {
+
+using namespace NClusterNode;
+using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NQueryClient;
+using namespace NDiskManager;
+using namespace NYTree;
+using namespace NServer;
+using namespace NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = DataNodeLogger;
+
+static const std::string BusXferThreadPoolName = "BusXfer";
+static const std::string StorageHeavyPoolName = "StorageHeavy";
+static const std::string StorageLightPoolName = "StorageLight";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(gritukan): Throttlers that were moved out of Data Node during node split.
+static const THashSet<EDataNodeThrottlerKind> DataNodeCompatThrottlers = {
+    // Cluster Node throttlers.
+    EDataNodeThrottlerKind::TotalIn,
+    EDataNodeThrottlerKind::TotalOut,
+    // Exec Node throttlers.
+    EDataNodeThrottlerKind::ArtifactCacheIn,
+    EDataNodeThrottlerKind::JobIn,
+    EDataNodeThrottlerKind::JobOut,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBootstrap
+    : public IBootstrap
+    , public TBootstrapBase
+{
+public:
+    explicit TBootstrap(NClusterNode::IBootstrap* bootstrap)
+        : TBootstrapBase(bootstrap)
+        , ClusterNodeBootstrap_(bootstrap)
+    { }
+
+    void Initialize() override
+    {
+        YT_TLOG_INFO("Initializing data node");
+
+        // Cycles are fine for bootstrap.
+        GetDynamicConfigManager()
+            ->SubscribeBeforeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+
+        OverloadController_ = NRpc::CreateOverloadController(
+            New<NRpc::TOverloadControllerConfig>(),
+            DataNodeProfiler().WithPrefix("/overload_controller"));
+
+        auto dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
+
+        JournalDispatcher_ = CreateJournalDispatcher(GetConfig()->DataNode, GetDynamicConfigManager());
+
+        ChunkMetaManager_ = CreateChunkMetaManager(
+            GetConfig()->DataNode,
+            GetDynamicConfigManager(),
+            GetNodeMemoryUsageTracker());
+
+        BlobReaderCache_ = CreateBlobReaderCache(
+            GetConfig()->DataNode,
+            GetDynamicConfigManager(),
+            ChunkMetaManager_);
+
+        ChunkStore_ = New<TChunkStore>(
+            GetConfig()->DataNode,
+            GetDynamicConfigManager(),
+            GetControlInvoker(),
+            TChunkContext::Create(this),
+            CreateChunkStoreHost(this));
+
+        SessionManager_ = New<TSessionManager>(GetConfig()->DataNode, this);
+
+        JobController_ = CreateJobController(this);
+
+        MasterConnector_ = CreateMasterConnector(this);
+
+        MediumDirectoryManager_ = New<TMediumDirectoryManager>(
+            this,
+            DataNodeLogger());
+
+        MediumUpdater_ = New<TMediumUpdater>(
+            this,
+            MediumDirectoryManager_);
+
+        ChunkStore_->Initialize();
+
+        SessionManager_->Initialize();
+
+        if (GetConfig()->EnableFairThrottler) {
+            for (auto kind : {
+                EDataNodeThrottlerKind::ReplicationIn,
+                EDataNodeThrottlerKind::RepairIn,
+                EDataNodeThrottlerKind::MergeIn,
+                EDataNodeThrottlerKind::AutotomyIn,
+                EDataNodeThrottlerKind::ArtifactCacheIn,
+                EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
+                EDataNodeThrottlerKind::TabletLoggingIn,
+                EDataNodeThrottlerKind::TabletSnapshotIn,
+                EDataNodeThrottlerKind::TabletStoreFlushIn,
+                EDataNodeThrottlerKind::JobIn,
+                EDataNodeThrottlerKind::ReincarnationIn,
+            }) {
+                Throttlers_[kind] = ClusterNodeBootstrap_->CreateInThrottler(FormatEnum(kind));
+            }
+
+            for (auto kind : {
+                EDataNodeThrottlerKind::ReplicationOut,
+                EDataNodeThrottlerKind::RepairOut,
+                EDataNodeThrottlerKind::MergeOut,
+                EDataNodeThrottlerKind::AutotomyOut,
+                EDataNodeThrottlerKind::ArtifactCacheOut,
+                EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
+                EDataNodeThrottlerKind::SkynetOut,
+                EDataNodeThrottlerKind::TabletPreloadOut,
+                EDataNodeThrottlerKind::TabletRecoveryOut,
+                EDataNodeThrottlerKind::TabletReplicationOut,
+                EDataNodeThrottlerKind::JobOut,
+                EDataNodeThrottlerKind::TabletStoreFlushOut,
+                EDataNodeThrottlerKind::ReincarnationOut,
+            }) {
+                Throttlers_[kind] = ClusterNodeBootstrap_->CreateOutThrottler(FormatEnum(kind));
+            }
+        } else {
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+                if (DataNodeCompatThrottlers.contains(kind)) {
+                    continue;
+                }
+
+                const auto& throttlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(
+                    GetConfig()->DataNode->Throttlers[kind]);
+                LegacyRawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
+                    std::move(throttlerConfig),
+                    ToString(kind),
+                    DataNodeLogger(),
+                    DataNodeProfiler().WithPrefix("/throttlers"));
+            }
+
+            static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {
+                EDataNodeThrottlerKind::ReplicationIn,
+                EDataNodeThrottlerKind::RepairIn,
+                EDataNodeThrottlerKind::MergeIn,
+                EDataNodeThrottlerKind::AutotomyIn,
+                EDataNodeThrottlerKind::ArtifactCacheIn,
+                EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
+                EDataNodeThrottlerKind::TabletLoggingIn,
+                EDataNodeThrottlerKind::TabletSnapshotIn,
+                EDataNodeThrottlerKind::TabletStoreFlushIn,
+                EDataNodeThrottlerKind::JobIn,
+            };
+            static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
+                EDataNodeThrottlerKind::ReplicationOut,
+                EDataNodeThrottlerKind::RepairOut,
+                EDataNodeThrottlerKind::MergeOut,
+                EDataNodeThrottlerKind::AutotomyOut,
+                EDataNodeThrottlerKind::ArtifactCacheOut,
+                EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
+                EDataNodeThrottlerKind::SkynetOut,
+                EDataNodeThrottlerKind::TabletPreloadOut,
+                EDataNodeThrottlerKind::TabletRecoveryOut,
+                EDataNodeThrottlerKind::TabletReplicationOut,
+                EDataNodeThrottlerKind::JobOut,
+                EDataNodeThrottlerKind::TabletStoreFlushOut,
+            };
+
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+                if (DataNodeCompatThrottlers.contains(kind)) {
+                    continue;
+                }
+
+                auto throttler = IThroughputThrottlerPtr(LegacyRawThrottlers_[kind]);
+                if (InCombinedDataNodeThrottlerKinds.contains(kind)) {
+                    throttler = CreateCombinedThrottler({GetDefaultInThrottler(), throttler});
+                }
+                if (OutCombinedDataNodeThrottlerKinds.contains(kind)) {
+                    throttler = CreateCombinedThrottler({GetDefaultOutThrottler(), throttler});
+                }
+                Throttlers_[kind] = throttler;
+            }
+        }
+
+        // Should be created after throttlers.
+        AllyReplicaManager_ = CreateAllyReplicaManager(this);
+
+        StorageLookupThreadPool_ = CreateThreadPool(
+            GetConfig()->DataNode->StorageLookupThreadCount,
+            "StorageLookup");
+        MasterJobThreadPool_ = CreateThreadPool(
+            dynamicConfig->MasterJobThreadCount,
+            "MasterJob");
+
+        P2PActionQueue_ = New<TActionQueue>("P2P");
+        P2PBlockCache_ = New<TP2PBlockCache>(
+            GetConfig()->DataNode->P2P,
+            P2PActionQueue_->GetInvoker(),
+            GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::P2P));
+        P2PSnooper_ = New<TP2PSnooper>(
+            GetConfig()->DataNode->P2P,
+            GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::P2P));
+        P2PDistributor_ = New<TP2PDistributor>(
+            GetConfig()->DataNode->P2P,
+            P2PActionQueue_->GetInvoker(),
+            this);
+        GetNodeMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::P2P, P2PBlockCache_->GetCapacity() + P2PSnooper_->GetCapacity());
+
+        TableSchemaCache_ = New<TTableSchemaCache>(GetConfig()->DataNode->TableSchemaCache);
+
+        RowComparerProvider_ = CreateRowComparerProvider(GetConfig()->TabletNode->ColumnEvaluatorCache->CGCache);
+
+        InitializeOverloadController();
+
+        DataNodeService_ = CreateDataNodeService(GetConfig()->DataNode, this);
+        GetRpcServer()->RegisterService(DataNodeService_);
+
+        GetRpcServer()->RegisterService(CreateDataNodeNbdService(this, DataNodeLogger()));
+
+        GetRpcServer()->RegisterService(NDistributedChunkSessionServer::CreateDistributedChunkSessionService(
+            GetStorageLightInvoker(),
+            GetConnection()));
+
+        IOThroughputMeter_ = CreateIOThroughputMeter(
+            GetDynamicConfigManager(),
+            ChunkStore_,
+            DataNodeLogger().WithTag("Meter", "IO"));
+        JobController_->Initialize();
+
+        auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager();
+        LocationManager_ = New<TLocationManager>(
+            this,
+            ChunkStore_,
+            GetControlInvoker(),
+            hotswapManager ? hotswapManager->GetDiskInfoProvider() : nullptr);
+        LocationHealthChecker_ = CreateLocationHealthChecker(
+            ChunkStore_,
+            LocationManager_,
+            GetControlInvoker(),
+            RestartManager_);
+        LocationHealthChecker_->Initialize();
+        MasterConnector_->Initialize();
+
+        MediumAwareBlockCacheManager_ = CreateMediumAwareBlockCacheManager(
+            GetConfig()->DataNode->MediumAwareBlockCacheManager,
+            ChunkStore_->GetLocationCountPerMedium(),
+            GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::BlockCache),
+            BIND([mediumDirectoryManager = MediumDirectoryManager_] (int mediumIndex) -> std::optional<std::string> {
+                auto medium = mediumDirectoryManager->GetMediumDirectory()->FindByIndex(mediumIndex);
+                return medium
+                    ? std::make_optional(medium->Name())
+                    : std::nullopt;
+            }),
+            DataNodeProfiler().WithPrefix("/block_cache/per_medium"));
+        ChunkStore_->SetMediumAwareBlockCacheManager(MediumAwareBlockCacheManager_);
+
+        if (hotswapManager) {
+            SubscribePopulateAlerts(BIND(&IHotswapManager::PopulateAlerts, hotswapManager));
+        }
+    }
+
+    void Run() override
+    {
+        SkynetHttpServer_ = NHttp::CreateServer(GetConfig()->CreateSkynetHttpServerConfig());
+        SkynetHttpServer_->AddHandler(
+            "/read_skynet_part",
+            MakeSkynetHttpHandler(this));
+
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/data_node",
+            CreateVirtualNode(GetOrchidService(this)));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SetNodeByYPath(
+                GetOrchidRoot(),
+                "/disk_monitoring",
+                CreateVirtualNode(hotswapManager->GetOrchidService()));
+        }
+
+        P2PDistributor_->Start();
+
+        SkynetHttpServer_->Start();
+
+        AllyReplicaManager_->Start();
+
+        LocationHealthChecker_->Start();
+
+        OverloadController_->Start();
+    }
+
+    void AdjustMemoryLimit(IMemoryUsageTrackerPtr memoryTracker, NRpc::TCongestionState congestionState)
+    {
+        if (congestionState.CurrentWindow.has_value()) {
+            memoryTracker->AdjustLimit(*congestionState.CurrentWindow * 1_MB);
+        } else {
+            memoryTracker->AdjustLimit(std::numeric_limits<i64>::max());
+        }
+    }
+
+    void AdjustWriteSessionsLimit(TSessionManagerPtr sessionManager, NRpc::TCongestionState congestionState)
+    {
+        if (congestionState.CurrentWindow.has_value()) {
+            sessionManager->AdjustMaxWriteSessions(*congestionState.CurrentWindow);
+        } else {
+            sessionManager->AdjustMaxWriteSessions(GetConfig()->DataNode->MaxWriteSessions);
+        }
+    }
+
+    void HandleLoadAdjusted()
+    {
+        auto dataNodeServiceName = DataNodeService_->GetServiceId().ServiceName;
+        auto congestionStatePendingDiskWrite = OverloadController_->GetCongestionState(dataNodeServiceName, "PendingDiskWrite");
+        auto congestionStatePendingDiskRead = OverloadController_->GetCongestionState(dataNodeServiceName, "PendingDiskRead");
+        auto congestionStateWriteSessions = OverloadController_->GetCongestionState(dataNodeServiceName, "WriteSessions");
+
+        AdjustMemoryLimit(GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite), congestionStatePendingDiskWrite);
+        AdjustMemoryLimit(GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead), congestionStatePendingDiskRead);
+        AdjustWriteSessionsLimit(GetSessionManager(), congestionStateWriteSessions);
+    }
+
+    void InitializeOverloadController()
+    {
+        OverloadController_->TrackFSHThreadPool(BusXferThreadPoolName, NBus::NTcp::TDispatcher::Get()->GetXferPoller()->GetFairShareThreadPool());
+        OverloadController_->TrackInvoker(StorageHeavyPoolName, NRpc::TDispatcher::Get()->GetHeavyInvoker());
+        OverloadController_->TrackInvoker(StorageLightPoolName, NRpc::TDispatcher::Get()->GetLightInvoker());
+
+        OverloadController_->SubscribeLoadAdjusted(BIND(
+            &TBootstrap::HandleLoadAdjusted,
+            MakeWeak(this)));
+    }
+
+    const TChunkStorePtr& GetChunkStore() const override
+    {
+        return ChunkStore_;
+    }
+
+    const IChunkMetaManagerPtr& GetChunkMetaManager() const override
+    {
+        return ChunkMetaManager_;
+    }
+
+    const IBlobReaderCachePtr& GetBlobReaderCache() const override
+    {
+        return BlobReaderCache_;
+    }
+
+    const IAllyReplicaManagerPtr& GetAllyReplicaManager() const override
+    {
+        return AllyReplicaManager_;
+    }
+
+    const TLocationManagerPtr& GetLocationManager() const override
+    {
+        return LocationManager_;
+    }
+
+    const TSessionManagerPtr& GetSessionManager() const override
+    {
+        return SessionManager_;
+    }
+
+    const IJobControllerPtr& GetJobController() const override
+    {
+        return JobController_;
+    }
+
+    const IMasterConnectorPtr& GetMasterConnector() const override
+    {
+        return MasterConnector_;
+    }
+
+    const TMediumDirectoryManagerPtr& GetMediumDirectoryManager() const override
+    {
+        return MediumDirectoryManager_;
+    }
+
+    const TMediumUpdaterPtr& GetMediumUpdater() const override
+    {
+        return MediumUpdater_;
+    }
+
+    const IMediumAwareBlockCacheManagerPtr& GetMediumAwareBlockCacheManager() const override
+    {
+        return MediumAwareBlockCacheManager_;
+    }
+
+    NChunkClient::IBlockCachePtr GetBlockCacheForMedium(int mediumIndex) const override
+    {
+        if (auto blockCache = MediumAwareBlockCacheManager_->GetBlockCacheForMedium(mediumIndex)) {
+            return blockCache;
+        }
+        return GetBlockCache();
+    }
+
+    const IThroughputThrottlerPtr& GetThrottler(EDataNodeThrottlerKind kind) const override
+    {
+        return Throttlers_[kind];
+    }
+
+    const IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const override
+    {
+        static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
+            {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairIn},
+            {EWorkloadCategory::SystemReplication,           EDataNodeThrottlerKind::ReplicationIn},
+            {EWorkloadCategory::SystemArtifactCacheDownload, EDataNodeThrottlerKind::ArtifactCacheIn},
+            {EWorkloadCategory::SystemTabletCompaction,      EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn},
+            {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn},
+            {EWorkloadCategory::SystemTabletLogging,         EDataNodeThrottlerKind::TabletLoggingIn},
+            {EWorkloadCategory::SystemTabletSnapshot,        EDataNodeThrottlerKind::TabletSnapshotIn},
+            {EWorkloadCategory::SystemTabletStoreFlush,      EDataNodeThrottlerKind::TabletStoreFlushIn}
+        };
+        auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
+        return it == WorkloadCategoryToThrottlerKind.end()
+            ? GetDefaultInThrottler()
+            : Throttlers_[it->second];
+    }
+
+    const IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const override
+    {
+        static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
+            {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairOut},
+            {EWorkloadCategory::SystemReplication,           EDataNodeThrottlerKind::ReplicationOut},
+            {EWorkloadCategory::SystemArtifactCacheDownload, EDataNodeThrottlerKind::ArtifactCacheOut},
+            {EWorkloadCategory::SystemTabletCompaction,      EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
+            {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
+            {EWorkloadCategory::SystemTabletPreload,         EDataNodeThrottlerKind::TabletPreloadOut},
+            {EWorkloadCategory::SystemTabletRecovery,        EDataNodeThrottlerKind::TabletRecoveryOut},
+            {EWorkloadCategory::SystemTabletReplication,     EDataNodeThrottlerKind::TabletReplicationOut},
+            {EWorkloadCategory::SystemTabletStoreFlush,      EDataNodeThrottlerKind::TabletStoreFlushOut}
+        };
+        auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
+        return it == WorkloadCategoryToThrottlerKind.end()
+            ? GetDefaultOutThrottler()
+            : Throttlers_[it->second];
+    }
+
+    const IJournalDispatcherPtr& GetJournalDispatcher() const override
+    {
+        return JournalDispatcher_;
+    }
+
+    const IInvokerPtr& GetStorageLookupInvoker() const override
+    {
+        return StorageLookupThreadPool_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetMasterJobInvoker() const override
+    {
+        return MasterJobThreadPool_->GetInvoker();
+    }
+
+    const TP2PBlockCachePtr& GetP2PBlockCache() const override
+    {
+        return P2PBlockCache_;
+    }
+
+    const TP2PSnooperPtr& GetP2PSnooper() const override
+    {
+        return P2PSnooper_;
+    }
+
+    const TTableSchemaCachePtr& GetTableSchemaCache() const override
+    {
+        return TableSchemaCache_;
+    }
+
+    const IRowComparerProviderPtr& GetRowComparerProvider() const override
+    {
+        return RowComparerProvider_;
+    }
+
+    const IIOThroughputMeterPtr& GetIOThroughputMeter() const override
+    {
+        return IOThroughputMeter_;
+    }
+
+    const TLocationHealthCheckerPtr& GetLocationHealthChecker() const override
+    {
+        return LocationHealthChecker_;
+    }
+
+    const NRpc::IOverloadControllerPtr& GetOverloadController() const override
+    {
+        return OverloadController_;
+    }
+
+    void SetPerLocationFullHeartbeatsEnabled(bool value) override
+    {
+        MasterConnector_->SetPerLocationFullHeartbeatsEnabled(value);
+    }
+
+    void SetLocationIndexesInHeartbeatsEnabled(bool value) override
+    {
+        MasterConnector_->SetLocationIndexesInHeartbeatsEnabled(value);
+    }
+
+    TNetThrottlingResult CheckNetOutThrottling(
+        i64 pendingOutBytes,
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        const auto& netThrottler = GetOutThrottler(workloadDescriptor);
+        auto netQueueSize = netThrottler->GetQueueTotalAmount() + pendingOutBytes;
+        auto netQueueLimit = GetDynamicConfigManager()->GetConfig()->DataNode->NetOutThrottlingLimit.value_or(
+            GetConfig()->DataNode->NetOutThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            GetNetworkStatistics().IncrementReadThrottlingCounter(networkName);
+        }
+        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
+    }
+
+    TNetThrottlingResult CheckNetInThrottling(
+        const std::string& networkName,
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const override
+    {
+        const auto& netThrottler = GetInThrottler(workloadDescriptor);
+        auto netQueueSize = netThrottler->GetQueueTotalAmount();
+        auto netQueueLimit = GetDynamicConfigManager()->GetConfig()->DataNode->NetInThrottlingLimit.value_or(
+            GetConfig()->DataNode->NetInThrottlingLimit);
+        bool throttle = netQueueSize > netQueueLimit;
+        if (throttle && incrementCounter) {
+            GetNetworkStatistics().IncrementWriteThrottlingCounter(networkName);
+        }
+        return TNetThrottlingResult{.Enabled = throttle, .QueueSize = netQueueSize};
+    }
+
+private:
+    NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
+
+    TChunkStorePtr ChunkStore_;
+    IAllyReplicaManagerPtr AllyReplicaManager_;
+
+    IChunkMetaManagerPtr ChunkMetaManager_;
+
+    IBlobReaderCachePtr BlobReaderCache_;
+
+    TSessionManagerPtr SessionManager_;
+
+    IJobControllerPtr JobController_;
+
+    IMasterConnectorPtr MasterConnector_;
+    TMediumDirectoryManagerPtr MediumDirectoryManager_;
+    TMediumUpdaterPtr MediumUpdater_;
+
+    TRestartManagerPtr RestartManager_;
+
+    TEnumIndexedArray<EDataNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
+    TEnumIndexedArray<EDataNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+
+    IJournalDispatcherPtr JournalDispatcher_;
+
+    IThreadPoolPtr StorageLookupThreadPool_;
+    IThreadPoolPtr MasterJobThreadPool_;
+
+    IMediumAwareBlockCacheManagerPtr MediumAwareBlockCacheManager_;
+
+    TActionQueuePtr P2PActionQueue_;
+    TP2PBlockCachePtr P2PBlockCache_;
+    TP2PSnooperPtr P2PSnooper_;
+    TP2PDistributorPtr P2PDistributor_;
+
+    TTableSchemaCachePtr TableSchemaCache_;
+
+    IRowComparerProviderPtr RowComparerProvider_;
+
+    NHttp::IServerPtr SkynetHttpServer_;
+
+    IIOThroughputMeterPtr IOThroughputMeter_;
+
+    TLocationManagerPtr LocationManager_;
+    TLocationHealthCheckerPtr LocationHealthChecker_;
+
+    NRpc::IOverloadControllerPtr OverloadController_;
+    NRpc::IServicePtr DataNodeService_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& newConfig)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        if (!GetConfig()->EnableFairThrottler) {
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+                if (DataNodeCompatThrottlers.contains(kind)) {
+                    continue;
+                }
+
+                const auto& throttlerConfig = newConfig->DataNode->Throttlers[kind]
+                    ? newConfig->DataNode->Throttlers[kind]
+                    : GetConfig()->DataNode->Throttlers[kind];
+                auto patchedThrottlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(throttlerConfig);
+                LegacyRawThrottlers_[kind]->Reconfigure(std::move(patchedThrottlerConfig));
+            }
+        }
+
+        StorageLookupThreadPool_->SetThreadCount(
+            newConfig->DataNode->StorageLookupThreadCount.value_or(GetConfig()->DataNode->StorageLookupThreadCount));
+        MasterJobThreadPool_->SetThreadCount(newConfig->DataNode->MasterJobThreadCount);
+
+        TableSchemaCache_->Configure(newConfig->DataNode->TableSchemaCache);
+
+        MediumAwareBlockCacheManager_->Reconfigure(newConfig->DataNode->MediumAwareBlockCacheManager);
+
+        P2PBlockCache_->UpdateConfig(newConfig->DataNode->P2P);
+        P2PSnooper_->UpdateConfig(newConfig->DataNode->P2P);
+        P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
+        GetNodeMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::P2P, P2PBlockCache_->GetCapacity() + P2PSnooper_->GetCapacity());
+
+        ChunkStore_->UpdateConfig(newConfig->DataNode);
+
+        LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
+        JobController_->OnDynamicConfigChanged(newConfig->DataNode->JobController);
+
+        OverloadController_->Reconfigure(newConfig->DataNode->OverloadController);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
+{
+    return New<TBootstrap>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NDataNode

@@ -1,0 +1,247 @@
+#include "volume.h"
+
+#include "layer_location.h"
+#include "private.h"
+#include "volume_counters.h"
+
+#include <yt/yt/server/tools/proc.h>
+#include <yt/yt/server/tools/tools.h>
+
+#include <yt/yt/core/actions/bind.h>
+
+#include <util/digest/city.h>
+
+namespace NYT::NExecNode {
+
+using namespace NConcurrency;
+using namespace NProfiling;
+using namespace NTools;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = ExecNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLayer::TLayer(
+    const TLayerMeta& layerMeta,
+    const TArtifactKey& artifactKey,
+    const TLayerLocationPtr& layerLocation)
+    : TAsyncCacheValueBase<TArtifactKey, TLayer>(artifactKey)
+    , LayerMeta_(layerMeta)
+    , Location_(layerLocation)
+{ }
+
+TLayer::~TLayer()
+{
+    auto removalNeeded = IsLayerRemovalNeeded_;
+    YT_TLOG_INFO("Layer is destroyed")
+        .With("LayerId", LayerMeta_.Id)
+        .With("LayerPath", LayerMeta_.Path)
+        .With("RemovalNeeded", removalNeeded);
+
+    if (removalNeeded) {
+        Location_->RemoveLayer(LayerMeta_.Id)
+            .Subscribe(BIND([layerId = LayerMeta_.Id] (const TError& result) {
+                YT_TLOG_ERROR_IF(!result.IsOK(), "Failed to remove layer")
+                    .With("LayerId", layerId)
+                    .With(result);
+            }));
+    }
+}
+
+const NYPath::TYPath& TLayer::GetCypressPath() const
+{
+    return GetKey().data_source().path();
+}
+
+const std::string& TLayer::GetPath() const
+{
+    return LayerMeta_.Path;
+}
+
+i64 TLayer::GetSize() const
+{
+    return LayerMeta_.size();
+}
+
+const TLayerMeta& TLayer::GetMeta() const
+{
+    return LayerMeta_;
+}
+
+void TLayer::IncreaseHitCount()
+{
+    HitCount_.fetch_add(1);
+}
+
+int TLayer::GetHitCount() const
+{
+    return HitCount_.load();
+}
+
+void TLayer::SetLayerRemovalNotNeeded()
+{
+    IsLayerRemovalNeeded_ = false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOverlayData::TOverlayData(TLayerPtr layer)
+    : Variant_(std::move(layer))
+{ }
+
+TOverlayData::TOverlayData(IVolumePtr volume)
+    : Variant_(std::move(volume))
+{ }
+
+const std::string& TOverlayData::GetPath() const
+{
+    if (std::holds_alternative<TLayerPtr>(Variant_)) {
+        return std::get<TLayerPtr>(Variant_)->GetPath();
+    }
+
+    return std::get<IVolumePtr>(Variant_)->GetPath();
+}
+
+bool TOverlayData::IsLayer() const
+{
+    return std::holds_alternative<TLayerPtr>(Variant_);
+}
+
+const TLayerPtr& TOverlayData::GetLayer() const
+{
+    return std::get<TLayerPtr>(Variant_);
+}
+
+bool TOverlayData::IsVolume() const
+{
+    return !IsLayer();
+}
+
+const IVolumePtr& TOverlayData::GetVolume() const
+{
+    return std::get<IVolumePtr>(Variant_);
+}
+
+TFuture<void> TOverlayData::Remove()
+{
+    if (IsLayer()) {
+        return OKFuture;
+    }
+
+    const auto& self = GetVolume();
+    if (self->IsCached()) {
+        return OKFuture;
+    }
+
+    return self->Remove();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSimpleTmpfsVolume::TSimpleTmpfsVolume(
+    TTagSet tagSet,
+    const std::string& path,
+    IInvokerPtr invoker,
+    bool detachUnmount)
+    : TagSet_(std::move(tagSet))
+    , Path_(path)
+    , VolumeId_(
+        [&path] {
+            auto [low, high] = CityHash128(path.c_str(), path.size());
+            return TGuid(low, high);
+        }())
+    , Invoker_(std::move(invoker))
+    , DetachUnmount_(detachUnmount)
+{ }
+
+TSimpleTmpfsVolume::~TSimpleTmpfsVolume()
+{
+    YT_UNUSED_FUTURE(Remove());
+}
+
+bool TSimpleTmpfsVolume::IsCached() const
+{
+    return false;
+}
+
+TFuture<void> TSimpleTmpfsVolume::Link(
+    TGuid /*tag*/,
+    const std::string& /*target*/)
+{
+    // Simple volume is created inside sandbox, so we don't need to link it.
+    YT_UNIMPLEMENTED("Link is not implemented for SimpleTmpfsVolume");
+}
+
+TFuture<void> TSimpleTmpfsVolume::Unlink()
+{
+    // Simple volume is created inside sandbox, so we don't need to unlink it.
+    return OKFuture;
+}
+
+TFuture<void> TSimpleTmpfsVolume::Remove()
+{
+    if (RemoveFuture_) {
+        return RemoveFuture_;
+    }
+
+    TEventTimerGuard volumeRemoveTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(TagSet_, "/remove_time"));
+
+    const auto volumeType = EVolumeType::Tmpfs;
+    const auto& volumeId = VolumeId_;
+    const auto& volumePath = Path_;
+
+    auto Logger = ExecNodeLogger()
+        .WithTag("VolumeType", volumeType)
+        .WithTag("VolumeId", volumeId)
+        .WithTag("VolumePath", volumePath);
+
+    RemoveFuture_ = BIND(
+        [
+            tagSet = TagSet_,
+            Logger,
+            this,
+            this_ = MakeStrong(this)
+        ] {
+            try {
+                RunTool<TRemoveDirContentAsRootTool>(Path_);
+
+                auto config = New<TUmountConfig>();
+                config->Path = Path_;
+                config->Detach = DetachUnmount_;
+                RunTool<TUmountAsRootTool>(config);
+
+                TVolumeProfilerCounters::Get()->GetGauge(tagSet, "/count")
+                    .Update(VolumeCounters().Decrement(tagSet));
+                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/removed").Increment(1);
+            } catch (const std::exception& ex) {
+                TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/remove_errors").Increment(1);
+
+                YT_TLOG_ERROR("Failed to remove volume")
+                    .With(ex);
+
+                THROW_ERROR_EXCEPTION("Failed to remove volume")
+                    .With(ex);
+            }
+        })
+        .AsyncVia(Invoker_)
+        .Run()
+        .ToUncancelable();
+
+    return RemoveFuture_;
+}
+
+const TVolumeId& TSimpleTmpfsVolume::GetId() const
+{
+    return VolumeId_;
+}
+
+const std::string& TSimpleTmpfsVolume::GetPath() const
+{
+    return Path_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NExecNode

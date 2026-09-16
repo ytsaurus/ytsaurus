@@ -1,0 +1,412 @@
+#include "lsm_interop.h"
+
+#include "bootstrap.h"
+#include "config.h"
+#include "hunk_chunk.h"
+#include "partition_balancer.h"
+#include "private.h"
+#include "slot_manager.h"
+#include "sorted_chunk_store.h"
+#include "store.h"
+#include "store_compactor.h"
+#include "store_manager.h"
+#include "store_rotator.h"
+#include "tablet.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
+#include "compaction_hint_controllers.h"
+#include "compaction_hint_fetching.h"
+
+#include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
+#include <yt/yt/server/lib/cellar_agent/cellar.h>
+
+#include <yt/yt/server/lib/lsm/compaction_hints.h>
+#include <yt/yt/server/lib/lsm/config.h>
+#include <yt/yt/server/lib/lsm/hunk_chunk.h>
+#include <yt/yt/server/lib/lsm/lsm_backend.h>
+#include <yt/yt/server/lib/lsm/partition.h>
+#include <yt/yt/server/lib/lsm/store.h>
+#include <yt/yt/server/lib/lsm/tablet.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
+#include <yt/yt/ytlib/tablet_client/config.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+namespace NYT::NTabletNode {
+
+using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NObjectClient;
+using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLsmInterop
+    : public ILsmInterop
+{
+public:
+    TLsmInterop(
+        IBootstrap* bootstrap,
+        const IStoreCompactorPtr& storeCompactor,
+        const IPartitionBalancerPtr& partitionBalancer,
+        const IStoreRotatorPtr& storeRotator)
+        : Bootstrap_(bootstrap)
+        , StoreCompactor_(storeCompactor)
+        , PartitionBalancer_(partitionBalancer)
+        , StoreRotator_(storeRotator)
+        , Backend_(NLsm::CreateLsmBackend())
+    { }
+
+    void Start() override
+    {
+        const auto& slotManager = Bootstrap_->GetSlotManager();
+        slotManager->SubscribeBeginSlotScan(BIND(&TLsmInterop::OnBeginSlotScan, MakeWeak(this)));
+        slotManager->SubscribeScanSlot(BIND(&TLsmInterop::OnScanSlot, MakeWeak(this)));
+        slotManager->SubscribeEndSlotScan(BIND(&TLsmInterop::OnEndSlotScan, MakeWeak(this)));
+    }
+
+private:
+    IBootstrap* const Bootstrap_;
+    const IStoreCompactorPtr StoreCompactor_;
+    const IPartitionBalancerPtr PartitionBalancer_;
+    const IStoreRotatorPtr StoreRotator_;
+    const NLsm::ILsmBackendPtr Backend_;
+
+    void OnBeginSlotScan()
+    {
+        YT_TLOG_DEBUG("LSM interop begins slot scan");
+
+        StoreCompactor_->OnBeginSlotScan();
+
+        SetBackendState();
+    }
+
+    void OnScanSlot(const ITabletSlotPtr& slot)
+    {
+        if (slot->GetAutomatonState() != NHydra::EPeerState::Leading) {
+            return;
+        }
+
+        YT_TLOG_DEBUG("LSM interop scans slot")
+            .With("CellId", slot->GetCellId());
+
+        const auto& tabletManager = slot->GetTabletManager();
+
+        std::vector<NLsm::TTabletPtr> lsmTablets;
+        lsmTablets.reserve(tabletManager->Tablets().size());
+
+        {
+            TForbidContextSwitchGuard guard;
+
+            for (auto [tabletId, tablet] : tabletManager->Tablets()) {
+                if (!tablet->IsActiveServant()) {
+                    continue;
+                }
+                lsmTablets.push_back(ScanTablet(slot, tablet));
+            }
+        }
+
+        YT_TLOG_DEBUG("Tablets collected")
+            .With("CellId", slot->GetCellId())
+            .With("TabletCount", lsmTablets.size());
+
+        if (Bootstrap_->GetTabletNodeDynamicConfig()->TabletManager->YieldBeforeBuildingLsmActions) {
+            Yield();
+        }
+
+        auto actions = Backend_->BuildLsmActions(lsmTablets, slot->GetTabletCellBundleName());
+        PartitionBalancer_->ProcessLsmActionBatch(slot, actions);
+        StoreRotator_->ProcessLsmActionBatch(slot, actions);
+
+        for (const auto& lsmTablet : lsmTablets) {
+            if (auto* tablet = tabletManager->FindTablet(lsmTablet->GetId())) {
+                tablet->LsmStatistics() = lsmTablet->LsmStatistics();
+            }
+        }
+
+        GetFinalizerInvoker()->Invoke(BIND([lsmTablets = std::move(lsmTablets)] { }));
+    }
+
+    void OnEndSlotScan()
+    {
+        auto actions = Backend_->BuildOverallLsmActions();
+        StoreCompactor_->ProcessLsmActionBatch(actions);
+        StoreRotator_->ProcessLsmActionBatch(/*slot*/ nullptr, actions);
+    }
+
+    NLsm::TLsmTabletNodeConfigPtr GenerateLsmConfig(
+        const TTabletNodeConfigPtr& staticConfig,
+        const TTabletNodeDynamicConfigPtr& dynamicConfig)
+    {
+        auto lsmConfig = New<NLsm::TLsmTabletNodeConfig>();
+
+        lsmConfig->ForcedRotationMemoryRatio = dynamicConfig->StoreFlusher->ForcedRotationMemoryRatio.value_or(
+            staticConfig->ForcedRotationMemoryRatio);
+        lsmConfig->MinForcedFlushDataSize = dynamicConfig->StoreFlusher->MinForcedFlushDataSize.value_or(
+            staticConfig->StoreFlusher->MinForcedFlushDataSize);
+
+        lsmConfig->ResamplingPeriod = staticConfig->PartitionBalancer->ResamplingPeriod;
+
+        lsmConfig->CompactionBackoffTime = staticConfig->TabletManager->CompactionBackoffTime;
+        lsmConfig->StarvingTablesTasksRatio = dynamicConfig->StoreCompactor->StarvingTablesTasksRatio;
+        lsmConfig->BackgroundTaskHistoryWindow = dynamicConfig->StoreCompactor->BackgroundTaskHistoryWindow;
+
+        return lsmConfig;
+    }
+
+    void SetBackendState()
+    {
+        NLsm::TLsmBackendState backendState;
+
+        auto timestampProvider = Bootstrap_
+            ->GetClient()
+            ->GetNativeConnection()
+            ->GetTimestampProvider();
+        backendState.CurrentTimestamp = timestampProvider->GetLatestTimestamp();
+
+        backendState.TabletNodeConfig = GenerateLsmConfig(
+            Bootstrap_->GetTabletNodeConfig(),
+            Bootstrap_->GetTabletNodeDynamicConfig());
+
+        const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
+        const auto& cellar = Bootstrap_->GetCellarManager()->GetCellar(NCellarClient::ECellarType::Tablet);
+        for (const auto& occupant : cellar->Occupants()) {
+            if (!occupant) {
+                continue;
+            }
+
+            auto occupier = occupant->GetTypedOccupier<ITabletSlot>();
+            if (!occupier) {
+                continue;
+            }
+
+            const auto& bundleName = occupier->GetTabletCellBundleName();
+            if (backendState.Bundles.contains(bundleName)) {
+                continue;
+            }
+
+            const auto& options = occupier->GetDynamicOptions();
+
+            NLsm::TTabletCellBundleState bundleState{
+                .ForcedRotationMemoryRatio = options->ForcedRotationMemoryRatio,
+                .EnablePerBundleMemoryLimit = options->EnableTabletDynamicMemoryLimit,
+                .DynamicMemoryLimit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName),
+                .DynamicMemoryUsage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName),
+            };
+
+            backendState.Bundles[bundleName] = bundleState;
+        }
+
+        backendState.DynamicMemoryLimit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic);
+        backendState.DynamicMemoryUsage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic);
+
+        backendState.CurrentTime = TInstant::Now();
+
+        backendState.CompactionTasks = StoreCompactor_->TakeStartedCompactionTasks();
+        backendState.PartitioningTasks = StoreCompactor_->TakeStartedPartitioningTasks();
+
+        Backend_->StartNewRound(backendState);
+    }
+
+    NLsm::TTabletPtr ScanTablet(
+        const ITabletSlotPtr& slot,
+        TTablet* tablet)
+    {
+        const auto& storeManager = tablet->GetStoreManager();
+
+        auto lsmTablet = New<NLsm::TTablet>();
+        lsmTablet->SetId(tablet->GetId());
+        lsmTablet->TablePath() = tablet->GetTablePath();
+        lsmTablet->SetCellId(slot->GetCellId());
+        lsmTablet->TabletCellBundle() = slot->GetTabletCellBundleName();
+        lsmTablet->SetPhysicallySorted(tablet->IsPhysicallySorted());
+        lsmTablet->SetMounted(tablet->GetState() == ETabletState::Mounted);
+        lsmTablet->SetMountConfig(tablet->GetSettings().MountConfig);
+        lsmTablet->SetMountRevision(tablet->GetMountRevision());
+        lsmTablet->LoggingTags() = tablet->GetLoggingTags();
+        lsmTablet->SetIsOutOfBandRotationRequested(tablet->GetOutOfBandRotationRequested());
+
+        lsmTablet->SetIsForcedRotationPossible(storeManager->IsForcedRotationPossible());
+        lsmTablet->SetIsOverflowRotationNeeded(storeManager->IsOverflowRotationNeeded());
+        lsmTablet->SetLastPeriodicRotationTime(storeManager->GetLastPeriodicRotationTime());
+
+        const auto& movementData = tablet->SmoothMovementData();
+        lsmTablet->SetIsCompactionAllowed(
+            movementData.IsTabletStoresUpdateAllowed(/*isCommonFlush*/ false));
+
+        if (tablet->IsPhysicallySorted()) {
+            lsmTablet->Eden() = ScanPartition(tablet->GetEden(), lsmTablet.Get());
+            lsmTablet->Partitions().reserve(tablet->PartitionList().size());
+            for (const auto& partition : tablet->PartitionList()) {
+                lsmTablet->Partitions().push_back(ScanPartition(partition.get(), lsmTablet.Get()));
+            }
+            lsmTablet->SetOverlappingStoreCount(tablet->GetOverlappingStoreCount());
+            lsmTablet->SetEdenOverlappingStoreCount(tablet->GetEdenOverlappingStoreCount());
+            lsmTablet->SetCriticalPartitionCount(tablet->GetCriticalPartitionCount());
+
+            auto tableSchema = tablet->GetTableSchema();
+            lsmTablet->SetHasTtlColumn(tableSchema->HasTtlColumn());
+            lsmTablet->SetHasAggregateColumn(tableSchema->HasAggregateColumns());
+        } else {
+            lsmTablet->Stores().reserve(tablet->StoreIdMap().size());
+            for (const auto& [id, store] : tablet->StoreIdMap()) {
+                lsmTablet->Stores().push_back(ScanStore(store, lsmTablet.Get()));
+            }
+        }
+
+        return lsmTablet;
+    }
+
+    std::unique_ptr<NLsm::TPartition> ScanPartition(
+        TPartition* partition,
+        NLsm::TTablet* lsmTablet)
+    {
+        auto lsmPartition = std::make_unique<NLsm::TPartition>();
+        lsmPartition->SetTablet(lsmTablet);
+        lsmPartition->SetId(partition->GetId());
+        lsmPartition->SetIndex(partition->GetIndex());
+        lsmPartition->PivotKey() = partition->GetPivotKey();
+        lsmPartition->NextPivotKey() = partition->GetNextPivotKey();
+        lsmPartition->SetState(partition->GetState());
+        lsmPartition->SetCompactionTime(partition->GetCompactionTime());
+        lsmPartition->SetAllowedSplitTime(partition->GetAllowedSplitTime());
+        lsmPartition->SetAllowedMergeTime(partition->GetAllowedMergeTime());
+        lsmPartition->SetSamplingRequestTime(partition->GetSamplingRequestTime());
+        lsmPartition->SetSamplingTime(partition->GetSamplingTime());
+        lsmPartition->SetIsImmediateSplitRequested(partition->IsImmediateSplitRequested());
+        lsmPartition->SetCompressedDataSize(partition->GetCompressedDataSize());
+        lsmPartition->SetUncompressedDataSize(partition->GetUncompressedDataSize());
+        for (const auto& controller : partition->CompactionHints().Controllers()) {
+            lsmPartition->CompactionHints().Hints()[controller.GetPartitionCompactionHintKind()] = controller.LsmCompactionHint();
+        }
+
+        lsmPartition->Stores().reserve(partition->Stores().size());
+        for (const auto& store : partition->Stores()) {
+            lsmPartition->Stores().push_back(ScanStore(
+                store,
+                lsmTablet));
+        }
+
+        return lsmPartition;
+    }
+
+    std::unique_ptr<NLsm::TStore> ScanStore(
+        const IStorePtr& store,
+        NLsm::TTablet* lsmTablet)
+    {
+        const auto& tablet = store->GetTablet();
+        const auto& storeManager = tablet->GetStoreManager();
+
+        auto lsmStore = std::make_unique<NLsm::TStore>();
+        lsmStore->SetTablet(lsmTablet);
+        lsmStore->SetId(store->GetId());
+        lsmStore->SetType(store->GetType());
+        lsmStore->SetStoreState(store->GetStoreState());
+        lsmStore->SetCompressedDataSize(store->GetCompressedDataSize());
+        lsmStore->SetUncompressedDataSize(store->GetUncompressedDataSize());
+        lsmStore->SetRowCount(store->GetRowCount());
+        lsmStore->SetMinTimestamp(store->GetMinTimestamp());
+        lsmStore->SetMaxTimestamp(store->GetMaxTimestamp());
+
+        if (store->IsDynamic()) {
+            auto dynamicStore = store->AsDynamic();
+            lsmStore->SetFlushState(dynamicStore->GetFlushState());
+            lsmStore->SetLastFlushAttemptTimestamp(
+                dynamicStore->GetLastFlushAttemptTimestamp());
+            lsmStore->SetDynamicMemoryUsage(dynamicStore->GetDynamicMemoryUsage());
+        }
+
+        if (store->IsChunk()) {
+            auto chunkStore = store->AsChunk();
+            lsmStore->SetPreloadState(chunkStore->GetPreloadState());
+            lsmStore->SetCompactionState(chunkStore->GetCompactionState());
+            lsmStore->SetIsCompactable(storeManager->IsStoreCompactable(store));
+            lsmStore->SetCreationTime(chunkStore->GetCreationTime());
+            lsmStore->SetLastCompactionTimestamp(chunkStore->GetLastCompactionTimestamp());
+            lsmStore->HunkChunks() = ScanHunkChunks(store, lsmTablet);
+
+            if (auto backingStore = chunkStore->GetBackingStore()) {
+                lsmStore->SetBackingStoreMemoryUsage(backingStore->GetDynamicMemoryUsage());
+            }
+
+            if (store->IsSorted()) {
+                auto sortedChunkStore = store->AsSortedChunk();
+
+                auto& fetchPipelines = sortedChunkStore->CompactionHintFetchPipelines();
+                for (auto [storeKind, partitionKind] : NLsm::StoreCompactionHintKinds) {
+                    if (fetchPipelines.DefinitelyHasNoHint(storeKind)) {
+                        continue;
+                    }
+
+                    if (auto pipeline = fetchPipelines.FetchPipelines()[storeKind]->Lock()) {
+                        lsmStore->CompactionHints().Payloads()[storeKind] = pipeline->Payload();
+                    }
+
+                    if (sortedChunkStore->CompactionHints().Controllers().IsValidIndex(storeKind)) {
+                        lsmStore->CompactionHints().Hints()[storeKind] =
+                            sortedChunkStore->CompactionHints().Controllers()[storeKind].LsmCompactionHint();
+                    }
+                }
+            }
+        }
+
+        if (store->IsSorted()) {
+            auto sortedStore = store->AsSorted();
+            lsmStore->MinKey() = sortedStore->GetMinKey();
+            lsmStore->UpperBoundKey() = sortedStore->GetUpperBoundKey();
+        }
+
+        EmplaceOrCrash(lsmTablet->StoreIdMap(), lsmStore->GetId(), lsmStore.get());
+
+        return lsmStore;
+    }
+
+    std::vector<NLsm::THunkChunk*> ScanHunkChunks(const IStorePtr& store, NLsm::TTablet* lsmTablet)
+    {
+        std::vector<NLsm::THunkChunk*> hunkChunks;
+        for (const auto& hunkChunkRef : store->AsChunk()->HunkChunkRefs()) {
+            const auto& hunkChunk = hunkChunkRef.HunkChunk;
+
+            auto it = lsmTablet->HunkChunks().find(hunkChunk->GetId());
+
+            if (it == lsmTablet->HunkChunks().end()) {
+                it = lsmTablet->HunkChunks().emplace(
+                    hunkChunk->GetId(),
+                    std::make_unique<NLsm::THunkChunk>(
+                        hunkChunk->GetId(),
+                        hunkChunk->GetTotalHunkLength(),
+                        hunkChunk->GetReferencedTotalHunkLength()
+                    )
+                ).first;
+            }
+
+            hunkChunks.push_back(it->second.get());
+        }
+
+        return hunkChunks;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ILsmInteropPtr CreateLsmInterop(
+    IBootstrap* bootstrap,
+    const IStoreCompactorPtr& storeCompactor,
+    const IPartitionBalancerPtr& partitionBalancer,
+    const IStoreRotatorPtr& storeRotator)
+{
+    return New<TLsmInterop>(bootstrap, storeCompactor, partitionBalancer, storeRotator);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTabletNode

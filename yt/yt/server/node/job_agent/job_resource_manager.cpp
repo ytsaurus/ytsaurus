@@ -1,0 +1,2257 @@
+#include "job_resource_manager.h"
+
+#include "private.h"
+
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+#include <yt/yt/server/node/cluster_node/node_resource_manager.h>
+
+#include <yt/yt/server/node/exec_node/artifact_cache.h>
+#include <yt/yt/server/node/exec_node/bootstrap.h>
+#include <yt/yt/server/node/exec_node/gpu_manager.h>
+#include <yt/yt/server/node/exec_node/job_controller.h>
+#include <yt/yt/server/node/exec_node/slot.h>
+#include <yt/yt/server/node/exec_node/slot_manager.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+
+#include <yt/yt/server/lib/job_agent/config.h>
+
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
+#include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <yt/yt/core/misc/proc.h>
+
+#include <yt/yt/core/net/helpers.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
+#include <library/cpp/yt/threading/atomic_object.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <google/protobuf/util/message_differencer.h>
+
+namespace NYT::NJobAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NConcurrency;
+using namespace NClusterNode;
+using namespace NProfiling;
+using namespace NNodeTrackerClient;
+using namespace NNet;
+using namespace NLogging;
+using namespace NYson;
+using namespace NYTree;
+
+using NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides;
+using NNodeTrackerClient::NProto::TDiskResources;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static YT_DEFINE_LEAKY_GLOBAL(const NLogging::TLogger, Logger, "JobResourceManager");
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool AreNonDiskResourcesEqual(TJobResources lhs, TJobResources rhs)
+{
+    lhs.DiskSpaceRequest = rhs.DiskSpaceRequest = 0;
+    lhs.InodeRequest = rhs.InodeRequest = 0;
+
+    return lhs == rhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResourceHolder::TAcquiredResources
+{
+public:
+    TAcquiredResources(TAcquiredResources&&) noexcept = default;
+    TAcquiredResources& operator=(TAcquiredResources&&) noexcept = default;
+
+    TAcquiredResources(TJobResourceManager::TImpl* jobResourceManagerImpl) noexcept;
+    ~TAcquiredResources();
+
+    TMemoryUsageTrackerGuard UserMemoryGuard;
+    TMemoryUsageTrackerGuard SystemMemoryGuard;
+    ISlotPtr UserSlot;
+    std::vector<ISlotPtr> GpuSlots;
+    std::vector<int> Ports;
+    std::optional<int> JobProxyRpcServerPort;
+
+private:
+    TJobResourceManager::TImpl* const JobResourceManagerImpl_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobResourceManager::TImpl
+    : public TJobResourceManager
+{
+public:
+    DEFINE_SIGNAL_OVERRIDE(void(), ResourcesAcquired);
+    DEFINE_SIGNAL_OVERRIDE(void(), ResourcesReleased);
+    DEFINE_SIGNAL_OVERRIDE(void(TResourceHolderPtr), ResourceUsageOverdraftOccurred);
+
+    DEFINE_SIGNAL_OVERRIDE(
+        void(i64 mapped),
+        ReservedMemoryOvercommitted);
+
+public:
+    explicit TImpl(IBootstrapBase* bootstrap)
+        : Bootstrap_(bootstrap)
+        , StaticConfig_(bootstrap->GetConfig()->JobResourceManager)
+        , DynamicConfig_(New<TJobResourceManagerDynamicConfig>())
+        , NodeMemoryUsageTracker_(Bootstrap_->GetNodeMemoryUsageTracker())
+        , SystemMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::SystemJobs))
+        , UserMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::UserJobs))
+        , Profiler_("/job_controller")
+        , MajorPageFaultsGauge_(Profiler_.Gauge("/memory_pressure_detector/major_page_faults"))
+        , FreeMemoryWatermarkMultiplierGauge_(Profiler_.Gauge("/memory_pressure_detector/free_memory_watermark_multiplier"))
+        , FreeMemoryWatermarkAddedMemoryGauge_(Profiler_.Gauge("/memory_pressure_detector/free_memory_watermark_added_memory"))
+        , FreeMemoryWatermarkIsIncreasedGauge_(Profiler_.Gauge("/memory_pressure_detector/free_memory_watermark_is_increased"))
+        , FreeUserJobMemoryWatermarkGauge_(Profiler_.Gauge("/free_user_job_memory_watermark"))
+    {
+        YT_VERIFY(StaticConfig_);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+        Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
+
+        Profiler_.AddProducer(
+            "/resource_usage",
+            ResourceUsageBuffer_);
+
+        if (StaticConfig_->PortSet) {
+            FreePorts_ = *StaticConfig_->PortSet;
+        } else {
+            for (int index = 0; index < StaticConfig_->PortCount; ++index) {
+                FreePorts_.insert(StaticConfig_->StartPort + index);
+            }
+        }
+
+        for (auto& resourceUsage : ResourceUsages_) {
+            resourceUsage = ZeroJobResources();
+        }
+    }
+
+    void Initialize() final
+    {
+        auto dynamicConfig = GetDynamicConfig();
+
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetJobInvoker(),
+            BIND_NO_PROPAGATE(&TImpl::OnProfiling, MakeWeak(this)),
+            dynamicConfig->ProfilingPeriod);
+
+        ResourceAvailabilityCheckExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetJobInvoker(),
+            BIND_NO_PROPAGATE(&TImpl::OnResourceAvailabilityCheck, MakeWeak(this)),
+            dynamicConfig->ResourceAvailabilityCheckPeriod);
+
+        ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetJobInvoker(),
+            BIND_NO_PROPAGATE(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
+            std::nullopt);
+
+        MemoryPressureDetector_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetJobInvoker(),
+            BIND_NO_PROPAGATE(&TImpl::CheckMemoryPressure, MakeWeak(this)),
+            std::nullopt);
+    }
+
+    void Start() final
+    {
+        ProfilingExecutor_->Start();
+        ReservedMappedMemoryChecker_->Start();
+
+        if (Bootstrap_->IsExecNode()) {
+            ResourceAvailabilityCheckExecutor_->Start();
+            MemoryPressureDetector_->Start();
+        }
+    }
+
+    void OnDynamicConfigChanged(
+        const TClusterNodeDynamicConfigPtr& oldConfig,
+        const TClusterNodeDynamicConfigPtr& newConfig) final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        ProfilingExecutor_->SetPeriod(
+            newConfig->JobResourceManager->ProfilingPeriod);
+        ResourceAvailabilityCheckExecutor_->SetPeriod(
+            newConfig->JobResourceManager->ResourceAvailabilityCheckPeriod);
+
+        MemoryPressureDetector_->SetPeriod(newConfig->JobResourceManager->MemoryPressureDetector->CheckPeriod);
+
+        if (newConfig->JobResourceManager->MappedMemoryController) {
+            ReservedMappedMemoryChecker_->SetPeriod(newConfig->JobResourceManager->MappedMemoryController->CheckPeriod);
+        }
+
+        DynamicConfig_.Store(newConfig->JobResourceManager);
+
+        if (*oldConfig->ResourceLimits->Overrides !=
+            *newConfig->ResourceLimits->Overrides)
+        {
+            YT_TLOG_DEBUG("Resource limits overrides config has been changed")
+                .With("Old", ConvertToYsonString(oldConfig->ResourceLimits->Overrides, EYsonFormat::Text))
+                .With("New", ConvertToYsonString(newConfig->ResourceLimits->Overrides, EYsonFormat::Text));
+
+            Bootstrap_->GetJobInvoker()->Invoke(BIND(&TJobResourceManager::TImpl::NotifyResourcesReleased, MakeStrong(this)));
+        }
+    }
+
+    void OnProfiling()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto doProfile = [this] (ISensorWriter* writer, EResourcesState state) {
+            NProfiling::TWithTagGuard withTags{writer};
+            withTags.AddTag(MakeResourcesTag(state));
+
+            ProfileResources(writer, ResourceUsages_[state]);
+        };
+
+        ResourceUsageBuffer_->Update([this, &doProfile] (ISensorWriter* writer) {
+            auto guard = ReaderGuard(ResourcesLock_);
+
+            doProfile(writer, EResourcesState::Pending);
+            doProfile(writer, EResourcesState::Acquired);
+            doProfile(writer, EResourcesState::Releasing);
+        });
+
+        auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
+
+        ResourceLimitsBuffer_->Update([&] (ISensorWriter* writer) {
+            ProfileResources(writer, resourceLimits);
+        });
+
+        auto dynamicConfig = GetDynamicConfig();
+        FreeUserJobMemoryWatermarkGauge_.Update(resourceLimits.UserMemory * (1.0 - dynamicConfig->FreeUserJobMemoryWatermarkMultiplier));
+
+        if (Bootstrap_->IsExecNode()) {
+            MajorPageFaultsGauge_.Update(LastMajorPageFaultCount_);
+
+            if (FreeMemoryWatermarkMultiplier_ != 1.0 && dynamicConfig->MemoryPressureDetector->Enabled) {
+                FreeMemoryWatermarkMultiplierGauge_.Update(FreeMemoryWatermarkMultiplier_);
+                FreeMemoryWatermarkAddedMemoryGauge_.Update(GetFreeMemoryWatermark() - dynamicConfig->FreeMemoryWatermark);
+                FreeMemoryWatermarkIsIncreasedGauge_.Update(1);
+            }
+        }
+    }
+
+    void OnResourceAvailabilityCheck()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        if (!ResourceLimitsWhenLastAcquisitionFailed_) {
+            return;
+        }
+
+        auto resourceLimits = GetResourceLimitsForAcquisition();
+        if (Dominates(*ResourceLimitsWhenLastAcquisitionFailed_, resourceLimits)) {
+            return;
+        }
+
+        YT_TLOG_DEBUG("Resource limits increased since last failed acquisition, notifying resource consumers")
+            .With("OldResourceLimits", *ResourceLimitsWhenLastAcquisitionFailed_)
+            .With("NewResourceLimits", resourceLimits);
+
+        ResourceLimitsWhenLastAcquisitionFailed_ = resourceLimits;
+        NotifyResourcesReleased();
+    }
+
+    TJobResources GetResourceLimitsForAcquisition() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto dynamicConfig = GetDynamicConfig();
+        return GetResourceLimits(dynamicConfig->ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition);
+    }
+
+    TJobResourceManagerDynamicConfigPtr GetDynamicConfig() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DynamicConfig_.Acquire();
+    }
+
+    void SetActualVcpu(TJobResources& resources) const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        resources.VCpu = resources.Cpu * GetCpuToVCpuFactor();
+    }
+
+    TJobResources GetResourceLimits(bool considerUserJobFreeMemoryWatermark) const final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        TJobResources result;
+        auto resourceLimitsOverrides = ComputeEffectiveResourceLimitsOverrides();
+
+        #define XX(name, Name) \
+            result.Name = (resourceLimitsOverrides.has_##name() \
+                ? static_cast<decltype(result.Name)>(resourceLimitsOverrides.name()) \
+                : static_cast<decltype(result.Name)>(StaticConfig_->ResourceLimits->Name));
+        ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
+        #undef XX
+
+        const auto& flavors = Bootstrap_->GetConfig()->Flavors;
+
+        if (std::find(flavors.begin(), flavors.end(), ENodeFlavor::Data) == flavors.end()) {
+            result.MergeSlots = 0;
+            result.RemovalSlots = 0;
+            result.ReplicationSlots = 0;
+            result.RepairSlots = 0;
+            result.SealSlots = 0;
+            result.AutotomySlots = 0;
+            result.ReincarnationSlots = 0;
+        }
+
+        if (Bootstrap_->IsExecNode()) {
+            const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
+            auto slotManager = execNodeBootstrap->GetSlotManager();
+            auto gpuManager = execNodeBootstrap->GetGpuManager();
+
+            auto scheduleJobEnabled =
+                execNodeBootstrap->GetArtifactCache()->IsEnabled() &&
+                !execNodeBootstrap->GetJobController()->AreJobsDisabled() &&
+                !Bootstrap_->IsReadOnly();
+
+            // NB(arkady-e1ppa): It's still possible to send overly optimistic
+            // slot count value to scheduler if during the transmission
+            // slot manager restarts but is yet to finish slot initialization.
+            result.UserSlots = scheduleJobEnabled
+                ? slotManager->GetInitializedSlotCount()
+                : 0;
+
+            result.Gpu = resourceLimitsOverrides.has_gpu()
+                ? std::min(gpuManager->GetTotalGpuCount(), resourceLimitsOverrides.gpu())
+                : gpuManager->GetTotalGpuCount();
+        }
+
+        // NB: Some categories can have no explicit limit.
+        // Therefore we need bound memory limit by actually available memory.
+        auto getTotalUnusedFreeMemory = [&] (IMemoryUsageTracker* memoryUsageTracker) {
+            return std::max<i64>(
+                0,
+                memoryUsageTracker->GetUsed() + NodeMemoryUsageTracker_->GetTotalFree() - GetFreeMemoryWatermark());
+        };
+        result.UserMemory = std::min(
+            UserMemoryUsageTracker_->GetLimit(),
+            getTotalUnusedFreeMemory(UserMemoryUsageTracker_.Get()));
+        result.SystemMemory = std::min(
+            SystemMemoryUsageTracker_->GetLimit(),
+            getTotalUnusedFreeMemory(SystemMemoryUsageTracker_.Get()));
+
+        if (considerUserJobFreeMemoryWatermark) {
+            result.UserMemory *= (1.0 - GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier);
+        }
+
+        const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
+        result.Cpu = static_cast<decltype(result.Cpu)>(nodeResourceManager->GetJobsCpuLimit());
+        SetActualVcpu(result);
+
+        return result;
+    }
+
+    int OccupiedUserSlots() const
+    {
+        auto guard = ReaderGuard(ResourcesLock_);
+        auto occupiedResources =
+            ResourceUsages_[EResourcesState::Acquired] +
+            ResourceUsages_[EResourcesState::Releasing];
+        return occupiedResources.UserSlots;
+    }
+
+    TJobResources GetResourceUsage(std::initializer_list<EResourcesState> statesToInclude) const final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        bool acquiredIncluded = false;
+        TJobResources resourceUsage = ZeroJobResources();
+
+        {
+            auto guard = ReaderGuard(ResourcesLock_);
+
+            for (auto state : statesToInclude) {
+                YT_VERIFY(state != EResourcesState::Released);
+                resourceUsage += ResourceUsages_[state];
+                acquiredIncluded |= (state == EResourcesState::Acquired);
+            }
+        }
+
+        if (!acquiredIncluded) {
+            THashSet<EResourcesState> printableStates{statesToInclude};
+            YT_TLOG_DEBUG("Requested resource usage excluding acquired resources")
+                .With("StatesToInclude", printableStates);
+        }
+
+        SetActualVcpu(resourceUsage);
+
+        return resourceUsage;
+    }
+
+    TJobResources CalculateFreeResources(const TJobResources& resourceLimits, const TJobResources& resourceUsage) const
+    {
+        return resourceLimits - resourceUsage;
+    }
+
+    TJobResources CalculateSpareResources(const TJobResources& resourceLimits, const TJobResources& resourceUsage) const
+    {
+        return MakeNonnegative(CalculateFreeResources(resourceLimits, resourceUsage));
+    }
+
+    TJobResources GetFreeResources(bool considerUserJobFreeMemoryWatermark) const
+    {
+        return CalculateFreeResources(
+            GetResourceLimits(considerUserJobFreeMemoryWatermark),
+            GetResourceUsage({
+                EResourcesState::Acquired,
+                EResourcesState::Releasing
+            }));
+    }
+
+    bool CheckMemoryOverdraft(const TJobResources& delta) final
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        // Only "cpu" and "user_memory" can be increased.
+        // Network decreases by design. Cpu increasing is handled in AdjustResources.
+        // Other resources are not reported by job proxy (see TSupervisorService::UpdateResourceUsage).
+
+        if (delta.UserMemory > 0) {
+            bool watermarkReached = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
+            if (watermarkReached) {
+                return true;
+            }
+
+            auto error = UserMemoryUsageTracker_->TryAcquire(delta.UserMemory);
+            if (!error.IsOK()) {
+                return true;
+            }
+
+            UserMemoryUsageTracker_->Release(delta.UserMemory);
+        }
+
+        return false;
+    }
+
+    i64 GetFreeMemoryWatermark() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto dynamicConfig = GetDynamicConfig();
+
+        return dynamicConfig->MemoryPressureDetector->Enabled
+            ? dynamicConfig->FreeMemoryWatermark * FreeMemoryWatermarkMultiplier_
+            : dynamicConfig->FreeMemoryWatermark;
+    }
+
+
+    TDiskResources GetDiskResources() const final
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        if (Bootstrap_->IsExecNode()) {
+            const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+            return slotManager->GetDiskResources();
+        } else {
+            return TDiskResources{};
+        }
+    }
+
+    void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits) final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto currentResourceLimitsOverride = ResourceLimitsOverrides_.Load();
+        ResourceLimitsOverrides_.Store(resourceLimits);
+
+        if (!google::protobuf::util::MessageDifferencer::Equivalent(currentResourceLimitsOverride, resourceLimits)) {
+            YT_TLOG_DEBUG("Resource limits overrides has been changed");
+            Bootstrap_->GetJobInvoker()->Invoke(BIND(&TJobResourceManager::TImpl::NotifyResourcesReleased, MakeStrong(this)));
+        }
+    }
+
+    void OnResourceAvailabilityChanged() final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        YT_TLOG_DEBUG("Job resource availability changed, notifying resource consumers");
+
+        NotifyResourcesReleased();
+    }
+
+    TNodeResourceLimitsOverrides ComputeEffectiveResourceLimitsOverrides() const
+    {
+        TNodeResourceLimitsOverrides resourceLimits;
+        auto resourceLimitsOverrides = ResourceLimitsOverrides_.Load();
+        auto dynamicConfigOverrides = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits->Overrides;
+
+        #define XX(name, Name) \
+            if (resourceLimitsOverrides.has_##name()) { \
+                resourceLimits.set_##name(resourceLimitsOverrides.name()); \
+            } else if (dynamicConfigOverrides->Name) { \
+                resourceLimits.set_##name(*dynamicConfigOverrides->Name); \
+            }
+        ITERATE_NODE_RESOURCE_LIMITS_DYNAMIC_CONFIG_OVERRIDES(XX)
+        #undef XX
+
+        YT_TLOG_DEBUG("Computing resource limits overrides")
+            .With("Result", resourceLimits)
+            .With("MasterOverrides", resourceLimitsOverrides)
+            .With("ConfigOverrides", ConvertToYsonString(dynamicConfigOverrides, EYsonFormat::Text));
+
+        return resourceLimits;
+    }
+
+    double GetCpuToVCpuFactor() const final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto dynamicConfig = DynamicConfig_.Acquire();
+        if (dynamicConfig->EnableCpuToVCpuFactor) {
+            if (dynamicConfig->CpuToVCpuFactor) {
+                return dynamicConfig->CpuToVCpuFactor.value();
+            }
+            if (StaticConfig_->CpuToVCpuFactor) {
+                return StaticConfig_->CpuToVCpuFactor.value();
+            }
+            if (dynamicConfig->CpuModelToCpuToVCpuFactor && StaticConfig_->CpuModel) {
+                const auto& cpuModel = *StaticConfig_->CpuModel;
+                const auto& cpuModelToCpuToVCpuFactor = *dynamicConfig->CpuModelToCpuToVCpuFactor;
+                if (auto it = cpuModelToCpuToVCpuFactor.find(cpuModel); it != cpuModelToCpuToVCpuFactor.end()) {
+                    return it->second;
+                }
+            }
+        }
+
+        return 1.0;
+    }
+
+    void CalculateAndSetVCpu(TNonNullPtr<NClusterNode::TJobResources> jobResources) final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        jobResources->VCpu = jobResources->Cpu * GetCpuToVCpuFactor();
+    }
+
+    ISlotPtr AcquireUserSlot(
+        const TJobResources& neededResources,
+        const NScheduler::TAllocationAttributes& allocationAttributes)
+    {
+        YT_VERIFY(Bootstrap_->IsExecNode());
+
+        NScheduler::NProto::TDeprecatedDiskRequest diskRequest;
+        diskRequest.set_disk_space(neededResources.DiskSpaceRequest);
+        diskRequest.set_inode_count(neededResources.InodeRequest);
+
+        const auto& allocationDiskRequest = allocationAttributes.DiskRequest;
+
+        if (allocationDiskRequest.MediumIndex) {
+            diskRequest.set_medium_index(allocationDiskRequest.MediumIndex.value());
+        }
+
+        YT_TLOG_INFO("Acquiring slot")
+            .With("DiskRequest", diskRequest)
+            .With("RequestedCpu", neededResources.Cpu)
+            .With("AllowIdleCpuPolicy", allocationAttributes.AllowIdleCpuPolicy);
+
+        auto slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+        auto userSlot = slotManager->AcquireSlot(diskRequest, neededResources.Cpu, allocationAttributes.AllowIdleCpuPolicy);
+
+        YT_VERIFY(userSlot);
+
+        return userSlot;
+    }
+
+    std::vector<ISlotPtr> AcquireGpuSlots(const TJobResources& neededResources)
+    {
+        YT_VERIFY(Bootstrap_->IsExecNode());
+
+        int gpuCount = neededResources.Gpu;
+        YT_TLOG_DEBUG("Acquiring GPU slots")
+            .With("Count", gpuCount);
+        auto acquireResult = Bootstrap_
+            ->GetExecNodeBootstrap()
+            ->GetGpuManager()
+            ->AcquireGpuSlots(gpuCount);
+
+        THROW_ERROR_EXCEPTION_IF(
+            !acquireResult.IsOK(),
+            TError("GPU slot acquisition failed")
+                .With("gpu_count", gpuCount)
+                .With(acquireResult));
+
+        auto result = acquireResult.Value();
+
+        std::vector<ISlotPtr> slots;
+        std::vector<int> deviceIndices;
+
+        slots.reserve(result.size());
+        deviceIndices.reserve(result.size());
+
+        for (auto& slot : result) {
+            deviceIndices.push_back(slot->GetDeviceIndex());
+            slots.push_back(std::move(slot));
+        }
+
+        YT_TLOG_DEBUG("GPU slots acquired")
+            .With("DeviceIndices", deviceIndices);
+
+        return slots;
+    }
+
+    void OnResourceAcquiringStarted()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(!std::exchange(HasActiveResourceAcquiring_, true));
+
+        YT_VERIFY(!std::exchange(ShouldNotifyResourcesUpdated_, false));
+    }
+
+    void OnResourceAcquiringFinished()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(std::exchange(HasActiveResourceAcquiring_, false));
+
+        if (auto pendingResourceHolderCount = GetPendingResourceHolderCount(); pendingResourceHolderCount > 0) {
+            ResourceLimitsWhenLastAcquisitionFailed_ = GetResourceLimitsForAcquisition();
+            YT_TLOG_DEBUG("Some resource holders are still waiting after resource acquisition; recording resource limits to retry them on availability increase")
+                .With("PendingResourceHolderCount", pendingResourceHolderCount)
+                .With("ResourceLimits", *ResourceLimitsWhenLastAcquisitionFailed_);
+        } else {
+            ResourceLimitsWhenLastAcquisitionFailed_.reset();
+        }
+
+        if (ShouldNotifyResourcesUpdated_) {
+            ResourcesAcquired_.Fire();
+            ShouldNotifyResourcesUpdated_ = false;
+        }
+    }
+
+    void OnResourceHolderRegistered(const TLogger& Logger, const TResourceHolder* resourceHolder)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        TJobResources pendingResources;
+        TJobResources acquiredResources;
+        TJobResources releasingResources;
+
+        YT_VERIFY(resourceHolder->State_ == EResourcesState::Pending);
+        const auto& resourceDemand = resourceHolder->InitialResourceDemand_;
+        {
+            auto guard = WriterGuard(ResourcesLock_);
+
+            pendingResources =
+                ResourceUsages_[EResourcesState::Pending] += resourceDemand;
+            acquiredResources = ResourceUsages_[EResourcesState::Acquired];
+            releasingResources = ResourceUsages_[EResourcesState::Releasing];
+
+
+            ++PendingResourceHolderCount_;
+        }
+
+        YT_TLOG_DEBUG("Resource holder registered")
+            .With("ResourceDemand", resourceDemand)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources);
+    }
+
+    bool TryReserveResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& resources, bool considerUserJobFreeMemoryWatermark)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        TJobResources pendingResources;
+        TJobResources acquiredResources;
+        TJobResources releasingResources;
+
+        const auto& Logger = resourceHolder->GetLogger();
+
+        auto resourceLimits = GetResourceLimits(considerUserJobFreeMemoryWatermark);
+
+        {
+            auto guard = WriterGuard(ResourcesLock_);
+            auto& acquiredUsage = ResourceUsages_[EResourcesState::Acquired];
+            releasingResources = ResourceUsages_[EResourcesState::Releasing];
+
+            if (auto error = VerifyHasEnoughResources(resources, acquiredUsage + releasingResources, resourceLimits);
+                !error.IsOK())
+            {
+                YT_TLOG_DEBUG("Not enough resources")
+                    .With("NeededResources", resources)
+                    .With("AdjustedResourceLimits", resourceLimits)
+                    .With("AcquiredResources", acquiredUsage)
+                    .With("ReleasingResources", releasingResources)
+                    .With("ConsiderUserJobFreeMemoryWatermark", considerUserJobFreeMemoryWatermark)
+                    .With("FreeUserJobMemoryWatermarkMultiplier", GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier)
+                    .With(error);
+
+                return false;
+            }
+
+            if (resourceHolder->State_ == EResourcesState::Pending) {
+                pendingResources =
+                    ResourceUsages_[EResourcesState::Pending] -= resources;
+            } else {
+                pendingResources = ResourceUsages_[EResourcesState::Pending];
+            }
+
+            acquiredResources =
+                acquiredUsage += resources;
+
+            --PendingResourceHolderCount_;
+        }
+
+        YT_TLOG_DEBUG("Resources reserved")
+            .With("Resources", resources)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources)
+            .With("ConsiderUserJobFreeMemoryWatermark", considerUserJobFreeMemoryWatermark)
+            .With("FreeUserJobMemoryWatermarkMultiplier", GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier);
+
+        return true;
+    }
+
+    void OnResourcesAcquisitionFailed(
+        TNonNullPtr<TResourceHolder> resourceHolder,
+        TJobResources resources)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        const auto& Logger = resourceHolder->GetLogger();
+
+        TJobResources pendingResources;
+        TJobResources acquiredResources;
+        TJobResources releasingResources;
+
+        {
+            auto guard = WriterGuard(ResourcesLock_);
+            auto& pendingUsage = ResourceUsages_[EResourcesState::Pending];
+            auto& acquiredUsage = ResourceUsages_[EResourcesState::Acquired];
+            releasingResources = ResourceUsages_[EResourcesState::Releasing];
+
+            pendingUsage += resources;
+            acquiredUsage -= resources;
+            ++PendingResourceHolderCount_;
+
+            pendingResources = pendingUsage;
+            acquiredResources = acquiredUsage;
+        }
+
+        YT_TLOG_DEBUG("Resources acquisition failed")
+            .With("ResourceDemand", resources)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources);
+
+        NotifyResourcesReleased();
+    }
+
+    void PrepareResourcesRelease(const TLogger& Logger, EResourcesState observed, const TJobResources& resources)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(observed != EResourcesState::Releasing && observed != EResourcesState::Released);
+
+        TJobResources pendingResources;
+        TJobResources acquiredResources;
+        TJobResources releasingResources;
+
+        {
+            auto guard = WriterGuard(ResourcesLock_);
+
+            ResourceUsages_[observed] -= resources;
+
+            if (observed != EResourcesState::Pending) {
+                ResourceUsages_[EResourcesState::Releasing] += resources;
+            }
+
+            pendingResources = ResourceUsages_[EResourcesState::Pending];
+            acquiredResources = ResourceUsages_[EResourcesState::Acquired];
+            releasingResources = ResourceUsages_[EResourcesState::Releasing];
+
+            if (observed == EResourcesState::Pending) {
+                --PendingResourceHolderCount_;
+            }
+        }
+
+        YT_TLOG_DEBUG("Preparing resources release")
+            .With("State", observed)
+            .With("ReleasedResources", resources)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources);
+    }
+
+    auto TryAcquirePhysicalResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& neededResources)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        const auto& Logger = resourceHolder->GetLogger();
+
+        bool considerUserJobFreeMemoryWatermark = GetDynamicConfig()->ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition;
+
+        TResourceHolder::TAcquiredResources acquiredResources(this);
+
+        auto onResourcesAcquisitionFailed = [resourceHolder, neededResources, this] () {
+            OnResourcesAcquisitionFailed(
+                resourceHolder,
+                neededResources);
+        };
+
+        if (!TryReserveResources(resourceHolder, neededResources, considerUserJobFreeMemoryWatermark)) {
+            return std::tuple(
+                false,
+                std::move(acquiredResources),
+                std::optional<TFinallyGuard<decltype(onResourcesAcquisitionFailed)>>());
+        }
+
+        auto finallyGuard = Finally(std::move(onResourcesAcquisitionFailed));
+
+        i64 userMemory = neededResources.UserMemory;
+        i64 systemMemory = neededResources.SystemMemory;
+
+        YT_VERIFY(userMemory == 0 || systemMemory == 0);
+
+        if (userMemory > 0 || systemMemory > 0) {
+            bool reachedWatermark = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
+            if (reachedWatermark) {
+                YT_TLOG_DEBUG("Not enough memory; reached free memory watermark");
+                return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
+            }
+        }
+
+        // NB(pogorelov): Some of user or system memory is zero. So we can not release memory and then not be able to acquire memory.
+        if (userMemory > 0) {
+            auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(UserMemoryUsageTracker_, userMemory);
+            if (!errorOrGuard.IsOK()) {
+                YT_TLOG_DEBUG("Not enough user memory")
+                    .With(errorOrGuard);
+                return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
+            }
+
+            acquiredResources.UserMemoryGuard = std::move(errorOrGuard.Value());
+        }
+        if (userMemory < 0) {
+            UserMemoryUsageTracker_->Release(-userMemory);
+        }
+
+        if (systemMemory > 0) {
+            auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(SystemMemoryUsageTracker_, systemMemory);
+            if (!errorOrGuard.IsOK()) {
+                YT_TLOG_DEBUG("Not enough system memory")
+                    .With(errorOrGuard);
+                return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
+            }
+
+            acquiredResources.SystemMemoryGuard = std::move(errorOrGuard.Value());
+        }
+        if (systemMemory < 0) {
+            SystemMemoryUsageTracker_->Release(-systemMemory);
+        }
+
+        return std::tuple(true, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
+    }
+
+    bool AcquireResourcesFor(TNonNullPtr<TResourceHolder> resourceHolder)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        // COMPAT(pogorelov): Use InitialResourceDemand_ when UpdateResourceDemand is removed.
+        // const auto neededResources = resourceHolder->InitialResourceDemand_;
+        const auto neededResources = resourceHolder->GetResourceUsage();
+        const auto& allocationAttributes = resourceHolder->AllocationAttributes_;
+
+        const auto& Logger = resourceHolder->GetLogger();
+
+        YT_TLOG_DEBUG("Trying to acquire resources")
+            .With("NeededResources", neededResources)
+            .With("PortCount", allocationAttributes.PortCount);
+
+        if (allocationAttributes.CudaToolkitVersion) {
+            YT_VERIFY(Bootstrap_->IsExecNode());
+
+            Bootstrap_
+                ->GetExecNodeBootstrap()
+                ->GetGpuManager()
+                ->VerifyCudaToolkitDriverVersion(allocationAttributes.CudaToolkitVersion.value());
+        }
+
+        auto [success, acquiredResources, resourceAcquisitionFailedGuard] = TryAcquirePhysicalResources(resourceHolder, neededResources);
+        if (!success) {
+            return false;
+        }
+
+        YT_VERIFY(resourceAcquisitionFailedGuard);
+
+        int requiredPortCount = allocationAttributes.PortCount + (allocationAttributes.AllocateJobProxyRpcServerPort ? 1 : 0);
+        if (requiredPortCount > 0) {
+            YT_TLOG_INFO("Allocating ports")
+                .With("PortCount", allocationAttributes.PortCount)
+                .With("AllocateJobProxyRpcServerPort", allocationAttributes.AllocateJobProxyRpcServerPort);
+
+            std::vector<int> allocatedPorts;
+            try {
+                THashSet<int> freePorts;
+                {
+                    auto guard = ReaderGuard(ResourcesLock_);
+                    freePorts = FreePorts_;
+                }
+                allocatedPorts = AllocateFreePorts(requiredPortCount, freePorts, Logger);
+            } catch (const std::exception& ex) {
+                YT_TLOG_ERROR("Error while allocating free ports")
+                    .With("PortCount", allocationAttributes.PortCount)
+                    .With("AllocateJobProxyRpcServerPort", allocationAttributes.AllocateJobProxyRpcServerPort)
+                    .With(ex);
+                return false;
+            }
+
+            if (std::ssize(allocatedPorts) < requiredPortCount) {
+                YT_VERIFY(acquiredResources.Ports.empty());
+
+                YT_TLOG_DEBUG("Not enough bindable free ports")
+                    .With("PortCount", allocationAttributes.PortCount)
+                    .With("AllocateJobProxyRpcServerPort", allocationAttributes.AllocateJobProxyRpcServerPort)
+                    .With("FreePortCount", acquiredResources.Ports.size());
+                return false;
+            }
+
+            {
+                auto guard = WriterGuard(ResourcesLock_);
+
+                for (int port : allocatedPorts) {
+                    FreePorts_.erase(port);
+                }
+            }
+
+            if (allocationAttributes.AllocateJobProxyRpcServerPort) {
+                acquiredResources.JobProxyRpcServerPort = allocatedPorts.back();
+                allocatedPorts.pop_back();
+            }
+            acquiredResources.Ports = std::move(allocatedPorts);
+
+            YT_TLOG_DEBUG("Ports allocated")
+                .With("PortCount", acquiredResources.Ports.size())
+                .With("JobProxyRpcServerPort", acquiredResources.JobProxyRpcServerPort)
+                .With("Ports", acquiredResources.Ports);
+        }
+
+        if (Bootstrap_->IsExecNode()) {
+            auto slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
+            auto slotManagerCount = slotManager->GetUsedSlotCount();
+            auto slotManagerLimit = slotManager->GetSlotCount();
+            auto jobResourceManagerCount = OccupiedUserSlots() - neededResources.UserSlots;
+
+            YT_TLOG_FATAL_IF(
+                slotManagerCount > jobResourceManagerCount,
+                "Used slot count in slot manager must be less or equal JobResourceManager count")
+                .WithFormat("SlotManagerCount", "%v/%v", slotManagerCount, slotManagerLimit)
+                .With("JobResourceManagerCount", jobResourceManagerCount);
+
+            if (slotManagerLimit == slotManager->GetInitializedSlotCount()) {
+                YT_TLOG_FATAL_IF(
+                    slotManagerCount != jobResourceManagerCount,
+                    "Used slot count in slot manager must be equal JobResourceManager count")
+                    .WithFormat("SlotManagerCount", "%v/%v", slotManagerCount, slotManagerLimit)
+                    .With("JobResourceManagerCount", jobResourceManagerCount);
+            }
+        }
+
+        if (neededResources.UserSlots > 0) {
+            YT_VERIFY(Bootstrap_->IsExecNode());
+
+            acquiredResources.UserSlot = AcquireUserSlot(neededResources, allocationAttributes);
+        }
+
+        if (neededResources.Gpu > 0) {
+            YT_VERIFY(Bootstrap_->IsExecNode());
+
+            acquiredResources.GpuSlots = AcquireGpuSlots(neededResources);
+        }
+
+        resourceAcquisitionFailedGuard->Release();
+        ShouldNotifyResourcesUpdated_ = true;
+
+        resourceHolder->SetAcquiredResources(std::move(acquiredResources));
+
+        YT_TLOG_DEBUG("Resources successfully allocated");
+
+        return true;
+    }
+
+    void OnBaseResourcesReleased(
+        EResourcesConsumerType resourcesConsumerType,
+        const TLogger& Logger,
+        const TJobResources& baseResources,
+        const TJobResources& additionalResources,
+        const std::vector<int>& ports,
+        std::optional<int> jobProxyRpcServerPort,
+        EResourcesState currentState,
+        bool resourceHolderStarted)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(resourceHolderStarted || (ports.empty() && !jobProxyRpcServerPort.has_value()));
+
+        TJobResources pendingResources;
+        TJobResources acquiredResources;
+        TJobResources releasingResources;
+
+        {
+            auto guard = WriterGuard(ResourcesLock_);
+
+            switch (currentState) {
+                case EResourcesState::Pending:
+                    --PendingResourceHolderCount_;
+                    [[fallthrough]];
+
+                case EResourcesState::Acquired:
+                    ResourceUsages_[currentState] -= additionalResources;
+                    ResourceUsages_[EResourcesState::Releasing] += additionalResources;
+                    [[fallthrough]];
+
+                case EResourcesState::Releasing:
+                    ResourceUsages_[currentState] -= baseResources;
+                    break;
+
+                case EResourcesState::Released:
+                    YT_ABORT();
+                    break;
+            }
+
+            DoReleasePorts(Logger, ports, jobProxyRpcServerPort);
+
+            pendingResources = ResourceUsages_[EResourcesState::Pending];
+            acquiredResources = ResourceUsages_[EResourcesState::Acquired];
+            releasingResources = ResourceUsages_[EResourcesState::Releasing];
+        }
+
+        if (resourceHolderStarted && baseResources.SystemMemory) {
+            auto systemMemory = baseResources.SystemMemory;
+            YT_VERIFY(systemMemory >= 0);
+
+            SystemMemoryUsageTracker_->Release(systemMemory);
+        }
+
+        if (resourceHolderStarted && baseResources.UserMemory) {
+            auto userMemory = baseResources.UserMemory;
+            YT_VERIFY(userMemory >= 0);
+
+            UserMemoryUsageTracker_->Release(userMemory);
+        }
+
+        YT_TLOG_DEBUG("Resources released")
+            .With("ResourceConsumerType", resourcesConsumerType)
+            .With("ResourceHolderStarted", resourceHolderStarted)
+            .With("ReleasedResources", baseResources)
+            .With("PendingResources", pendingResources)
+            .With("AcquiredResources", acquiredResources)
+            .With("ReleasingResources", releasingResources);
+
+        NotifyResourcesReleased();
+    }
+
+    bool OnResourcesUpdated(
+        TResourceHolder* resourceHolder,
+        EResourcesConsumerType resourcesConsumerType,
+        const TLogger& Logger,
+        const TJobResources& resourceDelta,
+        EResourcesState state,
+        bool isReleasing)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        YT_VERIFY(state != EResourcesState::Pending && state != EResourcesState::Released);
+
+        TJobResources pendingResources;
+        TJobResources acquiredResources;
+        TJobResources releasingResources;
+
+        {
+            auto guard = WriterGuard(ResourcesLock_);
+            auto& toModify = ResourceUsages_[state];
+
+            toModify += resourceDelta;
+
+            pendingResources = ResourceUsages_[EResourcesState::Pending];
+            acquiredResources = ResourceUsages_[EResourcesState::Acquired];
+            releasingResources = ResourceUsages_[EResourcesState::Releasing];
+        }
+
+        bool resourceUsageOverdraftOccurred = false;
+
+        auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
+
+        if (GetDynamicConfig()->CheckUserJobsCategoryLimitOnResourceUpdate) {
+            auto error = CheckResourceOverdraft(
+                acquiredResources + releasingResources,
+                resourceLimits);
+            if (!error.IsOK()) {
+                YT_TLOG_INFO("Resource overdraft detected")
+                    .With(error);
+                resourceUsageOverdraftOccurred = true;
+            }
+        }
+
+        auto systemMemory = resourceDelta.SystemMemory;
+        if (systemMemory > 0) {
+            resourceUsageOverdraftOccurred |= !SystemMemoryUsageTracker_->Acquire(systemMemory);
+        } else if (systemMemory < 0) {
+            SystemMemoryUsageTracker_->Release(-systemMemory);
+        }
+
+        auto userMemory = resourceDelta.UserMemory;
+        if (userMemory > 0) {
+            resourceUsageOverdraftOccurred |= !UserMemoryUsageTracker_->Acquire(userMemory);
+
+            YT_TLOG_DEBUG("User memory acquired")
+                .With("UserMemory", userMemory)
+                .With("Usage", UserMemoryUsageTracker_->GetUsed())
+                .With("Limit", UserMemoryUsageTracker_->GetLimit())
+                .With("Overdraft", resourceUsageOverdraftOccurred);
+        } else if (userMemory < 0) {
+            UserMemoryUsageTracker_->Release(-userMemory);
+        }
+
+        if (!Dominates(resourceDelta, ZeroJobResources())) {
+            NotifyResourcesReleased();
+        }
+
+        if (resourceUsageOverdraftOccurred) {
+            YT_TLOG_INFO("Resource usage overdraft detected during updating resource usage")
+                .With("ResourcesConsumerType", resourcesConsumerType)
+                .With("CurrentState", state)
+                .With("Delta", resourceDelta)
+                .With("AcquiredResources", acquiredResources)
+                .With("ReleasingResources", releasingResources)
+                .With("ResourceLimits", resourceLimits)
+                .With("PendingResourceUsage", pendingResources);
+
+            if (!isReleasing) {
+                ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
+            } else {
+                YT_TLOG_INFO("Resource holder is releasing, skipping resource usage overdraft handling");
+            }
+        } else {
+            YT_TLOG_DEBUG("Resource usage updated")
+                .With("ResourcesConsumerType", resourcesConsumerType)
+                .With("CurrentState", state)
+                .With("Delta", resourceDelta)
+                .With("AcquiredResources", acquiredResources)
+                .With("ReleasingResources", releasingResources)
+                .With("ResourceLimits", resourceLimits)
+                .With("PendingResourceUsage", pendingResources);
+        }
+
+        return !isReleasing && resourceUsageOverdraftOccurred;
+    }
+
+    void ReleasePorts(const TLogger& Logger, const std::vector<int>& ports, std::optional<int> jobProxyRpcServerPort)
+    {
+        auto guard = WriterGuard(ResourcesLock_);
+
+        DoReleasePorts(Logger, ports, jobProxyRpcServerPort);
+    }
+
+    TResourceAcquiringContext GetResourceAcquiringContext() final
+    {
+        return TResourceAcquiringContext{this};
+    }
+
+    int GetPendingResourceHolderCount() final
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto guard = ReaderGuard(ResourcesLock_);
+        return PendingResourceHolderCount_;
+    }
+
+    void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumerType) final
+    {
+        ResourcesConsumerCallbacks_[consumerType].Subscribe(std::move(onResourcesReleased));
+    }
+
+    IYPathServicePtr GetOrchidService() const final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND_NO_PROPAGATE(
+            &TJobResourceManager::TImpl::BuildOrchid,
+            MakeStrong(this)));
+    }
+
+    void RegisterResourceHolder(const TLogger& Logger, const TResourceHolder* resourceHolder)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        OnResourceHolderRegistered(Logger, resourceHolder);
+
+        EmplaceOrCrash(ResourceHolders_, resourceHolder);
+    }
+
+    void UnregisterResourceHolder(TResourceHolder* resourceHolder)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        EraseOrCrash(ResourceHolders_, resourceHolder);
+    }
+
+private:
+    IBootstrapBase* const Bootstrap_;
+
+    const TJobResourceManagerConfigPtr StaticConfig_;
+    TAtomicIntrusivePtr<TJobResourceManagerDynamicConfig> DynamicConfig_;
+
+    NThreading::TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
+
+    const INodeMemoryTrackerPtr NodeMemoryUsageTracker_;
+    const IMemoryUsageTrackerPtr SystemMemoryUsageTracker_;
+    const IMemoryUsageTrackerPtr UserMemoryUsageTracker_;
+    THashSet<int> FreePorts_;
+
+    TEnumIndexedArray<EResourcesConsumerType, TCallbackList<void()>> ResourcesConsumerCallbacks_;
+
+    TProfiler Profiler_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr ResourceAvailabilityCheckExecutor_;
+    TBufferedProducerPtr ResourceLimitsBuffer_ = New<TBufferedProducer>();
+    TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();
+
+    TGauge MajorPageFaultsGauge_;
+    TGauge FreeMemoryWatermarkMultiplierGauge_;
+    TGauge FreeMemoryWatermarkAddedMemoryGauge_;
+    TGauge FreeMemoryWatermarkIsIncreasedGauge_;
+
+    TGauge FreeUserJobMemoryWatermarkGauge_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
+
+    TEnumIndexedArray<EResourcesState, TJobResources> ResourceUsages_;
+
+    int PendingResourceHolderCount_ = 0;
+
+    TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
+    TPeriodicExecutorPtr MemoryPressureDetector_;
+
+    i64 LastMajorPageFaultCount_ = 0;
+    double FreeMemoryWatermarkMultiplier_ = 1.0;
+
+    std::optional<TJobResources> ResourceLimitsWhenLastAcquisitionFailed_;
+
+    bool ShouldNotifyResourcesUpdated_ = false;
+
+    bool HasActiveResourceAcquiring_ = false;
+
+    struct TJobResourceManagerInfo
+    {
+        NClusterNode::TJobResources ResourceLimits;
+
+        NClusterNode::TJobResources PendingResourceUsage;
+        NClusterNode::TJobResources AcquiredResourceUsage;
+        NClusterNode::TJobResources ReleasingResourceUsage;
+
+        int PendingResourceHolderCount;
+
+        i64 LastMajorPageFaultCount;
+
+        double FreeMemoryWatermarkMultiplier;
+
+        double FreeUserJobMemoryWatermarkMultiplier;
+
+        i64 FreeUserJobMemoryWaterMark;
+
+        double CpuToVCpuFactor;
+
+        std::vector<int> FreePorts;
+    };
+
+    THashSet<const TResourceHolder*> ResourceHolders_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    static NProfiling::TTag MakeResourcesTag(EResourcesState state)
+    {
+        return std::pair("state", FormatEnum(state));
+    }
+
+    TJobResourceManagerInfo BuildResourceManagerInfo() const
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        TJobResources pendingResources;
+        TJobResources acquiredResources;
+        TJobResources releasingResources;
+
+        int pendingResourceHolderCount;
+
+        std::vector<int> ports;
+
+        {
+            auto guard = ReaderGuard(ResourcesLock_);
+
+            pendingResources = ResourceUsages_[EResourcesState::Pending];
+            acquiredResources = ResourceUsages_[EResourcesState::Acquired];
+            releasingResources = ResourceUsages_[EResourcesState::Releasing];
+            pendingResourceHolderCount = PendingResourceHolderCount_;
+
+            ports = GetFreePorts();
+        }
+
+        auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
+        auto freeUserJobMemoryWatermarkMultiplier = GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier;
+
+        return {
+            .ResourceLimits = resourceLimits,
+            .PendingResourceUsage = pendingResources,
+            .AcquiredResourceUsage = acquiredResources,
+            .ReleasingResourceUsage = releasingResources,
+            .PendingResourceHolderCount = pendingResourceHolderCount,
+            .LastMajorPageFaultCount = LastMajorPageFaultCount_,
+            .FreeMemoryWatermarkMultiplier = FreeMemoryWatermarkMultiplier_,
+            .FreeUserJobMemoryWatermarkMultiplier = freeUserJobMemoryWatermarkMultiplier,
+            .FreeUserJobMemoryWaterMark = static_cast<i64>(resourceLimits.UserMemory * freeUserJobMemoryWatermarkMultiplier),
+            .CpuToVCpuFactor = GetCpuToVCpuFactor(),
+            .FreePorts = std::move(ports),
+        };
+    }
+
+    auto BuildResourceHoldersInfo() const
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        std::vector<TResourceHolder::TResourceHolderInfo> result;
+        result.reserve(std::size(ResourceHolders_));
+
+        for (const auto& resourceHolder : ResourceHolders_) {
+            result.push_back(resourceHolder->BuildResourceHolderInfo());
+        }
+
+        return result;
+    }
+
+    auto DoGetStateSnapshot() const
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        return std::tuple(
+            BuildResourceManagerInfo(),
+            BuildResourceHoldersInfo());
+    }
+
+    auto GetStateSnapshot() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto infoOrError = WaitFor(BIND(
+            &TJobResourceManager::TImpl::DoGetStateSnapshot,
+            MakeStrong(this))
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run());
+
+        YT_TLOG_FATAL_UNLESS(infoOrError.IsOK(), "Unexpected failure while making job resource manager info snapshot")
+            .With(infoOrError);
+
+        return std::move(infoOrError.Value());
+    }
+
+    void BuildOrchid(IYsonConsumer* consumer) const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        auto [
+            jobResourceManagerInfo,
+            resourceHoldersInfo
+        ] = GetStateSnapshot();
+
+        BuildYsonFluently(consumer).BeginMap()
+            .Item("resource_limits").Value(jobResourceManagerInfo.ResourceLimits)
+            .Item("pending_resources").Value(jobResourceManagerInfo.PendingResourceUsage)
+            .Item("acquired_resources").Value(jobResourceManagerInfo.AcquiredResourceUsage)
+            .Item("releasing_resources").Value(jobResourceManagerInfo.ReleasingResourceUsage)
+            .Item("pending_resource_holder_count").Value(jobResourceManagerInfo.PendingResourceHolderCount)
+            .Item("last_major_page_fault_count").Value(jobResourceManagerInfo.LastMajorPageFaultCount)
+            .Item("free_memory_multiplier").Value(jobResourceManagerInfo.FreeMemoryWatermarkMultiplier)
+            .Item("free_user_job_memory_watermark_multiplier").Value(jobResourceManagerInfo.FreeUserJobMemoryWatermarkMultiplier)
+            .Item("free_user_job_memory_watermark").Value(jobResourceManagerInfo.FreeUserJobMemoryWaterMark)
+            .Item("cpu_to_vcpu_factor").Value(jobResourceManagerInfo.CpuToVCpuFactor)
+            .Item("free_ports").Value(jobResourceManagerInfo.FreePorts)
+            .Item("resource_holders").DoMapFor(
+                resourceHoldersInfo,
+                [] (auto fluent, const auto& resourceHolderInfo) {
+                    fluent.Item(ToString(resourceHolderInfo.Id)).BeginMap()
+                        .Item("base_resource_usage").Value(resourceHolderInfo.BaseResourceUsage)
+                        .Item("additional_resource_usage").Value(resourceHolderInfo.AdditionalResourceUsage)
+                        .Item("initial_resource_demand").Value(resourceHolderInfo.InitialResourceDemand)
+                        .Item("resources_counsumer_type").Value(resourceHolderInfo.ResourcesConsumerType)
+                    .EndMap();
+                })
+        .EndMap();
+    }
+
+    void DoReleasePorts(const TLogger& Logger, const std::vector<int>& ports, std::optional<int> jobProxyRpcServerPort)
+    {
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
+
+        YT_TLOG_INFO_IF(!ports.empty() || jobProxyRpcServerPort.has_value(), "Releasing ports")
+            .With("Ports", ports)
+            .With("JobProxyRpcServerPort", jobProxyRpcServerPort);
+        for (int port : ports) {
+            InsertOrCrash(FreePorts_, port);
+        }
+        if (jobProxyRpcServerPort.has_value()) {
+            InsertOrCrash(FreePorts_, *jobProxyRpcServerPort);
+        }
+    }
+
+    std::vector<int> GetFreePorts() const
+    {
+        YT_ASSERT_SPINLOCK_AFFINITY(ResourcesLock_);
+
+        return std::vector<int>(begin(FreePorts_), end(FreePorts_));
+    }
+
+    void NotifyResourcesReleased()
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        ResourcesReleased_.Fire();
+        for (const auto& callbacks : ResourcesConsumerCallbacks_) {
+            callbacks.Fire();
+        }
+    }
+
+    void CheckReservedMappedMemory()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_TLOG_INFO("Check mapped memory usage");
+
+        THashMap<std::string, i64> vmstat;
+        try {
+            vmstat = GetVmstat();
+        } catch (const std::exception& ex) {
+            YT_TLOG_WARNING("Failed to read /proc/vmstat; skipping mapped memory check")
+                .With(ex);
+            return;
+        }
+
+        auto mappedIt = vmstat.find("nr_mapped");
+        if (mappedIt == vmstat.end()) {
+            YT_TLOG_WARNING("Field \"nr_mapped\" is not found in /proc/vmstat; skipping mapped memory check");
+            return;
+        }
+
+        i64 mappedMemory = mappedIt->second;
+        auto dynamicConfig = GetDynamicConfig();
+
+        YT_TLOG_INFO("Mapped memory usage")
+            .With("Usage", mappedMemory)
+            .With("Reserved", dynamicConfig->MappedMemoryController->ReservedMemory);
+
+        if (mappedMemory <= dynamicConfig->MappedMemoryController->ReservedMemory) {
+            return;
+        }
+
+        ReservedMemoryOvercommitted_.Fire(mappedMemory);
+    }
+
+    void CheckMemoryPressure()
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        try {
+            auto currentFaultCount = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->GetMajorPageFaultCount();
+            if (currentFaultCount != LastMajorPageFaultCount_) {
+                HandleMajorPageFaultsRateIncrease(currentFaultCount);
+            }
+        } catch (const std::exception& ex) {
+            YT_TLOG_ERROR("Error getting information about major page faults")
+                .With(ex);
+        }
+    }
+
+    void HandleMajorPageFaultsRateIncrease(i64 currentFaultCount)
+    {
+        auto config = DynamicConfig_.Acquire()->MemoryPressureDetector;
+        YT_TLOG_DEBUG("Increased rate of major page faults in node container detected")
+            .With("OldMajorPageFaultCount", LastMajorPageFaultCount_)
+            .With("NewMajorPageFaultCount", currentFaultCount)
+            .With("Delta", currentFaultCount - LastMajorPageFaultCount_)
+            .With("Threshold", config->MajorPageFaultCountThreshold)
+            .With("Period", config->CheckPeriod);
+
+        if (config->Enabled &&
+            currentFaultCount - LastMajorPageFaultCount_ > config->MajorPageFaultCountThreshold)
+        {
+            auto previousMemoryWatermarkMultiplier = FreeMemoryWatermarkMultiplier_;
+            FreeMemoryWatermarkMultiplier_ = std::min(
+                FreeMemoryWatermarkMultiplier_ + config->MemoryWatermarkMultiplierIncreaseStep,
+                config->MaxMemoryWatermarkMultiplier);
+
+            YT_TLOG_DEBUG("Increasing memory watermark multiplier")
+                .With("OldMemoryWatermarkMultiplier", previousMemoryWatermarkMultiplier)
+                .With("NewMemoryWatermarkMultiplier", FreeMemoryWatermarkMultiplier_)
+                .With("UpdatedFreeMemoryWatermark", GetFreeMemoryWatermark())
+                .With("UserMemoryUsageTrackerLimit", UserMemoryUsageTracker_->GetLimit())
+                .With("UserMemoryUsageTrackerUsed", UserMemoryUsageTracker_->GetUsed())
+                .With("NodeMemoryUsageTrackerTotalFree", NodeMemoryUsageTracker_->GetTotalFree());
+        }
+
+        LastMajorPageFaultCount_ = currentFaultCount;
+    }
+
+    //! Returns |true| if a acquiring with given #neededResources can succeed.
+    //! Takes special care with ReplicationDataSize and RepairDataSize enabling
+    //! an arbitrary large overdraft for the
+    //! first acquiring.
+    TError VerifyHasEnoughResources(
+        const TJobResources& neededResources,
+        const TJobResources& usedResources,
+        const TJobResources& totalResources)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        auto spareResources = CalculateSpareResources(totalResources, usedResources);
+        // Allow replication/repair/merge data size overcommit.
+        spareResources.ReplicationDataSize = InfiniteJobResources().ReplicationDataSize;
+        spareResources.RepairDataSize = InfiniteJobResources().RepairDataSize;
+        spareResources.MergeDataSize = InfiniteJobResources().MergeDataSize;
+
+        // JRM doesn't track disk resources
+        // TODO(pogorelov): Add disk resources support
+        spareResources.DiskSpaceRequest = InfiniteJobResources().DiskSpaceRequest;
+        return VerifyDominates(spareResources, neededResources, "Not enough resources");
+    }
+
+    TError CheckResourceOverdraft(const TJobResources& usage, const TJobResources& limits)
+    {
+        auto spareResources = limits - usage;
+        spareResources.ReplicationDataSize = InfiniteJobResources().ReplicationDataSize;
+        spareResources.RepairDataSize = InfiniteJobResources().RepairDataSize;
+        spareResources.MergeDataSize = InfiniteJobResources().MergeDataSize;
+
+        spareResources.DiskSpaceRequest = InfiniteJobResources().DiskSpaceRequest;
+
+        return VerifyNonNegative(spareResources, "Resource overdraft detected");
+    }
+
+    friend class TResourceHolder;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobResourceManagerPtr TJobResourceManager::CreateJobResourceManager(IBootstrapBase* bootstrap)
+{
+    return New<TJobResourceManager::TImpl>(bootstrap);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobMemoryUsageTracker
+    : public IMemoryUsageTracker
+{
+public:
+    TJobMemoryUsageTracker(
+        TResourceHolderPtr resourceHolder,
+        EMemoryCategory memotyCategory)
+        : ResourceHolder_(std::move(resourceHolder))
+        , MemoryCategory_(memotyCategory)
+    {
+        YT_VERIFY(MemoryCategory_ == EMemoryCategory::SystemJobs || MemoryCategory_ == EMemoryCategory::UserJobs);
+    }
+
+    bool Acquire(i64 size) final
+    {
+        TJobResources resources;
+        GetMemory(resources) = size;
+        return ResourceHolder_->UpdateAdditionalResourceUsage(resources);
+    }
+
+    TError TryAcquire(i64 /*size*/) final
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TError TryChange(i64 /*size*/) final
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void Release(i64 size) final
+    {
+        TJobResources resources;
+        GetMemory(resources) = -size;
+        ResourceHolder_->UpdateAdditionalResourceUsage(resources);
+    }
+
+    i64 GetFree() const final
+    {
+        return GetMemory(ResourceHolder_->GetFreeResources(/*considerUserJobFreeMemoryWatermark*/ false));
+    }
+
+    void SetLimit(i64 /*size*/) final
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void AdjustLimit(i64 /*adjustedLimit*/) final
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    i64 GetLimit() const final
+    {
+        auto resource = ResourceHolder_->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
+        return GetMemory(resource) ? GetMemory(resource) : std::numeric_limits<i64>::max();
+    }
+
+    i64 GetUsed() const final
+    {
+        auto resource = ResourceHolder_->GetResourceUsage();
+        return GetMemory(resource);
+    }
+
+    bool IsExceeded() const final
+    {
+        return GetFree() <= 0;
+    }
+
+    TSharedRef Track(TSharedRef reference, bool /*keepExistingTracking*/) final
+    {
+        // TODO(pogorelov): Support shared ref tracking.
+        return reference;
+    }
+
+    TErrorOr<TSharedRef> TryTrack(TSharedRef reference, bool /*keepExistingTracking*/) final
+    {
+        // TODO(pogorelov): Support shared ref tracking.
+        return reference;
+    }
+
+private:
+    const TResourceHolderPtr ResourceHolder_;
+
+    const EMemoryCategory MemoryCategory_;
+
+    auto GetJobResourcesMemberReference() const
+    {
+        switch (MemoryCategory_) {
+            case EMemoryCategory::SystemJobs:
+                return &TJobResources::SystemMemory;
+            case EMemoryCategory::UserJobs:
+                return &TJobResources::UserMemory;
+            default:
+                YT_ABORT();
+        }
+    }
+
+    i64& GetMemory(TJobResources& resources) const
+    {
+        return resources.*GetJobResourcesMemberReference();
+    }
+
+    i64 GetMemory(const TJobResources& resources) const
+    {
+        return resources.*GetJobResourcesMemberReference();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobResourceManager::TResourceAcquiringContext::TResourceAcquiringContext(
+    TJobResourceManager* resourceManager)
+    : ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(resourceManager))
+{
+    ResourceManagerImpl_->OnResourceAcquiringStarted();
+}
+
+TJobResourceManager::TResourceAcquiringContext::~TResourceAcquiringContext()
+{
+    ResourceManagerImpl_->OnResourceAcquiringFinished();
+}
+
+bool TJobResourceManager::TResourceAcquiringContext::TryAcquireResourcesFor(const TResourceHolderPtr& resourceHolder) &
+{
+    try {
+        if (!ResourceManagerImpl_->AcquireResourcesFor(resourceHolder)) {
+            return false;
+        }
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(ex);
+    }
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResourceOwner::TResourceOwner(
+    TGuid holderId,
+    TJobResourceManager* jobResourceManager,
+    EResourcesConsumerType resourceConsumerType,
+    const NClusterNode::TJobResources& jobResources)
+    : ResourceHolder_(TResourceHolder::CreateResourceHolder(
+        holderId,
+        jobResourceManager,
+        resourceConsumerType,
+        jobResources))
+{
+    ResourceHolder_->ResetOwner(MakeWeak(this));
+}
+
+void TResourceOwner::OnResourcesTransferred()
+{
+
+    ResourceHolder_->ResetOwner({});
+    ResourceHolder_.Reset();
+}
+
+TResourceHolderPtr TResourceHolder::CreateResourceHolder(
+    TGuid id,
+    TJobResourceManager* jobResourceManager,
+    EResourcesConsumerType resourceConsumerType,
+    const NClusterNode::TJobResources& jobResources)
+{
+    return NewWithOffloadedDtor<TResourceHolder>(
+        static_cast<TJobResourceManager::TImpl*>(jobResourceManager)->Bootstrap_->GetJobInvoker(),
+        id,
+        jobResourceManager,
+        resourceConsumerType,
+        jobResources);
+}
+
+TResourceHolder::TResourceHolder(
+    TGuid id,
+    TJobResourceManager* jobResourceManager,
+    EResourcesConsumerType resourceConsumerType,
+    const TJobResources& resources)
+    : ResourcesConsumerType(resourceConsumerType)
+    , Id_(id)
+    , Logger(NJobAgent::Logger().WithTag("ResourceHolderId", id))
+    , ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(jobResourceManager))
+    , BaseResourceUsage_(resources)
+    , AdditionalResourceUsage_(ZeroJobResources())
+    , InitialResourceDemand_(resources)
+{
+    Register();
+}
+
+TResourceHolder::~TResourceHolder()
+{
+    if (State_ != EResourcesState::Released) {
+        YT_TLOG_DEBUG("Destroying unreleased resource holder")
+            .With("State", State_)
+            .With("Resources", GetResourceUsage());
+
+        ReleaseBaseResources();
+    }
+
+    ReleaseAdditionalResources();
+
+    Unregister();
+}
+
+TGuid TResourceHolder::GetId() const noexcept
+{
+    return Id_;
+}
+
+void TResourceHolder::Register()
+{
+    ResourceManagerImpl_->RegisterResourceHolder(Logger, this);
+}
+
+void TResourceHolder::Unregister()
+{
+    ResourceManagerImpl_->UnregisterResourceHolder(this);
+}
+
+void TResourceHolder::SetAcquiredResources(TAcquiredResources&& acquiredResources)
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    YT_VERIFY(State_ == EResourcesState::Pending);
+
+    Ports_ = std::move(acquiredResources.Ports);
+    JobProxyRpcServerPort_ = acquiredResources.JobProxyRpcServerPort;
+    acquiredResources.JobProxyRpcServerPort.reset();
+
+    YT_VERIFY(AllocationAttributes_.PortCount == std::ssize(Ports_));
+
+    acquiredResources.SystemMemoryGuard.ReleaseNoReclaim();
+    acquiredResources.UserMemoryGuard.ReleaseNoReclaim();
+
+    UserSlot_ = std::move(acquiredResources.UserSlot);
+    GpuSlots_ = std::move(acquiredResources.GpuSlots);
+
+    State_ = EResourcesState::Acquired;
+    HasStarted_ = true;
+}
+
+void TResourceHolder::ReleaseAdditionalResources()
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    DoSetResourceUsage(
+        -AdditionalResourceUsage_,
+        "AdditionalResourceUsageDelta",
+        [&] (const TJobResources& resourceUsageDelta) {
+            AdditionalResourceUsage_ += resourceUsageDelta;
+
+            return resourceUsageDelta;
+        },
+        /*isReleasing*/ true);
+}
+
+void TResourceHolder::ReleaseNonSlotResources()
+{
+    auto usedSlotResources = ZeroJobResources();
+
+    auto guard = WriterGuard(ResourcesLock_);
+
+    usedSlotResources.UserSlots = BaseResourceUsage_.UserSlots;
+    usedSlotResources.Gpu = BaseResourceUsage_.Gpu;
+
+    DoSetResourceUsage(
+        usedSlotResources,
+        "NewResourceUsage",
+        [&] (const TJobResources& newResourceUsage) {
+            auto resourcesDelta = newResourceUsage - TotalResourceUsage();
+
+            BaseResourceUsage_ = newResourceUsage;
+
+            return resourcesDelta;
+        });
+}
+
+void TResourceHolder::ReleaseBaseResources()
+{
+    TJobResources resources;
+    {
+        auto guard = ReaderGuard(ResourcesLock_);
+
+        YT_VERIFY(State_ != EResourcesState::Released);
+
+        resources = BaseResourceUsage_;
+    }
+
+    YT_TLOG_FATAL_IF(UserSlot_ && resources.UserSlots != 1, "User slot not matched with UserSlots")
+        .With("UserSlotExist", UserSlot_ != nullptr)
+        .With("UserSlots", resources.UserSlots);
+
+    YT_TLOG_FATAL_IF(std::ssize(GpuSlots_) > resources.Gpu, "GPU slots not matched with Gpu");
+
+    YT_TLOG_INFO("Resetting resource holder slots");
+
+    auto guard = WriterGuard(ResourcesLock_);
+
+    if (UserSlot_) {
+        UserSlot_->ResetState();
+    }
+
+    UserSlot_.Reset();
+    GpuSlots_.clear();
+
+    YT_VERIFY(State_ != EResourcesState::Pending || AdditionalResourceUsage_ == TJobResources{});
+
+    ResourceManagerImpl_->OnBaseResourcesReleased(
+        ResourcesConsumerType,
+        Logger,
+        BaseResourceUsage_,
+        AdditionalResourceUsage_,
+        Ports_,
+        JobProxyRpcServerPort_,
+        State_,
+        HasStarted_);
+
+    State_ = EResourcesState::Released;
+
+    BaseResourceUsage_ = ZeroJobResources();
+}
+
+const std::vector<int>& TResourceHolder::GetPorts() const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    return Ports_;
+}
+
+std::optional<int> TResourceHolder::GetJobProxyRpcServerPort() const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    return JobProxyRpcServerPort_;
+}
+
+const ISlotPtr& TResourceHolder::GetUserSlot() const noexcept
+{
+    return UserSlot_;
+}
+
+const std::vector<ISlotPtr>& TResourceHolder::GetGpuSlots() const noexcept
+{
+    return GpuSlots_;
+}
+
+bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    if (!HasStarted_) {
+        YT_TLOG_DEBUG("Resource holder is not started yet, skipping update")
+            .With("ResourceUsage", newResourceUsage)
+            .With("ResourcesState", State_);
+
+        // TODO(pogorelov): Uncomment this code when UpdateResourceDemand method will be removed.
+        // {
+        //     auto error = VerifyEquals(BaseResourceUsage_, InitialResourceDemand_, "Resources are unequal");
+        //     YT_LOG_FATAL_UNLESS(
+        //         error.IsOK(),
+        //         error,
+        //         "Base resource usage is not the same as initial resource demand");
+        // }
+
+        {
+            auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
+            YT_TLOG_FATAL_UNLESS(error.IsOK(), "Trying to set unexpected resources value")
+                .With(error);
+        }
+
+        return false;
+    }
+
+    YT_TLOG_FATAL_IF(State_ == EResourcesState::Released, "Can not set resource usage when resources are released");
+
+    YT_VERIFY(newResourceUsage.UserSlots == BaseResourceUsage_.UserSlots);
+    YT_VERIFY(newResourceUsage.Gpu == BaseResourceUsage_.Gpu);
+
+    // COMPAT(pogorelov): Remove when UpdateResourceDemand is removed.
+    if (AreNonDiskResourcesEqual(newResourceUsage, BaseResourceUsage_)) {
+        YT_TLOG_DEBUG("New resource usage is equal to previous, skipping update")
+            .With("ResourceUsage", BaseResourceUsage_)
+            .With("ResourcesState", State_);
+
+        // If there is an overdraft, some other call to DoSetResourceUsage will return true.
+        return false;
+    }
+
+    return DoSetResourceUsage(
+        newResourceUsage,
+        "NewResourceUsage",
+        [&] (const TJobResources& newResourceUsage) {
+            auto resourceDelta = newResourceUsage - BaseResourceUsage_;
+            BaseResourceUsage_ = newResourceUsage;
+
+            return resourceDelta;
+        });
+}
+
+bool TResourceHolder::TrySetBaseResourceUsage(TJobResources newResourceUsage)
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    if (!HasStarted_) {
+        {
+            auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
+            YT_TLOG_ERROR_UNLESS(error.IsOK(), "Setting unexpected resources value")
+                .With(error);
+        }
+
+        return true;
+    }
+
+    YT_TLOG_FATAL_IF(State_ == EResourcesState::Released, "Can not trying to set resource usage when resources are released");
+
+    YT_VERIFY(newResourceUsage.UserSlots == BaseResourceUsage_.UserSlots);
+    YT_VERIFY(newResourceUsage.Gpu == BaseResourceUsage_.Gpu);
+
+    // COMPAT(pogorelov): Remove when UpdateResourceDemand is removed.
+    if (AreNonDiskResourcesEqual(newResourceUsage, BaseResourceUsage_)) {
+        YT_TLOG_DEBUG("New resource usage is equal to previous, skipping update try")
+            .With("ResourceUsage", BaseResourceUsage_)
+            .With("ResourcesState", State_);
+
+        // If there is an overdraft, some other call to DoSetResourceUsage will return true.
+        return true;
+    }
+
+    auto resourceDelta = newResourceUsage - BaseResourceUsage_;
+
+    auto success = DoTrySetResourceUsage(
+        resourceDelta,
+        "ResourceDelta");
+
+    if (success) {
+        BaseResourceUsage_ = newResourceUsage;
+
+        YT_TLOG_DEBUG("New resource usage successfully set")
+            .With("ResourceUsage", newResourceUsage)
+            .With("ResourcesState", State_)
+            .With("Delta", resourceDelta);
+    } else {
+        YT_TLOG_DEBUG("Failed to set new resource usage")
+            .With("ResourceUsage", newResourceUsage)
+            .With("ResourcesState", State_)
+            .With("Delta", resourceDelta);
+    }
+
+    return success;
+}
+
+bool TResourceHolder::UpdateAdditionalResourceUsage(TJobResources additionalResourceUsageDelta)
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    return DoSetResourceUsage(
+        additionalResourceUsageDelta,
+        "AdditionalResourceUsageDelta",
+        [&] (const TJobResources& resourceUsageDelta) {
+            AdditionalResourceUsage_ += resourceUsageDelta;
+
+            return resourceUsageDelta;
+        });
+}
+
+bool TResourceHolder::RestoreResources() noexcept
+{
+    return SetBaseResourceUsage(InitialResourceDemand_);
+}
+
+IMemoryUsageTrackerPtr TResourceHolder::GetAdditionalMemoryUsageTracker(EMemoryCategory memoryCategory)
+{
+    return New<TJobMemoryUsageTracker>(MakeStrong(this), memoryCategory);
+}
+
+TJobResources TResourceHolder::GetResourceLimits(bool considerUserJobFreeMemoryWatermark) const noexcept
+{
+    return ResourceManagerImpl_->GetResourceLimits(considerUserJobFreeMemoryWatermark);
+}
+
+TJobResources TResourceHolder::GetFreeResources(bool considerUserJobFreeMemoryWatermark) const noexcept
+{
+    return ResourceManagerImpl_->GetFreeResources(considerUserJobFreeMemoryWatermark);
+}
+
+TJobResources TResourceHolder::GetInitialResourceDemand() const noexcept
+{
+    return InitialResourceDemand_;
+}
+
+void TResourceHolder::UpdateResourceDemand(
+    const NClusterNode::TJobResources& resources,
+    const NScheduler::TAllocationAttributes& allocationAttributes)
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    YT_VERIFY(State_ == EResourcesState::Pending);
+    YT_VERIFY(AdditionalResourceUsage_ == ZeroJobResources());
+
+    YT_TLOG_DEBUG("Resource demand updated")
+        .With("NewRecourceDemand", resources)
+        .With("NewPortCount", allocationAttributes.PortCount);
+
+    BaseResourceUsage_ = resources;
+    AllocationAttributes_ = allocationAttributes;
+}
+
+TJobResources TResourceHolder::GetResourceUsage(bool excludeReleasing) const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    if (excludeReleasing && State_ == EResourcesState::Releasing) {
+        return ZeroJobResources();
+    }
+
+    return TotalResourceUsage();
+}
+
+std::pair<TJobResources, TJobResources> TResourceHolder::GetDetailedResourceUsage() const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    return std::pair(BaseResourceUsage_, AdditionalResourceUsage_);
+}
+
+const NLogging::TLogger& TResourceHolder::GetLogger() const noexcept
+{
+    return Logger;
+}
+
+TResourceOwnerPtr TResourceHolder::GetOwner() const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    return Owner_.Lock();
+}
+
+void TResourceHolder::ResetOwner(TWeakPtr<TResourceOwner> owner)
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    Owner_ = std::move(owner);
+}
+
+void TResourceHolder::PrepareResourcesRelease() noexcept
+{
+    auto guard = WriterGuard(ResourcesLock_);
+    if (State_ >= EResourcesState::Releasing) {
+        // In case of preemption, we become Releasing
+        // before we finish the allocation.
+        // Thus upon allocation completion/abortion
+        // job will be evicted and this function will
+        // be called again.
+        return;
+    }
+
+    auto state = std::exchange(State_, EResourcesState::Releasing);
+
+    YT_VERIFY(state != EResourcesState::Pending || AdditionalResourceUsage_ == TJobResources{});
+
+    ResourceManagerImpl_->PrepareResourcesRelease(Logger, state, TotalResourceUsage());
+    if (state == EResourcesState::Pending) {
+        YT_VERIFY(AdditionalResourceUsage_ == TJobResources{});
+        BaseResourceUsage_ = TJobResources{};
+    }
+}
+
+EResourcesState TResourceHolder::GetState() const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    return State_;
+}
+
+TJobResources TResourceHolder::TotalResourceUsage() const noexcept
+{
+    YT_ASSERT_SPINLOCK_AFFINITY(ResourcesLock_);
+
+    return BaseResourceUsage_ + AdditionalResourceUsage_;
+}
+
+TResourceHolder::TResourceHolderInfo TResourceHolder::BuildResourceHolderInfo() const noexcept
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    auto [
+        baseResourceUsage,
+        additionalResourceUsage
+    ] = GetDetailedResourceUsage();
+
+    return {
+        .Id = Id_,
+        .BaseResourceUsage = baseResourceUsage,
+        .AdditionalResourceUsage = additionalResourceUsage,
+        .InitialResourceDemand = InitialResourceDemand_,
+        .ResourcesConsumerType = ResourcesConsumerType,
+    };
+}
+
+template <NMpl::CInvocable<TJobResources(const TJobResources&)> TResourceUsageUpdater>
+bool TResourceHolder::DoSetResourceUsage(
+    const TJobResources& newResourceUsage,
+    NLogging::TLoggingTagKey argumentName,
+    TResourceUsageUpdater resourceUsageUpdater,
+    bool isReleasing)
+{
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
+
+    YT_TLOG_DEBUG("Setting resources to holder")
+        .With("CurrentState", State_)
+        .With(argumentName, newResourceUsage);
+
+    auto stateFacade = State_;
+    if (stateFacade == EResourcesState::Released) {
+        // ReleaseBaseResources has already happened.
+        // It moved AdditionalResources to Releasing.
+        // Past such point we cannot have modifications of
+        // BaseResources thus it must be a modification of
+        // AdditionalResources which are in Releasing state.
+        stateFacade = EResourcesState::Releasing;
+    }
+
+    auto resourceUsageDelta = std::invoke(resourceUsageUpdater, newResourceUsage);
+
+    auto overdraftOccurred = ResourceManagerImpl_->OnResourcesUpdated(
+        this,
+        ResourcesConsumerType,
+        GetLogger(),
+        resourceUsageDelta,
+        stateFacade,
+        isReleasing);
+
+    return !overdraftOccurred;
+}
+
+bool TResourceHolder::DoTrySetResourceUsage(
+    const NClusterNode::TJobResources& resourceUsageDelta,
+    NLogging::TLoggingTagKey argumentName)
+{
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
+
+    YT_TLOG_DEBUG("Trying to set resources to holder")
+        .With("CurrentState", State_)
+        .With(argumentName, resourceUsageDelta);
+
+    auto stateFacade = State_;
+    if (stateFacade == EResourcesState::Released) {
+        // ReleaseBaseResources has already happened.
+        // It moved AdditionalResources to Releasing.
+        // Past such point we cannot have modifications of
+        // BaseResources thus it must be a modification of
+        // AdditionalResources which are in Releasing state.
+        stateFacade = EResourcesState::Releasing;
+    }
+
+    auto [success, acquiredResources, finallyGuard] = ResourceManagerImpl_->TryAcquirePhysicalResources(
+        GetPtr(*this),
+        resourceUsageDelta);
+
+    YT_TLOG_DEBUG("TryAcquirePhysicalResources result")
+        .With("Success", success)
+        .With("AcquiredMemory", acquiredResources.UserMemoryGuard.GetSize())
+        .With("FinallyGuard", static_cast<bool>(finallyGuard));
+
+    if (!success) {
+        return false;
+    }
+
+    acquiredResources.SystemMemoryGuard.ReleaseNoReclaim();
+    acquiredResources.UserMemoryGuard.ReleaseNoReclaim();
+
+    YT_VERIFY(finallyGuard);
+
+    finallyGuard->Release();
+
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResourceHolder::TAcquiredResources::TAcquiredResources(TJobResourceManager::TImpl* jobResourceManagerImpl) noexcept
+    : JobResourceManagerImpl_(jobResourceManagerImpl)
+{ }
+
+TResourceHolder::TAcquiredResources::~TAcquiredResources()
+{
+    if (!std::empty(Ports) || JobProxyRpcServerPort.has_value()) {
+        JobResourceManagerImpl_->ReleasePorts(NJobAgent::Logger(), Ports, JobProxyRpcServerPort);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NJobAgent
