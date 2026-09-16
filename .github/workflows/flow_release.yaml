@@ -197,7 +197,7 @@ jobs:
       - name: Docker Pull And Push (release)
         if: ${{ steps.types.outputs.release == 'true' }}
         run: |
-          for component in flow flow-java; do
+          for component in flow flow-java flow-python; do
             docker pull ghcr.io/ytsaurus/${component}-nightly:${{ needs.tag.outputs.test-image-tag }}
             docker tag  ghcr.io/ytsaurus/${component}-nightly:${{ needs.tag.outputs.test-image-tag }} \
                         ghcr.io/ytsaurus/${component}:${{ needs.tag.outputs.prod-image-tag }}
@@ -207,7 +207,7 @@ jobs:
       - name: Docker Pull And Push (relwithdebinfo)
         if: ${{ steps.types.outputs.relwithdebinfo == 'true' }}
         run: |
-          for component in flow flow-java; do
+          for component in flow flow-java flow-python; do
             docker pull ghcr.io/ytsaurus/${component}-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo
             docker tag  ghcr.io/ytsaurus/${component}-nightly:${{ needs.tag.outputs.test-image-tag }}-relwithdebinfo \
                         ghcr.io/ytsaurus/${component}:${{ needs.tag.outputs.prod-image-tag }}-relwithdebinfo

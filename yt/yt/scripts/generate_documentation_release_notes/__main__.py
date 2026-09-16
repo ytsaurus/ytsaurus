@@ -24,8 +24,8 @@ Is released as a docker image.
 """
 
 FLOW_DESCRIPTION = """
-One release covers every Flow component: the server as docker images, with and without a Java
-runtime, the Java SDK in Maven Central and the Python SDK in PyPI, all at the same version.
+One release covers every Flow component: the server as docker images, plain and with a Java or a
+Python runtime, the Java SDK in Maven Central and the Python SDK in PyPI, all at the same version.
 """
 
 K8S_DESCRIPTION = """
@@ -314,6 +314,7 @@ COMPONENTS = [
         artifacts=[
             DockerArtifact(label="Docker image", repo_name="ytsaurus", image_repo="flow", tag_templates=["{version}"]),
             DockerArtifact(label="Docker image with JRE 17", repo_name="ytsaurus", image_repo="flow-java", tag_templates=["{version}"]),
+            DockerArtifact(label="Docker image with Python 3", repo_name="ytsaurus", image_repo="flow-python", tag_templates=["{version}"]),
             Artifact(
                 label="Java SDK in Maven Central",
                 kind="package",
