@@ -4,8 +4,6 @@
 #include <yql/essentials/core/yql_type_annotation.h>
 #include <yql/essentials/minikql/mkql_node.h>
 
-#include <yt/yql/providers/yt/lib/yt_token_resolver/yt_token_resolver.h>
-
 #include <yt/yql/providers/ytflow/integration/mkql_interface/yql_ytflow_lookup_provider.h>
 
 #include <util/generic/maybe.h>
@@ -83,8 +81,6 @@ public:
     virtual NKikimr::NMiniKQL::TRuntimeNode BuildLookupSourceArgs(
         const TExprNode& read,
         NCommon::TMkqlBuildContext& ctx) = 0;
-
-    virtual IYtTokenResolver::TPtr GetYtTokenResolver() const = 0;
 };
 
 // Non-operational base which enables descendants to provide only partial functionality
@@ -131,8 +127,6 @@ public:
     NKikimr::NMiniKQL::TRuntimeNode BuildLookupSourceArgs(
         const TExprNode& read,
         NCommon::TMkqlBuildContext& ctx) override;
-
-    IYtTokenResolver::TPtr GetYtTokenResolver() const override;
 };
 
 } // namespace NYql

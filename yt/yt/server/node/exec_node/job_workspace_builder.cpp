@@ -353,10 +353,10 @@ private:
         ValidateJobPhase(EJobPhase::PreparingLayers);
         SetJobPhase(EJobPhase::PreparingVolumes);
 
-        if (Context_.FSSecretary->GetRootVolumeParams()) {
+        if (!Context_.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::LayerUnpackingFailed,
-                "Root volume are not supported in simple job environment"));
+                "Porto layers are not supported in simple job environment"));
         }
 
         if (Context_.FSSecretary->GetDockerImage()) {
@@ -576,21 +576,15 @@ private:
         };
 
         if (!fsSecretary->GetRootVolume()) {
-            if (auto rootVolumeParams = fsSecretary->GetRootVolumeParams(); rootVolumeParams) {
-                for (const auto& key : rootVolumeParams->LayerArtifactKeys.GetAll()) {
-                    tryInsertLayerKey(key);
-                }
-            }
-        }
-
-        if (auto gpuVolumeParams = fsSecretary->GetGpuCheckVolumeParams(); gpuVolumeParams) {
-            for (const auto& key : gpuVolumeParams->LayerArtifactKeys.GetAll()) {
+            for (const auto& key : fsSecretary->GetRootVolumeLayerArtifactKeys()) {
                 tryInsertLayerKey(key);
             }
         }
-
+        for (const auto& key : fsSecretary->GetGpuCheckVolumeLayerArtifactKeys()) {
+            tryInsertLayerKey(key);
+        }
         for (const auto& params : fsSecretary->GetNonRootVolumesToPrepare()) {
-            for (const auto& key : params->LayerArtifactKeys.GetAll()) {
+            for (const auto& key : params->LayerArtifactKeys) {
                 tryInsertLayerKey(key);
             }
         }
@@ -679,42 +673,42 @@ private:
         SetJobPhase(EJobPhase::PreparingVolumes);
 
         const auto& slot = Context_.Slot;
-        auto rootVolumeParams = Context_.FSSecretary->GetRootVolumeParams();
+        const auto& layerArtifactKeys = Context_.FSSecretary->GetRootVolumeLayerArtifactKeys();
 
-        if (Context_.FSSecretary->GetDockerImage() && !rootVolumeParams) {
+        if (Context_.FSSecretary->GetDockerImage() && layerArtifactKeys.empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::DockerImagePullingFailed,
                 "External docker image is not supported in Porto job environment"));
         }
 
-        // Check if root volume can be reused from previous job in the allocation.
-        if (const auto& existingRootVolume = Context_.FSSecretary->GetRootVolume()) {
-            YT_VERIFY(Context_.FSSecretary->IsRootVolumeReusable());
+        if (!layerArtifactKeys.empty()) {
+            // Check if root volume can be reused from previous job in the allocation.
+            if (const auto& existingRootVolume = Context_.FSSecretary->GetRootVolume()) {
+                YT_VERIFY(Context_.FSSecretary->IsRootVolumeReusable());
 
-            YT_TLOG_INFO("Reusing root volume from previous job")
-                .With("VolumePath", existingRootVolume->GetPath());
+                YT_TLOG_INFO("Reusing root volume from previous job")
+                    .With("VolumePath", existingRootVolume->GetPath());
 
-            SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
-            ResultHolder_.RootVolume = existingRootVolume;
-            SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
-            return OKFuture;
-        }
+                SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
+                ResultHolder_.RootVolume = existingRootVolume;
+                SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
+                return OKFuture;
+            }
 
-        if (rootVolumeParams) {
             SetNowTime(TimePoints_.PrepareRootVolumeStartTime);
 
             YT_TLOG_INFO("Preparing root volume")
-                .With("LayerCount", rootVolumeParams->LayerArtifactKeys.GetAll().size())
+                .With("LayerCount", layerArtifactKeys.size())
                 .With("HasVirtualSandbox", Context_.UserSandboxOptions.VirtualSandboxOptions.has_value());
 
             TVolumePreparationOptions options;
             options.JobId = Context_.Job->GetId();
             options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
             options.UserSandboxOptions = Context_.UserSandboxOptions;
+            options.SandboxNbdRootVolumeSpec = Context_.FSSecretary->GetSandboxNbdRootVolumeSpec();
 
             return slot->PrepareRootVolume(
                 Context_.FSSecretary->GetPreparedRootVolumeOverlayData(),
-                rootVolumeParams,
                 options)
                     .Apply(
                         BIND([slot, this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
@@ -806,13 +800,13 @@ private:
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
 
         const auto& slot = Context_.Slot;
-        const auto gpuVolumeParams = Context_.FSSecretary->GetGpuCheckVolumeParams();
+        const auto& layerArtifactKeys = Context_.FSSecretary->GetGpuCheckVolumeLayerArtifactKeys();
 
-        if (gpuVolumeParams) {
+        if (!layerArtifactKeys.empty()) {
             SetNowTime(TimePoints_.PrepareGpuCheckVolumeStartTime);
 
             YT_TLOG_INFO("Preparing GPU check volume")
-                .With("Volume", gpuVolumeParams);
+                .With("LayerCount", layerArtifactKeys.size());
 
             TVolumePreparationOptions options;
             options.JobId = Context_.Job->GetId();
@@ -820,7 +814,6 @@ private:
 
             return slot->PrepareGpuCheckVolume(
                 Context_.FSSecretary->GetPreparedGpuCheckVolumeOverlayData(),
-                gpuVolumeParams,
                 options)
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
@@ -958,7 +951,7 @@ private:
 
         YT_TLOG_INFO("Started preparing sandbox directories");
 
-        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions)
+        return Context_.Slot->PrepareSandboxDirectories(Context_.UserSandboxOptions, /*hasRootVolume*/ static_cast<bool>(ResultHolder_.RootVolume))
             .Apply(BIND([this, this_ = MakeStrong(this)] {
                 if (ResultHolder_.RootVolume && !Context_.TestRootFS) {
                     MakeFilesForArtifactBinds();
@@ -1184,7 +1177,7 @@ private:
 
         const auto& dockerImage = Context_.FSSecretary->GetDockerImage();
 
-        if (!dockerImage && Context_.FSSecretary->GetRootVolumeParams()) {
+        if (!dockerImage && !Context_.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::LayerUnpackingFailed,
                 "Layers are not supported in CRI job environment"));

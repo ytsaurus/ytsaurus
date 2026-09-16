@@ -76,8 +76,6 @@ struct TSession
     TString Id;
     TOperationProgressWriter OperationProgressWriter;
     TYqlOperationOptions OperationOptions;
-    TCredentials::TPtr Credentials;
-    IYtTokenResolver::TPtr YtTokenResolver;
     NYT::NConcurrency::IThreadPoolPtr ThreadPool;
 
     THashMap<TStringBuf, ui32> ComputationCounters;
@@ -89,8 +87,6 @@ struct TSession
         : Id(options.SessionId())
         , OperationProgressWriter(options.OperationProgressWriter())
         , OperationOptions(options.OperationOptions())
-        , Credentials(options.Credentials())
-        , YtTokenResolver(options.YtTokenResolver())
         , ThreadPool(NYT::NConcurrency::CreateThreadPool(threadCount, "YtflowGat"))
         , AbortedPromise(NYT::NewPromise<void>())
     { }
@@ -241,19 +237,6 @@ private:
         return YtClientsCache_->GetClient(cluster, token);
     }
 
-    TString GetAuth(
-        const TString& cluster,
-        const TYtflowSettings& config,
-        const TSession& session) const
-    {
-        return NPrivate::GetAuth(
-            cluster,
-            config,
-            *ConfigClusters_,
-            session.YtTokenResolver,
-            *session.Credentials);
-    }
-
     NThreading::TFuture<NCommon::TOperationResult> DoRun(
         const TExprNode::TPtr& node, const TRunOptions& options, TExprContext& ctx
     ) {
@@ -284,8 +267,6 @@ private:
             .ExprContext = ctx,
             .RunOptions = options,
             .ConfigClusters = ConfigClusters_,
-            .YtTokenResolver = session->YtTokenResolver,
-            .Credentials = session->Credentials,
         };
 
         THashMap<TString, TString> secureParams;
@@ -528,7 +509,7 @@ private:
             YTFLOW_SUBDIRECTORY,
             MASTER_LOCK_NODE);
 
-        auto pipelineToken = GetAuth(pipelineCluster, config, *session);
+        auto pipelineToken = ::NYql::NYtflow::NPrivate::GetAuth(pipelineCluster, config, configClusters);
         auto pipelineClient = GetClient(pipelineCluster, pipelineToken);
 
         auto masterLockTimeout = config._MasterLockTimeout.Get();
@@ -613,18 +594,19 @@ private:
         const auto& config = options.Config();
         auto pipelineCluster = config->Cluster.Get();
         auto runtimeCluster = config->GetRuntimeCluster();
-        auto session = GetSession(options.SessionId());
 
         YQL_ENSURE(pipelineCluster, "Ytflow.Cluster pragma is not set");
 
-        auto pipelineClusterToken = GetAuth(
-            *pipelineCluster, *config, *session);
+        auto pipelineClusterToken = ::NYql::NYtflow::NPrivate::GetAuth(
+            *pipelineCluster, *config, *ConfigClusters_);
 
-        auto runtimeClusterToken = GetAuth(
-            runtimeCluster, *config, *session);
+        auto runtimeClusterToken = ::NYql::NYtflow::NPrivate::GetAuth(
+            runtimeCluster, *config, *ConfigClusters_);
 
         auto pipelineClient = GetClient(*pipelineCluster, pipelineClusterToken);
         auto runtimeClient = GetClient(runtimeCluster, runtimeClusterToken);
+
+        auto session = GetSession(options.SessionId());
 
         TVector<TTempFileHandle> tempFiles;
 
@@ -864,7 +846,6 @@ private:
                     previousRuntimeCluster,
                     previousOperationId,
                     *config,
-                    session,
                     rpcTimeout,
                     invoker)
                     .Apply(BIND([
@@ -879,8 +860,8 @@ private:
                             return NYT::OKFuture;
                         }
 
-                        auto token = GetAuth(
-                            *previousRuntimeCluster, *config, *session);
+                        auto token = ::NYql::NYtflow::NPrivate::GetAuth(
+                            *previousRuntimeCluster, *config, *ConfigClusters_);
 
                         auto runtimeClient = GetClient(*previousRuntimeCluster, token);
 
@@ -987,7 +968,6 @@ private:
         TMaybe<TString> previousRuntimeCluster,
         TMaybe<TString> previousOperationId,
         const TYtflowSettings& config,
-        const TSessionPtr& session,
         TDuration rpcTimeout,
         NYT::IInvokerPtr invoker
     ) {
@@ -998,8 +978,8 @@ private:
         YQL_CLOG(INFO, ProviderYtflow)
             << "Fetching previous operations...";
 
-        auto token = GetAuth(
-            *previousRuntimeCluster, config, *session);
+        auto token = ::NYql::NYtflow::NPrivate::GetAuth(
+            *previousRuntimeCluster, config, *ConfigClusters_);
 
         auto runtimeClient = GetClient(*previousRuntimeCluster, token);
 

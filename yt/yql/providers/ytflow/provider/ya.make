@@ -18,9 +18,6 @@ PEERDIR(
     yql/essentials/providers/common/proto
     yql/essentials/providers/common/provider
     yql/essentials/providers/common/transform
-    yql/essentials/utils
-
-    yt/yql/providers/yt/lib/yt_token_resolver
 
     yt/yql/providers/ytflow/expr_nodes
     yt/yql/providers/ytflow/integration/interface

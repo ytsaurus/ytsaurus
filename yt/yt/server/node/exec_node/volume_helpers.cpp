@@ -4,103 +4,11 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TChunkNbdVolumeSpec& volumeSpec, TStringBuf /*spec*/)
-{
-    Format(
-        builder,
-        "{Kind: Chunk, MediumIndex: %v, DataNodeAddress: %v, MinDataNodeCount: %v, MaxDataNodeCount: %v, "
-        "DataNodeRpcTimeout: %v, DataNodeNbdServiceRpcTimeout: %v, "
-        "DataNodeNbdServiceMakeTimeout: %v, MasterRpcTimeout: %v, MultiplexingParallelism: %v}",
-        volumeSpec.MediumIndex,
-        volumeSpec.DataNodeAddress,
-        volumeSpec.MinDataNodeCount,
-        volumeSpec.MaxDataNodeCount,
-        volumeSpec.DataNodeRpcTimeout,
-        volumeSpec.DataNodeNbdServiceRpcTimeout,
-        volumeSpec.DataNodeNbdServiceMakeTimeout,
-        volumeSpec.MasterRpcTimeout,
-        volumeSpec.MultiplexingParallelism);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TSandboxNbdRootVolumeSpec& volumeSpec, TStringBuf /*spec*/)
-{
-    Format(
-        builder,
-        "{DeviceSize: %v, FilesystemType: %v, BackendSpec: %v}",
-        volumeSpec.DeviceSize,
-        volumeSpec.FilesystemType,
-        volumeSpec.BackendSpec);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void FormatValue(TStringBuilderBase* builder, const TBaseVolumeParamsPtr& params, TStringBuf /*spec*/)
 {
-    if (!params) {
-        return;
-    }
     builder->AppendFormat("{");
     params->Format(builder);
     builder->AppendString("}");
-}
-
-bool TBaseVolumeParams::TLayerArtifactKeysStorage::operator==(const TLayerArtifactKeysStorage& other) const
-{
-    const auto regularCount =
-        std::ssize(MergedArtifactKeys_) - VolatileArtifactKeyCount_;
-    const auto otherRegularCount =
-        std::ssize(other.MergedArtifactKeys_) - other.VolatileArtifactKeyCount_;
-
-    if (regularCount != otherRegularCount) {
-        return false;
-    }
-
-    return std::equal(
-        MergedArtifactKeys_.begin() + VolatileArtifactKeyCount_,
-        MergedArtifactKeys_.end(),
-        other.MergedArtifactKeys_.begin() + other.VolatileArtifactKeyCount_);
-}
-
-std::span<TArtifactKey> TBaseVolumeParams::TLayerArtifactKeysStorage::GetAll()
-{
-    return MergedArtifactKeys_;
-}
-
-std::span<const TArtifactKey> TBaseVolumeParams::TLayerArtifactKeysStorage::GetAll() const
-{
-    return MergedArtifactKeys_;
-}
-
-void TBaseVolumeParams::TLayerArtifactKeysStorage::AddRegularArtifactKeys(std::vector<TArtifactKey> regularArtifactKeys)
-{
-    YT_VERIFY(VolatileArtifactKeyCount_ == std::ssize(MergedArtifactKeys_));
-
-    MergedArtifactKeys_.insert(
-        MergedArtifactKeys_.end(),
-        std::make_move_iterator(regularArtifactKeys.begin()),
-        std::make_move_iterator(regularArtifactKeys.end()));
-}
-
-void TBaseVolumeParams::TLayerArtifactKeysStorage::SetVolatileArtifactKeys(std::vector<TArtifactKey> volatileArtifactKeys)
-{
-    std::vector<TArtifactKey> mergedArtifactKeys;
-    mergedArtifactKeys.reserve(
-        volatileArtifactKeys.size() +
-        MergedArtifactKeys_.size() -
-        VolatileArtifactKeyCount_);
-
-    std::move(
-        volatileArtifactKeys.begin(),
-        volatileArtifactKeys.end(),
-        std::back_inserter(mergedArtifactKeys));
-
-    std::move(
-        MergedArtifactKeys_.begin() + VolatileArtifactKeyCount_,
-        MergedArtifactKeys_.end(),
-        std::back_inserter(mergedArtifactKeys));
-
-    VolatileArtifactKeyCount_ = std::ssize(volatileArtifactKeys);
-    MergedArtifactKeys_ = std::move(mergedArtifactKeys);
 }
 
 TBaseVolumeParams::TBaseVolumeParams(std::string volumeId, EVolumeType volumeType, int userId)
@@ -128,8 +36,8 @@ bool TBaseVolumeParams::operator==(const TBaseVolumeParams& other) const
             return static_cast<const TTmpfsVolumeParams&>(*this) == static_cast<const TTmpfsVolumeParams&>(other);
         case EVolumeType::LocalDisk:
             return static_cast<const TLocalDiskVolumeParams&>(*this) == static_cast<const TLocalDiskVolumeParams&>(other);
-        case EVolumeType::Nbd:
-            return static_cast<const TNbdDiskVolumeParams&>(*this) == static_cast<const TNbdDiskVolumeParams&>(other);
+        default:
+            YT_ABORT();
     }
 }
 
@@ -176,27 +84,6 @@ bool TLocalDiskVolumeParams::operator==(const TLocalDiskVolumeParams& other) con
     // Base class members (VolumeId, Size, LayerArtifactKeys, AllowReusing) are compared
     // by TBaseVolumeParams::operator== before dispatching to this method.
     return InodeLimit == other.InodeLimit;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNbdDiskVolumeParams::TNbdDiskVolumeParams(
-    std::string volumeId,
-    int userId,
-    TSandboxNbdRootVolumeSpec sandboxNbdRootVolumeSpec)
-    : TBaseVolumeParams(std::move(volumeId), EVolumeType::Nbd, userId)
-    , SandboxNbdRootVolumeSpec(std::move(sandboxNbdRootVolumeSpec))
-{ }
-
-void TNbdDiskVolumeParams::Format(TStringBuilderBase* builder) const
-{
-    TBaseVolumeParams::Format(builder);
-    builder->AppendFormat(", SandboxNbdRootVolumeSpec: %v", SandboxNbdRootVolumeSpec);
-}
-
-bool TNbdDiskVolumeParams::operator==(const TNbdDiskVolumeParams& other) const
-{
-    return SandboxNbdRootVolumeSpec == other.SandboxNbdRootVolumeSpec;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

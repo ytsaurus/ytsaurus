@@ -1257,8 +1257,6 @@ TVolumeMeta TLayerLocation::DoCreateLoopVolume(
 {
     ValidateEnabled();
 
-    YT_VERIFY(volumeParams->Size);
-
     THashMap<std::string, std::string> volumeProperties {
         {"backend", "loop"},
         {"fs_type", "ext4"},

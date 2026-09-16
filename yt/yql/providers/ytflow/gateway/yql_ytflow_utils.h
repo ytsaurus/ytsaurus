@@ -2,8 +2,6 @@
 
 #include <library/cpp/yson/node/node.h>
 
-#include <yt/yql/providers/yt/lib/yt_token_resolver/yt_token_resolver.h>
-
 #include <yql/essentials/core/yql_expr_optimize.h>
 #include <yql/essentials/core/yql_type_annotation.h>
 
@@ -52,9 +50,7 @@ NYT::NYPath::TRichYPath MakeYtConsumerRichPath(
 TString GetAuth(
     TString cluster,
     const TYtflowSettings& config,
-    const TConfigClusters& configClusters,
-    const IYtTokenResolver::TPtr& ytTokenResolver,
-    const TCredentials& credentials);
+    const TConfigClusters& configClusters);
 
 TString MakeOperationTitle(const TYqlOperationOptions& operationOptions);
 

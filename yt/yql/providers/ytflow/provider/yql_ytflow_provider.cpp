@@ -9,7 +9,6 @@
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 
 #include <yt/yql/providers/ytflow/expr_nodes/yql_ytflow_expr_nodes.h>
-#include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_integration.h>
 
 
 namespace NYql {
@@ -44,25 +43,17 @@ TDataProviderInitializer GetYtflowDataProviderInitializer(IYtflowGateway::TPtr g
         info.Source = CreateYtflowDataSource(ytflowState);
         info.Sink = CreateYtflowDataSink(ytflowState);
 
-        info.OpenSession = [gateway, typeCtx] (
+        info.OpenSession = [gateway] (
             const TString& sessionId, const TString& userName,
             const TOperationProgressWriter& progressWriter, const TYqlOperationOptions& operationOptions,
             TIntrusivePtr<IRandomProvider> randomProvider, TIntrusivePtr<ITimeProvider> timeProvider
         ) {
             Y_UNUSED(userName, randomProvider, timeProvider);
 
-            auto ytDataSource = typeCtx->DataSourceMap.FindPtr(YtProviderName);
-            YQL_ENSURE(ytDataSource);
-
-            auto* ytflowIntegration = (*ytDataSource)->GetYtflowIntegration();
-            YQL_ENSURE(ytflowIntegration);
-
             gateway->OpenSession(IYtflowGateway::TOpenSessionOptions()
                 .SessionId(sessionId)
                 .OperationProgressWriter(progressWriter)
-                .OperationOptions(operationOptions)
-                .Credentials(typeCtx->Credentials)
-                .YtTokenResolver(ytflowIntegration->GetYtTokenResolver()));
+                .OperationOptions(operationOptions));
 
             return NThreading::MakeFuture();
         };

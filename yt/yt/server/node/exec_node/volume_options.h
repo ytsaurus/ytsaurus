@@ -96,12 +96,11 @@ struct TPrepareSquashFSVolumeOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPrepareRootOverlayVolumeOptions
+struct TPrepareOverlayVolumeOptions
 {
     TJobId JobId;
     TUserSandboxOptions UserSandboxOptions;
     std::vector<TOverlayData> OverlayDataArray;
-    TBaseVolumeParamsPtr RootVolumeParams;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

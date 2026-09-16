@@ -26,11 +26,6 @@ TFuture<void> RepairErasedParts(
 
 using TPartWriterFactory = std::function<NChunkClient::IChunkWriterPtr(int partIndex)>;
 
-using TRepairErasedPartsCallback = std::function<TFuture<void>(
-    const NErasure::TPartIndexList& unavailableIndices,
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-    const std::vector<IChunkWriterPtr>& writers)>;
-
 TFuture<void> AdaptiveRepairErasedParts(
     TChunkId chunkId,
     NErasure::ICodec* codec,
@@ -40,17 +35,6 @@ TFuture<void> AdaptiveRepairErasedParts(
     TPartWriterFactory writerFactory,
     const IChunkReader::TReadBlocksOptions& readOptions,
     const IChunkWriter::TWriteBlocksOptions& writeOptions,
-    const NLogging::TLogger& logger = {},
-    NProfiling::TCounter adaptivelyRepairedCounter = {});
-
-TFuture<void> AdaptiveRepairErasedPartsWithCallback(
-    TChunkId chunkId,
-    NErasure::ICodec* codec,
-    TErasureReaderConfigPtr config,
-    const NErasure::TPartIndexList& erasedIndices,
-    const std::vector<IChunkReaderAllowingRepairPtr>& readers,
-    TPartWriterFactory writerFactory,
-    TRepairErasedPartsCallback repairErasedParts,
     const NLogging::TLogger& logger = {},
     NProfiling::TCounter adaptivelyRepairedCounter = {});
 

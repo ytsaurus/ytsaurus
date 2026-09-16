@@ -30,14 +30,16 @@ struct TJobFSDescription
 {
     std::vector<TArtifactDescription> Artifacts;
     THashMap<std::string, int> UserArtifactNameToIndex;
+    std::vector<TArtifactKey> RootVolumeLayerArtifactKeys;
+    std::vector<TArtifactKey> GpuCheckVolumeLayerArtifactKeys;
     std::optional<std::string> DockerImage;
-    TBaseVolumeParamsPtr RootVolumeParams;
-    TBaseVolumeParamsPtr GpuCheckVolumeParams;
+    std::optional<i64> RootVolumeDiskSpace;
+    std::optional<i64> RootVolumeInodeLimit;
+    bool RootVolumeAllowReusing = false;
     std::vector<TBaseVolumeParamsPtr> NonRootVolumeParams;
     std::vector<TVolumeMountPtr> JobVolumeMounts;
     THashMap<std::string, std::vector<TVolumeMountPtr>> SidecarsVolumeMounts;
-    std::optional<i64> SandboxDiskSpace;
-    std::optional<i64> SandboxInodeLimit;
+    std::optional<TSandboxNbdRootVolumeSpec> SandboxNbdRootVolumeSpec;
 };
 DEFINE_REFCOUNTED_TYPE(TJobFSDescription)
 
@@ -65,6 +67,9 @@ public:
 
     const std::vector<TArtifactDescription>& GetArtifactDescriptors() const;
 
+    const std::vector<TArtifactKey>& GetRootVolumeLayerArtifactKeys() const;
+    const std::vector<TArtifactKey>& GetGpuCheckVolumeLayerArtifactKeys() const;
+
     const std::optional<std::string>& GetDockerImage() const;
     void SetDockerImage(std::optional<std::string> image);
 
@@ -84,9 +89,7 @@ public:
     const THashSet<std::string>& GetNbdDeviceIds() const;
     THashSet<std::string> ReleaseNbdDeviceIds();
 
-    TBaseVolumeParamsPtr GetRootVolumeParams() const;
-
-    TBaseVolumeParamsPtr GetGpuCheckVolumeParams() const;
+    const std::optional<TSandboxNbdRootVolumeSpec>& GetSandboxNbdRootVolumeSpec() const;
 
     const THashMap<std::string, TVolumeResultPtr>& GetNonRootVolumes() const;
     THashMap<std::string, TVolumeResultPtr> ReleaseNonReusableNonRootVolumes();
@@ -100,8 +103,8 @@ public:
     const std::optional<TVirtualSandboxOptions>& GetVirtualSandboxOptions() const;
     void SetVirtualSandboxReader(NNbd::NImage::IImageReaderPtr reader);
 
-    const std::optional<i64>& GetSandboxDiskSpace() const;
-    const std::optional<i64>& GetSandboxInodeLimit() const;
+    const std::optional<i64>& GetRootVolumeDiskSpace() const;
+    const std::optional<i64>& GetRootVolumeInodeLimit() const;
     bool IsRootVolumeReusable() const;
     IVolumePtr ReleaseRootVolumeIfNeeded();
     std::vector<IVolumePtr> ReleaseVolumes();
@@ -149,6 +152,8 @@ private:
     std::optional<std::string> DockerImageId_;
     IVolumePtr RootVolume_;
     IVolumePtr GpuCheckVolume_;
+    std::vector<TArtifactKey> MergedRootVolumeLayerArtifactKeys_;
+    std::vector<TArtifactKey> MergedGpuCheckVolumeLayerArtifactKeys_;
     THashSet<std::string> NbdDeviceIds_;
     THashMap<std::string, TVolumeResultPtr> NonRootVolumes_;
     std::optional<TVirtualSandboxOptions> VirtualSandboxOptions_;
@@ -160,7 +165,7 @@ private:
     TPreparedLayers PreparedLayers_;
 
     void ConfigureUserArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
-    void ConfigureGpuCheckVolume(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec, int userId);
+    void ConfigureLayerArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureDockerImage(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TUserJobSpec* userJobSpec);
     void ConfigureUdfArtifacts(TNonNullPtr<TJobFSDescription> description, const NControllerAgent::NProto::TJobSpecExt& jobSpecExt);
     void ConfigureNbdDeviceIds(TNonNullPtr<TJobFSDescription> description);
@@ -177,7 +182,7 @@ private:
 
     void OnNewJobStarted(TJobId jobId);
 
-    std::vector<TOverlayData> GetPreparedOverlayData(const TBaseVolumeParams& params) const;
+    std::vector<TOverlayData> GetPreparedOverlayData(const std::vector<TArtifactKey>& artifactKeys) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobFSSecretary)
