@@ -2740,23 +2740,7 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
 {
     YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Info, "Entered slow balancing");
 
-    PersistentManager_->ActionsBuffer = Verifier_.VerifyWithPreapplied(AlreadyApplied_, PersistentManager_->ActionsBuffer);
-    PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
-    if (PersistentManager_->GetLoopContext().Computation.has_value()) {
-        PersistentManager_->ActionBufferScore = AssessScore(PersistentManager_->ActionsBuffer, PersistentManager_->GetLoopContext().Computation.value().Id);
-    }
-
     TRebalanceActions result;
-
-    auto finishedComputation = [&] (const TComputationId&) {
-        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, GenerateInterimReport());
-
-        Emulation_.ApplyAll(PersistentManager_->ActionsBuffer, Data_);
-        AlreadyApplied_.Merge(PersistentManager_->ActionsBuffer);
-        result.Merge(PersistentManager_->ActionsBuffer);
-        PersistentManager_->ActionsBuffer = TRebalanceActions();
-        PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
-    };
 
     if (Emulation_.ComputationInfos().empty() || Emulation_.Workers().empty()) {
         NConcurrency::TDelayedExecutor::WaitForDuration(EmptyIterationBackoff);
@@ -2770,6 +2754,24 @@ TRebalanceActions TBalancer::DoSlowBalancing(const TInstant& until)
         AlreadyApplied_.Merge(reliefActions);
         result.Merge(reliefActions);
     }
+
+    // The buffer kept from the previous round is checked against everything applied so far,
+    // the relief included: it may move a partition the relief has just moved elsewhere.
+    PersistentManager_->ActionsBuffer = Verifier_.VerifyWithPreapplied(AlreadyApplied_, PersistentManager_->ActionsBuffer);
+    PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
+    if (PersistentManager_->GetLoopContext().Computation.has_value()) {
+        PersistentManager_->ActionBufferScore = AssessScore(PersistentManager_->ActionsBuffer, PersistentManager_->GetLoopContext().Computation.value().Id);
+    }
+
+    auto finishedComputation = [&] (const TComputationId&) {
+        YT_TLOG_EVENT(NController::BalancerLogger, NLogging::ELogLevel::Debug, GenerateInterimReport());
+
+        Emulation_.ApplyAll(PersistentManager_->ActionsBuffer, Data_);
+        AlreadyApplied_.Merge(PersistentManager_->ActionsBuffer);
+        result.Merge(PersistentManager_->ActionsBuffer);
+        PersistentManager_->ActionsBuffer = TRebalanceActions();
+        PersistentManager_->ActionBufferScore = std::numeric_limits<double>::infinity();
+    };
 
     while (TInstant::Now() < until) {
         // If we've used up more than max time for one action, we remove all the remaining workers from the queue, which will wrap up action selection process.

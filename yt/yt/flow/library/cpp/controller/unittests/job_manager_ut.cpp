@@ -1675,6 +1675,111 @@ TEST_F(TJobBalancerTest, MemoryReliefSkipsCappedComputationCandidate)
         << "Relief must narrow the memory spread by moving the uncapped candidate";
 }
 
+//! A slow-balancing buffer kept from the previous round may move a partition that the memory
+//! relief of this round has already moved in the emulation; applying the stale buffer must not
+//! crash the balancer (YT_VERIFY in #TDistributionEmulation::DelPartition).
+TEST_F(TJobBalancerTest, MemoryReliefDoesNotClashWithPersistedSlowActions)
+{
+    constexpr double Gigabyte = 1e9;
+
+    // Computation 0: a CPU-heavy partition on worker 0 and a light one on worker 1. Computation 1:
+    // one partition per worker with equal CPU, so its CPU deviation is zero and the slow path
+    // (which picks a computation with probability proportional to its deviation) can only pick
+    // computation 0, whose only relief of worker 0 is moving the heavy partition; the bulk
+    // partition on worker 0 makes that move narrow the memory spread as well.
+    PrepareBalancerTest(
+        /*workerCount*/ 2,
+        {
+            TComputationDescription{/*PartitionCount*/ 2, {}},
+            TComputationDescription{/*PartitionCount*/ 2, {}},
+        },
+        /*exceedCountAllowed*/ 2);
+
+    THashMap<TComputationId, std::vector<TPartitionId>> partitionsByComputation;
+    for (const auto& [partitionId, partition] : FlowView->State->ExecutionSpec->Layout->Partitions) {
+        partitionsByComputation[partition->ComputationId].push_back(partitionId);
+    }
+    for (auto& [computationId, partitions] : partitionsByComputation) {
+        std::ranges::sort(partitions);
+    }
+    const auto heavyId = partitionsByComputation.at(GetComputationId(0))[0];
+    const auto lightId = partitionsByComputation.at(GetComputationId(0))[1];
+    const auto bulkId = partitionsByComputation.at(GetComputationId(1))[0];
+    const auto ballastId = partitionsByComputation.at(GetComputationId(1))[1];
+
+    THashMap<TPartitionId, std::pair<double, double>> loadByPartition = {
+        {heavyId, {10 * BaseCpuLoad, 10 * Gigabyte}},
+        {lightId, {BaseCpuLoad, Gigabyte}},
+        {bulkId, {BaseCpuLoad, 5 * Gigabyte}},
+        {ballastId, {BaseCpuLoad, Gigabyte}},
+    };
+    THashMap<TPartitionId, std::string> pinnedWorker = {
+        {heavyId, GetWorkerAddress(0)},
+        {lightId, GetWorkerAddress(1)},
+        {bulkId, GetWorkerAddress(0)},
+        {ballastId, GetWorkerAddress(1)},
+    };
+    {
+        FlowView->State->StartMutation();
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        for (const auto& [partitionId, workerAddress] : pinnedWorker) {
+            auto job = New<TJob>();
+            job->JobId = TJobId(TGuid::Create());
+            job->WorkerAddress = workerAddress;
+            job->WorkerIncarnationId = FlowView->State->Workers.at(workerAddress)->IncarnationId;
+            job->PartitionId = partitionId;
+            layout->CreateJob(job);
+        }
+        FlowView->State->CommitMutation();
+    }
+
+    auto setLoads = [&] {
+        for (const auto& [partitionId, load] : loadByPartition) {
+            auto status = New<TPartitionJobStatus>();
+            status->CurrentJobStatus = New<TJobStatus>();
+            status->CurrentJobStatus->PerformanceMetrics->CpuUsage30s = load.first;
+            status->CurrentJobStatus->PerformanceMetrics->MemoryUsage30s = load.second;
+            status->CurrentJobStatus->StartTime = TInstant::Now() - TDuration::Hours(1);
+            FlowView->Feedback->PartitionJobStatuses[partitionId] = status;
+        }
+    };
+
+    // The first round ends (the 50 ms sync period) before the slow path may apply its buffer
+    // (the per-computation minimum time is longer than the round), so the CPU move of the heavy
+    // partition is kept for the next round. Nothing else may move: the job counts are even.
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->RebalanceActionMinTime = TDuration::MilliSeconds(60);
+        JobManager->Reconfigure(dynamicSpec);
+    }
+    setLoads();
+    DistributeJobs();
+    {
+        const auto& layout = FlowView->State->ExecutionSpec->Layout;
+        ASSERT_EQ(layout->Jobs.size(), layout->Partitions.size());
+        for (const auto& [partitionId, workerAddress] : pinnedWorker) {
+            ASSERT_EQ(layout->Jobs.at(*layout->Partitions.at(partitionId)->CurrentJobId)->WorkerAddress, workerAddress)
+                << "The first round must keep its slow actions buffered";
+        }
+    }
+
+    // Now the memory relief of the next round moves the same heavy partition first.
+    {
+        auto dynamicSpec = FlowView->CurrentDynamicSpec->GetValue();
+        dynamicSpec->JobManager->BalanceWeights[EBalanceResource::Memory] = 1.0;
+        JobManager->Reconfigure(dynamicSpec);
+    }
+    for (int i = 0; i < 5; ++i) {
+        setLoads();
+        DistributeJobs();
+    }
+
+    const auto& layout = FlowView->State->ExecutionSpec->Layout;
+    EXPECT_EQ(layout->Jobs.size(), layout->Partitions.size());
+    EXPECT_EQ(layout->Jobs.at(*layout->Partitions.at(heavyId)->CurrentJobId)->WorkerAddress, GetWorkerAddress(1))
+        << "The heavy partition must end up on the light worker";
+}
+
 //! Memory relief must converge on more than two workers: three heavy single-partition computations
 //! piled on one worker of three spread out until the extremes are within tolerance.
 TEST_F(TJobBalancerTest, MemoryReliefConvergesAcrossThreeWorkers)
