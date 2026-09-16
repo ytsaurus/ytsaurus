@@ -757,6 +757,41 @@ TFuture<void> AdaptiveRepairErasedParts(
     const NLogging::TLogger& logger,
     NProfiling::TCounter adaptivelyRepairedCounter)
 {
+    return AdaptiveRepairErasedPartsWithCallback(
+        chunkId,
+        codec,
+        std::move(config),
+        erasedIndices,
+        allReaders,
+        std::move(writerFactory),
+        [=] (
+            const TPartIndexList& unavailableIndices,
+            const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders,
+            const std::vector<IChunkWriterPtr>& writers)
+        {
+            return RepairErasedParts(
+                codec,
+                unavailableIndices,
+                availableReaders,
+                writers,
+                readOptions,
+                writeOptions);
+        },
+        logger,
+        std::move(adaptivelyRepairedCounter));
+}
+
+TFuture<void> AdaptiveRepairErasedPartsWithCallback(
+    TChunkId chunkId,
+    ICodec* codec,
+    TErasureReaderConfigPtr config,
+    const TPartIndexList& erasedIndices,
+    const std::vector<IChunkReaderAllowingRepairPtr>& allReaders,
+    TPartWriterFactory writerFactory,
+    TRepairErasedPartsCallback repairErasedParts,
+    const NLogging::TLogger& logger,
+    NProfiling::TCounter adaptivelyRepairedCounter)
+{
     auto invoker = TDispatcher::Get()->GetReaderInvoker();
     auto observer = New<TRepairingReadersObserver>(codec, config, invoker, allReaders);
 
@@ -777,13 +812,7 @@ TFuture<void> AdaptiveRepairErasedParts(
             auto writers = CreateWritersForRepairing(erasedIndices, bannedIndices, writerFactory);
             YT_VERIFY(writers.size() == bannedIndices.size());
 
-            auto future = RepairErasedParts(
-                codec,
-                bannedIndices,
-                availableReaders,
-                writers,
-                readOptions,
-                writeOptions);
+            auto future = repairErasedParts(bannedIndices, availableReaders, writers);
 
             return future.Apply(BIND([=] (const TError& repairError) {
                 if (repairError.IsOK()) {
@@ -810,4 +839,3 @@ TFuture<void> AdaptiveRepairErasedParts(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
-

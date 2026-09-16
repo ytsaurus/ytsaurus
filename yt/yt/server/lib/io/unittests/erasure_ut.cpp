@@ -3,14 +3,19 @@
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
 #include <yt/yt/server/lib/io/io_engine.h>
 
-#include <yt/yt/ytlib/chunk_client/config.h>
-#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
-#include <yt/yt/ytlib/chunk_client/erasure_repair.h>
-#include <yt/yt/ytlib/chunk_client/erasure_writer.h>
-#include <yt/yt/ytlib/chunk_client/erasure_reader.h>
-#include <yt/yt/ytlib/chunk_client/session_id.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/yt/ytlib/chunk_client/erasure_repair.h>
+#include <yt/yt/ytlib/chunk_client/erasure_writer.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+#include <yt/yt/ytlib/chunk_client/striped_erasure_reader.h>
+#include <yt/yt/ytlib/chunk_client/striped_erasure_writer.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -248,7 +253,9 @@ public:
         std::vector<TSharedRef> data,
         int erasureWindowSize = 64,
         bool storeBlockChecksums = false,
-        std::optional<i64> erasureStripeSize = std::nullopt)
+        std::optional<i64> erasureStripeSize = std::nullopt,
+        TChunkId chunkId = NullChunkId,
+        bool stripedErasureChunk = false)
     {
         auto config = New<TErasureWriterConfig>();
         config->ErasureWindowSize = erasureWindowSize;
@@ -259,27 +266,48 @@ public:
         auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, INodePtr());
         for (int i = 0; i < codec->GetTotalPartCount(); ++i) {
             auto filename = "part" + ToString(i + 1);
-            writers.push_back(New<TChunkFileWriter>(ioEngine, NullChunkId, filename));
+            auto partChunkId = chunkId == NullChunkId
+                ? NullChunkId
+                : ErasurePartIdFromChunkId(chunkId, i);
+            writers.push_back(New<TChunkFileWriter>(ioEngine, partChunkId, filename));
         }
 
         auto meta = New<TDeferredChunkMeta>();
         meta->set_type(1);
         meta->set_format(1);
+        if (stripedErasureChunk) {
+            SetProtoExtension(meta->mutable_extensions(), NChunkClient::NProto::TMiscExt());
+        }
 
         i64 dataSize = 0;
-        auto erasureWriter = CreateErasureWriter(
-            config,
-            TSessionId(),
-            codecId,
-            writers,
-            TWorkloadDescriptor(EWorkloadCategory::UserBatch));
-        EXPECT_TRUE(WaitForFast(erasureWriter->Open()).IsOK());
+        IChunkWriterPtr erasureWriter;
+        if (stripedErasureChunk) {
+            erasureWriter = CreateStripedErasureWriter(
+                config,
+                codecId,
+                TSessionId(),
+                TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+                writers);
+        } else {
+            erasureWriter = CreateErasureWriter(
+                config,
+                TSessionId(),
+                codecId,
+                writers,
+                TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+        }
+        WaitForFast(erasureWriter->Open())
+            .ThrowOnError();
 
         for (const auto& ref : data) {
-            erasureWriter->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(ref, GetChecksum(ref)));
+            if (!erasureWriter->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(ref, GetChecksum(ref)))) {
+                WaitForFast(erasureWriter->GetReadyEvent())
+                    .ThrowOnError();
+            }
             dataSize += ref.Size();
         }
-        EXPECT_TRUE(WaitForFast(erasureWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), meta)).IsOK());
+        WaitForFast(erasureWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), meta))
+            .ThrowOnError();
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
     }
 
@@ -332,6 +360,7 @@ public:
 
     static void PrepareAdaptiveReadersAndWriters(
         ICodec* codec,
+        TChunkId chunkId,
         const std::vector<ETestPartInfo>& parts,
         std::vector<IChunkReaderAllowingRepairPtr>* allReaders,
         TPartWriterFactory* writerFactory,
@@ -343,11 +372,14 @@ public:
 
         for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
             auto filename = "part" + ToString(index + 1);
+            auto partChunkId = chunkId == NullChunkId
+                ? NullChunkId
+                : ErasurePartIdFromChunkId(chunkId, index);
             auto partInfo = parts[index];
             if (partInfo != ETestPartInfo::OK) {
                 auto reader = New<TChunkFileReader>(
                     ioEngine,
-                    NullChunkId,
+                    partChunkId,
                     filename);
                 allReaders->push_back(New<TFailingChunkFileReaderAdapter>(
                     reader,
@@ -356,7 +388,7 @@ public:
             } else {
                 auto reader = CreateChunkFileReaderAdapter(New<TChunkFileReader>(
                     ioEngine,
-                    NullChunkId,
+                    partChunkId,
                     filename));
                 allReaders->push_back(reader);
             }
@@ -365,7 +397,10 @@ public:
         *writerFactory = [=] (int index) {
             YT_VERIFY(parts[index] == ETestPartInfo::Erased);
             auto filename = "part" + ToString(index + 1);
-            return New<TChunkFileWriter>(ioEngine, NullChunkId, filename);
+            auto partChunkId = chunkId == NullChunkId
+                ? NullChunkId
+                : ErasurePartIdFromChunkId(chunkId, index);
+            return New<TChunkFileWriter>(ioEngine, partChunkId, filename);
         };
     }
 
@@ -1292,12 +1327,13 @@ void TErasureMixtureTest::ExecAdaptiveRepairTest(
     TPartWriterFactory writerFactory;
     PrepareAdaptiveReadersAndWriters(
         codec,
+        NullChunkId,
         parts,
         &allReaders,
         &writerFactory,
         failMetaRequests);
 
-    auto repairFuture = AdaptiveRepairErasedParts(
+    auto repairResult = WaitForFast(AdaptiveRepairErasedParts(
         NullChunkId,
         codec,
         CreateErasureConfig(),
@@ -1305,8 +1341,8 @@ void TErasureMixtureTest::ExecAdaptiveRepairTest(
         allReaders,
         writerFactory,
         /*chunkReadOptions*/ {},
-        /*writeBlocksOptions*/ {});
-    EXPECT_TRUE(WaitForFast(repairFuture).IsOK());
+        /*writeBlocksOptions*/ {}));
+    EXPECT_TRUE(repairResult.IsOK()) << ToString(repairResult);
 
     auto erasureReader = CreateErasureReader(codec);
     CheckRepairResult(erasureReader, dataRefs);
@@ -1452,6 +1488,87 @@ TEST_P(TErasureMixtureTest, TestAdaptiveRepairFailingMeta)
 
         ExecAdaptiveRepairTest(codec, data, erasedIndices, failingIndices, FailMeta);
     }
+}
+
+TEST_F(TErasureMixtureTest, AdaptiveRepairStriped)
+{
+    auto* codec = GetCodec(ECodec::IsaReedSolomon_6_3);
+
+    auto data = GetRandomTextBlocks(2000, 20, 120);
+    TPartIndexList erasedIndices{2};
+    TPartIndexList failingIndices{1};
+
+    auto chunkId = NObjectClient::MakeId(
+        NObjectClient::EObjectType::ErasureChunk,
+        NObjectClient::TCellTag(1),
+        /*counter*/ 1,
+        /*entropy*/ 1);
+
+    WriteErasureChunk(
+        codec->GetId(),
+        codec,
+        data,
+        /*erasureWindowSize*/ 64,
+        /*storeBlockChecksums*/ false,
+        /*erasureStripeSize*/ std::nullopt,
+        chunkId,
+        /*stripedErasureChunk*/ true);
+
+    auto expectedRepairedPartData = TUnbufferedFileInput(
+        "part" + ToString(erasedIndices.front() + 1)).ReadAll();
+    RemoveErasedParts(erasedIndices);
+
+    std::vector<ETestPartInfo> parts(codec->GetTotalPartCount(), ETestPartInfo::OK);
+    for (auto index : erasedIndices) {
+        parts[index] = ETestPartInfo::Erased;
+    }
+    for (auto index : failingIndices) {
+        parts[index] = ETestPartInfo::Failing;
+    }
+
+    std::vector<IChunkReaderAllowingRepairPtr> allReaders;
+    TPartWriterFactory writerFactory;
+    PrepareAdaptiveReadersAndWriters(
+        codec,
+        chunkId,
+        parts,
+        &allReaders,
+        &writerFactory,
+        /*failMetaRequests*/ false);
+
+    auto config = CreateErasureConfig();
+    auto repairErasedParts = [=] (
+        const TPartIndexList& unavailableIndices,
+        const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders,
+        const std::vector<IChunkWriterPtr>& writers)
+    {
+        auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(
+            TChunkReaderMemoryManagerOptions(256_MB));
+        return RepairErasedPartsStriped(
+            config,
+            codec,
+            unavailableIndices,
+            availableReaders,
+            writers,
+            std::move(memoryManagerHolder),
+            /*chunkReadOptions*/ {},
+            /*writeBlocksOptions*/ {});
+    };
+    auto repairResult = WaitForFast(AdaptiveRepairErasedPartsWithCallback(
+        chunkId,
+        codec,
+        config,
+        erasedIndices,
+        allReaders,
+        writerFactory,
+        std::move(repairErasedParts)));
+    EXPECT_TRUE(repairResult.IsOK()) << ToString(repairResult);
+
+    EXPECT_EQ(
+        expectedRepairedPartData,
+        TUnbufferedFileInput("part" + ToString(erasedIndices.front() + 1)).ReadAll());
+
+    Cleanup(codec);
 }
 
 INSTANTIATE_TEST_SUITE_P(
