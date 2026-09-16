@@ -637,8 +637,9 @@ TEST_F(TControllerTest, StaleJobStatusIsIgnoredAfterReassignment)
         };
 
         waitForFeedback([&] {
-            const auto& feedback = Controller->GetFlowViewKeeper()->GetFlowView()->Feedback;
-            const auto* status = feedback->PartitionJobStatuses.FindPtr(partitionId);
+            // Hold the view: the controller replaces it on every feedback collection.
+            auto flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+            const auto* status = flowView->Feedback->PartitionJobStatuses.FindPtr(partitionId);
             return status && (*status)->CurrentJobId == replacementJobId;
         });
 
@@ -651,7 +652,8 @@ TEST_F(TControllerTest, StaleJobStatusIsIgnoredAfterReassignment)
         Controller->RegisterJobStatus(oldJobId, staleStatus);
 
         waitForFeedback([&] {
-            return Controller->GetFlowViewKeeper()->GetFlowView()->Feedback->UpdateTime > feedbackUpdateTime;
+            auto flowView = Controller->GetFlowViewKeeper()->GetFlowView();
+            return flowView->Feedback->UpdateTime > feedbackUpdateTime;
         });
 
         const auto& flowView = Controller->GetFlowViewKeeper()->GetFlowView();

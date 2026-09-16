@@ -3705,10 +3705,12 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions()
         .TrafficMeter = TrafficMeter_,
         .OnLayerDownloaded = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (
             TCpuDuration downloadCpuDuration,
-            TCpuDuration importCpuDuration)
+            TCpuDuration importCpuDuration,
+            i64 importSize)
         {
             ArtifactStatistics_.LayersDownloadCpuDuration += downloadCpuDuration;
             ArtifactStatistics_.LayersImportCpuDuration += importCpuDuration;
+            ArtifactStatistics_.LayersImportedSize += importSize;
         }).Via(Invoker_),
     };
 
@@ -4196,6 +4198,10 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
     statistics->AddSample(
         "/exec_agent/artifacts/layers_downloaded_size"_SP,
         ArtifactStatistics_.LayersDownloadedSize);
+    // Layers: bytes imported into Porto (excludes SquashFS layers).
+    statistics->AddSample(
+        "/exec_agent/artifacts/layers_imported_size"_SP,
+        ArtifactStatistics_.LayersImportedSize);
 
     // Download durations; monotonic CPU clock is used to avoid NTP jumps.
     // Files: sum of per-file download durations (cache miss + bypass).

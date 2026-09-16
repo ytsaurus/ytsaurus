@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup, wait, with_portals_dir
 
 from yt_commands import (
     assert_yt_error, authors, create, ls, get, set, copy, move, remove, create_domestic_medium, exists, multiset_attributes,
@@ -176,7 +176,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("guest", "read", "//sys/chunks")["action"] == "allow"
 
     @authors("kiselyovp")
-    @not_implemented_in_sequoia
+    @not_implemented_in_sequoia  # YT-24542: "owner" ACE subject.
     def test_owner_user(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -193,7 +193,7 @@ class CheckPermissionBase(YTEnvSetup):
         assert check_permission("u2", "remove", "//tmp/x/2")["action"] == "allow"
 
     @authors("kiselyovp")
-    @not_implemented_in_sequoia
+    @not_implemented_in_sequoia  # YT-24542: "owner" ACE subject.
     def test_owner_group(self):
         create("map_node", "//tmp/x")
         create_user("u1")
@@ -1253,7 +1253,6 @@ class TestCypressAcls(CheckPermissionBase):
         assert get("//tmp/foo", authenticated_user="u") == {"bar": {"var": yson.YsonEntity()}}
 
     @authors("savrus")
-    @not_implemented_in_sequoia
     def test_safe_mode(self):
         create_user("u")
         with raises_yt_error("Access denied for user .*: .* permission for .* is not allowed by any matching ACE"):
@@ -1641,7 +1640,6 @@ class TestCypressAcls(CheckPermissionBase):
         self._test_columnar_acl_copy_yt_12749("//tmp", "//tmp")
 
     @authors("danilalexeev")
-    @not_implemented_in_sequoia
     def test_check_all_ace_columns_full_read(self):
         create_user("u1")
         create_user("u2")
@@ -1936,7 +1934,6 @@ class TestCypressAcls(CheckPermissionBase):
             set("//tmp/dir/@acl/0/subject_tag_filter", "&".join([f"tag_{i}" for i in range(10)]))
 
     @authors("danilalexeev")
-    @not_implemented_in_sequoia
     def test_tag_filter_with_columnar_ace(self):
         create_user("u")
         set("//sys/users/u/@tags", ["u"])
@@ -1962,7 +1959,6 @@ class TestCypressAcls(CheckPermissionBase):
             read_table("//tmp/t{secret}", authenticated_user="u")
 
     @authors("h0pless")
-    @not_implemented_in_sequoia
     def test_disable_subject_tag_filters(self):
         create_user("George50")
         set("//sys/users/George50/@tags", ['cool', 'lonely'])
@@ -2003,7 +1999,6 @@ class TestCypressAcls(CheckPermissionBase):
             )
 
     @authors("kivedernikov")
-    @not_implemented_in_sequoia
     def test_permissions_concatenate(self):
         create_user("u1")
         create_group("g1")
@@ -2857,6 +2852,7 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
     }
 
     @authors("shakurov")
+    @with_portals_dir
     def test_columnar_acl_copy_yt_12749(self):
         set(
             "//sys/@config/multicell_manager/cell_descriptors",
@@ -2874,6 +2870,7 @@ class TestCypressAclsPortal(TestCypressAclsMulticell):
         self._test_columnar_acl_copy_yt_12749("//portals/p", "//tmp")
 
     @authors("shakurov")
+    @with_portals_dir
     def test_special_acd_holders(self):
         super(TestCypressAclsPortal, self).test_special_acd_holders()
 

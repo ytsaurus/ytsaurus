@@ -13,7 +13,6 @@ from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, m
 
 from yt_helpers import skip_if_old, skip_if_component_old
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 import yt_error_codes
 import yt.yson as yson
@@ -113,10 +112,10 @@ class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
                     "tolerance": 1.0,
                 },
                 "sorted_merge_job_size_adjuster": {},
+                "enable_partition_map_job_size_adjustment": True,
+                "enable_ordered_partition_map_job_size_adjustment": True,
+                "enable_sorted_merge_in_sort_job_size_adjustment": True,
             },
-            "enable_partition_map_job_size_adjustment": True,
-            "enable_ordered_partition_map_job_size_adjustment": True,
-            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 
@@ -652,7 +651,6 @@ print("x={0}\ty={1}".format(x, y))
         assert len(read_table("//tmp/t_out", verbose=False)) > 0
 
     @authors("levysotsky")
-    @not_implemented_in_sequoia  # ACL
     def test_intermediate_live_preview(self):
         create_user("u")
         create("table", "//tmp/t1")
@@ -717,7 +715,6 @@ print("x={0}\ty={1}".format(x, y))
             wait(lambda: get("//sys/operations/@acl") == get("//sys/operations&/@acl"))
 
     @authors("levysotsky")
-    @not_implemented_in_sequoia  # ACL
     def test_intermediate_new_live_preview(self):
         partition_map_vertex = "partition_map(0)"
 
@@ -768,7 +765,6 @@ print("x={0}\ty={1}".format(x, y))
             remove("//sys/operations&/@acl/-1")
 
     @authors("dagorokhov")
-    @not_implemented_in_sequoia
     @pytest.mark.parametrize(
         "output_format,extract_names,expected_error",
         [
@@ -1288,6 +1284,7 @@ print("x={0}\ty={1}".format(x, y))
     @authors("klyachin", "coteeq")
     @pytest.mark.parametrize("ordered", [True, False])
     def test_map_reduce_job_size_adjuster_boost(self, ordered):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
         skip_if_old(self.Env, (25, 2), "No multiple_jobs in 25.1")
 
         create("table", "//tmp/t_input")
@@ -1325,6 +1322,8 @@ print("x={0}\ty={1}".format(x, y))
     @authors("coteeq")
     @pytest.mark.timeout(300)
     def test_map_reduce_job_size_adjuster_sorted_merge(self):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
+
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(15)]
         for row in original_data:

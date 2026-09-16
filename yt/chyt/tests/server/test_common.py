@@ -2293,7 +2293,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query(query) == [{"res": 3}, {"res": 5}]
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_rls(self):
         with Clique(1) as clique:
             create_user("u")

@@ -12,7 +12,9 @@ TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     NYTree::IMapNodePtr parametersNode,
     NYTree::TYsonStructPtr parametersObject,
     THashMap<TResourceId, IResourcePtr> resources,
-    std::string prefix)
+    std::string prefix,
+    NProfiling::TProfiler profiler,
+    TCompanionServerContextPtr serverContext)
     : StateStore_(std::move(stateStore))
     , ParametersNode_(parametersNode
             ? std::move(parametersNode)
@@ -20,6 +22,8 @@ TCompanionRuntimeInitContext::TCompanionRuntimeInitContext(
     , ParametersObject_(std::move(parametersObject))
     , Resources_(std::move(resources))
     , Prefix_(std::move(prefix))
+    , Profiler_(std::move(profiler))
+    , ServerContext_(std::move(serverContext))
 { }
 
 TFuture<IMutableStateKeyProviderPtr> TCompanionRuntimeInitContext::CreateMutableStateKeyProvider(
@@ -51,7 +55,9 @@ IRuntimeInitContextPtr TCompanionRuntimeInitContext::WithPrefix(TStringBuf prefi
         ParametersNode_,
         ParametersObject_,
         Resources_,
-        ExtendStateNamePrefix(Prefix_, prefix));
+        ExtendStateNamePrefix(Prefix_, prefix),
+        Profiler_,
+        ServerContext_);
 }
 
 const std::string& TCompanionRuntimeInitContext::GetPrefix() const
@@ -81,17 +87,21 @@ IResourcePtr TCompanionRuntimeInitContext::GetStaticResource(const TResourceId& 
 
 NProfiling::TProfiler TCompanionRuntimeInitContext::GetProfiler() const
 {
-    return {};
+    return Profiler_;
 }
 
 NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpClient() const
 {
-    THROW_ERROR_EXCEPTION("HTTP clients are not available in a companion process");
+    THROW_ERROR_EXCEPTION_UNLESS(ServerContext_ && ServerContext_->HttpClient,
+        "HTTP client is not available in this companion init context");
+    return ServerContext_->HttpClient;
 }
 
 NHttp::IClientPtr TCompanionRuntimeInitContext::GetHttpsClient() const
 {
-    THROW_ERROR_EXCEPTION("HTTP clients are not available in a companion process");
+    THROW_ERROR_EXCEPTION_UNLESS(ServerContext_ && ServerContext_->HttpsClient,
+        "HTTPS client is not available in this companion init context");
+    return ServerContext_->HttpsClient;
 }
 
 TPartitionId TCompanionRuntimeInitContext::GetPartitionId() const

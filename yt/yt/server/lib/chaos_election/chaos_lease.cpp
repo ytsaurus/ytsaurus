@@ -43,8 +43,7 @@ TFuture<TChaosLeaseId> TChaosLeaseFactory::CreateLease(
 
 std::vector<TCellId> TChaosLeaseFactory::RotateCells(std::vector<TCellId> cellIds)
 {
-    // Cells known to be disabled go last. They are still tried, since lease serving migrates
-    // between sibling cells, but they no longer cost a rejected request per creation.
+    // Serving migrates between sibling cells, so non-serving ones are still tried, just last.
     auto enabledEnd = cellIds.end();
     {
         auto guard = Guard(CellIdsLock_);
@@ -55,9 +54,7 @@ std::vector<TCellId> TChaosLeaseFactory::RotateCells(std::vector<TCellId> cellId
         }
     }
 
-    // Each creation starts from its own cell, so that the leases spread evenly instead of piling
-    // up on whichever cell answered first. Only the enabled cells take part: starting the walk at
-    // a cell known to reject would waste a request on every creation.
+    // Spread the leases evenly across the enabled cells.
     if (auto enabledCount = enabledEnd - cellIds.begin(); enabledCount > 1) {
         auto shift = NextCellIndex_.fetch_add(1) % enabledCount;
         std::rotate(cellIds.begin(), cellIds.begin() + shift, enabledEnd);
@@ -112,7 +109,7 @@ TFuture<std::vector<TCellId>> TChaosLeaseFactory::GetCellIds(bool forceRefresh)
                 } else if (!CellIds_.empty()) {
                     // The cached list is stale, not wrong, and creation validates every cell it
                     // walks anyway.
-                    YT_LOG_DEBUG(cellIdsOrError, "Failed to refresh chaos cell ids, using the cached ones");
+                    YT_LOG_DEBUG(cellIdsOrError, "Failed to refresh chaos cell IDs, using the cached ones");
                     cellIdsOrError = CellIds_;
                 }
             }

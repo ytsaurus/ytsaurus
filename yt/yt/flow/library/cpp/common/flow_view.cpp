@@ -1320,16 +1320,6 @@ void TStreamTraverseDataMetrics::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TStreamSpeedStatistics::Register(TRegistrar registrar)
-{
-    registrar.Parameter("processed_messages_per_second", &TThis::ProcessedMessagesPerSecond)
-        .Default(0.0);
-    registrar.Parameter("processed_bytes_per_second", &TThis::ProcessedBytesPerSecond)
-        .Default(0.0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TPipelineSpeedStatistics::Register(TRegistrar registrar)
 {
     registrar.Parameter("last_updated", &TThis::LastUpdated)

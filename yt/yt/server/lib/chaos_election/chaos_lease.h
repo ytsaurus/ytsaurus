@@ -18,18 +18,8 @@ namespace NYT::NChaosElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Creates chaos leases in a given chaos cell bundle.
-//!
-//! Creations go round-robin over all the cells of the bundle: a lease creation is a Hydra mutation
-//! and every lease is later pinged for its whole lifetime, so pinning one cell would turn it into a
-//! hot spot once the leases are counted in tens of thousands.
-//!
-//! Only a part of the bundle's cells serves leases, and which ones is learnt from their answers
-//! rather than assumed: a cell that rejects a creation is moved to the back of the rotation, and a
-//! cell that starts serving is reached again and promoted back.
-//!
-//! The cell list is cached for |cellIdsExpirationTime| and refetched afterwards, so that cells
-//! added to the bundle join the rotation and removed ones leave it.
+//! Creates chaos leases in a given chaos cell bundle, round-robin over the cells that accept them.
+//! The bundle's cell list is cached for |cellIdsExpirationTime|.
 //!
 //! Thread affinity: any.
 class TChaosLeaseFactory
@@ -52,7 +42,7 @@ private:
     const std::string ChaosCellBundle_;
     const TDuration CellIdsExpirationTime_;
 
-    std::atomic<ui64> NextCellIndex_ = 0;
+    std::atomic<i64> NextCellIndex_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CellIdsLock_);
     std::vector<NObjectClient::TCellId> CellIds_;

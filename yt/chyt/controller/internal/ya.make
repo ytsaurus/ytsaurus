@@ -7,7 +7,6 @@ RECURSE(
     discovery
     httpserver
     jupyt
-    livy
     monitoring
     sleep
     strawberry

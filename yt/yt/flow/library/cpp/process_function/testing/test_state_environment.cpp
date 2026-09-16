@@ -9,7 +9,12 @@
 #include <yt/yt/flow/library/cpp/common/spec.h>
 #include <yt/yt/flow/library/cpp/common/state.h>
 
+#include <yt/yt/flow/library/cpp/misc/retryable_client.h>
 #include <yt/yt/flow/library/cpp/misc/retryable_transaction.h>
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
+
+#include <yt/yt/client/cache/cache.h>
+#include <yt/yt/client/unittests/mock/client.h>
 
 #include <yt/yt/core/misc/guid.h>
 
@@ -136,6 +141,23 @@ private:
     const std::shared_ptr<TStaticResourceMap> StaticResources_;
 };
 
+class TTestClientsCache
+    : public NClient::NCache::IClientsCache
+{
+public:
+    explicit TTestClientsCache(NApi::IClientPtr client)
+        : Client_(std::move(client))
+    { }
+
+    NApi::IClientPtr GetClient(TStringBuf /*cluster*/) override
+    {
+        return Client_;
+    }
+
+private:
+    const NApi::IClientPtr Client_;
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,11 +181,22 @@ TTestStateEnvironment::TTestStateEnvironment(NTableClient::TTableSchemaPtr keySc
     ExternalManagers_ = std::make_shared<TExternalManagerMap>();
     ExternalJoiners_ = std::make_shared<TExternalJoinerMap>();
     StaticResources_ = std::make_shared<TStaticResourceMap>();
+    Logger_ = ManagerContext_->Logger;
+    StatusProfiler_ = CreateSyncStatusProfiler(Logger_);
+    ClientsCache_ = New<TTestClientsCache>(New<NApi::TMockClient>());
+    Invoker_ = GetSyncInvoker();
+    PrimaryRetryableClient_ = CreateRetryableClient(
+        ClientsCache_->GetClient("primary"),
+        Invoker_,
+        StatusProfiler_->WithPrefix("/retryable_client"),
+        Logger_)
+        ->WithErrorComponent("/process_function/default");
     RebuildInitContext();
 }
 
 void TTestStateEnvironment::SetStaticParameters(const NYTree::TYsonStructPtr& parameters)
 {
+    EnsureProcessFunctionContextMutable();
     StaticParametersNode_ = NYTree::ConvertTo<NYTree::IMapNodePtr>(parameters);
     StaticParametersObject_ = parameters;
     RebuildInitContext();
@@ -171,20 +204,86 @@ void TTestStateEnvironment::SetStaticParameters(const NYTree::TYsonStructPtr& pa
 
 void TTestStateEnvironment::SetProfiler(NProfiling::TProfiler profiler)
 {
+    EnsureProcessFunctionContextMutable();
     Profiler_ = std::move(profiler);
     RebuildInitContext();
 }
 
 void TTestStateEnvironment::SetHttpClient(NHttp::IClientPtr client)
 {
+    EnsureProcessFunctionContextMutable();
     HttpClient_ = std::move(client);
     RebuildInitContext();
 }
 
 void TTestStateEnvironment::SetHttpsClient(NHttp::IClientPtr client)
 {
+    EnsureProcessFunctionContextMutable();
     HttpsClient_ = std::move(client);
     RebuildInitContext();
+}
+
+void TTestStateEnvironment::SetLogger(NLogging::TLogger logger)
+{
+    EnsureProcessFunctionContextMutable();
+    Logger_ = std::move(logger);
+}
+
+void TTestStateEnvironment::SetStatusProfiler(IStatusProfilerPtr statusProfiler)
+{
+    EnsureProcessFunctionContextMutable();
+    StatusProfiler_ = std::move(statusProfiler);
+}
+
+void TTestStateEnvironment::SetClientsCache(NClient::NCache::IClientsCachePtr clientsCache)
+{
+    EnsureProcessFunctionContextMutable();
+    ClientsCache_ = std::move(clientsCache);
+}
+
+void TTestStateEnvironment::SetInvoker(IInvokerPtr invoker)
+{
+    EnsureProcessFunctionContextMutable();
+    Invoker_ = std::move(invoker);
+}
+
+void TTestStateEnvironment::SetPrimaryRetryableClient(IRetryableClientPtr client)
+{
+    EnsureProcessFunctionContextMutable();
+    PrimaryRetryableClient_ = std::move(client);
+}
+
+TProcessFunctionContextPtr TTestStateEnvironment::CreateProcessFunctionContext()
+{
+    ProcessFunctionContextFrozen_ = true;
+
+    auto context = New<TProcessFunctionContext>();
+    context->InitContext = InitContext_;
+    context->ClientsCache = ClientsCache_;
+    context->Invoker = Invoker_;
+    context->RetryableClient = PrimaryRetryableClient_;
+    context->Logger = Logger_;
+    context->StatusProfiler = StatusProfiler_;
+    return context;
+}
+
+void TTestStateEnvironment::InitProcessFunction(const IProcessFunctionBasePtr& function)
+{
+    function->Init(InitContext_);
+}
+
+void TTestStateEnvironment::InitProcessFunction(
+    const IProcessFunctionBasePtr& function,
+    const TProcessFunctionContextPtr& context)
+{
+    function->Init(context->InitContext);
+}
+
+void TTestStateEnvironment::EnsureProcessFunctionContextMutable() const
+{
+    THROW_ERROR_EXCEPTION_IF(
+        ProcessFunctionContextFrozen_,
+        "Process-function context dependencies must be configured before Create<T>()");
 }
 
 void TTestStateEnvironment::RebuildInitContext()

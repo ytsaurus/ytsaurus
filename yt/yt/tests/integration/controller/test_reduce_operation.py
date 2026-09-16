@@ -2065,6 +2065,29 @@ echo {v = 2} >&7
         expected = [3, 4, 5] if sort_order == "ascending" else [2, 5, 5]
         assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == expected
 
+    @authors("coteeq")
+    def test_inconsistent_job_count_and_pivot_keys_alert(self):
+        skip_if_component_old(self.Env, (26, 2), "controller-agent")
+
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"key": key} for key in range(3)], sorted_by=["key"])
+        create("table", "//tmp/t2")
+
+        op = reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            reduce_by=["key"],
+            spec={
+                "job_count": 2,
+                "pivot_keys": [[1], [2]],
+            },
+        )
+
+        alert = op.get_alerts()["inconsistent_job_count_and_pivot_keys"]
+        assert alert["attributes"]["job_count"] == 2
+        assert alert["attributes"]["pivot_key_count"] == 2
+
     @authors("gritukan")
     def test_empty_pivot_key(self):
         create(

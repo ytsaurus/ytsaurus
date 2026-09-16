@@ -56,6 +56,7 @@
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/topological_ordering.h>
 
+#include <util/generic/scope.h>
 #include <util/string/join.h>
 
 namespace NYT::NFlow {
@@ -406,7 +407,8 @@ bool TComputationBase::UpdateTraverse(
     TSystemTimestamp reportTime,
     TSystemTimestamp systemWatermark,
     const THashMap<TStreamId, TInflightStreamTraverseDataPtr>& inflights,
-    i64 iterationCycle)
+    i64 iterationCycle,
+    TComputationProcessingRatesPtr processingRates)
 {
     YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(GetContext()->SerializedInvoker);
 
@@ -418,6 +420,7 @@ bool TComputationBase::UpdateTraverse(
     auto traverseData = New<TNodeTraverseData>();
     traverseData->ReportTime = reportTime;
     traverseData->IterationCycle = iterationCycle;
+    traverseData->ProcessingRates = std::move(processingRates);
 
     // Deep copy because traverseData->Streams will be mutated.
     for (const auto& [streamId, streamTraverseData] : GetInputTraverse()) {
@@ -516,12 +519,10 @@ std::vector<TStreamId> TComputationBase::BuildTopologicalStreamOrder(TComputatio
 TRootOutputCollector::TRootOutputCollector(
     TComputationSpecPtr spec,
     IMetaSetterPtr metaSetter,
-    bool supportsDistribute,
-    bool collectLineage)
+    bool supportsDistribute)
     : Spec_(std::move(spec))
     , MetaSetter_(std::move(metaSetter))
     , SupportsDistribute_(supportsDistribute)
-    , CollectLineage_(collectLineage)
 { }
 
 IOutputCollectorPtr TRootOutputCollector::SetParents(
@@ -545,7 +546,7 @@ void TRootOutputCollector::AddMessage(
         return;
     }
     auto setterResult = MetaSetter_->Fill(message, parents, messageIdSuffix);
-    if (distribute && CollectLineage_) {
+    if (distribute) {
         LineageAccumulator_.Add(message, setterResult.ActualParentMessageIds);
     }
     Result_.OutputMessages.push_back(std::move(message));
@@ -558,9 +559,7 @@ void TRootOutputCollector::AddMessage(
 void TRootOutputCollector::AddTimer(TTimer&& timer, const TMessageParentsConstPtr& parents)
 {
     auto setterResult = MetaSetter_->Fill(timer, parents);
-    if (CollectLineage_) {
-        LineageAccumulator_.Add(timer, setterResult.ActualParentMessageIds);
-    }
+    LineageAccumulator_.Add(timer, setterResult.ActualParentMessageIds);
     Result_.OutputTimers.push_back(std::move(timer));
     Result_.OutputTimersParentMessageIds.push_back(std::move(setterResult.ActualParentMessageIds));
 }
@@ -570,9 +569,7 @@ TRootOutputCollector::TTransformResult TRootOutputCollector::CollectResult()
     YT_VERIFY(Result_.OutputMessages.size() == Result_.OutputMessagesParentMessageIds.size());
     YT_VERIFY(!SupportsDistribute_ || Result_.OutputMessages.size() == Result_.OutputMessagesDistribute.size());
     YT_VERIFY(Result_.OutputTimers.size() == Result_.OutputTimersParentMessageIds.size());
-    if (CollectLineage_) {
-        Result_.LineageDelta = LineageAccumulator_.Finish();
-    }
+    Result_.LineageDelta = LineageAccumulator_.Finish();
     return std::exchange(Result_, TTransformResult{});
 }
 
@@ -858,7 +855,8 @@ bool TUniversalComputationBase::UpdateStatus(
         reportTime,
         systemWatermark,
         inflights,
-        RunIteration_);
+        RunIteration_,
+        ProcessingRates_);
 
     auto inputLimits = GetExtraInputLimits();
 
@@ -1256,15 +1254,15 @@ THashMap<TStreamId, TInflightStreamTraverseDataPtr> TUniversalComputationBase::B
     return inflights;
 }
 
-std::vector<TInputMessageConstPtr> TUniversalComputationBase::FilterInputBatch(
+TUniversalComputationBase::TFilteredInputBatch TUniversalComputationBase::FilterInputBatch(
     const IComputationRunContextPtr& context,
-    std::vector<TInputMessageConstPtr> messages,
-    TLineageDelta* lineageDelta)
+    std::vector<TInputMessageConstPtr> messages)
 {
+    THashMap<TStreamId, TBatchStatistics> skippedStatistics;
     if (Filter_->IsEnabled()) {
-        auto [kept, skipped] = Filter_->Partition(std::move(messages));
+        auto [kept, skipped, statistics] = Filter_->Partition(std::move(messages));
+        skippedStatistics = std::move(statistics);
         if (!skipped.empty()) {
-            AddLineageInputs(lineageDelta, GetSpec(), skipped, {}, {});
             std::vector<TMessageId> skippedMessageIds;
             skippedMessageIds.reserve(skipped.size());
             for (const auto& message : skipped) {
@@ -1279,7 +1277,7 @@ std::vector<TInputMessageConstPtr> TUniversalComputationBase::FilterInputBatch(
         }
         messages = std::move(kept);
     }
-    return messages;
+    return {std::move(messages), std::move(skippedStatistics)};
 }
 
 void TUniversalComputationBase::RegisterInputBeforeProcessing(
@@ -1426,7 +1424,9 @@ TUniversalComputationBase::TRunIterationGuard TUniversalComputationBase::StartRu
     }
     GetThrottlerFactory()->SetPriority(priority.Underlying());
 
+    ProcessingRates_.Reset();
     auto epochTraceContext = Tracer_->StartEpochTraceContext(++RunIteration_);
+    ProcessingRateEstimator_.StartEpoch(Tracer_->GetPartStatesByKind());
     TTraceContextGuard epochTraceGuard(epochTraceContext);
     TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Start"));
     TPromise<void> promise;
@@ -1524,18 +1524,17 @@ IRetryableTransactionPtr TUniversalComputationBase::PrepareTransaction(const ICo
     return GetTransactionManager()->CreateTransaction();
 }
 
-void TUniversalComputationBase::AddLineageDelta(TLineageDelta delta)
-{
-    if (const auto& tracker = GetContext()->JobLineageTracker) {
-        tracker->Add(std::move(delta));
-    }
-}
-
 void TUniversalComputationBase::Commit(
     IComputationRunContextPtr context,
     IRetryableTransactionPtr transaction)
 {
     YT_VERIFY(transaction);
+    bool committed = false;
+    auto publishRates = Finally([&] {
+        if (committed) {
+            ProcessingRates_ = ProcessingRateEstimator_.Commit(Tracer_->GetPartStatesByKind());
+        }
+    });
     std::vector<IRetryableTransactionPtr> asyncEraseTransactions;
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("FinalizeTransaction"));
@@ -1561,9 +1560,7 @@ void TUniversalComputationBase::Commit(
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Commit"));
         WaitFor(GetTransactionManager()->CommitTransaction(transaction)).ThrowOnError();
-        if (const auto& tracker = GetContext()->JobLineageTracker) {
-            tracker->Commit();
-        }
+        committed = true;
     }
     {
         TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("PostCommit"));
@@ -1690,6 +1687,18 @@ TUniversalComputationBase::TCheckOutputLimitsResult TUniversalComputationBase::C
 
     result.AllowedInputStreams = ComputeAllowedInputStreams(allowedOutputStreams, GetSpec());
     return result;
+}
+
+void TUniversalComputationBase::RegisterResults(
+    const IInputContextPtr& inputs,
+    TLineageDelta lineageDelta,
+    THashMap<TStreamId, TBatchStatistics> skipped)
+{
+    auto statistics = AddLineageInputs(&lineageDelta, GetSpec(), *inputs, std::move(skipped));
+    ProcessingRateEstimator_.AddInputs(statistics.Count, statistics.ByteSize);
+    if (const auto& tracker = GetContext()->JobLineageTracker) {
+        tracker->Add(std::move(lineageDelta));
+    }
 }
 
 void TUniversalComputationBase::WaitForBackoff(

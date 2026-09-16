@@ -14,7 +14,8 @@ NRoren::TPCollection<NRoren::TKV<ui64, TIdToPathRow>> ApplyMapper(NRoren::TPColl
             TMemoryInput memoryInput(json);
             output.Add(NJson::ReadJsonTree(&memoryInput));
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING("Cannot parse json value: %v", ex.what());
+            YT_TLOG_WARNING("Cannot parse json value")
+                .With(ex);
         }
     })
     | LogOnceInAWhile("json value")

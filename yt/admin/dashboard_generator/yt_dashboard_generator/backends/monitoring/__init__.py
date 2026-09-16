@@ -269,6 +269,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         self.widgets = []
         self.row_heights = []
         self.halign = "center"
+        self.timeline = None
 
     def on_options(self, options):
         self.__dict__.update(options.get("monitoring", {}))
@@ -534,6 +535,8 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             }
         if dashboard.monitoring_links is not None:
             result["links"] = dashboard.monitoring_links
+        if self.timeline is not None:
+            result["timeline"] = self.timeline
 
         return result
 

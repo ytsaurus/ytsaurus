@@ -2925,6 +2925,9 @@ private:
         TOldNodeAlert jobHeartbeatAlert;
         THashMap<ENodeState, TOldNodeAlert> noStateChangeAlert;
 
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        bool readOnly = hydraManager->GetReadOnly();
+
         for (auto [nodeId, node] : NodeMap_) {
             if (!IsObjectAlive(node)) {
                 continue;
@@ -2936,7 +2939,8 @@ private:
 
             if (node->GetAggregatedState() == ENodeState::Online) {
                 if (node->IsDataNode()) {
-                    if (node->GetLastDataHeartbeatTime() < minLastDataHeartbeatTime) {
+                    // Data heartbeats are mutations and cannot be processed while Hydra is read-only.
+                    if (!readOnly && node->GetLastDataHeartbeatTime() < minLastDataHeartbeatTime) {
                         dataHeartbeatAlert.Update(node->GetDefaultAddress(), node->GetLastDataHeartbeatTime());
                     }
 

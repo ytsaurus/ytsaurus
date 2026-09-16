@@ -177,32 +177,29 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             .With("Timers", inputTimers.size())
             .With("Visits", inputVisits.size());
 
-        TLineageDelta inputLineageDelta;
         auto emptyInput = inputs.empty() && inputTimers.empty() && inputVisits.empty();
-        auto filteredInputs = FilterInputBatch(context, std::move(inputs), &inputLineageDelta);
+        auto filteredInputs = FilterInputBatch(context, std::move(inputs));
 
         auto unprocessedInputs = [&] () {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Deduplicate"));
-            auto [processedInput, unprocessedInputs] = InputStore_->Filter(filteredInputs, /*checkState*/ false);
+            auto [processedInput, unprocessedInputs] = InputStore_->Filter(filteredInputs.Messages, /*checkState*/ false);
             YT_TLOG_INFO("Filtered already processed")
                 .With("Inputs", processedInput.size());
             context->MarkDeduplicated(processedInput);
             return unprocessedInputs;
         }();
 
-        AddLineageInputs(&inputLineageDelta, GetSpec(), unprocessedInputs, inputTimers, inputVisits);
         ThrottleInputBatch(unprocessedInputs, inputTimers, inputVisits);
 
         // For batching we need uniqueSeqNo before Process to seed the merge meta setter; wait outside the
         // Process trace guard so the wait isn't billed to "Process". Non-batching keeps the original overlap.
         if (allowBatchingWithRelaxedGuarantees) {
-            auto partGuard = TTraceContextFinishGuard(Tracer_->CreateEpochPartTraceContext("Input.Timestamp"));
+            TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Input.Timestamp"));
             WaitUntilSet(generateReportTimeFuture.AsVoid());
         }
 
         std::vector<TSwiftMapComputationOutputMessagePtr> outputMessages;
         std::vector<TMessageParentsConstPtr> outputParents;
-        TLineageDelta lineageDelta;
         {
             TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Process"));
             RegisterInputBeforeProcessing(unprocessedInputs, inputTimers, inputVisits);
@@ -217,7 +214,7 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
             PreloadKeyStates(inputContext);
             DoProcess(inputContext, outputCollector->SetParents(inputContext->GetMessages(), inputContext->GetTimers(), inputContext->GetVisits()));
             auto result = outputCollector->CollectResult();
-            lineageDelta = std::move(result.LineageDelta);
+            RegisterResults(inputContext, std::move(result.LineageDelta), std::move(filteredInputs.SkippedStatistics));
             TimerStore_->Unregister(inputTimers);
             TimerStore_->Register(std::move(result.OutputTimers));
             const auto& streamSpecStorage = GetContext()->StreamSpecStorage;
@@ -320,8 +317,6 @@ void TSwiftMapComputation::DoExecute(const IComputationRunContextPtr& context, T
 
         // May be empty to enforce lease check.
         auto tx = PrepareTransaction(context);
-        AddLineageDelta(std::move(inputLineageDelta));
-        AddLineageDelta(std::move(lineageDelta));
         Commit(context, tx);
 
         const auto now = WaitForFast(generateReportTimeFuture).ValueOrThrow().Timestamp;

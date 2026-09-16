@@ -43,6 +43,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/ytree/ypath_proxy.h>
+
 #include <google/protobuf/util/message_differencer.h>
 
 namespace NYT::NChunkServer {

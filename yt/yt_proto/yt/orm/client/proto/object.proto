@@ -41,6 +41,8 @@ message THistoryTimeIndex
     {
         IM_DISABLED = 0;
         IM_ENABLED = 1;
+        // Writes are enabled, but queries do not select the index.
+        IM_BUILDING = 2;
     }
     optional string snake_case_name = 1;
     optional string camel_case_name = 2;

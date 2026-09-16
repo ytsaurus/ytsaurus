@@ -13,8 +13,9 @@ namespace NYT::NFlow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Instantiates the process function named by |spec|->ProcessingFunction (via TRegistry).
-IProcessFunctionBasePtr CreateProcessFunction(const TComputationSpecPtr& spec);
+IProcessFunctionBasePtr CreateProcessFunction(
+    const TComputationSpecPtr& spec,
+    const TProcessFunctionContextPtr& context);
 
 //! Returns |function|'s sync mix-in if it opted in, else null (no RTTI; resolved via TRegistry).
 ISyncProcessFunction* ViewProcessFunctionAsSync(const TComputationSpecPtr& spec, const IProcessFunctionBasePtr& function);
@@ -37,12 +38,12 @@ public:
     void DoProcess(IInputContextPtr input, IOutputCollectorPtr output) override;
 
 protected:
-    const IProcessFunctionBasePtr Function_;
+    IProcessFunctionBasePtr Function_;
     //! Function_ normalized to the whole-epoch batch form the worker drives.
-    const IBatchProcessFunctionPtr Batch_;
+    IBatchProcessFunctionPtr Batch_;
     const TComputationRuntimeContextPtr RuntimeContext_;
     //! Function_'s sync interface, resolved once; null when it needs no sync phase.
-    ISyncProcessFunction* const SyncFunction_ = ViewProcessFunctionAsSync(this->GetSpec(), Function_);
+    ISyncProcessFunction* SyncFunction_ = nullptr;
 
     //! Calls SyncFunction_->Sync if the hosted function opted into a sync phase; a no-op otherwise.
     void DoSyncIfPresent(IRetryableTransactionPtr transaction);

@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(benchmarks)
 add_subdirectory(unittest)
 
 add_library(cpp-companion-server)
@@ -33,7 +34,10 @@ target_link_libraries(cpp-companion-server PUBLIC
   library-cpp-companion
   library-cpp-computation
   cpp-process_function-host
+  library-profiling-solomon
   yt-library-program
+  yt-core-http
+  yt-core-https
 )
 
 target_sources(cpp-companion-server PRIVATE
@@ -43,12 +47,15 @@ target_sources(cpp-companion-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/job_registry.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/monitoring.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/output_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/pipeline.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/profiling.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/resource_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/runtime_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/runtime_init_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/server.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/server_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/companion/server/state_store.cpp
 )
 

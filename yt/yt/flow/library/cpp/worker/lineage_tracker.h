@@ -16,11 +16,11 @@ class TLineageTracker
     : public TRefCounted
 {
 public:
-    void Commit(
+    void Add(
         const TComputationId& computationId,
         const TComputationSpecPtr& computationSpec,
         const TLineageDelta& delta);
-    void Commit(
+    void Add(
         const TComputationId& computationId,
         const TComputationSpecPtr& computationSpec,
         const TLineageDelta& delta,
@@ -40,9 +40,9 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<TStreamId, THashMap<TStreamId, TCounterState>> Counters_;
-    TInstant LastCommitTime_;
+    TInstant LastObservationTime_;
 
-    void DoCommit(
+    void DoAdd(
         const TComputationId& computationId,
         const TComputationSpecPtr& computationSpec,
         const TLineageDelta& delta,

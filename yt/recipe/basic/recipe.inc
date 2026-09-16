@@ -20,6 +20,12 @@ DEFAULT(YT_CONFIG_PATCH {})
 DEFAULT(YT_CLUSTER_NAMES primary)
 DEFAULT(YT_CLUSTER_CONFIG_PATCHES {})
 DEFAULT(YT_WITH_QUERY_TRACKER no)
+DEFAULT(YT_REMOVE_RUNTIME_DATA no)
+
+SET(YT_RECIPE_STOP_ARGS)
+IF (YT_REMOVE_RUNTIME_DATA == yes)
+    SET_APPEND(YT_RECIPE_STOP_ARGS --remove-runtime-data)
+ENDIF()
 
 IF (YT_WITH_QUERY_TRACKER == yes)
     # yqla resource, built by yt/yql/package/build_local_yt_yqla.sh
@@ -32,6 +38,7 @@ IF (YT_WITH_QUERY_TRACKER == yes)
         --cleanup-working-directory
         --package-dir ${YT_PACKAGE_DIR}
         --with-query-tracker
+        ${YT_RECIPE_STOP_ARGS}
     )
 ELSE()
     USE_RECIPE(
@@ -41,5 +48,6 @@ ELSE()
         --config-patch \"${YT_CONFIG_PATCH}\"
         --cleanup-working-directory
         --package-dir ${YT_PACKAGE_DIR}
+        ${YT_RECIPE_STOP_ARGS}
     )
 ENDIF()

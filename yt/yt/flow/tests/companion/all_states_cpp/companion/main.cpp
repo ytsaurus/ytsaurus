@@ -8,6 +8,8 @@
 #include <yt/yt/flow/library/cpp/companion/server/companion_main.h>
 #include <yt/yt/flow/library/cpp/companion/server/pipeline.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NFlow::NCompanionTest {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,10 +48,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Counts words per key: increments the internal "word-state" counter, mirrors
-//! the count into the external state table, and emits the word downstream on
-//! its first occurrence (output uniqueness is asserted by the test). The emitted
-//! weight comes from a joiner keyed by "tag", not by the computation's key.
+//! Counts words in internal and external state, then emits first occurrences with joined weights.
 class TWordCountAllStatesFunction
     : public IProcessFunction
 {
@@ -59,6 +58,9 @@ public:
         initContext->InitClient(Counter_, "word-state");
         initContext->InitExternalStateClient(External_, "/word-state-external");
         initContext->InitExternalStateClient(TagMetadata_, "/tag-metadata");
+        static const auto ProcessedMessages =
+            initContext->GetProfiler().Counter("/processed_message_count");
+        ProcessedMessages_ = ProcessedMessages;
     }
 
     void ProcessMessage(
@@ -66,6 +68,8 @@ public:
         const IOutputCollectorPtr& output,
         const IRuntimeContextPtr& context) override
     {
+        ProcessedMessages_.Increment();
+
         auto count = Counter_.GetState(message);
         *count += 1;
 
@@ -89,6 +93,7 @@ private:
     TMutableStateKeyClient<i64> Counter_;
     TMutableStateKeyClient<TSimpleExternalState> External_;
     TJoinedStateKeyClient<TSimpleExternalState> TagMetadata_;
+    NProfiling::TCounter ProcessedMessages_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

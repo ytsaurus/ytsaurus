@@ -13,7 +13,6 @@ from yt_commands import (
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
 
-from yt_sequoia_helpers import not_implemented_in_sequoia
 
 from yt_type_helpers import (
     decimal_type,
@@ -171,7 +170,6 @@ class TestQuery(DynamicTablesBase):
             select_rows("* from [//tmp/t]", allow_full_scan=False)
 
     @authors("lukyan")
-    @not_implemented_in_sequoia
     def test_execution_pool(self):
         create_user("u")
         sync_create_cells(1)
@@ -2840,7 +2838,6 @@ class TestQuery(DynamicTablesBase):
             select_rows("cast_operator(1) from [//tmp/table]", expression_builder_version=2)
 
     @authors("coteeq")
-    @not_implemented_in_sequoia
     def test_rls(self):
         sync_create_cells(1)
         create_user("u")
@@ -3095,6 +3092,35 @@ class TestQuery(DynamicTablesBase):
             syntax_version=2,
         )
         assert expected == actual
+
+    @authors("deep")
+    def test_scan_order_in_statistics(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ],
+            [{"a": i, "b": i, "c": i} for i in range(10)],
+        )
+
+        def select_rows_returning_scan_order(query):
+            response_parameters = {}
+            select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            # Response parameters arrive as YSON, so the scan order comes back as bytes.
+            return response_parameters["scan_order"].decode()
+
+        for query, scan_order in [
+            ("* from [//tmp/t] order by a asc limit 10", "ordered"),
+            ("* from [//tmp/t] where a > 5 order by a asc limit 10", "ordered"),
+            ("* from [//tmp/t] order by b desc limit 10", "unordered"),
+            ("* from [//tmp/t] where a in (1, 3, 5) order by b desc limit 10", "unordered"),
+        ]:
+            assert select_rows_returning_scan_order(query) == scan_order
+            assert explain_query(query)["query"]["scan_order"] == scan_order
 
 
 class TestQueryRpcProxy(TestQuery):
@@ -3504,6 +3530,7 @@ class TestQueryRpcProxy(TestQuery):
         def select_rows_returning_statistics(query):
             response_parameters = {}
             result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            assert response_parameters['scan_order'].decode() == 'reversed'
             return result, response_parameters['inner_statistics'][0]['rows_read']
 
         result, rows_read = select_rows_returning_statistics(f"* from [{path}] order by key desc limit 4")
@@ -3603,6 +3630,7 @@ class TestQueryRpcProxy(TestQuery):
         def select_rows_returning_statistics(query):
             response_parameters = {}
             result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            assert response_parameters['scan_order'].decode() == 'unordered'
             return result, response_parameters['inner_statistics'][0]['rows_read']
 
         assert explain_query(f"* from [{path}] order by key desc limit 10")["query"]["scan_order"] == "unordered"
@@ -3661,6 +3689,7 @@ class TestQueryRpcProxy(TestQuery):
         def select_rows_returning_statistics(query):
             response_parameters = {}
             result = select_rows(query, response_parameters=response_parameters, enable_statistics=True)
+            assert response_parameters['scan_order'].decode() == 'reversed'
             return result, response_parameters['inner_statistics'][0]['rows_read']
 
         for k0_value in (4, 0):
@@ -3852,6 +3881,45 @@ class TestQueryRpcProxy(TestQuery):
             sidelines = run_queries()
             for baseline, sideline, query in zip(baselines, sidelines, queries):
                 assert baseline == sideline, "OFFSET/LIMIT differs in parallel GROUP BY: " + query
+
+    @authors("deep")
+    def test_scan_order_with_prefetched_join(self):
+        sync_create_cells(2)
+
+        table = "//tmp/t"
+        create("table", table, attributes={"dynamic": True, "schema": [
+            make_sorted_column("key", "int64"),
+            make_column("value", "int64"),
+        ]})
+        reshard_table(table, [[], [50]])
+        sync_mount_table(table)
+        insert_rows(table, [{"key": i, "value": i % 7} for i in range(100)])
+
+        dictionary = "//tmp/d"
+        create("table", dictionary, attributes={"dynamic": True, "schema": [
+            make_sorted_column("dkey1", "int64"),
+            make_sorted_column("dkey2", "int64"),
+            make_column("dvalue", "int64"),
+        ]})
+        sync_mount_table(dictionary)
+        insert_rows(dictionary, [{"dkey1": i, "dkey2": 0, "dvalue": i % 11} for i in range(100)])
+
+        response_parameters = {}
+        with self.RpcProxyDynamicConfig("/query_engine_config/prefetch_join_tables", True), \
+                self.RpcProxyDynamicConfig("/query_engine_config/allow_reverse_scan_for_order_by", True):
+            select_rows(
+                f"* from [{table}] join [{dictionary}] ON (42, 0) = (dkey1, dkey2) order by key desc limit 10",
+                response_parameters=response_parameters,
+                enable_statistics=True,
+                statistics_aggregation="depth_omit_node",
+            )
+
+        # Prefetched joins are not merged into the top-level statistics, so mixed is not reported.
+        assert response_parameters["scan_order"].decode() == "reversed"
+        assert [inner["scan_order"].decode() for inner in response_parameters["inner_statistics"]] == [
+            "unordered",
+            "ordered",
+        ]
 
 
 class TestSelectWithRowCache(TestLookupCache):

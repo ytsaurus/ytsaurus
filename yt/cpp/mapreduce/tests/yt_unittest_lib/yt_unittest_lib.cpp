@@ -222,7 +222,7 @@ TTestFixture::TTestFixture(const TCreateClientOptions& options)
 
 TTestFixture::~TTestFixture()
 {
-    YT_LOG_INFO("Completing test and aborting all operations");
+    YT_TLOG_INFO("Completing test and aborting all operations");
     while (true) {
         auto result = Client_->ListOperations(
             TListOperationsOptions()
@@ -235,9 +235,9 @@ TTestFixture::~TTestFixture()
                 Client_->AttachOperation(*op.Id)->AbortOperation();
             } catch (const TErrorResponse& ex) {
                 if (ex.GetError().ContainsErrorCode(NClusterErrorCodes::NScheduler::NoSuchOperation)) {
-                    YT_LOG_ERROR("Error aborting operation %v: %v",
-                        *op.Id,
-                        ex.what());
+                    YT_TLOG_ERROR("Error aborting operation")
+                        .With("OperationId", *op.Id)
+                        .With("Error", ex.what());
                 } else {
                     Y_ABORT("Unexpected error: %s", ex.what());
                 }

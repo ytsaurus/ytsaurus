@@ -1,5 +1,6 @@
 RECURSE(
     all_states_cpp
+    http_client
     passthrough_transform
     resource/common
     resource/cpp

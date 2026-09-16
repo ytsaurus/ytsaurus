@@ -1,6 +1,7 @@
 #include "tcmalloc_manager.h"
 
 #include "config.h"
+#include "memory_profile_retention.h"
 
 #include <yt/yt/library/profiling/solomon/registry.h>
 #include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
@@ -63,7 +64,7 @@ DEFINE_REFCOUNTED_TYPE(TOomProfileManifest)
 
 std::string MakeIncompletePath(const std::string& path)
 {
-    return NYT::Format("%v_incomplete", path);
+    return NYT::Format("%v%v", path, IncompleteMemoryProfileFileSuffix);
 }
 
 void CollectAndDumpMemoryProfile(const std::string& memoryProfilePath, tcmalloc::ProfileType profileType)
@@ -100,12 +101,31 @@ void SetupMemoryProfileTimeout(int timeout)
 
 void DumpManifest(const TOomProfileManifestPtr& manifest, const std::string& fileName)
 {
+    auto incompleteFileName = MakeIncompletePath(fileName);
+
     // TODO(babenko): migrate to std::string
-    TFileOutput output{TString(fileName)};
+    TFileOutput output{TString(incompleteFileName)};
     NYson::TYsonWriter writer(&output, NYson::EYsonFormat::Pretty);
     Serialize(manifest, &writer);
     writer.Flush();
     output.Finish();
+    NFS::Rename(incompleteFileName, fileName);
+}
+
+TErrorOr<TMemoryProfileCleanupResult> TryApplyMemoryProfileRetention(const THeapSizeLimitConfigPtr& config)
+{
+    if (!config->MemoryProfileRetention) {
+        return TMemoryProfileCleanupResult{};
+    }
+
+    try {
+        return CleanupMemoryProfiles(
+            *config->MemoryProfileDumpPath,
+            config->MemoryProfileDumpFilenameSuffix,
+            config->MemoryProfileRetention);
+    } catch (const std::exception& ex) {
+        return TError(ex);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,6 +216,25 @@ private:
             DumpManifest(manifest, manifestPath);
 
             Cerr << "*** Heap profiles are written" << Endl;
+
+            auto resultOrError = TryApplyMemoryProfileRetention(Config_);
+            if (resultOrError.IsOK()) {
+                const auto& result = resultOrError.Value();
+                if (result.RemovedDumpCount != 0 ||
+                    result.RemovedOrphanFileCount != 0 ||
+                    result.FailedRemovalCount != 0)
+                {
+                    Cerr << "*** Memory profile retention applied"
+                        << " (RemovedDumpCount: " << result.RemovedDumpCount
+                        << ", RemovedOrphanFileCount: " << result.RemovedOrphanFileCount
+                        << ", FailedRemovalCount: " << result.FailedRemovalCount
+                        << ", RemovedByteCount: " << result.RemovedByteCount << ')' << Endl;
+                }
+            } else {
+                Cerr << "*** Failed to apply memory profile retention: "
+                    << ToString(static_cast<const TError&>(resultOrError)) << Endl;
+            }
+
             AbortProcessSilently(EProcessExitCode::OK);
         }
 
@@ -221,25 +260,31 @@ private:
     std::string GetCurrentDumpPath(const std::string& timestamp) const
     {
         return Format(
-            "%v/current_%v.pb.gz",
+            "%v/%v%v%v",
             Config_->MemoryProfileDumpPath,
-            MakeSuffixFormatter(timestamp));
+            CurrentMemoryProfileFilePrefix,
+            MakeSuffixFormatter(timestamp),
+            MemoryProfileFileExtension);
     }
 
     std::string GetPeakDumpPath(const std::string& timestamp) const
     {
         return Format(
-            "%v/peak_%v.pb.gz",
+            "%v/%v%v%v",
             Config_->MemoryProfileDumpPath,
-            MakeSuffixFormatter(timestamp));
+            PeakMemoryProfileFilePrefix,
+            MakeSuffixFormatter(timestamp),
+            MemoryProfileFileExtension);
     }
 
     std::string GetManifestPath(const std::string& timestamp) const
     {
         return Format(
-            "%v/oom_profile_paths_%v.yson",
+            "%v/%v%v%v",
             Config_->MemoryProfileDumpPath,
-            MakeSuffixFormatter(timestamp));
+            OomMemoryProfileManifestFilePrefix,
+            MakeSuffixFormatter(timestamp),
+            OomMemoryProfileManifestFileExtension);
     }
 
     void ExecWaitForChild(int pid)
@@ -456,7 +501,32 @@ public:
             tcmalloc::MallocExtension::ActivateGuardedSampling();
         }
 
+        auto oldConfig = Config_.Acquire();
         Config_.Store(config);
+
+        // NB: Retention is static: it is applied at the initial configuration only.
+        if (!oldConfig) {
+            const auto& heapSizeLimitConfig = config->HeapSizeLimit;
+            auto resultOrError = TryApplyMemoryProfileRetention(heapSizeLimitConfig);
+            if (resultOrError.IsOK()) {
+                const auto& result = resultOrError.Value();
+                if (result.RemovedDumpCount != 0 ||
+                    result.RemovedOrphanFileCount != 0 ||
+                    result.FailedRemovalCount != 0)
+                {
+                    YT_TLOG_INFO("Memory profile retention applied")
+                        .With("Path", *heapSizeLimitConfig->MemoryProfileDumpPath)
+                        .With("RemovedDumpCount", result.RemovedDumpCount)
+                        .With("RemovedOrphanFileCount", result.RemovedOrphanFileCount)
+                        .With("FailedRemovalCount", result.FailedRemovalCount)
+                        .With("RemovedByteCount", result.RemovedByteCount);
+                }
+            } else {
+                YT_TLOG_WARNING("Failed to apply memory profile retention")
+                    .With("Path", *heapSizeLimitConfig->MemoryProfileDumpPath)
+                    .With(resultOrError);
+            }
+        }
 
         if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {
             std::call_once(InitAggressiveReleaseThread_, [&] {

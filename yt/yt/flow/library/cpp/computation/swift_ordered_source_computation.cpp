@@ -122,7 +122,6 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
     initTraceContextGuard.Release();
     YT_TLOG_INFO("Init completed");
 
-
     while (!isFinished) {
         auto iterGuard = StartRunIteration(context);
         auto dynamicSpec = GetDynamicSpec();
@@ -170,7 +169,6 @@ void TSwiftOrderedSourceComputation::DoExecute(const IComputationRunContextPtr& 
             DoSync(tx);
             timestampMemory->AdvanceExclusive(OrderedSource_->GetMaxPersistedMessageIdExclusive());
         }
-        AddLineageDelta(std::move(publishResult.LineageDelta));
         Commit(context, tx);
 
         isFinished = UpdateStatus(/*reportTime*/ now, /*systemWatermark*/ now, applyTimestampMemory(WatermarkGenerator_->Apply(BuildInflights(context), {*ActiveSourceStreamId_})));
@@ -219,30 +217,24 @@ void TSwiftOrderedSourceComputation::ProcessSourceBatches(std::vector<ISource::T
         return;
     }
 
-    std::vector<std::pair<i64, i64>> inputSizes;
-    inputSizes.reserve(sourceMessageBatches.size());
+    THashMap<TStreamId, TBatchStatistics> skippedStatistics;
     std::vector<ISource::TMessageBatch> keptBatches;
     keptBatches.reserve(sourceMessageBatches.size());
-    TLineageDelta skippedLineageDelta;
     i64 skippedCount = 0;
     for (auto& batch : sourceMessageBatches) {
-        const i64 inputCount = std::ssize(batch.Messages);
-        i64 inputByteSize = 0;
-        for (const auto& message : batch.Messages) {
-            inputByteSize += message->ByteSize;
-        }
         if (Filter_->IsEnabled()) {
-            auto [kept, skipped] = Filter_->Partition(std::move(batch.Messages));
+            auto [kept, skipped, statistics] = Filter_->Partition(std::move(batch.Messages));
             skippedCount += std::ssize(skipped);
+            for (const auto& [streamId, totals] : statistics) {
+                skippedStatistics[streamId] += totals;
+            }
             if (kept.empty()) {
                 OrderedSource_->MarkPublished(batch.Cookie);
                 OrderedSource_->MarkPersisted(batch.Cookie);
-                AddLineageInput(&skippedLineageDelta, GetSpec(), *ActiveSourceStreamId_, inputCount, inputByteSize);
                 continue;
             }
             batch.Messages = std::move(kept);
         }
-        inputSizes.emplace_back(inputCount, inputByteSize);
         keptBatches.push_back(std::move(batch));
     }
     if (skippedCount > 0) {
@@ -251,11 +243,7 @@ void TSwiftOrderedSourceComputation::ProcessSourceBatches(std::vector<ISource::T
             .With("Skipped", skippedCount)
             .With("KeptBatches", keptBatches.size());
     }
-    AddLineageDelta(std::move(skippedLineageDelta));
     sourceMessageBatches = std::move(keptBatches);
-    if (sourceMessageBatches.empty()) {
-        return;
-    }
 
     // Each source message batch corresponds to one offset and may contain multiple messages.
     // We treat each source batch as its own unit for watermark purposes.
@@ -280,16 +268,15 @@ void TSwiftOrderedSourceComputation::ProcessSourceBatches(std::vector<ISource::T
     TTraceContextGuard traceGuard(Tracer_->CreateEpochPartTraceContext("Process"));
     auto inputContext = New<TInputContext>(allSourceMessages, std::vector<TInputTimerConstPtr>{});
 
-    auto metaSetter = CreateDeterministicMetaSetter(GetSpec(), EventTimestampAssigner_);
-    auto outputCollector = New<TRootOutputCollector>(
-        GetSpec(),
-        metaSetter,
-        /*supportsDistribute*/ true,
-        /*collectLineage*/ false);
-    DoProcess(inputContext, outputCollector->SetParents(inputContext->GetMessages(), inputContext->GetTimers(), {}));
-
-    auto result = outputCollector->CollectResult();
+    TRootOutputCollector::TTransformResult result;
+    if (!allSourceMessages.empty()) {
+        auto metaSetter = CreateDeterministicMetaSetter(GetSpec(), EventTimestampAssigner_);
+        auto outputCollector = New<TRootOutputCollector>(GetSpec(), metaSetter, /*supportsDistribute*/ true);
+        DoProcess(inputContext, outputCollector->SetParents(inputContext->GetMessages(), inputContext->GetTimers(), {}));
+        result = outputCollector->CollectResult();
+    }
     THROW_ERROR_EXCEPTION_UNLESS(result.OutputTimers.empty(), "SwiftSourceComputation does not support timers");
+    RegisterResults(inputContext, std::move(result.LineageDelta), std::move(skippedStatistics));
 
     const auto& flatDistribute = result.OutputMessagesDistribute;
     YT_VERIFY(flatDistribute.size() == result.OutputMessages.size());
@@ -338,8 +325,6 @@ void TSwiftOrderedSourceComputation::ProcessSourceBatches(std::vector<ISource::T
             {
                 .FirstMessageId = sourceMessageBatches[i].Messages[0]->MessageId,
                 .BatchCookie = std::move(sourceMessageBatches[i].Cookie),
-                .InputCount = inputSizes[i].first,
-                .InputByteSize = inputSizes[i].second,
                 .CandidateOutputMessages = std::move(candidateOutputMessages[i]),
                 .IsOutput = std::move(isOutputByBatch[i]),
                 .Timestamp = timestamp,
@@ -371,7 +356,6 @@ TSwiftOrderedSourceComputation::TPublishResult TSwiftOrderedSourceComputation::C
     i64 publishedInputBatches = 0;
     i64 publishedParsed = 0;
     i64 publishedOutputs = 0;
-    TLineageDelta lineageDelta;
 
     // Accumulate all output messages across all processed batches for a single RegisterOutputMessages call.
     std::vector<TOutputMessageConstPtr> allOutputMessages;
@@ -401,12 +385,6 @@ TSwiftOrderedSourceComputation::TPublishResult TSwiftOrderedSourceComputation::C
 
         YT_VERIFY(processed.CandidateOutputMessages.size() == processed.IsOutput.size());
 
-        AddLineageInput(
-            &lineageDelta,
-            GetSpec(),
-            *ActiveSourceStreamId_,
-            processed.InputCount,
-            processed.InputByteSize);
         publishedInputBatches += 1;
         OrderedSource_->MarkPublished(processed.BatchCookie);
 
@@ -427,10 +405,6 @@ TSwiftOrderedSourceComputation::TPublishResult TSwiftOrderedSourceComputation::C
             if (!processed.IsOutput[i]) {
                 continue;
             }
-            // Pair replayed input with its full logical output, not only newly distributed children.
-            auto& delta = lineageDelta[message.StreamId][*ActiveSourceStreamId_];
-            delta.Count += 1;
-            delta.ByteSize += GetMessageByteSize(message);
             if (OutputStore_->Contains(message)) {
                 continue;
             }
@@ -458,7 +432,6 @@ TSwiftOrderedSourceComputation::TPublishResult TSwiftOrderedSourceComputation::C
 
     return {
         .EmptyEpoch = publishedInputBatches == 0,
-        .LineageDelta = std::move(lineageDelta),
     };
 }
 

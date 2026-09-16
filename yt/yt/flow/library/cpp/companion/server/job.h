@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "server_context.h"
 #include "state_store.h"
 
 #include <yt/yt/flow/library/cpp/common/process_function.h>
@@ -14,6 +15,8 @@
 #include "runtime_context.h"
 
 #include <yt/yt/core/actions/public.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NFlow::NCompanionServer {
 
@@ -57,11 +60,15 @@ class TJob
     : public TRefCounted
 {
 public:
+    //! |profiler| is passed to the hosted process function.
     TJob(
         TJobId jobId,
         TComputationId computationId,
         const NProto::NCompanion::TJobInfo& jobInfo,
-        TResourceStorePtr resourceStore = nullptr);
+        TResourceStorePtr resourceStore = nullptr,
+        NProfiling::TProfiler profiler = {},
+        TComputationCountersPtr counters = nullptr,
+        TCompanionServerContextPtr serverContext = nullptr);
 
     const TJobId& GetJobId() const;
     const TComputationId& GetComputationId() const;
@@ -72,6 +79,7 @@ public:
     const TComputationSpecPtr& GetSpec() const;
     const TDynamicComputationSpecPtr& GetDynamicSpec() const;
     const TStreamSpecsPtr& GetStreamSpecs() const;
+    const TComputationCountersPtr& GetCounters() const;
 
     //! Internal state names come from the transform shim parameters
     //! (|internal_states| inside the computation's parameters map).
@@ -80,6 +88,9 @@ public:
     const THashSet<std::string>& GetExternalStateNames() const;
     //! Keys of |external_state_joiners| from the static spec.
     const THashSet<std::string>& GetJoinedStateNames() const;
+
+    void ProfileRequestStateSizes(const NProto::NCompanion::TReqProcessBatch& request) const;
+    void ProfileResponseStateSizes(const NProto::NCompanion::TResponseData& response) const;
 
     //! Runs one epoch batch through the hosted process function and fills the
     //! response data; the function is instantiated from the registry and
@@ -95,6 +106,11 @@ private:
     const TJobId JobId_;
     const TComputationId ComputationId_;
     const TResourceStorePtr ResourceStore_;
+    const NProfiling::TProfiler Profiler_;
+    const TComputationCountersPtr Counters_;
+    //! Process-wide facilities of the hosting companion; null only when a test
+    //! constructs the job directly.
+    const TCompanionServerContextPtr ServerContext_;
 
     TComputationSpecPtr Spec_;
     TDynamicComputationSpecPtr DynamicSpec_;
@@ -104,6 +120,13 @@ private:
     THashSet<std::string> InternalStateNames_;
     THashSet<std::string> ExternalStateNames_;
     THashSet<std::string> JoinedStateNames_;
+
+    using TStateSizeSummaries = THashMap<std::string, NProfiling::TSummary>;
+    TStateSizeSummaries RequestInternalStateSizes_;
+    TStateSizeSummaries RequestExternalStateSizes_;
+    TStateSizeSummaries RequestJoinedStateSizes_;
+    TStateSizeSummaries ResponseInternalStateSizes_;
+    TStateSizeSummaries ResponseExternalStateSizes_;
 
     //! Per-job converter cache (mirrors the in-process worker's per-job
     //! scoping): entries are keyed by schema pointers and pinned for the
@@ -120,6 +143,9 @@ private:
 
     [[nodiscard]] bool EnsureInitialized();
     std::optional<THashMap<TResourceId, IResourcePtr>> AcquireRequiredResources() const;
+    static void ProfileStateSizes(
+        const TStateSizeSummaries& summaries,
+        const google::protobuf::RepeatedPtrField<NProto::NCompanion::TState>& states);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob);

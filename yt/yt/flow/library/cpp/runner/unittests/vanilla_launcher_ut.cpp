@@ -70,7 +70,7 @@ TEST(TVanillaConfigTest, DefaultsPortCountsWithoutNetworkProject)
         TYsonStringBuf(R"({pool=test;worker={count=1};network_project=#})"));
 
     EXPECT_EQ(config->Controller->PortCount, std::optional<int>(2));
-    EXPECT_EQ(config->Worker->PortCount, std::optional<int>(3));
+    EXPECT_EQ(config->Worker->PortCount, std::optional<int>(4));
 }
 
 TEST(TVanillaConfigTest, KeepsFixedPortsUnderNetworkProject)
@@ -156,8 +156,7 @@ DEFINE_REFCOUNTED_TYPE(TAssertClientsCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// The companion is dialed on a fixed in-job port, just like rpc and monitoring: a companion
-// pipeline must not have to request YT-allocated ports to run in a vanilla job.
+// Fixed-port workers configure companion RPC and monitoring ports.
 TEST(TVanillaNodeConfigTest, CarriesCompanionPort)
 {
     auto nodeConfig = BuildDefaultVanillaNodeConfig(
@@ -167,11 +166,11 @@ TEST(TVanillaNodeConfigTest, CarriesCompanionPort)
 
     ASSERT_TRUE(nodeConfig->Companion);
     EXPECT_GT(nodeConfig->Companion->Port, 0);
+    EXPECT_GT(nodeConfig->Companion->MonitoringPort, 0);
+    EXPECT_NE(nodeConfig->Companion->Port, nodeConfig->Companion->MonitoringPort);
 }
 
-// A worker on YT-allocated ports runs where fixed ones collide, so the fixed companion port
-// would point at whatever neighbouring job took it. It is left out: with `port_count = 3` the
-// port comes from YT_PORT_2, and with fewer the companion refuses to start.
+// YT-allocated workers receive companion ports from YT_PORT_2 and YT_PORT_3.
 TEST(TVanillaNodeConfigTest, OmitsCompanionPortForYtAllocatedPorts)
 {
     auto nodeConfig = BuildDefaultVanillaNodeConfig(

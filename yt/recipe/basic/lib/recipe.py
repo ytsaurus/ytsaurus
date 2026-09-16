@@ -2,6 +2,7 @@ from . import dump_yt_clusters, dump_yt_instances, get_yt_instances, local_yt, r
 
 from library.python.testing import recipe
 
+from yt.environment import arcadia_interop
 from yt.wrapper import cli_helpers
 
 import argparse
@@ -60,7 +61,16 @@ def start(yt_cluster_factory, args, work_dir=None):
     return instances
 
 
-def stop(_):
+def stop(args):
     """recipe entry point (stop services)."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--remove-runtime-data", action="store_true", default=False,
+                        help="remove chunk stores and changelogs of stopped clusters")
+    parsed_args, _ = parser.parse_known_args(args)
+
     instances = get_yt_instances()
     run_concurrent(lambda idx: instances[idx].stop(), list(range(len(instances))))
+
+    if parsed_args.remove_runtime_data:
+        for idx in range(len(instances)):
+            arcadia_interop.remove_runtime_data(os.path.join(instances[idx].work_dir, instances[idx].yt_id))

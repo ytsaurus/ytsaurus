@@ -2096,7 +2096,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 {
     YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    auto jobSpec = ObjectPool<TJobSpec>().Allocate();
+    auto jobSpec = ObjectPool<TJobSpec>().AllocateUnique();
 
     BuildJobSpec(joblet, jobSpec.get());
 

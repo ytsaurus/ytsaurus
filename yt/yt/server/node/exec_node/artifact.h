@@ -22,8 +22,9 @@ struct TArtifactDownloadOptions
     std::vector<std::string> WorkloadDescriptorAnnotations;
 
     //! Called after a layer artifact is downloaded (and imported, for Porto layers).
-    //! Parameters: downloadCpuDuration (network fetch), importCpuDuration (Porto import; zero for SquashFS).
-    TCallback<void(TCpuDuration downloadCpuDuration, TCpuDuration importCpuDuration)> OnLayerDownloaded;
+    //! Parameters: downloadCpuDuration (network fetch), importCpuDuration (Porto import; zero for SquashFS),
+    //!             importSize (compressed archive size of the imported layer; zero for SquashFS).
+    TCallback<void(TCpuDuration downloadCpuDuration, TCpuDuration importCpuDuration, i64 importSize)> OnLayerDownloaded;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

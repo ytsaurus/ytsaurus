@@ -3,6 +3,11 @@
 #include "private.h"
 #include "shuffle_manager.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
+
 #include <yt/yt/ytlib/shuffle_client/config.h>
 #include <yt/yt/ytlib/shuffle_client/shuffle_service_proxy.h>
 
@@ -16,6 +21,8 @@
 
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/shuffle_client.h>
+
+#include <yt/yt/client/chunk_client/helpers.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -173,6 +180,7 @@ public:
             TShuffleServiceProxy::GetDescriptor(),
             ShuffleServiceLogger())
         , LocalServerAddress_(std::move(localServerAddress))
+        , NodeDirectory_(client->GetNativeConnection()->GetNodeDirectory())
         , ShuffleManager_(CreateShuffleManager(std::move(client), std::move(invoker)))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartShuffle));
@@ -365,6 +373,11 @@ public:
             }
         }
 
+        TNodeDirectoryBuilder nodeDirectoryBuilder(NodeDirectory_, response->mutable_node_directory());
+        for (const auto& chunkSpec : response->chunk_specs()) {
+            nodeDirectoryBuilder.Add(GetReplicasFromChunkSpec(chunkSpec));
+        }
+
         context->SetResponseInfo("ChunkCount: %v", response->chunk_specs_size());
 
         context->Reply();
@@ -417,6 +430,7 @@ public:
 
 private:
     const std::string LocalServerAddress_;
+    const TNodeDirectoryPtr NodeDirectory_;
     const IShuffleManagerPtr ShuffleManager_;
 
     void DoRegisterWriter(

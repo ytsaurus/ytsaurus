@@ -68,8 +68,6 @@ private:
     {
         TMessageId FirstMessageId;
         TSourceMessageBatchCookie BatchCookie;
-        i64 InputCount = 0;
-        i64 InputByteSize = 0;
         std::vector<TMessage> CandidateOutputMessages;
         std::vector<bool> IsOutput;
         TSystemTimestamp Timestamp;
@@ -79,7 +77,6 @@ private:
     struct TPublishResult
     {
         bool EmptyEpoch = false;
-        TLineageDelta LineageDelta;
     };
 
     std::deque<TProcessedBatch> DelayedMessages_;

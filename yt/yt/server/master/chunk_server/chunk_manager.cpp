@@ -7551,6 +7551,8 @@ private:
             .With("Destroyed", isDestroyed)
             .With("ChunkId", chunkIdWithIndex)
             .With("Address", node->GetDefaultAddress())
+            .With("LocationUuid", location->GetUuid())
+            .With("LocationId", location->GetId())
             .With("NodeId", nodeId);
 
         auto* chunk = FindChunk(chunkIdWithIndex.Id);

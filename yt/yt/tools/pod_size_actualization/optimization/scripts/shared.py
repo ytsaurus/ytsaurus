@@ -84,8 +84,13 @@ CLUSTER_GROUPS: dict = {
     "senecas": ["seneca-sas", "seneca-vla", "seneca-klg"],
     "hahn": ["hahn"],
     "arnold": ["arnold"],
+    "freud": ["freud"],
+    "keynes": ["keynes"],
     "markov": ["markov"],
     "kolmogorov": ["kolmogorov"],
+    "pythia": ["pythia"],
+    "vanga": ["vanga"],
+    "zeno": ["zeno"],
 }
 
 
@@ -94,16 +99,21 @@ CLUSTER_GROUPS: dict = {
 # b — за MEM_STEP, c — за NET_STEP; нормированы так, что максимум равен 1.
 # Считаются как дефицит: спрос бандлов против ресурсов хостов кластера
 # (compute_resource_coefficients). Марков посчитан по хостам от 2026-08-02 и
-# потреблению за 2026-07-30, сенеки — по данным весны. На MR-кластерах хосты
-# делятся с MR-нагрузкой, свой пул для них не считался: пока стоят сенечные цены.
+# потреблению за 2026-07-30, сенеки — по данным весны. Для остальных групп
+# отдельные цены пока не считались: временно используем сенечные.
 SENECA_RESOURCE_COEFFICIENTS: dict = {"a": 0.329465, "b": 1.0, "c": 0.21267}
 
 RESOURCE_COEFFICIENTS: dict = {
     "senecas": SENECA_RESOURCE_COEFFICIENTS,
     "hahn": SENECA_RESOURCE_COEFFICIENTS,
     "arnold": SENECA_RESOURCE_COEFFICIENTS,
+    "freud": SENECA_RESOURCE_COEFFICIENTS,
+    "keynes": SENECA_RESOURCE_COEFFICIENTS,
     "kolmogorov": SENECA_RESOURCE_COEFFICIENTS,
     "markov": {"a": 0.580251, "b": 1.0, "c": 0.387487},
+    "pythia": SENECA_RESOURCE_COEFFICIENTS,
+    "vanga": SENECA_RESOURCE_COEFFICIENTS,
+    "zeno": SENECA_RESOURCE_COEFFICIENTS,
 }
 
 

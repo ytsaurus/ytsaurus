@@ -84,11 +84,10 @@ TIntrusivePtr<TProcessBase> TJavaProcessManager::CreateProcessIncarnation()
     args.push_back(MainClass_);
     process->AddArguments(args);
 
-    auto confixTxt =
+    // Not logged: the config may carry HTTPS client credentials.
+    auto configTxt =
         NYson::ConvertToYsonString(CompanionConfig_, NYson::EYsonFormat::Text);
-    YT_TLOG_INFO("Set companion config environment variable")
-        .With("Config", confixTxt);
-    process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", confixTxt));
+    process->AddEnvVar(Format("YT_FLOW_COMPANION_CONFIG=%v", configTxt));
     return process;
 }
 

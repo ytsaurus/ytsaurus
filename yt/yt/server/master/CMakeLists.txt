@@ -432,6 +432,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/replicated_table_tracker_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/stores_update_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/table_replica.cpp

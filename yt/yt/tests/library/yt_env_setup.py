@@ -109,6 +109,12 @@ class AdditionalThread:
         return self._result
 
 
+def with_portals_dir(func):
+    """Asks the environment for a //portals map node for the duration of the test."""
+    func.requires_portals_dir = True
+    return func
+
+
 def with_additional_threads(func):
     def wrapper(func, self, *args, **kwargs):
         self._additional_threads = []
@@ -1766,10 +1772,10 @@ class YTEnvSetup(object):
                 force=True,
                 driver=driver,
             )
-
+        else:
             yt_commands.create(
                 "map_node",
-                "//portals",
+                "//tmp",
                 attributes={
                     "account": "tmp",
                     "acl": [
@@ -1784,10 +1790,11 @@ class YTEnvSetup(object):
                 force=True,
                 driver=driver,
             )
-        else:
+
+        if getattr(method, "requires_portals_dir", False) and cluster_index == 0:
             yt_commands.create(
                 "map_node",
-                "//tmp",
+                "//portals",
                 attributes={
                     "account": "tmp",
                     "acl": [
@@ -1937,10 +1944,12 @@ class YTEnvSetup(object):
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.
         if not self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not self._is_ground_cluster(cluster_index):
             yt_commands.remove("//tmp", driver=driver)
-            if self.ENABLE_TMP_PORTAL:
-                yt_commands.remove("//portals", driver=driver)
+            if self.ENABLE_TMP_PORTAL and cluster_index == 0:
                 # XXX(babenko): portals
                 wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
+
+        if getattr(method, "requires_portals_dir", False) and cluster_index == 0:
+            yt_commands.remove("//portals", recursive=True, force=True, driver=driver)
 
         self._remove_objects(
             enable_secondary_cells_cleanup=self.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),

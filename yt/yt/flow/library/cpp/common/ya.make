@@ -11,6 +11,8 @@ SRCS(
     companion_state_adapter.cpp
     computation_controller.cpp
     computation.cpp
+    computation_statistics.cpp
+    stream_statistics.cpp
     describe_traits.cpp
     distributing_tracker.cpp
     dyntable_lease.cpp

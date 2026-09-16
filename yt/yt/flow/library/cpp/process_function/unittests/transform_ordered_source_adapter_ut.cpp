@@ -82,7 +82,7 @@ TEST(TProcessFunctionTransformOrderedSourceComputationTest, InvokesSyncAtEpochBo
 
 // Registered under its own class so DoSyncGoesThroughTheRegisteredAdapter below cannot be
 // satisfied by TSyncProbeProcessFunction's instance-level counters above: this instance is
-// created by the registry inside the adapter's constructor, not injected by the test.
+// created by the registry inside the adapter's DoInit, not injected by the test.
 class TRegisteredSyncCountingProcessFunction
     : public IProcessFunction
     , public ISyncProcessFunction
@@ -121,9 +121,8 @@ public:
 
 // Unlike InvokesSyncAtEpochBoundary above (which goes through TProcessFunctionTestHarness, a
 // raw IProcessFunction plus a dynamic_cast the harness does itself), this test builds the
-// context a real job would supply and constructs the REGISTERED adapter class via its own
-// public constructor, then calls its DoSync override directly — the same override the worker
-// invokes in production.
+// context a real job would supply and constructs and initializes the REGISTERED adapter class,
+// then calls its DoSync override directly — the same override the worker invokes in production.
 TEST(TProcessFunctionTransformOrderedSourceComputationAdapterTest, DoSyncGoesThroughTheRegisteredAdapter)
 {
     TRegisteredSyncCountingProcessFunction::SyncCallCount = 0;
@@ -137,11 +136,13 @@ TEST(TProcessFunctionTransformOrderedSourceComputationAdapterTest, DoSyncGoesThr
 
     auto context = MakeAdapterTestComputationContext(invoker, std::move(spec));
     auto dynamicContext = MakeAdapterTestDynamicComputationContext();
+    TTestStateEnvironment stateEnvironment;
 
     TIntrusivePtr<TSeededAdapterComputation> computation;
     NConcurrency::WaitFor(
         BIND([&] {
             computation = New<TSeededAdapterComputation>(context, dynamicContext);
+            computation->DoInit(stateEnvironment.GetStateManager()->CreateContext());
             computation->UpdateWatermarkState(New<TWatermarkState>());
             computation->ApplyPendingStates();
             computation->DoSync(/*transaction*/ nullptr);
@@ -155,7 +156,7 @@ TEST(TProcessFunctionTransformOrderedSourceComputationAdapterTest, DoSyncGoesThr
 ////////////////////////////////////////////////////////////////////////////////
 
 // Registered under its own class, like the sync counter above: the instance is created by the
-// registry inside the adapter's constructor, so the sensor is reachable only through a static.
+// registry inside the adapter's DoInit, so the sensor is reachable only through a static.
 class TRegisteredProfiledProcessFunction
     : public IProcessFunction
 {

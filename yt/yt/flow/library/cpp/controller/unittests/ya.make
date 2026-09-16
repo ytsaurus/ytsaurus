@@ -33,3 +33,5 @@ PEERDIR(
 SIZE(MEDIUM)
 
 END()
+
+RECURSE_FOR_TESTS(balancer_simulation)

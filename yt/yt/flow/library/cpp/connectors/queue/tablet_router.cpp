@@ -8,6 +8,7 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/client_common.h>
 
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -41,6 +42,7 @@ TTabletRouter::TTabletRouter(
 
 TTabletRouter::~TTabletRouter()
 {
+    NConcurrency::TDelayedExecutor::CancelAndClear(RefreshStartCookie_);
     if (RefreshExecutor_) {
         YT_UNUSED_FUTURE(RefreshExecutor_->Stop());
     }
@@ -48,7 +50,7 @@ TTabletRouter::~TTabletRouter()
 
 void TTabletRouter::Start()
 {
-    if (ExplicitTabletCount_) {
+    if (ExplicitTabletCount_ || RefreshExecutor_) {
         return;
     }
 
@@ -65,7 +67,15 @@ void TTabletRouter::Start()
         Context_->PoolInvoker,
         BIND(&TTabletRouter::RefreshTabletCount, MakeWeak(this)),
         NConcurrency::TPeriodicExecutorOptions::WithJitter(RefreshPeriod_));
-    RefreshExecutor_->Start();
+    // The initial count is fresh, so the first refresh is needed only after a full period.
+    RefreshStartCookie_ = NConcurrency::TDelayedExecutor::Submit(
+        BIND([weakThis = MakeWeak(this)] {
+            if (auto strongThis = weakThis.Lock()) {
+                strongThis->RefreshExecutor_->Start();
+            }
+        }),
+        RefreshPeriod_,
+        Context_->PoolInvoker);
 }
 
 i64 TTabletRouter::GetTabletIndex(const TPayload& payload)

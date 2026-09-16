@@ -2,6 +2,13 @@
 
 Sets up the environment for running Flow integration tests and exposes test parameters (`RUNNER_LOG_LEVEL`, `EXTERNAL_YT_CONFIG`, `--ext-py`, etc.). See details in the [docs](../../../../../docs/ru/flow/contributor/testing-framework.md).
 
+## Final diagnostics
+
+`start_flow_process_federation` collects the final flow view, pipeline description, and process
+sensors before stopping the federation. If a test intentionally stops the controller or aborts its
+vanilla operation, call `federation.try_dump_final_state()` immediately before that action. The final
+dump is attempted only once per federation, so teardown does not query the stopped controller again.
+
 ## Monitoring stack (Prometheus + Grafana)
 
 Any test that starts a pipeline via `start_flow_process_federation` can bring up a local monitoring stack (based on docker containers for Prometheus and Grafana), for inspecting pipeline metrics while the test runs. It is a local debugging aid: off by default, never runs under autocheck.

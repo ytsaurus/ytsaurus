@@ -1,3 +1,5 @@
+from yt_env_setup import with_portals_dir
+
 from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
@@ -931,6 +933,7 @@ class TestHunkStoragePortal(DynamicTablesBase):
         return create("table", name, attributes=attributes)
 
     @authors("aleksandra-zh")
+    @with_portals_dir
     def test_cross_shard_hunk_storage_node_link(self):
         self._create_ordered_table("//tmp/t1")
         hunk_storage_id1 = self._create_hunk_storage("//portals/h1")

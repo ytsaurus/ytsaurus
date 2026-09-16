@@ -17,6 +17,7 @@ SRCS(
     ordered_source_computation_base.cpp
     passthrough_computation.cpp
     simple_external_state_manager.cpp
+    processing_rate_estimator.cpp
     job_state/job_init_context.cpp
     job_state/state_providers.cpp
     job_state/state_manager.cpp

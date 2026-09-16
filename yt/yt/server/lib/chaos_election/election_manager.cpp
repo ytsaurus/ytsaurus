@@ -296,8 +296,6 @@ private:
 
         auto commitResultOrError = WaitFor(transaction->Commit());
         if (!commitResultOrError.IsOK()) {
-            // NB: Logged at info level: a group whose every attempt loses the commit never becomes
-            // led, and that must be visible on installations that write no debug log.
             YT_TLOG_INFO("Lock acquisition commit failed, will retry")
                 .With(commitResultOrError);
             return;

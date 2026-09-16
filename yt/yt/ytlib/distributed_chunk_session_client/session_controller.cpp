@@ -4,6 +4,7 @@
 #include "service_proxy.h"
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -277,6 +278,10 @@ private:
         ToProto(req->mutable_session_id(), sessionId);
         req->set_session_timeout(ToProto(Config_->SessionTimeout));
         ToProto(req->mutable_chunk_replicas(), Targets_);
+
+        TNodeDirectoryBuilder nodeDirectoryBuilder(nodeDirectory, req->mutable_node_directory());
+        nodeDirectoryBuilder.Add(Targets_);
+
         req->set_journal_chunk_writer_options(ToProto(ConvertToYsonString(WriterOptions_)));
         req->set_journal_chunk_writer_config(ToProto(ConvertToYsonString(WriterConfig_)));
 

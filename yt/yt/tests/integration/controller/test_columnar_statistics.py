@@ -39,7 +39,9 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "enable_map_job_size_adjustment": False,
+            "map_operation_options": {
+                "enable_map_job_size_adjustment": False,
+            },
             "user_file_limits": {
                 "max_table_data_weight": 2000,
             },
@@ -879,7 +881,9 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "enable_map_job_size_adjustment": False,
+            "map_operation_options": {
+                "enable_map_job_size_adjustment": False,
+            },
             "user_file_limits": {
                 "max_table_data_weight": 2000,
             },

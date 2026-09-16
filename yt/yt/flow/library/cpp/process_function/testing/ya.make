@@ -18,6 +18,8 @@ PEERDIR(
     yt/yt/flow/library/cpp/common
     yt/yt/flow/library/cpp/misc
     yt/yt/flow/library/cpp/tables/unittests/mock
+    yt/yt/client/cache
+    yt/yt/client/unittests/mock
     yt/yt/library/query/engine
 )
 

@@ -18,6 +18,7 @@ public:
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
+        IInvokerPtr backgroundInvoker,
         const std::vector<TAllocationPtr>& runningAllocations,
         const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
         const TJobResources& defaultMinSpareAllocationResources)
@@ -25,6 +26,7 @@ public:
             nodeShardId,
             std::move(config),
             std::move(node),
+            std::move(backgroundInvoker),
             runningAllocations,
             mediumDirectory,
             defaultMinSpareAllocationResources)
@@ -40,6 +42,7 @@ ISchedulingHeartbeatContextPtr CreateSchedulingHeartbeatContext(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
+    IInvokerPtr backgroundInvoker,
     const std::vector<TAllocationPtr>& runningAllocations,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
     const TJobResources& defaultMinSpareAllocationResources)
@@ -48,6 +51,7 @@ ISchedulingHeartbeatContextPtr CreateSchedulingHeartbeatContext(
         nodeShardId,
         std::move(config),
         std::move(node),
+        std::move(backgroundInvoker),
         runningAllocations,
         mediumDirectory,
         defaultMinSpareAllocationResources);

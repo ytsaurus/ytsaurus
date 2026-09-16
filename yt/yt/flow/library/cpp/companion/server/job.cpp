@@ -2,12 +2,16 @@
 
 #include "codec.h"
 #include "output_collector.h"
+#include "private.h"
+#include "profiling.h"
 #include "resource_store.h"
 #include "runtime_context.h"
 #include "runtime_init_context.h"
 
 #include <yt/yt/flow/library/cpp/common/input_context.h>
 #include <yt/yt/flow/library/cpp/common/registry.h>
+
+#include <yt/yt/flow/library/cpp/misc/status_profiler.h>
 
 #include <yt/yt/flow/library/cpp/process_function/host/computation.h>
 
@@ -90,10 +94,16 @@ TJob::TJob(
     TJobId jobId,
     TComputationId computationId,
     const NProto::NCompanion::TJobInfo& jobInfo,
-    TResourceStorePtr resourceStore)
+    TResourceStorePtr resourceStore,
+    NProfiling::TProfiler profiler,
+    TComputationCountersPtr counters,
+    TCompanionServerContextPtr serverContext)
     : JobId_(jobId)
     , ComputationId_(std::move(computationId))
     , ResourceStore_(std::move(resourceStore))
+    , Profiler_(std::move(profiler))
+    , Counters_(std::move(counters))
+    , ServerContext_(std::move(serverContext))
     // A companion never evaluates expression columns: stream schemas cannot have them, keys arrive
     // on the wire, and joined-state keys are stripped by TCompanionExternalStateJoiner. This keeps
     // the query engine out of every binary users ship, at the price of ComputeKey() on a computed
@@ -121,6 +131,23 @@ TJob::TJob(
     InternalStateNames_ = ExtractInternalStateNames(Spec_);
     ExternalStateNames_ = ExtractKeys(Spec_->ExternalStateManagers);
     JoinedStateNames_ = ExtractKeys(Spec_->ExternalStateJoiners);
+
+    if (Counters_) {
+        auto addSummaries = [&] (
+            const THashSet<std::string>& names,
+            TStringBuf direction,
+            TStringBuf stateType,
+            TStateSizeSummaries* summaries) {
+            for (const auto& name : names) {
+                summaries->emplace(name, Counters_->GetStateSizeSummary(direction, stateType, name));
+            }
+        };
+        addSummaries(InternalStateNames_, "request", "internal", &RequestInternalStateSizes_);
+        addSummaries(ExternalStateNames_, "request", "external", &RequestExternalStateSizes_);
+        addSummaries(JoinedStateNames_, "request", "joined_external", &RequestJoinedStateSizes_);
+        addSummaries(InternalStateNames_, "response", "internal", &ResponseInternalStateSizes_);
+        addSummaries(ExternalStateNames_, "response", "external", &ResponseExternalStateSizes_);
+    }
 }
 
 const TJobId& TJob::GetJobId() const
@@ -148,6 +175,11 @@ const TStreamSpecsPtr& TJob::GetStreamSpecs() const
     return StreamSpecs_;
 }
 
+const TComputationCountersPtr& TJob::GetCounters() const
+{
+    return Counters_;
+}
+
 const THashSet<std::string>& TJob::GetInternalStateNames() const
 {
     return InternalStateNames_;
@@ -161,6 +193,30 @@ const THashSet<std::string>& TJob::GetExternalStateNames() const
 const THashSet<std::string>& TJob::GetJoinedStateNames() const
 {
     return JoinedStateNames_;
+}
+
+void TJob::ProfileRequestStateSizes(const NProto::NCompanion::TReqProcessBatch& request) const
+{
+    ProfileStateSizes(RequestInternalStateSizes_, request.internal_states());
+    ProfileStateSizes(RequestExternalStateSizes_, request.external_states());
+    ProfileStateSizes(RequestJoinedStateSizes_, request.joined_external_states());
+}
+
+void TJob::ProfileResponseStateSizes(const NProto::NCompanion::TResponseData& response) const
+{
+    ProfileStateSizes(ResponseInternalStateSizes_, response.internal_states());
+    ProfileStateSizes(ResponseExternalStateSizes_, response.external_states());
+}
+
+void TJob::ProfileStateSizes(
+    const TStateSizeSummaries& summaries,
+    const google::protobuf::RepeatedPtrField<NProto::NCompanion::TState>& states)
+{
+    for (const auto& state : states) {
+        if (auto it = summaries.find(state.name()); it != summaries.end()) {
+            it->second.Record(state.ByteSizeLong());
+        }
+    }
 }
 
 const std::vector<TCompanionResourceInstanceReference>& TJob::GetCompanionResources() const
@@ -193,13 +249,6 @@ bool TJob::EnsureInitialized()
         "the C++ companion hosts process functions only",
         ComputationId_);
 
-    auto function = CreateProcessFunction(Spec_);
-    THROW_ERROR_EXCEPTION_IF(
-        ViewProcessFunctionAsSync(Spec_, function),
-        "Process function %Qv overrides Sync; "
-        "sync process functions are not supported in companions",
-        *Spec_->ProcessingFunction);
-
     THashMap<std::string, TCompanionExternalStateJoinerConfig> joinedStateConfigs;
     for (const auto& [name, joinerSpec] : Spec_->ExternalStateJoiners) {
         const auto& joinOn = joinerSpec->JoinOn;
@@ -222,8 +271,25 @@ bool TJob::EnsureInitialized()
         StateStore_,
         Spec_->ProcessingFunctionParameters,
         TRegistry::Get()->ParseProcessFunctionParameters(Spec_),
-        std::move(*resources));
-    function->Init(initContext);
+        std::move(*resources),
+        /*prefix*/ std::string(),
+        Profiler_,
+        ServerContext_);
+    auto context = New<TProcessFunctionContext>();
+    context->InitContext = initContext;
+    context->Logger = CompanionServerLogger()
+        .WithTag("JobId", JobId_)
+        .WithTag("ComputationId", ComputationId_)
+        .WithTag("ProcessingFunction", *Spec_->ProcessingFunction);
+    context->StatusProfiler = CreateSyncStatusProfiler(context->Logger);
+
+    auto function = CreateProcessFunction(Spec_, context);
+    THROW_ERROR_EXCEPTION_IF(
+        ViewProcessFunctionAsSync(Spec_, function),
+        "Process function %Qv overrides Sync; "
+        "sync process functions are not supported in companions",
+        *Spec_->ProcessingFunction);
+    function->Init(context->InitContext);
 
     BatchFunction_ = WrapAsBatch(function);
     RuntimeContext_ = New<TCompanionRuntimeContext>(

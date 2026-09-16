@@ -24,7 +24,6 @@ using namespace NYPath;
 using namespace NYTree;
 
 using ::testing::_;
-using ::testing::Invoke;
 using ::testing::NiceMock;
 using ::testing::Return;
 
@@ -103,13 +102,13 @@ TEST(TPipelineInitTest, LeaderElectionLockTableMatchesTheElectionManagerSchema)
         .WillByDefault(Return(MakeFuture<ITransactionPtr>(transaction)));
 
     ON_CALL(*transaction, CreateNode(_, _, _))
-        .WillByDefault(Invoke([&] (
+        .WillByDefault([&] (
             const TYPath& path,
             EObjectType /*type*/,
             const TCreateNodeOptions& options) {
             createNodeCalls[path] = options;
             return MakeFuture<TNodeId>(TNodeId(TGuid::Create()));
-        }));
+        });
 
     ON_CALL(*transaction, Commit(_))
         .WillByDefault(Return(MakeFuture(TTransactionCommitResult{})));

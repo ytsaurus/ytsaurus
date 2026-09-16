@@ -1,7 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/flow/library/cpp/companion/server/runtime_init_context.h>
+#include <yt/yt/flow/library/cpp/companion/server/server_context.h>
 #include <yt/yt/flow/library/cpp/companion/server/state_store.h>
+
+#include <yt/yt/flow/library/cpp/companion/config.h>
 
 #include <yt/yt/flow/library/cpp/common/key.h>
 #include <yt/yt/flow/library/cpp/common/payload_converter.h>
@@ -9,6 +12,10 @@
 #include <yt/yt/flow/library/cpp/common/schema.h>
 
 #include <yt/yt/flow/library/cpp/process_function/testing/entity_builders.h>
+
+#include <yt/yt/core/concurrency/poller.h>
+
+#include <yt/yt/core/http/client.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -562,6 +569,35 @@ TEST(TCompanionRuntimeInitContextTest, PrefixAndParameters)
     EXPECT_THROW_WITH_SUBSTRING(
         Y_UNUSED(initContext->GetPartitionId()),
         "not available in a companion process");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetHttpClient()),
+        "HTTP client is not available");
+    EXPECT_THROW_WITH_SUBSTRING(
+        Y_UNUSED(initContext->GetHttpsClient()),
+        "HTTPS client is not available");
+}
+
+TEST(TCompanionRuntimeInitContextTest, HttpClientsFromServerContext)
+{
+    auto context = CreateCompanionServerContext(
+        New<NCompanion::TCompanionExecutionConfig>(),
+        /*invoker*/ nullptr);
+
+    auto initContext = New<TCompanionRuntimeInitContext>(
+        MakeStore(),
+        /*parametersNode*/ nullptr,
+        /*parametersObject*/ nullptr,
+        THashMap<TResourceId, IResourcePtr>{},
+        /*prefix*/ std::string(),
+        /*profiler*/ NProfiling::TProfiler(),
+        context);
+
+    EXPECT_EQ(initContext->GetHttpClient(), context->HttpClient);
+    EXPECT_EQ(initContext->GetHttpsClient(), context->HttpsClient);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpClient(), context->HttpClient);
+    EXPECT_EQ(initContext->WithPrefix("sub")->GetHttpsClient(), context->HttpsClient);
+
+    context->HttpPoller->Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

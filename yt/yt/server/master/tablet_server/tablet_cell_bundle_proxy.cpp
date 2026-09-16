@@ -20,6 +20,7 @@
 #include <yt/yt/server/master/object_server/object_detail.h>
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/cell_server/cell_bundle_proxy.h>
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
@@ -416,4 +417,3 @@ IObjectProxyPtr CreateTabletCellBundleProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer
-

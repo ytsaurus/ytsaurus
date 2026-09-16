@@ -133,6 +133,9 @@ class QueryTracker(YTServerComponentBase, YTComponent):
         return {
             "user": self.USER_NAME,
             "create_state_tables_on_startup": True,
+            "dynamic_config_manager": {
+                "update_period": "100ms",
+            },
         }
 
     def wait_for_readiness(self, address):
