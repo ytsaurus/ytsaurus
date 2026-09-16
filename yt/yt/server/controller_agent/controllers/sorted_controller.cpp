@@ -1329,6 +1329,14 @@ public:
                 THROW_ERROR_EXCEPTION("Pivot keys are not supported in disabled key guarantee mode");
             }
 
+            if (Spec_->JobCount && *Spec_->JobCount != std::ssize(Spec_->PivotKeys) + 1) {
+                SetOperationAlert(
+                    EOperationAlertType::InconsistentJobCountAndPivotKeys,
+                    TError("\"job_count\" and \"pivot_keys\" length are inconsistent; job_count is ignored")
+                        .With("job_count", *Spec_->JobCount)
+                        .With("pivot_key_count", Spec_->PivotKeys.size()));
+            }
+
             auto comparator = GetComparator(SortColumns_);
             TKeyBound previousUpperBound;
             for (const auto& key : Spec_->PivotKeys) {
