@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "interop.h"
+#include "token_manager.h"
 #include "udf_meta_manager.h"
 
 #include <yt/yql/plugin/plugin.h>
@@ -37,6 +38,7 @@
 
 #include <library/cpp/yt/logging/backends/arcadia/backend.h>
 
+#include <util/generic/algorithm.h>
 #include <util/generic/hash_set.h>
 #include <util/generic/yexception.h>
 #include <util/string/builder.h>
@@ -133,10 +135,10 @@ struct TQueryState
     TQueryId QueryId;
     bool Registered = false;
 
+    std::optional<TQueryIdentity> QueryIdentity;
+
     TError Error;
     TError CleanupError;
-
-    TPeriodicExecutorPtr RefreshTokenExecutor;
 };
 
 struct TDiscoveredSecret
@@ -145,97 +147,6 @@ struct TDiscoveredSecret
     std::optional<TYsonString> Category;
     std::optional<TYsonString> Subcategory;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-static std::optional<TString> TryIssueToken(
-    const TQueryId queryId,
-    const TString& user,
-    const std::vector<std::pair<TString, TString>>& clusters,
-    THashMap<TString, IClientPtr>& queryClients,
-    TDuration expirationTimeout)
-{
-    TString token;
-    if (clusters.empty()) {
-        return token;
-    }
-
-    auto options = NApi::TIssueTemporaryTokenOptions{ .ExpirationTimeout = expirationTimeout };
-    auto attributes = CreateEphemeralAttributes();
-    attributes->Set("query_id", queryId);
-    attributes->Set("responsible", "query_tracker");
-
-    for (auto& cluster : clusters) {
-        YT_TLOG_DEBUG("Requesting token")
-            .With("User", user)
-            .With("Cluster", cluster.first);
-        auto rspOrError = token.empty()
-            ? WaitFor(queryClients[cluster.first]->IssueTemporaryToken(user, attributes, options))
-            : WaitFor(queryClients[cluster.first]->IssueSpecificTemporaryToken(user, token, attributes, options));
-
-        if (!rspOrError.IsOK()) {
-            YT_TLOG_WARNING("Token request failed")
-                .With("User", user)
-                .With("Cluster", cluster.first);
-            if (rspOrError.FindMatching(NYTree::EErrorCode::AlreadyExists)) {
-                YT_TLOG_WARNING("Requested token already exists in the cluster")
-                    .With("User", user)
-                    .With("Cluster", cluster.first);
-                return std::nullopt;
-            }
-            rspOrError.ThrowOnError();
-        }
-
-        if (token.empty()) {
-            token = rspOrError.ValueOrThrow().Token;
-        }
-        YT_TLOG_DEBUG("Token received")
-            .With("User", user)
-            .With("Cluster", cluster.first);
-    }
-
-    return token;
-}
-
-static TString IssueToken(
-    const TQueryId queryId,
-    const TString& user,
-    const std::vector<std::pair<TString, TString>>& clusters,
-    THashMap<TString, IClientPtr>& queryClients,
-    TDuration expirationTimeout,
-    int attempts)
-{
-    for (int attempt = 0; attempt < attempts; attempt++) {
-        auto tokenOrErr = TryIssueToken(queryId, user, clusters, queryClients, expirationTimeout);
-        if (!tokenOrErr) {
-            // The selected token already exists on one of the clusters. We need to try to issue token again.
-            continue;
-        }
-
-        return *tokenOrErr;
-    }
-
-    THROW_ERROR_EXCEPTION("Token cannot be issued, all attempts failed");
-}
-
-static void RefreshToken(const TString& user, const TString& token, const THashMap<TString, IClientPtr>& queryClients)
-{
-    for (auto& [cluster, client] : queryClients) {
-        YT_TLOG_DEBUG("Refreshing token")
-            .With("User", user)
-            .With("Cluster", cluster);
-        auto rspOrError = WaitFor(client->RefreshTemporaryToken(user, token, {}));
-        if (!rspOrError.IsOK()) {
-            YT_TLOG_WARNING("Token refreshing failed")
-                .With("User", user)
-                .With("Cluster", cluster);
-        } else {
-            YT_TLOG_DEBUG("Token refreshed")
-                .With("User", user)
-                .With("Cluster", cluster);
-        }
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -266,6 +177,7 @@ public:
         TClusterDirectoryPtr clusterDirectory,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
+        ITokenManagerPtr tokenManager,
         TString agentId)
         : SupportedFlavors_(serverConfig->SupportedFlavors)
         , ProtoDynamicConfigsPath_(serverConfig->ProtoDynamicConfigsPath)
@@ -274,6 +186,7 @@ public:
         , ClusterDirectory_(std::move(clusterDirectory))
         , ClientDirectory_(std::move(clientDirectory))
         , ControlInvoker_(std::move(controlInvoker))
+        , TokenManager_(std::move(tokenManager))
         , AgentId_(std::move(agentId))
         , Client_(bootstrap->GetClient())
         , DynamicConfig_(std::move(dynamicConfig))
@@ -355,26 +268,39 @@ public:
         pluginInitialDynamicConfig->MaxSupportedYqlVersion = MaxSupportedYqlVersionStr_;
         pluginInitialDynamicConfig->ProtoGatewaysConfigs = ReadProtoDynamicGatewaysConfigs();
 
+        auto tokenServiceSocketPath = Config_->UseTokenResolver
+            ? Config_->TokenService->UnixSocketPath
+            : std::string();
+
         auto options = ConvertToNativePluginOptions(
             Config_,
             pluginInitialDynamicConfig,
             singletonsConfigString,
             CreateArcadiaLogBackend(TLogger("YqlPlugin")),
-            Config_->EnableDQ && !Config_->UseQtWorkerYqlPlugin);
+            Config_->EnableDQ && !Config_->UseQtWorkerYqlPlugin,
+            Config_->UseTokenResolver,
+            tokenServiceSocketPath);
 
         if (Config_->UseQtWorkerYqlPlugin) {
             auto qtOptions = ConvertToQtWorkerPluginOptions(
                 std::move(options),
                 CreateArcadiaLogBackend(TLogger("QtWorkerPlugin")),
                 Config_->QtWorkerInspectorPort,
-                *Config_->QtWorkerGatewaysConfigPath);
+                *Config_->QtWorkerGatewaysConfigPath,
+                !Config_->UseTokenResolver);
             YqlPlugin_ = CreateQtWorkerYqlPlugin(std::move(qtOptions));
         } else {
             // NB: under debug build this method does not fit in regular fiber stack
             // due to python udf loading
             using TSignature = void(TYqlNativePluginOptions);
             auto coroutine = TCoroutine<TSignature>(
-                BIND([self = MakeStrong(this), bootstrap, singletonsConfigDefaultLogging, pluginInitialDynamicConfig](
+                BIND([
+                    self = MakeStrong(this),
+                    bootstrap,
+                    singletonsConfigDefaultLogging,
+                    pluginInitialDynamicConfig,
+                    tokenServiceSocketPath
+                ] (
                     TCoroutine<TSignature>& /*coroutine*/,
                     TYqlNativePluginOptions options
                 ) {
@@ -384,7 +310,9 @@ public:
                             singletonsConfigDefaultLogging,
                             pluginInitialDynamicConfig,
                             bootstrap->GetClusterConnectionConfig(),
-                            YqlAgentProfiler().WithPrefix("/process_yql_plugin"))
+                            YqlAgentProfiler().WithPrefix("/process_yql_plugin"),
+                            self->Config_->UseTokenResolver,
+                            tokenServiceSocketPath)
                         : CreateYqlPlugin(std::move(options));
                 }),
                 EExecutionStackKind::Large);
@@ -628,6 +556,7 @@ private:
     const TClusterDirectoryPtr ClusterDirectory_;
     const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
+    const ITokenManagerPtr TokenManager_;
     const TString AgentId_;
     const NApi::NNative::IClientPtr Client_;
 
@@ -653,11 +582,6 @@ private:
     {
         TCurrentCancelableContextGuard uncancelableGuard(nullptr);
 
-        if (queryState.RefreshTokenExecutor) {
-            WaitUntilSet(queryState.RefreshTokenExecutor->Stop());
-            queryState.RefreshTokenExecutor.Reset();
-        }
-
         auto makeCommonCleanupError = [&] {
             return TError("Failed to unregister query during cleanup")
                 .With("query_id", queryState.QueryId);
@@ -674,6 +598,10 @@ private:
                 queryState.CleanupError = makeCommonCleanupError()
                     .With("message", CurrentExceptionMessage());
             }
+        }
+
+        if (queryState.QueryIdentity) {
+            TokenManager_->UnregisterQuery(queryState.QueryIdentity->ExecutionId);
         }
 
         if (!queryState.CleanupError.IsOK()) {
@@ -733,6 +661,41 @@ private:
                 });
             }
 
+            TString effectiveTokenUser;
+            EYqlTokenPurpose purpose;
+            std::optional<TString> allowedCluster;
+            switch (queryType) {
+            case EQueryType::Regular: {
+                effectiveTokenUser = user;
+                purpose = EYqlTokenPurpose::Regular;
+                break;
+            }
+
+            case EQueryType::UdfMeta: {
+                if (Config_->UdfMetaUser.empty()) {
+                    THROW_ERROR_EXCEPTION(
+                        "UDF meta user must be configured to run %Qlv queries",
+                        EQueryType::UdfMeta);
+                }
+                effectiveTokenUser = Config_->UdfMetaUser;
+                purpose = EYqlTokenPurpose::UdfMeta;
+
+                const auto& nativeCluster = Client_->GetNativeConnection()->GetClusterName();
+                YT_VERIFY(nativeCluster);
+                allowedCluster = TString(*nativeCluster);
+                break;
+            }
+
+            default:
+                YT_ABORT();
+            }
+
+            queryState.QueryIdentity = TokenManager_->RegisterQuery(
+                queryId,
+                std::move(effectiveTokenUser),
+                purpose,
+                allowedCluster);
+
             YqlPlugin_->RegisterQuery(queryId, settings);
             queryState.Registered = true;
 
@@ -747,32 +710,33 @@ private:
             // TODO(ngc224): revise after proper auth support in UI
             THashMap<TString, THashMap<TString, TString>> credentials;
             TString token;
-            TClustersResult clustersResult;
             if (flavor == DefaultFlavor) {
                 switch (queryType) {
                 case EQueryType::Regular: {
-                    clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, files);
-                    if (clustersResult.YsonError) {
-                        auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
-                        THROW_ERROR error;
+                    if (!Config_->UseTokenResolver) {
+                        auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, files);
+                        if (clustersResult.YsonError) {
+                            auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
+                            THROW_ERROR error;
+                        }
+
+                        EraseNonYtClusters(clustersResult.Clusters);
+
+                        std::vector<TString> clusters;
+                        clusters.reserve(clustersResult.Clusters.size());
+                        for (const auto& [cluster, _] : clustersResult.Clusters) {
+                            clusters.push_back(cluster);
+                        }
+
+                        token = TokenManager_->IssueTokenForClusters(
+                            queryState.QueryIdentity->ExecutionId,
+                            clusters);
+
+                        credentials = {
+                            {"default_yt", {{"category", "yt"}, {"content", token}}},
+                            {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
+                        };
                     }
-
-                    EraseNonYtClusters(clustersResult.Clusters);
-
-                    THashMap<TString, IClientPtr> queryClients;
-                    for (const auto& clusterName : clustersResult.Clusters) {
-                        queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
-                    }
-
-                    token = IssueToken(queryId, user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
-
-                    queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
-                    queryState.RefreshTokenExecutor->Start();
-
-                    credentials = {
-                        {"default_yt", {{"category", "yt"}, {"content", token}}},
-                        {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
-                    };
 
                     if (!yqlRequest.secrets().empty()) {
                         if (!clustersInfo.DefaultCluster) {
@@ -782,32 +746,18 @@ private:
                             credentials,
                             yqlRequest.secrets(),
                             *clustersInfo.DefaultCluster,
-                            user,
-                            queryClients);
+                            user);
                     }
                     break;
                 }
 
                 case EQueryType::UdfMeta: {
-                    if (Config_->UdfMetaUser.empty()) {
-                        THROW_ERROR_EXCEPTION("UDF meta user must be configured to run %Qlv queries", EQueryType::UdfMeta);
-                    }
-
-                    const auto udfMetaUser = TString(Config_->UdfMetaUser);
-                    const auto& nativeCluster = Client_->GetNativeConnection()->GetClusterName();
-                    YT_VERIFY(nativeCluster);
-                    const auto nativeClusterName = TString(*nativeCluster);
-
-                    THashMap<TString, IClientPtr> queryClients = {{
-                        nativeClusterName,
-                        ClusterDirectory_->GetConnectionOrThrow(*nativeCluster)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(udfMetaUser))
-                    }};
-                    clustersResult.Clusters = {{nativeClusterName, ""}};
-
-                    token = IssueToken(queryId, udfMetaUser, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
-
-                    queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, udfMetaUser, token, queryClients), Config_->RefreshTokenPeriod);
-                    queryState.RefreshTokenExecutor->Start();
+                    // NB: effectiveTokenUser is UdfMetaUser for udf meta query,
+                    // only allowed cluster is YQL agent native cluster
+                    token = WaitFor(TokenManager_->GetOrIssueToken(
+                        queryState.QueryIdentity->ExecutionId,
+                        *allowedCluster))
+                        .ValueOrThrow();
 
                     credentials = {
                         {"default_yt", {{"category", "yt"}, {"content", token}}},
@@ -818,7 +768,16 @@ private:
             }
 
             // This is a long blocking call.
-            const auto result = YqlPlugin_->Run(queryId, user, {}, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode(), queryType);
+            const auto result = YqlPlugin_->Run(
+                queryId,
+                user,
+                queryState.QueryIdentity->Token,
+                ConvertToYsonString(credentials),
+                query,
+                settings,
+                files,
+                yqlRequest.mode(),
+                queryType);
 
             if (result.YsonError) {
                 YT_TLOG_INFO("YQL plugin query run failed")
@@ -826,8 +785,6 @@ private:
             } else {
                 YT_TLOG_INFO("YQL plugin query run completed");
             }
-
-            auto clientOptions = NApi::TClientOptions::FromUserAndToken(user, token);
 
             TYqlResponse yqlResponse;
             ValidateAndFillYqlResponseField(yqlResponse, result.YsonResult, &TYqlResponse::mutable_result);
@@ -841,7 +798,13 @@ private:
                 std::vector<TWireYqlRowset> rowsets;
                 switch (queryType) {
                 case EQueryType::Regular:
-                    rowsets = BuildRowsets(clustersInfo.Clusters, clientOptions, *result.YsonResult, request.row_count_limit());
+                    rowsets = BuildRowsets(
+                        TokenManager_,
+                        clustersInfo.Clusters,
+                        user,
+                        queryState.QueryIdentity->ExecutionId,
+                        *result.YsonResult,
+                        request.row_count_limit());
                     break;
 
                 case EQueryType::UdfMeta:
@@ -921,34 +884,49 @@ private:
         };
 
         try {
+            queryState.QueryIdentity = TokenManager_->RegisterQuery(
+                queryState.QueryId,
+                user,
+                EYqlTokenPurpose::DeclaredParameters,
+                /*allowedCluster*/ {});
+
             YqlPlugin_->RegisterQuery(queryState.QueryId, settings);
             queryState.Registered = true;
 
-            auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, {});
-            if (clustersResult.YsonError) {
-                auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
-                THROW_ERROR error;
-            }
-
-            EraseNonYtClusters(clustersResult.Clusters);
-
-            THashMap<TString, IClientPtr> queryClients;
-            for (const auto& clusterName : clustersResult.Clusters) {
-                queryClients[clusterName.first] = ClusterDirectory_->GetConnectionOrThrow(clusterName.first)->CreateNativeClient(NApi::NNative::TClientOptions::FromUser(user));
-            }
-
-            auto token = IssueToken(TGuid::Create(), user, clustersResult.Clusters, queryClients, Config_->TokenExpirationTimeout, Config_->IssueTokenAttempts);
-
-            queryState.RefreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
-            queryState.RefreshTokenExecutor->Start();
-
             // TODO(ngc224): revise after proper auth support in UI
-            THashMap<TString, THashMap<TString, TString>> credentials = {
-                {"default_yt", {{"category", "yt"}, {"content", token}}},
-                {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
-            };
+            THashMap<TString, THashMap<TString, TString>> credentials;
+            if (!Config_->UseTokenResolver) {
+                auto clustersResult = YqlPlugin_->GetUsedClusters(queryState.QueryId, query, settings, {});
+                if (clustersResult.YsonError) {
+                    auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
+                    THROW_ERROR error;
+                }
 
-            const auto result = YqlPlugin_->GetDeclaredParametersInfo(queryState.QueryId, user, {}, query, settings, ConvertToYsonString(credentials));
+                EraseNonYtClusters(clustersResult.Clusters);
+
+                std::vector<TString> clusters;
+                clusters.reserve(clustersResult.Clusters.size());
+                for (const auto& [cluster, _] : clustersResult.Clusters) {
+                    clusters.push_back(cluster);
+                }
+
+                auto token = TokenManager_->IssueTokenForClusters(
+                    queryState.QueryIdentity->ExecutionId,
+                    clusters);
+
+                credentials = {
+                    {"default_yt", {{"category", "yt"}, {"content", token}}},
+                    {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
+                };
+            }
+
+            const auto result = YqlPlugin_->GetDeclaredParametersInfo(
+                queryState.QueryId,
+                user,
+                queryState.QueryIdentity->Token,
+                query,
+                settings,
+                ConvertToYsonString(credentials));
 
             ToProto(response.mutable_declared_parameters_info(), result.YsonParameters.value_or("{}"));
 
@@ -1063,9 +1041,9 @@ private:
         THashMap<TString, THashMap<TString, TString>>& credentials,
         const ::google::protobuf::RepeatedPtrField<TYqlSecret>& secrets,
         const TString& defaultCluster,
-        const TString& user,
-        THashMap<TString, IClientPtr>& queryClients)
+        const TString& user)
     {
+        THashMap<TString, IClientPtr> queryClients;
         std::vector<TFuture<void>> fillCredentialFutures;
 
         for (const auto& src : secrets) {
@@ -1362,6 +1340,7 @@ IYqlAgentPtr CreateYqlAgent(
     TClusterDirectoryPtr clusterDirectory,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
+    ITokenManagerPtr tokenManager,
     TString agentId)
 {
     return New<TYqlAgent>(
@@ -1372,6 +1351,7 @@ IYqlAgentPtr CreateYqlAgent(
         std::move(clusterDirectory),
         std::move(clientDirectory),
         std::move(controlInvoker),
+        std::move(tokenManager),
         std::move(agentId));
 }
 

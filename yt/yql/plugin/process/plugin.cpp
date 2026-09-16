@@ -67,10 +67,17 @@ public:
         TSingletonsConfigPtr singletonsConfig,
         TYqlPluginDynamicConfigPtr initialDynamicConfig,
         TConnectionCompoundConfigPtr clusterConnectionConfig,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TProfiler& profiler,
+        bool useTokenResolver,
+        std::string tokenServiceSocketPath)
         : Config_(std::move(config))
         , DynamicConfig_(std::move(initialDynamicConfig))
-        , ConfigTemplate_(BuildPluginConfigTemplate(Config_, singletonsConfig, clusterConnectionConfig))
+        , ConfigTemplate_(BuildPluginConfigTemplate(
+            Config_,
+            singletonsConfig,
+            clusterConnectionConfig,
+            useTokenResolver,
+            std::move(tokenServiceSocketPath)))
         , DynamicConfigVersion_(0)
         , Queue_(New<TActionQueue>("YqlProcessPlugin"))
         , Invoker_(Queue_->GetInvoker())
@@ -653,7 +660,9 @@ private:
     static TProcessYqlPluginInternalConfigPtr BuildPluginConfigTemplate(
         TYqlPluginConfigPtr config,
         TSingletonsConfigPtr singletonsConfig,
-        TConnectionCompoundConfigPtr clusterConnectionConfig)
+        TConnectionCompoundConfigPtr clusterConnectionConfig,
+        bool useTokenResolver,
+        std::string tokenServiceSocketPath)
     {
         auto result = New<TProcessYqlPluginInternalConfig>();
 
@@ -665,6 +674,9 @@ private:
         result->ClusterConnection = clusterConnectionConfig;
 
         result->PluginConfig = config;
+
+        result->UseTokenResolver = useTokenResolver;
+        result->TokenServiceSocketPath = std::move(tokenServiceSocketPath);
         return result;
     }
 
@@ -675,7 +687,9 @@ private:
             DynamicConfig_,
             ConvertToYsonString(singletonsConfig),
             NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
-            true);
+            true,
+            ConfigTemplate_->UseTokenResolver,
+            ConfigTemplate_->TokenServiceSocketPath);
         DqControllerYqlPlugin_ = CreateYqlPlugin(std::move(options));
     }
 };
@@ -691,14 +705,18 @@ std::unique_ptr<IYqlPlugin> CreateProcessYqlPlugin(
     TSingletonsConfigPtr singletonsConfig,
     TYqlPluginDynamicConfigPtr pluginInitialDynamicConfig,
     TConnectionCompoundConfigPtr clusterConnectionConfig,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TProfiler& profiler,
+    bool useTokenResolver,
+    std::string tokenServiceSocketPath)
 {
     return std::make_unique<TProcessYqlPlugin>(
         std::move(pluginConfig),
         std::move(singletonsConfig),
         std::move(pluginInitialDynamicConfig),
         std::move(clusterConnectionConfig),
-        profiler);
+        profiler,
+        useTokenResolver,
+        std::move(tokenServiceSocketPath));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

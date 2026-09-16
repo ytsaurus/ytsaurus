@@ -28,6 +28,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTokenServiceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("unix_socket_path", &TThis::UnixSocketPath)
+        .NonEmpty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYqlAgentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("token_expiration_timeout", &TThis::TokenExpirationTimeout)
@@ -46,6 +54,10 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("insecure_secret_path_subjects", &TThis::InsecureSecretPathSubjects)
         .Default();
+    registrar.Parameter("use_token_resolver", &TThis::UseTokenResolver)
+        .Default(false);
+    registrar.Parameter("token_service", &TThis::TokenService)
+        .Default();
     registrar.Parameter("use_qtworker_yql_plugin", &TThis::UseQtWorkerYqlPlugin)
         .Default(false);
     registrar.Parameter("qtworker_inspector_port", &TThis::QtWorkerInspectorPort)
@@ -58,6 +70,10 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
+        if (config->UseTokenResolver && !config->TokenService) {
+            THROW_ERROR_EXCEPTION(
+                "\"token_service\" must be specified when \"use_token_resolver\" is true");
+        }
         if (config->UseQtWorkerYqlPlugin && !config->QtWorkerGatewaysConfigPath) {
             THROW_ERROR_EXCEPTION(
                 "\"qtworker_gateways_config_path\" must be specified when \"use_qtworker_yql_plugin\" is true");
