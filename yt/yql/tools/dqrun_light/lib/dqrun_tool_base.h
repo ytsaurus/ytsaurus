@@ -14,7 +14,9 @@
 
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io_factory.h>
+#include <contrib/ydb/library/yql/providers/dq/common/yql_dq_settings.h>
 #include <contrib/ydb/library/yql/providers/dq/interface/yql_dq_task_preprocessor.h>
+#include <contrib/ydb/library/yql/providers/dq/provider/yql_dq_gateway.h>
 
 #include <util/generic/hash.h>
 #include <util/generic/maybe.h>
@@ -52,6 +54,12 @@ protected:
     virtual void FillExtraCompNodeFactories(TVector<NKikimr::NMiniKQL::TComputationNodeFactory>& factories);
     virtual void FillExtraDqTaskTransformFactories(TVector<TTaskTransformFactory>& factories);
     virtual void RegisterExtraAsyncIoFactories(NYql::NDq::TDqAsyncIoFactory& factory);
+    virtual void ValidateExtraOptions();
+
+    // Called when --dq-port is set.
+    virtual TIntrusivePtr<IDqGateway> CreateRemoteDqGateway();
+    virtual TDqCliqueValidator GetDqCliqueValidator();
+    virtual void RunDqWarmup();
 
 protected:
     bool AnalyzeQuery_ = false;

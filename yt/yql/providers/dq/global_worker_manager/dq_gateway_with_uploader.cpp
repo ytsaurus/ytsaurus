@@ -149,16 +149,22 @@ public:
         bool discard,
         ui64 executionTimeout) override
     {
+        TResourceManagerOptions uploadOpts = UploadOptions_;
+        try {
+            if (ResolveUploadCluster_ && !ResolveUploadCluster_(&uploadOpts, settings)) {
+                return Underlying_->ExecutePlan(
+                    sessionId, std::move(plan), columns, secureParams, graphParams,
+                    settings, progressWriter, modulesMapping, discard, executionTimeout);
+            }
+        } catch (...) {
+            return NThreading::MakeErrorFuture<TResult>(std::current_exception());
+        }
+
         TCollectedFiles collected;
         try {
             collected = CollectFilesFromPlan(plan);
         } catch (...) {
             return NThreading::MakeErrorFuture<TResult>(std::current_exception());
-        }
-
-        TResourceManagerOptions uploadOpts = UploadOptions_;
-        if (ResolveUploadCluster_) {
-            ResolveUploadCluster_(&uploadOpts, settings);
         }
 
         TVector<NThreading::TFuture<void>> uploadFutures;

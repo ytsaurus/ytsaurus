@@ -30,7 +30,7 @@ void UploadWarmupArtifactsToYt(
     if (!vanillaJobLite.empty()) {
         TResourceFile exeFile(vanillaJobLite);
         exeFile.ObjectId = objectId;
-        exeFile.RemoteFileName = vanillaJobLite.substr(vanillaJobLite.rfind('/') + 1);
+        exeFile.RemoteFileName = "dq_vanilla_job.lite";
         exeFile.Attributes["file_name"] = exeFile.GetRemoteFileName();
         exeFiles.push_back(std::move(exeFile));
     }

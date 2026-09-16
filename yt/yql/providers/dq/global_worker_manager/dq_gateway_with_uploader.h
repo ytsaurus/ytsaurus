@@ -14,7 +14,8 @@
 
 namespace NYql {
 
-using TUploadClusterResolver = std::function<void(TResourceManagerOptions* opts, const TDqSettings::TPtr& settings)>;
+// Returns false when the current query does not require client-side upload.
+using TUploadClusterResolver = std::function<bool(TResourceManagerOptions* opts, const TDqSettings::TPtr& settings)>;
 
 // Creates an IDqGateway proxy that uploads all files referenced in task metas
 // to YT before forwarding ExecutePlan to the underlying gateway.
