@@ -12,8 +12,6 @@ public:
     void Init(TContext& prepareCtx)
     {
         RunOptions = prepareCtx.RunOptions;
-        YtTokenResolver = prepareCtx.YtTokenResolver;
-        Credentials = prepareCtx.Credentials;
     }
 
     TYtflowSettings::TConstPtr GetConfig() const
@@ -38,21 +36,8 @@ public:
         return GetConfig()->GetPipelinePath();
     }
 
-protected:
-    const IYtTokenResolver::TPtr& GetYtTokenResolver() const
-    {
-        return YtTokenResolver;
-    }
-
-    const TCredentials& GetCredentials() const
-    {
-        return *Credentials;
-    }
-
 private:
     IYtflowGateway::TRunOptions RunOptions;
-    IYtTokenResolver::TPtr YtTokenResolver;
-    TCredentials::TPtr Credentials;
 };
 
 using TSettingsVisitor = std::function<void (const ::google::protobuf::Any&)>;

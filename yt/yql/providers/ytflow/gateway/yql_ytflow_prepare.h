@@ -9,9 +9,6 @@
 #include <yql/essentials/ast/yql_expr.h>
 
 #include <yt/yql/providers/ytflow/provider/yql_ytflow_gateway.h>
-
-#include <yt/yql/providers/yt/lib/yt_token_resolver/yt_token_resolver.h>
-
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/invoker.h>
 
@@ -23,8 +20,6 @@ struct TContext
     TExprContext& ExprContext;
     const IYtflowGateway::TRunOptions& RunOptions;
     TConfigClusters::TPtr ConfigClusters;
-    IYtTokenResolver::TPtr YtTokenResolver;
-    TCredentials::TPtr Credentials;
 };
 
 DECLARE_REFCOUNTED_CLASS(IAction);

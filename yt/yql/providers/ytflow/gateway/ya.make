@@ -28,8 +28,6 @@ PEERDIR(
     yt/yql/providers/ytflow/lambda_builder
     yt/yql/providers/ytflow/provider
 
-    yt/yql/providers/yt/lib/yt_token_resolver
-
     yt/yt/client
     yt/yt/client/cache
     yt/yt/core

@@ -112,8 +112,4 @@ NKikimr::NMiniKQL::TRuntimeNode TEmptyYtflowIntegration::BuildLookupSourceArgs(
     AbortUnimplemented(__FUNCTION__);
 }
 
-IYtTokenResolver::TPtr TEmptyYtflowIntegration::GetYtTokenResolver() const {
-    AbortUnimplemented(__FUNCTION__);
-}
-
 } // namespace NYql

@@ -1,7 +1,5 @@
 #include "private.h"
 
-#include "chunk.h"
-
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
@@ -50,20 +48,6 @@ TStringBuf SerializeChunkFormatAsTableChunkFormat(EChunkFormat chunkFormat)
                 .With("ChunkFormat", chunkFormat);
             return TStringBuf("unexpected");
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool TChunkPartLossTimeComparer::operator()(const TChunk* lhs, const TChunk* rhs) const
-{
-    return lhs->GetPartLossTime() < rhs->GetPartLossTime();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-int TChunkToShardIndex::operator()(const TChunk* chunk) const
-{
-    return chunk->GetShardIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

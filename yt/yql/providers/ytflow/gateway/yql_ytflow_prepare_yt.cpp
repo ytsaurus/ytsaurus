@@ -88,16 +88,6 @@ public:
         return *value;
     }
 
-    TString GetAuth(const TString& cluster) const
-    {
-        return ::NYql::NYtflow::NPrivate::GetAuth(
-            cluster,
-            *GetConfig(),
-            *ConfigClusters,
-            GetYtTokenResolver(),
-            GetCredentials());
-    }
-
     NYT::TFuture<void> EnsureExpectedYtNode(
         TString path,
         NYT::NObjectClient::EObjectType type,
@@ -246,7 +236,7 @@ public:
 
         auto client = GetClient(
             ConfigClusters->GetRealName(cluster),
-            GetAuth(cluster));
+            ::NYql::NYtflow::NPrivate::GetAuth(cluster, config, *ConfigClusters));
 
         path = ::NYql::NYtflow::NPrivate::CanonizeYtPath(
             std::move(path), config);
@@ -479,7 +469,7 @@ private:
 
             auto client = GetClient(
                 ConfigClusters->GetRealName(settings.GetCluster()),
-                GetAuth(settings.GetCluster()));
+                ::NYql::NYtflow::NPrivate::GetAuth(settings.GetCluster(), *GetConfig(), *ConfigClusters));
 
             auto path = ::NYql::NYtflow::NPrivate::CanonizeYtPath(
                 settings.GetPath(), *GetConfig());
@@ -1199,7 +1189,7 @@ private:
 
         auto client = GetClient(
             clusterRealName,
-            GetAuth(cluster));
+            ::NYql::NYtflow::NPrivate::GetAuth(cluster, *GetConfig(), *ConfigClusters));
 
         NYT::NApi::TListQueueConsumerRegistrationsOptions listQueueConsumerRegistrationsOptions;
         listQueueConsumerRegistrationsOptions.Timeout = RpcTimeout;

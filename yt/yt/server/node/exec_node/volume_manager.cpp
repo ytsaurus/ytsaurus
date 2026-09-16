@@ -81,7 +81,6 @@ public:
     //! Prepare root overlayfs volume.
     TFuture<IVolumePtr> PrepareVolume(
         std::vector<TOverlayData>,
-        TBaseVolumeParamsPtr,
         const TVolumePreparationOptions&) override
     {
         YT_UNIMPLEMENTED("PrepareVolume is not implemented for SimpleVolumeManager");
@@ -257,10 +256,9 @@ private:
         }
         auto path = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, relativeMountPath.string()));
 
-        YT_VERIFY(volume->Size);
         auto config = New<TMountTmpfsConfig>();
         config->Path = path;
-        config->Size = *volume->Size;
+        config->Size = volume->Size;
         config->UserId = volume->UserId;
 
         YT_TLOG_DEBUG("Creating tmpfs volume")
@@ -542,7 +540,6 @@ public:
     //! Create overlayfs volume from pre-prepared overlay layer data.
     TFuture<IVolumePtr> PrepareVolume(
         std::vector<TOverlayData> overlayDataArray,
-        TBaseVolumeParamsPtr volumeParams,
         const TVolumePreparationOptions& options) override
     {
         auto tag = TGuid::Create();
@@ -564,20 +561,20 @@ public:
         }
 
         auto jobId = options.JobId;
-        if (volumeParams->VolumeType == EVolumeType::Nbd) {
-            auto nbdVolumeParams = StaticPointerCast<TNbdDiskVolumeParams>(std::move(volumeParams));
-            const auto& sandboxNbdRootVolumeSpec = nbdVolumeParams->SandboxNbdRootVolumeSpec;
+        const auto& sandboxNbdRootVolumeSpec = options.SandboxNbdRootVolumeSpec;
+
+        if (sandboxNbdRootVolumeSpec) {
             // Create NBD root volume separately and use it as the upper layer,
             // the same way tmpfs/disk upper layers are handled in PrepareNonRootVolumes().
             return CreateRWNbdVolume(
                 tag,
                 TPrepareRWNbdVolumeOptions{
                     .JobId = jobId,
-                    .DeviceId = sandboxNbdRootVolumeSpec.DeviceId,
-                    .DeviceSize = sandboxNbdRootVolumeSpec.DeviceSize,
-                    .FilesystemType = sandboxNbdRootVolumeSpec.FilesystemType,
+                    .DeviceId = sandboxNbdRootVolumeSpec->DeviceId,
+                    .DeviceSize = sandboxNbdRootVolumeSpec->DeviceSize,
+                    .FilesystemType = sandboxNbdRootVolumeSpec->FilesystemType,
                     .BackendOptions = TChunkNbdVolumeOptions{
-                        .Spec = GetOrCrash<TChunkNbdVolumeSpec>(sandboxNbdRootVolumeSpec.BackendSpec),
+                        .Spec = GetOrCrash<TChunkNbdVolumeSpec>(sandboxNbdRootVolumeSpec->BackendSpec),
                     },
                 })
                 .AsUnique()
@@ -611,11 +608,10 @@ public:
             // operation so we are allowed to make it uncancelable.
             return CreateRootOverlayVolume(
                 tag,
-                TPrepareRootOverlayVolumeOptions{
+                TPrepareOverlayVolumeOptions{
                     .JobId = jobId,
                     .UserSandboxOptions = std::move(userSandboxOptions),
-                    .OverlayDataArray = std::move(overlayDataArray),
-                    .RootVolumeParams = volumeParams
+                    .OverlayDataArray = std::move(overlayDataArray)
                 })
                 .ToUncancelable()
                 .As<IVolumePtr>();
@@ -1004,7 +1000,7 @@ private:
     //! Create rootfs overlay volume.
     TFuture<TOverlayVolumePtr> CreateRootOverlayVolume(
         TGuid tag,
-        TPrepareRootOverlayVolumeOptions options)
+        TPrepareOverlayVolumeOptions options)
     {
         bool placeInUserSlot = false;
 
@@ -1023,14 +1019,17 @@ private:
             placeInUserSlot = true;
         }
 
-        YT_VERIFY(options.RootVolumeParams->VolumeType == EVolumeType::LocalDisk);
-        auto rootLocalVolumeParams = StaticPointerCast<TLocalDiskVolumeParams>(options.RootVolumeParams);
         std::optional<i64> diskSpaceLimit;
         std::optional<i64> inodeLimit;
 
         if (userSandboxOptions.EnableDiskQuota) {
-            diskSpaceLimit = rootLocalVolumeParams->Size;
-            inodeLimit = rootLocalVolumeParams->InodeLimit;
+            if (userSandboxOptions.DiskSpaceLimit) {
+                diskSpaceLimit = *userSandboxOptions.DiskSpaceLimit;
+            }
+
+            if (userSandboxOptions.InodeLimit) {
+                inodeLimit = *userSandboxOptions.InodeLimit;
+            }
         }
 
         return DoCreateOverlayVolume(

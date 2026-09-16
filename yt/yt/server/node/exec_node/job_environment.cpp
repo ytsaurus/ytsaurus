@@ -1199,7 +1199,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // Inject default docker image for job workspace.
-        if (!context.FSSecretary->GetDockerImage() && !context.FSSecretary->GetRootVolumeParams()) {
+        if (!context.FSSecretary->GetDockerImage() && context.FSSecretary->GetRootVolumeLayerArtifactKeys().empty()) {
             context.FSSecretary->SetDockerImage(ConcreteConfig_->JobProxyImage);
         }
 
