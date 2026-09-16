@@ -14,14 +14,14 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(yt-flow-library-cpp-multiplexer-tests-pipeline)
+add_executable(yt-flow-library-cpp-multiplexer-unittests)
 
 
-set_property(TARGET yt-flow-library-cpp-multiplexer-tests-pipeline PROPERTY OUTPUT_NAME
-  pipeline
+set_property(TARGET yt-flow-library-cpp-multiplexer-unittests PROPERTY OUTPUT_NAME
+  yt-yt-flow-library-cpp-multiplexer-unittests
 )
 
-target_compile_options(yt-flow-library-cpp-multiplexer-tests-pipeline PRIVATE
+target_compile_options(yt-flow-library-cpp-multiplexer-unittests PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -31,25 +31,25 @@ target_compile_options(yt-flow-library-cpp-multiplexer-tests-pipeline PRIVATE
   -Wreturn-type
 )
 
-target_link_libraries(yt-flow-library-cpp-multiplexer-tests-pipeline PUBLIC
+target_link_libraries(yt-flow-library-cpp-multiplexer-unittests PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   build-cow-on
   library-cpp-cpuid_check
-  cpp-connectors-queue
+  cpp-testing-gtest
+  cpp-testing-gtest_main
   library-cpp-multiplexer
-  cpp-process_function-host
-  library-cpp-runner
-  library-cpp-resources
+  cpp-process_function-testing
+  client-unittests-mock
 )
 
-target_allocator(yt-flow-library-cpp-multiplexer-tests-pipeline
+target_allocator(yt-flow-library-cpp-multiplexer-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-target_link_options(yt-flow-library-cpp-multiplexer-tests-pipeline PRIVATE
+target_link_options(yt-flow-library-cpp-multiplexer-unittests PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -60,9 +60,39 @@ target_link_options(yt-flow-library-cpp-multiplexer-tests-pipeline PRIVATE
   -lutil
 )
 
-target_sources(yt-flow-library-cpp-multiplexer-tests-pipeline PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/multiplexer/tests/pipeline/main.cpp
+target_sources(yt-flow-library-cpp-multiplexer-unittests PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/multiplexer/unittests/multiplexer_process_function_ut.cpp
 )
 
 
-vcs_info(yt-flow-library-cpp-multiplexer-tests-pipeline)
+add_test(
+  NAME
+  yt-yt-flow-library-cpp-multiplexer-unittests
+  COMMAND
+  yt-yt-flow-library-cpp-multiplexer-unittests
+)
+
+set_property(
+  TEST
+  yt-yt-flow-library-cpp-multiplexer-unittests
+  PROPERTY
+  LABELS
+  SMALL
+)
+
+set_property(
+  TEST
+  yt-yt-flow-library-cpp-multiplexer-unittests
+  PROPERTY
+  ENVIRONMENT
+)
+
+vcs_info(yt-flow-library-cpp-multiplexer-unittests)
+
+set_property(
+  TEST
+  yt-yt-flow-library-cpp-multiplexer-unittests
+  PROPERTY
+  PROCESSORS
+  1
+)

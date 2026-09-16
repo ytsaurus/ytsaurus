@@ -12,36 +12,13 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(unittests)
-add_subdirectory(benchmarks)
-add_subdirectory(tests)
-
-add_library(library-cpp-multiplexer)
-
-
-target_compile_options(library-cpp-multiplexer PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-  -Wparentheses
-  -Wno-logical-op-parentheses
-  -Wno-bitwise-op-parentheses
-  -Wswitch
-  -Wreturn-type
-)
-
-target_link_libraries(library-cpp-multiplexer PUBLIC
-  contrib-libs-cxxsupp
-  yutil
-  library-cpp-common
-  library-cpp-misc
-  library-cpp-process_function
-  yt-yt-client
-  yt-client-cache
-  yt-yt-core
-)
-
-target_sources(library-cpp-multiplexer PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/multiplexer/dynamic_table_multiplexer_process_function.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/flow/library/cpp/multiplexer/multiplexer_process_function.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-aarch64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 
