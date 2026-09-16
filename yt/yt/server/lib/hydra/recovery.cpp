@@ -310,7 +310,7 @@ void TRecovery::FinishRecovery()
         for (int changelogIdToTruncate = latestChangelogId; changelogIdToTruncate > TargetState_.SegmentId; --changelogIdToTruncate) {
             auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogIdToTruncate));
             if (!errorOrChangelogToTruncate.IsOK()) {
-                YT_TLOG_INFO("Error openning changelog")
+                YT_TLOG_INFO("Error opening changelog")
                     .With("ChangelogId", changelogIdToTruncate);
                 continue;
             }
