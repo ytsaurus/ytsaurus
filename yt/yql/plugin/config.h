@@ -40,6 +40,7 @@ struct TDQYTBackend
     std::vector<TVanillaJobFilePtr> VanillaJobFiles;
     TString Prefix;
     ui32 UploadReplicationFactor;
+    TString Token;
     TString TokenFile;
     TString User;
     TString Pool;
@@ -50,6 +51,8 @@ struct TDQYTBackend
     i64 MemoryLimit;
     i64 CacheSize;
     bool UseTmpFs;
+    std::optional<ui32> MinNodeId;
+    std::optional<ui32> MaxNodeId;
     TString NetworkProject;
     bool CanUseComputeActor;
     bool EnforceJobUtc;
@@ -71,6 +74,7 @@ struct TDQYTCoordinator
     TString ClusterName;
     TString ProxyAddress;
     TString Prefix;
+    TString Token;
     TString TokenFile;
     TString User;
     TString DebugLogFile;

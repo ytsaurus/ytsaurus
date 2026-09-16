@@ -3,6 +3,7 @@
 #include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -18,6 +19,8 @@ using NSecurityClient::YqlAgentUserName;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+static const NLogging::TLogger Logger("YqlPlugin");
 
 constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
     {"DefaultCalcMemoryLimit", "1G"},
@@ -212,8 +215,10 @@ void TDQYTBackend::Register(TRegistrar registrar)
         .Default("//sys/yql_agent/dq/data");
     registrar.Parameter("upload_replication_factor", &TThis::UploadReplicationFactor)
         .Default(7);
+    registrar.Parameter("token", &TThis::Token)
+        .Default().DontSerializeDefault();
     registrar.Parameter("token_file", &TThis::TokenFile)
-        .Default();
+        .Default().DontSerializeDefault();
     registrar.Parameter("user", &TThis::User)
         .Default();
     registrar.Parameter("pool", &TThis::Pool)
@@ -233,6 +238,10 @@ void TDQYTBackend::Register(TRegistrar registrar)
         .Default(6000000000);
     registrar.Parameter("use_tmp_fs", &TThis::UseTmpFs)
         .Default(true);
+    registrar.Parameter("min_node_id", &TThis::MinNodeId)
+        .Default().DontSerializeDefault();
+    registrar.Parameter("max_node_id", &TThis::MaxNodeId)
+        .Default().DontSerializeDefault();
     registrar.Parameter("network_project", &TThis::NetworkProject)
         .Default("");
     registrar.Parameter("can_use_compute_actor", &TThis::CanUseComputeActor)
@@ -277,14 +286,14 @@ void TDQYTBackend::Register(TRegistrar registrar)
         if (config->Prefix.empty()) {
             THROW_ERROR_EXCEPTION("DQ backend %Qv: prefix must not be empty", config->ClusterName);
         }
-        if (config->TokenFile.empty()) {
-            THROW_ERROR_EXCEPTION("DQ backend %Qv: token_file must not be empty", config->ClusterName);
+        if (config->Token.empty() && config->TokenFile.empty()) {
+            THROW_ERROR_EXCEPTION("DQ backend %Qv: either token or token_file must be specified", config->ClusterName);
         }
         if (config->UploadReplicationFactor == 0) {
             THROW_ERROR_EXCEPTION("DQ backend %Qv: upload_replication_factor must be positive", config->ClusterName);
         }
-        if (config->CpuLimit <= 0) {
-            THROW_ERROR_EXCEPTION("DQ backend %Qv: cpu_limit must be positive", config->ClusterName);
+        if (config->CpuLimit < 0) {
+            THROW_ERROR_EXCEPTION("DQ backend %Qv: cpu_limit must not be negative", config->ClusterName);
         }
         if (config->MemoryLimit <= 0) {
             THROW_ERROR_EXCEPTION("DQ backend %Qv: memory_limit must be positive", config->ClusterName);
@@ -293,24 +302,15 @@ void TDQYTBackend::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("DQ backend %Qv: cache_size must not be negative", config->ClusterName);
         }
         if (config->UseTmpFs && config->CacheSize > config->MemoryLimit) {
-            THROW_ERROR_EXCEPTION(
-                "DQ backend %Qv: cache_size (%v) must not exceed memory_limit (%v) when use_tmp_fs is enabled",
+            YT_LOG_WARNING(
+                "DQ backend file cache may not fit into tmpfs because cache_size exceeds memory_limit "
+                "(ClusterName: %v, CacheSize: %v, MemoryLimit: %v)",
                 config->ClusterName,
                 config->CacheSize,
                 config->MemoryLimit);
         }
         if (config->WorkerCapacity <= 0) {
             THROW_ERROR_EXCEPTION("DQ backend %Qv: worker_capacity must be positive", config->ClusterName);
-        }
-
-        THashSet<TString> fileNames;
-        for (const auto& file : config->VanillaJobFiles) {
-            if (!fileNames.insert(file->Name).second) {
-                THROW_ERROR_EXCEPTION(
-                    "DQ backend %Qv: duplicate vanilla_job_file name %Qv",
-                    config->ClusterName,
-                    file->Name);
-            }
         }
     });
 }
@@ -325,6 +325,8 @@ void TDQYTCoordinator::Register(TRegistrar registrar)
         .Default().DontSerializeDefault();
     registrar.Parameter("prefix", &TThis::Prefix)
         .Default("//sys/yql_agent/dq_coord");
+    registrar.Parameter("token", &TThis::Token)
+        .Default().DontSerializeDefault();
     registrar.Parameter("token_file", &TThis::TokenFile)
         .Default();
     registrar.Parameter("user", &TThis::User)
@@ -384,8 +386,8 @@ void TDQManagerConfig::Register(TRegistrar registrar)
         if (config->YTCoordinator->Prefix.empty()) {
             THROW_ERROR_EXCEPTION("DQ coordinator prefix must not be empty");
         }
-        if (config->YTCoordinator->TokenFile.empty()) {
-            THROW_ERROR_EXCEPTION("DQ coordinator token_file must not be empty");
+        if (config->YTCoordinator->Token.empty() && config->YTCoordinator->TokenFile.empty()) {
+            THROW_ERROR_EXCEPTION("DQ coordinator requires either token or token_file");
         }
 
         THashSet<TString> clusterNames;
@@ -404,12 +406,23 @@ void TDQManagerConfig::Register(TRegistrar registrar)
             if (!clusterNames.insert(backend->ClusterName).second) {
                 THROW_ERROR_EXCEPTION("Duplicate DQ backend cluster_name %Qv", backend->ClusterName);
             }
-            if (backend->MaxJobs > nodesPerBackend) {
+            ui32 nodeIdCount = nodesPerBackend;
+            if (backend->MinNodeId && backend->MaxNodeId) {
+                if (*backend->MinNodeId >= *backend->MaxNodeId) {
+                    THROW_ERROR_EXCEPTION(
+                        "DQ backend %Qv: min_node_id (%v) must be less than max_node_id (%v)",
+                        backend->ClusterName,
+                        *backend->MinNodeId,
+                        *backend->MaxNodeId);
+                }
+                nodeIdCount = *backend->MaxNodeId - *backend->MinNodeId;
+            }
+            if (backend->MaxJobs > nodeIdCount) {
                 THROW_ERROR_EXCEPTION(
                     "DQ backend %Qv: max_jobs (%v) exceeds its worker node ID range (%v)",
                     backend->ClusterName,
                     backend->MaxJobs,
-                    nodesPerBackend);
+                    nodeIdCount);
             }
             if (vanillaJobLite.empty()) {
                 vanillaJobLite = backend->VanillaJobLite;
@@ -525,10 +538,6 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([=] (TThis* config) {
-        if (config->EnableDQ && config->DQManagerConfig->YTBackends.empty()) {
-            THROW_ERROR_EXCEPTION("DQ is enabled but no YT backends are configured");
-        }
-
         auto gatewayConfig = config->GatewayConfig->AsMap();
         gatewayConfig->AddChild("remote_file_patterns", defaultRemoteFilePatterns);
         gatewayConfig->AddChild("mr_job_bin", BuildYsonNodeFluently().Value("./mrjob"));
