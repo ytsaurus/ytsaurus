@@ -3306,7 +3306,14 @@ class TestJobSizeAdjuster(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"map_operation_options": {"data_size_per_job": 1}}}
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_operation_options": {
+                "data_size_per_job": 1,
+                "enable_ordered_map_job_size_adjustment": True,
+            },
+        },
+    }
 
     @authors("max42")
     def test_map_job_size_adjuster_boost(self):
