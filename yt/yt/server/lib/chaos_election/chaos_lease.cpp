@@ -109,7 +109,8 @@ TFuture<std::vector<TCellId>> TChaosLeaseFactory::GetCellIds(bool forceRefresh)
                 } else if (!CellIds_.empty()) {
                     // The cached list is stale, not wrong, and creation validates every cell it
                     // walks anyway.
-                    YT_LOG_DEBUG(cellIdsOrError, "Failed to refresh chaos cell IDs, using the cached ones");
+                    YT_TLOG_DEBUG("Failed to refresh chaos cell IDs, using the cached ones")
+                        .With(cellIdsOrError);
                     cellIdsOrError = CellIds_;
                 }
             }
@@ -166,8 +167,8 @@ TFuture<TChaosLeaseId> TChaosLeaseFactory::CreateLeaseOnCells(
                 auto guard = Guard(CellIdsLock_);
                 NotEnabledCellIds_.insert(cellId);
             }
-            YT_LOG_DEBUG("Chaos cell is not enabled, trying next (CellId: %v)",
-                cellId);
+            YT_TLOG_DEBUG("Chaos cell is not enabled, trying next")
+                .With("CellId", cellId);
             return CreateLeaseOnCells(cellIds, index + 1, timeout, attributes, refreshed);
         }));
 }
