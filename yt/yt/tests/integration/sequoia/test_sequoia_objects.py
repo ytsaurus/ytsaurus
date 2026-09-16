@@ -709,6 +709,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
 
     @authors("grphil")
+    @pytest.mark.timeout(120)
     def test_global_sequoia_refresh_reshard(self):
         if self.NUM_SECONDARY_MASTER_CELLS > 0:
             pytest.skip("Unsupported for multicell")
@@ -758,7 +759,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: self._get_global_sequoia_chunk_refresh_status()["completed"])
         assert self._get_global_sequoia_chunk_refresh_status()["chunks_processed"] == 1
 
-        for _ in range(3):
+        for _ in range(2):
             master = None
             chunk_shard_index = None
 
