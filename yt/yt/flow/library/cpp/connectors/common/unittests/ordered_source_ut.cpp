@@ -545,6 +545,50 @@ TEST_F(TOrderedSourceTest, PayloadRecordsWithProgressTailAdvanceToContinuation)
     EXPECT_EQ(state->LastPersistedWriteTimestamp, TSystemTimestamp(5));
 }
 
+TEST_F(TOrderedSourceTest, ReplayAfterCheckpointPreservesMessageId)
+{
+    TMessageId originalMessageId;
+    {
+        const auto data = RunInInvoker([&] {
+            Source->SetMaxOffset(1);
+            return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+        });
+        ASSERT_EQ(data.size(), 1u);
+        originalMessageId = data[0].Message->MessageId;
+
+        RunInInvoker([&] {
+            Source->MarkPublished(data[0].Cookie);
+            Source->Sync();
+            StateManager->Sync();
+        });
+    }
+
+    RunInInvoker([&] {
+        Source->Terminate();
+    });
+    Source.Reset();
+
+    Source = MakeTestSource(SourceSpec);
+    {
+        const auto replayedData = RunInInvoker([&] {
+            Source->Init(StateManager->CreateContext()->WithPrefix("source"));
+            Source->SetMaxOffset(1);
+            return UnpackBatches(WaitFor(Source->GetNextBatch(DefaultBatcherSettings)).ValueOrThrow());
+        });
+        ASSERT_EQ(replayedData.size(), 1u);
+        EXPECT_EQ(replayedData[0].Message->MessageId, originalMessageId);
+
+        RunInInvoker([&] {
+            Source->MarkPublished(replayedData[0].Cookie);
+            Source->MarkPersisted(replayedData[0].Cookie);
+            Source->Sync();
+            StateManager->Sync();
+        });
+    }
+
+    Reset();
+}
+
 TEST_F(TOrderedSourceTest, SourceTotalCounters)
 {
     const auto advanceMaxOffset = [&] (i64 maxOffset) {
