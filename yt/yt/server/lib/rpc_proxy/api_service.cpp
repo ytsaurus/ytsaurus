@@ -7947,8 +7947,8 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
             if (request->has_schema()) {
                 FromProto(&options.Schema, request->schema());
             }
-            if (request->has_push_config()) {
-                options.PushConfig = TYsonString(request->push_config());
+            if (request->has_config()) {
+                options.Config = TYsonString(request->config());
             }
             return client->StartShuffle(
                 request->account(),
@@ -8016,16 +8016,11 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, ReadShuffleData)
         request->partition_index(),
         writerIndexRange);
 
-    TShuffleReaderOptions options;
-    options.Config = request->has_reader_config()
-        ? ConvertTo<TTableReaderConfigPtr>(TYsonString(request->reader_config()))
-        : New<TTableReaderConfig>();
-
     auto reader = WaitFor(client->CreateShuffleReader(
         std::move(signedShuffleHandle),
         request->partition_index(),
         writerIndexRange,
-        options))
+        /*options*/ {}))
         .ValueOrThrow();
 
     auto encoder = CreateWireRowStreamEncoder(reader->GetNameTable());
@@ -8089,10 +8084,6 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, WriteShuffleData)
     }
 
     TShuffleWriterOptions options;
-    options.Config = request->has_writer_config()
-        ? ConvertTo<TTableWriterConfigPtr>(TYsonString(request->writer_config()))
-        : New<TTableWriterConfig>();
-
     options.OverwriteExistingWriterData = request->overwrite_existing_writer_data();
     if (options.OverwriteExistingWriterData && !writerIndex.has_value()) {
         THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");

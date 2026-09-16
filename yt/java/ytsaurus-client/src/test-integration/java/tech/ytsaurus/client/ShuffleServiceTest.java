@@ -143,13 +143,15 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
         try (var transaction = ytClient.startTransaction(StartTransaction.master()).join()) {
             var txId = transaction.getId();
 
-            // fake push config just for serialization check
             YTreeMapNode pushConfig = YTree.mapBuilder()
-                    .key("max_partition_buffer_size").value(8L * 1024 * 1024)
-                    .key("enable_data_compression").value(true)
+                    .key("writer").value(YTree.mapBuilder()
+                            .key("codec").value("lz4")
+                            .key("memory_budget").value(8L * 1024 * 1024)
+                            .buildMap())
                     .buildMap();
 
-            ShuffleHandle shuffleHandle = startShuffle(txId, SHUFFLE_SCHEMA, true, pushConfig);
+            ShuffleHandle shuffleHandle = startShuffle(txId, SHUFFLE_SCHEMA, true,
+                    YTree.mapBuilder().key("push").value(pushConfig).buildMap());
 
             writeAllMappers(shuffleHandle);
 
@@ -185,7 +187,7 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
             GUID txId,
             TableSchema schema,
             boolean usePushBasedShuffle,
-            YTreeMapNode pushConfig
+            YTreeMapNode config
     ) {
         StartShuffle startShuffleReq = StartShuffle.builder()
                 .setAccount("intermediate")
@@ -194,7 +196,7 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
                 .setReplicationFactor(1)
                 .setSchema(schema)
                 .setUsePushBasedShuffle(usePushBasedShuffle)
-                .setPushConfig(pushConfig)
+                .setConfig(config)
                 .build();
         return ytClient.startShuffle(startShuffleReq).join();
     }

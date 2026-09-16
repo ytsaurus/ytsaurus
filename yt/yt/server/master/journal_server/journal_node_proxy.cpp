@@ -187,7 +187,8 @@ private:
             chunkDescriptor.ReplicaLagLimit,
             chunkDescriptor.ReplicaDescriptors,
             JournalRpcTimeout_,
-            Bootstrap_->GetNodeChannelFactory()))
+            Bootstrap_->GetNodeChannelFactory(),
+            TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery)))
                 .ValueOrThrow();
         if (info.FirstOverlayedRowIndex) {
             return std::make_optional(*info.FirstOverlayedRowIndex + info.RowCount);

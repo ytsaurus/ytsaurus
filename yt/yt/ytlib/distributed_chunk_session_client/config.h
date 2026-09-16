@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <yt/yt/client/misc/config.h>
+
 #include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -86,7 +88,7 @@ DEFINE_REFCOUNTED_TYPE(TDistributedChunkWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDistributedChunkSessionReaderConfig
-    : public NYTree::TYsonStruct
+    : public virtual TWorkloadConfig
 {
     NChunkClient::TReplicationReaderConfigPtr UnderlyingReaderConfig;
 

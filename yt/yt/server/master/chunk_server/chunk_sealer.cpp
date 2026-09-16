@@ -714,7 +714,8 @@ private:
                 replicaLagLimit,
                 abortedReplicas,
                 dynamicConfig->JournalRpcTimeout,
-                Bootstrap_->GetNodeChannelFactory());
+                Bootstrap_->GetNodeChannelFactory(),
+                TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
             quorumInfo = WaitFor(future)
                 .ValueOrThrow();
         }

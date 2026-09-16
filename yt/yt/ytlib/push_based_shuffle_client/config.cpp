@@ -2,8 +2,6 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/config.h>
 
-#include <yt/yt/client/api/config.h>
-
 namespace NYT::NPushBasedShuffleClient {
 
 using namespace NCompression;
@@ -61,20 +59,6 @@ void TSortReaderConfig::Register(TRegistrar registrar)
     registrar.Parameter("merge_yield_period", &TThis::MergeYieldPeriod)
         .Default(TDuration::MilliSeconds(10))
         .GreaterThan(TDuration::Zero());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TPushShuffleConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("writer_config", &TThis::WriterConfig)
-        .DefaultNew();
-    registrar.Parameter("reader_config", &TThis::ReaderConfig)
-        .DefaultNew();
-    registrar.Parameter("journal_writer_config", &TThis::JournalWriterConfig)
-        .DefaultNew();
-    registrar.Parameter("session_pool_config", &TThis::SessionPoolConfig)
-        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
