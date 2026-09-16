@@ -91,7 +91,7 @@ void TCompositeAutomaton::RegisterMethod(
     auto mutationTypeName = TRequest::default_instance().GetTypeName();
 
     auto mutationHandler = BIND_NO_PROPAGATE([=, this] (TMutationContext* context) {
-        auto request = ObjectPool<TRequest>().Allocate();
+        auto request = ObjectPool<TRequest>().AllocateUnique();
         auto* descriptor = GetMethodDescriptor(mutationTypeName);
         DeserializeRequestAndProfile(
             request.get(),
@@ -128,8 +128,8 @@ void TCompositeAutomaton::RegisterMethod(
     auto mutationTypeName = THandlerRequest::default_instance().GetTypeName();
 
     auto mutationHandler = BIND_NO_PROPAGATE([=, this] (TMutationContext* context) {
-        auto request = ObjectPool<THandlerRequest>().Allocate();
-        auto response = ObjectPool<THandlerResponse>().Allocate();
+        auto request = ObjectPool<THandlerRequest>().AllocateUnique();
+        auto response = ObjectPool<THandlerResponse>().AllocateUnique();
 
         auto* descriptor = GetMethodDescriptor(mutationTypeName);
         DeserializeRequestAndProfile(
