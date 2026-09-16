@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Set
 
 from ..computation import Computation, SourceComputation, _classify_callable
 from ..context import RequestContext
+from ..http_client import get_http_clients
 from ..job import Job
 from ..row import (
     ExtendedMessage,
@@ -262,6 +263,10 @@ class ComputationHarness:
         # Compute min watermark.
         min_wm = min(watermarks.values()) if watermarks else 0
 
+        # The companion hands its clients to every batch; the harness serves
+        # the process-wide defaults so computations using ctx.http_client and
+        # ctx.https_client run here the same way they run in the companion.
+        clients = get_http_clients()
         request_ctx = RequestContext(
             job_id="test-job",
             request_id="test-request",
@@ -277,6 +282,8 @@ class ComputationHarness:
             min_watermark=min_wm,
             job=job,
             resources=dict(self._resources),
+            http_client=clients.http,
+            https_client=clients.https,
         )
 
         response_ctx = self._computation.do_process(request_ctx)

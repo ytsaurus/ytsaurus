@@ -7,6 +7,7 @@ TEST_SRCS(
     test_wire_protocol.py
     test_computation.py
     test_context.py
+    test_http_client.py
     test_state.py
     test_internal_state_tracking.py
     test_request_processor.py
