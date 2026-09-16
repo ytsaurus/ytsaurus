@@ -1372,9 +1372,18 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         SequoiaSession_->FetchInheritableAttributes(
             nodeAncestry,
             /*duringCopy*/ false));
+    // Master routes an explicit account through the node factory: intermediates get it
+    // too. The target node gets it from the explicit attributes.
+    auto chainInheritedAttributes = inheritedAttributes;
+    if (auto account = explicitAttributes->Find<std::string>(EInternedAttributeKey::Account.Unintern())) {
+        auto attributes = inheritedAttributes->Clone();
+        attributes->Set(EInternedAttributeKey::Account.Unintern(), *account);
+        chainInheritedAttributes = std::move(attributes);
+    }
+
     auto [targetParentNodeId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         unresolvedSuffixTokens,
-        inheritedAttributes.Get(),
+        chainInheritedAttributes.Get(),
         force);
     auto targetNodePath = JoinNestedNodesToPath(Path_, unresolvedSuffixTokens);
 
