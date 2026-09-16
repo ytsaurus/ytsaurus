@@ -13,6 +13,7 @@
 
 #include <Columns/ColumnsNumber.h>
 #include <Columns/IColumn.h>
+
 #include <Core/Field.h>
 #include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
@@ -20,6 +21,7 @@
 #include <DataTypes/DataTypeDate32.h>
 #include <DataTypes/DataTypeDateTime.h>
 #include <DataTypes/DataTypeDateTime64.h>
+#include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeInterval.h>
 #include <DataTypes/DataTypeLowCardinality.h>
 #include <DataTypes/DataTypeMap.h>
@@ -135,6 +137,91 @@ private:
         return TryDecodeUnversionedAnyValue(MakeUnversionedAnyValue(yson), RowBuffer_);
     }
 };
+
+TEST_F(TCHToYTConversionTest, TaggedLogicalTypesForSupportedNativeTypes)
+{
+    Settings_->Composite->AnnotateResultSchemaWithNativeTypes = true;
+
+    auto tagged = [] (std::string tag, TLogicalTypePtr element) {
+        return TaggedLogicalType(std::move(tag), std::move(element));
+    };
+    auto simple = [&] (std::string tag, ESimpleLogicalValueType element) {
+        return tagged(std::move(tag), SimpleLogicalType(element));
+    };
+
+    const std::vector<std::pair<std::string, TLogicalTypePtr>> expectedTypes{
+        {"Int8", simple("Int8", ESimpleLogicalValueType::Int8)},
+        {"Int16", simple("Int16", ESimpleLogicalValueType::Int16)},
+        {"Int32", simple("Int32", ESimpleLogicalValueType::Int32)},
+        {"Int64", simple("Int64", ESimpleLogicalValueType::Int64)},
+        {"UInt8", simple("UInt8", ESimpleLogicalValueType::Uint8)},
+        {"UInt16", simple("UInt16", ESimpleLogicalValueType::Uint16)},
+        {"UInt32", simple("UInt32", ESimpleLogicalValueType::Uint32)},
+        {"UInt64", simple("UInt64", ESimpleLogicalValueType::Uint64)},
+        {"Float32", simple("Float32", ESimpleLogicalValueType::Float)},
+        {"Float64", simple("Float64", ESimpleLogicalValueType::Double)},
+        {"Bool", simple("Bool", ESimpleLogicalValueType::Boolean)},
+        {"String", simple("String", ESimpleLogicalValueType::String)},
+        {"Date", simple("Date", ESimpleLogicalValueType::Date)},
+        {"Date32", simple("Date32", ESimpleLogicalValueType::Date32)},
+        {"DateTime", simple("DateTime", ESimpleLogicalValueType::Datetime)},
+        {"DateTime64(0)", simple("DateTime64(0)", ESimpleLogicalValueType::Datetime64)},
+        {"DateTime64(6)", simple("DateTime64(6)", ESimpleLogicalValueType::Timestamp64)},
+        {"IntervalMicrosecond", simple("IntervalMicrosecond", ESimpleLogicalValueType::Interval64)},
+        {"Decimal(9, 2)", tagged("Decimal(9, 2)", DecimalLogicalType(9, 2))},
+        {"Decimal(18, 2)", tagged("Decimal(18, 2)", DecimalLogicalType(18, 2))},
+        {"Decimal(35, 2)", tagged("Decimal(35, 2)", DecimalLogicalType(35, 2))},
+        {"Enum8('value' = 1)", simple("Enum8('value' = 1)", ESimpleLogicalValueType::String)},
+        {"Enum16('value' = 1)", simple("Enum16('value' = 1)", ESimpleLogicalValueType::String)},
+        {"IPv4", simple("IPv4", ESimpleLogicalValueType::String)},
+        {"IPv6", simple("IPv6", ESimpleLogicalValueType::String)},
+        {"Nullable(Int8)", tagged("Nullable", OptionalLogicalType(simple("Int8", ESimpleLogicalValueType::Int8)))},
+        {"Array(UInt8)", tagged("Array", ListLogicalType(simple("UInt8", ESimpleLogicalValueType::Uint8)))},
+        {"Tuple(UInt8, String)", tagged("Tuple", TupleLogicalType({
+            simple("UInt8", ESimpleLogicalValueType::Uint8),
+            simple("String", ESimpleLogicalValueType::String),
+        }))},
+        {"LowCardinality(String)", tagged("LowCardinality", simple("String", ESimpleLogicalValueType::String))},
+        {"Map(Int32, String)", tagged("Map", DictLogicalType(
+            simple("Int32", ESimpleLogicalValueType::Int32),
+            simple("String", ESimpleLogicalValueType::String)))},
+        {"YtTimestamp", simple("YtTimestamp", ESimpleLogicalValueType::Timestamp)},
+        {"TzDate", simple("TzDate", ESimpleLogicalValueType::TzDate)},
+        {"TzDate32", simple("TzDate32", ESimpleLogicalValueType::TzDate32)},
+        {"TzDatetime", simple("TzDatetime", ESimpleLogicalValueType::TzDatetime)},
+        {"TzDateTime64", simple("TzDateTime64", ESimpleLogicalValueType::TzDatetime64)},
+        {"TzTimestamp", simple("TzTimestamp", ESimpleLogicalValueType::TzTimestamp)},
+        {"TzTimestamp64", simple("TzTimestamp64", ESimpleLogicalValueType::TzTimestamp64)},
+    };
+
+    for (const auto& [nativeType, expectedType] : expectedTypes) {
+        auto dataType = DB::DataTypeFactory::instance().get(nativeType);
+        TCHToYTConverter converter(dataType, Settings_);
+        EXPECT_EQ(*expectedType, *converter.GetLogicalType())
+            << "ClickHouse type: " << nativeType;
+    }
+}
+
+TEST_F(TCHToYTConversionTest, TaggedLogicalTypesForParameterizedUnsupportedNativeTypes)
+{
+    Settings_->Composite->AnnotateResultSchemaWithNativeTypes = true;
+    Settings_->Composite->ConvertUnsupportedTypesToString = true;
+
+    const std::vector<std::pair<std::string, TString>> nativeTypes{
+        {"DateTime64(3, 'Asia/Istanbul')", "DateTime64(3, 'Asia/Istanbul')"},
+        {"Variant(UInt64, String, Array(UInt64))", "Variant(Array(UInt64), String, UInt64)"},
+    };
+
+    for (const auto& [nativeType, expectedTag] : nativeTypes) {
+        auto dataType = DB::DataTypeFactory::instance().get(nativeType);
+        TCHToYTConverter converter(dataType, Settings_);
+        auto expectedType = TaggedLogicalType(
+            expectedTag,
+            SimpleLogicalType(ESimpleLogicalValueType::String));
+        EXPECT_EQ(*expectedType, *converter.GetLogicalType())
+            << "ClickHouse type: " << nativeType;
+    }
+}
 
 TEST_F(TCHToYTConversionTest, Int16)
 {
@@ -767,6 +854,18 @@ TEST_F(TCHToYTConversionTest, UnsupportedTypesToString)
 
     Converter_.emplace(dataTypeArrayUUID, settings);
     ExpectYsonConversion(columnArrayUUID, expectedArrayUUIDLogicalType, expectedArrayUUIDValueYsons);
+
+    settings->Composite->AnnotateResultSchemaWithNativeTypes = true;
+    auto expectedTaggedUUIDLogicalType = TaggedLogicalType("UUID", expectedUUIDLogicalType);
+    auto expectedTaggedArrayUUIDLogicalType = TaggedLogicalType(
+        "Array",
+        ListLogicalType(TaggedLogicalType("UUID", expectedUUIDLogicalType)));
+
+    Converter_.emplace(dataTypeUUID, settings);
+    ExpectConversion(columnUUID, expectedTaggedUUIDLogicalType, expectedUUIDValueYsons);
+
+    Converter_.emplace(dataTypeArrayUUID, settings);
+    ExpectYsonConversion(columnArrayUUID, expectedTaggedArrayUUIDLogicalType, expectedArrayUUIDValueYsons);
 }
 
 

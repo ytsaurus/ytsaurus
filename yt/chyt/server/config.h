@@ -51,6 +51,8 @@ public:
 
     bool ConvertUnsupportedTypesToString;
 
+    bool AnnotateResultSchemaWithNativeTypes;
+
     bool EnableComplexNullConverison;
 
     static TCompositeSettingsPtr Create(
