@@ -2,6 +2,7 @@ GTEST(unittester-server-lib-chaos-election)
 
 SRCS(
     chaos_lease_ut.cpp
+    election_manager_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
