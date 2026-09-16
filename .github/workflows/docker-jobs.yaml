@@ -171,8 +171,9 @@ jobs:
           output_path=../docker-flow-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          # flow is the bare server; flow-java adds a JRE for pipelines with Java companions.
-          for component in flow flow-java; do
+          # flow is the bare server; flow-java adds a JRE and flow-python the Python SDK,
+          # for pipelines whose companions run in those languages.
+          for component in flow flow-java flow-python; do
             retry ./ytsaurus/yt/docker/ytsaurus/build.sh --component ${component} --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --build-cache-repository ghcr.io/ytsaurus/ytsaurus-build-cache
 
             if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
