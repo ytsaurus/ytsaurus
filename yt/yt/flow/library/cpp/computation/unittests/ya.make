@@ -44,6 +44,8 @@ PEERDIR(
     yt/yt/library/query/engine
 )
 
+FORK_TESTS()
+
 SIZE(SMALL)
 
 END()
