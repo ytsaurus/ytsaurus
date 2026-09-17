@@ -474,7 +474,6 @@ public:
         THashMap<EWorkerState, ui64> counts;
         flowView->State->Workers.clear();
         flowView->EphemeralState->FlowCoreTargetMismatchedWorkers.clear();
-        THashSet<TIncarnationId> incarnations;
 
         const auto& flowCoreTarget = flowView->State->ExecutionSpec->FlowCoreTarget;
         ui64 flowCoreTargetMismatchCount = 0;
@@ -497,12 +496,10 @@ public:
                     worker->RegisterTime = w.RegisterTime;
                     worker->LegacyAddress = worker->RpcAddress;
                     flowView->State->Workers[worker->RpcAddress] = worker;
-                    incarnations.insert(w.IncarnationId);
                 }
             }
             counts[w.State] += 1;
         }
-        DropMissingKeys(flowView->EphemeralState->WorkerIncarnationsJobs, incarnations);
         for (const auto& [state, count] : counts) {
             if (!WorkerCountGauges_.contains(state)) {
                 WorkerCountGauges_[state] = Profiler_.WithTag("state", ToString(state)).Gauge("/worker_count");
@@ -923,8 +920,12 @@ private:
             }
         }
 
-        void OnUpdateJob(const TJobPtr& /*oldJob*/, const TJobPtr& /*newJob*/) override
+        void OnUpdateJob(const TJobPtr& oldJob, const TJobPtr& newJob) override
         {
+            // An update keeps the job where it is; a job on another worker or partition is a
+            // new job, and #WorkerIncarnationsJobs relies on that.
+            YT_VERIFY(newJob->WorkerIncarnationId == oldJob->WorkerIncarnationId);
+            YT_VERIFY(newJob->PartitionId == oldJob->PartitionId);
             if (auto strongLeader = WeakLeader_.Lock()) {
                 strongLeader->MutationMetrics_.UpdateJobLeaseCounter.Increment();
             }
@@ -943,7 +944,13 @@ private:
                 }
                 state->PreviousJobFinishReason = reason;
 
-                EphemeralState_->WorkerIncarnationsJobs[oldJob->WorkerIncarnationId].erase(oldJob->JobId);
+                auto incarnationIt = EphemeralState_->WorkerIncarnationsJobs.find(oldJob->WorkerIncarnationId);
+                if (incarnationIt != EphemeralState_->WorkerIncarnationsJobs.end()) {
+                    incarnationIt->second.erase(oldJob->JobId);
+                    if (incarnationIt->second.empty()) {
+                        EphemeralState_->WorkerIncarnationsJobs.erase(incarnationIt);
+                    }
+                }
             }
         }
 
