@@ -39,6 +39,7 @@ DEFINE_ENUM(EClusterComponentType,
     ((QueryTracker)            (18))
 
     ((CypressProxy)            (19))
+    ((TimestampProxy)          (20))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
