@@ -258,13 +258,14 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"exec_agent/artifacts/files_cached_size", "Total bytes of files served from cache (from memory or disk)", "bytes"},
         {"exec_agent/artifacts/files_downloaded_size", "Total bytes of files downloaded from data nodes", "bytes"},
         {"exec_agent/artifacts/files_copied_size", "Total bytes of files copied from cache to sandbox", "bytes"},
-        {"exec_agent/artifacts/files_downloaded_total_duration", "Sum of per-file download durations", "ms"},
-        {"exec_agent/artifacts/files_copied_total_duration", "Sum of per-file copy durations", "ms"},
+        {"exec_agent/artifacts/files_downloaded_duration", "Wall time of caching file artifacts (excludes cache-bypassed and virtual-sandbox files)", "ms"},
+        {"exec_agent/artifacts/files_downloaded_aggr_duration", "Sum of per-file download durations", "ms"},
+        {"exec_agent/artifacts/files_copied_aggr_duration", "Sum of per-file copy durations", "ms"},
         {"exec_agent/artifacts/layers_cached_size", "Total bytes of layers served from cache", "bytes"},
         {"exec_agent/artifacts/layers_downloaded_size", "Total bytes of layers downloaded from data nodes", "bytes"},
         {"exec_agent/artifacts/layers_imported_size", "Total bytes of layers imported into porto", "bytes"},
-        {"exec_agent/artifacts/layers_downloaded_total_duration", "Sum of per-layer download durations", "ms"},
-        {"exec_agent/artifacts/layers_import_total_duration", "Sum of per-layer import durations into porto", "ms"},
+        {"exec_agent/artifacts/layers_downloaded_aggr_duration", "Sum of per-layer download durations", "ms"},
+        {"exec_agent/artifacts/layers_imported_aggr_duration", "Sum of per-layer Porto import durations", "ms"},
 
         // Job Memory.
         {"job/memory/major_page_faults", "Major page faults by the job", "pieces"},
