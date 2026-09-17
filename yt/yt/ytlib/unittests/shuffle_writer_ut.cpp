@@ -33,6 +33,7 @@
 namespace NYT::NPushBasedShuffleClient {
 
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NNodeTrackerClient;
@@ -49,6 +50,7 @@ using TCreateDistributedChunkWriterCallback = std::function<
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
     TShuffleWriterConfigPtr config,
+    ECodec codec,
     IPartitionWriteSessionProviderPtr sessionProvider,
     IPartitionerPtr partitioner,
     TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
@@ -58,6 +60,10 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr auto TestCodec = ECodec::None;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -278,6 +284,7 @@ public:
 
         return CreatePushBasedShuffleWriterForTesting(
             std::move(config),
+            TestCodec,
             Provider_,
             std::move(partitioner),
             std::move(createDistributedChunkWriter),
@@ -393,7 +400,7 @@ TEST(TPushBasedShuffleWriterTest, SingleRowSinglePartitionFlushesOnClose)
     auto recordStatistics = chunkWriter->GetStatistics();
     const auto& record = records[0];
     const auto& statistics = recordStatistics[0];
-    auto decompressed = DecompressShuffleRecord(record, NCompression::ECodec::None);
+    auto decompressed = DecompressShuffleRecord(record, TestCodec);
     EXPECT_EQ(statistics.RowCount, 1);
     EXPECT_EQ(statistics.DataWeight, GetDataWeight(rows[0]));
     EXPECT_EQ(

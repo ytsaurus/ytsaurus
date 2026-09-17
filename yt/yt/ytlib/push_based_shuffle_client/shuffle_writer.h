@@ -10,6 +10,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/core/compression/public.h>
+
 #include <yt/yt/core/actions/future.h>
 #include <yt/yt/core/actions/public.h>
 
@@ -44,6 +46,7 @@ DEFINE_REFCOUNTED_TYPE(IPushBasedShuffleWriter)
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
     TShuffleWriterConfigPtr config,
+    NCompression::ECodec codec,
     IPartitionWriteSessionProviderPtr sessionProvider,
     NTableClient::IPartitionerPtr partitioner,
     NApi::NNative::IConnectionPtr connection,

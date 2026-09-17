@@ -23,6 +23,7 @@ namespace NYT::NPushBasedShuffleClient {
 
 using namespace NApi::NNative;
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NLogging;
@@ -69,11 +70,13 @@ class TPushBasedPartitionReader
 public:
     TPushBasedPartitionReader(
         TPartitionReaderConfigPtr config,
+        ECodec codec,
         TCreateChunkSessionReaderCallback createDistributedChunkSessionReader,
         TRecordHeaderFilter recordHeaderFilter,
         std::optional<TIdentityColumnIds> identityColumnIds,
         IInvokerPtr invoker)
         : Config_(std::move(config))
+        , Codec_(codec)
         , CreateDistributedChunkSessionReader_(std::move(createDistributedChunkSessionReader))
         , RecordHeaderFilter_(std::move(recordHeaderFilter))
         , IdentityColumnIds_(std::move(identityColumnIds))
@@ -85,7 +88,7 @@ public:
         YT_VERIFY(!IdentityColumnIds_ || IdentityColumnIds_->AreValid());
 
         YT_TLOG_INFO("Push-based shuffle reader created")
-            .With("Codec", Config_->Codec)
+            .With("Codec", Codec_)
             .With("MaxBytesPerRead", Config_->MaxBytesPerRead)
             .With("RowBufferStartChunkSize", Config_->RowBufferStartChunkSize)
             .With("HasHeaderFilter", static_cast<bool>(RecordHeaderFilter_))
@@ -138,6 +141,7 @@ public:
 
 private:
     const TPartitionReaderConfigPtr Config_;
+    const ECodec Codec_;
     const TCreateChunkSessionReaderCallback CreateDistributedChunkSessionReader_;
     TRecordHeaderFilter RecordHeaderFilter_;
     const std::optional<TIdentityColumnIds> IdentityColumnIds_;
@@ -350,7 +354,7 @@ private:
                     {
                         continue;
                     }
-                    auto record = DecompressShuffleRecord(blob, Config_->Codec);
+                    auto record = DecompressShuffleRecord(blob, Codec_);
                     auto parsed = ParseShuffleRecord(
                         std::move(record),
                         holder->RowBuffer->GetPool(),
@@ -443,6 +447,7 @@ private:
 
 IPushBasedPartitionReaderPtr CreatePushBasedPartitionReaderForTesting(
     TPartitionReaderConfigPtr config,
+    ECodec codec,
     TCreateChunkSessionReaderCallback createDistributedChunkSessionReader,
     IInvokerPtr invoker,
     TRecordHeaderFilter recordHeaderFilter,
@@ -450,6 +455,7 @@ IPushBasedPartitionReaderPtr CreatePushBasedPartitionReaderForTesting(
 {
     return New<TPushBasedPartitionReader>(
         std::move(config),
+        codec,
         std::move(createDistributedChunkSessionReader),
         std::move(recordHeaderFilter),
         std::move(identityColumnIds),
@@ -460,6 +466,7 @@ IPushBasedPartitionReaderPtr CreatePushBasedPartitionReaderForTesting(
 
 IPushBasedPartitionReaderPtr CreatePushBasedPartitionReader(
     TPartitionReaderConfigPtr config,
+    ECodec codec,
     IClientPtr client,
     TChunkReaderHostPtr chunkReaderHost,
     int readQuorum,
@@ -493,6 +500,7 @@ IPushBasedPartitionReaderPtr CreatePushBasedPartitionReader(
 
     return New<TPushBasedPartitionReader>(
         std::move(config),
+        codec,
         std::move(createSessionReader),
         std::move(recordHeaderFilter),
         std::move(identityColumnIds),

@@ -267,6 +267,63 @@ class TestShuffleService(YTEnvSetup):
             **_maybe_schema(use_push_based_shuffle, [("key", "int64")]))
 
     @authors("apollo1321")
+    def test_codec_compresses_and_round_trips(self, use_push_based_shuffle):
+        parent_transaction = start_transaction(timeout=60000)
+
+        # get_chunks() is cluster-wide, and push-based shuffle creates its chunks at
+        # start_shuffle, so snapshot before that.
+        chunks_before = builtins.set(get_chunks())
+
+        shuffle_handle = start_shuffle(
+            "intermediate",
+            partition_count=2,
+            parent_transaction_id=parent_transaction,
+            use_push_based_shuffle=use_push_based_shuffle,
+            codec="lz4",
+            **_maybe_schema(use_push_based_shuffle, [("key", "int64"), ("value", "string")]))
+
+        assert parser.loads(shuffle_handle["payload"].encode())["codec"] == "lz4"
+
+        row_size = 64 * 1024
+        rows = [{"key": key, "value": "a" * row_size} for key in range(2) for _ in range(4)]
+        write_shuffle_data(shuffle_handle, "key", rows)
+
+        # A reader left on another codec would decode compressed bytes as wire rows, not these.
+        for partition in range(2):
+            assert_items_equal(
+                read_shuffle_data(shuffle_handle, partition),
+                [row for row in rows if row["key"] == partition])
+
+        def get_new_chunks():
+            return [chunk for chunk in get_chunks() if chunk not in chunks_before]
+
+        if use_push_based_shuffle:
+            def get_written_bytes():
+                chunks = get_new_chunks()
+                if not chunks:
+                    return None
+                total = 0
+                for chunk in chunks:
+                    # Sizes reach the meta at seal, which the read above hints lazily.
+                    if not get(f"#{chunk}/@sealed"):
+                        return None
+                    total += get(f"#{chunk}/@compressed_data_size")
+                return total
+
+            wait(lambda: get_written_bytes() is not None)
+
+            # A journal stores what the writer handed it, so this is the size after compression.
+            assert get_written_bytes() < len(rows) * row_size // 10
+        else:
+            # Readers take the codec from the meta; what can go wrong is the writer never getting it.
+            chunks = get_new_chunks()
+            assert len(chunks) > 0
+            for chunk in chunks:
+                assert get(f"#{chunk}/@compression_codec") == "lz4"
+
+        commit_transaction(parent_transaction)
+
+    @authors("apollo1321")
     def test_different_partition_columns(self, use_push_based_shuffle):
         parent_transaction = start_transaction(timeout=60000)
 

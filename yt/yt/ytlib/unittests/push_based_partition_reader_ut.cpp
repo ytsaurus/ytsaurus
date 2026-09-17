@@ -29,6 +29,7 @@ namespace NYT::NPushBasedShuffleClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NTableClient;
@@ -44,6 +45,7 @@ using TCreateChunkSessionReaderCallback = std::function<
 
 IPushBasedPartitionReaderPtr CreatePushBasedPartitionReaderForTesting(
     TPartitionReaderConfigPtr config,
+    ECodec codec,
     TCreateChunkSessionReaderCallback createDistributedChunkSessionReader,
     IInvokerPtr invoker,
     TRecordHeaderFilter recordHeaderFilter = {},
@@ -60,6 +62,10 @@ ISortReaderPtr CreateSortReaderForTesting(
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr auto TestCodec = ECodec::Lz4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,7 +176,6 @@ protected:
     {
         auto config = New<TPartitionReaderConfig>();
         config->ChunkSessionReaderConfig = New<TDistributedChunkSessionReaderConfig>();
-        config->Codec = NCompression::ECodec::Lz4;
         config->RowBufferStartChunkSize = 4_KB;
         config->MaxBytesPerRead = maxBytesPerRead;
         return config;
@@ -194,7 +199,7 @@ protected:
         auto recordOpt = builder.FlushRecord();
         YT_VERIFY(recordOpt);
 
-        auto wireRefs = CompressShuffleRecord(*recordOpt, NCompression::ECodec::Lz4);
+        auto wireRefs = CompressShuffleRecord(*recordOpt, TestCodec);
         auto wire = MergeRefsToRef<TDefaultBlobTag>(wireRefs);
 
         TChunkReadResult result;
@@ -272,6 +277,7 @@ TEST_F(TPartitionReaderTest, SingleChunkHappyPath)
 
     auto reader = CreatePushBasedPartitionReaderForTesting(
         MakeConfig(),
+        TestCodec,
         createSessionReader,
         Invoker());
 
@@ -324,6 +330,7 @@ TEST_F(TPartitionReaderTest, AppendsIdentityValues)
 
     auto reader = CreatePushBasedPartitionReaderForTesting(
         MakeConfig(),
+        TestCodec,
         createSessionReader,
         Invoker(),
         /*recordHeaderFilter*/ {},
@@ -378,6 +385,7 @@ TEST_F(TPartitionReaderTest, IdentityPreservingSortConsumesExtendedRows)
     };
     auto partitionReader = CreatePushBasedPartitionReaderForTesting(
         MakeConfig(),
+        TestCodec,
         createSessionReader,
         /*invoker*/ Invoker(),
         /*recordHeaderFilter*/ {},
@@ -460,6 +468,7 @@ TEST_PI(
     config->ValidateIdentityColumnIds = true;
     auto reader = CreatePushBasedPartitionReaderForTesting(
         std::move(config),
+        TestCodec,
         createSessionReader,
         Invoker(),
         /*recordHeaderFilter*/ {},
@@ -497,7 +506,7 @@ TEST_F(TPartitionReaderTest, MultiChunkStagedCoalescing)
         return (callCount++ == 0) ? mock1 : mock2;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->AddChunk(TChunkId(2, 2, 2, 2), {}, 0, std::nullopt);
     reader->SetNoMoreChunks();
@@ -535,7 +544,7 @@ TEST_F(TPartitionReaderTest, PendingReadResolvesOnFirstResult)
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     DrainInvoker();
 
@@ -567,7 +576,7 @@ TEST_F(TPartitionReaderTest, DynamicAddChunk)
         return (n++ == 0) ? mock1 : mock2;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
 
     // Phase 1: chunk 1 only, drain its record.
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
@@ -605,7 +614,7 @@ TEST_F(TPartitionReaderTest, FinalNonEmptyBatchCarriesFinished)
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->SetNoMoreChunks();
     DrainInvoker();
@@ -629,7 +638,7 @@ TEST_F(TPartitionReaderTest, ReadsAfterFinishedReturnEmptyFinished)
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->SetNoMoreChunks();
     DrainInvoker();
@@ -664,7 +673,7 @@ TEST_F(TPartitionReaderTest, MaxBytesPerReadDefersExtraChunks)
 
     // Cap at 1 byte so any chunk session result trips it.
     auto config = MakeConfig(/*maxBytesPerRead*/ 1);
-    auto reader = CreatePushBasedPartitionReaderForTesting(config, createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(config, TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->AddChunk(TChunkId(2, 2, 2, 2), {}, 0, std::nullopt);
     DrainInvoker();
@@ -706,6 +715,7 @@ TEST_F(TPartitionReaderTest, MaxBytesPerReadSplitsSingleChunkResult)
 
     auto reader = CreatePushBasedPartitionReaderForTesting(
         MakeConfig(/*maxBytesPerRead*/ 1),
+        TestCodec,
         createSessionReader,
         Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
@@ -742,7 +752,7 @@ TEST_F(TPartitionReaderTest, DecompressionFailureFailsReader)
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     DrainInvoker();
 
@@ -774,7 +784,7 @@ TEST_F(TPartitionReaderTest, HeaderFilterDropsRejectedRecords)
         return header.WriterId == 7;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker(), filter);
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker(), filter);
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->SetNoMoreChunks();
     DrainInvoker();
@@ -812,6 +822,7 @@ TEST_F(TPartitionReaderTest, DropsDuplicateBeforeDecompression)
 
     auto reader = CreatePushBasedPartitionReaderForTesting(
         MakeConfig(),
+        TestCodec,
         createSessionReader,
         Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
@@ -859,6 +870,7 @@ TEST_F(TPartitionReaderTest, ReleasesHeaderFilterAfterFinish)
 
     auto reader = CreatePushBasedPartitionReaderForTesting(
         MakeConfig(),
+        TestCodec,
         createSessionReader,
         Invoker(),
         std::move(filter));
@@ -894,7 +906,7 @@ TEST_F(TPartitionReaderTest, HeaderFilterRejectAllRespectsMaxBytes)
 
     auto filter = [] (const TRecordHeader&) { return false; };
     auto config = MakeConfig(/*maxBytesPerRead*/ 1);
-    auto reader = CreatePushBasedPartitionReaderForTesting(config, createSessionReader, Invoker(), filter);
+    auto reader = CreatePushBasedPartitionReaderForTesting(config, TestCodec, createSessionReader, Invoker(), filter);
 
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->AddChunk(TChunkId(2, 2, 2, 2), {}, 0, std::nullopt);
@@ -931,7 +943,7 @@ TEST_F(TPartitionReaderTest, ChunkSessionErrorPropagatesAndPersists)
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     DrainInvoker();
 
@@ -958,7 +970,7 @@ TEST_F(TPartitionReaderTest, CancelingPendingReadCancelsReader)
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     DrainInvoker();
 
@@ -995,7 +1007,7 @@ TEST_F(TPartitionReaderTest, EmptyTerminalChunkSessionResultUnblocksReadAfterSea
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->SetNoMoreChunks();
     DrainInvoker();
@@ -1027,7 +1039,7 @@ TEST_F(TPartitionReaderTest, EmptyTerminalChunkSessionResultUnblocksReadBeforeSe
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     DrainInvoker();
 
@@ -1073,7 +1085,7 @@ TEST_F(TPartitionReaderTest, EmptyTerminalOnOneChunkOtherStillActive)
         return (n++ == 0) ? mock1 : mock2;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->AddChunk(TChunkId(2, 2, 2, 2), {}, 0, std::nullopt);
     reader->SetNoMoreChunks();
@@ -1107,7 +1119,7 @@ TEST_F(TPartitionReaderTest, SetNoMoreChunksDoesNotPropagateSetAllWritersFinishe
         return (n++ == 0) ? mock1 : mock2;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->AddChunk(TChunkId(2, 2, 2, 2), {}, 0, std::nullopt);
     DrainInvoker();
@@ -1135,7 +1147,7 @@ TEST_F(TPartitionReaderTest, FinishAtCurrentCommittedRecordCountPropagatesToChun
         return (callCount++ == 0) ? mock1 : mock2;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
     reader->AddChunk(TChunkId(2, 2, 2, 2), {}, 0, std::nullopt);
     reader->SetNoMoreChunks();
@@ -1160,7 +1172,7 @@ TEST_F(TPartitionReaderTest, TerminalErrorSilencesLaterAddChunkContractViolation
         return mock;
     };
 
-    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+    auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
     auto chunkId = TChunkId(1, 1, 1, 1);
     reader->AddChunk(chunkId, {}, 0, std::nullopt);
     DrainInvoker();
@@ -1202,7 +1214,6 @@ protected:
     {
         auto config = New<TPartitionReaderConfig>();
         config->ChunkSessionReaderConfig = New<TDistributedChunkSessionReaderConfig>();
-        config->Codec = NCompression::ECodec::Lz4;
         config->RowBufferStartChunkSize = 4_KB;
         config->MaxBytesPerRead = 64_MB;
         return config;
@@ -1216,7 +1227,7 @@ protected:
         {
             return mock;
         };
-        return CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, GetSyncInvoker());
+        return CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, GetSyncInvoker());
     }
 };
 
@@ -1278,7 +1289,7 @@ TEST_F(TPartitionReaderTest, LifetimePendingReadBreaksOnDrop)
 
     TFuture<TShuffleReadBatchPtr> readFuture;
     {
-        auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+        auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
         reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
         reader->SetNoMoreChunks();
         DrainInvoker();
@@ -1307,7 +1318,7 @@ TEST_F(TPartitionReaderTest, LifetimeBrokenPromiseWhenNoChunks)
 
     TFuture<TShuffleReadBatchPtr> readFuture;
     {
-        auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+        auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
         readFuture = reader->Read();
         // Ensure the Read closure has dispatched (and released its MakeStrong) before drop.
         DrainInvoker();
@@ -1332,7 +1343,7 @@ TEST_F(TPartitionReaderTest, LifetimeReleasedOnHandleDropEvenWithPendingChunkSes
 
     TWeakPtr<IPushBasedPartitionReader> weakReader;
     {
-        auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+        auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
         weakReader = reader;
         reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
         DrainInvoker();
@@ -1357,7 +1368,7 @@ TEST_F(TPartitionReaderTest, LifetimeBatchOutlivesReader)
 
     TShuffleReadBatchPtr batch;
     {
-        auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), createSessionReader, Invoker());
+        auto reader = CreatePushBasedPartitionReaderForTesting(MakeConfig(), TestCodec, createSessionReader, Invoker());
         reader->AddChunk(TChunkId(1, 1, 1, 1), {}, 0, std::nullopt);
         reader->SetNoMoreChunks();
         DrainInvoker();
