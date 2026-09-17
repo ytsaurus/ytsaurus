@@ -11,6 +11,7 @@ IF (NOT OPENSOURCE)
         dq
         dqrun
         dqrun_light
+        qt_release_helper
         qt_stress
         query_replay
         query_replay_admin
