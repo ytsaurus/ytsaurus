@@ -17,11 +17,19 @@ type JobCheckerConfig struct {
 	CheckPeriod      *yson.Duration `yson:"check_period"`
 	WorkerNumber     *int           `yson:"worker_number"`
 	TrackedExitCodes *[]int         `yson:"tracked_exit_codes"`
+
+	JobStartTimeout *yson.Duration `yson:"job_start_timeout"`
+	// UnavailabilityWindowWidth is the sliding window used by the operation collector
+	// to look for the maximum number of simultaneously unavailable jobs.
+	UnavailabilityWindowWidth *yson.Duration `yson:"unavailability_window_width"`
 }
 
 const (
 	DefaultFinishedJobsCheckPeriod       = yson.Duration(5 * time.Minute)
 	DefaultFinishedJobsCheckWorkerNumber = 10
+
+	DefaultJobStartTimeout           = yson.Duration(60 * time.Second)
+	DefaultUnavailabilityWindowWidth = yson.Duration(5 * time.Minute)
 )
 
 func (c *JobCheckerConfig) CheckPeriodOrDefault() yson.Duration {
@@ -57,13 +65,32 @@ func (c *JobCheckerConfig) TrackedExitCodesOrDefault() []int {
 	return defaultExitCodes
 }
 
+func (c *JobCheckerConfig) JobStartTimeoutOrDefault() yson.Duration {
+	if c.JobStartTimeout != nil {
+		return *c.JobStartTimeout
+	}
+	return DefaultJobStartTimeout
+}
+
+func (c *JobCheckerConfig) UnavailabilityWindowWidthOrDefault() yson.Duration {
+	if c.UnavailabilityWindowWidth != nil {
+		return *c.UnavailabilityWindowWidth
+	}
+	return DefaultUnavailabilityWindowWidth
+}
+
 type JobCheckerResult struct {
 	ID          yt.OperationID
 	CrashedJobs []yt.JobID
+	// UnavailabilityIntervals contains only intervals from jobs fetched in this check.
+	UnavailabilityIntervals []unavailabilityInterval
 }
 
 type JobCheckerResultBatch struct {
+	// Results contains successful checks even when AggrErr is non-nil.
+	// Their job counters have already advanced, so these results must not be discarded.
 	Results []JobCheckerResult
+	// AggrErr aggregates errors from failed checks, which are omitted from Results.
 	AggrErr error
 }
 
@@ -79,8 +106,9 @@ func CheckFinishedJobs(ctx context.Context, ytc yt.Client, l log.Logger, cfg *Jo
 		trackedExitCodes: trackedExitCodes,
 		workerNumber:     cfg.WorkerNumberOrDefault(),
 		opInfos:          make(map[yt.OperationID]trackedOpInfo),
+		cfg:              cfg,
 	}
-	return checker.start(ctx, cfg)
+	return checker.start(ctx)
 }
 
 type trackedOpInfo struct {
@@ -98,10 +126,12 @@ type jobChecker struct {
 
 	expireCandidates []yt.OperationID
 	opInfos          map[yt.OperationID]trackedOpInfo
+
+	cfg *JobCheckerConfig
 }
 
-func (c *jobChecker) start(ctx context.Context, cfg *JobCheckerConfig) (chan<- []OperationStatus, <-chan JobCheckerResultBatch) {
-	period := time.Duration(cfg.CheckPeriodOrDefault())
+func (c *jobChecker) start(ctx context.Context) (chan<- []OperationStatus, <-chan JobCheckerResultBatch) {
+	period := time.Duration(c.cfg.CheckPeriodOrDefault())
 	c.l.Debug("jobs checking started", log.Duration("period", period))
 
 	ticker := time.NewTicker(period)
@@ -114,6 +144,7 @@ func (c *jobChecker) start(ctx context.Context, cfg *JobCheckerConfig) (chan<- [
 		defer ticker.Stop()
 
 		activeCheck := false
+		var skippedResults []JobCheckerResult
 
 		for {
 			select {
@@ -133,10 +164,15 @@ func (c *jobChecker) start(ctx context.Context, cfg *JobCheckerConfig) (chan<- [
 					continue
 				}
 				activeCheck = true
-				checkInputCh <- c.scheduleTasks()
+				var tasks []jobsCheckWorkerTask
+				tasks, skippedResults = c.scheduleTasks()
+				checkInputCh <- tasks
 
 			case result := <-checkOutputCh:
-				opsOutputCh <- c.processResults(result)
+				batch := c.processResults(result)
+				batch.Results = append(batch.Results, skippedResults...)
+				opsOutputCh <- batch
+				skippedResults = nil
 				activeCheck = false
 			}
 		}
@@ -175,7 +211,7 @@ func buildAggrError(errs []error) error {
 	)
 }
 
-func (c *jobChecker) scheduleTasks() []jobsCheckWorkerTask {
+func (c *jobChecker) scheduleTasks() ([]jobsCheckWorkerTask, []JobCheckerResult) {
 	c.l.Debug("starting jobs checking routine", log.Int("tracked_ops_cnt", len(c.opInfos)))
 	expiredCnt := 0
 	for _, opID := range c.expireCandidates {
@@ -187,21 +223,22 @@ func (c *jobChecker) scheduleTasks() []jobsCheckWorkerTask {
 	c.expireCandidates = c.expireCandidates[:0]
 	c.l.Debug("delete expired operation infos", log.Int("expired_cnt", expiredCnt))
 
-	skippedCnt := 0
+	var skippedResults []JobCheckerResult
 	tasks := make([]jobsCheckWorkerTask, 0, len(c.opInfos))
 	for opID, info := range c.opInfos {
 		var limitPtr *int
 		if info.targetFailedJobCounter != nil {
 			limit := *info.targetFailedJobCounter - info.lastFailedJobCounter
-
 			if limit <= 0 {
 				info.targetFailedJobCounter = nil
 				c.opInfos[opID] = info
-				skippedCnt++
+				// Report a successful empty check without scheduling a ListJobs request.
+				// This lets the collector initialize an empty window and report zero instead of nil,
+				// so the agent can clear a saved failure after a controller restart.
+				skippedResults = append(skippedResults, JobCheckerResult{ID: opID})
 				c.l.Debug("skip operation for jobs check cause absence of failed jobs", log.String("op_id", opID.String()))
 				continue
 			}
-
 			limitPtr = &limit
 		}
 
@@ -217,7 +254,7 @@ func (c *jobChecker) scheduleTasks() []jobsCheckWorkerTask {
 		})
 	}
 
-	return tasks
+	return tasks, skippedResults
 }
 
 func (c *jobChecker) startBackgroundWorker(ctx context.Context) (chan<- []jobsCheckWorkerTask, <-chan [][]jobsCheckWorkerResultOrError) {
@@ -278,8 +315,9 @@ func (c *jobChecker) processResults(workerResults [][]jobsCheckWorkerResultOrErr
 
 			c.opInfos[opID] = info
 			results = append(results, JobCheckerResult{
-				ID:          opID,
-				CrashedJobs: result.crashedJobs,
+				ID:                      opID,
+				CrashedJobs:             result.crashedJobs,
+				UnavailabilityIntervals: result.unavailabilityIntervals,
 			})
 		}
 	}
@@ -296,9 +334,10 @@ func (c *jobChecker) processResults(workerResults [][]jobsCheckWorkerResultOrErr
 }
 
 type jobsCheckWorkerResultOrError struct {
-	opID                  yt.OperationID
-	crashedJobs           []yt.JobID
-	processedFailedJobCnt int
+	opID                    yt.OperationID
+	crashedJobs             []yt.JobID
+	processedFailedJobCnt   int
+	unavailabilityIntervals []unavailabilityInterval
 
 	err error
 }
@@ -343,7 +382,8 @@ func (c *jobChecker) runTask(ctx context.Context, task jobsCheckWorkerTask) (res
 			log.Any("limit", task.limit),
 			log.Any("result_err", result.err),
 			log.Int("result_processed_job_cnt", result.processedFailedJobCnt),
-			log.Any("result_crashed_jobs", result.crashedJobs))
+			log.Any("result_crashed_jobs", result.crashedJobs),
+			log.Int("result_unavailability_interval_count", len(result.unavailabilityIntervals)))
 	}()
 	result.opID = task.opID
 
@@ -365,6 +405,7 @@ func (c *jobChecker) runTask(ctx context.Context, task jobsCheckWorkerTask) (res
 		return
 	}
 
+	jobStartTimeout := time.Duration(c.cfg.JobStartTimeoutOrDefault())
 	result.processedFailedJobCnt = len(list.Jobs)
 	for _, job := range list.Jobs {
 		if exitCode, ok := userJobExitCodeFromError(job.Error); ok {
@@ -372,6 +413,12 @@ func (c *jobChecker) runTask(ctx context.Context, task jobsCheckWorkerTask) (res
 				result.crashedJobs = append(result.crashedJobs, job.ID)
 			}
 		}
+
+		finishTime := time.Time(job.FinishTime)
+		result.unavailabilityIntervals = append(result.unavailabilityIntervals, unavailabilityInterval{
+			start:  finishTime,
+			finish: finishTime.Add(jobStartTimeout),
+		})
 	}
 
 	return
