@@ -230,6 +230,14 @@ TResourceBalanceContext CollectResourceContext(
         }
         const auto& workerStatus = statusIt->second;
         for (const auto& [resourceId, resourceStatus] : workerStatus->ResourceStatuses) {
+            // A worker keeps reporting a resource for a while after it is removed from the spec.
+            // Such stale stats must not shape the worker's capacity estimate.
+            if (!pipelineSpec->Resources.contains(resourceId)) {
+                YT_TLOG_DEBUG("ResourceQueue: Ignoring feedback of a resource missing from the spec")
+                    .With("Worker", workerAddress)
+                    .With("Resource", resourceId);
+                continue;
+            }
             TTmpResourceStat stat;
             stat.PutRate = resourceStatus->QueuePushRate10m.value_or(
                 resourceStatus->QueuePushRate30s.value_or(0.));
@@ -618,17 +626,29 @@ TResourceBalanceContext CollectResourceContext(
         }
     }
 
-    // Fill DeployedResources for each worker.
-    // A resource is deployed if:
+    // A resource is deployed on a worker if:
     //   (a) it is required by a computation that has at least one partition on this worker, OR
-    //   (b) it appears in PreloadResourceIssued or PreloadResourceCompleted.
-
-    // Seed from preload state (issued + completed).
+    //   (b) it was preloaded (issued or completed) on this worker.
+    //
+    // Resources that have been removed from the spec are skipped: they do not participate
+    // in placement and are released in Step 5. Until the worker applies that Del the resource
+    // still occupies its capabilities, so the worker may be oversubscribed for one round.
+    // The worker drops removed preloads before it starts new ones, so an Add issued in the
+    // same round does not run ahead of the release.
     for (auto& [workerAddress, workerInfo] : context.Workers) {
         for (const auto& resourceId : workerInfo.PreloadResourceIssued) {
+            if (!context.Resources.contains(resourceId)) {
+                YT_TLOG_DEBUG("ResourceQueue: Issued preload of a resource missing from the spec")
+                    .With("Worker", workerAddress)
+                    .With("Resource", resourceId);
+                continue;
+            }
             workerInfo.DeployedResources.insert(resourceId);
         }
         for (const auto& resourceId : workerInfo.PreloadResourceCompleted) {
+            if (!context.Resources.contains(resourceId)) {
+                continue;
+            }
             workerInfo.DeployedResources.insert(resourceId);
         }
     }
@@ -1592,10 +1612,11 @@ TRebalanceResult DoBalanceResourceQueue(
             });
         }
 
-        // Emit Del for preloadable resources that are issued but no longer desired.
+        // Emit Del for preloadable resources that are issued but no longer desired. A resource
+        // removed from the spec while issued is released as well: it was preloadable when issued.
         for (const auto& resourceId : workerInfo.PreloadResourceIssued) {
             auto resourceIt = context.Resources.find(resourceId);
-            if (resourceIt == context.Resources.end() || !resourceIt->second.IsPreloadable) {
+            if (resourceIt != context.Resources.end() && !resourceIt->second.IsPreloadable) {
                 continue;
             }
             if (desired.contains(resourceId)) {

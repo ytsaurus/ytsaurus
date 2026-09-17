@@ -1613,6 +1613,91 @@ TEST_F(TResourceBalancerTest, EqualizationAcceptedWhenBacklogDrains)
     }
 }
 
+//! A resource removed from the spec while a worker still has it issued and loaded must not
+//! crash the balancer and must be released with a preload Del.
+TEST_F(TResourceBalancerTest, ResourceRemovedFromSpecWhileIssuedIsReleased)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+    auto goneResId = MakeResourceId("gone");
+
+    SetResourceSpec(resId, MakeResourceSpec({{"gpu_memory", 10}}, /*preloadRequired*/ true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group, {{"gpu_memory", 48}});
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    SetPreloadIssued(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", resId);
+
+    // The worker still reports and holds a resource that is not in the spec any more.
+    SetPreloadIssued(FlowView, "worker1", goneResId);
+    SetPreloadCompleted(FlowView, "worker1", goneResId);
+
+    auto result = RunBalancer();
+
+    auto dels = GetPreloadDelActions(result);
+    ASSERT_EQ(dels.size(), 1u);
+    EXPECT_EQ(dels[0].ResourceId, goneResId);
+    EXPECT_EQ(dels[0].WorkerAddress, "worker1");
+    EXPECT_TRUE(GetPreloadAddActions(result).empty());
+}
+
+//! The round after the Del is applied: the resource is gone from WorkerSpecs.PreloadResources,
+//! but the worker still reports it as preloaded. Nothing to release, and no crash.
+TEST_F(TResourceBalancerTest, ResourceRemovedFromSpecWhileCompletedIsIgnored)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+    auto goneResId = MakeResourceId("gone");
+
+    SetResourceSpec(resId, MakeResourceSpec({{"gpu_memory", 10}}, /*preloadRequired*/ true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group, {{"gpu_memory", 48}});
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    SetPreloadIssued(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", goneResId);
+
+    auto result = RunBalancer();
+
+    EXPECT_TRUE(GetPreloadDelActions(result).empty());
+    EXPECT_TRUE(GetPreloadAddActions(result).empty());
+}
+
+//! Feedback of a resource that is gone from the spec must not shape the worker's capacity
+//! estimate: only the stats of res1 (capacity = put - growth = 1) are counted.
+TEST_F(TResourceBalancerTest, StaleStatsOfRemovedResourceAreIgnored)
+{
+    auto compId = MakeComputationId("comp1");
+    auto resId = MakeResourceId("res1");
+    auto goneResId = MakeResourceId("gone");
+
+    SetResourceSpec(resId, MakeResourceSpec({{"gpu_memory", 10}}, /*preloadRequired*/ true));
+    SetComputationSpec(compId, MakeComputationSpec(Group, {resId}));
+
+    AddWorker(FlowView, "worker1", Group, {{"gpu_memory", 48}});
+    AddPartition(FlowView, MakePartitionId(1), compId, /*rps*/ 1.0, "worker1");
+    SetPreloadIssued(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", resId);
+    SetPreloadCompleted(FlowView, "worker1", goneResId);
+
+    SetWorkerResourceStatus(FlowView, "worker1", resId,
+        /*putRate*/ 1.0,
+        /*fetchRate*/ 1.0,
+        /*queueSize*/ 0.0,
+        /*queueGrowthRate*/ 0.0);
+    // Stale, still non-zero stats of the removed resource.
+    SetWorkerResourceStatus(FlowView, "worker1", goneResId,
+        /*putRate*/ 10.0,
+        /*fetchRate*/ 2.0,
+        /*queueSize*/ 100.0,
+        /*queueGrowthRate*/ 8.0);
+
+    auto snapshot = Snapshot();
+    EXPECT_DOUBLE_EQ(snapshot.WorkerTotalCapacity.at("worker1"), 1.0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
