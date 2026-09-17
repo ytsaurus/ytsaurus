@@ -11,8 +11,11 @@ using namespace NTableClient;
 struct TMergedMetaTag
 { };
 
-TDataBlockWriter::TDataBlockWriter(bool enableSegmentMetaInBlocks)
+TDataBlockWriter::TDataBlockWriter(
+    bool enableSegmentMetaInBlocks,
+    bool enableColumnMetaInChunkMeta)
     : EnableSegmentMetaInBlocks_(enableSegmentMetaInBlocks)
+    , EnableColumnMetaInChunkMeta_(enableColumnMetaInChunkMeta)
 { }
 
 void TDataBlockWriter::WriteSegment(TRange<TSharedRef> segment)
