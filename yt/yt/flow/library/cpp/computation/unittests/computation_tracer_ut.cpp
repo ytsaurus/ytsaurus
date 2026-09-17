@@ -329,20 +329,25 @@ TEST(TComputationTracerTest, RepeatedPartName)
     TComputationSpecPtr spec = New<TComputationSpec>();
     auto tracer = CreateComputationTracer(context, spec, New<TDynamicPartitionTracerSpec>());
 
+    auto startedAt = GetInstant();
+    TDuration previous;
     {
         TTraceContextGuard epochTraceGuard(tracer->StartEpochTraceContext(10));
         for (int i = 0; i < 3; ++i) {
-            TTraceContextGuard traceGuard(tracer->CreateEpochPartTraceContext("Accounting"));
-            TDelayedExecutor::WaitForDuration(100ms);
+            {
+                TTraceContextGuard traceGuard(tracer->CreateEpochPartTraceContext("Accounting"));
+                TDelayedExecutor::WaitForDuration(100ms);
+            }
+            auto total = tracer->GetPartStates().at("Accounting").TotalDuration;
+            EXPECT_GE(total - previous, 100ms);
+            previous = total;
         }
     }
 
-#if !defined(_san_enabled_)
-    static const TDuration threshold = 50ms;
-    auto states = tracer->GetPartStates();
-    EXPECT_LT(300ms - threshold, states["Accounting"].TotalDuration);
-    EXPECT_LT(states["Accounting"].TotalDuration, 300ms + threshold);
-#endif
+    auto elapsed = GetInstant() - startedAt;
+    auto total = tracer->GetPartStates().at("Accounting").TotalDuration;
+    EXPECT_EQ(total, previous);
+    EXPECT_LE(total, elapsed + 50ms);
 }
 
 TEST(TComputationTracerTest, Hierarchy)
