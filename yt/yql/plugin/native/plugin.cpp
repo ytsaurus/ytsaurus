@@ -23,6 +23,8 @@
 #include <yt/yql/providers/yt/lib/yt_url_lister/yt_url_lister.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
 
+#include <yt/yql/library/token_resolver/yt_token_resolver.h>
+
 #include <yql/essentials/parser/pg_wrapper/interface/comp_factory.h>
 
 #include <yql/essentials/providers/common/codec/yql_codec_type_flags.h>
@@ -477,6 +479,16 @@ public:
                 protobufWriterOptions));
 
             YtAccessProvider_ = CreateYtAccessProvider(TvmClient_, ytAccessProviderConfig);
+
+            NYql::TYtTokenResolverConfig ytTokenResolverConfig;
+            if (options.YtTokenResolverConfig) {
+                ytTokenResolverConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+                    options.YtTokenResolverConfig,
+                    NYson::ReflectProtobufMessageType<NYql::TYtTokenResolverConfig>(),
+                    protobufWriterOptions));
+            }
+
+            YtTokenResolver_ = NYql::CreateYtTokenResolver(ytTokenResolverConfig);
 
             FuncRegistry_ = NKikimr::NMiniKQL::CreateFunctionRegistry(
                 NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
@@ -1190,6 +1202,7 @@ private:
     TString YqlAgentToken_;
     NYql::ITvmClient::TPtr TvmClient_;
     NYql::IYtAccessProvider::TPtr YtAccessProvider_;
+    NYql::IYtTokenResolver::TPtr YtTokenResolver_;
 
     std::atomic<TLangVersion> MaxYqlLangVersion_;
     TLangVersion MaxYqlLangVersionInitial_;
@@ -1361,6 +1374,7 @@ private:
         ytServices.SecretMasker = CreateSecretMasker();
         ytServices.TvmClient = TvmClient_;
         ytServices.YtAccessProvider = YtAccessProvider_;
+        ytServices.YtTokenResolver = YtTokenResolver_;
 
         TVector<NYql::TDataProviderInitializer> dataProvidersInit;
         if (DqManagerConfig_) {

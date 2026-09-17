@@ -3083,6 +3083,7 @@
   "yt/odin/tests/run_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/odin/tests/run_tests.sh",
   "yt/python/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/python/README.md",
   "yt/python/yt/wrapper/tests/pytest.ini":"yt/opensource/repos/ytsaurus/github_toplevel/yt/python/yt/wrapper/tests/pytest.ini",
+  "yt/yql/library/token_resolver/proto/build.gradle.kts":"",
   "yt/yql/providers/yt/fmr/proto/build.gradle.kts":"",
   "yt/yql/providers/yt/lib/access_provider/proto/build.gradle.kts":"",
   "yt/yql/providers/yt/lib/blackbox_client/proto/build.gradle.kts":"",
