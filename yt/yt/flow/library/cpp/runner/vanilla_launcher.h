@@ -38,6 +38,8 @@ struct TVanillaTaskConfig
     //! Byte size; accepts human-readable forms like "12g" (NYTree::TSize).
     std::optional<NYTree::TSize> MemoryLimit;
     std::optional<int> CpuLimit;
+    //! Request a container CPU ceiling on execution backends that support it.
+    bool SetContainerCpuLimit{};
 
     //! When positive, the task requests this many YT-allocated ports (exposed as YT_PORT_<i>),
     //! overriding the fixed ports from the node config. Needed on a shared-network host
@@ -174,6 +176,7 @@ struct TFlowVanillaTask
     std::vector<std::string> Layers;
     std::optional<std::string> SystemLayerPath;
     std::optional<std::string> DockerImage;
+    bool SetContainerCpuLimit = false;
 };
 
 //! Options for launching a Flow federation as a vanilla operation directly, without the pipeline

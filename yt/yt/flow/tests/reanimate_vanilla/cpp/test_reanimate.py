@@ -85,7 +85,15 @@ class TestReanimateVanillaCpp(FlowTestBase):
             # The runner is not kept attached: the operation is aborted below on purpose, which an
             # attached runner reports as a failed pipeline.
             additional_env={SECRET_ENV: SECRET_VALUE, "YT_FLOW_WAIT": "0"},
-            vanilla_config_patch={"cache_path": cache_path},
+            vanilla_config_patch={
+                "cache_path": cache_path,
+                "worker": {
+                    "count": 1,
+                    "cpu_limit": 1,
+                    "port_count": self.VANILLA_WORKER_PORT_COUNT,
+                    "set_container_cpu_limit": True,
+                },
+            },
         ):
             self.wait_pipeline_state("working", timeout=300)
 
@@ -110,6 +118,12 @@ class TestReanimateVanillaCpp(FlowTestBase):
             spec = self.client.get(f"{self.pipeline_path}/vanilla/current_spec")
             assert spec["secret_env"] == [SECRET_ENV]
             assert "secure_vault" not in spec
+            assert spec["tasks"]["worker"]["set_container_cpu_limit"]
+            assert "set_container_cpu_limit" not in spec["tasks"]["controller"]
+
+            operation_spec = self.client.get_operation(self._current_operation_id(), attributes=["spec"])["spec"]
+            assert operation_spec["tasks"]["worker"]["set_container_cpu_limit"]
+            assert "set_container_cpu_limit" not in operation_spec["tasks"]["controller"]
 
             # The pipeline must actually process messages and the secret must reach the job: the sink
             # writes a growing count and the secret value into the output table.
@@ -131,6 +145,10 @@ class TestReanimateVanillaCpp(FlowTestBase):
             self._reanimate()
             wait(lambda: self._current_operation_id() != original_operation, timeout=300, ignore_exceptions=True)
             self.wait_pipeline_state("working", timeout=300)
+
+            operation_spec = self.client.get_operation(self._current_operation_id(), attributes=["spec"])["spec"]
+            assert operation_spec["tasks"]["worker"]["set_container_cpu_limit"]
+            assert "set_container_cpu_limit" not in operation_spec["tasks"]["controller"]
 
             # Processing resumes after reanimate (count keeps growing) and the secret is still
             # delivered to the reanimated operation.
