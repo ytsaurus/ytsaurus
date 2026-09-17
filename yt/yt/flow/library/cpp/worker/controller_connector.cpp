@@ -526,7 +526,7 @@ private:
         auto now = TInstant::Now();
         if (NextWorkerStatisticsReportAt_ <= now) {
             auto statistics = New<TWorkerStatistics>();
-            statistics->LineageRates = JobTracker_->GetLineageRates(now);
+            statistics->LineageRatios = JobTracker_->GetLineageRatios(now);
             workerStatus->Statistics = std::move(statistics);
 
             NextWorkerStatisticsReportAt_ =

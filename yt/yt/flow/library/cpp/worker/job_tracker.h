@@ -69,7 +69,7 @@ struct IJobTracker
 
     virtual THashMap<TResourceId, EPreloadedResourceState> GetPreloadedStates() = 0;
 
-    virtual TLineageRates GetLineageRates(TInstant now) = 0;
+    virtual TLineageRatios GetLineageRatios(TInstant now) = 0;
 
     virtual void Reconfigure(
         TExecutionSpecPtr executionSpec,

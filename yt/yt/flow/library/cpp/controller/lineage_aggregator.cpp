@@ -1,4 +1,4 @@
-#include "lineage_rate_aggregator.h"
+#include "lineage_aggregator.h"
 
 #include <yt/yt/flow/library/cpp/common/spec.h>
 
@@ -10,53 +10,58 @@ namespace NYT::NFlow::NController {
 
 namespace {
 
-constexpr auto LineageRateAggregationPeriod = TDuration::Minutes(1);
+constexpr auto LineageAggregationPeriod = TDuration::Minutes(1);
 
-void AddRates(
-    TLineageRates* aggregate,
-    const TLineageRates& rates,
+void AddRatios(
+    TLineageRatios* aggregate,
+    const TLineageRatios& ratios,
     const THashMap<TStreamId, THashSet<TStreamId>>& allowedEdges,
     double factor)
 {
-    auto addRate = [factor] (std::optional<double>* aggregateValue, const std::optional<double>& value) {
-        if (value) {
-            *aggregateValue = aggregateValue->value_or(0) + *value * factor;
+    auto merge = [factor] (
+        std::optional<TWeightedRatio>* aggregateValue,
+        const std::optional<TWeightedRatio>& value) {
+        if (!value || value->Weight <= 0) {
+            return;
         }
+        auto weight = value->Weight * factor;
+        if (!*aggregateValue) {
+            *aggregateValue = *value;
+            (*aggregateValue)->Weight = weight;
+            return;
+        }
+        auto& result = **aggregateValue;
+        auto totalWeight = result.Weight + weight;
+        result.Ratio += (value->Ratio - result.Ratio) * (weight / totalWeight);
+        result.Weight = totalWeight;
     };
-    for (const auto& [outputStreamId, parentRates] : rates) {
+    for (const auto& [outputStreamId, parentRatios] : ratios) {
         const auto* allowedParents = allowedEdges.FindPtr(outputStreamId);
         if (!allowedParents) {
             continue;
         }
-        for (const auto& [parentStreamId, rate] : parentRates) {
+        for (const auto& [parentStreamId, ratio] : parentRatios) {
             if (!allowedParents->contains(parentStreamId)) {
                 continue;
             }
-            auto& aggregateRate = (*aggregate)[outputStreamId][parentStreamId];
-            // A legacy or incomplete observation must not contribute only one side of a ratio.
-            if (rate.CountPerSecond && rate.InputCountPerSecond) {
-                addRate(&aggregateRate.CountPerSecond, rate.CountPerSecond);
-                addRate(&aggregateRate.InputCountPerSecond, rate.InputCountPerSecond);
-            }
-            if (rate.BytesPerSecond && rate.InputBytesPerSecond) {
-                addRate(&aggregateRate.BytesPerSecond, rate.BytesPerSecond);
-                addRate(&aggregateRate.InputBytesPerSecond, rate.InputBytesPerSecond);
-            }
+            auto& aggregateRatio = (*aggregate)[outputStreamId][parentStreamId];
+            merge(&aggregateRatio.Count, ratio.Count);
+            merge(&aggregateRatio.ByteSize, ratio.ByteSize);
         }
     }
 }
 
 } // namespace
 
-void TLineageRateAggregator::AddWorkerRates(
+void TLineageAggregator::AddWorkerRatios(
     TIncarnationId workerIncarnationId,
-    TLineageRates rates)
+    TLineageRatios ratios)
 {
-    auto guard = Guard(PendingWorkerRatesLock_);
-    PendingWorkerRates_[workerIncarnationId] = std::move(rates);
+    auto guard = Guard(PendingWorkerRatiosLock_);
+    PendingWorkerRatios_[workerIncarnationId] = std::move(ratios);
 }
 
-void TLineageRateAggregator::Update(
+void TLineageAggregator::Update(
     const TFlowViewPtr& flowView,
     TInstant now)
 {
@@ -65,26 +70,26 @@ void TLineageRateAggregator::Update(
         activeWorkerIncarnations.insert(worker->IncarnationId);
     }
 
-    THashMap<TIncarnationId, TLineageRates> pendingWorkerRates;
+    THashMap<TIncarnationId, TLineageRatios> pendingWorkerRatios;
     {
-        auto guard = Guard(PendingWorkerRatesLock_);
-        std::swap(pendingWorkerRates, PendingWorkerRates_);
+        auto guard = Guard(PendingWorkerRatiosLock_);
+        std::swap(pendingWorkerRatios, PendingWorkerRatios_);
     }
-    for (auto& [workerIncarnationId, rates] : pendingWorkerRates) {
+    for (auto& [workerIncarnationId, ratios] : pendingWorkerRatios) {
         if (!activeWorkerIncarnations.contains(workerIncarnationId) &&
             !WorkerSnapshots_.contains(workerIncarnationId))
         {
             continue;
         }
         auto& snapshot = WorkerSnapshots_[workerIncarnationId];
-        snapshot.Rates = std::move(rates);
+        snapshot.Ratios = std::move(ratios);
     }
 
     const auto pipelineSpecVersion = flowView->CurrentSpec->GetVersion();
     if (now < NextAggregationTime_ && pipelineSpecVersion == LastPipelineSpecVersion_) {
         return;
     }
-    NextAggregationTime_ = now + LineageRateAggregationPeriod;
+    NextAggregationTime_ = now + LineageAggregationPeriod;
     LastPipelineSpecVersion_ = pipelineSpecVersion;
 
     THashMap<TStreamId, THashSet<TStreamId>> allowedEdges;
@@ -98,12 +103,12 @@ void TLineageRateAggregator::Update(
         }
     }
 
-    TLineageRates aggregate;
+    TLineageRatios aggregate;
     for (auto it = WorkerSnapshots_.begin(); it != WorkerSnapshots_.end();) {
         const bool active = activeWorkerIncarnations.contains(it->first);
         if (active) {
             it->second.InactiveSince.reset();
-            AddRates(&aggregate, it->second.Rates, allowedEdges, 1.0);
+            AddRatios(&aggregate, it->second.Ratios, allowedEdges, 1.0);
             ++it;
             continue;
         }
@@ -112,18 +117,18 @@ void TLineageRateAggregator::Update(
             it->second.InactiveSince = now;
         }
         const auto age = now - *it->second.InactiveSince;
-        if (age >= LineageRateRetentionTime) {
+        if (age >= LineageRetentionTime) {
             auto staleIt = it++;
             WorkerSnapshots_.erase(staleIt);
             continue;
         }
 
-        const double factor = std::exp(-age.SecondsFloat() / (LineageRateDecayTime.SecondsFloat() / 2.0));
-        AddRates(&aggregate, it->second.Rates, allowedEdges, factor);
+        const double factor = std::exp(-age.SecondsFloat() / LineageDecayTime.SecondsFloat());
+        AddRatios(&aggregate, it->second.Ratios, allowedEdges, factor);
         ++it;
     }
 
-    flowView->EphemeralState->LineageRates = std::move(aggregate);
+    flowView->EphemeralState->LineageRatios = std::move(aggregate);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

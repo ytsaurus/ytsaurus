@@ -69,15 +69,24 @@ struct TStreamTraverseData
 
 DEFINE_REFCOUNTED_TYPE(TStreamTraverseData);
 
-struct TStreamRate
+struct TWeightedRatio
     : public NYTree::TYsonStructLite
 {
-    std::optional<double> CountPerSecond;
-    std::optional<double> BytesPerSecond;
-    std::optional<double> InputCountPerSecond;
-    std::optional<double> InputBytesPerSecond;
+    double Ratio = 0;
+    double Weight = 0;
 
-    REGISTER_YSON_STRUCT_LITE(TStreamRate);
+    REGISTER_YSON_STRUCT_LITE(TWeightedRatio);
+
+    static void Register(TRegistrar registrar);
+};
+
+struct TLineageRatio
+    : public NYTree::TYsonStructLite
+{
+    std::optional<TWeightedRatio> Count;
+    std::optional<TWeightedRatio> ByteSize;
+
+    REGISTER_YSON_STRUCT_LITE(TLineageRatio);
 
     static void Register(TRegistrar registrar);
 };
@@ -93,11 +102,11 @@ struct TLineageDeltaValue
 //! Paired input totals and attributed output totals per completed processing observation, keyed by computation-local streams.
 using TLineageDelta = THashMap<TStreamId, THashMap<TStreamId, TLineageDeltaValue>>;
 
-//! Paired input and attributed output rates with the same decay, keyed by pipeline-global streams.
-using TLineageRates = THashMap<TStreamId, THashMap<TStreamId, TStreamRate>>;
+//! Output/input ratios weighted by decayed input observations, keyed by pipeline-global streams.
+using TLineageRatios = THashMap<TStreamId, THashMap<TStreamId, TLineageRatio>>;
 
-constexpr auto LineageRateDecayTime = TDuration::Minutes(10);
-constexpr auto LineageRateRetentionTime = TDuration::Minutes(50);
+constexpr auto LineageDecayTime = TDuration::Minutes(5);
+constexpr auto LineageRetentionTime = TDuration::Minutes(50);
 
 ////////////////////////////////////////////////////////////////////////////////
 

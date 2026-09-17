@@ -149,12 +149,13 @@ class Test(FlowTestBase):
 
             wait(lambda: os.path.exists(commit_gate_ready_path), timeout=60)
 
-            def get_lineage_rates():
+            def get_lineage_ratios():
                 flow_view = self.client.get_flow_view(self.pipeline_path, cache=False)
-                return flow_view.get("ephemeral_state", {}).get("lineage_rates", {})
+                return flow_view.get("ephemeral_state", {}).get("lineage_ratios", {})
 
             def has_lineage_edge(output_stream, parent_stream):
-                return parent_stream in get_lineage_rates().get(output_stream, {})
+                rate = get_lineage_ratios().get(output_stream, {}).get(parent_stream, {})
+                return rate.get("count", {}).get("weight", 0) > 0 and rate["count"]["ratio"] > 0
 
             # Lineage is visible before the first source commit; processing rates are not.
             wait(lambda: os.path.exists(commit_gate_ready_path + ".reader"), timeout=60)

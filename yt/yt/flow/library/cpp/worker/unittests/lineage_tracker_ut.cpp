@@ -5,261 +5,192 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+
 namespace NYT::NFlow::NWorker {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TComputationSpecPtr MakeComputationSpec(
-    const TStreamId& inputStreamId,
-    const TStreamId& outputStreamId)
+TComputationSpecPtr MakeComputationSpec()
 {
     auto spec = New<TComputationSpec>();
-    spec->InputStreamIds.insert(inputStreamId);
-    spec->OutputStreamIds.insert(outputStreamId);
-    spec->StreamsDependency[outputStreamId] = {inputStreamId};
+    spec->InputStreamIds.insert(TStreamId("input"));
+    spec->OutputStreamIds.insert(TStreamId("output"));
+    spec->StreamsDependency[TStreamId("output")] = {TStreamId("input")};
     return spec;
 }
 
-TLineageDeltaValue MakeDelta(double count, double byteSize)
+TLineageDelta MakeDelta(double inputCount, double ratio = 2)
 {
-    return {
-        .Count = count,
-        .ByteSize = byteSize,
+    TLineageDelta delta;
+    delta[TStreamId("output")][TStreamId("input")] = {
+        .Count = inputCount * ratio,
+        .ByteSize = inputCount * ratio * 20,
+        .InputCount = inputCount,
+        .InputByteSize = inputCount * 10,
     };
+    return delta;
 }
 
-TEST(TLineageTrackerTest, PairedConversionSurvivesLoadChangesAndIdleDecay)
+TLineageRatio GetRatio(const TLineageTrackerPtr& tracker, TInstant now)
 {
-    const TComputationId computationId("mapper");
-    const TStreamId input("input");
-    const TStreamId output("output");
-    const auto spec = MakeComputationSpec(input, output);
-    const auto start = TInstant::Seconds(100);
-    auto tracker = New<TLineageTracker>();
-    tracker->Add(computationId, spec, {}, start);
-    for (int minute = 1; minute <= 60; ++minute) {
-        const double inputCount = minute <= 20 || minute > 40 ? 300'000 : 30'000;
-        TLineageDelta delta;
-        delta[output][input] = {
-            .Count = 2 * inputCount,
-            .ByteSize = 30 * inputCount,
-            .InputCount = inputCount,
-            .InputByteSize = 10 * inputCount,
-        };
-        const auto now = start + TDuration::Minutes(minute);
-        tracker->Add(computationId, spec, delta, now);
-        if (now >= start + LineageRateDecayTime) {
-            const auto rate = tracker->GetRates(now).at(output).at(input);
-            ASSERT_TRUE(rate.CountPerSecond);
-            ASSERT_TRUE(rate.InputCountPerSecond);
-            ASSERT_TRUE(rate.BytesPerSecond);
-            ASSERT_TRUE(rate.InputBytesPerSecond);
-            EXPECT_NEAR(*rate.CountPerSecond / *rate.InputCountPerSecond, 2, 1e-12);
-            EXPECT_NEAR(*rate.BytesPerSecond / *rate.InputBytesPerSecond, 3, 1e-12);
-        }
-    }
-    const auto idleRate = tracker->GetRates(start + TDuration::Minutes(65)).at(output).at(input);
-    EXPECT_NEAR(*idleRate.CountPerSecond / *idleRate.InputCountPerSecond, 2, 1e-12);
-    EXPECT_NEAR(*idleRate.BytesPerSecond / *idleRate.InputBytesPerSecond, 3, 1e-12);
+    return tracker->GetRatios(now).at(TStreamId("output")).at(TStreamId("input"));
 }
 
-TEST(TLineageTrackerTest, RecordsPairedJobDeltasImmediately)
+TEST(TLineageTrackerTest, FirstBatchHasRatioAndWeight)
 {
-    const TComputationId computationId("mapper");
-    const TStreamId input("input");
-    const TStreamId output("output");
-    const auto spec = MakeComputationSpec(input, output);
     auto tracker = New<TLineageTracker>();
-    tracker->Add(computationId, spec, {}, TInstant::Now() - LineageRateDecayTime - TDuration::Seconds(1));
-    auto job = CreateJobLineageTracker(tracker, computationId, spec);
-    for (int index = 1; index <= 2; ++index) {
-        TLineageDelta delta;
-        delta[output][input] = {.Count = 100.0 * index, .ByteSize = 400.0 * index, .InputCount = 50.0 * index, .InputByteSize = 100.0 * index};
-        job->Add(std::move(delta));
-        const auto rate = tracker->GetRates(TInstant::Now()).at(output).at(input);
-        ASSERT_TRUE(rate.CountPerSecond);
-        ASSERT_TRUE(rate.BytesPerSecond);
-        ASSERT_TRUE(rate.InputCountPerSecond);
-        ASSERT_TRUE(rate.InputBytesPerSecond);
-        ASSERT_GT(*rate.InputCountPerSecond, 0);
-        ASSERT_GT(*rate.InputBytesPerSecond, 0);
-        EXPECT_NEAR(*rate.CountPerSecond / *rate.InputCountPerSecond, 2, 1e-12);
-        EXPECT_NEAR(*rate.BytesPerSecond / *rate.InputBytesPerSecond, 4, 1e-12);
-    }
+    auto now = TInstant::Seconds(100);
+    EXPECT_TRUE(tracker->GetRatios(now).empty());
+    tracker->Add(TComputationId("mapper"), MakeComputationSpec(), MakeDelta(100), now);
+    auto value = GetRatio(tracker, now);
+    ASSERT_TRUE(value.Count);
+    ASSERT_TRUE(value.ByteSize);
+    EXPECT_DOUBLE_EQ(value.Count->Ratio, 2);
+    EXPECT_DOUBLE_EQ(value.Count->Weight, 100);
+    EXPECT_DOUBLE_EQ(value.ByteSize->Ratio, 4);
+    EXPECT_DOUBLE_EQ(value.ByteSize->Weight, 1000);
 }
 
-TEST(TLineageTrackerTest, AggregatesObservationsAcrossJobs)
+TEST(TLineageTrackerTest, EmptyInputIsUnknownAndFilteredOutputIsKnownZero)
 {
-    const TComputationId computationId("mapper");
-    const TStreamId input("input");
-    const TStreamId output("output");
-    const TStreamId timer("timer");
-    const TStreamId globalTimer("mapper/timer");
-    const auto computationSpec = MakeComputationSpec(input, output);
-    computationSpec->StreamsDependency[timer] = {timer};
-    const auto startTime = TInstant::Seconds(100);
     auto tracker = New<TLineageTracker>();
-
-    TLineageDelta firstDelta;
-    firstDelta[output][input] = MakeDelta(600, 6000);
-    firstDelta[timer][timer] = MakeDelta(60, 600);
-    tracker->Add(computationId, computationSpec, firstDelta, startTime);
-
-    TLineageDelta secondDelta;
-    secondDelta[output][input] = MakeDelta(600, 6000);
-    secondDelta[timer][timer] = MakeDelta(60, 600);
-    tracker->Add(computationId, computationSpec, secondDelta, startTime + TDuration::Minutes(1));
-
-    const auto youngRates = tracker->GetRates(startTime + LineageRateDecayTime - TDuration::Seconds(1));
-    EXPECT_FALSE(youngRates.at(output).at(input).CountPerSecond);
-    EXPECT_FALSE(youngRates.at(output).at(input).BytesPerSecond);
-    EXPECT_FALSE(youngRates.at(globalTimer).at(globalTimer).CountPerSecond);
-    EXPECT_FALSE(youngRates.at(globalTimer).at(globalTimer).BytesPerSecond);
-
-    const auto matureRates = tracker->GetRates(startTime + LineageRateDecayTime);
-    ASSERT_TRUE(matureRates.at(output).at(input).CountPerSecond);
-    ASSERT_TRUE(matureRates.at(output).at(input).BytesPerSecond);
-    ASSERT_TRUE(matureRates.at(globalTimer).at(globalTimer).CountPerSecond);
-    ASSERT_TRUE(matureRates.at(globalTimer).at(globalTimer).BytesPerSecond);
-    EXPECT_GT(*matureRates.at(output).at(input).CountPerSecond, 0);
-    EXPECT_GT(*matureRates.at(output).at(input).BytesPerSecond, 0);
-    EXPECT_GT(*matureRates.at(globalTimer).at(globalTimer).CountPerSecond, 0);
-    EXPECT_GT(*matureRates.at(globalTimer).at(globalTimer).BytesPerSecond, 0);
+    auto spec = MakeComputationSpec();
+    auto now = TInstant::Seconds(100);
+    tracker->Add(TComputationId("filter"), spec, {}, now);
+    auto unknown = GetRatio(tracker, now);
+    EXPECT_FALSE(unknown.Count);
+    EXPECT_FALSE(unknown.ByteSize);
+    tracker->Add(TComputationId("filter"), spec, MakeDelta(100, 0), now);
+    auto zero = GetRatio(tracker, now);
+    ASSERT_TRUE(zero.Count);
+    ASSERT_TRUE(zero.ByteSize);
+    EXPECT_DOUBLE_EQ(zero.Count->Ratio, 0);
+    EXPECT_DOUBLE_EQ(zero.Count->Weight, 100);
+    EXPECT_DOUBLE_EQ(zero.ByteSize->Ratio, 0);
+    EXPECT_DOUBLE_EQ(zero.ByteSize->Weight, 1000);
 }
 
-TEST(TLineageTrackerTest, KeepsObservationsAfterJobDestructionAndReplay)
+TEST(TLineageTrackerTest, DecaysWeightWithoutChangingRatio)
 {
-    const TComputationId computationId("mapper");
-    const TStreamId input("input");
-    const TStreamId output("output");
-    const auto spec = MakeComputationSpec(input, output);
     auto tracker = New<TLineageTracker>();
-    tracker->Add(computationId, spec, {}, TInstant::Now() - LineageRateDecayTime - TDuration::Seconds(1));
+    auto now = TInstant::Seconds(100);
+    tracker->Add(TComputationId("mapper"), MakeComputationSpec(), MakeDelta(100), now);
+    auto value = GetRatio(tracker, now + LineageDecayTime);
+    ASSERT_TRUE(value.Count);
+    ASSERT_TRUE(value.ByteSize);
+    EXPECT_DOUBLE_EQ(value.Count->Ratio, 2);
+    EXPECT_DOUBLE_EQ(value.ByteSize->Ratio, 4);
+    EXPECT_NEAR(value.Count->Weight, 100 * std::exp(-1.0), 1e-12);
+    EXPECT_NEAR(value.ByteSize->Weight, 1000 * std::exp(-1.0), 1e-12);
+    EXPECT_TRUE(tracker->GetRatios(now + LineageRetentionTime).empty());
+    tracker->Add(TComputationId("mapper"), MakeComputationSpec(), MakeDelta(10, 3), now + LineageRetentionTime);
+    auto fresh = GetRatio(tracker, now + LineageRetentionTime);
+    ASSERT_TRUE(fresh.Count);
+    EXPECT_DOUBLE_EQ(fresh.Count->Ratio, 3);
+    EXPECT_DOUBLE_EQ(fresh.Count->Weight, 10);
+}
 
-    double previousRate = 0;
+TEST(TLineageTrackerTest, AggregatesActualInputWeightsInsteadOfBatchCounts)
+{
+    auto tracker = New<TLineageTracker>();
+    auto spec = MakeComputationSpec();
+    auto now = TInstant::Seconds(100);
+    tracker->Add(TComputationId("mapper"), spec, MakeDelta(100, 2), now);
+    tracker->Add(TComputationId("mapper"), spec, MakeDelta(300, 0), now);
+    auto value = GetRatio(tracker, now);
+    ASSERT_TRUE(value.Count);
+    ASSERT_TRUE(value.ByteSize);
+    EXPECT_DOUBLE_EQ(value.Count->Ratio, 0.5);
+    EXPECT_DOUBLE_EQ(value.Count->Weight, 400);
+    EXPECT_DOUBLE_EQ(value.ByteSize->Ratio, 1);
+    EXPECT_DOUBLE_EQ(value.ByteSize->Weight, 4000);
+}
+
+TEST(TLineageTrackerTest, RecentObservationsChangeTheRatio)
+{
+    auto tracker = New<TLineageTracker>();
+    auto spec = MakeComputationSpec();
+    auto now = TInstant::Seconds(100);
+    tracker->Add(TComputationId("mapper"), spec, MakeDelta(100, 2), now);
+    tracker->Add(TComputationId("mapper"), spec, MakeDelta(100, 4), now + LineageDecayTime);
+    auto value = GetRatio(tracker, now + LineageDecayTime);
+    ASSERT_TRUE(value.Count);
+    EXPECT_NEAR(value.Count->Ratio, (2 * std::exp(-1.0) + 4) / (std::exp(-1.0) + 1), 1e-12);
+    EXPECT_NEAR(value.Count->Weight, 100 * (std::exp(-1.0) + 1), 1e-12);
+}
+
+TEST(TLineageTrackerTest, JobRestartAndReplayDoNotResetSharedObservation)
+{
+    auto tracker = New<TLineageTracker>();
+    auto spec = MakeComputationSpec();
+    double previousWeight = 0;
     for (int attempt = 0; attempt < 2; ++attempt) {
-        auto job = CreateJobLineageTracker(tracker, computationId, spec);
-        TLineageDelta delta;
-        delta[output][input] = {.Count = 100, .ByteSize = 400, .InputCount = 50, .InputByteSize = 100};
-        job->Add(std::move(delta));
+        auto job = CreateJobLineageTracker(tracker, TComputationId("mapper"), spec);
+        job->Add(MakeDelta(100));
         job.Reset();
-
-        const auto rate = tracker->GetRates(TInstant::Now()).at(output).at(input);
-        ASSERT_TRUE(rate.CountPerSecond);
-        ASSERT_TRUE(rate.InputCountPerSecond);
-        EXPECT_GT(*rate.CountPerSecond, previousRate);
-        EXPECT_NEAR(*rate.CountPerSecond / *rate.InputCountPerSecond, 2, 1e-12);
-        previousRate = *rate.CountPerSecond;
+        auto value = GetRatio(tracker, TInstant::Now());
+        ASSERT_TRUE(value.Count);
+        EXPECT_DOUBLE_EQ(value.Count->Ratio, 2);
+        EXPECT_GT(value.Count->Weight, previousWeight);
+        previousWeight = value.Count->Weight;
     }
 }
 
-TEST(TLineageTrackerTest, DecaysIdleEdgesAndEventuallyDropsThem)
+TEST(TLineageTrackerTest, ReorderedTimestampsDoNotRewindDecay)
 {
-    const TComputationId computationId("mapper");
-    const TStreamId input("input");
-    const TStreamId output("output");
-    const auto computationSpec = MakeComputationSpec(input, output);
-    const auto startTime = TInstant::Seconds(100);
     auto tracker = New<TLineageTracker>();
-
-    TLineageDelta delta;
-    delta[output][input] = MakeDelta(600, 6000);
-    tracker->Add(computationId, computationSpec, delta, startTime);
-    tracker->Add(computationId, computationSpec, delta, startTime + TDuration::Minutes(1));
-
-    const auto matureRate = tracker->GetRates(startTime + LineageRateDecayTime).at(output).at(input);
-    const auto decayedRate = tracker->GetRates(startTime + 2 * LineageRateDecayTime).at(output).at(input);
-    ASSERT_TRUE(matureRate.CountPerSecond);
-    ASSERT_TRUE(matureRate.BytesPerSecond);
-    ASSERT_TRUE(decayedRate.CountPerSecond);
-    ASSERT_TRUE(decayedRate.BytesPerSecond);
-    EXPECT_LT(*decayedRate.CountPerSecond, *matureRate.CountPerSecond);
-    EXPECT_LT(*decayedRate.BytesPerSecond, *matureRate.BytesPerSecond);
-
-    EXPECT_TRUE(tracker->GetRates(startTime + TDuration::Minutes(1) + LineageRateRetentionTime).empty());
+    auto spec = MakeComputationSpec();
+    auto now = TInstant::Seconds(100);
+    tracker->Add(TComputationId("mapper"), spec, MakeDelta(100), now);
+    tracker->Add(TComputationId("mapper"), spec, MakeDelta(100), now + LineageDecayTime);
+    tracker->Add(TComputationId("mapper"), spec, MakeDelta(100), now);
+    auto value = GetRatio(tracker, now);
+    ASSERT_TRUE(value.Count);
+    EXPECT_DOUBLE_EQ(value.Count->Ratio, 2);
+    EXPECT_NEAR(value.Count->Weight, 200 * std::exp(-1.0) + 100, 1e-12);
 }
 
-TEST(TLineageTrackerTest, ReportsMatureZeroForDeclaredEdgeWithoutOutput)
+TEST(TLineageTrackerTest, ObservationDeliveryOrderPreservesRatioAndWeight)
 {
-    const TComputationId computationId("filter");
-    const TStreamId input("input");
-    const TStreamId output("output");
-    const auto computationSpec = MakeComputationSpec(input, output);
-    computationSpec->StreamsDependency[output] = {input};
-    const auto startTime = TInstant::Seconds(100);
-    auto tracker = New<TLineageTracker>();
-
-    tracker->Add(computationId, computationSpec, {}, startTime);
-    TLineageDelta delta;
-    delta[output][input] = {.InputCount = 600, .InputByteSize = 6000};
-    tracker->Add(computationId, computationSpec, delta, startTime + TDuration::Minutes(1));
-
-    const auto youngRate = tracker->GetRates(startTime + LineageRateDecayTime - TDuration::Seconds(1)).at(output).at(input);
-    EXPECT_FALSE(youngRate.CountPerSecond);
-    EXPECT_FALSE(youngRate.BytesPerSecond);
-
-    const auto matureRate = tracker->GetRates(startTime + LineageRateDecayTime).at(output).at(input);
-    ASSERT_TRUE(matureRate.CountPerSecond);
-    ASSERT_TRUE(matureRate.BytesPerSecond);
-    EXPECT_DOUBLE_EQ(*matureRate.CountPerSecond, 0);
-    EXPECT_DOUBLE_EQ(*matureRate.BytesPerSecond, 0);
-    ASSERT_TRUE(matureRate.InputCountPerSecond);
-    ASSERT_TRUE(matureRate.InputBytesPerSecond);
-    EXPECT_GT(*matureRate.InputCountPerSecond, 0);
-    EXPECT_GT(*matureRate.InputBytesPerSecond, 0);
-}
-
-TEST(TLineageTrackerTest, KeepsObservationTimestampsMonotonic)
-{
-    const TComputationId computationId("mapper");
-    const TStreamId input("input");
-    const TStreamId output("output");
-    const auto computationSpec = MakeComputationSpec(input, output);
-    const auto startTime = TInstant::Seconds(100);
-    auto tracker = New<TLineageTracker>();
-
-    TLineageDelta delta;
-    delta[output][input] = MakeDelta(600, 6000);
-    tracker->Add(computationId, computationSpec, delta, startTime);
-    tracker->Add(computationId, computationSpec, delta, startTime + TDuration::Minutes(1));
-    tracker->Add(computationId, computationSpec, delta, startTime + TDuration::Seconds(30));
-
-    const auto rates = tracker->GetRates(
-        startTime + TDuration::Seconds(30) + LineageRateRetentionTime);
-    EXPECT_FALSE(rates.empty());
+    auto spec = MakeComputationSpec();
+    auto start = TInstant::Seconds(100);
+    std::array<int, 3> order = {0, 1, 2};
+    do {
+        auto tracker = New<TLineageTracker>();
+        for (int index : order) {
+            tracker->Add(TComputationId("mapper"), spec, MakeDelta(100, index + 1), start + LineageDecayTime * index);
+        }
+        auto value = GetRatio(tracker, start + LineageDecayTime * 2);
+        ASSERT_TRUE(value.Count);
+        ASSERT_TRUE(value.ByteSize);
+        auto weight = 100 * (std::exp(-2.0) + std::exp(-1.0) + 1);
+        auto ratio = (std::exp(-2.0) + 2 * std::exp(-1.0) + 3) * 100 / weight;
+        EXPECT_NEAR(value.Count->Weight, weight, 1e-10);
+        EXPECT_NEAR(value.Count->Ratio, ratio, 1e-12);
+        EXPECT_NEAR(value.ByteSize->Weight, 10 * weight, 1e-9);
+        EXPECT_NEAR(value.ByteSize->Ratio, 2 * ratio, 1e-12);
+        EXPECT_TRUE(tracker->GetRatios(start + LineageDecayTime * 2 + LineageRetentionTime).empty());
+    } while (std::next_permutation(order.begin(), order.end()));
 }
 
 TEST(TLineageTrackerTest, ScopesInternalStreamIdsByComputation)
 {
-    const TStreamId input("input");
-    const TStreamId outputA("output_a");
-    const TStreamId outputB("output_b");
-    const TStreamId source("source");
-    const auto computationSpecA = MakeComputationSpec(input, outputA);
-    const auto computationSpecB = MakeComputationSpec(input, outputB);
-    computationSpecA->StreamsDependency[outputA].insert(source);
-    computationSpecB->StreamsDependency[outputB].insert(source);
-    const auto startTime = TInstant::Seconds(100);
     auto tracker = New<TLineageTracker>();
-
-    TLineageDelta deltaA;
-    deltaA[outputA][source] = MakeDelta(600, 6000);
-    tracker->Add(TComputationId("reader_a"), computationSpecA, deltaA, startTime);
-
-    TLineageDelta deltaB;
-    deltaB[outputB][source] = MakeDelta(600, 6000);
-    tracker->Add(
-        TComputationId("reader_b"),
-        computationSpecB,
-        deltaB,
-        startTime + TDuration::Minutes(1));
-
-    const auto rates = tracker->GetRates(startTime + LineageRateDecayTime);
-    EXPECT_TRUE(rates.at(outputA).contains(TStreamId("reader_a/source")));
-    EXPECT_TRUE(rates.at(outputB).contains(TStreamId("reader_b/source")));
-    EXPECT_FALSE(rates.at(outputA).contains(source));
-    EXPECT_FALSE(rates.at(outputB).contains(source));
+    auto spec = MakeComputationSpec();
+    spec->StreamsDependency[TStreamId("output")].insert(TStreamId("source"));
+    auto now = TInstant::Seconds(100);
+    TLineageDelta delta;
+    delta[TStreamId("output")][TStreamId("source")] = {.Count = 10, .InputCount = 20};
+    tracker->Add(TComputationId("first"), spec, delta, now);
+    tracker->Add(TComputationId("second"), spec, delta, now);
+    auto values = tracker->GetRatios(now).at(TStreamId("output"));
+    EXPECT_TRUE(values.contains(TStreamId("first/source")));
+    EXPECT_TRUE(values.contains(TStreamId("second/source")));
+    EXPECT_FALSE(values.contains(TStreamId("source")));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
