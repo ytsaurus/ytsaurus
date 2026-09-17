@@ -49,7 +49,9 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
     auto peers = GetValidPeers(cellDescriptor);
 
     if (peers.empty()) {
-        THROW_ERROR_EXCEPTION("No alive peers for tablet cell %v",
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::CellHasNoAssignedPeers,
+            "No alive peers for tablet cell %v",
             cellDescriptor.CellId);
     }
 
@@ -64,7 +66,9 @@ const TCellPeerDescriptor& GetPrimaryTabletPeerDescriptor(
     switch (peerKind) {
         case EPeerKind::Leader: {
             if (leadingPeerIndex < 0) {
-                THROW_ERROR_EXCEPTION("No leading peer is known for tablet cell %v",
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::CellHasNoLeader,
+                    "No leading peer is known for tablet cell %v",
                     cellDescriptor.CellId);
             }
             return *peers[leadingPeerIndex];
