@@ -3947,8 +3947,8 @@ class TestLayerReuseInAllocation(TestLayerReuseInAllocationBase):
         # Second job in same allocation must not have downloaded or imported any layers.
         assert stats2["exec_agent"]["artifacts"]["layers_cached_size"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_downloaded_size"]["sum"] == 0
-        assert stats2["exec_agent"]["artifacts"]["layers_downloaded_total_duration"]["sum"] == 0
-        assert stats2["exec_agent"]["artifacts"]["layers_import_total_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_downloaded_aggr_duration"]["sum"] == 0
+        assert stats2["exec_agent"]["artifacts"]["layers_imported_aggr_duration"]["sum"] == 0
         assert stats2["exec_agent"]["artifacts"]["layers_imported_size"]["sum"] == 0
 
     @authors("pogorelov")
