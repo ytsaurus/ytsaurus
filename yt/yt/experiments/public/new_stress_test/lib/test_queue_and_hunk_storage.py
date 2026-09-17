@@ -95,10 +95,27 @@ def unmount_async_tablets(obj, tablet_index):
             obj.unmount(unmounted_async_tablet_index, sync=True)
 
 
+def wait_for_tablet_state(path, tablet_indexes, state):
+    def _tablets_ready():
+        tablets = yt.get(f"{path}/@tablets")
+        return all(
+            tablets[tablet_index]["state"] == state
+            for tablet_index in tablet_indexes
+        )
+
+    wait(
+        _tablets_ready,
+        error_message=f"Mounted tablets of queue {path} did not become {state}",
+        timeout=yt.config["tablets_ready_timeout"] / 1000,
+        sleep_backoff=yt.config["tablets_check_interval"] / 1000,
+    )
+
+
 # Inline hunk threshold for the queue's value column. Values larger than this are
 # stored in the linked hunk storage; smaller ones stay inline. Kept as a single
 # constant so every schema that should produce hunks agrees on the value.
 MAX_INLINE_HUNK_SIZE = 512
+DATA_TABLE_WRITE_BATCH_SIZE = 20_000
 
 QUEUE_SCHEMA = [
     {"name": "key", "type": "string"},
@@ -699,15 +716,26 @@ class Queue(TableBase):
 
         wait(check_written, error_message=f"Queue {self.path} has unexpected written row count (expected: {self.written_row_count})")
 
-    def flush(self):
+    def flush(self) -> None:
         logger.info(f"Flushing queue {self.path}")
         if self.mount_state.has_mounted_tablet():
             mount_async_tablets(self, tablet_index=None)
 
-            mounted_tablet_indexes = self.mount_state.get_mounted_tablet_indexes(tablet_index=None, sync=True)
-            for tablet_index in mounted_tablet_indexes:
-                yt.freeze_table(self.path, sync=True, first_tablet_index=tablet_index, last_tablet_index=tablet_index)
-                yt.unfreeze_table(self.path, sync=True, first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            mounted_tablet_indexes = self.mount_state.get_mounted_tablet_indexes(
+                tablet_index=None, sync=True)
+
+            for command, state in (
+                (yt.freeze_table, "frozen"),
+                (yt.unfreeze_table, "mounted"),
+            ):
+                for tablet_index in mounted_tablet_indexes:
+                    command(
+                        self.path,
+                        sync=False,
+                        first_tablet_index=tablet_index,
+                        last_tablet_index=tablet_index,
+                    )
+                wait_for_tablet_state(self.path, mounted_tablet_indexes, state)
 
     def get_expected_rows(self, tablet_index=None):
         where_expr = ""
@@ -903,8 +931,8 @@ class StaticTable(TableBase):
 
         queue = Queue(self.base_path, new_queue_name, tablet_count=1, history=new_history)
         queue.create_data_table()
-        if queue_data_rows:
-            yt.insert_rows(queue.data_path, queue_data_rows)
+        for offset in range(0, len(queue_data_rows), DATA_TABLE_WRITE_BATCH_SIZE):
+            yt.insert_rows(queue.data_path, queue_data_rows[offset:offset + DATA_TABLE_WRITE_BATCH_SIZE])
         queue.written_row_count[0] = len(queue_data_rows)
 
         queue.mount()
