@@ -7,7 +7,8 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect, pull_queue, sort,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks, remote_copy,
     write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, move, get_tablet_infos,
-    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state)
+    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user, wait_for_tablet_state,
+    freeze_table, unmount_table)
 
 from yt_type_helpers import make_schema
 
@@ -2157,6 +2158,47 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         remove("//tmp/t/@hunk_storage_id")
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("state", ["frozen", "unmounted"])
+    def test_unlock_hunk_stores_without_periodic_scan(self, state):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "unlock_check_period": 600000,
+                    "hunk_store_extra_lifetime": 600000,
+                },
+            },
+        })
+
+        sync_create_cells(1)
+        self._create_table()
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "store_rotation_period": 600000,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 0, "value": "x" * 100}]
+        self._insert_rows_with_hunk_storage("//tmp/t", rows)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        hunk_tablet_id = get("//tmp/h/@tablets/0/tablet_id")
+        hunk_store_id = self._get_active_store_id("//tmp/h")
+        locks_path = (
+            f"//sys/tablets/{hunk_tablet_id}/orchid/stores/{hunk_store_id}/tablet_locks"
+        )
+        assert get(locks_path)[tablet_id] > 0
+
+        command = freeze_table if state == "frozen" else unmount_table
+        command("//tmp/t")
+        wait(lambda: get("//tmp/t/@tablet_state") == state, timeout=30)
+        wait(lambda: tablet_id not in get(locks_path))
+
+        if state == "unmounted":
+            sync_mount_table("//tmp/t")
+        assert_items_equal(select_rows("key, value from [//tmp/t]"), rows)
 
     @authors("akozhikhov", "aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
