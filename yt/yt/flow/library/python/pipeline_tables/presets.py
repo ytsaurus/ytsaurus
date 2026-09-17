@@ -206,6 +206,15 @@ PIPELINE_TABLES_PRESET = {
                     "mount_config": {
                         "enable_lookup_hash_table": True,
                     },
+                    # The table holds one row per election group, so the installation-wide tablet
+                    # count of the base preset would pin dozens of in-memory tablets for nothing.
+                    # The minimum is overridden together with it: an installation that raises the
+                    # minimum would otherwise leave it above the desired count, and the master
+                    # rejects that pair outright.
+                    "tablet_balancer_config": {
+                        "min_tablet_count": 1,
+                        "desired_tablet_count": 1,
+                    },
                     "erasure_codec": "none",
                     "compression_codec": "none",
                 },

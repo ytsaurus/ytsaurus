@@ -282,6 +282,35 @@ def test_real_preset_timers_inherits_sorted_base():
     assert attrs["mount_config"]["enable_lookup_hash_table"] is False
 
 
+# An installation is free to raise the tablet count of every sorted pipeline table; yacs and
+# wait_click_join both do. A table that wants a single tablet has to override the minimum along
+# with the desired count, or the pair ends up contradictory and the master rejects it outright
+# (see TMasterTableTabletBalancerConfig::CheckTabletSizeInequalities).
+def test_leader_election_lock_stays_single_tablet_under_a_wide_installation():
+    wide_registry = copy.deepcopy(LOCAL_PRESETS)
+    wide_registry["builtin:pipeline_sorted_table_preset"] = _deep_merge(
+        copy.deepcopy(wide_registry["builtin:pipeline_sorted_table_preset"]),
+        {
+            "clusters": {
+                "_all_data_clusters": {
+                    "attributes": {
+                        "tablet_balancer_config": {
+                            "min_tablet_count": 100,
+                            "desired_tablet_count": 200,
+                        },
+                    },
+                },
+            },
+        },
+    )
+
+    attrs = _resolve_attributes(PIPELINE_TABLES_PRESET["leader_election_lock"], wide_registry)
+    balancer_config = attrs["tablet_balancer_config"]
+
+    assert balancer_config["desired_tablet_count"] == 1
+    assert balancer_config["min_tablet_count"] <= balancer_config["desired_tablet_count"]
+
+
 def test_shared_preset_keeps_internal_erasure():
     """The shared preset dict is re-exported verbatim by yt_sync for
     Yandex-internal deployments and must keep its erasure setting; only the
