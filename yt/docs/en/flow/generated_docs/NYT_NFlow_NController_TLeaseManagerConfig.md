@@ -7,12 +7,12 @@ Source: [yt/yt/flow/library/cpp/controller/config.h]({{source-root}}/yt/yt/flow/
 || **Parameter** | **Description** ||
 || `lease_timeout` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `10m`
-How long a job stays fenced without the controller refreshing the fence. With the Cypress election backend this is the timeout of the job's master lease transaction; with the dyntable one it is the ttl of the pipeline-wide deadline row that gates every worker commit. ||
+How long a job stays fenced without the controller refreshing the fence. With the Cypress election backend this is the timeout of the job's master lease transaction, with the chaos one the timeout of its chaos lease, and with the dyntable one the ttl of the pipeline-wide deadline row that gates every worker commit. ||
 || `lease_ping_period` | **Type**: [TDuration](./all_yson_structs#TDuration)
 **Default value**: `30s`
-Period at which the controller pings the lease transaction. ||
+Period at which the leader prolongs the leases. Every backend prolongs from the leader and none from the worker, but the machinery differs: the chaos leases are pinged by one periodic executor, the Cypress ones by a client-side pinger per lease transaction, and the shared dyntable deadline is simply rewritten. ||
 || `max_concurrent_requests` | **Type**: `long`
 **Default value**: `500`
-Maximum number of concurrent requests. Do not increase to avoid overloading the master. ||
+Maximum number of concurrent requests the manager keeps in flight when it attaches to leases or terminates them. Do not increase to avoid overloading the master. Prolongation is not capped by it: the chaos pings are dispatched in one fire-and-forget round, and the Cypress ones belong to the lease transactions themselves. ||
 |#
 

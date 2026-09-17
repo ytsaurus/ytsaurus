@@ -4,6 +4,8 @@
 
 #include "config.h"
 
+#include <yt/yt/flow/library/cpp/controller/config.h>
+
 #include <yt/yt/flow/library/cpp/vanilla/current_operation.h>
 #include <yt/yt/flow/library/cpp/vanilla/files.h>
 #include <yt/yt/flow/library/cpp/vanilla/spec.h>
@@ -427,6 +429,36 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFlowNodeConfigPtr PatchVanillaNodeConfig(
+    const TFlowNodeConfigPtr& nodeConfig,
+    const INodePtr& patch)
+{
+    auto findMap = [] (const INodePtr& node, TStringBuf key) -> IMapNodePtr {
+        if (!node || node->GetType() != ENodeType::Map) {
+            return nullptr;
+        }
+        auto child = node->AsMap()->FindChild(TString(key));
+        return child && child->GetType() == ENodeType::Map ? child->AsMap() : nullptr;
+    };
+
+    auto node = ConvertToNode(nodeConfig);
+
+    // The patch is merged into a fully serialized config, and the backends spell their settings
+    // under the same keys. Left in place, the Cypress five-second TTL would reach a chaos manager
+    // that expects its own minute, so the subtree goes and the new backend fills it from its
+    // own defaults.
+    auto patchedElection = findMap(findMap(patch, "controller"), "election_manager");
+    if (patchedElection && patchedElection->FindChild(TString(NController::ElectionBackendDiscriminator))) {
+        if (auto controller = findMap(node, "controller")) {
+            controller->RemoveChild(TString("election_manager"));
+        }
+    }
+
+    return ConvertTo<TFlowNodeConfigPtr>(PatchNode(node, patch));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TVanillaOperationHandle LaunchInVanillaJob(
     const NYPath::TRichYPath& pipelinePath,
     const std::optional<std::string>& proxyRole,
@@ -443,8 +475,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
 
     auto nodeConfig = BuildDefaultVanillaNodeConfig(pipelinePath, proxyRole, vanillaConfig->Worker->PortCount);
     if (vanillaConfig->NodeConfigPatch) {
-        nodeConfig = ConvertTo<TFlowNodeConfigPtr>(
-            PatchNode(ConvertToNode(nodeConfig), vanillaConfig->NodeConfigPatch));
+        nodeConfig = PatchVanillaNodeConfig(nodeConfig, vanillaConfig->NodeConfigPatch);
     }
 
     auto pipelineCluster = pipelinePath.GetCluster().value();

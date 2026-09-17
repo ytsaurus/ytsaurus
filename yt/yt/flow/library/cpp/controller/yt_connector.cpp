@@ -339,8 +339,8 @@ private:
 
                 auto config = New<TCypressElectionManagerConfig>();
                 config->LockPath = YPathJoin(GetPipelinePath().GetPath(), LeaderControllerLockName);
-                config->TransactionTimeout = backendConfig->TransactionTimeout;
-                config->TransactionPingPeriod = backendConfig->TransactionPingPeriod;
+                config->TransactionTimeout = backendConfig->LeaderLeaseTtl;
+                config->TransactionPingPeriod = backendConfig->LeaderLeasePingPeriod;
                 config->LockAcquisitionPeriod = backendConfig->LockAcquisitionPeriod;
                 config->LeaderCacheUpdatePeriod = backendConfig->LeaderCacheUpdatePeriod;
                 config->MasterTransactionExpirationMode = NTransactionClient::EMasterTransactionExpirationMode::Pessimistic;
@@ -386,10 +386,9 @@ private:
                 // it appears, lock acquisition keeps failing and retrying.
                 config->LockTablePath = YPathJoin(GetPipelinePath().GetPath(), LeaderElectionLockTableName);
                 config->ChaosCellBundle = backendConfig->ChaosCellBundle;
-                config->LeaseTimeout = backendConfig->LeaseTimeout;
-                config->LeasePingPeriod = backendConfig->LeasePingPeriod;
+                config->LeaseTimeout = backendConfig->LeaderLeaseTtl;
+                config->LeasePingPeriod = backendConfig->LeaderLeasePingPeriod;
                 config->LockAcquisitionPeriod = backendConfig->LockAcquisitionPeriod;
-                config->LeaderCacheUpdatePeriod = backendConfig->LeaderCacheUpdatePeriod;
 
                 auto options = New<NChaosElection::TChaosElectionManagerOptions>();
                 options->GroupName = ElectionGroupName;
@@ -481,7 +480,7 @@ private:
         // tablet commit fail, and the master write is never reached.
         try {
             TTransactionStartOptions options;
-            options.Timeout = TDuration::Seconds(1);
+            options.Timeout = Config_->PublishRequestTimeout;
             auto transaction = WaitFor(StartTransaction(ETransactionType::Tablet, options)).ValueOrThrow();
 
             // Publish the full node info (address, fqdn-ish name, incarnation, versions, ...) so the
@@ -505,14 +504,14 @@ private:
 
         try {
             TTransactionStartOptions options;
-            options.Timeout = TDuration::Seconds(1);
+            options.Timeout = Config_->PublishRequestTimeout;
             // Under the chaos backend this master transaction carries no leadership prerequisite
             // (see #StartTransaction), so a demoted controller can still overwrite the attribute;
             // the incarnation check below is what makes the publication trustworthy.
             auto transaction = WaitFor(StartTransaction(ETransactionType::Master, options)).ValueOrThrow();
             TSetNodeOptions setOptions;
             setOptions.Recursive = true;
-            setOptions.Timeout = TDuration::Seconds(1);
+            setOptions.Timeout = Config_->PublishRequestTimeout;
             WaitFor(transaction->SetNode(
                 Format("%v/@%v", GetPipelinePath().GetPath(), LeaderControllerAddressAttribute),
                 ConvertToYsonString(NodeInfo_->RpcAddress),

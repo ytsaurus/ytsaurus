@@ -636,12 +636,8 @@ private:
 
     void OnDeadlineTouched()
     {
-        NextDeadlineTouchInstant_ = TInstant::Now() + Config_->LeaseTimeout / DeadlineTouchesPerTimeout;
+        NextDeadlineTouchInstant_ = TInstant::Now() + Config_->LeasePingPeriod;
     }
-
-    //! How many times the deadline is rewritten within one lease timeout. Three leaves two whole
-    //! retry windows between a failing touch and an expired fleet.
-    static constexpr int DeadlineTouchesPerTimeout = 3;
 
     //! The one and only read of the lease table, at the start of the leadership. Whatever the
     //! predecessor knew died with it, so this is the only way to learn which partitions its rows
