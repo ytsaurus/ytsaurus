@@ -44,13 +44,16 @@ inline static constexpr TStringBuf LastPingTimeColumn = "last_ping_time";
 
 TTableSchemaPtr GetChaosElectionLockTableSchema()
 {
-    return New<TTableSchema>(std::vector<TColumnSchema>{
-        TColumnSchema(TString(LockKeyColumn), EValueType::String).SetSortOrder(ESortOrder::Ascending),
-        TColumnSchema(TString(LeaderLeaseIdColumn), EValueType::String),
-        TColumnSchema(TString(LeaderNameColumn), EValueType::String),
-        TColumnSchema(TString(LeaseTimeoutColumn), EValueType::Uint64),
-        TColumnSchema(TString(LastPingTimeColumn), EValueType::Uint64),
-    });
+    return New<TTableSchema>(
+        std::vector<TColumnSchema>{
+            TColumnSchema(std::string(LockKeyColumn), EValueType::String).SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema(std::string(LeaderLeaseIdColumn), EValueType::String),
+            TColumnSchema(std::string(LeaderNameColumn), EValueType::String),
+            TColumnSchema(std::string(LeaseTimeoutColumn), EValueType::Uint64),
+            TColumnSchema(std::string(LastPingTimeColumn), EValueType::Uint64),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

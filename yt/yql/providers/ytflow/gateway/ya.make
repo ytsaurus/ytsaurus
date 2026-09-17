@@ -35,6 +35,7 @@ PEERDIR(
     yt/yt/core
     yt/yt/library/arcadia_future_interop
     yt/yt/flow/library/cpp/pipeline_helpers
+    yt/yt/flow/library/cpp/pipeline_tables
     yt/yt/flow/library/cpp/common
 
 )

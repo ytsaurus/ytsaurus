@@ -29,7 +29,7 @@ PACKAGES = {
     "yt.yt.flow.library.python.yt_sync_mini": "yt/yt/flow/library/python/yt_sync_mini",
 }
 # Non-Python files the wheel ships, relative to the build root.
-EXTRA_FILES = ()
+EXTRA_FILES = ("yt/yt/flow/library/python/pipeline_tables/definitions.yson",)
 # Modules available next to the wheel: ytsaurus-client and the wheel itself.
 ALLOWED_IMPORTS = ("yt.yson", "yt.wrapper", *PACKAGES)
 

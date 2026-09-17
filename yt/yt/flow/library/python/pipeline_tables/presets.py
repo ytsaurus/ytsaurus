@@ -83,9 +83,6 @@ PIPELINE_TABLES_PRESET = {
                         "auto_compaction_period": 3600000,
                         "lookup_cache_rows_ratio": 0.03,
                         "enable_key_filter_for_lookup": True,
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "row_merger_type": "watermark",
                     },
                 },
             },
@@ -109,9 +106,6 @@ PIPELINE_TABLES_PRESET = {
                         "auto_compaction_period": 3600000,
                         "lookup_cache_rows_ratio": 0.03,
                         "enable_key_filter_for_lookup": True,
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "row_merger_type": "watermark",
                     },
                 },
             },
@@ -292,18 +286,7 @@ PIPELINE_TABLES_PRESET = {
 PIPELINE_QUEUES_PRESET = {
     "controller_logs": {
         "$merge_presets": ["builtin:pipeline_ordered_table_preset"],
-        "clusters": {
-            "_all_data_clusters": {
-                "attributes": {
-                    "tablet_count": 1,
-                    "mount_config": {
-                        "min_data_versions": 0,
-                        "min_data_ttl": 0,
-                        "max_data_ttl": 86400000,
-                    },
-                },
-            },
-        },
+        "clusters": {},
     },
 }
 

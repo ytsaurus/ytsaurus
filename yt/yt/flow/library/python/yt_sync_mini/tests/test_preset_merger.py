@@ -13,6 +13,7 @@ from yt.yt.flow.library.python.pipeline_tables import (
     PIPELINE_SORTED_TABLE_PRESET,
     PIPELINE_TABLES_PRESET,
 )
+from yt.yt.flow.library.python.pipeline_tables.definitions import _get_pipeline_table_definitions
 
 # ---------------------------------------------------------------------------
 # _deep_merge
@@ -288,6 +289,27 @@ def test_shared_preset_keeps_internal_erasure():
     attrs = PIPELINE_SORTED_TABLE_PRESET["clusters"]["_all_data_clusters"]["attributes"]
     assert attrs["erasure_codec"] == "reed_solomon_3_3"
     assert attrs["hunk_erasure_codec"] == "reed_solomon_3_3"
+
+
+def test_pipeline_definitions_merge_into_create_attributes():
+    table_definitions, queue_definitions = _get_pipeline_table_definitions()
+    definitions = {**table_definitions, **queue_definitions}
+    presets = {**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}
+
+    for name, descriptor in definitions.items():
+        attributes = _table_attributes(
+            name,
+            descriptor["schema"],
+            presets[name],
+            descriptor["attributes"],
+        )
+        assert attributes["schema"].attributes == descriptor["schema"].attributes
+        for key, expected in descriptor["attributes"].items():
+            if isinstance(expected, dict):
+                for nested_key, nested_expected in expected.items():
+                    assert attributes[key][nested_key] == nested_expected
+            else:
+                assert attributes[key] == expected
 
 
 @pytest.mark.parametrize("name", sorted({**PIPELINE_TABLES_PRESET, **PIPELINE_QUEUES_PRESET}))
