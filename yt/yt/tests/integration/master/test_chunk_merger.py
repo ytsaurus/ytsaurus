@@ -1473,7 +1473,8 @@ class TestChunkMerger(YTEnvSetup):
         create("table", "//aba/d1/d2/t", recursive=True)
         set("//aba/d1/d2/t/@chunk_merger_mode", "none")
         self._remove_merge_quotas("//aba/d1/d2/t")
-        operation("//aba/d1", "//tmp/d/d1")
+        # Keep the account whose merge quotas were zeroed.
+        operation("//aba/d1", "//tmp/d/d1", preserve_account=True)
         assert get("//tmp/d/d1/d2/t/@chunk_merger_mode") == merge_mode
 
         write_table("<append=true>//tmp/d/d1/d2/t", {"a": "b"})
