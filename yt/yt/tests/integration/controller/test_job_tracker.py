@@ -7,7 +7,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, run_sleeping_vanilla, get, ls, wait,
+    authors, run_sleeping_vanilla, get, ls, wait, set,
     set_node_banned, exists,
     run_test_vanilla, with_breakpoint,
     wait_breakpoint, release_breakpoint,
@@ -859,6 +859,113 @@ class TestJobTrackerRaces(YTEnvSetup):
         wait(lambda: not exists(f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker/allocations/{allocation1}"))
 
         op.abort()
+
+
+##################################################################
+
+class TestJobTrackerControllerCancellation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Restart the scheduler without restarting the controller agent.
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {"cpu": 2, "user_slots": 2},
+        },
+        "master_connector": {
+            "lease_transaction_timeout": 120000,
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {"allocation": {"enable_multiple_jobs": True}},
+                "controller_agent_connector": {"settle_jobs_timeout": 120000},
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "controller_thread_count": 1,
+            "enable_snapshot_building": False,
+            "job_tracker": {
+                "node_disconnection_timeout": 120000,
+                "revival_node_disconnection_timeout": 120000,
+            },
+        },
+    }
+
+    @classmethod
+    def modify_controller_agent_config(cls, config, cluster_index):
+        config["logging"]["rules"].append({
+            "family": "plain_text",
+            "min_level": "debug",
+            "include_categories": ["Controller"],
+            "writers": ["json-controller-agent-0"],
+        })
+
+    @authors("pogorelov")
+    def test_controller_cancellation_while_waiting_on_barrier(self):
+        controller_agent = ls("//sys/controller_agents/instances")[0]
+        job_tracker_orchid = f"//sys/controller_agents/instances/{controller_agent}/orchid/controller_agent/job_tracker"
+        cancelled_barrier_counter = profiler_factory().at_controller_agent(controller_agent).counter(
+            "controller_agent/job_tracker/settle_job/cancelled_settle_job_request_waiting_on_barrier_count")
+
+        log_path = self.path_to_run + "/logs/controller-agent-0.json.log"
+        from_barrier = write_log_barrier(controller_agent)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT", breakpoint_name="barrier_job"),
+            spec={"enable_multiple_jobs_in_allocation": True},
+        )
+        job_id, = wait_breakpoint(breakpoint_name="barrier_job")
+        allocation_id = get_allocation_id_from_job_id(job_id)
+
+        create_pool("blocker_pool", attributes={"resource_limits": {"cpu": 1}})
+        blocker = run_test_vanilla(
+            "sleep 1000",
+            pool="blocker_pool",
+            # Keep the sole controller thread busy until the scheduler restart cancels the producer.
+            spec={"testing": {"settle_job_delay": {"duration": 5000, "type": "sync"}}},
+        )
+
+        def blocker_is_settling():
+            return bool(read_structured_log(
+                log_path,
+                from_barrier=from_barrier,
+                to_barrier=write_log_barrier(controller_agent),
+                row_filter=lambda event: (
+                    "Making test delay" in event.get("message", "")
+                    and blocker.id in event.get("message", "")
+                ),
+            ))
+
+        wait(blocker_is_settling)
+        # Do not let the revived blocker enter the delay again.
+        set("//sys/pool_trees/default/blocker_pool/@resource_limits/cpu", 0)
+
+        # The completion heartbeat queues an event on the busy controller through JobTracker.
+        # JobTracker tells the node to store the completed job; the node then requests to settle a new job.
+        release_breakpoint(breakpoint_name="barrier_job")
+        requests_path = job_tracker_orchid + f"/inflight_settle_job_requests/{allocation_id}/requests"
+        wait(lambda: any(
+            request["stage"] == "waiting_on_barrier"
+            for request in get(requests_path, default=[])
+        ))
+
+        # Stop node heartbeats without aborting its lease: allocation-finish events would
+        # explicitly cancel the in barrier and mask controller cancellation.
+        with Restarter(self.Env, NODES_SERVICE, sync=False, abort_transactions=False):
+            with Restarter(self.Env, SCHEDULERS_SERVICE, sync=False):
+                pass
+            wait(lambda: cancelled_barrier_counter.get_delta() > 0)
+
+        blocker.abort()
+        op.track()
 
 
 ##################################################################

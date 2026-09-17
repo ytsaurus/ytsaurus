@@ -432,7 +432,7 @@ private:
     void DoCleanup()
     {
         if (CancelableContext_) {
-            CancelableContext_->Cancel(TError("Scheduler disconnected"));
+            CancelableContext_->Cancel(TError(NYT::EErrorCode::Canceled, "Scheduler disconnected"));
             CancelableContext_.Reset();
         }
 
