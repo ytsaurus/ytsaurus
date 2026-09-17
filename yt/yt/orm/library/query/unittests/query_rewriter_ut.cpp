@@ -465,11 +465,13 @@ TEST_P(TNullAsDefaultKeyConstraintsTest, KeyConstraints)
         NTableClient::TColumnSchema("x", NTableClient::EValueType::Int64),
     });
     auto rowBuffer = New<NTableClient::TRowBuffer>();
-    auto constraintsFor = [&] (const std::string& filter) {
+    auto constraintsFor = [&] (const std::string& filterExpression) {
         NQueryClient::TConstraintsHolder constraints(
-            1, GetRefCountedTypeCookie<NQueryClient::TConstraintsHolder>(), GetDefaultMemoryChunkProvider());
+            /*columnCount*/ 1,
+            GetRefCountedTypeCookie<NQueryClient::TConstraintsHolder>(),
+            GetDefaultMemoryChunkProvider());
         auto root = constraints.ExtractFromExpression(
-            NQueryClient::PrepareExpression(filter, schema), {"x"}, rowBuffer);
+            NQueryClient::PrepareExpression(filterExpression, schema), {"x"}, rowBuffer);
         return NQueryClient::ToString(constraints, root);
     };
     SCOPED_TRACE(filter);
