@@ -1922,6 +1922,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [10]])
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
 
         root_chunk_list_id = get("//tmp/t/@chunk_list_id")
@@ -1938,6 +1939,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert statistics["referenced_regular_disk_space"] == 344
 
         set("//tmp/t/@forced_compaction_revision", 1)
+        set("//tmp/t/@enable_compaction_and_partitioning", True)
         remount_table("//tmp/t")
         wait(lambda: get("//tmp/t/@chunk_row_count") == 3)
         wait(lambda: get("//tmp/t/@chunk_count") == 4)
@@ -5663,8 +5665,8 @@ class TestHunksInStaticTable(TestSortedDynamicTablesBase):
         assert statistics["referenced_regular_disk_space"] == 340
         assert statistics["chunk_count"] == 1
 
-        snapshot_statistics = get("//tmp/t/@snapshot_statistics")
-        assert snapshot_statistics["chunk_count"] == 2
+        # Hunk sealing statistics reach the native cell asynchronously.
+        wait(lambda: get("//tmp/t/@snapshot_statistics")["chunk_count"] == 2)
 
         tx = start_transaction()
         copy("//tmp/t", "//tmp/t3", tx=tx)
