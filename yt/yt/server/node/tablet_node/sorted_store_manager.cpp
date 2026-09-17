@@ -1629,18 +1629,18 @@ TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHan
 }
 
 void TSortedStoreManager::DrainSerializationHeap(
-    TLockSerializationState* serializationStuff,
+    TLockSerializationState* serializationState,
     int lockIndex,
     bool onAfterSnapshotLoaded)
 {
-    auto barrierTimestamp = serializationStuff->PreparedTransactions.empty()
+    auto barrierTimestamp = serializationState->PreparedTransactions.empty()
         ? MaxTimestamp
-        : serializationStuff->PreparedTransactions.begin()->PrepareTimestamp;
+        : serializationState->PreparedTransactions.begin()->PrepareTimestamp;
 
-    while (!serializationStuff->SerializingTransactions.empty() &&
-        serializationStuff->CommitTimestampOfTopSerializingTransaction() < barrierTimestamp)
+    while (!serializationState->SerializingTransactions.empty() &&
+        serializationState->CommitTimestampOfTopSerializingTransaction() < barrierTimestamp)
     {
-        auto transactionToSerialize = serializationStuff->SerializingTransactions.extract_min();
+        auto transactionToSerialize = serializationState->SerializingTransactions.extract_min();
         auto* transaction = transactionToSerialize.SharedWriteTransaction.Transaction;
         Tablet_->GetTabletWriteManager()->OnTransactionPartCommitted(
             transaction,
