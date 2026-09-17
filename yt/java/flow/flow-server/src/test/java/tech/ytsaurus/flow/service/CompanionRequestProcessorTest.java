@@ -1,11 +1,16 @@
 package tech.ytsaurus.flow.service;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.persistence.Entity;
 
+import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -20,9 +25,15 @@ import tech.ytsaurus.flow.context.PipelineContext;
 import tech.ytsaurus.flow.context.PipelineContextSnapshot;
 import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
+import tech.ytsaurus.flow.internal.resource.CompanionResourceInstanceReference;
 import tech.ytsaurus.flow.job.JobContext;
+import tech.ytsaurus.flow.resource.FlowResource;
+import tech.ytsaurus.flow.resource.ResourceContext;
+import tech.ytsaurus.flow.resource.ResourceLoadException;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Message;
+import tech.ytsaurus.flow.rpc.EResourceCommand;
+import tech.ytsaurus.flow.rpc.EResourceExecuteStatus;
 import tech.ytsaurus.flow.rpc.EResponseStatus;
 import tech.ytsaurus.flow.rpc.TReqListJobs;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
@@ -34,10 +45,15 @@ import tech.ytsaurus.flow.testutils.SchemaGenerator;
 import tech.ytsaurus.flow.testutils.SpecGenerator;
 import tech.ytsaurus.flow.testutils.StreamInfo;
 import tech.ytsaurus.flow.utils.ProtoUtils;
+import tech.ytsaurus.flow.utils.YsonUtils;
+import tech.ytsaurus.ysontree.YTree;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static tech.ytsaurus.flow.testutils.ComputationTestUtils.passthroughComputation;
@@ -631,6 +647,253 @@ public class CompanionRequestProcessorTest {
             );
         }
 
+    }
+
+    @Nested
+    @DisplayName("Companion Resource Tests")
+    class CompanionResourceTests {
+
+        private static final GUID INCARNATION = GUID.valueOf("1-2-3-4");
+        private static final String RESOURCE_COMPUTATION_ID = "resource-computation";
+        private static final String RESOURCE_ID = "r";
+        private static final String RESOURCE_ALIAS = "view";
+
+        private final AtomicReference<FlowResource> seenResource = new AtomicReference<>();
+
+        /**
+         * Registers a resource class and a computation reading the resource by alias, then builds
+         * the processor.
+         */
+        private CompanionRequestProcessor setUpProcessor() {
+            fixture.pipelineContext.registerResourceClass("TestResource", TestResource::new);
+            fixture.registerComputation(Computation.builder()
+                    .setComputationId(RESOURCE_COMPUTATION_ID)
+                    .setProcessFunction((RowFunction) (message, output, ctx) ->
+                            seenResource.set(ctx.getResource(RESOURCE_ALIAS)))
+                    .build());
+            return fixture.processor();
+        }
+
+        private ByteString initArg() {
+            return YsonUtils.protoFromYTree(YTree.builder().beginMap()
+                    .key("spec").beginMap()
+                    .key("resource_class_name").value("WorkerProxy")
+                    .key("parameters").beginMap()
+                    .key("companion_resource_class").value("TestResource")
+                    .endMap()
+                    .endMap()
+                    .key("dynamic_spec").beginMap()
+                    .key("parameters").beginMap().endMap()
+                    .endMap()
+                    .key("incarnation_id").value(INCARNATION.toString())
+                    .key("incarnation_generation").value(1)
+                    .key("configuration_generation").value(0)
+                    .key("dependencies").beginList().endList()
+                    .endMap().build());
+        }
+
+        private TReqProcessBatch resourceRequest(long configurationGeneration) {
+            return fixture.createRequestBuilder()
+                    .setComputationId(RESOURCE_COMPUTATION_ID)
+                    .setMessageCount(1)
+                    .addCompanionResource(RESOURCE_ID, INCARNATION, configurationGeneration, RESOURCE_ALIAS)
+                    .createProcessBatch();
+        }
+
+        @Test
+        @DisplayName("Uninitialized resource: batch is rejected in-band")
+        void testUninitializedResourceRejectsBatchInBand() throws Exception {
+            var processor = setUpProcessor();
+
+            var result = processor.processBatch(resourceRequest(0));
+
+            assertEquals(EResponseStatus.RS_RESOURCE_NOT_INITIALIZED, result.getStatus());
+        }
+
+        @Test
+        void typedLoadFailureRejectsBatchUntilSuccessfulRetry() throws Exception {
+            var attempts = new AtomicInteger();
+            var computationCalls = new AtomicInteger();
+            class RetriableResource implements FlowResource {
+                private int unloadCount;
+
+                @Override
+                public void load(ResourceContext context) throws ResourceLoadException {
+                    if (attempts.getAndIncrement() == 0) {
+                        throw new ResourceLoadException("Pool initialization failed");
+                    }
+                }
+
+                @Override
+                public void unload() {
+                    ++unloadCount;
+                }
+            }
+            var instances = new ArrayList<RetriableResource>();
+            fixture.pipelineContext.registerResourceClass("TestResource", () -> {
+                var resource = new RetriableResource();
+                instances.add(resource);
+                return resource;
+            });
+            fixture.registerComputation(Computation.builder()
+                    .setComputationId(RESOURCE_COMPUTATION_ID)
+                    .setProcessFunction((RowFunction) (message, output, ctx) -> {
+                        computationCalls.incrementAndGet();
+                        seenResource.set(ctx.getResource(RESOURCE_ALIAS));
+                    }).build());
+            var processor = fixture.processor();
+            var store = processor.getResourceStore();
+            try {
+                var failed = store.execute(RESOURCE_ID, EResourceCommand.RC_INIT_VALUE, initArg());
+                assertEquals(EResourceExecuteStatus.RES_ERROR, failed.status());
+                assertTrue(failed.errorMessage().contains("Pool initialization failed"));
+                var partial = instances.get(0);
+                assertEquals(1, partial.unloadCount);
+                assertEquals(EResponseStatus.RS_RESOURCE_NOT_INITIALIZED,
+                        processor.processBatch(resourceRequest(0)).getStatus());
+                assertEquals(0, computationCalls.get());
+
+                assertEquals(EResourceExecuteStatus.RES_OK,
+                        store.execute(RESOURCE_ID, EResourceCommand.RC_INIT_VALUE, initArg()).status());
+                assertEquals(EResponseStatus.RS_OK, processor.processBatch(resourceRequest(0)).getStatus());
+                var loaded = instances.get(1);
+                assertNotSame(partial, loaded);
+                assertSame(loaded, seenResource.get());
+                assertEquals(1, computationCalls.get());
+                assertEquals(0, loaded.unloadCount);
+                assertTrue(store.shutdown());
+                assertEquals(1, partial.unloadCount);
+                assertEquals(1, loaded.unloadCount);
+            } finally {
+                store.shutdown();
+            }
+        }
+
+        @Test
+        @DisplayName("Initialized resource: visible to user code by alias")
+        void testInitializedResourceIsVisibleToUserCode() throws Exception {
+            var processor = setUpProcessor();
+            var outcome = processor.getResourceStore()
+                    .execute(RESOURCE_ID, EResourceCommand.RC_INIT_VALUE, initArg());
+            assertEquals(EResourceExecuteStatus.RES_OK, outcome.status());
+
+            var result = processor.processBatch(resourceRequest(0));
+
+            assertEquals(EResponseStatus.RS_OK, result.getStatus());
+            var lease = processor.getResourceStore().acquire(List.of(
+                    new CompanionResourceInstanceReference(RESOURCE_ID, INCARNATION, 0, RESOURCE_ALIAS)));
+            assertNotNull(lease);
+            try {
+                assertSame(lease.resources().get(RESOURCE_ALIAS), seenResource.get());
+            } finally {
+                lease.release();
+            }
+        }
+
+        @Test
+        @DisplayName("Resource retired mid-batch: the running batch keeps a usable instance")
+        void testResourceRetiredMidBatchStaysUsable() throws Exception {
+            var retiringComputationId = "resource-retiring-computation";
+            var processorRef = new AtomicReference<CompanionRequestProcessor>();
+            var unloadedDuringBatch = new AtomicBoolean(true);
+            fixture.pipelineContext.registerResourceClass("TestResource", TestResource::new);
+            fixture.registerComputation(Computation.builder()
+                    .setComputationId(retiringComputationId)
+                    .setProcessFunction((RowFunction) (message, output, ctx) -> {
+                        var resource = (TestResource) ctx.getResource(RESOURCE_ALIAS);
+                        // Retire the resource while this very batch is running.
+                        processorRef.get().getResourceStore().execute(
+                                RESOURCE_ID, EResourceCommand.RC_UNLOAD_VALUE, unloadArg());
+                        seenResource.set(resource);
+                        unloadedDuringBatch.set(resource.unloaded);
+                    })
+                    .build());
+            var processor = fixture.processor();
+            processorRef.set(processor);
+            assertEquals(
+                    EResourceExecuteStatus.RES_OK,
+                    processor.getResourceStore()
+                            .execute(RESOURCE_ID, EResourceCommand.RC_INIT_VALUE, initArg()).status());
+
+            var request = fixture.createRequestBuilder()
+                    .setComputationId(retiringComputationId)
+                    .setMessageCount(1)
+                    .addCompanionResource(RESOURCE_ID, INCARNATION, 0, RESOURCE_ALIAS)
+                    .createProcessBatch();
+            var result = processor.processBatch(request);
+
+            assertEquals(EResponseStatus.RS_OK, result.getStatus());
+            var resource = (TestResource) seenResource.get();
+            assertNotNull(resource);
+            // The lease held the instance for the whole batch; the hook ran once it was released.
+            assertFalse(unloadedDuringBatch.get());
+            assertTrue(resource.unloaded);
+        }
+
+        @Test
+        @DisplayName("Stale reference: batch is rejected in-band")
+        void testStaleReferenceRejectsBatchInBand() throws Exception {
+            var processor = setUpProcessor();
+            var outcome = processor.getResourceStore()
+                    .execute(RESOURCE_ID, EResourceCommand.RC_INIT_VALUE, initArg());
+            assertEquals(EResourceExecuteStatus.RES_OK, outcome.status());
+
+            var result = processor.processBatch(resourceRequest(3));
+
+            assertEquals(EResponseStatus.RS_RESOURCE_NOT_INITIALIZED, result.getStatus());
+        }
+
+        @Test
+        void injectedStoreIsUsedAndFatalLeaseCleanupIsNotHiddenByBatchFailure() {
+            var fatal = new OutOfMemoryError("unload, simulated");
+            var batchFailure = new IllegalArgumentException("batch failed");
+            var resource = new FlowResource() {
+                @Override
+                public void load(ResourceContext context) {
+                }
+
+                @Override
+                public void unload() {
+                    throw fatal;
+                }
+            };
+            var store = new ResourceStore(Map.of("TestResource", () -> resource));
+            fixture.registerComputation(Computation.builder()
+                    .setComputationId(RESOURCE_COMPUTATION_ID)
+                    .setProcessFunction((RowFunction) (message, output, ctx) -> {
+                        assertSame(resource, ctx.getResource(RESOURCE_ALIAS));
+                        assertFalse(store.shutdown());
+                        throw batchFailure;
+                    }).build());
+            var processor = new CompanionRequestProcessor(
+                    new PipelineContextSnapshot(fixture.pipelineContext), new JobContext(), store);
+            assertSame(store, processor.getResourceStore());
+            assertEquals(EResourceExecuteStatus.RES_OK,
+                    store.execute(RESOURCE_ID, EResourceCommand.RC_INIT_VALUE, initArg()).status());
+            assertSame(fatal, assertThrows(OutOfMemoryError.class,
+                    () -> processor.processBatch(resourceRequest(0))));
+            assertSame(batchFailure, fatal.getSuppressed()[0]);
+            assertTrue(store.shutdown());
+        }
+
+        private ByteString unloadArg() {
+            return YsonUtils.protoFromYTree(YTree.builder().beginMap()
+                    .key("incarnation_id").value(INCARNATION.toString())
+                    .endMap().build());
+        }
+
+        static class TestResource implements FlowResource {
+            volatile boolean unloaded;
+
+            @Override
+            public void load(ResourceContext context) {
+            }
+
+            @Override
+            public void unload() {
+                unloaded = true;
+            }
+        }
     }
 
     @Nested

@@ -6,14 +6,22 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import com.google.common.io.CharStreams;
+import com.google.protobuf.ByteString;
 import com.hubspot.jinjava.Jinjava;
 import org.jspecify.annotations.Nullable;
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.flow.context.PipelineContext;
 import tech.ytsaurus.flow.context.PipelineContextSnapshot;
@@ -21,12 +29,20 @@ import tech.ytsaurus.flow.internal.request.mapper.ExternalStateProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.InternalStateProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.JobProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.ResponseProtoMapper;
+import tech.ytsaurus.flow.internal.utils.FailureCollector;
 import tech.ytsaurus.flow.job.JobContext;
+import tech.ytsaurus.flow.resource.FlowResource;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
+import tech.ytsaurus.flow.rpc.EResourceCommand;
+import tech.ytsaurus.flow.rpc.EResourceExecuteStatus;
+import tech.ytsaurus.flow.rpc.TCompanionResourceInstanceReference;
 import tech.ytsaurus.flow.service.CompanionRequestProcessor;
+import tech.ytsaurus.flow.service.ResourceStore;
 import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreams;
 import tech.ytsaurus.flow.utils.ProtoUtils;
+import tech.ytsaurus.flow.utils.YsonUtils;
+import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
@@ -36,9 +52,15 @@ import tech.ytsaurus.ysontree.YTreeTextSerializer;
  * <p>Wraps a {@link CompanionRequestProcessor} and provides convenience methods
  * to invoke {@code doProcess} operations against a pipeline
  * specification without requiring a running Flow cluster. Use {@link #builder()}
- * to construct an instance.
+ * to construct an instance, and {@link #close()} — try-with-resources works — to
+ * unload the companion resources it loaded.
  */
-public class TestComputationHarness {
+public class TestComputationHarness implements AutoCloseable {
+
+    /**
+     * Incarnation the harness loads its companion resources under; the harness never advances it.
+     */
+    private static final GUID RESOURCE_INCARNATION_ID = GUID.valueOf("1-1-1-1");
 
     private final CompanionRequestProcessor requestProcessor;
     private final YTreeNode pipelineSpec;
@@ -52,7 +74,8 @@ public class TestComputationHarness {
             YTreeNode pipelineSpec,
             PipelineContextSnapshot pipelineContextSnapshot,
             Map<String, TableSchema> externalStateSchemas,
-            Map<String, TableSchema> groupBySchemas
+            Map<String, TableSchema> groupBySchemas,
+            List<TCompanionResourceInstanceReference> companionResources
     ) {
         this.requestProcessor = requestProcessor;
         this.pipelineSpec = pipelineSpec;
@@ -61,7 +84,7 @@ public class TestComputationHarness {
         this.groupBySchemas = Collections.unmodifiableMap(groupBySchemas);
         // The converter uses the JVM-wide CodecRegistry singleton, which is consistent
         // with what the server-side mappers will use to decode.
-        this.requestConverter = new ProtobufRequestConverter();
+        this.requestConverter = new ProtobufRequestConverter().setCompanionResources(companionResources);
     }
 
     /**
@@ -164,17 +187,35 @@ public class TestComputationHarness {
     }
 
     /**
+     * Releases the companion resources this harness loaded, running every {@code unload} hook.
+     *
+     * <p>Idempotent, so a test may close the harness explicitly and still use try-with-resources.
+     * A resource owning threads, pools or connections is only released here — nothing else in a
+     * unit test unloads it.
+     */
+    @Override
+    public void close() {
+        requestProcessor.shutdown();
+    }
+
+    /**
      * Builder for constructing {@link TestComputationHarness} instances.
      *
      * <p>At minimum, {@link #setPipelineContext(PipelineContext)} and one of the
      * {@code setPipelineSpec} overloads must be called before {@link #build()}.
      */
     public static class Builder {
+        /**
+         * Distinguishes the synthetic resource class names of harnesses sharing one context.
+         */
+        private static final AtomicLong HARNESS_SEQUENCE = new AtomicLong();
+
         private @Nullable PipelineContext pipelineContext;
         private @Nullable JobContext jobContext;
         private @Nullable String pipelineSpecStr;
         private @Nullable YTreeNode pipelineSpecYTree;
         private Map<String, TableSchema> externalStateSchemas = new HashMap<>();
+        private final Map<String, FlowResource> resources = new LinkedHashMap<>();
         private @Nullable Map<String, Object> jinjaContext;
 
         /**
@@ -338,14 +379,47 @@ public class TestComputationHarness {
         }
 
         /**
+         * Replaces all companion-hosted resources with the provided map.
+         *
+         * @param resources resources keyed by the alias the computation looks them up under
+         * @return this builder
+         * @see #addResource(String, FlowResource)
+         */
+        public Builder setResources(Map<String, FlowResource> resources) {
+            this.resources.clear();
+            this.resources.putAll(resources);
+            return this;
+        }
+
+        /**
+         * Adds a companion-hosted resource under the alias the computation looks it up under via
+         * {@link tech.ytsaurus.flow.context.RuntimeContext#getResource(String)}.
+         *
+         * <p>The instance is loaded once by {@link #build()}, with empty parameters and no
+         * dependencies, stays in place for every {@code doProcess} call, and is unloaded by
+         * {@link TestComputationHarness#close()}; the harness drives no reconfigure or re-init.
+         *
+         * @param alias    the alias the computation resolves the resource by
+         * @param resource the resource instance to serve
+         * @return this builder
+         */
+        public Builder addResource(String alias, FlowResource resource) {
+            resources.put(alias, resource);
+            return this;
+        }
+
+        /**
          * Builds and returns a new {@link TestComputationHarness}.
          *
          * <p>Extracts stream information and group_by_schema schemas from the pipeline spec,
-         * registers streams in the pipeline context, and creates the underlying
-         * {@link CompanionRequestProcessor}.
+         * registers streams in the pipeline context, creates the underlying
+         * {@link CompanionRequestProcessor}, and loads resources into a private store. Resource
+         * factories in the caller's pipeline context are never modified.
          *
          * @return a fully configured harness instance.
-         * @throws IllegalStateException if the pipeline context or pipeline spec is not set.
+         * @throws IllegalStateException if the pipeline context or pipeline spec is not set, or a
+         *                               declared resource fails to load — the ones loaded before it
+         *                               are unloaded first.
          */
         public TestComputationHarness build() {
             if (pipelineContext == null) {
@@ -373,20 +447,90 @@ public class TestComputationHarness {
                 var stream = FlowStreams.raw(streamInfo.getStreamId(), streamInfo.getSchema());
                 pipelineContext.registerStreamIfAbsent(stream);
             }
-
-            // Freeze the pipeline configuration: from now on the runtime sees an immutable
-            // view, even if the caller mutates the original PipelineContext further.
             var snapshot = new PipelineContextSnapshot(pipelineContext);
-            var requestProcessor = new CompanionRequestProcessor(snapshot, jobContext);
+            long harnessId = HARNESS_SEQUENCE.incrementAndGet();
+            Map<String, Supplier<? extends FlowResource>> factories = new HashMap<>(snapshot.getResourceFactories());
+            resources.forEach((alias, resource) -> {
+                String className = resourceClassName(harnessId, alias);
+                if (factories.putIfAbsent(className, () -> resource) != null) {
+                    throw new IllegalArgumentException("Duplicate harness resource class: " + className);
+                }
+            });
+            // Test-only factories belong to this store, never to the caller's PipelineContext.
+            var store = new ResourceStore(factories);
+            var requestProcessor = new CompanionRequestProcessor(snapshot, jobContext, store);
             var groupBySchemas = PipelineSpecTestUtils.extractGroupBySchemas(pipelineSpec);
+
+            List<TCompanionResourceInstanceReference> references;
+            try {
+                references = loadResources(store, harnessId, resources.keySet());
+            } catch (RuntimeException | Error error) {
+                var failures = new FailureCollector();
+                failures.add(error);
+                failures.tryRun(store::shutdown);
+                failures.throwUncheckedIfAny();
+                throw error;
+            }
 
             return new TestComputationHarness(
                     requestProcessor,
                     pipelineSpec,
                     snapshot,
                     externalStateSchemas,
-                    groupBySchemas
+                    groupBySchemas,
+                    references
             );
+        }
+
+        /**
+         * Drives one init command per declared resource through the real resource store and returns
+         * the instance references every request must carry to reach them.
+         */
+        private static List<TCompanionResourceInstanceReference> loadResources(
+                ResourceStore store,
+                long harnessId,
+                Set<String> aliases
+        ) {
+            var references = new ArrayList<TCompanionResourceInstanceReference>(aliases.size());
+            for (String alias : aliases) {
+                var outcome = store.execute(
+                        alias, EResourceCommand.RC_INIT_VALUE, initArgument(harnessId, alias));
+                if (outcome.status() != EResourceExecuteStatus.RES_OK) {
+                    throw new IllegalStateException("Failed to load resource '%s': %s (%s)".formatted(
+                            alias, outcome.errorMessage(), outcome.status()));
+                }
+                references.add(TCompanionResourceInstanceReference.newBuilder()
+                        .setResourceId(alias)
+                        .setIncarnationId(ProtoUtils.toProto(RESOURCE_INCARNATION_ID))
+                        .setConfigurationGeneration(0)
+                        .setAlias(alias)
+                        .build());
+            }
+            return references;
+        }
+
+        /**
+         * Builds the init command argument loading the harness resource registered for the alias.
+         */
+        private static ByteString initArgument(long harnessId, String alias) {
+            return YsonUtils.protoFromYTree(YTree.builder().beginMap()
+                    .key("spec").beginMap()
+                    .key("parameters").beginMap()
+                    .key(ResourceStore.COMPANION_RESOURCE_CLASS_KEY).value(resourceClassName(harnessId, alias))
+                    .endMap()
+                    .endMap()
+                    .key("dynamic_spec").beginMap()
+                    .key("parameters").beginMap().endMap()
+                    .endMap()
+                    .key("incarnation_id").value(RESOURCE_INCARNATION_ID.toString())
+                    .key("incarnation_generation").value(1)
+                    .key("configuration_generation").value(0)
+                    .key("dependencies").beginList().endList()
+                    .endMap().build());
+        }
+
+        private static String resourceClassName(long harnessId, String alias) {
+            return "TestHarnessResource:" + harnessId + ":" + alias;
         }
     }
 

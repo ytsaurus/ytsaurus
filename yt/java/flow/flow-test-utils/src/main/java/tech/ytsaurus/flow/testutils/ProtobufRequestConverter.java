@@ -17,6 +17,7 @@ import tech.ytsaurus.flow.row.Payload;
 import tech.ytsaurus.flow.row.Timer;
 import tech.ytsaurus.flow.row.codec.CodecRegistry;
 import tech.ytsaurus.flow.row.codec.KeyCodec;
+import tech.ytsaurus.flow.rpc.TCompanionResourceInstanceReference;
 import tech.ytsaurus.flow.rpc.TJobInfo;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
 import tech.ytsaurus.flow.rpc.TState;
@@ -46,6 +47,7 @@ public class ProtobufRequestConverter {
 
     private TGuid jobId = ProtobufRequestBuilder.PROTO_JOB_ID;
     private CodecRegistry codecRegistry = CodecRegistry.getInstance();
+    private List<TCompanionResourceInstanceReference> companionResources = List.of();
 
     /**
      * Overrides the job id used for subsequent {@code create*} calls.
@@ -71,6 +73,22 @@ public class ProtobufRequestConverter {
      */
     public ProtobufRequestConverter setCodecRegistry(CodecRegistry codecRegistry) {
         this.codecRegistry = Objects.requireNonNull(codecRegistry, "codecRegistry must not be null");
+        return this;
+    }
+
+    /**
+     * Sets the companion resource instance references attached to the job info of subsequent
+     * {@code create*} calls; the companion resolves them against its resource store when the batch
+     * is processed.
+     *
+     * @param companionResources the instance references required by the job
+     * @return this converter
+     */
+    public ProtobufRequestConverter setCompanionResources(
+            List<TCompanionResourceInstanceReference> companionResources
+    ) {
+        this.companionResources = List.copyOf(
+                Objects.requireNonNull(companionResources, "companionResources must not be null"));
         return this;
     }
 
@@ -109,7 +127,9 @@ public class ProtobufRequestConverter {
                 .setComputationId(computationId);
 
         var pipelineContext = extractPipelineContext(computationId, pipelineSpec, streamsContext);
-        builder.setJobInfo(pipelineContext.jobInfo());
+        builder.setJobInfo(pipelineContext.jobInfo().toBuilder()
+                .addAllCompanionResources(companionResources)
+                .build());
 
         var protoMessages = convertExtendedMessagesToProto(
                 messages,

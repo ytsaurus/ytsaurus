@@ -12,6 +12,7 @@ import tech.ytsaurus.flow.context.PipelineContextSnapshot;
 import tech.ytsaurus.flow.internal.request.mapper.JobProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.RequestProtoMapper;
 import tech.ytsaurus.flow.internal.request.mapper.ResponseProtoMapper;
+import tech.ytsaurus.flow.internal.utils.FailureCollector;
 import tech.ytsaurus.flow.job.Job;
 import tech.ytsaurus.flow.job.JobContext;
 import tech.ytsaurus.flow.request.RequestContext;
@@ -22,6 +23,7 @@ import tech.ytsaurus.flow.rpc.TReqListJobs;
 import tech.ytsaurus.flow.rpc.TReqProcessBatch;
 import tech.ytsaurus.flow.rpc.TReqPutJob;
 import tech.ytsaurus.flow.rpc.TReqRemoveJob;
+import tech.ytsaurus.flow.rpc.TReqResourceExecute;
 import tech.ytsaurus.flow.rpc.TResponseData;
 import tech.ytsaurus.flow.utils.ProtoUtils;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -38,21 +40,51 @@ public class CompanionRequestProcessor {
 
     private final PipelineContextSnapshot pipelineContext;
     private final JobContext jobContext;
-    private final ResourceMonitor resourceMonitor;
+    private final ExecutionMeter executionMeter;
+    private final ResourceStore resourceStore;
 
     private final RequestProtoMapper requestMapper;
     private final ResponseProtoMapper responseMapper;
     private final JobProtoMapper jobMapper;
 
     public CompanionRequestProcessor(PipelineContextSnapshot pipelineContext, JobContext jobContext) {
+        this(pipelineContext, jobContext,
+                new ResourceStore(Objects.requireNonNull(pipelineContext).getResourceFactories()));
+    }
+
+    /**
+     * Processes requests using the resource store owned by the caller's runtime or test harness.
+     */
+    public CompanionRequestProcessor(
+            PipelineContextSnapshot pipelineContext, JobContext jobContext, ResourceStore resourceStore
+    ) {
         this.pipelineContext = Objects.requireNonNull(pipelineContext, "pipelineContext must not be null");
         this.jobContext = Objects.requireNonNull(jobContext, "jobContext must not be null");
-        this.resourceMonitor = new ResourceMonitor();
+        this.executionMeter = new ExecutionMeter();
+        this.resourceStore = Objects.requireNonNull(resourceStore);
 
         var streamContext = pipelineContext.getStreamContext();
         this.requestMapper = new RequestProtoMapper(streamContext);
         this.responseMapper = new ResponseProtoMapper();
         this.jobMapper = new JobProtoMapper(streamContext);
+    }
+
+    /**
+     * Returns the process-wide store of the companion-hosted resources.
+     *
+     * @return the resource store
+     */
+    public ResourceStore getResourceStore() {
+        return resourceStore;
+    }
+
+    /**
+     * Releases the resources this companion runtime hosts. Idempotent.
+     *
+     * @return whether no batch lease outlives the call; see {@link ResourceStore#shutdown()}.
+     */
+    public boolean shutdown() {
+        return resourceStore.shutdown();
     }
 
     /**
@@ -70,49 +102,36 @@ public class CompanionRequestProcessor {
         log.debug("Processing batch: (RequestId: {}, JobId: {}, ComputationId: {}, HasJobInfo: {})",
                 requestId, jobId, computationId, request.hasJobInfo());
 
-        ProcessBatchContext context = new ProcessBatchContext();
+        var measured = executionMeter.measure(() -> processBatchData(request, jobId, computationId));
+        var stats = measured.stats();
+        log.debug("Processed batch: (RequestId: {}, JobId: {}, AllocatedBytes: {}, CpuTime: {})",
+                requestId, jobId, stats.getAllocatedBytes(), stats.getCpuTime());
+        var result = measured.value();
+        return new ProcessBatchResult(result.status(), result.data(), stats);
+    }
 
-        var callStats = resourceMonitor.callMeasured(() -> {
-            Job job = retrieveOrCreateJob(
-                    jobId,
-                    computationId,
-                    request.hasJobInfo() ? request.getJobInfo() : null,
-                    "processBatch",
-                    requestId
-            );
-
-            if (job == null) {
-                context.status = EResponseStatus.RS_JOB_NOT_FOUND;
-                return;
-            }
-
+    private BatchOutput processBatchData(TReqProcessBatch request, GUID jobId, String computationId) throws Exception {
+        Job job = retrieveOrCreateJob(jobId, computationId, request.hasJobInfo() ? request.getJobInfo() : null);
+        if (job == null) {
+            return new BatchOutput(EResponseStatus.RS_JOB_NOT_FOUND, null);
+        }
+        ResourceLease lease = resourceStore.acquire(job.getCompanionResources());
+        if (lease == null) {
+            return new BatchOutput(EResponseStatus.RS_RESOURCE_NOT_INITIALIZED, null);
+        }
+        return FailureCollector.callWithCleanup(() -> {
             Computation computation = retrieveComputation(computationId);
-            RequestContext requestCtx = requestMapper.fromProto(request, job);
-
+            RequestContext requestCtx = requestMapper.fromProto(request, job, lease.resources());
             if (log.isTraceEnabled()) {
                 log.trace("Request context: {}", requestCtx);
             }
-
             ResponseContext responseCtx = computation.doProcess(requestCtx);
-
             if (log.isTraceEnabled()) {
                 log.trace("Processed response context: {}", responseCtx);
             }
-
-            context.responseData = responseMapper.toProto(responseCtx, requestCtx.getStreamSpecs());
-        });
-
-        log.debug(
-                "Processed batch: (RequestId: {}, JobId: {}, Allocated bytes: {}, " +
-                        "Allocated memory: {}, CPU time ns: {})",
-                requestId,
-                jobId,
-                callStats.getAllocatedBytes(),
-                callStats.getAllocatedBytes().toPrettyString(3),
-                callStats.getCpuTime().toNanos()
-        );
-
-        return new ProcessBatchResult(context.status, context.responseData, callStats);
+            return new BatchOutput(EResponseStatus.RS_OK,
+                    responseMapper.toProto(responseCtx, requestCtx.getStreamSpecs()));
+        }, lease::close);
     }
 
     /**
@@ -130,14 +149,15 @@ public class CompanionRequestProcessor {
 
         log.debug("Processing PutJob: (RequestId: {}, JobId: {})", requestId, jobId);
 
-        var callStats = resourceMonitor.callMeasured(() -> {
+        var measured = executionMeter.measure(() -> {
             var job = jobMapper.fromProto(request);
             jobContext.putJob(jobId, job);
+            return EResponseStatus.RS_OK;
         });
 
         log.debug("Processed PutJob: (JobId: {})", jobId);
 
-        return new PutJobResult(EResponseStatus.RS_OK, callStats);
+        return new PutJobResult(measured.value(), measured.stats());
     }
 
     /**
@@ -170,6 +190,29 @@ public class CompanionRequestProcessor {
     }
 
     /**
+     * Process a ResourceExecute request.
+     *
+     * <p>User-code failures come back in-band via the outcome status; exceptions escape only on
+     * companion bugs.
+     *
+     * @param request The resource execute request
+     * @return the command outcome carrying the in-band status and error message
+     */
+    public ExecuteOutcome resourceExecute(TReqResourceExecute request) {
+        Objects.requireNonNull(request, "request must not be null");
+
+        var requestId = ProtoUtils.fromProto(request.getRequestId());
+        log.debug(
+                "Processing ResourceExecute: (RequestId: {}, ResourceId: {}, Command: {})",
+                requestId,
+                request.getResourceId(),
+                request.getCommand()
+        );
+        var argument = request.hasArgument() ? request.getArgument() : null;
+        return resourceStore.execute(request.getResourceId(), request.getCommand().getNumber(), argument);
+    }
+
+    /**
      * Get companion information.
      *
      * @return Result containing status and pipeline context as YTree
@@ -185,35 +228,13 @@ public class CompanionRequestProcessor {
         return new CompanionInfoResult(EResponseStatus.RS_OK, contextYTree);
     }
 
-    /**
-     * Retrieves an existing job or creates a new one based on the request.
-     *
-     * @param jobId         The job identifier
-     * @param computationId The computation identifier
-     * @param jobInfo       The job information from the request (can be null)
-     * @param operationName The name of the operation for logging
-     * @param requestId     The request identifier for logging
-     * @return the job, or null when it is unknown and no job info was provided
-     */
-    private @Nullable Job retrieveOrCreateJob(
-            GUID jobId,
-            String computationId,
-            @Nullable TJobInfo jobInfo,
-            String operationName,
-            GUID requestId
-    ) {
+    private @Nullable Job retrieveOrCreateJob(GUID jobId, String computationId, @Nullable TJobInfo jobInfo) {
         if (jobInfo != null) {
             Job job = jobMapper.fromProto(jobId, computationId, jobInfo);
             jobContext.putJob(jobId, job);
             return job;
         }
-
-        Job job = jobContext.getJob(jobId);
-        if (job == null) {
-            log.debug("Job not found for {}: (RequestId: {}, JobId: {}, ComputationId: {})",
-                    operationName, requestId, jobId, computationId);
-        }
-        return job;
+        return jobContext.getJob(jobId);
     }
 
     /**
@@ -233,12 +254,7 @@ public class CompanionRequestProcessor {
         return computation;
     }
 
-    /**
-     * Internal context holder for processBatch operation.
-     */
-    private static class ProcessBatchContext {
-        EResponseStatus status = EResponseStatus.RS_OK;
-        @Nullable TResponseData responseData = null;
+    private record BatchOutput(EResponseStatus status, @Nullable TResponseData data) {
     }
 
     /**

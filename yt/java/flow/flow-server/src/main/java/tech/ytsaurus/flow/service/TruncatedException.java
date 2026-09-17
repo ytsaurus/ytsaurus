@@ -16,10 +16,10 @@ public class TruncatedException extends RuntimeException {
     private static final int MAX_MESSAGE_UTF8_BYTES = 2048;
 
     public TruncatedException(String prefix, Throwable cause) {
-        super(buildMessage(prefix, cause), cause);
+        super(format(prefix, cause), cause);
     }
 
-    private static String buildMessage(String prefix, Throwable throwable) {
+    static String format(String prefix, Throwable throwable) {
         StringBuilder message = new StringBuilder(prefix);
         message.append(": ").append(describe(throwable));
         Throwable cause = throwable.getCause();
@@ -36,6 +36,8 @@ public class TruncatedException extends RuntimeException {
     private static String describe(Throwable throwable) {
         try {
             return throwable.toString();
+        } catch (VirtualMachineError error) {
+            throw error;
         } catch (Throwable e) {
             return throwable.getClass().getName() + " (toString failed: " + e.getClass().getName() + ")";
         }

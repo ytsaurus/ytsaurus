@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.BeforeAll;
@@ -24,9 +25,13 @@ import tech.ytsaurus.flow.computation.Computation;
 import tech.ytsaurus.flow.computation.OutputCollector;
 import tech.ytsaurus.flow.computation.SourceComputation;
 import tech.ytsaurus.flow.context.PipelineContext;
+import tech.ytsaurus.flow.context.PipelineContextSnapshot;
 import tech.ytsaurus.flow.context.RuntimeContext;
 import tech.ytsaurus.flow.function.RowFunction;
 import tech.ytsaurus.flow.job.JobContext;
+import tech.ytsaurus.flow.resource.FlowResource;
+import tech.ytsaurus.flow.resource.ResourceContext;
+import tech.ytsaurus.flow.resource.ResourceLoadException;
 import tech.ytsaurus.flow.row.ExtendedMessage;
 import tech.ytsaurus.flow.row.Message;
 import tech.ytsaurus.flow.row.Payload;
@@ -45,6 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static tech.ytsaurus.flow.testutils.ComputationTestUtils.passthroughComputation;
@@ -672,6 +678,250 @@ class TestComputationHarnessTest {
 
             // When & Then: Non-existent computation returns null.
             assertNull(harness.getGroupBySchema("non-existent"));
+        }
+    }
+
+    @Nested
+    @DisplayName("Companion Resource Tests")
+    class CompanionResourceTests {
+
+        private static final String RESOURCE_ALIAS = "view";
+
+        /**
+         * Computation handing every message the resource it resolves by alias.
+         */
+        private PipelineContext ctxReadingResource(AtomicReference<FlowResource> seen) {
+            var context = new PipelineContext();
+            context.registerComputation(Computation.builder()
+                    .setComputationId(COMPUTATION_ID)
+                    .setProcessFunction((RowFunction) (message, output, ctx) ->
+                            seen.set(ctx.getResource(RESOURCE_ALIAS)))
+                    .build());
+            return context;
+        }
+
+        @Test
+        @DisplayName("Declared resource: visible to user code by alias, loaded once")
+        void testResourceIsVisibleToUserCode() {
+            // Given: A harness declaring a companion resource under an alias.
+            var seen = new AtomicReference<FlowResource>();
+            var resource = new TestHarnessResource();
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(ctxReadingResource(seen))
+                    .setPipelineSpec(spec)
+                    .addResource(RESOURCE_ALIAS, resource)
+                    .build();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .build();
+
+            // When: Processing the request.
+            harness.doProcess(request);
+
+            // Then: The computation saw the very instance the harness was given.
+            assertAll(
+                    () -> assertSame(resource, seen.get()),
+                    () -> assertEquals(1, resource.loadCount)
+            );
+        }
+
+        @Test
+        @DisplayName("Undeclared resource: the batch is rejected before user code runs")
+        void testUndeclaredResourceIsAbsent() {
+            // Given: A harness declaring no resources at all.
+            var seen = new AtomicReference<FlowResource>();
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(ctxReadingResource(seen))
+                    .setPipelineSpec(spec)
+                    .build();
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .build();
+
+            // When & Then: The lookup of the missing alias fails inside the computation.
+            assertThrows(RuntimeException.class, () -> harness.doProcess(request));
+        }
+
+        @Test
+        @DisplayName("Two harnesses over one PipelineContext: the shared alias is registered once")
+        void testTwoHarnessesShareOnePipelineContext() {
+            // Given: One PipelineContext reused across harnesses, as a @BeforeAll setup would,
+            // with a fresh resource instance per harness, as a @BeforeEach would.
+            var seen = new AtomicReference<FlowResource>();
+            var pipelineContext = ctxReadingResource(seen);
+            var firstResource = new TestHarnessResource();
+            var first = TestComputationHarness.builder()
+                    .setPipelineContext(pipelineContext)
+                    .setPipelineSpec(spec)
+                    .addResource(RESOURCE_ALIAS, firstResource)
+                    .build();
+
+            // When: A second harness is built over the very same context and alias.
+            var secondResource = new TestHarnessResource();
+            var second = TestComputationHarness.builder()
+                    .setPipelineContext(pipelineContext)
+                    .setPipelineSpec(spec)
+                    .addResource(RESOURCE_ALIAS, secondResource)
+                    .build();
+
+            // Then: Setup succeeds and each harness serves its own instance — sharing the
+            // synthetic class name would silently hand the second harness the first's.
+            var request = TestDoProcessRequest.builder(COMPUTATION_ID)
+                    .setMessages(extMessages(1))
+                    .build();
+            first.doProcess(request);
+            assertSame(firstResource, seen.get());
+            seen.set(null);
+            second.doProcess(request);
+            assertSame(secondResource, seen.get());
+        }
+
+        /**
+         * Records how often the harness loaded it.
+         */
+        @Test
+        @DisplayName("A shared PipelineContext does not retain the harness resources")
+        void testSharedContextDoesNotRetainResources() {
+            // Given: One context reused across builds, as a @BeforeAll setup would.
+            var seen = new AtomicReference<FlowResource>();
+            var pipelineContext = ctxReadingResource(seen);
+
+            // When: Building harnesses over it, each with its own fixture.
+            for (int i = 0; i < 3; ++i) {
+                TestComputationHarness.builder()
+                        .setPipelineContext(pipelineContext)
+                        .setPipelineSpec(spec)
+                        .addResource(RESOURCE_ALIAS, new TestHarnessResource())
+                        .build();
+            }
+
+            // Then: The context is handed back as it was found. Otherwise each replaced fixture
+            // would stay reachable through the supplier the context kept, for the life of the
+            // context — with nothing bounding a parameterized or repeated test.
+            assertTrue(new PipelineContextSnapshot(pipelineContext).getResourceFactories().isEmpty());
+        }
+
+        @Test
+        @DisplayName("Closing the harness unloads the resources it loaded")
+        void testCloseUnloadsResources() {
+            // Given: A harness holding a loaded companion resource.
+            var seen = new AtomicReference<FlowResource>();
+            var resource = new TestHarnessResource();
+            var harness = TestComputationHarness.builder()
+                    .setPipelineContext(ctxReadingResource(seen))
+                    .setPipelineSpec(spec)
+                    .addResource(RESOURCE_ALIAS, resource)
+                    .build();
+            assertEquals(0, resource.unloadCount);
+
+            // When: Closing it, twice — a test may close explicitly inside try-with-resources.
+            harness.close();
+            harness.close();
+
+            // Then: The unload hook ran exactly once; nothing a resource opened outlives the test.
+            assertEquals(1, resource.unloadCount);
+        }
+
+        @Test
+        void buildNeverMutatesCallerResourceRegistrations() {
+            var registrations = new java.util.concurrent.atomic.AtomicInteger();
+            var context = new PipelineContext() {
+                @Override
+                public void registerResourceClass(
+                        String name, java.util.function.Supplier<? extends FlowResource> factory
+                ) {
+                    registrations.incrementAndGet();
+                    super.registerResourceClass(name, factory);
+                }
+
+                @Override
+                public boolean unregisterResourceClass(String name) {
+                    registrations.incrementAndGet();
+                    return super.unregisterResourceClass(name);
+                }
+            };
+            context.registerResourceClass("Existing", TestHarnessResource::new);
+            var initial = new PipelineContextSnapshot(context).getResourceFactories();
+            var resource = new TestHarnessResource();
+            try (var harness = TestComputationHarness.builder().setPipelineContext(context)
+                    .setPipelineSpec(spec).addResource(RESOURCE_ALIAS, resource).build()) {
+                assertEquals(1, registrations.get());
+                assertEquals(initial, new PipelineContextSnapshot(context).getResourceFactories());
+                assertEquals(1, resource.loadCount);
+            }
+            assertEquals(1, resource.unloadCount);
+            assertEquals(1, registrations.get());
+        }
+
+        @Test
+        void failingHarnessLoadCleansPreviouslyLoadedResourcesWithoutChangingContext() {
+            var pipelineContext = new PipelineContext();
+            var first = new TestHarnessResource();
+            TestHarnessResource second = new TestHarnessResource() {
+                @Override
+                public void load(ResourceContext context) {
+                    throw new IllegalStateException("load failed");
+                }
+            };
+            assertThrows(IllegalStateException.class, () -> TestComputationHarness.builder()
+                    .setPipelineContext(pipelineContext).setPipelineSpec(spec)
+                    .addResource("a", first).addResource("b", second).build());
+            // Every instance whose load was entered is cleaned, including the partial one.
+            assertEquals(1, first.loadCount);
+            assertEquals(1, first.unloadCount);
+            assertEquals(1, second.unloadCount);
+            assertTrue(new PipelineContextSnapshot(pipelineContext).getResourceFactories().isEmpty());
+        }
+
+        @Test
+        void typedHarnessLoadFailureCleansEveryAttemptWithoutChangingContext() {
+            var pipelineContext = new PipelineContext();
+            pipelineContext.registerResourceClass("Existing", TestHarnessResource::new);
+            var factories = new PipelineContextSnapshot(pipelineContext).getResourceFactories();
+            var first = new TestHarnessResource();
+            var second = new FlowResource() {
+                private int loadCount;
+                private int unloadCount;
+
+                @Override
+                public void load(ResourceContext context) throws ResourceLoadException {
+                    ++loadCount;
+                    throw new ResourceLoadException(
+                            "Pool initialization failed", new IOException("Connection refused"));
+                }
+
+                @Override
+                public void unload() {
+                    ++unloadCount;
+                }
+            };
+
+            var failure = assertThrows(IllegalStateException.class, () -> TestComputationHarness.builder()
+                    .setPipelineContext(pipelineContext).setPipelineSpec(spec)
+                    .addResource("a", first).addResource("b", second).build());
+
+            assertTrue(failure.getMessage().contains("'b'"));
+            assertTrue(failure.getMessage().contains("Pool initialization failed"));
+            assertEquals(1, first.loadCount);
+            assertEquals(1, first.unloadCount);
+            assertEquals(1, second.loadCount);
+            assertEquals(1, second.unloadCount);
+            assertEquals(factories, new PipelineContextSnapshot(pipelineContext).getResourceFactories());
+        }
+
+        private class TestHarnessResource implements FlowResource {
+            private int loadCount;
+            private int unloadCount;
+
+            @Override
+            public void load(ResourceContext context) {
+                ++loadCount;
+            }
+
+            @Override
+            public void unload() {
+                ++unloadCount;
+            }
         }
     }
 

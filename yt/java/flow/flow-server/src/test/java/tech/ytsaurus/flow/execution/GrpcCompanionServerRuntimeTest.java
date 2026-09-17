@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import tech.ytsaurus.flow.context.MetricsContextSnapshot;
+import tech.ytsaurus.flow.service.ResourceStore;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.when;
 class GrpcCompanionServerRuntimeTest {
     private MonitoringHttpServer monitoringServer;
     private Server grpcServer;
+    private ResourceStore resources;
     private HealthStatusManager healthManager;
     private MetricsContextSnapshot metricsSnapshot;
     private GrpcCompanionServerRuntime runtime;
@@ -37,13 +39,16 @@ class GrpcCompanionServerRuntimeTest {
     void setUp() {
         monitoringServer = mock(MonitoringHttpServer.class);
         grpcServer = mock(Server.class);
+        resources = mock(ResourceStore.class);
         healthManager = mock(HealthStatusManager.class);
         metricsSnapshot = mock(MetricsContextSnapshot.class);
         when(grpcServer.shutdown()).thenReturn(grpcServer);
+        when(resources.shutdown()).thenReturn(true);
         when(grpcServer.shutdownNow()).thenReturn(grpcServer);
         runtime = new GrpcCompanionServerRuntime(
                 monitoringServer,
                 grpcServer,
+                resources,
                 healthManager,
                 metricsSnapshot
         );
@@ -71,11 +76,12 @@ class GrpcCompanionServerRuntimeTest {
 
         runtime.shutdown();
 
-        InOrder order = inOrder(monitoringServer, healthManager, grpcServer, metricsSnapshot);
+        InOrder order = inOrder(monitoringServer, healthManager, grpcServer, resources, metricsSnapshot);
         order.verify(monitoringServer).stop();
         order.verify(healthManager).setStatus("", HealthCheckResponse.ServingStatus.NOT_SERVING);
         order.verify(grpcServer).shutdown();
         order.verify(grpcServer).awaitTermination(30, TimeUnit.SECONDS);
+        order.verify(resources).shutdown();
         order.verify(metricsSnapshot).close();
         verify(grpcServer, never()).shutdownNow();
     }
@@ -87,13 +93,14 @@ class GrpcCompanionServerRuntimeTest {
 
         runtime.shutdown();
 
-        InOrder order = inOrder(monitoringServer, healthManager, grpcServer, metricsSnapshot);
+        InOrder order = inOrder(monitoringServer, healthManager, grpcServer, resources, metricsSnapshot);
         order.verify(monitoringServer).stop();
         order.verify(healthManager).setStatus("", HealthCheckResponse.ServingStatus.NOT_SERVING);
         order.verify(grpcServer).shutdown();
         order.verify(grpcServer).awaitTermination(30, TimeUnit.SECONDS);
         order.verify(grpcServer).shutdownNow();
         order.verify(grpcServer).awaitTermination(10, TimeUnit.SECONDS);
+        order.verify(resources).shutdown();
         order.verify(metricsSnapshot).close();
     }
 
@@ -105,6 +112,7 @@ class GrpcCompanionServerRuntimeTest {
 
         verify(grpcServer).shutdownNow();
         verify(grpcServer, times(2)).awaitTermination(anyLong(), eq(TimeUnit.SECONDS));
+        verify(resources).shutdown();
         verify(metricsSnapshot).close();
     }
 
@@ -119,6 +127,7 @@ class GrpcCompanionServerRuntimeTest {
             assertTrue(Thread.currentThread().isInterrupted());
             verify(grpcServer).shutdownNow();
             verify(grpcServer, times(1)).awaitTermination(anyLong(), eq(TimeUnit.SECONDS));
+            verify(resources).shutdown();
             verify(metricsSnapshot).close();
         } finally {
             Thread.interrupted();
@@ -126,26 +135,58 @@ class GrpcCompanionServerRuntimeTest {
     }
 
     @Test
+    void nonQuiescentResourcesDoNotSkipMetricsCleanup() throws InterruptedException {
+        when(grpcServer.awaitTermination(30, TimeUnit.SECONDS)).thenReturn(true);
+        when(resources.shutdown()).thenReturn(false);
+
+        runtime.shutdown();
+
+        verify(resources).shutdown();
+        verify(metricsSnapshot).close();
+    }
+
+    @Test
+    void fatalResourceUnloadFailureTakesPrecedenceAndStillClosesMetrics() throws InterruptedException {
+        RuntimeException monitoringFailure = new RuntimeException("monitoring failed");
+        OutOfMemoryError resourceFailure = new OutOfMemoryError("resource unload failed");
+        RuntimeException metricsFailure = new RuntimeException("metrics failed");
+        doThrow(monitoringFailure).when(monitoringServer).stop();
+        when(grpcServer.awaitTermination(30, TimeUnit.SECONDS)).thenReturn(true);
+        when(resources.shutdown()).thenThrow(resourceFailure);
+        doThrow(metricsFailure).when(metricsSnapshot).close();
+
+        assertSame(resourceFailure, assertThrows(OutOfMemoryError.class, runtime::shutdown));
+        assertArrayEquals(new Throwable[]{monitoringFailure, metricsFailure}, resourceFailure.getSuppressed());
+        InOrder order = inOrder(grpcServer, resources, metricsSnapshot);
+        order.verify(grpcServer).awaitTermination(30, TimeUnit.SECONDS);
+        order.verify(resources).shutdown();
+        order.verify(metricsSnapshot).close();
+    }
+
+    @Test
     void shutdownContinuesAfterEveryThrowableAndRethrowsTheFirst() throws InterruptedException {
         AssertionError monitoringFailure = new AssertionError("monitoring failed");
         RuntimeException healthFailure = new RuntimeException("health failed");
         AssertionError shutdownFailure = new AssertionError("shutdown failed");
+        RuntimeException companionFailure = new RuntimeException("companion failed");
         RuntimeException metricsFailure = new RuntimeException("metrics failed");
         doThrow(monitoringFailure).when(monitoringServer).stop();
         doThrow(healthFailure).when(healthManager)
                 .setStatus("", HealthCheckResponse.ServingStatus.NOT_SERVING);
         when(grpcServer.shutdown()).thenThrow(shutdownFailure);
         when(grpcServer.awaitTermination(10, TimeUnit.SECONDS)).thenReturn(true);
+        when(resources.shutdown()).thenThrow(companionFailure);
         doThrow(metricsFailure).when(metricsSnapshot).close();
 
         assertSame(monitoringFailure, assertThrows(AssertionError.class, runtime::shutdown));
 
         assertArrayEquals(
-                new Throwable[]{healthFailure, shutdownFailure, metricsFailure},
+                new Throwable[]{healthFailure, shutdownFailure, companionFailure, metricsFailure},
                 monitoringFailure.getSuppressed()
         );
         verify(grpcServer).shutdownNow();
         verify(grpcServer).awaitTermination(10, TimeUnit.SECONDS);
+        verify(resources).shutdown();
         verify(metricsSnapshot).close();
     }
 }

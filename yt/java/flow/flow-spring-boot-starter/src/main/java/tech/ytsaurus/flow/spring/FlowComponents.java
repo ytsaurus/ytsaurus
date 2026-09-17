@@ -25,13 +25,14 @@ import tech.ytsaurus.flow.stream.FlowStream;
 import tech.ytsaurus.flow.stream.FlowStreamAnnotations;
 
 /**
- * Collects Flow computations, streams and states from a Spring application context into a
- * {@link PipelineContext}.
+ * Collects Flow computations, streams, states and companion resource classes from a Spring
+ * application context into a {@link PipelineContext}.
  * <p>
  * Computations come from {@link FlowComputation}/{@link FlowSourceComputation} annotated beans;
  * streams from {@link ComputationProvider} beans, {@link FlowStream} beans, and {@link FlowMessage}
  * POJOs found by classpath scan; states from {@link ComputationProvider} beans and
- * {@link StateDescriptor} beans. Duplicate ids are rejected by {@link PipelineContext}.
+ * {@link StateDescriptor} beans; companion resource classes from {@link ResourceProvider} beans.
+ * Duplicate ids are rejected by {@link PipelineContext}.
  *
  * @see FlowAutoConfiguration
  */
@@ -61,6 +62,7 @@ public final class FlowComponents {
         var context = new PipelineContext(collectComputations(beanFactory));
         context.registerStreams(collectStreams(computationProviders, flowStreams, beanFactory, scanPackages));
         context.registerStates(collectStates(computationProviders, beanFactory));
+        registerResourceClasses(beanFactory, context);
         return context;
     }
 
@@ -87,6 +89,7 @@ public final class FlowComponents {
         var context = new PipelineContext(collectComputations(beanFactory), metricsContext);
         context.registerStreams(collectStreams(computationProviders, flowStreams, beanFactory, scanPackages));
         context.registerStates(collectStates(computationProviders, beanFactory));
+        registerResourceClasses(beanFactory, context);
         return context;
     }
 
@@ -138,6 +141,22 @@ public final class FlowComponents {
                 .values()
                 .forEach(states::add);
         return states;
+    }
+
+    /**
+     * Registers the companion resource classes contributed by {@link ResourceProvider} beans with
+     * the pipeline context. Duplicate class names are rejected by {@link PipelineContext}.
+     *
+     * @param beanFactory the bean factory used to discover {@link ResourceProvider} beans.
+     * @param context     the pipeline context to register the resource classes with.
+     */
+    private static void registerResourceClasses(ListableBeanFactory beanFactory, PipelineContext context) {
+        // Including ancestors, like the state collection above: OnFlowComponentsCondition activates
+        // this autoconfiguration on a ResourceProvider bean found in a parent context too, and
+        // enumerating only this factory would leave every init answering RES_RESOURCE_NOT_FOUND.
+        BeanFactoryUtils.beansOfTypeIncludingAncestors(beanFactory, ResourceProvider.class)
+                .values()
+                .forEach(provider -> provider.getResourceClasses().forEach(context::registerResourceClass));
     }
 
     /**

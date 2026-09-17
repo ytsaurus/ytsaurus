@@ -1,7 +1,9 @@
 package tech.ytsaurus.flow.job;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -10,6 +12,7 @@ import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.flow.internal.resource.CompanionResourceInstanceReference;
 import tech.ytsaurus.flow.stream.StreamSpecs;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeConvertible;
@@ -28,6 +31,8 @@ public class Job implements YTreeConvertible {
     private final Set<String> internalStatesNames;
     private final Set<String> externalStatesNames;
     private final Set<String> externalStateJoinersNames;
+    // Exact direct and transitive companion resource instances required by the job.
+    private final List<CompanionResourceInstanceReference> companionResources;
     // Dynamic part of the job. Might be updated.
     private YTreeNode dynamicSpec;
     private Map<String, YTreeNode> dynamicParameters;
@@ -40,6 +45,18 @@ public class Job implements YTreeConvertible {
             YTreeNode dynamicSpec,
             @Nullable TableSchema groupBySchema
     ) {
+        this(jobId, computationId, streamSpecs, staticSpec, dynamicSpec, groupBySchema, List.of());
+    }
+
+    public Job(
+            GUID jobId,
+            String computationId,
+            StreamSpecs streamSpecs,
+            YTreeNode staticSpec,
+            YTreeNode dynamicSpec,
+            @Nullable TableSchema groupBySchema,
+            List<CompanionResourceInstanceReference> companionResources
+    ) {
         this.jobId = jobId;
         this.computationId = computationId;
         this.streamSpecs = streamSpecs;
@@ -51,6 +68,7 @@ public class Job implements YTreeConvertible {
         this.internalStatesNames = extractInternalStates(staticParameters);
         this.externalStatesNames = extractExternalStates(staticSpec);
         this.externalStateJoinersNames = extractExternalStateJoiners(staticSpec);
+        this.companionResources = List.copyOf(companionResources);
     }
 
     static Map<String, YTreeNode> extractParameters(YTreeNode computationSpec) {
@@ -157,6 +175,13 @@ public class Job implements YTreeConvertible {
         return externalStateJoinersNames;
     }
 
+    /**
+     * Exact direct and transitive companion resource instances required by the job.
+     */
+    public List<CompanionResourceInstanceReference> getCompanionResources() {
+        return companionResources;
+    }
+
     @Override
     public String toString() {
         return toYTree().toString();
@@ -173,7 +198,16 @@ public class Job implements YTreeConvertible {
                 .key("dynamic_spec").value(dynamicSpec)
                 .key("static_parameters").value(staticParameters)
                 .key("dynamic_parameters").value(dynamicParameters)
+                .key("companion_resource_ids").value(companionResourceIds())
                 .endMap()
                 .build();
+    }
+
+    private List<String> companionResourceIds() {
+        List<String> resourceIds = new ArrayList<>(companionResources.size());
+        for (CompanionResourceInstanceReference reference : companionResources) {
+            resourceIds.add(reference.resourceId());
+        }
+        return resourceIds;
     }
 }

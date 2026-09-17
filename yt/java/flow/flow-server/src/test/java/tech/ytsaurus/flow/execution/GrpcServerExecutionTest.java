@@ -8,6 +8,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -19,15 +20,22 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tech.ytsaurus.TGuid;
 import tech.ytsaurus.flow.config.CompanionExecutionConfig;
 import tech.ytsaurus.flow.context.MetricsContext;
 import tech.ytsaurus.flow.context.PipelineContext;
+import tech.ytsaurus.flow.resource.FlowResource;
+import tech.ytsaurus.flow.resource.ResourceContext;
 import tech.ytsaurus.flow.rpc.CompanionServiceGrpc;
+import tech.ytsaurus.flow.rpc.EResourceCommand;
+import tech.ytsaurus.flow.rpc.EResourceExecuteStatus;
 import tech.ytsaurus.flow.rpc.EResponseStatus;
 import tech.ytsaurus.flow.rpc.TReqCompanionInfo;
+import tech.ytsaurus.flow.rpc.TReqResourceExecute;
 import tech.ytsaurus.flow.testutils.ComputationTestUtils;
 import tech.ytsaurus.flow.testutils.ProtobufRequestBuilder;
 import tech.ytsaurus.flow.utils.YsonUtils;
+import tech.ytsaurus.ysontree.YTree;
 
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,6 +53,7 @@ class GrpcServerExecutionTest {
 
     @BeforeEach
     void setUp() {
+        UnloadCountingResource.UNLOAD_COUNT.set(0);
         execution = createExecution();
     }
 
@@ -100,6 +109,47 @@ class GrpcServerExecutionTest {
                     .getOrThrow("computations")
                     .mapNode()
                     .containsKey(computationId);
+        } finally {
+            channel.shutdown();
+            try {
+                channel.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    /**
+     * Initializes one {@link UnloadCountingResource} instance in the companion serving on the port.
+     */
+    private void initResource(int port) {
+        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", port)
+                .usePlaintext()
+                .build();
+        try {
+            var argument = YsonUtils.protoFromYTree(YTree.builder().beginMap()
+                    .key("spec").beginMap()
+                    .key("resource_class_name").value("WorkerProxy")
+                    .key("parameters").beginMap()
+                    .key("companion_resource_class").value("UnloadCountingResource")
+                    .endMap()
+                    .endMap()
+                    .key("dynamic_spec").beginMap()
+                    .key("parameters").beginMap().endMap()
+                    .endMap()
+                    .key("incarnation_id").value("1-2-3-4")
+                    .key("incarnation_generation").value(1)
+                    .key("configuration_generation").value(0)
+                    .key("dependencies").beginList().endList()
+                    .endMap().build());
+            var response = CompanionServiceGrpc.newBlockingStub(channel)
+                    .resourceExecute(TReqResourceExecute.newBuilder()
+                            .setRequestId(TGuid.newBuilder().setFirst(1).setSecond(2).build())
+                            .setResourceId("r")
+                            .setCommand(EResourceCommand.RC_INIT)
+                            .setArgument(argument)
+                            .build());
+            assertEquals(EResourceExecuteStatus.RES_OK, response.getStatus());
         } finally {
             channel.shutdown();
             try {
@@ -260,6 +310,59 @@ class GrpcServerExecutionTest {
     }
 
     @Test
+    void resourceExecuteRoundTrip() throws IOException {
+        execution.startAsync();
+
+        ManagedChannel channel = ManagedChannelBuilder.forAddress("localhost", execution.getPort())
+                .usePlaintext()
+                .build();
+        try {
+            var stub = CompanionServiceGrpc.newBlockingStub(channel);
+            var requestId = TGuid.newBuilder().setFirst(1).setSecond(2).build();
+
+            var initArgument = YsonUtils.protoFromYTree(YTree.builder().beginMap()
+                    .key("spec").beginMap()
+                    .key("resource_class_name").value("WorkerProxy")
+                    .key("parameters").beginMap()
+                    .key("companion_resource_class").value("UnknownResource")
+                    .endMap()
+                    .endMap()
+                    .key("dynamic_spec").beginMap()
+                    .key("parameters").beginMap().endMap()
+                    .endMap()
+                    .key("incarnation_id").value("1-2-3-4")
+                    .key("incarnation_generation").value(1)
+                    .key("configuration_generation").value(0)
+                    .key("dependencies").beginList().endList()
+                    .endMap().build());
+            var notFoundResponse = stub.resourceExecute(TReqResourceExecute.newBuilder()
+                    .setRequestId(requestId)
+                    .setResourceId("r")
+                    .setCommand(EResourceCommand.RC_INIT)
+                    .setArgument(initArgument)
+                    .build());
+            assertEquals(EResourceExecuteStatus.RES_RESOURCE_NOT_FOUND, notFoundResponse.getStatus());
+            assertTrue(notFoundResponse.hasError());
+            assertTrue(notFoundResponse.getError().getMessage().contains("UnknownResource"));
+
+            var malformedResponse = stub.resourceExecute(TReqResourceExecute.newBuilder()
+                    .setRequestId(requestId)
+                    .setResourceId("r")
+                    .setCommand(EResourceCommand.RC_INIT)
+                    .build());
+            assertEquals(EResourceExecuteStatus.RES_ERROR, malformedResponse.getStatus());
+            assertTrue(malformedResponse.hasError());
+        } finally {
+            channel.shutdown();
+            try {
+                channel.awaitTermination(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    @Test
     void independentExecutionsUseDifferentPorts() throws IOException {
         GrpcServerExecution execution2 = createExecution();
 
@@ -310,6 +413,59 @@ class GrpcServerExecutionTest {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    @Test
+    void stopUnloadsHostedResourcesAndClosesExecution() throws IOException {
+        var context = new PipelineContext();
+        context.registerResourceClass("UnloadCountingResource", UnloadCountingResource::new);
+        execution = new GrpcServerExecution(new CompanionExecutionSpec(context).setConfig(buildConfig(0)));
+
+        execution.startAsync();
+        initResource(execution.getPort());
+        assertEquals(0, UnloadCountingResource.UNLOAD_COUNT.get());
+
+        execution.stop();
+
+        assertFalse(execution.isRunning());
+        assertEquals(1, UnloadCountingResource.UNLOAD_COUNT.get());
+        assertThrows(IllegalStateException.class, execution::startAsync);
+    }
+
+    @Test
+    void stopWaitsForResourceUnloadAndKeepsExecutionClosed() throws Exception {
+        var unloadEntered = new CountDownLatch(1);
+        var unloadMayFinish = new CountDownLatch(1);
+        var context = new PipelineContext();
+        context.registerResourceClass(
+                "UnloadCountingResource", () -> new BlockingUnloadResource(unloadEntered, unloadMayFinish));
+        execution = new GrpcServerExecution(new CompanionExecutionSpec(context).setConfig(buildConfig(0)));
+        execution.startAsync();
+        initResource(execution.getPort());
+
+        var stopReturned = new CountDownLatch(1);
+        var stopThread = new Thread(() -> {
+            try {
+                execution.stop();
+            } finally {
+                stopReturned.countDown();
+            }
+        }, "test-resource-stop");
+        stopThread.start();
+        try {
+            assertTrue(unloadEntered.await(5, TimeUnit.SECONDS));
+            assertFalse(stopReturned.await(200, TimeUnit.MILLISECONDS));
+            assertFalse(execution.isRunning());
+            assertThrows(IllegalStateException.class, execution::startAsync);
+        } finally {
+            unloadMayFinish.countDown();
+        }
+
+        assertTrue(stopReturned.await(5, TimeUnit.SECONDS));
+        stopThread.join(TimeUnit.SECONDS.toMillis(5));
+        assertFalse(stopThread.isAlive());
+        assertEquals(1, UnloadCountingResource.UNLOAD_COUNT.get());
+        assertThrows(IllegalStateException.class, execution::startAsync);
     }
 
     @Test
@@ -400,6 +556,40 @@ class GrpcServerExecutionTest {
             assertEquals(HealthCheckResponse.ServingStatus.SERVING, response.getStatus());
         } finally {
             executor.shutdownNow();
+        }
+    }
+
+    static final class UnloadCountingResource implements FlowResource {
+        static final AtomicInteger UNLOAD_COUNT = new AtomicInteger();
+
+        @Override
+        public void load(ResourceContext context) {
+        }
+
+        @Override
+        public void unload() {
+            UNLOAD_COUNT.incrementAndGet();
+        }
+    }
+
+    static final class BlockingUnloadResource implements FlowResource {
+        private final CountDownLatch unloadEntered;
+        private final CountDownLatch unloadMayFinish;
+
+        BlockingUnloadResource(CountDownLatch unloadEntered, CountDownLatch unloadMayFinish) {
+            this.unloadEntered = unloadEntered;
+            this.unloadMayFinish = unloadMayFinish;
+        }
+
+        @Override
+        public void load(ResourceContext context) {
+        }
+
+        @Override
+        public void unload() throws Exception {
+            unloadEntered.countDown();
+            assertTrue(unloadMayFinish.await(5, TimeUnit.SECONDS));
+            UnloadCountingResource.UNLOAD_COUNT.incrementAndGet();
         }
     }
 }
