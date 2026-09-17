@@ -65,6 +65,53 @@ class TestQueriesYqlSimpleBase(TestQueriesYqlBase):
         return False
 
 
+class TestDynamicTokenResolution(TestQueriesYqlSimpleBase):
+    YQL_USE_TOKEN_RESOLVER = True
+
+    DELTA_HTTP_PROXY_CONFIG = {
+        "auth": {"enable_authentication": True},
+    }
+
+    @authors("ziganshinmr")
+    @pytest.mark.timeout(300)
+    def test_dynamic_token_resolution(self, query_tracker, yql_agent):
+        create_user("token_resolution_user")
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}],
+        })
+        write_table("//tmp/t", [{"a": 42}])
+        create("file", "//tmp/another_test_file")
+        write_file("//tmp/another_test_file", b"YtTokenResolver works!")
+
+        self._test_simple_query(
+            """
+PRAGMA File("test_file", "yt://primary/tmp/another_test_file");
+
+$has_cluster_token = Python3::has_cluster_token(
+    Callable<(Bytes)->Bool>,
+    @@#py
+def has_cluster_token(key):
+    return has_cluster_token._yql_secure_param(key).startswith("ytct-")
+    @@
+);
+
+SELECT
+    a + 1 AS value,
+    FileContent("test_file") AS file_content,
+    $has_cluster_token(SecureParam("cluster:default_primary")) AS has_cluster_token
+FROM primary.`//tmp/t`;
+""",
+            [{"value": 43, "file_content": "YtTokenResolver works!", "has_cluster_token": True}],
+            authenticated_user="token_resolution_user",
+        )
+
+        self._test_simple_query_error(
+            'SELECT SecureParam("token:default_yt");',
+            "unknown token id: default_yt, prefix: token",
+            authenticated_user="token_resolution_user",
+        )
+
+
 class TestStackOverflow(TestQueriesYqlSimpleBase):
     @authors("mpereskokova")
     def test_stack_overflow(self, query_tracker, yql_agent):
@@ -2132,6 +2179,11 @@ class TestYqlAgentWithProcesses(ProcessFileStorageTestMixin, TestYqlAgent):
         self._test_simple_query("select 1 as value", [{"value": 1}])
 
         self._wait_for_slot_configs(yql_agent, expected_path, modification_times_before)
+
+
+@authors("ziganshinmr")
+class TestDynamicTokenResolutionWithProcesses(TestDynamicTokenResolution):
+    YQL_SUBPROCESS_COUNT = 8
 
 
 @authors("staketd", "lucius")
