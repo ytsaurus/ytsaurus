@@ -169,6 +169,21 @@ func (a *Agent) processRunningOperations(runningOps []OperationStatus) error {
 		if opState != op.State {
 			oplet.UpdateOpStatus(&op.OperationStatus)
 		}
+
+		if a.config.JobCheckerConfigOrDefault() == nil {
+			oplet.ClearExceedingFailedJobsLimitFailure()
+		} else if op.MaxUnavailableJobs != nil {
+			jobCount, ok := oplet.JobCount()
+			if !ok {
+				continue
+			}
+			maxAllowedUnavailable := int(float64(jobCount) * a.config.MaxUnavailableJobsRatioOrDefault())
+			if jobCount > 0 && *op.MaxUnavailableJobs > maxAllowedUnavailable {
+				oplet.SetExceedingFailedJobsLimitFailure()
+			} else {
+				oplet.ClearExceedingFailedJobsLimitFailure()
+			}
+		}
 	}
 
 	abortCh := make(chan yt.OperationID, len(toAbort))

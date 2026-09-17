@@ -14,6 +14,8 @@ type PersistentState struct {
 	YTOpID        yt.OperationID    `yson:"yt_operation_id"`
 	YTOpState     yt.OperationState `yson:"yt_operation_state"`
 	YTOpSuspended bool              `yson:"yt_operation_suspended"`
+	// YTOpJobCount is the total job count from the operation's start spec; nil means unknown.
+	YTOpJobCount *int `yson:"yt_operation_job_count,omitempty"`
 
 	// ResumeMarker is an identificator of the last `resume` action,
 	// so we know that the operation must be resumed
@@ -84,6 +86,8 @@ type InfoState struct {
 
 	Health       OpletHealth `yson:"health"`
 	HealthReason string      `yson:"health_reason"`
+	// ExceedingFailedJobsLimit is set when too many operation jobs are simultaneously unavailable.
+	ExceedingFailedJobsLimit bool `yson:"exceeding_failed_jobs_limit,omitempty"`
 
 	YTOpStartTime  yson.Time `yson:"yt_op_start_time,omitempty"`
 	YTOpFinishTime yson.Time `yson:"yt_op_finish_time,omitempty"`
