@@ -192,6 +192,16 @@ PIPELINE_TABLES_PRESET = {
                     "mount_config": {
                         "enable_lookup_hash_table": True,
                     },
+                    # The table holds a handful of fixed keys, so the installation-wide tablet
+                    # count of the base preset would pin dozens of in-memory tablets for nothing.
+                    # Spreading them buys no throughput either: the hot key is a single row, and
+                    # a row lives in one tablet whatever the count. The minimum is overridden
+                    # together with the desired count, or an installation that raises it would
+                    # leave the pair contradictory and the master would reject it.
+                    "tablet_balancer_config": {
+                        "min_tablet_count": 1,
+                        "desired_tablet_count": 1,
+                    },
                 },
             },
         },

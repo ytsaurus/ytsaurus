@@ -286,7 +286,8 @@ def test_real_preset_timers_inherits_sorted_base():
 # wait_click_join both do. A table that wants a single tablet has to override the minimum along
 # with the desired count, or the pair ends up contradictory and the master rejects it outright
 # (see TMasterTableTabletBalancerConfig::CheckTabletSizeInequalities).
-def test_leader_election_lock_stays_single_tablet_under_a_wide_installation():
+@pytest.mark.parametrize("name", ["leader_election_lock", "flow_control"])
+def test_single_tablet_table_stays_single_under_a_wide_installation(name):
     wide_registry = copy.deepcopy(LOCAL_PRESETS)
     wide_registry["builtin:pipeline_sorted_table_preset"] = _deep_merge(
         copy.deepcopy(wide_registry["builtin:pipeline_sorted_table_preset"]),
@@ -304,7 +305,7 @@ def test_leader_election_lock_stays_single_tablet_under_a_wide_installation():
         },
     )
 
-    attrs = _resolve_attributes(PIPELINE_TABLES_PRESET["leader_election_lock"], wide_registry)
+    attrs = _resolve_attributes(PIPELINE_TABLES_PRESET[name], wide_registry)
     balancer_config = attrs["tablet_balancer_config"]
 
     assert balancer_config["desired_tablet_count"] == 1
