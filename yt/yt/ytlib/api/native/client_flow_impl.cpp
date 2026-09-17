@@ -137,12 +137,13 @@ TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(con
     auto nodeFuture = GetNode(pipelinePath, options);
 
     auto key = MakeUnversionedOwningRow(LeaderControllerKey);
+    auto nameTable = TNameTable::FromKeyColumns({"key", "value"});
     TLookupRowsOptions lookupOptions;
-    lookupOptions.ColumnFilter = TColumnFilter({1});
+    lookupOptions.ColumnFilter = TColumnFilter({nameTable->GetIdOrThrow("value")});
     auto flowControlPath = YPathJoin(pipelinePath, FlowControlTableName);
     auto lookupFuture = LookupRows(
         flowControlPath,
-        TNameTable::FromKeyColumns({"key", "value"}),
+        std::move(nameTable),
         MakeSharedRange(std::vector<TLegacyKey>{key}, key),
         lookupOptions);
 
@@ -182,7 +183,7 @@ TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(con
     if (address.empty()) {
         YT_TLOG_DEBUG("Leader controller is not found in flow control table; falling back to pipeline attribute")
             .With("PipelinePath", pipelinePath)
-            .With(lookupResultOrError);
+            .WithIf(!lookupResultOrError.IsOK(), "Error", lookupResultOrError);
         address = attributes.Get<std::string>(LeaderControllerAddressAttribute, "");
     }
 
@@ -192,7 +193,7 @@ TClient::TPipelineLeaderDescriptor TClient::DiscoverPipelineControllerLeader(con
             "Probably pipeline controller has never been successfully started or has been unable to publish itself",
             flowControlPath,
             LeaderControllerAddressAttribute)
-            .With(lookupResultOrError);
+            .WithIf(!lookupResultOrError.IsOK(), lookupResultOrError);
     }
 
     YT_TLOG_DEBUG("Finished discovering pipeline controller leader")
