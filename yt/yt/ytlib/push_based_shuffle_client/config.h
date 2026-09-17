@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/distributed_chunk_session_client/public.h>
 
-#include <yt/yt/core/compression/public.h>
-
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NPushBasedShuffleClient {
@@ -25,9 +23,6 @@ struct TShuffleWriterConfig
     //! per partition; this send pipelining depth must stay well above one to
     //! keep the per-partition journal flush loop busy.
     double BuildersBudgetFraction;
-
-    //! Codec used to compress each shuffle record before it leaves the writer.
-    NCompression::ECodec Codec;
 
     //! Maximum number of physical send attempts per record before the
     //! writer enters a terminal failed state.
@@ -50,10 +45,6 @@ struct TPartitionReaderConfig
 {
     //! Forwarded to each L1 reader.
     NDistributedChunkSessionClient::TDistributedChunkSessionReaderConfigPtr ChunkSessionReaderConfig;
-
-    //! Codec all chunks in this reader instance were written with; must match the
-    //! writer's codec.
-    NCompression::ECodec Codec;
 
     //! Initial chunk size for each batch's TRowBuffer.
     i64 RowBufferStartChunkSize;
