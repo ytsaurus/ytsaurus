@@ -262,6 +262,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"exec_agent/artifacts/files_copied_total_duration", "Sum of per-file copy durations", "ms"},
         {"exec_agent/artifacts/layers_cached_size", "Total bytes of layers served from cache", "bytes"},
         {"exec_agent/artifacts/layers_downloaded_size", "Total bytes of layers downloaded from data nodes", "bytes"},
+        {"exec_agent/artifacts/layers_imported_size", "Total bytes of layers imported into porto", "bytes"},
         {"exec_agent/artifacts/layers_downloaded_total_duration", "Sum of per-layer download durations", "ms"},
         {"exec_agent/artifacts/layers_import_total_duration", "Sum of per-layer import durations into porto", "ms"},
 
