@@ -19,6 +19,7 @@ import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
@@ -145,13 +146,13 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
 
             YTreeMapNode pushConfig = YTree.mapBuilder()
                     .key("writer").value(YTree.mapBuilder()
-                            .key("codec").value("lz4")
                             .key("memory_budget").value(8L * 1024 * 1024)
                             .buildMap())
                     .buildMap();
 
             ShuffleHandle shuffleHandle = startShuffle(txId, SHUFFLE_SCHEMA, true,
-                    YTree.mapBuilder().key("push").value(pushConfig).buildMap());
+                    YTree.mapBuilder().key("push").value(pushConfig).buildMap(),
+                    Compression.Lz4);
 
             writeAllMappers(shuffleHandle);
 
@@ -189,6 +190,16 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
             boolean usePushBasedShuffle,
             YTreeMapNode config
     ) {
+        return startShuffle(txId, schema, usePushBasedShuffle, config, null);
+    }
+
+    private ShuffleHandle startShuffle(
+            GUID txId,
+            TableSchema schema,
+            boolean usePushBasedShuffle,
+            YTreeMapNode config,
+            Compression codec
+    ) {
         StartShuffle startShuffleReq = StartShuffle.builder()
                 .setAccount("intermediate")
                 .setPartitionCount(NUM_PARTITIONS)
@@ -197,6 +208,7 @@ public class ShuffleServiceTest extends YTsaurusClientTestBase {
                 .setSchema(schema)
                 .setUsePushBasedShuffle(usePushBasedShuffle)
                 .setConfig(config)
+                .setCodec(codec)
                 .build();
         return ytClient.startShuffle(startShuffleReq).join();
     }

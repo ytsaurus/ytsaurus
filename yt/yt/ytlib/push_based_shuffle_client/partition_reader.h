@@ -84,6 +84,7 @@ DEFINE_REFCOUNTED_TYPE(IPushBasedPartitionReader)
 //! Optionally appends header-derived writer and row identity values.
 IPushBasedPartitionReaderPtr CreatePushBasedPartitionReader(
     TPartitionReaderConfigPtr config,
+    NCompression::ECodec codec,
     NApi::NNative::IClientPtr client,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     int readQuorum,

@@ -32,6 +32,7 @@
 namespace NYT::NPushBasedShuffleClient {
 
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NNodeTrackerClient;
@@ -48,6 +49,7 @@ using TCreateDistributedChunkWriterCallback = std::function<
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
     TShuffleWriterConfigPtr config,
+    ECodec codec,
     IPartitionWriteSessionProviderPtr sessionProvider,
     IPartitionerPtr partitioner,
     TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
@@ -57,6 +59,10 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr auto TestCodec = ECodec::None;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -267,6 +273,7 @@ public:
 
         return CreatePushBasedShuffleWriterForTesting(
             std::move(config),
+            TestCodec,
             Provider_,
             std::move(partitioner),
             std::move(createDistributedChunkWriter),

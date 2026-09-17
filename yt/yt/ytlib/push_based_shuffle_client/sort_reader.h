@@ -57,6 +57,7 @@ using TSortReaderMode = std::variant<TValidWriterIds, TIdentityColumnIds>;
 ISortReaderPtr CreateSortReader(
     TSortReaderConfigPtr sortReaderConfig,
     TPartitionReaderConfigPtr partitionReaderConfig,
+    NCompression::ECodec codec,
     NApi::NNative::IClientPtr client,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     int readQuorum,

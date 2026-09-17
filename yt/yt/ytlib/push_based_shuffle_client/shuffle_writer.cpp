@@ -22,6 +22,7 @@
 namespace NYT::NPushBasedShuffleClient {
 
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NLogging;
@@ -78,6 +79,7 @@ class TPushBasedShuffleWriter
 public:
     TPushBasedShuffleWriter(
         TShuffleWriterConfigPtr config,
+        ECodec codec,
         IPartitionWriteSessionProviderPtr sessionProvider,
         IPartitionerPtr partitioner,
         TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
@@ -85,6 +87,7 @@ public:
         IInvokerPtr invoker,
         THashMap<int, TSessionDescriptor> seededSessions)
         : Config_(std::move(config))
+        , Codec_(codec)
         , SessionProvider_(std::move(sessionProvider))
         , Partitioner_(std::move(partitioner))
         , CreateDistributedChunkWriter_(std::move(createDistributedChunkWriter))
@@ -142,6 +145,7 @@ public:
 
 private:
     const TShuffleWriterConfigPtr Config_;
+    const ECodec Codec_;
     const IPartitionWriteSessionProviderPtr SessionProvider_;
     const IPartitionerPtr Partitioner_;
     const TCreateDistributedChunkWriterCallback CreateDistributedChunkWriter_;
@@ -332,7 +336,7 @@ private:
         // takes a single TSharedRef, forcing a payload-sized memcpy here.
         // Switch WriteRecord to TRange<TSharedRef> and drop the merge.
         auto compressed = MergeRefsToRef<TShuffleWireRecordTag>(
-            CompressShuffleRecord(*record, Config_->Codec));
+            CompressShuffleRecord(*record, Codec_));
         InFlightBytes_ += compressed.Size();
         partitionState.Pending.push_back({.Record = std::move(compressed), .SendAttempts = 0});
         ++OutstandingWork_;
@@ -551,6 +555,7 @@ private:
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
     TShuffleWriterConfigPtr config,
+    ECodec codec,
     IPartitionWriteSessionProviderPtr sessionProvider,
     IPartitionerPtr partitioner,
     NApi::NNative::IConnectionPtr connection,
@@ -569,6 +574,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
 
     return New<TPushBasedShuffleWriter>(
         std::move(config),
+        codec,
         std::move(sessionProvider),
         std::move(partitioner),
         std::move(createWriter),
@@ -579,6 +585,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriter(
 
 IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
     TShuffleWriterConfigPtr config,
+    ECodec codec,
     IPartitionWriteSessionProviderPtr sessionProvider,
     IPartitionerPtr partitioner,
     TCreateDistributedChunkWriterCallback createDistributedChunkWriter,
@@ -587,6 +594,7 @@ IPushBasedShuffleWriterPtr CreatePushBasedShuffleWriterForTesting(
 {
     return New<TPushBasedShuffleWriter>(
         std::move(config),
+        codec,
         std::move(sessionProvider),
         std::move(partitioner),
         std::move(createDistributedChunkWriter),

@@ -7950,6 +7950,7 @@ DEFINE_RPC_SERVICE_METHOD(TApiService, StartShuffle)
             if (request->has_config()) {
                 options.Config = TYsonString(request->config());
             }
+            options.Codec = FromProto<ECodec>(request->codec());
             return client->StartShuffle(
                 request->account(),
                 request->partition_count(),

@@ -36,6 +36,7 @@ namespace NYT::NShuffleServer {
 
 using namespace NApi;
 using namespace NChunkClient;
+using namespace NCompression;
 using namespace NConcurrency;
 using namespace NDistributedChunkSessionClient;
 using namespace NLogging;
@@ -207,14 +208,18 @@ public:
             FromProto(&schema, request->schema());
         }
 
+        auto codec = FromProto<ECodec>(request->codec());
+
         context->SetRequestInfo(
-            "ParentTransaction: %v, Account: %v, PartitionCount: %v, Medium: %v, ReplicationFactor: %v, UsePushBasedShuffle: %v",
+            "ParentTransaction: %v, Account: %v, PartitionCount: %v, Medium: %v, ReplicationFactor: %v, "
+            "UsePushBasedShuffle: %v, Codec: %v",
             parentTransactionId,
             account,
             partitionCount,
             medium,
             replicationFactor,
-            usePushBasedShuffle);
+            usePushBasedShuffle,
+            codec);
 
         THROW_ERROR_EXCEPTION_IF(
             parentTransactionId.IsEmpty(),
@@ -264,6 +269,7 @@ public:
         shuffleHandle->Medium = std::move(medium);
         shuffleHandle->UsePushBasedShuffle = usePushBasedShuffle;
         shuffleHandle->Schema = std::move(schema);
+        shuffleHandle->Codec = codec;
         shuffleHandle->Config = ConvertToYsonString(configNode);
 
         response->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));

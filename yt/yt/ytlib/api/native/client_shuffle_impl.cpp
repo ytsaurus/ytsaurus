@@ -349,6 +349,7 @@ TFuture<IRowBatchWriterPtr> CreatePushBasedShuffleWriterImpl(
 
             auto pushBasedWriter = CreatePushBasedShuffleWriter(
                 writerConfig,
+                handle->Codec,
                 sessionProvider,
                 partitioner,
                 client->GetNativeConnection(),
@@ -398,6 +399,7 @@ TFuture<IRowBatchWriterPtr> CreatePullBasedShuffleWriterImpl(
     tableWriterOptions->Account = handle->Account;
     tableWriterOptions->ReplicationFactor = handle->ReplicationFactor;
     tableWriterOptions->MediumName = handle->Medium;
+    tableWriterOptions->CompressionCodec = handle->Codec;
 
     auto writer = CreatePartitionMultiChunkWriter(
         writerConfig,
@@ -561,6 +563,7 @@ TFuture<IRowBatchReaderPtr> CreatePushBasedShuffleReaderImpl(
 
             auto partitionReader = CreatePushBasedPartitionReader(
                 readerConfig,
+                handle->Codec,
                 client,
                 New<TChunkReaderHost>(client),
                 readQuorum,
@@ -684,12 +687,17 @@ TSignedShuffleHandlePtr TClient::DoStartShuffle(
     if (options.Config) {
         req->set_config(ToProto(*options.Config));
     }
+    if (options.Codec != NCompression::ECodec::None) {
+        req->set_codec(ToProto(options.Codec));
+    }
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
     const auto& signatureGenerator = GetNativeConnection()->GetSignatureGenerator();
-    return TSignedShuffleHandlePtr(signatureGenerator->Sign(rsp->shuffle_handle()));
+    auto signedHandle = TSignedShuffleHandlePtr(signatureGenerator->Sign(rsp->shuffle_handle()));
+    ValidateShuffleHandleCodec(signedHandle, options.Codec);
+    return signedHandle;
 }
 
 TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
