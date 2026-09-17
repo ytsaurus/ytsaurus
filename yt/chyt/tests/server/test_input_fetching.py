@@ -1099,20 +1099,14 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("//tmp/t", [{"key": 1, "value": "foo"}])
         write_table("<append=%true>//tmp/t", [{"key": 2, "value": None}])
         write_table("<append=%true>//tmp/t", [{"key": 3, "value": "bar"}])
-        foo = yson.dumps("foo", yson_format="binary").hex().upper()
-        bar = yson.dumps("bar", yson_format="binary").hex().upper()
 
         with Clique(1) as clique:
             assert clique.make_query(
-                'select key, hex(value) as value, toTypeName(value) as type from "//tmp/t" order by key'
-            ) == [
-                {"key": 1, "value": foo, "type": "Nullable(String)"},
-                {"key": 2, "value": None, "type": "Nullable(String)"},
-                {"key": 3, "value": bar, "type": "Nullable(String)"},
-            ]
+                'select key, value from "//tmp/t" order by key'
+            ) == [{"key": 1, "value": "foo"}, {"key": 2, "value": None}, {"key": 3, "value": "bar"}]
             assert clique.make_query_and_validate_read_row_count(
-                f"select key from `//tmp/t` where value = unhex('{foo}') "
-                'settings optimize_move_to_prewhere = 0', min=2, max=3
+                'select key from "//tmp/t" where value = \'foo\' '
+                'settings optimize_move_to_prewhere = 0', exact=1
             ) == [{"key": 1}]
 
     @authors("buyval01")
