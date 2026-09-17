@@ -38,17 +38,21 @@ void TElectionBackendConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("lock_acquisition_period", &TThis::LockAcquisitionPeriod)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("leader_cache_update_period", &TThis::LeaderCacheUpdatePeriod)
-        .Default(TDuration::Seconds(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCypressElectionBackendConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("transaction_timeout", &TThis::TransactionTimeout)
+    // NB: The deployed configs spell these as "transaction_timeout" and "transaction_ping_period";
+    // the aliases keep them readable while the name matches the other backends.
+    registrar.Parameter("leader_lease_ttl", &TThis::LeaderLeaseTtl)
+        .Alias("transaction_timeout")
         .Default(TDuration::Seconds(5));
-    registrar.Parameter("transaction_ping_period", &TThis::TransactionPingPeriod)
+    registrar.Parameter("leader_lease_ping_period", &TThis::LeaderLeasePingPeriod)
+        .Alias("transaction_ping_period")
+        .Default(TDuration::Seconds(1));
+    registrar.Parameter("leader_cache_update_period", &TThis::LeaderCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));
 }
 
@@ -71,12 +75,18 @@ void TChaosElectionBackendConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("chaos_cell_bundle", &TThis::ChaosCellBundle)
         .Default("chaos");
-    // The lease must outlive a few missed pings: losing it costs a leadership round trip, while
-    // holding it too long only delays the takeover of a dead controller.
-    registrar.Parameter("lease_timeout", &TThis::LeaseTimeout)
-        .Default(TDuration::Seconds(30));
-    registrar.Parameter("lease_ping_period", &TThis::LeasePingPeriod)
-        .Default(TDuration::Seconds(5));
+    // The value is inherited from the dyntable backend, the only one of the three with a production
+    // record behind its ttl. What the ttl has to outlast is not a lost request but a stalled
+    // controller: the pinger shares its invoker with the rest of the controller, and a Control
+    // thread that stops for a minute under memory pressure takes the pinger with it. Losing the
+    // lease then costs a leadership round trip and every job of the pipeline, while holding it too
+    // long only delays the takeover of a controller that is already dead.
+    registrar.Parameter("leader_lease_ttl", &TThis::LeaderLeaseTtl)
+        .Alias("lease_timeout")
+        .Default(TDuration::Minutes(1));
+    registrar.Parameter("leader_lease_ping_period", &TThis::LeaderLeasePingPeriod)
+        .Alias("lease_ping_period")
+        .Default(TDuration::Seconds(12));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +129,8 @@ void TControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("publish_timeout", &TThis::PublishTimeout)
         .Default(TDuration::Minutes(120));
+    registrar.Parameter("publish_request_timeout", &TThis::PublishRequestTimeout)
+        .Default(TDuration::Seconds(1));
 
     // NB: A default-constructed polymorphic struct holds nothing, so an absent "election_manager"
     // would leave the connector without a backend config; construct the default one explicitly.
@@ -141,6 +153,18 @@ void TControllerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
+        // Job leases live by prolongation alone, so the timeout has to cover several rounds of it
+        // under every backend. Under the dyntable one a round rewrites the shared deadline rather
+        // than pinging each lease, but a missed round costs the pipeline just as much.
+        if (auto minLeaseTimeout = MinLeaseTimeoutToLeasePingPeriodRatio * config->LeaseManager->LeasePingPeriod;
+            config->LeaseManager->LeaseTimeout < minLeaseTimeout)
+        {
+            THROW_ERROR_EXCEPTION("%Qv is too small for %Qv", "lease_timeout", "lease_ping_period")
+                .With("lease_timeout", config->LeaseManager->LeaseTimeout)
+                .With("lease_ping_period", config->LeaseManager->LeasePingPeriod)
+                .With("min_lease_timeout", minLeaseTimeout);
+        }
+
         if (config->ElectionManager.GetType() == EElectionBackend::Chaos) {
             // A job lease has to outlast a change of leader. Nothing but the leader pings it, and
             // the pinger stops with the leadership, so the clock keeps running while the follower
@@ -150,7 +174,7 @@ void TControllerConfig::Register(TRegistrar registrar)
             // failover.
             const auto& backendConfig = config->ElectionManager.GetConcrete<TChaosElectionBackendConfig>();
             auto handoverTime =
-                backendConfig->LeaseTimeout +
+                backendConfig->LeaderLeaseTtl +
                 backendConfig->LockAcquisitionPeriod +
                 config->WarmUpTime;
             // What has to cover the handover is not the whole timeout but what is left of it. Job
@@ -164,7 +188,7 @@ void TControllerConfig::Register(TRegistrar registrar)
                 THROW_ERROR_EXCEPTION("%Qv is too small to survive a change of leader", "lease_timeout")
                     .With("lease_timeout", config->LeaseManager->LeaseTimeout)
                     .With("lease_ping_period", config->LeaseManager->LeasePingPeriod)
-                    .With("leader_lease_timeout", backendConfig->LeaseTimeout)
+                    .With("leader_lease_ttl", backendConfig->LeaderLeaseTtl)
                     .With("lock_acquisition_period", backendConfig->LockAcquisitionPeriod)
                     .With("warm_up_time", config->WarmUpTime)
                     .With("min_lease_timeout", minLeaseTimeout);
@@ -191,12 +215,15 @@ void TControllerConfig::Register(TRegistrar registrar)
         // The other end of the same rope. A handover has to finish before the deadline the old
         // leader wrote runs out, or every job of the pipeline loses its fence over a routine
         // change of leader: the replica first waits out the leader lease, then reads the lease
-        // table, and only then touches the deadline — while the deadline it inherited may already
-        // be two thirds spent, since the old leader refreshes it at a fraction of the timeout.
-        auto minLeaseTimeout = MinLeaseTimeoutToLeaderLeaseTtlRatio * backendConfig->LeaderLeaseTtl;
+        // table, and only then touches the deadline. What it inherits is short of the full timeout
+        // by however long ago the last refresh was, so the refresh period is added on top.
+        auto minLeaseTimeout =
+            MinLeaseTimeoutToLeaderLeaseTtlRatio * backendConfig->LeaderLeaseTtl +
+            config->LeaseManager->LeasePingPeriod;
         if (config->LeaseManager->LeaseTimeout < minLeaseTimeout) {
             THROW_ERROR_EXCEPTION("%Qv is too small for %Qv", "lease_timeout", "leader_lease_ttl")
                 .With("lease_timeout", config->LeaseManager->LeaseTimeout)
+                .With("lease_ping_period", config->LeaseManager->LeasePingPeriod)
                 .With("leader_lease_ttl", backendConfig->LeaderLeaseTtl)
                 .With("min_lease_timeout", minLeaseTimeout);
         }

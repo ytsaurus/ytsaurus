@@ -2,6 +2,8 @@
 #include <yt/yt/flow/library/cpp/runner/root_clients_cache.h>
 #include <yt/yt/flow/library/cpp/runner/vanilla_launcher.h>
 
+#include <yt/yt/flow/library/cpp/controller/config.h>
+
 #include <yt/yt/flow/library/cpp/companion/config.h>
 
 #include <yt/yt/flow/library/cpp/vanilla/spec.h>
@@ -330,6 +332,73 @@ TEST(TVanillaLauncherSecretEnvTest, AcceptsSetSecretEnv)
             MakeVanillaConfig("secret_env=[FLOW_UT_SECRET]"),
             cache),
         Format("%v \"pipeline-cluster\"", StopMarker));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// The patch is merged into a fully serialized default config, and all three backends spell their
+// leader lease the same way. A patch that switches the backend must therefore not leave the
+// previous backend's values behind: the Cypress TTL is five seconds, while chaos wants its own
+// minute and dyntable would not even load with five.
+
+TEST(TPatchVanillaNodeConfigTest, SwitchingToChaosKeepsTheChaosDefaults)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ {},
+        /*workerPortCount*/ {});
+    ASSERT_EQ(nodeConfig->Controller->ElectionManager.GetType(), NController::EElectionBackend::Cypress);
+
+    auto patched = PatchVanillaNodeConfig(
+        nodeConfig,
+        NYTree::ConvertToNode(NYson::TYsonString(TStringBuf(
+            "{controller={election_manager={backend=chaos;chaos_cell_bundle=\"test-bundle\"}}}"))));
+
+    const auto& electionManager = patched->Controller->ElectionManager;
+    ASSERT_EQ(electionManager.GetType(), NController::EElectionBackend::Chaos);
+    auto backendConfig = electionManager.GetConcrete<NController::TChaosElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->ChaosCellBundle, "test-bundle");
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Minutes(1));
+    EXPECT_EQ(backendConfig->LeaderLeasePingPeriod, TDuration::Seconds(12));
+}
+
+TEST(TPatchVanillaNodeConfigTest, SwitchingToDyntableKeepsTheDyntableDefaults)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ {},
+        /*workerPortCount*/ {});
+
+    auto patched = PatchVanillaNodeConfig(
+        nodeConfig,
+        NYTree::ConvertToNode(NYson::TYsonString(TStringBuf(
+            "{controller={election_manager={backend=dyntable}}}"))));
+
+    const auto& electionManager = patched->Controller->ElectionManager;
+    ASSERT_EQ(electionManager.GetType(), NController::EElectionBackend::Dyntable);
+    auto backendConfig = electionManager.GetConcrete<NController::TDyntableElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Minutes(1));
+    EXPECT_EQ(backendConfig->DetachTimeout, TDuration::Minutes(1));
+}
+
+// A patch that does not name a backend keeps refining the one already there.
+TEST(TPatchVanillaNodeConfigTest, KeepsTheElectionSettingsWhenTheBackendStays)
+{
+    auto nodeConfig = BuildDefaultVanillaNodeConfig(
+        MakePipelinePath(),
+        /*proxyRole*/ {},
+        /*workerPortCount*/ {});
+
+    auto patched = PatchVanillaNodeConfig(
+        nodeConfig,
+        NYTree::ConvertToNode(NYson::TYsonString(TStringBuf(
+            "{controller={election_manager={lock_acquisition_period=\"7s\"}}}"))));
+
+    const auto& electionManager = patched->Controller->ElectionManager;
+    ASSERT_EQ(electionManager.GetType(), NController::EElectionBackend::Cypress);
+    auto backendConfig = electionManager.GetConcrete<NController::TCypressElectionBackendConfig>();
+    EXPECT_EQ(backendConfig->LockAcquisitionPeriod, TDuration::Seconds(7));
+    EXPECT_EQ(backendConfig->LeaderLeaseTtl, TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

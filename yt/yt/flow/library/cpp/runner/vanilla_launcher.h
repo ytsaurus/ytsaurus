@@ -135,6 +135,14 @@ TFlowNodeConfigPtr BuildDefaultVanillaNodeConfig(
     std::optional<std::string> proxyRole,
     std::optional<int> workerPortCount);
 
+//! Applies a node config |patch| to |nodeConfig|.
+//!
+//! A patch that names an election backend replaces the whole election manager config: the settings
+//! of the backend it switches away from are not inherited.
+TFlowNodeConfigPtr PatchVanillaNodeConfig(
+    const TFlowNodeConfigPtr& nodeConfig,
+    const NYTree::INodePtr& patch);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Submits a YT vanilla operation that runs a Flow federation for the given pipeline.
