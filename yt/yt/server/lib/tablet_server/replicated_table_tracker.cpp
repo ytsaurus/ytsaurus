@@ -56,7 +56,7 @@ void FormatValue(
     const TChangeReplicaModeCommand& command,
     TStringBuf /*spec*/)
 {
-    builder->AppendFormat("ReplicaId: %v, TargetMode: %v",
+    builder->AppendFormat("{ReplicaId: %v, TargetMode: %v}",
         command.ReplicaId,
         command.TargetMode);
 }
@@ -1094,6 +1094,35 @@ public:
             Options_ = std::move(options);
         }
 
+        void UpdatePreferredSyncReplicaClusters(const THashSet<std::string>& preferredSyncReplicaClusters)
+        {
+            if (LastPreferredSyncReplicaClusters_ == preferredSyncReplicaClusters) {
+                return;
+            }
+
+            YT_LOG_DEBUG("Effective preferred sync replica clusters changed; resetting switch cooldown "
+                "(TableId: %v, OldClusters: %v, NewClusters: %v)",
+                Id_,
+                LastPreferredSyncReplicaClusters_,
+                preferredSyncReplicaClusters);
+
+            LastPreferredSyncReplicaClusters_ = preferredSyncReplicaClusters;
+            for (auto contentType : TEnumTraits<ETableReplicaContentType>::GetDomainValues()) {
+                LastPreferredSyncReplicaSwitchTimes_[contentType] = TInstant::Zero();
+            }
+        }
+
+        bool IsPreferredSyncReplicaSwitchAllowed(ETableReplicaContentType contentType, TInstant now) const
+        {
+            return now - LastPreferredSyncReplicaSwitchTimes_[contentType] >=
+                TableTracker_->GetConfig()->PreferredSyncReplicaSwitchCooldown;
+        }
+
+        void OnPreferredSyncReplicaSwitch(ETableReplicaContentType contentType, TInstant now)
+        {
+            LastPreferredSyncReplicaSwitchTimes_[contentType] = now;
+        }
+
         void UpdateReplicaStates()
         {
             for (auto replicaId : ReplicaIds_) {
@@ -1200,6 +1229,9 @@ public:
 
         TTableCollocationId CollocationId_;
         THashSet<TTableReplicaId> ReplicaIds_;
+
+        THashSet<std::string> LastPreferredSyncReplicaClusters_;
+        TEnumIndexedArray<ETableReplicaContentType, TInstant> LastPreferredSyncReplicaSwitchTimes_;
 
         bool Destroyed_ = false;
     };
@@ -1385,25 +1417,25 @@ private:
             .With("TableCount", IdToTable_.size());
     }
 
+    struct TReplicaFamily
+    {
+        TTableId TableId;
+        ETableReplicaContentType ContentType;
+
+        bool operator==(const TReplicaFamily& other) const
+        {
+            return TableId == other.TableId && ContentType == other.ContentType;
+        }
+
+        operator size_t() const
+        {
+            return MultiHash(TableId, ContentType);
+        }
+    };
+
     void UpdateReplicaModes()
     {
         std::vector<TChangeReplicaModeCommand> commands;
-
-        struct TReplicaFamily
-        {
-            TTableId TableId;
-            ETableReplicaContentType ContentType;
-
-            bool operator==(const TReplicaFamily& other) const
-            {
-                return TableId == other.TableId && ContentType == other.ContentType;
-            }
-
-            operator size_t() const
-            {
-                return MultiHash(TableId, ContentType);
-            }
-        };
 
         THashMap<TReplicaFamily, TReplicasByState> replicaFamilyToReplicasByState;
         for (auto& [tableId, table] : IdToTable_) {
@@ -1487,10 +1519,18 @@ private:
             }
         }
 
+        auto now = TInstant::Now();
+
+        THashSet<TReplicaFamily> replicaFamiliesWithSwitchInducesByPreferredList;
+
         for (auto& [replicaFamily, replicasByState] : replicaFamilyToReplicasByState) {
             auto& table = GetOrCrash(IdToTable_, replicaFamily.TableId);
 
             auto preferredReplicas = table.GetPreferredSyncReplicaClusters();
+            table.UpdatePreferredSyncReplicaClusters(preferredReplicas);
+            auto isPreferredSyncReplicaSwitchAllowed = table.IsPreferredSyncReplicaSwitchAllowed(
+                replicaFamily.ContentType,
+                now);
 
             THashMap<std::string, int> goodReplicaPriorities;
             if (table.GetCollocationId() == NullObjectId) {
@@ -1506,19 +1546,44 @@ private:
                     table.GetCollocationId());
             }
 
-            auto tableCommands = GenerateCommandsForTable(
+            auto commandGenerationResult = GenerateCommandsForTable(
                 &replicasByState,
-                preferredReplicas,
+                isPreferredSyncReplicaSwitchAllowed
+                    ? preferredReplicas
+                    : THashSet<std::string>{},
                 goodReplicaPriorities);
 
-            YT_TLOG_DEBUG_IF(!tableCommands.empty(), "Generated replica mode change commands")
+            YT_TLOG_DEBUG_UNLESS(commandGenerationResult.Commands.empty(),
+                "Generated replica mode change commands")
                 .With("TableId", replicaFamily.TableId)
                 .With("ContentType", replicaFamily.ContentType)
                 .With("CollocationId", table.GetCollocationId())
                 .With("PreferredReplicas", preferredReplicas)
-                .With("Commands", tableCommands);
+                .With("IsSwitchInducedByPreferredList", commandGenerationResult.IsSwitchInducedByPreferredList)
+                .With("Commands", commandGenerationResult.Commands)
+                .With("IsPreferredSyncReplicaSwitchAllowed", isPreferredSyncReplicaSwitchAllowed);
 
-            std::move(tableCommands.begin(), tableCommands.end(), std::back_inserter(commands));
+            // Any switch in collocation induced by preferred list affects whole collocation.
+            if (commandGenerationResult.IsSwitchInducedByPreferredList) {
+                if (table.GetCollocationId() == NullObjectId) {
+                    replicaFamiliesWithSwitchInducesByPreferredList.insert(replicaFamily);
+                } else {
+                    const auto& collocation = GetOrCrash(IdToCollocation_, table.GetCollocationId());
+                    for (auto tableId : collocation.TableIds) {
+                        if (IdToTable_.contains(tableId)) {
+                            replicaFamiliesWithSwitchInducesByPreferredList.insert(TReplicaFamily{
+                                .TableId = tableId,
+                                .ContentType = replicaFamily.ContentType,
+                            });
+                        }
+                    }
+                }
+            }
+
+            std::move(
+                commandGenerationResult.Commands.begin(),
+                commandGenerationResult.Commands.end(),
+                std::back_inserter(commands));
         }
 
         YT_TLOG_DEBUG("Replicated table tracker replica mode update iteration finished")
@@ -1529,42 +1594,77 @@ private:
         }
 
         Host_->ApplyChangeReplicaModeCommands(std::move(commands)).Subscribe(BIND(
-            [=] (const TErrorOr<TApplyChangeReplicaCommandResults>& resultsOrError) {
-                if (!resultsOrError.IsOK()) {
-                    YT_TLOG_ERROR("Failed to apply change replica mode commands")
-                        .With(resultsOrError);
-                    return;
-                }
-
-                bool failed = false;
-                for (const auto& commandResultOrError : resultsOrError.Value()) {
-                    if (!commandResultOrError.IsOK()) {
-                        YT_TLOG_ERROR("Failed to apply change replica mode command")
-                            .With(commandResultOrError);
-                        failed = true;
-                    }
-                }
-
-                if (failed) {
-                    return;
-                }
-
-                YT_TLOG_DEBUG("Successfully applied change replica mode commands")
-                    .With("CommandCount", resultsOrError.Value().size());
-            })
+            &TNewReplicatedTableTracker::OnReplicaModeChangeCommandsApplied,
+            MakeStrong(this),
+            std::move(replicaFamiliesWithSwitchInducesByPreferredList))
             .Via(RttInvoker_));
     }
 
-    std::vector<TChangeReplicaModeCommand> GenerateCommandsForTable(
+    void OnReplicaModeChangeCommandsApplied(
+        const THashSet<TReplicaFamily>& replicaFamiliesWithSwitchInducesByPreferredList,
+        const TErrorOr<TApplyChangeReplicaCommandResults>& resultsOrError)
+    {
+        if (!resultsOrError.IsOK()) {
+            YT_TLOG_ERROR("Failed to apply change replica mode commands")
+                .With(resultsOrError);
+            return;
+        }
+
+        const auto& results = resultsOrError.Value();
+
+        bool failed = false;
+        for (int index = 0; index < std::ssize(results); ++index) {
+            const auto& commandResultOrError = results[index];
+            if (!commandResultOrError.IsOK()) {
+                YT_TLOG_ERROR("Failed to apply change replica mode command")
+                    .With("CommandIndex", index)
+                    .With(commandResultOrError);
+                failed = true;
+            }
+        }
+
+        if (failed) {
+            return;
+        }
+
+        // In case of any failure we skip these updates below for every replica family.
+        // This robust way is enough because any partial errors are highly unlikely.
+        auto now = TInstant::Now();
+        for (const auto& replicaFamily : replicaFamiliesWithSwitchInducesByPreferredList) {
+            if (auto* table = FindTable(replicaFamily.TableId)) {
+                table->OnPreferredSyncReplicaSwitch(replicaFamily.ContentType, now);
+            }
+        }
+
+        YT_TLOG_DEBUG("Successfully applied change replica mode commands")
+            .With("CommandCount", resultsOrError.Value().size())
+            .With("PreferredReplicaSwitchFamilyCount", replicaFamiliesWithSwitchInducesByPreferredList.size());
+    }
+
+    struct TCommandGenerationResult
+    {
+        std::vector<TChangeReplicaModeCommand> Commands;
+
+        bool IsSwitchInducedByPreferredList;
+    };
+
+    TCommandGenerationResult GenerateCommandsForTable(
         TReplicasByState* replicasByState,
         const THashSet<std::string>& preferredReplicas,
         const THashMap<std::string, int>& goodReplicaPriorities)
     {
-        auto& syncReplicas = (*replicasByState)[EReplicaState::GoodSync];
-        auto& asyncReplicas = (*replicasByState)[EReplicaState::GoodAsync];
-        auto syncReplicaCount = syncReplicas.size();
+        auto prioritizeReplicas = [&] (
+            TReplicasByState* currentReplicaByState,
+            const THashSet<std::string>& currentPreferredReplicas)
+        {
+            auto& syncReplicas = (*currentReplicaByState)[EReplicaState::GoodSync];
+            auto& asyncReplicas = (*currentReplicaByState)[EReplicaState::GoodAsync];
+            auto syncReplicaCount = syncReplicas.size();
 
-        if (!syncReplicas.empty() && !asyncReplicas.empty()) {
+            if (syncReplicas.empty() || asyncReplicas.empty()) {
+                return;
+            }
+
             // Priorities:
             // 4 - good-sync and preferred
             // 3 - good-async and preferred
@@ -1577,7 +1677,7 @@ private:
                 auto it = goodReplicaPriorities.find(replica->GetClusterName());
                 if (it != goodReplicaPriorities.end()) {
                     result += it->second;
-                    if (preferredReplicas.contains(replica->GetClusterName())) {
+                    if (currentPreferredReplicas.contains(replica->GetClusterName())) {
                         result += 2;
                     }
                 }
@@ -1613,24 +1713,59 @@ private:
 
             syncReplicas = std::move(newSyncReplicas);
             asyncReplicas = std::move(newAsyncReplicas);
+        };
+
+        // Need these only in case preferred replica switch is allowed.
+        THashSet<TTableReplicaId> syncReplicaIds;
+        THashSet<TTableReplicaId> syncReplicaIdsWithoutPreferred;
+        if (preferredReplicas.empty()) {
+            prioritizeReplicas(replicasByState, {});
+        } else {
+            auto replicasByStateWithoutPreferred = *replicasByState;
+            prioritizeReplicas(&replicasByStateWithoutPreferred, {});
+
+            prioritizeReplicas(replicasByState, preferredReplicas);
+
+            auto getSyncReplicaIds = [] (const TReplicasByState& currentReplicaByState) {
+                THashSet<TTableReplicaId> syncReplicaIds;
+                for (auto* replica : currentReplicaByState[EReplicaState::GoodSync]) {
+                    syncReplicaIds.insert(replica->GetId());
+                }
+                return syncReplicaIds;
+            };
+
+            syncReplicaIds = getSyncReplicaIds(*replicasByState);
+            syncReplicaIdsWithoutPreferred = getSyncReplicaIds(replicasByStateWithoutPreferred);
         }
 
-        std::vector<TChangeReplicaModeCommand> commands;
+        TCommandGenerationResult result;
+        result.IsSwitchInducedByPreferredList = true;
+
         for (auto state : TEnumTraits<EReplicaState>::GetDomainValues()) {
             for (auto* replica : (*replicasByState)[state]) {
                 auto currentMode = GetReplicaModeFromState(replica->GetState());
                 auto targetMode = GetReplicaModeFromState(state);
                 if (currentMode != targetMode) {
-                    commands.push_back(TChangeReplicaModeCommand{
+                    result.Commands.push_back(TChangeReplicaModeCommand{
                         .ReplicaId = replica->GetId(),
                         .TargetMode = targetMode,
                     });
+
+                    // Look for any replica with mode switched due to any reason except preferred.
+                    if (syncReplicaIds.contains(replica->GetId()) == syncReplicaIdsWithoutPreferred.contains(replica->GetId())) {
+                        result.IsSwitchInducedByPreferredList = false;
+                    }
+
                     replica->GetReplicaModeSwitchCounter().Increment();
                 }
             }
         }
 
-        return commands;
+        if (result.Commands.empty()) {
+            result.IsSwitchInducedByPreferredList = false;
+        }
+
+        return result;
     }
 
     void UpdateReplicaLagTimes()
