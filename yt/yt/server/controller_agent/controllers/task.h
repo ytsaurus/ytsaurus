@@ -166,6 +166,10 @@ public:
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
     virtual void OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob, NChunkClient::TChunkId chunkId);
+
+    //! Returning false makes loss of this output a no-op: no suspension, replay, or failure.
+    virtual bool IsJobOutputNeeded(const TCompletedJobPtr& completedJob) const;
+
     void OnOperationRevived();
 
     virtual void OnStripeRegistrationFailed(

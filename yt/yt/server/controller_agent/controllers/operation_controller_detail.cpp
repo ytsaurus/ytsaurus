@@ -2262,7 +2262,8 @@ THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
     THashSet<TChunkId> intermediateChunks;
 
     for (const auto& [chunkId, job] : ChunkOriginMap_) {
-        if (!job->Suspended || !job->Restartable) {
+        // The scraper only needs chunks whose recovery can still affect a destination task.
+        if ((!job->Suspended || !job->Restartable) && job->SourceTask->IsJobOutputNeeded(job)) {
             intermediateChunks.insert(chunkId);
         }
     }
@@ -4294,6 +4295,14 @@ void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
 {
     auto& completedJob = GetOrCrash(ChunkOriginMap_, chunkId);
+
+    if (!completedJob->SourceTask->IsJobOutputNeeded(completedJob)) {
+        YT_TLOG_DEBUG("Ignoring unavailable intermediate chunk whose output is no longer needed")
+            .With("ChunkId", chunkId)
+            .With("JobId", completedJob->JobId);
+        IntermediateChunkScraper_->UpdateChunkSet();
+        return false;
+    }
 
     YT_TLOG_DEBUG("Intermediate chunk is lost")
         .With("ChunkId", chunkId)
