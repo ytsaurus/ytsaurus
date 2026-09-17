@@ -682,9 +682,9 @@ void TIOEngineBase::InitProfilerSensors()
     Sensors_->KernelWrittenBytesCounter = Profiler.Counter("/kernel_written_bytes");
     Sensors_->KernelReadBytesCounter = Profiler.Counter("/kernel_read_bytes");
 
-    auto makeRequestSensors = [] (TProfiler profiler) {
+    auto makeRequestSensors = [] (TProfiler profiler, TStringBuf execTimerName) {
         TIOEngineSensors::TRequestSensors sensors;
-        sensors.ExecTimer = profiler.Timer("/time");
+        sensors.ExecTimer = profiler.Timer(execTimerName);
         sensors.HugePageTimer = profiler.Timer("/huge_page_time");
         sensors.TotalTimeCounter = profiler.TimeCounter("/total_time");
         sensors.Counter = profiler.Counter("/request_count");
@@ -694,14 +694,13 @@ void TIOEngineBase::InitProfilerSensors()
     };
 
     auto makeReadWriteSensors = [&] (TProfiler profiler) {
-        auto sensors = makeRequestSensors(profiler);
+        auto sensors = makeRequestSensors(profiler, "/time/exec");
         sensors.WaitTimer = profiler.Timer("/time/wait");
-        sensors.ExecTimer = profiler.Timer("/time/exec");
         sensors.TotalTimer = profiler.Timer("/time/total");
         return sensors;
     };
 
-    Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
+    Sensors_->IOSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"), "/time");
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
         auto profilerCategory = Profiler.WithTag("category", FormatEnum(category));
@@ -714,8 +713,8 @@ void TIOEngineBase::InitProfilerSensors()
 
         Sensors_->ReadSensors[category] = makeReadWriteSensors(profilerCategory.WithPrefix("/read"));
         Sensors_->WriteSensors[category] = makeReadWriteSensors(profilerCategory.WithPrefix("/write"));
-        Sensors_->SyncSensors[category] = makeRequestSensors(profilerCategory.WithPrefix("/sync"));
-        Sensors_->DataSyncSensors[category] = makeRequestSensors(profilerCategory.WithPrefix("/datasync"));
+        Sensors_->SyncSensors[category] = makeRequestSensors(profilerCategory.WithPrefix("/sync"), "/time");
+        Sensors_->DataSyncSensors[category] = makeRequestSensors(profilerCategory.WithPrefix("/datasync"), "/time");
     }
 }
 
