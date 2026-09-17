@@ -1,21 +1,22 @@
 package tech.ytsaurus.flow.service;
 
 import java.nio.file.Files;
+import java.util.Objects;
+import java.util.concurrent.Callable;
 
 import com.google.protobuf.UnsafeByteOperations;
 import io.grpc.Context;
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.TError;
 import tech.ytsaurus.flow.context.PipelineContextSnapshot;
+import tech.ytsaurus.flow.internal.utils.FailureCollector;
 import tech.ytsaurus.flow.jfr.JfrChunkLocator;
 import tech.ytsaurus.flow.job.JobContext;
 import tech.ytsaurus.flow.rpc.CompanionServiceGrpc;
-import tech.ytsaurus.flow.rpc.EResourceExecuteStatus;
 import tech.ytsaurus.flow.rpc.EResponseStatus;
 import tech.ytsaurus.flow.rpc.TReqCompanionInfo;
 import tech.ytsaurus.flow.rpc.TReqGetJfr;
@@ -47,214 +48,166 @@ public class CompanionService extends CompanionServiceGrpc.CompanionServiceImplB
     private final CompanionMetrics metrics;
 
     public CompanionService(PipelineContextSnapshot context, JobContext jobContext, MeterRegistry meterRegistry) {
-        super();
-        this.processor = new CompanionRequestProcessor(context, jobContext);
+        this(new CompanionRequestProcessor(context, jobContext), meterRegistry);
+    }
+
+    /**
+     * Adapts a caller-owned processor to gRPC; does not construct its runtime dependencies.
+     */
+    public CompanionService(CompanionRequestProcessor processor, MeterRegistry meterRegistry) {
+        this.processor = Objects.requireNonNull(processor);
         this.metrics = new CompanionMetrics(meterRegistry);
     }
 
-    @Override
-    public void processBatch(TReqProcessBatch request, StreamObserver<TRspProcessBatch> responseObserver) {
-        var measurement = metrics.startProcessBatch(request);
-        // An abandoned request must not register a job nobody will remove.
-        if (Context.current().isCancelled()) {
-            measurement.stop();
-            responseObserver.onError(Status.CANCELLED
-                    .withDescription("Request abandoned by the caller").asRuntimeException());
-            return;
-        }
-        if (request.hasJobInfo()) {
-            metrics.recordJobRecreation(request.getComputationId());
-        }
-        TRspProcessBatch response;
-        try {
-            var result = processor.processBatch(request);
-
-            TRspProcessBatch.Builder responseBuilder = TRspProcessBatch.newBuilder();
-            responseBuilder.setRequestId(request.getRequestId());
-            responseBuilder.setJobId(request.getJobId());
-            responseBuilder.setStatus(result.getStatus());
-
-            if (result.getData() != null) {
-                responseBuilder.setData(result.getData());
-                metrics.recordResponseStates(request.getComputationId(), result.getData());
-            }
-
-            var responseMetrics = TResponseMetrics.newBuilder()
-                    .setCpuTimeNs(result.getResourceStats().getCpuTime().toNanos())
-                    .setAllocatedBytes(result.getResourceStats().getAllocatedBytes().toBytes())
-                    .build();
-            responseBuilder.setMetrics(responseMetrics);
-
-            response = responseBuilder.build();
-        } catch (Throwable e) {
-            measurement.stop();
-            log.error("Error processing batch (ComputationId: {})", request.getComputationId(), e);
-            responseObserver.onError(new StatusRuntimeException(Status.INTERNAL.withDescription(
-                    new TruncatedException(
-                            "Error processing batch (ComputationId: " + request.getComputationId() + ")", e)
-                            .getMessage()
-            )));
-            if (e instanceof VirtualMachineError) {
-                // The status is surfaced above; the JVM must still see the fatal error.
-                throw (VirtualMachineError) e;
-            }
-            return;
-        }
-        measurement.stop();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+    /**
+     * Compatibility cleanup for standalone services. Server runtimes own their store explicitly.
+     *
+     * @return whether all resource hooks have finished; see ResourceStore.shutdown().
+     */
+    public boolean shutdown() {
+        return processor.shutdown();
     }
 
     @Override
-    public void companionInfo(TReqCompanionInfo request, StreamObserver<TRspCompanionInfo> responseObserver) {
-        TRspCompanionInfo response;
-        try {
-            var result = processor.getCompanionInfo();
+    public void processBatch(TReqProcessBatch request, StreamObserver<TRspProcessBatch> observer) {
+        var measurement = metrics.startProcessBatch(request);
+        if (Context.current().isCancelled()) {
+            measurement.stop();
+            cancel(observer);
+            return;
+        }
+        respond("Error processing batch (ComputationId: " + request.getComputationId() + ")", observer,
+                () -> FailureCollector.callWithCleanup(() -> {
+                    if (request.hasJobInfo()) {
+                        metrics.recordJobRecreation(request.getComputationId());
+                    }
+                    var result = processor.processBatch(request);
+                    var response = TRspProcessBatch.newBuilder()
+                            .setRequestId(request.getRequestId())
+                            .setJobId(request.getJobId())
+                            .setStatus(result.getStatus())
+                            .setMetrics(responseMetrics(result.getResourceStats()));
+                    if (result.getData() != null) {
+                        response.setData(result.getData());
+                        metrics.recordResponseStates(request.getComputationId(), result.getData());
+                    }
+                    return response.build();
+                }, measurement::stop));
+    }
 
-            response = TRspCompanionInfo.newBuilder()
+    @Override
+    public void companionInfo(TReqCompanionInfo request, StreamObserver<TRspCompanionInfo> observer) {
+        respond("Error processing CompanionStatus request", observer, () -> {
+            var result = processor.getCompanionInfo();
+            return TRspCompanionInfo.newBuilder()
                     .setPayload(YsonUtils.protoFromYTree(result.getPayload()))
                     .setStatus(result.getStatus())
                     .build();
-        } catch (Exception e) {
-            log.error("Error processing CompanionStatus request", e);
-            responseObserver.onError(new StatusRuntimeException(Status.INTERNAL.withDescription(
-                    "Error processing CompanionStatus request: " + e.getMessage()
-            )));
-            return;
-        }
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+        });
     }
 
     @Override
-    public void putJob(TReqPutJob request, StreamObserver<TRspPutJob> responseObserver) {
+    public void putJob(TReqPutJob request, StreamObserver<TRspPutJob> observer) {
         // An abandoned request must not register a job nobody will remove.
         if (Context.current().isCancelled()) {
-            responseObserver.onError(Status.CANCELLED
-                    .withDescription("Request abandoned by the caller").asRuntimeException());
+            cancel(observer);
             return;
         }
-        TRspPutJob response;
-        try {
+        respond("Error processing PutJob request", observer, () -> {
             var result = processor.putJob(request);
-
-            var responseBuilder = TRspPutJob.newBuilder()
+            return TRspPutJob.newBuilder()
                     .setJobId(request.getJobId())
                     .setRequestId(request.getRequestId())
-                    .setStatus(result.getStatus());
-
-            responseBuilder.setMetrics(TResponseMetrics.newBuilder()
-                    .setCpuTimeNs(result.getResourceStats().getCpuTime().toNanos())
-                    .setAllocatedBytes(result.getResourceStats().getAllocatedBytes().toBytes())
-                    .build());
-
-            response = responseBuilder.build();
-        } catch (Exception e) {
-            log.error("Error processing PutJob request", e);
-            responseObserver.onError(new StatusRuntimeException(Status.INTERNAL.withDescription(
-                    "Error processing PutJob request: " + e.getMessage()
-            )));
-            return;
-        }
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
-
-    @Override
-    public void removeJob(TReqRemoveJob request, StreamObserver<TRspRemoveJob> responseObserver) {
-        TRspRemoveJob response;
-        try {
-            var status = processor.removeJob(request);
-
-            response = TRspRemoveJob.newBuilder()
-                    .setRequestId(request.getRequestId())
-                    .setJobId(request.getJobId())
-                    .setStatus(status)
+                    .setStatus(result.getStatus())
+                    .setMetrics(responseMetrics(result.getResourceStats()))
                     .build();
-        } catch (Exception e) {
-            log.error("Error processing RemoveJob request", e);
-            responseObserver.onError(new StatusRuntimeException(Status.INTERNAL.withDescription(
-                    "Error processing RemoveJob request: " + e.getMessage()
-            )));
-            return;
-        }
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+        });
     }
 
     @Override
-    public void listJobs(TReqListJobs request, StreamObserver<TRspListJobs> responseObserver) {
-        TRspListJobs response;
-        try {
-            var builder = TRspListJobs.newBuilder()
+    public void removeJob(TReqRemoveJob request, StreamObserver<TRspRemoveJob> observer) {
+        respond("Error processing RemoveJob request", observer, () -> TRspRemoveJob.newBuilder()
+                .setRequestId(request.getRequestId())
+                .setJobId(request.getJobId())
+                .setStatus(processor.removeJob(request))
+                .build());
+    }
+
+    @Override
+    public void listJobs(TReqListJobs request, StreamObserver<TRspListJobs> observer) {
+        respond("Error processing ListJobs request", observer, () -> {
+            var response = TRspListJobs.newBuilder()
                     .setRequestId(request.getRequestId())
                     .setProcessId(ProcessHandle.current().pid())
                     .setStatus(EResponseStatus.RS_OK);
             for (var jobId : processor.listJobs(request)) {
-                builder.addJobIds(ProtoUtils.toProto(jobId));
+                response.addJobIds(ProtoUtils.toProto(jobId));
             }
-            response = builder.build();
-        } catch (Exception e) {
-            log.error("Error processing ListJobs request", e);
-            responseObserver.onError(new StatusRuntimeException(Status.INTERNAL.withDescription(
-                    "Error processing ListJobs request: " + e.getMessage()
-            )));
-            return;
-        }
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+            return response.build();
+        });
     }
 
     @Override
-    public void resourceExecute(
-            TReqResourceExecute request,
-            StreamObserver<TRspResourceExecute> responseObserver
-    ) {
-        var response = TRspResourceExecute.newBuilder()
-                .setRequestId(request.getRequestId())
-                .setStatus(EResourceExecuteStatus.RES_UNSUPPORTED)
-                .setError(TError.newBuilder()
-                        .setCode(1)
-                        .setMessage("Companion resources are not supported by the Java companion")
-                        .build())
-                .build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+    public void resourceExecute(TReqResourceExecute request, StreamObserver<TRspResourceExecute> observer) {
+        respond("Error processing ResourceExecute request", observer, () -> {
+            var outcome = processor.resourceExecute(request);
+            var response = TRspResourceExecute.newBuilder()
+                    .setRequestId(request.getRequestId())
+                    .setStatus(outcome.status());
+            if (!outcome.errorMessage().isEmpty()) {
+                response.setError(TError.newBuilder().setCode(1).setMessage(outcome.errorMessage()).build());
+            }
+            return response.build();
+        });
     }
 
     @Override
-    public void getJfr(TReqGetJfr request, StreamObserver<TRspGetJfr> responseObserver) {
-        TRspGetJfr response;
-        try {
-            JfrChunkLocator chunkLocator = new JfrChunkLocator();
-            JfrChunkLocator.Result result = chunkLocator.findLatestCompleteChunk();
-
-            TRspGetJfr.Builder responseBuilder = TRspGetJfr.newBuilder();
-
+    public void getJfr(TReqGetJfr request, StreamObserver<TRspGetJfr> observer) {
+        respond("Error processing GetJfr request", observer, () -> {
+            var result = new JfrChunkLocator().findLatestCompleteChunk();
+            var response = TRspGetJfr.newBuilder();
             if (result instanceof JfrChunkLocator.Result.Found found) {
-                byte[] data = Files.readAllBytes(found.chunkPath());
-                responseBuilder.setStatus(EResponseStatus.RS_OK);
-                responseBuilder.setJfrData(UnsafeByteOperations.unsafeWrap(data));
+                response.setStatus(EResponseStatus.RS_OK)
+                        .setJfrData(UnsafeByteOperations.unsafeWrap(Files.readAllBytes(found.chunkPath())));
             } else if (result instanceof JfrChunkLocator.Result.NotFound notFound) {
-                responseBuilder.setStatus(EResponseStatus.RS_ERROR);
-                responseBuilder.setErrorMessage(notFound.reason());
+                response.setStatus(EResponseStatus.RS_ERROR).setErrorMessage(notFound.reason());
             } else if (result instanceof JfrChunkLocator.Result.Error error) {
-                responseBuilder.setStatus(EResponseStatus.RS_ERROR);
-                responseBuilder.setErrorMessage(error.reason());
+                response.setStatus(EResponseStatus.RS_ERROR).setErrorMessage(error.reason());
             } else {
-                throw new IllegalStateException("Unsupported JfrChunkLocator.Result type: "
-                        + result.getClass().getName());
+                throw new IllegalStateException("Unsupported JfrChunkLocator.Result type: " + result.getClass());
             }
+            return response.build();
+        });
+    }
 
-            response = responseBuilder.build();
-        } catch (Exception e) {
-            log.error("Error processing GetJfr request", e);
-            responseObserver.onError(new StatusRuntimeException(Status.INTERNAL.withDescription(
-                    "Error processing GetJfr request: " + e.getMessage()
-            )));
+    private static TResponseMetrics responseMetrics(ResourceStats stats) {
+        return TResponseMetrics.newBuilder()
+                .setCpuTimeNs(stats.getCpuTime().toNanos())
+                .setAllocatedBytes(stats.getAllocatedBytes().toBytes())
+                .build();
+    }
+
+    private static void cancel(StreamObserver<?> observer) {
+        observer.onError(Status.CANCELLED.withDescription("Request abandoned by the caller").asRuntimeException());
+    }
+
+    private static <T> void respond(String operation, StreamObserver<T> observer, Callable<T> body) {
+        T response;
+        try {
+            response = body.call();
+        } catch (Throwable error) {
+            var failures = new FailureCollector();
+            failures.add(error);
+            boolean logged = failures.tryRun(() -> log.error(operation, error));
+            boolean delivered = failures.tryRun(() -> observer.onError(Status.INTERNAL
+                    .withDescription(TruncatedException.format(operation, error)).asRuntimeException()));
+            if (error instanceof VirtualMachineError || !logged || !delivered) {
+                failures.throwUncheckedIfAny();
+            }
             return;
         }
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
+        // Observer failures must not cause a second terminal callback.
+        observer.onNext(response);
+        observer.onCompleted();
     }
 }

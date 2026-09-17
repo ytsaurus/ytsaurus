@@ -102,7 +102,8 @@ public class Computation implements YTreeConvertible {
                 request.getWatermarks(),
                 request.getMinWatermark(),
                 job.getStaticParameters(),
-                job.getDynamicParameters()
+                job.getDynamicParameters(),
+                request.getResources()
         );
         log.debug(
                 "States (InternalStateNames: {}, ExternalStateNames: {} InternalStatesSize: {}, " +

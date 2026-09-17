@@ -5,10 +5,11 @@ import java.util.concurrent.TimeUnit;
 import io.grpc.Server;
 import io.grpc.health.v1.HealthCheckResponse;
 import io.grpc.protobuf.services.HealthStatusManager;
-import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.flow.context.MetricsContextSnapshot;
+import tech.ytsaurus.flow.internal.utils.FailureCollector;
+import tech.ytsaurus.flow.service.ResourceStore;
 
 /**
  * Owns one in-process companion server runtime and performs ordered try-all shutdown.
@@ -20,17 +21,20 @@ final class GrpcCompanionServerRuntime implements CompanionServerRuntime {
 
     private final MonitoringHttpServer monitoringServer;
     private final Server grpcServer;
+    private final ResourceStore resources;
     private final HealthStatusManager healthManager;
     private final MetricsContextSnapshot metricsSnapshot;
 
     GrpcCompanionServerRuntime(
             MonitoringHttpServer monitoringServer,
             Server grpcServer,
+            ResourceStore resources,
             HealthStatusManager healthManager,
             MetricsContextSnapshot metricsSnapshot
     ) {
         this.monitoringServer = monitoringServer;
         this.grpcServer = grpcServer;
+        this.resources = resources;
         this.healthManager = healthManager;
         this.metricsSnapshot = metricsSnapshot;
     }
@@ -57,19 +61,27 @@ final class GrpcCompanionServerRuntime implements CompanionServerRuntime {
 
     @Override
     public void shutdown() {
-        ShutdownFailures failures = new ShutdownFailures();
+        FailureCollector failures = new FailureCollector();
         failures.tryRun(monitoringServer::stop);
         failures.tryRun(() -> healthManager.setStatus("", HealthCheckResponse.ServingStatus.NOT_SERVING));
         boolean interrupted = shutdownGrpc(failures);
+        failures.tryRun(this::shutdownResources);
         // MetricsContextSnapshot does not own the caller's MeterRegistry.
         failures.tryRun(metricsSnapshot::close);
         if (interrupted) {
             Thread.currentThread().interrupt();
         }
-        failures.throwIfAny();
+        failures.throwUncheckedIfAny();
     }
 
-    private boolean shutdownGrpc(ShutdownFailures failures) {
+    private void shutdownResources() {
+        if (!resources.shutdown()) {
+            log.warn("Companion resources are still in use after server shutdown; "
+                    + "their unload hooks will run when the outstanding requests finish");
+        }
+    }
+
+    private boolean shutdownGrpc(FailureCollector failures) {
         boolean interrupted = false;
         boolean terminated = false;
         if (failures.tryRun(grpcServer::shutdown)) {
@@ -100,37 +112,4 @@ final class GrpcCompanionServerRuntime implements CompanionServerRuntime {
         return interrupted;
     }
 
-    private static final class ShutdownFailures {
-        private @Nullable Throwable failure;
-
-        boolean tryRun(Runnable action) {
-            try {
-                action.run();
-                return true;
-            } catch (Throwable e) {
-                add(e);
-                return false;
-            }
-        }
-
-        void add(Throwable next) {
-            if (failure == null) {
-                failure = next;
-            } else if (failure != next) {
-                failure.addSuppressed(next);
-            }
-        }
-
-        void throwIfAny() {
-            if (failure instanceof RuntimeException exception) {
-                throw exception;
-            }
-            if (failure instanceof Error error) {
-                throw error;
-            }
-            if (failure != null) {
-                throw new IllegalStateException("Unexpected checked shutdown failure", failure);
-            }
-        }
-    }
 }

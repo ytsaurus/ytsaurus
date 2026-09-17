@@ -1,9 +1,11 @@
 package tech.ytsaurus.flow.context;
 
+import java.util.Collections;
 import java.util.Map;
 
 import com.google.protobuf.Message;
 import org.jspecify.annotations.Nullable;
+import tech.ytsaurus.flow.resource.FlowResource;
 import tech.ytsaurus.flow.row.Keyed;
 import tech.ytsaurus.flow.row.MessageBuilder;
 import tech.ytsaurus.flow.state.DefaultStateManager;
@@ -32,6 +34,7 @@ public class DefaultRuntimeContext implements RuntimeContext {
     private final Long minWatermark;
     private final Map<String, YTreeNode> computationParameters;
     private final Map<String, YTreeNode> computationDynamicParameters;
+    private final Map<String, FlowResource> resources;
 
     public DefaultRuntimeContext(
             StateBackend stateBackend,
@@ -41,12 +44,33 @@ public class DefaultRuntimeContext implements RuntimeContext {
             Map<String, YTreeNode> computationParameters,
             Map<String, YTreeNode> computationDynamicParameters
     ) {
+        this(
+                stateBackend,
+                streamSpecs,
+                watermarks,
+                minWatermark,
+                computationParameters,
+                computationDynamicParameters,
+                Collections.emptyMap()
+        );
+    }
+
+    public DefaultRuntimeContext(
+            StateBackend stateBackend,
+            StreamSpecs streamSpecs,
+            Map<String, Long> watermarks,
+            Long minWatermark,
+            Map<String, YTreeNode> computationParameters,
+            Map<String, YTreeNode> computationDynamicParameters,
+            Map<String, FlowResource> resources
+    ) {
         this.stateManager = new DefaultStateManager(stateBackend);
         this.streamSpecs = streamSpecs;
         this.watermarks = watermarks;
         this.minWatermark = minWatermark;
         this.computationParameters = computationParameters;
         this.computationDynamicParameters = computationDynamicParameters;
+        this.resources = resources;
     }
 
     /**
@@ -166,5 +190,21 @@ public class DefaultRuntimeContext implements RuntimeContext {
     @Override
     public StreamSpecs getStreamSpecs() {
         return streamSpecs;
+    }
+
+    /**
+     * @see RuntimeContext#getResource(String)
+     */
+    @Override
+    public FlowResource getResource(String alias) {
+        var resource = resources.get(alias);
+        if (resource == null) {
+            throw new IllegalStateException(
+                    ("Companion resource is not available in this process; companion-hosted resources "
+                            + "must be listed in the computation's required_resource_ids (Alias: %s)")
+                            .formatted(alias)
+            );
+        }
+        return resource;
     }
 }

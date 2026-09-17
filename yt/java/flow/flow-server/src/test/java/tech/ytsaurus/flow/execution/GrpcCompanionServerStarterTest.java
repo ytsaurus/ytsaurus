@@ -14,6 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import tech.ytsaurus.flow.context.MetricsContextSnapshot;
 import tech.ytsaurus.flow.service.CompanionService;
+import tech.ytsaurus.flow.service.ResourceStore;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,6 +41,7 @@ class GrpcCompanionServerStarterTest {
                 "monitoring.create",
                 "monitoring.start",
                 "health.create",
+                "resources.create",
                 "companion.create",
                 "grpc.build",
                 "grpc.start",
@@ -65,33 +67,38 @@ class GrpcCompanionServerStarterTest {
         RuntimeException startFailure = new RuntimeException("publish failed");
         RuntimeException healthFailure = new RuntimeException("health rollback failed");
         AssertionError grpcFailure = new AssertionError("gRPC rollback failed");
+        RuntimeException companionFailure = new RuntimeException("companion rollback failed");
         RuntimeException monitoringFailure = new RuntimeException("monitoring rollback failed");
         AssertionError metricsFailure = new AssertionError("metrics rollback failed");
         RecordingComponentFactory components = new RecordingComponentFactory(StartStep.SERVING, startFailure);
         components.cleanupFailures.put("health.not_serving", healthFailure);
         components.cleanupFailures.put("grpc.shutdown_now", grpcFailure);
+        components.cleanupFailures.put("resources.shutdown", companionFailure);
         components.cleanupFailures.put("monitoring.stop", monitoringFailure);
         components.cleanupFailures.put("metrics.close", metricsFailure);
         var starter = new GrpcCompanionServerStarter(components);
 
-        RuntimeException exception = assertThrows(RuntimeException.class, starter::start);
+        AssertionError exception = assertThrows(AssertionError.class, starter::start);
 
-        assertSame(startFailure, exception);
+        assertSame(grpcFailure, exception);
+        assertArrayEquals(new Throwable[]{healthFailure}, startFailure.getSuppressed());
         assertArrayEquals(
-                new Throwable[]{healthFailure, grpcFailure, monitoringFailure, metricsFailure},
-                startFailure.getSuppressed()
+                new Throwable[]{startFailure, companionFailure, monitoringFailure, metricsFailure},
+                grpcFailure.getSuppressed()
         );
         assertEquals(List.of(
                 "metrics.create",
                 "monitoring.create",
                 "monitoring.start",
                 "health.create",
+                "resources.create",
                 "companion.create",
                 "grpc.build",
                 "grpc.start",
                 "health.serving",
                 "health.not_serving",
                 "grpc.shutdown_now",
+                "resources.shutdown",
                 "monitoring.stop",
                 "metrics.close"
         ), components.events);
@@ -120,8 +127,9 @@ class GrpcCompanionServerStarterTest {
         var starter = new GrpcCompanionServerStarter(components);
 
         assertSame(fatalFailure, assertThrows(OutOfMemoryError.class, starter::start));
-        assertArrayEquals(new Throwable[]{startFailure}, fatalFailure.getSuppressed());
-        assertArrayEquals(new Throwable[]{monitoringFailure, metricsFailure}, startFailure.getSuppressed());
+        assertArrayEquals(new Throwable[]{startFailure, monitoringFailure, metricsFailure},
+                fatalFailure.getSuppressed());
+        assertEquals(0, startFailure.getSuppressed().length);
         assertEquals(expectedEvents(StartStep.SERVING), components.events);
     }
 
@@ -131,6 +139,7 @@ class GrpcCompanionServerStarterTest {
                 "monitoring.create",
                 "monitoring.start",
                 "health.create",
+                "resources.create",
                 "companion.create",
                 "grpc.build",
                 "grpc.start",
@@ -141,6 +150,9 @@ class GrpcCompanionServerStarterTest {
         }
         if (failedStep.ordinal() >= StartStep.GRPC_START.ordinal()) {
             events.add("grpc.shutdown_now");
+        }
+        if (failedStep.ordinal() >= StartStep.COMPANION_SERVICE.ordinal()) {
+            events.add("resources.shutdown");
         }
         if (failedStep.ordinal() >= StartStep.MONITORING_START.ordinal()) {
             events.add("monitoring.stop");
@@ -156,6 +168,7 @@ class GrpcCompanionServerStarterTest {
         MONITORING_CONSTRUCTION,
         MONITORING_START,
         HEALTH,
+        RESOURCES,
         COMPANION_SERVICE,
         GRPC_BUILD,
         GRPC_START,
@@ -172,6 +185,7 @@ class GrpcCompanionServerStarterTest {
         private final MonitoringHttpServer monitoringServer = mock(MonitoringHttpServer.class);
         private final HealthStatusManager healthManager = mock(HealthStatusManager.class);
         private final CompanionService companionService = mock(CompanionService.class);
+        private final ResourceStore resources = mock(ResourceStore.class);
         private final Server grpcServer = mock(Server.class);
         private int metricsCreations;
 
@@ -188,6 +202,10 @@ class GrpcCompanionServerStarterTest {
                 cleanup("monitoring.stop");
                 return null;
             }).when(monitoringServer).stop();
+            doAnswer(invocation -> {
+                cleanup("resources.shutdown");
+                return true;
+            }).when(resources).shutdown();
             doAnswer(invocation -> {
                 cleanup("grpc.shutdown_now");
                 return grpcServer;
@@ -234,7 +252,14 @@ class GrpcCompanionServerStarterTest {
         }
 
         @Override
-        public CompanionService createCompanionService(MetricsContextSnapshot ignored) {
+        public ResourceStore createResourceStore() {
+            startStep(StartStep.RESOURCES, "resources.create");
+            return resources;
+        }
+
+        @Override
+        public CompanionService createCompanionService(MetricsContextSnapshot ignored, ResourceStore resourceStore) {
+            assertSame(resources, resourceStore);
             startStep(StartStep.COMPANION_SERVICE, "companion.create");
             return companionService;
         }

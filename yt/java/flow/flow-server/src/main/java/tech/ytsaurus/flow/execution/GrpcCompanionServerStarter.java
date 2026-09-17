@@ -16,8 +16,11 @@ import tech.ytsaurus.flow.config.CompanionExecutionConfig;
 import tech.ytsaurus.flow.context.MetricsContext;
 import tech.ytsaurus.flow.context.MetricsContextSnapshot;
 import tech.ytsaurus.flow.context.PipelineContextSnapshot;
+import tech.ytsaurus.flow.internal.utils.FailureCollector;
 import tech.ytsaurus.flow.job.JobContext;
+import tech.ytsaurus.flow.service.CompanionRequestProcessor;
 import tech.ytsaurus.flow.service.CompanionService;
+import tech.ytsaurus.flow.service.ResourceStore;
 
 /**
  * Starts a complete companion server runtime and rolls back partial startup.
@@ -53,7 +56,9 @@ final class GrpcCompanionServerStarter implements CompanionServerRuntime.Starter
             monitoring.start();
 
             HealthStatusManager health = components.createHealthManager();
-            CompanionService companion = components.createCompanionService(metrics);
+            ResourceStore resources = components.createResourceStore();
+            rollbackActions.push(resources::shutdown);
+            CompanionService companion = components.createCompanionService(metrics, resources);
             Server grpc = components.buildGrpcServer(companion, health);
             // Keep the built server before binding so a partially successful start can be rolled back.
             rollbackActions.push(grpc::shutdownNow);
@@ -64,35 +69,19 @@ final class GrpcCompanionServerStarter implements CompanionServerRuntime.Starter
             health.setStatus("", HealthCheckResponse.ServingStatus.SERVING);
 
             log.info("Companion server started on ports {}/{}", grpc.getPort(), monitoring.getPort());
-            return new GrpcCompanionServerRuntime(monitoring, grpc, health, metrics);
+            return new GrpcCompanionServerRuntime(monitoring, grpc, resources, health, metrics);
         } catch (Throwable startFailure) {
-            rollback(startFailure, rollbackActions);
-            throw asIOExceptionOrThrowUnchecked(startFailure);
+            throw rollback(startFailure, rollbackActions);
         }
     }
 
-    private static void rollback(Throwable startFailure, Deque<Runnable> actions) {
-        VirtualMachineError fatalFailure = startFailure instanceof VirtualMachineError error ? error : null;
+    private static IOException rollback(Throwable startFailure, Deque<Runnable> actions) {
+        var failures = new FailureCollector();
+        failures.add(startFailure);
         while (!actions.isEmpty()) {
-            try {
-                actions.pop().run();
-            } catch (Throwable rollbackFailure) {
-                // A fatal JVM failure remains primary, but every registered action is still attempted.
-                if (rollbackFailure instanceof VirtualMachineError error) {
-                    if (fatalFailure == null) {
-                        fatalFailure = error;
-                        fatalFailure.addSuppressed(startFailure);
-                    } else if (rollbackFailure != fatalFailure) {
-                        fatalFailure.addSuppressed(rollbackFailure);
-                    }
-                } else if (rollbackFailure != startFailure) {
-                    startFailure.addSuppressed(rollbackFailure);
-                }
-            }
+            failures.tryRun(actions.pop());
         }
-        if (fatalFailure != null) {
-            throw fatalFailure;
-        }
+        return asIOExceptionOrThrowUnchecked(failures.asException());
     }
 
     private static IOException asIOExceptionOrThrowUnchecked(Throwable failure) {
@@ -118,7 +107,9 @@ final class GrpcCompanionServerStarter implements CompanionServerRuntime.Starter
 
         HealthStatusManager createHealthManager();
 
-        CompanionService createCompanionService(MetricsContextSnapshot metricsSnapshot);
+        ResourceStore createResourceStore();
+
+        CompanionService createCompanionService(MetricsContextSnapshot metricsSnapshot, ResourceStore resources);
 
         Server buildGrpcServer(CompanionService companionService, HealthStatusManager healthManager);
     }
@@ -160,8 +151,16 @@ final class GrpcCompanionServerStarter implements CompanionServerRuntime.Starter
         }
 
         @Override
-        public CompanionService createCompanionService(MetricsContextSnapshot metricsSnapshot) {
-            return new CompanionService(pipelineContext, jobContext, metricsSnapshot.getRegistry());
+        public ResourceStore createResourceStore() {
+            return new ResourceStore(pipelineContext.getResourceFactories());
+        }
+
+        @Override
+        public CompanionService createCompanionService(
+                MetricsContextSnapshot metricsSnapshot, ResourceStore resources
+        ) {
+            return new CompanionService(new CompanionRequestProcessor(pipelineContext, jobContext, resources),
+                    metricsSnapshot.getRegistry());
         }
 
         @Override
