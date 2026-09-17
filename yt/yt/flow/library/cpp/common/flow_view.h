@@ -823,6 +823,8 @@ struct TFlowEphemeralState
     THashMap<TPartitionId, TPartitionEphemeralStatePtr> Partitions;
     THashMap<TComputationId, THashMap<TStreamId, TStreamTraverseDataMetricsPtr>> StreamTraverseDataMetrics;
     THashMap<TWorkerGroupId, TSequenceId> MaxAppliedBalancerSequenceIds;
+    //! #TFlowLayout::Jobs grouped by worker incarnation, maintained by the layout mutation notifier.
+    //! Never trimmed by the registered workers: a worker that registers late still owns its jobs.
     THashMap<TIncarnationId, THashSet<TJobId>> WorkerIncarnationsJobs;
     TMessageTransferingInfoPtr MessageTransferingInfo;
     NYPath::TRichYPath PipelinePath;
