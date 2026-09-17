@@ -2,6 +2,7 @@ IF (NOT EXPORT_CMAKE)
 
 RECURSE(
     agent
+    library
     plugin
     providers
     tools

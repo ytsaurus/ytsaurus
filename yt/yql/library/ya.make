@@ -1,0 +1,3 @@
+RECURSE(
+    token_resolver
+)
