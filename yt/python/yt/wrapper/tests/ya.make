@@ -59,6 +59,7 @@ PEERDIR(
     contrib/python/allure-pytest
     contrib/python/flaky
     contrib/python/mock
+    contrib/python/pyarrow
     contrib/python/requests-mock
 
     # It is required to test job shell.
