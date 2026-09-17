@@ -8,7 +8,6 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-
 namespace NYT::NHydra {
 namespace {
 
@@ -17,7 +16,8 @@ using namespace NHydra::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleHydraManagerMockOverride
-    : public TSimpleHydraManagerMock {
+    : public TSimpleHydraManagerMock
+{
 public:
     TSimpleHydraManagerMockOverride(
         TCompositeAutomatonPtr automaton,
@@ -29,14 +29,14 @@ public:
             reign)
     { }
 
-    NLogging::ELogLevel GetUnknownAutomatonPartsLogLevel() const override {
+    NLogging::ELogLevel GetUnknownAutomatonPartsLogLevel() const override
+    {
         return NLogging::ELogLevel::Info;
     }
 };
 
 DECLARE_REFCOUNTED_CLASS(TSimpleHydraManagerMockOverride);
 DEFINE_REFCOUNTED_TYPE(TSimpleHydraManagerMockOverride);
-
 
 class TAutomatonPart
     : public TCompositeAutomatonPart
@@ -48,10 +48,10 @@ public:
         IInvokerPtr automatonInvoker,
         std::string saverName,
         std::string loaderName)
-    : TCompositeAutomatonPart(
-        hydraManager,
-        automaton,
-        automatonInvoker)
+        : TCompositeAutomatonPart(
+            std::move(hydraManager),
+            std::move(automaton),
+            std::move(automatonInvoker))
     {
         RegisterSaver(
             ESyncSerializationPriority::Values,
@@ -66,14 +66,16 @@ private:
     i64 FirstValue_ = 1234;
     i64 SecondValue_ = 5678;
 
-    void Load(TLoadContext& context) {
+    void Load(TLoadContext& context)
+    {
         FirstValue_ = NYT::Load<i64>(context);
         SecondValue_ = NYT::Load<i64>(context);
         YT_VERIFY(FirstValue_ == 1234);
         YT_VERIFY(SecondValue_ == 5678);
     }
 
-    void Save(TSaveContext& context) const {
+    void Save(TSaveContext& context) const
+    {
         NYT::Save<i64>(context, FirstValue_);
         NYT::Save<i64>(context, SecondValue_);
     }
@@ -81,7 +83,6 @@ private:
 
 DECLARE_REFCOUNTED_CLASS(TAutomatonPart);
 DEFINE_REFCOUNTED_TYPE(TAutomatonPart);
-
 
 class TAutomatonPartWithEmptyLoader
     : public TCompositeAutomatonPart
@@ -93,22 +94,23 @@ public:
         IInvokerPtr automatonInvoker,
         std::string saverName,
         std::string loaderName)
-    : TCompositeAutomatonPart(
-        hydraManager,
-        automaton,
-        automatonInvoker)
+        : TCompositeAutomatonPart(
+            std::move(hydraManager),
+            std::move(automaton),
+            std::move(automatonInvoker))
     {
         RegisterSaver(
             ESyncSerializationPriority::Values,
             saverName,
             BIND_NO_PROPAGATE(&TAutomatonPartWithEmptyLoader::Save, Unretained(this)));
         RegisterLoader(
-        loaderName,
-        BIND_NO_PROPAGATE([] (TLoadContext&) {}));
+            loaderName,
+            BIND_NO_PROPAGATE([] (TLoadContext&) { }));
     }
 
 private:
-    void Save(TSaveContext& context) const {
+    void Save(TSaveContext& context) const
+    {
         NYT::Save<i64>(context, 0x0246);
         NYT::Save<i64>(context, 0x1357);
     }
@@ -117,15 +119,13 @@ private:
 DECLARE_REFCOUNTED_CLASS(TAutomatonPartWithEmptyLoader);
 DEFINE_REFCOUNTED_TYPE(TAutomatonPartWithEmptyLoader);
 
-
 class TAutomaton
     : public TCompositeAutomaton
 {
 public:
     TAutomaton()
-    : TCompositeAutomaton(nullptr, TCellId())
+        : TCompositeAutomaton(nullptr, TCellId())
     { }
-
 
     std::unique_ptr<TSaveContext> CreateSaveContext(
         ICheckpointableOutputStream* output,
@@ -156,7 +156,6 @@ public:
 DECLARE_REFCOUNTED_CLASS(TAutomaton);
 DEFINE_REFCOUNTED_TYPE(TAutomaton);
 
-
 void RunSimpleSnapshotLoadTest(
     std::string saverName,
     std::string loaderName,
@@ -164,17 +163,17 @@ void RunSimpleSnapshotLoadTest(
     bool useEmptyLoader = false)
 {
     auto threadPool = NConcurrency::CreateThreadPool(1, "AutomatonThread");
-    auto automaton =  New<TAutomaton>();
+    auto automaton = New<TAutomaton>();
     TReign reign = 2;
 
-    TSimpleHydraManagerMockPtr hydra = nullptr;
+    TSimpleHydraManagerMockPtr hydra;
     if (!logUnknownPartsAtInfo) {
         hydra = New<TSimpleHydraManagerMock>(automaton, threadPool->GetInvoker(), reign);
     } else {
         hydra = New<TSimpleHydraManagerMockOverride>(automaton, threadPool->GetInvoker(), reign);
     }
 
-    TCompositeAutomatonPartPtr automatonPart = nullptr;
+    TCompositeAutomatonPartPtr automatonPart;
     if (!useEmptyLoader) {
         automatonPart = New<TAutomatonPart>(hydra, automaton, nullptr, saverName, loaderName);
     } else {
@@ -184,22 +183,22 @@ void RunSimpleSnapshotLoadTest(
     hydra->SaveLoad();
 }
 
-TEST(TestSnapshotLoad, ItWorks)
+TEST(TSnapshotLoadTest, ItWorks)
 {
     RunSimpleSnapshotLoadTest("Part", "Part");
 }
 
-TEST(TestSnapshotLoad, FailsOnUnknownParts)
+TEST(TSnapshotLoadTest, FailsOnUnknownParts)
 {
     EXPECT_DEATH(RunSimpleSnapshotLoadTest("Part", "Part_"), /*regex*/ "Started skipping unknown automaton part .*Name: Part");
 }
 
-TEST(TestSnapshotLoad, LogLevelConfigWorks)
+TEST(TSnapshotLoadTest, LogLevelConfigWorks)
 {
     RunSimpleSnapshotLoadTest("Part", "Part_", /*logUnknownPartsAtInfo*/ true);
 }
 
-TEST(TestSnapshotLoad, SkipIntentionally)
+TEST(TSnapshotLoadTest, SkipIntentionally)
 {
     // Use empty loader to skip a part on purpose.
     RunSimpleSnapshotLoadTest("Part", "Part", /*logUnknownPartsAtInfo*/ false, /*useEmptyLoader*/ true);
