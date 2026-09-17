@@ -37,9 +37,7 @@ For more details on how to use this in each language:
 
 ## Conversion statistics {#conversion-statistics}
 
-Flow estimates stream-to-stream conversion from the inputs and logical outputs of each completed processing call, without waiting for the epoch to commit. A later commit failure does not discard the observation; reprocessing contributes another observation. Inputs rejected by `skip_if_expression` contribute to the input count but produce no output. Source outputs with `distribute = false` do not contribute to the output count.
-
-For Swift sources, `ReadDelays` may postpone message publication without postponing this observation. Publishing an already processed batch does not count it again. Deterministic replay contributes its logical input and output together, even if output deduplication suppresses delivery; these statistics are not an exactly-once delivery counter.
+Flow estimates the output-to-input ratio for each stream pair, separately for message count and byte size. These statistics describe processed messages, not guaranteed deliveries.
 
 ## See also
 

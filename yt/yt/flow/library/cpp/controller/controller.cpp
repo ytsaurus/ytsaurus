@@ -5,7 +5,7 @@
 #include "config.h"
 #include "job_manager.h"
 #include "lease_manager.h"
-#include "lineage_rate_aggregator.h"
+#include "lineage_aggregator.h"
 #include "persisted_state_manager.h"
 #include "throttler_host.h"
 #include "worker.h"
@@ -534,7 +534,7 @@ public:
         flowState->CurrentTimestamp = WaitFor(TimeProvider_->GetTimestamp(/*barrier*/ true))
             .ValueOrThrow();
 
-        LineageRateAggregator_.Update(flowView);
+        LineageAggregator_.Update(flowView);
 
         if (!UpdateSpecs(flowView, spec, dynamicSpec)) {
             YT_TLOG_WARNING("No job manager, fast stop");
@@ -642,9 +642,9 @@ public:
         TIncarnationId workerIncarnationId,
         TWorkerStatisticsPtr statistics)
     {
-        LineageRateAggregator_.AddWorkerRates(
+        LineageAggregator_.AddWorkerRatios(
             workerIncarnationId,
-            std::move(statistics->LineageRates));
+            std::move(statistics->LineageRatios));
     }
 
     void UpdateMetrics(const TFlowViewPtr& flowView)
@@ -757,7 +757,7 @@ private:
     const IThrottlerHostPtr ThrottlerHost_;
     const ILeaseManagerPtr LeaseManager_;
     IJobManagerPtr JobManager_;
-    TLineageRateAggregator LineageRateAggregator_;
+    TLineageAggregator LineageAggregator_;
 
     TMutationMetrics MutationMetrics_;
     THashMap<TStreamId, TStreamMetrics> StreamMetrics_;

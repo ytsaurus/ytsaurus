@@ -4,7 +4,7 @@
 
 #include <yt/yt/flow/library/cpp/common/traverse.h>
 
-#include <yt/yt/flow/library/cpp/misc/counter.h>
+#include <yt/yt/flow/library/cpp/misc/decayed_sum.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
@@ -26,15 +26,15 @@ public:
         const TLineageDelta& delta,
         TInstant now);
 
-    TLineageRates GetRates(TInstant now);
+    TLineageRatios GetRatios(TInstant now);
 
 private:
     struct TCounterState
     {
-        TSimpleEmaCounter CountCounter{LineageRateDecayTime};
-        TSimpleEmaCounter ByteCounter{LineageRateDecayTime};
-        TSimpleEmaCounter InputCountCounter{LineageRateDecayTime};
-        TSimpleEmaCounter InputByteCounter{LineageRateDecayTime};
+        TDecayedSum CountCounter{LineageDecayTime};
+        TDecayedSum ByteCounter{LineageDecayTime};
+        TDecayedSum InputCountCounter{LineageDecayTime};
+        TDecayedSum InputByteCounter{LineageDecayTime};
         TInstant LastUpdateTime;
     };
 
@@ -47,7 +47,7 @@ private:
         const TComputationSpecPtr& computationSpec,
         const TLineageDelta& delta,
         TInstant now);
-    TLineageRates DoGetRates(TInstant now);
+    TLineageRatios DoGetRatios(TInstant now);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLineageTracker);

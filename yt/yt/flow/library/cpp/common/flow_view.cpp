@@ -557,7 +557,7 @@ void TWorkerResourceStatus::Register(TRegistrar registrar)
 
 void TWorkerStatistics::Register(TRegistrar registrar)
 {
-    registrar.Parameter("lineage_rates", &TThis::LineageRates)
+    registrar.Parameter("lineage_ratios", &TThis::LineageRatios)
         .Default();
 }
 
@@ -1365,7 +1365,7 @@ void TFlowEphemeralState::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("traverse_uncovered_computations", &TThis::TraverseUncoveredComputations)
         .Default();
-    registrar.Parameter("lineage_rates", &TThis::LineageRates)
+    registrar.Parameter("lineage_ratios", &TThis::LineageRatios)
         .Default();
     registrar.Parameter("resource_controller_views", &TThis::ResourceControllerViews)
         .Default();

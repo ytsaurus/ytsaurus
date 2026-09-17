@@ -6,12 +6,12 @@ namespace NYT::NFlow::NController {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLineageRateAggregator
+class TLineageAggregator
 {
 public:
-    void AddWorkerRates(
+    void AddWorkerRatios(
         TIncarnationId workerIncarnationId,
-        TLineageRates rates);
+        TLineageRatios ratios);
 
     void Update(
         const TFlowViewPtr& flowView,
@@ -20,12 +20,12 @@ public:
 private:
     struct TWorkerSnapshot
     {
-        TLineageRates Rates;
+        TLineageRatios Ratios;
         std::optional<TInstant> InactiveSince;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PendingWorkerRatesLock_);
-    THashMap<TIncarnationId, TLineageRates> PendingWorkerRates_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PendingWorkerRatiosLock_);
+    THashMap<TIncarnationId, TLineageRatios> PendingWorkerRatios_;
 
     THashMap<TIncarnationId, TWorkerSnapshot> WorkerSnapshots_;
     TInstant NextAggregationTime_;

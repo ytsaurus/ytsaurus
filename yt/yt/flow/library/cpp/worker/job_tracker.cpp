@@ -319,9 +319,9 @@ public:
         return ResourceManager_->GetPreloadedStates();
     }
 
-    TLineageRates GetLineageRates(TInstant now) override
+    TLineageRatios GetLineageRatios(TInstant now) override
     {
-        return LineageTracker_->GetRates(now);
+        return LineageTracker_->GetRatios(now);
     }
 
     void Reconfigure(

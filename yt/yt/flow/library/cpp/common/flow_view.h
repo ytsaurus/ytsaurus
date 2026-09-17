@@ -393,7 +393,7 @@ DEFINE_REFCOUNTED_TYPE(TWorkerResourceStatus);
 struct TWorkerStatistics
     : public NYTree::TYsonStruct
 {
-    TLineageRates LineageRates;
+    TLineageRatios LineageRatios;
 
     REGISTER_YSON_STRUCT(TWorkerStatistics);
 
@@ -830,7 +830,7 @@ struct TFlowEphemeralState
     NYPath::TRichYPath PipelinePath;
     THashSet<TComputationId> TraverseUncoveredComputations;
 
-    TLineageRates LineageRates;
+    TLineageRatios LineageRatios;
 
     THashMap<TResourceId, NYTree::IMapNodePtr> ResourceControllerViews;
 
