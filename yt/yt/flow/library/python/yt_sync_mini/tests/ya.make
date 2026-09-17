@@ -20,7 +20,8 @@ PEERDIR(
 
 # For the wheel test: setup.py and the sources it packages.
 DATA(
-    arcadia/yt/python/packages/ytsaurus-flow-yt-sync-mini
+    arcadia/yt/python/packages/ytsaurus-flow-yt-sync-mini/setup.py
+    arcadia/yt/yt/flow/library/pipeline_tables/definitions.yson
     arcadia/yt/yt/flow/library/python/pipeline_tables
     arcadia/yt/yt/flow/library/python/yt_sync_mini
 )

@@ -10,9 +10,21 @@ def get_version():
 
 
 def main():
+    from pathlib import Path
+
     from setuptools import setup
+    from setuptools.command.build_py import build_py
 
     version = get_version()
+    package = "yt.yt.flow.library.python.pipeline_tables"
+
+    class BuildPy(build_py):
+        def run(self):
+            super().run()
+            source = Path(__file__).resolve().parents[4] / "yt/yt/flow/library/pipeline_tables/definitions.yson"
+            destination = Path(self.build_lib).joinpath(*package.split("."), "definitions.yson")
+            self.mkpath(str(destination.parent))
+            self.copy_file(str(source), str(destination))
 
     # Both leaf packages are installed under their real Arcadia import path
     # `yt.yt.flow.library.python.{pipeline_tables,yt_sync_mini}`, so imports are
@@ -36,6 +48,7 @@ def main():
             "yt.yt.flow.library.python.pipeline_tables": "../../../../yt/yt/flow/library/python/pipeline_tables",
             "yt.yt.flow.library.python.yt_sync_mini": "../../../../yt/yt/flow/library/python/yt_sync_mini",
         },
+        cmdclass={"build_py": BuildPy},
         author="timoninmaxim",
         author_email="timoninmaxim@ytsaurus.tech",
         license="Apache 2.0",

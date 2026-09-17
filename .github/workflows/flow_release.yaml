@@ -316,6 +316,12 @@ jobs:
           python3 -m build --wheel --no-isolation --outdir dist yt/python/packages/ytsaurus-flow-yt-sync-mini
           ls -l dist
 
+      - name: Test yt_sync_mini wheel
+        run: |
+          python3 -m pip install dist/ytsaurus_flow_yt_sync_mini-*.whl
+          cd "$(mktemp -d)"
+          python3 -c "from yt.yt.flow.library.python import pipeline_tables, yt_sync_mini"
+
       - name: Publish package distributions to TestPyPI
         if: ${{ needs.tag.outputs.release-type == 'test' }}
         uses: pypa/gh-action-pypi-publish@release/v1

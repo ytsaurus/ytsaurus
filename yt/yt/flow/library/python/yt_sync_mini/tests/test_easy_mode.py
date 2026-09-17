@@ -17,6 +17,7 @@ from yt.yt.flow.library.python.pipeline_tables.schemas import (
     PIPELINE_QUEUES,
     PIPELINE_TABLES,
 )
+from yt.yt.flow.library.python.pipeline_tables.definitions import _get_pipeline_table_definitions
 from yt.yt.flow.library.python.yt_sync_mini import (
     QUEUE_META_COLUMNS,
     StagesSpec,
@@ -321,11 +322,21 @@ class TestEnsureOnLocalYt:
     def test_pipeline_created(self, yt_client):
         path = f"{self.FOLDER}/pipeline"
         assert yt_client.get(f"{path}/@pipeline_format_version") == 1
+        table_definitions, queue_definitions = _get_pipeline_table_definitions()
+        definitions = {**table_definitions, **queue_definitions}
         for name in list(PIPELINE_TABLES) + list(PIPELINE_QUEUES):
             assert yt_client.get(f"{path}/{name}/@tablet_state") == "mounted", name
             # Erasure needs six data nodes per chunk write; the bootstrap
             # helper must never enable it on small clusters.
             assert yt_client.get(f"{path}/{name}/@erasure_codec") == "none", name
+
+        states_schema = yt_client.get(f"{path}/states/@schema")
+        assert states_schema.attributes == definitions["states"]["schema"].attributes
+        input_mount_config = yt_client.get(f"{path}/input_messages/@mount_config")
+        assert (
+            input_mount_config["row_merger_type"]
+            == definitions["input_messages"]["attributes"]["mount_config"]["row_merger_type"]
+        )
 
     def test_rerun_is_idempotent(self, yt_client):
         exit_code = run_yt_sync_easy_mode(

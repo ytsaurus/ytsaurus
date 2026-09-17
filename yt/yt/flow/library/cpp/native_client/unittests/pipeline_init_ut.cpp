@@ -1,4 +1,5 @@
 #include <yt/yt/flow/library/cpp/native_client/pipeline_init.h>
+#include <yt/yt/flow/library/cpp/pipeline_tables/public.h>
 
 #include <yt/yt/client/unittests/mock/client.h>
 #include <yt/yt/client/unittests/mock/transaction.h>
@@ -8,6 +9,7 @@
 #include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/ypath_client.h>
 
 #include <yt/yt/server/lib/chaos_election/election_manager.h>
 
@@ -89,9 +91,7 @@ TEST(TPipelineInitTest, IgnoreExistingPropagatesToInnerTables)
     EXPECT_TRUE(sawInnerTable);
 }
 
-// The leader election lock table is created here, but its layout belongs to the chaos election
-// manager; the two definitions are apart because that library is server-side.
-TEST(TPipelineInitTest, LeaderElectionLockTableMatchesTheElectionManagerSchema)
+TEST(TPipelineInitTest, UsesCanonicalSchemas)
 {
     auto client = New<NiceMock<TMockClient>>();
     auto transaction = New<NiceMock<TMockTransaction>>();
@@ -118,11 +118,32 @@ TEST(TPipelineInitTest, LeaderElectionLockTableMatchesTheElectionManagerSchema)
 
     CreatePipelineNode(client, "//tmp/pipeline", {});
 
-    auto lockTableOptions = createNodeCalls.find(Format("//tmp/pipeline/%v", LeaderElectionLockTableName));
-    ASSERT_NE(lockTableOptions, createNodeCalls.end());
+    const auto& definitions = GetPipelineTableDefinitions();
+    auto checkDefinitions = [&] (const auto& section) {
+        for (const auto& [name, definition] : section) {
+            auto options = createNodeCalls.find(Format("//tmp/pipeline/%v", name));
+            ASSERT_NE(options, createNodeCalls.end());
+            auto actualAttributes = options->second.Attributes->Clone();
+            auto actualSchemaYson = actualAttributes->GetYsonAndRemove("schema");
+            EXPECT_EQ(
+                *ConvertTo<TTableSchemaPtr>(actualSchemaYson),
+                *definition.Schema);
+            EXPECT_TRUE(AreNodesEqual(
+                ConvertTo<INodePtr>(actualSchemaYson),
+                ConvertTo<INodePtr>(definition.SchemaYson)));
+            EXPECT_TRUE(AreNodesEqual(
+                actualAttributes->ToMap(),
+                definition.Attributes->ToMap()));
+        }
+    };
+    checkDefinitions(definitions.Tables);
+    checkDefinitions(definitions.Queues);
 
-    auto schema = lockTableOptions->second.Attributes->Get<TTableSchemaPtr>("schema");
-    EXPECT_EQ(*schema, *NChaosElection::GetChaosElectionLockTableSchema());
+    const auto& definition = definitions.Tables.at("leader_election_lock");
+    auto electionSchema = NChaosElection::GetChaosElectionLockTableSchema();
+    EXPECT_EQ(
+        *definition.Schema->ToSortedStrippedColumnAttributes(),
+        *electionSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,10 +193,8 @@ TEST(TPipelineInitTest, InitializeTablesIsControlAttribute)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// The dyntable lease backend cannot run without the "leases" table, and a pipeline created by the
-// native client is provisioned by #GetTables alone: yt_sync is not involved there. The Python
-// catalogue drift test cannot cover this — it creates a pipeline through the master, which does
-// not create that table at all — so dropping the registration would otherwise go unnoticed.
+// The dyntable lease backend cannot run without the "leases" table. Keep direct coverage of the
+// native path that provisions it from #GetPipelineTableDefinitions(), without yt_sync.
 TEST(TPipelineInitTest, CreatesTheLeasesTable)
 {
     auto client = New<NiceMock<TMockClient>>();

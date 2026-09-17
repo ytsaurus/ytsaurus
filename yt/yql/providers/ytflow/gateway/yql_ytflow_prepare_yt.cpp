@@ -1,3 +1,4 @@
+#include "yql_ytflow_prepare_yt.h"
 #include "yql_ytflow_prepare.h"
 #include "yql_ytflow_prepare_common.h"
 #include "yql_ytflow_schema.h"
@@ -16,6 +17,7 @@
 #include <yt/yql/providers/ytflow/integration/interface/yql_ytflow_integration.h>
 #include <yt/yql/providers/ytflow/integration/proto/yt.pb.h>
 #include <yt/yql/providers/ytflow/provider/yql_ytflow_utils.h>
+#include <yt/yt/flow/library/cpp/pipeline_tables/public.h>
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/tablet_client/public.h>
 #include <yt/yt/core/actions/bind.h>
@@ -539,6 +541,32 @@ private:
     TVector<NYT::NTableClient::TTableSchemaPtr> QYTSinkSchemas;
 };
 
+TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>> BuildYqlPipelineTableAttributes(
+    bool createWorkerLogsTable)
+{
+    TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>> result;
+
+    auto appendDefinitions = [&] (const auto& definitions) {
+        for (const auto& [name, definition] : definitions) {
+            result.emplace_back(
+                TString(name),
+                NYT::NFlow::BuildPipelineTableAttributes(definition));
+        }
+    };
+
+    const auto& definitions = NYT::NFlow::GetPipelineTableDefinitions();
+    appendDefinitions(definitions.Tables);
+    appendDefinitions(definitions.Queues);
+    if (createWorkerLogsTable) {
+        result.emplace_back(
+            TString(WORKER_LOGS_TABLE),
+            NYT::NFlow::BuildPipelineTableAttributes(
+                definitions.Queues.at(std::string(CONTROLLER_LOGS_TABLE))));
+    }
+
+    return result;
+}
+
 class TPipelineNodeAction
     : public IAction
     , public TYtMixin
@@ -648,412 +676,7 @@ public:
     TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>>
     GetTableAttributesList(bool createWorkerLogsTable)
     {
-        auto logsTableAttributes = BuildTableAttributes(
-            {
-                TField{
-                    .Name = "host",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "data",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "codec",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "$timestamp",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "$cumulative_data_weight",
-                    .Type = "int64"
-                }
-            },
-            NYT::NYTree::BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("mount_config")
-                        .BeginMap()
-                            .Item("min_data_versions").Value(0)
-                            .Item("min_data_ttl").Value(0)
-                            .Item("max_data_ttl").Value(86400000)
-                        .EndMap()
-                    .Item("tablet_count").Value(1)
-                .EndMap()
-        );
-
-        TVector<std::pair<TString, NYT::NYTree::IAttributeDictionaryPtr>> tableAttributesList = {
-            {"input_messages", BuildTableAttributes(
-                {
-                    TField{
-                        .Name = "computation_id",
-                        .Type = "string",
-                        .IsKeyField = true
-                    },
-                    TField{
-                        .Name = "key",
-                        .Type = "any",
-                        .IsKeyField = true
-                    },
-                    TField{
-                        .Name = "message_id",
-                        .Type = "string",
-                        .IsKeyField = true
-                    },
-                    TField{
-                        .Name = "system_timestamp",
-                        .Type = "uint64"
-                    }
-                },
-                NYT::NYTree::BuildYsonNodeFluently()
-                    .BeginMap()
-                        .Item("mount_config")
-                            .BeginMap()
-                                .Item("min_data_versions").Value(0)
-                                .Item("min_data_ttl").Value(0)
-                                .Item("row_merger_type").Value("watermark")
-                            .EndMap()
-                    .EndMap()
-            )},
-            {"compact_input_messages", BuildTableAttributes(
-                {
-                    TField{
-                        .Name = "deduplication_message_key",
-                        .Type = "string",
-                        .IsKeyField = true
-                    },
-                    TField{
-                        .Name = "system_timestamp",
-                        .Type = "uint64"
-                    }
-                },
-                NYT::NYTree::BuildYsonNodeFluently()
-                    .BeginMap()
-                        .Item("mount_config")
-                            .BeginMap()
-                                .Item("min_data_versions").Value(0)
-                                .Item("min_data_ttl").Value(0)
-                                .Item("row_merger_type").Value("watermark")
-                            .EndMap()
-                    .EndMap()
-            )},
-            {"compact_output_messages", BuildTableAttributes({
-                TField{
-                    .Name = "computation_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "any",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "stream_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "chunk_id",
-                    .Type = "int64",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "data",
-                    .Type = "string",
-                    .MaxInlineHunkSize = 128
-                },
-                TField{
-                    .Name = "data_codec",
-                    .Type = "int64"
-                },
-                TField{
-                    .Name = "processed_mask",
-                    .Type = "string"
-                }
-            })},
-            {"compact_partition_output_messages", BuildTableAttributes({
-                TField{
-                    .Name = "hash",
-                    .Type = "uint64",
-                    .Expression = "farm_hash(partition_id)",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "partition_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "stream_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "chunk_id",
-                    .Type = "int64",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "data",
-                    .Type = "string",
-                    .MaxInlineHunkSize = 128
-                },
-                TField{
-                    .Name = "data_codec",
-                    .Type = "int64"
-                },
-                TField{
-                    .Name = "processed_mask",
-                    .Type = "string"
-                }
-            })},
-            {"states", BuildTableAttributes({
-                TField{
-                    .Name = "computation_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "any",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "name",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "state",
-                    .Type = "any"
-                },
-                TField{
-                    .Name = "compressed",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "compressed_patch",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "format",
-                    .Type = "any"
-                }
-            })},
-            {"partition_states", BuildTableAttributes({
-                 TField{
-                    .Name = "hash",
-                    .Type = "uint64",
-                    .Expression = "farm_hash(partition_id)",
-                    .IsKeyField = true
-                 },
-                TField{
-                    .Name = "partition_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "name",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "state",
-                    .Type = "any"
-                },
-                TField{
-                    .Name = "compressed",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "compressed_patch",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "format",
-                    .Type = "any"
-                }
-            })},
-            {"key_visitor_states", BuildTableAttributes({
-                TField{
-                    .Name = "computation_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "stream_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "any",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "is_lower",
-                    .Type = "boolean",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "state",
-                    .Type = "any"
-                }
-            })},
-            {"timers", BuildTableAttributes({
-                TField{
-                    .Name = "computation_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "any",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "message_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "stream_id",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "system_timestamp",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "event_timestamp",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "trigger_timestamp",
-                    .Type = "uint64"
-                }
-            })},
-            {TString(CONTROLLER_LOGS_TABLE), logsTableAttributes},
-            {"flow_state", BuildTableAttributes({
-                TField{
-                    .Name = "sequence_id",
-                    .Type = "int64",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "flags",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "state_name",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "key_left",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "key_right",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "value",
-                    .Type = "any"
-                }
-            })},
-            {"flow_state_obsolete", BuildTableAttributes({
-                TField{
-                    .Name = "key",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "value",
-                    .Type = "any"
-                }
-            })},
-            {"flow_control", BuildTableAttributes({
-                TField{
-                    .Name = "key",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "value",
-                    .Type = "any"
-                }
-            })},
-            {"partition_transactions", BuildTableAttributes({
-                TField{
-                    .Name = "hash",
-                    .Type = "uint64",
-                    .Expression = "farm_hash(partition_id)",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "partition_id",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "last_transaction_start_timestamp",
-                    .Type = "uint64"
-                }
-            })},
-            {"leases", BuildTableAttributes({
-                TField{
-                    .Name = "hash",
-                    .Type = "uint64",
-                    .Expression = "farm_hash(key)",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "key",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "subkey",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "value",
-                    .Type = "any"
-                }
-            })},
-            {"leader_election_lock", BuildTableAttributes({
-                TField{
-                    .Name = "lock_key",
-                    .Type = "string",
-                    .IsKeyField = true
-                },
-                TField{
-                    .Name = "leader_lease_id",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "leader_name",
-                    .Type = "string"
-                },
-                TField{
-                    .Name = "lease_timeout",
-                    .Type = "uint64"
-                },
-                TField{
-                    .Name = "last_ping_time",
-                    .Type = "uint64"
-                }
-            })}
-        };
-
-        if (createWorkerLogsTable) {
-            tableAttributesList.push_back({TString(WORKER_LOGS_TABLE), logsTableAttributes});
-        }
-
-        return tableAttributesList;
+        return BuildYqlPipelineTableAttributes(createWorkerLogsTable);
     }
 };
 

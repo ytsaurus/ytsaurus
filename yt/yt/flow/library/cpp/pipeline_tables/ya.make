@@ -1,12 +1,9 @@
-PY3_LIBRARY()
+LIBRARY()
 
-STYLE_PYTHON()
+INCLUDE(${ARCADIA_ROOT}/yt/yt/flow/flow.make.inc)
 
-PY_SRCS(
-    __init__.py
-    definitions.py
-    schemas.py
-    presets.py
+SRCS(
+    definitions.cpp
 )
 
 RESOURCE_FILES(
@@ -16,12 +13,13 @@ RESOURCE_FILES(
 )
 
 PEERDIR(
-    library/python/resource
-    yt/python/yt/yson
+    library/cpp/resource
+    yt/yt/client
+    yt/yt/core
 )
 
 END()
 
 RECURSE_FOR_TESTS(
-    tests
+    unittests
 )

@@ -8,6 +8,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/flow/library/cpp/client
+    yt/yt/flow/library/cpp/pipeline_tables
     yt/yt/client
 )
 
