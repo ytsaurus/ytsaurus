@@ -29,22 +29,21 @@ std::vector<bool> ComputeUseMinMaxBounds(const TTableSchema& schema)
     std::vector<bool> result;
     result.reserve(schema.GetColumnCount());
     for (const auto& columnSchema : schema.Columns()) {
-        const auto& columnType = columnSchema.LogicalType();
-        auto valueType = columnType;
-        if (valueType->GetMetatype() == ELogicalMetatype::Tagged &&
-            valueType->AsTaggedTypeRef().GetTag() == LowCardinalityTag)
-        {
-            valueType = DetagLogicalType(valueType);
+        auto valueType = columnSchema.LogicalType();
+        while (true) {
+            const auto metatype = valueType->GetMetatype();
+            if (metatype == ELogicalMetatype::Optional) {
+                valueType = valueType->AsOptionalTypeRef().GetElement();
+            } else if (metatype == ELogicalMetatype::Tagged) {
+                valueType = valueType->AsTaggedTypeRef().GetElement();
+            } else {
+                break;
+            }
         }
-        while (valueType->GetMetatype() == ELogicalMetatype::Optional) {
-            valueType = valueType->GetElement();
-        }
-
         // YSON serialization does not preserve value ordering.
-        result.push_back(!IsV3Composite(columnType) &&
+        result.push_back(!IsV3Composite(valueType) &&
             *valueType != *SimpleLogicalType(ESimpleLogicalValueType::Any) &&
-            valueType->GetMetatype() != ELogicalMetatype::AggregateState &&
-            valueType->GetMetatype() != ELogicalMetatype::Tagged);
+            valueType->GetMetatype() != ELogicalMetatype::AggregateState);
     }
 
     return result;

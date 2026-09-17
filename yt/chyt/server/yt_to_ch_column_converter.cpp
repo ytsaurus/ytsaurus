@@ -5,6 +5,8 @@
 #include "custom_data_types.h"
 #include "helpers.h"
 
+#include <yt/yt/client/complex_types/check_type_compatibility.h>
+
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 
@@ -1541,50 +1543,24 @@ private:
 
     IConverterPtr CreateOptionalConverter(const TComplexTypeFieldDescriptor& descriptor, bool isOutermost)
     {
-        std::optional<TComplexTypeFieldDescriptor> innerDescriptor;
+        auto [innerDescriptor, nestingLevel] = NComplexTypes::UnwrapOptionalAndTagged(descriptor);
+        const auto& innerType = innerDescriptor.GetType();
 
-        // Number of outermost optional's + possibly one if the innermost type is null or void. E.g.:
-        // optional<int> -> 1
-        // optional<optional<int>> -> 2
-        // null -> 1
-        // optional<void> -> 2.
-        int nestingLevel = 0;
-
+        IConverterPtr underlyingConverter;
+        if (innerType->GetMetatype() == ELogicalMetatype::Simple &&
+            (innerType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Null ||
+             innerType->AsSimpleTypeRef().GetElement() == ESimpleLogicalValueType::Void))
         {
-            // Descend to first non-optional enclosed type.
-            auto currentDescriptor = descriptor;
-
-            while (true) {
-                if (!currentDescriptor.GetType()->IsNullable()) {
-                    innerDescriptor = std::move(currentDescriptor);
-                    break;
-                }
-
-                ++nestingLevel;
-                auto metatype = currentDescriptor.GetType()->GetMetatype();
-                if (metatype == ELogicalMetatype::Optional) {
-                    currentDescriptor = currentDescriptor.OptionalElement();
-                } else if (metatype == ELogicalMetatype::Simple) {
-                    // Null or Void. They can be seen as optional<nothing> where nothing is a non-existent type
-                    // (ClickHouse has such type while type_v3 does not).
-                    break;
-                } else {
-                    THROW_ERROR_EXCEPTION("Unknown nullable metatype %Qv", metatype);
-                }
-            }
+            // Null and Void are represented as optional<nothing>.
+            ++nestingLevel;
+            underlyingConverter = CreateNothingConverter();
+        } else {
+            underlyingConverter = CreateConverter(innerDescriptor);
         }
 
         YT_VERIFY(nestingLevel > 0);
 
         bool isV1Optional = isOutermost && nestingLevel == 1 && !IsV3Composite(descriptor.GetType());
-
-        IConverterPtr underlyingConverter;
-
-        if (innerDescriptor) {
-            underlyingConverter = CreateConverter(*innerDescriptor);
-        } else {
-            underlyingConverter = CreateNothingConverter();
-        }
 
         if (!underlyingConverter->GetDataType()->canBeInsideNullable() || nestingLevel >= 2) {
             ValidateReadOnly(descriptor);
@@ -1705,12 +1681,13 @@ private:
             return CreateStructConverter(descriptor);
         } else if (type->GetMetatype() == ELogicalMetatype::Decimal) {
             return CreateDecimalConverter(descriptor);
-        } else if (type->GetMetatype() == ELogicalMetatype::Tagged && type->AsTaggedTypeRef().GetTag() == LowCardinalityTag) {
-            auto innerDescriptor = descriptor.Detag();
-            if (auto converter = CreateLowCardinalityConverter(innerDescriptor)) {
-                return converter;
+        } else if (type->GetMetatype() == ELogicalMetatype::Tagged) {
+            if (type->AsTaggedTypeRef().GetTag() == LowCardinalityTag) {
+                if (auto converter = CreateLowCardinalityConverter(descriptor.Detag())) {
+                    return converter;
+                }
             }
-            return CreateConverter(innerDescriptor, isOutermost);
+            return CreateConverter(descriptor.TaggedElement(), isOutermost);
         } else {
             ValidateReadOnly(descriptor);
             // Perform fallback to raw yson.
