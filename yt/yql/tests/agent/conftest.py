@@ -147,6 +147,7 @@ def build_yql_agent_config(cls):
     config["subprocess_count"] = getattr(cls, "YQL_SUBPROCESS_COUNT", None)
     config["dynamic_config_update_period"] = getattr(cls, "DYNAMIC_CONFIG_UPDATE_PERIOD", "1s")
     config["initial_dynamic_config"] = getattr(cls, "YQL_AGENT_INITIAL_DYNAMIC_CONFIG", None)
+    config["use_token_resolver"] = getattr(cls, "YQL_USE_TOKEN_RESOLVER", False)
 
     if getattr(cls, "YQL_QTWORKER", False):
         if config.get("subprocess_count"):

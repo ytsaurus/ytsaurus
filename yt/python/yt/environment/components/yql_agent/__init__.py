@@ -158,6 +158,17 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             worker_text = template_file.read()
         qtworker_log_file = os.path.join(self.env.logs_path, "qtworker_{}.log".format(instance["index"]))
 
+        yt_token_resolver_config = ""
+        if self.config.get("use_token_resolver", False):
+            yt_token_resolver_config = "\n".join([
+                "YtTokenResolver {",
+                "        YqlAgent {",
+                "            UnixSocketPath: \"{}\"".format(
+                    self._get_token_service_socket_path(instance["index"])),
+                "        }",
+                "    }",
+            ])
+
         for key, value in [
             ("${instance_root}", instance_root),
             ("${udfs_dir}", udfs_dir),
@@ -169,6 +180,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             ("${inspector_port}", str(instance["inspector_port"])),
             ("${core_port}", str(core_port)),
             ("${core_task_port}", str(core_task_port)),
+            ("${yt_token_resolver_config}", yt_token_resolver_config),
         ]:
             worker_text = worker_text.replace(key, value)
 
@@ -325,6 +337,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             return self._get_artifact_path("libyqlplugin.so")
         return self.config.get("yql_plugin_shared_library") or ""
 
+    def _get_token_service_socket_path(self, instance_index):
+        return os.path.join(
+            self.env.path,
+            "yql_agent_token_service_{}".format(instance_index),
+            "socket")
+
     def override_common_settings(self, config, instance_index: int):
         # TODO(mpereskokova): YQLOVERYT-333: Remove after rpc timeout set in dq
         if self.enable_dq:
@@ -388,6 +406,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "libraries": self.libraries,
             },
         }
+
+        if self.config.get("use_token_resolver", False):
+            config["yql_agent"]["use_token_resolver"] = True
+            config["yql_agent"]["token_service"] = {
+                "unix_socket_path": self._get_token_service_socket_path(instance_index),
+            }
 
         if self.dynamic_config_update_period is not None:
             config["dynamic_config_manager"] = {
