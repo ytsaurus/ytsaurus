@@ -1569,6 +1569,11 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob, TChunkId chunkId)
     }
 }
 
+bool TTask::IsJobOutputNeeded(const TCompletedJobPtr& /*completedJob*/) const
+{
+    return true;
+}
+
 void TTask::OnStripeRegistrationFailed(
     TError error,
     IChunkPoolInput::TCookie /*cookie*/,
