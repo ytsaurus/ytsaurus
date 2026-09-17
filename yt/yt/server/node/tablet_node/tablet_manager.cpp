@@ -4809,7 +4809,9 @@ private:
             return;
         }
 
-        if (tablet->GetHunkLockManager()->GetTotalLockedHunkStoreCount() > 0) {
+        const auto& hunkLockManager = tablet->GetHunkLockManager();
+        if (hunkLockManager->GetTotalLockedHunkStoreCount() > 0) {
+            hunkLockManager->ScheduleUnlockStaleHunkStores();
             return;
         }
 
