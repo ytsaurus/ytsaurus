@@ -95,6 +95,7 @@ And the task fields (`controller`/`worker`):
 || **Parameter** | **Description** ||
 || `layers` | Cypress paths of the porto layers mounted into the task’s root filesystem. A non-empty list on at least one task enables porto jobs for the whole operation ||
 || `system_layer_path` | The task’s base OS layer; overrides the default system layer ||
+|| `set_container_cpu_limit` | Request a container CPU ceiling equal to `cpu_limit` on execution backends that support it. Defaults to `%false`; when disabled, the runner leaves the operation field unset. ||
 || `port_count` | How many ports the task requests from {{product-name}} instead of using the fixed ones. Needed on a host with a shared network ||
 |#
 

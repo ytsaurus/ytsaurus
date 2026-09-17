@@ -235,6 +235,29 @@ TEST(TVanillaSpecTest, CarriesCpuLimitToJobEnvironment)
     EXPECT_EQ(ConvertTo<double>(worker->GetChildOrThrow("cpu_limit")), 10);
 }
 
+TEST(TVanillaSpecTest, RequestsCpuLimitOnlyForSelectedTasks)
+{
+    TVanillaSpec spec;
+    spec.Tasks = {
+        TVanillaTaskSpec{
+            .Name = "controller",
+            .CpuLimit = 1,
+        },
+        TVanillaTaskSpec{
+            .Name = "worker",
+            .CpuLimit = 2,
+            .SetContainerCpuLimit = true,
+        },
+    };
+    auto tasks = BuildVanillaOperationSpec(spec)->GetChildOrThrow("tasks")->AsMap();
+    auto controller = tasks->GetChildOrThrow("controller")->AsMap();
+    auto worker = tasks->GetChildOrThrow("worker")->AsMap();
+
+    EXPECT_FALSE(controller->FindChild("set_container_cpu_limit"));
+    EXPECT_TRUE(ConvertTo<bool>(worker->GetChildOrThrow("set_container_cpu_limit")));
+    EXPECT_EQ(ConvertTo<double>(worker->GetChildOrThrow("cpu_limit")), 2);
+}
+
 TEST(TVanillaSpecTest, CarriesMaxStderrCount)
 {
     auto spec = BuildVanillaOperationSpec(TVanillaSpec{.MaxStderrCount = 7});

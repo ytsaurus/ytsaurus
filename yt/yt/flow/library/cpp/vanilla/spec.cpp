@@ -52,6 +52,9 @@ IMapNodePtr BuildVanillaOperationSpec(const TVanillaSpec& spec)
                     .Item("command").Value(task.Command)
                     .Item("memory_limit").Value(task.MemoryLimit)
                     .Item("cpu_limit").Value(task.CpuLimit)
+                    .DoIf(task.SetContainerCpuLimit, [&] (auto fluent) {
+                        fluent.Item("set_container_cpu_limit").Value(true);
+                    })
                     .DoIf(task.PortCount > 0, [&] (auto fluent) {
                         fluent.Item("port_count").Value(task.PortCount);
                     })

@@ -263,6 +263,7 @@ TVanillaTaskSpec BuildTaskSpec(
     taskSpec.JobCount = task.JobCount;
     taskSpec.MemoryLimit = task.MemoryLimit;
     taskSpec.CpuLimit = task.CpuLimit;
+    taskSpec.SetContainerCpuLimit = task.SetContainerCpuLimit;
     taskSpec.PortCount = task.PortCount;
     taskSpec.Command = localBinaryPath
         ? Format("%v --config %v", *localBinaryPath, NodeConfigFileName)
@@ -309,6 +310,8 @@ void TVanillaTaskConfig::Register(TRegistrar registrar)
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .GreaterThan(0)
         .Default();
+    registrar.Parameter("set_container_cpu_limit", &TThis::SetContainerCpuLimit)
+        .Default(false);
     registrar.Parameter("port_count", &TThis::PortCount)
         .GreaterThanOrEqual(0)
         .Default();
@@ -515,6 +518,7 @@ TVanillaOperationHandle LaunchInVanillaJob(
         task.JobCount = config->Count;
         task.MemoryLimit = config->MemoryLimit.value_or(NYTree::TSize(DefaultMemoryLimit));
         task.CpuLimit = config->CpuLimit.value_or(DefaultCpuLimit);
+        task.SetContainerCpuLimit = config->SetContainerCpuLimit;
         task.PortCount = config->PortCount.value_or(0);
         task.LocalFiles = config->LocalFiles;
         task.CypressFiles = config->CypressFiles;
