@@ -6,6 +6,7 @@ SRCS(
     backtrace_ypath_service.cpp
     compact_unversioned_owning_row.cpp
     counter.cpp
+    decayed_sum.cpp
     debug_build_warning.cpp
     deploy_url_provider.cpp
     identifier.cpp
